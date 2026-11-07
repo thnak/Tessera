@@ -8,7 +8,7 @@ JSX/React syntax as the design DSL, compiled to native C++,
 zero-emulator design-time preview, and deterministic headless
 rendering for AI-agent visual regression.
 
-Status: **pre-alpha / scaffolding**.
+Status: **pre-alpha / Big Step B1 complete** (RHI, Vulkan batched 2D, scene graph).
 
 ## Documents
 
@@ -20,6 +20,9 @@ Status: **pre-alpha / scaffolding**.
 - [`tessera.json` schema v1](docs/specs/project-config-v1.md)
 - [Code style & build cache](docs/guides/code-style.md)
 - [Dependency map](docs/specs/dependencies.md)
+- [Renderer / RHI design](docs/design/renderer.md)
+- [Scene graph & events](docs/design/scene-graph.md)
+- [Batched2D reference image](docs/images/batched2d.png)
 - Design / specs / RFCs / guides: [`docs/`](docs/)
 
 ## Repository layout
@@ -33,10 +36,10 @@ Tessera/
 │   ├── core/             object, memory, threading, event, resource
 │   ├── hal/              window, display, input, graphics, audio,
 │   │                     filesystem, power, timer, lifecycle
-│   ├── ui/               view, layout, style, animation, responsive,
+│   ├── ui/               view, scene, layout, style, animation, responsive,
 │   │                     text, accessibility
-│   ├── rendering/        rhi, scenegraph, scheduler, resources, gpu,
-│   │                     backend/{vulkan,webgpu,null}, software
+│   ├── rendering/        rhi, gpu, scenegraph, scheduler, resources, null,
+│   │                     backend/{vulkan,webgpu}, software
 │   ├── services/         i18n, navigation, notification, storage, networking
 │   ├── diagnostics/      logging, profiling, crash
 │   ├── compiler/         analyzer, rules, ir, codegen, merger
@@ -57,31 +60,37 @@ Tessera/
 Requirements: CMake >= 3.24, a C++20 compiler, and the Vulkan SDK
 (`VULKAN_SDK` set; `glslc` in the SDK `Bin/` or on `PATH`).
 
-Windows (MSVC 2022):
+Windows (MSVC 2022/2026):
 
 ```powershell
-# Visual Studio 2026:
-cmake -S . -B build -G "Visual Studio 18 2026" -A x64
-# Visual Studio 2022: -G "Visual Studio 17 2022"
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
-.\build\tools\poc\vulkan_offscreen\Release\vulkan_offscreen_poc.exe --out offscreen.png
+cmake --preset vs2026
+cmake --build --preset vs2026-release
+ctest --preset vs2026-release
+.\build\vs2026\tools\poc\vulkan_offscreen\Release\vulkan_offscreen_poc.exe --out offscreen.png
+.\build\vs2026\tools\poc\batched2d\Release\batched2d_poc.exe --backend vulkan --out batched2d.png
 ```
+
+Manual fallback: `cmake -S . -B build -G "Visual Studio 18 2026" -A x64` (or
+`"Visual Studio 17 2022"`), then build/ctest as before.
 
 Linux (headless, Mesa lavapipe):
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --preset dev
+cmake --build --preset dev
+ctest --preset dev
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
-  ./build/tools/poc/vulkan_offscreen/vulkan_offscreen_poc --out offscreen.png
+  ./build/dev/tools/poc/vulkan_offscreen/vulkan_offscreen_poc --out offscreen.png
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+  ./build/dev/tools/poc/batched2d/batched2d_poc --backend vulkan --out batched2d.png
 ```
 
-Phase 0 tools:
+Tools and demos:
 
 - `vulkan_offscreen_poc` — Vulkan 1.3 dynamic rendering into an offscreen image, read back to
   host memory, written as a PNG (no window, no swapchain).
+- `batched2d_poc` — RHI + batched 2D: solid/SDF/textured quads, clip and transform stacks,
+  PNG + raw RGBA output. `--backend null` runs without a GPU.
 - `merger_poc` — injects developer protected regions into freshly generated C++.
 
 ## Tooling
@@ -94,10 +103,22 @@ Phase 0 tools:
 - Linux: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`
 - Windows: `cmake --preset vs2026 && cmake --build --preset vs2026-release`
 
+## Renderer status (Big Step B1)
+
+![Batched 2D reference](docs/images/batched2d.png)
+
+- Thin RHI + null backend + Vulkan 1.3 backend using **volk** and **VMA**.
+- Batched 2D: solid quads, SDF rounded rects, textured quads, scissor clip stack, affine
+  transform stack.
+- Scene graph with hit testing and W3C-style capture/target/bubble events.
+- Offscreen demo writes a deterministic PNG and raw RGBA; CI runs a Vulkan smoke test.
+- B2 next: Yoga Flexbox, FreeType/HarfBuzz text + glyph atlas, pixel goldens on
+  lavapipe/software.
+
 ## Next
 
 1. ADR-001 … ADR-015 in `decisions/`.
-2. Big Step B: RHI, scene graph, Yoga/text, batched 2D renderer.
+2. Big Step B2: Yoga layout, text stack + glyph atlas, pixel goldens.
 3. Big Step C: JSX → IR → C++ vertical slice with protected regions.
 
 ## License

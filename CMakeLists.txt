@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 cmake_minimum_required(VERSION 3.24)
-project(Tessera VERSION 0.0.1 LANGUAGES CXX)
+project(Tessera VERSION 0.0.1 LANGUAGES C CXX)
 
 # Static linking is a hard requirement (ADR-012).
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
@@ -34,6 +34,10 @@ option(TESSERA_BUILD_TESTS "Build unit tests" ON)
 option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)
 
 add_subdirectory(third_party)
+add_subdirectory(src/rendering/rhi)
+add_subdirectory(src/rendering/gpu)
+add_subdirectory(src/rendering/null)
+add_subdirectory(src/ui/scene)
 add_subdirectory(src/compiler/merger)
 
 if (TESSERA_BUILD_POC)
@@ -44,6 +48,7 @@ if (TESSERA_BUILD_VULKAN)
     add_subdirectory(src/rendering/backend/vulkan)
     if (TESSERA_BUILD_POC)
         add_subdirectory(tools/poc/vulkan_offscreen)
+        add_subdirectory(tools/poc/batched2d)
     endif()
 endif()
 

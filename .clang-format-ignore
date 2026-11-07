@@ -1,2 +1,4 @@
 build/
 third_party/stb/
+third_party/volk/
+third_party/vma/

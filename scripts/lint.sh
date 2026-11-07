@@ -24,7 +24,9 @@ while IFS= read -r -d '' file; do
         failed=$((failed + 1))
     fi
 done < <(find "$root" -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) \
-    ! -path '*/build/*' ! -path '*/third_party/stb/*' ! -path '*/.git/*' -print0)
+    ! -path '*/build/*' ! -path '*/third_party/stb/*' \
+    ! -path '*/third_party/volk/*' ! -path '*/third_party/vma/*' \
+    ! -path '*/.git/*' -print0)
 
 if (( failed > 0 )); then
     echo "$failed file(s) reported clang-tidy issues" >&2

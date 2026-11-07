@@ -34,10 +34,10 @@ module, role, and status.
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
 | Vulkan SDK (Headers, Loader, `glslc`, ValidationLayers) | V1 hard | Apache-2.0 | `rendering/backend/vulkan` | Vulkan API, loader, GLSL→SPIR-V, validation |
-| VMA (VulkanMemoryAllocator) | V1 hard | MIT | `rendering/backend/vulkan` | GPU memory allocation |
-| volk | V1 hard | MIT | `rendering/backend/vulkan` | Vulkan function loading |
+| VMA (VulkanMemoryAllocator) | V1 hard (vendored) | MIT | `rendering/backend/vulkan` | GPU memory allocation; `third_party/vma` |
+| volk | V1 hard (vendored) | MIT | `rendering/backend/vulkan` | Vulkan function loading; `third_party/volk` |
 | SPIRV-Reflect | V1 optional | Apache-2.0 | `rendering/backend/vulkan` | Shader reflection for pipeline layouts |
-| stb_image_write | PoC only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 proof |
+| stb_image_write | PoC/demo only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 and batched2d demos |
 | stb_image | V1 test | Public domain / MIT | `tests/golden`, image decode | PNG/JPG decode for goldens and assets |
 | ThorVG | Candidate (ADR-004) | MIT | `rendering/backend` | Vector paths, SVG |
 | Skia Graphite | Candidate (ADR-004 fallback) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
@@ -51,6 +51,10 @@ module, role, and status.
 | Slang | Future (ADR-011) | Apache-2.0 (LLVM exception) | `tools/shaders` | Single-source shaders |
 | SPIRV-Cross | Future | Apache-2.0 | `tools/shaders` | SPIR-V → HLSL/GLSL/MSL if needed |
 | zlib | V1 transitive | zlib | `rendering/resources` | PNG/texture compression |
+
+VMA and volk are vendored from Vulkan SDK 1.4.357.0 (`Include/vma`, `Include/Volk`) into
+`third_party/vma` and `third_party/volk`, so Linux CI does not depend on optional SDK
+components. Their MIT headers are preserved.
 
 ## 2. Layout
 

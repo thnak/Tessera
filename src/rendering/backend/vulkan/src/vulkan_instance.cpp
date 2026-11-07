@@ -1,0 +1,335 @@
+// SPDX-License-Identifier: MIT
+
+#include "vulkan_internal.hpp"
+
+#include <cstring>
+#include <iostream>
+#include <vector>
+
+namespace tessera::rendering::vulkan {
+namespace {
+
+VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                                              VkDebugUtilsMessageTypeFlagsEXT,
+                                              const VkDebugUtilsMessengerCallbackDataEXT* data,
+                                              void*) {
+    if (severity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
+        std::cerr << "[vulkan] " << data->pMessage << "\n";
+    }
+    return VK_FALSE;
+}
+
+bool has_instance_extension(const char* name) {
+    std::uint32_t count = 0;
+    if (vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr) != VK_SUCCESS) {
+        return false;
+    }
+    std::vector<VkExtensionProperties> properties(count);
+    if (vkEnumerateInstanceExtensionProperties(nullptr, &count, properties.data()) != VK_SUCCESS) {
+        return false;
+    }
+    for (const VkExtensionProperties& property : properties) {
+        if (std::strcmp(property.extensionName, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool has_layer(const char* name) {
+    std::uint32_t count = 0;
+    if (vkEnumerateInstanceLayerProperties(&count, nullptr) != VK_SUCCESS) {
+        return false;
+    }
+    std::vector<VkLayerProperties> properties(count);
+    if (vkEnumerateInstanceLayerProperties(&count, properties.data()) != VK_SUCCESS) {
+        return false;
+    }
+    for (const VkLayerProperties& property : properties) {
+        if (std::strcmp(property.layerName, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+void VulkanDevice::create_instance() {
+    check_vk(volkInitialize(), "volkInitialize");
+
+    VkApplicationInfo app_info{};
+    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app_info.pApplicationName = "Tessera";
+    app_info.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
+    app_info.pEngineName = "Tessera";
+    app_info.engineVersion = VK_MAKE_VERSION(0, 0, 1);
+    app_info.apiVersion = VK_API_VERSION_1_3;
+
+    const bool portability_available =
+        has_instance_extension(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+
+    std::vector<const char*> extensions;
+    if (portability_available) {
+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    }
+
+    std::vector<const char*> layers;
+    const bool validation_available = has_layer("VK_LAYER_KHRONOS_validation");
+    const bool validation_enabled = desc_.validation && validation_available;
+    if (desc_.validation && !validation_available) {
+        std::cerr << "[vulkan] warning: validation layer not available\n";
+    }
+    if (validation_enabled) {
+        layers.push_back("VK_LAYER_KHRONOS_validation");
+        if (has_instance_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+    }
+
+    VkInstanceCreateInfo create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    create_info.pApplicationInfo = &app_info;
+    create_info.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
+    create_info.ppEnabledExtensionNames = extensions.empty() ? nullptr : extensions.data();
+    create_info.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+    create_info.ppEnabledLayerNames = layers.empty() ? nullptr : layers.data();
+    if (portability_available) {
+        create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    }
+
+    check_vk(vkCreateInstance(&create_info, nullptr, &instance_), "vkCreateInstance");
+    volkLoadInstance(instance_);
+
+    if (validation_enabled) {
+        VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
+        messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        messenger_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        messenger_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        messenger_info.pfnUserCallback = debug_callback;
+        check_vk(
+            vkCreateDebugUtilsMessengerEXT(instance_, &messenger_info, nullptr, &debug_messenger_),
+            "vkCreateDebugUtilsMessengerEXT");
+    }
+}
+
+void VulkanDevice::pick_device() {
+    std::uint32_t device_count = 0;
+    check_vk(vkEnumeratePhysicalDevices(instance_, &device_count, nullptr),
+             "vkEnumeratePhysicalDevices");
+    if (device_count == 0) {
+        throw std::runtime_error("no Vulkan physical device found");
+    }
+
+    std::vector<VkPhysicalDevice> devices(device_count);
+    check_vk(vkEnumeratePhysicalDevices(instance_, &device_count, devices.data()),
+             "vkEnumeratePhysicalDevices");
+
+    int chosen = -1;
+    if (desc_.device_index >= 0) {
+        if (static_cast<std::uint32_t>(desc_.device_index) >= device_count) {
+            throw std::runtime_error("requested Vulkan device index is out of range");
+        }
+        chosen = desc_.device_index;
+    } else {
+        for (std::uint32_t i = 0; i < device_count; ++i) {
+            VkPhysicalDeviceProperties properties{};
+            vkGetPhysicalDeviceProperties(devices[i], &properties);
+            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+                chosen = static_cast<int>(i);
+                break;
+            }
+        }
+        if (chosen < 0) {
+            chosen = 0;
+        }
+    }
+
+    physical_device_ = devices[static_cast<std::size_t>(chosen)];
+
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(physical_device_, &properties);
+    std::cout << "Vulkan device: " << properties.deviceName << " (API "
+              << VK_VERSION_MAJOR(properties.apiVersion) << "."
+              << VK_VERSION_MINOR(properties.apiVersion) << "."
+              << VK_VERSION_PATCH(properties.apiVersion) << ")\n";
+
+    if (properties.apiVersion < VK_API_VERSION_1_3) {
+        throw std::runtime_error("Tessera requires a Vulkan 1.3 device");
+    }
+
+    std::uint32_t queue_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_count, nullptr);
+    std::vector<VkQueueFamilyProperties> queues(queue_count);
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_count, queues.data());
+
+    bool found_graphics = false;
+    for (std::uint32_t i = 0; i < queue_count; ++i) {
+        if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
+            queue_family_ = i;
+            found_graphics = true;
+            break;
+        }
+    }
+    if (!found_graphics) {
+        throw std::runtime_error("no graphics queue family found");
+    }
+}
+
+void VulkanDevice::create_device() {
+    VkPhysicalDeviceVulkan13Features supported_13{};
+    supported_13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
+    VkPhysicalDeviceFeatures2 supported_2{};
+    supported_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    supported_2.pNext = &supported_13;
+    vkGetPhysicalDeviceFeatures2(physical_device_, &supported_2);
+
+    if (supported_13.dynamicRendering == VK_FALSE) {
+        throw std::runtime_error("device does not support Vulkan 1.3 dynamic rendering");
+    }
+    VkPhysicalDeviceVulkan13Features enabled_13{};
+    enabled_13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    enabled_13.dynamicRendering = VK_TRUE;
+
+    VkPhysicalDeviceFeatures2 enabled_2{};
+    enabled_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    enabled_2.pNext = &enabled_13;
+
+    const float priority = 1.0f;
+    VkDeviceQueueCreateInfo queue_info{};
+    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_info.queueFamilyIndex = queue_family_;
+    queue_info.queueCount = 1;
+    queue_info.pQueuePriorities = &priority;
+
+    VkDeviceCreateInfo create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    create_info.pNext = &enabled_2;
+    create_info.queueCreateInfoCount = 1;
+    create_info.pQueueCreateInfos = &queue_info;
+
+    check_vk(vkCreateDevice(physical_device_, &create_info, nullptr, &device_), "vkCreateDevice");
+    volkLoadDevice(device_);
+    vkGetDeviceQueue(device_, queue_family_, 0, &queue_);
+}
+
+void VulkanDevice::create_allocator() {
+    VmaVulkanFunctions functions{};
+    VmaAllocatorCreateInfo create_info{};
+    create_info.instance = instance_;
+    create_info.physicalDevice = physical_device_;
+    create_info.device = device_;
+    create_info.vulkanApiVersion = VK_API_VERSION_1_3;
+    check_vk(vmaImportVulkanFunctionsFromVolk(&create_info, &functions),
+             "vmaImportVulkanFunctionsFromVolk");
+    create_info.pVulkanFunctions = &functions;
+    check_vk(vmaCreateAllocator(&create_info, &allocator_), "vmaCreateAllocator");
+}
+
+void VulkanDevice::create_descriptor_layout() {
+    VkDescriptorSetLayoutBinding binding{};
+    binding.binding = 0;
+    binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    binding.descriptorCount = 1;
+    binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layout_info{};
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = 1;
+    layout_info.pBindings = &binding;
+    check_vk(vkCreateDescriptorSetLayout(device_, &layout_info, nullptr, &descriptor_set_layout_),
+             "vkCreateDescriptorSetLayout");
+}
+
+void VulkanDevice::create_descriptor_pool() {
+    VkDescriptorPoolSize pool_size{};
+    pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pool_size.descriptorCount = 1024;
+
+    VkDescriptorPoolCreateInfo pool_info{};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.maxSets = 1024;
+    pool_info.poolSizeCount = 1;
+    pool_info.pPoolSizes = &pool_size;
+    check_vk(vkCreateDescriptorPool(device_, &pool_info, nullptr, &descriptor_pool_),
+             "vkCreateDescriptorPool");
+}
+
+void VulkanDevice::submit_one_shot(const std::function<void(VkCommandBuffer)>& record) {
+    VkCommandPoolCreateInfo pool_info{};
+    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    pool_info.queueFamilyIndex = queue_family_;
+    VkCommandPool pool = VK_NULL_HANDLE;
+    check_vk(vkCreateCommandPool(device_, &pool_info, nullptr, &pool),
+             "vkCreateCommandPool(one-shot)");
+
+    VkCommandBufferAllocateInfo allocate_info{};
+    allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocate_info.commandPool = pool;
+    allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocate_info.commandBufferCount = 1;
+    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+    check_vk(vkAllocateCommandBuffers(device_, &allocate_info, &command_buffer),
+             "vkAllocateCommandBuffers(one-shot)");
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    check_vk(vkBeginCommandBuffer(command_buffer, &begin_info), "vkBeginCommandBuffer(one-shot)");
+
+    record(command_buffer);
+
+    check_vk(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer(one-shot)");
+
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+
+    VkFenceCreateInfo fence_info{};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    VkFence fence = VK_NULL_HANDLE;
+    check_vk(vkCreateFence(device_, &fence_info, nullptr, &fence), "vkCreateFence(one-shot)");
+    check_vk(vkQueueSubmit(queue_, 1, &submit_info, fence), "vkQueueSubmit(one-shot)");
+    check_vk(vkWaitForFences(device_, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences(one-shot)");
+    vkDestroyFence(device_, fence, nullptr);
+    vkDestroyCommandPool(device_, pool, nullptr);
+}
+
+void VulkanDevice::destroy() {
+    if (device_ != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(device_);
+    }
+    if (descriptor_pool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
+        descriptor_pool_ = VK_NULL_HANDLE;
+    }
+    if (descriptor_set_layout_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
+        descriptor_set_layout_ = VK_NULL_HANDLE;
+    }
+    if (allocator_ != nullptr) {
+        vmaDestroyAllocator(allocator_);
+        allocator_ = nullptr;
+    }
+    if (device_ != VK_NULL_HANDLE) {
+        vkDestroyDevice(device_, nullptr);
+        device_ = VK_NULL_HANDLE;
+    }
+    if (debug_messenger_ != VK_NULL_HANDLE && instance_ != VK_NULL_HANDLE) {
+        vkDestroyDebugUtilsMessengerEXT(instance_, debug_messenger_, nullptr);
+        debug_messenger_ = VK_NULL_HANDLE;
+    }
+    if (instance_ != VK_NULL_HANDLE) {
+        vkDestroyInstance(instance_, nullptr);
+        instance_ = VK_NULL_HANDLE;
+    }
+}
+
+} // namespace tessera::rendering::vulkan

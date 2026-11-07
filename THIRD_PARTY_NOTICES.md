@@ -5,9 +5,9 @@ Tessera is licensed under the MIT License (see [`LICENSE`](LICENSE)).
 This file lists third-party components and their licenses. The canonical dependency map with
 modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependencies.md).
 
-> This is the Phase 0 set plus the planned V1 dependency set. In Big Step B it will be
-> replaced by a generated file based on the resolved dependency graph. Do not remove
-> copyright or license text from vendored/vendored-adjacent code.
+> This is the Phase 0/B1 set plus the planned V1 dependency set. It will be replaced by a
+> generated file based on the resolved dependency graph. Do not remove copyright or license
+> text from vendored code.
 
 ## In this repository (Phase 0)
 
@@ -28,6 +28,22 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
   https://github.com/KhronosGroup/Vulkan-ValidationLayers,
   https://github.com/google/shaderc
 
+### Vulkan Memory Allocator (VMA)
+
+- Files: `third_party/vma/vk_mem_alloc.h`
+- Used by: `src/rendering/backend/vulkan/`
+- License: MIT
+- Copyright: Advanced Micro Devices, Inc. and contributors
+- Upstream: https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+
+### volk
+
+- Files: `third_party/volk/volk.h`, `third_party/volk/volk.c`
+- Used by: `src/rendering/backend/vulkan/`
+- License: MIT
+- Copyright: Arseny Kapoulkine and contributors
+- Upstream: https://github.com/zeux/volk
+
 ### Mesa (lavapipe)
 
 - Used by: CI only; not shipped in an application
@@ -39,8 +55,6 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 
 | Component | License | Copyright / upstream |
 |---|---|---|
-| VMA | MIT | AMD / GPUOpen |
-| volk | MIT | Arseny Kapoulkine |
 | SPIRV-Reflect | Apache-2.0 | Google / Khronos |
 | Yoga | MIT | Meta Platforms, Inc. |
 | FreeType | FreeType License (BSD-style) | The FreeType Project |

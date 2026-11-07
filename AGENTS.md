@@ -54,20 +54,27 @@ A cross-platform C++ UI framework:
 Each Big Step ends with a demoable, committed result. Do not start the next one before the
 current acceptance criteria pass.
 
-### Big Step A — Foundation & risk proof *(current)*
+### Big Step A — Foundation & risk proof *(complete)*
 Repo + build + the two riskiest proofs.
-- [ ] CMake project builds on Windows (MSVC 2022) and Linux.
-- [ ] Vulkan 1.3 offscreen renderer → PNG (dynamic rendering, no window/swapchain).
-- [ ] Same PNG runs headless in CI with Mesa lavapipe.
-- [ ] Protected-region merger prototype, idempotent, with unit tests.
-- [ ] `AGENTS.md`, README, CI workflow.
+- [x] CMake project builds on Windows (MSVC 2022/2026) and Linux.
+- [x] Vulkan 1.3 offscreen renderer → PNG (dynamic rendering, no window/swapchain).
+- [x] Same PNG runs headless in CI with Mesa lavapipe.
+- [x] Protected-region merger prototype, idempotent, with unit tests.
+- [x] `AGENTS.md`, README, CI workflow.
 
-### Big Step B — Core renderer
-- [ ] RHI interface + Vulkan backend (instance/device/queue/image/pipeline/sync).
-- [ ] Batched 2D renderer: quads, SDF rounded rects, clip stack, transforms, glyph atlas.
-- [ ] Yoga Flexbox + text (FreeType/HarfBuzz).
-- [ ] Scene graph, hit-testing, W3C-style capture/target/bubble events.
-- [ ] Acceptance: render a static screen matching a reference PNG.
+### Big Step B — Core renderer *(B1 complete; B2 next)*
+- [x] Thin RHI: device/buffer/texture/pipeline/render target/command list.
+- [x] Null backend for deterministic command tests.
+- [x] Vulkan backend: instance/device/queue, volk + VMA, dynamic rendering, descriptor sets,
+      pipeline, offscreen target, readback.
+- [x] Batched 2D: solid quads, SDF rounded rects, textured quads, clip stack, transform stack.
+- [x] Scene graph, hit-testing, W3C-style capture/target/bubble events.
+- [x] Acceptance: static dashboard rendered offscreen → [`docs/images/batched2d.png`](docs/images/batched2d.png);
+      CI smoke test green.
+- [ ] **B2:** Yoga Flexbox adapter (`src/ui/layout/`).
+- [ ] **B2:** FreeType/HarfBuzz/SheenBidi/ICU + glyph atlas + text batching.
+- [ ] **B2:** Pixel goldens via lavapipe/software path (ADR-009).
+- [ ] **B2:** Multi-frame synchronization (frames in flight, timeline semaphores).
 
 ### Big Step C — Compiler vertical slice
 - [ ] JSX/TSX parser adapter (SWC or oxc) + Tier-1 React rules.
@@ -101,6 +108,8 @@ cmake --preset vs2026
 cmake --build --preset vs2026-release
 ctest --preset vs2026-release
 .\build\vs2026\tools\poc\vulkan_offscreen\Release\vulkan_offscreen_poc.exe --out offscreen.png
+.\build\vs2026\tools\poc\batched2d\Release\batched2d_poc.exe --backend vulkan --out batched2d.png
+.\build\vs2026\tools\poc\batched2d\Release\batched2d_poc.exe --backend null
 ```
 
 Linux:
@@ -110,6 +119,9 @@ cmake --build --preset dev
 ctest --preset dev
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
   ./build/dev/tools/poc/vulkan_offscreen/vulkan_offscreen_poc --out offscreen.png
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+  ./build/dev/tools/poc/batched2d/batched2d_poc --backend vulkan --out batched2d.png
+./build/dev/tools/poc/batched2d/batched2d_poc --backend null
 ```
 
 Formatting and linting:
@@ -137,10 +149,15 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Core primitives | `src/core/` |
 | Platform seam | `src/hal/` + `src/platform/{windows,linux,macos,android}` |
 | UI model | `src/ui/` (view, layout, style, animation, text, accessibility) |
-| RHI (only GPU seam) | `src/rendering/rhi/` |
-| Vulkan backend | `src/rendering/backend/vulkan/` |
+| RHI (only GPU seam) | `include/tessera/rendering/rhi/` + `src/rendering/rhi/` |
+| Batched 2D renderer | `include/tessera/rendering/gpu/` + `src/rendering/gpu/` |
+| Null backend | `src/rendering/null/` |
+| Vulkan RHI backend | `src/rendering/backend/vulkan/` |
 | WebGPU backend | `src/rendering/backend/webgpu/` |
 | Software/headless | `src/rendering/software/` |
+| Scene graph / events | `include/tessera/ui/scene/` + `src/ui/scene/` |
+| Renderer design notes | `docs/design/renderer.md`, `docs/design/scene-graph.md` |
+| Batched2D demo | `tools/poc/batched2d/` |
 | Compiler frontend/IR/codegen | `src/compiler/{analyzer,rules,ir,codegen,merger}/` |
 | Design-time viewer | `designer/{web,native}/` |
 | Tests | `tests/{unit,integration,golden,fixtures,benchmarks}/` |
@@ -176,12 +193,14 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 - [ ] Static link check passes: no unexpected third-party dynamic libraries (ADR-012).
 - [ ] New source files carry `SPDX-License-Identifier: MIT`.
 - [ ] `scripts/format.* --check` passes; clang-tidy reports no new warnings in changed files.
-- [ ] Files stay under the 300/500-line soft/hard limits (ADR-015).
+- [ ] Files stay under the 300/500-line soft/hard limits (ADR-015). Phase 0 PoC targets
+      (`tools/poc/vulkan_offscreen`, `offscreen_renderer.cpp`) are exempt until retired.
 - [ ] Generator/config changes update `docs/guides/project-generator.md` and the schema.
 - [ ] If it touches protected regions: idempotency test updated.
 - [ ] If it touches rendering: a golden test or a manual visual check is recorded.
 
 ## Current focus
 
-**Big Step A.** Do not start the scene graph, layout, or compiler frontend before the
-Vulkan offscreen PNG and the merger idempotency proof are green in CI.
+**Big Step B2.** Add the Yoga Flexbox adapter, FreeType/HarfBuzz text + glyph atlas, and the
+lavapipe/software pixel golden pipeline. Keep the B1 RHI, batched 2D renderer, and scene graph
+stable while doing so.
