@@ -16,6 +16,9 @@ if (TESSERA_STATIC_RUNTIME AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_link_options(-static-libstdc++ -static-libgcc)
 endif()
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include(cmake/CompilerCache.cmake)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

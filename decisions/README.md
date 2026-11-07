@@ -21,6 +21,8 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-011](ADR-011-shader-authoring-and-cross-compilation.md) | Shader authoring and cross-compilation | Proposed |
 | [ADR-012](ADR-012-static-linking.md) | Static linking as a hard requirement | Accepted |
 | [ADR-013](ADR-013-project-license-mit.md) | Project license is MIT | Accepted |
+| [ADR-014](ADR-014-project-config-format.md) | Project configuration is versioned `tessera.json` plus a C++ API | Accepted |
+| [ADR-015](ADR-015-code-style-build-cache.md) | Code style and build-cache-friendly translation units | Accepted |
 
 ## Dependency overview
 
@@ -35,6 +37,8 @@ ADR-007 IR ── ADR-008 protected regions
 ADR-010 macOS (deferred)
 ADR-012 static linking (cross-cutting: build, licenses, accessibility)
 ADR-013 MIT license (cross-cutting: dependency choices)
+ADR-014 project config (cross-cutting: generator, runtime, tooling)
+ADR-015 code style/build cache (cross-cutting: all C++ code)
 ```
 
 ## Adding an ADR

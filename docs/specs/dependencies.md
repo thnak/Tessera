@@ -88,7 +88,11 @@ module, role, and status.
 | tree-sitter + JSX/TSX grammars | Candidate | MIT | `compiler/analyzer` | Embeddable JSX/TSX parser (C) |
 | SWC | Candidate | Apache-2.0 | `compiler/analyzer` | JSX/TSX parsing via Node/Rust |
 | oxc | Candidate | MIT | `compiler/analyzer` | JSX/TSX parsing via Node/Rust |
-| clang-format | V1 hard (toolchain) | Apache-2.0 (LLVM exception) | `compiler/codegen` | Deterministic formatting before merge (ADR-008) |
+| clang-format | V1 hard (toolchain) | Apache-2.0 (LLVM exception) | `compiler/codegen`, `scripts/` | Deterministic formatting before merge (ADR-008, ADR-015) |
+| clang-tidy | V1 build-time | Apache-2.0 (LLVM exception) | `scripts/`, CI | Static analysis (ADR-015) |
+| sccache | V1 optional build | Apache-2.0 | build | Compiler cache (preferred) |
+| ccache | V1 optional build | GPL-3.0-or-later | build | Compiler cache; build-time only, never linked/shipped |
+| EditorConfig | V1 tool config | — | repo | Whitespace and line-ending consistency |
 | nlohmann/json | V1 build-time | MIT | `compiler/ir`, manifest | IR/manifest JSON |
 | simdjson | V1 optional | Apache-2.0 | `compiler` | Faster JSON if needed |
 | Inja | V1 optional | MIT | `compiler/codegen` | Template engine; prefer plain string builders |
@@ -394,6 +398,9 @@ Not allowed in the shipped core:
 
 - GPL-2.0/3.0, AGPL-3.0, SSPL, Commons Clause, non-commercial, field-of-use restrictions,
   and any "source-available" license that is not OSI-approved.
+
+Build-time-only GPL tools (e.g. `ccache`) are permitted because they are separate programs
+and are not linked into or shipped with Tessera. Prefer `sccache` (Apache-2.0) where possible.
 
 LGPL:
 

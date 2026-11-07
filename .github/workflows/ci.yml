@@ -19,30 +19,33 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake ninja-build libvulkan-dev vulkan-tools \
-            mesa-vulkan-drivers glslc glslang-tools
+            mesa-vulkan-drivers glslc glslang-tools clang-format
+
+      - name: Format check
+        run: bash scripts/format.sh --check
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake --preset ci
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build --preset ci
 
       - name: Check static C++ runtime (ADR-012)
         run: |
-          if ldd build/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
+          if ldd build/ci/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
               | grep -E 'libstdc\+\+|libgcc_s'; then
             echo "unexpected dynamic C++ runtime; static linking is required"
             exit 1
           fi
 
       - name: Unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --preset ci
 
       - name: Vulkan offscreen PoC (lavapipe)
         env:
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
         run: |
-          ./build/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
+          ./build/ci/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
             --out offscreen.png --no-validation
 
       - name: Upload offscreen PNG

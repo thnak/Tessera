@@ -80,8 +80,7 @@ int main(int argc, char** argv) {
             existing = read_file(existing_path);
         }
 
-        const tessera::compiler::MergeResult result =
-            tessera::compiler::merge(generated, existing);
+        const tessera::compiler::MergeResult result = tessera::compiler::merge(generated, existing);
 
         for (const std::string& warning : result.warnings) {
             std::cerr << "warning: " << warning << "\n";

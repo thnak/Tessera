@@ -31,11 +31,10 @@ void check_vk(VkResult result, const char* what) {
     }
 }
 
-VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-    VkDebugUtilsMessageTypeFlagsEXT /*types*/,
-    const VkDebugUtilsMessengerCallbackDataEXT* data,
-    void* /*user_data*/) {
+VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                                              VkDebugUtilsMessageTypeFlagsEXT /*types*/,
+                                              const VkDebugUtilsMessengerCallbackDataEXT* data,
+                                              void* /*user_data*/) {
     if (severity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
                     VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
         std::cerr << "[vulkan] " << data->pMessage << "\n";
@@ -81,7 +80,8 @@ bool has_layer(const char* name) {
 
 namespace tessera::rendering::vulkan {
 
-OffscreenRenderer::OffscreenRenderer(OffscreenConfig config) : config_(std::move(config)) {}
+OffscreenRenderer::OffscreenRenderer(OffscreenConfig config)
+    : config_(std::move(config)) {}
 
 OffscreenRenderer::~OffscreenRenderer() {
     destroy();
@@ -147,9 +147,8 @@ void OffscreenRenderer::create_instance() {
         if (create_messenger != nullptr) {
             VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
             messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-            messenger_info.messageSeverity =
-                VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+            messenger_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                                             VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
             messenger_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                                          VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                                          VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
@@ -336,9 +335,9 @@ void OffscreenRenderer::create_target() {
     VkMemoryAllocateInfo buffer_allocate{};
     buffer_allocate.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     buffer_allocate.allocationSize = buffer_requirements.size;
-    buffer_allocate.memoryTypeIndex = find_memory_type(
-        buffer_requirements.memoryTypeBits,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    buffer_allocate.memoryTypeIndex = find_memory_type(buffer_requirements.memoryTypeBits,
+                                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     check_vk(vkAllocateMemory(device_, &buffer_allocate, nullptr, &readback_memory_),
              "vkAllocateMemory(readback)");
     check_vk(vkBindBufferMemory(device_, readback_buffer_, readback_memory_, 0),
@@ -353,8 +352,7 @@ VkShaderModule OffscreenRenderer::make_shader(const std::uint32_t* code,
     create_info.pCode = code;
 
     VkShaderModule module = VK_NULL_HANDLE;
-    check_vk(vkCreateShaderModule(device_, &create_info, nullptr, &module),
-             "vkCreateShaderModule");
+    check_vk(vkCreateShaderModule(device_, &create_info, nullptr, &module), "vkCreateShaderModule");
     return module;
 }
 
@@ -417,8 +415,7 @@ void OffscreenRenderer::create_pipeline() {
     color_blend.attachmentCount = 1;
     color_blend.pAttachments = &blend_attachment;
 
-    const VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT,
-                                             VK_DYNAMIC_STATE_SCISSOR};
+    const VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dynamic_state{};
     dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamic_state.dynamicStateCount = 2;
@@ -445,9 +442,9 @@ void OffscreenRenderer::create_pipeline() {
     pipeline_info.layout = pipeline_layout_;
     pipeline_info.renderPass = VK_NULL_HANDLE;
 
-    check_vk(vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr,
-                                       &pipeline_),
-             "vkCreateGraphicsPipelines");
+    check_vk(
+        vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline_),
+        "vkCreateGraphicsPipelines");
 
     vkDestroyShaderModule(device_, vertex, nullptr);
     vkDestroyShaderModule(device_, fragment, nullptr);
@@ -543,10 +540,9 @@ void OffscreenRenderer::record_and_submit() {
     vkCmdDraw(command_buffer_, 3, 1, 0, 0);
     vkCmdEndRendering(command_buffer_);
 
-    image_barrier(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                  VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                  VK_PIPELINE_STAGE_TRANSFER_BIT);
+    image_barrier(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                  VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                  VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
     VkBufferImageCopy copy{};
     copy.bufferOffset = 0;
@@ -579,11 +575,9 @@ void OffscreenRenderer::record_and_submit() {
 
 void OffscreenRenderer::write_png() {
     void* mapped = nullptr;
-    check_vk(vkMapMemory(device_, readback_memory_, 0, VK_WHOLE_SIZE, 0, &mapped),
-             "vkMapMemory");
+    check_vk(vkMapMemory(device_, readback_memory_, 0, VK_WHOLE_SIZE, 0, &mapped), "vkMapMemory");
 
-    const std::size_t byte_count =
-        static_cast<std::size_t>(config_.width) * config_.height * 4;
+    const std::size_t byte_count = static_cast<std::size_t>(config_.width) * config_.height * 4;
     pixels_.resize(byte_count);
     std::memcpy(pixels_.data(), mapped, byte_count);
     vkUnmapMemory(device_, readback_memory_);
@@ -595,8 +589,8 @@ void OffscreenRenderer::write_png() {
         throw std::runtime_error("failed to write PNG: " + config_.output_path);
     }
 
-    std::cout << "wrote " << config_.output_path << " (" << config_.width << "x"
-              << config_.height << ")\n";
+    std::cout << "wrote " << config_.output_path << " (" << config_.width << "x" << config_.height
+              << ")\n";
 }
 
 void OffscreenRenderer::destroy() {

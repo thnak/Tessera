@@ -72,8 +72,18 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | mimalloc | MIT | Microsoft Corporation |
 | tree-sitter / oxc / nlohmann-json / Inja | MIT | their respective authors |
 | SWC / simdjson | Apache-2.0 | their respective authors |
-| clang-format / libFuzzer | Apache-2.0 with LLVM exception | LLVM Project |
+| libFuzzer | Apache-2.0 with LLVM exception | LLVM Project |
 | Noto Sans / Inter | SIL Open Font License 1.1 | their respective authors |
+
+## Build-time tools (not linked or shipped)
+
+| Tool | License | Notes |
+|---|---|---|
+| clang-format / clang-tidy | Apache-2.0 with LLVM exception | formatting and linting |
+| CMake | BSD-3-Clause | build system |
+| Ninja | Apache-2.0 | build tool |
+| sccache | Apache-2.0 | optional compiler cache (preferred) |
+| ccache | GPL-3.0-or-later | optional compiler cache; separate program, not linked |
 
 ## Not linked
 

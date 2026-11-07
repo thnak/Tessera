@@ -14,12 +14,12 @@ constexpr std::string_view kStartMarker = "// [DEVELOPER_LOGIC_START:";
 constexpr std::string_view kEndMarker = "// [DEVELOPER_LOGIC_END:";
 
 std::string_view trim(std::string_view s) {
-    while (!s.empty() && (s.front() == ' ' || s.front() == '\t' || s.front() == '\r' ||
-                          s.front() == '\n')) {
+    while (!s.empty() &&
+           (s.front() == ' ' || s.front() == '\t' || s.front() == '\r' || s.front() == '\n')) {
         s.remove_prefix(1);
     }
-    while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' ||
-                          s.back() == '\n')) {
+    while (!s.empty() &&
+           (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) {
         s.remove_suffix(1);
     }
     return s;
@@ -115,8 +115,8 @@ std::vector<ParsedRegion> scan(std::string_view text) {
 std::vector<ProtectedRegion> extract_regions(std::string_view text) {
     std::vector<ProtectedRegion> result;
     for (const ParsedRegion& region : scan(text)) {
-        result.push_back(
-            {region.id, std::string(text.substr(region.body_begin, region.body_end - region.body_begin))});
+        result.push_back({region.id, std::string(text.substr(
+                                         region.body_begin, region.body_end - region.body_begin))});
     }
     return result;
 }
@@ -140,12 +140,13 @@ MergeResult merge(std::string_view generated, std::string_view existing) {
         if (it != existing_bodies.end()) {
             result.text.append(it->second);
         } else {
-            result.text.append(generated.substr(region.body_begin, region.body_end - region.body_begin));
+            result.text.append(
+                generated.substr(region.body_begin, region.body_end - region.body_begin));
         }
 
         // Regenerated end marker line.
-        result.text.append(
-            generated.substr(region.end_marker_begin, region.end_marker_end - region.end_marker_begin));
+        result.text.append(generated.substr(region.end_marker_begin,
+                                            region.end_marker_end - region.end_marker_begin));
 
         seen_ids.insert(region.id);
         cursor = region.end_marker_end;

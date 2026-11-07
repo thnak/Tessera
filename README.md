@@ -14,7 +14,12 @@ Status: **pre-alpha / scaffolding**.
 
 - [Design plan v1](../ui_framework_design_plan_v1.md)
 - [Execution plan & workload breakdown](../ui_framework_execution_plan.md)
-- Architecture decisions: [`decisions/`](decisions/)
+- Architecture decisions: [`decisions/`](decisions/) — index at
+  [`decisions/README.md`](decisions/README.md)
+- [Project generator & developer config](docs/guides/project-generator.md)
+- [`tessera.json` schema v1](docs/specs/project-config-v1.md)
+- [Code style & build cache](docs/guides/code-style.md)
+- [Dependency map](docs/specs/dependencies.md)
 - Design / specs / RFCs / guides: [`docs/`](docs/)
 
 ## Repository layout
@@ -79,11 +84,21 @@ Phase 0 tools:
   host memory, written as a PNG (no window, no swapchain).
 - `merger_poc` — injects developer protected regions into freshly generated C++.
 
+## Tooling
+
+- `.clang-format`, `.clang-tidy`, `.editorconfig`
+- `CMakePresets.json`: `dev`, `release`, `ci`, `vs2026`, `vs2022`
+- `scripts/format.ps1` / `scripts/format.sh` (with `--check`)
+- `scripts/lint.ps1` / `scripts/lint.sh`
+- Compiler cache: `TESSERA_USE_COMPILER_CACHE=ON` (prefers `sccache`, supports `ccache`)
+- Linux: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`
+- Windows: `cmake --preset vs2026 && cmake --build --preset vs2026-release`
+
 ## Next
 
-1. ADR-001 … ADR-013 in `decisions/`.
-2. Phase 0: Vulkan offscreen quad → PNG, run on CI with Mesa lavapipe.
-3. Phase 0: protected-region merger prototype (idempotent).
+1. ADR-001 … ADR-015 in `decisions/`.
+2. Big Step B: RHI, scene graph, Yoga/text, batched 2D renderer.
+3. Big Step C: JSX → IR → C++ vertical slice with protected regions.
 
 ## License
 

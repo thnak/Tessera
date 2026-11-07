@@ -97,28 +97,42 @@ Repo + build + the two riskiest proofs.
 
 Windows (Vulkan SDK required; `VULKAN_SDK` is set):
 ```powershell
-# Visual Studio 2026:
-cmake -S . -B build -G "Visual Studio 18 2026" -A x64
-# Visual Studio 2022: -G "Visual Studio 17 2022"
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
-.\build\tools\poc\vulkan_offscreen\Release\vulkan_offscreen_poc.exe --out offscreen.png
+cmake --preset vs2026
+cmake --build --preset vs2026-release
+ctest --preset vs2026-release
+.\build\vs2026\tools\poc\vulkan_offscreen\Release\vulkan_offscreen_poc.exe --out offscreen.png
 ```
 
 Linux:
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --preset dev
+cmake --build --preset dev
+ctest --preset dev
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
-  ./build/tools/poc/vulkan_offscreen/vulkan_offscreen_poc --out offscreen.png
+  ./build/dev/tools/poc/vulkan_offscreen/vulkan_offscreen_poc --out offscreen.png
 ```
+
+Formatting and linting:
+```powershell
+.\scripts\format.ps1 -Check
+.\scripts\lint.ps1 -BuildDir build\dev
+```
+```bash
+bash scripts/format.sh --check
+BUILD_DIR=build/dev bash scripts/lint.sh
+```
+
+The manual `cmake -S . -B build ...` path still works; presets are the recommended route.
 
 ## Where things go
 
 | Area | Path |
 |---|---|
 | Architecture decisions | `decisions/` — start at [decisions/README.md](decisions/README.md) |
+| Developer guide | [`docs/guides/project-generator.md`](docs/guides/project-generator.md) |
+| Project config schema | [`docs/specs/project-config-v1.md`](docs/specs/project-config-v1.md) |
+| Code style & build cache | [`docs/guides/code-style.md`](docs/guides/code-style.md) |
+| Dependency map | [`docs/specs/dependencies.md`](docs/specs/dependencies.md) |
 | Public headers | `include/tessera/` |
 | Core primitives | `src/core/` |
 | Platform seam | `src/hal/` + `src/platform/{windows,linux,macos,android}` |
@@ -138,7 +152,16 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
 - Headers: `#pragma once`. Namespace: `tessera::<area>::<module>`.
 - Errors: exceptions at boundaries, `std::expected` for recoverable hot paths.
 - No RTTI/reflection on hot paths. No hidden allocations in frame code.
-- Formatting: `.clang-format` (LLVM base, 4 spaces, 100 cols once added).
+- Formatting: `.clang-format` (LLVM base, 4 spaces, 100 cols, pointer left). Run
+  `scripts/format.*`; CI runs `--check`.
+- Linting: `.clang-tidy`; run `scripts/lint.*` against a Ninja `compile_commands.json`.
+- **Short files:** soft limit 300 lines, hard limit 500; one primary type per header
+  (ADR-015, [`docs/guides/code-style.md`](docs/guides/code-style.md)).
+- **Build cache:** small translation units, stable public headers, no PCH/unity by default;
+  `TESSERA_USE_COMPILER_CACHE=ON` auto-detects sccache/ccache.
+- Project config: `tessera.json` schema v1 (ADR-014); see
+  [`docs/specs/project-config-v1.md`](docs/specs/project-config-v1.md) and
+  [`docs/guides/project-generator.md`](docs/guides/project-generator.md).
 - Shaders: GLSL → SPIR-V via `glslc`; SPIR-V is the source of truth for Vulkan.
 - Every subsystem gets a short design note in `docs/design/` and, if contentious, an ADR
   in `decisions/`.
@@ -152,6 +175,9 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
       `THIRD_PARTY_NOTICES.md`.
 - [ ] Static link check passes: no unexpected third-party dynamic libraries (ADR-012).
 - [ ] New source files carry `SPDX-License-Identifier: MIT`.
+- [ ] `scripts/format.* --check` passes; clang-tidy reports no new warnings in changed files.
+- [ ] Files stay under the 300/500-line soft/hard limits (ADR-015).
+- [ ] Generator/config changes update `docs/guides/project-generator.md` and the schema.
 - [ ] If it touches protected regions: idempotency test updated.
 - [ ] If it touches rendering: a golden test or a manual visual check is recorded.
 

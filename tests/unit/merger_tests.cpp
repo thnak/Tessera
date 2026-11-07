@@ -18,10 +18,9 @@ void check(bool condition, std::string_view message) {
 }
 
 void test_extract_regions() {
-    const std::string text =
-        "// [DEVELOPER_LOGIC_START: bind::on_click]\n"
-        "void onClick() {}\n"
-        "// [DEVELOPER_LOGIC_END: bind::on_click]\n";
+    const std::string text = "// [DEVELOPER_LOGIC_START: bind::on_click]\n"
+                             "void onClick() {}\n"
+                             "// [DEVELOPER_LOGIC_END: bind::on_click]\n";
 
     const auto regions = tessera::compiler::extract_regions(text);
     check(regions.size() == 1, "extract: one region");
@@ -30,20 +29,18 @@ void test_extract_regions() {
 }
 
 void test_merge_preserves_developer_logic() {
-    const std::string generated =
-        "// generated\n"
-        "struct Widget {\n"
-        "    // [DEVELOPER_LOGIC_START: bind::on_click]\n"
-        "    // [DEVELOPER_LOGIC_END: bind::on_click]\n"
-        "};\n";
+    const std::string generated = "// generated\n"
+                                  "struct Widget {\n"
+                                  "    // [DEVELOPER_LOGIC_START: bind::on_click]\n"
+                                  "    // [DEVELOPER_LOGIC_END: bind::on_click]\n"
+                                  "};\n";
 
-    const std::string existing =
-        "// old\n"
-        "struct Widget {\n"
-        "    // [DEVELOPER_LOGIC_START: bind::on_click]\n"
-        "    void onClick() { doThing(); }\n"
-        "    // [DEVELOPER_LOGIC_END: bind::on_click]\n"
-        "};\n";
+    const std::string existing = "// old\n"
+                                 "struct Widget {\n"
+                                 "    // [DEVELOPER_LOGIC_START: bind::on_click]\n"
+                                 "    void onClick() { doThing(); }\n"
+                                 "    // [DEVELOPER_LOGIC_END: bind::on_click]\n"
+                                 "};\n";
 
     const auto merged = tessera::compiler::merge(generated, existing);
     check(merged.text.find("void onClick() { doThing(); }") != std::string::npos,
@@ -54,23 +51,21 @@ void test_merge_preserves_developer_logic() {
 }
 
 void test_merge_is_idempotent() {
-    const std::string generated =
-        "struct Widget {\n"
-        "    // [DEVELOPER_LOGIC_START: bind::a]\n"
-        "    // [DEVELOPER_LOGIC_END: bind::a]\n"
-        "    // [DEVELOPER_LOGIC_START: bind::b]\n"
-        "    // [DEVELOPER_LOGIC_END: bind::b]\n"
-        "};\n";
+    const std::string generated = "struct Widget {\n"
+                                  "    // [DEVELOPER_LOGIC_START: bind::a]\n"
+                                  "    // [DEVELOPER_LOGIC_END: bind::a]\n"
+                                  "    // [DEVELOPER_LOGIC_START: bind::b]\n"
+                                  "    // [DEVELOPER_LOGIC_END: bind::b]\n"
+                                  "};\n";
 
-    const std::string existing =
-        "struct Widget {\n"
-        "    // [DEVELOPER_LOGIC_START: bind::a]\n"
-        "    int a = 1;\n"
-        "    // [DEVELOPER_LOGIC_END: bind::a]\n"
-        "    // [DEVELOPER_LOGIC_START: bind::b]\n"
-        "    int b = 2;\n"
-        "    // [DEVELOPER_LOGIC_END: bind::b]\n"
-        "};\n";
+    const std::string existing = "struct Widget {\n"
+                                 "    // [DEVELOPER_LOGIC_START: bind::a]\n"
+                                 "    int a = 1;\n"
+                                 "    // [DEVELOPER_LOGIC_END: bind::a]\n"
+                                 "    // [DEVELOPER_LOGIC_START: bind::b]\n"
+                                 "    int b = 2;\n"
+                                 "    // [DEVELOPER_LOGIC_END: bind::b]\n"
+                                 "};\n";
 
     const auto first = tessera::compiler::merge(generated, existing);
     const auto second = tessera::compiler::merge(first.text, existing);
@@ -84,10 +79,9 @@ void test_merge_is_idempotent() {
 
 void test_missing_region_warns() {
     const std::string generated = "// no protected regions here\n";
-    const std::string existing =
-        "// [DEVELOPER_LOGIC_START: bind::gone]\n"
-        "int gone = 1;\n"
-        "// [DEVELOPER_LOGIC_END: bind::gone]\n";
+    const std::string existing = "// [DEVELOPER_LOGIC_START: bind::gone]\n"
+                                 "int gone = 1;\n"
+                                 "// [DEVELOPER_LOGIC_END: bind::gone]\n";
 
     const auto merged = tessera::compiler::merge(generated, existing);
     check(merged.text == generated, "missing region: generated output unchanged");
@@ -95,10 +89,9 @@ void test_missing_region_warns() {
 }
 
 void test_crlf_body_is_preserved() {
-    const std::string text =
-        "// [DEVELOPER_LOGIC_START: bind::x]\r\n"
-        "abc\r\n"
-        "// [DEVELOPER_LOGIC_END: bind::x]\r\n";
+    const std::string text = "// [DEVELOPER_LOGIC_START: bind::x]\r\n"
+                             "abc\r\n"
+                             "// [DEVELOPER_LOGIC_END: bind::x]\r\n";
 
     const auto regions = tessera::compiler::extract_regions(text);
     check(regions.size() == 1, "crlf: one region");
