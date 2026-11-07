@@ -1,0 +1,121 @@
+# Animation and transitions
+
+Status: design for Big Step B2. `src/ui/animation/` is a placeholder today.
+
+Animation is declarative at the style/component level and sampled by the fixed-step runtime.
+It never reads the wall clock and never blocks a frame.
+
+## 1. Sources of animation
+
+| Source | Example | Owner |
+|---|---|---|
+| CSS transitions | `transition: opacity 120ms ease-out` | style engine |
+| CSS keyframes | `@keyframes pulse { ... }` | style engine |
+| Animated values | `useAnimatedValue(0)` | component/runtime |
+| Spring | `{ type: "spring", stiffness, damping }` | animation runtime |
+| Scroll-driven | later | layout/scroll |
+
+## 2. Timeline and sampling
+
+```text
+tick(dt):
+  for each active animation:
+    t = clamp((now - start) / duration, 0, 1)
+    value = sample(t)
+    write value into computed style
+  mark layout/paint/render as needed
+  if no active animations: idle (no wake)
+```
+
+- `now` is the fixed-step simulation clock, not wall time.
+- `dt` is the fixed timestep (e.g. 16.666 ms); animation is frame-rate independent.
+- Deterministic mode uses the same fixed clock and an injected start time.
+- Sampling happens **before layout/paint** so animated values participate in the frame.
+
+## 3. Easing and interpolation
+
+V1:
+
+- linear, ease, ease-in, ease-out, ease-in-out
+- cubic-bezier(x1,y1,x2,y2)
+- steps(n, start|end)
+- spring (damped harmonic oscillator; deterministic integration)
+
+Interpolate:
+
+- numbers, lengths, percentages (when compatible)
+- colors in a documented space (sRGB in V1; wide-gamut later)
+- transforms (translate/scale/rotate/skew) as affine matrices
+- opacity
+
+Discrete properties (display, visibility) use step semantics; do not interpolate them.
+
+## 4. Transitions
+
+- A transition starts when a computed property changes and a transition is declared.
+- Interrupted transitions retarget from the current value; do not jump to the old endpoint.
+- Multiple properties can run with different durations/delays/easings.
+- `transition: none` cancels/does not start.
+- Transitions run on the UI thread and mark only the affected dirty domains.
+
+## 5. Keyframes
+
+- `@keyframes` parsed by the style engine; sampling uses the fixed clock.
+- `animation-iteration-count`, `direction`, `fill-mode`, `delay`, `duration`, `timing-function`.
+- `infinite` animations are allowed but must respect power policy: pause when hidden/occluded,
+  and reduce/disable optional motion when `prefers-reduced-motion` is set.
+- Animations that only affect paint (opacity/color) do not mark layout dirty.
+
+## 6. Animated values (`useAnimatedValue`)
+
+- Creates a runtime value with an initial value and a driver (tween/spring).
+- Generated C++ owns the `AnimationController`; the component reads the sampled value.
+- Setting the value starts/retargets the animation; `set(value, { animate: false })` snaps.
+- Animated values can drive style properties, transforms, or chart data.
+- Completion callbacks are delivered on the UI thread via the completion queue; no detached
+  tasks.
+
+## 7. Scheduling and power
+
+- A frame with active animations is a wake source.
+- No active animations -> no animation ticks; if nothing else is dirty, the loop idles.
+- Hidden/occluded/minimized -> pause animations (unless explicitly configured otherwise).
+- `powerPolicy` may reduce animation quality (e.g. fewer samples, no spring overshoot) before
+  dropping frames.
+- `prefers-reduced-motion` -> skip non-essential motion, keep functional state changes.
+- Never busy-wait for the next animation sample; use the loop's deadline/wakeup.
+
+## 8. Interruption and cancellation
+
+- Retargeting preserves continuity (position/velocity for springs).
+- Removing a node cancels its animations and releases controller resources.
+- Changing `animation`/`transition` declarations cancels/restarts per CSS semantics.
+- Shutdown cancels all animations; no callbacks after the runtime stops.
+- Animations never hold raw pointers to destroyed nodes; use stable ids/handles.
+
+## 9. Determinism and tests
+
+- Fixed timestep, fixed start time, fixed inputs.
+- Sample at exact times (0, duration/2, duration) and compare values with tolerance.
+- Golden images for visual transitions at fixed frames.
+- Tests: easing curves, cubic-bezier, spring convergence, interruption/retarget, fill modes,
+  reduced motion, hidden/occluded pause.
+- No wall clock, random seeds, or system animation settings in goldens (inject them).
+
+## 10. Diagnostics
+
+Record:
+
+- active animation count and names
+- sampled value/clamped time per frame (debug)
+- dropped animation frames
+- spring energy/convergence
+- reduced-motion/power-policy decisions
+
+## 11. Open questions
+
+- CSS `animation-composition` and additive animations.
+- Scroll-driven animations.
+- Shared-element transitions.
+- Whether springs are a CSS extension or a component-only API.
+- Wide-gamut color interpolation.

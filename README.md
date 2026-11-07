@@ -12,30 +12,48 @@ Status: **pre-alpha / Big Step B1 complete** (RHI, Vulkan batched 2D, scene grap
 
 ## Documents
 
+Start with the [documentation map](docs/README.md) and [architecture overview](docs/architecture/overview.md).
+
+- [Architecture overview](docs/architecture/overview.md)
+- [Module map](docs/architecture/module-map.md)
+- [Getting started](docs/guides/getting-started.md)
 - [Design plan v1](../ui_framework_design_plan_v1.md)
 - [Execution plan & workload breakdown](../ui_framework_execution_plan.md)
 - Architecture decisions: [`decisions/`](decisions/) — index at
   [`decisions/README.md`](decisions/README.md)
 - [Project generator & developer config](docs/guides/project-generator.md)
+- [Developer workflow & protected regions](docs/guides/developer-workflow.md)
 - [`tessera.json` schema v1](docs/specs/project-config-v1.md)
 - [Code style & build cache](docs/guides/code-style.md)
 - [Dependency map](docs/specs/dependencies.md)
 - [Renderer / RHI design](docs/design/renderer.md)
 - [Scene graph & events](docs/design/scene-graph.md)
+- [UI model](docs/design/ui-model.md)
+- [Layout / text / animation](docs/design/layout.md), [text](docs/design/text.md),
+  [animation](docs/design/animation.md)
+- [Responsive / accessibility](docs/design/responsive.md), [accessibility](docs/design/accessibility.md)
 - [Stylesheet engine spec](docs/specs/stylesheet-v1.md)
+- [Compiler / IR / component model](docs/design/compiler.md), [IR spec](docs/specs/ir-v1.md),
+  [component model](docs/specs/component-model-v1.md)
+- [Design-time viewer](docs/design/designer.md)
 - [Runtime config spec](docs/specs/runtime-config-v1.md)
 - [Runtime loop & frame pacing](docs/design/game-loop.md)
 - [Dirty rendering & invalidation](docs/design/dirty-rendering.md)
 - [Performance & power](docs/design/performance.md)
 - [Window resize & lifecycle](docs/design/window-resize.md)
-- [OS events & foldables](docs/specs/os-events-v1.md)
+- [HAL](docs/design/hal.md), [OS events & foldables](docs/specs/os-events-v1.md)
 - [Async runtime](docs/design/async.md)
+- [Threading & memory](docs/design/threading-and-memory.md)
+- [Resources](docs/design/resources.md), [services](docs/design/services.md),
+  [security](docs/design/security.md)
 - [Diagnostics & profiling](docs/design/diagnostics.md)
 - [Diagnostics config](docs/specs/diagnostics-config-v1.md)
 - [Input handler](docs/design/input.md)
+- [Testing](docs/guides/testing.md), [golden tests](docs/specs/golden-tests-v1.md)
+- [Packaging](docs/guides/packaging.md), [build & packaging design](docs/design/build-and-packaging.md)
+- [Debugging](docs/guides/debugging.md), [glossary](docs/reference/glossary.md)
 - [Batched2D reference image](docs/images/batched2d.png)
-- [Documentation map & runtime reading order](docs/README.md)
-- Design / specs / RFCs / guides: [`docs/`](docs/)
+- Design / specs / guides: [`docs/`](docs/)
 
 ## Repository layout
 

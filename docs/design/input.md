@@ -1,7 +1,8 @@
 # Input handler and event pipeline
 
-Status: design for Big Step B2. Companion to [`game-loop.md`](game-loop.md) and
-[`scene-graph.md`](scene-graph.md).
+Status: design for Big Step B2. Companion to [`game-loop.md`](game-loop.md),
+[`scene-graph.md`](scene-graph.md), [`ui-model.md`](ui-model.md), and
+[`accessibility.md`](accessibility.md).
 
 ## 1. Goals
 

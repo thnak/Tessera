@@ -5,7 +5,9 @@ pixel goldens. B3 adds the window/swapchain path with frame pacing and dynamic r
 
 See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering.md),
 [`input.md`](input.md), [`window-resize.md`](window-resize.md), [`async.md`](async.md),
-[`diagnostics.md`](diagnostics.md), [`stylesheet-v1.md`](../specs/stylesheet-v1.md), and
+[`diagnostics.md`](diagnostics.md), [`resources.md`](resources.md),
+[`threading-and-memory.md`](threading-and-memory.md), [`layout.md`](layout.md),
+[`text.md`](text.md), [`stylesheet-v1.md`](../specs/stylesheet-v1.md), and
 [`runtime-config-v1.md`](../specs/runtime-config-v1.md).
 
 ## Layers

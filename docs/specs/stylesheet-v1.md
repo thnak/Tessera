@@ -269,12 +269,15 @@ Unsupported declarations are **not** silent: they produce one diagnostic per
 
 - **StyleNode**: `tag`, `id`, `classes`, attributes, parent/siblings, pseudo-state bits,
   inline style, theme scope.
-- **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes (ADR-005).
-- **Paint**: the batched 2D renderer reads paint longhands and produces quads/SDF/text.
+- **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes (ADR-005). See
+  [`layout.md`](../design/layout.md).
+- **Paint**: the batched 2D renderer reads paint longhands and produces quads/SDF/text. See
+  [`renderer.md`](../design/renderer.md).
+- **Text**: text longhands feed shaping/line breaking. See [`text.md`](../design/text.md).
 - **Input**: the input pseudo-state dispatcher updates `:hover`, `:active`, `:focus`,
-  `:focus-visible`, `:disabled`, `:checked`.
+  `:focus-visible`, `:disabled`, `:checked`. See [`input.md`](../design/input.md).
 - **Animation**: the fixed-step loop samples transitions/keyframes and writes animated values
-  into the computed style before layout/paint.
+  into the computed style before layout/paint. See [`animation.md`](../design/animation.md).
 - **Compiler**: build-time CSS is precompiled to the same `StyleSheet` representation; generated
   C++ references compiled rule ids, not a second parser.
 

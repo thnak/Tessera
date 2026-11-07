@@ -172,7 +172,11 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 |---|---|
 | Architecture decisions | `decisions/` — start at [decisions/README.md](decisions/README.md) |
 | Documentation map | [`docs/README.md`](docs/README.md) |
+| Architecture overview | [`docs/architecture/overview.md`](docs/architecture/overview.md) |
+| Module map | [`docs/architecture/module-map.md`](docs/architecture/module-map.md) |
+| Getting started | [`docs/guides/getting-started.md`](docs/guides/getting-started.md) |
 | Developer guide | [`docs/guides/project-generator.md`](docs/guides/project-generator.md) |
+| Developer workflow / protected regions | [`docs/guides/developer-workflow.md`](docs/guides/developer-workflow.md) |
 | Project config schema | [`docs/specs/project-config-v1.md`](docs/specs/project-config-v1.md) |
 | Code style & build cache | [`docs/guides/code-style.md`](docs/guides/code-style.md) |
 | Dependency map | [`docs/specs/dependencies.md`](docs/specs/dependencies.md) |
@@ -199,6 +203,16 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Diagnostics config | [`docs/specs/diagnostics-config-v1.md`](docs/specs/diagnostics-config-v1.md) |
 | Input handler | [`docs/design/input.md`](docs/design/input.md) |
 | Renderer design notes | `docs/design/renderer.md`, `docs/design/scene-graph.md` |
+| UI model / layout / text / animation | `docs/design/ui-model.md`, `layout.md`, `text.md`, `animation.md` |
+| Responsive / accessibility | `docs/design/responsive.md`, `docs/design/accessibility.md` |
+| HAL | [`docs/design/hal.md`](docs/design/hal.md) |
+| Compiler / IR / component model | [`docs/design/compiler.md`](docs/design/compiler.md), [`docs/specs/ir-v1.md`](docs/specs/ir-v1.md), [`docs/specs/component-model-v1.md`](docs/specs/component-model-v1.md) |
+| Designer / Wasm | [`docs/design/designer.md`](docs/design/designer.md) |
+| Threading / memory | [`docs/design/threading-and-memory.md`](docs/design/threading-and-memory.md) |
+| Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |
+| Testing / goldens | [`docs/guides/testing.md`](docs/guides/testing.md), [`docs/specs/golden-tests-v1.md`](docs/specs/golden-tests-v1.md) |
+| Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |
+| Glossary | [`docs/reference/glossary.md`](docs/reference/glossary.md) |
 | Batched2D demo | `tools/poc/batched2d/` |
 | Compiler frontend/IR/codegen | `src/compiler/{analyzer,rules,ir,codegen,merger}/` |
 | Design-time viewer | `designer/{web,native}/` |
@@ -223,7 +237,8 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
   [`docs/guides/project-generator.md`](docs/guides/project-generator.md).
 - Shaders: GLSL → SPIR-V via `glslc`; SPIR-V is the source of truth for Vulkan.
 - Every subsystem gets a short design note in `docs/design/` and, if contentious, an ADR
-  in `decisions/`.
+  in `decisions/`. Architecture docs live in `docs/architecture/`, normative specs in
+  `docs/specs/`, and how-to guides in `docs/guides/`; update `docs/README.md` when adding docs.
 
 ## Definition of done (every change)
 
