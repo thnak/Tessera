@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build libvulkan-dev vulkan-tools \
+            mesa-vulkan-drivers glslc glslang-tools
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Vulkan offscreen PoC (lavapipe)
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        run: |
+          ./build/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
+            --out offscreen.png --no-validation
+
+      - name: Upload offscreen PNG
+        uses: actions/upload-artifact@v4
+        with:
+          name: offscreen-png
+          path: offscreen.png
+          retention-days: 14

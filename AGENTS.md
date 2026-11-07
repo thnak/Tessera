@@ -88,7 +88,9 @@ Repo + build + the two riskiest proofs.
 
 Windows (Vulkan SDK required; `VULKAN_SDK` is set):
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+# Visual Studio 2026:
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+# Visual Studio 2022: -G "Visual Studio 17 2022"
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 .\build\tools\poc\vulkan_offscreen\Release\vulkan_offscreen_poc.exe --out offscreen.png

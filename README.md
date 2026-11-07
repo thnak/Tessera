@@ -49,7 +49,35 @@ Tessera/
 
 ## Build
 
-_TBD — Phase 0 will add CMake + Vulkan PoC._
+Requirements: CMake >= 3.24, a C++20 compiler, and the Vulkan SDK
+(`VULKAN_SDK` set; `glslc` in the SDK `Bin/` or on `PATH`).
+
+Windows (MSVC 2022):
+
+```powershell
+# Visual Studio 2026:
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+# Visual Studio 2022: -G "Visual Studio 17 2022"
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+.\build\tools\poc\vulkan_offscreen\Release\vulkan_offscreen_poc.exe --out offscreen.png
+```
+
+Linux (headless, Mesa lavapipe):
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+  ./build/tools/poc/vulkan_offscreen/vulkan_offscreen_poc --out offscreen.png
+```
+
+Phase 0 tools:
+
+- `vulkan_offscreen_poc` — Vulkan 1.3 dynamic rendering into an offscreen image, read back to
+  host memory, written as a PNG (no window, no swapchain).
+- `merger_poc` — injects developer protected regions into freshly generated C++.
 
 ## Next
 

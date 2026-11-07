@@ -49,6 +49,9 @@ Makefile
 *.spirv
 shader_cache/
 
+# Generated PoC output
+/offscreen*.png
+
 # Test / profile output
 *.log
 *.trace
