@@ -27,7 +27,15 @@ with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`.
     "maxFrameDeltaMs": 250,
     "maxUpdatesPerFrame": 5,
     "renderScale": 1.0,
-    "renderOnDemand": false,
+    "renderOnDemand": true,
+    "powerPolicy": "adaptive",
+    "adaptiveQuality": true,
+    "minRenderScale": 0.6,
+    "frameBudgetMs": 0,
+    "pauseWhenOccluded": true,
+    "pauseWhenUnfocused": false,
+    "backgroundMaxFps": 0,
+    "gpuTimestamps": false,
     "dirtyRendering": "auto",
     "damageRects": true,
     "maxDamageRects": 16,
@@ -56,7 +64,15 @@ with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`.
 | `maxFrameDeltaMs` | number | `250` | `1..5000` | Clamp for catch-up after a stall. |
 | `maxUpdatesPerFrame` | integer | `5` | `1..16` | Spiral-of-death guard. |
 | `renderScale` | number | `1.0` | `0.25..4.0` | Offscreen/swapchain resolution scale. |
-| `renderOnDemand` | boolean | `false` | | Render only on dirty/wake events. |
+| `renderOnDemand` | boolean | `true` | | Render only on dirty/wake events; static UI idles. |
+| `powerPolicy` | string | `adaptive` | `adaptive`, `power-save`, `balanced`, `performance`, `benchmark` | Preset for power/quality behavior. |
+| `adaptiveQuality` | boolean | `true` | | Reduce optional cost when frame budgets are missed. |
+| `minRenderScale` | number | `0.6` | `0.25..1.0` | Lower bound for adaptive resolution scaling. |
+| `frameBudgetMs` | number | `0` | `0..1000` | `0` = derive from effective rate; otherwise CPU+GPU target. |
+| `pauseWhenOccluded` | boolean | `true` | | Stop rendering/animations when hidden/occluded. |
+| `pauseWhenUnfocused` | boolean | `false` | | Stop or throttle when the window loses focus. |
+| `backgroundMaxFps` | integer | `0` | `0..1000` | Cap when unfocused but visible; `0` = use `maxFps`. |
+| `gpuTimestamps` | boolean | `false` | | Enable GPU timestamp queries for diagnostics (if supported). |
 | `dirtyRendering` | string | `auto` | `auto`, `on`, `off` | `auto` enables dirty mode when beneficial. |
 | `damageRects` | boolean | `true` | | Partial redraw when the present path supports it. |
 | `maxDamageRects` | integer | `16` | `1..64` | Exceeding this falls back to full redraw. |
@@ -83,6 +99,12 @@ with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`.
     `renderOnDemand` for the duration of the run.
 11. Unknown fields are errors (strict schema).
 12. `layerCacheBudgetMb=0` or `drawListCacheBudgetMb=0` is valid and disables that cache.
+13. `minRenderScale <= renderScale`; `renderScale` may be reduced down to `minRenderScale` by
+    adaptive quality.
+14. `backgroundMaxFps=0` means "use `maxFps`"; it is not a pause. Use
+    `pauseWhenUnfocused=true` or `pauseWhenOccluded=true` to stop rendering.
+15. `powerPolicy=benchmark` is allowed but emits a diagnostic and must not be shipped.
+16. `gpuTimestamps=true` falls back silently if the backend/device does not support timestamps.
 
 ## 5. Semantics
 
@@ -132,6 +154,48 @@ In deterministic mode:
 - disable interpolation if the golden mode requires it;
 - record/consume an input script.
 
+### 5.6 Power policy
+
+`powerPolicy` is a preset applied at load time; explicit fields in the same object override it.
+
+| Policy | Present default | Dirty default | Adaptive | Notes |
+|---|---|---|---|---|
+| `adaptive` | on-demand, `maxFps=0` | on | on | normal apps; idle when static |
+| `power-save` | on-demand, `maxFps=30` | on | aggressive | battery/kiosk |
+| `balanced` | on-demand, `maxFps=60` | on | moderate | desktop apps |
+| `performance` | continuous, `maxFps=0` | on | off | live dashboards/video |
+| `benchmark` | uncapped, full redraw | off | off | diagnostics only |
+
+- `adaptive` is the default and is the recommended policy for application UIs.
+- `performance` may render continuously but still honors dirty work and explicit caps.
+- `benchmark` must be reported in logs and is rejected for release packaging by tooling.
+- A policy must never silently change simulation dt or correctness.
+- Hardware utilization is controlled by work (dirty/damage/scale/effects/present rate), not by a
+  "GPU utilization %" target. See [`performance.md`](../design/performance.md).
+
+### 5.7 Adaptive quality
+
+When `adaptiveQuality=true` and a frame budget is missed:
+
+1. reduce optional effects (blur/large shadows/extra AA),
+2. lower `renderScale` toward `minRenderScale`,
+3. lower the present cap to the next refresh divisor,
+4. pause non-essential animations,
+5. report the downgrade.
+
+Use hysteresis/cooldown; never oscillate every frame. Never skip correctness, dirty
+invalidation, or input responsiveness. All changes are visible in metrics.
+
+### 5.8 Idle, occluded, and background behavior
+
+- **Static:** no presents, no GPU submissions, no animation ticks after settling.
+- **Input:** wakes exactly the frame(s) needed, then idles again.
+- **Occluded/minimized:** `pauseWhenOccluded=true` stops rendering and active animations;
+  restoring marks the target dirty and renders one frame.
+- **Unfocused but visible:** `pauseWhenUnfocused=true` stops rendering; otherwise
+  `backgroundMaxFps` caps it (`0` = use `maxFps`).
+- **VRR:** do not present empty frames to keep VRR alive; idle between real frames.
+
 ## 6. C++ API mirror
 
 ```cpp
@@ -141,6 +205,7 @@ enum class VsyncMode { Off, On, Adaptive, Mailbox };
 enum class RefreshMode { Off, Auto, Preferred };
 enum class FramePacing { Auto, Smooth, LowLatency, PowerSave };
 enum class DirtyMode { Auto, On, Off };
+enum class PowerPolicy { Adaptive, PowerSave, Balanced, Performance, Benchmark };
 
 struct RuntimeConfig {
     double fixed_timestep_hz = 60.0;
@@ -154,7 +219,15 @@ struct RuntimeConfig {
     double max_frame_delta_ms = 250.0;
     std::uint32_t max_updates_per_frame = 5;
     float render_scale = 1.0f;
-    bool render_on_demand = false;
+    bool render_on_demand = true;
+    PowerPolicy power_policy = PowerPolicy::Adaptive;
+    bool adaptive_quality = true;
+    float min_render_scale = 0.6f;
+    double frame_budget_ms = 0.0;
+    bool pause_when_occluded = true;
+    bool pause_when_unfocused = false;
+    std::uint32_t background_max_fps = 0;
+    bool gpu_timestamps = false;
     DirtyMode dirty_rendering = DirtyMode::Auto;
     bool damage_rects = true;
     std::uint32_t max_damage_rects = 16;
@@ -190,7 +263,14 @@ diagnostics/metrics.
 - `dynamicRefreshRate=auto`: use VRR when available, fall back safely.
 - `dirtyRendering=auto`: optimize by default, but correctness-first fallbacks.
 - `gpuFramesInFlight=2`: enough overlap for smooth input latency without deep queues.
-- `renderOnDemand=false`: dashboards/animations are the primary workload; opt in for static UIs.
+- `renderOnDemand=true`: static scenes idle; active animations/data streams are wake sources and
+  still render every tick. Continuous video/benchmark modes opt out explicitly.
+- `powerPolicy=adaptive`: on-demand + dirty + adaptive quality; the safe default for apps.
+- `adaptiveQuality=true`: recover from frame-budget misses without application code.
+- `pauseWhenOccluded=true`: no GPU work when the window is hidden/minimized.
+- `backgroundMaxFps=0`: use `maxFps` when unfocused but visible; opt into throttling explicitly.
+- `frameBudgetMs=0`: derive the budget from the effective present rate.
+- `gpuTimestamps=false`: diagnostics only; timestamp queries have a cost.
 
 ## 9. Interaction with `project-config-v1.md`
 
@@ -214,13 +294,15 @@ diagnostics/metrics.
     "latencyFrames": 2,
     "dirtyRendering": "auto",
     "damageRects": true,
-    "renderOnDemand": false
+    "renderOnDemand": false,
+    "powerPolicy": "adaptive"
   }
 }
 ```
 
 Content presents when ready; VRR follows the content rate up to the display maximum. The
-simulation still ticks at 60 Hz.
+simulation still ticks at 60 Hz. `renderOnDemand=false` is explicit here because the dashboard is
+continuous; omit it to use the adaptive/idle default.
 
 ### 60 Hz low-latency tool UI
 
@@ -235,7 +317,9 @@ simulation still ticks at 60 Hz.
     "latencyFrames": 1,
     "renderOnDemand": true,
     "dirtyRendering": "on",
-    "damageRects": true
+    "damageRects": true,
+    "powerPolicy": "adaptive",
+    "adaptiveQuality": true
   }
 }
 ```
@@ -250,6 +334,39 @@ Static UI renders only on input/dirty wake; pointer-driven feedback has the lowe
 
 The pacer uses a deadline schedule; it does not busy-wait. If a refresh divisor is required for
 stability, use `maxFps=72` on a 144 Hz display instead.
+
+### Power-save kiosk
+
+```json
+{
+  "runtime": {
+    "powerPolicy": "power-save",
+    "maxFps": 30,
+    "renderOnDemand": true,
+    "pauseWhenOccluded": true,
+    "adaptiveQuality": true
+  }
+}
+```
+
+The explicit `maxFps` overrides the policy preset. Static pages idle; animations/input are
+capped at 30 fps and adaptive quality protects the budget.
+
+### Benchmark mode (diagnostics only)
+
+```json
+{
+  "runtime": {
+    "powerPolicy": "benchmark",
+    "maxFps": 0,
+    "dirtyRendering": "off",
+    "damageRects": false,
+    "adaptiveQuality": false
+  }
+}
+```
+
+This is a profiling mode. It must not ship; tooling rejects it for release packaging.
 
 ### Frame-cap outcomes
 
@@ -269,7 +386,9 @@ At minimum:
 
 - `effective_fps`, `refresh_hz`, `vrr_active`, `present_mode`
 - `frame_time_ms`, `update_time_ms`, `paint_time_ms`, `render_time_ms`, `present_wait_ms`
+- `gpu_frame_time_ms` (when `gpuTimestamps=true`), `idle_time_ms`
 - `steps_this_frame`, `dropped_steps`, `missed_deadlines`
+- `power_policy`, `adaptive_scale`, `quality_level`
 - `dirty_style_nodes`, `dirty_layout_nodes`, `dirty_paint_nodes`
 - `draw_calls`, `vertices`, `damage_area_ratio`, `full_redraw_reason`
 

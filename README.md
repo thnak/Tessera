@@ -26,6 +26,7 @@ Status: **pre-alpha / Big Step B1 complete** (RHI, Vulkan batched 2D, scene grap
 - [Runtime config spec](docs/specs/runtime-config-v1.md)
 - [Runtime loop & frame pacing](docs/design/game-loop.md)
 - [Dirty rendering & invalidation](docs/design/dirty-rendering.md)
+- [Performance & power](docs/design/performance.md)
 - [Input handler](docs/design/input.md)
 - [Batched2D reference image](docs/images/batched2d.png)
 - [Documentation map & runtime reading order](docs/README.md)
@@ -120,6 +121,8 @@ Tools and demos:
 - Offscreen demo writes a deterministic PNG and raw RGBA; CI runs a Vulkan smoke test.
 - B2 runtime design: full-CSS stylesheet engine, input handler, fixed-step loop, dirty
   rendering, FPS cap/vsync/VRR, frame pacing.
+- Defaults are **power-aware**: static UI idles (no presents/GPU work), no busy-wait, no
+  full-GPU target; continuous/benchmark modes are explicit.
 - B2 next: implement the runtime slice, then Yoga/text/glyph atlas and pixel goldens.
 
 ## Next

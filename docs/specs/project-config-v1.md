@@ -109,7 +109,10 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
 | `dynamicRefreshRate` | `auto` | VRR when available, safe fallback |
 | `framePacing` | `auto` | `auto`, `smooth`, `low-latency`, `power-save` |
 | `dirtyRendering` | `auto` | Dirty style/layout/paint/render + damage |
-| `renderOnDemand` | `false` | Render only on wake/dirty events |
+| `renderOnDemand` | `true` | Render only on wake/dirty events; static UI idles |
+| `powerPolicy` | `adaptive` | Power/quality preset; see runtime spec |
+| `adaptiveQuality` | `true` | Reduce optional cost on missed budgets |
+| `pauseWhenOccluded` | `true` | No GPU work when hidden/minimized |
 | `gpuFramesInFlight` | `2` | `1..3` |
 | `deterministic` | `false` | Forced by golden/headless runs |
 
@@ -190,7 +193,8 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
     "vsync": "on",
     "dynamicRefreshRate": "auto",
     "dirtyRendering": "auto",
-    "renderOnDemand": false,
+    "renderOnDemand": true,
+    "powerPolicy": "adaptive",
     "gpuFramesInFlight": 2
   },
   "dependencies": { "includeDirs": [], "linkLibraries": [], "licenseReview": true }

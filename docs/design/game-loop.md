@@ -46,6 +46,10 @@ Dirty work is defined in [`dirty-rendering.md`](dirty-rendering.md); input in
 5. Style, layout, paint, and render work is proportional to dirty state, not tree size.
 6. Golden/headless mode uses a simulated clock and a fixed dt; it never waits for vsync.
 7. A slow frame never causes unbounded catch-up. The loop clamps frame delta and update count.
+8. A static screen performs no presents and no GPU submissions after it settles. Continuous
+   rendering is an explicit mode, not the default.
+9. The loop never busy-waits and never targets full GPU utilization. See
+   [`performance.md`](performance.md).
 
 ## 3. Loop
 
@@ -102,8 +106,10 @@ Two policies:
   - resize/DPI/theme change
   - explicit `request_frame()`
 
-`renderOnDemand` defaults to `false` for dashboards and is enabled for static tool UIs. In
-on-demand mode the loop still ticks only when needed; idle CPU/GPU usage approaches zero.
+`renderOnDemand` defaults to `true` (`powerPolicy=adaptive`): static screens idle, while active
+animations, input, timers, and data streams are wake sources and still render on schedule.
+Continuous/video/benchmark modes opt out explicitly (`renderOnDemand=false`). In on-demand mode
+the loop still ticks only when needed; idle CPU/GPU usage approaches zero.
 
 `should_render(alpha)` returns true if any of:
 
@@ -171,12 +177,30 @@ The pacer measures present latency and adjusts the margin. It reports:
 
 If the renderer consistently misses the deadline, the runtime may:
 
-1. reduce `renderScale`,
-2. drop to the next lower refresh divisor,
-3. disable optional effects,
-4. report a frame-budget violation.
+1. reduce optional effects,
+2. reduce `renderScale` toward `minRenderScale`,
+3. drop to the next lower refresh divisor,
+4. pause non-essential animations,
+5. report a frame-budget violation.
 
-It must not silently reduce simulation fidelity.
+It must not silently reduce simulation fidelity or input responsiveness.
+
+### 4.4 Power and utilization
+
+Tessera is an application framework, not a benchmark. The fixed timestep exists for
+determinism; it does **not** mean the GPU is driven continuously.
+
+- Default policy `adaptive`: on-demand rendering, dirty work, capped present rate.
+- Static content: zero presents, zero GPU submissions, no active animation ticks.
+- Occluded/minimized: paused by default (`pauseWhenOccluded`).
+- Continuous mode is explicit for video/live dashboards (`renderOnDemand=false`,
+  `powerPolicy=performance`).
+- `benchmark` mode (uncapped/full redraw) is diagnostic only and never a production default.
+- Adaptive quality reacts to missed frame budgets, not to a "GPU utilization %" target.
+
+Hardware utilization is determined by the dirty set, damage area, render scale, effects,
+present rate, frames in flight, and visibility. See [`performance.md`](performance.md) for the
+full control matrix and budgets.
 
 ## 5. Vsync and present modes
 

@@ -99,7 +99,9 @@ Minimal example:
     "vsync": "on",
     "dynamicRefreshRate": "auto",
     "dirtyRendering": "auto",
-    "renderOnDemand": false
+    "renderOnDemand": true,
+    "powerPolicy": "adaptive",
+    "adaptiveQuality": true
   }
 }
 ```

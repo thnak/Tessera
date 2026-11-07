@@ -26,6 +26,7 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-016](ADR-016-stylesheet-engine.md) | Stylesheet engine: full CSS syntax with staged semantics | Proposed |
 | [ADR-017](ADR-017-input-and-fixed-step-runtime.md) | Input handler and fixed-step runtime loop | Proposed |
 | [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) | Dirty rendering, frame pacing, and display refresh | Proposed |
+| [ADR-019](ADR-019-power-aware-runtime.md) | Power-aware runtime defaults; no full-load game loop | Proposed |
 
 ## Dependency overview
 
@@ -44,6 +45,7 @@ ADR-014 project config (cross-cutting: generator, runtime, tooling)
 ADR-015 code style/build cache (cross-cutting: all C++ code)
 ADR-016 stylesheet engine ── ADR-005 layout
 ADR-017 input + fixed-step loop ── ADR-018 dirty rendering/frame pacing
+ADR-019 power-aware defaults (cross-cutting: runtime, pacing, quality)
 ```
 
 ## Adding an ADR

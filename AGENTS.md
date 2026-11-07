@@ -48,6 +48,9 @@ A cross-platform C++ UI framework:
     third-party notices. Every new dependency needs an entry in
     [`docs/specs/dependencies.md`](docs/specs/dependencies.md) and
     [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+11. **Power-aware by default** (ADR-019). This is an application framework, not a benchmark.
+    Static UI must idle (no presents/GPU work), the loop must never busy-wait, and adaptive/
+    on-demand defaults are required. Full-GPU utilization is not a goal.
 
 ## Big Steps (group work, don't micro-step)
 
@@ -81,6 +84,8 @@ Repo + build + the two riskiest proofs.
 - [ ] **B2:** Dirty rendering: style/layout/paint/render domains, caches, damage (ADR-018).
 - [ ] **B2:** Frame pacing: `maxFps`, vsync modes, dynamic refresh/VRR, render-on-demand
       (ADR-018).
+- [ ] **B2:** Power-aware defaults: idle/on-demand, adaptive quality, occlusion/background
+      policy, no busy-wait/full-load (ADR-019).
 - [ ] **B2:** Pixel goldens via lavapipe/software path (ADR-009).
 - [ ] **B2:** Multi-frame synchronization (frames in flight, timeline semaphores).
 
@@ -170,6 +175,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Runtime config | [`docs/specs/runtime-config-v1.md`](docs/specs/runtime-config-v1.md) |
 | Runtime loop / pacing | [`docs/design/game-loop.md`](docs/design/game-loop.md) |
 | Dirty rendering | [`docs/design/dirty-rendering.md`](docs/design/dirty-rendering.md) |
+| Performance / power | [`docs/design/performance.md`](docs/design/performance.md) |
 | Input handler | [`docs/design/input.md`](docs/design/input.md) |
 | Renderer design notes | `docs/design/renderer.md`, `docs/design/scene-graph.md` |
 | Batched2D demo | `tools/poc/batched2d/` |
@@ -215,10 +221,11 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 - [ ] If it touches rendering: a golden test or a manual visual check is recorded.
 - [ ] If it touches dirty state: dirty-only and full-redraw output are equivalent.
 - [ ] If it touches pacing: frame-cap/vsync/VRR fallback behavior is recorded.
+- [ ] If it touches power/idle: a static scene produces zero presents/submissions after settling.
 
 ## Current focus
 
 **Big Step B2.** Implement the runtime slice in this order: stylesheet engine, Yoga adapter,
-input handler, fixed-step loop, dirty rendering, frame pacing/FPS/VRR, then text/glyph atlas and
-the lavapipe/software pixel golden pipeline. Keep the B1 RHI, batched 2D renderer, and scene
-graph stable while doing so.
+input handler, fixed-step loop, dirty rendering, frame pacing/FPS/VRR, power-aware idle/adaptive
+defaults, then text/glyph atlas and the lavapipe/software pixel golden pipeline. Keep the B1 RHI,
+batched 2D renderer, and scene graph stable while doing so.

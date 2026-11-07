@@ -183,6 +183,21 @@ The B1 offscreen renderer always does a full redraw; damage is a B3 window-path 
 - Text/glyph atlas changes mark only nodes using the affected glyphs.
 - Continuous streaming must not rebuild the scene graph or draw lists wholesale.
 
+## 8.1 Power and utilization
+
+Dirty rendering is the primary mechanism that keeps an application framework from behaving like
+a full-load game loop:
+
+- a clean/static subtree produces no draw work and no GPU submissions;
+- occlusion/minimization pauses style/layout/paint/render work;
+- only dirty nodes and damage rectangles are processed;
+- retained layers/draw lists avoid repeated CPU work;
+- adaptive quality lowers optional cost (render scale/effects) when budgets are missed;
+- `powerPolicy=adaptive` is the default; `benchmark` (uncapped/full redraw) is diagnostic only.
+
+A dirty frame is not a license to repaint the world. If damage is unsafe or above the threshold,
+fall back to full redraw, measure it, and report why. See [`performance.md`](performance.md).
+
 ## 9. Metrics and debugging
 
 Counters:

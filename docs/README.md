@@ -14,6 +14,7 @@ ones are:
 - [ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md) — input + fixed-step loop
 - [ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) — dirty rendering +
   frame pacing/VRR
+- [ADR-019](../decisions/ADR-019-power-aware-runtime.md) — power-aware defaults; no full-load loop
 
 ## 2. Specs (normative)
 
@@ -31,6 +32,8 @@ ones are:
 - [`design/game-loop.md`](design/game-loop.md) — fixed timestep, frame cap, vsync, VRR
 - [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage,
   multi-frame execution
+- [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
+  quality, hardware utilization
 
 ## 4. Guides
 
@@ -46,7 +49,9 @@ For the stylesheet + input + loop slice:
 3. [Input handler](design/input.md) — how pseudo-states and pointer/keyboard events arrive.
 4. [Game loop](design/game-loop.md) — when simulation and render happen.
 5. [Dirty rendering](design/dirty-rendering.md) — what work is actually done.
-6. [Runtime config](specs/runtime-config-v1.md) — how the app tunes FPS/vsync/VRR/dirty mode.
+6. [Performance & power](design/performance.md) — why static UI idles and how utilization is
+   bounded.
+7. [Runtime config](specs/runtime-config-v1.md) — how the app tunes FPS/vsync/VRR/dirty/power.
 
 ## 6. Status
 
@@ -58,5 +63,6 @@ For the stylesheet + input + loop slice:
 | Input handler | B2 proposed (ADR-017) |
 | Fixed-step loop | B2 proposed (ADR-017) |
 | Dirty rendering + frame pacing | B2/B3 proposed (ADR-018) |
+| Power-aware idle/adaptive defaults | B2 proposed (ADR-019) |
 | Yoga layout / text / glyph atlas | B2 planned |
 | Pixel goldens on lavapipe/software | B2/B3 planned |
