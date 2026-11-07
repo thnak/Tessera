@@ -17,6 +17,7 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `assets` | object | no | empty | Fonts, images, theme |
 | `build` | object | no | see below | CMake and toolchain |
 | `dev` | object | no | see below | Browser preview |
+| `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering |
 | `dependencies` | object | no | empty | Include/link additions |
 
 Unknown fields are **errors** (strict schema). Paths are relative to the project root; absolute
@@ -96,6 +97,22 @@ paths are rejected.
 | `preview.port` | integer | `5173` | |
 | `preview.hotReload` | boolean | `true` | |
 
+## `runtime`
+
+See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
+
+| Field | Default | Notes |
+|---|---|---|
+| `fixedTimestepHz` | `60` | Simulation tick rate; deterministic |
+| `maxFps` | `0` | `0` = uncapped (display/vsync limits) |
+| `vsync` | `on` | `off`, `on`, `adaptive`, `mailbox` |
+| `dynamicRefreshRate` | `auto` | VRR when available, safe fallback |
+| `framePacing` | `auto` | `auto`, `smooth`, `low-latency`, `power-save` |
+| `dirtyRendering` | `auto` | Dirty style/layout/paint/render + damage |
+| `renderOnDemand` | `false` | Render only on wake/dirty events |
+| `gpuFramesInFlight` | `2` | `1..3` |
+| `deterministic` | `false` | Forced by golden/headless runs |
+
 ## `dependencies`
 
 | Field | Type | Default | Notes |
@@ -116,6 +133,8 @@ paths are rejected.
 8. `dependencies.linkLibraries` must be reviewed; no GPL/LGPL in statically linked code.
 9. Unknown fields, absolute paths, and duplicate binding ids are errors.
 10. `tessera generate --check` fails if generated output differs from the working tree.
+11. `runtime` follows [runtime-config-v1.md](runtime-config-v1.md) validation; `deterministic`
+    is forced for golden/headless runs.
 
 ## Example
 
@@ -165,6 +184,15 @@ paths are rejected.
     "sanitizers": []
   },
   "dev": { "preview": { "backend": "webgpu", "port": 5173, "hotReload": true } },
+  "runtime": {
+    "fixedTimestepHz": 60,
+    "maxFps": 0,
+    "vsync": "on",
+    "dynamicRefreshRate": "auto",
+    "dirtyRendering": "auto",
+    "renderOnDemand": false,
+    "gpuFramesInFlight": 2
+  },
   "dependencies": { "includeDirs": [], "linkLibraries": [], "licenseReview": true }
 }
 ```

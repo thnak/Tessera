@@ -92,12 +92,22 @@ Minimal example:
     "deterministic": true
   },
   "build": { "preset": "dev", "staticRuntime": true, "compilerCache": "auto" },
-  "dev": { "preview": { "backend": "webgpu", "port": 5173, "hotReload": true } }
+  "dev": { "preview": { "backend": "webgpu", "port": 5173, "hotReload": true } },
+  "runtime": {
+    "fixedTimestepHz": 60,
+    "maxFps": 0,
+    "vsync": "on",
+    "dynamicRefreshRate": "auto",
+    "dirtyRendering": "auto",
+    "renderOnDemand": false
+  }
 }
 ```
 
 The full field list, defaults, and validation rules are in
-[`docs/specs/project-config-v1.md`](../specs/project-config-v1.md).
+[`docs/specs/project-config-v1.md`](../specs/project-config-v1.md). Runtime pacing, FPS cap,
+vsync/VRR, render-on-demand, and dirty rendering are defined in
+[`docs/specs/runtime-config-v1.md`](../specs/runtime-config-v1.md).
 
 ## C++ API for developers
 
@@ -120,6 +130,9 @@ tessera::AppConfig config = tessera::AppConfig::from_file("tessera.json");
 config.window.width = 1600;
 config.window.height = 900;
 config.dev.preview.hot_reload = false;
+config.runtime.max_fps = 60;
+config.runtime.dynamic_refresh_rate = tessera::RefreshMode::Auto;
+config.runtime.render_on_demand = true;
 
 tessera::App app(config);
 return app.run();

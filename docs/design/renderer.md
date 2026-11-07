@@ -1,6 +1,11 @@
 # Renderer and RHI design (Big Step B1)
 
-Status: B1 implemented. B2 adds Yoga layout, text shaping/glyph atlas, and pixel goldens.
+Status: B1 implemented. B2 adds Yoga layout, text shaping/glyph atlas, dirty rendering, and
+pixel goldens. B3 adds the window/swapchain path with frame pacing and dynamic refresh.
+
+See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering.md),
+[`input.md`](input.md), [`stylesheet-v1.md`](../specs/stylesheet-v1.md), and
+[`runtime-config-v1.md`](../specs/runtime-config-v1.md).
 
 ## Layers
 
@@ -81,6 +86,18 @@ Rules:
 Records render-pass, bind, scissor, draw, and vertex counts. It has no GPU and no image output; it
 exists so batching, clipping, transforms, and command sequencing can be tested on any machine.
 
+## Runtime integration (B2/B3)
+
+- **B1:** offscreen target, one frame in flight, full redraw, synchronous submit/wait.
+- **B2:** fixed-step loop, dirty style/layout/paint/render, retained draw lists/layers, bounded
+  caches, damage rectangles on the offscreen path.
+- **B3:** window + swapchain, acquire/present, `maxFps`, vsync modes, dynamic refresh/VRR,
+  incremental present/damage where the platform supports it.
+- Configuration lives in `tessera.json.runtime`; see
+  [`runtime-config-v1.md`](../specs/runtime-config-v1.md).
+- Deterministic/golden mode always full-redraws into a fixed offscreen target and ignores
+  pacing/present settings.
+
 ## Demo and reference image
 
 ```bash
@@ -94,8 +111,10 @@ Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 
 ## B2 / known limits
 
-- Offscreen only; no window or swapchain.
-- One frame in flight; no timeline semaphores or multi-frame pipelining.
+- B1 is offscreen only; no window or swapchain.
+- B1 always full-redraws; dirty caches/damage are B2/B3.
+- One frame in flight; no timeline semaphores or multi-frame pipelining yet.
+- No FPS cap, vsync/VRR, or dynamic refresh yet; these are B3 window-path features.
 - No Yoga layout; scene nodes use explicit bounds.
 - No text shaping or glyph atlas.
 - No vector path rasterizer (ADR-004).

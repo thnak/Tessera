@@ -56,6 +56,11 @@ VMA and volk are vendored from Vulkan SDK 1.4.357.0 (`Include/vma`, `Include/Vol
 `third_party/vma` and `third_party/volk`, so Linux CI does not depend on optional SDK
 components. Their MIT headers are preserved.
 
+Frame pacing, refresh-rate/VRR queries, and damage use system APIs (DXGI, Vulkan present modes,
+X11 RandR/Present, Wayland `wp_presentation`). They are system components, not linked
+dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
+[`game-loop.md`](../design/game-loop.md).
+
 ## 2. Layout
 
 | Library | Status | License | Module | Role in Tessera |

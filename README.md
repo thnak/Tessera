@@ -22,7 +22,13 @@ Status: **pre-alpha / Big Step B1 complete** (RHI, Vulkan batched 2D, scene grap
 - [Dependency map](docs/specs/dependencies.md)
 - [Renderer / RHI design](docs/design/renderer.md)
 - [Scene graph & events](docs/design/scene-graph.md)
+- [Stylesheet engine spec](docs/specs/stylesheet-v1.md)
+- [Runtime config spec](docs/specs/runtime-config-v1.md)
+- [Runtime loop & frame pacing](docs/design/game-loop.md)
+- [Dirty rendering & invalidation](docs/design/dirty-rendering.md)
+- [Input handler](docs/design/input.md)
 - [Batched2D reference image](docs/images/batched2d.png)
+- [Documentation map & runtime reading order](docs/README.md)
 - Design / specs / RFCs / guides: [`docs/`](docs/)
 
 ## Repository layout
@@ -112,13 +118,15 @@ Tools and demos:
   transform stack.
 - Scene graph with hit testing and W3C-style capture/target/bubble events.
 - Offscreen demo writes a deterministic PNG and raw RGBA; CI runs a Vulkan smoke test.
-- B2 next: Yoga Flexbox, FreeType/HarfBuzz text + glyph atlas, pixel goldens on
-  lavapipe/software.
+- B2 runtime design: full-CSS stylesheet engine, input handler, fixed-step loop, dirty
+  rendering, FPS cap/vsync/VRR, frame pacing.
+- B2 next: implement the runtime slice, then Yoga/text/glyph atlas and pixel goldens.
 
 ## Next
 
-1. ADR-001 … ADR-015 in `decisions/`.
-2. Big Step B2: Yoga layout, text stack + glyph atlas, pixel goldens.
+1. ADR-001 … ADR-018 in `decisions/`.
+2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
+   Yoga/text, pixel goldens.
 3. Big Step C: JSX → IR → C++ vertical slice with protected regions.
 
 ## License

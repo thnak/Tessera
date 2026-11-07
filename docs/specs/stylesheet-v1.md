@@ -1,0 +1,354 @@
+# Stylesheet v1 specification
+
+Status: **proposed** (Big Step B2). Normative for `ui/style`.
+
+## 1. Scope
+
+Tessera supports a **full CSS engine architecture** with two deliberately separate layers:
+
+1. **Syntax** — parse modern CSS (CSS3/4-era syntax) without a browser or DOM.
+2. **Semantics** — compute a typed style for a scene-graph node according to the
+   compatibility matrix in §11.
+
+"Full CSS engine" here means **full syntax + a documented semantic matrix**, not a claim that
+every CSS module is implemented in V1. Unsupported properties and at-rules must still parse,
+produce diagnostics, and degrade gracefully. A literal implementation of every CSS module is
+unbounded and conflicts with the deterministic V1 goal.
+
+The engine is used by both the build-time compiler and the production runtime. It never depends
+on a browser, a DOM, JavaScript, or the platform text stack.
+
+## 2. Goals
+
+- Parse real `.css` files, inline style strings, and inline `style="..."` attributes.
+- Match selectors against a minimal `StyleNode` (tag, id, classes, attributes, pseudo-states).
+- Implement the CSS cascade, specificity, inheritance, custom properties, and `!important`.
+- Produce a typed `ComputedStyle` consumed by layout (Yoga), paint (batched 2D), and animation.
+- Be deterministic: stable rule order, fixed viewport/DPI, no wall clock, no system fonts.
+- Be fast enough for 10k+ nodes: indexed selectors, cached computed styles, dirty invalidation.
+- Preserve unknown syntax for forward compatibility; never crash on invalid CSS.
+
+## 3. Non-goals (V1)
+
+- HTML parsing, DOM, browser layout, or JavaScript.
+- Full CSS Grid (subgrid, masonry, dense auto-placement) and full CSS Tables.
+- Full SVG/CSS path/filter/shader effects.
+- Every color space and every `@`-rule.
+- CSS nesting and `@scope` in the first slice (parsed, evaluated later).
+- Web fonts beyond committed test fonts (ADR-006).
+- Browser-style quirks modes, vendor prefixes semantics, or UA stylesheet parity.
+
+## 4. Pipeline
+
+```text
+source(.css / inline)
+  -> tokenizer
+  -> parser -> StyleSheet AST
+  -> property registry: validate + expand shorthands
+  -> selector index (id / class / tag)
+  -> match per node -> declarations
+  -> cascade (origin, importance, specificity, order)
+  -> inheritance + custom properties
+  -> ComputedStyle (layout + paint + animation)
+  -> dirty flags -> layout / paint / animation
+```
+
+Build-time and runtime use the same engine. Build-time may serialize the AST or a precomputed
+rule table; runtime must produce identical results for the same inputs.
+
+## 5. Syntax
+
+### 5.1 Tokenizer
+
+Must handle:
+
+- whitespace, comments (`/* ... */`), CDO/CDC (`<!--`, `-->`)
+- identifiers, escapes (`\26`, `\0000E9`)
+- strings (single and double quoted, escapes, line continuations)
+- numbers, integers, percentages, dimensions (`12px`, `1.5em`, `50%`)
+- hash tokens (`#fff`, `#id`)
+- functions (`rgb(...)`, `var(...)`, `calc(...)`, `url(...)`)
+- delimiters and combinators
+- Unicode ranges and `@`-keywords
+- source offsets for diagnostics
+
+### 5.2 Structure
+
+```css
+@import "tokens.css";
+@layer base, components;
+
+@media (min-width: 900px) and (prefers-color-scheme: dark) {
+  .card:hover > .title {
+    color: var(--text-strong);
+    padding: 8px 12px;
+  }
+}
+
+@keyframes pulse {
+  from { opacity: 1; }
+  to   { opacity: 0.5; }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 12px;
+  transition: opacity 120ms ease-out;
+}
+```
+
+### 5.3 Declarations
+
+- `property: value;`
+- `property: value !important;`
+- custom properties: `--name: value;`
+- empty declarations are ignored
+- unknown properties are preserved in the AST and reported once per `(property, source)` pair
+
+## 6. Selectors
+
+### 6.1 Supported selector grammar
+
+- type: `button`, `*`
+- class: `.card`
+- id: `#main`
+- attribute: `[disabled]`, `[data-role="tab"]`, `[lang|=en]`, `[class~="x"]`,
+  `[href^="https"]`, `[href$=".pdf"]`, `[title*="hello"]`
+- combinators: descendant (` `), child (`>`), adjacent sibling (`+`), general sibling (`~`)
+- pseudo-classes:
+  - state: `:hover`, `:active`, `:focus`, `:focus-visible`, `:disabled`, `:checked`,
+    `:enabled`, `:required`, `:optional`, `:visited` (no history in V1; always false)
+  - structural: `:first-child`, `:last-child`, `:only-child`, `:nth-child(An+B)`,
+    `:nth-last-child(An+B)`, `:first-of-type`, `:last-of-type`, `:empty`, `:root`
+  - logical: `:not(...)`, `:is(...)`, `:where(...)`
+  - `:has(...)` is parsed and evaluated in a later slice
+- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (paint support later)
+- `:not()`/`:is()`/`:where()` accept a selector list; `:where()` contributes zero specificity
+
+### 6.2 Matching rules
+
+- Matching is right-to-left for performance.
+- A selector list is a disjunction; each complex selector has its own specificity.
+- `:root` matches the scene root.
+- `:hover`/`:active`/`:focus` are driven by the input pseudo-state dispatcher (§9).
+- Sibling combinators use the scene-graph child order (paint order).
+- No shadow DOM, no slots, no `:host` in V1.
+
+## 7. Cascade
+
+### 7.1 Origins
+
+Lowest to highest:
+
+1. user-agent (Tessera's small built-in defaults)
+2. user
+3. author
+4. inline `style="..."`
+5. animations (later slice)
+6. `!important` reverses origin precedence per CSS
+
+### 7.2 Ordering key
+
+For each declaration:
+
+```text
+(origin, importance, specificity, source_order)
+```
+
+- `!important` wins over normal declarations; among important declarations, inline author >
+  author > user > user-agent.
+- Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`.
+- `:where()` contributes zero specificity.
+- Equal keys are resolved by source order; the later declaration wins.
+- Build-time and runtime must use the same stable source ordering.
+
+### 7.3 Inheritance
+
+- Inherited by default: `color`, `font-*`, `line-height`, `letter-spacing`, `word-spacing`,
+  `text-align`, `text-transform`, `white-space`, `visibility`, `cursor`, `direction`,
+  `writing-mode`.
+- Non-inherited properties reset to their initial value unless matched.
+- `inherit`, `initial`, `unset`, `revert`, `revert-layer` are parsed; `revert*` is a V1.1
+  semantic (treated as `unset` with a diagnostic).
+- The root inherits from the UA defaults.
+
+### 7.4 Shorthands
+
+The property registry expands shorthands into longhands before the cascade:
+
+- `margin`, `padding`, `border`, `border-radius`, `border-width/style/color`
+- `background`, `font`, `flex`, `gap`, `overflow`, `transition`, `animation`
+- `inset` (top/right/bottom/left)
+- `place-items`, `place-content`
+
+If a shorthand contains an unsupported component, keep the supported longhands and emit one
+diagnostic.
+
+## 8. Values, units, and colors
+
+### 8.1 Lengths
+
+- absolute: `px`, `cm`, `mm`, `in`, `pt`, `pc`, `q`
+- font-relative: `em`, `rem`, `ex`, `ch`
+- viewport: `vw`, `vh`, `vmin`, `vmax`, `sv*`, `lv*`, `dv*`
+- percentage: resolved by the consumer (layout vs paint) with documented rules
+- `calc()` with `+ - * /`, nested `calc()`, and `min()`/`max()`/`clamp()`
+
+### 8.2 Other values
+
+- numbers, integers, angles (`deg`, `rad`, `turn`, `grad`), times (`ms`, `s`)
+- colors: named colors, `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`,
+  `hsl()`, `hsla()`, `transparent`, `currentColor`
+- modern color functions (`lab()`, `lch()`, `oklab()`, `oklch()`, `color()`) are parsed and
+  preserved; semantic support is a later slice
+- strings, URLs, identifiers, functions
+- `var()` with fallback and cycle detection
+
+### 8.3 Resolution boundary
+
+`ComputedStyle` stores typed values in a canonical form. Percentage and `auto` values are kept
+symbolic until layout; paint-only values are resolved at paint time. The same rule applies to
+build-time and runtime.
+
+## 9. Custom properties and themes
+
+- Custom properties are inherited by default.
+- `var(--name, fallback)` resolves at computed-value time.
+- Cycles resolve to the fallback or the property's initial value, with a diagnostic.
+- Theme tokens are custom properties defined on `:root` or on a theme scope.
+- `@property` registration is parsed in V1.1; until then, all custom properties are untyped
+  token streams.
+- `tessera.json` theme tokens are injected as a generated `:root` rule (see
+  [`project-config-v1.md`](project-config-v1.md)).
+
+## 10. At-rules
+
+| At-rule | V1 | Notes |
+|---|---|---|
+| `@media` | yes | width/height/resolution, orientation, `prefers-color-scheme`, `prefers-reduced-motion` |
+| `@supports` | yes | property/value support checks against the registry |
+| `@layer` | yes | layer order; unlayered author rules win |
+| `@font-face` | parse | font loading is ADR-006; V1 uses committed fonts |
+| `@keyframes` | parse | animation runtime samples at fixed timestep |
+| `@import` | build-time | resolved by the asset/build pipeline |
+| `@container` | later | parsed; evaluated in the responsive slice |
+| `@property` | later | parsed; typed custom properties in V1.1 |
+| `@scope` | later | parsed; evaluated later |
+| `@page`/`@namespace`/`@charset` | no-op | parsed and ignored |
+
+Unknown at-rules are preserved and skipped with a diagnostic.
+
+## 11. Compatibility matrix
+
+Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semantic effect;
+**Later** = planned after V1.
+
+| Area | V1 semantics | Later |
+|---|---|---|
+| Box model | `display` (block/flex/none), `width/height/min/max`, `margin`, `padding`, `border`, `box-sizing`, `aspect-ratio`, `overflow` | table, multi-column |
+| Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
+| Grid | fixed/repeat columns/rows, gap, span, basic alignment | subgrid, masonry, dense auto-placement |
+| Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
+| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color` | gradients, images, filters, `clip-path` |
+| Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `white-space`, `text-overflow` | full OpenType features, justification |
+| Transforms | `translate`, `scale`, `rotate`, `skew`, 2D affine | 3D, perspective |
+| Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
+| Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
+| Interaction | `cursor`, `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible` | `:has()`, `:focus-within` |
+| Responsive | viewport media queries, rem/vw/vh | container queries |
+| Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
+| Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
+| Layout direction | LTR; RTL via `direction` for text | full bidi layout integration |
+
+Unsupported declarations are **not** silent: they produce one diagnostic per
+`(rule, property)` and are kept in the AST for forward compatibility.
+
+## 12. Integration
+
+- **StyleNode**: `tag`, `id`, `classes`, attributes, parent/siblings, pseudo-state bits,
+  inline style, theme scope.
+- **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes (ADR-005).
+- **Paint**: the batched 2D renderer reads paint longhands and produces quads/SDF/text.
+- **Input**: the input pseudo-state dispatcher updates `:hover`, `:active`, `:focus`,
+  `:focus-visible`, `:disabled`, `:checked`.
+- **Animation**: the fixed-step loop samples transitions/keyframes and writes animated values
+  into the computed style before layout/paint.
+- **Compiler**: build-time CSS is precompiled to the same `StyleSheet` representation; generated
+  C++ references compiled rule ids, not a second parser.
+
+## 13. Determinism
+
+- Stable source order and stable selector order (no hash-map iteration).
+- Fixed viewport, DPI, `rem` base, and font metrics in golden mode.
+- No wall clock in style computation.
+- Media query evaluation uses the fixed viewport/color-scheme/reduced-motion inputs.
+- Identical inputs must produce byte-identical `ComputedStyle` dumps in tests.
+
+## 13.1 Dirty and invalidation
+
+Style is the first dirty domain in the runtime pipeline. See
+[`dirty-rendering.md`](../design/dirty-rendering.md) for the full model.
+
+- A class/id/attribute/inline-style/theme change marks the node `StyleDirty`.
+- The input pseudo-state dispatcher marks `StyleDirty` for `:hover`/`:active`/`:focus`/
+  `:focus-visible` changes before style resolution.
+- The resolver computes the new `ComputedStyle`, then compares the layout and paint groups with
+  the previous values:
+  - layout group changed -> `LayoutDirty`
+  - paint group changed -> `PaintDirty`
+  - either -> `RenderDirty`
+- Descendants are invalidated only for subtree-affecting changes (visibility, `display:none`,
+  transform/clip, theme scope).
+- Selector indexes and cached computed styles are invalidated by the change class, not by a
+  global rebuild.
+- `:hover` chains are recomputed on scene changes, not only on pointer motion.
+- `dirtyRendering=off` forces a full rebuild for debugging; it must produce identical pixels.
+
+## 14. Performance
+
+- Selector index: id → class → tag buckets; right-to-left matching.
+- Inline style and `:root` tokens are cached separately.
+- `ComputedStyle` cached per `(node, pseudo-state, theme-scope)`; invalidated by style dirty
+  flags, class/id/attribute changes, and theme changes.
+- Precomputed shorthand expansion and property ids; no string comparisons in the hot path.
+- Target: style resolution for 10k nodes with 1k rules in a single-digit millisecond budget on
+  desktop; measure and record in benchmarks.
+- No allocations in the steady-state per-frame path after warm-up.
+
+## 15. Diagnostics
+
+```text
+TESSERA_CSS_PARSE_ERROR         invalid token/structure
+TESSERA_CSS_UNKNOWN_PROPERTY    parsed, no semantic effect
+TESSERA_CSS_INVALID_VALUE       value rejected for the property
+TESSERA_CSS_UNSUPPORTED_SELECTOR selector parsed but not matched
+TESSERA_CSS_UNSUPPORTED_AT_RULE  at-rule parsed but skipped
+TESSERA_CSS_VAR_CYCLE           custom-property cycle
+TESSERA_CSS_UNRESOLVED_VAR      missing variable with no fallback
+TESSERA_CSS_MEDIA_UNSUPPORTED   media feature not implemented
+```
+
+Diagnostics carry source file, line/column, rule selector, and property. Build-time diagnostics
+fail the build only when configured to do so; runtime diagnostics go to the dev overlay.
+
+## 16. Testing
+
+- Parser corpus: valid/invalid tokens, escapes, comments, strings, functions.
+- Selector corpus: specificity, combinators, structural pseudo-classes, `:not/:is/:where`.
+- Cascade corpus: origins, `!important`, inline vs stylesheet, layer order, source order.
+- Custom properties: fallback, inheritance, cycles, theme overrides.
+- Property matrix: parse/validate/shorthand expansion/computed values.
+- Determinism: repeated runs produce identical dumps; rule order is stable.
+- Golden layout/paint: style → layout → render on the headless path.
+- Fuzz the tokenizer/parser with a bounded corpus in CI (later).
+
+## 17. Open questions
+
+- Build-time precompilation format: binary AST vs generated C++ tables.
+- Whether to adopt a mature parser (for example `libcss`) behind `CssParser` if full syntax
+  coverage becomes a maintenance burden. Decision must be recorded in a follow-up ADR.
+- CSS nesting, `@scope`, `@container`, `:has()` evaluation order and invalidation.
+- Full color-management and wide-gamut color handling.
+- Typed custom properties (`@property`) and animation of custom properties.

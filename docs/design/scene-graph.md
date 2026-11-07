@@ -19,6 +19,29 @@ Derived values:
 There is no implicit clipping in the scene graph. Clipping is a paint concern handled by the
 batched 2D renderer's scissor stack.
 
+## Dirty state
+
+Each node carries dirty bits:
+
+- `StyleDirty` — class/id/attribute/pseudo-state/theme/inline-style changed.
+- `LayoutDirty` — a layout-affecting style change, child add/remove, text/font change, or resize.
+- `PaintDirty` — paint-affecting style change, transform/clip/visibility, layout move/resize,
+  texture/atlas change.
+- `RenderDirty` — any paint change, target resize, damage, or explicit request.
+
+Marking walks ancestors and sets `has_dirty_descendant`; it does not walk the whole subtree
+unless the change is subtree-affecting (`display:none`, visibility, transform/clip, theme scope).
+The runtime processes `style -> layout -> paint -> render` and clears each bit after the stage.
+See [`dirty-rendering.md`](dirty-rendering.md).
+
+## Style and input state
+
+Nodes expose a `StyleNode` view for selector matching: tag, id, classes, attributes, parent and
+sibling order, inline style, theme scope, and pseudo-state bits. The input dispatcher updates
+`:hover`, `:active`, `:focus`, and `:focus-visible` before style resolution; those changes mark
+`StyleDirty`. The style resolver raises layout/paint/render dirty only when the matched computed
+groups actually change.
+
 ## Hit testing
 
 - `hit_test(x, y)` inverts the world transform, maps the point into local space, and tests
@@ -57,6 +80,7 @@ The dispatcher is UI-thread-only. No locking, no async delivery, no event poolin
 ## B2 direction
 
 - Yoga adapter produces `bounds` from flex/grid styles.
-- Focus, keyboard, pointer capture, and hover states.
+- Full dirty-bit plumbing into style/layout/paint caches.
+- Focus, keyboard, pointer capture, hover/active state, and IME.
 - Accessibility tree mirroring the node tree.
 - Rounded-rect/path clip regions in the renderer, with matching hit testing.

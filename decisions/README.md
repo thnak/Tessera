@@ -23,6 +23,9 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-013](ADR-013-project-license-mit.md) | Project license is MIT | Accepted |
 | [ADR-014](ADR-014-project-config-format.md) | Project configuration is versioned `tessera.json` plus a C++ API | Accepted |
 | [ADR-015](ADR-015-code-style-build-cache.md) | Code style and build-cache-friendly translation units | Accepted |
+| [ADR-016](ADR-016-stylesheet-engine.md) | Stylesheet engine: full CSS syntax with staged semantics | Proposed |
+| [ADR-017](ADR-017-input-and-fixed-step-runtime.md) | Input handler and fixed-step runtime loop | Proposed |
+| [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) | Dirty rendering, frame pacing, and display refresh | Proposed |
 
 ## Dependency overview
 
@@ -39,6 +42,8 @@ ADR-012 static linking (cross-cutting: build, licenses, accessibility)
 ADR-013 MIT license (cross-cutting: dependency choices)
 ADR-014 project config (cross-cutting: generator, runtime, tooling)
 ADR-015 code style/build cache (cross-cutting: all C++ code)
+ADR-016 stylesheet engine ── ADR-005 layout
+ADR-017 input + fixed-step loop ── ADR-018 dirty rendering/frame pacing
 ```
 
 ## Adding an ADR

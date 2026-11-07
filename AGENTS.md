@@ -71,8 +71,16 @@ Repo + build + the two riskiest proofs.
 - [x] Scene graph, hit-testing, W3C-style capture/target/bubble events.
 - [x] Acceptance: static dashboard rendered offscreen → [`docs/images/batched2d.png`](docs/images/batched2d.png);
       CI smoke test green.
+- [ ] **B2:** Stylesheet engine: full CSS syntax + compatibility matrix, cascade, custom
+      properties, pseudo-classes (ADR-016).
 - [ ] **B2:** Yoga Flexbox adapter (`src/ui/layout/`).
 - [ ] **B2:** FreeType/HarfBuzz/SheenBidi/ICU + glyph atlas + text batching.
+- [ ] **B2:** Input handler: normalized events, focus, pointer capture, pseudo-state dispatch
+      (ADR-017).
+- [ ] **B2:** Fixed-step runtime loop: accumulator, time scale, deterministic mode (ADR-017).
+- [ ] **B2:** Dirty rendering: style/layout/paint/render domains, caches, damage (ADR-018).
+- [ ] **B2:** Frame pacing: `maxFps`, vsync modes, dynamic refresh/VRR, render-on-demand
+      (ADR-018).
 - [ ] **B2:** Pixel goldens via lavapipe/software path (ADR-009).
 - [ ] **B2:** Multi-frame synchronization (frames in flight, timeline semaphores).
 
@@ -89,9 +97,10 @@ Repo + build + the two riskiest proofs.
 - [ ] Acceptance: same screen previews in a browser and matches native output.
 
 ### Big Step E — Data-heavy UI
-- [ ] Fixed timestep game clock + time scale.
+- [ ] Fixed timestep game clock + time scale under sustained load.
 - [ ] Zero-allocation ring buffers for chart series.
-- [ ] Retained/immediate hybrid + per-node dirty flags.
+- [ ] Retained/immediate hybrid + per-node dirty flags + damage rects.
+- [ ] FPS cap, vsync/VRR, render-on-demand, and frame-budget metrics.
 - [ ] Acceptance: streaming dashboard at target frame rate with deterministic goldens.
 
 ### Big Step F — Production breadth
@@ -141,6 +150,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Area | Path |
 |---|---|
 | Architecture decisions | `decisions/` — start at [decisions/README.md](decisions/README.md) |
+| Documentation map | [`docs/README.md`](docs/README.md) |
 | Developer guide | [`docs/guides/project-generator.md`](docs/guides/project-generator.md) |
 | Project config schema | [`docs/specs/project-config-v1.md`](docs/specs/project-config-v1.md) |
 | Code style & build cache | [`docs/guides/code-style.md`](docs/guides/code-style.md) |
@@ -156,6 +166,11 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | WebGPU backend | `src/rendering/backend/webgpu/` |
 | Software/headless | `src/rendering/software/` |
 | Scene graph / events | `include/tessera/ui/scene/` + `src/ui/scene/` |
+| Stylesheet spec | [`docs/specs/stylesheet-v1.md`](docs/specs/stylesheet-v1.md) |
+| Runtime config | [`docs/specs/runtime-config-v1.md`](docs/specs/runtime-config-v1.md) |
+| Runtime loop / pacing | [`docs/design/game-loop.md`](docs/design/game-loop.md) |
+| Dirty rendering | [`docs/design/dirty-rendering.md`](docs/design/dirty-rendering.md) |
+| Input handler | [`docs/design/input.md`](docs/design/input.md) |
 | Renderer design notes | `docs/design/renderer.md`, `docs/design/scene-graph.md` |
 | Batched2D demo | `tools/poc/batched2d/` |
 | Compiler frontend/IR/codegen | `src/compiler/{analyzer,rules,ir,codegen,merger}/` |
@@ -198,9 +213,12 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 - [ ] Generator/config changes update `docs/guides/project-generator.md` and the schema.
 - [ ] If it touches protected regions: idempotency test updated.
 - [ ] If it touches rendering: a golden test or a manual visual check is recorded.
+- [ ] If it touches dirty state: dirty-only and full-redraw output are equivalent.
+- [ ] If it touches pacing: frame-cap/vsync/VRR fallback behavior is recorded.
 
 ## Current focus
 
-**Big Step B2.** Add the Yoga Flexbox adapter, FreeType/HarfBuzz text + glyph atlas, and the
-lavapipe/software pixel golden pipeline. Keep the B1 RHI, batched 2D renderer, and scene graph
-stable while doing so.
+**Big Step B2.** Implement the runtime slice in this order: stylesheet engine, Yoga adapter,
+input handler, fixed-step loop, dirty rendering, frame pacing/FPS/VRR, then text/glyph atlas and
+the lavapipe/software pixel golden pipeline. Keep the B1 RHI, batched 2D renderer, and scene
+graph stable while doing so.
