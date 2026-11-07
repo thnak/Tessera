@@ -186,6 +186,8 @@ Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
 - X11: XInput2 for raw/pointer events; XKB for keyboard layout; RandR for DPI/refresh.
 - Wayland: seat/keyboard/pointer/touch; text-input protocol; frame callbacks are not input.
 - Android/macOS: deferred; keep the normalized model platform-neutral.
+- Resize/DPI/window lifecycle is normalized separately; see
+  [`window-resize.md`](window-resize.md).
 
 ## 14. Open questions
 

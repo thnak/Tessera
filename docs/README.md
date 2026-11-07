@@ -15,13 +15,21 @@ ones are:
 - [ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) — dirty rendering +
   frame pacing/VRR
 - [ADR-019](../decisions/ADR-019-power-aware-runtime.md) — power-aware defaults; no full-load loop
+- [ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md) — resize/DPI/lifecycle separation
+- [ADR-021](../decisions/ADR-021-async-runtime.md) — async/await; never block the UI thread
+- [ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md) — diagnostics/profiling
+- [ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md) — OS events/foldables
 
 ## 2. Specs (normative)
 
 - [`specs/project-config-v1.md`](specs/project-config-v1.md) — `tessera.json` project schema
 - [`specs/runtime-config-v1.md`](specs/runtime-config-v1.md) — FPS cap, vsync/VRR, pacing,
-  dirty rendering, deterministic mode
+  dirty rendering, resize, async, deterministic mode
 - [`specs/stylesheet-v1.md`](specs/stylesheet-v1.md) — full CSS syntax + semantic matrix
+- [`specs/diagnostics-config-v1.md`](specs/diagnostics-config-v1.md) — logging, tracing,
+  profiling, crash, overlay
+- [`specs/os-events-v1.md`](specs/os-events-v1.md) — normalized OS events, display
+  capabilities, mobile/foldables
 - [`specs/dependencies.md`](specs/dependencies.md) — canonical dependency and license map
 
 ## 3. Design
@@ -34,6 +42,11 @@ ones are:
   multi-frame execution
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
   quality, hardware utilization
+- [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
+  infrastructure, OS compliance
+- [`design/async.md`](design/async.md) — C++20 coroutines, executors, cancellation, no blocking
+- [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,
+  crash, capture
 
 ## 4. Guides
 
@@ -51,7 +64,14 @@ For the stylesheet + input + loop slice:
 5. [Dirty rendering](design/dirty-rendering.md) — what work is actually done.
 6. [Performance & power](design/performance.md) — why static UI idles and how utilization is
    bounded.
-7. [Runtime config](specs/runtime-config-v1.md) — how the app tunes FPS/vsync/VRR/dirty/power.
+7. [Window resize & lifecycle](design/window-resize.md) — declarative vs infrastructure and OS
+   compliance.
+8. [OS events & foldables](specs/os-events-v1.md) — platform triggers and normalized metrics.
+9. [Async runtime](design/async.md) — how work avoids blocking the UI thread.
+10. [Diagnostics](design/diagnostics.md) — how to observe/measure the system.
+11. [Runtime config](specs/runtime-config-v1.md) — how the app tunes FPS/vsync/VRR/dirty/power/
+    resize/async.
+12. [Diagnostics config](specs/diagnostics-config-v1.md) — logging/tracing/profiling/crash.
 
 ## 6. Status
 
@@ -64,5 +84,9 @@ For the stylesheet + input + loop slice:
 | Fixed-step loop | B2 proposed (ADR-017) |
 | Dirty rendering + frame pacing | B2/B3 proposed (ADR-018) |
 | Power-aware idle/adaptive defaults | B2 proposed (ADR-019) |
+| Window resize/DPI/lifecycle | B3 proposed (ADR-020) |
+| Async/await runtime | B2 proposed (ADR-021) |
+| Diagnostics/profiling | B2 proposed (ADR-022) |
+| OS events / foldables | B3 proposed (ADR-023) |
 | Yoga layout / text / glyph atlas | B2 planned |
 | Pixel goldens on lavapipe/software | B2/B3 planned |

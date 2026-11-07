@@ -101,15 +101,27 @@ Minimal example:
     "dirtyRendering": "auto",
     "renderOnDemand": true,
     "powerPolicy": "adaptive",
-    "adaptiveQuality": true
+    "adaptiveQuality": true,
+    "resizeMode": "adaptive",
+    "asyncWorkerThreads": 0,
+    "asyncMainThreadBudgetMs": 2.0
+  },
+  "diagnostics": {
+    "level": "info",
+    "sinks": ["debugger", "ring"],
+    "tracing": false,
+    "overlay": false,
+    "crashDumps": true,
+    "telemetry": false
   }
 }
 ```
 
 The full field list, defaults, and validation rules are in
 [`docs/specs/project-config-v1.md`](../specs/project-config-v1.md). Runtime pacing, FPS cap,
-vsync/VRR, render-on-demand, and dirty rendering are defined in
-[`docs/specs/runtime-config-v1.md`](../specs/runtime-config-v1.md).
+vsync/VRR, render-on-demand, dirty rendering, resize, and async are defined in
+[`docs/specs/runtime-config-v1.md`](../specs/runtime-config-v1.md). Logging/tracing/profiling/crash
+are defined in [`docs/specs/diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md).
 
 ## C++ API for developers
 
@@ -135,6 +147,9 @@ config.dev.preview.hot_reload = false;
 config.runtime.max_fps = 60;
 config.runtime.dynamic_refresh_rate = tessera::RefreshMode::Auto;
 config.runtime.render_on_demand = true;
+config.runtime.resize_mode = tessera::ResizeMode::Adaptive;
+config.diagnostics.level = tessera::LogLevel::Debug;
+config.diagnostics.overlay = true;
 
 tessera::App app(config);
 return app.run();

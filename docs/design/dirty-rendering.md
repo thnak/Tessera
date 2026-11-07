@@ -62,6 +62,7 @@ This keeps marking O(depth) in the common case.
 | text/font change | recompute | yes | yes | yes |
 | child add/remove | new/changed nodes | yes | yes | yes |
 | texture/atlas content | no | no | yes (textured nodes) | yes |
+| async resource ready | no | no | yes (nodes using it) | yes |
 | viewport resize | root | yes | yes | yes + target recreate |
 
 A style resolver can cheaply compare the new computed layout/paint groups with the previous
@@ -182,6 +183,8 @@ The B1 offscreen renderer always does a full redraw; damage is a B3 window-path 
 - LOD/decimation can mark only the changed vertex range, not the whole series.
 - Text/glyph atlas changes mark only nodes using the affected glyphs.
 - Continuous streaming must not rebuild the scene graph or draw lists wholesale.
+- Async resource completions apply on the UI thread and mark only the nodes that use the
+  resource; see [`async.md`](async.md).
 
 ## 8.1 Power and utilization
 

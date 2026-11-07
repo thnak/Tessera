@@ -4,7 +4,8 @@ Status: B1 implemented. B2 adds Yoga layout, text shaping/glyph atlas, dirty ren
 pixel goldens. B3 adds the window/swapchain path with frame pacing and dynamic refresh.
 
 See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering.md),
-[`input.md`](input.md), [`stylesheet-v1.md`](../specs/stylesheet-v1.md), and
+[`input.md`](input.md), [`window-resize.md`](window-resize.md), [`async.md`](async.md),
+[`diagnostics.md`](diagnostics.md), [`stylesheet-v1.md`](../specs/stylesheet-v1.md), and
 [`runtime-config-v1.md`](../specs/runtime-config-v1.md).
 
 ## Layers
@@ -92,7 +93,11 @@ exists so batching, clipping, transforms, and command sequencing can be tested o
 - **B2:** fixed-step loop, dirty style/layout/paint/render, retained draw lists/layers, bounded
   caches, damage rectangles on the offscreen path.
 - **B3:** window + swapchain, acquire/present, `maxFps`, vsync modes, dynamic refresh/VRR,
-  incremental present/damage where the platform supports it.
+  incremental present/damage where the platform supports it; resize/DPI/lifecycle and
+  old-swapchain retirement follow [`window-resize.md`](window-resize.md).
+- Async uploads/resource loads arrive through the UI-thread completion queue
+  ([`async.md`](async.md)); diagnostics/tracing wrap the frame and GPU passes
+  ([`diagnostics.md`](diagnostics.md)).
 - Configuration lives in `tessera.json.runtime`; see
   [`runtime-config-v1.md`](../specs/runtime-config-v1.md).
 - Deterministic/golden mode always full-redraws into a fixed offscreen target and ignores

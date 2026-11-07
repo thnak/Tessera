@@ -27,6 +27,11 @@ Status: **pre-alpha / Big Step B1 complete** (RHI, Vulkan batched 2D, scene grap
 - [Runtime loop & frame pacing](docs/design/game-loop.md)
 - [Dirty rendering & invalidation](docs/design/dirty-rendering.md)
 - [Performance & power](docs/design/performance.md)
+- [Window resize & lifecycle](docs/design/window-resize.md)
+- [OS events & foldables](docs/specs/os-events-v1.md)
+- [Async runtime](docs/design/async.md)
+- [Diagnostics & profiling](docs/design/diagnostics.md)
+- [Diagnostics config](docs/specs/diagnostics-config-v1.md)
 - [Input handler](docs/design/input.md)
 - [Batched2D reference image](docs/images/batched2d.png)
 - [Documentation map & runtime reading order](docs/README.md)
@@ -123,14 +128,17 @@ Tools and demos:
   rendering, FPS cap/vsync/VRR, frame pacing.
 - Defaults are **power-aware**: static UI idles (no presents/GPU work), no busy-wait, no
   full-GPU target; continuous/benchmark modes are explicit.
+- B2/B3 design: async/await runtime (no UI blocking), resize/DPI/lifecycle with OS compliance,
+  normalized OS events across desktop/mobile/foldables, structured diagnostics/tracing/profiling.
 - B2 next: implement the runtime slice, then Yoga/text/glyph atlas and pixel goldens.
 
 ## Next
 
-1. ADR-001 … ADR-018 in `decisions/`.
+1. ADR-001 … ADR-023 in `decisions/`.
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
-   Yoga/text, pixel goldens.
-3. Big Step C: JSX → IR → C++ vertical slice with protected regions.
+   async runtime, diagnostics, Yoga/text, pixel goldens.
+3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.
+4. Big Step C: JSX → IR → C++ vertical slice with protected regions.
 
 ## License
 

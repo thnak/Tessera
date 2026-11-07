@@ -77,7 +77,8 @@ behavior**, not a utilization percentage. Platform GPU-load queries are diagnost
 
 Metrics report `frame_time_ms`, `update_time_ms`, `style_time_ms`, `layout_time_ms`,
 `paint_time_ms`, `render_time_ms`, `present_wait_ms`, `dropped_steps`, and `missed_deadlines`.
-Adaptive quality uses these, not a utilization target.
+Adaptive quality uses these, not a utilization target. Measurement/tracing is defined in
+[`diagnostics.md`](diagnostics.md).
 
 ## 4. Power policies
 

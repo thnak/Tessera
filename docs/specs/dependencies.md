@@ -119,6 +119,7 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 | X11 | V1 (Linux) | MIT/X11 | `platform/linux` | Window, input |
 | Wayland (`libwayland-client`, `wayland-protocols`) | V1 (Linux) | MIT | `platform/linux` | Window, input |
 | libxkbcommon | V1 (Linux) | MIT | `hal/input` | Keyboard mapping |
+| AndroidX WindowManager (`androidx.window:window`) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | `WindowMetrics`, fold posture/hinge via JNI |
 | Cocoa / AppKit | Deferred (macOS, ADR-010) | System | `platform/macos` | Window, input |
 | GLFW | Candidate (buy) | zlib | `hal/window` | Window/input abstraction |
 | SDL3 | Candidate (buy) | zlib | `hal/window`, `hal/audio` | Window/input/audio abstraction |
@@ -126,6 +127,9 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 | Vulkan surface extensions | V1 | Apache-2.0 | `rendering/backend/vulkan` | `KHR_surface` + platform surfaces |
 | UIA / AT-SPI / NSAccessibility | Deferred | System (AT-SPI: LGPL) | `ui/accessibility` | Accessibility |
 | D-Bus / libdbus | Deferred | System | `ui/accessibility` | AT-SPI transport on Linux |
+
+Mobile/foldable signals use AndroidX WindowManager via JNI; iOS/iPadOS/macOS use system scene
+APIs. No platform type leaks into `ui/`. See [`os-events-v1.md`](os-events-v1.md).
 
 ## 7. Services
 
@@ -145,9 +149,15 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 |---|---|---|---|---|
 | spdlog | V1 optional | MIT | `diagnostics/logging` | Async structured logging |
 | Tracy | V1 optional | BSD-3-Clause | `diagnostics/profiling` | CPU/GPU profiling |
+| Perfetto SDK | V1 optional | Apache-2.0 | `diagnostics/tracing` | System trace/Perfetto export |
 | Crashpad | V1 optional | Apache-2.0 | `diagnostics/crash` | Crash dumps |
 | Breakpad | V1 optional alternative | BSD-3-Clause | `diagnostics/crash` | Crash dumps alternative |
 | {fmt} | V1 optional | MIT | `core`, `diagnostics` | Formatting where `std::format` is insufficient |
+| ETW / ftrace / systrace | System | OS | `diagnostics/tracing` | Platform tracing backends (no link dependency) |
+
+The async runtime uses C++20 coroutines and a small in-house executor/cancellation layer; it has
+no linked dependency. Diagnostics backends are optional build flags and stay behind interfaces
+(see [`diagnostics.md`](../design/diagnostics.md)).
 
 ## 9. Testing and CI
 

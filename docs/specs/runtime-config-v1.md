@@ -35,7 +35,15 @@ with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`.
     "pauseWhenOccluded": true,
     "pauseWhenUnfocused": false,
     "backgroundMaxFps": 0,
-    "gpuTimestamps": false,
+    "resizeMode": "adaptive",
+    "resizeDebounceMs": 16,
+    "swapchainRecreateDelayMs": 16,
+    "maxPendingResizes": 1,
+    "asyncWorkerThreads": 0,
+    "asyncIoThreads": 1,
+    "asyncQueueCapacity": 4096,
+    "asyncMainThreadBudgetMs": 2.0,
+    "asyncTraceTasks": false,
     "dirtyRendering": "auto",
     "damageRects": true,
     "maxDamageRects": 16,
@@ -72,7 +80,15 @@ with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`.
 | `pauseWhenOccluded` | boolean | `true` | | Stop rendering/animations when hidden/occluded. |
 | `pauseWhenUnfocused` | boolean | `false` | | Stop or throttle when the window loses focus. |
 | `backgroundMaxFps` | integer | `0` | `0..1000` | Cap when unfocused but visible; `0` = use `maxFps`. |
-| `gpuTimestamps` | boolean | `false` | | Enable GPU timestamp queries for diagnostics (if supported). |
+| `resizeMode` | string | `adaptive` | `live`, `deferred`, `adaptive` | Live vs deferred swapchain/target recreation. |
+| `resizeDebounceMs` | number | `16` | `0..1000` | Coalesce resize events before layout/recreate. |
+| `swapchainRecreateDelayMs` | number | `16` | `0..1000` | Delay after resize settles before recreation. |
+| `maxPendingResizes` | integer | `1` | `1..16` | Coalescing queue bound; excess events merge. |
+| `asyncWorkerThreads` | integer | `0` | `0..256` | `0` = auto (hardware concurrency minus UI/IO). |
+| `asyncIoThreads` | integer | `1` | `1..16` | Dedicated blocking I/O threads. |
+| `asyncQueueCapacity` | integer | `4096` | `64..1048576` | Bounded completion/task queue. |
+| `asyncMainThreadBudgetMs` | number | `2.0` | `0..16` | Per-tick main-thread completion budget. |
+| `asyncTraceTasks` | boolean | `false` | | Trace task spans/queue latency; debug overhead. |
 | `dirtyRendering` | string | `auto` | `auto`, `on`, `off` | `auto` enables dirty mode when beneficial. |
 | `damageRects` | boolean | `true` | | Partial redraw when the present path supports it. |
 | `maxDamageRects` | integer | `16` | `1..64` | Exceeding this falls back to full redraw. |
@@ -104,7 +120,13 @@ with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`.
 14. `backgroundMaxFps=0` means "use `maxFps`"; it is not a pause. Use
     `pauseWhenUnfocused=true` or `pauseWhenOccluded=true` to stop rendering.
 15. `powerPolicy=benchmark` is allowed but emits a diagnostic and must not be shipped.
-16. `gpuTimestamps=true` falls back silently if the backend/device does not support timestamps.
+16. `resizeMode` is `live`, `deferred`, or `adaptive`; debounce/recreate delays are
+    `0..1000 ms`.
+17. `maxPendingResizes` is `1..16`; excess resize events are coalesced, never queued unbounded.
+18. `asyncWorkerThreads=0` means auto; `asyncIoThreads >= 1`.
+19. `asyncQueueCapacity` is `64..1048576`; overflow applies backpressure/cancellation, never
+    unbounded growth.
+20. `asyncMainThreadBudgetMs` is `0..16`; completions beyond the budget defer to the next tick.
 
 ## 5. Semantics
 
@@ -196,6 +218,29 @@ invalidation, or input responsiveness. All changes are visible in metrics.
   `backgroundMaxFps` caps it (`0` = use `maxFps`).
 - **VRR:** do not present empty frames to keep VRR alive; idle between real frames.
 
+### 5.9 Resize and DPI
+
+- `resizeMode` is infrastructure policy; styles/animations never branch on it.
+- Resize events are coalesced to the latest size, consumed at a frame boundary, then
+  style environment -> style -> layout -> paint -> target -> render.
+- Keep the old swapchain/target until the new one is ready and in-flight frames retire.
+- `resizeDebounceMs`/`swapchainRecreateDelayMs` tune live resize; they do not change layout
+  semantics.
+- Zero-size/minimized skips target creation; restore marks the root dirty and renders one frame.
+- OS event mapping, display capabilities, and fold posture/hinge/occlusion are in
+  [`os-events-v1.md`](os-events-v1.md).
+- See [`window-resize.md`](../design/window-resize.md).
+
+### 5.10 Async completions
+
+- `asyncWorkerThreads=0` means auto; `asyncIoThreads` are for blocking I/O.
+- Queues are bounded (`asyncQueueCapacity`); overflow applies backpressure/cancellation.
+- Completions are drained at tick boundaries on the main thread with
+  `asyncMainThreadBudgetMs`; excess defers to the next tick.
+- No blocking UI waits: GPU fence/acquire/present and I/O use async events/state machines.
+- `asyncTraceTasks` enables task spans/latency in diagnostics.
+- See [`async.md`](../design/async.md).
+
 ## 6. C++ API mirror
 
 ```cpp
@@ -206,6 +251,7 @@ enum class RefreshMode { Off, Auto, Preferred };
 enum class FramePacing { Auto, Smooth, LowLatency, PowerSave };
 enum class DirtyMode { Auto, On, Off };
 enum class PowerPolicy { Adaptive, PowerSave, Balanced, Performance, Benchmark };
+enum class ResizeMode { Live, Deferred, Adaptive };
 
 struct RuntimeConfig {
     double fixed_timestep_hz = 60.0;
@@ -227,7 +273,15 @@ struct RuntimeConfig {
     bool pause_when_occluded = true;
     bool pause_when_unfocused = false;
     std::uint32_t background_max_fps = 0;
-    bool gpu_timestamps = false;
+    ResizeMode resize_mode = ResizeMode::Adaptive;
+    double resize_debounce_ms = 16.0;
+    double swapchain_recreate_delay_ms = 16.0;
+    std::uint32_t max_pending_resizes = 1;
+    std::uint32_t async_worker_threads = 0;
+    std::uint32_t async_io_threads = 1;
+    std::uint32_t async_queue_capacity = 4096;
+    double async_main_thread_budget_ms = 2.0;
+    bool async_trace_tasks = false;
     DirtyMode dirty_rendering = DirtyMode::Auto;
     bool damage_rects = true;
     std::uint32_t max_damage_rects = 16;
@@ -251,6 +305,9 @@ struct RuntimeConfig {
 | tearing | `ALLOW_TEARING` | driver/extension | compositor | later | later |
 | dynamic refresh/VRR | OS/driver | driver/compositor | compositor | later | later |
 | damage rects | DXGI dirty rects | Present damage | surface damage | later | later |
+| resize/DPI/occlusion | `WM_SIZE`/`WM_DPICHANGED` | `ConfigureNotify`/RandR | `xdg configure`/`ack` | later | later |
+| fold/posture | no standard hinge API | no standard hinge API | compositor-specific | Jetpack WindowManager | no mainstream foldable |
+| async scheduler | portable C++20 | portable | portable | portable | portable |
 
 Missing capability -> documented fallback, never a crash. The selected mode is reported in the
 diagnostics/metrics.
@@ -270,7 +327,11 @@ diagnostics/metrics.
 - `pauseWhenOccluded=true`: no GPU work when the window is hidden/minimized.
 - `backgroundMaxFps=0`: use `maxFps` when unfocused but visible; opt into throttling explicitly.
 - `frameBudgetMs=0`: derive the budget from the effective present rate.
-- `gpuTimestamps=false`: diagnostics only; timestamp queries have a cost.
+- `resizeMode=adaptive`: live for small changes, defer/throttle large or slow frames.
+- `maxPendingResizes=1`: resize storms coalesce to the latest size, never an unbounded queue.
+- `asyncWorkerThreads=0`: auto; `asyncIoThreads=1`; task/completion queues are bounded.
+- `asyncMainThreadBudgetMs=2`: completion floods cannot stall input or rendering.
+- `asyncTraceTasks=false`: task tracing is a diagnostic/debug cost, not a default.
 
 ## 9. Interaction with `project-config-v1.md`
 
@@ -386,9 +447,14 @@ At minimum:
 
 - `effective_fps`, `refresh_hz`, `vrr_active`, `present_mode`
 - `frame_time_ms`, `update_time_ms`, `paint_time_ms`, `render_time_ms`, `present_wait_ms`
-- `gpu_frame_time_ms` (when `gpuTimestamps=true`), `idle_time_ms`
+- `gpu_frame_time_ms` (when `diagnostics.gpuTimestamps=true`), `idle_time_ms`
 - `steps_this_frame`, `dropped_steps`, `missed_deadlines`
 - `power_policy`, `adaptive_scale`, `quality_level`
+- `resize_mode`, `resize_sequence`, `pending_resizes`, `swapchain_generation`
+- `display_count`, `display_id`, `display_refresh_hz`, `hdr_active`, `color_gamut`
+- `fold_state`, `fold_orientation`, `fold_occlusion`, `hinge_bounds`
+- `safe_area`, `work_area`, `multi_window`, `picture_in_picture`
+- `async_tasks`, `async_queue_depth`, `async_main_thread_latency_ms`
 - `dirty_style_nodes`, `dirty_layout_nodes`, `dirty_paint_nodes`
 - `draw_calls`, `vertices`, `damage_area_ratio`, `full_redraw_reason`
 

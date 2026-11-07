@@ -21,7 +21,9 @@ platform input (hal/input)
 
 The rest of this document defines the tick/render split, pacing, and display-refresh policy.
 Dirty work is defined in [`dirty-rendering.md`](dirty-rendering.md); input in
-[`input.md`](input.md); styles in [`stylesheet-v1.md`](../specs/stylesheet-v1.md).
+[`input.md`](input.md); styles in [`stylesheet-v1.md`](../specs/stylesheet-v1.md); resize in
+[`window-resize.md`](window-resize.md); async completion in [`async.md`](async.md); measurement
+in [`diagnostics.md`](diagnostics.md).
 
 ## 1. Terms
 
@@ -103,7 +105,8 @@ Two policies:
   - style/layout/paint/render dirty
   - active animation/timer
   - external data update
-  - resize/DPI/theme change
+  - async task completion (visible resource ready)
+  - resize/DPI/theme change ([window-resize.md](window-resize.md))
   - explicit `request_frame()`
 
 `renderOnDemand` defaults to `true` (`powerPolicy=adaptive`): static screens idle, while active

@@ -17,7 +17,8 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `assets` | object | no | empty | Fonts, images, theme |
 | `build` | object | no | see below | CMake and toolchain |
 | `dev` | object | no | see below | Browser preview |
-| `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering |
+| `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering, resize, async |
+| `diagnostics` | object | no | see [diagnostics-config-v1.md](diagnostics-config-v1.md) | Logging, tracing, profiling, crash |
 | `dependencies` | object | no | empty | Include/link additions |
 
 Unknown fields are **errors** (strict schema). Paths are relative to the project root; absolute
@@ -113,8 +114,26 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
 | `powerPolicy` | `adaptive` | Power/quality preset; see runtime spec |
 | `adaptiveQuality` | `true` | Reduce optional cost on missed budgets |
 | `pauseWhenOccluded` | `true` | No GPU work when hidden/minimized |
+| `resizeMode` | `adaptive` | `live`, `deferred`, `adaptive` |
+| `asyncWorkerThreads` | `0` | `0` = auto |
+| `asyncMainThreadBudgetMs` | `2.0` | Per-tick completion budget |
 | `gpuFramesInFlight` | `2` | `1..3` |
 | `deterministic` | `false` | Forced by golden/headless runs |
+
+## `diagnostics`
+
+See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
+
+| Field | Default | Notes |
+|---|---|---|
+| `level` | `info` | `trace`/`debug`/`info`/`warn`/`error`/`fatal` |
+| `sinks` | `["debugger","ring"]` | File/console/ETW/Perfetto optional |
+| `tracing` | `false` | Span tracing; file/Perfetto/Tracy sinks |
+| `gpuTimestamps` | `false` | Requires backend support |
+| `overlay` | `false` | Dev overlay |
+| `validation` | `auto` | On in debug |
+| `crashDumps` | `true` | Bounded, redacted |
+| `telemetry` | `false` | Opt-in only |
 
 ## `dependencies`
 
@@ -138,6 +157,8 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
 10. `tessera generate --check` fails if generated output differs from the working tree.
 11. `runtime` follows [runtime-config-v1.md](runtime-config-v1.md) validation; `deterministic`
     is forced for golden/headless runs.
+12. `diagnostics` follows [diagnostics-config-v1.md](diagnostics-config-v1.md) validation;
+    telemetry is opt-in and overlay is not a release default.
 
 ## Example
 
@@ -195,7 +216,18 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
     "dirtyRendering": "auto",
     "renderOnDemand": true,
     "powerPolicy": "adaptive",
+    "resizeMode": "adaptive",
+    "asyncWorkerThreads": 0,
+    "asyncMainThreadBudgetMs": 2.0,
     "gpuFramesInFlight": 2
+  },
+  "diagnostics": {
+    "level": "info",
+    "sinks": ["debugger", "ring"],
+    "tracing": false,
+    "overlay": false,
+    "crashDumps": true,
+    "telemetry": false
   },
   "dependencies": { "includeDirs": [], "linkLibraries": [], "licenseReview": true }
 }

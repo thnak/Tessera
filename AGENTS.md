@@ -51,6 +51,14 @@ A cross-platform C++ UI framework:
 11. **Power-aware by default** (ADR-019). This is an application framework, not a benchmark.
     Static UI must idle (no presents/GPU work), the loop must never busy-wait, and adaptive/
     on-demand defaults are required. Full-GPU utilization is not a goal.
+12. **Never block the UI thread** (ADR-021). Use async/await plus bounded state machines; no
+    `vkWaitForFences`/`vkDeviceWaitIdle`, blocking I/O, or indefinite acquire/present on the UI
+    thread. No detached tasks.
+13. **OS compliance lives in the HAL/runtime** (ADR-020). Styles/animations/components see
+    `WindowMetrics`, never window handles, OS messages, or swapchains. Resize/DPI/lifecycle are
+    normalized and tested per platform.
+14. **Diagnostics are structured, bounded, and optional** (ADR-022). No printf-only debugging;
+    logs/traces/metrics/crash/capture are privacy-safe and cheap when disabled.
 
 ## Big Steps (group work, don't micro-step)
 
@@ -86,8 +94,15 @@ Repo + build + the two riskiest proofs.
       (ADR-018).
 - [ ] **B2:** Power-aware defaults: idle/on-demand, adaptive quality, occlusion/background
       policy, no busy-wait/full-load (ADR-019).
+- [ ] **B2:** Async/await runtime: executors, cancellation, bounded completion queues, no UI
+      blocking (ADR-021).
+- [ ] **B2:** Diagnostics: structured logging, tracing, metrics, crash dumps, overlay (ADR-022).
 - [ ] **B2:** Pixel goldens via lavapipe/software path (ADR-009).
 - [ ] **B2:** Multi-frame synchronization (frames in flight, timeline semaphores).
+- [ ] **B3:** Window/swapchain path: resize/DPI/lifecycle, OS compliance, old-swapchain
+      retirement (ADR-020).
+- [ ] **B3:** Normalized OS events across desktop/mobile/foldables, display capabilities,
+      fold posture/hinge/occlusion (ADR-023).
 
 ### Big Step C — Compiler vertical slice
 - [ ] JSX/TSX parser adapter (SWC or oxc) + Tier-1 React rules.
@@ -112,6 +127,7 @@ Repo + build + the two riskiest proofs.
 - [ ] Windows + Linux complete; macOS via MoltenVK.
 - [ ] Accessibility (UIA / AT-SPI / NSAccessibility).
 - [ ] Services (i18n, navigation, storage, networking), diagnostics, packaging.
+- [ ] OS lifecycle compliance (resize/DPI/occlusion), crash reporting, profiling on Windows/Linux.
 - [ ] Acceptance: a real app ships, passes validation layers and golden tests in CI.
 
 ## Build & test
@@ -176,6 +192,11 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Runtime loop / pacing | [`docs/design/game-loop.md`](docs/design/game-loop.md) |
 | Dirty rendering | [`docs/design/dirty-rendering.md`](docs/design/dirty-rendering.md) |
 | Performance / power | [`docs/design/performance.md`](docs/design/performance.md) |
+| Window resize/lifecycle | [`docs/design/window-resize.md`](docs/design/window-resize.md) |
+| OS events / foldables | [`docs/specs/os-events-v1.md`](docs/specs/os-events-v1.md) |
+| Async runtime | [`docs/design/async.md`](docs/design/async.md) |
+| Diagnostics/profiling | [`docs/design/diagnostics.md`](docs/design/diagnostics.md) |
+| Diagnostics config | [`docs/specs/diagnostics-config-v1.md`](docs/specs/diagnostics-config-v1.md) |
 | Input handler | [`docs/design/input.md`](docs/design/input.md) |
 | Renderer design notes | `docs/design/renderer.md`, `docs/design/scene-graph.md` |
 | Batched2D demo | `tools/poc/batched2d/` |
@@ -222,10 +243,16 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 - [ ] If it touches dirty state: dirty-only and full-redraw output are equivalent.
 - [ ] If it touches pacing: frame-cap/vsync/VRR fallback behavior is recorded.
 - [ ] If it touches power/idle: a static scene produces zero presents/submissions after settling.
+- [ ] If it touches window/resize: synthetic resize/DPI/lifecycle tests pass per platform.
+- [ ] If it touches OS events/foldables: synthetic fold/posture/display scripts pass.
+- [ ] If it touches async: no blocking UI wait; cancellation/shutdown/queue-overflow tests pass.
+- [ ] If it touches diagnostics: disabled paths add no measurable cost; redaction tests pass.
 
 ## Current focus
 
 **Big Step B2.** Implement the runtime slice in this order: stylesheet engine, Yoga adapter,
 input handler, fixed-step loop, dirty rendering, frame pacing/FPS/VRR, power-aware idle/adaptive
-defaults, then text/glyph atlas and the lavapipe/software pixel golden pipeline. Keep the B1 RHI,
-batched 2D renderer, and scene graph stable while doing so.
+defaults, async/await runtime, diagnostics/tracing, then text/glyph atlas and the
+lavapipe/software pixel golden pipeline. B3 adds the window/swapchain path with resize/DPI/OS
+lifecycle, normalized OS events, and mobile/foldable metrics. Keep the B1 RHI, batched 2D
+renderer, and scene graph stable while doing so.

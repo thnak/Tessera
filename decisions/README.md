@@ -27,6 +27,10 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-017](ADR-017-input-and-fixed-step-runtime.md) | Input handler and fixed-step runtime loop | Proposed |
 | [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) | Dirty rendering, frame pacing, and display refresh | Proposed |
 | [ADR-019](ADR-019-power-aware-runtime.md) | Power-aware runtime defaults; no full-load game loop | Proposed |
+| [ADR-020](ADR-020-window-resize-and-lifecycle.md) | Window resize, DPI, and lifecycle separation | Proposed |
+| [ADR-021](ADR-021-async-runtime.md) | Async/await runtime; never block the UI thread | Proposed |
+| [ADR-022](ADR-022-diagnostics-and-profiling.md) | Structured diagnostics, tracing, and profiling | Proposed |
+| [ADR-023](ADR-023-os-event-normalization-and-foldables.md) | OS event normalization and foldable metrics | Proposed |
 
 ## Dependency overview
 
@@ -46,6 +50,10 @@ ADR-015 code style/build cache (cross-cutting: all C++ code)
 ADR-016 stylesheet engine ── ADR-005 layout
 ADR-017 input + fixed-step loop ── ADR-018 dirty rendering/frame pacing
 ADR-019 power-aware defaults (cross-cutting: runtime, pacing, quality)
+ADR-020 window resize/lifecycle ── ADR-017 loop, ADR-021 async
+ADR-021 async/await runtime ── ADR-020 resize, ADR-022 diagnostics
+ADR-022 diagnostics/profiling (cross-cutting: all subsystems)
+ADR-023 OS event normalization/foldables ── ADR-020 lifecycle, ADR-017 input
 ```
 
 ## Adding an ADR

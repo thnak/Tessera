@@ -56,6 +56,8 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | Component | License | Copyright / upstream |
 |---|---|---|
 | SPIRV-Reflect | Apache-2.0 | Google / Khronos |
+| Perfetto SDK | Apache-2.0 | Google |
+| AndroidX WindowManager | Apache-2.0 | Google / Android Open Source Project |
 | Yoga | MIT | Meta Platforms, Inc. |
 | FreeType | FreeType License (BSD-style) | The FreeType Project |
 | HarfBuzz | MIT | HarfBuzz contributors |
