@@ -26,6 +26,8 @@ A cross-platform C++ UI framework:
    - Text: **FreeType + HarfBuzz + SheenBidi + ICU**.
    - GPU memory: **VMA**. Loader: **volk** / `vk-bootstrap`.
    - Browser GPU: **Dawn** (WebGPU).
+   The canonical list, with license and module ownership, is
+   [`docs/specs/dependencies.md`](docs/specs/dependencies.md). Add every new dependency there.
 3. **Thin RHI.** `src/rendering/rhi/` is the only seam between UI/rendering and a GPU API.
    Backends live under `src/rendering/backend/{vulkan,webgpu,null}`.
 4. **Compiler is IR-first.** JSX/TSX → `src/compiler/ir` → C++ codegen. Never make codegen
