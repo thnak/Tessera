@@ -199,3 +199,107 @@ module, role, and status.
   license recorded in `third_party/README.md`.
 - **Feature flags** for optional stacks (ICU, Skia, audio, networking, diagnostics) so a
   minimal native build stays small.
+
+## Licensing
+
+### Project license (decision pending)
+
+The repository does not have a `LICENSE` file yet. Recommendation: **Apache-2.0** for the
+framework core, because it includes an express patent grant (relevant for a renderer and a
+compiler) and is accepted by corporate users. **MIT** is the simpler alternative and matches
+the author's other repositories. Every dependency selected for V1 is compatible with both.
+
+Do not use GPL/AGPL for the core if the goal is broad adoption or closed-source embedding.
+A dual-license business model (open source + commercial) is compatible with the current
+dependency set only while the open-source side stays permissive (Apache-2.0/MIT).
+
+### License policy
+
+Allowed in the shipped core:
+
+- MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, Boost Software License 1.0 (BSL-1.0),
+  zlib, ISC, Unicode License, FreeType License (FTL), OFL-1.1 (fonts/assets), public domain.
+
+Not allowed in the shipped core:
+
+- GPL-2.0/3.0, AGPL-3.0, SSPL, Commons Clause, non-commercial, field-of-use restrictions,
+  and any "source-available" license that is not OSI-approved.
+
+LGPL:
+
+- Only for optional, dynamically loaded system integration (e.g. AT-SPI on Linux).
+- Never statically linked into the core.
+
+### Compatibility rules
+
+- **Apache-2.0 dependency in an MIT/Apache project:** allowed. Preserve the license text and
+  the `NOTICE` file; state modifications to Apache-2.0 files.
+- **MIT/BSD dependency in an Apache-2.0 project:** allowed. Keep the copyright notice.
+- **Boost Software License 1.0 (BSL-1.0):** permissive. Do not confuse it with the Business
+  Source License (also abbreviated BSL). Catch2 uses the Boost license.
+- **OFL-1.1 fonts:** may be bundled; keep the license; do not rename modified fonts
+  (Reserved Font Name); do not sell the fonts standalone.
+- **FreeType:** use the FreeType License (BSD-style), not the GPL option.
+- **Unicode/ICU:** include the Unicode License notice and the ICU copyright.
+- **Public domain:** include attribution where the author asks for it (prefer stb's MIT
+  option).
+- **Transitive/bundled code:** Skia, Dawn, and Emscripten ship third-party code. Generate
+  `NOTICE` / `THIRD_PARTY_NOTICES.md` from the actual build, not from a hand-written list.
+
+### Specific dependency notes
+
+| Dependency | License | Note |
+|---|---|---|
+| Vulkan SDK, loader, validation, `glslc` | Apache-2.0 | Keep notices; shader compiler is build-time |
+| VMA, volk | MIT | Attribution in `NOTICE` |
+| SPIRV-Reflect | Apache-2.0 | `NOTICE` |
+| Yoga | MIT | `NOTICE` |
+| ThorVG | MIT | `NOTICE` |
+| Skia Graphite | BSD-3-Clause | Bundled third-party code; generate `NOTICE` |
+| Dawn | BSD-3-Clause | Includes Tint and other third-party code; generate `NOTICE` |
+| Emscripten | MIT / UIUC | Runtime notices in generated Wasm |
+| FreeType | FTL (BSD-style) | Use FTL, not the GPL option |
+| HarfBuzz | MIT | `NOTICE` |
+| SheenBidi | Apache-2.0 | `NOTICE` |
+| ICU | Unicode License v3 | `NOTICE` |
+| libpng, libjpeg-turbo, libwebp | permissive | `NOTICE` |
+| lunasvg | MIT | `NOTICE` |
+| miniaudio | Public domain / MIT-0 | Attribution optional |
+| libcurl | curl license | `NOTICE` |
+| IXWebSocket | BSD-3-Clause | `NOTICE` |
+| mbedTLS, OpenSSL | Apache-2.0 | `NOTICE` |
+| libsodium | ISC | `NOTICE` |
+| sqlite3 | Public domain | Optional attribution |
+| zstd | BSD-3-Clause | `NOTICE` |
+| spdlog | MIT | `NOTICE` |
+| Tracy | BSD-3-Clause | `NOTICE` |
+| Crashpad | Apache-2.0 | `NOTICE` |
+| Breakpad | BSD-3-Clause | `NOTICE` |
+| `{fmt}`, glm, mimalloc, rpmalloc | MIT | `NOTICE` |
+| Catch2 | BSL-1.0 (Boost) | `NOTICE` |
+| GoogleTest | BSD-3-Clause | `NOTICE` |
+| Google Benchmark | Apache-2.0 | `NOTICE` |
+| libFuzzer, clang-format | Apache-2.0 (LLVM exception) | `NOTICE` |
+| tree-sitter, oxc, nlohmann/json, Inja | MIT | Build-time |
+| SWC, simdjson | Apache-2.0 | Build-time |
+| CMake, vcpkg, Ninja, Node.js | permissive | Build-time |
+| Python | PSF | Build-time |
+| Noto Sans / Inter | OFL-1.1 | Test fonts; keep the license |
+
+### Deferred / special cases
+
+- **AT-SPI2 (Linux accessibility): LGPL-2.1.** It is a system component accessed over D-Bus;
+  do not link it into the core. Keep accessibility optional and dynamically integrated.
+- **libdbus: AFL-2.1 or GPL-2.0+.** Avoid linking; use the D-Bus protocol/system service, or a
+  permissively licensed client if one is selected later.
+- **macOS Cocoa/AppKit and Windows Win32/UIA:** system frameworks/APIs; no redistribution
+  issue.
+
+### Compliance actions
+
+1. Add `LICENSE` (Apache-2.0 recommended; MIT acceptable).
+2. Add `NOTICE` and `THIRD_PARTY_NOTICES.md`, generated from the resolved dependency graph.
+3. Add SPDX headers to source files, e.g. `// SPDX-License-Identifier: Apache-2.0`.
+4. Add a CI license check (`reuse lint`, ScanCode, or FOSSA) and an SBOM (SPDX/CycloneDX).
+5. Keep `third_party/README.md` and this file in sync with the actual dependency graph.
+6. Vendor code only with its license text; never strip copyright headers.
