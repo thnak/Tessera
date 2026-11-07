@@ -109,6 +109,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
 
 | Area | Path |
 |---|---|
+| Architecture decisions | `decisions/` — start at [decisions/README.md](decisions/README.md) |
 | Public headers | `include/tessera/` |
 | Core primitives | `src/core/` |
 | Platform seam | `src/hal/` + `src/platform/{windows,linux,macos,android}` |
