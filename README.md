@@ -81,6 +81,14 @@ Phase 0 tools:
 
 ## Next
 
-1. ADR-001 … ADR-011 in `decisions/`.
+1. ADR-001 … ADR-013 in `decisions/`.
 2. Phase 0: Vulkan offscreen quad → PNG, run on CI with Mesa lavapipe.
 3. Phase 0: protected-region merger prototype (idempotent).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+Third-party components and their licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The canonical dependency map is
+[docs/specs/dependencies.md](docs/specs/dependencies.md).

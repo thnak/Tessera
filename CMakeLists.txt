@@ -1,5 +1,20 @@
+# SPDX-License-Identifier: MIT
+
 cmake_minimum_required(VERSION 3.24)
 project(Tessera VERSION 0.0.1 LANGUAGES CXX)
+
+# Static linking is a hard requirement (ADR-012).
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+option(TESSERA_STATIC_RUNTIME
+    "Link Tessera and the C/C++ runtime statically where supported" ON)
+
+if (MSVC AND TESSERA_STATIC_RUNTIME)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+if (TESSERA_STATIC_RUNTIME AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_link_options(-static-libstdc++ -static-libgcc)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

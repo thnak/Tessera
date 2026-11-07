@@ -41,8 +41,9 @@ module, role, and status.
 | stb_image | V1 test | Public domain / MIT | `tests/golden`, image decode | PNG/JPG decode for goldens and assets |
 | ThorVG | Candidate (ADR-004) | MIT | `rendering/backend` | Vector paths, SVG |
 | Skia Graphite | Candidate (ADR-004 fallback) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
-| Dawn | V1 hard for design-time (ADR-002) | BSD-3-Clause | `rendering/backend/webgpu` | WebGPU implementation for Wasm |
+| Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
 | Emscripten | V1 hard for design-time | MIT / UIUC | `designer/web` | C++ → WebAssembly toolchain |
+| Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu) | V1 hard for design-time | MIT / UIUC | `designer/web` | Browser WebGPU API |
 | Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan ICD for deterministic goldens |
 | Vulkan ValidationLayers | V1 debug | Apache-2.0 | dev / CI | Validation |
 | naga | Future (ADR-011) | MIT / Apache-2.0 | `tools/shaders` | SPIR-V → WGSL |
@@ -200,18 +201,187 @@ module, role, and status.
 - **Feature flags** for optional stacks (ICU, Skia, audio, networking, diagnostics) so a
   minimal native build stays small.
 
+## Static linking (ADR-012 — hard requirement)
+
+Tessera and every third-party C/C++ library are linked **statically** into the application.
+The goal is a single self-contained executable with no third-party DLLs/`.so` shipped
+alongside it.
+
+### Scope
+
+Statically linked:
+
+- Tessera libraries
+- all permissive third-party C/C++ libraries (Yoga, FreeType, HarfBuzz, SheenBidi, ICU,
+  ThorVG/Skia, zlib/libpng/libjpeg-turbo/libwebp, VMA, volk, SPIRV-Reflect, spdlog, Tracy,
+  libcurl, mbedTLS, libsodium, sqlite3, zstd, `{fmt}`, glm, ...)
+- the C/C++ runtime where supported (`/MT`, `-static-libstdc++ -static-libgcc`)
+
+Still dynamic, by platform necessity:
+
+- the Vulkan loader (`vulkan-1.dll` / `libvulkan.so.1`) and GPU ICDs/drivers
+- OS frameworks: Win32/User32/GDI, X11/Wayland, Cocoa/AppKit, Android system libraries
+- glibc on Linux (fully static glibc is not required; use musl if a fully static Linux
+  binary is ever required)
+
+### License consequences
+
+- **No LGPL/GPL in statically linked code.** LGPL static linking requires relinkable object
+  files and reverse-engineering permission; GPL static linking relicenses the whole app.
+- **AT-SPI/libatspi/glib (LGPL-2.1) must not be linked.** Linux accessibility goes through the
+  D-Bus protocol or an optional runtime-only integration.
+- **libdbus (AFL-2.1/GPL)** must not be linked; use the D-Bus protocol/system service.
+- Notices must be embedded or shipped: `THIRD_PARTY_NOTICES.txt` and an About/licenses UI.
+- Apache-2.0 `NOTICE`, MIT/BSD copyright, OFL font licenses, FreeType FTL, Unicode/ICU notices
+  must be preserved.
+
+### Build and verification
+
+- CMake option `TESSERA_STATIC_RUNTIME` (default ON): `/MT` on MSVC,
+  `-static-libstdc++ -static-libgcc` on GNU/Linux.
+- `BUILD_SHARED_LIBS=OFF`.
+- ICU: static data packaging (`--with-data-packaging=static`) or embedded data via
+  `udata_setCommonData`.
+- CI checks the link graph: `dumpbin /dependents` (Windows), `ldd`/`readelf -d` (Linux),
+  `otool -L` (macOS). Unexpected third-party dynamic libraries fail the build.
+- Phase 0 evidence (Windows/MSVC, `/MT`): `vulkan_offscreen_poc.exe` imports only
+  `vulkan-1.dll` and `KERNEL32.dll`; `merger_poc.exe` imports only `KERNEL32.dll`.
+- The Vulkan loader may be statically linked from source (Apache-2.0), but it still loads GPU
+  ICDs dynamically; a zero-DLL executable is not achievable with Vulkan on Windows.
+
+## Component map and data flow
+
+This is the concrete answer to "which library does what, in which component".
+
+### Build-time: JSX to C++
+
+```text
+.jsx/.tsx
+  -> [tree-sitter | SWC | oxc]        parse to AST              compiler/analyzer
+  -> [Tier 1 analyzer]                 React rules, purity       compiler/analyzer
+  -> [Tier 2 rules + bind extractor]   lower to IR                compiler/rules
+  -> [nlohmann/json]                   IR/manifest JSON           compiler/ir
+  -> [codegen]                         emit C++                   compiler/codegen
+  -> [clang-format]                    deterministic format       build step
+  -> [merger]                          preserve dev regions       compiler/merger
+  -> .cpp/.h
+```
+
+- **tree-sitter / SWC / oxc** — parser only. Produces an AST; no UI semantics.
+- **nlohmann/json** — serializes the IR and the binding manifest; also used for snapshot
+  tests. Not on the runtime hot path.
+- **clang-format** — invoked as a build tool, never linked into the app.
+- **Codegen and merger** — our own code; no external library.
+
+### Runtime: one frame
+
+```text
+input event
+  -> scene graph update (dirty flags)              ui/view
+  -> layout                                        ui/layout (Yoga)
+  -> text pipeline                                 ui/text
+       ICU segmentation -> SheenBidi bidi -> HarfBuzz shaping -> FreeType raster -> atlas
+  -> style resolution                              ui/style (custom CSS subset)
+  -> path fill/stroke                              ui/view -> rendering (ThorVG/Skia)
+  -> 2D batching (quads, SDF, glyphs, clips)       rendering (our code)
+  -> RHI                                           rendering/rhi
+  -> Vulkan                                        rendering/backend/vulkan
+       volk (function loading) + VMA (memory) + SPIRV-Reflect (binding metadata)
+  -> GPU
+```
+
+- **Yoga** computes boxes; it does not paint.
+- **ICU** segments text (grapheme/word/line) and normalizes; it does not shape.
+- **SheenBidi** resolves bidi runs; it does not shape.
+- **HarfBuzz** maps text to glyph ids/positions; it does not rasterize.
+- **FreeType** rasterizes glyphs into bitmaps; it does not shape.
+- **ThorVG / Skia** rasterize paths; they do not own layout or the scene graph.
+- **volk** only loads Vulkan entry points; it has no rendering behavior.
+- **VMA** only allocates GPU memory; it does not record commands.
+- **SPIRV-Reflect** reads shader binding metadata; it does not compile shaders.
+- **Vulkan loader + ICD** are the actual GPU path; they stay dynamic (ADR-012).
+
+### Design-time: browser
+
+```text
+C++ engine -> [Emscripten] -> Wasm -> [browser WebGPU] -> <canvas>
+```
+
+- **Emscripten** is a toolchain; it is not shipped as a runtime library.
+- **WebGPU bindings** (`webgpu.h` / emdawnwebgpu) call the browser's WebGPU.
+- **Dawn** is the native WebGPU implementation; it is optional and used for native/headless
+  parity tests, not linked into the Wasm viewer.
+
+### Headless: CI and agent loop
+
+```text
+renderer -> [lavapipe | CPU rasterizer] -> RGBA buffer
+         -> [stb_image_write | PNG encoder] -> PNG
+         -> [stb_image decode + custom diff] -> report.json + diff image
+```
+
+- **lavapipe** is a software Vulkan ICD used by CI; never shipped to users.
+- **stb_image_write** is the Phase 0 PNG writer; production may use a dedicated encoder.
+- **stb_image** decodes PNGs for golden comparison.
+- **Catch2** drives unit tests; **Google Benchmark** drives microbenchmarks. Neither is
+  shipped.
+
+### Platform, services, diagnostics
+
+- **Win32 / X11 / Wayland / libxkbcommon / Cocoa** — window creation, input, lifecycle.
+  GLFW/SDL3 are candidate abstractions over these.
+- **libcurl / IXWebSocket / mbedTLS** — HTTP, WebSocket, TLS in `services/networking`.
+- **sqlite3 / zstd** — local storage and compression in `services/storage`.
+- **spdlog / Tracy / Crashpad** — logging, profiling, crash dumps in `diagnostics/`.
+- **miniaudio** — optional audio hooks in `hal/audio`.
+- **libpng / libjpeg-turbo / libwebp / lunasvg** — image decoding and SVG in `ui/image`.
+- **mimalloc / glm / `{fmt}`** — optional allocator, math, formatting in `core/`.
+
+### Dependency seams (what we depend on, and what we can swap)
+
+| Dependency | Seam in Tessera | Why the seam exists |
+|---|---|---|
+| Yoga | `ui::LayoutEngine` | swap layout engine; hide Yoga types |
+| FreeType | `ui::GlyphRasterizer` | swap rasterizer; keep text layout independent |
+| HarfBuzz | `ui::TextShaper` | swap shaper; test with a fake |
+| SheenBidi | `ui::BidiResolver` | isolate bidi policy |
+| ICU | `ui::TextSegmenter`, `services::I18n` | make ICU optional/feature-gated |
+| ThorVG / Skia | `rendering::PathRasterizer` | swap vector backend (ADR-004) |
+| Vulkan / WebGPU | `rendering::RhiDevice` | two backends, one renderer (ADR-003) |
+| VMA / volk / SPIRV-Reflect | internal to `backend/vulkan` | never leak into UI code |
+| tree-sitter / SWC / oxc | `compiler::JsxParser` | parser choice is not an ABI |
+| nlohmann/json | `compiler::JsonCodec` | keep IR schema independent of the JSON library |
+| clang-format | `compiler::Formatter` | tool, not a linked library |
+| Win32 / X11 / Wayland / Cocoa | `hal::WindowSystem` | platform backends stay replaceable |
+| libcurl | `services::HttpClient` | swap HTTP stack |
+| spdlog | `diagnostics::Logger` | logging is not a hard dependency |
+| Catch2 | test target only | never shipped |
+
+### What is *not* a dependency
+
+The scene graph, layout integration, CSS subset, renderer batching, game clock, dirty-flag
+invalidation, IR, codegen, merger, golden runner, and the AI-agent feedback loop are our
+code. They are the differentiators and are not delegated.
+
 ## Licensing
 
-### Project license (decision pending)
+### Project license: MIT (decided 2026-11-07, ADR-013)
 
-The repository does not have a `LICENSE` file yet. Recommendation: **Apache-2.0** for the
-framework core, because it includes an express patent grant (relevant for a renderer and a
-compiler) and is accepted by corporate users. **MIT** is the simpler alternative and matches
-the author's other repositories. Every dependency selected for V1 is compatible with both.
+Tessera is released under the **MIT License**. See [`LICENSE`](../../LICENSE) and
+[`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md).
 
+MIT obligations:
+
+- Include the copyright notice and the permission notice in all copies or substantial
+  portions of the software.
+- For binary distributions, ship `THIRD_PARTY_NOTICES.txt` (or the full notices file) and
+  expose the MIT text plus third-party notices in an About/licenses UI.
+- Apache-2.0 dependencies additionally require their `NOTICE` to be preserved.
+- OFL font licenses, FreeType FTL notices, and Unicode/ICU notices must be retained.
+
+MIT is compatible with every V1 dependency. It does not include an express patent grant; if
+patent protection becomes a requirement, a superseding ADR can relicense the project.
 Do not use GPL/AGPL for the core if the goal is broad adoption or closed-source embedding.
-A dual-license business model (open source + commercial) is compatible with the current
-dependency set only while the open-source side stays permissive (Apache-2.0/MIT).
 
 ### License policy
 
@@ -227,14 +397,18 @@ Not allowed in the shipped core:
 
 LGPL:
 
-- Only for optional, dynamically loaded system integration (e.g. AT-SPI on Linux).
-- Never statically linked into the core.
+- **Not allowed in statically linked code** (ADR-012). LGPL static linking requires
+  relinkable object files and reverse-engineering permission.
+- Permitted only for optional, dynamically loaded system integration that ships with the OS
+  (e.g. AT-SPI via D-Bus), never as part of the static core.
 
 ### Compatibility rules
 
 - **Apache-2.0 dependency in an MIT/Apache project:** allowed. Preserve the license text and
   the `NOTICE` file; state modifications to Apache-2.0 files.
 - **MIT/BSD dependency in an Apache-2.0 project:** allowed. Keep the copyright notice.
+- **Static linking:** every permissive license above allows it with notice preservation.
+  LGPL/GPL do not (ADR-012).
 - **Boost Software License 1.0 (BSL-1.0):** permissive. Do not confuse it with the Business
   Source License (also abbreviated BSL). Catch2 uses the Boost license.
 - **OFL-1.1 fonts:** may be bundled; keep the license; do not rename modified fonts

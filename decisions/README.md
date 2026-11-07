@@ -19,6 +19,8 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-009](ADR-009-deterministic-headless-golden-tests.md) | Deterministic headless golden tests on a software path | Accepted |
 | [ADR-010](ADR-010-macos-via-moltenvk-deferred.md) | macOS through MoltenVK, deferred from V1 | Accepted (deferred) |
 | [ADR-011](ADR-011-shader-authoring-and-cross-compilation.md) | Shader authoring and cross-compilation | Proposed |
+| [ADR-012](ADR-012-static-linking.md) | Static linking as a hard requirement | Accepted |
+| [ADR-013](ADR-013-project-license-mit.md) | Project license is MIT | Accepted |
 
 ## Dependency overview
 
@@ -31,6 +33,8 @@ ADR-002 WebGPU/Dawn ─┘        │                     ADR-006 text
 
 ADR-007 IR ── ADR-008 protected regions
 ADR-010 macOS (deferred)
+ADR-012 static linking (cross-cutting: build, licenses, accessibility)
+ADR-013 MIT license (cross-cutting: dependency choices)
 ```
 
 ## Adding an ADR

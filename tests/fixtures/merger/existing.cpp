@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // User-edited file from a previous generation.
 struct DashboardPanel {
     // [DEVELOPER_LOGIC_START: bind::on_open]

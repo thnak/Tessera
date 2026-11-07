@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 name: CI
 
 on:
@@ -24,6 +26,14 @@ jobs:
 
       - name: Build
         run: cmake --build build
+
+      - name: Check static C++ runtime (ADR-012)
+        run: |
+          if ldd build/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
+              | grep -E 'libstdc\+\+|libgcc_s'; then
+            echo "unexpected dynamic C++ runtime; static linking is required"
+            exit 1
+          fi
 
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure

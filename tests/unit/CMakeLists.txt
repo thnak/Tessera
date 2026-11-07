@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 add_executable(merger_tests
     merger_tests.cpp)
 

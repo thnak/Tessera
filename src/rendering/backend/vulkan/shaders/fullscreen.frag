@@ -1,4 +1,5 @@
 #version 450
+// SPDX-License-Identifier: MIT
 
 layout(push_constant) uniform PushConstants {
     vec2 resolution;

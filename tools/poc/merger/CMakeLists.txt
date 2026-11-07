@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 add_executable(merger_poc
     main.cpp)
 

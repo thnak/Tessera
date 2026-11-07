@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 add_executable(vulkan_offscreen_poc
     main.cpp)
 

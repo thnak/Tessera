@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include <tessera/compiler/merger.hpp>
 
 #include <cstddef>

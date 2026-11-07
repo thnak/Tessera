@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include <tessera/rendering/vulkan/offscreen_renderer.hpp>
 
 #include <cstring>

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 find_package(Vulkan REQUIRED)
 
 set(TESSERA_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)

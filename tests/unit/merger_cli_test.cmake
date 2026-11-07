@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # End-to-end merger CLI test: merge with an existing file, then merge again.
 # Fails if either run fails, if developer logic is lost, or if the output is not stable.
 

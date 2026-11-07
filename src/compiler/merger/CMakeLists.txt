@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 add_library(tessera_merger STATIC
     src/merger.cpp)
 

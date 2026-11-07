@@ -41,6 +41,13 @@ A cross-platform C++ UI framework:
    at design time (custom reconciler in the Wasm viewer).
 8. **V1 scope discipline.** Support a small, explicit hooks subset and reject unsupported
    patterns loudly. Do not grow the surface before Big Step C is proven.
+9. **Static linking is a hard requirement** (ADR-012). Tessera and third-party C/C++ libraries
+   are linked statically into the app. System components (Vulkan loader/ICDs, OS frameworks)
+   stay dynamic. No LGPL/GPL in statically linked code.
+10. **Project license is MIT** (ADR-013). Keep shipped dependencies permissive; preserve
+    third-party notices. Every new dependency needs an entry in
+    [`docs/specs/dependencies.md`](docs/specs/dependencies.md) and
+    [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## Big Steps (group work, don't micro-step)
 
@@ -141,7 +148,10 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
 - [ ] Builds on Windows and Linux.
 - [ ] Unit/integration tests pass (`ctest`).
 - [ ] Vulkan paths run clean under validation layers (debug builds).
-- [ ] No new dependency without a note in `third_party/README.md`.
+- [ ] No new dependency without entries in `docs/specs/dependencies.md` and
+      `THIRD_PARTY_NOTICES.md`.
+- [ ] Static link check passes: no unexpected third-party dynamic libraries (ADR-012).
+- [ ] New source files carry `SPDX-License-Identifier: MIT`.
 - [ ] If it touches protected regions: idempotency test updated.
 - [ ] If it touches rendering: a golden test or a manual visual check is recorded.
 

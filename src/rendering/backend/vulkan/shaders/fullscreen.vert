@@ -1,4 +1,5 @@
 #version 450
+// SPDX-License-Identifier: MIT
 
 // Fullscreen triangle generated from gl_VertexIndex, no vertex buffer.
 void main() {
