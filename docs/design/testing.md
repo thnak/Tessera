@@ -53,6 +53,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `layout` | flex row/column, grow, gap/padding, absolute, percent/min/max, ratio, RTL, wrap, text measure, determinism |
 | `text_measure` | stub advance, word wrap, long-word break, newlines, letter spacing, style parsing |
 | `layout_apply` | id matching, parent-relative bounds, dirty propagation, missing/extra boxes |
+| `pixel_snap` | half-up/negative symmetry, scales 1/1.25/2, clamp below 1, joined edges |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |

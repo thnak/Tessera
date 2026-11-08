@@ -115,7 +115,9 @@ Rules:
 
 ## 5. Pixel alignment
 
-Layout keeps fractional geometry. At paint time, snap **edges**, not sizes, to avoid gaps:
+Layout keeps fractional geometry. At paint time, snap **edges**, not sizes, to avoid gaps. The
+contract is implemented by `include/tessera/ui/layout/pixel_snap.hpp` (`round_half_up`,
+`snap_scalar`, `snap_rect`):
 
 ```text
 scale = max(dpi_scale, 1.0)

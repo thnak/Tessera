@@ -154,6 +154,13 @@ target_link_libraries(layout_apply_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_apply COMMAND layout_apply_tests)
 
+add_executable(pixel_snap_tests
+    pixel_snap_tests.cpp)
+
+target_link_libraries(pixel_snap_tests PRIVATE tessera_layout)
+
+add_test(NAME pixel_snap COMMAND pixel_snap_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

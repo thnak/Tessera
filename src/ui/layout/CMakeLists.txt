@@ -2,7 +2,8 @@
 
 add_library(tessera_layout STATIC
     apply_layout.cpp
-    layout_engine.cpp)
+    layout_engine.cpp
+    pixel_snap.cpp)
 
 target_include_directories(tessera_layout PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
