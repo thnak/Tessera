@@ -4,6 +4,8 @@ add_library(tessera_text STATIC
     font_face.cpp
     font_metrics.cpp
     freetype_metrics.cpp
+    glyph_atlas.cpp
+    glyph_raster.cpp
     harfbuzz_shaper.cpp
     text_measure.cpp
     text_measure_cache.cpp)

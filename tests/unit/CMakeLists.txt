@@ -487,6 +487,20 @@ target_link_libraries(freetype_metrics_tests PRIVATE tessera_text)
 
 add_test(NAME freetype_metrics COMMAND freetype_metrics_tests "${TESSERA_FONT_FIXTURE}")
 
+add_executable(glyph_raster_tests
+    glyph_raster_tests.cpp)
+
+target_link_libraries(glyph_raster_tests PRIVATE tessera_text)
+
+add_test(NAME glyph_raster COMMAND glyph_raster_tests "${TESSERA_FONT_FIXTURE}")
+
+add_executable(glyph_atlas_tests
+    glyph_atlas_tests.cpp)
+
+target_link_libraries(glyph_atlas_tests PRIVATE tessera_text)
+
+add_test(NAME glyph_atlas COMMAND glyph_atlas_tests "${TESSERA_FONT_FIXTURE}")
+
 add_executable(harfbuzz_shaper_tests
     harfbuzz_shaper_tests.cpp)
 

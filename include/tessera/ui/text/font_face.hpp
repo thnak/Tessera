@@ -70,6 +70,8 @@ public:
     [[nodiscard]] std::span<const std::uint8_t> data() const noexcept;
 
 private:
+    friend class GlyphRasterizer;
+
     explicit FontFace(std::shared_ptr<detail::FontFaceState> state);
     [[nodiscard]] static std::expected<FontFace, FontError>
     load_owned(std::vector<std::uint8_t> bytes, std::uint32_t face_index);
