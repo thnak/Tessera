@@ -3,6 +3,7 @@
 add_library(tessera_runtime STATIC
     clock.cpp
     fixed_step.cpp
+    frame_pacer.cpp
     runtime_loop.cpp)
 
 target_include_directories(tessera_runtime PUBLIC

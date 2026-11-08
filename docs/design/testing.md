@@ -37,6 +37,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `fixed_step` | deterministic accumulator, delta clamp, catch-up cap, time scale |
 | `clock` | deterministic manual clock, monotonic advance validation |
 | `runtime_loop` | clock-driven steps, one-shot requests, dirty persistence, continuous/on-demand modes |
+| `frame_pacer` | uncapped/deadline waits, lateness, cadence reset, validation |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |
