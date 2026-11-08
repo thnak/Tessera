@@ -12,6 +12,7 @@ directories marked **planned** are seams, not implemented features. In the Statu
 | `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | planned |
 | `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL (hardware/OS abstraction layer) | planned (B3) |
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; rest B2 |
+| `src/ui/input/` | normalized input event, bounded queue, move coalescing | B2 core |
 | `src/rendering/rhi/` | thin RHI (render hardware interface) interfaces | B1 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
@@ -92,6 +93,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
 | `ui/scene/event.hpp` | event types/phases |
 | `ui/dirty.hpp` | style/layout/paint/render/resource/GPU dirty bitmask |
+| `ui/input.hpp` | normalized input event, bounded SPSC queue, sampler |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |
@@ -108,7 +110,8 @@ merger prototype.
 | `tessera_gpu` | static | batched 2D renderer |
 | `tessera_rhi_null` | static | [null backend](../reference/glossary.md) |
 | `tessera_scene` | static | scene graph/events |
-| `tessera_runtime` | static | fixed-step core (B2) |
+| `tessera_runtime` | static | fixed-step/clock/pacing core (B2) |
+| `tessera_input` | static | normalized input queue + sampler (B2) |
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |

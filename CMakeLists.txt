@@ -46,6 +46,7 @@ add_subdirectory(src/rendering/rhi)
 add_subdirectory(src/rendering/gpu)
 add_subdirectory(src/rendering/null)
 add_subdirectory(src/runtime)
+add_subdirectory(src/ui/input)
 add_subdirectory(src/ui/scene)
 add_subdirectory(src/compiler/merger)
 

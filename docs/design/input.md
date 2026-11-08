@@ -1,7 +1,10 @@
 # Input handler and event pipeline
 
 Status: design for Big Step B2 (runtime slice; see
-[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision record:
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). The normalized event
+model, bounded SPSC queue, and per-tick adjacent-move coalescing are implemented in
+`include/tessera/ui/input.hpp` and `src/ui/input/input_queue.cpp`; platform translation, hit-test
+dispatch, focus/capture, and pseudo-state remain design-only. Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
 fixed-step update of the runtime loop; golden = deterministic reference image; SPSC = single-producer
