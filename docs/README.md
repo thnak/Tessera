@@ -42,6 +42,8 @@ for the project overview. This page is the map and reading order for the framewo
 - [`specs/ir-v1.md`](specs/ir-v1.md) — compiler IR schema, expressions, bindings, validation
 - [`specs/component-model-v1.md`](specs/component-model-v1.md) — JSX/hooks subset, lifecycle,
   reconciliation, generated C++
+- [`specs/virtualization-v1.md`](specs/virtualization-v1.md) — virtualized lists/grids,
+  recycling, scroll anchoring, accessibility
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -122,22 +124,23 @@ for the project overview. This page is the map and reading order for the framewo
 1. [Stylesheet spec](specs/stylesheet-v1.md)
 2. [Scene graph](design/scene-graph.md)
 3. [UI model](design/ui-model.md)
-4. [Layout](design/layout.md)
-5. [Text](design/text.md)
-6. [Animation](design/animation.md)
-7. [Responsive](design/responsive.md)
-8. [Accessibility](design/accessibility.md)
-9. [Input handler](design/input.md)
-10. [Game loop](design/game-loop.md)
-11. [Dirty rendering](design/dirty-rendering.md)
-12. [Performance & power](design/performance.md)
-13. [Window resize & lifecycle](design/window-resize.md)
-14. [OS events & foldables](specs/os-events-v1.md)
-15. [HAL](design/hal.md)
-16. [Async runtime](design/async.md)
-17. [Diagnostics](design/diagnostics.md)
-18. [Runtime config](specs/runtime-config-v1.md)
-19. [Diagnostics config](specs/diagnostics-config-v1.md)
+4. [UI virtualization](specs/virtualization-v1.md)
+5. [Layout](design/layout.md)
+6. [Text](design/text.md)
+7. [Animation](design/animation.md)
+8. [Responsive](design/responsive.md)
+9. [Accessibility](design/accessibility.md)
+10. [Input handler](design/input.md)
+11. [Game loop](design/game-loop.md)
+12. [Dirty rendering](design/dirty-rendering.md)
+13. [Performance & power](design/performance.md)
+14. [Window resize & lifecycle](design/window-resize.md)
+15. [OS events & foldables](specs/os-events-v1.md)
+16. [HAL](design/hal.md)
+17. [Async runtime](design/async.md)
+18. [Diagnostics](design/diagnostics.md)
+19. [Runtime config](specs/runtime-config-v1.md)
+20. [Diagnostics config](specs/diagnostics-config-v1.md)
 
 ### Compiler / codegen
 
@@ -184,6 +187,7 @@ for the project overview. This page is the map and reading order for the framewo
 | Diagnostics/profiling | B2 proposed (ADR-022) |
 | OS events / foldables | B3 proposed (ADR-023) |
 | Compiler/IR/codegen | C proposed |
+| UI virtualization (list/grid) | B2/E proposed |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |

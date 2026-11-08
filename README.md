@@ -35,6 +35,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Stylesheet engine spec](docs/specs/stylesheet-v1.md)
 - [Compiler / IR / component model](docs/design/compiler.md), [IR spec](docs/specs/ir-v1.md),
   [component model](docs/specs/component-model-v1.md)
+- [UI virtualization](docs/specs/virtualization-v1.md)
 - [Design-time viewer](docs/design/designer.md)
 - [Runtime config spec](docs/specs/runtime-config-v1.md)
 - [Runtime loop & frame pacing](docs/design/game-loop.md)

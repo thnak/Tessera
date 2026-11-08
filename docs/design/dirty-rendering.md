@@ -15,6 +15,9 @@ Status: design for Big Step B2/E. Companion to [`game-loop.md`](game-loop.md) an
 Correctness beats skipping a frame. If the runtime cannot prove a partial update is safe, it
 falls back to a full redraw.
 
+Virtualized lists/grids reduce the number of realized nodes; they do not replace damage/culling.
+See [`virtualization-v1.md`](../specs/virtualization-v1.md) for the collection model.
+
 ## 2. Dirty domains
 
 | Domain | Set by | Consumed by | Cleared after |

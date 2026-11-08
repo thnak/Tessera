@@ -30,7 +30,8 @@ A component has:
 - refs: `useRef(null)` (points to a scene node)
 - animated values: `useAnimatedValue(initial)`
 - event handlers for pointer/keyboard/focus/change
-- a returned node tree (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`)
+- a returned node tree (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `VirtualList`,
+  `VirtualGrid`)
 
 V1 rejects: custom hooks, context, suspense, error boundaries, dynamic component types,
 portals, and non-static conditionals/loops. See
@@ -90,7 +91,8 @@ children topmost-first, then the node itself.
 - Text/content changes mark style/text/layout/paint as appropriate.
 
 V1 lists are explicit runtime list models; the compiler rejects dynamic `.map()` expressions
-that cannot be statically analyzed.
+that cannot be statically analyzed. Large collections use `VirtualList`/`VirtualGrid`; see
+[`virtualization-v1.md`](../specs/virtualization-v1.md) for windowing/recycling rules.
 
 ## 6. Style, layout, paint, animation
 

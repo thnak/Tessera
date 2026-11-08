@@ -207,6 +207,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Responsive / accessibility | `docs/design/responsive.md`, `docs/design/accessibility.md` |
 | HAL | [`docs/design/hal.md`](docs/design/hal.md) |
 | Compiler / IR / component model | [`docs/design/compiler.md`](docs/design/compiler.md), [`docs/specs/ir-v1.md`](docs/specs/ir-v1.md), [`docs/specs/component-model-v1.md`](docs/specs/component-model-v1.md) |
+| UI virtualization | [`docs/specs/virtualization-v1.md`](docs/specs/virtualization-v1.md) |
 | Designer / Wasm | [`docs/design/designer.md`](docs/design/designer.md) |
 | Threading / memory | [`docs/design/threading-and-memory.md`](docs/design/threading-and-memory.md) |
 | Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |

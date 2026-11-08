@@ -1,0 +1,259 @@
+# UI virtualization v1: virtualized lists and grids
+
+Status: proposed (Big Step B2/E). This is **UI/data virtualization**, not VM/container
+virtualization and not a virtual DOM.
+
+Virtualization keeps only the visible (plus overscan) items realized in the scene graph. It
+bounds node count, layout work, paint work, and memory for large lists/grids/charts.
+
+## 1. Scope
+
+In scope:
+
+- vertical/horizontal virtualized lists
+- virtualized grids (fixed or measured row/column sizes)
+- fixed-size and variable-size items
+- keyed recycling and stable identity
+- sticky headers/sections (V1: headers, not nested sticky)
+- scroll-to-key, scroll anchoring, prefetch/cancellation
+- focus/selection/accessibility for realized and unrealized items
+- deterministic tests and goldens
+
+Not in scope:
+
+- VM/container/VDI virtualization.
+- Virtual DOM. Production is generated C++; the design-time reconciler is separate.
+- GPU culling/layer virtualization. Those are rendering concerns; see
+  [`dirty-rendering.md`](../design/dirty-rendering.md) and
+  [`renderer.md`](../design/renderer.md).
+- Infinite nested virtualization, masonry, subgrid, and 3D/virtualized 3D scenes.
+
+## 2. Model
+
+```text
+VirtualCollection
+  ├─ data source: item count, stable keys, measure/build
+  ├─ viewport: scroll offset, extent, overscan, orientation
+  ├─ layout: fixed | variable | grid
+  ├─ window: realized item range + overscan
+  ├─ recycler: keyed node pool
+  └─ semantics: set size/index, focus/selection, announcements
+```
+
+The collection owns no per-item state for unrealized items. Item state that must survive
+scrolling belongs to the data source or an explicit keyed store, not to recycled nodes.
+
+## 3. Data source
+
+Illustrative C++ contract:
+
+```cpp
+struct VirtualItemId {
+    std::uint64_t value;
+};
+
+struct VirtualItemMeasure {
+    float main_size;    // height for vertical list, width for horizontal
+    float cross_size;   // width/height inside the row/column
+};
+
+class VirtualDataSource {
+public:
+    virtual ~VirtualDataSource() = default;
+    virtual std::size_t item_count() const = 0;
+    virtual VirtualItemId item_key(std::size_t index) const = 0;
+    virtual VirtualItemMeasure measure(std::size_t index,
+                                       const MeasureConstraints&) const = 0;
+    virtual std::unique_ptr<Node> build(std::size_t index, NodePool&) = 0;
+    virtual void release(std::size_t index, std::unique_ptr<Node>) {}
+};
+```
+
+Rules:
+
+- `item_key(index)` must be stable across inserts/removes/moves.
+- `measure` must be pure and deterministic; it may use cached text measurement.
+- `build` constructs a node subtree from the item model; it must not read recycled state.
+- `release` is optional; the collection may keep nodes in a bounded pool.
+- Unknown/duplicate keys are errors.
+- Async data loading is allowed; the collection shows a deterministic placeholder until ready.
+
+## 4. Layout and windowing
+
+### Fixed size
+
+```text
+stride = item_size + gap
+first  = clamp(floor((scroll - overscan) / stride), 0, count)
+last   = clamp(ceil((scroll + viewport + overscan) / stride), 0, count)
+```
+
+O(1) range calculation; no per-item measurement.
+
+### Variable size
+
+- Maintain a prefix-sum index of item sizes.
+- Measure lazily and cache `(key, constraints) -> size`.
+- Range = binary search for `scroll - overscan` and `scroll + viewport + overscan`.
+- Inserts/removes update the prefix index incrementally.
+- Estimate unknown sizes with a documented default; refine on measure.
+- Re-measure invalidates only affected suffix/window, not the whole list.
+
+### Grid
+
+- V1: fixed column count or fixed column width; row-major.
+- Row height = max item height in the row (or fixed row height).
+- Variable row heights use the same prefix-sum approach at row granularity.
+- Item span/masonry are later.
+
+### Orientation and RTL
+
+- `orientation: vertical|horizontal`; scroll axis and cross axis are explicit.
+- RTL flips the logical start/end for horizontal lists; vertical lists keep physical top/bottom.
+- Scroll offset is always physical along the axis; logical alignment is mapped at the API edge.
+
+## 5. Recycling
+
+- Pool keyed by `(item_template, node_kind)`; not by item key.
+- On recycle: cancel animations, release pointer capture, clear focus/selection refs, unbind
+  event handlers/data refs, reset transient state.
+- Do not recycle an item with an active pointer capture, IME composition, or running animation;
+  defer until it is safe.
+- Reusing nodes is an optimization; correctness must be identical to rebuild.
+- Node count is bounded by `visible + overscan + pool_cap`; `pool_cap` is configurable.
+- Keyed identity is preserved for focus/selection/scroll anchoring even when the node is recycled.
+
+## 6. Scroll anchoring and updates
+
+- Maintain an **anchor**: `(item_key, offset_within_item)` near the viewport start.
+- On insert/remove before the anchor, adjust `scroll_offset` so the anchor stays visually
+  stable.
+- On item measurement changes, preserve the anchor unless the anchor item itself changed size;
+  then clamp to the nearest valid position.
+- On data replacement, match by key; missing anchor -> nearest surviving key.
+- `scroll_to_key(key, align)` realizes the target, measures if needed, scrolls, then focuses if
+  requested.
+- Sticky headers: a header is pinned at the viewport edge for its section; it participates in
+  hit testing and accessibility but is not counted as a regular item.
+- No full-list rebuild for a single insert/remove/move.
+
+## 7. Focus, selection, accessibility
+
+- Only realized items exist in the scene graph; the semantics tree exposes a virtual collection
+  with `set_size` and per-item `pos_in_set`.
+- Keyboard navigation can target an unrealized index: realize + scroll + focus, then announce.
+- Focus/selection are keyed by item id, not node pointer; recycling must not move focus to a
+  different item.
+- Selection ranges may include unrealized items; they are stored by key.
+- Screen-reader actions (`scroll_to_index`, `activate`) are handled by the collection.
+- Announce data updates at a bounded rate; do not announce every streaming tick.
+- Empty/loading/error states are part of the collection semantics, not a fake item.
+
+## 8. Async, prefetch, cancellation
+
+- Prefetch data/measure for items just outside the overscan (bounded).
+- Cancel prefetch for items that leave the window.
+- Completion callbacks are delivered on the UI thread via the bounded completion queue
+  ([`async.md`](../design/async.md)).
+- Never block scrolling on data/measure; show placeholders.
+- Budget prefetch work per tick; no unbounded queues.
+- If an item is recycled before its async result arrives, discard or cache by key.
+
+## 9. Dirty and render integration
+
+- Scroll: update transforms/paint for realized items; do not mark root layout dirty unless
+  sticky headers/scroll-linked layout require it.
+- Realize/recycle: layout/paint dirty for affected items only.
+- Data update: mark changed items dirty; insert/remove updates layout/prefix index.
+- Measurement change: relayout from the affected item; preserve anchor.
+- `dirtyRendering=off` must produce identical pixels to dirty-only for the same viewport.
+- Virtualization does not replace GPU culling/layer caches; it reduces realized nodes.
+- Goldens always full-redraw the realized set into a fixed target.
+
+## 10. IR and component model
+
+IR adds two collection node kinds (see [`ir-v1.md`](ir-v1.md)):
+
+- `VirtualList`
+- `VirtualGrid`
+
+Illustrative IR:
+
+```json
+{
+  "id": "node::rows",
+  "kind": "VirtualList",
+  "props": {
+    "data": { "kind": "ref", "id": "state::rows" },
+    "estimateSize": 32,
+    "overscan": 200,
+    "gap": 4,
+    "stickyHeaders": true
+  },
+  "events": { "onEndReached": "bind::on_end_reached" },
+  "itemTemplate": {
+    "id": "node::row",
+    "kind": "View",
+    "style": { "display": "flex", "padding": "4px 8px" }
+  }
+}
+```
+
+Rules:
+
+- The item template is a static IR subtree/component; dynamic component types are rejected.
+- `data` is a list state/ref or a static list; item access uses `item`/`index` locals.
+- `key` is required; duplicate keys are errors.
+- V1 supports vertical lists, horizontal lists, and fixed/measured grids; span/masonry later.
+- `onEndReached` is throttled and delivered on the UI thread.
+- IR v1 gains these node kinds; codegen emits collection construction/update calls.
+
+## 11. Determinism and tests
+
+Deterministic inputs:
+
+- fixed viewport size, scroll offsets, item sizes, data order
+- committed fonts for text measurement
+- no wall clock, network, or random ids
+- deterministic recycle/pool order
+
+Tests:
+
+- fixed/variable/grid/horizontal/RTL range calculation
+- insert/remove/move before/after the anchor; no scroll jump
+- scroll-to-key, sticky headers, end-reached throttle
+- focus/selection survive recycle and data updates
+- accessibility set size/pos and unrealized-item focus
+- async prefetch/cancel/recycle; no stale callback
+- dirty-only == full-render pixels; no node leak after long scroll
+- golden scroll scripts (viewport snapshots + realized range report)
+
+## 12. Performance budgets
+
+- Realized nodes <= visible + overscan + pool cap.
+- Scroll update should be O(visible), not O(item count).
+- No per-scroll allocation after warm-up.
+- Measure cache bounded by bytes/items; evict offscreen entries.
+- Prefetch bounded per tick; cancellable.
+- Track: realized range, recycled count, measure cache hit/miss, prefetch queue depth,
+  scroll frame time, pool size.
+
+## 13. Open questions
+
+- Variable-size estimation strategy and correction when estimates are wrong.
+- Grid span/masonry and variable column widths.
+- Nested virtualization (virtual list inside a virtual row).
+- Whether item state should live in a keyed store or in the data source.
+- Recycling vs rebuild for complex/custom item trees.
+- IR representation: `VirtualList`/`VirtualGrid` node kinds vs a `Scroll` capability.
+- Sticky headers/sections with variable heights.
+- Async data source paging vs in-memory list.
+- Accessibility navigation for very large collections.
+- Horizontal RTL scroll anchoring edge cases.
+
+## 14. Status
+
+- Design/spec only; no implementation yet.
+- Depends on: IR/component model, Yoga layout/measure, input/focus, accessibility, dirty
+  rendering, async.
+- Target: Big Step B2 for basic list virtualization; E for large streaming dashboards.

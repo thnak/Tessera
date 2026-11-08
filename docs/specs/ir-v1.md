@@ -90,7 +90,7 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | string | yes | Unique within the component |
-| `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid` |
 | `key` | string/int/null | no | Stable list identity |
 | `props` | object | no | Typed intrinsic props |
 | `style` | object | no | Style tokens; inline style |
@@ -102,6 +102,11 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 
 Node kinds are closed in V1. A custom component reference is lowered to its root node; there
 is no dynamic component type.
+
+`VirtualList` and `VirtualGrid` are collection nodes defined in
+[`virtualization-v1.md`](virtualization-v1.md). They carry a data-source ref/list, a static item
+template, overscan/estimate/gap, a required item key, and optional sticky headers. They do not
+represent VM/container virtualization or a virtual DOM.
 
 ## 4. Expressions
 
@@ -291,7 +296,8 @@ Warnings:
 
 ## 14. Open questions
 
-- Static list model and virtualization interaction.
+- Virtual collection data source/paging and nested virtualization; see
+  [`virtualization-v1.md`](virtualization-v1.md).
 - Source-map format and `#line` emission.
 - Whether styles are inlined as tokens or referenced by compiled rule ids.
 - Expression extensions (string methods, formatting) and their purity allowlist.

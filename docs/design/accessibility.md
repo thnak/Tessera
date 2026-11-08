@@ -104,5 +104,6 @@ accessibility is disabled with a diagnostic.
 - How much semantics is inferred vs explicitly authored.
 - AT-SPI over D-Bus without linking LGPL libraries: exact service/protocol subset.
 - UIA provider threading and COM apartment rules.
-- Screen-reader behavior for virtualized lists/charts.
+- Screen-reader behavior for virtualized lists/charts; see
+  [`virtualization-v1.md`](../specs/virtualization-v1.md).
 - Accessibility for custom-drawn text/paths.
