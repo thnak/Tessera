@@ -10,7 +10,8 @@ implemented in `src/ui/style/tokenizer.cpp`, and the tolerant rule/declaration/a
 inheritance/computed-style model in `src/ui/style/cascade.cpp`; the top-level pipeline
 (parse -> selector index -> cascade -> computed style) is in `src/ui/style/compiled_stylesheet.cpp`.
 The property registry (supported properties, initial values, box/pair/flex shorthand expansion,
-and diagnostics) is `src/ui/style/property_registry.cpp`. At-rule application for `@media`
+and diagnostics) is `src/ui/style/property_registry.cpp`; CSS color parsing/SRGB interpolation is
+`src/ui/style/color.cpp` (named/hex/rgb/rgba/hsl/hsla). At-rule application for `@media`
 (width/height/resolution/orientation/color-scheme/reduced-motion), nested media rules, `@keyframes`
 parsing, and `@layer` precedence (plus the generated `Theme` origin) is in
 `src/ui/style/media_query.cpp`, `src/ui/style/keyframes.cpp`, `src/ui/style/supports.cpp`, and

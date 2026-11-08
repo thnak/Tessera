@@ -109,6 +109,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/media_query.hpp` | media-query parsing/evaluation against fixed context |
 | `ui/style/keyframes.hpp` | `@keyframes` block parsing into offset steps |
 | `ui/style/supports.hpp` | `@supports` condition parser/evaluator against the registry |
+| `ui/style/color.hpp` | CSS color parser/formatter + sRGB interpolation |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
 | `ui/text/text_measure_cache.hpp` | bounded LRU measurement cache + stats |
 | `ui/animation/easing.hpp` | linear/cubic-bezier/steps easing parser + evaluator |

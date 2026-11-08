@@ -420,7 +420,8 @@ dirty Paint/Render scene bounds into snapped damage rectangles, and `DamageTrack
 bounds to damage both old and new positions. `rendering/redraw_plan.hpp` converts damage rects into
 integer `rhi::Scissor` regions with a full-redraw fallback and an area/scissor-count policy for
 choosing partial vs full redraw. `@supports` evaluates
-`not`/`and`/`or` declarations against the property registry. `ui/animation/keyframes.hpp` samples
+`not`/`and`/`or` declarations against the property registry, and `ui/style/color.hpp` parses and
+interpolates CSS colors (named/hex/rgb/rgba/hsl). `ui/animation/keyframes.hpp` samples
 parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation, and
 `ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, and
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates

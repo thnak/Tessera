@@ -99,14 +99,22 @@ int main() {
         return 2;
     }
 
+    KeyframeBlock discrete;
+    discrete.steps.push_back(step(0.0, "font-family", "serif"));
+    discrete.steps.push_back(step(100.0, "font-family", "sans-serif"));
+    if (!expect(*value(sample_keyframes(discrete, timing, 0.25), "font-family") == "serif",
+                "discrete first half") ||
+        !expect(*value(sample_keyframes(discrete, timing, 0.75), "font-family") == "sans-serif",
+                "discrete second half")) {
+        return 3;
+    }
+
     KeyframeBlock colors;
     colors.steps.push_back(step(0.0, "color", "red"));
     colors.steps.push_back(step(100.0, "color", "blue"));
-    if (!expect(*value(sample_keyframes(colors, timing, 0.25), "color") == "red",
-                "discrete first half") ||
-        !expect(*value(sample_keyframes(colors, timing, 0.75), "color") == "blue",
-                "discrete second half")) {
-        return 3;
+    if (!expect(*value(sample_keyframes(colors, timing, 0.5), "color") == "rgb(128, 0, 128)",
+                "color interpolation")) {
+        return 4;
     }
 
     KeyframeTiming delayed;

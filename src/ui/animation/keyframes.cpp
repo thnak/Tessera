@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/animation/keyframes.hpp"
+#include "tessera/ui/style/color.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -71,6 +72,13 @@ std::string format_number(double value) {
 }
 
 std::string interpolate_value(std::string_view from, std::string_view to, double t) {
+    const style::ColorParseResult from_color = style::parse_color(from);
+    const style::ColorParseResult to_color = style::parse_color(to);
+    if (from_color.ok && to_color.ok) {
+        return style::format_color(
+            style::interpolate_color(from_color.color, to_color.color, static_cast<float>(t)));
+    }
+
     const NumericValue lhs = parse_numeric(from);
     const NumericValue rhs = parse_numeric(to);
     if (lhs.ok && rhs.ok && lhs.unit == rhs.unit) {
