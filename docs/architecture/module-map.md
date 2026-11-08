@@ -156,6 +156,7 @@ Only `include/tessera/` is public. Current headers:
 | `runtime/async.hpp` | cancellation + callbacks + executor + completion queue (B2) |
 | `runtime/task.hpp` | lazy coroutine Task<T>/void resumed through the completion queue (B2) |
 | `runtime/worker_executor.hpp` | bounded worker pool + shutdown/join + completion handoff (B2) |
+| `runtime/io_executor.hpp` | bounded blocking-I/O jobs on the worker pool + cancellation (B2) |
 | `runtime/diagnostics.hpp` | per-frame/total frame diagnostics counters |
 | `diagnostics/log.hpp` | structured levels/categories, redaction, bounded ring sink (B2) |
 | `diagnostics/trace.hpp` | bounded RAII spans + Chrome Trace JSON (B2) |

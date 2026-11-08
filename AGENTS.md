@@ -468,6 +468,8 @@ and once-only callbacks, a bounded deterministic `ManualExecutor`, and a thread-
 every thread, and can post prioritized completions. Lazy `Task<T>`/`Task<void>`
 (`runtime/task.hpp`) coroutines post every resume to the `CompletionQueue`, propagate
 results/exceptions at the `co_await` boundary, and observe cancellation before each resume.
+`IoExecutor` (`runtime/io_executor.hpp`) caps in-flight blocking jobs on the worker pool and posts
+completions back to the queue.
 `runtime/diagnostics.hpp` tracks
 per-frame/total counters. The structured diagnostics core is `src/diagnostics/`:
 `diagnostics::Logger` (levels, categories, path redaction, bounded ring sink, disabled fast path),

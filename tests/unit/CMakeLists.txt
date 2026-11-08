@@ -680,3 +680,10 @@ add_executable(frame_wait_tests
 target_link_libraries(frame_wait_tests PRIVATE tessera_runtime)
 
 add_test(NAME frame_wait COMMAND frame_wait_tests)
+
+add_executable(io_executor_tests
+    io_executor_tests.cpp)
+
+target_link_libraries(io_executor_tests PRIVATE tessera_runtime)
+
+add_test(NAME io_executor COMMAND io_executor_tests)

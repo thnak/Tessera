@@ -42,7 +42,7 @@ class Task;                      // lazy, single-consumer (implemented)
 class Executor;                  // post/invoke (CompletionQueue today)
 class MainThreadExecutor;        // resumes on the UI thread (target)
 class WorkerPool;                // CPU-heavy work (WorkerExecutor today)
-class IoExecutor;                // file/network waits (planned)
+class IoExecutor;                // bounded blocking-I/O front end (B2)
 
 Task<Image> load_image(TaskContext ctx, Path path);
 Task<void>   upload(TaskContext ctx, Image image);
@@ -92,13 +92,22 @@ Rules:
 - **Lifetime.** An internal shared state owns the coroutine frame; an awaiting task keeps the
   frame alive while suspended, and the frame is destroyed exactly once, when the result is
   consumed or the last `Task`/awaiter is dropped.
+- **Bounded blocking-I/O front end.** `IoExecutor` (`runtime/io_executor.hpp`) accepts a job and
+  an optional completion, caps the number of running/queued jobs with `max_in_flight`, runs the
+  job on `WorkerExecutor`, and posts the completion to the `CompletionQueue` at the requested
+  priority. A token cancelled before submission is rejected; cancellation while queued skips the
+  body but still releases the slot. It counts submitted/completed/failed/cancelled/rejected and
+  peak in-flight work. It does not own the worker pool and does not interrupt a blocking call that
+  has already started.
 
 Limitations of this slice:
 
-- **No I/O executor and no thread affinity beyond the queue.** A resume runs on whichever thread
-  drains the `CompletionQueue` (the UI thread in `RuntimeLoop`); nothing migrates or pins a task to
-  a thread, and a worker thread must not touch UI state. One task graph must be pumped by one
-  thread at a time: the queue is thread-safe, but task state assumes a single drainer.
+- **No file/network I/O API and no thread affinity beyond the queue.** `IoExecutor` only runs
+  caller-supplied blocking jobs on the worker pool; there is no async file/network handle, and a
+  resume runs on whichever thread drains the `CompletionQueue` (the UI thread in `RuntimeLoop`).
+  Nothing migrates or pins a task to a thread, and a worker thread must not touch UI state. One
+  task graph must be pumped by one thread at a time: the queue is thread-safe, but task state
+  assumes a single drainer.
 - No `sync_wait`, `when_all`, `when_any`, `timeout`, task names/ids, or coroutine-frame allocator
   hooks yet (see [section 10](#10-open-questions)).
 - Cancellation is observed only at resume boundaries. A task suspended on a child is cancelled
