@@ -211,10 +211,43 @@ V1 expressions are pure and statically analyzable:
 | `unary` | `{ "kind": "unary", "op": "!", "value": Expr }` | `! - +` |
 | `conditional` | `{ "kind": "conditional", "test": Expr, "then": Expr, "else": Expr }` | no side effects |
 | `template` | `{ "kind": "template", "parts": [string|Expr] }` | string interpolation |
-| `call` | `{ "kind": "call", "callee": "formatNumber", "args": [Expr] }` | allowlisted pure functions only |
+| `call` | `{ "kind": "call", "callee": "formatNumber", "args": [Expr] }` | allowlisted pure functions only (section 4.2) |
 
 Rejected: member access on arbitrary objects, array indexing except list items, assignments,
 function expressions, `await`, `yield`, `new`, dynamic imports, and any call with side effects.
+
+### 4.1 Numeric semantics
+
+These rules apply identically in the IR evaluator (Wasm designer) and in generated C++; a differential test checks this ([`designer.md`](../design/designer.md) section 9). They were decided by the project owner.
+
+| Topic | Rule |
+|---|---|
+| `int` | Signed 32-bit two's complement |
+| `float` | IEEE-754 binary64 (C++ `double`), round to nearest even |
+| Integer overflow in `+ - *` and unary `-` | Wraps modulo 2^32 (generated C++ computes in `uint32_t` and converts to `int32_t`, so there is no undefined behavior). `-` of the minimum `int` gives the minimum `int` |
+| `/` | Operands convert to `float`; the result is `float`. Division of `float` by zero follows IEEE-754 (`Infinity`, `-Infinity`, `NaN`) |
+| `%` on two `int` | Result has the sign of the left operand (as in C++ and JavaScript). `x % 0` gives `0` and reports the runtime diagnostic `TESSERA_IR_INT_MODULO_ZERO` once per expression node per session; the minimum `int` `% -1` gives `0`. `%` with a `float` operand is `fmod`, with IEEE-754 results for zero divisors |
+| Mixed `int` and `float` operands | The `int` converts to `float` exactly |
+| Comparison and `==`/`!=` on `float` | IEEE-754: any comparison with `NaN` is false except `!=`, which is true |
+| `float` to `int` | Never implicit. The function `toInt` truncates toward zero; `NaN` gives `0`; values outside the `int` range saturate to the minimum or maximum `int` |
+| Number to string (template, text child) | `int`: base 10 with a leading `-` for negatives. `float`: the shortest decimal text that parses back to the same value (the output of C++ `std::to_chars` without a precision), `NaN`, `Infinity` or `-Infinity`; negative zero prints as `-0`. No locale is ever consulted |
+
+### 4.2 Pure functions
+
+A `call` expression may name only the functions in this table. They are pure, total (never throw), locale-independent, and are named without a namespace. In source they are imported by name from `"tessera"` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 4). `Math.*` of JavaScript is not available.
+
+| Function | Signature | Result |
+|---|---|---|
+| `min(a, b)`, `max(a, b)` | `(int, int) -> int`; otherwise `(float, float) -> float` | Smaller / larger value. With `NaN`, the result is the other operand; both `NaN` gives `NaN` |
+| `clamp(x, lo, hi)` | same typing as `min` | `min(max(x, lo), hi)` |
+| `abs(x)` | `int -> int`, `float -> float` | Absolute value; the minimum `int` stays the minimum `int` |
+| `floor(x)`, `ceil(x)`, `round(x)` | `float -> float` | Round toward minus infinity, plus infinity, or to nearest with ties away from zero |
+| `toInt(x)` | `float -> int` | As in section 4.1 |
+| `toFloat(x)` | `int -> float` | Exact conversion |
+| `length(x)` | `string -> int`, `list<T> -> int` | For a string, the number of Unicode code points; for a list, its element count |
+| `formatNumber(x, decimals)` | `(int or float, int) -> string` | Fixed-point text with `decimals` digits after a `.` separator (`decimals` is clamped to 0..20), correctly rounded from the exact value of `x` with ties away from zero; no thousands separator; `NaN`, `Infinity`, `-Infinity` as in section 4.1 |
+
+Adding a function to this table is a change to this specification and to the evaluator and the code generator together. Functions that depend on locale, time, randomness or the environment are never allowed.
 
 ## 5. Loop
 
@@ -444,6 +477,6 @@ Each item has no decision yet.
   [`virtualization-v1.md`](virtualization-v1.md).
 - Source-map format and `#line` emission.
 - Whether styles are inlined as tokens or referenced by compiled rule ids.
-- Expression extensions (string methods, formatting) and their purity allowlist (the
-  allowlist of pure `call` functions is not defined in this file).
+- Expression extensions beyond the functions of section 4.2 (string methods such as
+  `toUpperCase`, `trim`, `startsWith`); locale-aware formatting.
 - Incremental IR diffs for hot reload.

@@ -179,7 +179,7 @@ ParamType  = IDENT ":" TypeExpr ;
 - **Arithmetic types.** `int` widens to `float` implicitly. `float` never narrows to `int` implicitly.
   `+ - *` and unary `-` on two `int` give `int`, otherwise `float`. `/` always gives `float`. `%` on two
   `int` gives `int`, otherwise `float`. Integer width, overflow, division by zero and number
-  formatting are defined by [`ir-v1.md`](ir-v1.md), not here (section 18).
+  formatting are defined by [`ir-v1.md`](ir-v1.md) section 4.1, not here.
 - A union is accepted only as `T | null` or as a union of string literals (an enum).
 - Type aliases are non-recursive and may refer only to earlier or later aliases without cycles.
 - Built-in generic names accepted: `Ref<T>` is not written by developers; refs use the element type
@@ -284,9 +284,9 @@ Operator precedence and left associativity follow JavaScript for the operators l
 - `==` and `!=` are rejected with the suggestion "use `===`/`!==`" (`TESSERA_JSX_SUBSET_LOOSE_EQUALITY`).
 - Operands must have compatible IR types; a mismatch is `TESSERA_JSX_TYPE_MISMATCH`. There is no
   implicit string/number coercion: `"a" + 1` is an error.
-- The pure-function allowlist is defined in [`ir-v1.md`](ir-v1.md) section 4 and section 14; it is not
-  specified beyond the example `formatNumber`. Calling any other function in a pure expression is
-  `TESSERA_JSX_SUBSET_CALL`.
+- The pure-function allowlist is defined in [`ir-v1.md`](ir-v1.md) section 4.2. A function is used by
+  importing its name from `"tessera"` and calling it; calling any other function in a pure
+  expression is `TESSERA_JSX_SUBSET_CALL`.
 - Member access `a.b` is accepted only when the front end knows the record type of `a` (props type,
   type alias, loop item type). Access on any other value is `TESSERA_JSX_SUBSET_MEMBER`. Indexing
   (`a[i]`) is rejected except where the loop form of section 10.5 defines it.
@@ -295,8 +295,7 @@ Operator precedence and left associativity follow JavaScript for the operators l
 
 - No side effects, no assignment, no closures, no function values except those in section 9.
 - Evaluation order is left to right; `&&`, `||` and `?:` short-circuit.
-- Integer overflow, division by zero and number formatting follow the rules of the IR numeric types;
-  those rules are not specified in [`ir-v1.md`](ir-v1.md) (section 18).
+- Integer overflow, division by zero and number formatting follow [`ir-v1.md`](ir-v1.md) section 4.1.
 
 ### 8.4 Array literals
 
@@ -656,13 +655,11 @@ and hover; the front end does not read them to decide validity.
 
 Decided by the project owner and recorded in the sections named: no automatic semicolon insertion
 (3.6), optional preview body (9.3), `int`/`float` types (5), cleanup mapping (7), no reading of animated
-values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults (15).
+values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults (15),
+numeric semantics and the pure-function allowlist ([`ir-v1.md`](ir-v1.md) sections 4.1 and 4.2).
 
 Still open:
 
-- Integer width, overflow, division by zero and number formatting rules of the IR numeric types
-  ([`ir-v1.md`](ir-v1.md)).
-- Allowlist of pure functions available in expressions ([`ir-v1.md`](ir-v1.md) section 14).
 - Built-in hook manifest format and the first library hooks.
 - Props of `Image`, `Path` and `Spacer` (section 11).
 - Configuration key names for the parser limits (section 15).
