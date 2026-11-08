@@ -34,6 +34,7 @@ struct Options {
     bool validation = false;
     bool golden = false;
     bool overlay = false;
+    bool shapes = false;
     std::string font;
     std::string text = "Tessera";
     float text_size = 24.0f;
@@ -50,7 +51,8 @@ void print_usage() {
                  "                     [--width N] [--height N] [--validation] [--golden]\n"
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
-                 "                     [--max-mismatch ratio] [--overlay] [--report report.json]\n"
+                 "                     [--max-mismatch ratio] [--overlay] [--shapes] [--report "
+                 "report.json]\n"
                  "                     [--diff diff.png]\n";
 }
 
@@ -77,6 +79,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.golden = true;
         } else if (arg == "--overlay") {
             options.overlay = true;
+        } else if (arg == "--shapes") {
+            options.shapes = true;
         } else if (arg == "--font" && i + 1 < argc) {
             options.font = argv[++i];
         } else if (arg == "--text" && i + 1 < argc) {
@@ -184,6 +188,62 @@ void build_screen(tessera::rendering::gpu::Batched2DRenderer& renderer,
     renderer.push_rounded_rect({320, 400, 156, 32}, panel, 8);
     renderer.push_rounded_rect({330, 410, 72, 12}, accent, 6);
     renderer.push_rounded_rect({410, 410, 40, 12}, green, 6);
+}
+
+void build_shapes(tessera::rendering::gpu::Batched2DRenderer& renderer,
+                  tessera::rendering::rhi::Texture& checker, std::uint32_t width,
+                  std::uint32_t height) {
+    using tessera::rendering::rhi::Mat3;
+    using tessera::rendering::rhi::rgba8;
+
+    const auto background = rgba8(11, 18, 32);
+    const auto panel = rgba8(15, 23, 42);
+    const auto card = rgba8(30, 41, 59);
+    const auto accent = rgba8(56, 189, 248);
+    const auto green = rgba8(74, 222, 128);
+    const auto yellow = rgba8(250, 204, 21);
+    const auto red = rgba8(248, 113, 113);
+    const auto text = rgba8(226, 232, 240);
+    const auto muted = rgba8(148, 163, 184);
+    const auto white = rgba8(255, 255, 255);
+
+    renderer.push_rect({0, 0, static_cast<float>(width), static_cast<float>(height)}, background);
+
+    // Rounded cards and a large-radius accent circle.
+    renderer.push_rounded_rect({40, 40, 180, 140}, card, 28);
+    renderer.push_rounded_rect({64, 64, 64, 64}, accent, 32);
+    renderer.push_rounded_rect({148, 64, 48, 12}, text, 6);
+    renderer.push_rounded_rect({148, 84, 80, 8}, muted, 4);
+
+    // Textured quads at two UV scales.
+    renderer.push_rounded_rect({240, 40, 232, 140}, card, 16);
+    renderer.push_texture({256, 56, 72, 72}, checker, {0, 0, 4, 4}, white);
+    renderer.push_texture({344, 56, 112, 108}, checker, {0, 0, 8, 8}, white);
+
+    // Scissor-clipped content.
+    renderer.push_scissor({40, 210, 200, 140});
+    renderer.push_rect({20, 190, 260, 180}, panel);
+    renderer.push_rounded_rect({60, 230, 160, 100}, green, 20);
+    renderer.push_rounded_rect({100, 270, 80, 20}, yellow, 10);
+    renderer.pop_scissor();
+
+    // Translated rounded content.
+    renderer.push_transform(Mat3::translation(280, 210));
+    renderer.push_rounded_rect({0, 0, 200, 140}, red, 24);
+    renderer.push_rounded_rect({20, 20, 80, 80}, accent, 20);
+    renderer.pop_transform();
+
+    // Clip + transform together, with several abutting rounded tiles.
+    renderer.push_scissor({40, 380, 432, 90});
+    renderer.push_rect({40, 380, 432, 90}, panel);
+    renderer.push_transform(Mat3::translation(56, 396));
+    const std::array<tessera::rendering::rhi::Color, 7> colors = {accent, green, yellow, red,
+                                                                  accent, green, yellow};
+    for (std::uint32_t i = 0; i < colors.size(); ++i) {
+        renderer.push_rounded_rect({static_cast<float>(i) * 56.0f, 0, 44, 44}, colors[i], 10);
+    }
+    renderer.pop_transform();
+    renderer.pop_scissor();
 }
 
 std::unique_ptr<tessera::poc::batched2d::TextDemo>
@@ -379,7 +439,11 @@ int run_vulkan(const Options& options) {
     auto text_demo = make_text_demo(*device, options);
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
-    build_screen(renderer, *checker, options.width, options.height);
+    if (options.shapes) {
+        build_shapes(renderer, *checker, options.width, options.height);
+    } else {
+        build_screen(renderer, *checker, options.width, options.height);
+    }
     draw_text_overlay(text_demo.get(), renderer, options.overlay);
     draw_diagnostics_overlay(text_demo.get(), renderer, options);
     renderer.end();
@@ -438,7 +502,11 @@ int run_null(const Options& options) {
     auto text_demo = make_text_demo(*device, options);
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
-    build_screen(renderer, *checker, options.width, options.height);
+    if (options.shapes) {
+        build_shapes(renderer, *checker, options.width, options.height);
+    } else {
+        build_screen(renderer, *checker, options.width, options.height);
+    }
     draw_text_overlay(text_demo.get(), renderer, options.overlay);
     draw_diagnostics_overlay(text_demo.get(), renderer, options);
     renderer.end();

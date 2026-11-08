@@ -66,6 +66,14 @@ if (UNIX AND TARGET batched2d_poc)
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_text.png)
         set_tests_properties(batched2d_text_golden PROPERTIES
             ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
+
+        add_test(
+            NAME batched2d_shapes_golden
+            COMMAND batched2d_poc --backend vulkan --golden --shapes --tolerance 0 --max-mismatch 0
+                --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_shapes_golden.png
+                --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_shapes.png)
+        set_tests_properties(batched2d_shapes_golden PROPERTIES
+            ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
     endif()
 endif()
 

@@ -110,6 +110,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_golden` | lavapipe bit-exact batched2d dashboard baseline (Linux only) |
 | `batched2d_overlay_golden` | lavapipe overlay baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
+| `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -183,6 +184,10 @@ Implemented for the batched2d proof:
   cases allow one channel level and a 0.1% pixel budget; structural regressions still fail.
 - `batched2d_text_golden` covers the text stack (font loaded, shaped and rasterized) against
   `tests/golden/baseline/batched2d/dashboard_text.png` with the same tolerance.
+- `batched2d_shapes_golden` renders `--shapes`: rounded cards, two UV-scale textures, scissor
+  clipping, translation, and a combined clip+transform strip against
+  `tests/golden/baseline/batched2d/dashboard_shapes.png` bit-exactly (`--tolerance 0
+  --max-mismatch 0`).
 - `--report report.json` and `--diff diff.png` write structural failure artifacts for any
   comparison: status, dimensions, mismatch counts, first mismatch coordinate, and a
   magenta-on-gray diff image when per-channel deltas exceed the tolerance.
