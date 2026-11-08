@@ -2,6 +2,9 @@
 
 > Working name — easy to rename.
 
+[![CI](https://github.com/thnak/Tessera/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/thnak/Tessera/ci.yml?branch=main&label=tests)](https://github.com/thnak/Tessera/actions/workflows/ci.yml)
+
 A high-performance, cross-platform C++ UI framework:
 JSX/React syntax as the design DSL, compiled to native C++,
 **Vulkan** as the main rendering backend, **WebGPU (Wasm)** for
