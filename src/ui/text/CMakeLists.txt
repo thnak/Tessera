@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_text STATIC
+    font_metrics.cpp
     text_measure.cpp
     text_measure_cache.cpp)
 

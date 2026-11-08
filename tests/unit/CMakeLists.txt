@@ -238,6 +238,13 @@ target_link_libraries(text_measure_cache_tests PRIVATE tessera_text)
 
 add_test(NAME text_measure_cache COMMAND text_measure_cache_tests)
 
+add_executable(font_metrics_tests
+    font_metrics_tests.cpp)
+
+target_link_libraries(font_metrics_tests PRIVATE tessera_text)
+
+add_test(NAME font_metrics COMMAND font_metrics_tests)
+
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <algorithm>
@@ -8,6 +9,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tessera::ui::text {
@@ -166,18 +168,27 @@ TextStyle text_style_from(const style::ComputedStyle& computed) {
     return result;
 }
 
+StubTextMeasurer::StubTextMeasurer(std::shared_ptr<const FontMetricsProvider> metrics_provider)
+    : metrics_provider_(metrics_provider != nullptr ? std::move(metrics_provider)
+                                                    : std::make_shared<StubFontMetricsProvider>()) {
+}
+
 TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& style,
                                       const TextConstraints& constraints) const {
     if (text.empty()) {
         return {};
     }
 
+    const FontMetrics font_metrics = metrics_provider_->metrics(style);
     const float advance = std::max(0.1f, style.font_size * 0.5f + style.letter_spacing);
-    const float line_height = style.line_height > 0.0f ? style.line_height : style.font_size * 1.2f;
+    const float line_height =
+        style.line_height > 0.0f
+            ? style.line_height
+            : font_metrics.ascent + font_metrics.descent + font_metrics.line_gap;
 
     if (!constraints.wrap || style.nowrap || !std::isfinite(constraints.max_width)) {
         const float width = static_cast<float>(codepoint_count(text)) * advance;
-        return TextMetrics{width, line_height, style.font_size * 0.8f, 1};
+        return TextMetrics{width, line_height, font_metrics.ascent, 1};
     }
 
     const float max_width = std::max(advance, constraints.max_width);
@@ -230,7 +241,7 @@ TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& st
     }
 
     if (line_widths.empty()) {
-        return TextMetrics{0.0f, line_height, style.font_size * 0.8f, 1};
+        return TextMetrics{0.0f, line_height, font_metrics.ascent, 1};
     }
 
     float width = 0.0f;
@@ -238,7 +249,7 @@ TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& st
         width = std::max(width, line_width);
     }
     return TextMetrics{width, static_cast<float>(line_widths.size()) * line_height,
-                       style.font_size * 0.8f, static_cast<int>(line_widths.size())};
+                       font_metrics.ascent, static_cast<int>(line_widths.size())};
 }
 
 } // namespace tessera::ui::text

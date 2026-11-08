@@ -5,9 +5,12 @@
 #include "tessera/ui/style/cascade.hpp"
 
 #include <limits>
+#include <memory>
 #include <string_view>
 
 namespace tessera::ui::text {
+
+class FontMetricsProvider;
 
 struct TextStyle {
     float font_size = 16.0f;
@@ -40,8 +43,14 @@ public:
 
 class StubTextMeasurer final : public TextMeasurer {
 public:
+    explicit StubTextMeasurer(
+        std::shared_ptr<const FontMetricsProvider> metrics_provider = nullptr);
+
     [[nodiscard]] TextMetrics measure(std::string_view text, const TextStyle& style,
                                       const TextConstraints& constraints) const override;
+
+private:
+    std::shared_ptr<const FontMetricsProvider> metrics_provider_;
 };
 
 TextStyle text_style_from(const style::ComputedStyle& style);
