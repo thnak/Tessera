@@ -245,7 +245,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Diagnostics config | [`docs/specs/diagnostics-config-v1.md`](docs/specs/diagnostics-config-v1.md) |
 | Input handler | [`docs/design/input.md`](docs/design/input.md) |
 | Renderer design notes | `docs/design/renderer.md`, `docs/design/gpu/`, `docs/design/scene-graph.md`, `docs/design/antialiasing.md` |
-| UI model / layout / text / animation | `docs/design/ui-model.md`, `layout.md`, `text.md`, `animation.md` |
+| UI model / layout / text / animation | `docs/design/ui-model.md`, `layout.md`, `text.md`, `animation.md`, `animation-runtime.md` |
 | Responsive / accessibility | `docs/design/responsive.md`, `docs/design/accessibility.md` |
 | HAL | [`docs/design/hal.md`](docs/design/hal.md) |
 | Mobile integration | [`docs/design/mobile-integration.md`](docs/design/mobile-integration.md) |
@@ -263,7 +263,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Custom native elements / 3D | [`docs/specs/custom-elements-v1.md`](docs/specs/custom-elements-v1.md), [`docs/guides/custom-elements.md`](docs/guides/custom-elements.md) |
 | Text editing / forms | [`docs/specs/text-editing-v1.md`](docs/specs/text-editing-v1.md), [`docs/specs/forms-and-validation-v1.md`](docs/specs/forms-and-validation-v1.md) |
 | Scroll / gestures / overlays | [`docs/specs/scroll-and-gestures-v1.md`](docs/specs/scroll-and-gestures-v1.md), [`docs/specs/overlays-and-layers-v1.md`](docs/specs/overlays-and-layers-v1.md) |
-| Animation / overscroll | [`docs/specs/animation-v1.md`](docs/specs/animation-v1.md), [`docs/specs/scroll-and-gestures-v1.md`](docs/specs/scroll-and-gestures-v1.md) |
+| Animation / overscroll | [`docs/specs/animation-v1.md`](docs/specs/animation-v1.md), [`docs/design/animation-runtime.md`](docs/design/animation-runtime.md), [`docs/specs/scroll-and-gestures-v1.md`](docs/specs/scroll-and-gestures-v1.md) |
 | View transitions (theme/global effects) | [`docs/specs/view-transitions-v1.md`](docs/specs/view-transitions-v1.md) |
 | Navigation / restore / shell / i18n | [`docs/specs/navigation-v1.md`](docs/specs/navigation-v1.md), [`docs/specs/state-restoration-v1.md`](docs/specs/state-restoration-v1.md), [`docs/specs/platform-shell-v1.md`](docs/specs/platform-shell-v1.md), [`docs/specs/i18n-v1.md`](docs/specs/i18n-v1.md) |
 | Accessibility / async data | [`docs/specs/accessibility-v1.md`](docs/specs/accessibility-v1.md), [`docs/specs/async-data-v1.md`](docs/specs/async-data-v1.md) |
@@ -434,7 +434,7 @@ parsed keyframes at fixed-step time with direction/fill and linear numeric inter
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
 retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries and snaps them under reduced motion, `ui/animation/style_overlay.hpp`
 overlays samples onto `ComputedStyle` per target, `ui/animation/transition.hpp` parses transition
-shorthands and longhand lists, `ui/animation/transition_runtime.hpp` starts matched transitions, diffs computed styles, and supersedes active target/property entries, and
+shorthands and longhand lists, `ui/animation/transition_runtime.hpp` starts matched transitions, diffs computed styles, and supersedes active target/property entries. Runtime assembly, tick ordering, fills, reduced motion, and the loop bridge are documented in [`docs/design/animation-runtime.md`](docs/design/animation-runtime.md), and
 `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
 Yoga measure callback). Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
 bounded deterministic manual executor with once-only cancellation callbacks and a prioritized completion queue drained by `RuntimeLoop`

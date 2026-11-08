@@ -14,7 +14,7 @@ JSX/React syntax as the design DSL, compiled to native C++,
 zero-emulator design-time preview, and deterministic headless
 rendering for AI-agent visual regression.
 
-Status: **pre-alpha / Big Step B1 complete** (RHI = render hardware interface, Vulkan batched 2D, scene graph). Big Steps A-F are defined in [AGENTS.md, Big Steps](AGENTS.md#big-steps-group-work-dont-micro-step); B2 (runtime slice) is the current focus. Terms are defined in the [glossary](docs/reference/glossary.md).
+Status: **pre-alpha / Big Step B1 complete** (RHI = render hardware interface, Vulkan batched 2D, scene graph). Big Steps A-F are defined in [AGENTS.md, Big Steps](AGENTS.md#big-steps-group-work-dont-micro-step); B2 (runtime slice) is the current focus, with the stylesheet engine, Yoga layout, text-measurement stub, input normalization/dispatch, fixed-step loop, dirty rendering/damage, diagnostics, and the animation runtime landed. Terms are defined in the [glossary](docs/reference/glossary.md).
 
 Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build/test, code style, documentation rules, and the PR checklist.
 
@@ -39,7 +39,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Scene graph & events](docs/design/scene-graph.md)
 - [UI model](docs/design/ui-model.md)
 - [Layout / text / animation](docs/design/layout.md), [text](docs/design/text.md),
-  [animation](docs/design/animation.md)
+  [animation](docs/design/animation.md), [animation runtime](docs/design/animation-runtime.md)
 - [Responsive / accessibility](docs/design/responsive.md), [accessibility](docs/design/accessibility.md)
 - [Stylesheet engine spec](docs/specs/stylesheet-v1.md)
 - [Compiler / IR / component model](docs/design/compiler.md), [IR spec](docs/specs/ir-v1.md),
@@ -174,13 +174,16 @@ Tools and demos:
   transform stack.
 - Scene graph with hit testing and W3C-style capture/target/bubble events.
 - Offscreen demo writes a deterministic PNG and raw RGBA; CI runs a Vulkan smoke test (a short render with no pixel comparison).
-- Big Step B2 runtime design: full-CSS stylesheet engine, input handler, fixed-step loop, dirty
-  rendering, FPS cap/vsync/VRR, frame pacing.
+- Big Step B2 runtime foundations: full-CSS stylesheet engine, Yoga layout, text-measurement stub,
+  input normalization/dispatch, fixed-step loop, dirty rendering/damage, FPS cap/vsync/VRR, frame
+  pacing, diagnostics, and the animation runtime (transitions, keyframes, springs,
+  pause/fills/stop/restart, reduced motion, loop bridge).
 - Defaults are **power-aware**: static UI idles (no presents/GPU work), no busy-wait, no
   full-GPU target; continuous/benchmark modes are explicit.
 - Big Step B2/B3 design: async/await runtime (no UI blocking), resize/DPI/lifecycle with OS compliance,
   normalized OS events across desktop/mobile/foldables, structured diagnostics/tracing/profiling.
-- Big Step B2 next: implement the runtime slice, then Yoga/text/glyph atlas and pixel goldens.
+- Big Step B2 next: real text stack (font loading, shaping, glyph atlas), lavapipe pixel goldens,
+  HAL clock/wait integration, and a damage-aware batched redraw path.
 
 ## Next
 

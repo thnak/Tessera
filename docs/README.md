@@ -157,6 +157,8 @@ This page is the map and reading order for the framework.
 - [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas
 - [`design/animation.md`](design/animation.md) — transitions, keyframes, springs, fixed-step
   sampling
+- [`design/animation-runtime.md`](design/animation-runtime.md) — implemented runtime: module map,
+  tick ordering, pause/fills/stop/restart, loop bridge, reduced motion, test map
 - [`design/responsive.md`](design/responsive.md) — breakpoints, safe areas, multi-window, fold
   postures
 - [`design/accessibility.md`](design/accessibility.md) — semantics tree, platform bridges,
@@ -242,24 +244,25 @@ This page is the map and reading order for the framework.
 5. [Layout](design/layout.md)
 6. [Text](design/text.md)
 7. [Animation](design/animation.md)
-8. [Responsive](design/responsive.md)
-9. [Accessibility](design/accessibility.md)
-10. [Input handler](design/input.md)
-11. [Game loop](design/game-loop.md)
-12. [Dirty rendering](design/dirty-rendering.md)
-13. [Performance & power](design/performance.md)
-14. [Window resize & lifecycle](design/window-resize.md)
-15. [OS events & foldables](specs/os-events-v1.md)
-16. [HAL](design/hal.md)
-17. [Mobile integration](design/mobile-integration.md)
-18. [Async runtime](design/async.md)
-19. [Diagnostics](design/diagnostics.md)
-20. [Runtime config](specs/runtime-config-v1.md)
-21. [Diagnostics config](specs/diagnostics-config-v1.md)
-22. [Memory model](specs/memory-model-v1.md)
-23. [Buffer config & tunables](specs/buffer-config-v1.md)
-24. [Tunables guide](guides/tunables.md)
-25. [Bridges](design/bridges.md)
+8. [Animation runtime](design/animation-runtime.md)
+9. [Responsive](design/responsive.md)
+10. [Accessibility](design/accessibility.md)
+11. [Input handler](design/input.md)
+12. [Game loop](design/game-loop.md)
+13. [Dirty rendering](design/dirty-rendering.md)
+14. [Performance & power](design/performance.md)
+15. [Window resize & lifecycle](design/window-resize.md)
+16. [OS events & foldables](specs/os-events-v1.md)
+17. [HAL](design/hal.md)
+18. [Mobile integration](design/mobile-integration.md)
+19. [Async runtime](design/async.md)
+20. [Diagnostics](design/diagnostics.md)
+21. [Runtime config](specs/runtime-config-v1.md)
+22. [Diagnostics config](specs/diagnostics-config-v1.md)
+23. [Memory model](specs/memory-model-v1.md)
+24. [Buffer config & tunables](specs/buffer-config-v1.md)
+25. [Tunables guide](guides/tunables.md)
+26. [Bridges](design/bridges.md)
 
 ### GPU rendering
 
@@ -393,7 +396,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Custom native elements / 3D | B2/C/D proposed ([ADR-028](../decisions/ADR-028-custom-native-elements.md) accepted) |
 | Text editing / forms | B2/C proposed ([ADR-029](../decisions/ADR-029-interaction-completeness.md) accepted) |
 | Scroll / gestures | B2 proposed ([ADR-029](../decisions/ADR-029-interaction-completeness.md) accepted) |
-| Animation / overscroll | B2 proposed ([ADR-034](../decisions/ADR-034-interaction-and-overscroll-animation.md) accepted) |
+| Animation / overscroll | B2 runtime slice implemented; overscroll interaction design remains ([ADR-034](../decisions/ADR-034-interaction-and-overscroll-animation.md) accepted) |
 | Overlays / layers | B2/C proposed ([ADR-029](../decisions/ADR-029-interaction-completeness.md) accepted) |
 | Navigation / state restore | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |
 | Platform shell / i18n | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |

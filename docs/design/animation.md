@@ -1,8 +1,10 @@
 # Animation and transitions
 
-Status: design for [Big Step B2](../../AGENTS.md#big-steps-group-work-dont-micro-step) (runtime slice). `src/ui/animation/` is a placeholder today.
-Normative animation/interaction/overscroll contract:
-[`animation-v1.md`](../specs/animation-v1.md).
+Status: implemented B2 runtime slice for
+[Big Step B2](../../AGENTS.md#big-steps-group-work-dont-micro-step); the overscroll interaction
+design remains open. Runtime semantics are in
+[`animation-runtime.md`](animation-runtime.md). Normative animation/interaction/overscroll
+contract: [`animation-v1.md`](../specs/animation-v1.md).
 
 Animation is declarative at the style/component level and sampled by the fixed-step runtime ([`game-loop.md`](game-loop.md)).
 It never reads the wall clock and never blocks a frame.
@@ -26,16 +28,21 @@ It never reads the wall clock and never blocks a frame.
 
 ```text
 tick(dt):
-  for each active animation:
-    t = clamp((now - start) / duration, 0, 1)
-    value = sample(t)
-    write value into computed style
+  reject non-finite or negative dt (state unchanged)
+  advance every unpaused entry by dt
+  move entries that reached their end to the finished set
+  clamp forwards/both entries to the final sample and retain them as fills
+  remove finished entries from the active list
+  run completion callbacks in finished-entry order
+  sample active entries, then retained fills (post-callback)
+  write samples into computed style
   mark layout/paint/render as needed
-  if no active animations: idle (no wake)
+  keep awake only while unpaused entries remain
 ```
 
-- `tick` is one update of the fixed-step runtime loop ([`game-loop.md`](game-loop.md)); `now` is the fixed-step simulation clock, not wall time.
+- `tick` is one update of the fixed-step runtime loop ([`game-loop.md`](game-loop.md)); elapsed time is accumulated from `dt`, never from wall time.
 - `dt` is the fixed timestep (e.g. 16.666 ms); animation is frame-rate independent.
+- Ordering is normative: callbacks run after fills are retained but before samples are produced, so a callback that clears, stops, restarts, or starts an entry is reflected in the same tick result.
 - Deterministic mode (fixed clock, no wall time; see [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md), input and fixed-step runtime) uses the same fixed clock and an injected start time.
 - Sampling happens **before layout/paint** so animated values participate in the frame.
 
@@ -72,6 +79,9 @@ Discrete properties (display, visibility) use step semantics; do not interpolate
 - `infinite` animations are allowed but must respect power policy ([ADR-019](../../decisions/ADR-019-power-aware-runtime.md), power-aware runtime defaults): pause when hidden/occluded,
   and reduce/disable optional motion when `prefers-reduced-motion` is set.
 - Animations that only affect paint (opacity/color) do not mark layout dirty.
+- Under reduced motion, opacity-only keyframes clamp to **120 ms** with zero delay and one
+  `normal`-direction iteration. Any keyframes containing a non-opacity property become instant
+  (`duration = 0`); fill mode, play state, and easing are preserved.
 
 ## 5.1 Interaction and overscroll effects
 
@@ -103,8 +113,13 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Hidden/occluded/minimized -> pause animations (unless the runtime config key `pauseWhenOccluded` is `false`; see [`runtime-config-v1.md`](../specs/runtime-config-v1.md)).
 - `powerPolicy` (runtime setting, see [`runtime-config-v1.md`](../specs/runtime-config-v1.md)) may reduce animation quality (e.g. fewer samples, no spring overshoot) before
   dropping frames.
-- `prefers-reduced-motion` -> skip non-essential motion, keep functional state changes.
+- `prefers-reduced-motion` -> skip non-essential motion, keep functional state changes. The
+  runtime setter applies at start/retarget time; changing the preference does not retroactively
+  rewrite running entries, so restart or re-sync when it changes. Springs snap to their target
+  instead of integrating.
 - Never busy-wait for the next animation sample; use the loop's deadline/wakeup.
+- The runtime-loop bridge requests a frame while unpaused entries remain and on the tick that
+  finishes one; paused-only, settled-fill-only, and idle ticks request nothing.
 
 ## 8. Interruption and cancellation
 
@@ -120,7 +135,9 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Sample at exact times (0, duration/2, duration) and compare values with tolerance.
 - Golden images (deterministic reference images, see [glossary](../reference/glossary.md)) for visual transitions at fixed frames.
 - Tests: easing curves, cubic-bezier, spring convergence, interruption/retarget, fill modes,
-  reduced motion, hidden/occluded pause.
+  reduced motion, hidden/occluded pause. The runtime test map is in
+  [`animation-runtime.md`](animation-runtime.md#14-tests); per-executable coverage is listed in
+  [`testing.md`](testing.md) and [`../guides/testing.md`](../guides/testing.md).
 - No wall clock, random seeds, or system animation settings in goldens (inject them).
 
 ## 10. Diagnostics

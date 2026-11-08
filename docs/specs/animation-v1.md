@@ -52,9 +52,10 @@ callbacks, so the tick result reflects the post-callback runtime without stale e
 state exposes active and settled counts for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
-[`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),
-[`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md), and
-[`overlays-and-layers-v1.md`](overlays-and-layers-v1.md).
+[`animation.md`](../design/animation.md), [`animation-runtime.md`](../design/animation-runtime.md)
+(runtime assembly, tick ordering, pause/fill/stop/restart, loop bridge, reduced motion),
+[`game-loop.md`](../design/game-loop.md), [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md),
+and [`overlays-and-layers-v1.md`](overlays-and-layers-v1.md).
 
 Animation is declarative motion sampled by the fixed-step runtime (a loop that advances the simulation in constant time slices, see [`game-loop.md`](../design/game-loop.md)). Interaction effects
 (press/hover/focus, scroll fling/snap, overscroll stretch/spring-back, route/overlay transitions)
@@ -88,11 +89,13 @@ A tick is one fixed-step update of duration `dt` ([`game-loop.md`](../design/gam
 
 ```text
 tick(dt):
-  sample active animations at fixed dt
+  advance unpaused animations at fixed dt
+  finish entries, retain forwards/both final samples
+  run completion callbacks
+  sample active entries, then retained fills (post-callback)
   write sampled values into visual state
   mark paint/render dirty (layout only if a layout property animates)
-  stop animations below epsilon
-  if none active: no wake
+  keep awake only while unpaused entries remain
 ```
 
 - Use the simulation clock, never wall time; deterministic mode injects start time and dt.
