@@ -63,6 +63,35 @@ tessera headless --mode audit --profile desktop --script tests/audit/dashboard.j
 - Use real network/system fonts in deterministic tests.
 - Ship secrets/PII in fixtures or screenshots.
 
+## 4.1 Detail design
+
+CI/maintenance:
+
+- Each sample has a pinned profile (size/DPI/locale/theme), deterministic assets, and a
+  `tests/` script. CI builds/tests on Windows/Linux; GPU smoke is optional/labeled.
+- Generated files are checked by `tessera generate --check`; no stale templates.
+- Samples use only public headers/APIs; a private-header dependency is a build failure.
+- Golden baselines are owned by the framework repo and reviewed with the sample change.
+- A sample may skip a feature only if the README states why and the coverage matrix marks it.
+
+Template contract:
+
+- `tessera.json`, `ui/`, `src/main.cpp`, `tests/`, `README.md`, and (if needed) `ui/elements.json`.
+- No secrets/real network in default tests; fakes/fixtures are local and deterministic.
+- The `notes` sample is the golden path for text/forms/restore; `3d-viewer` for custom elements;
+  `settings` for navigation/i18n/a11y/shell; `dashboard` for layout/data/audit; `chat` for
+  offline/deep links.
+
+Maintenance risk:
+
+- Samples are versioned with the framework; breaking changes update the template and docs in
+  the same change.
+- A sample that cannot be maintained is moved to `examples/archive` or removed, not silently
+  broken.
+- Mobile sample is deferred until the Android backend exists.
+
+Remaining design gaps: CI/maintenance/golden ownership (G-26).
+
 ## 5. Open questions
 
 - Template generator vs checked-in samples.

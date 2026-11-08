@@ -216,7 +216,9 @@ Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
 
 ## 14. Open questions
 
-- Gesture recognition (pinch, pan, long-press) and whether it belongs in `ui/` or `hal/`.
+- Gesture recognizers/arena live in `ui/input`; system edge/back gestures are HAL policy.
+  Remaining: exact claim/reject API and custom element consumption (see
+  [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
 - Accessibility actions (invoke, set value) mapped into the same event flow.
 - Gamepad and stylus pressure/tilt.
 - IME candidate-window styling and positioning across platforms.

@@ -113,6 +113,75 @@ struct FormState {
 - Treat pasted/dropped content as untrusted.
 - No arbitrary validators from runtime data; validators are compiled handlers.
 
+## 8.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `FormController` | field registry/order, values, submit state, focus-first-invalid | Widget rendering |
+| `FieldState<T>` | value/initial/dirty/touched/issues/epoch | Async transport |
+| `ValidationPipeline` | sync/async validation scheduling, cancellation | Error localization |
+| `TextInput/TextArea` | editing state/selection/IME | Form value ownership |
+| `Field` library component | label/help/error/aria wiring | Validation rules |
+
+Recommended field types: `bool`, `int`, `float`, `string`, `enum`, `date/time`, `uuid`,
+`file-ref`, and arrays of these. Values are serializable; no closures/pointers. Field identity
+is a stable path (`billing.address.line1`, `items[0].sku`) with keyed arrays.
+
+State machine per field:
+
+```text
+Pristine -> Dirty -> Validating -> Valid
+                         \-> Invalid
+Dirty/Valid/Invalid -> Submitting -> Submitted
+                         \-> SubmitError
+Reset -> Pristine (initial values, selection, issues)
+```
+
+Validation pipeline:
+
+```text
+value/props change -> sync validators -> visible issues
+  -> schedule async validator (debounce/cancel by epoch)
+  -> apply only if (field, value, form epoch) still current
+  -> cross-field validators run after field results settle
+```
+
+- Sync validators are pure and fast; async validators are cancellable and deduped.
+- Cross-field validation receives an immutable value snapshot; cycles are rejected at build
+  time or evaluated in a fixed topological order.
+- Server errors map by field path + code; unknown paths become form-level issues.
+- Validation does not submit; submit runs validation and waits for settling.
+
+JSX/library contract:
+
+```tsx
+<Form initial={initial} validate={validate} onSubmit={submit}>
+  <Field name="email" label="Email" required>
+    <TextInput inputMode="email" autofill="email" />
+  </Field>
+</Form>
+```
+
+- `Form` owns values; `Field` reads/writes by name; `TextInput` remains controlled internally
+  through the field binding.
+- Arrays use stable keys; adding/removing/reordering preserves field state by key.
+- `reset` restores initial values/selection/issues; `resetField` is explicit.
+- `submit` is deduped by epoch; abort cancels validation/submit and shows no stale error.
+
+Failure/races:
+
+- Async validation result after value change/unmount is discarded by epoch.
+- Reset during submit aborts submit and invalidates its epoch.
+- Double-submit returns the same in-flight result or is ignored by policy.
+- External value updates merge only for untouched fields by default; touched fields keep user
+  input and surface a conflict.
+- Autofill is a normal value change with a distinct source for UX/diagnostics.
+
+Remaining design gaps: schema/type generation/arrays (G-10), server errors/reset/autofill races
+(G-11), Q-09/Q-10.
+
 ## 9. Open questions
 
 - Schema/type generation from IR vs hand-written validators.

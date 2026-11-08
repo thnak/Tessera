@@ -60,6 +60,8 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Devtools](docs/specs/devtools-protocol-v1.md), [updates/distribution](docs/specs/updates-and-distribution-v1.md),
   [crash reporting](docs/specs/crash-reporting-v1.md), [component library](docs/design/component-library.md),
   [sample apps](docs/guides/sample-apps.md), [media/export](docs/design/media-and-export.md)
+- [App-completeness cross-check](docs/architecture/app-completeness-cross-check-v1.md) —
+  ownership, conflicts, gap register, consolidated open questions
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),

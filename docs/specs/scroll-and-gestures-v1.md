@@ -133,6 +133,79 @@ Rules:
 - Snapshot offset/velocity/viewport/content size; golden sticky/scrollbar/caret cases.
 - Headless gestures use the same recognizer/scroll path; no wall clock.
 
+## 9.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `ScrollNode` | offset, viewport/content size, axes, physics/snap config | Content layout, item realization |
+| `ScrollController` | clamp/animate/scroll-to/into-view, anchoring | Gesture recognition |
+| `GestureArena` (input) | per-pointer recognizer claims, capture, cancellation | Scroll offset policy |
+| `VirtualList/Grid` | realized range, item measurement/keys | Offset/physics |
+| `Platform/HAL` | OS edge/back gesture policy, wheel/touch normalization | App scroll semantics |
+
+Gesture arena protocol:
+
+```text
+PointerDown: create arena for pointer; register recognizers (tap/drag/scroll/custom)
+PointerMove: each recognizer updates; claim(winner) or reject(); arena cancels others
+PointerUp: winner finalizes; losers cancel; capture releases
+PointerCancel/window blur: cancel all; no callbacks after teardown
+```
+
+Precedence:
+
+1. System/OS gestures (back/home/edge) are declared by HAL policy; app cannot swallow them.
+2. A focused text selection drag can claim before scroll after its slop is exceeded.
+3. A custom element may claim its declared gesture; otherwise the nearest scrollable claims pan.
+4. A long-press menu vs drag is decided by the arena, not by both handlers firing.
+
+Scroll state machine:
+
+```text
+Idle -> Dragging -> Coasting -> Snapping -> Idle
+  \-> Cancelled (pointer cancel/background/layout reset)
+```
+
+- `Dragging`: offset follows pointer 1:1 after slop; overscroll applies only if enabled.
+- `Coasting`: velocity decays to zero; a new touch cancels within a frame.
+- `Snapping`: choose a deterministic target from position/velocity; reduce motion = immediate.
+- Every transition clamps to `[min,max]`; content size changes re-clamp and may cancel.
+
+Nested scroll algorithm:
+
+```text
+delta = input_delta
+for node in target_to_root:
+    consumed = node.consume(delta)
+    delta -= consumed
+    if delta == 0 or !node.allow_chain: break
+apply overscroll only to the last eligible node
+```
+
+- A child at its limit chains only if `overscroll-behavior`/`scroll-chain` allows.
+- Wheel deltas coalesce by tick; touch deltas are not coalesced across down/up.
+- Do not re-enter layout during dispatch; content size updates arrive at the next tick.
+
+Sticky/anchoring:
+
+- Sticky offsets are resolved after scroll offset and before paint; pinned nodes are constrained
+  to their scroll container.
+- Scroll anchoring records the first visible stable key and its offset delta; apply the delta
+  after content changes above it, unless a programmatic scroll is active.
+- Virtualized lists anchor by `(UiId, ItemKey)` and realize the anchor before measuring.
+
+Failure/edge cases:
+
+- RTL maps logical start/end to physical axes without changing content order.
+- Content shrink clamps offset; content grow does not jump unless anchoring says so.
+- Hidden/occluded stops animation; resume re-clamps.
+- Custom element internal scroll must be declared and must not fight the parent arena.
+- Pointer cancel/background cancels drag/coast and releases capture.
+
+Remaining design gaps: arena/system-gesture API (G-06), scrollbar/sticky/RTL details (G-07).
+
 ## 10. Open questions
 
 - Exact platform physics profiles and user accessibility settings.

@@ -167,6 +167,10 @@ Rules: `criticalResources` stays small; `preload` is bounded/cancellable; user s
 adjust budgets only within hard caps; golden/deterministic mode pins the critical set and load
 order and ignores network/system fonts.
 
+Restore precedence: `restore.enabled` is the master switch. `navigation.restore` controls the
+route stack; `loading.restoreRoute` only resumes a pending deep-link/activation after auth.
+A false master disables both.
+
 ## `deepLinks`
 
 External URL/file/command-line activation. See
@@ -216,7 +220,7 @@ External URL/file/command-line activation. See
 |---|---|---|---|
 | `routesFile` | string | `ui/routes.json` | Static route table; path inside project |
 | `notFound` | string | `not_found` | Route id for unknown paths |
-| `restore` | boolean | `true` | Restore route stack on launch |
+| `restore` | boolean | `true` | Restore route stack on launch; requires `restore.enabled` |
 | `modalStack` | string | `global` | `global` or `nested` |
 
 See [`navigation-v1.md`](navigation-v1.md) for route/guard/back/deep-link semantics.
@@ -236,7 +240,7 @@ See [`navigation-v1.md`](navigation-v1.md) for route/guard/back/deep-link semant
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `enabled` | boolean | `true` | Master switch |
+| `enabled` | boolean | `true` | Master switch; disables navigation/route continuation too |
 | `maxBytes` | integer | `262144` | Per-window snapshot cap |
 | `persistRouteState` | boolean | `true` | Opt-in per route still applies |
 | `persistScroll` | boolean | `true` | Keyed by route/list id |
@@ -402,7 +406,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 18. `navigation` follows [navigation-v1.md](navigation-v1.md): routes are unique, `notFound`
     resolves, and modal stack policy is known.
 19. `restore` follows [state-restoration-v1.md](state-restoration-v1.md): size is bounded,
-    secure fields are never persisted, and unknown versions fall back safely.
+    secure fields are never persisted, and unknown versions fall back safely. Precedence:
+    `restore.enabled` > `navigation.restore` > `loading.restoreRoute`.
 20. `i18n` follows [i18n-v1.md](i18n-v1.md): locales are valid BCP-47, catalogs exist, fallback
     is deterministic, and catalogs are compiled/validated at build time.
 21. `updates` follows [updates-and-distribution-v1.md](updates-and-distribution-v1.md): HTTPS

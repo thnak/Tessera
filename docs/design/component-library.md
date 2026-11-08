@@ -77,6 +77,63 @@ team rebuilding inputs, dialogs, menus, and data grids.
 4. DataGrid/DatePicker/Tree.
 5. Charts/3D via custom elements.
 
+## 8.1 Detail design
+
+Token schema (proposal):
+
+```json
+{
+  "tokenVersion": 1,
+  "color": {
+    "surface": { "light": "#ffffff", "dark": "#121212" },
+    "onSurface": { "light": "#111111", "dark": "#f2f2f2" },
+    "danger": { "light": "#b3261e", "dark": "#f2b8b5" },
+    "focusRing": { "light": "#0b57d0", "dark": "#a8c7fa" }
+  },
+  "space": { "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24 },
+  "radius": { "sm": 4, "md": 8, "lg": 12 },
+  "type": { "body": { "size": 14, "line": 20, "weight": 400 } },
+  "motion": { "fast": 120, "normal": 200, "slow": 320 }
+}
+```
+
+- Tokens are semantic; raw palette is internal. Components never hardcode colors/spacing.
+- Theme selection (`light`/`dark`/`highContrast`) resolves tokens; per-surface overrides are
+  scoped and versioned.
+- `tokenVersion` follows SemVer; renames/major visual changes require migration + golden review.
+
+Component API contract:
+
+```cpp
+struct ButtonProps {
+    std::string label_key;     // i18n key, not raw untranslated text
+    ButtonVariant variant;
+    bool disabled;
+    bool loading;
+    std::function<void()> on_activate;  // generated binding
+};
+```
+
+- Consistent controlled/uncontrolled pattern for inputs; no mixed state ownership.
+- Every component exposes `disabled`, focus behavior, and a name/label contract.
+- Slots/children are explicit; no hidden context/global state.
+- Density (`comfortable`/`compact`) changes spacing/touch targets only through tokens.
+- RTL uses logical start/end; icons declare `mirror` when directional.
+
+DataGrid scope (V1 library):
+
+- Virtualized rows/columns, selection, sorting, column resize/reorder, keyboard navigation.
+- Editing/grouping/pivot are deferred; do not block the core on them.
+- Headless mode exposes rows/cells for tests; semantic table/grid roles.
+
+Testing contract:
+
+- API/state tests, keyboard/focus, semantics snapshot, theme/density/RTL/text-scale goldens.
+- No component ships without an accessibility contract and a headless interaction test.
+- Visual changes require reviewed goldens; semantic token changes are versioned.
+
+Remaining design gaps: token versioning/API contract/DataGrid scope (G-25), Q-24.
+
 ## 9. Open questions
 
 - Icon set/format and licensing.

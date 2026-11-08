@@ -105,6 +105,85 @@ user-visible continuity.
 - Multi-window/fold/display removal.
 - Headless restore scripts; deterministic time/geometry.
 
+## 7.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `RestoreService` | snapshot schema, write/read, migration, limits | Route stack semantics |
+| `NavController` | route stack/entry state | Persistence format |
+| Screen/component | serializable opt-in state | Secret storage |
+| `services/storage` | atomic file/path/encryption primitives | What to restore |
+| `async-data` | data cache | Restoration blob |
+
+Snapshot types:
+
+```cpp
+struct RestoreSnapshot {
+    std::uint32_t restore_version = 1;
+    std::string app_version;
+    std::int64_t saved_at_ns;
+    std::vector<WindowSnapshot> windows;
+};
+
+struct WindowSnapshot {
+    std::string window_id;          // stable logical id
+    Rect bounds;                    // logical px
+    std::string display_id;         // optional; re-resolve if gone
+    std::vector<RouteEntrySnapshot> route_stack;
+    std::map<std::string, double> scroll;   // stable key -> offset
+    std::optional<FocusSnapshot> focus;
+    std::map<std::string, DraftSnapshot> drafts;
+};
+```
+
+Write policy:
+
+- Mark dirty on meaningful state change; debounce (for example 1 s) and force on
+  background/suspend/window close.
+- Write temp file + fsync + rename; keep one previous good snapshot.
+- Enforce per-window/total byte limits; drop low-priority state (scroll/drafts) before routes.
+- Never write on every keystroke/scroll tick; no blocking I/O on the UI thread.
+- A write failure is diagnostic-only; never crash/exit.
+
+Restore order (per window):
+
+```text
+validate schema/version/limits
+  -> clamp window bounds to current displays
+  -> wait for app services/auth readiness
+  -> rebuild route stack (drop invalid routes/params)
+  -> mount screens
+  -> after first layout: scroll -> focus/selection -> drafts
+  -> restore overlays by policy (default none)
+  -> request one frame
+```
+
+- Route entry ids are regenerated deterministically; per-route state keys remain stable.
+- Scroll keys: `route_id + container_ui_id + item_key` (not pixel/index only).
+- Focus is restored by `ui_id`/semantic key only if the node exists; otherwise ignore.
+- Drafts are restored only after fields exist and never for secure fields.
+- Auth-gated entries wait for auth; if unauthenticated, keep pending/last safe route.
+
+Migration/versioning:
+
+- `restore_version` migrates forward; unknown fields ignored, unknown required fields fail safe.
+- App/route-table version mismatch: drop incompatible entries, keep a safe root.
+- A migration never executes restored code or arbitrary paths.
+
+Failure/edge cases:
+
+- Corrupt/partial snapshot -> previous good or safe root; diagnostic.
+- Oversized state -> drop optional sections, keep route stack; report.
+- Display removed -> clamp/cascade on primary work area.
+- Process death during write -> previous snapshot remains valid.
+- Missing route/screen/scroll key -> ignore that fragment, keep the rest.
+- Logout/tenant switch clears user-scoped snapshots before writing new state.
+
+Remaining design gaps: schema generation/migration/stable keys/write cadence (G-14), format/
+encryption (Q-13).
+
 ## 8. Open questions
 
 - Binary vs JSON encoding and size budgets.

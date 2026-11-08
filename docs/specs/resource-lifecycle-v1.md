@@ -1,8 +1,9 @@
 # Resource lifecycle v1: lazy, preload, lease, unload
 
 Status: proposed (Big Step B2/F). Normative companion to
-[`resources.md`](../design/resources.md), [`memory-model-v1.md`](memory-model-v1.md), and
-[`startup-and-loading.md`](../design/startup-and-loading.md).
+[`resources.md`](../design/resources.md), [`memory-model-v1.md`](memory-model-v1.md),
+[`startup-and-loading.md`](../design/startup-and-loading.md), and
+[`async-data-v1.md`](async-data-v1.md).
 
 Resources are **lazy by default**. Only an explicit critical set is eager; preload is a
 scheduled lazy load; every loaded resource has an owner/lease and an unload path.
@@ -17,6 +18,11 @@ scheduled lazy load; every loaded resource has an owner/lease and an unload path
 6. **Bounded.** Per-class/total budgets; no unbounded caches/queues.
 7. **No UI blocking.** Load/decode/upload off the UI thread; completion at frame boundary.
 8. **Deterministic tests.** Fixed critical set and load order in golden mode.
+
+Boundary: resource lifecycle owns **byte/asset resources** (fonts, images, shaders, media,
+document blobs). Typed domain data/queries, query caches, mutations, and offline queues belong
+to [`async-data-v1.md`](async-data-v1.md); do not store the same payload in both. `ResourceClass::Data`
+is for opaque byte payloads, not a query cache.
 
 ## 2. States
 

@@ -124,6 +124,81 @@ announce(message, priority);   // polite/assertive
 - Redact values for secure fields; no secrets/PII in snapshots/diagnostics.
 - Accessibility actions validate node ids/permissions; no arbitrary action execution.
 
+## 10.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `SemanticsTree` | nodes/roles/states/actions/relations, dirty diff | Scene layout |
+| `SemanticsUpdater` | mapping node changes -> dirty semantics | Platform bridge |
+| `FocusManager` | keyboard/screen-reader focus, scope/trap/restore | Widget behavior |
+| `AnnouncementQueue` | priority/coalescing/rate limit | Message text/i18n |
+| `PlatformBridge` | snapshot -> UIA/AT-SPI/UIAccessibility, actions back | Scene graph access |
+
+Semantics update pipeline:
+
+```text
+node/style/layout/text/focus/selection change
+  -> mark semantics dirty (node/subtree)
+  -> coalesce at tick/frame boundary
+  -> rebuild/diff SemanticsNode snapshots
+  -> platform bridge reads immutable snapshot
+```
+
+- A snapshot is keyed by `(tree_revision, node_id)`; bridges never hold scene pointers.
+- Removed/hidden nodes are removed from the tree before focus/announcement updates.
+- Bounds are in window logical pixels; the bridge converts to screen coordinates.
+- Name resolution: explicit name -> label/child text -> placeholder (inputs) -> diagnostic.
+  Missing names for interactive nodes are test failures.
+
+Actions:
+
+```cpp
+enum class SemanticsAction { Activate, Focus, SetValue, SetSelection, Increment, Decrement,
+                             Scroll, Dismiss, ShowMenu, Copy, Cut, Paste };
+
+struct SemanticsActionRequest {
+    NodeId node;
+    SemanticsAction action;
+    ActionPayload payload;   // value/delta/scroll unit
+    std::uint64_t epoch;     // reject stale actions
+};
+```
+
+- Actions are validated: node exists, role supports action, state allows it, epoch current.
+- Actions dispatch as UI-thread commands at a tick boundary; never from the bridge thread.
+- Async actions (set value/scroll) complete through the normal event/state path; no re-entrancy.
+- Secure fields redact values and reject copy/paste by policy.
+
+Focus/announcements:
+
+- Keyboard focus and screen-reader focus are synchronized by node id; avoid double events.
+- Modal focus scope: background nodes removed/inert; restore the exact previous focus if valid.
+- Announcement queue: `assertive` interrupts, `polite` waits; coalesce identical messages within
+  a short window; rate-limit progress.
+- Route/screen changes announce the screen title once, then focus the heading/first control.
+
+Platform mapping notes:
+
+- Windows UIA: providers/fragments, patterns per role; COM apartment rules; batch property
+  changes; never block the UI thread on a client call.
+- Linux AT-SPI: D-Bus protocol without linking libatspi; expose a bounded node subset; actions
+  return immediately and complete asynchronously.
+- Android/iOS/macOS: map roles/states/actions to native accessibility APIs; mobile bridges are
+  later but the semantics contract is the same.
+
+Failure/edge cases:
+
+- Bridge unavailable -> accessibility disabled + diagnostic; app still runs.
+- Action on stale/hidden/disabled node -> rejected, no crash.
+- Focus target removed -> nearest valid ancestor/root, not nowhere.
+- Platform client disconnects during a snapshot -> discard, rebuild on next request.
+- Text selection/caret updates are coalesced; never announce every keystroke.
+
+Remaining design gaps: platform role/action mapping/threading (G-18), screen-reader automation/
+3D fallback (G-19), Q-17/Q-18.
+
 ## 11. Open questions
 
 - Exact role mapping per platform and fallback behavior.

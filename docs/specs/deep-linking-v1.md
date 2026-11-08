@@ -9,6 +9,10 @@ Opening a link/file must activate the app, route to a screen, and focus the righ
 link is **untrusted input** and must be declared/validated by the developer, not hardcoded in
 platform files.
 
+Canonical route ownership: `ui/routes.json` (`navigation.routesFile`) defines screens, params,
+and guards. `deepLinks.routes` below only maps an external pattern to an existing route id; it
+must not declare screens or duplicate the route table.
+
 ## 1. Activation sources
 
 | Source | Example | Notes |

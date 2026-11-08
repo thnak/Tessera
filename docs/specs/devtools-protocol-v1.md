@@ -81,6 +81,65 @@ file change -> hash -> incremental compile -> generated patch
 - Hot reload style-only/structural/failed compile/state preservation.
 - Devtools disabled in release; no measurable cost when off.
 
+## 7.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `DevtoolsServer` | local transport, auth/session, framing | App state |
+| `DevtoolsSession` | command dispatch, subscriptions, backpressure | UI thread policy |
+| Snapshot builders | tree/style/layout/semantics/metrics views | Mutating app state |
+| HotReloader | compile/patch/reconcile, state preservation | General build system |
+| Headless harness | scripts/asserts/traces | Devtools transport |
+
+Protocol:
+
+```json
+{"id": 1, "cmd": "tree", "params": {"root": "..."}}
+{"id": 1, "ok": true, "result": {...}}
+{"event": "frame", "data": {...}}
+```
+
+- `protocolVersion` is exchanged on connect; unknown major -> reject.
+- Request ids are client-scoped; responses/events are bounded and ordered per session.
+- Snapshot schemas are versioned independently; IDs are strings in JSON.
+- Backpressure: bounded event queue, drop oldest for high-frequency events, never for command
+  responses; slow clients are disconnected.
+- Local-only transport: stdio or a per-user socket; no TCP listener/remote bind.
+
+Hot reload:
+
+```text
+watch -> hash -> incremental compile -> validate patch
+  -> apply/reconcile (style-only or structural)
+  -> preserve state by (component,key) where safe
+  -> request one frame
+  -> failed compile: keep last good frame + diagnostics
+```
+
+- Style-only changes skip tree rebuild; structural changes reconcile by keyed identity.
+- State preservation is best-effort; a full reload is the explicit fallback.
+- Removed nodes/resources retire after frames in flight.
+- Devtools/hot reload code is excluded from release builds or hard-disabled.
+
+Security:
+
+- Session token/peer credentials; commands validated; paths allowlisted to project/artifacts.
+- Read-only by default; mutation/test commands require an explicit dev flag.
+- Screenshots/traces/events are redacted; secure fields never included.
+- A disconnected client cannot leave subscriptions/callbacks behind.
+
+Failure/edge cases:
+
+- Invalid/oversized message closes the session, not the app.
+- Client disconnect during a command -> cancel/discard; no UI mutation.
+- Stale node/id after reload -> return `not_found`, not a crash.
+- Hot reload failure keeps the last good frame; never a white screen.
+- Multiple clients: one primary inspector session; others read-only or rejected.
+
+Remaining design gaps: protocol schema/auth/patch format/state preservation (G-22), Q-21.
+
 ## 8. Open questions
 
 - Socket transport/auth and multi-client sessions.

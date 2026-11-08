@@ -58,6 +58,58 @@ privacy, upload, and version matching.
 - Crash-loop -> rollback/alert; version grouping.
 - No UI-thread blocking on crash/upload.
 
+## 6.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `CrashHandler` | signal/exception handler, dump write, metadata | Upload UI |
+| `CrashReporter` | breadcrumbs, dump discovery, symbol/version metadata, queue | Logging/telemetry policy |
+| `SymbolStore` | build-id lookup, symbol upload/retention | Release build |
+| `CrashUploader` | consent, TLS/auth, retry/rate limit | Crash grouping UI |
+
+Capture pipeline:
+
+```text
+fatal signal/exception/device-loss
+  -> minimal async-signal-safe write (bounded dump + metadata)
+  -> mark pending; do not allocate/lock/log in handler
+  -> next launch: discover dump -> symbolicate/group metadata
+  -> consent -> upload -> delete/retain per policy
+```
+
+Dump metadata:
+
+- app/framework version, commit, build id, platform/arch, OS, GPU/driver, config hash.
+- feature flags, locale, display mode, crash reason, thread/registers, module list.
+- breadcrumbs ring (bounded, redacted), last trace/span ids, audit profile if enabled.
+- No full heap/user documents by default; allowlisted memory regions only.
+
+Symbols:
+
+- Build produces PDB/dSYM/ELF debug + build id; upload separately from the app.
+- Server matches `(build_id, version, arch)`; missing symbols are visible and reported.
+- Keep symbols for all shipped versions; retention/access policy documented.
+- Symbolication failure still uploads the dump/metadata; never block the app.
+
+Upload/consent:
+
+- Opt-in/consent; explicit endpoint/region; offline queue with bounded retries/backoff.
+- Crash-loop/rate limit: cap reports per version/session; dedupe by signature.
+- TLS/auth; payloads encrypted in transit; redact paths/titles/secrets.
+- User can disable/delete reports; retention policy enforced.
+
+Failure/edge cases:
+
+- Corrupt/partial dump -> reject/diagnostic; no crash.
+- Handler cannot write (disk full/permission) -> drop with a minimal log; never recurse.
+- Upload service unavailable -> keep local queue bounded; never block startup.
+- Symbol mismatch -> group by module/offset, mark "unsymbolicated".
+- GPU device-loss vs app crash -> separate signatures/paths.
+
+Remaining design gaps: per-OS handler/symbol server/consent/grouping (G-24), Q-23.
+
 ## 7. Open questions
 
 - Crashpad vs platform-native handler per OS.

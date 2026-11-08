@@ -146,7 +146,8 @@ A custom element is an intrinsic native-render node declared from JSX:
 
 - `element` is a static literal declared in `ui/elements.json`; no dynamic component type.
 - The C++ class derives `tessera::element::CustomElement` and uses the RHI/shader API.
-- It is a leaf; wrap in `View` for overlays/children.
+- It is a leaf; use `OverlayHost`/overlay service for overlays, and wrap in `View` for layout
+  children.
 - It participates in normal layout/style/automation/input and is reusable with keys/props/state.
 - No JS runtime, dynamic plugin, runtime shader compilation, or raw backend/OS handles.
 - See [`custom-elements-v1.md`](custom-elements-v1.md) and

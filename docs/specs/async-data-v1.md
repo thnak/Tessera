@@ -2,8 +2,9 @@
 
 Status: proposed (Big Step F). Decision: ADR-030. Companion to
 [`async.md`](../design/async.md), [`services.md`](../design/services.md),
-[`startup-and-loading.md`](../design/startup-and-loading.md), and
-[`forms-and-validation-v1.md`](forms-and-validation-v1.md).
+[`startup-and-loading.md`](../design/startup-and-loading.md),
+[`forms-and-validation-v1.md`](forms-and-validation-v1.md), and
+[`resource-lifecycle-v1.md`](resource-lifecycle-v1.md).
 
 The async runtime owns tasks; this spec owns **data**: keys, cache, fetch state, invalidation,
 retry, offline, and UI integration.
@@ -98,6 +99,81 @@ cache-first | network-first | stale-while-revalidate | network-only | cache-only
 - Pagination/prefetch/dedupe/scroll preservation.
 - UI states loading/refreshing/error/empty; accessibility announcements.
 - Headless fake clock/network; deterministic async scheduler.
+
+## 8.1 Detail design
+
+Ownership and boundaries:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `DataStore` | typed query/resource cache, invalidation, mutation state | Asset bytes/GPU resources |
+| `Query<T>` | key, status, data/error, epoch, subscribers | Transport |
+| `Mutation<T>` | mutation state, optimistic patch/rollback | UI focus/navigation |
+| `OfflineQueue` | durable queued mutations/idempotency | Network policy |
+| `async` runtime | tasks/executors/cancellation | Domain cache semantics |
+| `resource-lifecycle` | asset bytes/fonts/images/shaders/media | Typed records/queries |
+| `services/networking` | HTTP/TLS/streaming | Cache keys/UI state |
+
+Canonical rule: `async-data` caches **typed domain records**; `resource-lifecycle` caches
+**byte/asset resources**. Do not store the same payload in both. A query may reference an asset
+id, but the asset is loaded by the resource manager.
+
+Cache key:
+
+```cpp
+struct DataKey {
+    std::string type;          // query/mutation kind
+    std::string scope;         // app/user/tenant
+    std::string route;         // optional
+    std::string locale;        // only when formatting/query depends on it
+    std::string params_hash;   // canonical typed params
+};
+```
+
+- Serialize params canonically (sorted keys, stable number/string encoding) before hashing.
+- Scope is mandatory; logout/tenant switch invalidates all user/tenant keys.
+- Never include secrets in keys/logs; hash sensitive params.
+
+Query state machine:
+
+```text
+Idle -> Loading -> Success
+             \-> Error
+Success -> Refreshing -> Success/Error (keep previous data)
+Success/Error -> Stale (TTL/invalidation)
+Any -> Cancelled (key change/unmount)
+```
+
+- `loading` has no data; `refreshing` keeps previous data; `error` may keep previous data.
+- Every key/param/cancel change increments `epoch`; stale completions are discarded.
+- Concurrent requests for one key dedupe; subscribers share the in-flight result.
+- Cache policy per key: `cache-first`, `network-first`, `stale-while-revalidate`,
+  `network-only`, `cache-only`; TTL and size are explicit.
+
+Mutations:
+
+```text
+Idle -> OptimisticApplied -> Submitting -> Success
+                         \-> Rollback (error/cancel)
+```
+
+- Optimistic patches are reversible; store the previous value/patch id.
+- On success: invalidate/update declared keys; on failure: rollback then surface error.
+- Mutation epoch prevents an older success from overwriting a newer mutation.
+- Offline queue entries are bounded, idempotent, and scoped; replay preserves order per key.
+- Conflict policy is explicit: server-wins, client-merge, or prompt; no silent overwrite.
+
+Failure/edge cases:
+
+- Corrupt disk cache -> discard, refetch, diagnostic.
+- Offline + no cache -> error/empty state, not fake success.
+- Logout during request -> cancel/ignore, clear scoped data.
+- Duplicate pagination pages -> dedupe by stable item key, not index alone.
+- Refresh failure -> keep old data and show retry/stale indicator.
+- Streaming/subscriptions are not V1; if added, define ordering/backpressure separately.
+
+Remaining design gaps: key/scope/disk/encryption/offline conflicts (G-20), streaming/pagination
+(G-21), Q-19/Q-20.
 
 ## 9. Open questions
 

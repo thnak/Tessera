@@ -114,6 +114,96 @@ RouteMatch match(std::string_view path);
 - Do not include tokens/secrets in paths; redact logs.
 - Auth guards are enforced before mounting protected screens/data.
 
+## 10.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `RouteTable` | static routes, patterns, params, guards metadata | Screen state/data |
+| `NavController` | active stack, push/pop/replace, epoch, transitions | Overlay/modal dismissal policy |
+| `NavEntry` | route id, params, per-route state, presentation, stable entry id | Data cache |
+| `GuardPipeline` | auth/permission/unsaved checks, redirects, timeout | Auth implementation |
+| OverlayService | non-route overlays/tooltips/toasts | Route stack |
+
+`NavEntry` data:
+
+```cpp
+struct NavEntry {
+    std::uint64_t entry_id;     // stable for restore/automation
+    std::string route_id;       // canonical, not a path
+    ParamMap params;            // typed/validated
+    StateMap state;             // serializable, opt-in restore
+    Presentation presentation;  // page/modal/sheet/fullscreen
+    TransitionSpec transition;
+};
+```
+
+State machine:
+
+```text
+Idle -> Resolving -> Guarding -> Committing -> Transitioning -> Active
+Active -> Popping -> Active/Idle
+Any -> Cancelled (newer epoch)
+```
+
+- Every navigation increments `navigation_epoch`; async guards/data results from an older epoch
+  are discarded.
+- Only one navigation commits at a time; a second request cancels/queues by policy.
+- During a transition, back requests target the transition's source/destination deterministically;
+  no double commit.
+
+Back priority (canonical):
+
+1. Topmost dismissible overlay (see overlay spec).
+2. Topmost modal/sheet navigation entry.
+3. Normal route stack pop.
+4. Root/OS exit policy (unsaved-work guard first).
+
+Guard pipeline:
+
+```text
+resolve params -> auth state -> guards (ordered)
+  -> allow -> commit
+  -> redirect -> resolve target (max N, loop detection)
+  -> deny/login -> safe screen
+```
+
+- Each guard has a timeout; cancellation is not an error.
+- Unsaved-changes guard returns `ask`, `save`, `discard`, `cancel`; no silent discard.
+- Redirects preserve the intended destination only if policy allows; no open redirect.
+- Guards cannot mutate the route table or mount screens.
+
+Route data:
+
+- A route may declare `loader` (static binding) and `prefetch`.
+- Loader runs after params are validated and before/when the screen mounts; loader epoch is the
+  navigation epoch + route entry id.
+- Loading/error/empty states are route-level and cancellable on pop/replace.
+- Cached data is owned by `async-data`, not the navigation stack. Route state stores only
+  serializable UI state (tab/filter/scroll key).
+
+Deep links/restore:
+
+- A deep link resolves to `(route_id, params)` then uses the same commit path; it never bypasses
+  guards.
+- Cold start waits for auth readiness; pending activation is bounded.
+- Restore builds a stack of `NavEntry` with validated route ids/params; invalid entries are
+  dropped or replaced by the route root.
+- `navigation.restore` controls stack restore; `restore.enabled` is the master;
+  `loading.restoreRoute` only resumes the pending activation after auth.
+
+Failure/edge cases:
+
+- Invalid/malformed params -> not-found/fallback; no half-mounted screen.
+- Redirect loop -> stop after N, diagnostic, safe screen.
+- Screen build/effect error -> error boundary fallback, stack entry remains poppable.
+- Rapid push/pop -> epoch cancellation; no stale transition completion.
+- Multi-window: each window owns its stack; deep-link targeting is explicit.
+
+Remaining design gaps: guard/transition reentrancy (G-12), route data/prefetch (G-13), nested
+stacks (Q-11), route data boundary (Q-12).
+
 ## 11. Open questions
 
 - Nested stack vs flat stack for modals.

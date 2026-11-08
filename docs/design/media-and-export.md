@@ -60,6 +60,63 @@ These are app/platform integrations; the core RHI does not depend on media APIs.
 - Export dimensions/bytes/determinism; no PII.
 - Headless/no-GPU fallback.
 
+## 6.1 Detail design
+
+Ownership:
+
+| Capability | Owner | Boundary |
+|---|---|---|
+| Video decode/surface | platform media service or custom element | no raw decoder/OS handle in UI |
+| Audio playback/focus | optional audio service | no blocking in UI thread |
+| Playback controls/state | normal components + resource state | no hidden singleton |
+| Print/PDF | platform shell service + app layout | output path user-selected |
+| Image/vector export | renderer/software readback API | no GPU readback in frame loop |
+
+Playback contract:
+
+```cpp
+struct PlaybackState {
+    bool playing;
+    bool buffering;
+    double position_s;
+    double duration_s;
+    float volume;
+    std::optional<Error> error;
+};
+
+class MediaService {
+public:
+    Task<Result<MediaHandle>> open(MediaSource, MediaOptions);
+    Task<Status> play(MediaHandle);
+    Task<Status> pause(MediaHandle);
+    Task<Status> seek(MediaHandle, double position_s);
+};
+```
+
+- Video surface is an external texture/RHI texture or a custom element; resizing/occlusion/
+  device-loss follow the renderer/custom element rules.
+- Audio focus/interruption is a platform event; pause/duck per policy; no auto-resume without
+  user intent.
+- Background playback is platform-policy-gated; no continuous decode when hidden.
+
+Export/print:
+
+- Print/PDF lays out through the normal text/layout stack into a render target; output is
+  deterministic in software/golden mode.
+- Export runs off the UI thread with cancel/progress; bounded dimensions/bytes.
+- Image export uses readback only for explicit user action, not per frame.
+- Paths are user-selected/sandboxed; no traversal/arbitrary writes; redact metadata.
+
+Failure/edge cases:
+
+- Unsupported codec/format -> error state; no crash/fallback decoder.
+- Device loss/occlusion -> recreate/pause; resume only if policy allows.
+- Print/export cancel -> delete partial output; no corrupt file.
+- PDF/vector font fallback -> deterministic embedded/pinned fonts where possible.
+
+Remaining design gaps: media service vs custom element, audio focus, print/PDF determinism
+(G-27), Q-25.
+
 ## 7. Open questions
 
 - Whether to ship a default media service or leave it to platform packages.

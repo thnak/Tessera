@@ -84,6 +84,60 @@ check -> download (background, resumable) -> verify -> stage
 - Crash loop -> rollback; no data loss.
 - Headless updater tests with fake transport/filesystem.
 
+## 6.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `UpdateClient` | check/download/verify/stage/apply/rollback | App data migration |
+| `UpdateManifest` | channel/version/platform/url/hash/signature/minOs | Release build/signing keys |
+| `UpdateStorage` | staging dir, previous version, atomic swap | User documents |
+| Platform installer | OS install/notarization/store policy | App update policy |
+
+State machine:
+
+```text
+Idle -> Checking -> UpToDate
+             \-> Available -> Downloading -> Verifying -> Staged
+                                                       -> Applying -> HealthCheck
+                                                          -> Healthy (commit)
+                                                          -> Rollback (previous)
+```
+
+- `Checking/Downloading` run off the UI thread; progress is a resource/state, not a blocking
+  modal.
+- `Verifying`: TLS + manifest signature + package hash + platform identity; any failure aborts.
+- `Staged`: package is complete and immutable; apply only at a safe boundary.
+- `HealthCheck`: launch/version/first-frame sentinel; failure/crash loop -> rollback.
+- Previous version/data migration backup is retained until health check succeeds.
+
+Manifest/signing:
+
+- Manifest fields are canonicalized and signed; unknown fields rejected or ignored by version.
+- Public keys are pinned; key rotation uses a signed transition manifest.
+- Delta base version/build id must match; otherwise full package.
+- `minOs`/arch/channel mismatch -> no offer.
+- HTTPS allowlist; no URL from app content/user input.
+
+Apply/rollback:
+
+- Atomic directory/slot swap or platform installer transaction; never patch in place.
+- Preserve user data/config; migration is idempotent and versioned.
+- Rollback restores the previous binary and compatible data; incompatible migration is explicit.
+- Do not apply while unsaved work is active; save/prompt first.
+- If the app crashes before health check, count attempts and roll back after N.
+
+Failure/edge cases:
+
+- Offline/partial download -> resume/cancel; no partial install.
+- Signature/hash mismatch -> delete package, diagnostic, no install.
+- Disk full/permission denied -> abort with actionable error.
+- Power loss during swap -> recover previous/complete slot.
+- Downgrade -> blocked by default; explicit signed policy only.
+
+Remaining design gaps: delta/key rotation/health/consent (G-23), Q-22.
+
 ## 7. Open questions
 
 - In-app updater vs platform store per OS.

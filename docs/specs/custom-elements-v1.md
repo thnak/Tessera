@@ -158,7 +158,8 @@ Rules:
 - Props are checked against the manifest schema; no unknown/missing required props.
 - Event props are `on` + PascalCase of the manifest event (`select` -> `onSelect`).
 - `onPointer`, `onKey`, `onWheel`, `onText`, `onGamepad` are generic input props.
-- `CustomElement` is a leaf; wrap it in `View` for overlays/children.
+- `CustomElement` is a leaf; use `OverlayHost`/overlay service for overlays, and wrap it in
+  `View` for layout children.
 - Standard `style`/layout/automation props apply; numeric `uiId` is assigned normally.
 - No dynamic component types (`<Component is={...}>`), no element expression, no children.
 - No arbitrary object props; use typed vectors/matrices/resource refs.
@@ -420,7 +421,8 @@ Rules:
 
 ## 14. Open questions
 
-- Inline 3D + 2D depth/order edge cases; whether to support 2D overlays inside inline.
+- Inline 3D + 2D depth/order edge cases; overlays above inline use `OverlayHost`; 2D content
+  inside inline remains unsupported.
 - Indirect draw/compute/ray-tracing scope and capability gates.
 - MSAA sample counts/resolve policy on software/lavapipe.
 - Raw backend escape hatch for advanced apps (currently forbidden).

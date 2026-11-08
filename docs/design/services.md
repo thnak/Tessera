@@ -100,7 +100,8 @@ public:
 ## 9. Status
 
 Services are post-V1 (Big Step F). The interfaces above are targets; implementation order:
-storage/settings, i18n, navigation, networking, notifications.
+storage/settings, navigation/restore, i18n, platform shell, networking, async data,
+notifications.
 
 ## 10. Open questions
 

@@ -7,6 +7,8 @@ for the project overview. This page is the map and reading order for the framewo
 
 - [`architecture/overview.md`](architecture/overview.md) — layers, pipelines, threading,
   determinism, status.
+- [`architecture/app-completeness-cross-check-v1.md`](architecture/app-completeness-cross-check-v1.md)
+  — cross-check, canonical ownership, gap register, open questions
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
   ownership, dependency direction.
 
@@ -188,10 +190,11 @@ for the project overview. This page is the map and reading order for the framewo
 
 1. [Architecture overview](architecture/overview.md)
 2. [Module map](architecture/module-map.md)
-3. [Getting started](guides/getting-started.md)
-4. [Code style](guides/code-style.md)
-5. [Developer workflow](guides/developer-workflow.md)
-6. [Testing](guides/testing.md)
+3. [App-completeness cross-check](architecture/app-completeness-cross-check-v1.md)
+4. [Getting started](guides/getting-started.md)
+5. [Code style](guides/code-style.md)
+6. [Developer workflow](guides/developer-workflow.md)
+7. [Testing](guides/testing.md)
 
 ### Runtime / UI
 

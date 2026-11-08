@@ -115,6 +115,77 @@ Task<std::optional<Path>> pick_folder(FolderDialogSpec);
 - Menu/tray/shortcut registration/conflicts.
 - Headless shell fakes; deterministic async; no real OS dialogs in CI.
 
+## 9.1 Detail design
+
+Capability negotiation:
+
+```cpp
+enum class ShellCapability {
+    ClipboardText, ClipboardFiles, DragInternal, DragExternal, DropFiles,
+    ContextMenu, FileOpen, FileSave, FolderPick, MenuBar, Tray, GlobalShortcut
+};
+
+struct ShellCapabilities {
+    std::uint64_t supported;   // bitmask
+    std::uint64_t permissioned;
+};
+```
+
+- Query capability/permission at startup and on permission changes; never branch on platform
+  `#ifdef` in UI code.
+- Unsupported capability returns `Error::Unsupported`; the component hides/disables the action
+  with an accessible reason.
+- Permission denial is a normal result, not a crash; do not repeatedly prompt.
+
+`ShellService` contract:
+
+```cpp
+class ShellService {
+public:
+    Task<Result<ClipboardContent>> read_clipboard();
+    Task<Status> write_clipboard(ClipboardContent);
+    Task<Result<std::optional<FileHandle>>> open_file(OpenDialogSpec);
+    Task<Result<std::optional<Path>>> save_file(SaveDialogSpec);
+    Task<Result<std::optional<Path>>> pick_folder(FolderDialogSpec);
+};
+```
+
+- All operations return cancellable tasks; completion is posted to the UI thread.
+- Results carry capability handles, not raw OS pointers; handles are validated on use.
+- One operation at a time per dialog/menu; queue/reject policy is explicit.
+
+Drag/drop state machine:
+
+```text
+Idle -> DragEnter -> DragOver <-> DragLeave
+                    \-> Drop -> Accepted/Rejected
+Any -> Cancelled (escape/window blur/target removed)
+```
+
+- `DragPayload` variants: text, URI, file promise, internal node/key. File promises are read only
+  after an accepted drop and within a size/time budget.
+- Drag source declares copy/move/link; target accepts a subset; move requires explicit policy.
+- Autoscroll is driven by the scroll system; no blocking loop.
+- Internal DnD uses stable `(UiId, ItemKey)`/payload ids, never screen coordinates.
+
+Menus/shortcuts:
+
+- Menu model is declarative (id, label key, shortcut, enabled/checked, children).
+- Shortcut conflicts are detected at build/startup; platform-reserved shortcuts are not stolen.
+- Menus/shortcuts are disabled during IME composition unless explicitly allowed.
+- Context menu opening follows overlay positioning/focus/dismiss rules.
+
+Failure/edge cases:
+
+- Window/app teardown cancels pending dialogs/drag; no callbacks after teardown.
+- Path traversal/symlink/executable drop -> reject with diagnostic.
+- Clipboard oversized/unsupported format -> error/ignore, never partial decode.
+- Mobile SAF/security-scoped URLs are held only for the operation lifetime.
+- Tray/menu bar unavailable -> hide action; no silent no-op.
+
+Remaining design gaps: capability/file-promise DnD/menu conflicts (G-15), Linux tray/cross-process
+(Q-14).
+
 ## 10. Open questions
 
 - Clipboard file/URI format and permissions on each platform.

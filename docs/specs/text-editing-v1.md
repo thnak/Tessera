@@ -71,8 +71,9 @@ scroll_into_view(caret)
 
 ## 4. IME and text input
 
-- The HAL normalizes composition start/update/end, committed text, dead keys, and candidate
-  window rects (see [`input.md`](../design/input.md)).
+- The platform/HAL owns the native IME and candidate-window placement; Tessera normalizes
+  composition start/update/end, committed text, and dead keys, and reports the caret rect to the
+  platform (see [`input.md`](../design/input.md)).
 - Composition text is rendered with underline/marked style; caret stays at the composition
   boundary; committed text replaces the marked range atomically.
 - Candidate window is positioned near the caret, flipped/clamped to the window and safe area.
@@ -175,6 +176,71 @@ Events: `onChange`, `onSubmit`, `onFocus`, `onBlur`, `onSelectionChange`,
 - Bound paste/drop/text size; reject malformed UTF-8; no raw pointers in state.
 - Clipboard reads/writes are platform permissions; validate file paths for file drops.
 - Never execute or interpret pasted content.
+
+## 10.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `TextDocument` | UTF-8 bytes, grapheme/paragraph index, revision | Selection, focus, undo policy |
+| `TextEditController` | selection, composition, undo/redo, commands | Shaping, caret geometry, native IME |
+| `TextLayout` | shaped runs, caret/selection rects, bidi mapping | Text bytes/editing state |
+| Input/HAL | normalized text/composition events, caret rect to platform | Editing policy, undo |
+| `FormController` | value/validation/submit | Text commands/selection |
+
+Recommended data structures:
+
+- `TextDocument` uses a gap buffer/rope for documents above a size threshold; below it, a
+  contiguous UTF-8 buffer plus a grapheme index. The index is versioned by `revision`.
+- `TextEditController` stores `selection`, `composition`, `undo_stack`, `redo_stack`, and
+  `preferred_visual_column` (for up/down movement).
+- `TextLayout` caches shaped runs by `(revision, width, style, scale)`; caret/selection rects are
+  derived from clusters, not bytes.
+
+Controller state machine:
+
+```text
+Blurred -> Focused -> Editing
+Focused -> Composing -> Editing (commit/cancel)
+Focused -> DragSelect -> Editing
+ReadOnly/Disabled: focus/select/copy only; no mutation
+```
+
+Event order per tick:
+
+```text
+platform text/composition -> input queue -> focused TextEditController
+  -> document/selection/undo update -> change events
+  -> layout invalidation -> paint -> accessibility snapshot
+```
+
+Rules/invariants:
+
+- All edits go through commands; no direct document mutation from UI handlers.
+- A command is atomic: text, selection, undo entry, and change descriptor commit together.
+- `maxLength` counts graphemes; composition is never truncated mid-cluster. Over-limit commits
+  are rejected as a whole with a diagnostic.
+- External `value` changes are diffed against the current document; if composing, commit/cancel
+  first. A stale controlled update is ignored by revision.
+- Caret affinity is preserved across bidi runs; up/down uses visual columns, left/right uses
+  logical grapheme movement.
+- TextArea internal scroll is a `Scroll` container; scrolling never changes selection.
+- The platform positions the native IME candidate window; the UI supplies the caret rect and
+  never owns the native window.
+
+Failure/edge cases:
+
+- IME cancel restores the pre-composition text/selection.
+- Paste over limit is rejected or truncated by an explicit policy; no partial cluster.
+- Invalid UTF-8 is rejected at the boundary; never repair silently.
+- Clipboard denied returns an error; the field remains unchanged.
+- Selection outside document bounds clamps to the nearest grapheme.
+- Undo during composition is ignored until commit/cancel.
+- Secure fields never appear in undo persistence, snapshots, logs, or clipboard by default.
+
+Remaining design gaps: large-document rope/index (G-01), touch handles/magnifier (G-02),
+autofill/credential manager (G-03), spellcheck/autocorrect (G-04), rich/HTML clipboard (G-05).
 
 ## 11. Open questions
 

@@ -101,6 +101,75 @@ void close_overlays(Predicate);
 - Accessibility snapshots/announcements; headless open/close and focus.
 - No leaked nodes/handles after close; close during async load.
 
+## 8.1 Detail design
+
+Ownership:
+
+| Component | Owns | Does not own |
+|---|---|---|
+| `OverlayHost` | layer stack, z-order, host bounds, focus scope | Route stack/back semantics |
+| `OverlayEntry` | spec, content instance, lifecycle, anchor tracking | Page state (app owns) |
+| `OverlayService` | open/close/handles/policy validation | Rendering/scene details |
+| Input/focus | focus trap/inert/escape delivery | Overlay dismissal policy |
+| Navigation | modal route stack/back | Non-route dialogs/popovers |
+
+Entry state machine:
+
+```text
+Created -> Mounting -> Measuring -> Opening -> Open -> Closing -> Closed
+                         \-> Failed (content error)
+```
+
+- `Mounting` instantiates content; `Measuring` obtains intrinsic size; `Opening` positions and
+  runs animation; `Open` tracks anchor; `Closing` cancels async/animation and restores focus.
+- Open/close is serialized on the UI thread at a frame boundary; no mid-frame layer mutation.
+- A failed content instance shows a deterministic fallback and reports to the error boundary.
+
+Layer stack invariants:
+
+- Each layer is ordered by `(priority, open_sequence)`; tooltips/toasts never take focus.
+- A modal entry makes all lower layers inert for pointer/keyboard/semantics.
+- `OverlayHost` owns the layer nodes; content is not reparented into arbitrary scene nodes.
+- Overlay nodes participate in dirty/style/layout/paint like normal nodes but are clipped to
+  the host and rendered after the base layer.
+- Closing removes semantics/pointer targets before animation completes.
+
+Positioning:
+
+```text
+anchor_rect (window logical) + placement + size
+  -> flip if outside main axis
+  -> shift/clamp to safe area and IME inset
+  -> track anchor layout/scroll/resize at frame boundary
+```
+
+- Anchor removal closes by default; a stable `uiId` re-anchor is opt-in.
+- Multi-monitor positions use the window's display work area; never cross displays implicitly.
+- Virtual keyboard/IME insets update placement before paint.
+
+Back/dismiss ordering (canonical):
+
+1. Topmost dismissible overlay (menu/popover/tooltip/dialog with `dismiss_on_back`).
+2. Topmost modal route/sheet.
+3. Navigation stack pop.
+4. OS exit/close policy.
+
+- An overlay that consumes back must not also bubble to navigation.
+- Destructive dialogs default to no click-outside dismissal.
+- Route change closes transient overlays; modal routes are navigation entries, not ad-hoc
+  overlays.
+
+Failure/edge cases:
+
+- Host destroyed/window closed: close all entries, cancel async, no callbacks after teardown.
+- Anchor layout changes during animation: retarget at frame boundary, not per event.
+- Async content resolves after close: discard by entry epoch.
+- Nested overlays: only topmost modal owns focus; closing restores the previous entry.
+- Multiple hosts: overlays belong to one host; cross-window overlays require a window spec.
+
+Remaining design gaps: scene/dirty/semantics integration/multiple hosts (G-08), back ordering
+(G-09), cross-window/nested menus (Q-07/Q-08).
+
 ## 9. Open questions
 
 - Multiple overlay hosts and cross-window overlays.

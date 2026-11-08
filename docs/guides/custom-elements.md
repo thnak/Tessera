@@ -227,7 +227,7 @@ export function WaterfallPanel() {
 
 - `element` literal only; no dynamic element.
 - Props/events are validated by generated typings and the compiler.
-- No children; wrap in `View` for overlays.
+- No children; wrap in a `View` for layout, and use `OverlayHost`/overlay service for overlays.
 - `style`/layout/automation props work normally.
 
 ## 6. Input and custom events

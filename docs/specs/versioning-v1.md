@@ -20,6 +20,12 @@ golden reports.
 | Golden case/report | `caseVersion`/`reportVersion` | 1 | runner rejects unknown |
 | Shader manifest | `manifestVersion` | 1 | build rejects mismatch |
 | Asset manifest | `manifestVersion` | 1 | runtime validates |
+| Restore snapshot | `restoreVersion` | 1 | forward migration; drop incompatible entries |
+| Update manifest | `manifestVersion` | 1 | signed; platform/arch/channel checked |
+| i18n catalog | `catalogVersion` | 1 | compiled; missing locale falls back |
+| Devtools protocol | `protocolVersion` | 1 | unknown major rejected |
+| Crash report | `reportVersion` | 1 | grouping/symbol metadata compatible |
+| Design tokens | `tokenVersion` | 1 | SemVer; visual changes need goldens |
 
 Rules:
 
@@ -27,6 +33,10 @@ Rules:
 - Changing defaults/meaning or removing fields bumps the version.
 - Bumps ship a migration command/tool and a compatibility note.
 - Old artifacts fail loudly with a clear error; never silently reinterpret.
+- Restore/update/catalog/crash artifacts carry the app version/build id where relevant; a
+  mismatch falls back safely, never executes untrusted content.
+- Devtools/crash/restore schemas are not part of the framework ABI; they are versioned wire/
+  storage formats.
 
 ## 3. Generated code
 
