@@ -92,6 +92,15 @@ target_include_directories(window_metrics_tests PRIVATE
 
 add_test(NAME window_metrics COMMAND window_metrics_tests)
 
+if (WIN32)
+    add_executable(window_win32_tests
+        window_win32_tests.cpp)
+
+    target_link_libraries(window_win32_tests PRIVATE tessera_hal_window)
+
+    add_test(NAME window_win32 COMMAND window_win32_tests)
+endif()
+
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)
 

@@ -73,3 +73,19 @@ add_executable(damage_equivalence_tests
     batched2d/damage_equivalence_tests.cpp)
 target_link_libraries(damage_equivalence_tests PRIVATE tessera_gpu tessera_damage tessera_golden tessera_rhi_vulkan)
 add_test(NAME damage_equivalence COMMAND damage_equivalence_tests)
+
+if (WIN32 AND TARGET tessera_rhi_vulkan)
+    add_executable(vulkan_swapchain_tests
+        vulkan/vulkan_swapchain_tests.cpp)
+
+    target_compile_definitions(vulkan_swapchain_tests PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+    target_include_directories(vulkan_swapchain_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/src
+        ${PROJECT_SOURCE_DIR}/third_party/volk
+        ${PROJECT_SOURCE_DIR}/third_party/vma)
+    target_link_libraries(vulkan_swapchain_tests PRIVATE
+        tessera_rhi_vulkan
+        tessera_hal_window)
+
+    add_test(NAME vulkan_swapchain COMMAND vulkan_swapchain_tests)
+endif()

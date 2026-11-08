@@ -53,7 +53,7 @@ target_link_libraries(tessera_vulkan PUBLIC Vulkan::Vulkan tessera_stb)
 target_compile_features(tessera_vulkan PUBLIC cxx_std_23)
 add_dependencies(tessera_vulkan tessera_vulkan_shaders)
 
-add_library(tessera_rhi_vulkan STATIC
+set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_device.cpp
     src/vulkan_instance.cpp
     src/vulkan_resources.cpp
@@ -66,6 +66,14 @@ add_library(tessera_rhi_vulkan STATIC
     ${TESSERA_BATCHED2D_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)
 
+if (WIN32)
+    list(APPEND TESSERA_VULKAN_RHI_SOURCES
+        src/vulkan_swapchain.cpp
+        src/vulkan_swapchain_present.cpp)
+endif()
+
+add_library(tessera_rhi_vulkan STATIC ${TESSERA_VULKAN_RHI_SOURCES})
+
 target_include_directories(tessera_rhi_vulkan PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(tessera_rhi_vulkan PRIVATE
@@ -74,6 +82,11 @@ target_include_directories(tessera_rhi_vulkan PRIVATE
     ${PROJECT_SOURCE_DIR}/third_party/vma)
 
 target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_NO_PROTOTYPES)
+if (WIN32)
+    # vkCreateWin32SurfaceKHR / vkGetPhysicalDeviceWin32PresentationSupportKHR.
+    target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+    target_link_libraries(tessera_rhi_vulkan PRIVATE user32)
+endif()
 target_link_libraries(tessera_rhi_vulkan PUBLIC tessera_rhi Vulkan::Vulkan)
 target_compile_features(tessera_rhi_vulkan PUBLIC cxx_std_23)
 add_dependencies(tessera_rhi_vulkan tessera_batched2d_shaders)

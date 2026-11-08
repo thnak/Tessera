@@ -54,6 +54,26 @@ bool has_layer(const char* name) {
     return false;
 }
 
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+bool has_device_extension(VkPhysicalDevice device, const char* name) {
+    std::uint32_t count = 0;
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS) {
+        return false;
+    }
+    std::vector<VkExtensionProperties> properties(count);
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, properties.data()) !=
+        VK_SUCCESS) {
+        return false;
+    }
+    for (const VkExtensionProperties& property : properties) {
+        if (std::strcmp(property.extensionName, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+#endif // VK_USE_PLATFORM_WIN32_KHR
+
 } // namespace
 
 void VulkanDevice::create_instance() {
@@ -74,6 +94,14 @@ void VulkanDevice::create_instance() {
     if (portability_available) {
         extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     }
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    if (has_instance_extension(VK_KHR_SURFACE_EXTENSION_NAME) &&
+        has_instance_extension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME)) {
+        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+        surface_extensions_enabled_ = true;
+    }
+#endif
 
     std::vector<const char*> layers;
     const bool validation_available = has_layer("VK_LAYER_KHRONOS_validation");
@@ -169,11 +197,23 @@ void VulkanDevice::pick_device() {
 
     bool found_graphics = false;
     for (std::uint32_t i = 0; i < queue_count; ++i) {
-        if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
+        if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0) {
+            continue;
+        }
+        if (!found_graphics) {
             queue_family_ = i;
             found_graphics = true;
+        }
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+        // Prefer a graphics family that can also present to a Win32 surface. Presentation support
+        // is queryable before a surface exists, unlike vkGetPhysicalDeviceSurfaceSupportKHR.
+        if (vkGetPhysicalDeviceWin32PresentationSupportKHR != nullptr &&
+            vkGetPhysicalDeviceWin32PresentationSupportKHR(physical_device_, i) == VK_TRUE) {
+            queue_family_ = i;
+            win32_present_supported_ = true;
             break;
         }
+#endif
     }
     if (!found_graphics) {
         throw std::runtime_error("no graphics queue family found");
@@ -207,11 +247,22 @@ void VulkanDevice::create_device() {
     queue_info.queueCount = 1;
     queue_info.pQueuePriorities = &priority;
 
+    std::vector<const char*> device_extensions;
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    if (has_device_extension(physical_device_, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) {
+        device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+        swapchain_extension_enabled_ = true;
+    }
+#endif
+
     VkDeviceCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     create_info.pNext = &enabled_2;
     create_info.queueCreateInfoCount = 1;
     create_info.pQueueCreateInfos = &queue_info;
+    create_info.enabledExtensionCount = static_cast<std::uint32_t>(device_extensions.size());
+    create_info.ppEnabledExtensionNames =
+        device_extensions.empty() ? nullptr : device_extensions.data();
 
     check_vk(vkCreateDevice(physical_device_, &create_info, nullptr, &device_), "vkCreateDevice");
     volkLoadDevice(device_);

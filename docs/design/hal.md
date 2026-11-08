@@ -218,7 +218,15 @@ See [`window-resize.md`](window-resize.md) for the state machine and
 ## 10. Current status
 
 - `src/hal/timer/` is implemented (`tessera_hal_timer`): monotonic clock + bounded idle wait.
-- Other `src/hal/*` and `src/platform/*` contain placeholders only.
-- B1 is offscreen; no window or swapchain.
-- B3 implements the window/swapchain path and native platform backends (Windows and Linux per Big Step F; macOS via [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per [`mobile-integration.md`](mobile-integration.md)).
+- `src/hal/window/` provides `tessera_hal_window` and `hal::create_window`. The Win32
+  implementation lives in `src/platform/windows/window.cpp`; other platforms build a stub that
+  returns `nullptr`. Window creation, normalized resize/DPI/focus/close events, and
+  owner-thread destruction are covered by `window_win32` tests on Windows.
+- The Win32 `VkSurfaceKHR`/swapchain path lives in `src/rendering/backend/vulkan/src/` and is
+  created through `Device::create_swapchain` with the opaque `native_window` handle supplied by
+  the HAL. Other `src/hal/*` and `src/platform/*` areas remain placeholders.
+- B1 is offscreen; the B3 window/swapchain path is Windows-only for now. Linux backends are the
+  next B3 slice (Windows and Linux per Big Step F; macOS via
+  [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per
+  [`mobile-integration.md`](mobile-integration.md)).
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).
