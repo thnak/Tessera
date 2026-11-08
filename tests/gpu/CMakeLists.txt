@@ -89,3 +89,20 @@ if (WIN32 AND TARGET tessera_rhi_vulkan)
 
     add_test(NAME vulkan_swapchain COMMAND vulkan_swapchain_tests)
 endif()
+
+if (TESSERA_X11_FOUND AND TARGET tessera_rhi_vulkan AND TARGET tessera_hal_window)
+    add_executable(vulkan_swapchain_x11_tests
+        vulkan/vulkan_swapchain_x11_tests.cpp)
+
+    target_compile_definitions(vulkan_swapchain_x11_tests PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+    target_include_directories(vulkan_swapchain_x11_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/src
+        ${PROJECT_SOURCE_DIR}/third_party/volk
+        ${PROJECT_SOURCE_DIR}/third_party/vma)
+    target_link_libraries(vulkan_swapchain_x11_tests PRIVATE
+        tessera_rhi_vulkan
+        tessera_hal_window
+        X11::X11)
+
+    add_test(NAME vulkan_swapchain_x11 COMMAND vulkan_swapchain_x11_tests)
+endif()

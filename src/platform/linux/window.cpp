@@ -1,0 +1,453 @@
+// SPDX-License-Identifier: MIT
+
+#include "tessera/hal/timer/steady_time.hpp"
+#include "tessera/hal/window.hpp"
+#include "window_event_queue.hpp"
+
+#include <X11/Xlib.h>
+#include <X11/Xresource.h>
+#include <algorithm>
+#include <cerrno>
+#include <climits>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include <poll.h>
+#include <span>
+#include <string>
+#include <string_view>
+#include <thread>
+
+namespace tessera::hal {
+namespace {
+
+using detail::EventQueue;
+
+constexpr int kDefaultDpi = 96;
+// Xft.dpi is a user-controlled Xresource. Clamp obviously broken values so a typo cannot turn
+// every logical size into zero or a multi-thousand-pixel window.
+constexpr int kMinDpi = 48;
+constexpr int kMaxDpi = 768;
+
+float dpi_scale(int dpi) {
+    return static_cast<float>(dpi) / static_cast<float>(kDefaultDpi);
+}
+
+std::uint32_t logical_from_physical(std::uint32_t physical, int dpi) {
+    const double scaled =
+        static_cast<double>(physical) * static_cast<double>(kDefaultDpi) / static_cast<double>(dpi);
+    return static_cast<std::uint32_t>(std::lround(scaled));
+}
+
+std::uint32_t physical_from_logical(std::uint32_t logical, int dpi) {
+    const double scaled =
+        static_cast<double>(logical) * static_cast<double>(dpi) / static_cast<double>(kDefaultDpi);
+    return static_cast<std::uint32_t>(std::lround(scaled));
+}
+
+// X11 has no per-window DPI query; the desktop publishes a global Xft.dpi Xresource. Fall back
+// to 96 when the resource server is absent (bare Xvfb, minimal window managers).
+int query_xft_dpi(Display* display) {
+    const char* resources = XResourceManagerString(display);
+    if (resources == nullptr || resources[0] == '\0') {
+        return kDefaultDpi;
+    }
+    XrmDatabase database = XrmGetStringDatabase(resources);
+    if (database == nullptr) {
+        return kDefaultDpi;
+    }
+
+    int dpi = kDefaultDpi;
+    char* type = nullptr;
+    XrmValue value{};
+    if (XrmGetResource(database, "Xft.dpi", "Xft.Dpi", &type, &value) != 0 &&
+        value.addr != nullptr) {
+        const char* text = static_cast<const char*>(value.addr);
+        char* end = nullptr;
+        const double parsed = std::strtod(text, &end);
+        if (end != text && std::isfinite(parsed) && parsed > 0.0) {
+            dpi = std::clamp(static_cast<int>(std::lround(parsed)), kMinDpi, kMaxDpi);
+        }
+    }
+    XrmDestroyDatabase(database);
+    return dpi;
+}
+
+class X11Window final : public Window {
+public:
+    X11Window() = default;
+
+    ~X11Window() override;
+
+    X11Window(const X11Window&) = delete;
+    X11Window& operator=(const X11Window&) = delete;
+
+    bool create(const WindowDesc& desc);
+
+    [[nodiscard]] WindowMetrics metrics() const override;
+    std::size_t poll_events(std::span<WindowEvent> events) override;
+    bool wait_for_events(double timeout_seconds) override;
+    void show() override;
+    void hide() override;
+    void request_redraw() override;
+    void close() override;
+
+private:
+    void handle_event(XEvent& event);
+    void enqueue(WindowEventType type);
+    void request_close();
+    void pump(bool discard);
+    [[nodiscard]] bool has_pending_events() const;
+
+    Display* display_ = nullptr;
+    ::Window window_ = 0;
+    ::Window root_ = 0;
+    int screen_ = 0;
+    int dpi_ = kDefaultDpi;
+    int last_width_ = 0;
+    int last_height_ = 0;
+    Atom wm_protocols_ = 0;
+    Atom wm_delete_window_ = 0;
+    std::thread::id owner_thread_ = std::this_thread::get_id();
+    EventQueue events_;
+    bool initializing_ = true;
+    bool mapped_ = false;
+    bool focused_ = false;
+    bool redraw_pending_ = false;
+    bool close_posted_ = false;
+    bool close_requested_ = false;
+    bool close_delivered_ = false;
+};
+
+bool X11Window::create(const WindowDesc& desc) {
+    if (desc.width == 0 || desc.height == 0) {
+        return false;
+    }
+    display_ = XOpenDisplay(nullptr);
+    if (display_ == nullptr) {
+        return false;
+    }
+    screen_ = DefaultScreen(display_);
+    root_ = RootWindow(display_, screen_);
+    dpi_ = query_xft_dpi(display_);
+
+    const std::uint32_t width = physical_from_logical(desc.width, dpi_);
+    const std::uint32_t height = physical_from_logical(desc.height, dpi_);
+
+    XSetWindowAttributes attributes{};
+    attributes.background_pixel = BlackPixel(display_, screen_);
+    // StructureNotify carries ConfigureNotify/DestroyNotify; Exposure carries the redraw wake;
+    // FocusChange is normalized to Focus/Blur.
+    attributes.event_mask = StructureNotifyMask | ExposureMask | FocusChangeMask;
+
+    window_ = XCreateWindow(display_, root_, 0, 0, width, height, 0, CopyFromParent, InputOutput,
+                            CopyFromParent, CWBackPixel | CWEventMask, &attributes);
+    if (window_ == 0) {
+        XCloseDisplay(display_);
+        display_ = nullptr;
+        return false;
+    }
+
+    wm_protocols_ = XInternAtom(display_, "WM_PROTOCOLS", False);
+    wm_delete_window_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
+    if (wm_protocols_ != None && wm_delete_window_ != None) {
+        XSetWMProtocols(display_, window_, &wm_delete_window_, 1);
+    }
+    XStoreName(display_, window_, desc.title.c_str());
+    last_width_ = static_cast<int>(width);
+    last_height_ = static_cast<int>(height);
+
+    if (desc.visible) {
+        XMapWindow(display_, window_);
+        mapped_ = true;
+    }
+    XFlush(display_);
+
+    // Creation-time map/configure notifications are state, not events: the runtime reads the
+    // initial metrics. Anything already queued is drained and discarded.
+    pump(true);
+    initializing_ = false;
+    events_.clear();
+    redraw_pending_ = false;
+    return true;
+}
+
+X11Window::~X11Window() {
+    if (display_ == nullptr) {
+        return;
+    }
+    // Xlib connections are not safe to use from a foreign thread. A foreign-thread destructor
+    // detaches and leaks the connection/window rather than racing the owning thread's event loop.
+    if (std::this_thread::get_id() != owner_thread_) {
+        display_ = nullptr;
+        window_ = 0;
+        return;
+    }
+    if (window_ != 0) {
+        XDestroyWindow(display_, window_);
+        window_ = 0;
+    }
+    XFlush(display_);
+    XCloseDisplay(display_);
+    display_ = nullptr;
+}
+
+WindowMetrics X11Window::metrics() const {
+    WindowMetrics metrics;
+    if (display_ == nullptr || window_ == 0) {
+        metrics.focused = false;
+        return metrics;
+    }
+
+    XWindowAttributes attributes{};
+    if (XGetWindowAttributes(display_, window_, &attributes) == 0) {
+        metrics.focused = false;
+        return metrics;
+    }
+    metrics.physical_width = static_cast<std::uint32_t>(std::max(attributes.width, 0));
+    metrics.physical_height = static_cast<std::uint32_t>(std::max(attributes.height, 0));
+    metrics.logical_width = logical_from_physical(metrics.physical_width, dpi_);
+    metrics.logical_height = logical_from_physical(metrics.physical_height, dpi_);
+    metrics.dpi_scale = dpi_scale(dpi_);
+    metrics.focused = focused_;
+    // X11 has no portable occlusion/minimize signal without a window manager (WM_STATE and
+    // _NET_WM_STATE are WM-specific); this backend reports both as false.
+    return metrics;
+}
+
+void X11Window::enqueue(WindowEventType type) {
+    if (initializing_) {
+        return;
+    }
+    WindowEvent event;
+    event.type = type;
+    event.metrics = metrics();
+    events_.push(event);
+}
+
+void X11Window::request_close() {
+    if (close_requested_) {
+        return;
+    }
+    close_requested_ = true;
+    close_delivered_ = false;
+    enqueue(WindowEventType::Close);
+}
+
+void X11Window::handle_event(XEvent& event) {
+    switch (event.type) {
+    case ConfigureNotify: {
+        const XConfigureEvent& configure = event.xconfigure;
+        if (configure.width != last_width_ || configure.height != last_height_) {
+            last_width_ = configure.width;
+            last_height_ = configure.height;
+            enqueue(WindowEventType::Resize);
+        }
+        return;
+    }
+    case Expose:
+        // A redraw was observed (from request_redraw's XClearArea or a real uncover). The frame
+        // is requested through the wait wake; there is no normalized Redraw event type.
+        redraw_pending_ = true;
+        return;
+    case FocusIn:
+        focused_ = true;
+        enqueue(WindowEventType::Focus);
+        return;
+    case FocusOut:
+        focused_ = false;
+        enqueue(WindowEventType::Blur);
+        return;
+    case MapNotify:
+        mapped_ = true;
+        return;
+    case UnmapNotify:
+        mapped_ = false;
+        focused_ = false;
+        redraw_pending_ = false;
+        return;
+    case ClientMessage:
+        if (event.xclient.message_type == wm_protocols_ && wm_delete_window_ != None &&
+            static_cast<Atom>(event.xclient.data.l[0]) == wm_delete_window_) {
+            request_close();
+        }
+        return;
+    case DestroyNotify:
+        if (event.xdestroywindow.window == window_) {
+            window_ = 0;
+            request_close();
+        }
+        return;
+    default:
+        return;
+    }
+}
+
+void X11Window::pump(bool discard) {
+    if (display_ == nullptr) {
+        return;
+    }
+    while (XPending(display_) > 0) {
+        XEvent event{};
+        XNextEvent(display_, &event);
+        if (!discard) {
+            handle_event(event);
+        }
+    }
+}
+
+bool X11Window::has_pending_events() const {
+    return events_.count() > 0 || (close_requested_ && !close_delivered_) || redraw_pending_;
+}
+
+std::size_t X11Window::poll_events(std::span<WindowEvent> events) {
+    pump(false);
+    const std::size_t copied = events_.copy_to(events);
+    for (std::size_t i = 0; i < copied; ++i) {
+        if (events[i].type == WindowEventType::Close) {
+            close_delivered_ = true;
+        }
+    }
+    // A redraw wake is consumed by the poll that observes it; the runtime draws after polling.
+    redraw_pending_ = false;
+    return copied;
+}
+
+bool X11Window::wait_for_events(double timeout_seconds) {
+    // The Xlib connection and the event queue belong to the creating thread.
+    if (std::this_thread::get_id() != owner_thread_ || display_ == nullptr) {
+        return false;
+    }
+    const double timeout =
+        std::isfinite(timeout_seconds) && timeout_seconds > 0.0 ? timeout_seconds : 0.0;
+    const double deadline = steady_now_seconds() + timeout;
+
+    for (;;) {
+        pump(false);
+        if (has_pending_events()) {
+            return true;
+        }
+        const double remaining = seconds_until(steady_now_seconds(), deadline);
+        if (remaining <= 0.0) {
+            return false;
+        }
+        // poll() takes whole milliseconds. Round up (and never pass 0) so a sub-millisecond
+        // remainder parks once instead of spinning, and clamp so the wait stays bounded.
+        const double wait_milliseconds = std::max(1.0, std::ceil(remaining * 1000.0));
+        const int milliseconds = wait_milliseconds >= static_cast<double>(INT_MAX)
+                                     ? INT_MAX
+                                     : static_cast<int>(wait_milliseconds);
+        pollfd descriptor{};
+        descriptor.fd = ConnectionNumber(display_);
+        descriptor.events = POLLIN;
+        const int result = poll(&descriptor, 1, milliseconds);
+        if (result > 0) {
+            if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+                // A dead connection never becomes readable; idle out the budget once so callers
+                // still throttle instead of spinning on a broken display.
+                wait_until_seconds(deadline);
+                pump(false);
+                return has_pending_events();
+            }
+            continue; // Readable: drain and re-check for normalized events.
+        }
+        if (result == 0) {
+            pump(false);
+            return has_pending_events();
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        wait_until_seconds(deadline);
+        pump(false);
+        return has_pending_events();
+    }
+}
+
+void X11Window::show() {
+    if (display_ == nullptr || window_ == 0 || mapped_ ||
+        std::this_thread::get_id() != owner_thread_) {
+        return;
+    }
+    XMapWindow(display_, window_);
+    mapped_ = true;
+    XFlush(display_);
+}
+
+void X11Window::hide() {
+    if (display_ == nullptr || window_ == 0 || !mapped_ ||
+        std::this_thread::get_id() != owner_thread_) {
+        return;
+    }
+    XUnmapWindow(display_, window_);
+    mapped_ = false;
+    focused_ = false;
+    redraw_pending_ = false;
+    XFlush(display_);
+}
+
+void X11Window::request_redraw() {
+    if (display_ == nullptr || window_ == 0 || !mapped_ ||
+        std::this_thread::get_id() != owner_thread_) {
+        // A hidden window has nothing to repaint; mapping produces an Expose wake instead.
+        return;
+    }
+    if (redraw_pending_) {
+        return;
+    }
+    redraw_pending_ = true;
+    XClearArea(display_, window_, 0, 0, 0, 0, True);
+    XFlush(display_);
+}
+
+void X11Window::close() {
+    if (display_ == nullptr || window_ == 0 || close_posted_ ||
+        std::this_thread::get_id() != owner_thread_) {
+        return;
+    }
+    close_posted_ = true;
+    if (wm_protocols_ == 0 || wm_delete_window_ == 0) {
+        request_close();
+        return;
+    }
+
+    // Deliver the same WM_DELETE_WINDOW ClientMessage a window manager would, so graceful close
+    // and external close share one code path. The event loops back through handle_event().
+    XClientMessageEvent message{};
+    message.type = ClientMessage;
+    message.display = display_;
+    message.window = window_;
+    message.message_type = wm_protocols_;
+    message.format = 32;
+    message.data.l[0] = static_cast<long>(wm_delete_window_);
+    message.data.l[1] = CurrentTime;
+    XEvent event{};
+    event.xclient = message;
+    if (XSendEvent(display_, window_, False, NoEventMask, &event) == 0) {
+        request_close();
+    }
+    XFlush(display_);
+}
+
+} // namespace
+
+bool Window::wait_for_events(double timeout_seconds) {
+    // Default for platform windows without an OS event source: idle for the bounded timeout and
+    // report no event so a polling caller still throttles instead of spinning.
+    if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
+        wait_until_seconds(steady_now_seconds() + timeout_seconds);
+    }
+    return false;
+}
+
+std::unique_ptr<Window> create_window(const WindowDesc& desc) {
+    auto window = std::make_unique<X11Window>();
+    if (!window->create(desc)) {
+        return nullptr;
+    }
+    return window;
+}
+
+} // namespace tessera::hal

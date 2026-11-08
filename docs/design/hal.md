@@ -51,17 +51,21 @@ as idling rather than blocking. Early wakeups from input, async completions, and
 `runtime::SystemClock` (`src/runtime/system_clock.*`) is the only runtime adapter and delegates
 here; `src/hal/` never depends on `src/runtime/`.
 
-### 1.2 Window event wait (implemented, Windows)
+### 1.2 Window event wait (implemented, Windows and Linux/X11)
 
 `hal::Window::wait_for_events(timeout_seconds)` idles on the owning thread while pumping OS
-messages and returns `true` when at least one normalized `WindowEvent` is queued (or a close is
-pending), `false` on timeout. Negative or non-finite timeouts are clamped to zero and every wait is
-bounded. The Win32 implementation (`src/platform/windows/window.cpp`) waits with
-`MsgWaitForMultipleObjectsEx` (`QS_ALLINPUT`, bounded millisecond timeout) and then drains with
-`PeekMessage`/`DispatchMessage`, preserving queue order and the existing resize coalescing. The
-message callbacks only record events, so no user code runs from inside the wait. Non-Windows builds
-keep a bounded `wait_until_seconds` fallback that returns `false` because no X11/Wayland window
-backend exists yet.
+messages and returns `true` when at least one normalized `WindowEvent` is queued (or a close or
+coalesced redraw wake is pending), `false` on timeout. Negative or non-finite timeouts are clamped
+to zero and every wait is bounded. The Win32 implementation (`src/platform/windows/window.cpp`)
+waits with `MsgWaitForMultipleObjectsEx` (`QS_ALLINPUT`, bounded millisecond timeout) and then
+drains with `PeekMessage`/`DispatchMessage`, preserving queue order and resize coalescing. The
+Linux implementation (`src/platform/linux/window.cpp`) `poll()`s the Xlib connection fd with a
+millisecond timeout rounded up from the remaining budget, then drains `XPending`/`XNextEvent`; a
+foreign-thread call returns `false` and a dead connection idles out the remaining budget once
+instead of spinning. Both platform paths only record events, so no user code runs from inside the
+wait.
+Platforms without an event source (macOS until its backend lands, and Linux configured without
+X11) keep the bounded `wait_until_seconds` fallback that returns `false`.
 
 [`include/tessera/hal/window_wait.hpp`](../../include/tessera/hal/window_wait.hpp) adds
 `wait_for_events_until(window, deadline_seconds)`: it slices the platform wait so a wakeup cannot
@@ -239,17 +243,25 @@ See [`window-resize.md`](window-resize.md) for the state machine and
 
 - `src/hal/timer/` is implemented (`tessera_hal_timer`): monotonic clock + bounded idle wait.
 - `src/hal/window/` provides `tessera_hal_window` and `hal::create_window`. The Win32
-  implementation lives in `src/platform/windows/window.cpp`; other platforms build a stub that
-  returns `nullptr`. Window creation, normalized resize/DPI/focus/close events, owner-thread
-  destruction, and the event-driven `wait_for_events` idle wait are covered by `window_win32` and
-  `window_wait` tests on Windows. `include/tessera/hal/window_wait.hpp` supplies the
-  deadline-bounded `wait_for_events_until` helper for the runtime/frame pacer. Wiring that helper
-  into `RuntimeLoop` is still pending; the loop's tick behavior is unchanged.
-- The Win32 `VkSurfaceKHR`/swapchain path lives in `src/rendering/backend/vulkan/src/` and is
-  created through `Device::create_swapchain` with the opaque `native_window` handle supplied by
-  the HAL. Other `src/hal/*` and `src/platform/*` areas remain placeholders.
-- B1 is offscreen; the B3 window/swapchain path is Windows-only for now. Linux backends are the
-  next B3 slice (Windows and Linux per Big Step F; macOS via
+  implementation lives in `src/platform/windows/window.cpp`; the X11 implementation lives in
+  `src/platform/linux/window.cpp` and is selected when CMake finds Xlib. Other platforms, and
+  Linux configurations without X11, build a stub that returns `nullptr`. Window creation,
+  normalized resize/DPI/focus/close events, owner-thread destruction, and the event-driven
+  `wait_for_events` idle wait are covered by `window_win32`/`window_wait` on Windows and
+  `window_x11` on Linux (skipped when `DISPLAY` is unset). `include/tessera/hal/window_wait.hpp`
+  supplies the deadline-bounded `wait_for_events_until` helper for the runtime/frame pacer.
+  Wiring that helper into `RuntimeLoop` is still pending; the loop's tick behavior is unchanged.
+- Platform `VkSurfaceKHR`/swapchain paths live in `src/rendering/backend/vulkan/src/` and are
+  created through `Device::create_swapchain` with the opaque `native_window` (HWND) or
+  `native_display` + `native_window` (`Display*` + `Window`) handles supplied by the HAL. Win32
+  and Xlib are implemented; other configurations report `NotSupported`. The Xlib smoke test runs
+  under Xvfb with lavapipe.
+- B1 is offscreen; the B3 window/swapchain path is Windows + Linux/X11. Remaining B3 slices are
+  Wayland, swapchain-image render targets, per-image frames-in-flight synchronization, live
+  resize/device-loss policy, and runtime/pacer integration (macOS via
   [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per
   [`mobile-integration.md`](mobile-integration.md)).
+- X11 limitations in this slice: no Wayland, no IME/XIM, no occlusion/minimize signal, no RandR
+  or display-hotplug handling, and DPI is a global `Xft.dpi` heuristic (96 fallback). See
+  [`window-resize.md`](window-resize.md) §0.
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).

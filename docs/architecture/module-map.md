@@ -13,9 +13,9 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 |---|---|---|
 | `include/tessera/` | Public headers; light, no backend/OS headers | B1 + B3 seams |
 | `src/core/` | object, memory, threading, events, resources | planned |
-| `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | timer B2; window seam B3; rest planned |
+| `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | timer B2; window seam B3 (Win32/X11); rest planned |
 | `src/hal/timer/` | monotonic clock + bounded idle wait (`tessera_hal_timer`) | B2 |
-| `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL (hardware/OS abstraction layer) | planned (B3) |
+| `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL (hardware/OS abstraction layer) | Win32 + Linux/X11 window B3; Wayland/Cocoa/Android planned |
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; style/layout/text/input/animation B2 core; view/responsive/accessibility planned |
 | `src/ui/input/` | normalized input event, bounded queue, move coalescing | B2 core |
 | `src/ui/style/` | CSS tokenizer, parser, selectors, cascade, media queries, `@supports`, keyframes, property registry | B2 core |
@@ -180,6 +180,7 @@ merger prototype.
 | `tessera_rhi_null` | static | [null backend](../reference/glossary.md) + deterministic swapchain |
 | `tessera_scene` | static | scene graph/events, focus manager, keyboard routing |
 | `tessera_hal_timer` | static | monotonic clock + bounded idle wait (B2) |
+| `tessera_hal_window` | static | Win32/X11 window + normalized event queue (B3); stub elsewhere |
 | `tessera_diagnostics` | static | structured logging + metrics core (B2) |
 | `tessera_runtime` | static | fixed-step/clock/pacing core + system clock (B2) |
 | `tessera_input` | static | normalized input queue + sampler (B2) |

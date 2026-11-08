@@ -125,7 +125,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | Library / API | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
 | Win32 API | V1 (Windows) | System | `platform/windows` | Window, input, lifecycle |
-| X11 | V1 (Linux) | MIT/X11 | `platform/linux` | Window, input |
+| X11 (`libX11`) | V1 (Linux, B3 window/present; linked dynamically) | MIT/X11 | `platform/linux`, `rendering/backend/vulkan` | Window, Xlib `VkSurfaceKHR` |
 | Wayland (`libwayland-client`, `wayland-protocols`) | V1 (Linux) | MIT | `platform/linux` | Window, input |
 | libxkbcommon | V1 (Linux) | MIT | `hal/input` | Keyboard mapping |
 | AndroidX WindowManager (`androidx.window:window`) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | `WindowMetrics`, fold posture/hinge via JNI (Java Native Interface) |

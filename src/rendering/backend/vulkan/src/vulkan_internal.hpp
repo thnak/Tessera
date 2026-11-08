@@ -16,6 +16,12 @@
 
 #include <vk_mem_alloc.h>
 
+// Presentation surfaces exist only on platforms whose WSI extension is compiled in. Everything
+// else keeps the offscreen device and reports SwapchainError::NotSupported.
+#if defined(VK_USE_PLATFORM_WIN32_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR)
+#define TESSERA_VULKAN_HAS_PRESENT_SURFACE 1
+#endif
+
 namespace tessera::rendering::vulkan {
 
 inline void check_vk(VkResult result, const char* what) {
@@ -283,7 +289,7 @@ private:
     bool submitted_ = false;
 };
 
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 
 struct VulkanSwapchainStats {
     std::uint32_t swapchains_created = 0;
@@ -330,7 +336,7 @@ private:
     VulkanSwapchain(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device,
                     VkQueue queue);
 
-    std::expected<void, rhi::SwapchainError> create_surface(void* native_window);
+    std::expected<void, rhi::SwapchainError> create_surface(const rhi::SwapchainDesc& desc);
     std::expected<void, rhi::SwapchainError> create_swapchain(bool recreate, rhi::Extent2D extent);
     std::expected<void, rhi::SwapchainError> recreate_pending();
     void ensure_acquire_fence();
@@ -362,7 +368,7 @@ private:
     VulkanSwapchainStats stats_;
 };
 
-#endif // VK_USE_PLATFORM_WIN32_KHR
+#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
 
 class VulkanDevice final : public rhi::Device {
 public:
@@ -405,10 +411,14 @@ private:
     VmaAllocator allocator_ = nullptr;
     VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
     VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
     bool surface_extensions_enabled_ = false;
     bool swapchain_extension_enabled_ = false;
+#endif
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
     bool win32_present_supported_ = false;
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+    bool xlib_present_supported_ = false;
 #endif
 };
 

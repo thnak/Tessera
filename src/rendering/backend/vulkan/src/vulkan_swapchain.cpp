@@ -9,14 +9,19 @@
 
 #include "vulkan_internal.hpp"
 
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <limits>
 #include <vector>
+
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
 #include <windows.h>
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+#include <X11/Xlib.h>
+#endif
 
 namespace tessera::rendering::vulkan {
 namespace {
@@ -132,7 +137,7 @@ VulkanSwapchain::create(VkInstance instance, VkPhysicalDevice physical_device, V
         new VulkanSwapchain(instance, physical_device, device, queue));
     swapchain->desc_ = desc;
 
-    if (const auto surface = swapchain->create_surface(desc.native_window); !surface) {
+    if (const auto surface = swapchain->create_surface(desc); !surface) {
         return std::unexpected(surface.error());
     }
     if (const auto created = swapchain->create_swapchain(false, desc.extent); !created) {
@@ -141,12 +146,26 @@ VulkanSwapchain::create(VkInstance instance, VkPhysicalDevice physical_device, V
     return swapchain;
 }
 
-std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_surface(void* native_window) {
+std::expected<void, rhi::SwapchainError>
+VulkanSwapchain::create_surface(const rhi::SwapchainDesc& desc) {
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
     VkWin32SurfaceCreateInfoKHR create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     create_info.hinstance = GetModuleHandleW(nullptr);
-    create_info.hwnd = static_cast<HWND>(native_window);
+    create_info.hwnd = static_cast<HWND>(desc.native_window);
     const VkResult result = vkCreateWin32SurfaceKHR(instance_, &create_info, nullptr, &surface_);
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+    if (desc.native_display == nullptr || desc.native_window == nullptr ||
+        vkCreateXlibSurfaceKHR == nullptr) {
+        return std::unexpected(rhi::SwapchainError::NotSupported);
+    }
+    VkXlibSurfaceCreateInfoKHR create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+    create_info.dpy = static_cast<Display*>(desc.native_display);
+    create_info.window =
+        static_cast<::Window>(reinterpret_cast<std::uintptr_t>(desc.native_window));
+    const VkResult result = vkCreateXlibSurfaceKHR(instance_, &create_info, nullptr, &surface_);
+#endif
     if (result != VK_SUCCESS) {
         surface_ = VK_NULL_HANDLE;
         return std::unexpected(rhi::SwapchainError::SurfaceLost);
@@ -326,4 +345,4 @@ void VulkanSwapchain::destroy_swapchain_resources() {
 
 } // namespace tessera::rendering::vulkan
 
-#endif // VK_USE_PLATFORM_WIN32_KHR
+#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
