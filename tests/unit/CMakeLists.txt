@@ -91,6 +91,20 @@ target_link_libraries(diagnostics_tests PRIVATE tessera_runtime)
 
 add_test(NAME diagnostics COMMAND diagnostics_tests)
 
+add_executable(diagnostics_log_tests
+    diagnostics_log_tests.cpp)
+
+target_link_libraries(diagnostics_log_tests PRIVATE tessera_diagnostics)
+
+add_test(NAME diagnostics_log COMMAND diagnostics_log_tests)
+
+add_executable(diagnostics_metrics_tests
+    diagnostics_metrics_tests.cpp)
+
+target_link_libraries(diagnostics_metrics_tests PRIVATE tessera_diagnostics)
+
+add_test(NAME diagnostics_metrics COMMAND diagnostics_metrics_tests)
+
 add_executable(async_tests
     async_tests.cpp)
 

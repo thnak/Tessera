@@ -462,10 +462,13 @@ bounded deterministic atlas packs them (`ui/text/glyph_atlas.hpp`), and `TextRen
 (`ui/scene/focus.hpp`); and the batched 2D renderer has a damage-scissored `begin_damaged` path
 with null-backend draw records. Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
 bounded deterministic manual executor with once-only cancellation callbacks and a prioritized completion queue drained by `RuntimeLoop`
-under a per-tick budget, and `runtime/diagnostics.hpp` tracks per-frame/total counters. Next slices,
+under a per-tick budget, and `runtime/diagnostics.hpp` tracks per-frame/total counters. The
+structured diagnostics core is `src/diagnostics/`: `diagnostics::Logger` (levels, categories,
+path redaction, bounded ring sink, disabled fast path) and `diagnostics::MetricsRegistry`
+(fixed-capacity atomic counters/gauges with snapshots). Next slices,
 in order:
 
-1. Async runtime, diagnostics, lavapipe goldens.
+1. Async runtime, remaining diagnostics (tracing/overlay/crash), lavapipe goldens.
 2. B3 window/present path: event-driven wait, vsync/present, deadline integration (the clock/wait
    seam landed).
 3. Platform input translation and remaining focus policy (`tab_index`, `:focus`, modal trapping;

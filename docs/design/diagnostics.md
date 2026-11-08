@@ -1,6 +1,8 @@
 # Diagnostics, tracing, and profiling
 
-Status: design for Big Step B2 (runtime slice) and B3 (window/swapchain path); both are defined in
+Status: the B2 logging/metrics core is implemented in `src/diagnostics/`
+(`tessera_diagnostics`: `diagnostics/log.hpp`, `diagnostics/metrics.hpp`); tracing, overlay,
+crash reporting, capture, and exporters remain design for B2/B3. Big Steps are defined in
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Normative decision:
 [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling). Crash-report pipeline:
 [`crash-reporting-v1.md`](../specs/crash-reporting-v1.md); devtools:
@@ -33,6 +35,19 @@ ETW = Event Tracing for Windows; PDB/DWARF = debug-symbol formats.
 | Capture | reproduce/diff a frame | explicit trigger |
 
 ## 3. Structured logging
+
+Implemented core (`diagnostics::Logger`, `diagnostics/log.hpp`):
+
+- Levels `trace`..`fatal` and the category set from
+  [`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md) are mirrored as enums; a
+  category mask plus a minimum level filters records before the message is touched.
+- `MemoryLogSink` is a bounded chronological ring for breadcrumbs/tests (`dropped()` counts
+  discarded records). Sinks are non-owning and multiple sinks are supported.
+- `redact_paths` replaces absolute Windows, POSIX, and macOS home prefixes with `<home>` and is on
+  by default (`LogConfig::redact_paths`).
+- `LogRecord` carries frame, tick, and window ids. Logging allocates only for an enabled record.
+- Not implemented yet: file/console/debugger sinks, the async writer thread, rate limiting,
+  sampling, category string config, and window-title redaction.
 
 - Levels: `trace`, `debug`, `info`, `warn`, `error`, `fatal`.
 - Categories: `app`, `window`, `input`, `style`, `layout`, `paint`, `rhi`, `vulkan`, `gpu`,
@@ -76,6 +91,16 @@ Example shape:
 - Sampling/flamegraph hooks on platforms whose profiler supports them (not specified per platform); no symbols required for counters.
 
 ## 5. Metrics and counters
+
+Implemented core (`diagnostics::MetricsRegistry`, `diagnostics/metrics.hpp`):
+
+- Fixed-capacity registry (`MetricsRegistry::kMaxMetrics`, default 128) of named counters and
+  gauges. Names are allocated once at registration; increments are one relaxed atomic add, so
+  frame/async hot paths do not allocate or block.
+- `snapshot()` copies values in registration order for the overlay, tests, and future exporters;
+  `reset()` zeroes values but keeps registrations. Registration past capacity returns
+  `kInvalidMetric`, and operations on it are no-ops.
+- Not implemented yet: histograms, sampling/rate limits, time-series retention, and exporters.
 
 - Frame/tick: frame time, tick time, update/style/layout/paint/render/present wait, dropped
   steps, missed deadlines.

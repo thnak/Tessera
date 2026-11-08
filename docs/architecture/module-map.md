@@ -148,6 +148,8 @@ Only `include/tessera/` is public. Current headers:
 | `ui/frame_pipeline.hpp` | one-frame orchestration: animation tick -> target dirty domains -> damage -> normalized redraw plan |
 | `runtime/async.hpp` | cancellation + callbacks + executor + completion queue (B2) |
 | `runtime/diagnostics.hpp` | per-frame/total frame diagnostics counters |
+| `diagnostics/log.hpp` | structured levels/categories, redaction, bounded ring sink (B2) |
+| `diagnostics/metrics.hpp` | fixed-capacity atomic counters/gauges + snapshots (B2) |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/system_clock.hpp` | `Clock` adapter backed by the HAL timer (B2) |
@@ -166,6 +168,7 @@ merger prototype.
 | `tessera_rhi_null` | static | [null backend](../reference/glossary.md) |
 | `tessera_scene` | static | scene graph/events, focus manager, keyboard routing |
 | `tessera_hal_timer` | static | monotonic clock + bounded idle wait (B2) |
+| `tessera_diagnostics` | static | structured logging + metrics core (B2) |
 | `tessera_runtime` | static | fixed-step/clock/pacing core + system clock (B2) |
 | `tessera_input` | static | normalized input queue + sampler (B2) |
 | `tessera_damage` | static | damage rectangle accumulator (B2) |
