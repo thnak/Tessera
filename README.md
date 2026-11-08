@@ -110,7 +110,7 @@ Tessera/
 
 ## Build
 
-Requirements: CMake >= 3.24, a C++20 compiler, and the Vulkan SDK
+Requirements: CMake >= 3.24, a C++23 compiler, and the Vulkan SDK
 (`VULKAN_SDK` set; `glslc`, the GLSL-to-SPIR-V shader compiler, in the SDK `Bin/` or on `PATH`).
 
 Windows (MSVC 2022/2026):

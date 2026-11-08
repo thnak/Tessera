@@ -1,7 +1,7 @@
 # Document contradiction resolutions v1
 
 Status: record of a documentation audit (2026-11-08). This file lists contradictions that were
-found between documents, the rule used to resolve each one, and the items that are still
+found between documents and the rule or decision used to resolve each one. No item is left
 undecided. It does not define product behavior; the documents named in each row do.
 
 ## 1. Resolution rules
@@ -16,6 +16,8 @@ Applied in this order:
    [`runtime-config-v1.md`](../specs/runtime-config-v1.md) owns configuration keys and defaults).
 4. **R4**: if no rule decides, the reading consistent with the Non-negotiables in `AGENTS.md` was
    chosen, or the point was marked "undecided" in every document that mentions it.
+
+**owner**: not a derived rule; the project owner chose the value directly.
 
 Terms: "V1" is defined in the [glossary](../reference/glossary.md). Big Steps A to F are defined in
 [`AGENTS.md`](../../AGENTS.md).
@@ -61,19 +63,20 @@ Terms: "V1" is defined in the [glossary](../reference/glossary.md). Big Steps A 
 | 35 | CLI `--targets` values | `windows`, `linux` | R3 | `docs/guides/project-generator.md` |
 | 36 | Sample commands and template names | Only `blank` and `dashboard` are generator templates; other sample names are planned samples | R3 | `docs/guides/sample-apps.md` |
 | 37 | Big Step of the shader spike | GLSL to SPIR-V from B1; Slang/Tint spike in Big Step D | R1 | `decisions/ADR-011-*` |
+| 38 | Default `box-sizing` | `content-box` (the CSS default); decided by the project owner | owner | `docs/design/layout.md`, `docs/specs/stylesheet-v1.md` |
+| 39 | Release of the bundled component library and the initial DataGrid | After V1; decided by the project owner | owner | `docs/design/component-library.md`, `app-completeness-gap-resolutions-v1.md`, `docs/README.md`, `decisions/ADR-032-*` |
+| 40 | Language standard and `std::expected` | C++23; `StatusOr` fallback removed; recorded in [ADR-038](../../decisions/ADR-038-cpp23-baseline.md); decided by the project owner | owner | `AGENTS.md`, build files, `.clang-format`, and 12 documents; built and tested on MSVC (Visual Studio 2026 preset), 7 of 7 tests pass |
+| 41 | Extra devtools clients | An additional client is rejected with an error; the primary session is unaffected; decided by the project owner | owner | `docs/specs/devtools-protocol-v1.md` |
+| 42 | Enabling devtools in a release build | Only by building with the CMake option `TESSERA_ENABLE_DEVTOOLS=ON` (default OFF, option not yet created); no runtime switch; decided by the project owner | owner | `docs/specs/devtools-protocol-v1.md` |
+| 43 | Shortcuts during IME composition | A shortcut registers with `allowDuringComposition` (default `false`); decided by the project owner | owner | `docs/specs/accessibility-v1.md`, `platform-shell-v1.md`, `docs/design/accessibility.md` |
+| 44 | Android versions for glow vs stretch | Glow on Android 11 (API 30) and earlier; stretch on Android 12 (API 31) and later; decided by the project owner | owner | `docs/specs/animation-v1.md` |
+| 45 | Idling between ticks vs non-negotiable 12 | Rule 12 now states that waiting on the platform event/timer wait between ticks is idling, not blocking; decided by the project owner | owner | `AGENTS.md` |
 
-## 3. Undecided (a product or design decision is needed)
+## 3. Undecided
 
-| # | Topic | Where it appears | Options |
-|---|---|---|---|
-| U1 | Default `box-sizing` | `docs/design/layout.md`, `docs/specs/stylesheet-v1.md` | `content-box` (CSS default) or `border-box` (the Yoga model) |
-| U2 | Release of the bundled component library and the initial DataGrid | `docs/design/component-library.md`, `app-completeness-gap-resolutions-v1.md`, `docs/README.md`, ADR-032 | A release name, or "after V1" |
-| U3 | Extra devtools clients | `docs/specs/devtools-protocol-v1.md` | read-only or rejected |
-| U4 | How devtools is explicitly enabled in a release build | `docs/specs/devtools-protocol-v1.md` | Mechanism not specified |
-| U5 | How shortcuts are marked as allowed during IME composition | `docs/specs/accessibility-v1.md`, `platform-shell-v1.md` | Mechanism not specified |
-| U6 | Which Android versions use the glow instead of stretch | `docs/specs/animation-v1.md` | Not specified |
-| U7 | `std::expected` and the language standard | `AGENTS.md` (C++20), `error-model-v1.md` | `std::expected` is a C++23 library feature; the project says C++20 with a `StatusOr` fallback |
-| U8 | Sleeping between ticks vs non-negotiable 12 | `docs/design/game-loop.md` section 9 | The wording was accepted by this audit; confirm it matches the intended meaning of non-negotiable 12 |
+None. Every contradiction found by the audit is resolved in section 2. Items that are
+"not specified" inside individual documents (for example the minimum compiler versions in
+[ADR-038](../../decisions/ADR-038-cpp23-baseline.md)) are listed in those documents, not here.
 
 ## 4. References
 

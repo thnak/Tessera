@@ -9,4 +9,4 @@ target_include_directories(tessera_scene PUBLIC
 
 target_link_libraries(tessera_scene PUBLIC tessera_rhi)
 
-target_compile_features(tessera_scene PUBLIC cxx_std_20)
+target_compile_features(tessera_scene PUBLIC cxx_std_23)

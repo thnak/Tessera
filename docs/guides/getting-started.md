@@ -9,7 +9,7 @@ tests, and run the offscreen/batched2d demos.
 ### Prerequisites
 
 - CMake >= 3.24
-- C++20 compiler (MSVC 2022/2026, GCC, or Clang)
+- C++23 compiler with `std::expected` (MSVC 2022/2026, GCC, or Clang; minimum versions are not yet written, see [ADR-038](../../decisions/ADR-038-cpp23-baseline.md))
 - Vulkan SDK: headers, loader, `glslc`, validation layers
 - `VULKAN_SDK` set (Windows) and `glslc` discoverable
 - Ninja (recommended), or a Visual Studio generator

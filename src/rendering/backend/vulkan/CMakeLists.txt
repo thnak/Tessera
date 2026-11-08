@@ -50,7 +50,7 @@ target_include_directories(tessera_vulkan PUBLIC
 target_include_directories(tessera_vulkan PRIVATE
     ${TESSERA_SHADER_GEN_DIR})
 target_link_libraries(tessera_vulkan PUBLIC Vulkan::Vulkan tessera_stb)
-target_compile_features(tessera_vulkan PUBLIC cxx_std_20)
+target_compile_features(tessera_vulkan PUBLIC cxx_std_23)
 add_dependencies(tessera_vulkan tessera_vulkan_shaders)
 
 add_library(tessera_rhi_vulkan STATIC
@@ -75,7 +75,7 @@ target_include_directories(tessera_rhi_vulkan PRIVATE
 
 target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_NO_PROTOTYPES)
 target_link_libraries(tessera_rhi_vulkan PUBLIC tessera_rhi Vulkan::Vulkan)
-target_compile_features(tessera_rhi_vulkan PUBLIC cxx_std_20)
+target_compile_features(tessera_rhi_vulkan PUBLIC cxx_std_23)
 add_dependencies(tessera_rhi_vulkan tessera_batched2d_shaders)
 
 if (MSVC)

@@ -55,9 +55,9 @@ shape. It is rebuilt/updated on structural changes and reused otherwise.
 | `overflow` | `YGOverflow*` |
 
 Percentages are passed symbolically to Yoga; `auto` maps to `YGValueAuto`. `box-sizing` is
-normalized before mapping: the default value is not specified (the stylesheet spec,
-[`stylesheet-v1.md`](../specs/stylesheet-v1.md), lists `box-sizing` as supported but sets no default); `content-box` and
-`border-box` are both supported. Yoga sees consistent dimensions in either mode.
+normalized before mapping: the default value is `content-box` (the CSS default, set in
+[`stylesheet-v1.md`](../specs/stylesheet-v1.md) section 11); `content-box` and `border-box` are
+both supported. Yoga sees consistent dimensions in either mode.
 
 ### Grid subset (V1)
 
@@ -169,7 +169,7 @@ changes, and measure only dirty subtrees (a subtree whose text/font/style did no
 ## 10. Open questions
 
 - Grid engine: build a subset on Yoga vs vendor taffy behind a C ABI.
-- `box-sizing` default and browser-divergence policy (the default is not specified in section 3 or in `stylesheet-v1.md`).
+- Browser-divergence policy for `box-sizing` (the default is `content-box`; any difference from browsers is not yet listed).
 - Sticky positioning and scroll-container semantics (see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
 - Container queries and their interaction with layout invalidation (see [`responsive.md`](responsive.md)).
 - Baseline alignment for mixed fonts/emoji.

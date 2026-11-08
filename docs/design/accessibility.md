@@ -65,7 +65,8 @@ accessibility is disabled with a diagnostic. Mobile-specific semantics/IME/decla
 - Dialogs/modals trap focus and restore it on close.
 - Arrow keys navigate lists/tabs/grids; Enter/Space activate; Escape dismisses.
 - Keyboard shortcuts are global or scoped; they do not fire while an IME (input method editor) composition is active
-  unless the shortcut is explicitly marked to allow it.
+  unless the shortcut was registered with `allowDuringComposition = true` (default `false`; see
+  [`accessibility-v1.md`](../specs/accessibility-v1.md)).
 - Screen-reader focus and keyboard focus are synchronized; avoid double announcements.
 
 ## 5. Text scale, contrast, motion

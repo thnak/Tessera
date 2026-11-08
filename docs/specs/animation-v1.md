@@ -117,7 +117,7 @@ Modes:
   overlays are not stretched.
 - `Bounce`: content layer translates past the edge (no scale).
 - `Platform`: HAL profile. Proposed defaults: iOS/macOS = `Stretch`, Android = `Stretch`
-  (glow only on Android versions without the stretch effect; not specified which), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
+  (glow on Android 11 (API level 30) and earlier; stretch on Android 12 (API level 31) and later), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
   the platform's HAL profile supports it. Apps may override per `Scroll`.
 
 Drag beyond an edge:

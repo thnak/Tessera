@@ -55,7 +55,9 @@ A cross-platform C++ UI framework:
     on-demand defaults are required. Full-GPU utilization is not a goal.
 12. **Never block the UI thread** (ADR-021). Use async/await plus bounded state machines; no
     `vkWaitForFences`/`vkDeviceWaitIdle`, blocking I/O, or indefinite acquire/present on the UI
-    thread. No detached tasks.
+    thread. No detached tasks. Waiting between ticks on the platform event/timer wait (bounded by
+    the next deadline and woken by input, posted completions, or a frame request) is allowed; it
+    is idling, not blocking in the sense of this rule.
 13. **OS compliance lives in the HAL/runtime** (ADR-020). Styles/animations/components see
     `WindowMetrics`, never window handles, OS messages, or swapchains. Resize/DPI/lifecycle are
     normalized and tested per platform.
@@ -255,7 +257,8 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 
 ## Code conventions
 
-- **C++20** (move hot paths to C++23 only when the toolchain allows it consistently).
+- **C++23** ([ADR-038](decisions/ADR-038-cpp23-baseline.md)); `std::expected<T, Error>` is the
+  error type for recoverable hot paths.
 - Headers: `#pragma once`. Namespace: `tessera::<area>::<module>`.
 - Errors: exceptions at boundaries, `std::expected` for recoverable hot paths.
 - No RTTI/reflection on hot paths. No hidden allocations in frame code.

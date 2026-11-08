@@ -42,6 +42,6 @@ Pipeline: JSX/TSX → (Tier-1 React rules, Tier-2 `bind::` extractor; see [docs/
 - Static linking of third-party libs (no LGPL/GPL); MIT project license. New dependency → entries in `docs/specs/dependencies.md` and `THIRD_PARTY_NOTICES.md`.
 - Never block the UI thread (no `vkWaitForFences`/`vkDeviceWaitIdle`, blocking I/O); no detached tasks; static UI must idle with zero presents.
 - No hidden allocations or RTTI on frame/hot paths; exceptions at boundaries, `std::expected` for recoverable hot paths; never throw across threads/FFI.
-- New files: `#pragma once`, namespace `tessera::<area>::<module>`, `SPDX-License-Identifier: MIT`, soft 300 / hard 500 line limit, one primary type per header. C++20, `.clang-format` (4 spaces, 100 cols).
+- New files: `#pragma once`, namespace `tessera::<area>::<module>`, `SPDX-License-Identifier: MIT`, soft 300 / hard 500 line limit, one primary type per header. C++23, `.clang-format` (4 spaces, 100 cols).
 - Shaders are GLSL → SPIR-V via `glslc`.
 - Every new subsystem gets a design note in `docs/design/` (ADR in `decisions/` if contentious) and a `docs/README.md` update.

@@ -368,7 +368,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Async data / offline | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |
 | Devtools / hot reload | C/D proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
 | Updates / signing / crash | F proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
-| Component library | release undecided; proposed ([ADR-032](../decisions/ADR-032-bundled-component-library.md) accepted) |
+| Component library | after V1; proposed ([ADR-032](../decisions/ADR-032-bundled-component-library.md) accepted) |
 | Samples / media / export | planned/deferred |
 | Designer/Wasm | D proposed |
 | Packaging/release | F proposed |

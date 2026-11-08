@@ -44,3 +44,9 @@ is a product layer, not part of the renderer.
 - Tabs/Sidebar/AppBar/List/Table.
 - DataGrid/DatePicker/Tree; charts/3D via custom elements.
 - Publish docs/examples and golden baselines.
+
+## Release scope (added 2026-11-08)
+
+The bundled component library, including the initial DataGrid, ships after V1. V1 is defined in
+the [glossary](../docs/reference/glossary.md). This note adds the release decision that the
+staging above did not make; it does not change the staging.

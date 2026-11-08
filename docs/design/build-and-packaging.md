@@ -5,7 +5,7 @@ Updates/signing/notarization: [`updates-and-distribution-v1.md`](../specs/update
 
 ## 1. Build system
 
-- CMake >= 3.24, C++20, Ninja preferred; Visual Studio generators supported.
+- CMake >= 3.24, C++23, Ninja preferred; Visual Studio generators supported.
 - `CMakePresets.json`: `dev`, `release`, `ci`, `vs2026`, `vs2022`.
 - Options:
   - `BUILD_SHARED_LIBS=OFF` (default)

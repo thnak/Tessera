@@ -1,6 +1,6 @@
 # ADR-015: Code style and build-cache-friendly translation units
 
-- Status: Accepted
+- Status: Accepted (item 1 superseded by [ADR-038](ADR-038-cpp23-baseline.md): the standard is C++23)
 - Date: 2026-11-07
 - Related: [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest), [ADR-012](ADR-012-static-linking.md) (static linking)
 
@@ -12,7 +12,7 @@ faster while destroying incremental caching. Style also drifts without enforceme
 
 ## Decision
 
-1. **C++20**, formatted with `.clang-format` (LLVM base, 4 spaces, 100 columns,
+1. **C++20** (now C++23, see the status line), formatted with `.clang-format` (LLVM base, 4 spaces, 100 columns,
    `PointerAlignment: Left`, `InsertBraces: true`).
 2. Naming rules per [`docs/guides/code-style.md`](../docs/guides/code-style.md):
    `PascalCase` types, `snake_case` functions/variables, `snake_case_` private members,

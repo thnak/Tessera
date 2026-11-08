@@ -8,4 +8,4 @@ target_include_directories(tessera_gpu PUBLIC
 
 target_link_libraries(tessera_gpu PUBLIC tessera_rhi)
 
-target_compile_features(tessera_gpu PUBLIC cxx_std_20)
+target_compile_features(tessera_gpu PUBLIC cxx_std_23)

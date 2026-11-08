@@ -27,7 +27,7 @@ struct Error {
 };
 ```
 
-APIs return `std::expected<T, Error>` (or a project `StatusOr<T>` on toolchains without it)
+APIs return `std::expected<T, Error>` (C++23, [ADR-038](../../decisions/ADR-038-cpp23-baseline.md))
 for recoverable failures. Exceptions are allowed for construction/programming errors at
 boundaries (invalid arguments) and are translated to `Error` where a result is expected.
 Out-of-memory (`bad_alloc`) is fatal, is not translated to `Error`, and goes to the root

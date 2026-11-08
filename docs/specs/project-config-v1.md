@@ -77,7 +77,7 @@ paths are rejected.
 | `outDir` | string | `generated` | Must not overlap `ui.sourceDirs` |
 | `includeDir` | string | `generated/include` | Public generated headers |
 | `namespace` | string | `<app.namespace>::gen` | Generated C++ namespace |
-| `language` | string | `c++20` | `c++20` only in V1 |
+| `language` | string | `c++23` | `c++23` only in V1 |
 | `format` | string | `clang-format` | `clang-format` or `none` (debug only) |
 | `protectedRegions` | boolean | `true` | Must be `true` outside debug |
 | `deterministic` | boolean | `true` | Must be `true` outside debug |
@@ -449,7 +449,7 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     "outDir": "generated",
     "includeDir": "generated/include",
     "namespace": "factory::gen",
-    "language": "c++20",
+    "language": "c++23",
     "format": "clang-format",
     "protectedRegions": true,
     "deterministic": true

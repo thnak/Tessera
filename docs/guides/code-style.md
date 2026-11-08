@@ -7,8 +7,7 @@ Formatting and linting are enforced by tools, not by review comments.
 
 ## Language baseline
 
-- **C++20** for all shipped code. C++23 features only when every target compiler supports them
-  and the build presets are updated.
+- **C++23** for all shipped code ([ADR-038](../../decisions/ADR-038-cpp23-baseline.md)).
 - No RTTI/reflection on hot paths (hot path = code that runs per frame or per input event). No exceptions in frame-critical code.
 - Prefer the standard library (`std::span`, `std::string_view`, `std::expected` where the compiler provides it)
   over ad-hoc utility types.

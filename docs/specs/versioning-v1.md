@@ -64,7 +64,7 @@ Rules:
 - Regeneration is deterministic; `--check` detects drift.
 - Protected regions are a compatibility contract: marker format/id semantics cannot change
   without a migration.
-- Generated code targets the project's declared C++ standard (C++20 in V1).
+- Generated code targets the project's declared C++ standard (C++23 in V1).
 
 ## 4. Runtime ABI
 

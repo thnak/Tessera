@@ -14,7 +14,7 @@ Normative companions: [`navigation-v1.md`](../specs/navigation-v1.md),
 
 ```cpp
 template <typename T>
-using Result = std::expected<T, ServiceError>;  // or StatusOr<T> on C++20 toolchains
+using Result = std::expected<T, ServiceError>;
 
 class Service {
 public:
@@ -24,7 +24,7 @@ public:
 ```
 
 - Every async operation returns a cancellable task/result.
-- Errors are values (`std::expected`/`StatusOr`), not exceptions in hot paths.
+- Errors are values (`std::expected`), not exceptions in hot paths.
 - Results are delivered on the UI thread through the completion queue ([`async.md`](async.md)).
 - Services never touch scene nodes directly; the app maps results to state.
 - Configuration is explicit (no environment-variable magic in production).

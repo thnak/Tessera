@@ -9,4 +9,4 @@ target_link_libraries(batched2d_poc PRIVATE
     tessera_rhi_null
     tessera_stb)
 
-target_compile_features(batched2d_poc PRIVATE cxx_std_20)
+target_compile_features(batched2d_poc PRIVATE cxx_std_23)

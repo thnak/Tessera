@@ -324,7 +324,7 @@ struct RuntimeConfig {
 | damage rects | DXGI dirty rects | Present damage | surface damage | not specified | not specified |
 | resize/DPI/occlusion | `WM_SIZE`/`WM_DPICHANGED` | `ConfigureNotify`/RandR | `xdg configure`/`ack` | not specified | not specified |
 | fold/posture | no standard hinge API | no standard hinge API | compositor-specific | Jetpack WindowManager | no mainstream foldable |
-| async scheduler | portable C++20 | portable | portable | portable | portable |
+| async scheduler | portable C++23 | portable | portable | portable | portable |
 
 "not specified" in the Android and macOS columns means no behavior has been decided yet (Android
 is in Big Step F and macOS follows [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md);

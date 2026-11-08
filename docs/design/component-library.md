@@ -1,6 +1,6 @@
 # Component library and design system
 
-Status: design; a product layer; whether it is in V1 is undecided ([ADR-032](../../decisions/ADR-032-bundled-component-library.md) stages delivery but does not assign a release; V1 is defined in the [glossary](../reference/glossary.md)). Decision: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library).
+Status: design; a product layer; the library ships after V1 (decided 2026-11-08; V1 is defined in the [glossary](../reference/glossary.md), staging is in [ADR-032](../../decisions/ADR-032-bundled-component-library.md)). Decision: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library).
 
 The framework provides primitives; a bundled component library makes it usable without every
 team rebuilding inputs, dialogs, menus, and data grids.
@@ -121,7 +121,7 @@ struct ButtonProps {
 - Density (`comfortable`/`compact`) changes spacing/touch targets only through tokens.
 - RTL uses logical start/end; icons declare `mirror` when directional.
 
-DataGrid initial scope (release undecided, see the status line):
+DataGrid initial scope (ships after V1, see the status line):
 
 - Virtualized rows/columns, selection, sorting, column resize/reorder, keyboard navigation.
 - Editing/grouping/pivot are deferred with no release assigned (listed in section 9); the core does not depend on them.

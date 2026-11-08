@@ -97,7 +97,7 @@ Task<std::optional<Path>> pick_folder(FolderDialogSpec);
   is not specified here).
 - Global/menu shortcuts are registered declaratively; conflicts are diagnostics.
 - Shortcuts are disabled while IME (input method editor) composition is active unless
-  the shortcut is explicitly marked to allow it (the marking/API is not specified).
+  a shortcut declares `allowDuringComposition` (boolean, default `false`) when it is registered; the registration API itself is not specified, see [`input.md`](../design/input.md).
 - No command execution from untrusted labels/paths.
 
 ## 7. Threading and errors
@@ -183,7 +183,7 @@ Menus/shortcuts:
 
 - Menu model is declarative (id, label key, shortcut, enabled/checked, children).
 - Shortcut conflicts are detected at build/startup; platform-reserved shortcuts are not stolen.
-- Menus/shortcuts are disabled during IME composition unless the shortcut is explicitly marked to allow it (marking not specified).
+- Menus/shortcuts are disabled during IME composition unless a shortcut declares `allowDuringComposition` (boolean, default `false`) when it is registered; the registration API itself is not specified, see [`input.md`](../design/input.md).
 - Context menu opening follows overlay positioning/focus/dismiss rules.
 
 Failure/edge cases:

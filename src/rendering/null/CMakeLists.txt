@@ -8,4 +8,4 @@ target_include_directories(tessera_rhi_null PUBLIC
 
 target_link_libraries(tessera_rhi_null PUBLIC tessera_rhi)
 
-target_compile_features(tessera_rhi_null PUBLIC cxx_std_20)
+target_compile_features(tessera_rhi_null PUBLIC cxx_std_23)

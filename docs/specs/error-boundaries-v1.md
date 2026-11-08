@@ -119,7 +119,7 @@ Rules:
 - Exceptions are allowed at **API/component boundaries**, not in frame-critical loops.
 - Generated component entry points (build/update/effect/event) are guarded by the boundary;
   codegen emits a guard at the boundary scope, not a try/catch per line.
-- Recoverable hot paths use `Error`/`std::expected` (or `StatusOr`); exceptions are a safety net.
+- Recoverable hot paths use `Error`/`std::expected`; exceptions are a safety net.
 - No throw across C ABI/JNI/ObjC/Wasm; convert to `Error` and report.
 - Do not mark boundary guard functions `noexcept`; a throw inside `noexcept` terminates.
 - If a build disables exceptions, error boundaries use explicit `Error` results; arbitrary

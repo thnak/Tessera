@@ -176,7 +176,7 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
 
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
-| C++20 standard library | V1 hard | — | all | `pmr`, threads, filesystem, `format`, `expected` |
+| C++23 standard library | V1 hard | — | all | `pmr`, threads, filesystem, `format`, `expected` |
 | glm | V1 optional | MIT | rendering / ui | Math library; we may keep a small 2D math header instead |
 | mimalloc | V1 optional | MIT | `core/memory` | General allocator |
 | rpmalloc | V1 optional alternative | MIT / Public domain | `core/memory` | Allocator alternative |
