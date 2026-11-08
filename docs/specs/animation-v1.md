@@ -1,6 +1,12 @@
 # Animation and interaction effects v1
 
-Status: proposed (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction animation and overscroll stretch/spring-back). Companion to
+Status: implementation started for Big Steps B2/C (defined in
+[AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `ui/animation/keyframes.hpp`
+samples parsed `@keyframes` at fixed-step time with linear numeric/unit interpolation,
+iteration/direction, delay, and fill modes; easing/springs and the active-animation runtime are not
+wired yet. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
+animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),
 [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md), and
 [`overlays-and-layers-v1.md`](overlays-and-layers-v1.md).

@@ -140,6 +140,13 @@ target_link_libraries(supports_tests PRIVATE tessera_style)
 
 add_test(NAME supports COMMAND supports_tests)
 
+add_executable(animation_tests
+    animation_tests.cpp)
+
+target_link_libraries(animation_tests PRIVATE tessera_animation)
+
+add_test(NAME animation COMMAND animation_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 

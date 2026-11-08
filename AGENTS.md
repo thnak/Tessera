@@ -417,7 +417,9 @@ deterministic stub until the real text stack lands. `apply_layout` writes absolu
 scene nodes as parent-relative bounds with dirty propagation, and `ui/layout/pixel_snap.hpp` holds
 the paint-time edge-snapping contract (fractional layout stays unchanged). `add_scene_damage` turns
 dirty Paint/Render scene bounds into snapped damage rectangles. `@supports` evaluates
-`not`/`and`/`or` declarations against the property registry. Next slices, in order:
+`not`/`and`/`or` declarations against the property registry. `ui/animation/keyframes.hpp` samples
+parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation. Next
+slices, in order:
 
 1. Real text stack seam: font loading/metrics, shaping, glyph atlas.
 2. Async runtime, diagnostics, lavapipe goldens.

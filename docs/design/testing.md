@@ -56,6 +56,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `layout_apply` | id matching, parent-relative bounds, dirty propagation, missing/extra boxes |
 | `pixel_snap` | half-up/negative symmetry, scales 1/1.25/2, clamp below 1, joined edges |
 | `damage_pass` | Paint/Render filtering, snapped world bounds, merge, DPI scale, cap/full-redraw, overflow |
+| `animation` | linear/unit/discrete interpolation, delay/fill, reverse/alternate, infinite iterations |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |
