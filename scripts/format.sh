@@ -32,6 +32,7 @@ done < <(find "$root" -type f \
     \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' -o -name '*.cc' -o -name '*.cxx' \) \
     ! -path '*/build/*' ! -path '*/third_party/stb/*' \
     ! -path '*/third_party/volk/*' ! -path '*/third_party/vma/*' \
+    ! -path '*/third_party/yoga/*' \
     ! -path '*/.git/*' -print0)
 
 if (( failed > 0 )); then

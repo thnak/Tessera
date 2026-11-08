@@ -8,6 +8,8 @@ target_include_directories(tessera_stb PUBLIC
 
 if (MSVC)
     target_compile_definitions(tessera_stb PRIVATE _CRT_SECURE_NO_WARNINGS)
+else()
+    target_compile_options(tessera_stb PRIVATE -w)
 endif()
 
 file(GLOB_RECURSE YOGA_SOURCES CONFIGURE_DEPENDS
