@@ -7,6 +7,20 @@
 
 namespace tessera::ui::animation {
 
+const style::KeyframeBlock* find_keyframes(const std::vector<style::KeyframeBlock>& keyframes,
+                                           std::string_view name) {
+    if (name.empty()) {
+        return nullptr;
+    }
+    const style::KeyframeBlock* found = nullptr;
+    for (const style::KeyframeBlock& block : keyframes) {
+        if (block.name == name) {
+            found = &block;
+        }
+    }
+    return found;
+}
+
 AnimationId start_animation(AnimationRuntime& runtime, std::uint64_t target,
                             const AnimationSpec& spec, const style::KeyframeBlock& keyframes,
                             AnimationCallback on_complete) {
@@ -34,6 +48,24 @@ AnimationId start_animation(AnimationRuntime& runtime, std::uint64_t target,
     input.timing = timing;
     input.on_complete = std::move(on_complete);
     return runtime.start(std::move(input));
+}
+
+std::vector<AnimationId> start_animations(AnimationRuntime& runtime, std::uint64_t target,
+                                          const std::vector<AnimationSpec>& specs,
+                                          const std::vector<style::KeyframeBlock>& keyframes,
+                                          AnimationCallback on_complete) {
+    std::vector<AnimationId> ids;
+    for (const AnimationSpec& spec : specs) {
+        const style::KeyframeBlock* block = find_keyframes(keyframes, spec.name);
+        if (block == nullptr) {
+            continue;
+        }
+        const AnimationId id = start_animation(runtime, target, spec, *block, on_complete);
+        if (id != 0) {
+            ids.push_back(id);
+        }
+    }
+    return ids;
 }
 
 } // namespace tessera::ui::animation

@@ -68,6 +68,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `animation` | linear/unit/discrete interpolation, delay/fill, reverse/alternate, infinite iterations |
 | `animation_shorthand` | keyword ordering, comma lists, defaults, two times, directions/fills/play states, invalid specs |
 | `animation_start` | timing mapping, delay/fill, reverse final, zero duration, infinite, callback, skip guards |
+| `animation_lookup` | exact/case-sensitive name lookup, last duplicate wins, batch starts, missing blocks skipped |
 | `animation_runtime` | start/tick/finish, callbacks, stop/clear, target/property stop, wake state, dirty domains |
 | `easing` | linear/presets/bezier identity/steps variants, parser rejection, sampler integration |
 | `spring` | exact semi-implicit step, convergence/epsilon stop, retarget, invalid config, determinism |
