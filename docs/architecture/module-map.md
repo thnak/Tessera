@@ -104,6 +104,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/selector_match.hpp` | StyleNode view, right-to-left matcher, selector index |
 | `ui/style/cascade.hpp` | cascade ordering, computed style, inheritance/keywords |
 | `ui/style/compiled_stylesheet.hpp` | parsed rules -> index -> cascade -> computed style |
+| `ui/style/property_registry.hpp` | supported properties, initial values, shorthand expansion |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |

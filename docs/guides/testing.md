@@ -43,6 +43,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `selector_match` | right-to-left matching, combinators, attributes, state/structural pseudos, index |
 | `cascade` | origin/importance/specificity/source order, property normalization, inheritance keywords |
 | `compiled_stylesheet` | compile rules, selector list specificity, cascade composition, inheritance, recovery |
+| `property_registry` | metadata, box/pair/flex expansion, diagnostics, initial values |
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |

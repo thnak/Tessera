@@ -4,6 +4,7 @@ add_library(tessera_style STATIC
     cascade.cpp
     compiled_stylesheet.cpp
     parser.cpp
+    property_registry.cpp
     selector.cpp
     selector_match.cpp
     tokenizer.cpp)

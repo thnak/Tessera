@@ -47,6 +47,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `selector_match` | right-to-left matching, combinators, attributes, state/structural pseudos, index |
 | `cascade` | origin/importance/specificity/source order, property normalization, inheritance keywords |
 | `compiled_stylesheet` | compile rules, selector list specificity, cascade composition, inheritance, recovery |
+| `property_registry` | metadata, box/pair/flex expansion, diagnostics, initial values |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |

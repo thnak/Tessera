@@ -405,11 +405,12 @@ tolerant stylesheet AST parser (`src/ui/style/parser.cpp`), selector parsing/spe
 (`src/ui/style/selector.cpp`), right-to-left matching/indexing
 (`src/ui/style/selector_match.cpp`), cascade/computed-style/inheritance
 (`src/ui/style/cascade.cpp`), and the top-level stylesheet pipeline
-(`src/ui/style/compiled_stylesheet.cpp`). Next slices, in order:
+(`src/ui/style/compiled_stylesheet.cpp`), and the property registry
+(`src/ui/style/property_registry.cpp`). Next slices, in order:
 
-1. Property registry: validation, longhand expansion, initial values.
-2. At-rule application (`@media`, `@keyframes`, layers) and theme origin.
-3. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
+1. At-rule application (`@media`, `@keyframes`, layers) and theme origin.
+2. Yoga adapter consuming computed styles.
+3. Text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
 4. HAL/system clock + actual wait/present integration.
 5. Platform input translation and hit-test/focus/capture dispatch.
 6. Damage-aware batched2D redraw path and golden equivalence test.

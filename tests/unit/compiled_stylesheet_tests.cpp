@@ -68,8 +68,8 @@ button { padding: 1px; }
     if (!expect(button_cascade.winner("color") != nullptr &&
                     button_cascade.winner("color")->value == "green",
                 "id wins color") ||
-        !expect(button_cascade.winner("padding") != nullptr &&
-                    button_cascade.winner("padding")->value == "4px",
+        !expect(button_cascade.winner("padding-top") != nullptr &&
+                    button_cascade.winner("padding-top")->value == "4px",
                 "class beats type for padding") ||
         !expect(button_cascade.winner("font-size") != nullptr &&
                     button_cascade.winner("font-size")->value == "14px",
@@ -79,7 +79,7 @@ button { padding: 1px; }
 
     const ComputedStyle button_style = compiled.compute(button, nullptr);
     if (!expect(value_is(button_style, "color", "green"), "computed color") ||
-        !expect(value_is(button_style, "padding", "4px"), "computed padding") ||
+        !expect(value_is(button_style, "padding-top", "4px"), "computed padding") ||
         !expect(value_is(button_style, "font-size", "14px"), "computed font-size")) {
         return 3;
     }
@@ -87,7 +87,7 @@ button { padding: 1px; }
     const ComputedStyle title_style = compiled.compute(title, &button_style);
     if (!expect(value_is(title_style, "color", "purple"), "descendant color") ||
         !expect(value_is(title_style, "font-size", "14px"), "inherited font-size") ||
-        !expect(!title_style.contains("padding"), "non-inherited padding absent")) {
+        !expect(value_is(title_style, "padding-top", "0"), "non-inherited padding initial")) {
         return 4;
     }
 

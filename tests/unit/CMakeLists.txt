@@ -112,6 +112,13 @@ target_link_libraries(compiled_stylesheet_tests PRIVATE tessera_style)
 
 add_test(NAME compiled_stylesheet COMMAND compiled_stylesheet_tests)
 
+add_executable(property_registry_tests
+    property_registry_tests.cpp)
+
+target_link_libraries(property_registry_tests PRIVATE tessera_style)
+
+add_test(NAME property_registry COMMAND property_registry_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(
