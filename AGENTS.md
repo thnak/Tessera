@@ -423,7 +423,8 @@ parsed keyframes at fixed-step time with direction/fill and linear numeric inter
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
 retargetable springs, and `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
 Yoga measure callback). Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
-bounded deterministic manual executor. Next slices, in order:
+bounded deterministic manual executor and a prioritized completion queue with a per-tick budget.
+Next slices, in order:
 
 1. Real text stack seam: font loading/metrics, shaping, glyph atlas.
 2. Async runtime, diagnostics, lavapipe goldens.

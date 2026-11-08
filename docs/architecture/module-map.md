@@ -118,7 +118,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |
 | `ui/layout/damage_pass.hpp` | dirty Paint/Render scene bounds -> snapped damage rects |
-| `runtime/async.hpp` | cancellation tokens + bounded deterministic ManualExecutor (B2) |
+| `runtime/async.hpp` | cancellation + ManualExecutor + prioritized completion queue (B2) |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |

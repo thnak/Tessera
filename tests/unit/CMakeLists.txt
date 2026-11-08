@@ -56,6 +56,13 @@ target_link_libraries(async_tests PRIVATE tessera_runtime)
 
 add_test(NAME async COMMAND async_tests)
 
+add_executable(completion_queue_tests
+    completion_queue_tests.cpp)
+
+target_link_libraries(completion_queue_tests PRIVATE tessera_runtime)
+
+add_test(NAME completion_queue COMMAND completion_queue_tests)
+
 add_executable(frame_pacer_tests
     frame_pacer_tests.cpp)
 

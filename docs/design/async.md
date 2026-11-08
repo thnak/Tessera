@@ -3,7 +3,8 @@
 Status: implementation started for Big Step B2 (runtime slice) and design for B3 (window/swapchain
 path); both are defined in [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step).
 `ui/runtime/async.hpp` provides cancellation tokens/sources and a bounded deterministic
-`ManualExecutor` FIFO with stats; coroutine/executor infrastructure is not wired yet. Normative decision:
+`ManualExecutor` FIFO with stats, plus a bounded `CompletionQueue` with visible/layout/background
+priorities and a per-tick task budget; coroutine/executor infrastructure is not wired yet. Normative decision:
 [ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime; no UI-thread blocking). Terms: tick =
 one fixed-step update of the runtime loop ([`game-loop.md`](game-loop.md)); golden = deterministic
 reference image; V1 = first release, V1.1 = the release after V1 (as defined in
