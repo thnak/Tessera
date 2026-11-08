@@ -89,6 +89,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `animation_stop` | target-wide stop count, paused entries removed, other targets preserved, no callbacks, target zero |
 | `animation_stop_name` | exact target/name stop, active and retained fills, case sensitivity, siblings preserved, no stopped callback |
 | `animation_restart` | active elapsed reset/unpause, retained fill revival, callback repeat, exact name/target isolation |
+| `animation_restart_id` | id restart resets active/paused, revives fills with id/property/callback, rejects zero/unknown, others untouched |
 | `easing` | linear/presets/bezier identity/steps variants, parser rejection, sampler integration |
 | `spring` | exact semi-implicit step, convergence/epsilon stop, retarget, invalid config, determinism |
 | `spring_runtime` | sample declarations, layout/paint dirty, settle/finish, retarget final, callbacks, dt guards |

@@ -268,6 +268,30 @@ bool AnimationRuntime::restart_target_name(std::uint64_t target, std::string_vie
     return found || !revived.empty();
 }
 
+bool AnimationRuntime::restart(AnimationId id) {
+    if (id == 0) {
+        return false;
+    }
+    const auto active = std::find_if(entries_.begin(), entries_.end(),
+                                     [&](const AnimationEntry& entry) { return entry.id == id; });
+    if (active != entries_.end()) {
+        active->elapsed = 0.0;
+        active->paused = false;
+        return true;
+    }
+
+    const auto settled = std::find_if(fills_.begin(), fills_.end(),
+                                      [&](const AnimationEntry& entry) { return entry.id == id; });
+    if (settled == fills_.end()) {
+        return false;
+    }
+    settled->elapsed = 0.0;
+    settled->paused = false;
+    entries_.push_back(std::move(*settled));
+    fills_.erase(settled);
+    return true;
+}
+
 bool AnimationRuntime::stop(AnimationId id) {
     const auto found = std::find_if(entries_.begin(), entries_.end(),
                                     [&](const AnimationEntry& entry) { return entry.id == id; });

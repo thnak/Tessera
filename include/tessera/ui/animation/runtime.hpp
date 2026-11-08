@@ -68,6 +68,7 @@ public:
     std::size_t stop_target(std::uint64_t target);
     std::size_t stop_target_name(std::uint64_t target, std::string_view name);
     bool restart_target_name(std::uint64_t target, std::string_view name);
+    bool restart(AnimationId id);
     bool stop(AnimationId id);
     std::size_t stop_target_property(std::uint64_t target, std::string_view property);
     void clear();

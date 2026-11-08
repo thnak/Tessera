@@ -44,7 +44,8 @@ The runtime-loop bridge requests a frame while animations are running and on the
 one, without waking for paused-only or retained-fill samples. Stopping a target removes all of its
 entries, paused ones included;
 stopping a target/name pair removes only that animation and its retained fill. Restarting a
-target/name pair rewinds matching active entries and revives retained fills from their start.
+target/name pair or a single id rewinds matching active entries and revives retained fills from
+their start.
 Completion callbacks run after forwards/both fills are retained, so clearing, stopping, or replacing
 from a callback removes or supersedes that fill. Target/name state exposes active and settled counts
 for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).

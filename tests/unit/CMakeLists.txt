@@ -294,6 +294,13 @@ target_link_libraries(animation_callback_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_callback COMMAND animation_callback_tests)
 
+add_executable(animation_restart_id_tests
+    animation_restart_id_tests.cpp)
+
+target_link_libraries(animation_restart_id_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_restart_id COMMAND animation_restart_id_tests)
+
 add_executable(easing_tests
     easing_tests.cpp)
 
