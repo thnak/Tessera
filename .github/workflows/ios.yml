@@ -15,13 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # libc++ marks floating-point std::from_chars unavailable before iOS 26.
       - name: Configure (iOS SDK, arm64, null backend)
         run: >
           cmake -S . -B build/ios
           -DCMAKE_SYSTEM_NAME=iOS
           -DCMAKE_OSX_SYSROOT=iphoneos
           -DCMAKE_OSX_ARCHITECTURES=arm64
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0
           -DCMAKE_BUILD_TYPE=Release
           -DTESSERA_BUILD_TESTS=OFF
           -DTESSERA_BUILD_VULKAN=OFF
