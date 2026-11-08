@@ -14,6 +14,7 @@
 namespace {
 
 using tessera::rendering::gpu::Batched2DRenderer;
+using tessera::rendering::rhi::Device;
 using tessera::rendering::rhi::RenderTarget;
 using tessera::rendering::rhi::RenderTargetDesc;
 using tessera::rendering::rhi::rgba8;
@@ -25,23 +26,56 @@ bool expect(bool condition, const char* message) {
     return condition;
 }
 
-void draw_scene(Batched2DRenderer& renderer) {
+// Phase 0 draws the left card at 8,8 in blue; phase 1 moves it to 14,14 and recolors it. The
+// right card never changes, so a damage region around the left card must reproduce phase 1
+// exactly while preserving the untouched right card from phase 0.
+void draw_scene(Batched2DRenderer& renderer, int phase) {
     renderer.push_rect({0, 0, 64, 64}, rgba8(11, 18, 32));
-    renderer.push_rect({8, 8, 20, 20}, rgba8(56, 189, 248));
+    if (phase == 0) {
+        renderer.push_rect({8, 8, 20, 20}, rgba8(56, 189, 248));
+    } else {
+        renderer.push_rect({14, 14, 20, 20}, rgba8(251, 146, 60));
+    }
     renderer.push_rect({36, 36, 20, 20}, rgba8(34, 197, 94));
 }
 
-std::vector<std::uint8_t> read_target(tessera::rendering::rhi::Device& device,
-                                      tessera::rendering::rhi::CommandList& commands,
-                                      RenderTarget& target) {
+void render_full(Batched2DRenderer& renderer, Device& device, RenderTarget& target,
+                 const RenderTargetDesc& desc, int phase) {
+    auto commands = device.create_command_list();
+    renderer.begin(*commands, target, desc);
+    draw_scene(renderer, phase);
+    renderer.end();
+    commands->submit();
+    device.wait_idle();
+}
+
+void render_damaged(Batched2DRenderer& renderer, Device& device, RenderTarget& target,
+                    const RenderTargetDesc& desc, int phase,
+                    const std::vector<tessera::rendering::rhi::Scissor>& regions) {
+    auto commands = device.create_command_list();
+    renderer.begin_damaged(*commands, target, desc, tessera::rendering::RedrawPlan{false, regions});
+    draw_scene(renderer, phase);
+    renderer.end();
+    commands->submit();
+    device.wait_idle();
+}
+
+std::vector<std::uint8_t> read_target(Device& device, RenderTarget& target) {
     const std::size_t bytes = 64 * 64 * 4;
     auto readback = device.create_buffer({bytes, tessera::rendering::rhi::BufferUsage::Readback});
-    commands.copy_target_to_buffer(target, *readback);
-    commands.submit();
+    auto commands = device.create_command_list();
+    commands->copy_target_to_buffer(target, *readback);
+    commands->submit();
     device.wait_idle();
     std::vector<std::uint8_t> pixels(bytes);
     readback->read(pixels.data(), pixels.size());
     return pixels;
+}
+
+std::size_t mismatched(const std::vector<std::uint8_t>& actual,
+                       const std::vector<std::uint8_t>& expected) {
+    return tessera::rendering::golden::compare_rgba({64, 64}, actual, {64, 64}, expected, 0)
+        .mismatched;
 }
 
 } // namespace
@@ -59,51 +93,48 @@ int main() {
     auto pipeline = device->create_pipeline(vulkan::batched2d_pipeline_desc());
     Batched2DRenderer renderer(*device, *pipeline, *white, gpu::Batched2DConfig{4096, true, true});
 
-    RenderTargetDesc full_desc;
-    full_desc.extent = {64, 64};
-    full_desc.clear_color = rgba8(11, 18, 32);
-    full_desc.load_op = rhi::LoadOp::Clear;
-    auto target = device->create_render_target(full_desc);
+    RenderTargetDesc clear_desc;
+    clear_desc.extent = {64, 64};
+    clear_desc.clear_color = rgba8(11, 18, 32);
+    clear_desc.load_op = rhi::LoadOp::Clear;
+    RenderTargetDesc load_desc = clear_desc;
+    load_desc.load_op = rhi::LoadOp::Load;
 
-    // Frame 1 establishes the full image in the offscreen target.
-    auto first_commands = device->create_command_list();
-    renderer.begin(*first_commands, *target, full_desc);
-    draw_scene(renderer);
-    renderer.end();
-    first_commands->submit();
-    device->wait_idle();
-
-    // Frame 2 redraws only the left damage rect while preserving the rest of the target.
-    RenderTargetDesc partial_desc = full_desc;
-    partial_desc.load_op = rhi::LoadOp::Load;
-    const RedrawPlan plan{false, {rhi::Scissor{6, 6, 26, 26}}};
-    auto partial_commands = device->create_command_list();
-    renderer.begin_damaged(*partial_commands, *target, partial_desc, plan);
-    draw_scene(renderer);
-    renderer.end();
-    partial_commands->submit();
-    device->wait_idle();
-
-    auto read_commands = device->create_command_list();
-    const std::vector<std::uint8_t> partial = read_target(*device, *read_commands, *target);
-
-    // Reference: a fresh full frame with the same scene.
-    RenderTargetDesc reference_desc = full_desc;
-    auto reference = device->create_render_target(reference_desc);
-    auto reference_commands = device->create_command_list();
-    renderer.begin(*reference_commands, *reference, reference_desc);
-    draw_scene(renderer);
-    renderer.end();
-    const std::vector<std::uint8_t> expected =
-        read_target(*device, *reference_commands, *reference);
-
-    const auto diff = golden::compare_rgba({64, 64}, partial, {64, 64}, expected, 0);
-    if (!expect(diff.size_mismatch == false, "same size") ||
-        !expect(diff.mismatched == 0, "partial redraw equals full redraw") ||
-        !expect(diff.max_channel_delta == 0, "pixels are bit-exact")) {
-        std::cout << "damage_equivalence: mismatched=" << diff.mismatched
-                  << " max_delta=" << diff.max_channel_delta << "\n";
+    // Static frame: partial redraw of the same content must equal a full redraw.
+    auto static_target = device->create_render_target(clear_desc);
+    render_full(renderer, *device, *static_target, clear_desc, 0);
+    render_damaged(renderer, *device, *static_target, load_desc, 0, {rhi::Scissor{6, 6, 26, 26}});
+    const std::vector<std::uint8_t> static_partial = read_target(*device, *static_target);
+    auto static_reference = device->create_render_target(clear_desc);
+    render_full(renderer, *device, *static_reference, clear_desc, 0);
+    const std::vector<std::uint8_t> static_full = read_target(*device, *static_reference);
+    if (!expect(mismatched(static_partial, static_full) == 0,
+                "static partial redraw equals full redraw")) {
         return 1;
+    }
+
+    // Dynamic frame: the left card moved and recolored; the damage region covers old and new
+    // bounds, so the partial result must match a full phase-1 frame bit-exactly.
+    auto dynamic_target = device->create_render_target(clear_desc);
+    render_full(renderer, *device, *dynamic_target, clear_desc, 0);
+    render_damaged(renderer, *device, *dynamic_target, load_desc, 1, {rhi::Scissor{6, 6, 30, 30}});
+    const std::vector<std::uint8_t> dynamic_partial = read_target(*device, *dynamic_target);
+    auto dynamic_reference = device->create_render_target(clear_desc);
+    render_full(renderer, *device, *dynamic_reference, clear_desc, 1);
+    const std::vector<std::uint8_t> dynamic_full = read_target(*device, *dynamic_reference);
+    if (!expect(mismatched(dynamic_partial, dynamic_full) == 0,
+                "dynamic partial redraw equals full redraw")) {
+        return 2;
+    }
+
+    // Negative control: too small a damage region must leave stale pixels and fail the equality,
+    // proving the dynamic check above is not vacuous.
+    auto stale_target = device->create_render_target(clear_desc);
+    render_full(renderer, *device, *stale_target, clear_desc, 0);
+    render_damaged(renderer, *device, *stale_target, load_desc, 1, {rhi::Scissor{10, 10, 10, 10}});
+    const std::vector<std::uint8_t> stale = read_target(*device, *stale_target);
+    if (!expect(mismatched(stale, dynamic_full) > 0, "undersized damage leaves stale pixels")) {
+        return 3;
     }
 
     std::cout << "damage_equivalence: ok\n";

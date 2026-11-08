@@ -12,7 +12,9 @@ planning and the offscreen scissor replay (`begin_damaged`) are implemented in
 into target dirty flags, then dirty nodes into damage and a redraw plan, is
 `include/tessera/ui/frame_pipeline.hpp` (`tessera_frame`). Two-frame offscreen equivalence is
 covered by `damage_equivalence_tests`: a full frame followed by a `LoadOp::Load` partial frame is
-bit-identical to a fresh full frame, and the Vulkan command list now preserves the target layout
+bit-identical to a fresh full frame, both for static content and for a moved/recolored card whose
+damage region covers old and new bounds; an undersized damage region is asserted to leave stale
+pixels, so the equality check is not vacuous. The Vulkan command list preserves the target layout
 across load frames. Retained caches/layers remain
 design-only. Decision record:
 [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame
