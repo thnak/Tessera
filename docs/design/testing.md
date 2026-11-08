@@ -1,6 +1,6 @@
 # Testing strategy
 
-Status: document current B1 tests and the target B2/B3/C/D test pyramid (B1-B3 are phases of Big Step B, C and D are Big Steps C and D; see [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests) is normative
+Status: documents the current B1/B2 tests and the target B3/C/D test pyramid (B1-B3 are phases of Big Step B, C and D are Big Steps C and D; see [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests) is normative
 for goldens. Headless automation/agent harness: [`headless-automation-v1.md`](../specs/headless-automation-v1.md);
 audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 

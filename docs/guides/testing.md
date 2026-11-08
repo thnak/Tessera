@@ -1,6 +1,11 @@
 # Testing guide
 
-Status: the tests of Big Step B1 (core renderer) run with CTest; golden tests (deterministic reference images) belong to Big Step B2 (see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step); Mesa lavapipe is a software Vulkan driver, see [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests). The target test pyramid is in [design/testing.md](../design/testing.md).
+Status: the Big Step B1 (core renderer) and B2 runtime-slice unit tests run with CTest; golden
+tests (deterministic reference images) still belong to the unimplemented part of Big Step B2 (see
+[AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step); Mesa lavapipe is a
+software Vulkan driver, see
+[ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless
+golden tests). The target test pyramid is in [design/testing.md](../design/testing.md).
 
 ## 1. Run the tests
 

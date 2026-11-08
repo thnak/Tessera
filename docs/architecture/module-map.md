@@ -1,7 +1,10 @@
 # Module map
 
-Status: reflects the repository at [Big Step B1](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core) plus documented B2/B3 placeholders. Empty
-directories marked **planned** are seams, not implemented features. In the Status columns, B1, B2, and B3 are the phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core, runtime slice, window/swapchain/OS); C, D, and F are Big Steps C (compiler vertical slice), D (design-time preview), and F (production breadth); a letter in parentheses, such as "(D)", is the Big Step in which the directory is planned.
+Status: reflects the repository at [Big Step B1](../../AGENTS.md#big-steps-group-work-dont-micro-step)
+(renderer core) plus the implemented B2 runtime slices: stylesheet engine, Yoga layout,
+text-measurement stub, normalized input, fixed-step loop, dirty rendering/damage, diagnostics
+counters, async primitives, and the animation runtime. Remaining B2/B3 work and empty directories
+are marked **planned**; a planned directory is a seam, not an implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core, runtime slice, window/swapchain/OS); C, D, and F are Big Steps C (compiler vertical slice), D (design-time preview), and F (production breadth); a letter in parentheses, such as "(D)", is the Big Step in which the directory is planned.
 
 ## 1. Top level
 
@@ -11,9 +14,9 @@ directories marked **planned** are seams, not implemented features. In the Statu
 | `src/core/` | object, memory, threading, events, resources | planned |
 | `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | planned |
 | `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL (hardware/OS abstraction layer) | planned (B3) |
-| `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; rest B2 |
+| `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; style/layout/text/input/animation B2 core; view/responsive/accessibility planned |
 | `src/ui/input/` | normalized input event, bounded queue, move coalescing | B2 core |
-| `src/ui/style/` | CSS tokenizer; parser/cascade planned | B2 tokenizer |
+| `src/ui/style/` | CSS tokenizer, parser, selectors, cascade, media queries, `@supports`, keyframes, property registry | B2 core |
 | `src/rendering/rhi/` | thin RHI (render hardware interface) interfaces | B1 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
@@ -28,10 +31,10 @@ directories marked **planned** are seams, not implemented features. In the Statu
 | `src/compiler/ir/` | neutral IR (intermediate representation) + serialization | planned (C) |
 | `src/compiler/codegen/` | IR -> C++ | planned (C) |
 | `src/compiler/merger/` | protected-region merge | B1 |
-| `src/runtime/` | fixed-step core; app/loop/generated-code support | B2 core |
+| `src/runtime/` | fixed-step accumulator, clock, `RuntimeLoop`, frame pacer, async primitives, diagnostics counters | B2 core |
 | `src/services/` | i18n (internationalization), navigation, state restore, storage, networking, notifications, shell | planned (F) |
 | `src/data/` | async resource cache, mutations, offline queue | planned (F) |
-| `src/diagnostics/` | logging, tracing, profiling, crash reporting | planned (B2) |
+| `src/diagnostics/` | logging, tracing, profiling, crash reporting | planned (B2); counters live in `src/runtime/` |
 | `src/devtools/` | local inspector/hot-reload protocol | planned (C/D) |
 | `src/updates/` | signed manifest, staging, rollback | planned (F) |
 | `designer/web/` | Wasm (WebAssembly) + WebGPU viewer, live view, IPC (inter-process communication) | planned (D) |

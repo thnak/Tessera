@@ -1,6 +1,10 @@
 # Tessera architecture overview
 
-Status: living document. [Big Step B1](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core) is implemented; B2 (runtime slice) and B3 (window/swapchain/OS) are documented but not implemented.
+Status: living document. [Big Step B1](../../AGENTS.md#big-steps-group-work-dont-micro-step)
+(renderer core) is implemented. B2 (runtime slice) is partially implemented: stylesheet engine,
+Yoga layout, text-measurement stub, normalized input, fixed-step loop, dirty rendering/damage,
+diagnostics counters, async primitives, and the animation runtime. B3 (window/swapchain/OS) is
+documented but not implemented.
 
 Tessera is a cross-platform C++ UI framework with a JSX/React design DSL, a build-time compiler
 to native C++, a native Vulkan 1.3 renderer, and a WebAssembly + WebGPU design-time preview.
@@ -175,9 +179,23 @@ Implemented B1:
 - scene graph/hit-testing/events
 - merger prototype
 
-Documented, not implemented: stylesheet engine, Yoga/text, input, fixed-step loop, dirty
-rendering, frame pacing/VRR, async runtime, diagnostics, window/swapchain, OS events/foldables,
-compiler/IR/codegen, Wasm designer, services, accessibility, packaging.
+Implemented B2 slices:
+
+- CSS stylesheet engine: tokenizer, parser, selectors/specificity, cascade/computed style,
+  media queries, `@supports`, `@keyframes`, property registry, color parsing/interpolation
+- Yoga layout adapter, text-measurement stub with font metrics and wrapped line boxes
+- normalized input queue, pointer dispatch, capture, and coalescing
+- fixed-step accumulator, deterministic clock, `RuntimeLoop`, `FramePacer`
+- dirty domains/pass, damage accumulation/tracking, redraw plans
+- animation runtime: transitions, keyframes, springs, pause/fills/stop/restart, reduced motion,
+  loop bridge
+- async primitives: cancellation, bounded manual executor, completion queue
+- per-frame diagnostics counters
+
+Documented, not implemented: real text stack (font loading/shaping/glyph atlas), frame
+pacing/VRR present path, adaptive quality, coroutine await integration, tracing/profiling/crash,
+window/swapchain, OS events/foldables, compiler/IR/codegen, Wasm designer, services,
+accessibility, packaging.
 
 Start with [`docs/README.md`](../README.md), then
 [`module-map.md`](module-map.md), [`hal.md`](../design/hal.md),
