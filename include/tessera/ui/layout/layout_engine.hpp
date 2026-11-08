@@ -56,6 +56,11 @@ public:
     [[nodiscard]] LayoutResult layout(const LayoutInput& root,
                                       const LayoutViewport& viewport) const;
 
+    // Lays out one subtree in isolation, with the subtree root at (0, 0). Used for independent
+    // overlays/popups; callers offset the returned boxes into parent coordinates.
+    [[nodiscard]] LayoutResult layout_subtree(const LayoutInput& root, std::uint64_t id,
+                                              const LayoutViewport& viewport) const;
+
     [[nodiscard]] std::shared_ptr<text::TextMeasureCache> text_cache() const;
 
 private:

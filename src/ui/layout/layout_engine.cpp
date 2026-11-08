@@ -519,6 +519,22 @@ LayoutEngine::~LayoutEngine() = default;
 LayoutEngine::LayoutEngine(LayoutEngine&&) noexcept = default;
 LayoutEngine& LayoutEngine::operator=(LayoutEngine&&) noexcept = default;
 
+namespace {
+
+const LayoutInput* find_input(const LayoutInput& root, std::uint64_t id) {
+    if (root.id == id) {
+        return &root;
+    }
+    for (const LayoutInput& child : root.children) {
+        if (const LayoutInput* found = find_input(child, id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
 LayoutResult LayoutEngine::layout(const LayoutInput& root, const LayoutViewport& viewport) const {
     std::vector<std::unique_ptr<MeasureContext>> contexts;
     YGNodeRef root_node = build_node(root, viewport, *impl_->cache, contexts);
@@ -529,6 +545,15 @@ LayoutResult LayoutEngine::layout(const LayoutInput& root, const LayoutViewport&
     collect_boxes(root_node, root, 0.0f, 0.0f, result);
     YGNodeFreeRecursive(root_node);
     return result;
+}
+
+LayoutResult LayoutEngine::layout_subtree(const LayoutInput& root, std::uint64_t id,
+                                          const LayoutViewport& viewport) const {
+    const LayoutInput* subtree = find_input(root, id);
+    if (subtree == nullptr) {
+        return {};
+    }
+    return layout(*subtree, viewport);
 }
 
 std::shared_ptr<text::TextMeasureCache> LayoutEngine::text_cache() const {

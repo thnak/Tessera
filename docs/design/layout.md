@@ -9,8 +9,12 @@ a Yoga measure callback, backed by a bounded `TextMeasureCache` (capacity config
 the default `StubTextMeasurer` is deterministic until the real text stack lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
 leaving unchanged boxes clean and marking changed ones paint/render dirty. `LayoutScheduler`
 (`ui/layout/layout_scheduler.hpp`) caches the last result and recomputes only when layout is dirty
-or the viewport changes, so paint-only and animation-only frames reuse boxes; Yoga has no
-partial-layout API, so any layout dirt still recomputes the tree. `add_scene_damage` consumes a `DirtyPass` result, filters `Paint`/`Render` nodes,
+or the viewport changes, so paint-only and animation-only frames reuse boxes. Independent
+subtrees (overlays/popups) can be relaid out in isolation with `LayoutEngine::layout_subtree` +
+`LayoutScheduler::relayout_subtree`, which patches the cached boxes while preserving the subtree
+root's parent offset; structural removals inside the subtree still require `invalidate()` or a
+full update. Yoga has no general partial-layout API, so parent reflow still recomputes the tree.
+`add_scene_damage` consumes a `DirtyPass` result, filters `Paint`/`Render` nodes,
 snaps their world bounds with `pixel_snap`, and feeds the damage accumulator. `DamageTracker` retains
 the previous world bounds per node (bounded LRU), damages both old and new rects when a node moves,
 and prunes ids no longer present in the scene.

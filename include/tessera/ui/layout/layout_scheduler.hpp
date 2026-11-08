@@ -26,6 +26,16 @@ public:
     [[nodiscard]] std::size_t layout_runs() const {
         return layout_runs_;
     }
+    // Relayouts an independent subtree (overlay/popup) and patches its boxes into the cached
+    // result, keeping sibling boxes untouched. Returns false when the cache is invalid or the
+    // subtree root has no previous box. Structural removals inside the subtree still require
+    // invalidate()/a full update; style/size changes are the intended case.
+    bool relayout_subtree(const LayoutInput& root, std::uint64_t id,
+                          const LayoutViewport& viewport);
+
+    [[nodiscard]] std::size_t partial_runs() const {
+        return partial_runs_;
+    }
     [[nodiscard]] std::size_t cache_hits() const {
         return cache_hits_;
     }
@@ -39,6 +49,7 @@ private:
     bool valid_ = false;
     std::size_t layout_runs_ = 0;
     std::size_t cache_hits_ = 0;
+    std::size_t partial_runs_ = 0;
 };
 
 } // namespace tessera::ui::layout

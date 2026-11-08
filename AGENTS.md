@@ -489,7 +489,8 @@ lavapipe). Next slices, in order:
 3. Platform input translation and remaining focus polish (`focus-visible`, hover/active, IME;
    tab order, `:focus`, and modal trapping landed).
 4. Golden-image equivalence for damage redraw (the scissor path landed).
-5. Incremental relayout.
+5. Incremental relayout: `LayoutScheduler` skips clean frames and patches independent subtrees;
+   general Yoga partial reflow remains.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
