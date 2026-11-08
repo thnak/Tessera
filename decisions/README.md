@@ -35,6 +35,7 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-025](ADR-025-error-boundaries.md) | Error boundaries and exception isolation | Accepted |
 | [ADR-026](ADR-026-deep-links-and-external-activation.md) | Deep links and external activation | Accepted |
 | [ADR-027](ADR-027-agent-automation-and-audits.md) | Numeric IDs, headless harness, Lighthouse-style audits | Accepted |
+| [ADR-028](ADR-028-custom-native-elements.md) | Custom native elements, low-level rendering, element input | Accepted |
 
 ## Dependency overview
 
@@ -62,6 +63,7 @@ ADR-024 native-first boundaries (cross-cutting: runtime, compiler, designer, mob
 ADR-025 error boundaries (supersedes the error-boundary limit in ADR-007)
 ADR-026 deep links/external activation (cross-cutting: HAL, routing, security, startup)
 ADR-027 automation IDs/headless/audits (cross-cutting: compiler, UI, diagnostics, CI)
+ADR-028 custom native elements (cross-cutting: JSX/IR, RHI, shaders, input, tests)
 ```
 
 ## Adding an ADR

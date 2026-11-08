@@ -14,6 +14,7 @@ directories marked **planned** are seams, not implemented features.
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, accessibility | scene B1; rest B2 |
 | `src/rendering/rhi/` | thin RHI interfaces | B1 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
+| `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
 | `src/rendering/null/` | deterministic no-GPU backend | B1 |
 | `src/rendering/backend/vulkan/` | Vulkan 1.3 backend (volk + VMA) | B1 offscreen |
 | `src/rendering/backend/webgpu/` | WebGPU/Dawn backend | planned (D) |
@@ -39,7 +40,7 @@ directories marked **planned** are seams, not implemented features.
 | `tools/poc/` | Phase 0/B1 proofs | B1 |
 | `tools/shaders/`, `tools/font/` | shader/font tooling | planned |
 | `third_party/` | vendored dependencies (stb, volk, vma) | B1 |
-| `decisions/` | ADRs | 23 |
+| `decisions/` | ADRs | 28 |
 | `docs/` | specs, design, guides, architecture | this set |
 
 ## 2. Dependency direction
@@ -49,6 +50,7 @@ core
  ├─ hal ── platform/{windows,linux,macos,android}
  ├─ ui ── style, layout, animation, text, responsive, accessibility
  ├─ rendering ── rhi ── backend/{vulkan,webgpu,null,software}
+ ├─ element ── rhi + shader manifest (custom native elements)
  ├─ services
  ├─ diagnostics
  └─ runtime ── ui + rendering + hal + services + diagnostics
@@ -62,6 +64,7 @@ Rules:
 - `core` has no OS/GPU/UI dependencies.
 - `hal` has no UI/renderer dependencies; platform code implements HAL interfaces.
 - `ui` may use RHI *types* (`Rect`, `Mat3`, `Color`) but never backend headers.
+- `element` may use the public RHI/shader API; it never includes backend/OS headers.
 - `rendering` consumes immutable display lists; it does not mutate the scene graph.
 - `runtime` orchestrates; it does not contain compiler/parser code.
 - `compiler` is build-time only and must not be linked into production.
@@ -77,6 +80,7 @@ Only `include/tessera/` is public. Current B1 headers:
 | `rendering/rhi/device.hpp` | `Device`, `Buffer`, `Texture`, `Pipeline`, `RenderTarget`, `CommandList` |
 | `rendering/gpu/vertex2d.hpp` | `Vertex2D`, attributes, push constants |
 | `rendering/gpu/batched2d_renderer.hpp` | batched 2D renderer |
+| `element/custom_element.hpp` | custom native element interface/contexts (planned) |
 | `rendering/null/null_device.hpp` | null device + command stats |
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |

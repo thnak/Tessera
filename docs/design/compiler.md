@@ -20,6 +20,7 @@ arbitrary JavaScript from components.
 ```text
 tessera.json
   -> validate config
+  -> load/validate ui/elements.json + shader manifest
   -> discover ui.sourceDirs/include/exclude
   -> parser adapter (SWC / oxc / tree-sitter)
   -> Tier 1: React rules
@@ -66,13 +67,28 @@ Unsupported patterns are hard errors with `TESSERA_JSX_*`/`TESSERA_REACT_*` code
 ## 5. Tier 2: lowering
 
 - Resolve imports and component references.
-- Map JSX intrinsics to IR node kinds (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`).
+- Map JSX intrinsics to IR node kinds (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`,
+  `CustomElement`).
 - Map props/style/events to IR fields.
 - Resolve `bind::<id>` annotations to binding records and protected-region ids.
 - Lower static conditionals/loops to IR condition/loop nodes.
 - Preserve source spans for diagnostics and source maps.
 
 The IR is the only input to codegen. Codegen never reads the parser AST.
+
+### 5.1 Custom element lowering
+
+- `<CustomElement element="X" .../>` requires a literal `element`; resolve it against
+  `ui/elements.json`.
+- Validate props/events against the element schema; reject unknown/missing fields, children,
+  and non-literal/dynamic element ids.
+- Resolve `shaders`/`pipeline`/`render`/`input`/`test` capabilities from the element manifest;
+  validate shader refs against the shader manifest.
+- Emit an IR `CustomElement` leaf with `element`, typed props, event bindings, and `uiId`.
+- Generate `generated/elements.g.cpp` (compile-time factory registry) and
+  `generated/elements.d.ts` (typed JSX props/events).
+- No runtime registration, dynamic plugin loading, or TSX parsing at runtime.
+- See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ## 6. IR
 
@@ -96,6 +112,8 @@ See [`ir-v1.md`](../specs/ir-v1.md). Requirements:
   fallback and `onError` are outside that guard and propagate to the parent/root on failure.
 - Assign `ComponentId`/`UiId` deterministically; emit `generated/automation.manifest.json`.
   Node constructors carry `(NodeId, UiId, ComponentId)`; collisions are hard errors.
+- Emit `generated/elements.g.cpp` and `generated/elements.d.ts` from `ui/elements.json`;
+  `CustomElement` construction goes through the generated factory.
 - No timestamps, absolute paths, or random ids.
 - Compile with `/W4` (MSVC) and `-Wall -Wextra -Wpedantic` (GCC/Clang).
 - Generated code includes only public Tessera headers and its own generated headers.
@@ -138,6 +156,8 @@ See [`error-model-v1.md`](../specs/error-model-v1.md).
 
 - Parser fixtures: valid/invalid JSX/TSX, imports, escapes.
 - Tier 1 fixtures: hook order, unsupported hooks/context/suspense, dynamic components.
+- Custom elements: unknown/literal element, prop/event schema, leaf rule, shader refs,
+  generated registry/typings.
 - IR snapshots: stable JSON for representative components.
 - Codegen goldens: generated C++ text after formatting.
 - Compile tests: generated code builds with the supported compilers.

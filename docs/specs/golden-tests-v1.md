@@ -2,6 +2,7 @@
 
 Status: proposed (Big Step B2/B3). Normative for visual regression; ADR-009 is the decision.
 Headless runner/agent protocol: [`headless-automation-v1.md`](headless-automation-v1.md).
+Custom element goldens: [`custom-elements-v1.md`](custom-elements-v1.md).
 
 ## 1. Rules
 
@@ -11,6 +12,8 @@ Headless runner/agent protocol: [`headless-automation-v1.md`](headless-automatio
 4. Fixed clock, size, DPI, fonts, locale, inputs, and event scripts.
 5. Golden updates are a separate, reviewed change.
 6. Failures emit an image diff plus structural `report.json` for humans/agents.
+7. Custom element goldens use compiled shaders, an offscreen target, fixed time/assets/input;
+   `continuous` elements use a fixed frame script, not wall clock.
 
 ## 2. Directory layout
 

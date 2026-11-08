@@ -31,12 +31,16 @@ A component has:
 - animated values: `useAnimatedValue(initial)`
 - event handlers for pointer/keyboard/focus/change
 - a returned node tree (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `VirtualList`,
-  `VirtualGrid`)
+  `VirtualGrid`, `CustomElement`)
 
 V1 rejects: custom hooks, context, suspense, dynamic component types, portals, and non-static
 conditionals/loops. Error boundaries are supported wrappers; see
 [`component-model-v1.md`](../specs/component-model-v1.md) and
 [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
+
+`CustomElement` is an intrinsic native-render leaf for custom shaders/3D. It is declared with a
+static `element` id and implemented in C++ using the RHI; it is not a dynamic component type.
+See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ## 3. Build-time lowering
 
@@ -45,6 +49,7 @@ Component.tsx
   -> parser adapter
   -> Tier 1 React rules (hooks order, purity, valid JSX)
   -> Tier 2 bindings (`// Note: bind::<id>`)
+  -> custom element manifest/registry (`ui/elements.json`)
   -> IR (docs/specs/ir-v1.md)
   -> generated C++:
        Component::build(Node& parent) / Component::update()
@@ -94,6 +99,9 @@ children topmost-first, then the node itself.
 V1 lists are explicit runtime list models; the compiler rejects dynamic `.map()` expressions
 that cannot be statically analyzed. Large collections use `VirtualList`/`VirtualGrid`; see
 [`virtualization-v1.md`](../specs/virtualization-v1.md) for windowing/recycling rules.
+
+Custom elements are keyed/reused like any component; shared pipelines/meshes/textures live in
+the resource cache, while per-instance renderer state is retired after frames in flight.
 
 ## 6. Style, layout, paint, animation
 

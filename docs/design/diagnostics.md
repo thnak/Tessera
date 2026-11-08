@@ -57,7 +57,8 @@ Example shape:
 
 - Spans nest and carry frame/tick/task/window ids, plus `uiId`/`componentId`/`nodeId` where
   available (see [`automation-ids-v1.md`](../specs/automation-ids-v1.md)).
-- CPU spans: input, style, layout, paint, draw-list build, submit, present wait.
+- CPU spans: input, style, layout, paint, draw-list build, submit, present wait;
+  `element.attach/update/event/render/detach` for custom elements.
 - GPU spans: timestamp queries per pass/pipeline; optional pipeline statistics.
 - Async spans: task start/resume/await/cancel; queue wait vs run time.
 - Export: Chrome Trace Event JSON / Perfetto protobuf; optional Tracy, ETW, ftrace, systrace,

@@ -9,8 +9,10 @@ Bridges are allowed only at the edges, never in the UI/render/input/memory hot p
 ## 1. Policy
 
 1. **No production JS/React runtime.** Components compile to C++; no virtual DOM, no scripting
-   bridge, no per-frame interpreter.
-2. **No dynamic plugin ABI.** Static linking (ADR-012); no hot-loadable native modules.
+   bridge, no per-frame interpreter. Custom native elements are direct C++/RHI code, not a
+   bridge; shaders are build-time manifest entries, not runtime payloads.
+2. **No dynamic plugin ABI.** Static linking (ADR-012); no hot-loadable native modules. Custom
+   elements use a generated compile-time factory registry, not a loader.
 3. **No per-frame serialization.** No JSON/IDL/IPC/FFI in the frame loop.
 4. **No cross-language UI ownership.** UI objects never cross a bridge; use values/handles.
 5. **Bridges are narrow, typed, versioned, and capability-based.**

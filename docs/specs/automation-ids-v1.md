@@ -126,6 +126,7 @@ struct UiSnapshotNode {
     bool focused;
     bool selected;
     std::string item_key;      // list/grid instance, optional
+    std::string element_id;    // CustomElement id, optional
     std::vector<NodeId> children;
 };
 
@@ -154,6 +155,16 @@ Result<void> focus(UiId);
 - Snapshot order is deterministic (tree/preorder or sorted by NodeId; choose one and test).
 - Bounds are logical pixels; DPI/scale is explicit in the snapshot header.
 
+### 5.1 Custom element sub-targets
+
+- A custom element can expose `(UiId, partId)` for 3D picking/sub-targets; `partId` is a
+  `uint32` assigned by the element and stable for a build.
+- `partId` is meaningful only within its element; never use it as a global id.
+- Snapshot includes `element_id`, current `part_id`, and the element's state/draw stats.
+- Input scripts may click/assert with `uiId` + optional `partId`.
+- Trace spans may carry `partId`; use `uiId`/`element_id` for correlation.
+- See [`custom-elements-v1.md`](custom-elements-v1.md).
+
 ## 6. Tracing
 
 Every event/span may carry:
@@ -165,6 +176,8 @@ Every event/span may carry:
   "uiId": "987654321098765432",
   "componentId": "1234567890123456789",
   "nodeId": "42",
+  "elementId": "Waterfall3D",
+  "partId": "7",
   "name": "event.click-handler",
   "startUs": 123456,
   "durationUs": 850
@@ -202,5 +215,6 @@ Every event/span may carry:
 - Snapshot order (preorder vs NodeId) and hidden-node policy.
 - Whether `UiId` should be assigned from source keys or explicit `automationId` only.
 - Multi-window snapshot scoping.
+- Part-id stability/packing for custom elements.
 - ID stability across hot reload/incremental generation.
 - Compression/encoding for very large snapshots.

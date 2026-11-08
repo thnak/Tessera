@@ -130,10 +130,33 @@ V1 feature (see [`error-boundaries-v1.md`](error-boundaries-v1.md)):
 - Reset via `resetKey`/manual retry; auto-retry is off by default and bounded.
 - No silent catch: diagnostics + `onError`; redact secrets.
 
+## 7.2 Custom native elements
+
+A custom element is an intrinsic native-render node declared from JSX:
+
+```tsx
+<CustomElement
+  element="Waterfall3D"
+  style={{ width: 640, height: 360 }}
+  props={{ intensity: 0.8, camera: "main" }}
+  onPointer={handlePointer}
+  onSelect={handleSelect}
+/>
+```
+
+- `element` is a static literal declared in `ui/elements.json`; no dynamic component type.
+- The C++ class derives `tessera::element::CustomElement` and uses the RHI/shader API.
+- It is a leaf; wrap in `View` for overlays/children.
+- It participates in normal layout/style/automation/input and is reusable with keys/props/state.
+- No JS runtime, dynamic plugin, runtime shader compilation, or raw backend/OS handles.
+- See [`custom-elements-v1.md`](custom-elements-v1.md) and
+  [`custom-elements.md`](../guides/custom-elements.md).
+
 ## 8. Rejected in V1
 
 - custom hooks, context, suspense, portals
-- dynamic component types (`<Component is={...}>`)
+- dynamic component types (`<Component is={...}>`); `CustomElement` is an intrinsic node, not a
+  dynamic component type
 - arbitrary JavaScript expressions, closures, async render, generators
 - direct DOM/window/OS access
 - inline function components without a stable name
@@ -151,6 +174,8 @@ Rejections are compile errors with source spans; no silent fallback.
 - Generated code is deterministic, formatted, and compiles with warnings-as-errors in CI.
 - Node constructors carry `(NodeId, UiId, ComponentId)`; the automation manifest is emitted
   deterministically.
+- `CustomElement` emits a generated factory registry + typed JSX declarations from
+  `ui/elements.json`; no runtime registration.
 - Error boundaries emit guards around child entry points; fallback/onError are outside the
   guard and propagate to the parent/root on failure.
 - The binding manifest maps ids to components/files/regions.
@@ -172,6 +197,8 @@ Rejections are compile errors with source spans; no silent fallback.
 - Keyed list reorder/insert/remove; focus/scroll preservation.
 - Generated C++ compile tests and IR snapshots.
 - Rejection fixtures for every unsupported construct.
+- Custom elements: manifest/props/events, leaf rule, keyed reuse, lifecycle, input/snapshot,
+  headless/golden tests.
 
 ## 12. Open questions
 

@@ -59,7 +59,7 @@ Exit codes: `0` pass, `1` assertion/audit failure, `2` invalid script/config.
 ```
 
 Actions: `launch`, `close`, `resize`, `click`, `type`, `key`, `scroll`, `focus`, `waitFor`,
-`assert`, `snapshot`, `screenshot`, `trace`, `audit`.
+`assert`, `snapshot`, `screenshot`, `trace`, `audit`, `custom`, `assertCustom`.
 
 Assertions:
 
@@ -71,6 +71,18 @@ Assertions:
 - frame/metrics budgets
 - golden image match
 - audit score/threshold
+- custom element state/draw stats/last event (`custom`/`assertCustom`)
+
+### 4.1 Custom elements
+
+- Target a custom element by `uiId`; sub-targets may use `partId` from `hit_test_part`.
+- `custom` invokes a debug/headless-only `on_test_command`; `assertCustom` reads
+  `CustomElementSnapshot` paths.
+- Structural mode records passes/pipelines/draws without a GPU; golden mode renders offscreen
+  with compiled shaders; GPU smoke validates a real device.
+- Snapshots include element id, state, draw counts/pipeline names, metrics, and last event.
+- `continuous` elements advance by the fixed frame script, never wall clock.
+- See [`custom-elements-v1.md`](custom-elements-v1.md).
 
 ## 5. Outputs
 
@@ -135,6 +147,7 @@ For coding agents, the harness also exposes a line-delimited JSON protocol over 
 - Script parsing/validation and unknown actions.
 - Deterministic repeated runs (same manifest/snapshot/pixels).
 - Query/action through the real input path.
+- Custom element unit/structural/golden/GPU-smoke paths; custom commands/asserts; part ids.
 - Timeout/waitFor cancellation; harness remains usable.
 - Report/trace/snapshot schema; uint64 as strings.
 - Golden/GPU-smoke separation; no baseline updates from GPU.

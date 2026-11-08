@@ -76,6 +76,15 @@ accessibility is disabled with a diagnostic. Mobile-specific semantics/IME/decla
 - Touch targets remain at least 44/48 dp where possible after scaling.
 - Focus rings/hit targets must remain visible in high contrast.
 
+## 5.1 Custom elements
+
+- `ui/elements.json` declares default semantics (role/name/description); the element may
+  update value/state/actions/children via `on_semantics(SemanticsBuilder&)`.
+- A 3D/custom-rendered element must provide a meaningful non-visual fallback: name,
+  description, keyboard actions, focus, and state. Canvas-only interaction is not acceptable.
+- Custom elements participate in the normal semantics tree, focus order, and actions; snapshots
+  are test artifacts. See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
+
 ## 6. Announcements and live regions
 
 - `announce(message, priority)` for status updates (async completion, validation).

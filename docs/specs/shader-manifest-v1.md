@@ -72,7 +72,7 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
 | `stages` | yes | `vertex`, `fragment`, `compute` (compute optional) |
 | `entry` | no | Defaults to `main` per stage |
 | `sources.vulkan` | yes | GLSL stage files; compiled by `glslc` |
-| `sources.webgpu` | yes | WGSL file(s) |
+| `sources.webgpu` | yes* | WGSL file(s); required for WebGPU/designer, optional for Vulkan-only elements |
 | `vertexLayout` | vertex stages | Location/format/semantic; must match C++ `Vertex2D` |
 | `bindings` | no | Group/binding/type/name; must map to Vulkan descriptor sets and WebGPU bind groups |
 | `pushConstants` | no | Vulkan push constants; WebGPU uses a uniform buffer |
@@ -116,7 +116,21 @@ manifest.json
   migration.
 - Runtime shader binaries are generated from the same manifest/source revision.
 
-## 7. Open questions
+## 7. Custom element shaders
+
+- A custom element references one or more manifest entries by `name` in `ui/elements.json`.
+- The shader manifest owns the interface (`stages`, vertex layout, bindings, push constants,
+  reflection); the element manifest owns pipeline state (topology, depth/cull/blend, formats,
+  samples).
+- No runtime shader compilation: an element only selects a prebuilt manifest shader/pipeline.
+- Shared/portable elements provide WGSL and respect the WebGPU floor. Vulkan-only elements are
+  allowed only when `ui/elements.json` excludes WebGPU; their shader entries may omit WGSL.
+- Every custom element shader has a smoke test; deterministic visuals have a golden.
+- A missing/invalid shader ref, reflection mismatch, or pipeline/format mismatch fails the
+  build, not the first frame.
+- See [`custom-elements-v1.md`](custom-elements-v1.md).
+
+## 8. Open questions
 
 - Single-source (Slang/Tint/naga) migration; see ADR-011.
 - Whether compute shaders are in V1 (optional).

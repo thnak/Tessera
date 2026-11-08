@@ -61,8 +61,10 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 - Structural mode (null backend) is fast; golden mode uses software/lavapipe.
 - Assertions: visibility/text/focus/bounds/events/no boundary catches/golden/audit thresholds.
 - Outputs: `report.json`, `snapshot.json`, `trace.json`, `audit.json`.
-- See [`agent-automation.md`](agent-automation.md) and
-  [`headless-automation-v1.md`](../specs/headless-automation-v1.md).
+- Custom elements: unit fake context, structural draw stats, golden offscreen shaders, GPU
+  smoke; use `custom`/`assertCustom` and `partId` for sub-targets.
+- See [`agent-automation.md`](agent-automation.md), [`custom-elements.md`](custom-elements.md),
+  and [`headless-automation-v1.md`](../specs/headless-automation-v1.md).
 
 ## 3.1 Error-boundary tests
 

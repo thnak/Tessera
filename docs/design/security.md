@@ -52,6 +52,21 @@ boundaries, and no arbitrary code execution from UI sources.
   [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md) and
   [`error-model-v1.md`](../specs/error-model-v1.md).
 
+## 4.1 Custom native elements
+
+- Custom elements are trusted native app code compiled into the binary; no untrusted native
+  loading, no `dlopen`, no JS/eval.
+- `ui/elements.json` is untrusted project input: validate ids, class/source paths, prop/event
+  schemas, shader refs, formats, and sizes; reject traversal/unknown values.
+- Shaders/pipelines are build-time compiled/reflected; no runtime shader source from project
+  data. Pipeline state must match the shader manifest.
+- Elements use the RHI, not raw Vulkan/WebGPU/OS handles; validate resource sizes/formats and
+  budgets.
+- `on_render` returns `Error` (no throw across threads/ABI); update/input exceptions go to the
+  nearest error boundary; device loss disables/recreates safely.
+- No file/network/OS calls in render; test hooks are debug/headless-only. No secrets/PII in
+  snapshots/traces/goldens. See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
+
 ## 5. Designer/Wasm
 
 - Browser sandbox + CSP; no `eval` of project source.

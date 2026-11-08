@@ -8,8 +8,8 @@ See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering
 [`diagnostics.md`](diagnostics.md), [`resources.md`](resources.md),
 [`threading-and-memory.md`](threading-and-memory.md), [`layout.md`](layout.md),
 [`text.md`](text.md), [`antialiasing.md`](antialiasing.md),
-[`stylesheet-v1.md`](../specs/stylesheet-v1.md), and
-[`runtime-config-v1.md`](../specs/runtime-config-v1.md).
+[`stylesheet-v1.md`](../specs/stylesheet-v1.md), [`runtime-config-v1.md`](../specs/runtime-config-v1.md),
+and [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ## Layers
 
@@ -17,6 +17,7 @@ See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering
 |---|---|
 | Scene graph / events | `include/tessera/ui/scene/`, `src/ui/scene/` |
 | Batched 2D renderer | `include/tessera/rendering/gpu/`, `src/rendering/gpu/` |
+| Custom elements | `include/tessera/element/`, `src/element/` (planned) |
 | Thin RHI | `include/tessera/rendering/rhi/` |
 | Null backend | `src/rendering/null/` |
 | Vulkan backend | `src/rendering/backend/vulkan/` |
@@ -24,7 +25,8 @@ See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering
 | Demo | `tools/poc/batched2d/` |
 
 The UI layer never includes Vulkan, volk, VMA, or WebGPU headers. The only GPU seam is
-`rhi::Device` / `rhi::CommandList`.
+`rhi::Device` / `rhi::CommandList`. Custom elements use that same RHI seam; they do not get raw
+backend handles.
 
 ## RHI surface
 
@@ -84,6 +86,20 @@ Rules:
   submit, fence-wait, map/read.
 - Validation layers are opt-in (`--validation`, debug builds). The demo runs clean.
 - Required Vulkan 1.3 features: dynamic rendering. No discard/demote requirement.
+
+## Custom element rendering
+
+- `CustomElement` is a leaf node implemented by a native C++ class; it can record custom
+  pipelines, vertex/index buffers, compute, and 3D draws through the RHI.
+- **Offscreen** (default): render into a framework-managed color/depth target sized to the node,
+  then composite as a texture. Preserves 2D ordering/clipping and supports transparency.
+- **Inline** (advanced): record into the current frame target at the node viewport with a depth
+  attachment. Opaque/full-bleed only; no 2D children; depth clear/order constraints apply.
+- `onDemand` renders on changes; `continuous` animates while visible and pauses when
+  hidden/occluded/backgrounded.
+- Targets/pipelines are cached; no per-frame pipeline creation; old targets retire after frames
+  in flight. No raw backend/OS handles, no runtime shader compilation.
+- See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ## Null backend
 

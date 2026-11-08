@@ -51,6 +51,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
   [deep linking](docs/specs/deep-linking-v1.md), [deep-linking guide](docs/guides/deep-linking.md)
 - [Automation IDs](docs/specs/automation-ids-v1.md), [headless automation](docs/specs/headless-automation-v1.md),
   [agent guide](docs/guides/agent-automation.md), [Lighthouse audits](docs/specs/lighthouse-audit-v1.md)
+- [Custom native elements](docs/specs/custom-elements-v1.md), [custom elements guide](docs/guides/custom-elements.md)
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),
@@ -161,7 +162,7 @@ Tools and demos:
 
 ## Next
 
-1. ADR-001 … ADR-027 in `decisions/`.
+1. ADR-001 … ADR-028 in `decisions/`.
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
    async runtime, diagnostics, Yoga/text, pixel goldens.
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.

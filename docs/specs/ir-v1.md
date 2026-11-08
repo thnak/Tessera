@@ -101,7 +101,8 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 | `id` | string | yes | Debug key, unique within the component |
 | `uiId` | string | yes | uint64 decimal string; stable automation/trace identity |
 | `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
-| `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement` |
+| `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
 | `key` | string/int/null | no | Stable list identity |
 | `props` | object | no | Typed intrinsic props |
 | `style` | object | no | Style tokens; inline style |
@@ -112,7 +113,8 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 | `loop` | Loop/null | no | Static list loop |
 
 Node kinds are closed in V1. A custom component reference is lowered to its root node; there
-is no dynamic component type.
+is no dynamic component type. `CustomElement` is an intrinsic native-render node, not a dynamic
+component type; see [`custom-elements-v1.md`](custom-elements-v1.md).
 
 `VirtualList` and `VirtualGrid` are collection nodes defined in
 [`virtualization-v1.md`](virtualization-v1.md). They carry a data-source ref/list, a static item
@@ -129,6 +131,28 @@ represent VM/container virtualization or a virtual DOM.
 - List/grid instances use `(uiId, itemKey)`; the template keeps one `uiId`.
 - Debug `id` strings remain for humans; tools use numeric IDs.
 - See [`automation-ids-v1.md`](automation-ids-v1.md).
+
+## 3.2 Custom elements
+
+```json
+{
+  "kind": "CustomElement",
+  "id": "node::waterfall",
+  "uiId": "444444444444444444",
+  "element": "Waterfall3D",
+  "props": { "intensity": 0.8, "camera": "main" },
+  "events": { "onSelect": "bind::on_select", "onPointer": "bind::on_pointer" },
+  "children": []
+}
+```
+
+- `element` is a static literal resolved against `ui/elements.json`.
+- `props`/`events` are validated against the element schema; no unknown fields.
+- `CustomElement` is a leaf; `children` must be empty.
+- Shaders/pipeline/composition/input/test capabilities come from the element manifest, not JSX.
+- No dynamic element expression and no runtime registration; the compiler generates a
+  compile-time factory registry.
+- See [`custom-elements-v1.md`](custom-elements-v1.md).
 
 ## 4. Expressions
 
@@ -247,6 +271,8 @@ Hard errors:
 - `ErrorBoundary` missing `fallback`, more/less than one child subtree, or unresolved `onError`
   binding
 - missing/duplicate `componentId`/`uiId`, `automationId != uiId`, or a 64-bit ID collision
+- unknown/non-literal `element`, unknown element prop/event, missing shader, or `CustomElement`
+  with children
 - dynamic component types, context, suspense, custom hooks
 - missing list key or non-static loop source
 - binding annotation without a matching IR use, or vice versa

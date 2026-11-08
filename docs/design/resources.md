@@ -54,11 +54,15 @@ asset id -> cache lookup -> async load/decode -> CPU resource
 | Pipeline | shader/vertex layout/blend | refcount + LRU |
 | Path | SVG/path hash + quality | LRU |
 | Theme | theme path/hash | replace on change |
+| Custom element target | element id + pixel size/format | LRU, not in flight |
 
 - Caches are bounded by bytes and item count.
 - Resources used by in-flight frames are not destroyed; retire after completion.
 - Hot reload replaces an asset generation; old generation retires when unreferenced.
 - Shutdown drains/retires caches deterministically.
+- Custom elements share pipelines/meshes/textures through these caches; per-instance offscreen
+  targets are bounded and retire after frames in flight. See
+  [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ## 5. Asset manifest
 

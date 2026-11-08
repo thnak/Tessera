@@ -26,6 +26,7 @@ Status: design for Big Step B2. Companion to [`game-loop.md`](game-loop.md),
 | IME | composition start/update/end | `CompositionEvent` |
 | Window | focus/blur, enter/leave, resize, DPI | lifecycle/focus events |
 | Gamepad | later | `GamepadEvent` |
+| Custom | element-emitted | `CustomEvent` |
 
 Platform backends (`hal/input`) translate OS messages:
 
@@ -103,6 +104,26 @@ Pointer capture:
 - Capture is released on up/cancel or explicit release.
 - Capture is per pointer id; multi-touch supports independent captures.
 - Losing the window/focus cancels capture and active states.
+
+### 5.1 Custom element input
+
+`CustomElement` nodes are normal hit-test/focus targets with element-local handling:
+
+```cpp
+EventResult on_event(const ElementEvent&, CustomEventDispatch&);
+```
+
+- `ElementEvent` carries the normalized event, element-local logical coordinates, and optional
+  `part_id` from `hit_test_part(local_x, local_y)` (3D picking/sub-targets).
+- `EventResult::HandledAndStop` stops propagation; `prevent_default` is separate.
+- The element may capture the pointer, request focus, and emit typed custom events
+  (`select`, `hover`, `cameraChanged`, ...) through `CustomEventDispatch`.
+- Custom events are dispatched to generated JSX bindings; payloads are copied, not owned.
+- Keyboard/text/IME require `focusable` and focus; declare `input` categories in
+  `ui/elements.json`.
+- No global event bus, no raw OS events, no blocking in handlers.
+- Headless scripts target `uiId` (+ optional `partId`) through this same path.
+- See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ## 6. Focus and keyboard
 

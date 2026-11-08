@@ -104,6 +104,14 @@ Use raw metrics for decisions; don't chase the score.
 }
 ```
 
+### 8.1 Custom elements
+
+- Target by `uiId`; sub-targets use `partId` (3D picking).
+- Use `custom`/`assertCustom` for element test commands and snapshot paths.
+- Snapshot includes element id, state, draw stats, and last event.
+- Structural mode records draws without GPU; golden uses compiled shaders.
+- See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
+
 ## 9. Rules for agents
 
 - Use manifest IDs; don't scrape string paths.

@@ -19,6 +19,11 @@ below are normative; ADR-021 ("never block the UI thread") is the top-level cons
 B1: one thread, synchronous submit/wait. B3 may add a render thread, but the UI thread still
 owns scene/style/layout and never waits indefinitely.
 
+Custom elements: `on_update`/`on_event` run on the UI thread; `on_render` runs on the render
+thread. They exchange immutable frame data/commands, not mutable UI state. Per-instance renderer
+state is owned by the element; shared pipelines/meshes/textures live in the resource cache and
+retire after frames in flight. No locks/blocking in the steady-state path.
+
 ## 2. Executors and async
 
 - C++20 coroutines with an executor abstraction (`ui`, `worker`, `io`, `gpu`).

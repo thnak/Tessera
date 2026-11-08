@@ -44,10 +44,15 @@ my-app/
 ├── src/
 │   └── main.cpp          # developer-owned entry point
 ├── ui/
-│   └── App.tsx           # UI components (JSX/TSX)
+│   ├── App.tsx           # UI components (JSX/TSX)
+│   ├── elements.json     # custom native element declarations
+│   └── elements/
+│       └── Waterfall3D.cpp
 ├── generated/
 │   ├── App.g.h           # generated, do not edit outside protected regions
 │   ├── App.g.cpp
+│   ├── elements.g.cpp    # compile-time custom element factory registry
+│   ├── elements.d.ts     # typed JSX props/events for custom elements
 │   ├── bindings.json     # binding id -> component/file/region
 │   └── automation.manifest.json  # uint64 uiId/componentId -> source/debug path
 ├── assets/
@@ -200,6 +205,9 @@ Ownership, protected regions, and regeneration rules are in
   random identifiers.
 - Numeric `UiId`/`ComponentId` are deterministic; `automation.manifest.json` is emitted and
   reviewed like generated code. See [`automation-ids-v1.md`](../specs/automation-ids-v1.md).
+- `ui/elements.json` generates `elements.g.cpp` (compile-time factory registry) and
+  `elements.d.ts` (typed JSX props/events); no runtime registration/dynamic loading. See
+  [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 - Generated files compile with `/W4` (MSVC) and `-Wall -Wextra -Wpedantic` (GCC/Clang).
 
 ## Incremental generation

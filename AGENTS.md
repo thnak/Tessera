@@ -231,6 +231,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Error boundaries | [`docs/specs/error-boundaries-v1.md`](docs/specs/error-boundaries-v1.md) |
 | Deep links / activation | [`docs/specs/deep-linking-v1.md`](docs/specs/deep-linking-v1.md), [`docs/guides/deep-linking.md`](docs/guides/deep-linking.md) |
 | Automation IDs / headless / audits | [`docs/specs/automation-ids-v1.md`](docs/specs/automation-ids-v1.md), [`docs/specs/headless-automation-v1.md`](docs/specs/headless-automation-v1.md), [`docs/specs/lighthouse-audit-v1.md`](docs/specs/lighthouse-audit-v1.md) |
+| Custom native elements / 3D | [`docs/specs/custom-elements-v1.md`](docs/specs/custom-elements-v1.md), [`docs/guides/custom-elements.md`](docs/guides/custom-elements.md) |
 | Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |
 | Testing / goldens | [`docs/guides/testing.md`](docs/guides/testing.md), [`docs/specs/golden-tests-v1.md`](docs/specs/golden-tests-v1.md) |
 | Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |
@@ -296,6 +297,9 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
       file-association/browser-fallback tests pass; no secrets in URLs/logs; no shell execution.
 - [ ] If it touches automation/headless/audits: numeric ID manifest is deterministic; snapshot/
       action/trace/audit schemas pass; golden/GPU separation; audit disabled adds no cost.
+- [ ] If it touches custom elements/3D: manifest/prop/event/shader validation, compile-time
+      registry, leaf/reuse rule, element input/capture/custom events, offscreen/inline and
+      unit/structural/golden/GPU-smoke tests pass; no raw backend/OS handles or runtime shaders.
 
 ## Current focus
 

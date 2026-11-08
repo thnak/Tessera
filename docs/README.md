@@ -32,6 +32,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-025](../decisions/ADR-025-error-boundaries.md) — error boundaries/exception isolation
 - [ADR-026](../decisions/ADR-026-deep-links-and-external-activation.md) — deep links/activation
 - [ADR-027](../decisions/ADR-027-agent-automation-and-audits.md) — numeric IDs/headless/audits
+- [ADR-028](../decisions/ADR-028-custom-native-elements.md) — custom native elements/3D/input
 
 ## 3. Specs (normative)
 
@@ -64,6 +65,8 @@ for the project overview. This page is the map and reading order for the framewo
   scripts/actions/asserts, agent protocol
 - [`specs/lighthouse-audit-v1.md`](specs/lighthouse-audit-v1.md) — response-time metrics,
   categories, scoring, reports, CI thresholds
+- [`specs/custom-elements-v1.md`](specs/custom-elements-v1.md) — JSX-declared native elements,
+  RHI/shader API, 3D composition, element input, reuse, headless tests
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -136,6 +139,8 @@ for the project overview. This page is the map and reading order for the framewo
   browser/file activation
 - [`guides/agent-automation.md`](guides/agent-automation.md) — use IDs/snapshots/actions/traces
   and audits from a coding agent
+- [`guides/custom-elements.md`](guides/custom-elements.md) — declare/implement/test a custom
+  native element with shaders, 3D, input and reuse
 
 ## 6. Reference
 
@@ -191,6 +196,16 @@ for the project overview. This page is the map and reading order for the framewo
 7. [Async runtime](design/async.md)
 8. [Performance & power](design/performance.md)
 9. [Security](design/security.md)
+
+### Custom native elements
+
+1. [Custom elements spec](specs/custom-elements-v1.md)
+2. [Custom elements guide](guides/custom-elements.md)
+3. [IR](specs/ir-v1.md)
+4. [Shader manifest](specs/shader-manifest-v1.md)
+5. [Renderer](design/renderer.md)
+6. [Input](design/input.md)
+7. [Headless automation](specs/headless-automation-v1.md)
 
 ### Automation / observability
 
@@ -258,6 +273,7 @@ for the project overview. This page is the map and reading order for the framewo
 | Deep links / external activation | F proposed (ADR-026 accepted) |
 | Numeric automation IDs / headless | C proposed (ADR-027 accepted) |
 | Lighthouse-style audits | B2/F proposed (ADR-027 accepted) |
+| Custom native elements / 3D | B2/C/D proposed (ADR-028 accepted) |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |

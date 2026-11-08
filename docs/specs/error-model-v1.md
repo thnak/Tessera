@@ -106,6 +106,10 @@ platform/GPU -> translated Error -> completion queue/event
 - Validation-layer messages are diagnostics in debug; not user-facing.
 - Missing features -> documented fallback, not a crash.
 - Fatal GPU failure -> controlled shutdown; report code/detail.
+- Custom element `on_render` returns `Error` (no throw across threads/ABI); renderer disables
+  the element and shows a deterministic fallback where possible. Update/input exceptions go to
+  the nearest error boundary; device loss recreates safely. See
+  [`custom-elements-v1.md`](custom-elements-v1.md).
 
 ## 10. Testing
 

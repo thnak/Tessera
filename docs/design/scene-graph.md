@@ -25,6 +25,10 @@ batched 2D renderer's scissor stack.
 instance. List/grid items are identified by `(UiId, ItemKey)`. Snapshot/query APIs and the
 manifest are defined in [`automation-ids-v1.md`](../specs/automation-ids-v1.md).
 
+A `CustomElement` node is a leaf that owns a native renderer; the scene graph forwards layout,
+input, and paint/render work to it. Offscreen/inline composition and input are defined in
+[`custom-elements-v1.md`](../specs/custom-elements-v1.md).
+
 ## Dirty state
 
 Each node carries dirty bits:
