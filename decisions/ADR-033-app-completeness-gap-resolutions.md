@@ -6,9 +6,10 @@
 
 ## Context
 
-The app-level specs identified 27 P0 gaps and 25 open questions across text, scroll, overlays,
-forms, navigation, restore, shell, i18n, accessibility, data, devtools, updates, crash, library,
-samples, and media. Leaving them open blocks implementation and invites incompatible choices.
+The app-level specs identified 27 initial P0 gaps and 25 open questions across text, scroll,
+overlays, forms, navigation, restore, shell, i18n, accessibility, data, devtools, updates, crash,
+library, samples, and media. Animation/overscroll was added as G-28/Q-26 in ADR-034. Leaving gaps
+open blocks implementation and invites incompatible choices.
 
 ## Decision
 

@@ -1,6 +1,8 @@
 # Animation and transitions
 
 Status: design for Big Step B2. `src/ui/animation/` is a placeholder today.
+Normative animation/interaction/overscroll contract:
+[`animation-v1.md`](../specs/animation-v1.md).
 
 Animation is declarative at the style/component level and sampled by the fixed-step runtime.
 It never reads the wall clock and never blocks a frame.
@@ -13,6 +15,10 @@ It never reads the wall clock and never blocks a frame.
 | CSS keyframes | `@keyframes pulse { ... }` | style engine |
 | Animated values | `useAnimatedValue(0)` | component/runtime |
 | Spring | `{ type: "spring", stiffness, damping }` | animation runtime |
+| Interaction feedback | press/hover/focus/validation | component/library + runtime |
+| Scroll effects | fling/snap/scroll-to/scrollbar fade | scroll controller |
+| Overscroll | stretch/bounce/glow + spring-back | scroll + animation runtime |
+| Route/overlay | enter/exit/focus | navigation/overlay |
 | Scroll-driven | later | layout/scroll |
 
 ## 2. Timeline and sampling
@@ -66,6 +72,20 @@ Discrete properties (display, visibility) use step semantics; do not interpolate
   and reduce/disable optional motion when `prefers-reduced-motion` is set.
 - Animations that only affect paint (opacity/color) do not mark layout dirty.
 
+## 5.1 Interaction and overscroll effects
+
+Normative details: [`animation-v1.md`](../specs/animation-v1.md).
+
+- Press/hover/focus/validation/list/route/overlay effects use the same fixed-step sampler.
+- Scroll offset stays clamped; overscroll is a separate visual state (`visual`, `velocity`) with
+  `None/Glow/Stretch/Bounce/Platform` modes.
+- Dragging beyond an edge applies asymptotic resistance; release runs a damped spring back to
+  zero. A new pointer down catches the current visual value without a jump.
+- Stretch/bounce transforms the content layer only; sticky headers/scrollbars/overlays stay
+  outside the effect. No relayout; damage is the visual union.
+- `prefers-reduced-motion` disables stretch/bounce/glow and clamps immediately.
+- The effect never changes scroll offset, content size, focus, or automation IDs.
+
 ## 6. Animated values (`useAnimatedValue`)
 
 - Creates a runtime value with an initial value and a driver (tween/spring).
@@ -112,10 +132,12 @@ Record:
 - spring energy/convergence
 - reduced-motion/power-policy decisions
 
-## 11. Open questions
+## 11. Deferred/open questions
 
 - CSS `animation-composition` and additive animations.
 - Scroll-driven animations.
 - Shared-element transitions.
 - Whether springs are a CSS extension or a component-only API.
 - Wide-gamut color interpolation.
+- Exact per-platform overscroll profile tuning.
+- Haptics/audio feedback coupled to overscroll.

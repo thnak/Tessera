@@ -44,6 +44,7 @@ lives in the linked specs; this document records the decision and its status.
 | G-25 | Resolved | Token JSON v1 is semantic/versioned; component API contract includes controlled state/focus/a11y; DataGrid V1 = virtual rows/columns, selection, sort, resize/reorder, keyboard; editing/grouping/pivot deferred. | `component-library` §8.1 |
 | G-26 | Resolved | Samples are checked-in, generator-compatible, CI-built/tested, with public APIs and reviewed goldens; mobile sample deferred. | `sample-apps` §4.1 |
 | G-27 | Deferred | Media/print/PDF/export remain optional app/platform packages; video uses external texture/custom element; audio focus is platform policy; no core media engine. | `media-and-export` §6.1 |
+| G-28 | Resolved | Animation/interaction is normative: overscroll is a separate visual state applied to the content layer; modes `None/Glow/Stretch/Bounce/Platform`; asymptotic drag resistance + damped spring-back; interruptible; reduced motion clamps; no offset/layout/focus/ID changes. | `animation-v1` §7, `scroll-and-gestures-v1` §3.1 |
 
 ## 3. Open-question resolutions
 
@@ -74,6 +75,7 @@ lives in the linked specs; this document records the decision and its status.
 | Q-23 | Crashpad/fallback; internal symbols; opt-in upload. |
 | Q-24 | Token schema/API/DataGrid scope fixed as above. |
 | Q-25 | Media/export is an optional package, not core. |
+| Q-26 | `Platform` resolves overscroll profile via HAL; apps may override per `Scroll`; profiles are typed and calibrated per platform. |
 
 ## 4. Deferred with rationale
 
@@ -85,6 +87,8 @@ lives in the linked specs; this document records the decision and its status.
 - Delta updates: full packages are simpler and safer until signing/rollback is proven.
 - Linux tray/global shortcuts and mobile media/print: platform support is inconsistent.
 - Custom dictionaries, DRM/protected media, PDF/print fidelity: app/platform-specific.
+- Scroll-driven/shared-element animations and custom overscroll effects: need broader animation
+  model/authoring; core overscroll stretch/spring-back is covered by ADR-034.
 
 ## 5. Implementation/test follow-up
 

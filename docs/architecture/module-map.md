@@ -43,7 +43,7 @@ directories marked **planned** are seams, not implemented features.
 | `tools/poc/` | Phase 0/B1 proofs | B1 |
 | `tools/shaders/`, `tools/font/` | shader/font tooling | planned |
 | `third_party/` | vendored dependencies (stb, volk, vma) | B1 |
-| `decisions/` | ADRs | 33 |
+| `decisions/` | ADRs | 34 |
 | `docs/` | specs, design, guides, architecture | this set |
 
 ## 2. Dependency direction

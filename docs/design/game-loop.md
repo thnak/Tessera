@@ -23,7 +23,8 @@ The rest of this document defines the tick/render split, pacing, and display-ref
 Dirty work is defined in [`dirty-rendering.md`](dirty-rendering.md); input in
 [`input.md`](input.md); styles in [`stylesheet-v1.md`](../specs/stylesheet-v1.md); resize in
 [`window-resize.md`](window-resize.md); async completion in [`async.md`](async.md); measurement
-in [`diagnostics.md`](diagnostics.md).
+in [`diagnostics.md`](diagnostics.md); animation/overscroll in
+[`animation-v1.md`](../specs/animation-v1.md).
 
 ## 1. Terms
 

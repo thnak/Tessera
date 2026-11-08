@@ -248,6 +248,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Area | V1 semantics | Later |
 |---|---|---|
 | Box model | `display` (block/flex/none), `width/height/min/max`, `margin`, `padding`, `border`, `box-sizing`, `aspect-ratio`, `overflow` | table, multi-column |
+| Scrolling | `overflow`, `scroll-behavior`, `overscroll-behavior`, `overscroll-effect`, `scrollbar-gutter` | scroll-driven animations, snap points |
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
 | Grid | fixed/repeat columns/rows, gap, span, basic alignment | subgrid, masonry, dense auto-placement |
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
@@ -277,7 +278,11 @@ Unsupported declarations are **not** silent: they produce one diagnostic per
 - **Input**: the input pseudo-state dispatcher updates `:hover`, `:active`, `:focus`,
   `:focus-visible`, `:disabled`, `:checked`. See [`input.md`](../design/input.md).
 - **Animation**: the fixed-step loop samples transitions/keyframes and writes animated values
-  into the computed style before layout/paint. See [`animation.md`](../design/animation.md).
+  into the computed style before layout/paint. See [`animation-v1.md`](animation-v1.md) and
+  [`animation.md`](../design/animation.md).
+- **Scrolling**: `overflow`, `scroll-behavior`, `overscroll-behavior`, `overscroll-effect`, and
+  `scrollbar-gutter` feed the scroll runtime; overscroll stretch/spring-back is visual only and
+  never changes offset/layout. See [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md).
 - **Compiler**: build-time CSS is precompiled to the same `StyleSheet` representation; generated
   C++ references compiled rule ids, not a second parser.
 

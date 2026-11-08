@@ -53,7 +53,8 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
   [agent guide](docs/guides/agent-automation.md), [Lighthouse audits](docs/specs/lighthouse-audit-v1.md)
 - [Custom native elements](docs/specs/custom-elements-v1.md), [custom elements guide](docs/guides/custom-elements.md)
 - [Text editing](docs/specs/text-editing-v1.md), [scroll/gestures](docs/specs/scroll-and-gestures-v1.md),
-  [overlays/layers](docs/specs/overlays-and-layers-v1.md), [forms/validation](docs/specs/forms-and-validation-v1.md)
+  [animation/overscroll](docs/specs/animation-v1.md), [overlays/layers](docs/specs/overlays-and-layers-v1.md),
+  [forms/validation](docs/specs/forms-and-validation-v1.md)
 - [Navigation](docs/specs/navigation-v1.md), [state restoration](docs/specs/state-restoration-v1.md),
   [platform shell](docs/specs/platform-shell-v1.md), [i18n](docs/specs/i18n-v1.md),
   [accessibility](docs/specs/accessibility-v1.md), [async data](docs/specs/async-data-v1.md)
@@ -174,7 +175,7 @@ Tools and demos:
 
 ## Next
 
-1. ADR-001 … ADR-033 in `decisions/`.
+1. ADR-001 … ADR-034 in `decisions/`.
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
    async runtime, diagnostics, Yoga/text, pixel goldens.
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.

@@ -234,6 +234,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Custom native elements / 3D | [`docs/specs/custom-elements-v1.md`](docs/specs/custom-elements-v1.md), [`docs/guides/custom-elements.md`](docs/guides/custom-elements.md) |
 | Text editing / forms | [`docs/specs/text-editing-v1.md`](docs/specs/text-editing-v1.md), [`docs/specs/forms-and-validation-v1.md`](docs/specs/forms-and-validation-v1.md) |
 | Scroll / gestures / overlays | [`docs/specs/scroll-and-gestures-v1.md`](docs/specs/scroll-and-gestures-v1.md), [`docs/specs/overlays-and-layers-v1.md`](docs/specs/overlays-and-layers-v1.md) |
+| Animation / overscroll | [`docs/specs/animation-v1.md`](docs/specs/animation-v1.md), [`docs/specs/scroll-and-gestures-v1.md`](docs/specs/scroll-and-gestures-v1.md) |
 | Navigation / restore / shell / i18n | [`docs/specs/navigation-v1.md`](docs/specs/navigation-v1.md), [`docs/specs/state-restoration-v1.md`](docs/specs/state-restoration-v1.md), [`docs/specs/platform-shell-v1.md`](docs/specs/platform-shell-v1.md), [`docs/specs/i18n-v1.md`](docs/specs/i18n-v1.md) |
 | Accessibility / async data | [`docs/specs/accessibility-v1.md`](docs/specs/accessibility-v1.md), [`docs/specs/async-data-v1.md`](docs/specs/async-data-v1.md) |
 | Devtools / updates / crash | [`docs/specs/devtools-protocol-v1.md`](docs/specs/devtools-protocol-v1.md), [`docs/specs/updates-and-distribution-v1.md`](docs/specs/updates-and-distribution-v1.md), [`docs/specs/crash-reporting-v1.md`](docs/specs/crash-reporting-v1.md) |
@@ -310,6 +311,8 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
       sync/async validation, focus-first-invalid, accessibility and headless tests pass.
 - [ ] If it touches scroll/gestures/overlays: nested scroll/gesture arena, snap/sticky/anchoring,
       modal focus/back/dismiss, anchoring/clamping and goldens/headless tests pass.
+- [ ] If it touches animation/overscroll: fixed-step sampling, reduced motion, interrupt/retarget,
+      overscroll resistance/spring-back, no offset/layout/ID change, goldens/headless tests pass.
 - [ ] If it touches navigation/restore/shell/i18n/a11y/data: route/back/deep-link/restore
       versioning, clipboard/DnD/dialog permissions, locale/RTL, semantics, cache/offline tests pass.
 - [ ] If it touches devtools/updates/crash: local-only devtools, signed/staged/rollback updates,

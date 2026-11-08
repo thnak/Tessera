@@ -4,8 +4,8 @@ Status: analysis (docs-only). Scope: the app-level specs added by ADR-029..032, 
 against the existing framework docs. This document does **not** replace the specs; it records
 ownership, conflicts, missing contracts, and decisions still needed.
 
-Resolution status: G-01..G-27 and Q-01..Q-25 are resolved or explicitly deferred in
-[`app-completeness-gap-resolutions-v1.md`](app-completeness-gap-resolutions-v1.md) (ADR-033).
+Resolution status: G-01..G-28 and Q-01..Q-26 are resolved or explicitly deferred in
+[`app-completeness-gap-resolutions-v1.md`](app-completeness-gap-resolutions-v1.md) (ADR-033/034).
 This document remains the analysis/rationale; the ledger is the decision record.
 
 ## 1. Method
@@ -116,6 +116,7 @@ This document remains the analysis/rationale; the ledger is the decision record.
 | G-25 | Library | Token schema/versioning, component API contract, DataGrid scope | Visual/API churn |
 | G-26 | Samples | CI/maintenance/golden ownership; mobile sample | Docs rot |
 | G-27 | Media | Media service vs custom element, audio focus, printing/PDF determinism | Scope creep/duplicate integrations |
+| G-28 | Animation | Interaction/overscroll animation (stretch/spring-back) and platform feel not specified | Non-native scrolling/jank/incorrect semantics |
 
 ### 3.3 P1 gaps (after P0)
 
@@ -165,6 +166,7 @@ This document remains the analysis/rationale; the ledger is the decision record.
 | Q-23 | Crash | Handler/symbol server/consent/retention | Platform/privacy |
 | Q-24 | Library | Tokens versioning, headless vs styled split, DataGrid scope | Product layer |
 | Q-25 | Media | Default media service vs app/platform package | Scope |
+| Q-26 | Animation | Overscroll platform profiles/defaults and curve tuning | HAL/product |
 
 ## 5. Implementation order (dependency-aware)
 
@@ -200,6 +202,7 @@ This document remains the analysis/rationale; the ledger is the decision record.
 | Library | `component-library §8.1` (tokens, API, DataGrid, tests) |
 | Samples | `sample-apps §4.1` (CI, template, maintenance) |
 | Media/export | `media-and-export §6.1` (playback/print/export boundaries) |
+| Animation/overscroll | `animation-v1 §7` and `scroll-and-gestures-v1 §3.1/§9.1` (visual state, spring, interruption) |
 
 The detail sections define ownership, invariants, ordering, and failure behavior. The remaining
 G/Q items are deliberately still open (tooling/format/platform choices), not silently resolved.
@@ -207,7 +210,7 @@ G/Q items are deliberately still open (tooling/format/platform choices), not sil
 ## 7. Acceptance checklist
 
 - [ ] Every area has one canonical owner and no duplicate route/cache/restore declarations.
-- [ ] Detail-design sections exist for G-01..G-27 (or explicitly deferred).
+- [ ] Detail-design sections exist for G-01..G-28 (or explicitly deferred).
 - [ ] `versioning-v1` lists every new artifact/version.
 - [ ] Overlay/portal wording is consistent in component model, custom elements, guide.
 - [ ] IME candidate-window ownership is consistent.

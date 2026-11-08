@@ -10,7 +10,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [`architecture/app-completeness-cross-check-v1.md`](architecture/app-completeness-cross-check-v1.md)
   — cross-check, canonical ownership, gap register, open questions
 - [`architecture/app-completeness-gap-resolutions-v1.md`](architecture/app-completeness-gap-resolutions-v1.md)
-  — resolved/deferred decisions for G-01..G-27 and Q-01..Q-25
+  — resolved/deferred decisions for G-01..G-28 and Q-01..Q-26
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
   ownership, dependency direction.
 
@@ -42,6 +42,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) — devtools/updates/crash
 - [ADR-032](../decisions/ADR-032-bundled-component-library.md) — component library/design tokens
 - [ADR-033](../decisions/ADR-033-app-completeness-gap-resolutions.md) — gap resolutions/deferrals
+- [ADR-034](../decisions/ADR-034-interaction-and-overscroll-animation.md) — interaction/overscroll animation
 
 ## 3. Specs (normative)
 
@@ -80,6 +81,8 @@ for the project overview. This page is the map and reading order for the framewo
   TextInput/TextArea, secure fields
 - [`specs/scroll-and-gestures-v1.md`](specs/scroll-and-gestures-v1.md) — scroll physics, nested
   scroll, gesture arena, sticky/anchoring
+- [`specs/animation-v1.md`](specs/animation-v1.md) — transitions/springs, interaction feedback,
+  scroll fling/snap, overscroll stretch/spring-back, reduced motion
 - [`specs/overlays-and-layers-v1.md`](specs/overlays-and-layers-v1.md) — overlay/modal/popover/
   tooltip/toast layers, focus/dismiss/anchoring
 - [`specs/forms-and-validation-v1.md`](specs/forms-and-validation-v1.md) — field state, sync/async
@@ -254,10 +257,11 @@ for the project overview. This page is the map and reading order for the framewo
 
 1. [Text editing](specs/text-editing-v1.md)
 2. [Scroll and gestures](specs/scroll-and-gestures-v1.md)
-3. [Overlays and layers](specs/overlays-and-layers-v1.md)
-4. [Forms and validation](specs/forms-and-validation-v1.md)
-5. [Input](design/input.md)
-6. [Text](design/text.md)
+3. [Animation](specs/animation-v1.md)
+4. [Overlays and layers](specs/overlays-and-layers-v1.md)
+5. [Forms and validation](specs/forms-and-validation-v1.md)
+6. [Input](design/input.md)
+7. [Text](design/text.md)
 
 ### App platform
 
@@ -347,6 +351,7 @@ for the project overview. This page is the map and reading order for the framewo
 | Custom native elements / 3D | B2/C/D proposed (ADR-028 accepted) |
 | Text editing / forms | B2/C proposed (ADR-029 accepted) |
 | Scroll / gestures | B2 proposed (ADR-029 accepted) |
+| Animation / overscroll | B2 proposed (ADR-034 accepted) |
 | Overlays / layers | B2/C proposed (ADR-029 accepted) |
 | Navigation / state restore | F proposed (ADR-030 accepted) |
 | Platform shell / i18n | F proposed (ADR-030 accepted) |

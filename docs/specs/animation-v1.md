@@ -1,0 +1,187 @@
+# Animation and interaction effects v1
+
+Status: proposed (Big Step B2/C). Decision: ADR-034. Companion to
+[`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),
+[`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md), and
+[`overlays-and-layers-v1.md`](overlays-and-layers-v1.md).
+
+Animation is declarative motion sampled by the fixed-step runtime. Interaction effects
+(press/hover/focus, scroll fling/snap, overscroll stretch/spring-back, route/overlay transitions)
+use the same clock, interruption, reduced-motion, and determinism rules.
+
+## 1. Scope
+
+- Style transitions/keyframes/animated values/springs.
+- Scroll fling, snap, scroll-into-view, scrollbar fade.
+- Overscroll visual effects: stretch/bounce/glow and spring-back.
+- Overlay/route enter/exit and focus/press feedback.
+- Reduced motion, power policy, interruption, tests.
+- Scroll-driven/shared-element animations are deferred.
+
+## 2. Ownership
+
+| Component | Owns | Does not own |
+|---|---|---|
+| Style animation | transitions, keyframes, interpolation | Layout/scroll physics |
+| `AnimationRuntime` | active animations, fixed-step sampling, completion | Component state |
+| `ScrollController` | fling/snap/overscroll state/physics | Shaping/paint details |
+| `OverscrollEffect` renderer | stretch/translation/glow paint | Scroll offset/content layout |
+| Navigation/overlay | transition timing/content | Global clock |
+| HAL | platform motion preference/profile | App animation policy |
+
+## 3. Timeline and sampling
+
+```text
+tick(dt):
+  sample active animations at fixed dt
+  write sampled values into visual state
+  mark paint/render dirty (layout only if a layout property animates)
+  stop animations below epsilon
+  if none active: no wake
+```
+
+- Use the simulation clock, never wall time; deterministic mode injects start time and dt.
+- Sampling happens before style/layout/paint; render may interpolate between ticks.
+- An animation that only changes transform/opacity does not mark layout dirty.
+- Completion callbacks run on the UI thread at a tick boundary; no detached tasks.
+- Hidden/occluded/minimized pauses animations unless explicitly allowed.
+
+## 4. Curves, springs, and tokens
+
+- Easing: linear, ease*, cubic-bezier, steps; color in sRGB for v1.
+- Springs: damped harmonic oscillator integrated at fixed dt (semi-implicit Euler).
+- Standard duration tokens: `fast` 120 ms, `normal` 200 ms, `slow` 320 ms (library defaults;
+  apps may override).
+- A spring is defined by `(stiffness, damping, mass, initial_velocity)`; retargeting keeps
+  position/velocity.
+- `prefers-reduced-motion` (OS) -> no non-essential motion; functional changes are instant or
+  a short opacity change. No parallax/stretch/bounce.
+
+## 5. Interaction feedback
+
+| Effect | Default | Notes |
+|---|---|---|
+| Press | scale/opacity 0.98 over `fast` | interruptible; no layout |
+| Hover | color/elevation over `fast` | disabled on touch |
+| Focus ring | opacity/scale 120 ms | visible immediately, no delay |
+| Validation error | shake 160 ms max | respect reduced motion; one shake |
+| List insert/remove | fade/size `normal` | keyed; no jump for existing items |
+| Route/overlay | slide/fade `normal` | state changes immediately; animation is visual |
+| Scrollbar | fade out after idle | no frame when hidden |
+
+- Feedback must not be the only signal (accessibility/state still changes).
+- Animations never block input/state commit; back/dismiss works during a transition.
+- Shake/parallax are optional and disabled by reduced motion/power-save.
+
+## 6. Scroll animation
+
+- Fling/coast uses a bounded decay; velocity is clamped; stops at zero.
+- Snap/paging chooses a deterministic target from position/velocity; reduced motion = immediate.
+- `scroll_to`/`scroll_into_view` use a tween/spring with cancellation on user input.
+- A new pointer down interrupts fling/snap and preserves continuity.
+- Scroll-driven animations are deferred; do not couple layout to scroll progress in V1.
+
+## 7. Overscroll effects
+
+Scroll offset remains clamped. Overscroll is a **separate visual state**:
+
+```cpp
+enum class OverscrollEffect { None, Glow, Stretch, Bounce, Platform };
+
+struct OverscrollState {
+    Vec2 visual;        // stretched/translated px, 0 at rest
+    Vec2 velocity;      // px/s, visual state
+    bool active;
+    OverscrollEffect effect;
+};
+
+struct OverscrollProfile {
+    OverscrollEffect effect = OverscrollEffect::Platform;
+    float max_stretch_ratio = 0.12f;   // of viewport, per axis
+    float max_stretch_px = 64.0f;      // hard cap
+    float stiffness = 220.0f;
+    float damping = 26.0f;
+    float glow_radius_px = 24.0f;
+};
+```
+
+Modes:
+
+- `None`: clamp; no visual overscroll.
+- `Glow`: edge glow; offset stays clamped.
+- `Stretch`: content layer stretches/translates past the edge; sticky headers, scrollbars, and
+  overlays are not stretched.
+- `Bounce`: content layer translates past the edge (no scale).
+- `Platform`: HAL profile. Proposed defaults: iOS/macOS = `Stretch`, Android = `Stretch`
+  (glow only for legacy), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
+  supported. Apps may override per `Scroll`.
+
+Drag beyond an edge:
+
+```text
+raw = max(0, pointer_beyond_edge)
+max = min(viewport * max_stretch_ratio, max_stretch_px)
+visual = max * raw / (raw + max)     // monotonic, asymptotically max
+```
+
+- The content is transformed around the opposite edge and clipped to the viewport.
+- Sticky headers/scrollbars stay fixed; edge glow is painted by the container.
+- No overscroll if content fits the viewport; no overscroll on the wrong axis.
+- Nested scroll: only the last eligible container applies the effect; `overscroll-behavior`
+  controls chaining separately. `contain`/`none` do not animate past the edge.
+- Mouse wheel/trackpad and touch use the same state but may have different HAL profiles.
+
+Release/spring-back:
+
+```text
+a = -stiffness * visual - damping * velocity
+velocity += a * dt
+visual += velocity * dt
+stop when |visual| < 0.5 px and |velocity| < 5 px/s
+```
+
+- Initial velocity comes from the release gesture, clamped; no fling while beyond the edge.
+- A new pointer down catches the current visual value and cancels the spring without a jump
+  (`raw = max * visual / (max - visual)` when `visual < max`).
+- Content-size/axis/config changes cancel the spring and re-clamp.
+- The effect never changes `ScrollState.offset`, content size, focus, or automation IDs.
+
+Rendering:
+
+- Stretch/bounce applies to the content layer only; damage is the union of old/new visual bounds.
+- No relayout; transform/paint only. Text/glyph rendering may stretch with the layer.
+- Glow is a paint primitive clipped to the container; no layout/GPU target allocation per frame.
+- The effect stops requesting frames when at rest; hidden/occluded pauses it.
+
+Reduced motion/accessibility:
+
+- `prefers-reduced-motion` -> `None` (clamp immediately); no stretch/bounce/glow animation.
+- The effect is never the only feedback; scroll position/state remains correct.
+- Power-save may disable glow/stretch before dropping frames.
+
+## 8. Overlay/route transitions
+
+- Enter/exit uses `normal` duration by default; reduced motion = instant/fade only.
+- State commits before/independent of animation; input/back is not blocked.
+- Interrupted transitions retarget from the current visual value, not the old endpoint.
+- Focus is moved/restored at the logical commit boundary, not after the animation.
+- A transition never changes layout semantics or automation state.
+
+## 9. Determinism and tests
+
+- Fixed dt/start time/inputs; no wall clock/random seeds.
+- Unit: easing/spring convergence, retarget/interrupt, epsilon stop, reduced motion.
+- Scroll: fling/snap/scroll-to cancel, overscroll resistance monotonic/asymptotic, release
+  convergence, interruption without jump, nested/axis/RTL, wheel vs touch.
+- Golden: stretch/bounce/glow at fixed frames, route/overlay transition frames, press/focus.
+- Headless: assert visual overscroll state, zero at rest, no offset/layout change.
+- No animation frame when at rest; no leak after node removal.
+
+## 10. Deferred/open questions
+
+- Scroll-driven animations and shared-element transitions.
+- Exact per-platform overscroll profiles/curve tuning.
+- Pull-to-refresh and custom overscroll effects (library).
+- Animation of layout properties and additive composition.
+- Wide-gamut color interpolation.
+- Haptics/audio feedback coupled to overscroll (platform).

@@ -2,7 +2,8 @@
 
 Status: proposed (Big Step B2). Decision: ADR-029. Companion to
 [`input.md`](../design/input.md), [`layout.md`](../design/layout.md),
-[`virtualization-v1.md`](virtualization-v1.md), and [`mobile-integration.md`](../design/mobile-integration.md).
+[`virtualization-v1.md`](virtualization-v1.md), [`mobile-integration.md`](../design/mobile-integration.md),
+and [`animation-v1.md`](animation-v1.md) (overscroll/spring-back).
 
 Scrolling and gestures are one system: a drag must decide whether it scrolls, selects, or
 activates; nested containers must chain predictably; headless input must be deterministic.
@@ -63,6 +64,35 @@ set_scroll_offset(offset);   // immediate, no animation
 - Paging/snap uses a deterministic target selection; reduced motion makes it immediate.
 - Scroll physics are platform-profiled but the state machine is shared.
 - No busy-wait; scroll animation is driven by the frame loop and stops at rest.
+
+### 3.1 Overscroll animation (stretch/spring-back)
+
+Normative effect behavior: [`animation-v1.md`](animation-v1.md) §7. Overscroll is a visual state,
+not a scroll offset:
+
+```cpp
+struct OverscrollState {
+    Vec2 visual;        // stretched/translated px, 0 at rest
+    Vec2 velocity;
+    bool active;
+    OverscrollEffect effect;   // None/Glow/Stretch/Bounce/Platform
+};
+```
+
+- `ScrollState.offset` stays clamped; `visual` is applied as a content-layer transform.
+- Drag beyond an edge uses asymptotic resistance:
+  `visual = max * raw / (raw + max)`, with `max = min(viewport*ratio, px_cap)`.
+- Release runs a damped spring (`-k*visual - c*velocity`) back to zero at fixed dt; stop at
+  `|visual| < 0.5 px && |velocity| < 5 px/s`.
+- A new pointer down catches the current visual value and cancels the spring without a jump.
+- Stretch/bounce applies to content only; sticky headers, scrollbars, and overlays do not
+  stretch. No relayout; damage is the old/new visual union.
+- Nested scroll: only the last eligible container applies the effect; chaining remains governed
+  by `overscroll-behavior`. `contain`/`none` do not animate past the edge.
+- Content fitting the viewport, wrong axis, or reduced motion -> no overscroll.
+- Platform profile: `Platform` resolves via HAL (iOS/macOS stretch; Android stretch/legacy glow;
+  Windows/Linux none for wheel, stretch for touch where supported). Apps may override.
+- The effect never changes content size, focus, selection, or automation IDs.
 
 ## 4. Nested scroll
 
@@ -128,9 +158,11 @@ Rules:
 
 - Fixed clock, DPI, input script; no inertial randomness.
 - Test: wheel/trackpad, drag/fling, nested scroll chaining, snap/paging, rubber band,
-  keyboard/gamepad, scroll-into-view, sticky/anchoring, focus/selection, virtualized lists,
-  RTL axes, multi-touch pinch/rotate, cancel/capture.
-- Snapshot offset/velocity/viewport/content size; golden sticky/scrollbar/caret cases.
+  overscroll resistance/release/interrupt/reduced motion, keyboard/gamepad, scroll-into-view,
+  sticky/anchoring, focus/selection, virtualized lists, RTL axes, multi-touch pinch/rotate,
+  cancel/capture.
+- Snapshot offset/velocity/viewport/content size/overscroll visual; golden stretch/bounce/glow,
+  sticky/scrollbar/caret cases.
 - Headless gestures use the same recognizer/scroll path; no wall clock.
 
 ## 9.1 Detail design
@@ -165,13 +197,17 @@ Scroll state machine:
 
 ```text
 Idle -> Dragging -> Coasting -> Snapping -> Idle
+  \-> Overscrolling -> SpringBack -> Idle
   \-> Cancelled (pointer cancel/background/layout reset)
 ```
 
-- `Dragging`: offset follows pointer 1:1 after slop; overscroll applies only if enabled.
+- `Dragging`: offset follows pointer 1:1 after slop; at an edge, beyond-edge delta feeds
+  `OverscrollState.visual` with resistance; offset remains clamped.
 - `Coasting`: velocity decays to zero; a new touch cancels within a frame.
 - `Snapping`: choose a deterministic target from position/velocity; reduce motion = immediate.
-- Every transition clamps to `[min,max]`; content size changes re-clamp and may cancel.
+- `Overscrolling`: pointer is beyond the edge; no fling; visual follows resistance.
+- `SpringBack`: damped spring from the release visual/velocity to zero; interruptible.
+- Every transition clamps offset to `[min,max]`; content size changes re-clamp and may cancel.
 
 Nested scroll algorithm:
 
@@ -218,6 +254,6 @@ Gap-closure decisions:
 - Exact per-platform physics profiles and accessibility "reduce motion" tuning.
 - Momentum handoff between nested native/custom surfaces.
 - Scrollbar auto-hide timing and overlay-vs-gutter defaults per platform.
-- Pull-to-refresh/overscroll visual effects (library, not core).
+- Pull-to-refresh/custom overscroll effects (library, not core).
 - Scroll anchoring heuristics for virtualized lists.
 - Pinch/rotate for content vs custom-element content.

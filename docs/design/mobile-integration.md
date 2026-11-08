@@ -6,6 +6,7 @@ Bridge policy: [`bridges.md`](bridges.md); memory rules: [`memory-model-v1.md`](
 startup/loading/auth: [`startup-and-loading.md`](startup-and-loading.md). Interaction companions:
 [`text-editing-v1.md`](../specs/text-editing-v1.md),
 [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md),
+[`animation-v1.md`](../specs/animation-v1.md),
 [`platform-shell-v1.md`](../specs/platform-shell-v1.md), and
 [`state-restoration-v1.md`](../specs/state-restoration-v1.md).
 
