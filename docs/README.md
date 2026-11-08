@@ -88,6 +88,8 @@ for the project overview. This page is the map and reading order for the framewo
   scroll, gesture arena, sticky/anchoring
 - [`specs/animation-v1.md`](specs/animation-v1.md) — transitions/springs, interaction feedback,
   scroll fling/snap, overscroll stretch/spring-back, reduced motion
+- [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
+  handlers, hooks, rejected constructs, diagnostics, error-tolerant parsing
 - [`specs/view-transitions-v1.md`](specs/view-transitions-v1.md) — window-wide transitions
   (`startViewTransition`, theme circle reveal, shader effects like glitch)
 - [`specs/overlays-and-layers-v1.md`](specs/overlays-and-layers-v1.md) — overlay/modal/popover/

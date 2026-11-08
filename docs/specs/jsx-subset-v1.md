@@ -1,0 +1,641 @@
+# JSX/TSX subset v1
+
+Status: proposed (Big Step C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)).
+Decision records: [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) (own
+JSX/TSX front end; React-like model) and [ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md)
+(self-contained Wasm designer).
+
+This document is the normative definition of the source language that the Tessera front end accepts.
+Anything not accepted here is a compile error (section 12). It does not define what the accepted
+constructs mean at run time; that is defined in [`component-model-v1.md`](component-model-v1.md) and
+[`ir-v1.md`](ir-v1.md).
+
+## 0. How to read this document
+
+### 0.1 Terms
+
+| Term | Meaning in this document |
+|---|---|
+| Front end | The Tessera lexer, parser and analyzer that turn source text into an AST and then IR ([`compiler.md`](../design/compiler.md) section 3) |
+| AST | Abstract syntax tree: the parser output (section 16). It never reaches code generation |
+| IR | The intermediate representation defined in [`ir-v1.md`](ir-v1.md); the only input to code generation |
+| Subset | The part of JSX/TSX defined here |
+| Component | A function that returns JSX and follows section 6 |
+| Intrinsic | A built-in element such as `View` (section 11) |
+| Pure expression | An expression with no side effects, from the grammar in section 8 |
+| Setter | The second value returned by `useState`, for example `setCount` |
+| Handler | A function value passed to an event prop or to an effect (section 9) |
+| Native handler | A handler whose run-time behavior is developer-written C++ inside a protected region, announced by a `// Note: bind::<id>` comment (section 9.3). A protected region is a developer-owned block that survives regeneration ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
+| Preview body | The TypeScript body of a native handler; the browser designer runs it because it cannot run C++ (section 9.3) |
+| Live view | The preview in the browser designer ([`designer.md`](../design/designer.md)) |
+| Span | A source location: file, byte offset and length, and 1-based start and end line and column (section 13.2) |
+| V1 | The first release; see the [glossary](../reference/glossary.md) |
+
+### 0.2 References
+
+| Reference | Subject |
+|---|---|
+| [`component-model-v1.md`](component-model-v1.md) | Component, hook, props, event, lifecycle and reconciliation semantics |
+| [`ir-v1.md`](ir-v1.md) | IR: node kinds, expressions, loops, bindings, source spans |
+| [`compiler.md`](../design/compiler.md) | Compiler stages; "Tier 1" (React rules) and "Tier 2" (bindings and lowering) |
+| [`stylesheet-v1.md`](stylesheet-v1.md) | Style properties and values accepted in `style` and `className` |
+| [`custom-elements-v1.md`](custom-elements-v1.md) | `CustomElement` and `ui/elements.json` |
+| [`virtualization-v1.md`](virtualization-v1.md) | `VirtualList` and `VirtualGrid` |
+| [`error-boundaries-v1.md`](error-boundaries-v1.md) | `ErrorBoundary` |
+| [`view-transitions-v1.md`](view-transitions-v1.md) | `startViewTransition` update-function rule |
+| [`developer-workflow.md`](../guides/developer-workflow.md) | Protected regions and `bind::` ids |
+
+## 1. Purpose and non-goals
+
+Purpose: let React/TypeScript developers write UI in familiar syntax while keeping the language small
+enough to parse, analyze statically, lower to IR and run in the designer without a JavaScript
+engine ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)).
+
+Non-goals:
+- Running arbitrary TypeScript or JavaScript. There is no JavaScript runtime in a production app or
+  in the designer ([ADR-024](../../decisions/ADR-024-native-first-boundaries.md)).
+- Type checking. Types are parsed and used to lower values to IR types (section 5); the front end
+  does not implement TypeScript's type system and never reports TypeScript type errors.
+- Compatibility with existing React code. Such code compiles only if it already stays inside this
+  subset.
+
+## 2. Source files
+
+- Extensions: `.tsx` and `.jsx`. Both use the same grammar; type annotations in `.jsx` are an error
+  (`TESSERA_JSX_SUBSET_TYPES`).
+- Encoding: UTF-8. A leading byte order mark is ignored. Invalid UTF-8 is an error.
+- Line endings: LF and CRLF are both accepted and are one line break for spans. A lone CR is an
+  error.
+- Files are discovered by the `include` and `exclude` globs of `tessera.json`
+  ([`project-config-v1.md`](project-config-v1.md)).
+- One file is parsed without reading other files. Imports are resolved after parsing (section 4).
+
+## 3. Lexical grammar
+
+### 3.1 Whitespace and comments
+
+- Whitespace: space, tab, LF, CR.
+- Comments: `// ...` to end of line and `/* ... */` (not nested). Comments are kept with their spans
+  because binding annotations are comments (section 9.3).
+
+### 3.2 Identifiers
+
+`IDENT = [A-Za-z_$][A-Za-z0-9_$]*`. Only ASCII is allowed in identifiers. Text inside strings,
+templates and JSX text may contain any Unicode.
+
+### 3.3 Keywords
+
+Reserved: `import`, `export`, `from`, `function`, `const`, `return`, `type`, `true`, `false`, `null`,
+`as`. Words that are keywords in TypeScript or JavaScript but unused here (for example `class`,
+`let`, `var`, `if`, `for`, `while`, `switch`, `try`, `await`, `async`, `new`, `this`, `delete`,
+`typeof`, `instanceof`, `yield`) are also reserved so that using one gives a specific diagnostic
+(section 12) and not a generic syntax error.
+
+### 3.4 Literals
+
+| Literal | Accepted form | Notes |
+|---|---|---|
+| Number | decimal integer or decimal with fraction and optional exponent: `0`, `42`, `0.5`, `1e3` | No hex/octal/binary, no numeric separators (`1_000`), no BigInt suffix. Unary minus is an operator, not part of the literal |
+| String | `"..."` or `'...'` | Escapes: `\\ \" \' \n \r \t \uXXXX \u{X...}`. A raw line break inside a string is an error |
+| Template | `` `text ${expr} text` `` | Each `${}` holds a pure expression; no tagged templates |
+| Boolean | `true`, `false` | |
+| Null | `null` | Only as a ref initial value and in comparisons allowed by section 8 |
+
+Not accepted: regular-expression literals, `undefined` as a literal (the identifier `undefined` is
+rejected), array literals except as defined in section 8.4, object literals except as defined in
+section 8.5.
+
+### 3.5 Punctuators
+
+`( ) { } [ ] < > </ /> , ; : . ... => = ? + - * / % == != === !== < <= > >= && || ! `` ` `` `${`.
+`==` and `!=` are lexed so they can be rejected with a suggestion to use `===` and `!==`
+(section 8.2). All other JavaScript operators (`++ -- += ?? ?. ** & | ^ ~ << >> >>>`, comma operator)
+are lexed and rejected (section 12).
+
+### 3.6 Automatic semicolon insertion
+
+Not supported in V1. Every statement ends with `;`. A missing `;` is reported at the end of the
+previous token with the suggested fix "insert `;`". This is a design choice to keep the grammar
+unambiguous; it can be revisited (section 18).
+
+## 4. Module structure
+
+A file is a sequence of top-level items in any order:
+
+```ebnf
+Module        = { Import | TypeAlias | ComponentDecl | ConstDecl } ;
+Import        = "import" ( NamedImports | "{" "}" ) "from" STRING ";"
+              | "import" STRING ";" ;
+NamedImports  = "{" IDENT { "," IDENT } [ "," ] "}" ;
+TypeAlias     = [ "export" ] "type" IDENT "=" TypeExpr ";" ;
+ComponentDecl = [ "export" ] "function" IDENT "(" [ Param ] ")" [ ":" TypeExpr ] Block ;
+ConstDecl     = [ "export" ] "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
+```
+
+Rules:
+- **Imports**: named imports only. No default imports, no namespace imports (`* as x`), no
+  re-exports, no dynamic `import()`, no `require`.
+  - `from "tessera"` imports built-in components and hooks (for example `useState`, `View`,
+    `CustomElement`).
+  - `from "./X"` or `from "../X"` imports a component, type or constant exported by another source
+    file of the project (extension omitted). Absolute paths and bare package names other than
+    `"tessera"` are errors.
+  - `import "./file.css";` (side-effect import) registers a stylesheet with the build
+    ([`stylesheet-v1.md`](stylesheet-v1.md)); the path must end in `.css`.
+- **Exports**: named exports only. `export default` is rejected in V1.
+- **Components** are `function` declarations (section 6). Arrow-function components and anonymous
+  components are rejected ([`component-model-v1.md`](component-model-v1.md) section 8).
+- **Top-level constants** (`ConstDecl`) must have a pure expression made of literals and other
+  top-level constants. They are evaluated at compile time.
+- **Cycles**: an import cycle between files is an error (`TESSERA_JSX_SUBSET_IMPORT_CYCLE`).
+- No top-level statements other than the items above.
+
+## 5. Types
+
+Type syntax is parsed so that source looks like TypeScript, and is used to choose IR types.
+
+```ebnf
+TypeExpr   = UnionType ;
+UnionType  = PrimaryType { "|" PrimaryType } ;
+PrimaryType= "number" | "boolean" | "string" | "null"
+           | STRING                                  (* string literal type *)
+           | IDENT [ "<" TypeExpr { "," TypeExpr } ">" ]   (* alias or built-in *)
+           | PrimaryType "[]"
+           | "{" [ Member { ( ";" | "," ) Member } [ ";" | "," ] ] "}"
+           | "(" [ ParamType { "," ParamType } ] ")" "=>" TypeExpr ;
+Member     = IDENT [ "?" ] ":" TypeExpr ;
+ParamType  = IDENT ":" TypeExpr ;
+```
+
+- `number` lowers to the IR numeric types `int` or `float` according to the context rules in
+  [`ir-v1.md`](ir-v1.md) (the selection rule between them is not specified there; see section 18).
+- A union is accepted only as `T | null` or as a union of string literals (an enum).
+- Type aliases are non-recursive and may refer only to earlier or later aliases without cycles.
+- Built-in generic names accepted: `Ref<T>` is not written by developers; refs use the element type
+  directly (`useRef<Text>(null)`, section 7). Element types are the intrinsic names of section 11.
+- Not accepted: `any`, `unknown`, `never`, `object`, `Function`, intersections (`&`), conditional or
+  mapped types, `keyof`/`typeof` types, tuple types, enums (`enum`), interfaces (`interface`),
+  generics on user declarations, `as` assertions, non-null `!` assertions, `satisfies`, decorators.
+
+## 6. Components
+
+```ebnf
+Param  = ( IDENT | DestructuredProps ) ":" TypeExpr ;
+DestructuredProps = "{" PropBind { "," PropBind } [ "," ] "}" ;
+PropBind = IDENT [ "=" Literal ] ;
+Block  = "{" { Stmt } ReturnStmt "}" ;
+Stmt   = StateDecl | RefDecl | AnimDecl | EffectStmt | HandlerDecl | LocalDecl ;
+ReturnStmt = "return" ( JsxElement | "(" JsxElement ")" ) ";" ;
+LocalDecl  = "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
+```
+
+- A component has zero or one parameter: the props. The parameter is either a name
+  (`props: CounterProps`, read as `props.initial`) or a destructuring with literal defaults
+  (`{ initial = 0 }: CounterProps`). The type annotation is required when the parameter exists.
+  Rest elements (`...rest`) are rejected.
+- The name starts with an uppercase letter.
+- The body is a sequence of statements followed by exactly one `return` that is the last statement.
+  The returned value is one JSX element (not an array, string or `null`).
+  Early returns, `if`/`switch` statements, loops, `try`, and assignments are rejected;
+  conditional output uses `&&` or `?:` inside JSX (section 10.4).
+- Statements before `return` may only be hook declarations (section 7), handler declarations
+  (section 9) and `LocalDecl` constants. A `LocalDecl` is a pure expression recomputed on each
+  update; it may not call hooks.
+- Hooks must appear before any other statement kind that depends on them, are unconditional, and
+  keep a fixed order; the checks are in section 7 and in
+  [`compiler.md`](../design/compiler.md) section 4.
+- Props are read-only. Writing to a prop or state variable directly is rejected; state changes use
+  setters only.
+- `key` and `ref` are not props of a component; they are element attributes (section 10.2).
+
+## 7. Hooks
+
+Hook calls are statements of these exact forms. Argument expressions are pure expressions.
+
+| Statement | Accepted form | Notes |
+|---|---|---|
+| State | `const [x, setX] = useState<T>(init);` | Exactly two names. `<T>` may be omitted when `init` is a literal or a prop with a declared type. `init` must be pure |
+| Ref | `const r = useRef<ElementType>(null);` | `ElementType` is an intrinsic name (section 11). The initial value must be `null` |
+| Animated value | `const v = useAnimatedValue(init);` | `init` is a number literal or a pure expression of numbers. Use in handlers is `v.set(expr)` and `v.set(expr, { animate: false })`, as in [`animation.md`](../design/animation.md) section 6; other member forms are not specified (section 18) |
+| Effect | `useEffect(() => { ... }, [dep, ...]);` | The body is a native handler body (section 9.3). Dependencies are names of props, state variables or animated values; an expression is not allowed. Exact matching is enforced as in [`component-model-v1.md`](component-model-v1.md) section 2 |
+
+- Other hooks are accepted only if they are declared in the built-in hook manifest. That manifest is
+  not specified yet; until it exists, only the four hooks above are accepted, and any other name
+  starting with `use` gives `TESSERA_REACT_UNKNOWN_HOOK`.
+- A function whose name starts with `use` and that is declared in the project is a custom hook and is
+  rejected (`TESSERA_REACT_CUSTOM_HOOK`).
+- A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an
+  error (`TESSERA_REACT_HOOK_ORDER`).
+- The returned value of `useEffect` is not used. A cleanup function is returned from the effect body
+  as `return () => { ... };` (its mapping to IR is not specified, section 18).
+
+## 8. Expressions
+
+### 8.1 Grammar
+
+```ebnf
+PureExpr   = Cond ;
+Cond       = Or [ "?" PureExpr ":" PureExpr ] ;
+Or         = And { "||" And } ;
+And        = Equality { "&&" Equality } ;
+Equality   = Relational { ( "===" | "!==" ) Relational } ;
+Relational = Additive { ( "<" | "<=" | ">" | ">=" ) Additive } ;
+Additive   = Mul { ( "+" | "-" ) Mul } ;
+Mul        = Unary { ( "*" | "/" | "%" ) Unary } ;
+Unary      = [ "!" | "-" | "+" ] Postfix ;
+Postfix    = Primary { "." IDENT | "(" [ PureExpr { "," PureExpr } ] ")" } ;
+Primary    = NUMBER | STRING | TEMPLATE | "true" | "false" | "null"
+           | IDENT | "(" PureExpr ")" | ArrayLit | ObjectLit ;
+```
+
+Operator precedence and left associativity follow JavaScript for the operators listed.
+
+### 8.2 Mapping to IR expressions
+
+| Source | IR expression ([`ir-v1.md`](ir-v1.md) section 4) |
+|---|---|
+| literal | `literal` |
+| identifier (prop, state, local, loop variable, top-level constant) | `ref` |
+| `a + b`, `-`, `*`, `/`, `%`, `<`, `<=`, `>`, `>=`, `&&`, `\|\|` | `binary` |
+| `===`, `!==` | `binary` with `==`, `!=` (the typed IR has no implicit conversions) |
+| `!a`, `-a`, `+a` | `unary` |
+| `c ? a : b` | `conditional` |
+| template literal | `template` |
+| `f(args)` where `f` is on the pure-function allowlist | `call` |
+| `a.b` where `a` is a props object, a record-typed state, or a loop item | `ref` with a dotted id (for example `item.id`) |
+
+- `==` and `!=` are rejected with the suggestion "use `===`/`!==`" (`TESSERA_JSX_SUBSET_LOOSE_EQUALITY`).
+- Operands must have compatible IR types; a mismatch is `TESSERA_JSX_TYPE_MISMATCH`. There is no
+  implicit string/number coercion: `"a" + 1` is an error.
+- The pure-function allowlist is defined in [`ir-v1.md`](ir-v1.md) section 4 and section 14; it is not
+  specified beyond the example `formatNumber`. Calling any other function in a pure expression is
+  `TESSERA_JSX_SUBSET_CALL`.
+- Member access `a.b` is accepted only when the front end knows the record type of `a` (props type,
+  type alias, loop item type). Access on any other value is `TESSERA_JSX_SUBSET_MEMBER`. Indexing
+  (`a[i]`) is rejected except where the loop form of section 10.5 defines it.
+
+### 8.3 Evaluation properties
+
+- No side effects, no assignment, no closures, no function values except those in section 9.
+- Evaluation order is left to right; `&&`, `||` and `?:` short-circuit.
+- Integer overflow, division by zero and number formatting follow the rules of the IR numeric types;
+  those rules are not specified in [`ir-v1.md`](ir-v1.md) (section 18).
+
+### 8.4 Array literals
+
+Accepted only as the source of a list loop (section 10.5), as a `useState` initial value of a
+declared array type, or as an element list of a top-level constant. Elements are pure expressions.
+
+### 8.5 Object literals
+
+Accepted only as: the `style` attribute value (section 10.3), the `props` attribute of
+`CustomElement` ([`custom-elements-v1.md`](custom-elements-v1.md)), the `initial` attribute of library
+`Form` components, and a `useState` initial value of a declared record type. Keys are identifiers or
+string literals (no computed keys, no shorthand with a function value, no spread).
+
+## 9. Handlers
+
+A handler is a function value given to an event prop, to `useEffect`, or to a callback prop such as
+`onError`. Exactly three forms are accepted.
+
+### 9.1 Setter reference
+
+The name of a state setter: `onChange={setEmail}`. The event payload is passed to the setter and its
+type must match the state type.
+
+### 9.2 Inline setter handler
+
+An arrow function whose body is a sequence of calls to setters and animated-value `.set(...)`, with
+pure argument expressions, separated by `;`:
+
+```tsx
+<Button onClick={() => { setCount(count + 1); setLast("increment"); }}>Increment</Button>
+<Button onClick={() => setCount(count + 1)}>Increment</Button>
+```
+
+- Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.
+- No other statements: no `if`, no loops, no declarations, no calls other than setters and `.set`.
+- The front end lowers this form to IR and generates C++ for it. No protected region is created, and
+  the designer runs it exactly as the generated code would.
+- `startViewTransition(update, options)` accepts only a handler of this form as `update`
+  ([`view-transitions-v1.md`](view-transitions-v1.md) section 3.1).
+
+### 9.3 Native handler
+
+A handler that runs developer-written C++ in production. It is a `const` arrow function declared in
+the component body and preceded on the previous line by the comment `// Note: bind::<id>`:
+
+```tsx
+// Note: bind::on_submit
+const submit = (values: FormValues): void => {
+  setStatus("saving");
+};
+...
+<Form onSubmit={submit} />
+```
+
+- `<id>` is `[a-z][a-z0-9_]*`, unique in the project; duplicates and malformed ids are errors
+  (`TESSERA_REACT_BIND_ID`). The id becomes the protected region id
+  ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)).
+- Every parameter has a type annotation (section 5 types only). The return type annotation is
+  required when the handler returns a value and may be omitted for a handler that returns nothing
+  (`void`).
+- In production, behavior is the developer's C++ in the protected region `bind::<id>`. The TSX body is
+  not translated to C++.
+- The TSX body is the **preview body**: the browser designer runs it (it cannot run C++). It follows
+  the rules of section 9.2, and may additionally contain `return <PureExpr>;` for a non-`void` handler.
+  A native handler with an empty body is allowed; the designer then does nothing for that event and
+  shows a diagnostic that native logic does not run in the preview.
+- The preview body is not checked against the C++ code; keeping them equivalent is the developer's
+  responsibility (section 18 lists this as an open question).
+- The annotation may also precede a hook call to give its protected region a stable id; the accepted
+  positions are: before a handler declaration and before a `useEffect` statement. Any other position
+  is `TESSERA_REACT_BIND_POSITION`.
+
+### 9.4 Event parameter types
+
+Event names and payload types are those listed in [`component-model-v1.md`](component-model-v1.md)
+section 4 and in the element specs ([`text-editing-v1.md`](text-editing-v1.md),
+[`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md)). The typed event objects are declared by the
+framework typings generated for `"tessera"` (section 16.2). An event prop given a function with a
+different parameter type is `TESSERA_JSX_TYPE_MISMATCH`.
+
+## 10. JSX
+
+### 10.1 Elements
+
+```ebnf
+JsxElement  = "<" TagName { Attr } ( "/>" | ">" { Child } "</" TagName ">" )
+            | "<>" { Child } "</>" ;
+TagName     = IDENT ;
+Attr        = IDENT { "-" IDENT } [ "=" ( STRING | "{" AttrExpr "}" ) ]
+            | "{" "..." SpreadSource "}" ;
+Child       = JsxElement | JsxText | "{" ChildExpr "}" ;
+```
+
+- Tag names start with an uppercase letter and name an intrinsic (section 11), a component imported
+  or declared in the project, or a library component imported from `"tessera"`. A tag in lowercase
+  (`<div>`, `<span>`) is rejected with the suggestion of the closest intrinsic
+  (`TESSERA_JSX_SUBSET_HTML_TAG`).
+- Member tags (`<A.B>`), namespace tags (`<a:b>`), and a tag that is a variable (dynamic component
+  type) are rejected.
+- Opening and closing tag names must match. A mismatch is a parse error that names both tags.
+- A fragment `<>...</>` is accepted only as a child of another element; its children are placed
+  directly in the parent in order. A fragment as the component's returned element is rejected,
+  because a component lowers to exactly one root node
+  ([`ir-v1.md`](ir-v1.md) section 3).
+
+### 10.2 Attributes
+
+- Value forms: a string literal, `{expr}` where `expr` is a pure expression or a handler (section 9),
+  or no value (shorthand for `true`, boolean attributes only).
+- Attribute names are identifiers; hyphens are allowed only in `aria-*` names.
+- Reserved attribute names, handled by the front end: `key`, `ref`, `className`, `style`, `id`, `role`,
+  `aria-*`, and event props (`onClick`, `onChange`, ...). The list is the one in
+  [`component-model-v1.md`](component-model-v1.md) section 3.
+- `ref={r}` accepts only a name declared by `useRef` whose element type matches the tag.
+- `key={expr}` is required on the root element returned by a list-loop callback (section 10.5) and is
+  rejected elsewhere unless the element is a direct list item.
+- Unknown attributes on an intrinsic are errors (`TESSERA_JSX_SUBSET_UNKNOWN_PROP`). Attributes of a
+  project or library component are checked against that component's props type.
+- Spread (`{...src}`): allowed only when `src` is the current component's props name or an object
+  literal, so that the set of keys is known at compile time. The front end expands the spread in
+  attribute order; a later attribute overrides an earlier one with the same name.
+- `dangerouslySetInnerHTML` and any attribute whose name is not an identifier (for example
+  `data-x`, `xlink:href`) are rejected.
+
+### 10.3 `className` and `style`
+
+- `className` is a string literal or a pure expression of type string. Class names are checked
+  against the project stylesheets by the style engine ([`stylesheet-v1.md`](stylesheet-v1.md)); an
+  unknown class is a warning, not an error.
+- `style` must be an inline object literal with identifier keys in camelCase. The front end converts
+  keys to CSS property names (`backgroundColor` to `background-color`). Values are literals or pure
+  expressions. Keys must be known at compile time; spread and computed keys are rejected
+  (`TESSERA_JSX_SUBSET_STYLE_DYNAMIC`). Properties and values are validated against the compatibility
+  matrix in [`stylesheet-v1.md`](stylesheet-v1.md) section 11.
+- A number value means pixels for length properties and a unitless number for the others, as in the
+  stylesheet spec; a string value is parsed as CSS.
+
+### 10.4 Children and conditional rendering
+
+- **Text**: JSX text follows the standard JSX whitespace rule: lines are trimmed, blank lines are
+  removed, remaining lines are joined with one space, and interior spaces are preserved. An explicit
+  space is written `{" "}`.
+- **Entities** in JSX text and in attribute strings: `&amp; &lt; &gt; &quot; &apos; &nbsp;` and
+  numeric `&#N;` / `&#xN;`. Other named entities are errors.
+- **Expression child** `{expr}`: a pure expression of type string or number (becomes text), a JSX
+  element, a conditional form, or a list loop. Booleans and `null` render nothing.
+- **Conditional**: `{cond && <X />}` lowers to the node's `condition`; `{cond ? <X /> : <Y />}` lowers
+  to two nodes with complementary conditions; `{cond ? <X /> : null}` is allowed. The condition is a
+  pure boolean expression. A condition that is not boolean is `TESSERA_JSX_TYPE_MISMATCH`.
+- A string or number directly in a position that does not accept text (for example as a child of
+  `Scroll` when the element only accepts nodes) is an error from the element specification.
+
+### 10.5 Lists
+
+Only this form is accepted:
+
+```tsx
+{rows.map((row, index) => (
+  <Row key={row.id} label={row.label} />
+))}
+```
+
+- The receiver is a list-typed name (prop, state, local, or loop item field) or a top-level array
+  constant; the callback has one or two parameters (item, optional index) and its body is a single
+  JSX element expression (no block body).
+- The returned element has `key={...}` with a pure expression of type string or integer.
+- Nesting of dynamic lists is limited to depth 2 ([`ir-v1.md`](ir-v1.md) section 5).
+- Other array methods (`filter`, `reduce`, `forEach`, `slice`, `sort`, `concat`, ...) are rejected
+  (`TESSERA_JSX_SUBSET_ARRAY_METHOD`). Filtering and sorting happen in the state setter or in
+  developer C++.
+- Large collections use `VirtualList`/`VirtualGrid` ([`virtualization-v1.md`](virtualization-v1.md)),
+  not `.map`.
+
+### 10.6 Event props
+
+An event prop name is `on` followed by an uppercase letter. The value is a handler (section 9). The
+set of event names per element is defined by the element specifications; an unknown event name on an
+intrinsic is `TESSERA_JSX_SUBSET_UNKNOWN_PROP`.
+
+## 11. Intrinsic elements
+
+JSX tag names that the front end maps to IR node kinds ([`ir-v1.md`](ir-v1.md) section 3). The
+prop set of each is defined by the document named in the last column.
+
+| Tag | IR kind | Children | Props defined in |
+|---|---|---|---|
+| `View` | `View` | nodes | [`component-model-v1.md`](component-model-v1.md) |
+| `Text` | `Text` | text and expressions | [`component-model-v1.md`](component-model-v1.md) |
+| `Button` | `Button` | text and nodes | [`component-model-v1.md`](component-model-v1.md) |
+| `TextInput`, `TextArea` | same | none | [`text-editing-v1.md`](text-editing-v1.md) |
+| `Image` | `Image` | none | not specified yet |
+| `Path` | `Path` | none | not specified yet |
+| `Scroll` | `Scroll` | nodes | [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md) |
+| `Spacer` | `Spacer` | none | not specified yet |
+| `VirtualList`, `VirtualGrid` | same | one item template | [`virtualization-v1.md`](virtualization-v1.md) |
+| `ErrorBoundary` | `ErrorBoundary` | exactly one child element | [`error-boundaries-v1.md`](error-boundaries-v1.md) |
+| `CustomElement` | `CustomElement` | none | [`custom-elements-v1.md`](custom-elements-v1.md) |
+
+Library components (for example `Form`, `Field`, `DataGrid`) are imported from `"tessera"` and are
+ordinary components for the front end; their props are validated against their declared prop types
+([`component-library.md`](../design/component-library.md)).
+
+## 12. Rejected constructs
+
+Every rejection is a compile error with a span, a stable code, a one-line message that names the
+construct, and, where one exists, a suggested fix. There is no best-effort parsing of rejected code
+and no silent skipping.
+
+| Construct | Code | Suggestion |
+|---|---|---|
+| `class`, `this`, `new`, `extends` | `TESSERA_JSX_SUBSET_CLASS` | Use function components |
+| `let`, `var`, reassignment, `++`, `--`, `+=` and other assignment operators | `TESSERA_JSX_SUBSET_MUTATION` | Use `const` and setters |
+| `if`, `for`, `while`, `do`, `switch`, `try`, `throw`, labels in a component body | `TESSERA_JSX_SUBSET_STATEMENT` | Use `?:`, `&&`, `.map` in JSX |
+| `async`, `await`, `yield`, generators, promises | `TESSERA_JSX_SUBSET_ASYNC` | Use async data primitives ([`async-data-v1.md`](async-data-v1.md)) |
+| `import()`, `require`, default import/export, `import * as` | `TESSERA_JSX_SUBSET_IMPORT` | Use named imports |
+| Custom hooks | `TESSERA_REACT_CUSTOM_HOOK` | Inline the hook or write a native handler |
+| Context, `createContext`, `useContext`, suspense, portals | `TESSERA_REACT_UNSUPPORTED_API` | Use services and overlays ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) |
+| `useMemo`, `useCallback`, `useReducer`, `memo`, `forwardRef` | `TESSERA_REACT_UNSUPPORTED_API` | Compute in a `const`; state updates are batched already |
+| Lowercase tags | `TESSERA_JSX_SUBSET_HTML_TAG` | Use `View`, `Text` |
+| Dynamic component type, member tags, namespace tags | `TESSERA_JSX_SUBSET_DYNAMIC_TAG` | Use a fixed tag |
+| `==`, `!=` | `TESSERA_JSX_SUBSET_LOOSE_EQUALITY` | Use `===`, `!==` |
+| `??`, `?.`, `**`, bitwise operators, comma, `typeof`, `instanceof`, `in`, `delete`, `void` | `TESSERA_JSX_SUBSET_OPERATOR` | Not available in V1 |
+| Arbitrary calls, method calls other than `.set`/`.map` | `TESSERA_JSX_SUBSET_CALL` | Use an allowlisted function or a native handler |
+| Arrow or function values outside section 9 | `TESSERA_JSX_SUBSET_FUNCTION_VALUE` | Declare a handler |
+| Object/array literals outside sections 8.4 and 8.5 | `TESSERA_JSX_SUBSET_LITERAL` | Use state or a constant |
+| Dynamic `style` keys or spread in `style` | `TESSERA_JSX_SUBSET_STYLE_DYNAMIC` | Use literal keys |
+| `dangerouslySetInnerHTML`, `innerHTML`, DOM/window/document access | `TESSERA_JSX_SUBSET_DOM` | Not available |
+| Hooks in conditions, loops, handlers or nested functions | `TESSERA_REACT_HOOK_ORDER` | Move to the top of the component |
+| State setter called during render | `TESSERA_REACT_SETTER_IN_RENDER` | Call it in a handler or an effect |
+| Missing or extra effect dependency | `TESSERA_REACT_EFFECT_DEPS` | Match dependencies exactly |
+| Missing key on a list element | `TESSERA_REACT_LIST_KEY` | Add `key` |
+| Types in `.jsx`; `any`, `enum`, `interface`, etc. | `TESSERA_JSX_SUBSET_TYPES` | Use the types of section 5 |
+| Array methods other than `.map` (`filter`, `reduce`, `forEach`, `slice`, `sort`, ...) | `TESSERA_JSX_SUBSET_ARRAY_METHOD` | Filter or sort in a setter or in developer C++ |
+| Unknown `use...` hook name | `TESSERA_REACT_UNKNOWN_HOOK` | Use one of the four hooks (section 7) |
+| Import cycle between files | `TESSERA_JSX_SUBSET_IMPORT_CYCLE` | Move shared code to a third file |
+| Malformed or duplicate `bind::` id | `TESSERA_REACT_BIND_ID` | Use `[a-z][a-z0-9_]*`, unique in the project |
+| `bind::` annotation in a position other than before a handler or `useEffect` | `TESSERA_REACT_BIND_POSITION` | Move the comment (section 9.3) |
+| Member access on a value of unknown record type | `TESSERA_JSX_SUBSET_MEMBER` | Declare a type for the value |
+| Unknown attribute or event name on an intrinsic | `TESSERA_JSX_SUBSET_UNKNOWN_PROP` | See the element's spec (section 11) |
+| Operand or argument type mismatch | `TESSERA_JSX_TYPE_MISMATCH` | Convert explicitly or fix the type |
+| Exceeding a parser limit | `TESSERA_JSX_LIMIT_*` | Split the file or simplify the expression (section 15) |
+
+## 13. Diagnostics
+
+### 13.1 Format
+
+A diagnostic has: `code`, `severity` (`error` or `warning`), `message`, `span`, optional
+`suggestion` (text, and optionally one text edit), and optional related spans (for example the
+opening tag for a closing-tag mismatch). Codes are stable strings of the form
+`TESSERA_JSX_<AREA>_<NAME>` (lexing, parsing, subset, type) or `TESSERA_REACT_<NAME>` (React-style
+rule checks, [`compiler.md`](../design/compiler.md) section 4). A code is never reused for a different
+meaning.
+
+Lexing and parsing codes: `TESSERA_JSX_LEX_*` (invalid character, unterminated string/comment/template,
+invalid escape, invalid UTF-8, lone CR) and `TESSERA_JSX_PARSE_*` (unexpected token, missing `;`,
+mismatched tags, unclosed element). The full list is generated from the source and tracked by the
+diagnostics golden tests (section 17), not copied here.
+
+### 13.2 Spans
+
+A span records: project-relative file path with POSIX separators, byte offset and byte length in the
+UTF-8 file, and 1-based start/end line and column, where a column counts Unicode code points from the
+start of the line. [`ir-v1.md`](ir-v1.md) section 8 requires 1-based line and column but does not state
+the column unit; this document states it and [`ir-v1.md`](ir-v1.md) must be updated to match
+(section 18). Byte offsets exist so that the designer's patch writer can edit text exactly
+([ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md) item 6).
+
+### 13.3 Error count
+
+The front end reports all independent errors it can find in a file, in source order, up to a
+configured maximum per file; the maximum is not specified yet (section 15). Errors caused only by an
+earlier error (for example a use of a name whose declaration failed) are not reported.
+
+## 14. Error-tolerant parsing (live view)
+
+The command-line compiler stops generating for a component that has errors. The designer needs to
+keep showing the previous result while the developer types, so the parser has a recovery mode with
+these rules ([ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md) item 3):
+
+- **Recovery unit**: one top-level item. After a parse error inside a top-level item, the parser skips
+  tokens until the start of the next top-level item (a line whose first token is `import`, `export`,
+  `type`, `function`, or `const` at brace depth 0) and continues.
+- **Per-component status**: each component is `Valid` or `Invalid`. An `Invalid` component produces no
+  IR; the designer keeps the last IR that was valid for the same `ComponentId`.
+- **Isolation**: an error in one component never changes the IR of another component in the same file.
+- **Same diagnostics**: recovery mode reports the same codes and spans as the compiler for the same
+  input; it only continues after the error. It never fabricates tokens or auto-corrects source.
+- **Determinism**: the recovery result depends only on the file contents.
+- **Incremental input**: the designer gives the front end the full text of a changed file. Incremental
+  re-lexing is an optimization that must produce identical results (section 17).
+
+Recovery mode is not used by production code generation.
+
+## 15. Determinism and limits
+
+- Output depends only on the input text, the project configuration and the manifests; no wall
+  clock, random values, absolute paths, environment variables or locale.
+- Identical input produces byte-identical AST dumps, IR and diagnostics.
+- The front end allocates from bounded arenas and has configurable limits for: file size, token
+  count, nesting depth of parentheses/JSX/expressions, number of diagnostics per file, and number of
+  components per file. Exceeding a limit is an error with its own code
+  (`TESSERA_JSX_LIMIT_*`), never a crash or a hang. The values of the limits are not specified yet.
+- It is portable C++: no operating-system, threading or filesystem calls inside the parser. File
+  reading happens in the caller so the same library links into the native CLI and the Wasm module.
+
+## 16. Front-end output
+
+### 16.1 AST contract
+
+The parser outputs a normalized module AST: imports, type aliases, constants, and components with
+their props, hook declarations, handler declarations, local constants, and one JSX tree. Every node
+carries a span. The AST is internal: it is not serialized as a public format, and code generation
+reads only the IR (AGENTS.md Non-negotiables item 4).
+
+### 16.2 Generated typings
+
+For editor support the build generates `.d.ts` files: framework typings for `"tessera"` (intrinsic
+props, event objects, built-in hooks) and, per project, typings for components and for
+`ui/elements.json` ([`custom-elements-v1.md`](custom-elements-v1.md)). Editors use them for completion
+and hover; the front end does not read them to decide validity.
+
+## 17. Tests
+
+- **Corpus**: one passing fixture for every grammar production and every accepted form in sections 4
+  to 11; one rejection fixture for every row of section 12, each checked for code, span and message.
+- **Diagnostics goldens**: the full diagnostic text for each rejection fixture is stored and compared.
+- **Determinism**: parse twice and in different directories; AST dumps, IR and diagnostics are
+  byte-identical.
+- **Fuzzing**: random and mutated inputs must never crash, hang or exceed the limits of section 15;
+  they must produce either an AST or diagnostics.
+- **Recovery mode**: for each rejection fixture, truncated and edited variants keep the other
+  components valid and produce the same diagnostics as the compiler; incremental re-lexing equals a
+  full parse.
+- **Spans**: every node's span slices the source text to exactly its token range, including with
+  CRLF files and non-ASCII text.
+- **Subset parity with the designer**: for the corpus, the IR evaluator in the Wasm engine and
+  generated C++ give the same scene snapshots
+  ([ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md) item 4); handlers of section 9.2
+  are covered, and native handlers are covered through their preview bodies.
+- **Round trip for patches**: a source patch produced by the designer's style editing re-parses to the
+  intended IR and leaves unrelated text unchanged.
+
+## 18. Open questions (no decision yet)
+
+- Semicolons: whether to support automatic semicolon insertion (section 3.6).
+- Native handler preview body: whether the TSX body of a `bind::` handler is required, optional, or
+  checked against the C++ (section 9.3). The designer needs it to run; production ignores it.
+- How an effect cleanup function maps to IR, which has a single `handler` field per effect
+  ([`ir-v1.md`](ir-v1.md) section 2).
+- How the IR numeric types `int` and `float` are chosen from TypeScript's single `number` type, and the
+  rules for overflow, division by zero and formatting ([`ir-v1.md`](ir-v1.md)).
+- Allowlist of pure functions available in expressions ([`ir-v1.md`](ir-v1.md) section 14).
+- Built-in hook manifest format and the first library hooks.
+- Members of an animated value other than `.set` (reading its current value).
+- Whether lowercase HTML tags may be offered as aliases of intrinsics (`div` to `View`) for porting.
+- Values of the parser limits in section 15.
+- Props of `Image`, `Path` and `Spacer` (section 11).
+- `ir-v1.md` must state that columns count Unicode code points (section 13.2).
+- Whether `export default` components are needed for compatibility with existing React code.

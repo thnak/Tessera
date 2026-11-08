@@ -1,6 +1,6 @@
 # Component model v1
 
-Status: proposed (Big Step C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Normative for the JSX/TSX subset and generated C++.
+Status: proposed (Big Step C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Normative for component semantics and generated C++. The source syntax that is accepted is defined in [`jsx-subset-v1.md`](jsx-subset-v1.md).
 
 A Tessera component is a pure description of UI state and a node tree. It is compiled to C++;
 there is no React runtime in production ([AGENTS.md](../../AGENTS.md) Non-negotiables rule 7).

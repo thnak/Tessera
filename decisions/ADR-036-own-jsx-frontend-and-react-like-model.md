@@ -6,8 +6,7 @@
   stylesheet engine; ADR-024: no JS/React runtime in production; ADR-025: error boundaries.
 - Terms: **front end** = lexer + parser + analyzer that turns source text into an AST and then the
   IR. **IR** = the intermediate representation defined in `docs/specs/ir-v1.md`. **Subset** = the
-  restricted part of JSX/TSX that Tessera accepts (to be defined in `docs/specs/jsx-subset-v1.md`,
-  which does not exist yet). **Live view** = the preview in the browser designer, see ADR-037.
+  restricted part of JSX/TSX that Tessera accepts (defined in [`docs/specs/jsx-subset-v1.md`](../docs/specs/jsx-subset-v1.md)). **Live view** = the preview in the browser designer, see ADR-037.
 
 ## Context
 
@@ -78,7 +77,8 @@ parity with React plus a browser is neither achievable nor promised.
 
 ## Follow-up
 
-- Specify the TSX subset grammar and expression subset (`docs/specs/jsx-subset-v1.md`).
+- TSX subset grammar and expression subset: written in
+  [`docs/specs/jsx-subset-v1.md`](../docs/specs/jsx-subset-v1.md) (status: proposed).
 - Specify the built-in hook manifest and a written statement of which React and browser
   behaviors are and are not reproduced.
 - Parser corpus, fuzz, diagnostics-golden, and determinism tests.

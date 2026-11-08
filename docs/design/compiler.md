@@ -41,8 +41,8 @@ not partially generated.
 Decision: ADR-036. Tessera has its own lexer/parser for a defined JSX/TSX subset; SWC, oxc,
 tree-sitter, and Node.js are not used.
 
-- input: `.tsx`/`.jsx` (subset grammar and expression subset, to be specified in
-  `jsx-subset-v1.md`)
+- input: `.tsx`/`.jsx`, restricted to the subset defined in
+  [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md)
 - output: a normalized module AST (components, imports, JSX nodes, expressions, source spans)
 - C++, static, deterministic; stable diagnostic codes, spans, and suggested fixes
 - unsupported syntax is a hard error naming the construct (no best-effort parsing)
@@ -178,7 +178,8 @@ See [`error-model-v1.md`](../specs/error-model-v1.md).
 
 ## 12. Open questions
 
-- TSX subset and expression subset grammar (`jsx-subset-v1.md`), built-in hook manifest format.
+- Built-in hook manifest format and the open questions listed in
+  [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18.
 - Parser error recovery for the live view (editing partially valid files).
 - Source maps from generated C++ back to TSX.
 - Incremental codegen at the node level vs component level.
