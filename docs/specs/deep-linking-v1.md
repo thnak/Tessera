@@ -1,6 +1,7 @@
 # Deep linking and external activation v1
 
-Status: proposed (Big Step F). Decision: ADR-026. Companion to
+Status: proposed (Big Step F). Route matching/stack/guards:
+[`navigation-v1.md`](navigation-v1.md). Decision: ADR-026. Companion to
 [`startup-and-loading.md`](../design/startup-and-loading.md),
 [`services.md`](../design/services.md), and [`security.md`](../design/security.md).
 

@@ -36,6 +36,10 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-026](ADR-026-deep-links-and-external-activation.md) | Deep links and external activation | Accepted |
 | [ADR-027](ADR-027-agent-automation-and-audits.md) | Numeric IDs, headless harness, Lighthouse-style audits | Accepted |
 | [ADR-028](ADR-028-custom-native-elements.md) | Custom native elements, low-level rendering, element input | Accepted |
+| [ADR-029](ADR-029-interaction-completeness.md) | Text editing, scrolling/gestures, overlays, forms | Accepted |
+| [ADR-030](ADR-030-app-platform-completeness.md) | Navigation, restore, shell, i18n, accessibility, async data | Accepted |
+| [ADR-031](ADR-031-production-tooling-and-distribution.md) | Devtools, updates/signing, crash reporting | Accepted |
+| [ADR-032](ADR-032-bundled-component-library.md) | Bundled component library and design tokens | Accepted |
 
 ## Dependency overview
 
@@ -64,6 +68,10 @@ ADR-025 error boundaries (supersedes the error-boundary limit in ADR-007)
 ADR-026 deep links/external activation (cross-cutting: HAL, routing, security, startup)
 ADR-027 automation IDs/headless/audits (cross-cutting: compiler, UI, diagnostics, CI)
 ADR-028 custom native elements (cross-cutting: JSX/IR, RHI, shaders, input, tests)
+ADR-029 interaction completeness (text editing, scroll/gestures, overlays, forms)
+ADR-030 app platform (navigation, restore, shell, i18n, accessibility, async data)
+ADR-031 production tooling (devtools/hot reload, updates, crash reporting)
+ADR-032 component library/design tokens (product layer)
 ```
 
 ## Adding an ADR

@@ -2,7 +2,10 @@
 
 Status: design for Big Step B2. Companion to [`game-loop.md`](game-loop.md),
 [`scene-graph.md`](scene-graph.md), [`ui-model.md`](ui-model.md),
-[`accessibility.md`](accessibility.md), and [`mobile-integration.md`](mobile-integration.md).
+[`accessibility.md`](accessibility.md), [`mobile-integration.md`](mobile-integration.md),
+[`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md),
+[`text-editing-v1.md`](../specs/text-editing-v1.md), and
+[`platform-shell-v1.md`](../specs/platform-shell-v1.md).
 
 ## 1. Goals
 

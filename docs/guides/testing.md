@@ -63,6 +63,8 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 - Outputs: `report.json`, `snapshot.json`, `trace.json`, `audit.json`.
 - Custom elements: unit fake context, structural draw stats, golden offscreen shaders, GPU
   smoke; use `custom`/`assertCustom` and `partId` for sub-targets.
+- Interaction suites: text editing/IME, scroll/gestures, overlays, navigation, forms, and
+  accessibility (semantics snapshots + real screen readers for platform smoke).
 - See [`agent-automation.md`](agent-automation.md), [`custom-elements.md`](custom-elements.md),
   and [`headless-automation-v1.md`](../specs/headless-automation-v1.md).
 

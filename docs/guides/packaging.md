@@ -1,6 +1,7 @@
 # Packaging and release guide
 
-Status: target for Big Step F. Current B1 builds demos/tests, not a shipped app.
+Status: target for Big Step F. Update/signing/rollback:
+[`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md). Current B1 builds demos/tests, not a shipped app.
 
 ## 1. Packaging model
 

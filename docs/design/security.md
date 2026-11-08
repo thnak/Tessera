@@ -83,8 +83,16 @@ boundaries, and no arbitrary code execution from UI sources.
 - Redact headers, query params, file paths, and user data in logs/crash dumps.
 - Validate deep links/notification payloads; allowlist schemes/hosts/routes. See
   [`deep-linking-v1.md`](../specs/deep-linking-v1.md).
+- Clipboard/drop/file-dialog payloads are untrusted; validate paths/types/sizes. See
+  [`platform-shell-v1.md`](../specs/platform-shell-v1.md).
+- Secure text fields never log/clipboard/persist plaintext. See
+  [`text-editing-v1.md`](../specs/text-editing-v1.md).
 - Storage paths are sandboxed; atomic writes prevent corruption.
 - Telemetry opt-in, aggregated, and documented; no PII by default.
+- Updates verify TLS/signature/hash, stage atomically, and roll back safely; see
+  [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md).
+- Crash reports are opt-in, redacted, and symbol/version matched; see
+  [`crash-reporting-v1.md`](../specs/crash-reporting-v1.md).
 
 ## 7. Supply chain and licensing
 

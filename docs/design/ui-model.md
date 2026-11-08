@@ -30,11 +30,13 @@ A component has:
 - refs: `useRef(null)` (points to a scene node)
 - animated values: `useAnimatedValue(initial)`
 - event handlers for pointer/keyboard/focus/change
-- a returned node tree (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `VirtualList`,
-  `VirtualGrid`, `CustomElement`)
+- a returned node tree (`View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`,
+  `Scroll`, `VirtualList`, `VirtualGrid`, `CustomElement`)
 
 V1 rejects: custom hooks, context, suspense, dynamic component types, portals, and non-static
-conditionals/loops. Error boundaries are supported wrappers; see
+conditionals/loops. Portals are replaced by the explicit overlay host/service
+([`overlays-and-layers-v1.md`](../specs/overlays-and-layers-v1.md)). Error boundaries are
+supported wrappers; see
 [`component-model-v1.md`](../specs/component-model-v1.md) and
 [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
 

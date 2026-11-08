@@ -61,8 +61,9 @@ Capture a deterministic frame (`--golden`, fixed size) so captures are comparabl
 - Overlay: FPS/frame time, dirty domains, batch counts, animation count.
 - Crash dumps: bounded/redacted; symbols archived separately.
 
-See [`diagnostics.md`](../design/diagnostics.md) and
-[`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md).
+See [`diagnostics.md`](../design/diagnostics.md),
+[`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md), and
+[`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md).
 
 ## 6. Visual bugs
 

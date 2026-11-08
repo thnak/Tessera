@@ -11,7 +11,7 @@ directories marked **planned** are seams, not implemented features.
 | `src/core/` | object, memory, threading, events, resources | planned |
 | `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | planned |
 | `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL | planned (B3) |
-| `src/ui/` | view, scene, layout, style, animation, responsive, text, accessibility | scene B1; rest B2 |
+| `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; rest B2 |
 | `src/rendering/rhi/` | thin RHI interfaces | B1 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
@@ -27,8 +27,11 @@ directories marked **planned** are seams, not implemented features.
 | `src/compiler/codegen/` | IR -> C++ | planned (C) |
 | `src/compiler/merger/` | protected-region merge | B1 |
 | `src/runtime/` | App, loop, generated-code support | planned (B2/C) |
-| `src/services/` | i18n, navigation, storage, networking, notifications | planned (F) |
-| `src/diagnostics/` | logging, tracing, profiling, crash | planned (B2) |
+| `src/services/` | i18n, navigation, state restore, storage, networking, notifications, shell | planned (F) |
+| `src/data/` | async resource cache, mutations, offline queue | planned (F) |
+| `src/diagnostics/` | logging, tracing, profiling, crash reporting | planned (B2) |
+| `src/devtools/` | local inspector/hot-reload protocol | planned (C/D) |
+| `src/updates/` | signed manifest, staging, rollback | planned (F) |
 | `designer/web/` | Wasm + WebGPU viewer, reconciler, IPC | planned (D) |
 | `designer/native/` | native host/IPC | planned (D) |
 | `tests/unit/` | unit tests (CTest) | B1 subset |
@@ -40,7 +43,7 @@ directories marked **planned** are seams, not implemented features.
 | `tools/poc/` | Phase 0/B1 proofs | B1 |
 | `tools/shaders/`, `tools/font/` | shader/font tooling | planned |
 | `third_party/` | vendored dependencies (stb, volk, vma) | B1 |
-| `decisions/` | ADRs | 28 |
+| `decisions/` | ADRs | 32 |
 | `docs/` | specs, design, guides, architecture | this set |
 
 ## 2. Dependency direction
@@ -51,9 +54,10 @@ core
  ├─ ui ── style, layout, animation, text, responsive, accessibility
  ├─ rendering ── rhi ── backend/{vulkan,webgpu,null,software}
  ├─ element ── rhi + shader manifest (custom native elements)
+ ├─ data ── services (cache/offline)
  ├─ services
  ├─ diagnostics
- └─ runtime ── ui + rendering + hal + services + diagnostics
+ └─ runtime ── ui + rendering + element + hal + services + data + diagnostics
 
 compiler (build time only): analyzer -> rules -> ir -> codegen -> merger
 designer (Wasm): runtime/ui/rendering + webgpu + IPC

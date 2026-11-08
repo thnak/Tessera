@@ -152,9 +152,21 @@ A custom element is an intrinsic native-render node declared from JSX:
 - See [`custom-elements-v1.md`](custom-elements-v1.md) and
   [`custom-elements.md`](../guides/custom-elements.md).
 
+## 7.3 Text input and forms
+
+- `TextInput`/`TextArea` are intrinsic leaf nodes with controlled/uncontrolled value,
+  selection, IME/composition, undo/redo, clipboard, autofill, secure mode, and accessibility.
+- Editing semantics are in [`text-editing-v1.md`](text-editing-v1.md).
+- Form state/validation/submit/focus are in
+  [`forms-and-validation-v1.md`](forms-and-validation-v1.md); `Form`/`Field` are library
+  components, not new intrinsics.
+- Text scale, bidi, grapheme clusters, and caret/selection layout follow the text stack.
+- Secure fields redact snapshots/logs and restrict clipboard/undo persistence.
+
 ## 8. Rejected in V1
 
-- custom hooks, context, suspense, portals
+- custom hooks, context, suspense, portals; use `OverlayHost`/overlay service instead
+  ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md))
 - dynamic component types (`<Component is={...}>`); `CustomElement` is an intrinsic node, not a
   dynamic component type
 - arbitrary JavaScript expressions, closures, async render, generators

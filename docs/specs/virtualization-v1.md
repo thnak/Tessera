@@ -1,7 +1,8 @@
 # UI virtualization v1: virtualized lists and grids
 
 Status: proposed (Big Step B2/E). This is **UI/data virtualization**, not VM/container
-virtualization and not a virtual DOM.
+virtualization and not a virtual DOM. Scroll physics/nested scroll:
+[`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md).
 
 Virtualization keeps only the visible (plus overscan) items realized in the scene graph. It
 bounds node count, layout work, paint work, and memory for large lists/grids/charts.

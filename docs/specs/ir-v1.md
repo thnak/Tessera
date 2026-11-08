@@ -101,7 +101,7 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 | `id` | string | yes | Debug key, unique within the component |
 | `uiId` | string | yes | uint64 decimal string; stable automation/trace identity |
 | `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
-| `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement` |
 | `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
 | `key` | string/int/null | no | Stable list identity |
 | `props` | object | no | Typed intrinsic props |
@@ -153,6 +153,34 @@ represent VM/container virtualization or a virtual DOM.
 - No dynamic element expression and no runtime registration; the compiler generates a
   compile-time factory registry.
 - See [`custom-elements-v1.md`](custom-elements-v1.md).
+
+## 3.3 Text input nodes
+
+```json
+{
+  "kind": "TextInput",
+  "id": "node::email",
+  "uiId": "555555555555555555",
+  "props": {
+    "value": { "kind": "ref", "id": "state::email" },
+    "placeholder": "Email",
+    "inputMode": "email",
+    "autofill": "email"
+  },
+  "events": {
+    "onChange": "bind::on_email_changed",
+    "onSubmit": "bind::on_submit"
+  },
+  "children": []
+}
+```
+
+- `TextInput`/`TextArea` are leaf intrinsics; `children` must be empty.
+- Editing state/commands/IME/undo/clipboard are defined by
+  [`text-editing-v1.md`](text-editing-v1.md).
+- `value`/`defaultValue`/selection are typed; validation is a form concern.
+- `secure` fields redact diagnostics/snapshots and restrict clipboard by policy.
+- `Scroll` behavior/physics is defined by [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md).
 
 ## 4. Expressions
 
@@ -273,6 +301,7 @@ Hard errors:
 - missing/duplicate `componentId`/`uiId`, `automationId != uiId`, or a 64-bit ID collision
 - unknown/non-literal `element`, unknown element prop/event, missing shader, or `CustomElement`
   with children
+- `TextInput`/`TextArea` with children or unsupported props/event payloads
 - dynamic component types, context, suspense, custom hooks
 - missing list key or non-static loop source
 - binding annotation without a matching IR use, or vice versa

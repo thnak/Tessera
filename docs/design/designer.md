@@ -1,7 +1,8 @@
 # Design-time viewer (Wasm + WebGPU)
 
 Status: design for Big Step D. `designer/web` and `designer/native` are placeholders. This is a
-design-time bridge only; see [`bridges.md`](bridges.md) and ADR-024.
+design-time bridge only; see [`bridges.md`](bridges.md) and ADR-024. Native inspector/hot reload:
+[`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md).
 
 The designer runs the **real C++ engine** in a browser via Emscripten and WebGPU/Dawn. It is
 not an emulator and not a separate renderer. Production still compiles to native C++/Vulkan.

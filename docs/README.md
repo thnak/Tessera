@@ -33,6 +33,10 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-026](../decisions/ADR-026-deep-links-and-external-activation.md) — deep links/activation
 - [ADR-027](../decisions/ADR-027-agent-automation-and-audits.md) — numeric IDs/headless/audits
 - [ADR-028](../decisions/ADR-028-custom-native-elements.md) — custom native elements/3D/input
+- [ADR-029](../decisions/ADR-029-interaction-completeness.md) — text editing/scroll/overlays/forms
+- [ADR-030](../decisions/ADR-030-app-platform-completeness.md) — navigation/restore/shell/i18n/a11y/data
+- [ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) — devtools/updates/crash
+- [ADR-032](../decisions/ADR-032-bundled-component-library.md) — component library/design tokens
 
 ## 3. Specs (normative)
 
@@ -67,6 +71,32 @@ for the project overview. This page is the map and reading order for the framewo
   categories, scoring, reports, CI thresholds
 - [`specs/custom-elements-v1.md`](specs/custom-elements-v1.md) — JSX-declared native elements,
   RHI/shader API, 3D composition, element input, reuse, headless tests
+- [`specs/text-editing-v1.md`](specs/text-editing-v1.md) — selection/caret/IME/undo/clipboard,
+  TextInput/TextArea, secure fields
+- [`specs/scroll-and-gestures-v1.md`](specs/scroll-and-gestures-v1.md) — scroll physics, nested
+  scroll, gesture arena, sticky/anchoring
+- [`specs/overlays-and-layers-v1.md`](specs/overlays-and-layers-v1.md) — overlay/modal/popover/
+  tooltip/toast layers, focus/dismiss/anchoring
+- [`specs/forms-and-validation-v1.md`](specs/forms-and-validation-v1.md) — field state, sync/async
+  validation, submit/focus/reset
+- [`specs/navigation-v1.md`](specs/navigation-v1.md) — route table, back stack, guards, modal
+  routes, deep-link/startup integration
+- [`specs/state-restoration-v1.md`](specs/state-restoration-v1.md) — versioned route/window/scroll/
+  focus/draft restoration
+- [`specs/platform-shell-v1.md`](specs/platform-shell-v1.md) — clipboard, drag/drop, context
+  menus, file dialogs, menu bar/tray
+- [`specs/i18n-v1.md`](specs/i18n-v1.md) — locale negotiation, ICU catalogs, formatting, RTL,
+  pseudo-localization
+- [`specs/accessibility-v1.md`](specs/accessibility-v1.md) — semantics/roles/actions/focus/
+  announcements/platform bridges/tests
+- [`specs/async-data-v1.md`](specs/async-data-v1.md) — resource cache, fetch policy, mutations,
+  offline, pagination
+- [`specs/devtools-protocol-v1.md`](specs/devtools-protocol-v1.md) — local inspector, events,
+  screenshots/traces, hot reload
+- [`specs/updates-and-distribution-v1.md`](specs/updates-and-distribution-v1.md) — signed
+  manifest, staging/rollback, signing/notarization, channels
+- [`specs/crash-reporting-v1.md`](specs/crash-reporting-v1.md) — dumps, symbols, version
+  matching, opt-in upload, redaction
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -120,6 +150,10 @@ for the project overview. This page is the map and reading order for the framewo
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI
 - [`design/build-and-packaging.md`](design/build-and-packaging.md) — CMake, static linking,
   assets, notices, SBOM, release
+- [`design/component-library.md`](design/component-library.md) — tokens, accessible primitives,
+  data grid, packaging, roadmap
+- [`design/media-and-export.md`](design/media-and-export.md) — video/audio seams, printing, PDF,
+  image/vector export
 
 ## 5. Guides
 
@@ -141,6 +175,8 @@ for the project overview. This page is the map and reading order for the framewo
   and audits from a coding agent
 - [`guides/custom-elements.md`](guides/custom-elements.md) — declare/implement/test a custom
   native element with shaders, 3D, input and reuse
+- [`guides/sample-apps.md`](guides/sample-apps.md) — templates and feature-coverage matrix
+  (notes/dashboard/settings/3D/chat)
 
 ## 6. Reference
 
@@ -206,6 +242,34 @@ for the project overview. This page is the map and reading order for the framewo
 5. [Renderer](design/renderer.md)
 6. [Input](design/input.md)
 7. [Headless automation](specs/headless-automation-v1.md)
+
+### App interaction
+
+1. [Text editing](specs/text-editing-v1.md)
+2. [Scroll and gestures](specs/scroll-and-gestures-v1.md)
+3. [Overlays and layers](specs/overlays-and-layers-v1.md)
+4. [Forms and validation](specs/forms-and-validation-v1.md)
+5. [Input](design/input.md)
+6. [Text](design/text.md)
+
+### App platform
+
+1. [Navigation](specs/navigation-v1.md)
+2. [State restoration](specs/state-restoration-v1.md)
+3. [Platform shell](specs/platform-shell-v1.md)
+4. [i18n](specs/i18n-v1.md)
+5. [Accessibility](specs/accessibility-v1.md)
+6. [Async data](specs/async-data-v1.md)
+7. [Services](design/services.md)
+
+### Production readiness
+
+1. [Devtools protocol](specs/devtools-protocol-v1.md)
+2. [Updates and distribution](specs/updates-and-distribution-v1.md)
+3. [Crash reporting](specs/crash-reporting-v1.md)
+4. [Component library](design/component-library.md)
+5. [Sample apps](guides/sample-apps.md)
+6. [Packaging](guides/packaging.md)
 
 ### Automation / observability
 
@@ -274,7 +338,17 @@ for the project overview. This page is the map and reading order for the framewo
 | Numeric automation IDs / headless | C proposed (ADR-027 accepted) |
 | Lighthouse-style audits | B2/F proposed (ADR-027 accepted) |
 | Custom native elements / 3D | B2/C/D proposed (ADR-028 accepted) |
+| Text editing / forms | B2/C proposed (ADR-029 accepted) |
+| Scroll / gestures | B2 proposed (ADR-029 accepted) |
+| Overlays / layers | B2/C proposed (ADR-029 accepted) |
+| Navigation / state restore | F proposed (ADR-030 accepted) |
+| Platform shell / i18n | F proposed (ADR-030 accepted) |
+| Accessibility | F proposed (ADR-030 accepted) |
+| Async data / offline | F proposed (ADR-030 accepted) |
+| Devtools / hot reload | C/D proposed (ADR-031 accepted) |
+| Updates / signing / crash | F proposed (ADR-031 accepted) |
+| Component library | post-V1 proposed (ADR-032 accepted) |
+| Samples / media / export | planned/deferred |
 | Designer/Wasm | D proposed |
-| Accessibility/services | F proposed |
 | Packaging/release | F proposed |
 | Pixel goldens on lavapipe/software | B2/B3 planned |

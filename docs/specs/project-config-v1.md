@@ -20,6 +20,10 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering, resize, async |
 | `loading` | object | no | see [resource-lifecycle-v1.md](resource-lifecycle-v1.md) | Startup/loading/auth/route and lazy/preload/unload policy |
 | `deepLinks` | object | no | see [deep-linking-v1.md](deep-linking-v1.md) | External URL/file/command-line activation |
+| `navigation` | object | no | see [navigation-v1.md](navigation-v1.md) | Route table, back stack, restore policy |
+| `restore` | object | no | see [state-restoration-v1.md](state-restoration-v1.md) | Versioned route/window/scroll/draft restore |
+| `i18n` | object | no | see [i18n-v1.md](i18n-v1.md) | Locales, catalogs, fallback, pseudo-locale |
+| `updates` | object | no | see [updates-and-distribution-v1.md](updates-and-distribution-v1.md) | Signed update channel/manifest/apply policy |
 | `buffers` | object | no | see [buffer-config-v1.md](buffer-config-v1.md) | Engine buffer/cache/queue defaults |
 | `tunables` | array | no | `[]` | Explicit allowlist of user-adjustable settings |
 | `diagnostics` | object | no | see [diagnostics-config-v1.md](diagnostics-config-v1.md) | Logging, tracing, profiling, crash |
@@ -197,6 +201,100 @@ External URL/file/command-line activation. See
 | `fallbackUrl` | string | — | HTTPS web fallback |
 | `maxUrlLength` | integer | `4096` | Reject oversized input |
 
+## `navigation`
+
+```json
+"navigation": {
+  "routesFile": "ui/routes.json",
+  "notFound": "not_found",
+  "restore": true,
+  "modalStack": "global"
+}
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `routesFile` | string | `ui/routes.json` | Static route table; path inside project |
+| `notFound` | string | `not_found` | Route id for unknown paths |
+| `restore` | boolean | `true` | Restore route stack on launch |
+| `modalStack` | string | `global` | `global` or `nested` |
+
+See [`navigation-v1.md`](navigation-v1.md) for route/guard/back/deep-link semantics.
+
+## `restore`
+
+```json
+"restore": {
+  "enabled": true,
+  "maxBytes": 262144,
+  "persistRouteState": true,
+  "persistScroll": true,
+  "persistDrafts": true,
+  "persistSecure": false
+}
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `enabled` | boolean | `true` | Master switch |
+| `maxBytes` | integer | `262144` | Per-window snapshot cap |
+| `persistRouteState` | boolean | `true` | Opt-in per route still applies |
+| `persistScroll` | boolean | `true` | Keyed by route/list id |
+| `persistDrafts` | boolean | `true` | Secure fields excluded |
+| `persistSecure` | boolean | `false` | Must remain false for secure fields |
+
+See [`state-restoration-v1.md`](state-restoration-v1.md).
+
+## `i18n`
+
+```json
+"i18n": {
+  "defaultLocale": "en-US",
+  "locales": ["en-US", "vi-VN", "ja-JP"],
+  "fallbackLocale": "en-US",
+  "catalogDir": "locales",
+  "pseudoLocale": "en-XA",
+  "timezone": "platform"
+}
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `defaultLocale` | string | `en-US` | BCP-47; must be in `locales` |
+| `locales` | string[] | `[defaultLocale]` | Packaged catalogs |
+| `fallbackLocale` | string | `defaultLocale` | Deterministic fallback |
+| `catalogDir` | string | `locales` | Project-relative; no traversal |
+| `pseudoLocale` | string | `en-XA` | Test-only pseudo-localization |
+| `timezone` | string | `platform` | `platform`, `UTC`, or IANA id |
+
+See [`i18n-v1.md`](i18n-v1.md).
+
+## `updates`
+
+```json
+"updates": {
+  "enabled": true,
+  "channel": "stable",
+  "manifestUrl": "https://updates.example.com/manifest.json",
+  "publicKey": "ed25519:...",
+  "checkOnStart": true,
+  "autoDownload": true,
+  "autoApply": "onRestart"
+}
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `enabled` | boolean | `false` | Off unless explicitly enabled |
+| `channel` | string | `stable` | `stable`, `beta`, `nightly` |
+| `manifestUrl` | string | — | HTTPS allowlisted host |
+| `publicKey` | string | — | Signature verification key |
+| `checkOnStart` | boolean | `true` | Background check, never blocks startup |
+| `autoDownload` | boolean | `true` | Resumable/background |
+| `autoApply` | string | `onRestart` | `onRestart`, `prompt`, `manual` |
+
+See [`updates-and-distribution-v1.md`](updates-and-distribution-v1.md).
+
 ## `buffers`
 
 Developer defaults for engine buffers. See
@@ -301,6 +399,15 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 17. `deepLinks` follows [deep-linking-v1.md](deep-linking-v1.md): schemes/hosts/routes are
     unique allowlists, route patterns resolve to real routes, `fallbackUrl` is HTTPS, and no
     secrets/tokens are allowed in URLs.
+18. `navigation` follows [navigation-v1.md](navigation-v1.md): routes are unique, `notFound`
+    resolves, and modal stack policy is known.
+19. `restore` follows [state-restoration-v1.md](state-restoration-v1.md): size is bounded,
+    secure fields are never persisted, and unknown versions fall back safely.
+20. `i18n` follows [i18n-v1.md](i18n-v1.md): locales are valid BCP-47, catalogs exist, fallback
+    is deterministic, and catalogs are compiled/validated at build time.
+21. `updates` follows [updates-and-distribution-v1.md](updates-and-distribution-v1.md): HTTPS
+    manifest/allowlist, signature key present, channel known, and devtools/updates are
+    release-disabled by default.
 
 ## Example
 

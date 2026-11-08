@@ -1,7 +1,9 @@
 # Diagnostics, tracing, and profiling
 
 Status: design for Big Step B2/B3. Normative decision:
-[ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
+[ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md). Crash-report pipeline:
+[`crash-reporting-v1.md`](../specs/crash-reporting-v1.md); devtools:
+[`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md).
 
 ## 1. Goals
 

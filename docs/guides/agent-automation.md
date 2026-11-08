@@ -112,6 +112,15 @@ Use raw metrics for decisions; don't chase the score.
 - Structural mode records draws without GPU; golden uses compiled shaders.
 - See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
+### 8.2 App interaction/platform
+
+- Text: `type`, `assertText`, `assertSelection`; IME composition scripts.
+- Scroll/gestures: `scroll`/drag scripts; assert offset/visible item.
+- Navigation: `navigate`, `back`, `assertRoute`; restore/deep-link scripts.
+- Overlays: `openOverlay`, `closeOverlay`; assert focus/top layer/dismiss.
+- Forms: assert field errors/valid/submitting; focus first invalid.
+- Accessibility: semantics snapshots and platform smoke tests.
+
 ## 9. Rules for agents
 
 - Use manifest IDs; don't scrape string paths.

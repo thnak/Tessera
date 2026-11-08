@@ -52,6 +52,14 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Automation IDs](docs/specs/automation-ids-v1.md), [headless automation](docs/specs/headless-automation-v1.md),
   [agent guide](docs/guides/agent-automation.md), [Lighthouse audits](docs/specs/lighthouse-audit-v1.md)
 - [Custom native elements](docs/specs/custom-elements-v1.md), [custom elements guide](docs/guides/custom-elements.md)
+- [Text editing](docs/specs/text-editing-v1.md), [scroll/gestures](docs/specs/scroll-and-gestures-v1.md),
+  [overlays/layers](docs/specs/overlays-and-layers-v1.md), [forms/validation](docs/specs/forms-and-validation-v1.md)
+- [Navigation](docs/specs/navigation-v1.md), [state restoration](docs/specs/state-restoration-v1.md),
+  [platform shell](docs/specs/platform-shell-v1.md), [i18n](docs/specs/i18n-v1.md),
+  [accessibility](docs/specs/accessibility-v1.md), [async data](docs/specs/async-data-v1.md)
+- [Devtools](docs/specs/devtools-protocol-v1.md), [updates/distribution](docs/specs/updates-and-distribution-v1.md),
+  [crash reporting](docs/specs/crash-reporting-v1.md), [component library](docs/design/component-library.md),
+  [sample apps](docs/guides/sample-apps.md), [media/export](docs/design/media-and-export.md)
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),
@@ -162,7 +170,7 @@ Tools and demos:
 
 ## Next
 
-1. ADR-001 … ADR-028 in `decisions/`.
+1. ADR-001 … ADR-032 in `decisions/`.
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
    async runtime, diagnostics, Yoga/text, pixel goldens.
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.

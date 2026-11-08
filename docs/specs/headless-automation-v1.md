@@ -59,7 +59,8 @@ Exit codes: `0` pass, `1` assertion/audit failure, `2` invalid script/config.
 ```
 
 Actions: `launch`, `close`, `resize`, `click`, `type`, `key`, `scroll`, `focus`, `waitFor`,
-`assert`, `snapshot`, `screenshot`, `trace`, `audit`, `custom`, `assertCustom`.
+`assert`, `snapshot`, `screenshot`, `trace`, `audit`, `custom`, `assertCustom`, `navigate`,
+`back`, `openOverlay`, `closeOverlay`, `assertRoute`, `assertText`, `assertSelection`.
 
 Assertions:
 
@@ -72,6 +73,7 @@ Assertions:
 - golden image match
 - audit score/threshold
 - custom element state/draw stats/last event (`custom`/`assertCustom`)
+- route/params, text/selection, overlay open/close/focus
 
 ### 4.1 Custom elements
 

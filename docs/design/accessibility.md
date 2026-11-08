@@ -1,6 +1,7 @@
 # Accessibility
 
 Status: design for Big Step F (Windows/Linux first). `src/ui/accessibility/` is a placeholder.
+Normative roles/actions/announcements/bridges/tests: [`accessibility-v1.md`](../specs/accessibility-v1.md).
 
 Accessibility is part of the UI model, not an afterthought: every interactive node owns
 semantics, focus, and actions. The rendering path must also respect text scale, high contrast,

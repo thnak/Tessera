@@ -115,6 +115,10 @@ All caches are bounded and report hit/miss/eviction metrics.
 
 ## 9. IME and editing
 
+Full text editing (selection/caret/commands/undo/clipboard/IME/secure fields/nodes) is
+normative in [`text-editing-v1.md`](../specs/text-editing-v1.md). This section is the text-stack
+summary.
+
 - IME composition is owned by the focused text input; the platform IME events are normalized by
   the HAL (`docs/design/input.md`).
 - Composition text is rendered with an underline/selection style; the committed text replaces

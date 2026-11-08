@@ -21,6 +21,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | Integration | module seams (HAL -> UI -> renderer) | CI, fake HAL |
 | Golden | image + structural report | lavapipe/software |
 | Headless automation | scripts/actions/snapshots/traces/audits | null/software/lavapipe |
+| Interaction suites | text editing/IME, scroll/gestures, overlays, navigation, forms, a11y | headless + device matrix |
 | Platform smoke | window/input/display on real OS | CI/device matrix |
 | Performance | frame budgets, allocation counts, cache hit rates | nightly/benchmark |
 | Fuzz | parser/CSS/IR/asset decoders | scheduled |

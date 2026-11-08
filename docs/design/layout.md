@@ -70,8 +70,8 @@ subset. If taffy is used, its C ABI is hidden behind `GridEngine`; UI code never
 - `static`/`relative`: normal flow + offset.
 - `absolute`: out of flow, positioned against the nearest positioned ancestor.
 - `fixed`: viewport-relative (window/scroll container policy documented).
-- `sticky`: implemented in the scroll/layout pass, not Yoga; document scroll-container
-  semantics explicitly.
+- `sticky`: implemented in the scroll/layout pass, not Yoga; scroll-container semantics are in
+  [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md).
 
 ## 4. Measurement
 

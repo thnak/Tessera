@@ -5,7 +5,9 @@ Status: design for Big Step B2/F. Native app startup/screen load, not web page n
 This document covers cold/warm startup, first screen, loading UI, auth gates, route/screen
 load, and the lazy/preload/unload policy. Resource mechanics are normative in
 [`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md); the developer decision matrix
-is in [`loading-matrix.md`](../guides/loading-matrix.md).
+is in [`loading-matrix.md`](../guides/loading-matrix.md). Route/auth/restore:
+[`navigation-v1.md`](../specs/navigation-v1.md) and
+[`state-restoration-v1.md`](../specs/state-restoration-v1.md).
 
 ## 1. Principles
 

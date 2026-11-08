@@ -5,6 +5,11 @@ Status: design for Big Step F. `src/services/*` are placeholders.
 Services are app-facing capabilities that are not part of the renderer. They follow the same
 runtime rules: async, cancellable, bounded, no UI-thread blocking, and no hidden global state.
 
+Normative companions: [`navigation-v1.md`](../specs/navigation-v1.md),
+[`i18n-v1.md`](../specs/i18n-v1.md), [`platform-shell-v1.md`](../specs/platform-shell-v1.md),
+[`async-data-v1.md`](../specs/async-data-v1.md), and
+[`state-restoration-v1.md`](../specs/state-restoration-v1.md).
+
 ## 1. Common contract
 
 ```cpp

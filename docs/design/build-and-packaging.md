@@ -1,6 +1,7 @@
 # Build, static linking, and packaging
 
 Status: current B1 CMake/presets; packaging is a Big Step F target. ADR-012/013 are normative.
+Updates/signing/notarization: [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md).
 
 ## 1. Build system
 
@@ -128,7 +129,9 @@ tests, fuzz job, performance job.
 
 - SBOM format/tooling.
 - Installer vs portable archive per platform.
-- Code signing/notarization policy.
+- Code signing/notarization policy: see
+  [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md).
 - Whether to ship a software fallback renderer.
 - musl fully static Linux build.
-- Update mechanism (if any) and signature verification.
+- Update mechanism/signature verification: see
+  [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md).
