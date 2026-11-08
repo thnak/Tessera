@@ -70,6 +70,13 @@ target_link_libraries(damage_tests PRIVATE tessera_damage)
 
 add_test(NAME damage COMMAND damage_tests)
 
+add_executable(tokenizer_tests
+    tokenizer_tests.cpp)
+
+target_link_libraries(tokenizer_tests PRIVATE tessera_style)
+
+add_test(NAME tokenizer COMMAND tokenizer_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

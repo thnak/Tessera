@@ -1,8 +1,10 @@
 # Stylesheet v1 specification
 
 Status: **proposed** (Big Step B2, the runtime slice; see [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)).
-Normative for `ui/style`. Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md)
-(stylesheet engine).
+Normative for `ui/style`. The CSS tokenizer (offsets, comments, escapes, strings, numbers,
+dimensions, percentages, functions, at-keywords, hashes, match tokens, Unicode ranges) is
+implemented in `src/ui/style/tokenizer.cpp`; parser/cascade/semantic matrix remain proposed.
+Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md) (stylesheet engine).
 
 Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8);
 **V1.1** is the release after V1 (this file names it only for `@property` and `revert*`);

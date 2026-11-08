@@ -400,13 +400,15 @@ live in one place and are linked, not copied.
 (`src/ui/input/`), scene dirty-domain flags/ancestor aggregation
 (`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`), and pruned dirty collect/clear
 (`src/ui/scene/dirty_pass.cpp`), and damage accumulation
-(`src/rendering/damage/damage.cpp`). Next slices, in order:
+(`src/rendering/damage/damage.cpp`), and CSS tokenization (`src/ui/style/tokenizer.cpp`). Next
+slices, in order:
 
-1. Stylesheet tokenizer/parser subset, then cascade/compatibility matrix.
-2. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
-3. HAL/system clock + actual wait/present integration.
-4. Platform input translation and hit-test/focus/capture dispatch.
-5. Damage-aware batched2D redraw path and golden equivalence test.
+1. Stylesheet parser: rule/declaration AST, selector list, tolerant at-rule skipping.
+2. Selector matcher + cascade/specificity, then compatibility matrix.
+3. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
+4. HAL/system clock + actual wait/present integration.
+5. Platform input translation and hit-test/focus/capture dispatch.
+6. Damage-aware batched2D redraw path and golden equivalence test.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
