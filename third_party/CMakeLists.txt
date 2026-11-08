@@ -1,6 +1,7 @@
 #SPDX - License - Identifier : MIT
 
 add_library(tessera_stb STATIC
+    stb_impl/stb_image_impl.cpp
     stb_impl/stb_image_write_impl.cpp)
 
 target_include_directories(tessera_stb PUBLIC

@@ -1,7 +1,8 @@
 # Testing guide
 
-Status: the Big Step B1 (core renderer) and B2 runtime-slice unit tests run with CTest; golden
-tests (deterministic reference images) still belong to the unimplemented part of Big Step B2 (see
+Status: the Big Step B1 (core renderer) and B2 runtime-slice unit tests run with CTest. A
+lavapipe golden harness now covers the batched2d proof (`batched2d_golden`, Linux with Mesa
+lavapipe); the broader golden corpus and `report.json` protocol remain B2 work (see
 [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step); Mesa lavapipe is a
 software Vulkan driver, see
 [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless
@@ -106,6 +107,8 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |
+| `batched2d_golden` | lavapipe bit-exact batched2d dashboard baseline (Linux only) |
+| `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
 
@@ -164,12 +167,29 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 - Reset/retry/resetKey; async error report; cancellation does not show fallback.
 - No silent catch; redaction; no throw across threads/FFI; loop protection.
 
-## 4. Golden tests (target)
+## 4. Golden tests (lavapipe harness)
 
-- Use the software path (lavapipe or the CPU rasterizer), with fixed size, scale, fonts, clock and events.
-- Compare bit-exact; update baselines only with an explicit reviewed command.
-- Failure artifacts: image diff + `report.json` (node bounds/colors/dirty).
-- See [`golden-tests-v1.md`](../specs/golden-tests-v1.md) and
+Implemented for the batched2d proof:
+
+- `batched2d_golden` is registered only on Linux when CMake finds an installed lavapipe ICD
+  (`lvp_icd*.json`). It renders with `--golden` and compares
+  `tests/golden/baseline/batched2d/dashboard.png` bit-exactly
+  (`--tolerance 0 --max-mismatch 0`).
+- Generate or update a baseline only through lavapipe:
+
+  ```bash
+  VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
+    ./build/dev/tools/poc/batched2d/batched2d_poc --backend vulkan --golden \
+    --out tests/golden/baseline/batched2d/dashboard.png
+  ```
+
+  Review the image as a separate, explicit baseline-update change.
+- `batched2d_poc --compare golden.png [--tolerance N] [--max-mismatch R]` also supports tolerant
+  GPU smoke checks; GPU runs never update baselines.
+- `rendering/golden/image_diff.hpp` compares RGBA8 images and reports mismatched pixels, max/mean
+  channel delta, and the first mismatch.
+- Not implemented yet: `report.json` and diff-image artifacts, CPU-rasterizer goldens, and a
+  corpus beyond batched2d. See [`golden-tests-v1.md`](../specs/golden-tests-v1.md) and
   [`design/testing.md`](../design/testing.md).
 
 ## 5. Deterministic mode

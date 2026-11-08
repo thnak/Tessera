@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "damage_cli.hpp"
+#include "tessera/rendering/golden/image_diff.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/null/null_device.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -12,10 +13,12 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <stb_image.h>
 #include <stb_image_write.h>
 
 namespace {
@@ -31,6 +34,9 @@ struct Options {
     std::string font;
     std::string text = "Tessera";
     float text_size = 24.0f;
+    std::string compare;
+    std::uint32_t tolerance = 2;
+    double max_mismatch = 0.005;
     std::vector<tessera::rendering::rhi::Rect> damage;
 };
 
@@ -38,7 +44,8 @@ void print_usage() {
     std::cout << "usage: batched2d_poc [--backend vulkan|null] [--out path] [--raw path]\n"
                  "                     [--width N] [--height N] [--validation] [--golden]\n"
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
-                 "                     [--text-size N]\n";
+                 "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
+                 "                     [--max-mismatch ratio]\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -68,6 +75,12 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.text = argv[++i];
         } else if (arg == "--text-size" && i + 1 < argc) {
             options.text_size = std::stof(argv[++i]);
+        } else if (arg == "--compare" && i + 1 < argc) {
+            options.compare = argv[++i];
+        } else if (arg == "--tolerance" && i + 1 < argc) {
+            options.tolerance = static_cast<std::uint32_t>(std::stoul(argv[++i]));
+        } else if (arg == "--max-mismatch" && i + 1 < argc) {
+            options.max_mismatch = std::stod(argv[++i]);
         } else if (arg == "--damage" && i + 1 < argc) {
             tessera::rendering::rhi::Rect rect;
             const char* value = argv[++i];
@@ -209,6 +222,34 @@ void write_raw(const std::string& path, const std::vector<std::uint8_t>& pixels)
                  static_cast<std::streamsize>(pixels.size()));
 }
 
+void compare_with_golden(const Options& options, const std::vector<std::uint8_t>& pixels) {
+    if (options.compare.empty()) {
+        return;
+    }
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    stbi_uc* decoded = stbi_load(options.compare.c_str(), &width, &height, &channels, 4);
+    if (decoded == nullptr) {
+        throw std::runtime_error("failed to load golden image: " + options.compare);
+    }
+    const std::span<const std::uint8_t> expected(decoded, static_cast<std::size_t>(width) *
+                                                              static_cast<std::size_t>(height) * 4);
+    const auto diff = tessera::rendering::golden::compare_rgba(
+        {options.width, options.height}, pixels,
+        {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)}, expected,
+        options.tolerance);
+    stbi_image_free(decoded);
+
+    std::cout << "golden: pixels=" << diff.pixels << " mismatched=" << diff.mismatched
+              << " max_delta=" << diff.max_channel_delta
+              << " mean_delta=" << diff.mean_channel_delta() << " ratio=" << diff.mismatch_ratio()
+              << "\n";
+    if (!tessera::rendering::golden::within_tolerance(diff, options.max_mismatch)) {
+        throw std::runtime_error("golden comparison failed: " + options.compare);
+    }
+}
+
 int run_vulkan(const Options& options) {
     using namespace tessera::rendering;
 
@@ -267,6 +308,7 @@ int run_vulkan(const Options& options) {
     if (!options.raw.empty()) {
         write_raw(options.raw, pixels);
     }
+    compare_with_golden(options, pixels);
 
     std::cout << "draw_calls=" << renderer.draw_calls() << " vertices=" << renderer.vertex_count()
               << "\n";

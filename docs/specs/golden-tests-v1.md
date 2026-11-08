@@ -1,7 +1,9 @@
 # Golden tests v1
 
-Status: proposed (Big Steps B2 and B3, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
-Steps"). Normative for visual regression;
+Status: partially implemented (Big Steps B2 and B3, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Steps"). The batched2d harness compares a lavapipe baseline through
+`rendering/golden/image_diff.hpp` and `batched2d_poc --compare`; `report.json`, diff images, the
+CPU-rasterizer path, and the wider corpus are still proposed. Normative for visual regression;
 [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md) (deterministic
 headless golden tests on a software rasterization path) is the decision.
 Headless runner/agent protocol: [`headless-automation-v1.md`](headless-automation-v1.md).
@@ -20,6 +22,12 @@ Custom element goldens: [`custom-elements-v1.md`](custom-elements-v1.md).
 6. Failures emit an image diff plus structural `report.json` for humans/agents.
 7. Custom element goldens use compiled shaders, an offscreen target, fixed time/assets/input;
    `continuous` elements use a fixed frame script, not wall clock.
+
+Implementation note: the first harness covers batched2d only. The baseline
+`tests/golden/baseline/batched2d/dashboard.png` is generated with lavapipe, and the
+`batched2d_golden` CTest compares it bit-exactly through `rendering/golden/image_diff.hpp` and
+`batched2d_poc --compare`. `report.json`, diff-image artifacts, and the larger corpus are not
+implemented yet.
 
 ## 2. Directory layout
 

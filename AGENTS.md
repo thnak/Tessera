@@ -469,9 +469,12 @@ per-frame/total counters. The structured diagnostics core is `src/diagnostics/`:
 `diagnostics::Logger` (levels, categories, path redaction, bounded ring sink, disabled fast path),
 `diagnostics::MetricsRegistry` (fixed-capacity atomic counters/gauges with snapshots), bounded
 RAII tracing spans with Chrome Trace JSON (`diagnostics/trace.hpp`), and an overlay line model
-(`diagnostics/overlay.hpp`). Next slices, in order:
+(`diagnostics/overlay.hpp`). The lavapipe golden harness compares
+`tests/golden/baseline/batched2d/dashboard.png` bit-exactly through
+`rendering/golden/image_diff.hpp` and `batched2d_poc --compare` (`batched2d_golden`, Linux with
+lavapipe). Next slices, in order:
 
-1. Lavapipe golden harness, remaining diagnostics (overlay rendering/exporters/crash).
+1. Broader lavapipe golden corpus + CPU rasterizer, remaining diagnostics (overlay rendering/exporters/crash).
 2. B3 window/present path: event-driven wait, vsync/present, deadline integration (the clock/wait
    seam landed).
 3. Platform input translation and remaining focus policy (`tab_index`, `:focus`, modal trapping;

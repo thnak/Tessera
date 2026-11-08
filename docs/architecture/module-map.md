@@ -94,6 +94,7 @@ Only `include/tessera/` is public. Current headers:
 | `element/custom_element.hpp` | custom native element interface/contexts (planned) |
 | `rendering/damage.hpp` | damage rectangles: clip, merge, cap, full-redraw fallback |
 | `rendering/redraw_plan.hpp` | damage rects -> scissor plan + full-redraw policy |
+| `rendering/golden/image_diff.hpp` | RGBA8 golden diff + mismatch ratio (B2) |
 | `rendering/null/null_device.hpp` | null device + command stats |
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
@@ -175,6 +176,7 @@ merger prototype.
 | `tessera_runtime` | static | fixed-step/clock/pacing core + system clock (B2) |
 | `tessera_input` | static | normalized input queue + sampler (B2) |
 | `tessera_damage` | static | damage rectangle accumulator (B2) |
+| `tessera_golden` | static | golden image diff used by the POC/CTest harness (B2) |
 | `tessera_style` | static | CSS tokenizer (B2) |
 | `tessera_yoga` | static | vendored Yoga flexbox engine |
 | `tessera_freetype` | interface | FreeType (FetchContent, pinned archive) for font loading |

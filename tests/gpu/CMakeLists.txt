@@ -34,3 +34,19 @@ if (TARGET batched2d_poc)
         COMMAND batched2d_poc --backend vulkan --width 128 --height 128 --validation --golden
             --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_validation.png)
 endif()
+
+if (UNIX AND TARGET batched2d_poc)
+    find_file(TESSERA_LAVAPIPE_ICD
+        NAMES lvp_icd.x86_64.json lvp_icd.json
+        PATHS /usr/share/vulkan/icd.d /etc/vulkan/icd.d)
+
+    if (TESSERA_LAVAPIPE_ICD)
+        add_test(
+            NAME batched2d_golden
+            COMMAND batched2d_poc --backend vulkan --golden --tolerance 0 --max-mismatch 0
+                --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_golden.png
+                --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard.png)
+        set_tests_properties(batched2d_golden PROPERTIES
+            ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
+    endif()
+endif()

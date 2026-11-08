@@ -596,3 +596,10 @@ if (TARGET merger_poc)
             -DEXISTING=${CMAKE_SOURCE_DIR}/tests/fixtures/merger/existing.cpp
             -P ${CMAKE_CURRENT_SOURCE_DIR}/merger_cli_test.cmake)
 endif()
+
+add_executable(image_diff_tests
+    image_diff_tests.cpp)
+
+target_link_libraries(image_diff_tests PRIVATE tessera_golden)
+
+add_test(NAME image_diff COMMAND image_diff_tests)

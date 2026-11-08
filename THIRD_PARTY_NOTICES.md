@@ -18,6 +18,13 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: Sean Barrett and contributors
 - Upstream: https://github.com/nothings/stb
 
+### stb_image
+
+- Files: `third_party/stb/stb_image.h`
+- License: Public domain / MIT (dual)
+- Copyright: Sean Barrett and contributors
+- Upstream: https://github.com/nothings/stb
+
 ### Vulkan SDK components (Vulkan-Headers, Vulkan-Loader, Vulkan-ValidationLayers, shaderc/glslc)
 
 - Used by: `src/rendering/backend/vulkan/`, build step
