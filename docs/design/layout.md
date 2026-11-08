@@ -6,7 +6,9 @@ Status: implementation started for Big Step B2 (runtime slice; see
 Yoga v3.2.2. It maps `ComputedStyle` longhands to a parallel `LayoutInput` tree and returns fractional
 absolute boxes in DFS order. Non-empty leaf `text` is measured through `ui/text/text_measure.hpp` and
 a Yoga measure callback; the default `StubTextMeasurer` is deterministic until the real text stack
-lands. Incremental relayout is not wired yet.
+lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
+leaving unchanged boxes clean and marking changed ones paint/render dirty. Incremental relayout is
+not wired yet.
 [ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md) (Yoga layout adapter) requires the adapter
 and the documented rounding rule below. Terms (`ComputedStyle`, Yoga, golden, scene graph) are in
 [`glossary.md`](../reference/glossary.md). Style inputs come from the stylesheet engine

@@ -109,6 +109,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/keyframes.hpp` | `@keyframes` block parsing into offset steps |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga flexbox mapping + absolute boxes + measure callback |
+| `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |
