@@ -1,8 +1,10 @@
 # Text: shaping, bidi, line breaking, and glyph atlas
 
 Status: design for Big Step B2 (runtime slice; see
-[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/ui/text/` is a
-placeholder today. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/ui/text/` now has
+the measurement seam: `TextMeasurer`, `TextStyle`, `TextConstraints`, `TextMetrics`, and a
+deterministic `StubTextMeasurer` (fixed advance, greedy word wrap) wired into Yoga through
+`LayoutInput::text`. Real shaping/rasterization is not implemented. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
 FreeType + HarfBuzz + SheenBidi + ICU (licenses and module ownership in
 [`dependencies.md`](../specs/dependencies.md)). Terms: IME = input method editor; HAL = hardware/OS
 abstraction layer ([`hal.md`](hal.md)); golden = deterministic reference image; atlas = GPU texture

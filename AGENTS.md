@@ -411,10 +411,11 @@ tolerant stylesheet AST parser (`src/ui/style/parser.cpp`), selector parsing/spe
 nested rules, `@keyframes`, `@layer` precedence, and the `Theme` origin are wired into the
 compiled stylesheet. The Yoga Flexbox adapter is
 `include/tessera/ui/layout/layout_engine.hpp` + `src/ui/layout/layout_engine.cpp` with vendored Yoga
-v3.2.2 (`third_party/yoga`), mapping computed-style longhands to fractional absolute boxes. Next
-slices, in order:
+v3.2.2 (`third_party/yoga`), mapping computed-style longhands to fractional absolute boxes. Text
+measurement is wired through `ui/text/text_measure.hpp` and a Yoga measure callback, with a
+deterministic stub until the real text stack lands. Next slices, in order:
 
-1. Text/glyph atlas + measurement callback into layout.
+1. Real text stack seam: font loading/metrics, shaping, glyph atlas.
 2. Async runtime, diagnostics, lavapipe goldens.
 3. HAL/system clock + actual wait/present integration.
 4. Platform input translation and hit-test/focus/capture dispatch.

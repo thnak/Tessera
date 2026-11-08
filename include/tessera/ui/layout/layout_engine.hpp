@@ -7,7 +7,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
+
+namespace tessera::ui::text {
+class TextMeasurer;
+}
 
 namespace tessera::ui::layout {
 
@@ -17,6 +22,7 @@ struct LayoutInput {
     std::uint64_t id = 0;
     style::ComputedStyle style;
     std::vector<LayoutInput> children;
+    std::string text;
 };
 
 struct LayoutViewport {
@@ -36,7 +42,7 @@ struct LayoutResult {
 
 class LayoutEngine {
 public:
-    LayoutEngine();
+    explicit LayoutEngine(std::shared_ptr<const text::TextMeasurer> measurer = nullptr);
     ~LayoutEngine();
 
     LayoutEngine(LayoutEngine&&) noexcept;

@@ -140,6 +140,13 @@ target_link_libraries(layout_tests PRIVATE tessera_layout)
 
 add_test(NAME layout COMMAND layout_tests)
 
+add_executable(text_measure_tests
+    text_measure_tests.cpp)
+
+target_link_libraries(text_measure_tests PRIVATE tessera_text)
+
+add_test(NAME text_measure COMMAND text_measure_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

@@ -50,7 +50,8 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `property_registry` | metadata, box/pair/flex expansion, diagnostics, initial values |
 | `media_query` | width/height/resolution, orientation, color scheme, reduced motion, lists/not |
 | `keyframes` | from/to/percent offsets, comma selectors, invalid steps |
-| `layout` | flex row/column, grow, gap/padding, absolute, percent/min/max, ratio, RTL, wrap, determinism |
+| `layout` | flex row/column, grow, gap/padding, absolute, percent/min/max, ratio, RTL, wrap, text measure, determinism |
+| `text_measure` | stub advance, word wrap, long-word break, newlines, letter spacing, style parsing |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |

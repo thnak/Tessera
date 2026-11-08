@@ -34,7 +34,15 @@ ComputedStyle style(std::initializer_list<std::pair<const char*, const char*>> v
 }
 
 LayoutInput node(std::uint64_t id, ComputedStyle computed, std::vector<LayoutInput> children = {}) {
-    return LayoutInput{id, std::move(computed), std::move(children)};
+    return LayoutInput{id, std::move(computed), std::move(children), {}};
+}
+
+LayoutInput text_node(std::uint64_t id, ComputedStyle computed, std::string text) {
+    LayoutInput result;
+    result.id = id;
+    result.style = std::move(computed);
+    result.text = std::move(text);
+    return result;
 }
 
 const LayoutBox* find(const LayoutResult& result, std::uint64_t id) {
@@ -179,6 +187,48 @@ int main() {
     if (!expect(box_is(wrap_result, 81, 0, 0, 60, 10), "wrap first") ||
         !expect(box_is(wrap_result, 82, 0, 10, 60, 10), "wrap second")) {
         return 9;
+    }
+
+    const LayoutInput text_wrap = node(
+        100,
+        style({{"display", "flex"},
+               {"flex-direction", "column"},
+               {"align-items", "flex-start"},
+               {"width", "50px"},
+               {"height", "200px"}}),
+        {text_node(101, style({{"font-size", "16px"}, {"line-height", "20px"}}), "hello world")});
+    const LayoutResult text_wrap_result = engine.layout(text_wrap, LayoutViewport{50.0f, 200.0f});
+    if (!expect(box_is(text_wrap_result, 101, 0, 0, 40, 40), "text wraps")) {
+        return 11;
+    }
+
+    const LayoutInput text_break =
+        node(110,
+             style({{"display", "flex"},
+                    {"flex-direction", "column"},
+                    {"align-items", "flex-start"},
+                    {"width", "20px"},
+                    {"height", "200px"}}),
+             {text_node(111, style({{"font-size", "16px"}, {"line-height", "20px"}}), "abcdefgh")});
+    const LayoutResult text_break_result = engine.layout(text_break, LayoutViewport{20.0f, 200.0f});
+    if (!expect(box_is(text_break_result, 111, 0, 0, 16, 80), "text breaks long word")) {
+        return 12;
+    }
+
+    const LayoutInput text_nowrap = node(
+        120,
+        style({{"display", "flex"},
+               {"flex-direction", "column"},
+               {"align-items", "flex-start"},
+               {"width", "30px"},
+               {"height", "200px"}}),
+        {text_node(
+            121, style({{"font-size", "16px"}, {"line-height", "20px"}, {"white-space", "nowrap"}}),
+            "hello")});
+    const LayoutResult text_nowrap_result =
+        engine.layout(text_nowrap, LayoutViewport{30.0f, 200.0f});
+    if (!expect(box_is(text_nowrap_result, 121, 0, 0, 40, 20), "text nowrap overflows")) {
+        return 13;
     }
 
     const LayoutInput content_box = node(85, style({{"display", "flex"},

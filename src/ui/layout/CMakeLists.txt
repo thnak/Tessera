@@ -8,6 +8,7 @@ target_include_directories(tessera_layout PUBLIC
 
 target_link_libraries(tessera_layout PUBLIC
     tessera_style
+    tessera_text
     tessera_yoga)
 
 target_compile_features(tessera_layout PUBLIC cxx_std_23)

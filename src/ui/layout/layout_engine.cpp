@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <yoga/Yoga.h>
 
@@ -431,11 +435,44 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
     }
 }
 
-YGNodeRef build_node(const LayoutInput& input, const LayoutViewport& viewport) {
+struct MeasureContext {
+    const LayoutInput* input = nullptr;
+    text::TextStyle style;
+    const text::TextMeasurer* measurer = nullptr;
+};
+
+YGSize measure_text(YGNodeConstRef node, float width, YGMeasureMode width_mode, float height,
+                    YGMeasureMode height_mode) {
+    auto* context = static_cast<MeasureContext*>(YGNodeGetContext(node));
+    if (context == nullptr || context->measurer == nullptr) {
+        return YGSize{0.0f, 0.0f};
+    }
+
+    text::TextConstraints constraints;
+    constraints.max_width =
+        width_mode == YGMeasureModeUndefined ? std::numeric_limits<float>::infinity() : width;
+    constraints.wrap = width_mode != YGMeasureModeUndefined;
+    const text::TextMetrics metrics =
+        context->measurer->measure(context->input->text, context->style, constraints);
+
+    const float measured_width = width_mode == YGMeasureModeExactly ? width : metrics.width;
+    const float measured_height = height_mode == YGMeasureModeExactly ? height : metrics.height;
+    return YGSize{measured_width, measured_height};
+}
+
+YGNodeRef build_node(const LayoutInput& input, const LayoutViewport& viewport,
+                     const text::TextMeasurer& measurer,
+                     std::vector<std::unique_ptr<MeasureContext>>& contexts) {
     YGNodeRef node = YGNodeNew();
     apply_style(node, input.style, viewport);
+    if (!input.text.empty() && input.children.empty()) {
+        contexts.push_back(std::make_unique<MeasureContext>(
+            MeasureContext{&input, text::text_style_from(input.style), &measurer}));
+        YGNodeSetContext(node, contexts.back().get());
+        YGNodeSetMeasureFunc(node, measure_text);
+    }
     for (std::size_t i = 0; i < input.children.size(); ++i) {
-        YGNodeInsertChild(node, build_node(input.children[i], viewport), i);
+        YGNodeInsertChild(node, build_node(input.children[i], viewport, measurer, contexts), i);
     }
     return node;
 }
@@ -461,17 +498,27 @@ YGDirection root_direction(const LayoutInput& root) {
 
 } // namespace
 
-struct LayoutEngine::Impl {};
+struct LayoutEngine::Impl {
+    explicit Impl(std::shared_ptr<const text::TextMeasurer> text_measurer)
+        : measurer(std::move(text_measurer)) {}
 
-LayoutEngine::LayoutEngine()
-    : impl_(std::make_unique<Impl>()) {}
+    std::shared_ptr<const text::TextMeasurer> measurer;
+};
+
+LayoutEngine::LayoutEngine(std::shared_ptr<const text::TextMeasurer> measurer) {
+    if (!measurer) {
+        measurer = std::make_shared<text::StubTextMeasurer>();
+    }
+    impl_ = std::make_unique<Impl>(std::move(measurer));
+}
 
 LayoutEngine::~LayoutEngine() = default;
 LayoutEngine::LayoutEngine(LayoutEngine&&) noexcept = default;
 LayoutEngine& LayoutEngine::operator=(LayoutEngine&&) noexcept = default;
 
 LayoutResult LayoutEngine::layout(const LayoutInput& root, const LayoutViewport& viewport) const {
-    YGNodeRef root_node = build_node(root, viewport);
+    std::vector<std::unique_ptr<MeasureContext>> contexts;
+    YGNodeRef root_node = build_node(root, viewport, *impl_->measurer, contexts);
     YGNodeCalculateLayout(root_node, viewport.width, viewport.height, root_direction(root));
 
     LayoutResult result;
