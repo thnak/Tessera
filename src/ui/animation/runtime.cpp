@@ -47,12 +47,20 @@ AnimationId AnimationRuntime::start(AnimationInput input) {
 AnimationTickResult AnimationRuntime::tick(double dt) {
     AnimationTickResult result;
     if (!std::isfinite(dt) || dt < 0.0) {
-        result.keep_awake = !entries_.empty();
+        result.keep_awake = std::any_of(entries_.begin(), entries_.end(),
+                                        [](const AnimationEntry& entry) { return !entry.paused; });
         return result;
     }
 
     std::vector<AnimationEntry> finished;
     for (AnimationEntry& entry : entries_) {
+        if (entry.paused) {
+            AnimationSample sample = sample_entry(entry, entry.elapsed);
+            result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
+            result.samples.push_back(std::move(sample));
+            continue;
+        }
+
         entry.elapsed += dt;
         if (!is_finished(entry)) {
             AnimationSample sample = sample_entry(entry, entry.elapsed);
@@ -87,8 +95,51 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
         }
     }
 
-    result.keep_awake = !entries_.empty();
+    result.keep_awake = std::any_of(entries_.begin(), entries_.end(),
+                                    [](const AnimationEntry& entry) { return !entry.paused; });
     return result;
+}
+
+bool AnimationRuntime::pause(AnimationId id) {
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+                                    [&](const AnimationEntry& entry) { return entry.id == id; });
+    if (found == entries_.end()) {
+        return false;
+    }
+    found->paused = true;
+    return true;
+}
+
+bool AnimationRuntime::resume(AnimationId id) {
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+                                    [&](const AnimationEntry& entry) { return entry.id == id; });
+    if (found == entries_.end()) {
+        return false;
+    }
+    found->paused = false;
+    return true;
+}
+
+std::size_t AnimationRuntime::pause_target(std::uint64_t target) {
+    std::size_t count = 0;
+    for (AnimationEntry& entry : entries_) {
+        if (entry.target == target) {
+            entry.paused = true;
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::size_t AnimationRuntime::resume_target(std::uint64_t target) {
+    std::size_t count = 0;
+    for (AnimationEntry& entry : entries_) {
+        if (entry.target == target) {
+            entry.paused = false;
+            ++count;
+        }
+    }
+    return count;
 }
 
 bool AnimationRuntime::stop(AnimationId id) {

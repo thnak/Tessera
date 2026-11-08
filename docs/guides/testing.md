@@ -73,6 +73,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `animation_pipeline` | parse -> lookup -> start -> tick -> overlay, dirty/wake, multiple animations, fill-forwards final |
 | `animation_style` | computed-style longhands, shorthand fallback, longhand precedence, invalid/paused/missing starts nothing, overlay |
 | `animation_runtime` | start/tick/finish, callbacks, stop/clear, target/property stop, wake state, dirty domains |
+| `animation_pause` | per-id/target pause/resume, held samples, no completion or wake while paused, invalid dt wake rules |
 | `easing` | linear/presets/bezier identity/steps variants, parser rejection, sampler integration |
 | `spring` | exact semi-implicit step, convergence/epsilon stop, retarget, invalid config, determinism |
 | `spring_runtime` | sample declarations, layout/paint dirty, settle/finish, retarget final, callbacks, dt guards |

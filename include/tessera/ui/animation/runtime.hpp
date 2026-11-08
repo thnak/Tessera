@@ -32,6 +32,7 @@ struct AnimationEntry {
     double elapsed = 0.0;
     AnimationCallback on_complete;
     std::string property;
+    bool paused = false;
 };
 
 struct AnimationSample {
@@ -52,6 +53,10 @@ public:
     AnimationId start(AnimationInput input);
 
     [[nodiscard]] AnimationTickResult tick(double dt);
+    bool pause(AnimationId id);
+    bool resume(AnimationId id);
+    std::size_t pause_target(std::uint64_t target);
+    std::size_t resume_target(std::uint64_t target);
     bool stop(AnimationId id);
     std::size_t stop_target_property(std::uint64_t target, std::string_view property);
     void clear();

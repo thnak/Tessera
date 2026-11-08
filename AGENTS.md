@@ -429,7 +429,7 @@ parsed keyframes at fixed-step time with direction/fill and linear numeric inter
 `ui/animation/animation_shorthand.hpp` parses `animation` shorthands and longhand lists,
 `ui/animation/animation_start.hpp` looks up keyframes and batch-starts parsed specs,
 `ui/animation/animation_style.hpp` starts animations from computed style,
-`ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, and
+`ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting and pause/resume, and
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
 retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries, `ui/animation/style_overlay.hpp`
 overlays samples onto `ComputedStyle` per target, `ui/animation/transition.hpp` parses transition
