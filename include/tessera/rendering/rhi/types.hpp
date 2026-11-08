@@ -164,7 +164,7 @@ inline bool Mat3::try_inverse(Mat3& out) const {
 
 enum class Backend { Null, Vulkan, WebGpu };
 
-enum class TextureFormat { R8G8B8A8Unorm, R8Unorm };
+enum class TextureFormat { R8G8B8A8Unorm, R8Unorm, B8G8R8A8Unorm };
 
 enum class BufferUsage { Vertex, Index, Uniform, Staging, Readback };
 

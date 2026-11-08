@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
+#include <string>
 
 namespace tessera::hal {
 
@@ -46,6 +48,15 @@ struct WindowEvent {
     WindowMetrics metrics;
 };
 
+// Client-area size is logical pixels; the platform converts it to physical pixels with the
+// per-monitor DPI scale. A zero width or height is invalid.
+struct WindowDesc {
+    std::string title = "Tessera";
+    std::uint32_t width = 1280;
+    std::uint32_t height = 720;
+    bool visible = true;
+};
+
 // Platform window seam. Implementations live under src/platform/<os>/ and own every OS handle;
 // this header stays OS-free so UI and rendering code can depend on it.
 class Window {
@@ -68,5 +79,10 @@ public:
     // harmless.
     virtual void close() = 0;
 };
+
+// Creates a platform window from `desc`. Platforms without a window backend return nullptr;
+// invalid descriptors (zero size) also return nullptr. The returned window must be destroyed on
+// the thread that created it.
+std::unique_ptr<Window> create_window(const WindowDesc& desc);
 
 } // namespace tessera::hal

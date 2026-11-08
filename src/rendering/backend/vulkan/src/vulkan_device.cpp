@@ -3,6 +3,8 @@
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "vulkan_internal.hpp"
 
+#include <utility>
+
 namespace tessera::rendering::vulkan {
 
 VulkanDevice::VulkanDevice(const rhi::DeviceDesc& desc)
@@ -137,11 +139,28 @@ std::unique_ptr<rhi::CommandList> VulkanDevice::create_command_list() {
 }
 
 std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
-VulkanDevice::create_swapchain(const rhi::SwapchainDesc&) {
-    // A Vulkan swapchain needs a VkSurfaceKHR, which needs a platform window. The Win32 window
-    // and surface creation are the next B3 slice; reporting NotSupported keeps the seam usable
-    // without creating an object that cannot present.
+VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    // A Vulkan swapchain needs a VkSurfaceKHR, which needs a platform window handle from the HAL.
+    if (desc.image_count < 2 || desc.extent.width == 0 || desc.extent.height == 0 ||
+        desc.native_window == nullptr) {
+        return std::unexpected(rhi::SwapchainError::NotSupported);
+    }
+    if (!surface_extensions_enabled_ || !swapchain_extension_enabled_ ||
+        !win32_present_supported_) {
+        return std::unexpected(rhi::SwapchainError::NotSupported);
+    }
+
+    auto created = VulkanSwapchain::create(instance_, physical_device_, device_, queue_, desc);
+    if (!created) {
+        return std::unexpected(created.error());
+    }
+    return std::unique_ptr<rhi::Swapchain>(std::move(*created));
+#else
+    (void)desc;
+    // The surface/platform window path is Win32-only for now; offscreen devices stay usable.
     return std::unexpected(rhi::SwapchainError::NotSupported);
+#endif
 }
 
 void VulkanDevice::wait_idle() {

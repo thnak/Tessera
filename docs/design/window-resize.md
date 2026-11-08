@@ -8,22 +8,35 @@ This document draws the line between
 layer ([`hal.md`](hal.md)); tick, golden, VRR and `WindowMetrics` are in
 [`glossary.md`](../reference/glossary.md).
 
-## 0. Implemented subset (first B3 slice)
+## 0. Implemented subset (B3 window/swapchain slice)
 
-The first B3 slice lands the platform-neutral seams without an OS window:
+The B3 seams now have a real Windows implementation:
 
 - [`include/tessera/hal/window.hpp`](../../include/tessera/hal/window.hpp) defines `WindowInsets`,
-  `WindowMetrics`, `WindowEventType`/`WindowEvent`, and the abstract `hal::Window` interface
-  (`metrics`, `poll_events`, `show`, `hide`, `request_redraw`, `close`). It carries no OS handles;
-  the Win32 implementation is the next slice.
+  `WindowMetrics`, `WindowEventType`/`WindowEvent`, `WindowDesc` (logical client size), the
+  abstract `hal::Window` interface (`metrics`, `poll_events`, `show`, `hide`, `request_redraw`,
+  `close`), and `hal::create_window`. The header still carries no OS handle: the native handle is
+  private to the platform source.
+- `src/platform/windows/window.cpp` implements the Win32 window with per-monitor DPI awareness
+  v2, `WM_SIZE`/`WM_DPICHANGED`/`WM_SETFOCUS`/`WM_KILLFOCUS`/`WM_CLOSE`/`WM_SHOWWINDOW`
+  normalization, a bounded (fixed-capacity, resize-coalescing) event queue, client-rect + DPI
+  `WindowMetrics`, show/hide, `InvalidateRect` redraw requests, and owner-thread destruction.
+  Non-Windows platforms build `src/hal/window/window_stub.cpp` and `create_window` returns
+  `nullptr`.
 - [`include/tessera/rendering/rhi/swapchain.hpp`](../../include/tessera/rendering/rhi/swapchain.hpp)
-  defines `SwapchainDesc`, `SwapchainError`, the `Swapchain` interface, and
+  defines `SwapchainDesc` with opaque `native_window`/`native_display` handles supplied by the
+  HAL, `SwapchainError` (including `Suboptimal`), the `Swapchain` interface, and
   `Device::create_swapchain`. The null backend returns a deterministic rotating swapchain
-  (resize -> one `OutOfDate`, forced-timeout test control, stats); the Vulkan backend reports
-  `SwapchainError::NotSupported` because a swapchain needs a `VkSurfaceKHR` and a window.
-- Still pending: Win32 window + `VkSurfaceKHR`, real acquire/present and old-swapchain retirement,
-  producing `WindowEvent`s from OS messages, and frame-pacing integration. The platform rules in
-  §4 describe the target behavior, not the implemented subset.
+  (resize -> one `OutOfDate`, forced-timeout test control, stats).
+- `src/rendering/backend/vulkan/src/vulkan_swapchain.cpp` implements the Win32 path:
+  `vkCreateWin32SurfaceKHR`, surface-format/present-mode selection (`vsync` -> FIFO, otherwise
+  MAILBOX/IMMEDIATE when available), image views, bounded fence-based acquire, present, and
+  old-swapchain retirement (`oldSwapchain` + bounded empty-submit drain). Missing
+  `native_window`, unsupported surface formats, and non-Windows builds report `NotSupported`.
+- Still pending: event-driven wait integration with the runtime deadline/timer seam, Linux
+  (`X11`/Wayland) window and surface backends, live-resize coalescing at the frame-pacing layer,
+  device-loss recovery, and full OS compliance beyond the messages handled here. The platform
+  rules in §4 describe the target behavior.
 
 ## 1. Separation of concerns
 

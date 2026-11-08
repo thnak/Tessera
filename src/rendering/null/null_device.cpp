@@ -72,7 +72,7 @@ public:
 
 private:
     static std::size_t bytes_per_pixel(rhi::TextureFormat format) {
-        return format == rhi::TextureFormat::R8G8B8A8Unorm ? 4 : 1;
+        return format == rhi::TextureFormat::R8Unorm ? 1 : 4;
     }
 
     rhi::TextureDesc desc_;

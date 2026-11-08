@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+
+add_library(tessera_hal_window STATIC)
+
+if (WIN32)
+    target_sources(tessera_hal_window PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp)
+    target_link_libraries(tessera_hal_window PUBLIC user32)
+else()
+    target_sources(tessera_hal_window PRIVATE
+        window_stub.cpp)
+endif()
+
+target_include_directories(tessera_hal_window PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_hal_window PUBLIC cxx_std_23)

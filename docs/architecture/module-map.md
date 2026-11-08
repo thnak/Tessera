@@ -90,7 +90,7 @@ Only `include/tessera/` is public. Current headers:
 |---|---|
 | `rendering/rhi/types.hpp` | geometry, color, descriptors, enums, `Mat3` |
 | `rendering/rhi/device.hpp` | `Device`, `Buffer`, `Texture`, `Pipeline`, `RenderTarget`, `CommandList` |
-| `rendering/rhi/swapchain.hpp` | `Swapchain`, `SwapchainDesc`, `SwapchainError`, `Device::create_swapchain` (B3 seam) |
+| `rendering/rhi/swapchain.hpp` | `Swapchain`, `SwapchainDesc` (opaque native handles), `SwapchainError`, `Device::create_swapchain` (B3) |
 | `rendering/null/null_swapchain.hpp` | deterministic null swapchain + test stats (B3 seam) |
 | `rendering/gpu/vertex2d.hpp` | `Vertex2D`, attributes, push constants |
 | `rendering/gpu/batched2d_renderer.hpp` | batched 2D renderer |
@@ -102,6 +102,7 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
 | `hal/timer/steady_time.hpp` | monotonic seconds + bounded idle wait (B2) |
+| `hal/window.hpp` | `Window`, `WindowDesc`, `WindowMetrics`, normalized events, `create_window` (B3) |
 | `hal/window.hpp` | window metrics/events + abstract `Window` interface, no OS handles (B3 seam) |
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
 | `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
