@@ -112,6 +112,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
 | `batched2d_windowed_smoke` | window + swapchain render/present + pacer wait for 3 frames |
+| `batched2d_cpu_golden` | CPU-canvas solid-rect baseline, bit-exact (all platforms) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -193,6 +194,10 @@ Implemented for the batched2d proof:
   dashboard into acquired images, presents three frames, and uses `wait_for_next_frame` for
   pacing. It runs under Xvfb on Linux and on Windows; it skips cleanly when no window backend or
   presentation surface exists.
+- `batched2d_cpu_golden` exercises `batched2d_poc --backend cpu`: a CPU canvas fills
+  axis-aligned solid rectangles into a separate dashboard baseline
+  (`dashboard_cpu.png`), bit-exactly. The CPU canvas intentionally has no AA, paths, text,
+  rounded rectangles, transforms, or textures; those stay on the lavapipe corpus.
 - `--report report.json` and `--diff diff.png` write structural failure artifacts for any
   comparison: status, dimensions, mismatch counts, first mismatch coordinate, and a
   magenta-on-gray diff image when per-channel deltas exceed the tolerance.

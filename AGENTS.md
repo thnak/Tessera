@@ -480,7 +480,10 @@ RAII tracing spans with Chrome Trace JSON (`diagnostics/trace.hpp`), and an over
 `rendering/golden/image_diff.hpp` and `batched2d_poc --compare` (`batched2d_golden`, Linux with
 lavapipe). Next slices, in order:
 
-1. Broader lavapipe golden corpus + CPU rasterizer, remaining diagnostics (overlay rendering/exporters/crash).
+1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
+   bit-exactly (text with tolerance), and a CPU canvas (`--backend cpu`) covers solid-rect
+   references on every platform. Remaining diagnostics (exporters/crash) and wider CPU coverage
+   are next.
 2. B3 window/present path: the Windows HAL window, Vulkan Win32 surface/swapchain, Linux/X11
    window, Vulkan Xlib surface/swapchain, and bounded event wait with `runtime::wait_for_next_frame`
    landed; swapchain image render targets, Win32/X11 render+present, and the windowed POC

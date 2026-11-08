@@ -3,7 +3,8 @@
 Status: partially implemented (Big Steps B2 and B3, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
 Steps"). The batched2d harness compares a lavapipe baseline through
 `rendering/golden/image_diff.hpp` and `batched2d_poc --compare`; `--report`/`--diff` artifacts
-exist, while the CPU-rasterizer path and wider corpus are still proposed. Normative for visual regression;
+exist, alongside a CPU-canvas solid-rect path; the wider AA/text/texture corpus is still
+growing. Normative for visual regression;
 [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md) (deterministic
 headless golden tests on a software rasterization path) is the decision.
 Headless runner/agent protocol: [`headless-automation-v1.md`](headless-automation-v1.md).
@@ -32,7 +33,9 @@ antialiasing rounds differently across lavapipe/LLVM revisions. The corpus also 
 shapes-only scene (`dashboard_shapes.png`: rounded cards, two texture UV scales, scissor clipping,
 translation, and clip+transform) compared bit-exactly. `--report` and `--diff` write
 structural/visual artifacts; the
-CPU-rasterizer path and larger corpus are not implemented yet.
+A CPU canvas (`batched2d_poc --backend cpu`) provides a bit-exact solid-axis-aligned-rect
+baseline on every platform. It intentionally has no AA, paths, text, rounded rectangles,
+transforms, or textures; lavapipe remains the full-fidelity software path for those cases.
 
 ## 2. Directory layout
 

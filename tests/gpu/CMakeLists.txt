@@ -41,6 +41,14 @@ if (WIN32 AND TARGET batched2d_poc AND TARGET tessera_rhi_vulkan)
         COMMAND batched2d_poc --backend vulkan --windowed --frames 3 --width 256 --height 256)
 endif()
 
+if (TARGET batched2d_poc)
+    add_test(
+        NAME batched2d_cpu_golden
+        COMMAND batched2d_poc --backend cpu --tolerance 0 --max-mismatch 0
+            --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_cpu_golden.png
+            --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_cpu.png)
+endif()
+
 if (UNIX AND TARGET batched2d_poc)
     find_file(TESSERA_LAVAPIPE_ICD
         NAMES lvp_icd.x86_64.json lvp_icd.json

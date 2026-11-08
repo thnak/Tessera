@@ -9,6 +9,7 @@ target_link_libraries(batched2d_poc PRIVATE
     tessera_runtime
     tessera_rhi_vulkan
     tessera_rhi_null
+    tessera_software
     tessera_text_render
     tessera_diagnostics
     tessera_golden

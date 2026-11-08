@@ -25,7 +25,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/rendering/null/` | deterministic no-GPU backend + swapchain | B1; swapchain seam B3 |
 | `src/rendering/backend/vulkan/` | Vulkan 1.3 backend (volk + VMA (Vulkan Memory Allocator)) | B1 offscreen |
 | `src/rendering/backend/webgpu/` | WebGPU/Dawn backend | planned (D) |
-| `src/rendering/software/` | deterministic CPU/software path | planned (B2/B3) |
+| `src/rendering/software/` | deterministic CPU canvas (solid axis-aligned rects) for golden references | implemented (B2) |
 | `src/rendering/resources/` | textures, samplers, uploads, caches | planned |
 | `src/rendering/scheduler/` | frame scheduling, fences, presentation | planned (B3) |
 | `src/compiler/analyzer/` | own JSX/TSX front end + React-like rules | planned (C) |

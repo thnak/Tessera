@@ -9,6 +9,7 @@
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/null/null_device.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
+#include "tessera/rendering/software/cpu_canvas.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "tessera/runtime/frame_pacer.hpp"
@@ -673,6 +674,78 @@ int run_windowed(const Options& options) {
     return 0;
 }
 
+void build_cpu_screen(tessera::rendering::software::CpuCanvas& canvas) {
+    using tessera::rendering::rhi::Rect;
+    using tessera::rendering::rhi::rgba8;
+
+    const auto background = rgba8(11, 18, 32);
+    const auto panel = rgba8(15, 23, 42);
+    const auto card = rgba8(30, 41, 59);
+    const auto accent = rgba8(56, 189, 248);
+    const auto green = rgba8(74, 222, 128);
+    const auto yellow = rgba8(250, 204, 21);
+    const auto muted = rgba8(148, 163, 184);
+    const auto text = rgba8(226, 232, 240);
+    const float width = static_cast<float>(canvas.width());
+    const float height = static_cast<float>(canvas.height());
+
+    canvas.clear(background);
+    canvas.fill_rect({0, 0, width, 48}, panel);
+    canvas.fill_rect({0, 0, width, 3}, accent);
+    canvas.fill_rect({0, 48, 120, height - 48}, panel);
+    canvas.fill_rect({12, 64, 96, 28}, accent);
+    canvas.fill_rect({12, 100, 96, 28}, card);
+    canvas.fill_rect({12, 136, 96, 28}, card);
+
+    canvas.fill_rect({140, 64, 160, 104}, card);
+    canvas.fill_rect({152, 76, 40, 40}, accent);
+    canvas.fill_rect({204, 82, 80, 8}, text);
+    canvas.fill_rect({204, 98, 56, 6}, muted);
+    canvas.fill_rect({152, 128, 136, 6}, card);
+    canvas.fill_rect({152, 128, 92, 6}, green);
+
+    canvas.fill_rect({316, 64, 180, 104}, card);
+    canvas.fill_rect({328, 76, 72, 8}, text);
+    canvas.fill_rect({328, 92, 156, 56}, panel);
+    for (std::uint32_t bar = 0; bar < 5; ++bar) {
+        const float bar_height = 12.0f + static_cast<float>(bar) * 8.0f;
+        canvas.fill_rect(
+            {336.0f + static_cast<float>(bar) * 30.0f, 148.0f - bar_height, 20, bar_height},
+            bar % 2 == 0 ? accent : green);
+    }
+
+    canvas.fill_rect({12, 184, 96, 8}, muted);
+    canvas.fill_rect({12, 200, 72, 8}, card);
+    canvas.fill_rect({140, 184, 356, 8}, text);
+    canvas.fill_rect({140, 200, 280, 6}, muted);
+    canvas.fill_rect({140, 220, 220, 6}, yellow);
+}
+
+int run_cpu(const Options& options) {
+    using namespace tessera::rendering;
+
+    software::CpuCanvas canvas(options.width, options.height);
+    build_cpu_screen(canvas);
+    const std::vector<std::uint8_t> pixels(canvas.pixels().begin(), canvas.pixels().end());
+
+    if (!options.raw.empty()) {
+        write_raw(options.raw, pixels);
+    }
+    if (!options.out.empty()) {
+        const int wrote = stbi_write_png(options.out.c_str(), static_cast<int>(canvas.width()),
+                                         static_cast<int>(canvas.height()), 4, pixels.data(),
+                                         static_cast<int>(canvas.width()) * 4);
+        if (wrote == 0) {
+            throw std::runtime_error("failed to write PNG: " + options.out);
+        }
+    }
+    compare_with_golden(options, pixels);
+
+    std::cout << "cpu: pixels=" << pixels.size() / 4
+              << " wrote=" << (options.out.empty() ? "<none>" : options.out) << "\n";
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -684,6 +757,9 @@ int main(int argc, char** argv) {
     try {
         if (options.backend == "null") {
             return run_null(options);
+        }
+        if (options.backend == "cpu") {
+            return run_cpu(options);
         }
         if (options.backend == "vulkan") {
             if (options.windowed) {
