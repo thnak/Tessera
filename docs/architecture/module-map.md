@@ -89,6 +89,7 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/gpu/batched2d_renderer.hpp` | batched 2D renderer |
 | `element/custom_element.hpp` | custom native element interface/contexts (planned) |
 | `rendering/damage.hpp` | damage rectangles: clip, merge, cap, full-redraw fallback |
+| `rendering/redraw_plan.hpp` | damage rects -> integer scissor redraw plan |
 | `rendering/null/null_device.hpp` | null device + command stats |
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |

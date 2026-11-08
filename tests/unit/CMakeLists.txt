@@ -91,6 +91,13 @@ target_link_libraries(damage_tests PRIVATE tessera_damage)
 
 add_test(NAME damage COMMAND damage_tests)
 
+add_executable(redraw_plan_tests
+    redraw_plan_tests.cpp)
+
+target_link_libraries(redraw_plan_tests PRIVATE tessera_damage)
+
+add_test(NAME redraw_plan COMMAND redraw_plan_tests)
+
 add_executable(tokenizer_tests
     tokenizer_tests.cpp)
 

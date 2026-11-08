@@ -30,6 +30,9 @@ public:
     [[nodiscard]] bool full_redraw() const {
         return full_redraw_;
     }
+    [[nodiscard]] rhi::Extent2D target() const {
+        return target_;
+    }
 
 private:
     rhi::Extent2D target_;

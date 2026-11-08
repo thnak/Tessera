@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_damage STATIC
-    damage.cpp)
+    damage.cpp
+    redraw_plan.cpp)
 
 target_include_directories(tessera_damage PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

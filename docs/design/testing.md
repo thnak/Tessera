@@ -44,6 +44,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `completion_queue` | visible/layout/background priority, FIFO, per-tick budget, cancellation, overflow |
 | `input` | bounded queue FIFO/overflow, modifier flags, adjacent-move coalescing |
 | `damage` | clip, overlap/touch merge, margin, cap/full-redraw fallback |
+| `redraw_plan` | integer edge rounding, target clipping, full-redraw plan, determinism |
 | `tokenizer` | CSS tokens, offsets, escapes, strings, numbers, functions, match tokens, ranges |
 | `parser` | rule/declaration/at-rule AST, `!important`, custom properties, tolerant recovery |
 | `selector` | combinators, attributes, pseudos/functions, robustness, specificity |
