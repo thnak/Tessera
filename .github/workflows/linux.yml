@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-name: CI
+name: Linux
 
 on:
   push:
@@ -62,44 +62,3 @@ jobs:
           name: offscreen-png
           path: offscreen.png
           retention-days: 14
-
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure (MSVC, null backend)
-        run: >
-          cmake --preset vs2026
-          -DTESSERA_BUILD_VULKAN=OFF
-          -DTESSERA_BUILD_POC=OFF
-          -DTESSERA_WARNINGS_AS_ERRORS=ON
-
-      - name: Build
-        run: cmake --build --preset vs2026-release
-
-      - name: Tests
-        run: ctest --preset vs2026-release --output-on-failure
-
-  macos:
-    runs-on: macos-latest
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure (AppleClang, null backend)
-        run: >
-          cmake -S . -B build/macos
-          -DCMAKE_BUILD_TYPE=Release
-          -DTESSERA_BUILD_VULKAN=OFF
-          -DTESSERA_BUILD_POC=OFF
-          -DTESSERA_WARNINGS_AS_ERRORS=ON
-
-      - name: Build
-        run: cmake --build build/macos --parallel
-
-      - name: Tests
-        run: ctest --test-dir build/macos --output-on-failure

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: MIT
+
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (iOS SDK, arm64, null backend)
+        run: >
+          cmake -S . -B build/ios
+          -DCMAKE_SYSTEM_NAME=iOS
+          -DCMAKE_OSX_SYSROOT=iphoneos
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_TESTS=OFF
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build/ios --parallel

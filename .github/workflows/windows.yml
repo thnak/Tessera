@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (MSVC, null backend)
+        run: >
+          cmake --preset vs2026
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset vs2026-release
+
+      - name: Tests
+        run: ctest --preset vs2026-release --output-on-failure
