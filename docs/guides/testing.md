@@ -30,6 +30,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `rhi_null` | null backend (RHI backend with no GPU) device commands, buffer round-trip |
 | `scene_graph` | hit testing, capture/target/bubble, stop propagation |
 | `scene_dirty` | dirty domains, ancestor aggregation, clear/recompute, setter invalidation |
+| `dirty_pass` | pruned collect by domain, parent-first order, clear, node cap |
 | `fixed_step` | fixed-timestep accumulator, clamp, catch-up cap, time scale |
 | `clock` | deterministic manual clock, monotonic advance validation |
 | `runtime_loop` | clock-driven steps, wake requests, continuous/on-demand render modes |

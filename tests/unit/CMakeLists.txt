@@ -21,6 +21,13 @@ target_link_libraries(scene_dirty_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_dirty COMMAND scene_dirty_tests)
 
+add_executable(dirty_pass_tests
+    dirty_pass_tests.cpp)
+
+target_link_libraries(dirty_pass_tests PRIVATE tessera_scene)
+
+add_test(NAME dirty_pass COMMAND dirty_pass_tests)
+
 add_executable(fixed_step_tests
     fixed_step_tests.cpp)
 

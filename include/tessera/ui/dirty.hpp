@@ -39,4 +39,8 @@ constexpr bool has_flag(Dirty value, Dirty flag) {
     return (value & flag) != Dirty::None;
 }
 
+constexpr bool has_any(Dirty value, Dirty flags) {
+    return (value & flags) != Dirty::None;
+}
+
 } // namespace tessera::ui

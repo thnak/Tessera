@@ -91,6 +91,7 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
+| `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
 | `ui/scene/event.hpp` | event types/phases |
 | `ui/dirty.hpp` | style/layout/paint/render/resource/GPU dirty bitmask |
 | `ui/input.hpp` | normalized input event, bounded SPSC queue, sampler |

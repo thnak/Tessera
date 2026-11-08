@@ -34,6 +34,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `rhi_null` | null device command stats, buffer round-trip |
 | `scene_graph` | world bounds, deep hit testing, capture/target/bubble, stop propagation |
 | `scene_dirty` | dirty domains, ancestor aggregation, clear/recompute, setter invalidation |
+| `dirty_pass` | pruned collect by domain, parent-first order, clear, node cap |
 | `fixed_step` | deterministic accumulator, delta clamp, catch-up cap, time scale |
 | `clock` | deterministic manual clock, monotonic advance validation |
 | `runtime_loop` | clock-driven steps, one-shot requests, dirty persistence, continuous/on-demand modes |

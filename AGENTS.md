@@ -397,10 +397,11 @@ live in one place and are linked, not copied.
 (`src/runtime/clock.*`), `RuntimeLoop` render-on-demand/wake state
 (`src/runtime/runtime_loop.*`), `FramePacer` deadline scheduling
 (`src/runtime/frame_pacer.*`), normalized input event + bounded queue/coalescing
-(`src/ui/input/`), and scene dirty-domain flags/ancestor aggregation
-(`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`). Next slices, in order:
+(`src/ui/input/`), scene dirty-domain flags/ancestor aggregation
+(`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`), and pruned dirty collect/clear
+(`src/ui/scene/dirty_pass.cpp`). Next slices, in order:
 
-1. Dirty traversal/clear pass and damage aggregation.
+1. Damage rectangle accumulator (merge/clip/cap/full-redraw fallback).
 2. Stylesheet tokenizer/parser subset, then cascade/compatibility matrix.
 3. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
 4. HAL/system clock + actual wait/present integration.

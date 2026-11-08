@@ -2,7 +2,8 @@
 
 add_library(tessera_scene STATIC
     node.cpp
-    event.cpp)
+    event.cpp
+    dirty_pass.cpp)
 
 target_include_directories(tessera_scene PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
