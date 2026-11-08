@@ -185,7 +185,7 @@ Representative protocol events (not exhaustive):
 | Toplevel size/state | `xdg_toplevel.configure` (`width`, `height`, states) | `WindowResized/StateChanged` | max/fullscreen/tiled/resizing/activated |
 | Bounds/capabilities | `xdg_toplevel.configure_bounds`, `wm_capabilities` | constraints/capabilities | clamp/disable UI actions |
 | Close request | `xdg_toplevel.close` | `WindowClosed` | graceful shutdown |
-| Suspended/occluded | `xdg_toplevel` state `suspended`, frame callbacks | `WindowHidden/Occluded` | pause rendering |
+| Suspended/occluded | `xdg_toplevel` state `suspended`, frame callbacks | `WindowHidden` (occlusion flag in `WindowMetrics`) | pause rendering |
 | Popup lifecycle | `xdg_popup.configure`, `popup_done`, `repositioned` | menu/popover events | UI state |
 | Output add/remove/change | `wl_registry.global/global_remove` for `wl_output` | `DisplayAdded/Removed/Changed` | display list |
 | Output mode/scale | `wl_output.geometry/mode/scale/name/description/done`, `zxdg_output_v1` | `RefreshRateChanged/ScaleChanged` | style/layout/pacing |
@@ -296,7 +296,7 @@ Representative delegates/notifications (not exhaustive):
 | Resize/move | `windowDidResize`, `windowDidMove`, `windowWillStartLiveResize`, `windowDidEndLiveResize` | `WindowResized/Moved` | layout/target |
 | Backing scale | `windowDidChangeBackingProperties`, `viewDidChangeBackingProperties` | `DpiChanged/ScaleChanged` | style/layout/target |
 | Screen change | `windowDidChangeScreen`, `NSApplication.didChangeScreenParametersNotification` | `DisplayChanged` | refresh/scale/target |
-| Occlusion | `windowDidChangeOcclusionState` | `WindowHidden/Occluded` | pause/resume |
+| Occlusion | `windowDidChangeOcclusionState` | `WindowHidden` (occlusion flag in `WindowMetrics`) | pause/resume |
 | Miniaturize/fullscreen | `windowDidMiniaturize/Deminiaturize`, `windowDidEnter/ExitFullScreen` | `WindowStateChanged` | layout/pacing |
 | Theme/appearance | `NSApp.effectiveAppearance`, `NSWorkspace.accessibilityDisplayOptionsDidChangeNotification` | `Theme/Accent/HighContrast/ReducedMotion` | style |
 | Low power/thermal | `NSProcessInfoPowerStateDidChangeNotification`, `thermalStateDidChangeNotification` | `BatterySaver/ThermalState` | power policy |

@@ -60,6 +60,6 @@ allowed to produce the [golden images](../docs/reference/glossary.md).
 
 ## Follow-up
 
-- Add the golden runner and baseline layout in [Big Step E](../AGENTS.md#big-steps-group-work-dont-micro-step) (data-heavy UI).
+- Add the golden runner and baseline layout in Big Step B2 ([AGENTS.md](../AGENTS.md#big-steps-group-work-dont-micro-step), "Pixel goldens via lavapipe/software path"); Big Step E (data-heavy UI) extends the corpus.
 - Lock the lavapipe version in CI.
 - Define the `report.json` schema together with the AI-agent integration.

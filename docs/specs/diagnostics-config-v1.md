@@ -90,8 +90,9 @@ Sink and backend names are OS or tool names: ETW (Event Tracing for Windows), Pe
 4. `maxFileSizeMb`, `rotate`, `ringEntries`, `breadcrumbs`, and `sampleRate` must be in range.
 5. `overlay=true` is allowed in debug; release packaging warns or rejects (which of the two is not specified) unless explicitly allowed.
 6. `telemetry=true` requires an explicit privacy acknowledgement; default is false.
-7. `gpuTimestamps`/`profilingBackend` fall back silently if the backend/device/tool is
-   unavailable.
+7. `gpuTimestamps`/`profilingBackend` fall back (to disabled/CPU timing) if the backend/device/tool
+   is unavailable; the fallback is reported once as an `Info`/`Warn` diagnostic and counted in
+   metrics ([error-model-v1.md](error-model-v1.md): no silent failure).
 8. `frameCapture=on-error` only triggers on crash/device-loss, never in normal frames.
 9. `blockingWaitDetection` is debug-only; release builds ignore it with a diagnostic.
 10. Diagnostics must not change rendering output or golden results (reference images, [`golden-tests-v1.md`](golden-tests-v1.md)).

@@ -42,7 +42,7 @@ asset id -> cache lookup -> async load/decode -> CPU resource
 - Uploads are batched per frame; no per-texture command list/submit.
 - Image layout transitions are owned by the backend/resource layer, not the UI.
 - Samplers/filters are part of the texture desc; no hidden global state.
-- Texture format/color space is explicit (`R8G8B8A8_UNORM` baseline; sRGB support is not scheduled, see "B2 / known limits" in [`renderer.md`](renderer.md)).
+- Texture format/color space is explicit (`R8G8B8A8_UNORM` baseline; sRGB support is not scheduled and no decision has been made, see "B2 / known limits" in [`renderer.md`](renderer.md)).
 - Mipmaps/compression are opt-in; document the color-space and filtering rules.
 
 ## 4. Caches and lifetime

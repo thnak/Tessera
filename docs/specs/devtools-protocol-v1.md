@@ -19,7 +19,7 @@ console: Tessera has no production JS runtime.
 - Line-delimited JSON over stdin/stdout (CLI) or a local socket; no network listener.
 - Request/response with `id`; events pushed as `event`.
 - Max message size, timeout, and backpressure; invalid messages close only the session.
-- IDs (`uiId`, `nodeId`, `componentId`, `traceId`; defined in [`automation-ids-v1.md`](automation-ids-v1.md) section 1) are decimal/hex strings.
+- IDs (`uiId`, `nodeId`, `componentId`, `traceId`; defined in [`automation-ids-v1.md`](automation-ids-v1.md) section 1) are JSON decimal strings, per [`automation-ids-v1.md`](automation-ids-v1.md).
 - Optional token from the app's dev session; no remote access.
 
 ## 3. Commands
@@ -54,7 +54,8 @@ file change -> hash -> incremental compile -> generated patch
 - State preservation is best-effort by component/key; full reload is the fallback.
 - Removed nodes/GPU resources retire after frames in flight (frames already submitted to the GPU and not yet finished).
 - A failed compile keeps the last good frame and returns diagnostics.
-- Hot reload is dev-only; release builds do not include the watcher/compiler.
+- Hot reload is dev-only; release builds do not include the watcher/compiler. The rest of the
+  devtools surface is disabled in release by default (section 6).
 
 ## 5. Inspector overlay
 
@@ -70,7 +71,7 @@ file change -> hash -> incremental compile -> generated patch
 - Validate commands/paths/ids; reject traversal/oversized payloads.
 - Inspection is read-only by default; mutation commands are explicit and dev-only.
 - Hot reload executes only compiler output, never project JS at runtime.
-- Disable the entire devtools surface in release unless explicitly enabled.
+- The devtools surface is disabled in release by default ([ADR-031](../../decisions/ADR-031-production-tooling-and-distribution.md)); it runs there only if explicitly enabled (the enabling mechanism is not specified).
 
 ## 7. Testing
 
@@ -121,7 +122,7 @@ watch -> hash -> incremental compile -> validate patch
 - Style-only changes skip tree rebuild; structural changes reconcile by keyed identity.
 - State preservation is best-effort; a full reload is the explicit fallback.
 - Removed nodes/resources retire after frames in flight.
-- Devtools/hot reload code is excluded from release builds or hard-disabled.
+- Hot reload code is excluded from release builds; other devtools code is hard-disabled in release by default (see section 6).
 
 Security:
 
@@ -136,14 +137,14 @@ Failure/edge cases:
 - Client disconnect during a command -> cancel/discard; no UI mutation.
 - Stale node/id after reload -> return `not_found`, not a crash.
 - Hot reload failure keeps the last good frame; never a white screen.
-- Multiple clients: one primary inspector session; others read-only or rejected.
+- Multiple clients: one primary inspector session; extra clients are read-only or rejected (which of the two is undecided).
 
 Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`app-completeness-cross-check-v1.md`](../architecture/app-completeness-cross-check-v1.md); resolutions in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
 - **G-22/Q-21**: protocol v1 is JSON-lines over stdio or a per-user socket with a session token.
   Hot reload has two patch kinds: style-only patch and structural reconcile; state is preserved
   by `(component,key)` where safe (the safety rule is not specified), otherwise full reload. Failed compile keeps the last good
-  frame. One primary client; extra clients are read-only or rejected. Remote debugging is
+  frame. One primary client; extra clients are read-only or rejected (which of the two is undecided). Remote debugging is
   forbidden.
 
 ## 8. Deferred/open questions

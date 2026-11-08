@@ -29,8 +29,10 @@ struct Error {
 
 APIs return `std::expected<T, Error>` (or a project `StatusOr<T>` on toolchains without it)
 for recoverable failures. Exceptions are allowed for construction/programming errors at
-boundaries (invalid arguments, out-of-memory) and are translated to `Error` where a result is
-expected.
+boundaries (invalid arguments) and are translated to `Error` where a result is expected.
+Out-of-memory (`bad_alloc`) is fatal, is not translated to `Error`, and goes to the root
+handler ([`error-boundaries-v1.md`](error-boundaries-v1.md)); an optional-allocation failure
+that has a documented fallback may instead be returned as an `Error` value.
 
 ## 3. Code families
 
@@ -102,7 +104,8 @@ platform/GPU -> translated Error -> completion queue/event
 
 ## 9. Runtime/GPU errors
 
-- Device loss/out-of-memory are recoverable: recreate resources or fall back.
+- Device loss is recoverable: recreate resources or fall back. Out-of-memory is fatal and goes
+  to the root handler (see section 5).
 - Validation-layer messages are diagnostics in debug; not user-facing.
 - Missing features -> documented fallback, not a crash.
 - Fatal GPU failure -> controlled shutdown; report code/detail.

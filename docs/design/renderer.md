@@ -1,7 +1,7 @@
 # Renderer and RHI design (Big Step B1)
 
 Status: B1 (renderer core, first phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) implemented. B2 (runtime slice) adds Yoga layout (Flexbox engine, see [glossary](../reference/glossary.md)), text shaping/glyph atlas, dirty rendering, and
-pixel goldens. B3 (window/swapchain/OS compliance) adds the window/swapchain path (swapchain = the images presented to a window) with frame pacing and dynamic refresh.
+pixel goldens, and frame pacing/dynamic refresh. B3 (window/swapchain/OS compliance) adds the window/swapchain path (swapchain = the images presented to a window).
 
 See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering.md),
 [`input.md`](input.md), [`window-resize.md`](window-resize.md), [`async.md`](async.md),
@@ -21,7 +21,7 @@ and [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 | Thin RHI | `include/tessera/rendering/rhi/` |
 | Null backend | `src/rendering/null/` |
 | Vulkan backend | `src/rendering/backend/vulkan/` |
-| WebGPU backend | `src/rendering/backend/webgpu/` (B3) |
+| WebGPU backend | `src/rendering/backend/webgpu/` (Big Step D) |
 | Demo | `tools/poc/batched2d/` |
 
 The UI layer never includes Vulkan, volk, VMA, or WebGPU headers. The only GPU seam (the RHI, render hardware interface; see [glossary](../reference/glossary.md)) is
@@ -111,8 +111,9 @@ exists so batching, clipping, transforms, and command sequencing can be tested o
 - **B1:** offscreen target, one frame in flight, full redraw, synchronous submit/wait.
 - **B2:** fixed-step loop, dirty style/layout/paint/render, retained draw lists/layers, bounded
   caches, damage rectangles (regions to redraw, see [`dirty-rendering.md`](dirty-rendering.md)) on the offscreen path.
-- **B3:** window + swapchain, acquire/present, `maxFps`, vsync modes, dynamic refresh/VRR,
-  incremental present/damage where the platform supports it; resize/DPI/lifecycle and
+- **B2:** frame pacing (`maxFps`, vsync modes, dynamic refresh/VRR, render-on-demand; see
+  [`game-loop.md`](game-loop.md)) is implemented in the runtime loop (AGENTS.md lists it under B2).
+- **B3:** window + swapchain, acquire/present, incremental present/damage where the platform supports it; resize/DPI/lifecycle and
   old-swapchain retirement follow [`window-resize.md`](window-resize.md).
 - Async uploads/resource loads arrive through the UI-thread completion queue
   ([`async.md`](async.md)); diagnostics/tracing wrap the frame and GPU passes
@@ -131,17 +132,17 @@ batched2d_poc --backend null
 
 Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 
-`--golden` disables AA. A pixel golden pipeline on lavapipe/software (lavapipe = Mesa software Vulkan driver; [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests) is B2/B3 work.
+`--golden` disables AA. A pixel golden pipeline on lavapipe/software (lavapipe = Mesa software Vulkan driver; [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests) is B2 work (AGENTS.md, Big Step B2).
 
 ## B2 / known limits
 
 - B1 is offscreen only; no window or swapchain.
 - B1 always full-redraws; dirty caches/damage are B2/B3.
 - One frame in flight (frames in flight = frames submitted to the GPU but not yet finished); no timeline semaphores (Vulkan synchronization primitive) or multi-frame pipelining yet (listed under B2 in AGENTS.md).
-- No FPS cap, vsync/VRR (variable refresh rate), or dynamic refresh yet; these are B3 window-path features.
+- No FPS cap, vsync/VRR (variable refresh rate), or dynamic refresh yet; frame pacing is B2 (AGENTS.md), and presenting to a window is B3.
 - No Yoga layout; scene nodes use explicit bounds.
 - No text shaping or glyph atlas.
 - No vector path rasterizer ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buy vector-path rasterization).
-- No sRGB/color-management policy yet (follow-up to [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md); no release assigned).
+- No sRGB/color-management policy: not scheduled; no decision yet (see [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
 - No bindless/descriptor indexing (Vulkan features letting shaders index many textures from one set); one descriptor set per texture.
 - Pixel goldens from lavapipe/software are not wired yet.

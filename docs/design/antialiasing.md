@@ -90,7 +90,7 @@ real GPUs before replacing the fixed radius.
 
 ## 6. Color and gamma
 
-- Alpha blending currently assumes a simple alpha blend; sRGB/gamma policy has no release assigned (see "B2 / known limits" in [`renderer.md`](renderer.md)).
+- Alpha blending currently assumes a simple alpha blend; sRGB/gamma policy is not scheduled and no decision has been made (see "B2 / known limits" in [`renderer.md`](renderer.md) and [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
 - Text AA in linear vs sRGB space can look different; pin the policy in golden mode.
 - Overlapping translucent edges need a deterministic blend order (painter's order).
 

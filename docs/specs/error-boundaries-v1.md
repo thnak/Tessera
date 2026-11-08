@@ -179,7 +179,7 @@ TESSERA_BOUNDARY_ASYNC
 
 ## 10. Open questions
 
-- Whether event-handler exceptions should be caught by default or opt-in.
+- Whether `catchEvents` (default `true`, section 4) should ever be changed per build type; the default itself is decided.
 - Auto-retry policy and backoff.
 - Root boundary default UI and crash-report integration.
 - No-exceptions build support and codegen strategy.

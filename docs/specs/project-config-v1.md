@@ -226,7 +226,7 @@ External URL/file/command-line activation. See
 | `routesFile` | string | `ui/routes.json` | Static route table; path inside project |
 | `notFound` | string | `not_found` | Route id for unknown paths |
 | `restore` | boolean | `true` | Restore route stack on launch; requires `restore.enabled` |
-| `modalStack` | string | `global` | `global` or `nested` |
+| `modalStack` | string | `global` | `global` (modals share the one global stack) or `nested` (navigation inside a modal gets its own modal-local stack; not per-tab stacks, which are not in V1) |
 
 See [`navigation-v1.md`](navigation-v1.md) for route/guard/back/deep-link semantics.
 

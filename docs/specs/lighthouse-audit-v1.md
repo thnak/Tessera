@@ -165,7 +165,8 @@ Weights are profile-configurable; document changes. Raw metrics are always repor
 - Frame time and missed deadlines use the same clock as the loop.
 - GPU timestamps optional; if unsupported, use CPU frame budget and work counters.
 - Sampling/overhead budget; disabled by default in release.
-- Deterministic harness for scene/input; latency uses real elapsed time in audit mode.
+- Deterministic harness for scene/input; latency uses real elapsed time in audit mode only; the time policy is defined in
+  [`headless-automation-v1.md`](headless-automation-v1.md) section 7.
 
 ## 7. CI and baselines
 
@@ -197,7 +198,7 @@ Weights are profile-configurable; document changes. Raw metrics are always repor
 ## 10. Open questions
 
 - Exact thresholds/weights per app profile.
-- Real-vs-simulated time in CI.
+- How CI baselines handle run-to-run noise of real-time audit latency (not specified).
 - GPU timestamp support on lavapipe (Mesa software Vulkan driver).
 - Accessibility audit depth.
 - Baseline storage/trending and flake policy.

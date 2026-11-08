@@ -39,7 +39,8 @@ UiId       = hash64(project_salt + "|u|" + component_source_path + "|" + node_pa
 - `project_salt` comes from the app namespace/name (the exact source is an open question, section 9); changing it changes IDs.
 - `node_path` is the stable structural path (source order + explicit keys), not a line number.
 - `key` is the list key/template key where applicable.
-- Explicit `automationId="123456789"` overrides `UiId`; it must be a unique uint64.
+- Explicit `automationId="123456789"` replaces the computed `UiId`: the node's `uiId` then equals
+  the `automationId` (section 3); it must be a unique uint64.
 - A 64-bit collision is a **hard error**; resolve with an explicit `automationId` or rename.
   Do not rehash/renumber silently.
 - Moving/renaming a component/node changes its ID; use `automationId` for long-lived targets.
@@ -89,7 +90,7 @@ The IR (the compiler's intermediate representation, [`ir-v1.md`](ir-v1.md)) keep
 ```
 
 - `componentId`/`uiId` are required in generated IR and unique per project.
-- `automationId` is optional; if set it must equal `uiId` (an explicit `automationId` replaces the computed `UiId`, section 2).
+- `automationId` is optional; if set, `uiId` equals it (an explicit `automationId` replaces the computed `UiId`, section 2).
 - Validation rejects duplicate/missing numeric IDs and collisions.
 - Codegen emits constructors with `(NodeId, UiId, ComponentId)`.
 

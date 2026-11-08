@@ -1,6 +1,6 @@
 # ADR-011: Shader authoring and cross-compilation (Vulkan SPIR-V + WebGPU WGSL)
 
-- Status: Proposed (spike in [Big Step B/D](../AGENTS.md#big-steps-group-work-dont-micro-step))
+- Status: Proposed (GLSL to SPIR-V shaders are used from Big Step B1; the Slang/Tint spike is in [Big Step D](../AGENTS.md#big-steps-group-work-dont-micro-step))
 - Date: 2026-11-07
 - Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-002](ADR-002-webgpu-dawn-for-wasm.md) (WebGPU/Dawn for WebAssembly), [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin render hardware interface and batched 2D renderer)
 

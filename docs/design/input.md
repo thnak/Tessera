@@ -79,7 +79,7 @@ platform layer, once. Golden mode uses a fixed scale.
 
 ```text
 platform thread(s)
-   -> lock-free SPSC queue (or mutex queue in V1)
+   -> bounded lock-free SPSC queue (ADR-017)
    -> input pump on UI thread
    -> coalesce/compress move events
    -> sample once per simulation tick

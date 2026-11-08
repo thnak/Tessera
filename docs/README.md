@@ -11,6 +11,8 @@ for the project overview. This page is the map and reading order for the framewo
   — cross-check, canonical ownership, gap register, open questions
 - [`architecture/app-completeness-gap-resolutions-v1.md`](architecture/app-completeness-gap-resolutions-v1.md)
   — resolved/deferred decisions for gaps G-01..G-28 and open questions Q-01..Q-26 (defined in the cross-check above)
+- [`architecture/doc-contradiction-resolutions-v1.md`](architecture/doc-contradiction-resolutions-v1.md)
+  — contradictions found between documents, the rule used to resolve each, and what is still undecided
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
   ownership, dependency direction.
 
@@ -366,8 +368,8 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Async data / offline | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |
 | Devtools / hot reload | C/D proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
 | Updates / signing / crash | F proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
-| Component library | post-V1 proposed ([ADR-032](../decisions/ADR-032-bundled-component-library.md) accepted) |
+| Component library | release undecided; proposed ([ADR-032](../decisions/ADR-032-bundled-component-library.md) accepted) |
 | Samples / media / export | planned/deferred |
 | Designer/Wasm | D proposed |
 | Packaging/release | F proposed |
-| Pixel goldens on [lavapipe](reference/glossary.md)/software | B2/B3 planned |
+| Pixel goldens on [lavapipe](reference/glossary.md)/software | B2 planned |

@@ -109,5 +109,5 @@ resources:
 ## 8. Status
 
 - Matrix/guide only; not implemented.
-- Budgets for platforms other than desktop are not specified here; the startup doc says mobile budgets are stricter. Measure on real devices.
+- Mobile budgets: not specified (no numbers in any document). [`startup-and-loading.md`](../design/startup-and-loading.md) states only qualitatively that they are stricter than desktop. Measure on real devices.
 - Record the chosen profile in the app's design doc and test it in CI (no CI job for this exists yet).

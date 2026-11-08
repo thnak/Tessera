@@ -32,7 +32,7 @@ and it becomes a second engine.
    - glyph atlas for text
    - clip stack (rect + rounded-rect; path clips are not decided in this ADR)
    - transform stack (2D affine)
-   - painter's-order sorting; batching keyed by pipeline + texture + clip
+   - painter's-order sorting; batching keyed by (scissor, texture); the V1 renderer uses one pipeline per primitive class
 4. Use a **retained [scene graph](../docs/reference/glossary.md) + immediate vertex streaming hybrid**:
    - static containers are retained and cached
    - dynamic data (charts, animations) streams vertex data into per-frame buffers

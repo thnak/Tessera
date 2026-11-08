@@ -217,7 +217,7 @@ Ownership, protected regions, and regeneration rules are in
 The generator hashes:
 
 - the component source
-- the `tessera.json` sections that affect that component (the exact section list is not specified)
+- the `tessera.json` sections that affect that component (exact list not specified here or in [`project-config-v1.md`](../specs/project-config-v1.md))
 - the generator/compiler version
 - the formatting configuration
 
@@ -227,7 +227,7 @@ everything. The report lists `generated`, `skipped`, `merged`, and `warnings`.
 ## CLI reference (v1)
 
 ```text
-tessera new <name> [--template blank|dashboard] [--targets win,linux]
+tessera new <name> [--template blank|dashboard] [--targets windows,linux]
 tessera generate [--force] [--check]
 tessera dev [--port N] [--no-hot-reload]
 tessera build [--preset dev|release] [--target <platform>]

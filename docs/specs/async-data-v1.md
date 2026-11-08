@@ -141,9 +141,11 @@ Idle -> Loading -> Success
              \-> Error
 Success -> Refreshing -> Success/Error (keep previous data)
 Success/Error -> Stale (TTL/invalidation)
-Any -> Cancelled (key change/unmount)
+Any -> Cancelled (key change/unmount; internal, not a `DataStatus` value)
 ```
 
+- Cancelled is an internal transition, not an observable `DataStatus`: after a key change the
+  resource reports the new key's status, and on unmount there is no subscriber to observe it.
 - `loading` has no data; `refreshing` keeps previous data; `error` may keep previous data.
 - Every key/param/cancel change increments `epoch`; stale completions are discarded.
 - Concurrent requests for one key dedupe; subscribers share the in-flight result.

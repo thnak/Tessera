@@ -107,10 +107,9 @@ Unexpected third-party dynamic libraries fail the release.
 
 ## 12. Open questions
 
-No decision yet on any item below; [updates-and-distribution-v1](../specs/updates-and-distribution-v1.md) already requires signing/notarization where the OS requires it and a documented installer-or-portable choice per app.
+Answered elsewhere (not open): code signing/notarization, installer vs portable choice (documented per app), and update mechanism/signature verification are defined in [updates-and-distribution-v1](../specs/updates-and-distribution-v1.md).
 
-- Installer vs portable archive.
-- Code signing/notarization policy.
+Still open (no decision yet):
+
 - SBOM format/tooling.
-- Update mechanism/signature verification.
 - Fully static Linux (musl) support.

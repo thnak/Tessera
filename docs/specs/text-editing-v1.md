@@ -204,9 +204,8 @@ Ownership:
 
 Recommended data structures:
 
-- `TextDocument` uses a gap buffer/rope for documents above a size threshold (G-01 below sets the threshold at 64 KiB and
-  names a piece table rather than a gap buffer/rope); below it, a
-  contiguous UTF-8 buffer plus a grapheme index. The index is versioned by `revision`.
+- `TextDocument` uses a contiguous UTF-8 buffer up to 64 KiB and a piece table above it
+  (G-01 below, ADR-033), plus a grapheme index. The index is versioned by `revision`.
 - `TextEditController` stores `selection`, `composition`, `undo_stack`, `redo_stack`, and
   `preferred_visual_column` (for up/down movement).
 - `TextLayout` caches shaped runs by `(revision, width, style, scale)`; caret/selection rects are
@@ -246,7 +245,7 @@ Rules/invariants:
 Failure/edge cases:
 
 - IME cancel restores the pre-composition text/selection.
-- Paste over limit is rejected or truncated by an explicit policy; no partial cluster.
+- Paste over limit is rejected as a whole with a diagnostic (same rule as over-limit commits, section on `maxLength`); no truncation, so no partial cluster.
 - Invalid UTF-8 is rejected at the boundary; never repair silently.
 - Clipboard denied returns an error; the field remains unchanged.
 - Selection outside document bounds clamps to the nearest grapheme.

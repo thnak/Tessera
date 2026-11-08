@@ -81,9 +81,10 @@ RouteMatch match(std::string_view path);
 - A modal route is a stack entry with `presentation: modal|sheet|fullscreen`.
 - Dismissal pops the route; focus/back/escape follow the overlay spec.
 - A modal route does not mutate the parent route's state; it has its own entry state.
-- Nested navigation inside a modal has its own stack or shares the global stack; the policy
-  that chooses between them is not specified (Q-11 in section 10.1 fixes one global stack by
-  default).
+- Nested navigation inside a modal shares the global stack when `navigation.modalStack` is
+  `global` (the default, Q-11 in section 10.1) or gets its own modal-local stack when it is
+  `nested` ([`project-config-v1.md`](project-config-v1.md)). `nested` means modal stack nesting
+  only; it does not mean per-tab stacks.
 - Toasts/tooltips are overlays, not routes.
 
 ## 7. Transitions
@@ -220,7 +221,8 @@ Gap-closure decisions (`G-` and `Q-` IDs refer to
   `async-data`, keyed by `(route_id, entry_id, params)`. Prefetch is intent-based. The navigation
   stack stores only serializable UI state, never data payloads.
 - **Q-11**: one global stack by default; modal/sheet entries are stack entries with
-  `presentation`; per-tab nested stacks are not in V1.
+  `presentation`; per-tab nested stacks are not in V1 (the `modalStack: nested` config value is
+  modal-local nesting, not per-tab stacks).
 - **Q-12**: route loader -> async-data boundary is fixed as above; route cache is not a second
   data cache.
 

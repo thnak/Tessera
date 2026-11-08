@@ -48,7 +48,7 @@ tick(dt):
 - Sampling happens before style/layout/paint; render may interpolate between ticks.
 - An animation that only changes transform/opacity does not mark layout dirty.
 - Completion callbacks run on the UI thread at a tick boundary; no detached tasks (AGENTS.md Non-negotiables rule 12, [ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime)).
-- Hidden/occluded/minimized pauses animations unless explicitly allowed (this file does not say what grants the permission).
+- Hidden/occluded/minimized pauses animations by default; setting the runtime config key `pauseWhenOccluded=false` ([`runtime-config-v1.md`](runtime-config-v1.md)) allows them to continue.
 
 ## 4. Curves, springs, and tokens
 
@@ -117,7 +117,7 @@ Modes:
   overlays are not stretched.
 - `Bounce`: content layer translates past the edge (no scale).
 - `Platform`: HAL profile. Proposed defaults: iOS/macOS = `Stretch`, Android = `Stretch`
-  (glow only for legacy; this file does not define "legacy"), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
+  (glow only on Android versions without the stretch effect; not specified which), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
   the platform's HAL profile supports it. Apps may override per `Scroll`.
 
 Drag beyond an edge:

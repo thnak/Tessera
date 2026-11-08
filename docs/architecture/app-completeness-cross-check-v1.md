@@ -4,7 +4,7 @@ Status: analysis (docs-only; no code is implied). Scope: the app-level specs add
 against the existing framework docs. This document does **not** replace the specs; it records
 ownership, conflicts, missing contracts, and decisions still needed.
 
-Resolution status: G-01..G-28 (gap IDs, section 3.2) and Q-01..Q-26 (open-question IDs, section 4) are resolved or explicitly deferred in
+Resolution status: G-01..G-28 (gap IDs, section 3.2) and Q-01..Q-26 (open-question IDs, section 4) are each either resolved or explicitly deferred (none is left open) in
 [`app-completeness-gap-resolutions-v1.md`](app-completeness-gap-resolutions-v1.md) ([ADR-033](../../decisions/ADR-033-app-completeness-gap-resolutions.md) (app-completeness gap resolutions), [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction and overscroll animation)).
 This document remains the analysis/rationale; the ledger is the decision record.
 
@@ -204,8 +204,7 @@ This document remains the analysis/rationale; the ledger is the decision record.
 | Media/export | [`media-and-export §6.1`](../design/media-and-export.md) (playback/print/export boundaries) |
 | Animation/overscroll | [`animation-v1 §7`](../specs/animation-v1.md) and [`scroll-and-gestures-v1 §3.1/§9.1`](../specs/scroll-and-gestures-v1.md) (visual state, spring, interruption) |
 
-The detail sections define ownership, invariants, ordering, and failure behavior. The remaining
-G/Q items are deliberately still open (tooling/format/platform choices), not silently resolved.
+The detail sections define ownership, invariants, ordering, and failure behavior. No G/Q item is open: the ledger marks each as Resolved or Deferred (Deferred: G-05, G-21, G-27, plus the deferrals in ledger section 4). Remaining tooling/format/platform choices are listed as deferred/open questions in the individual specs and design notes, not silently resolved.
 
 ## 7. Acceptance checklist
 

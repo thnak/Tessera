@@ -116,13 +116,13 @@ the resource cache, while per-instance renderer state is retired after frames in
 Order per tick (the loop itself is in [`game-loop.md`](game-loop.md) section 3):
 
 ```text
-input/pseudo-state -> style -> layout -> animation -> paint -> render
+input/pseudo-state -> animation (sampling) -> style -> layout -> paint -> render
 ```
 
+- **Animation**: fixed-step sampling -> animated values written into computed style before
+  layout/paint (see [`animation-v1.md`](../specs/animation-v1.md) section 3).
 - **Style**: selector matching, cascade, custom properties -> `ComputedStyle`.
 - **Layout**: Yoga/Flexbox + grid subset -> bounds.
-- **Animation**: fixed-step sampling -> animated values written into computed style before
-  layout/paint.
 - **Paint**: draw list/batches from style + bounds + text.
 - **Render**: RHI (render hardware interface) command list; a stage is skipped when its dirty domain is clean.
 

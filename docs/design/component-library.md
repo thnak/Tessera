@@ -1,6 +1,6 @@
 # Component library and design system
 
-Status: design; a product layer built after V1 (V1 is the first-release scope referred to by [AGENTS.md rule 8](../../AGENTS.md#non-negotiables); no single document lists its contents). Decision: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library).
+Status: design; a product layer; whether it is in V1 is undecided ([ADR-032](../../decisions/ADR-032-bundled-component-library.md) stages delivery but does not assign a release; V1 is defined in the [glossary](../reference/glossary.md)). Decision: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library).
 
 The framework provides primitives; a bundled component library makes it usable without every
 team rebuilding inputs, dialogs, menus, and data grids.
@@ -121,7 +121,7 @@ struct ButtonProps {
 - Density (`comfortable`/`compact`) changes spacing/touch targets only through tokens.
 - RTL uses logical start/end; icons declare `mirror` when directional.
 
-DataGrid scope (V1 library):
+DataGrid initial scope (release undecided, see the status line):
 
 - Virtualized rows/columns, selection, sorting, column resize/reorder, keyboard navigation.
 - Editing/grouping/pivot are deferred with no release assigned (listed in section 9); the core does not depend on them.
@@ -136,7 +136,7 @@ Testing contract:
 Gap-closure decisions:
 
 - **G-25/Q-24** (gap and question ids in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)): token JSON v1 is semantic and SemVer-versioned; component API contract includes
-  controlled state, focus, and accessibility; DataGrid V1 supports virtual rows/columns,
+  controlled state, focus, and accessibility; the initial DataGrid supports virtual rows/columns,
   selection, sort, resize/reorder, keyboard. Editing/grouping/pivot are deferred.
 - Components ship styled by default with a headless escape hatch for custom rendering; fonts are
   app assets unless the app opts into the bundled font pack.

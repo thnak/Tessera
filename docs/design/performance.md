@@ -176,7 +176,7 @@ All adaptive changes must be reversible and visible in diagnostics.
 
 ## 10. Open questions
 
-- Default `backgroundMaxFps` per platform and battery state (the schema default is `0` for all platforms in [`runtime-config-v1.md`](../specs/runtime-config-v1.md); per-platform defaults have no decision yet).
+- Per-platform or battery-state overrides of `backgroundMaxFps` (the default is `0` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).
 - Thermal/power-source signals and whether to use them at all (no decision yet; HAL `PowerState` in [`hal.md`](hal.md) exposes them).
 - Per-monitor render scale and mixed-DPI multi-window.
 - How much adaptive quality is acceptable without visual regression.

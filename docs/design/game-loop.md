@@ -315,8 +315,13 @@ for (int frame = 0; frame < frames; ++frame) {
 - Platform input threads push into a single-producer/single-consumer queue; no locks in the
   steady-state path.
 - A render thread is not part of V1 and has no decision yet (see section 12); the scene graph and style state remain UI-thread-owned.
-- The frame pacer may block the UI thread on a waitable object; it must not hold locks while
-  waiting.
+- The frame pacer never blocks the UI thread on GPU, swapchain, fence, I/O, or cross-thread work
+  ([AGENTS.md non-negotiable 12](../../AGENTS.md#non-negotiables), [`async.md`](async.md)).
+  Between ticks the loop only idles by yielding to the OS event/timer wait of the platform loop
+  (a timer for the next present deadline plus the edge-triggered wake sources of section 3.2:
+  input, async completion posts, `request_frame()`), so input and completions are handled
+  immediately and the loop never busy-waits. This idle wait is bounded by the next deadline and
+  holds no locks. Acquire/present use the bounded state machine of [`async.md`](async.md).
 
 ## 10. Metrics and diagnostics
 

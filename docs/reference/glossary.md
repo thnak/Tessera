@@ -8,7 +8,7 @@ Terms used across Tessera docs. Keep definitions short and link to the normative
 | **Backend** | GPU implementation of the RHI: Vulkan, WebGPU, null, software. |
 | **Binding** | Stable id (`bind::<id>`) connecting JSX logic to a protected C++ region. |
 | **Binding manifest** | Generated JSON mapping binding ids to components/files/regions. |
-| **Batching key** | `(scissor, texture)`; consecutive quads with the same key share a draw. |
+| **Batching key** | `(scissor, texture)` (pipeline is fixed per primitive class); consecutive quads with the same key share a draw. |
 | **B1/B2/B3** | Big Step B phases: renderer core; runtime slice; window/swapchain/OS. |
 | **Command list** | Explicit RHI recording object: render pass, bind, draw, copy, submit. |
 | **ComputedStyle** | Typed style after cascade/inheritance/custom properties; consumed by layout/paint/animation. |
@@ -48,7 +48,7 @@ Terms used across Tessera docs. Keep definitions short and link to the normative
 | **Tick** | One fixed-step update of the runtime loop; see [game-loop](../design/game-loop.md). |
 | **Tier 1 / Tier 2** | Compiler stages: Tier 1 checks React-style rules (hooks, purity); Tier 2 extracts `bind::` bindings and lowers nodes; see [compiler](../design/compiler.md). |
 | **UiId / ComponentId / NodeId** | Numeric identities: UiId and ComponentId are stable per build; NodeId is a runtime instance id and is not stable; see [automation-ids-v1](../specs/automation-ids-v1.md). |
-| **V1** | First release scope. [AGENTS.md](../../AGENTS.md), Non-negotiables item 8, limits it to a small, explicit feature set. No document defines which Big Steps V1 includes (open decision). |
+| **V1** | The first release. A feature is in V1 unless the ADR or spec that owns it says "not in V1", "after V1" or "later". [AGENTS.md](../../AGENTS.md) Non-negotiables item 8 limits V1 to a small, explicit feature set. V1 is not mapped to a Big Step: Big Steps A to F in AGENTS.md define work order and acceptance only. Example of an exclusion: macOS ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)), although AGENTS.md lists macOS in Big Step F. |
 | **V1.1** | The first release after V1; no date is set. |
 | **VMA** | Vulkan Memory Allocator, the GPU memory library. |
 | **volk** | Vulkan function loader library. |

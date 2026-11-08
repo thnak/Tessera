@@ -45,8 +45,8 @@ environment and layout constraints) and never sees an OS event or swapchain obje
 
 ```cpp
 struct WindowMetrics {
-    float logical_width = 0;
-    float logical_height = 0;
+    std::uint32_t logical_width = 0;
+    std::uint32_t logical_height = 0;
     std::uint32_t physical_width = 0;
     std::uint32_t physical_height = 0;
     float dpi_scale = 1.0f;
@@ -216,7 +216,7 @@ swapchain-recreate delay are runtime knobs, not component code.
 
 ## 6. Open questions
 
-- Default `resizeMode` per platform (Windows modal loop vs Wayland compositor-driven).
+- Per-platform overrides of `resizeMode` (the default is `adaptive` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).
 - Exact swapchain-recreate delay heuristic for slow GPUs.
 - Safe-area APIs for Android/macOS (both backends are unscheduled; macOS per ADR-010, Android in Big Step F).
 - Whether to expose a declarative `onResize`/`ResizeObserver` API or keep it internal.

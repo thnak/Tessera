@@ -34,7 +34,7 @@ struct ScrollState {
     bool clip;
     Axis scroll_axes;         // x/y/both
     ScrollPhysics physics;
-    ScrollSnap snap;
+    ScrollSnap snap;          // V1: configured via the Scroll API, not CSS scroll-snap-*
 };
 ```
 
@@ -112,7 +112,7 @@ struct OverscrollState {
 
 - A pointer/wheel event targets the deepest scrollable under the point.
 - Scroll chaining: inner consumes until its limit, then outer scrolls if
-  `overscroll-behavior`/`scroll-chain` allows.
+  `overscroll-behavior` allows (it sets the `allow_chain` field; there is no CSS `scroll-chain` property).
 - Capture/target/bubble still applies to input events; `prevent_default` stops default scroll.
 - A gesture arena decides between scroll, drag, selection, and custom element capture.
 - Nested scroll must not cause layout thrash or double-apply deltas.
@@ -174,7 +174,7 @@ Rules:
 
 - Fixed clock, DPI, input script; no inertial randomness.
 - Test: wheel/trackpad, drag/fling, nested scroll chaining, snap/paging, rubber band,
-  overscroll resistance/release/interrupt/reduced motion, keyboard/gamepad, scroll-into-view,
+  overscroll resistance/release/interrupt/reduced motion, keyboard, scroll-into-view,
   sticky/anchoring, focus/selection, virtualized lists, RTL axes, multi-touch pinch/rotate,
   cancel/capture.
 - Snapshot offset/velocity/viewport/content size/overscroll visual; golden stretch/bounce/glow,
@@ -236,7 +236,8 @@ for node in target_to_root:
 apply overscroll only to the last eligible node
 ```
 
-- A child at its limit chains only if `overscroll-behavior`/`scroll-chain` allows.
+- A child at its limit chains only if `overscroll-behavior` allows; `allow_chain` is the internal
+  field derived from it, not a CSS property.
 - Wheel deltas coalesce by tick; touch deltas are not coalesced across down/up.
 - Do not re-enter layout during dispatch; content size updates arrive at the next tick.
 

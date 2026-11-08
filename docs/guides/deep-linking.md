@@ -152,7 +152,7 @@ xcrun simctl openurl booted "myapp://orders/42"
 - `:id` captures one path segment; no wildcard hosts.
 - Percent-decode once; reject encoded traversal/control chars.
 - Validate query params (type/range/length) per route.
-- Unknown route -> home or error screen; which of the two is not specified in the spec; never a crash.
+- Unknown route -> the not-found screen (the `notFound` route, with back/home actions) per [`navigation-v1.md`](../specs/navigation-v1.md); a diagnostic is emitted and it never crashes. [`deep-linking-v1.md`](../specs/deep-linking-v1.md) states the same rule.
 - `auth=true` -> the link stays pending until login completes; `confirm=true` -> ask before destructive action.
 
 ## 5. Single instance

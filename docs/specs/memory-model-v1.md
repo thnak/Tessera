@@ -139,8 +139,9 @@ See [`bridges.md`](../design/bridges.md) for the native-first bridge policy.
 
 ## 7. OOM and failure
 
-- Recoverable allocation failure returns an error value (`StatusOr`, or `std::expected`; which
-  one the code uses is not specified here, [AGENTS.md](../../AGENTS.md#code-conventions) "Code conventions" names `std::expected`).
+- Recoverable allocation failure returns an error value (`std::expected<T, Error>`, see
+  [error-model-v1.md](error-model-v1.md) and [AGENTS.md](../../AGENTS.md#code-conventions) "Code conventions").
+  Unrecoverable out-of-memory (`bad_alloc`) is fatal and goes to the root handler.
 - Evict caches, drop optional quality, skip prefetch, retry once; then surface a diagnostic.
 - Never crash on a cache allocation failure if a fallback exists.
 - Fatal OOM triggers controlled shutdown, not undefined behavior.

@@ -48,7 +48,7 @@ struct SemanticsNode {
 - Modal focus trap and restore; escape/back has an explicit path.
 - Screen-reader focus and keyboard focus synchronize; avoid double announcements.
 - Arrow keys navigate lists/tabs/grids; Enter/Space activate; Escape dismisses.
-- Shortcuts do not fire during IME (input method editor) composition unless explicitly allowed (this file does not say what grants the permission).
+- Shortcuts do not fire during IME (input method editor) composition unless the shortcut is explicitly marked to allow it ([`accessibility.md`](../design/accessibility.md)); the name of that marking/API is not specified.
 - Focused item is scrolled into view and realized (virtualized lists, [`virtualization-v1.md`](virtualization-v1.md), or custom elements, [`custom-elements-v1.md`](custom-elements-v1.md)).
 
 ## 4. Text editing accessibility

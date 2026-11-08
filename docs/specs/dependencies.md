@@ -254,7 +254,7 @@ Still dynamic, by platform necessity:
 - **AT-SPI/libatspi/glib (LGPL-2.1) must not be linked.** Linux accessibility goes through the
   D-Bus protocol or an optional runtime-only integration.
 - **libdbus (AFL-2.1/GPL)** must not be linked; use the D-Bus protocol/system service.
-- Notices must be embedded or shipped: `THIRD_PARTY_NOTICES.txt` and an About/licenses UI.
+- Notices must be embedded or shipped: `THIRD_PARTY_NOTICES.md` and an About/licenses UI.
 - Apache-2.0 `NOTICE`, MIT/BSD copyright, OFL font licenses, FreeType FTL, Unicode/ICU notices
   must be preserved.
 
@@ -399,7 +399,7 @@ MIT obligations:
 
 - Include the copyright notice and the permission notice in all copies or substantial
   portions of the software.
-- For binary distributions, ship `THIRD_PARTY_NOTICES.txt` (or the full notices file) and
+- For binary distributions, ship `THIRD_PARTY_NOTICES.md` (or the full notices file) and
   expose the MIT text plus third-party notices in an About/licenses UI.
 - Apache-2.0 dependencies additionally require their `NOTICE` to be preserved.
 - OFL font licenses, FreeType FTL notices, and Unicode/ICU notices must be retained.
@@ -432,9 +432,9 @@ LGPL:
 
 ### Compatibility rules
 
-- **Apache-2.0 dependency in an MIT/Apache project:** allowed. Preserve the license text and
+- **Apache-2.0 dependency in an MIT project:** allowed. Preserve the license text and
   the `NOTICE` file; state modifications to Apache-2.0 files.
-- **MIT/BSD dependency in an Apache-2.0 project:** allowed. Keep the copyright notice.
+- **MIT/BSD dependency in an MIT project:** allowed. Keep the copyright notice.
 - **Static linking:** every permissive license above allows it with notice preservation.
   LGPL/GPL do not ([ADR-012](../../decisions/ADR-012-static-linking.md)).
 - **Boost Software License 1.0 (BSL-1.0):** permissive. Do not confuse it with the Business
@@ -499,9 +499,9 @@ LGPL:
 
 ### Compliance actions
 
-1. Add `LICENSE` (Apache-2.0 recommended; MIT acceptable).
+1. Keep the MIT `LICENSE` at the repo root ([ADR-013](../../decisions/ADR-013-project-license-mit.md)).
 2. Add `NOTICE` and `THIRD_PARTY_NOTICES.md`, generated from the resolved dependency graph.
-3. Add SPDX headers to source files, e.g. `// SPDX-License-Identifier: Apache-2.0`.
+3. Add SPDX headers to source files, e.g. `// SPDX-License-Identifier: MIT`.
 4. Add a CI license check (`reuse lint`, ScanCode, or FOSSA) and an SBOM (SPDX/CycloneDX).
 5. Keep `third_party/README.md` and this file in sync with the actual dependency graph.
 6. Vendor code only with its license text; never strip copyright headers.

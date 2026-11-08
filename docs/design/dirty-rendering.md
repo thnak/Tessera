@@ -101,7 +101,7 @@ values and only raise the domains that actually changed.
 - Rebuild draw lists only for `PaintDirty` nodes/layers.
 - A retained node with no dirty descendants reuses its cached draw list.
 - A dynamic node (chart/animation) streams vertices into the current frame arena.
-- Batch key `(clip, texture)` (the glossary writes `(scissor, texture)`) is unchanged from the B1 renderer; dirty rebuilds must produce the
+- Batch key `(scissor, texture)` ([glossary](../reference/glossary.md), [`renderer.md`](renderer.md)) is unchanged from the B1 renderer; dirty rebuilds must produce the
   same ordering as a full rebuild.
 - Clear `PaintDirty` after the draw list/layer is rebuilt.
 - Mark `RenderDirty`.

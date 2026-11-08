@@ -133,8 +133,10 @@ For coding agents, the harness also exposes a line-delimited JSON protocol over 
 - No wall clock, network, system fonts, or random IDs in structural/golden modes.
 - Snapshot order stable; manifest IDs stable.
 - Async completions applied at frame boundaries in deterministic order.
-- Audit mode may use real elapsed time for latency but runs a fixed scene/script; it does not
-  affect golden pixels.
+- Time policy (stated once; [`lighthouse-audit-v1.md`](lighthouse-audit-v1.md) refers here):
+  structural and golden modes use simulation time only; audit mode alone may use real
+  (monotonic) elapsed time for latency, runs a fixed scene/script, and never affects golden
+  pixels.
 
 ## 8. CI
 
@@ -167,6 +169,4 @@ For coding agents, the harness also exposes a line-delimited JSON protocol over 
 - Protocol transport (stdin/stdout vs local socket) and auth.
 - Snapshot size/compression for large trees.
 - Parallel test isolation (multiple harness processes).
-- Whether audit runs use real time or simulated time for latency (section 7 currently says
-  audit mode may use real elapsed time).
 - Headless accessibility tree exposure.

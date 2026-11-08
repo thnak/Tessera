@@ -57,7 +57,8 @@ OS activation -> platform adapter -> validate/allowlist -> queue
 - Cold start (the app process is not running when the link arrives): parse before first screen; route after the app shell (see [`startup-and-loading.md`](../design/startup-and-loading.md)) and auth.
 - Warm start (the app is already running): route immediately; focus existing window unless `openIn=newWindow`.
 - Duplicate activation (same URL within a short window; the window length is not specified) is ignored.
-- Unknown route -> configured home/error route; malformed -> error, not crash.
+- Unknown route -> the `notFound` route defined in [`navigation-v1.md`](navigation-v1.md) (not-found
+  screen with back and home actions); malformed -> error, not crash.
 
 ## 3. Developer declaration
 
@@ -158,7 +159,7 @@ manual files must match the schema.
 - Canonicalize to a route + typed params; do not pass raw URL into UI code.
 - `auth=true` routes wait for auth; the pending link is resumed after login.
 - `confirm=true` routes show a confirmation before destructive actions.
-- Unknown route -> home/error; don't silently ignore.
+- Unknown route -> the `notFound` route (see above); never silently ignore.
 - Deep links never carry access tokens/secrets; use a one-time code if needed.
 
 ## 6. Single instance and windows

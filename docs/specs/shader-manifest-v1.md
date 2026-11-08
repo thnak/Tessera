@@ -87,7 +87,7 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
 | `vertexLayout` | vertex stages | Location/format/semantic; must match C++ `Vertex2D` |
 | `bindings` | no | Group/binding/type/name; must map to Vulkan descriptor sets and WebGPU bind groups |
 | `pushConstants` | no | Vulkan push constants; WebGPU uses a uniform buffer |
-| `tests` | no | Golden/smoke tests per shader |
+| `tests` | yes | At least one smoke test per shader (section 5 rule); golden entries where visuals are deterministic |
 
 Note on `sources.webgpu`: required for any shader used by WebGPU or the designer; optional for
 Vulkan-only custom elements (see section 7).

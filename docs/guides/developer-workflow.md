@@ -74,7 +74,7 @@ tessera generate --force    # regenerate everything
 tessera generate --check    # fail if generated output differs from the tree
 ```
 
-The generator hashes the component source, the config sections that affect that component (exact list not specified), the generator/compiler version, and
+The generator hashes the component source, the config sections that affect that component (exact list not specified here or in [`project-config-v1.md`](../specs/project-config-v1.md)), the generator/compiler version, and
 formatter config. Unchanged inputs are skipped. The report lists `generated`, `skipped`,
 `merged`, and `warnings`.
 

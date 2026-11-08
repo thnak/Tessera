@@ -5,7 +5,7 @@ the framework, not just look good. Background: gap G-26 in [app-completeness-gap
 
 ## 1. Template set
 
-`samples/hello` and `samples/dashboard` exist as empty directories; no template is implemented. `notes`, `settings`, `3d-viewer` and `chat` have no directory yet.
+`samples/hello` and `samples/dashboard` exist as empty directories; no template is implemented. `notes`, `settings`, `3d-viewer` and `chat` have no directory yet. These six names are planned samples under `samples/`. They are not `tessera new` templates: the generator defines only the templates `blank` and `dashboard` ([project-generator.md, CLI reference](project-generator.md#cli-reference-v1)), and no document defines a generator template for the other names.
 
 | Sample | Proves |
 |---|---|
@@ -44,7 +44,8 @@ Each template ships:
 ## 3. Commands
 
 ```bash
-tessera new notes --template app
+# planned samples live under samples/<name>; create a project from a defined template:
+tessera new my-app --template dashboard
 tessera build --preset dev
 tessera test --script tests/agent/notes.json
 tessera test --mode golden --out out/
@@ -101,6 +102,6 @@ Gap-closure decisions:
 
 ## 5. Deferred/open questions (unresolved; no decision yet)
 
-- Maintenance cost/version skew after 1.0 (no decision yet; the 1.0 scope is not defined in any doc).
-- Mobile-first sample (after Big Step B3; no date or step is specified).
+- Maintenance cost/version skew between samples and framework releases after [V1](../reference/glossary.md) (no decision yet).
+- Mobile-first sample (not scheduled; the Android backend does not exist yet, and no Big Step is assigned to the sample).
 - Whether archived examples stay in-tree (`examples/archive`) or move to a separate repo (no decision yet).

@@ -116,7 +116,9 @@ Must handle:
 - `property: value !important;`
 - custom properties: `--name: value;`
 - empty declarations are ignored
-- unknown properties are preserved in the AST and reported once per `(property, source)` pair
+- unknown properties (not recognized as CSS at all) are preserved in the AST and reported by the
+  parser once per `(property, source)` pair; this is a different event from the per-
+  `(rule, property)` "unsupported declaration" diagnostic in section 11
 
 ## 6. Selectors
 
@@ -158,7 +160,8 @@ Lowest to highest:
 3. author
 4. inline `style="..."`
 5. animations (not implemented in the first cascade slice; no release specified)
-6. `!important` reverses origin precedence per CSS
+6. `!important` reverses origin precedence per CSS (important: user-agent > user > author; the
+   list above is the order for normal declarations)
 
 ### 7.2 Ordering key
 
@@ -168,8 +171,9 @@ For each declaration:
 (origin, importance, specificity, source_order)
 ```
 
-- `!important` wins over normal declarations; among important declarations, inline author >
-  author > user > user-agent.
+- `!important` wins over normal declarations; among important declarations the origin order
+  is reversed per CSS Cascade: user-agent > user > author, and within the author origin an
+  inline `style="..."` declaration beats author rules.
 - Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`.
 - `:where()` contributes zero specificity.
 - Equal keys are resolved by source order; the later declaration wins.
@@ -260,7 +264,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Area | V1 semantics | Later |
 |---|---|---|
 | Box model | `display` (block/flex/none), `width/height/min/max`, `margin`, `padding`, `border`, `box-sizing`, `aspect-ratio`, `overflow` | table, multi-column |
-| Scrolling | `overflow`, `scroll-behavior`, `overscroll-behavior`, `overscroll-effect`, `scrollbar-gutter` | scroll-driven animations, snap points |
+| Scrolling | `overflow`, `scroll-behavior`, `overscroll-behavior`, `overscroll-effect`, `scrollbar-gutter` | scroll-driven animations, CSS `scroll-snap-*` properties (the scroll controller already implements snap physics in V1, configured through `ScrollSnap` in [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md); `allow_chain` is derived from `overscroll-behavior`, there is no `scroll-chain` property) |
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
 | Grid | fixed/repeat columns/rows, gap, span, basic alignment | subgrid, masonry, dense auto-placement |
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
@@ -276,7 +280,8 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | LTR; RTL via `direction` for text | full bidi layout integration |
 
-Unsupported declarations are **not** silent: they produce one diagnostic per
+Unsupported declarations (recognized CSS that V1 does not implement; distinct from the parser's
+"unknown property" report in section 5.3) are **not** silent: they produce one diagnostic per
 `(rule, property)` and are kept in the AST for forward compatibility.
 
 ## 12. Integration

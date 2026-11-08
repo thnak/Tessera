@@ -100,7 +100,7 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 
 - A frame with active animations is a wake source.
 - No active animations -> no animation ticks; if nothing else is dirty, the loop idles.
-- Hidden/occluded/minimized -> pause animations (unless the app configures otherwise; the setting is not named in this file).
+- Hidden/occluded/minimized -> pause animations (unless the runtime config key `pauseWhenOccluded` is `false`; see [`runtime-config-v1.md`](../specs/runtime-config-v1.md)).
 - `powerPolicy` (runtime setting, see [`runtime-config-v1.md`](../specs/runtime-config-v1.md)) may reduce animation quality (e.g. fewer samples, no spring overshoot) before
   dropping frames.
 - `prefers-reduced-motion` -> skip non-essential motion, keep functional state changes.

@@ -6,7 +6,7 @@ Decisions are append-only. Superseding an ADR means writing a new one and markin
 Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pending),
 **Superseded** (replaced by a later ADR).
 **Accepted (deferred)** means the decision is in force but the work is out of V1; example: [ADR-010](ADR-010-macos-via-moltenvk-deferred.md) (macOS through MoltenVK).
-V1 is the first release scope. [AGENTS.md](../AGENTS.md), Non-negotiables item 8, limits it to a small, explicit feature set. No document lists which Big Steps V1 includes; this is an open decision (see [glossary](../docs/reference/glossary.md), entry V1).
+V1 is the first release. A feature is in V1 unless the ADR or spec that owns it says otherwise; see the [glossary](../docs/reference/glossary.md) entry V1 for the full definition.
 
 | ADR | Title | Status |
 |---|---|---|

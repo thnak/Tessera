@@ -258,7 +258,7 @@ Tests:
 - Nested virtualization (virtual list inside a virtual row).
 - Whether item state should live in a keyed store or in the data source.
 - Recycling vs rebuild for complex/custom item trees.
-- IR representation: `VirtualList`/`VirtualGrid` node kinds vs a `Scroll` capability.
+- IR representation: decided in [`ir-v1.md`](ir-v1.md) (`VirtualList`/`VirtualGrid` node kinds, closed in V1); not an open question.
 - Sticky headers/sections with variable heights.
 - Async data source paging vs in-memory list.
 - Accessibility navigation for very large collections.
