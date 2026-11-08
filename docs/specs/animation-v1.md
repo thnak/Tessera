@@ -16,6 +16,8 @@ use the same clock, interruption, reduced-motion, and determinism rules.
 - Overscroll visual effects: stretch/bounce/glow and spring-back.
 - Overlay/route enter/exit and focus/press feedback.
 - Reduced motion, power policy, interruption, tests.
+- Window-wide transitions (theme switch, circle reveal, shader effects) are specified in
+  [`view-transitions-v1.md`](view-transitions-v1.md) (ADR-035).
 - Scroll-driven/shared-element animations are deferred.
 
 ## 2. Ownership
@@ -179,7 +181,8 @@ Reduced motion/accessibility:
 
 ## 10. Deferred/open questions
 
-- Scroll-driven animations and shared-element transitions.
+- Scroll-driven animations and shared-element transitions (per-element `view-transition-name`;
+  window-root transitions are in `view-transitions-v1.md`).
 - Exact per-platform overscroll profiles/curve tuning.
 - Pull-to-refresh and custom overscroll effects (library).
 - Animation of layout properties and additive composition.

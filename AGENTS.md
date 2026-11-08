@@ -235,6 +235,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Text editing / forms | [`docs/specs/text-editing-v1.md`](docs/specs/text-editing-v1.md), [`docs/specs/forms-and-validation-v1.md`](docs/specs/forms-and-validation-v1.md) |
 | Scroll / gestures / overlays | [`docs/specs/scroll-and-gestures-v1.md`](docs/specs/scroll-and-gestures-v1.md), [`docs/specs/overlays-and-layers-v1.md`](docs/specs/overlays-and-layers-v1.md) |
 | Animation / overscroll | [`docs/specs/animation-v1.md`](docs/specs/animation-v1.md), [`docs/specs/scroll-and-gestures-v1.md`](docs/specs/scroll-and-gestures-v1.md) |
+| View transitions (theme/global effects) | [`docs/specs/view-transitions-v1.md`](docs/specs/view-transitions-v1.md) |
 | Navigation / restore / shell / i18n | [`docs/specs/navigation-v1.md`](docs/specs/navigation-v1.md), [`docs/specs/state-restoration-v1.md`](docs/specs/state-restoration-v1.md), [`docs/specs/platform-shell-v1.md`](docs/specs/platform-shell-v1.md), [`docs/specs/i18n-v1.md`](docs/specs/i18n-v1.md) |
 | Accessibility / async data | [`docs/specs/accessibility-v1.md`](docs/specs/accessibility-v1.md), [`docs/specs/async-data-v1.md`](docs/specs/async-data-v1.md) |
 | Devtools / updates / crash | [`docs/specs/devtools-protocol-v1.md`](docs/specs/devtools-protocol-v1.md), [`docs/specs/updates-and-distribution-v1.md`](docs/specs/updates-and-distribution-v1.md), [`docs/specs/crash-reporting-v1.md`](docs/specs/crash-reporting-v1.md) |
@@ -313,6 +314,9 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
       modal focus/back/dismiss, anchoring/clamping and goldens/headless tests pass.
 - [ ] If it touches animation/overscroll: fixed-step sampling, reduced motion, interrupt/retarget,
       overscroll resistance/spring-back, no offset/layout/ID change, goldens/headless tests pass.
+- [ ] If it touches view transitions/global effects: lifecycle/interrupt/skip-reason, reduced-motion/
+      power downgrade, texture budget/leak, manifest validation, goldens at fixed progress, and
+      zero presents after finish pass; no runtime shaders.
 - [ ] If it touches navigation/restore/shell/i18n/a11y/data: route/back/deep-link/restore
       versioning, clipboard/DnD/dialog permissions, locale/RTL, semantics, cache/offline tests pass.
 - [ ] If it touches devtools/updates/crash: local-only devtools, signed/staged/rollback updates,

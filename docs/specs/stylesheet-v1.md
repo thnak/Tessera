@@ -252,7 +252,8 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
 | Grid | fixed/repeat columns/rows, gap, span, basic alignment | subgrid, masonry, dense auto-placement |
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
-| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color` | gradients, images, filters, `clip-path` |
+| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color` | gradients, images, filters, general `clip-path` |
+| View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |
 | Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `white-space`, `text-overflow` | full OpenType features, justification |
 | Transforms | `translate`, `scale`, `rotate`, `skew`, 2D affine | 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
@@ -360,3 +361,5 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 - CSS nesting, `@scope`, `@container`, `:has()` evaluation order and invalidation.
 - Full color-management and wide-gamut color handling.
 - Typed custom properties (`@property`) and animation of custom properties.
+- Window-wide theme switch effects use view transitions (`view-transitions-v1.md`), not per-token
+  animation; the update recalc suppresses style transitions.

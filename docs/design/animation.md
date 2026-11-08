@@ -19,6 +19,7 @@ It never reads the wall clock and never blocks a frame.
 | Scroll effects | fling/snap/scroll-to/scrollbar fade | scroll controller |
 | Overscroll | stretch/bounce/glow + spring-back | scroll + animation runtime |
 | Route/overlay | enter/exit/focus | navigation/overlay |
+| View transition | theme switch circle reveal, crossfade, shader glitch | animation runtime + compositor ([spec](../specs/view-transitions-v1.md)) |
 | Scroll-driven | later | layout/scroll |
 
 ## 2. Timeline and sampling
@@ -136,7 +137,7 @@ Record:
 
 - CSS `animation-composition` and additive animations.
 - Scroll-driven animations.
-- Shared-element transitions.
+- Shared-element transitions (window-root view transitions: see `view-transitions-v1.md`).
 - Whether springs are a CSS extension or a component-only API.
 - Wide-gamut color interpolation.
 - Exact per-platform overscroll profile tuning.

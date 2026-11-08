@@ -42,6 +42,7 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-032](ADR-032-bundled-component-library.md) | Bundled component library and design tokens | Accepted |
 | [ADR-033](ADR-033-app-completeness-gap-resolutions.md) | App-completeness gap resolutions/deferrals | Accepted |
 | [ADR-034](ADR-034-interaction-and-overscroll-animation.md) | Interaction animation and overscroll stretch/spring-back | Accepted |
+| [ADR-035](ADR-035-view-transitions.md) | View transitions: global UI effects (theme circle reveal, glitch) | Accepted |
 
 ## Dependency overview
 

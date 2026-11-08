@@ -83,6 +83,8 @@ for the project overview. This page is the map and reading order for the framewo
   scroll, gesture arena, sticky/anchoring
 - [`specs/animation-v1.md`](specs/animation-v1.md) — transitions/springs, interaction feedback,
   scroll fling/snap, overscroll stretch/spring-back, reduced motion
+- [`specs/view-transitions-v1.md`](specs/view-transitions-v1.md) — window-wide transitions
+  (`startViewTransition`, theme circle reveal, shader effects like glitch)
 - [`specs/overlays-and-layers-v1.md`](specs/overlays-and-layers-v1.md) — overlay/modal/popover/
   tooltip/toast layers, focus/dismiss/anchoring
 - [`specs/forms-and-validation-v1.md`](specs/forms-and-validation-v1.md) — field state, sync/async
