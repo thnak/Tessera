@@ -1,7 +1,8 @@
 # Performance, power, and hardware utilization
 
-Status: design for Big Step B2/B3. Companion to [`game-loop.md`](game-loop.md) and
-[`dirty-rendering.md`](dirty-rendering.md). Normative decision:
+Status: design for Big Step B2/B3. Companion to [`game-loop.md`](game-loop.md),
+[`dirty-rendering.md`](dirty-rendering.md), and [`startup-and-loading.md`](startup-and-loading.md).
+Normative decision:
 [ADR-019](../../decisions/ADR-019-power-aware-runtime.md).
 
 ## 1. Position: application framework, not a benchmark

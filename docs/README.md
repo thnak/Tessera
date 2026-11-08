@@ -49,6 +49,8 @@ for the project overview. This page is the map and reading order for the framewo
   lifetime, caches, bridge memory, budgets
 - [`specs/buffer-config-v1.md`](specs/buffer-config-v1.md) — buffer defaults, user tunables,
   ranges/scopes, memory budget, apply/restart rules
+- [`specs/resource-lifecycle-v1.md`](specs/resource-lifecycle-v1.md) — lazy/preload/lease/
+  unload/eviction, budgets, determinism
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -63,6 +65,8 @@ for the project overview. This page is the map and reading order for the framewo
 
 - [`design/renderer.md`](design/renderer.md) — RHI, batched 2D, Vulkan backend
 - [`design/antialiasing.md`](design/antialiasing.md) — current SDF AA, text/path/MSAA gaps
+- [`design/startup-and-loading.md`](design/startup-and-loading.md) — startup, loading screen,
+  auth gate, route load, failure/offline
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
@@ -113,6 +117,8 @@ for the project overview. This page is the map and reading order for the framewo
 - [`guides/packaging.md`](guides/packaging.md) — release/static-link/notices/assets checklist
 - [`guides/debugging.md`](guides/debugging.md) — validation, GPU tools, common failures
 - [`guides/tunables.md`](guides/tunables.md) — expose a few buffer/runtime knobs to users
+- [`guides/loading-matrix.md`](guides/loading-matrix.md) — choose startup/loading/auth/resource
+  strategy by app profile
 
 ## 6. Reference
 
@@ -156,6 +162,16 @@ for the project overview. This page is the map and reading order for the framewo
 23. [Buffer config & tunables](specs/buffer-config-v1.md)
 24. [Tunables guide](guides/tunables.md)
 25. [Bridges](design/bridges.md)
+
+### Startup / loading / auth
+
+1. [Startup & loading design](design/startup-and-loading.md)
+2. [Resource lifecycle](specs/resource-lifecycle-v1.md)
+3. [Loading strategy matrix](guides/loading-matrix.md)
+4. [Resources & assets](design/resources.md)
+5. [Async runtime](design/async.md)
+6. [Performance & power](design/performance.md)
+7. [Security](design/security.md)
 
 ### Compiler / codegen
 
@@ -207,6 +223,8 @@ for the project overview. This page is the map and reading order for the framewo
 | Mobile integration (Android first) | design only |
 | Memory model / bridge policy | proposed / ADR-024 accepted |
 | Buffer config / user tunables | B2/B3 proposed |
+| Startup / loading / auth | design only |
+| Resource lifecycle (lazy/preload/unload) | B2/F proposed |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |

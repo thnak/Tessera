@@ -46,6 +46,8 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Mobile integration](docs/design/mobile-integration.md)
 - [Memory model](docs/specs/memory-model-v1.md), [buffer config & tunables](docs/specs/buffer-config-v1.md),
   [tunables guide](docs/guides/tunables.md), [bridges](docs/design/bridges.md)
+- [Startup & loading](docs/design/startup-and-loading.md), [resource lifecycle](docs/specs/resource-lifecycle-v1.md),
+  [loading matrix](docs/guides/loading-matrix.md)
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),

@@ -60,7 +60,8 @@ boundaries, and no arbitrary code execution from UI sources.
 ## 6. Services and data
 
 - TLS verification on by default; no insecure fallback.
-- Secrets/tokens in platform keystore where available; never in config/logs.
+- Secrets/tokens in platform keystore where available; never in config/logs. Auth/session
+  startup behavior is in [`startup-and-loading.md`](startup-and-loading.md).
 - Redact headers, query params, file paths, and user data in logs/crash dumps.
 - Validate deep links/notification payloads; allowlist schemes/hosts.
 - Storage paths are sandboxed; atomic writes prevent corruption.

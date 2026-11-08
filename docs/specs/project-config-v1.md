@@ -18,6 +18,7 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `build` | object | no | see below | CMake and toolchain |
 | `dev` | object | no | see below | Browser preview |
 | `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering, resize, async |
+| `loading` | object | no | see [resource-lifecycle-v1.md](resource-lifecycle-v1.md) | Startup/loading/auth/route and lazy/preload/unload policy |
 | `buffers` | object | no | see [buffer-config-v1.md](buffer-config-v1.md) | Engine buffer/cache/queue defaults |
 | `tunables` | array | no | `[]` | Explicit allowlist of user-adjustable settings |
 | `diagnostics` | object | no | see [diagnostics-config-v1.md](diagnostics-config-v1.md) | Logging, tracing, profiling, crash |
@@ -122,6 +123,45 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
 | `gpuFramesInFlight` | `2` | `1..3` |
 | `deterministic` | `false` | Forced by golden/headless runs |
 
+## `loading`
+
+Startup/loading/auth and resource policy. See
+[`startup-and-loading.md`](../design/startup-and-loading.md),
+[`resource-lifecycle-v1.md`](resource-lifecycle-v1.md), and
+[`loading-matrix.md`](../guides/loading-matrix.md).
+
+```json
+"loading": {
+  "criticalResources": ["theme.default", "font.inter.regular"],
+  "screen": "skeleton",
+  "authMode": "blocking",
+  "restoreRoute": true,
+  "resourcePolicy": "lazy",
+  "preload": ["route.home"],
+  "memoryBudgetMb": 256,
+  "diskCacheMb": 512,
+  "unloadOnBackground": true,
+  "evictOnMemoryPressure": true
+}
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `criticalResources` | string[] | `[]` | Minimal eager set for first meaningful frame |
+| `screen` | string | `skeleton` | `none`, `shell`, `skeleton`, `progress`, `spinner` |
+| `authMode` | string | `blocking` | `blocking`, `overlay`, `deferred`, `background` |
+| `restoreRoute` | boolean | `true` | Restore last route/deep link after auth |
+| `resourcePolicy` | string | `lazy` | `lazy` (default); explicit preload list |
+| `preload` | string[] | `[]` | Route/resource ids to preload on intent/idle |
+| `memoryBudgetMb` | integer | `256` | Runtime resource cache budget |
+| `diskCacheMb` | integer | `512` | Disk cache budget; `0` disables |
+| `unloadOnBackground` | boolean | `true` | Release resources when backgrounded |
+| `evictOnMemoryPressure` | boolean | `true` | Evict idle/evictable resources on pressure |
+
+Rules: `criticalResources` stays small; `preload` is bounded/cancellable; user settings may
+adjust budgets only within hard caps; golden/deterministic mode pins the critical set and load
+order and ignores network/system fonts.
+
 ## `buffers`
 
 Developer defaults for engine buffers. See
@@ -220,6 +260,9 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     `step > 0`, and `max` is within the engine hard cap.
 15. User settings are stored outside `tessera.json`; they may override only exposed tunable
     ids and never rewrite the project file. Deterministic/golden mode ignores user tunables.
+16. `loading` follows [resource-lifecycle-v1.md](resource-lifecycle-v1.md): `criticalResources`
+    is a small explicit set, `preload` is bounded/cancellable, and unload/eviction are enabled
+    by policy. Deterministic mode pins the critical set and load order.
 
 ## Example
 
@@ -281,6 +324,18 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     "asyncWorkerThreads": 0,
     "asyncMainThreadBudgetMs": 2.0,
     "gpuFramesInFlight": 2
+  },
+  "loading": {
+    "criticalResources": ["theme.default", "font.inter.regular"],
+    "screen": "skeleton",
+    "authMode": "blocking",
+    "restoreRoute": true,
+    "resourcePolicy": "lazy",
+    "preload": ["route.home"],
+    "memoryBudgetMb": 256,
+    "diskCacheMb": 512,
+    "unloadOnBackground": true,
+    "evictOnMemoryPressure": true
   },
   "buffers": {
     "renderer": { "stagingRingBytes": 16777216, "glyphAtlasBytes": 33554432 },

@@ -1,7 +1,8 @@
 # Async/await runtime and non-blocking rules
 
 Status: design for Big Step B2/B3. Normative decision:
-[ADR-021](../../decisions/ADR-021-async-runtime.md).
+[ADR-021](../../decisions/ADR-021-async-runtime.md). Resource loading lifecycle:
+[`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md).
 
 ## 1. Goals
 

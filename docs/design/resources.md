@@ -2,7 +2,9 @@
 
 Status: design for Big Step B2/B3. `src/rendering/resources/` is a placeholder; B1 uses
 one-shot textures/buffers. Memory/ownership: [`memory-model-v1.md`](../specs/memory-model-v1.md);
-buffer/tunable config: [`buffer-config-v1.md`](../specs/buffer-config-v1.md).
+buffer/tunable config: [`buffer-config-v1.md`](../specs/buffer-config-v1.md); lifecycle:
+[`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md) and
+[`startup-and-loading.md`](startup-and-loading.md).
 
 Resources cover images, fonts, SVG/paths, shaders, themes, and GPU objects. The pipeline must
 be deterministic, bounded, and asynchronous enough to avoid UI stalls.
