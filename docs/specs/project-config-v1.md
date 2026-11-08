@@ -95,7 +95,7 @@ paths are rejected.
 |---|---|---|---|
 | `fonts` | string[] | `[]` | Committed font files (OFL = SIL Open Font License, FTL = FreeType License; licenses preserved) |
 | `images` | string[] | `[]` | Directories or files |
-| `theme` | string | `null` | Path to a theme JSON |
+| `theme` | string | `null` | Path to the theme asset ([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1). `null` leaves only the built-in theme `default` |
 
 ## `build`
 

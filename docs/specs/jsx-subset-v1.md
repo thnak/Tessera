@@ -300,8 +300,8 @@ V1 library hooks (the full contents of the V1 manifest):
 
 | Hook | Returns | Value |
 |---|---|---|
-| `useTheme()` | `string` | The id of the active theme. The engine always provides a built-in theme with id `default` (no tokens); it is the active theme at start unless the project's theme asset (`assets.theme` in [`project-config-v1.md`](project-config-v1.md)) names another start theme. Never empty. The project owner decided this |
-| `useThemeState()` | `[string, (id: string) => void]` | The pair of the active theme id (the same value as `useTheme()`) and a setter. `setTheme(id)` makes `id` the active theme: the stylesheet engine re-resolves styles, as for any theme change ([`stylesheet-v1.md`](stylesheet-v1.md) section 9). A string literal that is not a theme id of the project is `TESSERA_JSX_THEME_UNKNOWN`; a non-literal unknown id at run time changes nothing and reports the runtime diagnostic `TESSERA_IR_THEME_UNKNOWN` |
+| `useTheme()` | `string` | The id of the active theme. The engine always provides a built-in theme with id `default` (no tokens); it is the active theme at start unless the project's theme asset (`assets.theme` in [`project-config-v1.md`](project-config-v1.md)) names another start theme ([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1). Never empty. The project owner decided this |
+| `useThemeState()` | `[string, (id: string) => void]` | The pair of the active theme id (the same value as `useTheme()`) and a setter. `setTheme(id)` makes `id` the active theme: the stylesheet engine re-resolves styles, as for any theme change ([`stylesheet-v1.md`](stylesheet-v1.md) section 9). A string literal that is not a theme id of the project (`default` plus the keys of the theme asset) is `TESSERA_JSX_THEME_UNKNOWN`; a non-literal unknown id at run time changes nothing and reports the runtime diagnostic `TESSERA_IR_THEME_UNKNOWN` |
 | `useBreakpoint()` | `"compact" \| "medium" \| "expanded"` | The size class of the window width in dp (logical pixels): `compact` below 600, `medium` from 600 to 839, `expanded` from 840 upward; the same thresholds as [`responsive.md`](../design/responsive.md) section 2. Uses the window, not the display, and updates on resize, fold change and multi-window changes |
 
 In the browser designer, the values come from the viewer environment set by `viewport.set`
@@ -759,11 +759,11 @@ Decided by the project owner and recorded in the sections named: no automatic se
 values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults and
 configuration keys (15), numeric semantics and the pure-function allowlist
 ([`ir-v1.md`](ir-v1.md) sections 4.1 and 4.2), the hook manifest and its two V1 hooks (7.1), props of
-`Image`, `Path` and `Spacer` (11.1), the default theme `default` and the `useThemeState()` hook (7.1).
+`Image`, `Path` and `Spacer` (11.1), the default theme `default` and the `useThemeState()` hook (7.1), the theme asset format
+([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1).
 
 Still open:
 
 - Where the built-in hook manifest file is stored in the framework package.
-- The format of the theme asset: how it declares theme ids, tokens per theme and the start theme.
 - Image formats accepted for `Image.src` and the maximum decoded size (see
   [`resources.md`](../design/resources.md)).

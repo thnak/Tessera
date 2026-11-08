@@ -235,8 +235,39 @@ build-time and runtime.
 - Theme tokens are custom properties defined on `:root` or on a theme scope.
 - `@property` registration is parsed in V1.1; until then, all custom properties are untyped
   token streams.
-- `tessera.json` theme tokens are injected as a generated `:root` rule (see
-  [`project-config-v1.md`](project-config-v1.md)).
+- The tokens of the active theme are injected as a generated `:root` rule with origin `theme` (section 9.1).
+
+### 9.1 Theme asset
+
+The **theme asset** is the JSON file named by `assets.theme` in [`project-config-v1.md`](project-config-v1.md).
+Without it, the project has one theme, the built-in `default`, which has no tokens.
+
+```json
+{
+  "schemaVersion": 1,
+  "start": "light",
+  "themes": {
+    "light": { "--color-bg": "#ffffff", "--color-fg": "#111111" },
+    "dark":  { "--color-bg": "#101014", "--color-fg": "#f2f2f2" }
+  }
+}
+```
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `schemaVersion` | integer | yes | `1`. Any other value is `TESSERA_THEME_VERSION` |
+| `themes` | object | yes | Theme id to token map. An id matches `[a-z][a-z0-9-]*` (`TESSERA_THEME_ID`). A token name starts with `--`; a token value is a string holding a custom-property value (section 9). Nested values are not allowed |
+| `start` | string | no | Id of the theme active at start. Default `default`. An id not in `themes` and not `default` is `TESSERA_THEME_START_UNKNOWN` |
+
+- The set of theme ids is `default` plus the keys of `themes`. A `themes.default` entry gives the built-in
+  theme its tokens. These ids are what `useTheme()`, `setTheme(id)` and the designer's `viewport.set` accept
+  ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1).
+- Only the active theme's tokens are injected. When the active theme changes, the injected rule is
+  replaced and every node whose computed style uses a changed token becomes `StyleDirty`.
+- A token defined in some themes but not in all of them is the warning `TESSERA_THEME_TOKEN_MISSING`
+  (naming the theme and token); an undefined token resolves through `var()` fallback as usual.
+- The compiler embeds the asset in the generated program; changing it needs a rebuild, and the designer
+  reloads it on `asset.update`.
 
 ## 10. At-rules
 
