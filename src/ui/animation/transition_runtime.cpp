@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/animation/transition_runtime.hpp"
+#include "tessera/ui/style/cascade.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -31,10 +32,11 @@ const TransitionSpec* find_transition(const std::vector<TransitionSpec>& transit
     return exact != nullptr ? exact : fallback;
 }
 
-AnimationId start_transition(AnimationRuntime& runtime, std::uint64_t target,
-                             const TransitionSpec& transition, std::string property, double from,
-                             double to, AnimationCallback on_complete) {
-    if (!std::isfinite(from) || !std::isfinite(to) || transition.duration < 0.0f ||
+AnimationId start_transition_values(AnimationRuntime& runtime, std::uint64_t target,
+                                    const TransitionSpec& transition, std::string property,
+                                    std::string from, std::string to,
+                                    AnimationCallback on_complete) {
+    if (from.empty() || to.empty() || transition.duration < 0.0f ||
         !std::isfinite(transition.duration) || !std::isfinite(transition.delay)) {
         return 0;
     }
@@ -45,9 +47,9 @@ AnimationId start_transition(AnimationRuntime& runtime, std::uint64_t target,
     style::KeyframeBlock keyframes;
     keyframes.name = "transition";
     keyframes.steps.push_back(
-        style::KeyframeStep{0.0, {style::Declaration{property, format_value(from), false, 0}}});
+        style::KeyframeStep{0.0, {style::Declaration{property, std::move(from), false, 0}}});
     keyframes.steps.push_back(
-        style::KeyframeStep{100.0, {style::Declaration{property, format_value(to), false, 0}}});
+        style::KeyframeStep{100.0, {style::Declaration{property, std::move(to), false, 0}}});
 
     KeyframeTiming timing;
     timing.duration = transition.duration;
@@ -62,6 +64,41 @@ AnimationId start_transition(AnimationRuntime& runtime, std::uint64_t target,
     input.timing = timing;
     input.on_complete = std::move(on_complete);
     return runtime.start(std::move(input));
+}
+
+AnimationId start_transition(AnimationRuntime& runtime, std::uint64_t target,
+                             const TransitionSpec& transition, std::string property, double from,
+                             double to, AnimationCallback on_complete) {
+    if (!std::isfinite(from) || !std::isfinite(to) || transition.duration < 0.0f ||
+        !std::isfinite(transition.duration) || !std::isfinite(transition.delay)) {
+        return 0;
+    }
+    return start_transition_values(runtime, target, transition, std::move(property),
+                                   format_value(from), format_value(to), std::move(on_complete));
+}
+
+std::vector<AnimationId> start_style_transitions(AnimationRuntime& runtime, std::uint64_t target,
+                                                 const std::vector<TransitionSpec>& transitions,
+                                                 const style::ComputedStyle& before,
+                                                 const style::ComputedStyle& after,
+                                                 AnimationCallback on_complete) {
+    std::vector<AnimationId> ids;
+    for (const auto& [property, to] : after.properties()) {
+        const std::string* from = before.find(property);
+        if (from == nullptr || *from == to || to.empty()) {
+            continue;
+        }
+        const TransitionSpec* transition = find_transition(transitions, property);
+        if (transition == nullptr) {
+            continue;
+        }
+        const AnimationId id =
+            start_transition_values(runtime, target, *transition, property, *from, to, on_complete);
+        if (id != 0) {
+            ids.push_back(id);
+        }
+    }
+    return ids;
 }
 
 } // namespace tessera::ui::animation

@@ -123,7 +123,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/animation/property_dirty.hpp` | property -> layout/paint/render dirty-domain mapping |
 | `ui/animation/style_overlay.hpp` | animation samples -> per-target `ComputedStyle` overlay |
 | `ui/animation/transition.hpp` | CSS `transition` shorthand parser |
-| `ui/animation/transition_runtime.hpp` | transition matching + fill-forwards animation start |
+| `ui/animation/transition_runtime.hpp` | transition matching, string/numeric starts, computed-style diffs |
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga mapping + boxes + cached measure callback |
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |
