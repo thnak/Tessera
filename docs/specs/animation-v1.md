@@ -22,7 +22,9 @@ expansion accepts `transition-property`, `transition-duration`, `transition-dela
 Starting a
 transition supersedes the active transition for the same target and property, so the new segment
 continues from the current sampled value. Ticking applies samples over the target's
-`ComputedStyle`, preserving untouched properties and reporting layout/paint/render dirty domains. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+`ComputedStyle`, preserving untouched properties and reporting layout/paint/render dirty domains.
+The `animation` shorthand parser accepts name, duration, timing function, delay, iteration count,
+direction, fill mode, and play state in any order across comma-separated lists. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),

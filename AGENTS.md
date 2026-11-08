@@ -426,6 +426,7 @@ choosing partial vs full redraw. `@supports` evaluates
 `not`/`and`/`or` declarations against the property registry, and `ui/style/color.hpp` parses and
 interpolates CSS colors (named/hex/rgb/rgba/hsl). `ui/animation/keyframes.hpp` samples
 parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation, and
+`ui/animation/animation_shorthand.hpp` parses `animation` shorthands,
 `ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, and
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
 retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries, `ui/animation/style_overlay.hpp`

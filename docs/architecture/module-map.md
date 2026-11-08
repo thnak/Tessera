@@ -116,6 +116,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/text/text_layout.hpp` | wrapped line boxes (width/height/baseline) |
 | `ui/text/text_measure_cache.hpp` | bounded LRU measurement cache + stats |
 | `ui/animation/easing.hpp` | linear/cubic-bezier/steps easing parser + evaluator |
+| `ui/animation/animation_shorthand.hpp` | CSS `animation` shorthand parser |
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |
 | `ui/animation/runtime.hpp` | active animation entries, tick, completion, target/property supersession, dirty reporting |
 | `ui/animation/spring.hpp` | semi-implicit Euler spring with retarget/epsilon settle |
