@@ -121,6 +121,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/animation/spring.hpp` | semi-implicit Euler spring with retarget/epsilon settle |
 | `ui/animation/spring_runtime.hpp` | active spring entries -> property declarations |
 | `ui/animation/property_dirty.hpp` | property -> layout/paint/render dirty-domain mapping |
+| `ui/animation/style_overlay.hpp` | animation samples -> per-target `ComputedStyle` overlay |
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga mapping + boxes + cached measure callback |
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |

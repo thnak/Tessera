@@ -428,7 +428,8 @@ interpolates CSS colors (named/hex/rgb/rgba/hsl). `ui/animation/keyframes.hpp` s
 parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation, and
 `ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, and
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
-retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries, and
+retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries, `ui/animation/style_overlay.hpp`
+overlays samples onto `ComputedStyle` per target, and
 `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
 Yoga measure callback). Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
 bounded deterministic manual executor with once-only cancellation callbacks and a prioritized completion queue drained by `RuntimeLoop`

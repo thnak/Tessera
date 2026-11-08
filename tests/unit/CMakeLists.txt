@@ -231,6 +231,13 @@ target_link_libraries(spring_runtime_tests PRIVATE tessera_animation)
 
 add_test(NAME spring_runtime COMMAND spring_runtime_tests)
 
+add_executable(animation_overlay_tests
+    animation_overlay_tests.cpp)
+
+target_link_libraries(animation_overlay_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_overlay COMMAND animation_overlay_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 
