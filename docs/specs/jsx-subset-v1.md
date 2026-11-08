@@ -542,9 +542,7 @@ diagnostics golden tests (section 17), not copied here.
 
 A span records: project-relative file path with POSIX separators, byte offset and byte length in the
 UTF-8 file, and 1-based start/end line and column, where a column counts Unicode code points from the
-start of the line. [`ir-v1.md`](ir-v1.md) section 8 requires 1-based line and column but does not state
-the column unit; this document states it and [`ir-v1.md`](ir-v1.md) must be updated to match
-(section 18). Byte offsets exist so that the designer's patch writer can edit text exactly
+start of the line. [`ir-v1.md`](ir-v1.md) section 8 defines the same span fields. Byte offsets exist so that the designer's patch writer can edit text exactly
 ([ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md) item 6).
 
 ### 13.3 Error count
@@ -637,5 +635,4 @@ and hover; the front end does not read them to decide validity.
 - Whether lowercase HTML tags may be offered as aliases of intrinsics (`div` to `View`) for porting.
 - Values of the parser limits in section 15.
 - Props of `Image`, `Path` and `Spacer` (section 11).
-- `ir-v1.md` must state that columns count Unicode code points (section 13.2).
 - Whether `export default` components are needed for compatibility with existing React code.

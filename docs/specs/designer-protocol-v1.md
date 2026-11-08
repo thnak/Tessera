@@ -107,7 +107,7 @@ from the start of the line ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 13.2)
 | Field | Meaning |
 |---|---|
 | `componentId` | uint64 decimal string from the IR component ([`ir-v1.md`](ir-v1.md) section 2) |
-| `instanceKey` | Identifies one instance among all instances of the same component. It is the `key` values of the enclosing list items, outermost first, joined with `/`; it is the empty string when the component instance is not inside any list. Proposed definition; [`ir-v1.md`](ir-v1.md) does not define it yet (section 14) |
+| `instanceKey` | Identifies one instance among all instances of the same component. It is the `key` values of the enclosing list items, outermost first, joined with `/`; it is the empty string when the component instance is not inside any list. Defined in [`ir-v1.md`](ir-v1.md) section 3.1.1 |
 | `nodeId` | The node's debug `id` string within the component ([`ir-v1.md`](ir-v1.md) section 3) |
 
 Two NodeRefs are equal when all three fields are equal.
@@ -389,9 +389,6 @@ An error never ends the session and never leaves the viewer without a frame.
 
 - Transport between host and shell (WebSocket, `postMessage` from an editor webview, stdio) and the
   maximum message size, the maximum open requests, and the size limits for files and assets.
-- Definition of `instanceKey` in [`ir-v1.md`](ir-v1.md) (this document proposes the list-key chain),
-  and the requirement that every IR node carries a byte-offset span; [`ir-v1.md`](ir-v1.md) section 8
-  currently states only line and column, and does not state that columns count code points.
 - Content and encoding of `state.patch` and whether state restoration is part of V1.
 - Whether the viewer may run the front end in a Web Worker ([`designer.md`](../design/designer.md)
   section 10) and, if so, how section 11 changes.

@@ -111,6 +111,7 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 | `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
 | `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement` |
 | `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
+| `source` | SourceSpan | yes | Span of the node's JSX element (section 8) |
 | `key` | string/int/null | no | Stable list identity |
 | `props` | object | no | Typed intrinsic props |
 | `style` | object | no | Style tokens; inline style |
@@ -140,6 +141,10 @@ represent VM/container virtualization or a virtual DOM.
 - List/grid instances use `(uiId, itemKey)`; the template keeps one `uiId`.
 - Debug `id` strings remain for humans; tools use numeric IDs.
 - See [`automation-ids-v1.md`](automation-ids-v1.md).
+
+### 3.1.1 Instance key
+
+A component instance is identified at design time by `(componentId, instanceKey)`. The `instanceKey` is the list item `key` values of the enclosing `loop` nodes, outermost first, each converted to a string, joined with `/`. It is the empty string when the instance is not inside any loop. It is computed from run-time data by the evaluator and by tools; it is not stored in the IR file. A node inside an instance is identified by `(componentId, instanceKey, nodeId)` ([`designer-protocol-v1.md`](designer-protocol-v1.md) section 3.2).
 
 ## 3.2 Custom elements
 
@@ -290,12 +295,20 @@ style semantics. See [`stylesheet-v1.md`](stylesheet-v1.md).
 ## 8. Source spans
 
 ```json
-{ "file": "ui/Counter.tsx", "line": 12, "column": 5, "endLine": 12, "endColumn": 20 }
+{ "file": "ui/Counter.tsx", "offset": 240, "length": 15, "line": 12, "column": 5, "endLine": 12, "endColumn": 20 }
 ```
 
-- 1-based line/column.
-- Paths are project-relative, POSIX separators.
-- Source spans are required on components, nodes, bindings, and diagnostics.
+| Field | Type | Meaning |
+|---|---|---|
+| `file` | string | Project-relative path, POSIX separators |
+| `offset` | integer | Byte offset of the first byte of the span in the UTF-8 file, 0-based |
+| `length` | integer | Length of the span in bytes |
+| `line`, `column` | integer | Start position, 1-based |
+| `endLine`, `endColumn` | integer | End position (exclusive), 1-based |
+
+- A column counts Unicode code points from the start of the line (not bytes, not UTF-16 units).
+- `offset` and `length` are required so that tools (the designer patch writer, [`designer-protocol-v1.md`](designer-protocol-v1.md) section 3.1) can edit text exactly. Earlier examples in this document that show only `file`, `line` and `column` are abbreviated; the emitted IR contains all fields.
+- Source spans are required on components, nodes, bindings, effects and diagnostics. A node's span covers its whole JSX element (opening tag through closing tag). A component's span covers its whole function declaration.
 - Generated C++ may carry `#line`-style source maps after V1 (open question, section 14); V1
   emits a sidecar map.
 
