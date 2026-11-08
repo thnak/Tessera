@@ -10,8 +10,12 @@ implemented in `src/ui/style/tokenizer.cpp`, and the tolerant rule/declaration/a
 inheritance/computed-style model in `src/ui/style/cascade.cpp`; the top-level pipeline
 (parse -> selector index -> cascade -> computed style) is in `src/ui/style/compiled_stylesheet.cpp`.
 The property registry (supported properties, initial values, box/pair/flex shorthand expansion,
-and diagnostics) is `src/ui/style/property_registry.cpp`. Layers, at-rule application, and the
-semantic matrix remain proposed.
+and diagnostics) is `src/ui/style/property_registry.cpp`. At-rule application for `@media`
+(width/height/resolution/orientation/color-scheme/reduced-motion), nested media rules, `@keyframes`
+parsing, and `@layer` precedence (plus the generated `Theme` origin) is in
+`src/ui/style/media_query.cpp`, `src/ui/style/keyframes.cpp`, and
+`src/ui/style/compiled_stylesheet.cpp`. `@supports`, the semantic matrix, and animation runtime
+remain proposed.
 Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md) (stylesheet engine).
 
 Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8);

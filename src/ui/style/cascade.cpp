@@ -13,8 +13,10 @@ int origin_rank(Origin origin, bool important) {
     if (important) {
         switch (origin) {
         case Origin::UserAgent:
-            return 4;
+            return 5;
         case Origin::User:
+            return 4;
+        case Origin::Theme:
             return 3;
         case Origin::Inline:
             return 2;
@@ -24,8 +26,10 @@ int origin_rank(Origin origin, bool important) {
     } else {
         switch (origin) {
         case Origin::Inline:
-            return 4;
+            return 5;
         case Origin::Author:
+            return 4;
+        case Origin::Theme:
             return 3;
         case Origin::User:
             return 2;
@@ -87,7 +91,7 @@ void apply_keyword(ComputedStyle& style, std::string_view property, std::string_
 
 CascadeKey cascade_key(const CascadeDeclaration& declaration) {
     return CascadeKey{declaration.origin, declaration.important, declaration.specificity,
-                      declaration.source_order};
+                      declaration.source_order, declaration.layer};
 }
 
 bool cascades_over(const CascadeKey& candidate, const CascadeKey& current) {
@@ -99,6 +103,26 @@ bool cascades_over(const CascadeKey& candidate, const CascadeKey& current) {
     if (candidate_rank != current_rank) {
         return candidate_rank > current_rank;
     }
+
+    if (candidate.layer != current.layer) {
+        if (candidate.important) {
+            if (candidate.layer == kUnlayeredLayer) {
+                return false;
+            }
+            if (current.layer == kUnlayeredLayer) {
+                return true;
+            }
+            return candidate.layer < current.layer;
+        }
+        if (candidate.layer == kUnlayeredLayer) {
+            return true;
+        }
+        if (current.layer == kUnlayeredLayer) {
+            return false;
+        }
+        return candidate.layer > current.layer;
+    }
+
     if (candidate.specificity != current.specificity) {
         return candidate.specificity > current.specificity;
     }
@@ -147,10 +171,11 @@ void CascadeTable::add(CascadeDeclaration declaration) {
 }
 
 void CascadeTable::add_declarations(const std::vector<Declaration>& declarations, Origin origin,
-                                    Specificity specificity, std::uint64_t& source_order) {
+                                    Specificity specificity, std::uint64_t& source_order,
+                                    std::uint32_t layer) {
     for (const Declaration& declaration : declarations) {
         add(CascadeDeclaration{declaration.property, declaration.value, declaration.important,
-                               origin, specificity, source_order});
+                               origin, specificity, source_order, layer});
         ++source_order;
     }
 }

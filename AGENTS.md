@@ -405,15 +405,18 @@ tolerant stylesheet AST parser (`src/ui/style/parser.cpp`), selector parsing/spe
 (`src/ui/style/selector.cpp`), right-to-left matching/indexing
 (`src/ui/style/selector_match.cpp`), cascade/computed-style/inheritance
 (`src/ui/style/cascade.cpp`), and the top-level stylesheet pipeline
-(`src/ui/style/compiled_stylesheet.cpp`), and the property registry
-(`src/ui/style/property_registry.cpp`). Next slices, in order:
+(`src/ui/style/compiled_stylesheet.cpp`), the property registry
+(`src/ui/style/property_registry.cpp`), media query evaluation
+(`src/ui/style/media_query.cpp`), and keyframes parsing (`src/ui/style/keyframes.cpp`). `@media`
+nested rules, `@keyframes`, `@layer` precedence, and the `Theme` origin are wired into the
+compiled stylesheet. Next slices, in order:
 
-1. At-rule application (`@media`, `@keyframes`, layers) and theme origin.
-2. Yoga adapter consuming computed styles.
-3. Text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
-4. HAL/system clock + actual wait/present integration.
-5. Platform input translation and hit-test/focus/capture dispatch.
-6. Damage-aware batched2D redraw path and golden equivalence test.
+1. Yoga adapter consuming computed styles.
+2. Text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
+3. HAL/system clock + actual wait/present integration.
+4. Platform input translation and hit-test/focus/capture dispatch.
+5. Damage-aware batched2D redraw path and golden equivalence test.
+6. `@supports` evaluation and animation runtime sampling.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing

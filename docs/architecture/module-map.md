@@ -105,6 +105,8 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/cascade.hpp` | cascade ordering, computed style, inheritance/keywords |
 | `ui/style/compiled_stylesheet.hpp` | parsed rules -> index -> cascade -> computed style |
 | `ui/style/property_registry.hpp` | supported properties, initial values, shorthand expansion |
+| `ui/style/media_query.hpp` | media-query parsing/evaluation against fixed context |
+| `ui/style/keyframes.hpp` | `@keyframes` block parsing into offset steps |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |

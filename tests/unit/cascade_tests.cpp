@@ -26,9 +26,10 @@ bool expect(bool condition, const char* message) {
 }
 
 CascadeDeclaration decl(std::string property, std::string value, Origin origin, std::uint64_t order,
-                        Specificity specificity = {}, bool important = false) {
+                        Specificity specificity = {}, bool important = false,
+                        std::uint32_t layer = tessera::ui::style::kUnlayeredLayer) {
     return CascadeDeclaration{
-        std::move(property), std::move(value), important, origin, specificity, order};
+        std::move(property), std::move(value), important, origin, specificity, order, layer};
 }
 
 const std::string* value_of(const ComputedStyle& style, const char* property) {
@@ -202,6 +203,43 @@ int main() {
     const ComputedStyle no_parent = compute_style(nullptr, inherit_table);
     if (!expect(!no_parent.contains("color"), "inherit without parent clears")) {
         return 17;
+    }
+
+    table.clear();
+    table.add(decl("color", "user", Origin::User, 1));
+    table.add(decl("color", "theme", Origin::Theme, 2));
+    if (!expect(table.winner("color")->value == "theme", "theme beats user")) {
+        return 18;
+    }
+    table.add(decl("color", "author", Origin::Author, 3));
+    if (!expect(table.winner("color")->value == "author", "author beats theme")) {
+        return 19;
+    }
+
+    table.clear();
+    table.add(decl("color", "base", Origin::Author, 1, {}, false, 0));
+    table.add(decl("color", "components", Origin::Author, 2, {}, false, 1));
+    if (!expect(table.winner("color")->value == "components", "later layer wins normal")) {
+        return 20;
+    }
+    table.add(decl("color", "unlayered", Origin::Author, 3));
+    if (!expect(table.winner("color")->value == "unlayered", "unlayered beats layers normal")) {
+        return 21;
+    }
+
+    table.clear();
+    table.add(decl("color", "base-important", Origin::Author, 1, {}, true, 0));
+    table.add(decl("color", "components-important", Origin::Author, 2, {}, true, 1));
+    if (!expect(table.winner("color")->value == "base-important", "earlier layer wins important")) {
+        return 22;
+    }
+
+    table.clear();
+    table.add(decl("color", "layered-important", Origin::Author, 1, {}, true, 0));
+    table.add(decl("color", "unlayered-important", Origin::Author, 2, {}, true));
+    if (!expect(table.winner("color")->value == "layered-important",
+                "layered important beats unlayered important")) {
+        return 23;
     }
 
     std::cout << "cascade: ok\n";

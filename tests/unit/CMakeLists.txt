@@ -119,6 +119,20 @@ target_link_libraries(property_registry_tests PRIVATE tessera_style)
 
 add_test(NAME property_registry COMMAND property_registry_tests)
 
+add_executable(media_query_tests
+    media_query_tests.cpp)
+
+target_link_libraries(media_query_tests PRIVATE tessera_style)
+
+add_test(NAME media_query COMMAND media_query_tests)
+
+add_executable(keyframes_tests
+    keyframes_tests.cpp)
+
+target_link_libraries(keyframes_tests PRIVATE tessera_style)
+
+add_test(NAME keyframes COMMAND keyframes_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

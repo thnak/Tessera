@@ -153,15 +153,63 @@ button { padding: 1px; }
     const CompiledStyleSheet with_at_rule =
         compile_stylesheet("@media (min-width: 1px) { .card { color: red; } } "
                            ".card { color: blue; }");
-    if (!expect(with_at_rule.rules().size() == 1, "at-rule not compiled") ||
+    if (!expect(with_at_rule.rules().size() == 2, "media nested compiled") ||
+        !expect(with_at_rule.index().size() == 2, "media nested indexed") ||
         !expect(value_is(with_at_rule.compute(button, nullptr), "color", "blue"),
                 "top-level rule after at-rule")) {
         return 12;
     }
 
+    const CompiledStyleSheet false_media =
+        compile_stylesheet("@media (min-width: 99999px) { .card { color: red; } } "
+                           ".card { color: blue; }");
+    if (!expect(false_media.rules().size() == 1, "false media skipped") ||
+        !expect(value_is(false_media.compute(button, nullptr), "color", "blue"),
+                "false media leaves top-level rule")) {
+        return 13;
+    }
+
+    const CompiledStyleSheet animated =
+        compile_stylesheet("@keyframes pulse { from { opacity: 0; } to { opacity: 1; } } "
+                           ".card { color: blue; }");
+    if (!expect(animated.keyframes().size() == 1, "keyframes compiled") ||
+        !expect(animated.keyframes()[0].steps.size() == 2, "keyframes steps") ||
+        !expect(animated.rules().size() == 1, "keyframes do not create rules")) {
+        return 14;
+    }
+
+    const CompiledStyleSheet layered =
+        compile_stylesheet("@layer base, components;"
+                           "@layer base { .card { color: red; } }"
+                           "@layer components { .card { color: blue; } }");
+    if (!expect(layered.layer_order().size() == 2, "layer order count") ||
+        !expect(layered.rules().size() == 2, "layer rules") ||
+        !expect(value_is(layered.compute(button, nullptr), "color", "blue"), "later layer wins")) {
+        return 15;
+    }
+
+    const CompiledStyleSheet layered_unlayered =
+        compile_stylesheet("@layer base, components;"
+                           "@layer base { .card { color: red; } }"
+                           "@layer components { .card { color: blue; } }"
+                           ".card { color: green; }");
+    if (!expect(value_is(layered_unlayered.compute(button, nullptr), "color", "green"),
+                "unlayered beats layers")) {
+        return 16;
+    }
+
+    const CompiledStyleSheet layered_important =
+        compile_stylesheet("@layer base, components;"
+                           "@layer base { .card { color: red !important; } }"
+                           "@layer components { .card { color: blue !important; } }");
+    if (!expect(value_is(layered_important.compute(button, nullptr), "color", "red"),
+                "earlier layer wins important")) {
+        return 17;
+    }
+
     const CompiledStyleSheet empty = compile_stylesheet("");
     if (!expect(empty.rules().empty() && empty.index().size() == 0, "empty stylesheet")) {
-        return 13;
+        return 18;
     }
 
     std::cout << "compiled_stylesheet: ok\n";

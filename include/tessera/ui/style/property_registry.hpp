@@ -22,6 +22,7 @@ struct PropertyInfo {
 enum class StyleDiagnosticKind : std::uint8_t {
     UnsupportedProperty,
     InvalidShorthand,
+    InvalidAtRule,
 };
 
 struct StyleDiagnostic {

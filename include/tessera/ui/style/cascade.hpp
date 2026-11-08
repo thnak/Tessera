@@ -16,9 +16,12 @@ namespace tessera::ui::style {
 enum class Origin : std::uint8_t {
     UserAgent,
     User,
+    Theme,
     Author,
     Inline,
 };
+
+inline constexpr std::uint32_t kUnlayeredLayer = UINT32_MAX;
 
 struct CascadeDeclaration {
     std::string property;
@@ -27,6 +30,7 @@ struct CascadeDeclaration {
     Origin origin = Origin::Author;
     Specificity specificity;
     std::uint64_t source_order = 0;
+    std::uint32_t layer = kUnlayeredLayer;
 };
 
 struct CascadeKey {
@@ -34,6 +38,7 @@ struct CascadeKey {
     bool important = false;
     Specificity specificity;
     std::uint64_t source_order = 0;
+    std::uint32_t layer = kUnlayeredLayer;
 };
 
 CascadeKey cascade_key(const CascadeDeclaration& declaration);
@@ -47,7 +52,8 @@ class CascadeTable {
 public:
     void add(CascadeDeclaration declaration);
     void add_declarations(const std::vector<Declaration>& declarations, Origin origin,
-                          Specificity specificity, std::uint64_t& source_order);
+                          Specificity specificity, std::uint64_t& source_order,
+                          std::uint32_t layer = kUnlayeredLayer);
     void clear();
 
     [[nodiscard]] const CascadeDeclaration* winner(std::string_view property) const;
