@@ -26,7 +26,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [`tessera.json` schema v1](docs/specs/project-config-v1.md)
 - [Code style & build cache](docs/guides/code-style.md)
 - [Dependency map](docs/specs/dependencies.md)
-- [Renderer / RHI design](docs/design/renderer.md)
+- [Renderer / RHI design](docs/design/renderer.md), [anti-aliasing](docs/design/antialiasing.md)
 - [Scene graph & events](docs/design/scene-graph.md)
 - [UI model](docs/design/ui-model.md)
 - [Layout / text / animation](docs/design/layout.md), [text](docs/design/text.md),

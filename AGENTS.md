@@ -210,7 +210,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Diagnostics/profiling | [`docs/design/diagnostics.md`](docs/design/diagnostics.md) |
 | Diagnostics config | [`docs/specs/diagnostics-config-v1.md`](docs/specs/diagnostics-config-v1.md) |
 | Input handler | [`docs/design/input.md`](docs/design/input.md) |
-| Renderer design notes | `docs/design/renderer.md`, `docs/design/scene-graph.md` |
+| Renderer design notes | `docs/design/renderer.md`, `docs/design/scene-graph.md`, `docs/design/antialiasing.md` |
 | UI model / layout / text / animation | `docs/design/ui-model.md`, `layout.md`, `text.md`, `animation.md` |
 | Responsive / accessibility | `docs/design/responsive.md`, `docs/design/accessibility.md` |
 | HAL | [`docs/design/hal.md`](docs/design/hal.md) |

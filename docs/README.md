@@ -62,6 +62,7 @@ for the project overview. This page is the map and reading order for the framewo
 ## 4. Design
 
 - [`design/renderer.md`](design/renderer.md) — RHI, batched 2D, Vulkan backend
+- [`design/antialiasing.md`](design/antialiasing.md) — current SDF AA, text/path/MSAA gaps
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
@@ -188,6 +189,7 @@ for the project overview. This page is the map and reading order for the framewo
 | Area | State |
 |---|---|
 | RHI + Vulkan batched 2D | B1 implemented |
+| Anti-aliasing | B1 partial: SDF rounded rects only |
 | Scene graph + events | B1 implemented |
 | Protected-region merger | B1 prototype |
 | Stylesheet engine | B2 proposed (ADR-016) |
