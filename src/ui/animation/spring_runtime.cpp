@@ -36,7 +36,7 @@ AnimationId SpringRuntime::start(SpringAnimationInput input) {
     entry.target = input.target;
     entry.property = std::move(input.property);
     entry.spring = Spring(input.config);
-    entry.spring.snap_to(input.from);
+    entry.spring.snap_to(reduced_motion_ ? input.to : input.from);
     entry.spring.set_target(input.to);
     entry.on_complete = std::move(input.on_complete);
     entries_.push_back(std::move(entry));
@@ -51,6 +51,9 @@ bool SpringRuntime::retarget(AnimationId id, float target) {
                                     [&](const Entry& entry) { return entry.id == id; });
     if (found == entries_.end()) {
         return false;
+    }
+    if (reduced_motion_) {
+        found->spring.snap_to(target);
     }
     found->spring.set_target(target);
     return true;

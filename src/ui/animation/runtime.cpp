@@ -11,6 +11,35 @@
 namespace tessera::ui::animation {
 namespace {
 
+constexpr double kReducedMotionOpacityDuration = 0.12;
+
+bool is_opacity_only(const style::KeyframeBlock& keyframes) {
+    bool found = false;
+    for (const style::KeyframeStep& step : keyframes.steps) {
+        for (const style::Declaration& declaration : step.declarations) {
+            if (declaration.property.empty()) {
+                continue;
+            }
+            found = true;
+            if (declaration.property != "opacity") {
+                return false;
+            }
+        }
+    }
+    return found;
+}
+
+void apply_reduced_motion(AnimationInput& input) {
+    input.timing.delay = 0.0;
+    input.timing.iterations = 1.0;
+    input.timing.direction = Direction::Normal;
+    if (is_opacity_only(input.keyframes)) {
+        input.timing.duration = std::min(input.timing.duration, kReducedMotionOpacityDuration);
+    } else {
+        input.timing.duration = 0.0;
+    }
+}
+
 bool is_finished(const AnimationEntry& entry) {
     if (!std::isfinite(entry.timing.iterations)) {
         return false;
@@ -33,6 +62,9 @@ AnimationSample sample_entry(const AnimationEntry& entry, double at) {
 } // namespace
 
 AnimationId AnimationRuntime::start(AnimationInput input) {
+    if (reduced_motion_) {
+        apply_reduced_motion(input);
+    }
     AnimationEntry entry;
     entry.id = next_id_++;
     entry.target = input.target;

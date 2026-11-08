@@ -121,9 +121,9 @@ Only `include/tessera/` is public. Current headers:
 | `ui/animation/animation_style.hpp` | computed-style animation starts, idempotent ensure, removal sync, play-state updates |
 | `ui/animation/loop_bridge.hpp` | tick animations + request RuntimeLoop frames for active/finished animations |
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |
-| `ui/animation/runtime.hpp` | active/settled entries, tick, callback-safe completion, post-callback sampling, target/name state/pause/resume/stop/restart, id restart, target/property stop, dirty reporting |
+| `ui/animation/runtime.hpp` | active/settled entries, tick, callback-safe completion, post-callback sampling, target/name state/pause/resume/stop/restart, id restart, target/property stop, reduced-motion clamping, dirty reporting |
 | `ui/animation/spring.hpp` | semi-implicit Euler spring with retarget/epsilon settle |
-| `ui/animation/spring_runtime.hpp` | active spring entries -> property declarations |
+| `ui/animation/spring_runtime.hpp` | active spring entries -> property declarations, reduced-motion snap |
 | `ui/animation/property_dirty.hpp` | property -> layout/paint/render dirty-domain mapping |
 | `ui/animation/style_overlay.hpp` | animation samples -> per-target `ComputedStyle` overlay |
 | `ui/animation/transition.hpp` | CSS `transition` shorthand + longhand expansion parsers |

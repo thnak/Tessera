@@ -110,7 +110,10 @@ tick(dt):
 - A spring is defined by `(stiffness, damping, mass, initial_velocity)`; retargeting keeps
   position/velocity.
 - `prefers-reduced-motion` (OS) -> no non-essential motion; functional changes are instant or
-  a short opacity change. No parallax/stretch/bounce.
+  a short opacity change. No parallax/stretch/bounce. Callers drive the runtime setter from
+  `MediaContext::prefers_reduced_motion`: opacity-only animations clamp to 120 ms with no delay
+  and one normal-direction iteration, while every other animation becomes instant. Springs snap
+  to their target instead of integrating.
 
 ## 5. Interaction feedback
 

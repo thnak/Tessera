@@ -429,10 +429,10 @@ parsed keyframes at fixed-step time with direction/fill and linear numeric inter
 `ui/animation/animation_shorthand.hpp` parses `animation` shorthands and longhand lists,
 `ui/animation/animation_start.hpp` looks up keyframes and batch-starts parsed specs,
 `ui/animation/animation_style.hpp` starts, ensures, or syncs animations from computed style and applies play-state changes,
-`ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, callback-safe retained fills and post-callback sampling, pause/resume, target/name state/pause/stop/restart, id restart,
+`ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, callback-safe retained fills and post-callback sampling, reduced-motion timing policy, pause/resume, target/name state/pause/stop/restart, id restart,
 `ui/animation/loop_bridge.hpp` ticks animations and requests frames only for active/finishing work, and
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
-retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries, `ui/animation/style_overlay.hpp`
+retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries and snaps them under reduced motion, `ui/animation/style_overlay.hpp`
 overlays samples onto `ComputedStyle` per target, `ui/animation/transition.hpp` parses transition
 shorthands and longhand lists, `ui/animation/transition_runtime.hpp` starts matched transitions, diffs computed styles, and supersedes active target/property entries, and
 `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the

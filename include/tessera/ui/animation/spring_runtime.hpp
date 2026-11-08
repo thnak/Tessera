@@ -36,6 +36,12 @@ public:
     [[nodiscard]] bool empty() const {
         return entries_.empty();
     }
+    void set_reduced_motion(bool enabled) {
+        reduced_motion_ = enabled;
+    }
+    [[nodiscard]] bool reduced_motion() const {
+        return reduced_motion_;
+    }
 
 private:
     struct Entry {
@@ -48,6 +54,7 @@ private:
 
     std::vector<Entry> entries_;
     AnimationId next_id_ = 1;
+    bool reduced_motion_ = false;
 };
 
 } // namespace tessera::ui::animation

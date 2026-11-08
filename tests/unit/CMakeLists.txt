@@ -308,6 +308,13 @@ target_link_libraries(animation_tick_reentrancy_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_tick_reentrancy COMMAND animation_tick_reentrancy_tests)
 
+add_executable(animation_reduced_motion_tests
+    animation_reduced_motion_tests.cpp)
+
+target_link_libraries(animation_reduced_motion_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_reduced_motion COMMAND animation_reduced_motion_tests)
+
 add_executable(easing_tests
     easing_tests.cpp)
 

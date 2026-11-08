@@ -84,6 +84,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `animation_fill` | retained forward/both finals, no wake or repeat callback, overlay persistence, supersession, stop/clear cleanup |
 | `animation_callback` | completion callbacks see retained fills, clear/stop removes them, same name/property starts supersede, order preserved |
 | `animation_tick_reentrancy` | callback clear drops samples/dirty, sibling stop drops its sample, fill restart returns zero sample, callback start samples at zero |
+| `animation_reduced_motion` | opacity clamps to 120 ms, mixed/non-opacity instant, toggle restores full timing, springs snap and retarget immediately |
 | `animation_pause` | per-id/target pause/resume, held samples, no completion or wake while paused, invalid dt wake rules |
 | `animation_pause_name` | exact target/name pause/resume counts, idempotence, sibling/target isolation, paused-only sleep, fills ignored |
 | `animation_state` | const active/settled counts by target/name, paused included, empty/case/unknown zero, cleanup consistency |
