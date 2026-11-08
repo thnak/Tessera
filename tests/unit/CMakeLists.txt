@@ -280,6 +280,13 @@ target_link_libraries(animation_sync_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_sync COMMAND animation_sync_tests)
 
+add_executable(animation_loop_tests
+    animation_loop_tests.cpp)
+
+target_link_libraries(animation_loop_tests PRIVATE tessera_animation_loop)
+
+add_test(NAME animation_loop COMMAND animation_loop_tests)
+
 add_executable(easing_tests
     easing_tests.cpp)
 

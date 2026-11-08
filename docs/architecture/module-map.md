@@ -119,6 +119,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/animation/animation_shorthand.hpp` | CSS `animation` shorthand and longhand list parser |
 | `ui/animation/animation_start.hpp` | keyframe lookup + parsed animation spec -> runtime entries |
 | `ui/animation/animation_style.hpp` | computed-style animation starts, idempotent ensure, removal sync, play-state updates |
+| `ui/animation/loop_bridge.hpp` | tick animations + request RuntimeLoop frames for active/finished animations |
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |
 | `ui/animation/runtime.hpp` | active/settled entries, tick, completion, target/name state/pause/resume/stop/restart, target/property stop, dirty reporting |
 | `ui/animation/spring.hpp` | semi-implicit Euler spring with retarget/epsilon settle |

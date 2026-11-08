@@ -39,7 +39,10 @@ continues from that point. Play-state changes can target one animation by exact 
 pair without disturbing its siblings. Applying computed-style play state updates matching active
 animations without starting, stopping, or restarting them. Ensuring style animations reuses
 matching active entries, skips names with retained fills, and starts only missing names. Syncing
-style animations also stops active or retained-fill names that are absent from the computed style. Stopping a target removes all of its entries, paused ones included;
+style animations also stops active or retained-fill names that are absent from the computed style.
+The runtime-loop bridge requests a frame while animations are running and on the tick that finishes
+one, without waking for paused-only or retained-fill samples. Stopping a target removes all of its
+entries, paused ones included;
 stopping a target/name pair removes only that animation and its retained fill. Restarting a
 target/name pair rewinds matching active entries and revives retained fills from their start.
 Target/name state exposes active and settled counts for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).

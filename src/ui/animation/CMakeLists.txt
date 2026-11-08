@@ -20,3 +20,13 @@ target_include_directories(tessera_animation PUBLIC
 target_link_libraries(tessera_animation PUBLIC tessera_style)
 
 target_compile_features(tessera_animation PUBLIC cxx_std_23)
+
+add_library(tessera_animation_loop STATIC
+    loop_bridge.cpp)
+
+target_include_directories(tessera_animation_loop PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_link_libraries(tessera_animation_loop PUBLIC tessera_animation tessera_runtime)
+
+target_compile_features(tessera_animation_loop PUBLIC cxx_std_23)

@@ -79,6 +79,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `animation_play_state` | style play-state pause/resume of active names, idempotence, longhand precedence, shorthand fallback, invalid no-op, fills untouched |
 | `animation_ensure` | repeated style starts reuse ids, no duplicates, pause update, settled fill skipped, shorthand, invalid/missing no-op |
 | `animation_sync` | absent names stop active/fill entries, none clears all, add/remove lifecycle, invalid no-op, case/target isolation |
+| `animation_loop` | active ticks request frames, finish requests one final frame, paused/fill/idle do not wake, invalid dt wakes active |
 | `animation_runtime` | start/tick/finish, callbacks, stop/clear, target/property stop, wake state, dirty domains |
 | `animation_fill` | retained forward/both finals, no wake or repeat callback, overlay persistence, supersession, stop/clear cleanup |
 | `animation_pause` | per-id/target pause/resume, held samples, no completion or wake while paused, invalid dt wake rules |
