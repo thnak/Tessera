@@ -1,7 +1,12 @@
 # Dirty rendering and invalidation
 
-Status: design for Big Step B2/E. Companion to [`game-loop.md`](game-loop.md) and
-[`renderer.md`](renderer.md).
+Status: design for Big Step B2 (runtime slice) and Big Step E (data-heavy UI); both are defined in
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Decision record:
+[ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame
+pacing). Companion to [`game-loop.md`](game-loop.md) (runtime loop and pacing) and
+[`renderer.md`](renderer.md). Terms such as golden, damage, batch key, Yoga and `ComputedStyle` are in
+[`glossary.md`](../reference/glossary.md); a golden is a deterministic reference image from the
+software path ([ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md)).
 
 ## 1. Goals and invariants
 
@@ -13,7 +18,7 @@ Status: design for Big Step B2/E. Companion to [`game-loop.md`](game-loop.md) an
 - Invalidation order is deterministic: style -> layout -> paint -> render.
 
 Correctness beats skipping a frame. If the runtime cannot prove a partial update is safe, it
-falls back to a full redraw.
+falls back to a full redraw (repaint the whole target).
 
 Virtualized lists/grids reduce the number of realized nodes; they do not replace damage/culling.
 See [`virtualization-v1.md`](../specs/virtualization-v1.md) for the collection model.
@@ -26,7 +31,7 @@ See [`virtualization-v1.md`](../specs/virtualization-v1.md) for the collection m
 | `LayoutDirty` | layout-affecting style change, text/font change, child add/remove, resize | Yoga/layout pass | bounds updated |
 | `PaintDirty` | paint-affecting style change, transform/clip/visibility, layout move/resize, texture/atlas change | paint/draw-list builder | draw list updated |
 | `RenderDirty` | any paint change, target resize, damage, explicit request | renderer | frame presented |
-| `ResourceDirty` | texture/font/atlas/GPU buffer content change | resource uploader | upload recorded |
+| `ResourceDirty` | texture/font/atlas/GPU buffer content change | resource uploader (CPU-to-GPU copy step) | upload recorded |
 | `GpuDirty` | buffer/image contents changed on CPU | command recording | commands submitted |
 
 Each node stores a bitset. A node may be dirty in several domains at once.
@@ -55,7 +60,7 @@ This keeps marking O(depth) in the common case.
 | Change | Style | Layout | Paint | Render |
 |---|---|---|---|---|
 | class/id/attribute | yes | if layout property matched | if paint property matched | if visible/geometry changed |
-| `:hover`/`:active`/`:focus` | yes | only if the matched rule changes layout | usually yes | yes |
+| `:hover`/`:active`/`:focus` | yes | only if the matched rule changes layout | yes if the matched rule changes a paint property | yes |
 | inline style | yes | if layout property | if paint property | yes |
 | theme/custom property | affected nodes | if layout property | if paint property | yes |
 | width/height/margin/padding | recompute | yes | yes | yes |
@@ -96,7 +101,7 @@ values and only raise the domains that actually changed.
 - Rebuild draw lists only for `PaintDirty` nodes/layers.
 - A retained node with no dirty descendants reuses its cached draw list.
 - A dynamic node (chart/animation) streams vertices into the current frame arena.
-- Batch key `(clip, texture)` is unchanged from the B1 renderer; dirty rebuilds must produce the
+- Batch key `(clip, texture)` (the glossary writes `(scissor, texture)`) is unchanged from the B1 renderer; dirty rebuilds must produce the
   same ordering as a full rebuild.
 - Clear `PaintDirty` after the draw list/layer is rebuilt.
 - Mark `RenderDirty`.
@@ -143,7 +148,7 @@ Charts, live data, and animations stream vertices into a per-frame arena:
 ### 6.1 Damage rectangles
 
 - Accumulate axis-aligned damage rects from old/new bounds of changed nodes.
-- Union/merge nearby rects; cap the count (for example 16); exceed -> full redraw.
+- Union/merge nearby rects; cap the count (16 is an example; the real cap is not specified); exceeding the cap -> full redraw.
 - Clip damage to the target.
 - Expand by the blur/shadow/AA margin of the changed nodes.
 
@@ -161,12 +166,13 @@ Otherwise fall back to full redraw. This is conservative by design.
 ### 6.3 Present-path damage
 
 - **Vulkan**: optional `VK_KHR_incremental_present`; otherwise swapchain full-image present.
-- **Windows/DXGI**: dirty rects with flip-model swapchains where supported.
+- **Windows/DXGI**: dirty rects with flip-model swapchains when the OS/driver supports them.
 - **Wayland**: surface damage; the compositor decides.
 - **X11**: Present extension damage.
 - Offscreen/headless: always full target for deterministic goldens.
 
-The B1 offscreen renderer always does a full redraw; damage is a B3 window-path feature.
+The B1 offscreen renderer (Big Step B phase 1, already complete) always does a full redraw; damage is a
+B3 (window/swapchain phase of Big Step B) window-path feature.
 
 ## 7. GPU resources and synchronization
 
@@ -201,7 +207,8 @@ a full-load game loop:
 - adaptive quality lowers optional cost (render scale/effects) when budgets are missed;
 - `powerPolicy=adaptive` is the default; `benchmark` (uncapped/full redraw) is diagnostic only.
 
-A dirty frame is not a license to repaint the world. If damage is unsafe or above the threshold,
+A dirty frame is not a license to repaint the world. If damage is unsafe or above the damage-area threshold (`fullRedrawThreshold`, default 0.6 in
+[`runtime-config-v1.md`](../specs/runtime-config-v1.md)),
 fall back to full redraw, measure it, and report why. See [`performance.md`](performance.md).
 
 ## 9. Metrics and debugging
@@ -241,5 +248,5 @@ Tests assert both visual output and work bounds.
 - Damage-rect support across all target platforms and compositors.
 - When to promote/demote layers automatically.
 - Multi-threaded paint/draw-list building.
-- Occlusion/culling integration with the scene graph.
-- Exact cache budget defaults for desktop vs embedded.
+- Occlusion/culling integration with the scene graph ([`scene-graph.md`](scene-graph.md)).
+- Exact cache budget defaults for desktop vs embedded (see [`buffer-config-v1.md`](../specs/buffer-config-v1.md) for the buffer budget schema).

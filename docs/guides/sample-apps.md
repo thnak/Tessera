@@ -1,17 +1,19 @@
 # Sample apps and templates
 
-Status: planned (B2/C/F). Samples are executable specifications; each one must prove a slice of
-the framework, not just look good.
+Status: planned (Big Steps B2, C and F; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Samples are executable specifications; each one must prove a slice of
+the framework, not just look good. Background: gap G-26 in [app-completeness-gap-resolutions-v1](../architecture/app-completeness-gap-resolutions-v1.md).
 
 ## 1. Template set
 
+`samples/hello` and `samples/dashboard` exist as empty directories; no template is implemented. `notes`, `settings`, `3d-viewer` and `chat` have no directory yet.
+
 | Sample | Proves |
 |---|---|
-| `hello` | window, scene, text, input, theme, headless/golden |
+| `hello` | window, scene (scene graph), text, input, theme, headless/golden (deterministic reference-image tests, see [golden-tests-v1](../specs/golden-tests-v1.md)) |
 | `dashboard` | layout, responsive/fold, virtualization, charts, async data, audit |
 | `notes` | text editing, forms, undo/redo, clipboard, overlays, state restore |
 | `settings` | navigation, i18n, accessibility, platform shell, storage |
-| `3d-viewer` | custom elements, shaders, 3D input/picking, headless GPU smoke |
+| `3d-viewer` | custom elements ([guide](custom-elements.md)), shaders, 3D input/picking, headless GPU smoke (real-device render check) |
 | `chat` | lists, async data/offline, notifications, deep links, auth gate |
 
 Each template ships:
@@ -34,7 +36,7 @@ Each template ships:
 | Navigation/deep link | — | yes | yes | yes | yes | yes |
 | State restore | — | yes | yes | yes | — | yes |
 | i18n/RTL | — | yes | yes | yes | — | yes |
-| Accessibility | yes | yes | yes | yes | fallback | yes |
+| Accessibility | yes | yes | yes | yes | fallback (not specified further) | yes |
 | Custom elements/3D | — | charts | — | — | yes | — |
 | Async data/offline | — | yes | — | — | — | yes |
 | Updates/signing | packaging test | yes | yes | yes | yes | yes |
@@ -51,8 +53,8 @@ tessera headless --mode audit --profile desktop --script tests/audit/dashboard.j
 
 - Samples use the same public APIs as apps; no core shortcuts.
 - Generated files are committed and deterministic.
-- CI builds/tests samples on Windows/Linux; GPU smoke where available.
-- Goldens use software/lavapipe, not real GPUs.
+- CI builds/tests samples on Windows/Linux; GPU smoke runs only on CI machines that have a real GPU.
+- Goldens use the software path (lavapipe, Mesa's software Vulkan driver, or the CPU rasterizer), not real GPUs.
 - Samples are versioned with the framework; breaking changes update templates + docs.
 
 ## 4. What samples must not do
@@ -68,7 +70,7 @@ tessera headless --mode audit --profile desktop --script tests/audit/dashboard.j
 CI/maintenance:
 
 - Each sample has a pinned profile (size/DPI/locale/theme), deterministic assets, and a
-  `tests/` script. CI builds/tests on Windows/Linux; GPU smoke is optional/labeled.
+  `tests/` script. CI builds/tests on Windows/Linux; GPU smoke is optional and labeled as such in CI.
 - Generated files are checked by `tessera generate --check`; no stale templates.
 - Samples use only public headers/APIs; a private-header dependency is a build failure.
 - Golden baselines are owned by the framework repo and reviewed with the sample change.
@@ -97,8 +99,8 @@ Gap-closure decisions:
   goldens are owned/reviewed by the framework. `notes` is the docs golden path. A mobile sample
   is deferred until the Android backend exists.
 
-## 5. Deferred/open questions
+## 5. Deferred/open questions (unresolved; no decision yet)
 
-- Maintenance cost/version skew after 1.0.
-- Mobile-first sample (post-B3).
-- Whether archived examples stay in-tree or move to a separate repo.
+- Maintenance cost/version skew after 1.0 (no decision yet; the 1.0 scope is not defined in any doc).
+- Mobile-first sample (after Big Step B3; no date or step is specified).
+- Whether archived examples stay in-tree (`examples/archive`) or move to a separate repo (no decision yet).

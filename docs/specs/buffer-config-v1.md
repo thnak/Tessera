@@ -1,6 +1,6 @@
 # Buffer configuration and user tunables v1
 
-Status: proposed (Big Step B2/B3). Normative companion to
+Status: proposed (Big Steps B2 and B3, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Normative companion to
 [`memory-model-v1.md`](memory-model-v1.md), [`runtime-config-v1.md`](runtime-config-v1.md),
 and [`project-config-v1.md`](project-config-v1.md).
 
@@ -17,10 +17,10 @@ of parameters a developer may expose to end users.
 4. **Memory budget wins.** The sum of buffer budgets cannot exceed the configured memory budget;
    raising one buffer may require lowering another.
 5. **Buffer sizes must not change pixels.** They change capacity/performance, not visual output.
-   Golden mode ignores user tunables and uses fixed defaults.
+   Golden mode (deterministic test mode, [`golden-tests-v1.md`](golden-tests-v1.md)) ignores user tunables and uses fixed defaults.
 6. **No hot-path reallocation.** Resizes create a new generation; old buffers retire after
-   in-flight frames complete (ADR-020/021).
-7. **Native-only.** Tunables are applied through a C++ registry; no production bridge/JS.
+   in-flight frames complete ([ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (window resize and lifecycle) and [ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime)).
+7. **Native-only.** Tunables are applied through a C++ registry; no production bridge/JS ([ADR-024](../../decisions/ADR-024-native-first-boundaries.md), native-first boundaries).
 8. **Few knobs, good defaults.** Expose presets or a small curated set, not every internal
    buffer.
 
@@ -44,8 +44,10 @@ of parameters a developer may expose to end users.
 | `services.networkBufferBytes` | service I/O buffers | services | maybe |
 | `services.storageBufferBytes` | service I/O buffers | services | maybe |
 
+In the "User-tunable?" column, "maybe" means the decision is open (section 11, first question); "(live)" and "(restart)" refer to the apply scopes in section 6, and the table does not say which restart scope applies to `runtime.asyncQueueCapacity`.
+
 Existing runtime fields (`layerCacheBudgetMb`, `drawListCacheBudgetMb`,
-`asyncQueueCapacity`, `gpuFramesInFlight`) remain in `runtime`; do not duplicate them under
+`asyncQueueCapacity`, `gpuFramesInFlight`) remain in `runtime` (defined in [`runtime-config-v1.md`](runtime-config-v1.md)); do not duplicate them under
 `buffers`. One source of truth per value.
 
 ## 3. Developer configuration
@@ -103,7 +105,7 @@ Rules:
 - `scope`: `live`, `nextFrame`, `restartRenderer`, `restartApp`.
 - `min`/`max`/`step` are required for numeric types; `enum` requires `values`.
 - `labelKey`/`descriptionKey` are localization keys, not raw user strings.
-- `category` groups settings UI (`graphics`, `ui`, `power`, `diagnostics`, ...).
+- `category` groups settings UI (`graphics`, `ui`, `power`, `diagnostics`; the complete list is not specified).
 - `powerImpact`: `none`, `low`, `medium`, `high` (advisory for UI).
 - `budgetBytes` is the app's total buffer budget; per-category budgets may also be added.
 
@@ -112,7 +114,7 @@ Rules:
 Highest to lowest:
 
 1. **Deterministic/golden mode**: fixed defaults; user/CLI overrides ignored.
-2. **CLI developer override** (one run; only allowed debug flags).
+2. **CLI developer override** (one run; only allowed debug flags; the list of allowed flags is not specified).
 3. **User settings** (only exposed tunable ids).
 4. **Project `buffers`** (developer defaults).
 5. **Engine defaults**.
@@ -126,20 +128,20 @@ User settings never rewrite `tessera.json`; they live in app/user storage (platf
 - `min <= default <= max`; `step > 0`; `max` must not exceed the engine hard cap.
 - User values are clamped to `[min, max]` and aligned to `step`; invalid enum -> reject.
 - Sum of buffer budgets must be <= `budgetBytes`; otherwise reject the config or clamp with a
-  warning (choose one policy and test it).
+  warning (which of the two is not decided yet; whichever is chosen must be tested).
 - Buffer sizes must be aligned to the backend requirement (e.g., 4/16/256 bytes); the engine
   rounds up internally and reports it.
 - A user value may change performance/power, never correctness or pixels.
 - Security/determinism-critical values are **not** tunable (e.g., vertex format, alignment,
-  color space, `FLAG_SECURE`, golden mode).
+  color space, `FLAG_SECURE` (Android secure-window flag), golden mode).
 - Queue capacities are bounded; overflow applies backpressure/cancellation, never OOM.
-- OOM at a larger size: keep the previous generation, report a diagnostic, do not crash.
+- Out of memory (OOM) at a larger size: keep the previous generation, report a diagnostic, do not crash.
 
 ## 6. Apply scopes
 
 | Scope | Behavior |
 |---|---|
-| `live` | Update at the next safe boundary; no visible stall; may allocate new storage and retire old after frames |
+| `live` | Update at the next safe boundary (not defined further in this file); no visible stall; may allocate new storage and retire old after frames |
 | `nextFrame` | Apply at the next frame/tick; may cause one layout/paint invalidation |
 | `restartRenderer` | Recreate buffers/targets/pipelines; keep app/scene state; no app restart |
 | `restartApp` | Persist and require relaunch; show a clear prompt |
@@ -147,7 +149,7 @@ User settings never rewrite `tessera.json`; they live in app/user storage (platf
 Rules:
 
 - GPU buffer resize creates a new generation; old buffers stay until in-flight frames retire
-  (ADR-020).
+  ([ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md)).
 - No realloc in the frame hot path; do it at the boundary.
 - If apply fails, keep the old value and report an error; do not leave a half-applied state.
 - `restartApp` values are stored as pending until the app restarts.

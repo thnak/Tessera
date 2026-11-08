@@ -1,9 +1,21 @@
 # Custom native elements v1
 
-Status: proposed (Big Step B2/C/D). Decision: ADR-028. Builds on
-[`ir-v1.md`](ir-v1.md), [`shader-manifest-v1.md`](shader-manifest-v1.md),
-[`headless-automation-v1.md`](headless-automation-v1.md), and
-[`automation-ids-v1.md`](automation-ids-v1.md).
+Status: proposed (Big Steps B2, C, and D, defined in [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step): runtime slice, compiler
+vertical slice, design-time preview). Decision:
+[ADR-028](../../decisions/ADR-028-custom-native-elements.md) (custom native elements). Builds on
+[`ir-v1.md`](ir-v1.md) (compiler intermediate representation),
+[`shader-manifest-v1.md`](shader-manifest-v1.md) (shader interface manifest),
+[`headless-automation-v1.md`](headless-automation-v1.md) (headless snapshot/action protocol), and
+[`automation-ids-v1.md`](automation-ids-v1.md) (numeric `uiId` node ids).
+
+Terms: **RHI** is the thin render hardware interface, the only GPU seam. **MSAA** is multisample
+anti-aliasing. **Null RHI** is the no-GPU backend that records command stats. **lavapipe** is the
+Mesa software Vulkan driver used for headless tests. **Golden** is a deterministic reference image
+([`golden-tests-v1.md`](golden-tests-v1.md)). **Frames in flight** are frames the GPU is still
+processing. **Capture/target/bubble** is the three-phase event dispatch of the scene graph
+([`scene-graph.md`](../design/scene-graph.md)). **Error boundary** is the catch point for component
+exceptions ([`error-boundaries-v1.md`](error-boundaries-v1.md)). See also the
+[glossary](../reference/glossary.md).
 
 A custom element is a **native C++ renderer** declared from JSX and resolved at compile time.
 It is the escape hatch for custom shaders, high-performance 3D, and element-specific input,
@@ -122,7 +134,7 @@ the event; no pointers/ownership transfer.
 
 - `offscreen` (default) — render into a framework-managed target; composite as a texture.
 - `inline` — record into the current frame target at the node viewport with a depth attachment.
-  Advanced; see §7.
+  Advanced; see section 7.2.
 
 `render.mode`:
 
@@ -158,7 +170,8 @@ Rules:
 - Props are checked against the manifest schema; no unknown/missing required props.
 - Event props are `on` + PascalCase of the manifest event (`select` -> `onSelect`).
 - `onPointer`, `onKey`, `onWheel`, `onText`, `onGamepad` are generic input props.
-- `CustomElement` is a leaf; use `OverlayHost`/overlay service for overlays, and wrap it in
+- `CustomElement` is a leaf; use `OverlayHost`/overlay service
+  ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) for overlays, and wrap it in
   `View` for layout children.
 - Standard `style`/layout/automation props apply; numeric `uiId` is assigned normally.
 - No dynamic component types (`<Component is={...}>`), no element expression, no children.
@@ -201,7 +214,8 @@ Lifecycle:
 6. `on_semantics` — provide accessible semantics.
 7. `on_detach` — release resources after frames in flight; no leaks.
 
-`on_update`/`on_event` exceptions are caught by the nearest error boundary; `on_render` must
+`on_update`/`on_event` exceptions are caught by the nearest error boundary
+([`error-boundaries-v1.md`](error-boundaries-v1.md)); `on_render` must
 return an `Error`, not throw. `on_test_command` exists only in debug/headless builds.
 
 ### 5.1 Contexts
@@ -250,7 +264,7 @@ Custom elements may use:
 - `rhi::Device`, `CommandList`, `Pipeline`, `Buffer`, `Texture`, `TextureView`,
   `RenderTarget`, `Sampler`, `BindGroup`.
 - Render passes with color/depth, viewport/scissor, pipeline/bind group, vertex/index buffers.
-- `draw`, `draw_indexed`, instanced draws; compute dispatch if the backend supports it.
+- `draw`, `draw_indexed`, instanced draws; compute dispatch if the backend supports it (which backends do is not specified; see section 14).
 - Transient frame data via `FrameArena`; persistent resources via `ElementResourceCache`.
 
 Rules:
@@ -290,7 +304,7 @@ Rules:
 - Camera/projection are element props or internal state; matrices are `mat4`.
 - Depth format/default compare/cull/blend are declared in `pipeline`; no implicit state.
 - MSAA is opt-in via `render.samples`; resolve is RHI-owned.
-- Color space/format is explicit (`rgba8_unorm` baseline); HDR/sRGB is capability-gated.
+- Color space/format is explicit (`rgba8_unorm` baseline); HDR/sRGB is capability-gated (the capability set and how it is queried are not specified).
 - `continuous` mode is for animation; pause when hidden/occluded/backgrounded.
 - `onDemand` is the default; call `request_render()` after internal state changes.
 
@@ -399,7 +413,7 @@ Rules:
 - Shaders are build-time compiled and reflected against the manifest; no runtime shader source.
 - Resource creation validates dimensions/formats/ranges; enforce budgets and caps.
 - `on_render` returns `Error`; renderer logs, disables the element, and shows a deterministic
-  fallback where possible. No throw across threads/ABI.
+  fallback (its appearance, and the cases where none is possible, are not specified). No throw across threads/ABI.
 - Device loss: detach, release, recreate; no crash; diagnostic. `on_update`/`on_event`
   exceptions are caught by the nearest error boundary.
 - No file/network/OS calls in render; test hooks are not shipped in release.

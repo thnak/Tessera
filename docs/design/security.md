@@ -1,6 +1,6 @@
 # Security and privacy
 
-Status: design. Applies to the compiler, runtime, designer, services, and supply chain.
+Status: design. Applies to the compiler, runtime, designer (browser preview tool, [`designer.md`](designer.md)), services, and supply chain. Abbreviations: PII = personally identifiable information; TLS = transport layer security; CSP = Content Security Policy; Wasm = WebAssembly; FFI = foreign function interface; JNI = Java Native Interface; RHI = render hardware interface ([glossary](../reference/glossary.md)); SBOM = software bill of materials.
 
 Tessera processes untrusted project files, assets, and network data, and ships as a statically
 linked native executable. The security model is least privilege, strict validation at
@@ -22,7 +22,7 @@ boundaries, and no arbitrary code execution from UI sources.
 
 - **Project files are untrusted input.** Validate schema, paths, globs, asset sizes, and
   generated identifiers. Reject absolute paths and `..` traversal.
-- **Components are not arbitrary JavaScript.** The compiler accepts a fixed JSX/hooks subset;
+- **Components are not arbitrary JavaScript.** The compiler accepts a fixed JSX/hooks subset ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md), own JSX front end);
   production never executes source JS.
 - **The Wasm designer is sandboxed.** No native filesystem/network access; the host bridge is
   local-only and validates messages.
@@ -34,8 +34,8 @@ boundaries, and no arbitrary code execution from UI sources.
 
 - Parser runs build-time, but must be robust to malformed/hostile input (fuzz it).
 - Generated C++ identifiers/strings are escaped; user text cannot inject code.
-- Binding ids are validated (`[A-Za-z0-9_.:-]+`); duplicates/mismatches are errors.
-- Generated paths stay under `codegen.outDir`; symlinks are rejected/resolved safely.
+- Binding ids (stable `bind::<id>` names linking JSX to protected C++ regions, see [glossary](../reference/glossary.md)) are validated (`[A-Za-z0-9_.:-]+`); duplicates/mismatches are errors.
+- Generated paths stay under `codegen.outDir` ([`project-config-v1.md`](../specs/project-config-v1.md)); symlinks are rejected/resolved safely.
 - Resource limits: file size, component count, nesting depth, loop depth.
 - No network access during generation unless explicitly configured.
 - Deterministic output prevents hidden code changes.
@@ -54,7 +54,7 @@ boundaries, and no arbitrary code execution from UI sources.
 
 ## 4.1 Custom native elements
 
-- Custom elements are trusted native app code compiled into the binary; no untrusted native
+- Custom elements ([ADR-028](../../decisions/ADR-028-custom-native-elements.md), custom native elements) are trusted native app code compiled into the binary; no untrusted native
   loading, no `dlopen`, no JS/eval.
 - `ui/elements.json` is untrusted project input: validate ids, class/source paths, prop/event
   schemas, shader refs, formats, and sizes; reject traversal/unknown values.
@@ -78,7 +78,7 @@ boundaries, and no arbitrary code execution from UI sources.
 ## 6. Services and data
 
 - TLS verification on by default; no insecure fallback.
-- Secrets/tokens in platform keystore where available; never in config/logs. Auth/session
+- Secrets/tokens in the platform keystore; never in config/logs. Keystore availability per platform and the abstraction over it are not specified (open question, section 11). Auth/session
   startup behavior is in [`startup-and-loading.md`](startup-and-loading.md).
 - Redact headers, query params, file paths, and user data in logs/crash dumps.
 - Validate deep links/notification payloads; allowlist schemes/hosts/routes. See
@@ -88,7 +88,7 @@ boundaries, and no arbitrary code execution from UI sources.
 - Secure text fields never log/clipboard/persist plaintext. See
   [`text-editing-v1.md`](../specs/text-editing-v1.md).
 - Storage paths are sandboxed; atomic writes prevent corruption.
-- Telemetry opt-in, aggregated, and documented; no PII by default.
+- Telemetry opt-in, aggregated, and documented ([ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md), diagnostics and profiling); no PII by default.
 - Updates verify TLS/signature/hash, stage atomically, and roll back safely; see
   [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md).
 - Crash reports are opt-in, redacted, and symbol/version matched; see
@@ -97,8 +97,8 @@ boundaries, and no arbitrary code execution from UI sources.
 ## 7. Supply chain and licensing
 
 - Pin dependency versions/hashes; generate an SBOM.
-- Static-link allowlist: permissive licenses only (ADR-012/013); no GPL/LGPL in the core.
-- Preserve notices (`THIRD_PARTY_NOTICES.md`, Apache NOTICE, OFL/FTL/ICU).
+- Static-link allowlist: permissive licenses only ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking; [ADR-013](../../decisions/ADR-013-project-license-mit.md), MIT project license); no GPL/LGPL in the core.
+- Preserve notices (`THIRD_PARTY_NOTICES.md`, Apache NOTICE file, SIL Open Font License, FreeType License, ICU/Unicode license).
 - CI checks the link graph for unexpected dynamic libraries.
 - Review new dependencies for maintenance, CVEs, and build reproducibility.
 - Do not fetch arbitrary code at build time without pinning.
@@ -109,13 +109,13 @@ boundaries, and no arbitrary code execution from UI sources.
 - Crash dumps are opt-in/consent-based where required; bounded and redacted.
 - Frame captures/screenshots may contain user data; require explicit action.
 - Telemetry is opt-in and never includes raw UI content.
-- Log levels/sinks are configurable; release defaults are conservative.
+- Log levels/sinks are configurable ([`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md)); the release defaults are listed there (this file does not restate them).
 
 ## 9. Vulnerability response
 
 - Private disclosure channel; acknowledge and triage.
 - Reproduce with a minimal project + deterministic mode.
-- Patch, add a regression test, and publish an advisory when appropriate.
+- Patch, add a regression test, and publish an advisory (publication criteria are not specified).
 - Rotate any exposed secrets; review logs/artifacts.
 - Update dependencies and regenerate notices/SBOM.
 
@@ -131,7 +131,7 @@ boundaries, and no arbitrary code execution from UI sources.
 
 ## 11. Open questions
 
-- Sandboxing the compiler process (seccomp/Job Objects) vs in-process.
+- Sandboxing the compiler process (Linux seccomp / Windows Job Objects, OS process-restriction features) vs in-process.
 - Signature/verification for project assets and updates.
 - Wasm bridge authentication model for remote preview.
 - Secret storage abstraction across desktop/mobile.

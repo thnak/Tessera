@@ -1,11 +1,11 @@
 # Animation and interaction effects v1
 
-Status: proposed (Big Step B2/C). Decision: ADR-034. Companion to
+Status: proposed (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),
 [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md), and
 [`overlays-and-layers-v1.md`](overlays-and-layers-v1.md).
 
-Animation is declarative motion sampled by the fixed-step runtime. Interaction effects
+Animation is declarative motion sampled by the fixed-step runtime (a loop that advances the simulation in constant time slices, see [`game-loop.md`](../design/game-loop.md)). Interaction effects
 (press/hover/focus, scroll fling/snap, overscroll stretch/spring-back, route/overlay transitions)
 use the same clock, interruption, reduced-motion, and determinism rules.
 
@@ -15,10 +15,10 @@ use the same clock, interruption, reduced-motion, and determinism rules.
 - Scroll fling, snap, scroll-into-view, scrollbar fade.
 - Overscroll visual effects: stretch/bounce/glow and spring-back.
 - Overlay/route enter/exit and focus/press feedback.
-- Reduced motion, power policy, interruption, tests.
+- Reduced motion, power policy ([ADR-019](../../decisions/ADR-019-power-aware-runtime.md), power-aware runtime defaults), interruption, tests.
 - Window-wide transitions (theme switch, circle reveal, shader effects) are specified in
-  [`view-transitions-v1.md`](view-transitions-v1.md) (ADR-035).
-- Scroll-driven/shared-element animations are deferred.
+  [`view-transitions-v1.md`](view-transitions-v1.md) ([ADR-035](../../decisions/ADR-035-view-transitions.md), view transitions).
+- Scroll-driven/shared-element animations are deferred; no release is assigned (see section 10).
 
 ## 2. Ownership
 
@@ -29,9 +29,11 @@ use the same clock, interruption, reduced-motion, and determinism rules.
 | `ScrollController` | fling/snap/overscroll state/physics | Shaping/paint details |
 | `OverscrollEffect` renderer | stretch/translation/glow paint | Scroll offset/content layout |
 | Navigation/overlay | transition timing/content | Global clock |
-| HAL | platform motion preference/profile | App animation policy |
+| HAL (hardware/OS abstraction layer, [`hal.md`](../design/hal.md)) | platform motion preference/profile | App animation policy |
 
 ## 3. Timeline and sampling
+
+A tick is one fixed-step update of duration `dt` ([`game-loop.md`](../design/game-loop.md)). "Dirty" means flagged for recomputation in the style/layout/paint/render domains ([`dirty-rendering.md`](../design/dirty-rendering.md)).
 
 ```text
 tick(dt):
@@ -45,14 +47,14 @@ tick(dt):
 - Use the simulation clock, never wall time; deterministic mode injects start time and dt.
 - Sampling happens before style/layout/paint; render may interpolate between ticks.
 - An animation that only changes transform/opacity does not mark layout dirty.
-- Completion callbacks run on the UI thread at a tick boundary; no detached tasks.
-- Hidden/occluded/minimized pauses animations unless explicitly allowed.
+- Completion callbacks run on the UI thread at a tick boundary; no detached tasks (AGENTS.md Non-negotiables rule 12, [ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime)).
+- Hidden/occluded/minimized pauses animations unless explicitly allowed (this file does not say what grants the permission).
 
 ## 4. Curves, springs, and tokens
 
 - Easing: linear, ease*, cubic-bezier, steps; color in sRGB for v1.
 - Springs: damped harmonic oscillator integrated at fixed dt (semi-implicit Euler).
-- Standard duration tokens: `fast` 120 ms, `normal` 200 ms, `slow` 320 ms (library defaults;
+- Standard duration tokens: `fast` 120 ms, `normal` 200 ms, `slow` 320 ms (defaults of the bundled component library, [`component-library.md`](../design/component-library.md);
   apps may override).
 - A spring is defined by `(stiffness, damping, mass, initial_velocity)`; retargeting keeps
   position/velocity.
@@ -81,7 +83,7 @@ tick(dt):
 - Snap/paging chooses a deterministic target from position/velocity; reduced motion = immediate.
 - `scroll_to`/`scroll_into_view` use a tween/spring with cancellation on user input.
 - A new pointer down interrupts fling/snap and preserves continuity.
-- Scroll-driven animations are deferred; do not couple layout to scroll progress in V1.
+- Scroll-driven animations are not in V1 (section 10); do not couple layout to scroll progress.
 
 ## 7. Overscroll effects
 
@@ -115,8 +117,8 @@ Modes:
   overlays are not stretched.
 - `Bounce`: content layer translates past the edge (no scale).
 - `Platform`: HAL profile. Proposed defaults: iOS/macOS = `Stretch`, Android = `Stretch`
-  (glow only for legacy), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
-  supported. Apps may override per `Scroll`.
+  (glow only for legacy; this file does not define "legacy"), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
+  the platform's HAL profile supports it. Apps may override per `Scroll`.
 
 Drag beyond an edge:
 
@@ -129,7 +131,7 @@ visual = max * raw / (raw + max)     // monotonic, asymptotically max
 - The content is transformed around the opposite edge and clipped to the viewport.
 - Sticky headers/scrollbars stay fixed; edge glow is painted by the container.
 - No overscroll if content fits the viewport; no overscroll on the wrong axis.
-- Nested scroll: only the last eligible container applies the effect; `overscroll-behavior`
+- Nested scroll: only the last eligible container applies the effect; `overscroll-behavior` (the CSS property)
   controls chaining separately. `contain`/`none` do not animate past the edge.
 - Mouse wheel/trackpad and touch use the same state but may have different HAL profiles.
 
@@ -146,11 +148,11 @@ stop when |visual| < 0.5 px and |velocity| < 5 px/s
 - A new pointer down catches the current visual value and cancels the spring without a jump
   (`raw = max * visual / (max - visual)` when `visual < max`).
 - Content-size/axis/config changes cancel the spring and re-clamp.
-- The effect never changes `ScrollState.offset`, content size, focus, or automation IDs.
+- The effect never changes `ScrollState.offset` (defined in [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md)), content size, focus, or automation IDs ([`automation-ids-v1.md`](automation-ids-v1.md)).
 
 Rendering:
 
-- Stretch/bounce applies to the content layer only; damage is the union of old/new visual bounds.
+- Stretch/bounce applies to the content layer only; damage (the screen region that must be repainted, [`dirty-rendering.md`](../design/dirty-rendering.md)) is the union of old/new visual bounds.
 - No relayout; transform/paint only. Text/glyph rendering may stretch with the layer.
 - Glow is a paint primitive clipped to the container; no layout/GPU target allocation per frame.
 - The effect stops requesting frames when at rest; hidden/occluded pauses it.
@@ -159,7 +161,7 @@ Reduced motion/accessibility:
 
 - `prefers-reduced-motion` -> `None` (clamp immediately); no stretch/bounce/glow animation.
 - The effect is never the only feedback; scroll position/state remains correct.
-- Power-save may disable glow/stretch before dropping frames.
+- Power-save (the low-power policy of [ADR-019](../../decisions/ADR-019-power-aware-runtime.md)) may disable glow/stretch before dropping frames.
 
 ## 8. Overlay/route transitions
 
@@ -175,8 +177,8 @@ Reduced motion/accessibility:
 - Unit: easing/spring convergence, retarget/interrupt, epsilon stop, reduced motion.
 - Scroll: fling/snap/scroll-to cancel, overscroll resistance monotonic/asymptotic, release
   convergence, interruption without jump, nested/axis/RTL, wheel vs touch.
-- Golden: stretch/bounce/glow at fixed frames, route/overlay transition frames, press/focus.
-- Headless: assert visual overscroll state, zero at rest, no offset/layout change.
+- Golden (reference-image comparison, [`golden-tests-v1.md`](golden-tests-v1.md)): stretch/bounce/glow at fixed frames, route/overlay transition frames, press/focus.
+- Headless (no window, driven by [`headless-automation-v1.md`](headless-automation-v1.md)): assert visual overscroll state, zero at rest, no offset/layout change.
 - No animation frame when at rest; no leak after node removal.
 
 ## 10. Deferred/open questions

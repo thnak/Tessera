@@ -1,6 +1,13 @@
 # Input handler and event pipeline
 
-Status: design for Big Step B2. Companion to [`game-loop.md`](game-loop.md),
+Status: design for Big Step B2 (runtime slice; see
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision record:
+[ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
+Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
+fixed-step update of the runtime loop; golden = deterministic reference image; SPSC = single-producer
+single-consumer queue; V1 = first release (scope rule in
+[AGENTS.md Non-negotiables](../../AGENTS.md#non-negotiables) item 8); see
+[`glossary.md`](../reference/glossary.md). Companion to [`game-loop.md`](game-loop.md),
 [`scene-graph.md`](scene-graph.md), [`ui-model.md`](ui-model.md),
 [`accessibility.md`](accessibility.md), [`mobile-integration.md`](mobile-integration.md),
 [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md),
@@ -28,7 +35,7 @@ Status: design for Big Step B2. Companion to [`game-loop.md`](game-loop.md),
 | Text | committed characters | `TextEvent` |
 | IME | composition start/update/end | `CompositionEvent` |
 | Window | focus/blur, enter/leave, resize, DPI | lifecycle/focus events |
-| Gamepad | later | `GamepadEvent` |
+| Gamepad | not in B2; no release named (see section 14) | `GamepadEvent` |
 | Custom | element-emitted | `CustomEvent` |
 
 Platform backends (`hal/input`) translate OS messages:
@@ -36,8 +43,8 @@ Platform backends (`hal/input`) translate OS messages:
 - Windows: `WM_POINTER*`, `WM_MOUSE*`, `WM_KEY*`, `WM_CHAR`, `WM_IME_*`, DPI change.
 - Linux/X11: XInput2, `XKB`, RandR, Present.
 - Linux/Wayland: `wl_pointer`, `wl_keyboard`, `wl_touch`, `text-input`, `wp_presentation`.
-- Android: later (`MotionEvent`, `KeyEvent`, `InputConnection`).
-- macOS: later (ADR-010).
+- Android: not implemented; planned in Big Step F (`MotionEvent`, `KeyEvent`, `InputConnection`; see [`mobile-integration.md`](mobile-integration.md)).
+- macOS: deferred ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via MoltenVK).
 
 No platform-specific type may leak into `ui/`.
 
@@ -137,7 +144,7 @@ EventResult on_event(const ElementEvent&, CustomEventDispatch&);
 - Focus trapping for modal dialogs; escape restores the previous focus.
 - Window blur clears active/pressed state but may retain focus for restore.
 - Keyboard events go to the focused node; if unhandled, bubble to ancestors/window.
-- Shortcuts are matched after normal propagation (or before, if registered as global).
+- Shortcuts are matched after normal propagation (or before, if registered as global; the registration API is not specified).
 - Key repeat is delivered with `repeat=true`.
 - Text input: `TextEvent` is delivered to the focused editable node; IME composition events
   update a composition buffer and are committed as text on end.
@@ -150,7 +157,7 @@ State machine per pointer:
 Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
 ```
 
-- `:hover` is set on the deepest hit target (and optionally ancestors for `:hover` chains).
+- `:hover` is set on the deepest hit target (and ancestors, when a `:hover` rule targets an ancestor chain).
 - `:active` is set on the press target while a primary button is down.
 - `:focus` is independent of pointer state.
 - `:disabled`/`:checked` come from node state, not pointer state.
@@ -210,16 +217,16 @@ Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
   IME via `WM_IME_*`; focus via `WM_SETFOCUS`/`WM_KILLFOCUS`.
 - X11: XInput2 for raw/pointer events; XKB for keyboard layout; RandR for DPI/refresh.
 - Wayland: seat/keyboard/pointer/touch; text-input protocol; frame callbacks are not input.
-- Android/macOS: deferred; keep the normalized model platform-neutral.
+- Android/macOS: deferred (Android: Big Step F; macOS: ADR-010); keep the normalized model platform-neutral.
 - Resize/DPI/window lifecycle is normalized separately; see
   [`window-resize.md`](window-resize.md).
 
 ## 14. Open questions
 
-- Gesture recognizers/arena live in `ui/input`; system edge/back gestures are HAL policy.
+- Gesture recognizers/arena (the system that decides which recognizer wins a pointer sequence) live in `ui/input`; system edge/back gestures are HAL policy.
   Remaining: exact claim/reject API and custom element consumption (see
   [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
-- Accessibility actions (invoke, set value) mapped into the same event flow.
+- Accessibility actions (invoke, set value) mapped into the same event flow (see [`accessibility.md`](accessibility.md)).
 - Gamepad and stylus pressure/tilt.
 - IME candidate-window styling and positioning across platforms.
 - Event timestamp source and clock correlation with the game loop.

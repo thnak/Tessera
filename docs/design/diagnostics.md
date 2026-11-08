@@ -1,11 +1,19 @@
 # Diagnostics, tracing, and profiling
 
-Status: design for Big Step B2/B3. Normative decision:
-[ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md). Crash-report pipeline:
+Status: design for Big Step B2 (runtime slice) and B3 (window/swapchain path); both are defined in
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Normative decision:
+[ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling). Crash-report pipeline:
 [`crash-reporting-v1.md`](../specs/crash-reporting-v1.md); devtools:
 [`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md).
 
 ## 1. Goals
+
+Terms: tick = one fixed-step update of the runtime loop ([`game-loop.md`](game-loop.md)); damage = region
+of the target that must be redrawn ([`dirty-rendering.md`](dirty-rendering.md)); RHI = render hardware
+interface; VMA = Vulkan Memory Allocator (GPU memory library); VRR = variable refresh rate; lavapipe =
+Mesa software Vulkan driver used for headless tests; golden = deterministic reference image (see
+[`glossary.md`](../reference/glossary.md)); TTI = time to interactive; INP = interaction to next paint;
+ETW = Event Tracing for Windows; PDB/DWARF = debug-symbol formats.
 
 - Actionable diagnostics with bounded overhead, enabled in debug and optionally in production.
 - Structured, correlatable data: logs, spans, metrics, counters, captures, crash reports.
@@ -57,15 +65,15 @@ Example shape:
   TESSERA_TRACE_TASK(task_id, "load_image");
   ```
 
-- Spans nest and carry frame/tick/task/window ids, plus `uiId`/`componentId`/`nodeId` where
-  available (see [`automation-ids-v1.md`](../specs/automation-ids-v1.md)).
+- Spans nest and carry frame/tick/task/window ids, plus `uiId`/`componentId`/`nodeId` when the
+  span is tied to a node (see [`automation-ids-v1.md`](../specs/automation-ids-v1.md)).
 - CPU spans: input, style, layout, paint, draw-list build, submit, present wait;
   `element.attach/update/event/render/detach` for custom elements.
 - GPU spans: timestamp queries per pass/pipeline; optional pipeline statistics.
 - Async spans: task start/resume/await/cancel; queue wait vs run time.
 - Export: Chrome Trace Event JSON / Perfetto protobuf; optional Tracy, ETW, ftrace, systrace,
   Instruments adapters.
-- Sampling/flamegraph hooks where available; no symbols required for counters.
+- Sampling/flamegraph hooks on platforms whose profiler supports them (not specified per platform); no symbols required for counters.
 
 ## 5. Metrics and counters
 
@@ -106,7 +114,7 @@ Metrics are lock-free counters/gauges; snapshots are cheap and non-blocking.
 ## 7. Crash handling and breadcrumbs
 
 - Platform crash handlers: SEH/minidump on Windows, signal handlers on Linux, Mach exception/
-  signal on macOS, `ANR`/tombstone integration on Android later.
+  signal on macOS, `ANR`/tombstone integration on Android (in Big Step F, mobile; see [`mobile-integration.md`](mobile-integration.md)).
 - Keep a bounded in-memory log ring and breadcrumbs (last frames/ticks, window metrics, GPU
   state, async tasks).
 - Write a minidump/crash report atomically; include build id, GPU/driver, OS version, config
@@ -118,7 +126,7 @@ Metrics are lock-free counters/gauges; snapshots are cheap and non-blocking.
 
 - Trigger a GPU capture (RenderDoc/PIX/RGP) with a frame marker and a reproducible scene setup.
 - Screenshot/frame dump: PNG + raw RGBA + structural report (node ids/bounds/styles).
-- Frame graph/draw-list dump for diffing; golden diff integration (ADR-009).
+- Frame graph/draw-list dump for diffing; golden diff integration ([ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests).
 - Validation: Vulkan validation layers in debug and CI; API validation; leak checks;
   GPU-assisted validation optional.
 - Shader debug markers/pipeline names for vendor tools.
@@ -146,12 +154,12 @@ Metrics are lock-free counters/gauges; snapshots are cheap and non-blocking.
 }
 ```
 
-Tooling/CI may force `tracing`/capture; release defaults are conservative.
+Tooling/CI may force `tracing`/capture; release defaults are the ones in [`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md).
 
 ## 10. Privacy and security
 
 - No secrets, tokens, passwords, or full file contents in logs.
-- Redact paths/user names by default where configured.
+- Redact paths/user names when `redactPaths` is true (default `true` in [`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md)).
 - Telemetry/upload is opt-in and documented; offline by default.
 - Crash dumps may contain memory; treat as sensitive.
 - Log files rotate and are size-capped; no unbounded growth.
@@ -162,10 +170,10 @@ Tooling/CI may force `tracing`/capture; release defaults are conservative.
 - Windows: debugger output, ETW, PIX, WPA; minidump via DbgHelp/Crashpad.
 - Linux: `stderr`, journald/file, perf/ftrace, RenderDoc, sysprof; core dumps.
 - Wayland/X11: session logs; avoid blocking compositor calls in the log path.
-- Android: logcat, systrace/Perfetto, tombstone (later).
-- macOS: os_log/Instruments (later).
+- Android: logcat, systrace/Perfetto, tombstone (Big Step F, mobile).
+- macOS: os_log/Instruments (macOS is deferred, [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)).
 - Optional third-party: spdlog (logging), Tracy (profiling), Crashpad (crash). They must stay
-  behind interfaces; no hard dependency for core rendering (see dependency map).
+  behind interfaces; no hard dependency for core rendering (see [`dependencies.md`](../specs/dependencies.md)).
 
 ## 12. Performance rules
 
@@ -187,7 +195,7 @@ Tooling/CI may force `tracing`/capture; release defaults are conservative.
 
 ## 14. Open questions
 
-- Default production log level and retention.
+- Default production log level and retention (no decision yet).
 - Built-in lightweight tracer vs Tracy/Perfetto adapters.
 - GPU timestamp support on lavapipe/CI and fallback behavior.
 - Crash upload service and privacy policy.

@@ -1,6 +1,9 @@
 # Startup, page load, loading screens, and authentication
 
-Status: design for Big Step B2/F. Native app startup/screen load, not web page navigation.
+Status: design for Big Step B2 (runtime slice) and Big Step F (production breadth); both are defined in
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Native app startup/screen
+load, not web page navigation. HAL (hardware/OS abstraction layer) is described in [`hal.md`](hal.md);
+other terms are in [`glossary.md`](../reference/glossary.md).
 
 This document covers cold/warm startup, first screen, loading UI, auth gates, route/screen
 load, and the lazy/preload/unload policy. Resource mechanics are normative in
@@ -16,7 +19,8 @@ is in [`loading-matrix.md`](../guides/loading-matrix.md). Route/auth/restore:
    load.
 3. **Unload is a feature.** Resources are released on route exit, background, logout, memory
    pressure, or budget eviction.
-4. **Never block the UI thread.** Auth, I/O, decode, GPU upload, and network are async.
+4. **Never block the UI thread** ([ADR-021](../../decisions/ADR-021-async-runtime.md), async runtime; see
+   [`async.md`](async.md)). Auth, I/O, decode, GPU upload, and network are async.
 5. **Show something useful early.** The shell/skeleton should appear before data is complete.
 6. **No fake progress and no infinite spinner.** Show real stages or an indeterminate state
    with cancel/retry/offline paths.
@@ -49,7 +53,7 @@ process start
 | Route/deep link | resolve | route bundle/data |
 | First frame | yes | full content |
 | Data/resources | shell/critical data | images/charts/media/next routes |
-| Interactive | as early as safe | background prefetch |
+| Interactive | as soon as input is handled without blocking the UI thread | background prefetch |
 
 Cold vs warm:
 
@@ -82,7 +86,7 @@ thermal); measure on real devices.
 |---|---|---|
 | OS splash | unavoidable on mobile; first frame | no app content; avoid double splash |
 | In-app shell | show chrome/nav immediately | needs cached shell/theme |
-| Skeleton | known layout, data pending | layout must be stable; a11y labels |
+| Skeleton | known layout, data pending | layout must be stable; accessibility labels |
 | Progress | measurable stages | only real progress; no fake % |
 | Progressive | render sections as ready | complexity; avoid layout shift |
 | Blocking spinner | only when nothing useful can render | worst perceived performance |
@@ -94,7 +98,7 @@ Rules:
 - Skeletons must match final layout to avoid layout shift.
 - Do not fake progress; if unknown, use indeterminate + stage text.
 - Always provide cancel/retry/offline/error paths for long loads.
-- Minimum display time is a last resort; it usually makes startup feel slower.
+- Minimum display time is a last resort; it can make startup feel slower (the policy is an open question, section 11).
 - Announce loading state to accessibility; respect reduced motion.
 - Loading UI must not block input/focus unnecessarily.
 
@@ -122,7 +126,7 @@ Rules:
 - On logout: clear user-scoped caches/resources, cancel tasks, return to auth/guest.
 - Protect sensitive screens from capture (`FLAG_SECURE`/platform equivalents).
 - Auth screen must be accessible: labels, focus order, errors, progress, reduced motion.
-- Biometrics/passkeys are platform bridges; failure falls back to the normal flow.
+- Biometrics/passkeys are platform bridges (OS-edge adapters, see [`bridges.md`](bridges.md)); failure falls back to the normal flow.
 
 ## 6. Screen/route load
 
@@ -151,17 +155,17 @@ Everything else is requested on demand or preloaded with a priority. See
 Unload triggers:
 
 - route exit / no lease
-- app background/minimized (policy)
+- app background/minimized (per the unload policy in [`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md))
 - logout (user-scoped resources)
 - memory pressure / cache budget
-- hot reload/asset generation change
+- hot reload (design-time preview, see [`designer.md`](designer.md))/asset generation change
 - error/expired resource
 
 Never unload pinned/in-use resources; retire GPU resources after frames in flight.
 
 ## 8. Failure, offline, degraded
 
-- Cache-first shell + stale data where safe; mark stale.
+- Cache-first shell + stale data (only for data the app marks as cacheable; the marking rule is not specified here); mark stale.
 - Retry with backoff for transient failures; no retry storm.
 - Offline screen with cached content and a clear action.
 - Partial UI is better than a blank screen; show what is available.
@@ -176,8 +180,8 @@ Never unload pinned/in-use resources; retire GPU resources after frames in fligh
 - Desktop: first frame can be immediate; GPU/pipeline warm-up may dominate cold start.
 - Mobile: cold start includes OS splash/scene; no background rendering; auth/secure storage
   bridges; respect thermal/memory.
-- Kiosk/embedded: preload critical shell, cap memory, no auth or device auth, unload offscreen.
-- Web/Wasm designer: not production; same principles, browser fetch/caching is separate.
+- Kiosk/embedded (no platform backend is scheduled; not specified beyond this line): preload critical shell, cap memory, no auth or device auth, unload offscreen.
+- Web/Wasm designer (design-time viewer, [`designer.md`](designer.md)): not production; same principles, browser fetch/caching is separate.
 
 ## 10. Tests and metrics
 
@@ -192,7 +196,7 @@ Never unload pinned/in-use resources; retire GPU resources after frames in fligh
 
 - Exact startup budgets per platform/form factor.
 - Whether auth gate is app-level or route-level by default.
-- Minimum loading-screen time policy (avoid by default?).
+- Minimum loading-screen time policy (no decision yet; section 4 says it is a last resort).
 - Preload triggers and budgets on mobile/power-save.
 - Cache-first vs network-first defaults per app profile.
 - How to measure perceived load time reliably.

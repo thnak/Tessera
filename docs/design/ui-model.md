@@ -1,7 +1,9 @@
 # UI model: components, scene graph, and the frame
 
-Status: design for Big Steps B2/C. The B1 scene graph is implemented; components/hooks/styles
-are not.
+Status: design for Big Step B2 (runtime slice) and Big Step C (compiler vertical slice); both are defined in
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). The B1 (Big Step B phase 1,
+renderer core) scene graph is implemented; components/hooks/styles are not. Terms (IR, RHI, Yoga,
+ComputedStyle, protected region, WindowMetrics) are in [`glossary.md`](../reference/glossary.md).
 
 Tessera combines a **declarative component model** (JSX/React syntax at design time) with a
 **retained scene graph** at runtime. The compiler lowers components to C++ that constructs and
@@ -20,6 +22,9 @@ the renderer consumes an immutable draw list. Styles are computed on scene nodes
 component objects.
 
 ## 2. Component contract (V1)
+
+V1 = the first release; its scope rule is [AGENTS.md Non-negotiables](../../AGENTS.md#non-negotiables)
+item 8 (small, explicit hooks subset, unsupported patterns rejected loudly).
 
 A component has:
 
@@ -48,11 +53,11 @@ See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ```text
 Component.tsx
-  -> parser adapter
-  -> Tier 1 React rules (hooks order, purity, valid JSX)
-  -> Tier 2 bindings (`// Note: bind::<id>`)
+  -> Tessera JSX/TSX front end ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md))
+  -> Tier 1 React rules (hooks order, purity, valid JSX; see compiler.md)
+  -> Tier 2 bindings (`// Note: bind::<id>`; see compiler.md)
   -> custom element manifest/registry (`ui/elements.json`)
-  -> IR (docs/specs/ir-v1.md)
+  -> IR (docs/specs/ir-v1.md; neutral intermediate representation)
   -> generated C++:
        Component::build(Node& parent) / Component::update()
        state members + setters
@@ -60,6 +65,7 @@ Component.tsx
        protected developer regions
 ```
 
+The compiler design is in [`compiler.md`](compiler.md) and the IR in [`ir-v1.md`](../specs/ir-v1.md).
 Generated C++ is allowed to construct scene nodes and call runtime APIs. It must not parse
 JSX, execute JavaScript, or depend on the compiler at runtime.
 
@@ -72,8 +78,8 @@ JSX, execute JavaScript, or depend on the compiler at runtime.
 - local-to-parent `Mat3 transform`
 - children in paint order (last child is topmost)
 - `visible`
-- style/dirty state (B2)
-- semantics/accessibility data (B2/F)
+- style/dirty state (Big Step B2)
+- semantics/accessibility data (data model in B2; platform bridges in Big Step F)
 - virtual `on_event(Event&)`
 
 Derived values:
@@ -96,7 +102,7 @@ children topmost-first, then the node itself.
   frame.
 - Removed nodes are detached and retired after the current frame; GPU resources follow the
   resource lifetime rules.
-- Text/content changes mark style/text/layout/paint as appropriate.
+- Text/content changes mark style, text measurement, layout and paint dirty (see [`dirty-rendering.md`](dirty-rendering.md) section 3).
 
 V1 lists are explicit runtime list models; the compiler rejects dynamic `.map()` expressions
 that cannot be statically analyzed. Large collections use `VirtualList`/`VirtualGrid`; see
@@ -107,7 +113,7 @@ the resource cache, while per-instance renderer state is retired after frames in
 
 ## 6. Style, layout, paint, animation
 
-Order per tick:
+Order per tick (the loop itself is in [`game-loop.md`](game-loop.md) section 3):
 
 ```text
 input/pseudo-state -> style -> layout -> animation -> paint -> render
@@ -118,7 +124,7 @@ input/pseudo-state -> style -> layout -> animation -> paint -> render
 - **Animation**: fixed-step sampling -> animated values written into computed style before
   layout/paint.
 - **Paint**: draw list/batches from style + bounds + text.
-- **Render**: RHI command list; dirty domains may skip stages.
+- **Render**: RHI (render hardware interface) command list; a stage is skipped when its dirty domain is clean.
 
 Each stage has a dirty bit; see [`dirty-rendering.md`](dirty-rendering.md). A style change only
 raises layout/paint when the relevant computed group changed.
@@ -126,10 +132,10 @@ raises layout/paint when the relevant computed group changed.
 ## 7. Events and focus
 
 - Pointer: hit test -> capture/target/bubble (W3C-style).
-- Keyboard: focused node -> bubble; shortcuts may be global.
+- Keyboard: focused node -> bubble; shortcuts may be registered as global (the registration API is not specified here; see [`input.md`](input.md)).
 - Pointer capture: a node can capture a pointer until release/cancel.
 - Hover/active/focus/focus-visible feed the style engine before style resolution.
-- IME composition is routed to the focused text input (B2).
+- IME (input method editor) composition is routed to the focused text input (B2).
 - Events are dispatched on the UI thread; no async delivery and no locks.
 - Event handlers may mutate state; layout/paint are deferred to the frame boundary.
 
@@ -141,15 +147,16 @@ See [`input.md`](input.md) and [`scene-graph.md`](scene-graph.md).
 - Breakpoints/media queries and container queries adapt layout; see
   [`responsive.md`](responsive.md).
 - Fold posture is a metric, not a separate component mode: tabletop -> top content/bottom
-  controls; book -> left/right panes; avoid `occlusion=FULL`/`separating` hinge areas.
+  controls; book -> left/right panes; avoid `occlusion=FULL`/`separating` hinge areas (fold fields are defined in [`os-events-v1.md`](../specs/os-events-v1.md)).
 - Orientation/fold changes preserve state and focus; the compiler-generated component is not
-  recreated unless the platform forces a restart (Android fold/unfold).
+  recreated unless the platform forces a restart (Android fold/unfold; see
+  [`mobile-integration.md`](mobile-integration.md) section 3.5).
 
 ## 9. Text and accessibility
 
 - Text nodes own shaped runs and glyph quads; layout uses measure callbacks.
 - Every interactive node owns a semantics entry (role/name/state/actions).
-- Accessibility tree mirrors the scene tree and updates on semantic dirty.
+- The accessibility (semantics) tree mirrors the scene tree and updates when a node's semantics change (see [`accessibility.md`](accessibility.md)).
 - Text scale, high contrast, reduced motion, and screen-reader state are inputs, not global
   flags mutated by user code.
 

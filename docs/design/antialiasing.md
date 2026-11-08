@@ -1,7 +1,7 @@
 # Anti-aliasing
 
-Status: B1 has **partial** AA. It is analytic SDF AA for rounded rectangles only; there is no
-MSAA/FXAA/TAA, no text AA yet, and no vector-path AA yet.
+Status: B1 (renderer-core phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) has **partial** AA (anti-aliasing). It is analytic SDF (signed distance field) AA for rounded rectangles only; there is no
+MSAA (multisample AA)/FXAA (fast approximate AA)/TAA (temporal AA), no text AA yet, and no vector-path AA yet.
 
 ## 1. What exists today
 
@@ -15,7 +15,7 @@ color.a *= alpha;
 ```
 
 - `Batched2DConfig::enable_aa` (default `true`) controls the radius.
-- `Batched2DConfig::golden_mode` forces `aa_radius = 0.0`, producing hard, pixel-stable edges
+- `Batched2DConfig::golden_mode` (deterministic-test mode; see "Golden" in the [glossary](../reference/glossary.md)) forces `aa_radius = 0.0`, producing hard, pixel-stable edges
   (`--golden` on the demo).
 - No `discard`; transparent fragments write alpha 0 and disappear through alpha blending.
   This avoids requiring `shaderDemoteToHelperInvocation`.
@@ -28,12 +28,12 @@ color.a *= alpha;
 |---|---|
 | Solid quads | Axis-aligned; fractional edges can alias; no geometric AA |
 | Textured quads | Texture filtering only (nearest/linear); no geometric AA |
-| Text/glyphs | Text stack/atlas is B2; expected FreeType/atlas AA + subpixel policy |
-| Vector paths/strokes | ADR-004 (ThorVG/Skia); no path rasterizer yet |
+| Text/glyphs | Text stack/atlas is B2 ([`text.md`](text.md)); expected FreeType/atlas AA + subpixel policy |
+| Vector paths/strokes | [ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) (ThorVG/Skia); no path rasterizer yet |
 | Lines/circles/arbitrary shapes | Only rounded-box SDF; no general SDF |
 | MSAA | No multisample pipeline/sample count |
 | FXAA/TAA/post-process | Not implemented |
-| Transforms/DPI | AA radius is fixed in local units (1.0); scaled/rotated quads may get a different screen-space width |
+| Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | AA radius is fixed in local units (1.0); scaled/rotated quads may get a different screen-space width |
 | Golden coverage | No pixel golden asserts AA quality yet; B1 tests check draws/vertices |
 
 ## 3. Quality and configuration (proposed)
@@ -50,13 +50,13 @@ AA is a quality/power knob; it must not change layout. Proposed config:
 }
 ```
 
-- `aaMode`: `off`, `sdf` (V1), `auto`; later `msaa`/`post`.
+- `aaMode`: `off`, `sdf` (V1, first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables)), `auto`; `msaa`/`post` have no release assigned.
 - `aaRadius`: 0.5..2.0 local units; `0` = off (golden).
 - `msaaSamples`: 1/2/4/8; increases bandwidth/memory; not V1.
 - `textAa`: `grayscale`/`subpixel`; golden disables subpixel.
-- `pathAa`: delegated to the path backend (ADR-004).
+- `pathAa`: delegated to the path backend ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)).
 - Golden/deterministic mode pins `aaMode=sdf`/radius 0 or a fixed radius; user tunables are
-  ignored (see `buffer-config-v1.md` for tunable rules).
+  ignored (see [`buffer-config-v1.md`](../specs/buffer-config-v1.md) for tunable rules).
 
 These are proposals; no config is implemented in B1.
 
@@ -78,19 +78,19 @@ make it a quality/power option, not the default.
 ## 5. Screen-space correctness
 
 The current radius is in local space. With a scaled transform, the screen-space edge width
-changes. Future SDF AA should use derivatives:
+changes. A proposed change (no release assigned): SDF AA should use derivatives:
 
 ```glsl
 float w = max(fwidth(d), 1e-4);
 alpha = 1.0 - smoothstep(-w, w, d);
 ```
 
-This keeps a ~1 px edge regardless of scale/rotation/DPI. It must be validated on lavapipe and
+This keeps a ~1 px edge regardless of scale/rotation/DPI. It must be validated on lavapipe (Mesa software Vulkan driver) and
 real GPUs before replacing the fixed radius.
 
 ## 6. Color and gamma
 
-- Alpha blending currently assumes a simple alpha blend; sRGB/gamma policy is a B2 follow-up.
+- Alpha blending currently assumes a simple alpha blend; sRGB/gamma policy has no release assigned (see "B2 / known limits" in [`renderer.md`](renderer.md)).
 - Text AA in linear vs sRGB space can look different; pin the policy in golden mode.
 - Overlapping translucent edges need a deterministic blend order (painter's order).
 

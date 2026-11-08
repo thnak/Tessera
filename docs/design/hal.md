@@ -1,10 +1,16 @@
 # HAL and platform layer
 
-Status: design for Big Step B3. `src/hal/` and `src/platform/` are placeholders today.
+Status: design for Big Step B3 (window/swapchain path; see
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/hal/` and
+`src/platform/` are placeholders today. Decision record:
+[ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (window resize and lifecycle; OS
+compliance lives in the HAL) and
+[ADR-023](../../decisions/ADR-023-os-event-normalization-and-foldables.md) (OS event normalization
+and foldables).
 Mobile-specific surface/input/IME/accessibility/declarations are in
 [`mobile-integration.md`](mobile-integration.md).
 
-The HAL is the only place that knows about operating-system APIs. It normalizes window,
+The HAL (hardware/OS abstraction layer) is the only place that knows about operating-system APIs. It normalizes window,
 display, input, lifecycle, power, timer, filesystem, graphics-surface, and audio signals into
 Tessera types. The UI layer never receives a `HWND`, `xcb_window_t`, `wl_surface*`, `ANativeWindow*`,
 or `NSWindow*`.
@@ -21,7 +27,7 @@ or `NSWindow*`.
 | Timer | monotonic clock, sleep/wakeup, frame deadlines | OS timers + runtime loop |
 | Filesystem | paths, watch, atomic write, asset roots | Win32, inotify/FSEvents, Android assets |
 | Graphics | surface creation/destruction, resize handshake | Vulkan surface extensions per platform |
-| Audio | optional notification/UI sounds | miniaudio (optional) |
+| Audio | optional notification/UI sounds | miniaudio (optional; see [`dependencies.md`](../specs/dependencies.md)) |
 
 The detailed OS event mapping is normative in [`os-events-v1.md`](../specs/os-events-v1.md).
 Resize/DPI/lifecycle rules are in [`window-resize.md`](window-resize.md).
@@ -72,7 +78,8 @@ struct PowerState {
 };
 ```
 
-`WindowMetrics` is the only geometry/display contract the UI sees. `FoldInfo` is defined in
+`WindowMetrics` is the only geometry/display contract the UI sees (the same struct is also shown in
+[`window-resize.md`](window-resize.md) section 1 with different field types for logical size). `FoldInfo` is defined in
 [`os-events-v1.md`](../specs/os-events-v1.md).
 
 ## 3. Interfaces (target shape)
@@ -106,14 +113,15 @@ public:
 ```
 
 These are target interfaces, not implemented headers. Keep them small; add a method only when
-a real feature needs it (ADR-003 "thin RHI" applies to the HAL too).
+a real feature needs it ([ADR-003](../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md), thin RHI and batched 2D
+renderer, whose "thin" rule applies to the HAL too; RHI = render hardware interface).
 
 ## 4. Event delivery
 
 ```text
 platform callback -> record raw event (no user code)
   -> normalize -> coalesce -> queue
-  -> UI thread drains at tick/frame boundary
+  -> UI thread drains at tick/frame boundary (tick = one fixed-step update, [`game-loop.md`](game-loop.md))
   -> update metrics/state -> mark dirty -> wake loop if visible
 ```
 
@@ -182,13 +190,13 @@ See [`window-resize.md`](window-resize.md) for the state machine and
 - Synthetic event scripts per platform: resize, DPI, display hotplug, refresh/VRR, fold,
   suspend/resume, lock/unlock, IME, power/thermal.
 - A fake HAL for unit tests: deterministic `WindowSystem`/`Window`/`GraphicsSurface`.
-- Golden mode never calls platform APIs.
-- Platform smoke tests run in CI where possible (Windows/Linux first).
+- Golden mode (deterministic reference-image tests, [`golden-tests-v1.md`](../specs/golden-tests-v1.md)) never calls platform APIs.
+- Platform smoke tests run in CI on Windows and Linux (the only platforms with a build in AGENTS.md Definition of done).
 - Multi-monitor/DPI and fold sequences are explicit test fixtures.
 
 ## 10. Current status
 
 - `src/hal/*` and `src/platform/*` contain placeholders only.
 - B1 is offscreen; no window or swapchain.
-- B3 implements the window/swapchain path and native platform backends.
+- B3 implements the window/swapchain path and native platform backends (Windows and Linux per Big Step F; macOS via [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per [`mobile-integration.md`](mobile-integration.md)).
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).

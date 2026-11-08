@@ -1,17 +1,20 @@
 # Resource lifecycle v1: lazy, preload, lease, unload
 
-Status: proposed (Big Step B2/F). Normative companion to
+Status: proposed (Big Steps B2 and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Steps"). Normative companion to
 [`resources.md`](../design/resources.md), [`memory-model-v1.md`](memory-model-v1.md),
 [`startup-and-loading.md`](../design/startup-and-loading.md), and
 [`async-data-v1.md`](async-data-v1.md).
 
-Resources are **lazy by default**. Only an explicit critical set is eager; preload is a
+Resources are **lazy by default**. A "lease" is a counted reference to a loaded resource held
+through a `ResourceHandle` (section 4); a resource with no leases can be unloaded. Only an explicit critical set is eager; preload is a
 scheduled lazy load; every loaded resource has an owner/lease and an unload path.
 
 ## 1. Principles
 
 1. **Declared, not loaded.** A resource reference does not load until requested/preloaded.
-2. **Demand-driven.** Visible/first-screen resources first; everything else later.
+2. **Demand-driven.** Visible/first-screen resources first; everything else is loaded only
+   when requested or preloaded.
 3. **Preload is a hint.** Priority/deadline/cancellation, not a guarantee.
 4. **Leases, not raw pointers.** Handles/refcounts decide lifetime.
 5. **Unload is normal.** Route exit, background, logout, memory pressure, budget eviction.
@@ -53,7 +56,7 @@ Declared -> Queued -> Loading -> Ready -> Active -> Idle -> Evictable -> Unloadi
 | `Pinned` | never evict/unload while pinned (critical screen) |
 | `Streaming` | progressive chunks/frames; partial ready state |
 | `CacheOnly` | use cache; no network; fail/placeholder if missing |
-| `EagerCritical` | explicitly in the startup critical set (small only) |
+| `EagerCritical` | explicitly in the startup critical set (small only; the size limit is not specified here, see [`startup-and-loading.md`](../design/startup-and-loading.md)) |
 
 ## 4. API
 
@@ -141,7 +144,8 @@ Rules:
 
 - Preload has priority/deadline and is cancellable.
 - Preload respects network/power policy (no aggressive prefetch on battery/power-save).
-- Preload is bounded per tick/frame and by queue depth.
+- Preload is bounded per tick (one fixed-step update, see
+  [`game-loop.md`](../design/game-loop.md))/frame and by queue depth.
 - A preloaded resource still needs a lease when used; preload does not pin forever.
 - Preload is not a reason to block first frame.
 
@@ -151,11 +155,13 @@ Triggers:
 
 - last lease released -> Idle
 - route exit -> unload route-scoped resources
-- app background/minimized (policy)
+- app background/minimized (the policy that decides which resources unload is not specified
+  here)
 - logout -> unload user-scoped resources, clear caches
 - memory pressure -> evict Idle/Evictable, largest/lowest-priority first
-- cache budget exceeded -> LRU/age eviction
-- hot reload/asset generation change -> old generation retires
+- cache budget exceeded -> LRU (least recently used)/age eviction
+- hot reload (design-time preview, see [`designer.md`](../design/designer.md))/asset generation
+  change -> old generation retires
 
 Rules:
 
@@ -173,8 +179,8 @@ Rules:
 - Route budgets: route code/data/images/media.
 - Cache budgets: texture/glyph/path/draw-list/layer.
 - Preload budget per tick/per frame and network bytes.
-- User tunables may adjust some budgets/caps, but only within hard limits
-  ([`buffer-config-v1.md`](buffer-config-v1.md)).
+- User tunables may adjust the budgets and caps marked user-tunable in
+  [`buffer-config-v1.md`](buffer-config-v1.md), but only within that spec's hard limits.
 
 ## 9. Determinism
 
@@ -188,7 +194,7 @@ Rules:
 - Missing asset: deterministic placeholder + diagnostic.
 - Network failure: cache-first/offline; retry/backoff; no retry storm.
 - Decode failure: error placeholder; never crash.
-- OOM: evict caches, keep previous generation, report; no crash.
+- OOM (out of memory): evict caches, keep previous generation, report; no crash.
 - Auth/secure resources: fail closed; never show stale user data.
 - Cancellation is not an error unless the caller treats it as one.
 
@@ -214,6 +220,8 @@ Tests:
 - long-run route churn: no leak, no thrash
 
 ## 12. Open questions
+
+Items are open (no decision yet).
 
 - Cache-first vs network-first defaults per resource class.
 - Disk cache format/encryption/eviction.

@@ -1,13 +1,24 @@
 # Shader manifest v1
 
-Status: proposed (Big Step B/D). Follow-up to ADR-011.
+Status: proposed (Big Steps B and D, defined in [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Follow-up to
+[ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md) (shader authoring and
+cross-compilation).
+
+Terms: **GLSL** is the OpenGL/Vulkan shading language; **SPIR-V** is Vulkan shader bytecode built
+with `glslc`; **WGSL** is the WebGPU shading language; **naga/Tint** are WGSL tools; **SPIRV-Reflect**
+reads interface data from SPIR-V; **lavapipe** is the Mesa software Vulkan driver used for
+headless tests; **golden** is a deterministic reference image ([`golden-tests-v1.md`](golden-tests-v1.md));
+**WebGPU floor** is the minimum feature set every WebGPU implementation must support; **V1** is the
+first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8). See also the
+[glossary](../reference/glossary.md).
 
 Tessera keeps a small shader set working on Vulkan (GLSL -> SPIR-V) and WebGPU (WGSL). A
 shared manifest describes each shader's interface so the two versions cannot silently diverge.
 
 ## 1. File
 
-`tools/shaders/manifest.json` (or `src/rendering/shaders/manifest.json`). One entry per logical
+`tools/shaders/manifest.json` or `src/rendering/shaders/manifest.json` (which of the two is the
+location is not decided; no decision is recorded). One entry per logical
 shader. Backend-specific sources live under:
 
 ```text
@@ -72,16 +83,19 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
 | `stages` | yes | `vertex`, `fragment`, `compute` (compute optional) |
 | `entry` | no | Defaults to `main` per stage |
 | `sources.vulkan` | yes | GLSL stage files; compiled by `glslc` |
-| `sources.webgpu` | yes* | WGSL file(s); required for WebGPU/designer, optional for Vulkan-only elements |
+| `sources.webgpu` | yes (see note) | WGSL file(s); required for WebGPU/designer, optional for Vulkan-only elements |
 | `vertexLayout` | vertex stages | Location/format/semantic; must match C++ `Vertex2D` |
 | `bindings` | no | Group/binding/type/name; must map to Vulkan descriptor sets and WebGPU bind groups |
 | `pushConstants` | no | Vulkan push constants; WebGPU uses a uniform buffer |
 | `tests` | no | Golden/smoke tests per shader |
 
+Note on `sources.webgpu`: required for any shader used by WebGPU or the designer; optional for
+Vulkan-only custom elements (see section 7).
+
 ## 4. Compatibility rules
 
 - Shared shaders may not use geometry/tessellation shaders, push constants on WebGPU, or
-  features outside the WebGPU floor.
+  features outside the WebGPU floor. (Shared = a shader with both Vulkan and WebGPU sources.)
 - Vulkan-only optimizations (push constants, specialization constants) are allowed only in a
   Vulkan-specific variant with a documented parity fallback.
 - Binding layouts must be expressible as both descriptor sets and bind groups.
@@ -92,7 +106,8 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
   - color space and alpha blending
   - clip-space conventions (`Y` flip is backend-specific and documented)
 - The manifest is validated at build time against compiled SPIR-V reflection (SPIRV-Reflect)
-  and WGSL reflection where available.
+  and WGSL reflection where available (WGSL reflection in the browser build is an open question,
+  section 8).
 
 ## 5. Build and test
 
@@ -107,7 +122,8 @@ manifest.json
 - `glslc` version is pinned.
 - Every shader has at least one smoke test; shared shaders have a golden.
 - A manifest/source mismatch fails the build.
-- Shader changes require a golden update or a documented tolerance.
+- Shader changes require a golden update or a documented tolerance (case-file tolerance is the `compare.tolerance` field in
+  [`golden-tests-v1.md`](golden-tests-v1.md), which applies to GPU smoke runs only).
 
 ## 6. Versioning
 
@@ -132,7 +148,7 @@ manifest.json
 
 ## 8. Open questions
 
-- Single-source (Slang/Tint/naga) migration; see ADR-011.
-- Whether compute shaders are in V1 (optional).
+- Single-source (Slang/Tint/naga) migration; see [ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md).
+- Whether compute shaders are in V1 (no decision yet; `compute` is an optional stage value).
 - Reflection for WGSL in the browser build.
 - Shader variant matrix (quality/power modes).

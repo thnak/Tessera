@@ -35,6 +35,24 @@ Terms used across Tessera docs. Keep definitions short and link to the normative
 | **WGSL** | WebGPU shading language. |
 | **WindowMetrics** | Normalized window/display/fold metrics consumed by the UI. |
 | **Yoga** | Flexbox layout engine used behind the layout adapter. |
+| **Bridge** | Boundary that passes data or control to another runtime (JNI, Objective-C, Wasm, IPC, plugin ABI); production bridges are restricted by [ADR-024](../../decisions/ADR-024-native-first-boundaries.md). |
+| **Damage** | Screen region that changed and must be redrawn; see [dirty-rendering](../design/dirty-rendering.md). |
+| **Epoch** | Counter that identifies the current value or attempt; results carrying an older epoch are discarded. |
+| **Error boundary** | Wrapper that catches synchronous exceptions from a component subtree and shows a fallback; see [error-boundaries-v1](../specs/error-boundaries-v1.md). |
+| **Frames in flight** | Frames submitted to the GPU that have not finished; resources they use are freed only after they finish. |
+| **Glyph atlas** | GPU texture that holds packed glyph bitmaps. |
+| **ICD** | Installable client driver: the GPU driver the Vulkan loader selects (for example `VK_ICD_FILENAMES`). |
+| **IME** | Input method editor: the platform text-composition layer or on-screen keyboard. |
+| **Lease** | Counted hold on a loaded resource; a resource with no leases can be unloaded; see [resource-lifecycle-v1](../specs/resource-lifecycle-v1.md). |
+| **SDF** | Signed distance field: shader technique used for rounded-rectangle edges. |
+| **Tick** | One fixed-step update of the runtime loop; see [game-loop](../design/game-loop.md). |
+| **Tier 1 / Tier 2** | Compiler stages: Tier 1 checks React-style rules (hooks, purity); Tier 2 extracts `bind::` bindings and lowers nodes; see [compiler](../design/compiler.md). |
+| **UiId / ComponentId / NodeId** | Numeric identities: UiId and ComponentId are stable per build; NodeId is a runtime instance id and is not stable; see [automation-ids-v1](../specs/automation-ids-v1.md). |
+| **V1** | First release scope. [AGENTS.md](../../AGENTS.md), Non-negotiables item 8, limits it to a small, explicit feature set. No document defines which Big Steps V1 includes (open decision). |
+| **V1.1** | The first release after V1; no date is set. |
+| **VMA** | Vulkan Memory Allocator, the GPU memory library. |
+| **volk** | Vulkan function loader library. |
+| **G-nn / Q-nn** | Identifiers of gaps and open questions in [app-completeness-cross-check-v1](../architecture/app-completeness-cross-check-v1.md) and [app-completeness-gap-resolutions-v1](../architecture/app-completeness-gap-resolutions-v1.md). |
 
 ## Related
 

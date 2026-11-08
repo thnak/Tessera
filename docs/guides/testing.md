@@ -1,6 +1,6 @@
 # Testing guide
 
-Status: current B1 tests run with CTest; golden tests are B2/B3.
+Status: the tests of Big Step B1 (core renderer) run with CTest; golden tests (deterministic reference images) belong to Big Steps B2/B3 (see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step); Mesa lavapipe is a software Vulkan driver, see [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests). The target test pyramid is in [design/testing.md](../design/testing.md).
 
 ## 1. Run the tests
 
@@ -16,7 +16,7 @@ cmake --build --preset vs2026-release
 ctest --preset vs2026-release
 ```
 
-Linux CI uses lavapipe:
+Linux CI uses lavapipe (software Vulkan ICD, installable client driver):
 
 ```bash
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
@@ -27,7 +27,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | Test | What it covers |
 |---|---|
 | `merger_unit` | protected-region extraction/merge/idempotency/CRLF/warnings |
-| `rhi_null` | null device commands, buffer round-trip |
+| `rhi_null` | null backend (RHI backend with no GPU) device commands, buffer round-trip |
 | `scene_graph` | hit testing, capture/target/bubble, stop propagation |
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
@@ -51,6 +51,8 @@ add_test(NAME my_component COMMAND my_component_tests)
 
 ## 3.0 Headless agent tests
 
+These commands are the target contract from [headless-automation-v1](../specs/headless-automation-v1.md); the `tessera test` and `tessera headless` commands are not implemented yet.
+
 ```bash
 tessera test --script tests/agent/home.json --report out/report.json
 tessera test --script tests/agent/scroll.json --mode golden --out out/
@@ -58,7 +60,7 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 ```
 
 - Use numeric `uiId`/`(uiId,itemKey)` from `generated/automation.manifest.json`, not coordinates.
-- Structural mode (null backend) is fast; golden mode uses software/lavapipe.
+- Structural mode (null backend) is fast; golden mode uses the software path (lavapipe or the CPU rasterizer).
 - Assertions: visibility/text/focus/bounds/events/no boundary catches/golden/audit thresholds.
 - Outputs: `report.json`, `snapshot.json`, `trace.json`, `audit.json`.
 - Custom elements: unit fake context, structural draw stats, golden offscreen shaders, GPU
@@ -70,14 +72,14 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 
 ## 3.1 Error-boundary tests
 
-- Throw in child build/update/effect/event -> fallback shown, error logged.
+- Throw in child build/update/effect/event -> fallback shown, error logged (see [error-boundaries-v1](../specs/error-boundaries-v1.md)).
 - Nested boundary: nearest catches; fallback failure propagates to parent/root.
 - Reset/retry/resetKey; async error report; cancellation does not show fallback.
 - No silent catch; redaction; no throw across threads/FFI; loop protection.
 
 ## 4. Golden tests (target)
 
-- Use the software/lavapipe path, fixed size/scale/fonts/clock/events.
+- Use the software path (lavapipe or the CPU rasterizer), with fixed size, scale, fonts, clock and events.
 - Compare bit-exact; update baselines only with an explicit reviewed command.
 - Failure artifacts: image diff + `report.json` (node bounds/colors/dirty).
 - See [`golden-tests-v1.md`](../specs/golden-tests-v1.md) and
@@ -94,9 +96,9 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 
 ## 6. Sanitizers and validation
 
-- ASan/UBSan: unit/integration tests where supported.
-- TSan: async/threading paths.
-- Vulkan validation layers: mandatory in debug; CI may disable only if lavapipe cannot provide
+- ASan/UBSan (address and undefined-behavior sanitizers): unit/integration tests on toolchains that support them (not yet wired into CI, see section 9).
+- TSan (thread sanitizer): async/threading paths.
+- Vulkan validation layers: mandatory in debug builds; CI may disable them only if lavapipe cannot provide
   the layer.
 - clang-tidy/format: CI gates.
 
@@ -106,13 +108,13 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 - Measure frame stages (style/layout/paint/render), allocation counts, cache hit rates, GPU
   memory.
 - A static scene must produce zero presents/submissions after settling.
-- Record baselines and compare with tolerance; do not gate on noisy wall-clock numbers.
+- Record baselines and compare with a tolerance (value not specified in any doc); do not gate on noisy wall-clock numbers.
 
 ## 8. Fuzzing
 
 - CSS tokenizer/parser, JSX/TSX parser, IR validation, manifest/IPC parsers, asset decoders.
 - Bounded inputs/timeouts; crashes are failures.
-- Run scheduled, not on every PR.
+- Run on a schedule, not on every PR (schedule not specified; no fuzz job exists in `.github/workflows/ci.yml`).
 
 ## 9. CI
 
@@ -125,7 +127,7 @@ Current Linux workflow:
 5. ctest with lavapipe
 6. Vulkan offscreen smoke + artifact
 
-Windows CI should mirror these steps with the VS preset.
+A Windows CI job does not exist yet (`.github/workflows/ci.yml` has only the Ubuntu job); it should mirror these steps with the VS preset.
 
 ## 10. Failure triage
 
@@ -133,4 +135,4 @@ Windows CI should mirror these steps with the VS preset.
 - For GPU-only failures, run with validation layers and lavapipe.
 - For async failures, run TSan and reduce to a deterministic script.
 - For golden failures, inspect `report.json` + diff before updating anything.
-- Add a regression test before/with the fix.
+- Add a regression test before or in the same change as the fix.

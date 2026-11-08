@@ -1,6 +1,9 @@
 # Forms and validation v1
 
-Status: proposed (Big Step C/F). Decision: ADR-029. Companion to
+Status: proposed (Big Steps C and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Steps"). Decision:
+[ADR-029](../../decisions/ADR-029-interaction-completeness.md) (interaction completeness: text
+editing, scrolling, overlays, forms). Companion to
 [`text-editing-v1.md`](text-editing-v1.md), [`i18n-v1.md`](i18n-v1.md),
 [`accessibility-v1.md`](accessibility-v1.md), and [`async-data-v1.md`](async-data-v1.md).
 
@@ -31,6 +34,9 @@ struct FormState {
 - A form owns field state by stable field id; order is declaration order.
 - Values are typed/serializable; no arbitrary objects/functions in state.
 - `dirty` = value differs from initial; `touched` = user interacted/blurred.
+- An epoch is a counter that identifies the current value or submit attempt; a validation or
+  submit result carrying an older epoch is stale and is discarded (see section 2 and
+  section 8.1).
 - `valid` = no blocking errors after validation settles.
 - Server/async errors map to fields or form-level issues.
 
@@ -41,7 +47,7 @@ struct FormState {
 - Cross-field validators receive immutable values; no mutation during validation.
 - Validation order is deterministic; stale async results are discarded by epoch.
 - Errors are values with stable code/message key, severity, and optional field path.
-- Validation does not throw; user-facing messages are localized (`i18n`).
+- Validation does not throw; user-facing messages are localized (see [`i18n-v1.md`](i18n-v1.md)).
 - Validate on change/blur/submit is explicit; default: blur + submit, not every keystroke for
   async.
 
@@ -57,11 +63,12 @@ struct FormState {
 ## 4. Field integration
 
 - `TextInput`/`TextArea`, checkbox/radio/switch, select, slider, custom elements.
-- Field wrapper provides label, help, error, required marker, and `aria`/semantics.
+- Field wrapper provides label, help, error, required marker, and accessibility semantics (ARIA-style label/description/error
+  relations; see [`accessibility-v1.md`](accessibility-v1.md)).
 - Label/description/error ids are linked for accessibility; errors are announced.
 - `autofill` hints are per field; passwords never autofill into non-secure fields.
 - Disabled/read-only fields are not submitted unless explicitly included.
-- Conditional fields are declarative; hidden fields keep or clear state by policy.
+- Conditional fields are declarative; hidden fields keep or clear state (the choice is not specified here).
 
 ## 5. JSX shape
 
@@ -80,8 +87,9 @@ struct FormState {
 </Form>
 ```
 
-- `Form`/`Field` are library components, not new intrinsic nodes; `TextInput`/`TextArea` are
-  intrinsics.
+- `Form`/`Field` are library components, not new intrinsic nodes (built-in JSX element types
+  known to the compiler; see [`component-model-v1.md`](component-model-v1.md)); `TextInput`/
+  `TextArea` are intrinsics.
 - `validate` is a static binding/pure handler, not arbitrary JS at runtime.
 - Values/errors are inspectable for tests and state restoration.
 - No context/suspense dependency; field state is explicit in generated C++.
@@ -122,7 +130,7 @@ Ownership:
 | `FormController` | field registry/order, values, submit state, focus-first-invalid | Widget rendering |
 | `FieldState<T>` | value/initial/dirty/touched/issues/epoch | Async transport |
 | `ValidationPipeline` | sync/async validation scheduling, cancellation | Error localization |
-| `TextInput/TextArea` | editing state/selection/IME | Form value ownership |
+| `TextInput/TextArea` | editing state/selection/IME (input method editor) | Form value ownership |
 | `Field` library component | label/help/error/aria wiring | Validation rules |
 
 Recommended field types: `bool`, `int`, `float`, `string`, `enum`, `date/time`, `uuid`,
@@ -174,12 +182,16 @@ Failure/races:
 
 - Async validation result after value change/unmount is discarded by epoch.
 - Reset during submit aborts submit and invalidates its epoch.
-- Double-submit returns the same in-flight result or is ignored by policy.
+- Double-submit returns the same in-flight result or is ignored (which one is not specified here).
 - External value updates merge only for untouched fields by default; touched fields keep user
   input and surface a conflict.
 - Autofill is a normal value change with a distinct source for UX/diagnostics.
 
 Gap-closure decisions:
+
+Gap IDs below (`G-10`, `G-11`) refer to the entries in
+[`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)
+(resolutions of gaps found by the app-completeness cross-check).
 
 - **G-10**: form schema/types are generated from field declarations; nested paths and keyed
   arrays are supported; cross-field validators run in topological order and cycles are compile
@@ -190,9 +202,12 @@ Gap-closure decisions:
 
 ## 9. Deferred/open questions
 
-- Multi-step/wizard forms and file fields.
-- Server-provided validation schemas/dynamic rules (not V1).
-- Draft persistence conflict merge across windows.
+Each item is unresolved (no decision yet) unless it says otherwise. V1 is the first-release
+scope ([AGENTS.md](../../AGENTS.md#non-negotiables) rule 8, "V1 scope discipline").
+
+- Multi-step/wizard forms and file fields: no decision yet.
+- Server-provided validation schemas/dynamic rules (not in V1).
+- Draft persistence conflict merge across windows: no decision yet.
 - Whether `Field` ships as a library component or an intrinsic wrapper (currently library).
-- Field-level vs form-level async validation scheduling.
+- Field-level vs form-level async validation scheduling: no decision yet.
 - Dynamic field arrays and keyed field identity are defined; large-array performance is open.

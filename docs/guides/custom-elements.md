@@ -1,11 +1,11 @@
 # Custom native elements guide
 
-Status: proposed (B2/C/D). Normative spec: [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
-Decision: ADR-028.
+Status: proposed (Big Steps B2, C and D, defined in [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Normative spec: [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
+Decision: [ADR-028](../../decisions/ADR-028-custom-native-elements.md) (custom native elements).
 
 Use a custom element when declarative UI cannot express the visuals: custom shaders, particles,
 charts with GPU paths, 3D scenes, video/camera surfaces, or game-like interaction. Everything
-else should stay a normal component.
+else should stay a normal component (a generated UI unit, see [component-model-v1](../specs/component-model-v1.md)).
 
 ## 1. When to use
 
@@ -14,12 +14,12 @@ Good fits:
 - 3D scene/terrain/point cloud/game view
 - custom shader/particle/fluid effect
 - GPU chart or large instanced visualization
-- element-specific picking and input
+- element-specific picking (hit-testing inside the element) and input
 
 Bad fits:
 
 - buttons, text, layout, scrolling (use built-in nodes)
-- arbitrary JavaScript or runtime plugins
+- arbitrary JavaScript or runtime plugins (not supported: production has no JS runtime, [ADR-024](../../decisions/ADR-024-native-first-boundaries.md))
 - entire app/window ownership
 - hiding business state in native globals
 
@@ -70,7 +70,7 @@ Create `ui/elements.json`:
 }
 ```
 
-`element` in JSX is this `id`. The compiler generates `generated/elements.g.cpp` (factory
+`element` in JSX is this `id`. The compiler generates `generated/elements.g.cpp` (compile-time factory
 registry) and `generated/elements.d.ts` (typed JSX).
 
 ## 3. Implement the native element
@@ -165,8 +165,8 @@ Rules:
 
 - `on_attach`: create/reuse resources; no drawing.
 - `on_update`/`on_event`: UI thread; no GPU waits/maps/blocking.
-- `on_render`: render thread; record commands; no UI mutation; no throw.
-- `on_detach`: release after frames in flight; no leaks.
+- `on_render`: render thread; record commands through the RHI (render hardware interface, the only GPU seam); no UI mutation; no throw.
+- `on_detach`: release GPU resources only after all frames in flight (frames the GPU may still be reading) have completed; no leaks.
 - No static mutable state; one instance per node.
 
 ## 4. Declare the shader
@@ -197,10 +197,10 @@ Add a normal entry to `tools/shaders/manifest.json` (see
 }
 ```
 
-- Build-time compile/reflection; no runtime shader source.
+- Shaders are compiled and reflected at build time; no shader source is loaded at runtime.
 - Pipeline state lives in `ui/elements.json`; shader interface lives in the shader manifest.
-- Vulkan-only elements must be marked unavailable on WebGPU; shared elements need WGSL parity.
-- Every shader has a smoke test; goldens for deterministic output.
+- Vulkan-only elements must be marked unavailable on WebGPU; elements available on both need a WGSL (WebGPU shading language) source that matches the Vulkan shader's output.
+- Every shader has a smoke test (renders without validation errors); a golden (deterministic reference image) is required where output is deterministic.
 
 ## 5. Use it in JSX
 
@@ -227,7 +227,7 @@ export function WaterfallPanel() {
 
 - `element` literal only; no dynamic element.
 - Props/events are validated by generated typings and the compiler.
-- No children; wrap in a `View` for layout, and use `OverlayHost`/overlay service for overlays.
+- No children; wrap in a `View` for layout, and use `OverlayHost`/overlay service (see [overlays-and-layers-v1](../specs/overlays-and-layers-v1.md)) for overlays.
 - `style`/layout/automation props work normally.
 
 ## 6. Input and custom events
@@ -249,10 +249,10 @@ export function WaterfallPanel() {
 <Waterfall3DView intensity={0.9} />
 ```
 
-- Multiple instances have separate state/resources; pipelines/meshes are shared via cache.
-- Keys preserve identity in lists; a different element id never reuses an instance.
+- Multiple instances have separate state/resources; pipelines/meshes are shared through the resource cache.
+- Keys preserve identity in lists; an instance is never reused for a different element id.
 - App state lives in JSX; native state (camera/hover) must be snapshot-testable.
-- No singleton initialization order; safe in any route/screen.
+- Elements must not depend on singleton initialization order, so they work on any route/screen.
 - Unmount releases GPU resources after frames in flight.
 
 ## 8. Composition choices
@@ -262,14 +262,14 @@ export function WaterfallPanel() {
 | `offscreen` | panels, 3D over/under 2D, transparency | target/copy/resolve; default |
 | `inline` | full-bleed opaque 3D/game view | depth/order constraints; no 2D inside |
 
-- Offscreen target size = node bounds × scale, capped; recreated on resize.
+- Offscreen target size = node bounds × scale (DPI scale), capped at `maxPixelSize`; recreated on resize.
 - Inline uses the frame target + depth, cleared per element; later 2D does not depth test.
-- `onDemand` renders on changes; `continuous` animates while visible; pause when hidden.
+- `onDemand` (the default) renders when props/state/layout/input mark the element dirty; `continuous` renders every frame while visible; both pause when the element is hidden.
 - Call `request_render()` after internal state changes in `onDemand`.
 
 ## 9. Test fast/headless
 
-Unit:
+Unit (fast test of the element class alone, with a fake context and no GPU):
 
 ```cpp
 element::testing::FakeContext ctx;
@@ -280,7 +280,7 @@ auto snap = el.snapshot();
 CHECK(snap.get<float>("state.intensity") == 0.8f);
 ```
 
-Headless script:
+Headless script (format defined in [headless-automation-v1](../specs/headless-automation-v1.md); `uiId` is the numeric automation id from [automation-ids-v1](../specs/automation-ids-v1.md)):
 
 ```json
 {
@@ -300,15 +300,15 @@ Headless script:
 
 Modes:
 
-- `structural`: null RHI; snapshot draw/pipeline counts; no GPU/pixels.
-- `golden`: software/lavapipe; shader compiled; image + structural report.
+- `structural`: null RHI backend (records commands, no GPU); snapshot draw/pipeline counts; no pixels.
+- `golden`: software path (Mesa lavapipe, a software Vulkan driver, or the CPU rasterizer); shader compiled; image + structural report.
 - `gpu-smoke`: real device; validation/readback; no baseline update.
 
 Rules:
 
 - Fixed clock/assets/input; no random/wall clock/system fonts.
 - `on_test_command` is debug/headless-only.
-- Update goldens only after review.
+- Update goldens only after a human has reviewed the image diff.
 - Trace spans: `element.attach/update/event/render/detach`.
 
 ## 10. Troubleshooting
@@ -321,11 +321,11 @@ Rules:
 | black/blank | attach/render error, target size, depth/cull, viewport |
 | no input | `input`, `focusable`, bounds, hit test, capture |
 | ID not found | automation manifest/build; element realized? |
-| golden mismatch | shader/AA/DPI/format; same profile/backend |
+| golden mismatch | shader/AA (anti-aliasing)/DPI/format; run with the same profile and backend as the baseline |
 | leak | detach, cache refs, retired frames |
 
 ## 11. Status
 
 - Specs/guide only; custom element API, generated registry, and headless hooks are not
-  implemented.
+  implemented (no source for them exists in `src/` yet).
 - Native elements are trusted compile-time code; no dynamic plugins/runtime shaders.

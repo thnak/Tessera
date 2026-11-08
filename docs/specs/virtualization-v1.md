@@ -1,8 +1,17 @@
 # UI virtualization v1: virtualized lists and grids
 
-Status: proposed (Big Step B2/E). This is **UI/data virtualization**, not VM/container
+Status: proposed (Big Steps B2 and E, defined in [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step): B2 = runtime slice, E =
+data-heavy UI). This is **UI/data virtualization**, not VM/container
 virtualization and not a virtual DOM. Scroll physics/nested scroll:
 [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md).
+
+Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8).
+**Realized** means a node exists in the scene graph for the item. **Overscan** is the extra range
+realized beyond the viewport. **Scene graph** is the retained node tree
+([`scene-graph.md`](../design/scene-graph.md)). **IR** is the compiler intermediate representation
+([`ir-v1.md`](ir-v1.md)). **Golden** is a deterministic reference image. **Yoga** is the Flexbox
+layout engine. **Semantics tree** is the accessibility mirror of the scene graph. See the
+[glossary](../reference/glossary.md).
 
 Virtualization keeps only the visible (plus overscan) items realized in the scene graph. It
 bounds node count, layout work, paint work, and memory for large lists/grids/charts.
@@ -97,7 +106,8 @@ O(1) range calculation; no per-item measurement.
 - Measure lazily and cache `(key, constraints) -> size`.
 - Range = binary search for `scroll - overscan` and `scroll + viewport + overscan`.
 - Inserts/removes update the prefix index incrementally.
-- Estimate unknown sizes with a documented default; refine on measure.
+- Estimate unknown sizes with a default (the IR prop `estimateSize`, section 10; the default value
+  and the estimation strategy are not specified, see section 13); refine on measure.
 - Re-measure invalidates only affected suffix/window, not the whole list.
 
 ### Grid
@@ -105,7 +115,7 @@ O(1) range calculation; no per-item measurement.
 - V1: fixed column count or fixed column width; row-major.
 - Row height = max item height in the row (or fixed row height).
 - Variable row heights use the same prefix-sum approach at row granularity.
-- Item span/masonry are later.
+- Item span/masonry are not in V1 (no release specified).
 
 ### Orientation and RTL
 
@@ -119,9 +129,10 @@ O(1) range calculation; no per-item measurement.
 - On recycle: cancel animations, release pointer capture, clear focus/selection refs, unbind
   event handlers/data refs, reset transient state.
 - Do not recycle an item with an active pointer capture, IME composition, or running animation;
-  defer until it is safe.
+  defer until the capture is released, the composition ends, and the animation finishes.
 - Reusing nodes is an optimization; correctness must be identical to rebuild.
-- Node count is bounded by `visible + overscan + pool_cap`; `pool_cap` is configurable.
+- Node count is bounded by `visible + overscan + pool_cap`; `pool_cap` is configurable (`ui.virtualListPoolCap` in
+  [`buffer-config-v1.md`](buffer-config-v1.md)).
 - Keyed identity is preserved for focus/selection/scroll anchoring even when the node is recycled.
 
 ## 6. Scroll anchoring and updates
@@ -168,7 +179,7 @@ O(1) range calculation; no per-item measurement.
 - Realize/recycle: layout/paint dirty for affected items only.
 - Data update: mark changed items dirty; insert/remove updates layout/prefix index.
 - Measurement change: relayout from the affected item; preserve anchor.
-- `dirtyRendering=off` must produce identical pixels to dirty-only for the same viewport.
+- `dirtyRendering=off` ([`runtime-config-v1.md`](runtime-config-v1.md) section 5.4) must produce identical pixels to dirty-only for the same viewport.
 - Virtualization does not replace GPU culling/layer caches; it reduces realized nodes.
 - Goldens always full-redraw the realized set into a fixed target.
 
@@ -206,7 +217,7 @@ Rules:
 - The item template is a static IR subtree/component; dynamic component types are rejected.
 - `data` is a list state/ref or a static list; item access uses `item`/`index` locals.
 - `key` is required; duplicate keys are errors.
-- V1 supports vertical lists, horizontal lists, and fixed/measured grids; span/masonry later.
+- V1 supports vertical lists, horizontal lists, and fixed/measured grids; span/masonry are not in V1 (no release specified).
 - `onEndReached` is throttled and delivered on the UI thread.
 - IR v1 gains these node kinds; codegen emits collection construction/update calls.
 
@@ -256,6 +267,9 @@ Tests:
 ## 14. Status
 
 - Design/spec only; no implementation yet.
-- Depends on: IR/component model, Yoga layout/measure, input/focus, accessibility, dirty
-  rendering, async.
-- Target: Big Step B2 for basic list virtualization; E for large streaming dashboards.
+- Depends on: IR/component model ([`ir-v1.md`](ir-v1.md),
+  [`component-model-v1.md`](component-model-v1.md)), Yoga layout/measure
+  ([`layout.md`](../design/layout.md)), input/focus ([`input.md`](../design/input.md)),
+  accessibility ([`accessibility-v1.md`](accessibility-v1.md)), dirty rendering
+  ([`dirty-rendering.md`](../design/dirty-rendering.md)), async ([`async.md`](../design/async.md)).
+- Target: Big Step B2 for basic list virtualization; Big Step E for large streaming dashboards.

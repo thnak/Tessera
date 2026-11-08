@@ -1,9 +1,19 @@
 # Text editing v1
 
-Status: proposed (Big Step B2/C). Decision: ADR-029. Companion to
+Status: proposed (Big Steps B2 and C, defined in
+[`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision:
+[ADR-029](../../decisions/ADR-029-interaction-completeness.md) (text editing, scrolling/gestures,
+overlays, forms). Companion to
 [`text.md`](../design/text.md), [`input.md`](../design/input.md),
 [`forms-and-validation-v1.md`](forms-and-validation-v1.md), and
 [`accessibility-v1.md`](accessibility-v1.md).
+
+Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8).
+**IME** is the platform input method editor (composition for CJK and similar). **Grapheme
+cluster** is one user-perceived character. **Bidi** is mixed left-to-right/right-to-left text.
+**HAL** is the hardware/OS abstraction layer. **Golden** is a deterministic reference image. See
+the [glossary](../reference/glossary.md). Gap ids (`G-01` to `G-05`) refer to rows in
+[`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md).
 
 Text editing is a core primitive, not an app-level widget. It must work with shaping, bidi,
 IME, accessibility, clipboard, selection, undo/redo, and deterministic tests.
@@ -14,7 +24,7 @@ IME, accessibility, clipboard, selection, undo/redo, and deterministic tests.
 - Caret, selection, composition, editing commands, undo/redo, clipboard.
 - Keyboard/mouse/touch/IME/autofill integration.
 - Accessibility and headless tests.
-- Rich text is out of scope for v1; text/plain is the baseline.
+- Rich text is out of scope for V1; text/plain is the baseline.
 
 ## 2. Model
 
@@ -89,13 +99,14 @@ scroll_into_view(caret)
 - Typing coalescing grouped by time/word boundary; composition and paste are atomic.
 - Undo/redo restores text, selection, and scroll-into-view; it does not replay validation or
   side effects.
-- Redo is cleared by a new edit; external value changes reset history (documented).
+- Redo is cleared by a new edit; external value changes reset history (no further rule is specified).
 - History is never persisted by default; state restoration may opt in for drafts (see
   [`state-restoration-v1.md`](state-restoration-v1.md)).
 
 ## 6. Clipboard
 
-- V1: text/plain; HTML/RTF/file lists are later.
+- V1: text/plain only. HTML/RTF/file lists are not supported in V1 (HTML/RTF pasted content is
+  sanitized to plain text, see G-05); no release for them is specified.
 - Cut/copy/paste use the platform shell (see [`platform-shell-v1.md`](platform-shell-v1.md));
   clipboard access is async and permission-aware.
 - Paste normalizes line endings and rejects oversized content; no unbounded allocation.
@@ -148,15 +159,17 @@ Events: `onChange`, `onSubmit`, `onFocus`, `onBlur`, `onSelectionChange`,
   restores the previous state deterministically.
 - Uncontrolled mode owns state internally and exposes it via ref/snapshot.
 - `TextArea` scrolls the caret into view; `TextInput` never wraps.
-- Validation/errors are form concerns, not text editing; see forms spec.
+- Validation/errors are form concerns, not text editing; see [`forms-and-validation-v1.md`](forms-and-validation-v1.md).
 
 ## 8. Layout, paint, and accessibility
 
-- Caret blink uses the runtime clock; deterministic mode pins it off/on for goldens.
+- Caret blink uses the runtime clock; deterministic mode (see
+  [`runtime-config-v1.md`](runtime-config-v1.md) section 5.5) pins it off/on for goldens.
 - Selection highlight follows visual runs (bidi), not byte ranges.
 - Composition underline, caret, and selection are paint primitives; no platform draw calls.
 - Text scale/font fallback reflows; caret/selection hit testing uses shaped clusters.
-- Scroll caret into view uses the scroll system; no layout feedback loop.
+- Scroll caret into view uses the scroll system ([`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md));
+  no layout feedback loop.
 - Accessibility exposes text, selection range, caret, placeholder, read-only/disabled, and
   actions (set value, select, copy/cut/paste); see [`accessibility-v1.md`](accessibility-v1.md).
 
@@ -191,7 +204,8 @@ Ownership:
 
 Recommended data structures:
 
-- `TextDocument` uses a gap buffer/rope for documents above a size threshold; below it, a
+- `TextDocument` uses a gap buffer/rope for documents above a size threshold (G-01 below sets the threshold at 64 KiB and
+  names a piece table rather than a gap buffer/rope); below it, a
   contiguous UTF-8 buffer plus a grapheme index. The index is versioned by `revision`.
 - `TextEditController` stores `selection`, `composition`, `undo_stack`, `redo_stack`, and
   `preferred_visual_column` (for up/down movement).
@@ -255,7 +269,8 @@ Gap-closure decisions:
 
 ## 11. Deferred/open questions
 
-- Undo/draft persistence for drafts (opt-in via restore; not implemented in V1).
-- Multi-caret/column selection and text search/replace (post-V1).
+- Undo/draft persistence for drafts (opt-in via restore; not implemented in V1; the restore table in
+  [`state-restoration-v1.md`](state-restoration-v1.md) section 2 excludes undo history).
+- Multi-caret/column selection and text search/replace (after V1; no release specified).
 - IME candidate-window styling on multi-monitor/foldable devices (platform UI).
 - Touch magnifier visual parity across platforms (best-effort).

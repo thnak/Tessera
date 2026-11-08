@@ -1,6 +1,11 @@
 # `tessera.json` — project configuration schema v1
 
-Status: draft for Big Step C.
+Status: draft for Big Step C (compiler vertical slice, defined in
+[AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Decision:
+[ADR-014](../../decisions/ADR-014-project-config-format.md) (project config format). "V1" in this
+file means the first-release scope ([AGENTS.md](../../AGENTS.md#non-negotiables) rule 8, "V1 scope discipline"). Terms
+such as binding, protected region, RHI, and golden are defined in the
+[glossary](../reference/glossary.md).
 File: `tessera.json` at the project root. JSON is the source of truth; the C++ API
 `tessera::AppConfig` mirrors it.
 
@@ -11,12 +16,12 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `$schema` | string | no | — | Editor schema URL |
 | `schemaVersion` | integer | yes | — | Must be `1` |
 | `app` | object | yes | — | Application identity and targets |
-| `window` | object | no | see below | Initial window |
+| `window` | object | no | see the `window` section | Initial window |
 | `ui` | object | yes | — | Component discovery and hooks |
-| `codegen` | object | no | see below | Generated C++ options |
+| `codegen` | object | no | see the `codegen` section | Generated C++ options |
 | `assets` | object | no | empty | Fonts, images, theme |
-| `build` | object | no | see below | CMake and toolchain |
-| `dev` | object | no | see below | Browser preview |
+| `build` | object | no | see the `build` section | CMake and toolchain |
+| `dev` | object | no | see the `dev` section | Browser preview (design-time viewer, see [`designer.md`](../design/designer.md)) |
 | `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering, resize, async |
 | `loading` | object | no | see [resource-lifecycle-v1.md](resource-lifecycle-v1.md) | Startup/loading/auth/route and lazy/preload/unload policy |
 | `deepLinks` | object | no | see [deep-linking-v1.md](deep-linking-v1.md) | External URL/file/command-line activation |
@@ -40,7 +45,7 @@ paths are rejected.
 | `version` | string | yes | — | SemVer |
 | `entry` | string | yes | — | Must exist and end in `.tsx`/`.jsx` |
 | `namespace` | string | yes | — | C++ namespace root, `^[a-z][a-z0-9_]*$` |
-| `targets` | string[] | yes | — | Subset of `windows`, `linux`; `macos`/`android` later |
+| `targets` | string[] | yes | — | Subset of `windows`, `linux`; `macos` (ADR-010, [macOS via MoltenVK, deferred](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)) and `android` are not accepted in V1 (both are Big Step F items in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)) |
 | `renderer` | string | yes | — | `vulkan` in V1 |
 
 ## `window`
@@ -60,9 +65,9 @@ paths are rejected.
 | `sourceDirs` | string[] | yes | — | Directories containing components |
 | `include` | string[] | no | `["**/*.tsx", "**/*.jsx"]` | Glob patterns |
 | `exclude` | string[] | no | `["**/*.test.*", "**/node_modules/**"]` | Glob patterns |
-| `hooks.allowed` | string[] | yes | — | Subset of `useState`, `useEffect`, `useRef`, `useAnimatedValue` |
+| `hooks.allowed` | string[] | yes | — | Subset of `useState`, `useEffect`, `useRef`, `useAnimatedValue` (the V1 hooks subset, see [`component-model-v1.md`](component-model-v1.md)) |
 | `hooks.strict` | boolean | no | `true` | Reject unknown hooks |
-| `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix |
+| `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids tying JSX logic to protected C++ regions, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
 | `bindings.manifest` | string | no | `generated/bindings.json` | Must stay inside `codegen.outDir` |
 
 ## `codegen`
@@ -83,7 +88,7 @@ paths are rejected.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `fonts` | string[] | `[]` | Committed font files (OFL/FTL licenses preserved) |
+| `fonts` | string[] | `[]` | Committed font files (OFL = SIL Open Font License, FTL = FreeType License; licenses preserved) |
 | `images` | string[] | `[]` | Directories or files |
 | `theme` | string | `null` | Path to a theme JSON |
 
@@ -94,7 +99,7 @@ paths are rejected.
 | `system` | string | `cmake` | `cmake` in V1 |
 | `generator` | string | `ninja` | `ninja` or a Visual Studio generator |
 | `preset` | string | `dev` | Name from `CMakePresets.json` |
-| `staticRuntime` | boolean | `true` | Must be `true` (ADR-012) |
+| `staticRuntime` | boolean | `true` | Must be `true` ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking) |
 | `compilerCache` | string | `auto` | `auto`, `ccache`, `sccache`, `off` |
 | `sanitizers` | string[] | `[]` | Subset of `address`, `undefined`, `thread` |
 
@@ -112,14 +117,14 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
 
 | Field | Default | Notes |
 |---|---|---|
-| `fixedTimestepHz` | `60` | Simulation tick rate; deterministic |
+| `fixedTimestepHz` | `60` | Simulation tick rate (fixed-step updates per second, [`game-loop.md`](../design/game-loop.md)); deterministic |
 | `maxFps` | `0` | `0` = uncapped (display/vsync limits) |
-| `vsync` | `on` | `off`, `on`, `adaptive`, `mailbox` |
-| `dynamicRefreshRate` | `auto` | VRR when available, safe fallback |
+| `vsync` | `on` | `off`, `on`, `adaptive`, `mailbox` (presentation synchronization modes) |
+| `dynamicRefreshRate` | `auto` | VRR (variable refresh rate) when available, safe fallback |
 | `framePacing` | `auto` | `auto`, `smooth`, `low-latency`, `power-save` |
 | `dirtyRendering` | `auto` | Dirty style/layout/paint/render + damage |
 | `renderOnDemand` | `true` | Render only on wake/dirty events; static UI idles |
-| `powerPolicy` | `adaptive` | Power/quality preset; see runtime spec |
+| `powerPolicy` | `adaptive` | Power/quality preset; see [runtime-config-v1.md](runtime-config-v1.md) |
 | `adaptiveQuality` | `true` | Reduce optional cost on missed budgets |
 | `pauseWhenOccluded` | `true` | No GPU work when hidden/minimized |
 | `resizeMode` | `adaptive` | `live`, `deferred`, `adaptive` |
@@ -196,9 +201,9 @@ External URL/file/command-line activation. See
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `schemes` | string[] | `[]` | Custom schemes; lowercase, no spaces |
-| `hosts` | string[] | `[]` | HTTPS App/Universal Link hosts; no wildcards |
+| `hosts` | string[] | `[]` | HTTPS hosts for Android App Links / iOS Universal Links; no wildcards |
 | `routes` | Route[] | `[]` | `pattern`, `route`, `auth`, `confirm` |
-| `fileTypes` | string[] | `[]` | Extensions/UTIs/MIME |
+| `fileTypes` | string[] | `[]` | Extensions/UTIs (Apple Uniform Type Identifiers)/MIME types |
 | `singleInstance` | boolean | `true` | Forward to existing process |
 | `openIn` | string | `existing` | `existing` or `newWindow` |
 | `allowColdStart` | boolean | `true` | Allow launch via link |
@@ -264,12 +269,12 @@ See [`state-restoration-v1.md`](state-restoration-v1.md).
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `defaultLocale` | string | `en-US` | BCP-47; must be in `locales` |
+| `defaultLocale` | string | `en-US` | BCP-47 (IETF language tag); must be in `locales` |
 | `locales` | string[] | `[defaultLocale]` | Packaged catalogs |
 | `fallbackLocale` | string | `defaultLocale` | Deterministic fallback |
 | `catalogDir` | string | `locales` | Project-relative; no traversal |
 | `pseudoLocale` | string | `en-XA` | Test-only pseudo-localization |
-| `timezone` | string | `platform` | `platform`, `UTC`, or IANA id |
+| `timezone` | string | `platform` | `platform`, `UTC`, or an IANA time zone id |
 
 See [`i18n-v1.md`](i18n-v1.md).
 
@@ -323,7 +328,8 @@ remain under `runtime`; do not duplicate them here.
 ```
 
 Rules: values are defaults, not user settings; sizes are aligned/rounded by the engine; total
-budgets must not exceed `budgetBytes`; zero disables optional caches only where documented.
+budgets must not exceed `budgetBytes`; zero disables only the caches that
+[`buffer-config-v1.md`](buffer-config-v1.md) documents as optional.
 
 ## `tunables`
 
@@ -359,7 +365,7 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 | Field | Default | Notes |
 |---|---|---|
 | `level` | `info` | `trace`/`debug`/`info`/`warn`/`error`/`fatal` |
-| `sinks` | `["debugger","ring"]` | File/console/ETW/Perfetto optional |
+| `sinks` | `["debugger","ring"]` | File/console/ETW (Event Tracing for Windows)/Perfetto optional |
 | `tracing` | `false` | Span tracing; file/Perfetto/Tracy sinks |
 | `gpuTimestamps` | `false` | Requires backend support |
 | `overlay` | `false` | Dev overlay |
@@ -372,7 +378,7 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `includeDirs` | string[] | `[]` | Added to the generated CMake target |
-| `linkLibraries` | string[] | `[]` | Must be permissive and static-linkable (ADR-012/013) |
+| `linkLibraries` | string[] | `[]` | Must be permissive and static-linkable ([ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license-mit.md)) |
 | `licenseReview` | boolean | `true` | Must be `true`; `tessera doctor` checks notices |
 
 ## Validation rules
@@ -384,7 +390,7 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 5. `bindings.manifest` must be under `codegen.outDir`.
 6. `codegen.outDir` must not be inside `ui.sourceDirs`.
 7. `build.staticRuntime` must be `true`.
-8. `dependencies.linkLibraries` must be reviewed; no GPL/LGPL in statically linked code.
+8. `dependencies.linkLibraries` must be reviewed (ADR-013, MIT license and permissive dependencies); no GPL/LGPL in statically linked code.
 9. Unknown fields, absolute paths, and duplicate binding ids are errors.
 10. `tessera generate --check` fails if generated output differs from the working tree.
 11. `runtime` follows [runtime-config-v1.md](runtime-config-v1.md) validation; `deterministic`
@@ -399,12 +405,12 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     ids and never rewrite the project file. Deterministic/golden mode ignores user tunables.
 16. `loading` follows [resource-lifecycle-v1.md](resource-lifecycle-v1.md): `criticalResources`
     is a small explicit set, `preload` is bounded/cancellable, and unload/eviction are enabled
-    by policy. Deterministic mode pins the critical set and load order.
+    by the `unloadOnBackground` and `evictOnMemoryPressure` fields. Deterministic mode pins the critical set and load order.
 17. `deepLinks` follows [deep-linking-v1.md](deep-linking-v1.md): schemes/hosts/routes are
     unique allowlists, route patterns resolve to real routes, `fallbackUrl` is HTTPS, and no
     secrets/tokens are allowed in URLs.
 18. `navigation` follows [navigation-v1.md](navigation-v1.md): routes are unique, `notFound`
-    resolves, and modal stack policy is known.
+    resolves, and `modalStack` is `global` or `nested`.
 19. `restore` follows [state-restoration-v1.md](state-restoration-v1.md): size is bounded,
     secure fields are never persisted, and unknown versions fall back safely. Precedence:
     `restore.enabled` > `navigation.restore` > `loading.restoreRoute`.

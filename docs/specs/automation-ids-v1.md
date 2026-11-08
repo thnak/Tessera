@@ -1,6 +1,6 @@
 # Automation IDs v1: numeric UI/component identity
 
-Status: proposed (Big Step B2/C). Decision: ADR-027. Companion to
+Status: proposed (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric IDs, headless harness, Lighthouse-style audits). Companion to
 [`scene-graph.md`](../design/scene-graph.md), [`ir-v1.md`](ir-v1.md), and
 [`headless-automation-v1.md`](headless-automation-v1.md).
 
@@ -36,7 +36,7 @@ ComponentId = hash64(project_salt + "|c|" + component_source_path + "|" + compon
 UiId       = hash64(project_salt + "|u|" + component_source_path + "|" + node_path + "|" + key)
 ```
 
-- `project_salt` comes from the app namespace/name (documented); changing it changes IDs.
+- `project_salt` comes from the app namespace/name (the exact source is an open question, section 9); changing it changes IDs.
 - `node_path` is the stable structural path (source order + explicit keys), not a line number.
 - `key` is the list key/template key where applicable.
 - Explicit `automationId="123456789"` overrides `UiId`; it must be a unique uint64.
@@ -71,7 +71,7 @@ Manifest (`generated/automation.manifest.json`):
 
 ## 3. IR fields
 
-IR keeps human-readable `id` strings and adds numeric identity:
+The IR (the compiler's intermediate representation, [`ir-v1.md`](ir-v1.md)) keeps human-readable `id` strings and adds numeric identity:
 
 ```json
 {
@@ -89,13 +89,13 @@ IR keeps human-readable `id` strings and adds numeric identity:
 ```
 
 - `componentId`/`uiId` are required in generated IR and unique per project.
-- `automationId` is optional; if set it must equal `uiId`.
+- `automationId` is optional; if set it must equal `uiId` (an explicit `automationId` replaces the computed `UiId`, section 2).
 - Validation rejects duplicate/missing numeric IDs and collisions.
 - Codegen emits constructors with `(NodeId, UiId, ComponentId)`.
 
 ## 4. Scene graph
 
-`Node` carries:
+`Node` (the scene graph node, [`scene-graph.md`](../design/scene-graph.md)) carries:
 
 ```cpp
 NodeId node_id_;          // runtime, monotonic
@@ -152,7 +152,7 @@ Result<void> focus(UiId);
 
 - Actions go through the normal input/runtime path; they do not mutate state directly.
 - `wait_for` polls/observes at frame boundaries with a bounded timeout.
-- Snapshot order is deterministic (tree/preorder or sorted by NodeId; choose one and test).
+- Snapshot order is deterministic (tree preorder or sorted by NodeId; not decided yet, see section 9).
 - Bounds are logical pixels; DPI/scale is explicit in the snapshot header.
 
 ### 5.1 Custom element sub-targets
@@ -187,7 +187,7 @@ Every event/span may carry:
 - IDs are strings in JSON; uint64 in C++.
 - Trace spans: input → handler → style → layout → paint → present.
 - The automation manifest resolves numeric IDs to source paths/names.
-- No PII/secrets in span attributes; redact.
+- No PII (personally identifiable information) or secrets in span attributes; redact.
 
 ## 7. Stability and versioning
 

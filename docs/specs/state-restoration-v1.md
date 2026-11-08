@@ -1,9 +1,18 @@
 # State restoration v1
 
-Status: proposed (Big Step F). Decision: ADR-030. Companion to
+Status: proposed (Big Step F, production breadth; see [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision:
+[ADR-030](../../decisions/ADR-030-app-platform-completeness.md) (navigation, restore, shell, i18n,
+accessibility, async data). Companion to
 [`navigation-v1.md`](navigation-v1.md), [`startup-and-loading.md`](../design/startup-and-loading.md),
 [`mobile-integration.md`](../design/mobile-integration.md), and
 [`services.md`](../design/services.md).
+
+Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8).
+**uiId** is the numeric automation/UI id of a node ([`automation-ids-v1.md`](automation-ids-v1.md)).
+**ItemKey** is the stable key of a virtualized list item ([`virtualization-v1.md`](virtualization-v1.md)).
+**Keystore** is the platform secret store. **fsync** flushes a file to disk. Gap/question ids
+(`G-14`, `Q-13`) refer to rows in
+[`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md).
 
 Restoration is not “save the whole heap”. It is an explicit, versioned, bounded snapshot of
 user-visible continuity.
@@ -26,8 +35,8 @@ user-visible continuity.
 | Focus/selection | opt-in | stabilize if nodes still exist |
 | Form drafts | opt-in | secure fields excluded |
 | Text field value | opt-in | secure/undo history excluded |
-| Overlay stack | transient | close by default; modals by policy |
-| Async cache | no | separate data cache, see async data |
+| Overlay stack | transient | closed by default; a modal route is restored only under the rule in section 7.1 (gap-closure decisions) |
+| Async cache | no | separate data cache, see [`async-data-v1.md`](async-data-v1.md) |
 | Diagnostics/telemetry | no | never restore |
 
 - Persist only serializable, app-owned state; no pointers/handles/GPU objects.
@@ -58,7 +67,7 @@ user-visible continuity.
 }
 ```
 
-- Typed, versioned, canonical JSON (or a bounded binary encoding later).
+- Typed, versioned, canonical JSON (a bounded binary encoding is not specified for V1; G-14/Q-13 below choose JSON).
 - `restoreVersion` migrates forward; unknown fields are ignored safely.
 - Size limits per window/state; oversized state is dropped with a diagnostic.
 - Write atomically (temp + rename); keep one previous good snapshot.
@@ -71,7 +80,7 @@ user-visible continuity.
 4. Restore route stack, dropping invalid routes/params.
 5. Mount screens; apply scroll/focus/selection after layout.
 6. Apply form drafts only after fields exist; discard secure fields.
-7. Restore overlays by policy (default: none).
+7. Restore overlays only under the section 7.1 modal rule (default: none).
 8. Mark dirty/request one frame; never block startup on non-critical state.
 
 - A failed step falls back to the route root, not an empty/white app.
@@ -80,7 +89,7 @@ user-visible continuity.
 
 ## 5. Multi-window and process death
 
-- Each window has a stable id; a deep link targets a window by policy.
+- Each window has a stable id; a deep link targets a window by the policy in [`deep-linking-v1.md`](deep-linking-v1.md).
 - Closing one window persists its state; reopening restores it unless the app chose one-shot.
 - Process death may lose in-memory async work; show recoverable draft/error states.
 - Fold/unfold restart uses the same snapshot; preserve scroll/selection per pane.
@@ -115,7 +124,7 @@ Ownership:
 | `NavController` | route stack/entry state | Persistence format |
 | Screen/component | serializable opt-in state | Secret storage |
 | `services/storage` | atomic file/path/encryption primitives | What to restore |
-| `async-data` | data cache | Restoration blob |
+| `async-data` ([`async-data-v1.md`](async-data-v1.md)) | data cache | Restoration blob |
 
 Snapshot types:
 
@@ -140,7 +149,7 @@ struct WindowSnapshot {
 
 Write policy:
 
-- Mark dirty on meaningful state change; debounce (for example 1 s) and force on
+- Mark dirty on meaningful state change; debounce (1 s, per G-14/Q-13 below) and force on
   background/suspend/window close.
 - Write temp file + fsync + rename; keep one previous good snapshot.
 - Enforce per-window/total byte limits; drop low-priority state (scroll/drafts) before routes.
@@ -156,7 +165,7 @@ validate schema/version/limits
   -> rebuild route stack (drop invalid routes/params)
   -> mount screens
   -> after first layout: scroll -> focus/selection -> drafts
-  -> restore overlays by policy (default none)
+  -> restore overlays per the modal rule below (default none)
   -> request one frame
 ```
 
@@ -193,7 +202,8 @@ Gap-closure decisions:
 
 ## 8. Deferred/open questions
 
-- Cross-device/cloud session restore (out of scope).
-- Per-window vs per-app draft merge policy.
-- Snapshot format compaction/encryption key management.
-- Restoring a modal route whose parent route changed (policy).
+- Cross-device/cloud session restore (out of scope for V1).
+- Per-window vs per-app draft merge policy (no decision yet).
+- Snapshot format compaction/encryption key management (no decision yet; G-14/Q-13 only decide
+  that sensitive drafts may be encrypted).
+- Restoring a modal route whose parent route changed (no decision yet).

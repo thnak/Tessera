@@ -1,9 +1,9 @@
 # Native-first boundaries and bridge policy
 
-Status: design. Decision: ADR-024. Applies to runtime, compiler, designer, services, and mobile.
+Status: design. Decision: [ADR-024](../../decisions/ADR-024-native-first-boundaries.md) (native-first boundaries; no production bridges). Applies to runtime, compiler, designer, services, and mobile.
 
 Tessera's production path is **native C++ with direct calls**. "Bridge" means any boundary that
-marshals data/control to another runtime: JNI, Objective-C/Swift, JS/Wasm, IPC, or a plugin ABI.
+marshals data/control to another runtime: JNI (Java Native Interface), Objective-C/Swift, JS/Wasm (WebAssembly), IPC (inter-process communication), or a plugin ABI (application binary interface).
 Bridges are allowed only at the edges, never in the UI/render/input/memory hot path.
 
 ## 1. Policy
@@ -11,14 +11,14 @@ Bridges are allowed only at the edges, never in the UI/render/input/memory hot p
 1. **No production JS/React runtime.** Components compile to C++; no virtual DOM, no scripting
    bridge, no per-frame interpreter. Custom native elements are direct C++/RHI code, not a
    bridge; shaders are build-time manifest entries, not runtime payloads.
-2. **No dynamic plugin ABI.** Static linking (ADR-012); no hot-loadable native modules. Custom
-   elements use a generated compile-time factory registry, not a loader.
+2. **No dynamic plugin ABI.** Static linking ([ADR-012](../../decisions/ADR-012-static-linking.md)); no hot-loadable native modules. Custom
+   elements ([ADR-028](../../decisions/ADR-028-custom-native-elements.md), [`custom-elements-v1.md`](../specs/custom-elements-v1.md)) use a generated compile-time factory registry, not a loader.
 3. **No per-frame serialization.** No JSON/IDL/IPC/FFI in the frame loop.
 4. **No cross-language UI ownership.** UI objects never cross a bridge; use values/handles.
 5. **Bridges are narrow, typed, versioned, and capability-based.**
 6. **OS bridges are unavoidable but thin.** Android JNI/ANativeWindow, iOS ObjC/Metal, Win32,
    X11/Wayland, accessibility/IME/notification APIs.
-7. **Build-time adapters are not runtime bridges.** Parser (SWC/oxc/tree-sitter) and shader
+7. **Build-time adapters are not runtime bridges.** Our own JSX/TSX front end ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) and shader
    compilers run at build time and are not linked into the app.
 8. **Design-time bridge is separate.** Wasm/WebGPU/IPC is for the designer only; production
    never embeds a browser/JS runtime.
@@ -57,11 +57,12 @@ Forbidden:
 
 Notes:
 
+- Abbreviations in the table: HAL = hardware/OS abstraction layer ([glossary](../reference/glossary.md)); IME = input method editor; UIA = UI Automation; COM = Component Object Model; AT-SPI = Assistive Technology Service Provider Interface; D-Bus = Linux message bus; SAF = Android Storage Access Framework; DnD = drag and drop; NDK = Android Native Development Kit; WinRT = Windows Runtime; ObjC = Objective-C.
 - Win32/X11/Wayland/Vulkan are **direct C APIs**, not cross-language bridges. They are OS/GPU
   boundaries, but no marshalling runtime sits between C++ and the API.
 - Android JNI/NDK and iOS ObjC are true bridges; keep them thin and event-only.
 - UIA/COM and AT-SPI/D-Bus are system protocol boundaries, not UI hot-path bridges.
-- The parser adapter is build-time only; it is never linked into production.
+- The JSX/TSX front end is build/design-time only; it is never linked into production.
 - The Wasm/WebGPU/IPC designer is development-only; production has no JS runtime.
 
 ## 2. Bridge design rules
@@ -103,11 +104,11 @@ Notes:
 - The designer uses Emscripten + WebGPU + a versioned IPC bridge.
 - Prefer typed arrays/SharedArrayBuffer/WebGPU buffers; no JSON per frame.
 - Validate/bound all messages; local-only host bridge; no arbitrary FS/network.
-- The custom React reconciler exists only in the designer, never in production.
+- The design-time live view (own front end -> IR -> engine) exists only in the designer, never in production.
 
 ### Build-time adapters
 
-- JSX/TSX parser (SWC/oxc/tree-sitter), `clang-format`, `glslc`, WGSL tools run at build time.
+- Own JSX/TSX front end, `clang-format`, `glslc`, WGSL tools run at build time.
 - They are not linked into the runtime and are not a production bridge.
 - Their output is the IR/generated C++/SPIR-V/WGSL; the runtime consumes only native artifacts.
 
@@ -141,12 +142,12 @@ Notes:
 - Leak/refcount tests: JNI local/global refs, ObjC retain cycles, Wasm buffers.
 - No-blocking checks: bridge callbacks never block the UI thread.
 - Fuzz IPC/IDL payloads.
-- Device tests for Android/iOS OS bridges; real-device matrix for OEM quirks.
+- Device tests for Android/iOS OS bridges; real-device matrix for OEM (original equipment manufacturer) quirks.
 - Verify production build contains no JS/Wasm/React runtime and no dynamic plugin loader.
 
 ## 8. Status and open questions
 
 - Android/iOS backends are not implemented; bridges are design-only.
-- Designer IPC is not implemented; Wasm/WebGPU is Big Step D.
-- Open: JNI vs NativeActivity input path; ObjC++ vs Swift edge; IPC binary format; shared-memory
+- Designer IPC is not implemented; Wasm/WebGPU is [Big Step D](../../AGENTS.md#big-steps-group-work-dont-micro-step) (design-time preview).
+- Open (no decision yet): JNI vs NativeActivity (Android's native-only activity class) input path; ObjC++ vs Swift edge; IPC binary format; shared-memory
   zero-copy; exact bridge budgets.

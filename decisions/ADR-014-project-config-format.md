@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-007, ADR-008, ADR-012, ADR-013
+- Related: [ADR-007](ADR-007-compiler-ir.md) (compiler intermediate representation), [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest), [ADR-012](ADR-012-static-linking.md) (static linking), [ADR-013](ADR-013-project-license-mit.md) (MIT license)
 
 ## Context
 
@@ -10,7 +10,7 @@ Developers need one stable, tool-friendly place to configure a Tessera project: 
 UI sources, hooks, generated-code options, assets, build settings, and the browser preview.
 The options are a JSON/TOML/YAML file, CMake variables, or a C++-only API.
 
-The generator must be deterministic and the configuration must be readable by both the CLI
+The generator must be deterministic and the configuration must be readable by both the CLI (command-line interface)
 and the running application.
 
 ## Decision
@@ -25,8 +25,8 @@ and the running application.
 6. **Codegen reads the validated config.** UI semantics never come from ad-hoc CMake variables.
 7. **Deterministic generation:** config hash + source hash decide whether a component is
    regenerated; no timestamps or absolute paths in generated code.
-8. **Schema is published** at `https://tessera.dev/schema/project-v1.json` when the docs site
-   exists. Until then, `docs/specs/project-config-v1.md` is canonical.
+8. **Schema is published** at `https://tessera.dev/schema/project-v1.json` once a documentation
+   site exists (none exists yet; no date is set). Until then, [`docs/specs/project-config-v1.md`](../docs/specs/project-config-v1.md) is canonical.
 9. **Versioning:** adding optional fields keeps v1; changing defaults/meaning or removing a
    field bumps the version and ships `tessera migrate`.
 
@@ -55,6 +55,6 @@ and the running application.
 
 ## Follow-up
 
-- Implement the validator and `AppConfig` in Big Step C.
+- Implement the validator and `AppConfig` in [Big Step C](../AGENTS.md#big-steps-group-work-dont-micro-step) (compiler vertical slice).
 - Publish the JSON schema.
 - Add `tessera doctor` checks for schema, toolchain, Vulkan SDK, fonts, and static linking.

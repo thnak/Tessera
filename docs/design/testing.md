@@ -1,16 +1,16 @@
 # Testing strategy
 
-Status: document current B1 tests and the target B2/B3/C/D test pyramid. ADR-009 is normative
+Status: document current B1 tests and the target B2/B3/C/D test pyramid (B1-B3 are phases of Big Step B, C and D are Big Steps C and D; see [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests) is normative
 for goldens. Headless automation/agent harness: [`headless-automation-v1.md`](../specs/headless-automation-v1.md);
 audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 
 ## 1. Principles
 
 - Tests are deterministic: no wall clock, network, system fonts, or random ids.
-- Golden images come from a software path (lavapipe/CPU), never a real GPU.
+- Golden images (reference images, see [glossary](../reference/glossary.md)) come from a software path (lavapipe = Mesa software Vulkan driver, or the CPU rasterizer), never a real GPU.
 - Every bug fix gets a regression test.
 - Platform behavior is tested with synthetic event scripts, not only real devices.
-- Error boundaries are tested with throwing build/update/effect/event/async/fallback cases.
+- Error boundaries ([`error-boundaries-v1.md`](../specs/error-boundaries-v1.md)) are tested with throwing build/update/effect/event/async/fallback cases.
 - CI runs the same commands developers run locally.
 
 ## 2. Test pyramid
@@ -18,7 +18,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | Layer | What | Runs |
 |---|---|---|
 | Unit | pure logic, data structures, parsers, merger, layout math | every CI job |
-| Integration | module seams (HAL -> UI -> renderer) | CI, fake HAL |
+| Integration | module seams (HAL -> UI -> renderer; HAL = hardware/OS abstraction layer, [`hal.md`](hal.md)) | CI, fake HAL |
 | Golden | image + structural report | lavapipe/software |
 | Headless automation | scripts/actions/snapshots/traces/audits | null/software/lavapipe |
 | Interaction suites | text editing/IME, scroll/gestures, overlays, navigation, forms, a11y | headless + device matrix |
@@ -30,7 +30,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 
 | Test | Covers |
 |---|---|
-| `merger_unit` | protected-region extraction/merge/idempotency/CRLF/warnings |
+| `merger_unit` | protected-region merger (keeps developer C++ across regeneration) extraction/merge/idempotency/CRLF/warnings |
 | `rhi_null` | null device command stats, buffer round-trip |
 | `scene_graph` | world bounds, deep hit testing, capture/target/bubble, stop propagation |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
@@ -64,8 +64,8 @@ ctest --preset ci
 ## 6. Platform tests
 
 - Windows: Win32 message loop, DPI, resize, power, display topology.
-- Linux: X11 and Wayland separately; RandR/wl_output, configure/ack, input.
-- Android/iOS/macOS later.
+- Linux: X11 and Wayland separately; RandR (X11 display-configuration extension)/wl_output (Wayland display object), configure/ack (Wayland resize handshake), input.
+- Android/iOS/macOS: Big Step F (production breadth), no platform tests yet.
 - Use synthetic events where possible; device smoke tests for real OS quirks.
 - No platform-specific assumptions in unit tests; use a fake HAL.
 
@@ -79,8 +79,8 @@ ctest --preset ci
 
 ## 8. Sanitizers and static analysis
 
-- ASan/UBSan on unit/integration tests where supported.
-- TSan for async/threading paths.
+- ASan (AddressSanitizer)/UBSan (UndefinedBehaviorSanitizer) on unit/integration tests on toolchains that support them (the supported list is not specified).
+- TSan (ThreadSanitizer) for async/threading paths.
 - Validation layers for Vulkan debug builds (mandatory).
 - clang-tidy/format checks in CI.
 - Static link graph check (no unexpected dynamic third-party libs).
@@ -113,14 +113,14 @@ Current Linux CI:
 5. `ctest` with `VK_ICD_FILENAMES` pointing at lavapipe
 6. offscreen Vulkan smoke + artifact upload
 
-Windows CI should mirror: VS preset build, ctest, Vulkan smoke, format/lint, static link check.
+Windows CI is not present yet (see [`build-and-packaging.md`](build-and-packaging.md) section 10); it should mirror: VS preset build, ctest, Vulkan smoke, format/lint, static link check.
 
 ## 12. Test conventions
 
 - One test file per component; `tests/unit/<component>_tests.cpp`.
 - Register in `tests/unit/CMakeLists.txt` with `add_test`.
 - Tests return nonzero on failure and print a clear message.
-- No test frameworks required in B1; a small framework may be introduced later.
+- No test framework is used in B1; whether to adopt one has no decision yet.
 - Fixtures live in `tests/fixtures/`; golden baselines in `tests/golden/baseline/`.
 - Do not commit generated artifacts or machine-specific paths.
 

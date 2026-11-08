@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-001, ADR-003, ADR-011
+- Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin render hardware interface and batched 2D renderer), [ADR-011](ADR-011-shader-authoring-and-cross-compilation.md) (shader authoring and cross-compilation)
 
 ## Context
 
@@ -16,14 +16,14 @@ share code or try to emulate Vulkan on top of WebGPU.
 
 ## Decision
 
-1. **Native = Vulkan 1.3** (ADR-001).
+1. **Native = Vulkan 1.3** ([ADR-001](ADR-001-vulkan-1-3-baseline.md)).
 2. **WebAssembly design-time = WebGPU via Dawn**, compiled with Emscripten.
-3. Share only the **thin RHI** (ADR-003) and the renderer logic above it. Do **not** port the
-   Vulkan backend to Wasm and do **not** build a Vulkan-on-WebGPU translation layer in V1.
+3. Share only the **thin RHI (render hardware interface)** ([ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md)) and the renderer logic above it. Do **not** port the
+   Vulkan backend to Wasm (WebAssembly) and do **not** build a Vulkan-on-WebGPU translation layer in V1.
 4. Design the renderer to the **WebGPU feature floor**: no geometry shaders, no push
    constants, conservative uniform/storage buffer limits, explicit bind groups.
-5. Keep a single golden-test corpus; each golden must pass on both backends (with the software
-   path as the source of truth, ADR-009).
+5. Keep a single golden-test corpus; each [golden](../docs/reference/glossary.md) must pass on both backends (with the software
+   path as the source of truth, [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests)).
 
 ## Consequences
 
@@ -44,13 +44,13 @@ share code or try to emulate Vulkan on top of WebGPU.
 
 - **WebGL2 for design-time.** Rejected: no compute, weaker resources, legacy direction.
 - **Canvas2D.** Rejected: far too slow for the intended live preview and chart workloads.
-- **Vulkan-on-WebGPU shim (e.g., a translation layer).** Rejected for V1: immature, adds a
+- **Vulkan-on-WebGPU shim (e.g., a translation layer).** Rejected for [V1](../docs/reference/glossary.md): immature, adds a
   third moving part, and hides the real WebGPU limits we must design for.
 - **Reuse MoltenVK or another portability layer.** Rejected: MoltenVK targets Metal, not
   WebGPU/Wasm.
 
 ## Follow-up
 
-- Spike Dawn + Emscripten in Big Step D.
+- Spike Dawn + Emscripten in [Big Step D](../AGENTS.md#big-steps-group-work-dont-micro-step) (design-time preview).
 - Establish the minimum WebGPU limits the renderer is designed against.
 - Add a parity test that renders the same scene on Vulkan-headless and WebGPU-headless.

@@ -1,14 +1,14 @@
 # Packaging and release guide
 
-Status: target for Big Step F. Update/signing/rollback:
-[`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md). Current B1 builds demos/tests, not a shipped app.
+Status: target for Big Step F (production breadth; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Update/signing/rollback:
+[`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md). Big Step B1 (core renderer, complete) builds demos and tests only, not a shipped app. V1 means the first-release scope defined in AGENTS.md. Build design: [`build-and-packaging.md`](../design/build-and-packaging.md).
 
 ## 1. Packaging model
 
-- Statically link Tessera and third-party C/C++ libraries into one executable (ADR-012).
-- Keep system components dynamic: Vulkan loader/ICDs, OS frameworks, glibc (unless musl).
+- Statically link Tessera and third-party C/C++ libraries into one executable ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking).
+- Keep system components dynamic: Vulkan loader and ICDs (installable client drivers, the GPU drivers), OS frameworks, glibc (unless the Linux build uses musl, which is an open question, see section 12).
 - Ship assets (fonts/images/themes) and notices alongside the executable or embedded.
-- No plugin ABI or hot-loadable native modules in V1.
+- No plugin ABI (binary interface for third-party native modules) or hot-loadable native modules in V1.
 
 ## 2. Build
 
@@ -30,7 +30,7 @@ Use `TESSERA_STATIC_RUNTIME=ON` (default) and `BUILD_SHARED_LIBS=OFF`.
 
 | Platform | Command | Expectation |
 |---|---|---|
-| Windows | `dumpbin /dependents app.exe` | only system DLLs (kernel32, user32, vulkan-1, etc.) |
+| Windows | `dumpbin /dependents app.exe` | only system DLLs (for example kernel32, user32, vulkan-1) |
 | Linux | `ldd app` / `readelf -d app` | no libstdc++/libgcc_s; system libs only |
 | macOS | `otool -L app` | system frameworks only |
 
@@ -47,7 +47,7 @@ Unexpected third-party dynamic libraries fail the release.
 
 ## 5. Notices
 
-- Generate `THIRD_PARTY_NOTICES.txt` from `THIRD_PARTY_NOTICES.md` + dependency map.
+- Generate `THIRD_PARTY_NOTICES.txt` from [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) + the dependency map ([dependencies.md](../specs/dependencies.md)).
 - Include Apache-2.0 NOTICE, MIT/BSD copyright, OFL/FTL, ICU/Unicode notices.
 - Expose an About/licenses UI in the app.
 - CI checks notices cover the link graph and fail on new unlisted dependencies.
@@ -56,29 +56,29 @@ Unexpected third-party dynamic libraries fail the release.
 
 - Static CRT (`/MT`), x64.
 - Ship `.exe` + assets (or embedded resources).
-- Optional code signing; version resource/manifest.
+- Code signing is optional here; the policy is an open question (section 12) and [updates-and-distribution-v1](../specs/updates-and-distribution-v1.md) states when it is mandatory; ship a version resource/manifest.
 - Test on a clean VM with GPU drivers but no Vulkan SDK.
 - Archive PDBs separately; do not ship debug binaries.
 
 ## 7. Linux
 
 - Ship executable + assets; glibc/system libs dynamic.
-- If a fully static binary is required, evaluate musl; GPU drivers remain dynamic.
-- AppImage/Flatpak/tarball: document sandbox/GPU access and Vulkan ICD discovery.
-- Strip symbols; ship separate debug symbols.
-- Verify lavapipe/software fallback and validation-clean debug build.
+- If a fully static binary is required, evaluate musl (an alternative C library; no decision yet, see section 12); GPU drivers remain dynamic.
+- AppImage/Flatpak/tarball: document sandbox/GPU access and Vulkan ICD discovery for each format.
+- Strip symbols from the shipped binary; ship debug symbols as a separate artifact.
+- Verify the lavapipe (Mesa software Vulkan driver) fallback and a debug build with no validation-layer errors.
 
 ## 8. Versioning
 
-- SemVer for the framework and generated projects (see `versioning-v1.md`).
+- SemVer for the framework and generated projects (see [`versioning-v1.md`](../specs/versioning-v1.md)).
 - `tessera.json` schema version, IR version, bindings manifest version, golden report version.
 - Changing defaults/meaning requires a schema bump and `tessera migrate`.
 - Record the exact toolchain/dependency versions in the release artifact.
 
 ## 9. Reproducibility
 
-- Pin dependencies, shader compiler, lavapipe, fonts.
-- Avoid timestamps/absolute paths in generated code and binaries where possible.
+- Pin dependencies, shader compiler (`glslc`), lavapipe, fonts.
+- Avoid timestamps/absolute paths in generated code (required by [code-style.md](code-style.md)) and in binaries (use the prefix-map flags below).
 - Use `-ffile-prefix-map`/`-fdebug-prefix-map`; no `__DATE__`/`__TIME__`.
 - Produce an SBOM and a dependency lock.
 - CI builds from a clean checkout.
@@ -89,13 +89,13 @@ Unexpected third-party dynamic libraries fail the release.
 - [ ] Windows + Linux clean builds/tests
 - [ ] validation layers clean (debug)
 - [ ] link-graph allowlist passes
-- [ ] no JS/Wasm/React runtime or dynamic plugin loader in the production binary (ADR-024)
-- [ ] bridge contract/leak tests pass
+- [ ] no JS/Wasm/React runtime or dynamic plugin loader in the production binary ([ADR-024](../../decisions/ADR-024-native-first-boundaries.md), native-first boundaries)
+- [ ] bridge contract/leak tests pass (bridges: [docs/design/bridges.md](../design/bridges.md))
 - [ ] notices/SBOM generated and shipped
 - [ ] assets/fonts/ICU data packaged
 - [ ] clean-VM smoke test (no SDK)
 - [ ] crash symbols archived
-- [ ] golden baselines reviewed (if changed)
+- [ ] golden baselines (reference images) reviewed if they changed
 - [ ] docs/ADRs updated
 
 ## 11. Rollback
@@ -106,6 +106,8 @@ Unexpected third-party dynamic libraries fail the release.
 - Document the incident and add a regression test.
 
 ## 12. Open questions
+
+No decision yet on any item below; [updates-and-distribution-v1](../specs/updates-and-distribution-v1.md) already requires signing/notarization where the OS requires it and a documented installer-or-portable choice per app.
 
 - Installer vs portable archive.
 - Code signing/notarization policy.

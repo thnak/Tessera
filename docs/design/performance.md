@@ -1,9 +1,13 @@
 # Performance, power, and hardware utilization
 
-Status: design for Big Step B2/B3. Companion to [`game-loop.md`](game-loop.md),
+Status: design for Big Step B2 (runtime slice) and B3 (window/swapchain path); both are defined in
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Companion to [`game-loop.md`](game-loop.md),
 [`dirty-rendering.md`](dirty-rendering.md), and [`startup-and-loading.md`](startup-and-loading.md).
 Normative decision:
-[ADR-019](../../decisions/ADR-019-power-aware-runtime.md).
+[ADR-019](../../decisions/ADR-019-power-aware-runtime.md) (power-aware runtime defaults). Config keys
+named here (`maxFps`, `powerPolicy`, `fullRedrawThreshold`, ...) are defined in
+[`runtime-config-v1.md`](../specs/runtime-config-v1.md). Terms (tick, damage, VRR, Yoga, dirty domain) are
+in [`glossary.md`](../reference/glossary.md); tick = one fixed-step update ([`game-loop.md`](game-loop.md)).
 
 ## 1. Position: application framework, not a benchmark
 
@@ -15,13 +19,13 @@ must be **power-aware**:
 - the loop never busy-waits, never spins on the GPU, and never tries to reach 100% utilization;
 - a fixed timestep exists for deterministic simulation, **not** to force continuous rendering.
 
-A game engine often runs an uncapped, always-rendering loop to maximize frame rate. That is a
+A game engine commonly runs an uncapped, always-rendering loop to maximize frame rate. That is a
 valid choice for a game and a bad default for a desktop/industrial application. In Tessera,
 continuous rendering is an explicit mode for video/live dashboards, not the baseline.
 
 ### 1.1 Game engine vs application runtime
 
-| Aspect | Typical game engine | Tessera application runtime |
+| Aspect | Game engine (as commonly built) | Tessera application runtime |
 |---|---|---|
 | Loop | continuous, often uncapped | fixed tick + on-demand render |
 | Static screen | still renders every frame | no presents, no GPU submissions |
@@ -50,7 +54,7 @@ GPU/CPU usage is the product of these choices, not a single switch:
 | Texture uploads | PCIe/memory bandwidth | atlas dirty regions, upload queue |
 | Frames in flight | CPU/GPU overlap and latency | `gpuFramesInFlight`, `latencyFrames` |
 | Animations | Tick and repaint frequency | active-animation tracking, pause when hidden |
-| Visibility | Occluded/minimized work | `pauseWhenOccluded`, background policy |
+| Visibility | Occluded/minimized work | `pauseWhenOccluded`, `backgroundMaxFps` |
 | Text/layout | Shaping and Yoga cost | cached shaped runs, dirty subtrees |
 
 There is no portable, reliable "GPU utilization %" signal. Drivers/OS expose different,
@@ -106,10 +110,10 @@ Rules:
 
 - **Static scene**: after the last dirty frame, no present and no GPU submission. CPU waits on
   the next wake source.
-- **Input**: a pointer/key event wakes exactly one frame (or a short burst for drag/animation).
+- **Input**: a pointer/key event wakes exactly one frame (or, during a drag or active animation, consecutive frames until it ends; the burst length is not specified).
 - **Occluded/minimized**: `pauseWhenOccluded=true` stops rendering and active animations.
   Restoring the window marks the target dirty and renders one frame.
-- **Unfocused but visible**: optional `backgroundMaxFps`; `0` means use `maxFps`.
+- **Unfocused but visible**: optional `backgroundMaxFps` (default `0`); `0` means use `maxFps`.
 - **VRR**: in on-demand mode, the display idles between frames; do not present empty frames to
   "keep VRR alive".
 - **Timers/data**: wake sources are edge-triggered. Polling the filesystem/network from the loop
@@ -145,7 +149,7 @@ All adaptive changes must be reversible and visible in diagnostics.
 ## 7. GPU utilization and platform metrics
 
 - Vulkan: timestamp queries, `VK_EXT_calibrated_timestamps`, present wait.
-- Windows: DXGI frame statistics, waitable swapchain, ETW/GPU scheduler counters optionally.
+- Windows: DXGI frame statistics, waitable swapchain, ETW (Event Tracing for Windows)/GPU scheduler counters, if enabled.
 - Linux: DRM `fdinfo`, GPU-specific counters (NVML/ADL) only for diagnostics; not portable.
 - Never gate correctness or frame pacing on a vendor-specific utilization number.
 
@@ -162,7 +166,7 @@ All adaptive changes must be reversible and visible in diagnostics.
 
 ## 9. Acceptance and tests
 
-- Static scene: after settling, **0 presents and 0 GPU submissions** for N seconds.
+- Static scene: after settling, **0 presents and 0 GPU submissions** for N seconds (N is not specified).
 - Input wake: exactly the expected frame(s), then idle again.
 - 60 fps animation: within budget, with headroom; no full-load behavior.
 - Occluded/minimized: no rendering, no active animation ticks.
@@ -172,8 +176,8 @@ All adaptive changes must be reversible and visible in diagnostics.
 
 ## 10. Open questions
 
-- Default `backgroundMaxFps` per platform and battery state.
-- Thermal/power-source signals and whether to use them at all.
+- Default `backgroundMaxFps` per platform and battery state (the schema default is `0` for all platforms in [`runtime-config-v1.md`](../specs/runtime-config-v1.md); per-platform defaults have no decision yet).
+- Thermal/power-source signals and whether to use them at all (no decision yet; HAL `PowerState` in [`hal.md`](hal.md) exposes them).
 - Per-monitor render scale and mixed-DPI multi-window.
 - How much adaptive quality is acceptable without visual regression.
 - Benchmark harness and baseline budgets per scene class.

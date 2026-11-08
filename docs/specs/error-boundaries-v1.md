@@ -1,7 +1,7 @@
 # Error boundaries v1
 
-Status: proposed (Big Step C/F). Decision: ADR-025. Supersedes the "no error boundaries" V1
-limit in ADR-007 and the component-model text that rejected them.
+Status: proposed (Big Steps C and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Decision: [ADR-025](../../decisions/ADR-025-error-boundaries.md) (error boundaries). Supersedes the "no error boundaries" V1
+limit in [ADR-007](../../decisions/ADR-007-compiler-ir.md) (compiler IR) and the text in [`component-model-v1.md`](component-model-v1.md) that rejected them (already updated there, section 7.1).
 
 An error boundary isolates a component subtree. It catches synchronous exceptions from
 generated component code, shows a fallback, and prevents one failing widget from crashing the
@@ -20,10 +20,10 @@ app. Async errors are values routed to the owning boundary; they are not thrown 
 ### Not caught
 
 - errors in the boundary's own `onError` handler or fallback subtree (propagate to parent/root)
-- fatal errors: OOM/`bad_alloc`, stack overflow, abort, process-level failures
+- fatal errors: OOM (out of memory)/`bad_alloc`, stack overflow, abort, process-level failures
 - cancellation/timeout (not errors unless the caller treats them as such)
-- platform/GPU/device-loss failures (HAL/runtime handles them)
-- exceptions thrown across C ABI/JNI/ObjC/Wasm (forbidden; convert to `Error` values)
+- platform/GPU/device-loss failures (the HAL, hardware/OS abstraction layer ([`hal.md`](../design/hal.md)), and the runtime handle them)
+- exceptions thrown across C ABI (application binary interface)/JNI (Java Native Interface)/ObjC (Objective-C)/Wasm (WebAssembly) (forbidden; convert to `Error` values)
 - unhandled async exceptions on worker threads (never throw across threads; deliver `Error`)
 
 Rule: **no silent catch**. Every caught error is reported once to diagnostics and/or `onError`.
@@ -54,7 +54,7 @@ normal component subtree; it may itself use components but not the same boundary
 
 ## 3. IR shape
 
-`ErrorBoundary` is a collection/wrapper node, not a visual scene node:
+In the compiler IR (intermediate representation, [`ir-v1.md`](ir-v1.md) section 5.1), `ErrorBoundary` is a collection/wrapper node, not a visual scene node:
 
 ```json
 {
@@ -77,7 +77,7 @@ Rules:
 
 - `fallback` is required and must be a node subtree.
 - `children` is exactly one subtree in V1 (wrap siblings in a `View`).
-- `onError` is optional; if present it must resolve to a binding.
+- `onError` is optional; if present it must resolve to a `bind::<id>` binding (a developer-owned protected region in generated C++, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest)).
 - `resetKey` is optional; any value change resets the boundary.
 - Nested boundaries are allowed; the nearest boundary catches first.
 - The boundary itself is not painted; it does not affect layout.
@@ -109,7 +109,7 @@ Rules:
 - Reset: clear the error, dispose the failed subtree, rebuild the child, increment generation.
 - `resetKey` change resets automatically.
 - Retry is manual by default; `maxAutoRetries` > 0 must be bounded and logged.
-- Loop protection: repeated catches in a short window disable auto-retry and report
+- Loop protection: repeated catches in a short window (length not specified) disable auto-retry and report
   `TESSERA_BOUNDARY_LOOP`; do not spin.
 - If fallback/onError throws, propagate to the nearest parent boundary/root handler.
 - Unmount cancels pending errors; no callback after teardown.
@@ -175,7 +175,7 @@ TESSERA_BOUNDARY_ASYNC
 - Loop protection/rate limiting.
 - Accessibility of fallback; no focus trap/regression.
 - Redaction/telemetry tests.
-- Golden fallback rendering at fixed theme/DPI.
+- Golden (reference-image, [`golden-tests-v1.md`](golden-tests-v1.md)) fallback rendering at fixed theme/DPI.
 
 ## 10. Open questions
 
@@ -185,4 +185,4 @@ TESSERA_BOUNDARY_ASYNC
 - No-exceptions build support and codegen strategy.
 - Which errors are fatal vs recoverable per subsystem.
 - Boundary-aware async ownership API.
-- Error boundary interaction with suspense/loading (future).
+- Error boundary interaction with suspense/loading (suspense is rejected in V1, [`component-model-v1.md`](component-model-v1.md) section 8; no release assigned).

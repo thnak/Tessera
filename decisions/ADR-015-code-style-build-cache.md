@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-008, ADR-012
+- Related: [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest), [ADR-012](ADR-012-static-linking.md) (static linking)
 
 ## Context
 
@@ -20,13 +20,13 @@ faster while destroying incremental caching. Style also drifts without enforceme
 3. **Short files:** soft limit **300 lines**, hard limit **500 lines** for hand-written
    `.hpp`/`.cpp`; one primary public type per header.
 4. **Public headers stay light.** No Vulkan/third-party headers in public APIs; forward
-   declarations or PIMPL for heavy dependencies.
-5. **No PCH by default. No unity builds by default.** If a PCH is introduced, it may contain
+   declarations or PIMPL (pointer-to-implementation idiom) for heavy dependencies.
+5. **No PCH (precompiled header) by default. No unity builds by default.** If a PCH is introduced, it may contain
    only stable system/third-party headers and must be measured and documented.
 6. **Compiler cache:** `TESSERA_USE_COMPILER_CACHE=ON` auto-detects `sccache`/`ccache` and sets
    `CMAKE_CXX_COMPILER_LAUNCHER`. Prefer `sccache` (Apache-2.0) over `ccache` (GPL-3.0,
    build-time only).
-7. **Ninja presets** for local and CI builds; no `-march=native` in default presets.
+7. **Ninja presets** for local and CI (continuous integration) builds; no `-march=native` in default presets.
 8. **Deterministic generated code:** stable ordering, no timestamps, no absolute paths, no
    random identifiers.
 9. **Enforcement:** `clang-format --dry-run --Werror` in CI, `clang-tidy`, `.editorconfig`,

@@ -1,7 +1,10 @@
 # Mobile integration: OS event fidelity, surfaces, and declarations
 
-Status: design only. No Android/iOS backend is implemented; B1 is desktop/offscreen.
-Android is the first mobile target; iOS/iPadOS is deferred (ADR-010 covers macOS, not iOS).
+Status: design only. No Android/iOS backend is implemented; B1 (Big Step B phase 1: renderer core,
+see [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)) is desktop/offscreen.
+Android is the first mobile target; iOS/iPadOS comes after Android (both are in Big Step F, "Mobile
+integration", in the same AGENTS.md section). [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)
+(macOS via MoltenVK, deferred) covers macOS, not iOS.
 Bridge policy: [`bridges.md`](bridges.md); memory rules: [`memory-model-v1.md`](../specs/memory-model-v1.md);
 startup/loading/auth: [`startup-and-loading.md`](startup-and-loading.md). Interaction companions:
 [`text-editing-v1.md`](../specs/text-editing-v1.md),
@@ -12,7 +15,9 @@ startup/loading/auth: [`startup-and-loading.md`](startup-and-loading.md). Intera
 
 Tessera owns the renderer and input pipeline, but **the OS owns the app lifecycle, surface,
 window/view hierarchy, input delivery, IME, accessibility, and permissions**. The HAL must be a
-thin, faithful bridge between those OS contracts and Tessera's normalized events.
+thin, faithful bridge between those OS contracts and Tessera's normalized events. HAL = hardware/OS
+abstraction layer (window, display, input, power, lifecycle); see [`hal.md`](hal.md) and the
+[glossary](../reference/glossary.md). IME = input method editor (on-screen keyboard/composition).
 
 ## 1. The core problem
 
@@ -44,10 +49,10 @@ The platform event is the source of truth. Normalize it, do not lose information
 
 Preserve in normalized events:
 
-- timestamp (platform monotonic clock where available)
+- timestamp (platform monotonic clock, when the platform provides one)
 - source/device id and source class (touch, mouse, stylus, keyboard, gamepad, trackpad)
 - pointer id, tool type, button/buttons
-- pressure, tilt, orientation, contact size where available
+- pressure, tilt, orientation, contact size (when the device reports them)
 - historical/coalesced samples (Android `MotionEvent` history, iOS coalesced touches)
 - keycode, unicode/text, modifiers, repeat, canceled flag
 - IME composition text/selection and commit/cancel
@@ -56,8 +61,9 @@ Preserve in normalized events:
 Rules:
 
 - Do not synthesize a tap from raw touch if it loses multi-touch/gesture semantics.
-- Define precedence between platform gesture recognizers and Tessera handlers explicitly.
-- Delivery is queued and consumed at a tick/frame boundary; no layout/render/user code inside
+- Define precedence between platform gesture recognizers and Tessera handlers explicitly (the precedence table is not specified in this doc).
+- Delivery is queued and consumed at a tick/frame boundary (a tick is one fixed-step update of the
+  runtime loop, see [`game-loop.md`](game-loop.md)); no layout/render/user code inside
   a platform callback.
 - Coalesce move/scroll/resize/refresh; never drop lifecycle, fold, cancel, focus, or IME
   transitions.
@@ -107,7 +113,8 @@ Normalize:
 - Pointer capture: `requestPointerCapture`/`releasePointerCapture`; release on cancel/background.
 - System back: `OnBackInvokedCallback` (API 33+), `android:enableOnBackInvokedCallback`; do not
   break predictive back. Fallback for older APIs.
-- Gesture conflicts: edge/back gestures, scroll containers, drag/drop; document precedence.
+- Gesture conflicts: edge/back gestures, scroll containers, drag/drop; document precedence (the
+  precedence rules are not yet specified; see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
 
 ### 3.3 IME and text input
 
@@ -120,7 +127,7 @@ A custom-rendered text field does not get an IME for free.
 - Use `WindowInsets.Type.ime()` and `WindowInsetsAnimation.Callback` for layout/animation.
 - Declare `android:windowSoftInputMode="adjustResize"` (or handle insets explicitly).
 - Expose selection/caret/text to accessibility; support copy/paste/autofill/password managers
-  where applicable.
+  for every editable text field.
 
 ### 3.4 Accessibility
 
@@ -157,7 +164,7 @@ Custom-drawn UI is invisible to TalkBack unless bridged.
 - `WindowManager.getCurrentWindowMetrics`, `WindowMetrics.getBounds`, `getWindowInsets`.
 - `WindowInsets.Type.statusBars/navigationBars/systemBars/displayCutout/ime/systemGestures`.
 - `DisplayManager` for display add/remove/change; `Display.Mode`/`Surface.setFrameRate` for
-  refresh; `WindowManager.LayoutParams.preferredDisplayModeId` where appropriate.
+  refresh; `WindowManager.LayoutParams.preferredDisplayModeId` to request a display mode.
 - `WindowMetricsCalculator` (AndroidX) for current/maximum metrics.
 - Handle cutout/gesture-bar/IME insets; never hardcode screen size.
 - Fold posture is a metric, not a separate UI mode.
@@ -167,7 +174,7 @@ Custom-drawn UI is invisible to TalkBack unless bridged.
 Deep link/App Link intent filters are declared via `deepLinks` in `tessera.json` and validated
 against the manifest; see [`deep-linking-v1.md`](../specs/deep-linking-v1.md).
 
-`AndroidManifest.xml` (representative; not exhaustive):
+`AndroidManifest.xml` (representative sample; the full required set is not specified here):
 
 ```xml
 <uses-feature android:name="android.hardware.vulkan.version" android:required="true" />
@@ -208,9 +215,9 @@ Rules:
 - Provide `android:windowLayoutInDisplayCutoutMode`/edge-to-edge policy and handle insets.
 - Add a privacy/data-safety declaration for collected data; no hidden telemetry.
 
-## 4. iOS/iPadOS integration (deferred)
+## 4. iOS/iPadOS integration (deferred: after Android)
 
-If iOS is added, the same contract applies, with different APIs.
+If iOS is added, the same four contracts from section 1 apply, with different APIs.
 
 ### 4.1 Surface and lifecycle
 
@@ -218,7 +225,7 @@ If iOS is added, the same contract applies, with different APIs.
 - Set `drawableSize` on resize/scale; `contentsScale = UIScreen.scale`.
 - Use `CADisplayLink`/`CAFrameRateRange` or `MTKView.preferredFramesPerSecond`; respect ProMotion
   and low-power mode.
-- Metal native or MoltenVK (ADR-010); no Vulkan-on-iOS assumption.
+- Metal native or MoltenVK ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)); no Vulkan-on-iOS assumption.
 - `UISceneDelegate`/`UIViewController` lifecycle: pause/resume, background, memory warnings,
   trait/geometry changes.
 - Release drawables/resources on background; no rendering when inactive/background.
@@ -254,9 +261,9 @@ If iOS is added, the same contract applies, with different APIs.
 - `UIAppFonts`, `UIRequiredDeviceCapabilities` (`metal`, `arm64`)
 - `NS*UsageDescription` for camera/mic/photos/local network/tracking
 - `NSAppTransportSecurity` policy; no insecure exceptions without justification
-- `UIBackgroundModes` only if genuinely needed
+- `UIBackgroundModes` only if the app has a documented background task
 - `PrivacyInfo.xcprivacy` (required-reason APIs, collected data, tracking)
-- Entitlements: keychain, push, associated domains, network, iCloud as needed
+- Entitlements: keychain, push, associated domains, network, iCloud, each only if the app uses it
 - App Store privacy nutrition labels; ATT permission if tracking.
 
 ## 5. What mobile requires from rendered components
@@ -301,7 +308,8 @@ instead of pretending the custom surface is enough.
 Status:
 
 - Android/iOS backends are **not implemented**.
-- This doc defines the contract; implementation is a future Big Step (mobile).
+- This doc defines the contract; implementation belongs to Big Step F ("Mobile integration" item,
+  see [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)); no start date is specified.
 - Existing docs cover normalized events, HAL, resize/fold, input, accessibility, responsive,
   pacing/power, packaging, and virtualization.
 

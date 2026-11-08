@@ -1,6 +1,9 @@
 # Headless automation v1
 
-Status: proposed (Big Step B2/C). Decision: ADR-027. Companion to
+Status: proposed (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Steps"). Decision:
+[ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric automation IDs,
+headless harness, Lighthouse-style audits). Companion to
 [`testing.md`](../design/testing.md), [`golden-tests-v1.md`](golden-tests-v1.md), and
 [`automation-ids-v1.md`](automation-ids-v1.md).
 
@@ -12,15 +15,18 @@ GPU, OS event loop, or network.
 | Mode | Backend | Output | Use |
 |---|---|---|---|
 | `structural` | null | snapshot, layout/style/paint stats, events | fast agent tests |
-| `golden` | software/lavapipe | snapshot + PNG + report | visual regression |
+| `golden` | software/lavapipe (Mesa software Vulkan driver) | snapshot + PNG + report | visual regression |
 | `gpu-smoke` | Vulkan | frames/metrics, tolerance | backend smoke |
-| `audit` | software or GPU | Lighthouse-style audit JSON | performance/quality gates |
+| `audit` | software or GPU | Lighthouse-style audit JSON (see [`lighthouse-audit-v1.md`](lighthouse-audit-v1.md)) | performance/quality gates |
 
-Goldens always come from the software path (ADR-009). `gpu-smoke` never updates baselines.
+Goldens always come from the software path
+([ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic
+headless golden tests). `gpu-smoke` never updates baselines.
 
 ## 2. Harness
 
-- Fake HAL: window/display/input/power/lifecycle/timer; no real OS callbacks.
+- Fake HAL (hardware/OS abstraction layer, see [`hal.md`](../design/hal.md)):
+  window/display/input/power/lifecycle/timer; no real OS callbacks.
 - Fixed size, DPI/scale, fonts, locale, time zone, and asset set.
 - Simulated monotonic clock and fixed timestep.
 - Deterministic executor; no detached tasks/network/system fonts.
@@ -98,7 +104,8 @@ out/
 ```
 
 `report.json` includes step index, action, target ID, result, duration, error, and artifact
-paths. Failures include a diagnostic and, where possible, a minimal repro script.
+paths. Failures include a diagnostic and a minimal repro script when one can be generated (which
+failures cannot is not specified).
 
 ## 6. Agent protocol
 
@@ -132,8 +139,8 @@ For coding agents, the harness also exposes a line-delimited JSON protocol over 
 ## 8. CI
 
 - Run structural tests on every PR (fast, no GPU).
-- Run golden tests on lavapipe/software (ADR-009).
-- Run GPU smoke where available; never update goldens from it.
+- Run golden tests on lavapipe/software ([`golden-tests-v1.md`](golden-tests-v1.md), ADR-009).
+- Run GPU smoke on runners that have a GPU/Vulkan device; never update goldens from it.
 - Run audits on a fixed profile with thresholds; upload report/trace/screenshots.
 - Fail on assertion, crash, error-boundary catch, audit threshold, or golden diff.
 
@@ -160,5 +167,6 @@ For coding agents, the harness also exposes a line-delimited JSON protocol over 
 - Protocol transport (stdin/stdout vs local socket) and auth.
 - Snapshot size/compression for large trees.
 - Parallel test isolation (multiple harness processes).
-- Whether audit runs use real time or simulated time for latency.
+- Whether audit runs use real time or simulated time for latency (section 7 currently says
+  audit mode may use real elapsed time).
 - Headless accessibility tree exposure.

@@ -1,8 +1,8 @@
 # Developer workflow and generated-code ownership
 
-Status: applies from Big Step C onward; the merger prototype exists in B1.
+Status: applies from Big Step C (compiler vertical slice) onward; the merger prototype was delivered in Big Step A (see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). V1 below means the first-release scope defined there.
 
-This guide is the practical companion to ADR-008. It defines who owns which bytes in a Tessera
+This guide is the practical companion to [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest). A protected region is a block of developer-written C++ between `[DEVELOPER_LOGIC_START: bind::<id>]` and `[DEVELOPER_LOGIC_END: bind::<id>]` markers; the merger is the tool that re-inserts those blocks into regenerated files. It defines who owns which bytes in a Tessera
 project and how regeneration, bindings, and protected regions behave.
 
 ## 1. Ownership rule
@@ -41,7 +41,7 @@ annotation in JSX. It is not a line number or a random id.
 - A region only in the existing file: **kept on disk**, with a warning that the binding was
   removed/renamed. The merger never silently deletes developer code.
 - Duplicate ids, missing end markers, or mismatched ids: **hard error**.
-- Line endings: preserved per file; the repository uses LF (`.gitattributes`).
+- Line endings: preserved per file; the repository uses LF except for Visual Studio solution/project files (`.gitattributes`).
 - Formatting: generated code is formatted with the pinned `clang-format` before merging, so
   marker placement is stable.
 
@@ -62,7 +62,7 @@ merge(merge(g, e), e) == merge(g, e)
 7. Commit both the TSX and generated files (generated output is deterministic and reviewable).
 
 Unsupported patterns are rejected loudly: custom hooks, context, suspense, dynamic component
-types, and non-static conditionals/loops. Error boundaries are supported for isolating
+types, and non-static conditionals/loops. Error boundaries (components that catch errors from their subtree and show a fallback) are supported for isolating
 subtrees; do not use them as a catch-all to hide bugs. See
 [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
 
@@ -74,7 +74,7 @@ tessera generate --force    # regenerate everything
 tessera generate --check    # fail if generated output differs from the tree
 ```
 
-The generator hashes the component source, relevant config, generator/compiler version, and
+The generator hashes the component source, the config sections that affect that component (exact list not specified), the generator/compiler version, and
 formatter config. Unchanged inputs are skipped. The report lists `generated`, `skipped`,
 `merged`, and `warnings`.
 
@@ -89,7 +89,7 @@ control so code review can see binding moves.
 - Do not edit generated code outside protected regions.
 - Do not rename a binding id by hand; use the migration/generator path.
 - Do not add business logic to generated stubs outside a region.
-- Keep developer regions small and focused; they are part of the generated-file ABI.
+- Keep developer regions small and focused; the region ids and placement are part of the contract between generated and developer code.
 - Do not rely on generated line numbers; the file can change on regeneration.
 - If a binding disappears, resolve the warning explicitly (restore the binding or remove the
   developer code yourself).
@@ -106,13 +106,13 @@ control so code review can see binding moves.
 
 ## 8. Contributing to the framework
 
-- Read `AGENTS.md` and the relevant ADR before changing architecture.
+- Read [`AGENTS.md`](../../AGENTS.md) and the relevant ADR (see [decisions/README.md](../../decisions/README.md)) before changing architecture.
 - Every subsystem gets a design note in `docs/design/` and, if contentious, an ADR.
 - New dependencies require `docs/specs/dependencies.md` and `THIRD_PARTY_NOTICES.md` entries.
-- Keep files under the 300/500-line soft/hard limits (ADR-015).
-- Run format/lint/tests on Windows and Linux where applicable.
-- Do not add a blocking wait on the UI thread; use async/cancellation (ADR-021).
-- Do not leak OS/GPU types into the UI layer (ADR-020/023).
+- Keep files under the 300/500-line soft/hard limits ([ADR-015](../../decisions/ADR-015-code-style-build-cache.md), code style and build cache).
+- Run format/lint/tests on Windows and Linux (AGENTS.md definition of done requires both).
+- Do not add a blocking wait on the UI thread; use async/cancellation ([ADR-021](../../decisions/ADR-021-async-runtime.md), async runtime).
+- Do not leak OS/GPU types into the UI layer ([ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md), window resize and lifecycle; [ADR-023](../../decisions/ADR-023-os-event-normalization-and-foldables.md), OS event normalization).
 
 ## 9. Related documents
 

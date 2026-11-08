@@ -1,6 +1,6 @@
 # Build, static linking, and packaging
 
-Status: current B1 CMake/presets; packaging is a Big Step F target. ADR-012/013 are normative.
+Status: current B1 (renderer-core phase of Big Step B) CMake/presets; packaging is a target of [Big Step F](../../AGENTS.md#big-steps-group-work-dont-micro-step) (production breadth). [ADR-012](../../decisions/ADR-012-static-linking.md) (static linking) and [ADR-013](../../decisions/ADR-013-project-license-mit.md) (MIT license) are normative.
 Updates/signing/notarization: [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md).
 
 ## 1. Build system
@@ -31,7 +31,7 @@ ctest --preset vs2026-release
 
 | Target | Kind | Notes |
 |---|---|---|
-| `tessera_rhi` | static | RHI interfaces |
+| `tessera_rhi` | interface (headers only) | RHI (render hardware interface) interfaces |
 | `tessera_gpu` | static | batched 2D renderer |
 | `tessera_rhi_null` | static | null backend |
 | `tessera_scene` | static | scene graph/events |
@@ -41,25 +41,25 @@ ctest --preset vs2026-release
 | `tessera_stb` | static | stb image write |
 | demos/tests | exe | PoC/tests |
 
-Runtime libraries are static; OS/GPU system components remain dynamic (ADR-012).
+Runtime libraries are static; OS/GPU system components remain dynamic ([ADR-012](../../decisions/ADR-012-static-linking.md)).
 
 ## 3. Static linking
 
 - MSVC: `/MT` (`MultiThreaded$<$<CONFIG:Debug>:Debug>`).
 - GCC/Clang: `-static-libstdc++ -static-libgcc` where supported.
 - `BUILD_SHARED_LIBS=OFF`; no plugin ABI.
-- System dynamic components: Vulkan loader/ICDs, Win32/X11/Wayland/Cocoa/Android frameworks,
+- System dynamic components: Vulkan loader/ICDs (installable client drivers), Win32/X11/Wayland/Cocoa/Android frameworks,
   glibc (unless musl), GPU drivers.
-- No GPL/LGPL in statically linked code. Linux accessibility uses AT-SPI over D-Bus, not
+- No GPL/LGPL in statically linked code. Linux accessibility uses AT-SPI (Assistive Technology Service Provider Interface) over D-Bus (Linux message bus), not
   libatspi/glib. libdbus is not linked.
-- ICU data is embedded (`--with-data-packaging=static` or `udata_setCommonData`).
+- ICU (International Components for Unicode) data is embedded (`--with-data-packaging=static` or `udata_setCommonData`).
 - CI checks the link graph (`ldd`/`dumpbin`/`otool`) for unexpected third-party dynamic libs.
 
 ## 4. Shaders
 
 - GLSL -> SPIR-V at build time via `glslc --target-env=vulkan1.3 -mfmt=c` (generated header).
 - Never commit `.spv`.
-- WebGPU uses WGSL; shared interface described by the shader manifest.
+- WebGPU uses WGSL (WebGPU shading language; SPIR-V is Vulkan's shader bytecode, see [glossary](../reference/glossary.md)); shared interface described by the shader manifest ([`shader-manifest-v1.md`](../specs/shader-manifest-v1.md)).
 - Shader compiler version pinned; shader changes require smoke/golden tests.
 
 ## 5. Assets and fonts
@@ -67,7 +67,7 @@ Runtime libraries are static; OS/GPU system components remain dynamic (ADR-012).
 - Fonts/images/themes are committed or packaged with the app.
 - Asset manifest contains ids, paths, hashes, and licenses.
 - ICU data, font licenses (OFL/FTL), and image licenses are shipped.
-- Deterministic goldens use committed fonts only.
+- Deterministic goldens (reference images, see [glossary](../reference/glossary.md)) use committed fonts only.
 - Large assets may be streamed; packaging records the asset generation/hash.
 
 ## 6. Notices and licenses
@@ -84,7 +84,7 @@ Runtime libraries are static; OS/GPU system components remain dynamic (ADR-012).
 - Static CRT; Vulkan loader/ICD system components remain dynamic.
 - Code signing optional but recommended; version resources/manifest.
 - Validate on a clean Windows VM without the Vulkan SDK installed (drivers only).
-- Crash dumps/PDBs: ship symbols separately; do not ship debug binaries.
+- Crash dumps/PDBs (program database debug-symbol files): ship symbols separately; do not ship debug binaries.
 
 ## 8. Linux packaging (target)
 
@@ -92,13 +92,13 @@ Runtime libraries are static; OS/GPU system components remain dynamic (ADR-012).
 - If a fully static Linux binary is required, evaluate musl; GPU drivers still dynamic.
 - AppImage/Flatpak/tarball are packaging options; document sandbox/GPU access.
 - Strip symbols; ship separate debug symbols.
-- Verify lavapipe/software fallback and validation-clean debug builds.
+- Verify lavapipe (Mesa software Vulkan driver, see [glossary](../reference/glossary.md))/software fallback and validation-clean debug builds.
 
 ## 9. Reproducibility and SBOM
 
 - Pin dependency versions/hashes, shader compiler, lavapipe, fonts.
-- Avoid timestamps/absolute paths in generated code and binaries where possible.
-- Produce an SBOM (format TBD) and a notice bundle.
+- Avoid timestamps/absolute paths in generated code and binaries; the exceptions that cannot be avoided are not enumerated.
+- Produce an SBOM (software bill of materials; format not decided, see section 12) and a notice bundle.
 - CI artifact: version, commit, toolchain, dependency lock, test results.
 - Deterministic build flags (`-ffile-prefix-map`, no `__DATE__`/`__TIME__`).
 
@@ -107,7 +107,7 @@ Runtime libraries are static; OS/GPU system components remain dynamic (ADR-012).
 Current Linux CI: format check, configure/build, static runtime check, ctest with lavapipe,
 Vulkan offscreen smoke, artifact upload.
 
-Target additions: Windows build/test, static link graph check, notices/SBOM check, golden
+Target additions (no Big Step assigned): Windows build/test, static link graph check, notices/SBOM check, golden
 tests, fuzz job, performance job.
 
 ## 11. Release checklist
@@ -116,8 +116,8 @@ tests, fuzz job, performance job.
 - [ ] configure/build/tests on Windows + Linux
 - [ ] validation layers clean (debug)
 - [ ] static link graph allowlist passes
-- [ ] production binary contains no JS/Wasm/React runtime or dynamic plugin loader (ADR-024)
-- [ ] bridge contract/leak tests pass (JNI/ObjC/IPC)
+- [ ] production binary contains no JS/Wasm/React runtime or dynamic plugin loader ([ADR-024](../../decisions/ADR-024-native-first-boundaries.md), native-first boundaries)
+- [ ] bridge contract/leak tests pass (JNI = Java Native Interface, ObjC = Objective-C, IPC = inter-process communication; see [`bridges.md`](bridges.md))
 - [ ] notices/SBOM updated and shipped
 - [ ] assets/fonts/ICU data packaged
 - [ ] clean-VM smoke test (no SDK)
@@ -127,7 +127,7 @@ tests, fuzz job, performance job.
 
 ## 12. Open questions
 
-- SBOM format/tooling.
+- SBOM format/tooling (no decision yet).
 - Installer vs portable archive per platform.
 - Code signing/notarization policy: see
   [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md).

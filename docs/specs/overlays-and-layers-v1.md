@@ -1,11 +1,15 @@
 # Overlays and layers v1
 
-Status: proposed (Big Step B2/C). Decision: ADR-029. Companion to
+Status: proposed (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Steps"). Decision:
+[ADR-029](../../decisions/ADR-029-interaction-completeness.md) (interaction completeness: text
+editing, scrolling, overlays, forms). Companion to
 [`component-model-v1.md`](component-model-v1.md), [`input.md`](../design/input.md),
 [`accessibility-v1.md`](accessibility-v1.md), and [`navigation-v1.md`](navigation-v1.md).
 
 Real apps need content above the base tree: dialogs, menus, popovers, tooltips, toasts. Portals
-are rejected in V1; this spec defines an explicit overlay/layer system instead.
+are rejected in V1 (V1 = first-release scope, [AGENTS.md](../../AGENTS.md#non-negotiables) rule 8; see
+[`component-model-v1.md`](component-model-v1.md)); this spec defines an explicit overlay/layer system instead.
 
 ## 1. Layers
 
@@ -54,10 +58,12 @@ void close_overlays(Predicate);
 
 - Anchor: node/ui id, rect, or window; track anchor layout/scroll/resize.
 - Placement: top/bottom/start/end/center, with flip/shift for viewport/safe-area overflow.
-- Clamp to window safe area, work area, and IME inset; never cover the caret/IME.
+- Clamp to window safe area (see [`responsive.md`](../design/responsive.md)), the display work
+  area, and IME (input method editor) inset; never cover the caret/IME.
 - Scroll tracking updates position at frame boundaries; no layout in the pointer handler.
 - Virtual keyboard/insets change placement; recompute and clamp.
-- Anchor removed -> overlay closes or re-anchors by policy; default close.
+- Anchor removed -> overlay closes or re-anchors; default close (re-anchoring is opt-in, see
+  section 8.1).
 
 ## 4. Modal and focus
 
@@ -65,7 +71,8 @@ void close_overlays(Predicate);
 - Escape/back dismiss policy is explicit; destructive confirmation is separate.
 - Click-outside dismissal is opt-in; menus/popovers default on, dialogs default off.
 - Stack: topmost modal owns focus; closing reveals the previous modal.
-- Route change/window blur/background closes transient overlays by policy; modals may persist.
+- Route change/window blur/background closes transient overlays (the closing policy is not
+  specified further); modals may persist.
 - Scroll lock is opt-in; body/base scroll is not mutated globally.
 
 ## 5. Lifecycle and rendering
@@ -83,7 +90,8 @@ void close_overlays(Predicate);
 - Focus trap + initial focus + restore; background is hidden from the semantics tree.
 - Escape/back and dismiss actions are exposed; toasts use live regions, not focus.
 - Tooltips are associated with their trigger and not the only source of information.
-- Overlay close/removal announces where appropriate; no focus loss to nowhere.
+- Overlay close/removal announces its closure (which overlays announce is not specified; see
+  [`accessibility-v1.md`](accessibility-v1.md)); no focus loss to nowhere.
 
 ## 7. Security and safety
 
@@ -167,21 +175,25 @@ Failure/edge cases:
 - Nested overlays: only topmost modal owns focus; closing restores the previous entry.
 - Multiple hosts: overlays belong to one host; cross-window overlays require a window spec.
 
-Gap-closure decisions:
+Gap-closure decisions (`G-` IDs refer to
+[`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
 - **G-08**: one default `OverlayHost` per window; additional hosts are explicit. Layer nodes are
   children of the host (no reparenting), render after base, clip to host bounds, and modal
   entries make lower layers inert in input and semantics. Cross-window overlays require a
-  window spec and are deferred.
-- **G-09**: a shared `BackDispatcher` orders handlers: topmost dismissible overlay -> modal
+  window spec and are not in V1.
+- **G-09**: a shared `BackDispatcher` (also described in
+  [`navigation-v1.md`](navigation-v1.md) section 10.1) orders handlers: topmost dismissible overlay -> modal
   route -> route stack -> OS exit. A handler returning handled stops propagation; overlay and
   navigation cannot both act on one back event.
 
 ## 9. Deferred/open questions
 
+Items are open (no decision yet) unless stated otherwise.
+
 - Cross-window overlays, multiple hosts, and nested-host ownership.
 - Sheet drag-to-dismiss and nested-menu interaction details.
-- Toast queue/priority policy (library).
+- Toast queue/priority policy (library; no decision yet).
 - Overlay transition choreography with navigation (visual only).
 - Whether toasts/dialogs are framework primitives or library components.
 - Virtualized overlay lists and large menus.

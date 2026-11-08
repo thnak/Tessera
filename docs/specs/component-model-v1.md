@@ -1,9 +1,9 @@
 # Component model v1
 
-Status: proposed (Big Step C). Normative for the JSX/TSX subset and generated C++.
+Status: proposed (Big Step C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Normative for the JSX/TSX subset and generated C++.
 
 A Tessera component is a pure description of UI state and a node tree. It is compiled to C++;
-there is no React runtime in production.
+there is no React runtime in production ([AGENTS.md](../../AGENTS.md) Non-negotiables rule 7).
 
 ## 1. Component shape
 
@@ -49,16 +49,16 @@ Rules:
 
 | Hook | V1 semantics | Generated C++ |
 |---|---|---|
-| `useState(init)` | state + setter, batched updates | member + setter; marks dirty |
+| `useState(init)` | state + setter, batched updates | member + setter; marks the node dirty ([`dirty-rendering.md`](../design/dirty-rendering.md)) |
 | `useEffect(fn, deps)` | run after commit when deps change; cleanup on unmount/dep change | `OnInitialized`/`OnDataChanged`/`OnUnmounted` stubs |
 | `useRef(null)` | stable mutable ref; may point to a node | pointer/handle; no ownership |
 | `useAnimatedValue(init)` | sampled animated value with tween/spring | `AnimationController` member |
 
-- State updates are batched per tick/frame; setters do not render synchronously.
+- State updates are batched per tick/frame (a tick is one fixed-step update, [`game-loop.md`](../design/game-loop.md)); setters do not render synchronously.
 - Effects run on the UI thread after commit; they must not block.
 - Effect dependency arrays are exact; V1 rejects missing/extra deps.
 - Ref cleanup: refs are cleared when the target node is destroyed.
-- Animated values are sampled at the fixed timestep (see `animation.md`).
+- Animated values are sampled at the fixed timestep (see [`animation.md`](../design/animation.md) and [`animation-v1.md`](animation-v1.md)).
 
 ## 3. Props and children
 
@@ -73,7 +73,7 @@ Rules:
 
 - Supported V1 events: pointer down/up/move/enter/leave, click, key down/up, focus/blur,
   input/change, scroll, submit, pointer cancel.
-- Event handlers are `bind::<id>` protected regions in generated C++.
+- Event handlers are `bind::<id>` protected regions in generated C++ (a protected region is a developer-owned block that survives regeneration; [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md), [`developer-workflow.md`](../guides/developer-workflow.md)).
 - Handlers receive a normalized event object (`target`, `currentTarget`, position, key, etc.).
 - Handlers may call state setters, request focus, or start animations; they must not block or
   mutate the scene graph directly.
@@ -106,7 +106,7 @@ deterministic and ordered child-first.
 ## 7. Styling
 
 - `className` references stylesheet classes; `style` is inline CSS.
-- The style engine computes `ComputedStyle` per node; components do not read computed values.
+- The style engine computes `ComputedStyle` (typed style after cascade, [`stylesheet-v1.md`](stylesheet-v1.md)) per node; components do not read computed values.
 - Pseudo-states (`:hover`, `:active`, `:focus`, `:focus-visible`, `:disabled`, `:checked`) are
   driven by input and props.
 - Theme tokens are custom properties on `:root`/theme scopes.
@@ -146,7 +146,7 @@ A custom element is an intrinsic native-render node declared from JSX:
 
 - `element` is a static literal declared in `ui/elements.json`; no dynamic component type.
 - The C++ class derives `tessera::element::CustomElement` and uses the RHI/shader API.
-- It is a leaf; use `OverlayHost`/overlay service for overlays, and wrap in `View` for layout
+- It is a leaf; use `OverlayHost`/overlay service ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) for overlays, and wrap in `View` for layout
   children.
 - It participates in normal layout/style/automation/input and is reusable with keys/props/state.
 - No JS runtime, dynamic plugin, runtime shader compilation, or raw backend/OS handles.
@@ -161,7 +161,7 @@ A custom element is an intrinsic native-render node declared from JSX:
 - Form state/validation/submit/focus are in
   [`forms-and-validation-v1.md`](forms-and-validation-v1.md); `Form`/`Field` are library
   components, not new intrinsics.
-- Text scale, bidi, grapheme clusters, and caret/selection layout follow the text stack.
+- Text scale, bidi, grapheme clusters, and caret/selection layout follow the text stack ([ADR-006](../../decisions/ADR-006-text-stack.md) (text stack): FreeType, HarfBuzz, SheenBidi, ICU).
 - Secure fields redact snapshots/logs and restrict clipboard/undo persistence.
 
 ## 8. Rejected in V1
@@ -173,7 +173,7 @@ A custom element is an intrinsic native-render node declared from JSX:
 - arbitrary JavaScript expressions, closures, async render, generators
 - direct DOM/window/OS access
 - inline function components without a stable name
-- runtime style object construction beyond static literals/allowlisted pure calls
+- runtime style object construction beyond static literals/allowlisted pure calls (the allowlist is not specified in this file)
 - dynamic imports and code splitting
 
 Rejections are compile errors with source spans; no silent fallback.
@@ -191,7 +191,7 @@ Rejections are compile errors with source spans; no silent fallback.
   `ui/elements.json`; no runtime registration.
 - Error boundaries emit guards around child entry points; fallback/onError are outside the
   guard and propagate to the parent/root on failure.
-- The binding manifest maps ids to components/files/regions.
+- The binding manifest (generated JSON, see [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) maps ids to components/files/regions.
 
 ## 10. Determinism
 
@@ -199,7 +199,7 @@ Rejections are compile errors with source spans; no silent fallback.
 - No timestamps, absolute paths, random ids, or wall clock.
 - State/effect scheduling is deterministic for the same input sequence.
 - Effects dependencies and update order are stable.
-- Golden mode injects the clock and input script.
+- Golden mode ([`golden-tests-v1.md`](golden-tests-v1.md)) injects the clock and input script.
 
 ## 11. Tests
 

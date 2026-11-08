@@ -22,7 +22,7 @@ tessera.json
   -> validate config
   -> load/validate ui/elements.json + shader manifest
   -> discover ui.sourceDirs/include/exclude
-  -> parser adapter (SWC / oxc / tree-sitter)
+  -> own JSX/TSX front end (lexer/parser, ADR-036)
   -> Tier 1: React rules
   -> Tier 2: bindings + node lowering
   -> IR (docs/specs/ir-v1.md)
@@ -36,16 +36,26 @@ tessera.json
 Each stage has a stable diagnostic code and source span. A component that fails validation is
 not partially generated.
 
-## 3. Parser adapter
+## 3. Front end (own parser)
 
-The parser is an implementation detail behind `ParserAdapter`:
+Decision: ADR-036. Tessera has its own lexer/parser for a defined JSX/TSX subset; SWC, oxc,
+tree-sitter, and Node.js are not used.
 
-- candidates: SWC (Apache-2.0), oxc (MIT), tree-sitter (MIT)
-- input: `.tsx`/`.jsx`
+- input: `.tsx`/`.jsx` (subset grammar and expression subset, to be specified in
+  `jsx-subset-v1.md`)
 - output: a normalized module AST (components, imports, JSX nodes, expressions, source spans)
-- no parser AST type may leak into the IR or codegen
+- C++, static, deterministic; stable diagnostic codes, spans, and suggested fixes
+- unsupported syntax is a hard error naming the construct (no best-effort parsing)
+- no parser AST type may leak into the IR or codegen; the IR does not depend on the parser
+- the same front end library is linked into the native CLI (C++ code generation) and into the
+  browser designer's Wasm engine (live view, `decisions/ADR-037-self-contained-wasm-designer.md`),
+  so both produce the same IR; it must be portable C++ (no OS/thread/file
+  assumptions) and support error-tolerant, component-granular parsing for live typing
+- tests: corpus, fuzzing, diagnostics goldens, byte-identical determinism
 
-The choice is recorded in an ADR before implementation. The IR is independent of it.
+Fidelity: the model is React-like, not React-identical. The compiled UI aims to look like the
+web version for the supported subset (see the stylesheet compatibility matrix), but parity with
+React + browser is a goal, not a guarantee.
 
 ## 4. Tier 1: React rules
 
@@ -53,8 +63,9 @@ Validate before lowering:
 
 - valid JSX/TSX and imports
 - hooks called unconditionally at the top level, stable order
-- only allowed hooks: `useState`, `useEffect`, `useRef`, `useAnimatedValue`
-- no custom hooks, context, suspense, portals, or dynamic component types
+- allowed hooks: `useState`, `useEffect`, `useRef`, `useAnimatedValue` plus built-in library
+  hooks declared in the built-in hook manifest (typed signatures, same ordering rules; ADR-036)
+- no user-defined custom hooks, context, suspense, portals, or dynamic component types
 - error boundaries are supported wrappers; codegen guards boundary entry points
 - state setters are used in event handlers/effects, not during render
 - effects have static dependency arrays; no missing/extra deps (V1: exact matching)
@@ -167,7 +178,8 @@ See [`error-model-v1.md`](../specs/error-model-v1.md).
 
 ## 12. Open questions
 
-- Parser choice (SWC vs oxc vs tree-sitter) and Node dependency policy.
+- TSX subset and expression subset grammar (`jsx-subset-v1.md`), built-in hook manifest format.
+- Parser error recovery for the live view (editing partially valid files).
 - Source maps from generated C++ back to TSX.
 - Incremental codegen at the node level vs component level.
 - How much static analysis for effect dependencies.

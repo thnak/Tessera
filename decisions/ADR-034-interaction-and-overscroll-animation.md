@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-029, ADR-033
+- Related: [ADR-029](ADR-029-interaction-completeness.md) (interaction completeness), [ADR-033](ADR-033-app-completeness-gap-resolutions.md) (app-completeness gap resolutions)
 
 ## Context
 
@@ -30,7 +30,7 @@ automation identity, and must remain deterministic/testable.
    never the only feedback.
 8. Press/hover/focus/validation/list/route/overlay effects use the same fixed-step sampler and
    interruption rules. State commits before/independent of animation.
-9. No relayout and no frames at rest; damage is the visual union. The effect never changes
+9. No relayout and no frames at rest; damage (the screen regions to repaint, see decision 4 of [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame pacing)) is the visual union. The effect never changes
    content size, focus, selection, or automation IDs.
 
 ## Consequences

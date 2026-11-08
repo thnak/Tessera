@@ -1,6 +1,16 @@
 # Stylesheet v1 specification
 
-Status: **proposed** (Big Step B2). Normative for `ui/style`.
+Status: **proposed** (Big Step B2, the runtime slice; see [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)).
+Normative for `ui/style`. Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md)
+(stylesheet engine).
+
+Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8);
+**V1.1** is the release after V1 (this file names it only for `@property` and `revert*`);
+**Later** means planned after V1 with no release specified. **ComputedStyle** is the typed style
+after cascade and inheritance. **StyleNode** is the minimal node view the selector matcher sees.
+**Yoga** is the Flexbox layout engine ([ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md)).
+**Batched 2D** is the quad/SDF (signed distance field) renderer. **Golden** is a deterministic
+reference image. **UA** is user-agent. Other project terms: [glossary](../reference/glossary.md).
 
 ## 1. Scope
 
@@ -34,8 +44,9 @@ on a browser, a DOM, JavaScript, or the platform text stack.
 - Full CSS Grid (subgrid, masonry, dense auto-placement) and full CSS Tables.
 - Full SVG/CSS path/filter/shader effects.
 - Every color space and every `@`-rule.
-- CSS nesting and `@scope` in the first slice (parsed, evaluated later).
-- Web fonts beyond committed test fonts (ADR-006).
+- CSS nesting and `@scope` evaluation in V1 (they are parsed only; the release that evaluates them
+  is not specified, see section 17).
+- Web fonts beyond committed test fonts ([ADR-006](../../decisions/ADR-006-text-stack.md), text stack).
 - Browser-style quirks modes, vendor prefixes semantics, or UA stylesheet parity.
 
 ## 4. Pipeline
@@ -123,8 +134,8 @@ Must handle:
   - structural: `:first-child`, `:last-child`, `:only-child`, `:nth-child(An+B)`,
     `:nth-last-child(An+B)`, `:first-of-type`, `:last-of-type`, `:empty`, `:root`
   - logical: `:not(...)`, `:is(...)`, `:where(...)`
-  - `:has(...)` is parsed and evaluated in a later slice
-- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (paint support later)
+  - `:has(...)` is parsed in V1; evaluation is listed as Later in section 11
+- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified)
 - `:not()`/`:is()`/`:where()` accept a selector list; `:where()` contributes zero specificity
 
 ### 6.2 Matching rules
@@ -132,7 +143,7 @@ Must handle:
 - Matching is right-to-left for performance.
 - A selector list is a disjunction; each complex selector has its own specificity.
 - `:root` matches the scene root.
-- `:hover`/`:active`/`:focus` are driven by the input pseudo-state dispatcher (§9).
+- `:hover`/`:active`/`:focus` are driven by the input pseudo-state dispatcher (section 12, Input).
 - Sibling combinators use the scene-graph child order (paint order).
 - No shadow DOM, no slots, no `:host` in V1.
 
@@ -146,7 +157,7 @@ Lowest to highest:
 2. user
 3. author
 4. inline `style="..."`
-5. animations (later slice)
+5. animations (not implemented in the first cascade slice; no release specified)
 6. `!important` reverses origin precedence per CSS
 
 ### 7.2 Ordering key
@@ -202,14 +213,14 @@ diagnostic.
 - colors: named colors, `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`,
   `hsl()`, `hsla()`, `transparent`, `currentColor`
 - modern color functions (`lab()`, `lch()`, `oklab()`, `oklch()`, `color()`) are parsed and
-  preserved; semantic support is a later slice
+  preserved; semantic support is listed as Later in section 11
 - strings, URLs, identifiers, functions
 - `var()` with fallback and cycle detection
 
 ### 8.3 Resolution boundary
 
 `ComputedStyle` stores typed values in a canonical form. Percentage and `auto` values are kept
-symbolic until layout; paint-only values are resolved at paint time. The same rule applies to
+symbolic until layout; paint-only values are resolved at paint time. This symbolic-until-layout storage applies identically to
 build-time and runtime.
 
 ## 9. Custom properties and themes
@@ -230,20 +241,21 @@ build-time and runtime.
 | `@media` | yes | width/height/resolution, orientation, `prefers-color-scheme`, `prefers-reduced-motion` |
 | `@supports` | yes | property/value support checks against the registry |
 | `@layer` | yes | layer order; unlayered author rules win |
-| `@font-face` | parse | font loading is ADR-006; V1 uses committed fonts |
+| `@font-face` | parse | font loading is [ADR-006](../../decisions/ADR-006-text-stack.md); V1 uses committed fonts |
 | `@keyframes` | parse | animation runtime samples at fixed timestep |
 | `@import` | build-time | resolved by the asset/build pipeline |
-| `@container` | later | parsed; evaluated in the responsive slice |
-| `@property` | later | parsed; typed custom properties in V1.1 |
-| `@scope` | later | parsed; evaluated later |
+| `@container` | Later | parsed; evaluated in the responsive slice |
+| `@property` | Later | parsed; typed custom properties in V1.1 |
+| `@scope` | Later | parsed; evaluated later |
 | `@page`/`@namespace`/`@charset` | no-op | parsed and ignored |
 
-Unknown at-rules are preserved and skipped with a diagnostic.
+Unknown at-rules are preserved and skipped with a diagnostic. In the V1 column, `Later` has the
+meaning given in the section 11 legend; `parse` means parsed with no semantic effect.
 
 ## 11. Compatibility matrix
 
 Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semantic effect;
-**Later** = planned after V1.
+**Later** = planned after V1; the release is not specified.
 
 | Area | V1 semantics | Later |
 |---|---|---|
@@ -271,7 +283,7 @@ Unsupported declarations are **not** silent: they produce one diagnostic per
 
 - **StyleNode**: `tag`, `id`, `classes`, attributes, parent/siblings, pseudo-state bits,
   inline style, theme scope.
-- **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes (ADR-005). See
+- **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes ([ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md)). See
   [`layout.md`](../design/layout.md).
 - **Paint**: the batched 2D renderer reads paint longhands and produces quads/SDF/text. See
   [`renderer.md`](../design/renderer.md).
@@ -313,7 +325,8 @@ Style is the first dirty domain in the runtime pipeline. See
 - Selector indexes and cached computed styles are invalidated by the change class, not by a
   global rebuild.
 - `:hover` chains are recomputed on scene changes, not only on pointer motion.
-- `dirtyRendering=off` forces a full rebuild for debugging; it must produce identical pixels.
+- `dirtyRendering=off` (see [`runtime-config-v1.md`](runtime-config-v1.md) section 5.4) forces a
+  full rebuild for debugging; it must produce identical pixels.
 
 ## 14. Performance
 
@@ -351,7 +364,7 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 - Property matrix: parse/validate/shorthand expansion/computed values.
 - Determinism: repeated runs produce identical dumps; rule order is stable.
 - Golden layout/paint: style → layout → render on the headless path.
-- Fuzz the tokenizer/parser with a bounded corpus in CI (later).
+- Fuzz the tokenizer/parser with a bounded corpus in CI (not scheduled; no decision yet).
 
 ## 17. Open questions
 

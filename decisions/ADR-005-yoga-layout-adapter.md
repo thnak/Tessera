@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-003, ADR-006
+- Related: [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin render hardware interface and batched 2D renderer), [ADR-006](ADR-006-text-stack.md) (text stack)
 
 ## Context
 
@@ -21,17 +21,17 @@ cross-platform, and designed for exactly this use case.
    (`flex-direction`, `justify-content`, `align-items`, `gap`, `padding`, `min/max`,
    percentages, absolute positioning) into Yoga nodes.
 3. Text measurement is injected into Yoga through a callback backed by the text stack
-   (ADR-006). Layout must not rasterize text.
+   ([ADR-006](ADR-006-text-stack.md)). Layout must not rasterize text.
 4. **Grid**: implement a small CSS-grid subset on top of Yoga or vendor **taffy** behind a
-   C ABI if needed. V1 supports:
+   C ABI (application binary interface) if the Grid subset cannot be built on Yoga (the criterion is not specified). [V1](../docs/reference/glossary.md) supports:
    - fixed/repeat columns and rows
    - gaps
    - item span
    - basic alignment
    Not in V1: subgrid, masonry, auto-placement with complex dense packing.
 5. **Integer-pixel paint alignment**: retain fractional geometry through layout, then round
-   once at paint time using a single documented rounding rule. Golden tests must use the same
-   rule.
+   once at paint time using a single documented rounding rule. [Golden](../docs/reference/glossary.md) tests must use that
+   rounding rule.
 6. The adapter is the only place that knows about Yoga. UI code never includes Yoga headers.
 
 ## Consequences
@@ -40,7 +40,7 @@ cross-platform, and designed for exactly this use case.
 
 - Battle-tested Flexbox behavior.
 - Text measurement integration is a known problem with documented solutions.
-- Swapping engines later is possible because only the adapter depends on Yoga.
+- Swapping the layout engine is possible without changing UI code because only the adapter depends on Yoga.
 
 ### Negative / risks
 
@@ -53,13 +53,13 @@ cross-platform, and designed for exactly this use case.
 
 - **Write Flexbox ourselves.** Rejected: high cost, high risk, no differentiation.
 - **Use taffy (Rust) for both Flexbox and Grid.** Rejected for V1: adds a Rust toolchain and
-  FFI, and Yoga is already proven in production.
+  FFI (foreign function interface), and Yoga is already proven in production.
 - **Use a browser layout engine (Blink/WebKit).** Rejected: far too heavy; contradicts the
   "no browser in production" goal.
 - **Pixel-absolute layout only.** Rejected: unusable for responsive UI.
 
 ## Follow-up
 
-- Write `docs/design/layout.md` covering the style mapping and rounding rule.
+- Write [`docs/design/layout.md`](../docs/design/layout.md) covering the style mapping and rounding rule.
 - Build a layout test corpus (JSX source + expected boxes) before adding Grid.
 - Add Yoga to `third_party/` with its license note.

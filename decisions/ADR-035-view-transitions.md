@@ -2,14 +2,18 @@
 
 - Status: Accepted
 - Date: 2026-11-08
-- Related: ADR-011, ADR-019, ADR-021, ADR-024, ADR-028, ADR-034
+- Related (number: subject): ADR-011: shader authoring; ADR-019: power-aware runtime; ADR-021:
+  async runtime, UI thread never blocks; ADR-024: no JS/React runtime in production; ADR-028:
+  custom native elements and build-time shaders; ADR-034: interaction animation and overscroll.
+  Terms (view transition, old image, skip, tick boundary) are defined in
+  [`view-transitions-v1.md`](../docs/specs/view-transitions-v1.md) section 0.1.
 
 ## Context
 
-The animation design (ADR-034) covers node-level transitions, keyframes, springs, scroll/overscroll
+The animation design ([ADR-034](ADR-034-interaction-and-overscroll-animation.md)) covers node-level transitions, keyframes, springs, scroll/overscroll
 and local route/overlay motion. There was no way to animate a window-wide change such as a theme
-switch with a circle reveal or a glitch. A theme change only marked `StyleDirty` and swapped
-instantly; `clip-path`, filters and animated custom properties are outside the V1 stylesheet
+switch with a circle reveal or a glitch. A theme change only marked the affected nodes as needing
+style recalculation (`StyleDirty`, see `stylesheet-v1.md` section 13.1) and swapped instantly; `clip-path`, filters and animated custom properties are outside the V1 stylesheet
 subset; custom elements are leaf-scoped. On the web this is the View Transitions API
 (`startViewTransition`, `::view-transition-old/new(root)`), and developers expect it.
 
@@ -25,19 +29,29 @@ subset; custom elements are leaf-scoped. On the web this is the View Transitions
    release and idle.
 4. Developers define effects in two ways: CSS `animation`/`@keyframes` on a fixed
    `::view-transition-*` tree (V1) with a restricted `clip-path` subset (`circle`, `inset`,
-   `ellipse`) rendered via the existing SDF; and build-time shader effects declared in
-   `ui/effects.json` against a `view-transition-effect` shader interface (V1.1). Built-in effects:
+   `ellipse`) rendered with the signed distance field (SDF) technique the batched 2D renderer
+   already uses for rounded rectangles; and build-time shader effects declared in
+   `ui/effects.json` (V1.1). "V1" is the first release scope ([glossary](../docs/reference/glossary.md), entry V1; which Big
+   Steps it includes is an open decision); "V1.1" is the first
+   release after V1, with no date set. Built-in effects:
    `crossfade`, `circle-reveal`, `wipe`, `slide`, implemented as the same keyframes.
-5. No runtime shader source, one pass, no feedback in V1.1. Photosensitive effects are flagged,
+5. In V1.1, shader effects use one pass, read only the old and new images, and have no runtime
+   shader source (ADR-028). Photosensitive effects are flagged,
    linted, and disabled under reduced motion/low power.
-6. Only the window `root` is supported in V1. `view-transition-name` other than `root`,
-   async update callbacks, and scoped transitions are deferred and rejected loudly.
-7. Bounded resources: two pooled window-sized textures under `viewTransition.maxBytes`; over
-   budget, resize, hidden, error, reduced motion or low power => skip to the new state.
-8. Interruption captures the currently composited output as the new "old" image for continuity;
-   one transition at a time, same-tick starts are coalesced.
+6. Only the whole window (`root`) is supported in V1 and V1.1. `view-transition-name` other than
+   `root`, async update functions, and subtree transitions are rejected with a diagnostic and are
+   listed as open questions in the spec (section 13); no release is scheduled for them.
+7. Bounded resources: two pooled window-sized textures under a new configuration key
+   `viewTransition.maxBytes` (default 64 MiB). The transition is skipped (the new UI is shown at
+   once) when the limit is exceeded, the window is resized, hidden or occluded, an error occurs,
+   reduced motion is on, or battery-saver is active.
+8. If a transition is started while another is running, the currently composed output becomes
+   the new old image (no visual jump) and the running transition ends at once. Only one transition
+   runs at a time. Several starts in the same tick run all update functions in call order and
+   produce one transition that uses the options of the last call.
 9. Deterministic: progress from the simulation clock, `seed` derived from a counter and effect id.
-10. The design-time Wasm preview uses the engine implementation, not the browser's native API.
+10. The design-time WebAssembly (Wasm) preview uses this engine's implementation and never the
+    browser's own `document.startViewTransition`, so the preview matches native output.
 
 ## Consequences
 
@@ -53,17 +67,20 @@ subset; custom elements are leaf-scoped. On the web this is the View Transitions
 ## Alternatives
 
 - Animate theme tokens per node via custom-property transitions: rejected for this goal (no
-  circle/glitch, N concurrent animations, needs `@property`; still kept as a later enhancement).
+  circle/glitch, N concurrent animations, needs typed custom properties (`@property`), which `docs/specs/stylesheet-v1.md` section 9 says are
+  not available until V1.1; per-token animation is not part of this decision).
 - Developer-supplied runtime shaders/scripts: rejected (ADR-024, ADR-028, security).
 - Browser `document.startViewTransition` in preview only: rejected (preview would diverge from
   native, breaks Big Step D acceptance).
-- Per-element shared-element transitions in V1: deferred (layout/identity complexity).
+- Per-element shared-element transitions in V1: not done, because node identity and layout interaction are not designed; it is an open
+  question in `view-transitions-v1.md` section 13.
 - Instant theme swap only: rejected (poor polish; expected by web developers).
 
 ## Follow-up
 
-- Implement `ViewTransition` state machine, snapshot pool, compose pass and SDF clip masks.
+- Implement the `ViewTransition` state machine, texture pool use, compose pass and SDF clip masks.
 - Add `::view-transition-*` parsing, UA-injected `--vt-*` properties and the `clip-path` subset.
-- Add `ui/effects.json` schema/validation and the `view-transition-effect` shader interface.
+- Add the `ui/effects.json` schema and validation, a `kind` field in `shader-manifest-v1.md`, and
+  the `viewTransition.maxBytes` key in `runtime-config-v1.md`.
 - Compiler: Tier-1 rule for `startViewTransition` callbacks and lowering.
 - Goldens (all effects, RTL, DPI), headless, resource, budget and reduced-motion tests.

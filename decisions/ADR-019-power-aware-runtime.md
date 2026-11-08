@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-07
-- Related: ADR-009, ADR-017, ADR-018
+- Related: [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests), [ADR-017](ADR-017-input-and-fixed-step-runtime.md) (input and fixed-step runtime loop), [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame pacing)
 
 ## Context
 
@@ -12,7 +12,7 @@ tools, kiosks, industrial UI), maximizing GPU utilization is a bad default: it w
 creates heat/noise, shortens battery life, and competes with other applications.
 
 Hardware utilization is not a single switch. It is the result of present rate, dirty work,
-damage area, render scale, effects/overdraw, frames in flight, and visibility. "GPU utilization
+damage area (screen regions that changed and must be repainted; see decision 4 of [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md)), render scale, effects/overdraw, frames in flight, and visibility. "GPU utilization
 %" is not a portable or reliable control signal; frame time and work counters are.
 
 ## Decision
@@ -27,7 +27,7 @@ damage area, render scale, effects/overdraw, frames in flight, and visibility. "
    ticks. Input/data/resize/theme wakes the minimum frames needed.
 5. **Occluded/minimized pauses** by default (`pauseWhenOccluded=true`). Unfocused-but-visible may
    be capped by `backgroundMaxFps`; `0` means use `maxFps`.
-6. **Utilization is controlled by work**: dirty domains, damage rectangles, render scale,
+6. **Utilization is controlled by work**: [dirty domains](../docs/reference/glossary.md), damage rectangles, render scale,
    effects, batching, texture uploads, frames in flight, and visibility. There is no
    "maxGpuUtilization" knob.
 7. **Budgets, not utilization percentages**: use frame/CPU/GPU time, missed deadlines, dropped
@@ -54,8 +54,8 @@ damage area, render scale, effects/overdraw, frames in flight, and visibility. "
 
 - On-demand behavior adds wake-tracking complexity and missed-wake bugs.
 - Adaptive quality needs tuning/hysteresis; poor tuning can oscillate.
-- VRR/occlusion/platform feedback varies by OS/driver.
-- Some users expect a game-engine "always 60/144 fps" behavior; it must be opt-in.
+- VRR (variable refresh rate)/occlusion/platform feedback varies by OS/driver.
+- Users coming from game engines may expect a game-engine "always 60/144 fps" behavior; it must be opt-in.
 
 ## Alternatives considered
 
@@ -65,8 +65,8 @@ damage area, render scale, effects/overdraw, frames in flight, and visibility. "
   behavior and ignores frame budgets.
 - **On-demand only, no continuous mode.** Rejected: video/live dashboards and benchmarking need
   continuous presentation.
-- **Pause everything when unfocused.** Rejected as a universal default: some dashboards must keep
-  updating; it is configurable.
+- **Pause everything when unfocused.** Rejected as a universal default: dashboards that must keep
+  updating while unfocused exist; it is configurable.
 
 ## Follow-up
 
@@ -74,4 +74,4 @@ damage area, render scale, effects/overdraw, frames in flight, and visibility. "
 - Add acceptance tests for zero-work idle and exact input wake frames.
 - Add benchmark scenes and per-scene frame budgets.
 - Tune adaptive-quality thresholds/hysteresis on Windows and Linux.
-- Keep `docs/design/performance.md`, `game-loop.md`, and `runtime-config-v1.md` in sync.
+- Keep [`docs/design/performance.md`](../docs/design/performance.md), [`docs/design/game-loop.md`](../docs/design/game-loop.md), and [`docs/specs/runtime-config-v1.md`](../docs/specs/runtime-config-v1.md) in sync.

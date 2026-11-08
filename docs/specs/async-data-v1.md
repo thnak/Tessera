@@ -1,12 +1,12 @@
 # Async data, cache, and offline v1
 
-Status: proposed (Big Step F). Decision: ADR-030. Companion to
+Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Decision: [ADR-030](../../decisions/ADR-030-app-platform-completeness.md) (navigation, restore, shell, i18n, accessibility, async data). Companion to
 [`async.md`](../design/async.md), [`services.md`](../design/services.md),
 [`startup-and-loading.md`](../design/startup-and-loading.md),
 [`forms-and-validation-v1.md`](forms-and-validation-v1.md), and
 [`resource-lifecycle-v1.md`](resource-lifecycle-v1.md).
 
-The async runtime owns tasks; this spec owns **data**: keys, cache, fetch state, invalidation,
+The async runtime ([ADR-021](../../decisions/ADR-021-async-runtime.md), [`async.md`](../design/async.md)) owns tasks; this spec owns **data**: keys, cache, fetch state, invalidation,
 retry, offline, and UI integration.
 
 ## 1. Resource model
@@ -23,19 +23,19 @@ struct Resource<T> {
 };
 ```
 
-- A resource is keyed by a stable typed key (route, id, query, locale).
+- A resource is keyed by a stable typed key (route, id, query, locale). Here a resource is a typed data record, not an asset (see section 8.1).
 - `Loading` has no data; `Refreshing` keeps previous data; `Stale` may show old data with a hint.
-- Epochs discard stale responses after key/params/cancellation changes.
+- Epochs (a counter incremented on every key/param/cancel change, section 8.1) discard stale responses after key/params/cancellation changes.
 - Data is immutable once published; UI reads snapshots, not mutable caches.
-- Errors are values, localized at the UI edge; no thrown exceptions.
+- Errors are values (`Error`, see [`error-model-v1.md`](error-model-v1.md)), localized at the UI edge; no thrown exceptions.
 
 ## 2. Cache and dedupe
 
 - In-memory cache keyed by resource key; optional disk cache for offline/startup.
 - Concurrent requests for the same key dedupe to one task.
-- Cache entries have TTL/stale policy and size budgets; eviction is deterministic.
+- Cache entries have TTL (time to live)/stale policy and size budgets; eviction is deterministic.
 - Cache is scoped (app/user/route); logout clears user-scoped data.
-- Disk cache is versioned/encrypted where sensitive; corruption falls back to network.
+- Disk cache is versioned/encrypted for sensitive data (no classification rule is defined in this file); corruption falls back to network.
 - No unbounded cache growth; metrics report hit/miss/eviction/bytes.
 
 ## 3. Fetch policy
@@ -47,7 +47,7 @@ cache-first | network-first | stale-while-revalidate | network-only | cache-only
 - Policy is explicit per resource; no hidden global behavior.
 - Cancellation on route change/unmount; no callback after teardown.
 - Timeouts/backoff/retry for idempotent reads; no retry storms.
-- Prefetch is scheduled with priority/deadline and cancellable (see resource lifecycle).
+- Prefetch is scheduled with priority/deadline and cancellable (see [`resource-lifecycle-v1.md`](resource-lifecycle-v1.md)).
 - Pagination uses cursor/page keys; prefetch next page near the end.
 - Dependencies are explicit; dependent resources revalidate on key changes.
 
@@ -63,7 +63,7 @@ cache-first | network-first | stale-while-revalidate | network-only | cache-only
 
 ## 5. Offline
 
-- Offline detection comes from services/HAL; not polling the network in the loop.
+- Offline detection comes from services ([`services.md`](../design/services.md)) or the HAL ([`hal.md`](../design/hal.md)); not polling the network in the loop.
 - Read-only cached data may be shown with an offline/stale indicator.
 - Queueable mutations are explicit, bounded, and idempotent; conflict/error surfaced.
 - Reconnect triggers revalidation/queued flush with backoff and cancellation.
@@ -79,15 +79,15 @@ cache-first | network-first | stale-while-revalidate | network-only | cache-only
 - Pagination: append with stable keys; dedupe items; preserve scroll/selection.
 - Detail screens use the list item as placeholder while fetching.
 - Forms/validation use async data only through explicit resources; no hidden fetch in render.
-- Accessibility announces loading/error at a bounded rate.
+- Accessibility announces loading/error at a bounded rate (limits in [`accessibility-v1.md`](accessibility-v1.md) section 10.1: identical messages within 250 ms, progress within 1 s).
 
 ## 7. Security and privacy
 
 - Validate/schema-check external data; bound sizes/depth.
-- TLS verification; no insecure fallback; redact headers/tokens.
+- TLS (transport layer security) verification; no insecure fallback; redact headers/tokens.
 - Do not cache secrets in plaintext; use secure storage/expiry.
 - User/tenant scoping on every cache key; logout clears.
-- No PII in logs/traces; diagnostics redact.
+- No PII (personally identifiable information) in logs/traces; diagnostics redact.
 - Untrusted data never becomes code/paths/HTML.
 
 ## 8. Testing
@@ -111,11 +111,11 @@ Ownership and boundaries:
 | `Mutation<T>` | mutation state, optimistic patch/rollback | UI focus/navigation |
 | `OfflineQueue` | durable queued mutations/idempotency | Network policy |
 | `async` runtime | tasks/executors/cancellation | Domain cache semantics |
-| `resource-lifecycle` | asset bytes/fonts/images/shaders/media | Typed records/queries |
+| [`resource-lifecycle-v1.md`](resource-lifecycle-v1.md) | asset bytes/fonts/images/shaders/media | Typed records/queries |
 | `services/networking` | HTTP/TLS/streaming | Cache keys/UI state |
 
-Canonical rule: `async-data` caches **typed domain records**; `resource-lifecycle` caches
-**byte/asset resources**. Do not store the same payload in both. A query may reference an asset
+Canonical rule: this spec (`async-data-v1.md`) caches **typed domain records**;
+[`resource-lifecycle-v1.md`](resource-lifecycle-v1.md) caches **byte/asset resources**. Do not store the same payload in both. A query may reference an asset
 id, but the asset is loaded by the resource manager.
 
 Cache key:
@@ -172,13 +172,13 @@ Failure/edge cases:
 - Refresh failure -> keep old data and show retry/stale indicator.
 - Streaming/subscriptions are not V1; if added, define ordering/backpressure separately.
 
-Gap-closure decisions:
+Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`app-completeness-cross-check-v1.md`](../architecture/app-completeness-cross-check-v1.md); resolutions in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
 - **G-20/Q-19/Q-20**: keys are canonical JSON + hash with mandatory scope; disk cache is
   optional and encrypted for sensitive data; cross-window invalidation uses store events.
   Offline queue is capped at 100 mutations/1 MiB. Default conflict policy is server-wins with a
   surfaced conflict error; merge is opt-in per mutation.
-- **G-21**: V1 supports cursor/page pagination; streaming/subscriptions/GraphQL are deferred.
+- **G-21**: V1 supports cursor/page pagination; streaming/subscriptions/GraphQL are deferred (no release assigned).
   Pagination dedupes by stable item key and preserves anchor/scroll state.
 
 ## 9. Deferred/open questions
@@ -186,5 +186,5 @@ Gap-closure decisions:
 - Query language/schema generation vs hand-written resources.
 - Disk cache migration/compaction and key rotation.
 - Prefetch budgets vs power policy.
-- Streaming/subscriptions (post-V1).
+- Streaming/subscriptions (after V1; no release assigned).
 - Cross-window cache sharing beyond invalidation events.

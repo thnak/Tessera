@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-07
-- Related: ADR-017, ADR-018, ADR-020, ADR-022
+- Related: [ADR-017](ADR-017-input-and-fixed-step-runtime.md) (input and fixed-step runtime loop), [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame pacing), [ADR-020](ADR-020-window-resize-and-lifecycle.md) (window resize, display scale, and lifecycle), [ADR-022](ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling)
 
 ## Context
 
@@ -20,8 +20,8 @@ lack cancellation, affinity, and structured lifetime.
 3. **Structured concurrency**: every task has an owner/cancel scope; no detached fire-and-forget
    tasks; `when_all`/`when_any`/`timeout` and cancellation are first-class.
 4. UI-affine continuations resume on the main executor. Workers receive immutable snapshots/owned
-   buffers and never mutate the scene graph.
-5. Async completions post to a bounded main-thread queue and are drained at tick boundaries; they
+   buffers and never mutate the [scene graph](../docs/reference/glossary.md).
+5. Async completions post to a bounded main-thread queue and are drained at tick boundaries (a tick is one fixed-timestep simulation step, see decision 2 of [ADR-017](ADR-017-input-and-fixed-step-runtime.md)); they
    are wake sources for the loop. Per-tick completion budget with priorities.
 6. **GPU waits** are scheduler events resolved when the device signals completion; the frame loop
    uses explicit acquire/record/submit/present/retire states, not blocking waits.
@@ -54,7 +54,7 @@ lack cancellation, affinity, and structured lifetime.
 - **Callback-only model.** Rejected: callback hell, lifetime/ownership errors, hard cancellation.
 - **Synchronous everything.** Rejected: freezes on I/O/GPU/compositor.
 - **Async everything.** Rejected: overhead/complexity for CPU-light style/layout/paint.
-- **Fiber/coroutine framework.** Rejected for V1: too heavy; C++20 coroutines suffice.
+- **Fiber/coroutine framework.** Rejected for [V1](../docs/reference/glossary.md): too heavy; C++20 coroutines suffice.
 
 ## Follow-up
 

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-029, ADR-030, ADR-031
+- Related: [ADR-029](ADR-029-interaction-completeness.md) (interaction completeness), [ADR-030](ADR-030-app-platform-completeness.md) (app-platform completeness), [ADR-031](ADR-031-production-tooling-and-distribution.md) (production tooling and distribution)
 
 ## Context
 
@@ -21,15 +21,15 @@ is a product layer, not part of the renderer.
 4. Every component documents role/name/state/actions, keyboard/focus, disabled/read-only,
    touch target, text scale, high contrast, reduced motion, loading/empty/error.
 5. Test with semantics snapshots, keyboard/pointer/IME/overlay/headless scripts, and
-   theme/density/RTL/text-scale goldens. Visual changes require reviewed goldens.
-6. Package SemVer; unused components tree-shake; fonts/icons/licenses documented.
+   theme/density/RTL/text-scale [goldens](../docs/reference/glossary.md). Visual changes require reviewed goldens.
+6. Package SemVer (semantic versioning); unused components tree-shake; fonts/icons/licenses documented.
 
 ## Consequences
 
 - Faster adoption and consistent accessibility.
 - Maintenance cost and versioning of visual behavior.
 - Risk of the library becoming a de-facto core; keep it optional and replaceable.
-- DataGrid/DatePicker/Charts are large scopes; stage them.
+- DataGrid/DatePicker/Charts are large scopes; the Follow-up list delivers them in stages (DataGrid/DatePicker/Tree after the basic components).
 
 ## Alternatives
 

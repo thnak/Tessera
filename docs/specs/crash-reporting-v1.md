@@ -1,35 +1,35 @@
 # Crash reporting and symbolication v1
 
-Status: proposed (Big Step F). Decision: ADR-031. Companion to
+Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-031](../../decisions/ADR-031-production-tooling-and-distribution.md) (devtools, updates/signing, crash reporting). Companion to
 [`diagnostics.md`](../design/diagnostics.md), [`diagnostics-config-v1.md`](diagnostics-config-v1.md),
 and [`security.md`](../design/security.md).
 
-Crash dumps exist in diagnostics; this spec covers the end-to-end report: capture, symbols,
+Crash dumps exist in diagnostics (config fields `crashDumps`, `crashDumpDir`, `breadcrumbs` in [`diagnostics-config-v1.md`](diagnostics-config-v1.md)); this spec covers the end-to-end report: capture, symbols,
 privacy, upload, and version matching.
 
 ## 1. Goals
 
-- Capture actionable crashes without blocking the UI or leaking PII.
+- Capture actionable crashes without blocking the UI or leaking PII (personally identifiable information).
 - Symbolicate with the exact build symbols; group/dedupe reports.
 - Opt-in/consent-aware upload; offline queue; bounded.
 - Never execute crash data; never trust a dump.
 
 ## 2. Capture
 
-- Crash handler writes a bounded minidump/core + metadata (version, commit, platform, GPU,
+- Crash handler writes a bounded minidump (Windows dump format) or core (Unix core dump) + metadata (version, commit, platform, GPU,
   config hash, feature flags, breadcrumbs).
 - Breadcrumbs are a bounded ring (logs/traces/events); no secrets.
-- Crashpad/Wer/breakpad-style out-of-process handler where available; no in-process unsafe code.
-- Capture on fatal signals/exceptions/abort/GPU device loss (where applicable).
+- Crashpad, Windows Error Reporting (WER), or Breakpad-style out-of-process handler where available (selection rule: G-24 in section 6.1; libraries listed in [`dependencies.md`](dependencies.md) section 8); no in-process unsafe code.
+- Capture on fatal signals/exceptions/abort/GPU device loss (when the backend reports device loss).
 - Do not capture full memory/user documents by default; allowlist regions only.
-- Write atomically to a crash directory; survive restart; retry upload later.
+- Write atomically to a crash directory; survive restart; retry upload on the next launch (see the capture pipeline in section 6.1).
 
 ## 3. Symbols
 
-- Build produces symbols (PDB/dSYM/ELF debug) and a build id.
+- Build produces symbols (PDB on Windows, dSYM on macOS, ELF debug info on Linux) and a build id.
 - Upload symbols separately from the app; never ship debug binaries.
 - Server matches build id/version/arch; missing symbols are visible, not silently ignored.
-- Symbolicate stack frames/registers; inline frames where supported.
+- Symbolicate stack frames/registers; inline frames where supported (per-platform support is not specified).
 - Keep symbols for all shipped versions; retention policy documented.
 
 ## 4. Upload and grouping
@@ -55,7 +55,7 @@ privacy, upload, and version matching.
 - Symbolication with known build; missing/mismatched symbols.
 - Redaction fixtures (paths/tokens/secure text).
 - Offline queue/retry/rate limit; corrupt dump rejected.
-- Crash-loop -> rollback/alert; version grouping.
+- Crash-loop -> rollback ([`updates-and-distribution-v1.md`](updates-and-distribution-v1.md)) or alert; version grouping.
 - No UI-thread blocking on crash/upload.
 
 ## 6.1 Detail design
@@ -73,7 +73,7 @@ Capture pipeline:
 
 ```text
 fatal signal/exception/device-loss
-  -> minimal async-signal-safe write (bounded dump + metadata)
+  -> minimal async-signal-safe write (only operations that are safe inside a signal handler) (bounded dump + metadata)
   -> mark pending; do not allocate/lock/log in handler
   -> next launch: discover dump -> symbolicate/group metadata
   -> consent -> upload -> delete/retain per policy
@@ -108,7 +108,7 @@ Failure/edge cases:
 - Symbol mismatch -> group by module/offset, mark "unsymbolicated".
 - GPU device-loss vs app crash -> separate signatures/paths.
 
-Gap-closure decisions:
+Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`app-completeness-cross-check-v1.md`](../architecture/app-completeness-cross-check-v1.md); resolutions in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
 - **G-24/Q-23**: use Crashpad where available, with a platform-native handler fallback. Symbols
   live in an internal symbol store keyed by build id; upload is opt-in. Group by top 3 frames +
@@ -122,4 +122,4 @@ Gap-closure decisions:
 - Consent UX/regulation per region.
 - Breadcrumb schema versioning/limits.
 - GPU device-loss detail beyond a separate signature.
-- Mobile handler integration (deferred with the mobile backend).
+- Mobile handler integration (deferred until the mobile backend exists, Big Step F).

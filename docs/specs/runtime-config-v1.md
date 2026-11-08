@@ -1,10 +1,22 @@
 # Runtime configuration v1
 
-Status: proposed for Big Step B2/B3. Extends [`project-config-v1.md`](project-config-v1.md)
+Status: proposed for Big Steps B2 and B3 (defined in [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step):
+B2 = runtime slice, B3 = window/swapchain/OS path). Decisions behind these fields:
+[ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (fixed-step runtime),
+[ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering, frame pacing),
+[ADR-019](../../decisions/ADR-019-power-aware-runtime.md) (power-aware defaults),
+[ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (resize/lifecycle), and
+[ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime). Extends [`project-config-v1.md`](project-config-v1.md)
 with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`. Buffer capacities and
 user tunables are in [`buffer-config-v1.md`](buffer-config-v1.md). Startup/loading/auth budgets
 and resource policy are in [`startup-and-loading.md`](../design/startup-and-loading.md) and
 [`resource-lifecycle-v1.md`](resource-lifecycle-v1.md).
+
+Terms used below: vsync = present synchronized to display refresh; VRR = variable refresh rate
+(adaptive sync); swapchain = the set of images presented to a window; tick = one fixed-timestep
+simulation step; damage = the screen region that changed and needs repainting; golden = a
+deterministic reference image (see [`golden-tests-v1.md`](golden-tests-v1.md)); dirty domains =
+style/layout/paint/render invalidation scopes (see the [glossary](../reference/glossary.md)).
 
 ## 1. Goals
 
@@ -92,7 +104,7 @@ and resource policy are in [`startup-and-loading.md`](../design/startup-and-load
 | `asyncQueueCapacity` | integer | `4096` | `64..1048576` | Bounded completion/task queue. |
 | `asyncMainThreadBudgetMs` | number | `2.0` | `0..16` | Per-tick main-thread completion budget. |
 | `asyncTraceTasks` | boolean | `false` | | Trace task spans/queue latency; debug overhead. |
-| `dirtyRendering` | string | `auto` | `auto`, `on`, `off` | `auto` enables dirty mode when beneficial. |
+| `dirtyRendering` | string | `auto` | `auto`, `on`, `off` | `auto` enables dirty paths with the safety fallbacks of [`dirty-rendering.md`](../design/dirty-rendering.md) section 6.2; no other criterion is specified. |
 | `damageRects` | boolean | `true` | | Partial redraw when the present path supports it. |
 | `maxDamageRects` | integer | `16` | `1..64` | Exceeding this falls back to full redraw. |
 | `fullRedrawThreshold` | number | `0.6` | `0.0..1.0` | Damage area ratio above which to full-redraw. |
@@ -149,8 +161,8 @@ if maxFps == 0: rate = refresh (or VRR content rate)
 else:           rate = min(maxFps, refresh)
 ```
 
-When `vsync=on`, a cap below the refresh rate uses a refresh divisor if possible; otherwise the
-pacer uses deadlines and reports jitter.
+When `vsync=on`, a cap below the refresh rate uses a refresh divisor when one exists (the cap equals
+the refresh rate divided by an integer); otherwise the pacer uses deadlines and reports jitter.
 
 ### 5.3 Dynamic refresh rate
 
@@ -162,7 +174,8 @@ VRR never overrides `maxFps`; a non-zero cap still applies.
 
 ### 5.4 Dirty rendering
 
-- `auto`: dirty style/layout/paint/render plus damage when safe.
+- `auto`: dirty style/layout/paint/render plus damage when partial redraw is safe, as defined in
+  [`dirty-rendering.md`](../design/dirty-rendering.md) section 6.2.
 - `on`: always use dirty paths (for profiling/validation).
 - `off`: full rebuild/redraw every frame (debug/regression comparison).
 
@@ -176,7 +189,8 @@ In deterministic mode:
 - simulate a fixed step count; no wall clock;
 - force offscreen rendering; ignore present modes;
 - fix viewport, DPI, and refresh inputs;
-- disable interpolation if the golden mode requires it;
+- disable interpolation if the golden mode requires it (which golden modes require it is not
+  specified here; see [`golden-tests-v1.md`](golden-tests-v1.md));
 - record/consume an input script.
 
 ### 5.6 Power policy
@@ -303,14 +317,19 @@ struct RuntimeConfig {
 
 | Capability | Windows | Linux/X11 | Linux/Wayland | Android | macOS |
 |---|---|---|---|---|---|
-| `maxFps` cap | yes (waitable swapchain / timer) | yes | yes (frame callbacks) | later | later |
-| `vsync` modes | flip model | Present ext / driver | compositor | later | later |
-| tearing | `ALLOW_TEARING` | driver/extension | compositor | later | later |
-| dynamic refresh/VRR | OS/driver | driver/compositor | compositor | later | later |
-| damage rects | DXGI dirty rects | Present damage | surface damage | later | later |
-| resize/DPI/occlusion | `WM_SIZE`/`WM_DPICHANGED` | `ConfigureNotify`/RandR | `xdg configure`/`ack` | later | later |
+| `maxFps` cap | yes (waitable swapchain / timer) | yes | yes (frame callbacks) | not specified | not specified |
+| `vsync` modes | flip model | Present ext / driver | compositor | not specified | not specified |
+| tearing | `ALLOW_TEARING` | driver/extension | compositor | not specified | not specified |
+| dynamic refresh/VRR | OS/driver | driver/compositor | compositor | not specified | not specified |
+| damage rects | DXGI dirty rects | Present damage | surface damage | not specified | not specified |
+| resize/DPI/occlusion | `WM_SIZE`/`WM_DPICHANGED` | `ConfigureNotify`/RandR | `xdg configure`/`ack` | not specified | not specified |
 | fold/posture | no standard hinge API | no standard hinge API | compositor-specific | Jetpack WindowManager | no mainstream foldable |
 | async scheduler | portable C++20 | portable | portable | portable | portable |
+
+"not specified" in the Android and macOS columns means no behavior has been decided yet (Android
+is in Big Step F and macOS follows [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md);
+both in [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)). The Adaptive column of
+section 5.6 (`moderate`, `aggressive`) is likewise not quantified in any spec.
 
 Missing capability -> documented fallback, never a crash. The selected mode is reported in the
 diagnostics/metrics.

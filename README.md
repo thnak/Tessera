@@ -8,7 +8,7 @@ JSX/React syntax as the design DSL, compiled to native C++,
 zero-emulator design-time preview, and deterministic headless
 rendering for AI-agent visual regression.
 
-Status: **pre-alpha / Big Step B1 complete** (RHI, Vulkan batched 2D, scene graph).
+Status: **pre-alpha / Big Step B1 complete** (RHI = render hardware interface, Vulkan batched 2D, scene graph). Big Steps A-F are defined in [AGENTS.md, Big Steps](AGENTS.md#big-steps-group-work-dont-micro-step); B2 (runtime slice) is the current focus. Terms are defined in the [glossary](docs/reference/glossary.md).
 
 ## Documents
 
@@ -17,8 +17,8 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Architecture overview](docs/architecture/overview.md)
 - [Module map](docs/architecture/module-map.md)
 - [Getting started](docs/guides/getting-started.md)
-- [Design plan v1](../ui_framework_design_plan_v1.md)
-- [Execution plan & workload breakdown](../ui_framework_execution_plan.md)
+- [Design plan v1](../ui_framework_design_plan_v1.md) (file in the parent directory of this repository, not tracked here)
+- [Execution plan & workload breakdown](../ui_framework_execution_plan.md) (file in the parent directory of this repository, not tracked here)
 - Architecture decisions: [`decisions/`](decisions/) — index at
   [`decisions/README.md`](decisions/README.md)
 - [Project generator & developer config](docs/guides/project-generator.md)
@@ -64,7 +64,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [App-completeness cross-check](docs/architecture/app-completeness-cross-check-v1.md) —
   ownership, conflicts, gap register, consolidated open questions
 - [Gap resolutions](docs/architecture/app-completeness-gap-resolutions-v1.md) —
-  resolved/deferred decisions (ADR-033)
+  resolved/deferred decisions ([ADR-033](decisions/ADR-033-app-completeness-gap-resolutions.md))
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),
@@ -100,7 +100,7 @@ Tessera/
 │   └── runtime/          C++ support runtime for generated code
 ├── designer/             web (Wasm viewer) + native (IPC host)
 ├── tests/                unit, integration, golden, fixtures, benchmarks
-├── samples/              hello, dashboard
+├── samples/              hello, dashboard (directories exist; no content yet)
 ├── tools/                shaders, font, build tooling
 ├── third_party/          vendored dependencies
 ├── cmake/                CMake helpers
@@ -111,7 +111,7 @@ Tessera/
 ## Build
 
 Requirements: CMake >= 3.24, a C++20 compiler, and the Vulkan SDK
-(`VULKAN_SDK` set; `glslc` in the SDK `Bin/` or on `PATH`).
+(`VULKAN_SDK` set; `glslc`, the GLSL-to-SPIR-V shader compiler, in the SDK `Bin/` or on `PATH`).
 
 Windows (MSVC 2022/2026):
 
@@ -126,7 +126,7 @@ ctest --preset vs2026-release
 Manual fallback: `cmake -S . -B build -G "Visual Studio 18 2026" -A x64` (or
 `"Visual Studio 17 2022"`), then build/ctest as before.
 
-Linux (headless, Mesa lavapipe):
+Linux (headless, Mesa lavapipe, a software Vulkan driver):
 
 ```bash
 cmake --preset dev
@@ -144,7 +144,7 @@ Tools and demos:
   host memory, written as a PNG (no window, no swapchain).
 - `batched2d_poc` — RHI + batched 2D: solid/SDF/textured quads, clip and transform stacks,
   PNG + raw RGBA output. `--backend null` runs without a GPU.
-- `merger_poc` — injects developer protected regions into freshly generated C++.
+- `merger_poc` — injects developer protected regions (hand-written C++ blocks that survive regeneration) into freshly generated C++.
 
 ## Tooling
 
@@ -160,24 +160,24 @@ Tools and demos:
 
 ![Batched 2D reference](docs/images/batched2d.png)
 
-- Thin RHI + null backend + Vulkan 1.3 backend using **volk** and **VMA**.
-- Batched 2D: solid quads, SDF rounded rects, textured quads, scissor clip stack, affine
+- Thin RHI + null backend (records commands, no GPU) + Vulkan 1.3 backend using **volk** (Vulkan loader library) and **VMA** (Vulkan Memory Allocator).
+- Batched 2D: solid quads, SDF (signed distance field) rounded rects, textured quads, scissor clip stack, affine
   transform stack.
 - Scene graph with hit testing and W3C-style capture/target/bubble events.
-- Offscreen demo writes a deterministic PNG and raw RGBA; CI runs a Vulkan smoke test.
-- B2 runtime design: full-CSS stylesheet engine, input handler, fixed-step loop, dirty
+- Offscreen demo writes a deterministic PNG and raw RGBA; CI runs a Vulkan smoke test (a short render with no pixel comparison).
+- Big Step B2 runtime design: full-CSS stylesheet engine, input handler, fixed-step loop, dirty
   rendering, FPS cap/vsync/VRR, frame pacing.
 - Defaults are **power-aware**: static UI idles (no presents/GPU work), no busy-wait, no
   full-GPU target; continuous/benchmark modes are explicit.
-- B2/B3 design: async/await runtime (no UI blocking), resize/DPI/lifecycle with OS compliance,
+- Big Step B2/B3 design: async/await runtime (no UI blocking), resize/DPI/lifecycle with OS compliance,
   normalized OS events across desktop/mobile/foldables, structured diagnostics/tracing/profiling.
-- B2 next: implement the runtime slice, then Yoga/text/glyph atlas and pixel goldens.
+- Big Step B2 next: implement the runtime slice, then Yoga/text/glyph atlas and pixel goldens.
 
 ## Next
 
-1. ADR-001 … ADR-034 in `decisions/`.
+1. ADR-001 … ADR-037 in `decisions/` (ADR = Architecture Decision Record; index at [decisions/README.md](decisions/README.md)).
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
-   async runtime, diagnostics, Yoga/text, pixel goldens.
+   async runtime, diagnostics, Yoga/text, pixel goldens (the full B2 checklist is in [AGENTS.md](AGENTS.md#big-steps-group-work-dont-micro-step)).
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.
 4. Big Step C: JSX → IR → C++ vertical slice with protected regions.
 

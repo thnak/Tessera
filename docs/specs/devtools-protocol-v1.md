@@ -1,6 +1,6 @@
 # Native devtools protocol v1
 
-Status: proposed (Big Step C/D). Decision: ADR-031. Companion to
+Status: proposed (Big Steps C and D, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-031](../../decisions/ADR-031-production-tooling-and-distribution.md) (devtools, updates/signing, crash reporting). Companion to
 [`diagnostics.md`](../design/diagnostics.md), [`designer.md`](../design/designer.md),
 [`automation-ids-v1.md`](automation-ids-v1.md), and [`headless-automation-v1.md`](headless-automation-v1.md).
 
@@ -9,9 +9,9 @@ console: Tessera has no production JS runtime.
 
 ## 1. Goals
 
-- Inspect scene/semantics trees, computed style, layout boxes, draw calls, dirty reasons.
-- Record/replay input, trace spans, metrics, screenshots, and custom element snapshots.
-- Hot reload of generated components/styles where safe.
+- Inspect scene/semantics trees, computed style, layout boxes, draw calls, dirty reasons (why a node was flagged for recomputation, [`dirty-rendering.md`](../design/dirty-rendering.md)).
+- Record/replay input, trace spans, metrics, screenshots, and custom element snapshots ([`custom-elements-v1.md`](custom-elements-v1.md)).
+- Hot reload of generated components/styles (state preservation is best-effort, section 4).
 - Local-only, authenticated, bounded, and disabled in release by default.
 
 ## 2. Transport
@@ -19,7 +19,7 @@ console: Tessera has no production JS runtime.
 - Line-delimited JSON over stdin/stdout (CLI) or a local socket; no network listener.
 - Request/response with `id`; events pushed as `event`.
 - Max message size, timeout, and backpressure; invalid messages close only the session.
-- IDs (`uiId`, `nodeId`, `componentId`, `traceId`) are decimal/hex strings.
+- IDs (`uiId`, `nodeId`, `componentId`, `traceId`; defined in [`automation-ids-v1.md`](automation-ids-v1.md) section 1) are decimal/hex strings.
 - Optional token from the app's dev session; no remote access.
 
 ## 3. Commands
@@ -40,19 +40,19 @@ Commands: `tree`, `node`, `style`, `layout`, `semantics`, `events`, `metrics`, `
 - All reads are immutable snapshots; no UI mutation from inspection.
 - `events` can subscribe with filters (category/uiId/type); bounded ring/buffer.
 - `reload` applies a patch or falls back to full reload; failed compile keeps the last frame.
-- `custom` is debug/headless-only and maps to `on_test_command` where allowed.
+- `custom` is debug/headless-only and maps to `on_test_command` (a debug/headless-only hook, [`custom-elements-v1.md`](custom-elements-v1.md)) where allowed (the rule is not specified).
 
 ## 4. Hot reload
 
 ```text
 file change -> hash -> incremental compile -> generated patch
-  -> apply/reconcile -> preserve state by component/key where safe
+  -> apply/reconcile -> preserve state by component/key where safe (the safety rule is not specified; full reload is the fallback)
   -> request one frame
 ```
 
 - Style-only changes do not rebuild the tree; structural changes reconcile in place.
 - State preservation is best-effort by component/key; full reload is the fallback.
-- Removed nodes/GPU resources retire after frames in flight.
+- Removed nodes/GPU resources retire after frames in flight (frames already submitted to the GPU and not yet finished).
 - A failed compile keeps the last good frame and returns diagnostics.
 - Hot reload is dev-only; release builds do not include the watcher/compiler.
 
@@ -60,7 +60,7 @@ file change -> hash -> incremental compile -> generated patch
 
 - Toggleable dev overlay; node hover/click selects tree/style/layout/semantics.
 - Shows dirty domains/reasons, draw calls/batches, frame stages, memory/cache, recent events.
-- Click-to-source maps generated/scene nodes to TSX/C++ source spans via manifests.
+- Click-to-source maps generated/scene nodes to TSX/C++ source spans via the generated manifests (automation manifest, [`automation-ids-v1.md`](automation-ids-v1.md) section 2, and the binding manifest, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest)).
 - Overlay never defeats dirty rendering (only its own region or explicit debug mode).
 - No secrets/PII; redaction applies to screenshots/traces/events.
 
@@ -91,7 +91,7 @@ Ownership:
 | `DevtoolsSession` | command dispatch, subscriptions, backpressure | UI thread policy |
 | Snapshot builders | tree/style/layout/semantics/metrics views | Mutating app state |
 | HotReloader | compile/patch/reconcile, state preservation | General build system |
-| Headless harness | scripts/asserts/traces | Devtools transport |
+| Headless harness ([`headless-automation-v1.md`](headless-automation-v1.md)) | scripts/asserts/traces | Devtools transport |
 
 Protocol:
 
@@ -101,7 +101,7 @@ Protocol:
 {"event": "frame", "data": {...}}
 ```
 
-- `protocolVersion` is exchanged on connect; unknown major -> reject.
+- `protocolVersion` (see [`versioning-v1.md`](versioning-v1.md) section 2) is exchanged on connect; unknown major -> reject.
 - Request ids are client-scoped; responses/events are bounded and ordered per session.
 - Snapshot schemas are versioned independently; IDs are strings in JSON.
 - Backpressure: bounded event queue, drop oldest for high-frequency events, never for command
@@ -113,7 +113,7 @@ Hot reload:
 ```text
 watch -> hash -> incremental compile -> validate patch
   -> apply/reconcile (style-only or structural)
-  -> preserve state by (component,key) where safe
+  -> preserve state by (component,key) where safe (rule not specified; full reload is the fallback)
   -> request one frame
   -> failed compile: keep last good frame + diagnostics
 ```
@@ -138,11 +138,11 @@ Failure/edge cases:
 - Hot reload failure keeps the last good frame; never a white screen.
 - Multiple clients: one primary inspector session; others read-only or rejected.
 
-Gap-closure decisions:
+Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`app-completeness-cross-check-v1.md`](../architecture/app-completeness-cross-check-v1.md); resolutions in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
 - **G-22/Q-21**: protocol v1 is JSON-lines over stdio or a per-user socket with a session token.
   Hot reload has two patch kinds: style-only patch and structural reconcile; state is preserved
-  by `(component,key)` where safe, otherwise full reload. Failed compile keeps the last good
+  by `(component,key)` where safe (the safety rule is not specified), otherwise full reload. Failed compile keeps the last good
   frame. One primary client; extra clients are read-only or rejected. Remote debugging is
   forbidden.
 

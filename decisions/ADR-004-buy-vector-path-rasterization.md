@@ -1,8 +1,8 @@
 # ADR-004: Buy vector path rasterization (ThorVG or Skia Graphite), do not write it in V1
 
-- Status: Accepted (direction); concrete backend chosen after a Big Step B spike
+- Status: Accepted (direction); concrete backend chosen after a [Big Step B](../AGENTS.md#big-steps-group-work-dont-micro-step) (core renderer) spike
 - Date: 2026-11-07
-- Related: ADR-003, ADR-009
+- Related: [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin render hardware interface and batched 2D renderer), [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests)
 
 ## Context
 
@@ -19,11 +19,11 @@ The design plan already names ThorVG and Skia as candidate vector backends.
    production library behind a `PathRasterizer` interface:
    - first candidate: **ThorVG** (MIT, C++, lightweight, SVG-friendly)
    - fallback: **Skia Graphite** (Vulkan backend; mature, heavier build)
-2. Keep the integration behind an interface so the renderer's scene graph, clipping, and
+2. Keep the integration behind an interface so the renderer's [scene graph](../docs/reference/glossary.md), clipping, and
    batching do not depend on the chosen library.
 3. The library may own path tessellation/rasterization into our render targets; it must not
    own the scene graph, layout, event handling, or the game clock.
-4. Run a **Big Step B spike**:
+4. Run a **[Big Step B](../AGENTS.md#big-steps-group-work-dont-micro-step) spike**:
    - render a representative icon/chart path set on Vulkan-headless
    - measure build size, startup cost, memory, and determinism
    - check license and C++/WebGPU viability
@@ -44,14 +44,14 @@ The design plan already names ThorVG and Skia as candidate vector backends.
 - Adds a sizable dependency and build integration work.
 - ThorVG's Vulkan/WebGPU backend maturity must be verified, not assumed.
 - Skia's build is heavy and its license (BSD-3-Clause) and binary size must be accepted.
-- Two vector backends (native vs design-time) could drift; golden tests must cover both.
+- Two vector backends (native vs design-time) could drift; [golden](../docs/reference/glossary.md) tests must cover both.
 
 ## Alternatives considered
 
-- **Write our own tessellator/rasterizer.** Rejected for V1: high risk, low differentiation.
+- **Write our own tessellator/rasterizer.** Rejected for [V1](../docs/reference/glossary.md): high risk, low differentiation.
 - **NanoVG.** Rejected: limited feature set, weak stroke/AA quality for production UI.
 - **Blend2D / Cairo.** Rejected: CPU-only, does not fit the GPU pipeline.
-- **Vello (Rust).** Rejected: would add a Rust toolchain and FFI boundary to a C++ project.
+- **Vello (Rust).** Rejected: would add a Rust toolchain and FFI (foreign function interface) boundary to a C++ project.
 
 ## Follow-up
 

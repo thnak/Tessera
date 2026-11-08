@@ -1,6 +1,6 @@
 # Services: i18n, navigation, storage, networking, notifications
 
-Status: design for Big Step F. `src/services/*` are placeholders.
+Status: design for [Big Step F](../../AGENTS.md#big-steps-group-work-dont-micro-step) (production breadth). `src/services/*` are placeholders.
 
 Services are app-facing capabilities that are not part of the renderer. They follow the same
 runtime rules: async, cancellable, bounded, no UI-thread blocking, and no hidden global state.
@@ -25,16 +25,16 @@ public:
 
 - Every async operation returns a cancellable task/result.
 - Errors are values (`std::expected`/`StatusOr`), not exceptions in hot paths.
-- Results are delivered on the UI thread through the completion queue.
+- Results are delivered on the UI thread through the completion queue ([`async.md`](async.md)).
 - Services never touch scene nodes directly; the app maps results to state.
 - Configuration is explicit (no environment-variable magic in production).
 - Secrets are never logged; diagnostics redact.
 
 ## 2. Internationalization (i18n)
 
-- ICU for locale data, plural rules, number/date formatting, segmentation.
+- ICU (International Components for Unicode) for locale data, plural rules, number/date formatting, segmentation.
 - Message catalogs keyed by stable ids; no concatenated sentences.
-- Support RTL/layout direction, font fallback, and text expansion.
+- Support RTL (right-to-left)/layout direction, font fallback, and text expansion.
 - Locale is a runtime input (Configuration/NSLocale/etc.) and a style/query input.
 - Missing keys fall back to a default locale and emit a diagnostic.
 - Deterministic mode pins locale/ICU data; no system locale leakage in goldens.
@@ -58,17 +58,17 @@ public:
 - Schema migrations are versioned and run once; failures do not corrupt data.
 - Paths are sandboxed per app; no absolute/traversal paths from untrusted input.
 - Large data is streamed; reads/writes happen off the UI thread.
-- Encryption/secrets use the platform keystore where available; never plaintext logs.
+- Encryption/secrets use the platform keystore; never plaintext logs. Keystore availability per platform is an open question (section 10).
 - Tests: atomicity, migration, corruption recovery, concurrent access, quota limits.
 
 ## 5. Networking
 
 - Async HTTP client with cancellation, timeouts, and bounded concurrency.
-- TLS verification on by default; no insecure fallback.
+- TLS (transport layer security) verification on by default; no insecure fallback.
 - Retries with backoff for idempotent requests; no retry storms.
 - Streaming/chunked responses for large data; backpressure.
 - Offline detection and cache policy are explicit.
-- Proxy/platform network stack integration where required.
+- Proxy/platform network stack integration when the platform requires it (the platforms and conditions are not specified).
 - Secrets/tokens are never logged; redact headers/query params.
 - Tests: timeout, cancel, retry, TLS failure, offline, large body, redirect policy.
 
@@ -77,7 +77,7 @@ public:
 - OS notifications with permission flow; no notification without user consent.
 - Actions/categories map to app callbacks; payloads are validated.
 - In-app toasts/badges are UI components, not OS notifications.
-- Rate-limit/coalesce; respect quiet hours/do-not-disturb where exposed.
+- Rate-limit/coalesce; respect quiet hours/do-not-disturb when the OS exposes the setting.
 - Clicking a notification restores the relevant route/state.
 - Tests: permission denied, action payloads, deduplication, restore.
 
@@ -85,7 +85,7 @@ public:
 
 - Services react to suspend/resume/background/foreground via normalized events.
 - Long-running work is cancelled or checkpointed on suspend.
-- Network/file handles are released in background where required.
+- Network/file handles are released in background when the platform requires it (conditions not specified; see section 10).
 - No background work that violates platform policy; document per-platform limits.
 - Tests: suspend during load, resume/restore, cancellation, duplicate callbacks.
 
@@ -94,12 +94,12 @@ public:
 - Least privilege: request only needed permissions.
 - Validate all external input (deep links, notification payloads, network data).
 - Redact tokens/paths/user data in logs/crash dumps.
-- Telemetry is opt-in and aggregated (ADR-022); no PII by default.
+- Telemetry is opt-in and aggregated ([ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md), diagnostics and profiling); no PII (personally identifiable information) by default.
 - See [`security.md`](security.md).
 
 ## 9. Status
 
-Services are post-V1 (Big Step F). The interfaces above are targets; implementation order:
+Services are post-V1 (V1 = first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables); the work is in [Big Step F](../../AGENTS.md#big-steps-group-work-dont-micro-step)). The interfaces above are targets; implementation order:
 storage/settings, navigation/restore, i18n, platform shell, networking, async data,
 notifications.
 

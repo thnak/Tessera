@@ -1,6 +1,6 @@
 # Component library and design system
 
-Status: design (post-V1 product layer). Decision: ADR-032.
+Status: design; a product layer built after V1 (V1 is the first-release scope referred to by [AGENTS.md rule 8](../../AGENTS.md#non-negotiables); no single document lists its contents). Decision: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library).
 
 The framework provides primitives; a bundled component library makes it usable without every
 team rebuilding inputs, dialogs, menus, and data grids.
@@ -17,7 +17,7 @@ team rebuilding inputs, dialogs, menus, and data grids.
 - Colors, typography, spacing, radii, elevation, motion, breakpoints, z-layers.
 - Semantic tokens (`surface`, `on-surface`, `danger`, `focus-ring`) over raw palette.
 - Themes: light/dark/high-contrast; token overrides per app/surface.
-- Token changes are style-only; no component recompilation needed where possible.
+- Token changes are style-only; a change that only edits a token value does not require recompiling components. Which other token changes (renames, new tokens) do require it is not specified.
 - Tokens are versioned; visual changes require golden updates.
 
 ## 3. Primitives
@@ -33,9 +33,10 @@ team rebuilding inputs, dialogs, menus, and data grids.
 | Feedback | Progress, Spinner, Banner, Alert, Badge |
 | Utilities | Avatar, Chip, Accordion, Tooltip, VisuallyHidden |
 
-- DataGrid builds on `VirtualGrid`, selection, sorting, column resize/reorder, keyboard nav.
-- Forms use `forms-and-validation-v1`; overlays use `overlays-and-layers-v1`.
-- 3D/chart components use custom elements, not core changes.
+- DataGrid builds on `VirtualGrid` (see [`virtualization-v1`](../specs/virtualization-v1.md)), selection, sorting, column resize/reorder, keyboard nav.
+- Forms use [`forms-and-validation-v1`](../specs/forms-and-validation-v1.md); overlays use
+  [`overlays-and-layers-v1`](../specs/overlays-and-layers-v1.md).
+- 3D/chart components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.
 
 ## 4. Contracts
 
@@ -51,21 +52,21 @@ team rebuilding inputs, dialogs, menus, and data grids.
 
 - Token-based; no hardcoded colors/spacing in components.
 - Density modes (comfortable/compact) affect spacing/touch targets explicitly.
-- RTL/bidi-aware; icons mirror only when semantic.
+- RTL (right-to-left)/bidi (bidirectional text)-aware; icons mirror only when their meaning is directional.
 - Platform conventions (keyboard shortcuts, menu order) are overridable.
 
 ## 6. Testing
 
 - Unit: state/interaction/keyboard/focus/validation.
-- Semantics snapshots + accessibility checks (names/roles/actions).
-- Golden: default/dark/high-contrast, compact/expanded, RTL, text scale.
-- Headless: keyboard/pointer/IME/overlay/data-grid scripts.
+- Semantics snapshots (dump of the accessibility tree, see [`accessibility.md`](accessibility.md)) + accessibility checks (names/roles/actions).
+- Golden (reference-image, see [glossary](../reference/glossary.md)) tests: default/dark/high-contrast, compact/expanded, RTL, text scale.
+- Headless (no window; see [`headless-automation-v1`](../specs/headless-automation-v1.md)): keyboard/pointer/IME (input method editor)/overlay/data-grid scripts.
 - Visual regression across themes/densities; no real GPU baselines.
 
 ## 7. Packaging
 
 - `tessera-ui` package with source, generated code, tokens, docs, examples.
-- SemVer; visual breaking changes documented with migration/golden updates.
+- SemVer (semantic versioning); visual breaking changes documented with migration/golden updates.
 - Tree-shake at build time; unused components not linked.
 - Licenses/fonts/icons packaged and documented.
 
@@ -123,7 +124,7 @@ struct ButtonProps {
 DataGrid scope (V1 library):
 
 - Virtualized rows/columns, selection, sorting, column resize/reorder, keyboard navigation.
-- Editing/grouping/pivot are deferred; do not block the core on them.
+- Editing/grouping/pivot are deferred with no release assigned (listed in section 9); the core does not depend on them.
 - Headless mode exposes rows/cells for tests; semantic table/grid roles.
 
 Testing contract:
@@ -134,7 +135,7 @@ Testing contract:
 
 Gap-closure decisions:
 
-- **G-25/Q-24**: token JSON v1 is semantic and SemVer-versioned; component API contract includes
+- **G-25/Q-24** (gap and question ids in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)): token JSON v1 is semantic and SemVer-versioned; component API contract includes
   controlled state, focus, and accessibility; DataGrid V1 supports virtual rows/columns,
   selection, sort, resize/reorder, keyboard. Editing/grouping/pivot are deferred.
 - Components ship styled by default with a headless escape hatch for custom rendering; fonts are

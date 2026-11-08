@@ -1,19 +1,19 @@
 # Coding-agent automation guide
 
-Status: proposed (B2/C). Companion to
-[`automation-ids-v1.md`](../specs/automation-ids-v1.md),
-[`headless-automation-v1.md`](../specs/headless-automation-v1.md), and
-[`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
+Status: proposed (Big Steps B2 and C; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (agent automation and audits). Companion to
+[`automation-ids-v1.md`](../specs/automation-ids-v1.md) (numeric UI ids),
+[`headless-automation-v1.md`](../specs/headless-automation-v1.md) (headless scripts and reports), and
+[`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md) (Lighthouse-style audit metrics).
 
 This is how an agent finds, drives, traces, and audits the UI without brittle coordinates.
 
 ## 1. Build with automation IDs
 
 - The compiler emits `generated/automation.manifest.json`.
-- C++ has `UiId`, `ComponentId`, `NodeId` as `uint64_t`.
+- C++ has `UiId` (build-time stable id of a UI node/component), `ComponentId`, and `NodeId` (runtime instance id, not stable across runs) as `uint64_t`.
 - JSON uses decimal strings (uint64 precision).
 - Add explicit `automationId="1234567890123456789"` to long-lived targets whose source path may
-  move.
+  move (the id would otherwise change with the path).
 
 Manifest gives you `uiId -> component/kind/source path`. Read it instead of guessing.
 
@@ -25,10 +25,10 @@ tessera test --script tests/agent/home.json --report out/report.json
 
 Modes:
 
-- `structural` (null backend) — fast layout/style/paint/events, no pixels.
-- `golden` (software/lavapipe) — pixels + report.
+- `structural` (null RHI backend that records commands without a GPU) — fast layout/style/paint/events, no pixels.
+- `golden` (software path: Mesa lavapipe, a software Vulkan driver, or the CPU rasterizer) — pixels + report; a golden is a deterministic reference image.
 - `gpu-smoke` — backend smoke only; never updates goldens.
-- `audit` — Lighthouse-style metrics/score.
+- `audit` — Lighthouse-style metrics/score (see section 7).
 
 ## 3. Find nodes
 
@@ -80,8 +80,8 @@ interaction slow?" and "which component caused this frame?".
 {"action":"audit","profile":"desktop","path":"out/audit.json"}
 ```
 
-Metrics include startup/first frame/TTI, `input_to_handler`, `handler_to_paint`,
-`interaction_to_next_paint` p50/p95/p99, frame time/jank, resource wait/cache, errors/boundary
+Metrics include startup/first frame/TTI (time to interactive), `input_to_handler`, `handler_to_paint`,
+`interaction_to_next_paint` p50/p95/p99 (50th/95th/99th percentile), frame time/jank, resource wait/cache, errors/boundary
 catches, memory, idle presents. The report has raw metrics + category/overall scores.
 
 Use raw metrics for decisions; don't chase the score.
@@ -108,8 +108,8 @@ Use raw metrics for decisions; don't chase the score.
 
 - Target by `uiId`; sub-targets use `partId` (3D picking).
 - Use `custom`/`assertCustom` for element test commands and snapshot paths.
-- Snapshot includes element id, state, draw stats, and last event.
-- Structural mode records draws without GPU; golden uses compiled shaders.
+- The custom-element snapshot includes element id, state, draw stats, and last event.
+- Structural mode records draws without a GPU; golden mode runs compiled shaders on the software path.
 - See [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 
 ### 8.2 App interaction/platform
@@ -140,10 +140,10 @@ Use raw metrics for decisions; don't chase the score.
 | Wrong item in list | use `(uiId,itemKey)`, not `uiId` alone |
 | ID changed | source moved/renamed; use explicit `automationId` |
 | Timeout | wait for state; check async/resource load/error boundary |
-| Pixel diff but structure same | text/AA/DPI/font; golden mode/tolerance |
-| Audit noisy | profile/machine mismatch; compare same profile/baseline |
+| Pixel diff but structure same | text/AA (anti-aliasing)/DPI/font; golden mode setting or its comparison tolerance |
+| Audit noisy | profile/machine mismatch; compare against a baseline recorded with the same profile |
 
 ## 11. Status
 
-- Specs only; harness/manifest not implemented.
-- IDs are build-time; trace/audit are opt-in and redacted.
+- Specs only; the headless harness and `automation.manifest.json` generation are not implemented.
+- IDs are assigned at build time; trace and audit are opt-in and their output is redacted of private data.

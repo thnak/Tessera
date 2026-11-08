@@ -1,17 +1,22 @@
 # Layout: Yoga Flexbox and a small Grid subset
 
-Status: design for Big Step B2. `src/ui/layout/` is a placeholder today. ADR-005 requires the
-Yoga adapter and the documented rounding rule below.
+Status: design for Big Step B2 (runtime slice; see
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/ui/layout/` is a
+placeholder today. [ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md) (Yoga layout adapter)
+requires the Yoga adapter and the documented rounding rule below. Terms (`ComputedStyle`, Yoga, golden,
+scene graph) are in [`glossary.md`](../reference/glossary.md). Style inputs come from the stylesheet
+engine ([`stylesheet-v1.md`](../specs/stylesheet-v1.md)).
 
 ## 1. Goals
 
 - CSS-like Flexbox through **Yoga**; no hand-written Flexbox.
-- A small CSS Grid subset on top of Yoga or a vendored engine (taffy) behind a C ABI.
+- A small CSS Grid subset on top of Yoga or a vendored engine (taffy, a Rust layout library listed as a candidate in
+  [`dependencies.md`](../specs/dependencies.md)) behind a C ABI.
 - Intrinsic text measurement via a callback into the text stack.
 - Fractional layout internally; deterministic integer-pixel paint alignment.
 - Incremental layout from dirty flags; no full-tree relayout for local changes.
 
-Non-goals in V1: subgrid, masonry, dense auto-placement, full CSS tables, browser quirks.
+Non-goals in V1 (first release; scope rule in [AGENTS.md Non-negotiables](../../AGENTS.md#non-negotiables) item 8): subgrid, masonry, dense auto-placement, full CSS tables, browser quirks.
 
 ## 2. Pipeline
 
@@ -69,7 +74,7 @@ subset. If taffy is used, its C ABI is hidden behind `GridEngine`; UI code never
 
 - `static`/`relative`: normal flow + offset.
 - `absolute`: out of flow, positioned against the nearest positioned ancestor.
-- `fixed`: viewport-relative (window/scroll container policy documented).
+- `fixed`: viewport-relative (the window/scroll-container policy is not specified in this doc).
 - `sticky`: implemented in the scroll/layout pass, not Yoga; scroll-container semantics are in
   [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md).
 
@@ -115,7 +120,7 @@ paint_height = bottom - top
 ```
 
 `round_half_up(v) = floor(v + 0.5)` for non-negative coordinates; negative coordinates use
-`ceil(v - 0.5)` to keep symmetry. Golden mode uses `scale = 1.0` and the same rule.
+`ceil(v - 0.5)` to keep symmetry. Golden mode (deterministic reference-image tests, [`golden-tests-v1.md`](../specs/golden-tests-v1.md)) uses `scale = 1.0` and the same rule.
 
 The rounding rule is a compatibility contract: changing it requires a golden update and a
 documented note.
@@ -139,15 +144,15 @@ documented note.
   [`dirty-rendering.md`](dirty-rendering.md).
 
 Yoga nodes are reused; avoid rebuilding the Yoga tree every frame. Rebuild only on structural
-changes, and measure only dirty subtrees where safe.
+changes, and measure only dirty subtrees (a subtree whose text/font/style did not change keeps its cached measurement).
 
 ## 8. Performance
 
-- Target: 10k nodes with a shallow tree in a single-digit millisecond budget on desktop.
+- Target: 10k nodes with a shallow tree in a single-digit millisecond budget on desktop (reference hardware is not specified).
 - Avoid allocations in steady state; use node arenas/pools.
 - Cache measurements and computed layout styles.
 - No string comparisons in the hot path; use property ids/enums.
-- Profile layout separately from style/paint; record metrics in the diagnostics overlay.
+- Profile layout separately from style/paint; record metrics in the diagnostics overlay ([`diagnostics.md`](diagnostics.md)).
 
 ## 9. Tests
 
@@ -163,7 +168,7 @@ changes, and measure only dirty subtrees where safe.
 ## 10. Open questions
 
 - Grid engine: build a subset on Yoga vs vendor taffy behind a C ABI.
-- `box-sizing` default and browser-divergence policy.
-- Sticky positioning and scroll-container semantics.
-- Container queries and their interaction with layout invalidation.
+- `box-sizing` default and browser-divergence policy (section 3 states `content-box` is the V1 default; whether that is final is listed as open here).
+- Sticky positioning and scroll-container semantics (see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
+- Container queries and their interaction with layout invalidation (see [`responsive.md`](responsive.md)).
 - Baseline alignment for mixed fonts/emoji.

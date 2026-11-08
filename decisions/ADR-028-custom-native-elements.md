@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-001, ADR-007, ADR-011, ADR-024, ADR-027
+- Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-007](ADR-007-compiler-ir.md) (compiler intermediate representation), [ADR-011](ADR-011-shader-authoring-and-cross-compilation.md) (shader authoring and cross-compilation), [ADR-024](ADR-024-native-first-boundaries.md) (native-first boundaries), [ADR-027](ADR-027-agent-automation-and-audits.md) (agent automation and audits)
 
 ## Context
 
@@ -19,7 +19,7 @@ and reusable, without a JavaScript runtime, dynamic plugins, or a second UI mode
 2. **Native implementation:** each element is a C++ class deriving
    `tessera::element::CustomElement`, with `on_attach/on_update/on_resize/on_render/on_event/
    on_semantics/on_detach`, plus snapshot/test hooks.
-3. **Low-level API:** elements may use the public RHI (`Device`, `CommandList`, `Pipeline`,
+3. **Low-level API:** elements may use the public RHI (render hardware interface) (`Device`, `CommandList`, `Pipeline`,
    `Buffer`, `Texture`, `RenderTarget`, `BindGroup`) and frame arenas/resource caches. No raw
    Vulkan/WebGPU/OS handles in reusable elements; no runtime shader compilation.
 4. **Shaders:** referenced from `ui/elements.json`; declared/compiled/reflected via the shader
@@ -33,8 +33,8 @@ and reusable, without a JavaScript runtime, dynamic plugins, or a second UI mode
 7. **Reuse:** multiple instances, keys, props/state, deterministic lifecycle; no singletons,
    static mutable state, or global init order. Shared pipelines/meshes/textures use the resource
    cache; resources retire after frames in flight.
-8. **Testing:** unit tests with a fake context; structural headless with null RHI; golden with
-   software/lavapipe; GPU smoke on real devices. Test hooks are debug/headless-only. Snapshots
+8. **Testing:** unit tests with a fake context; structural headless with null RHI; [golden](../docs/reference/glossary.md) with
+   software/[lavapipe](../docs/reference/glossary.md); GPU smoke on real devices. Test hooks are debug/headless-only. Snapshots
    expose element state, draw stats, and last event; traces carry numeric IDs.
 9. **Security/failure:** custom elements are trusted compile-time native code. Manifests are
    validated; shaders are build-controlled; render errors return `Error` (no throw across
@@ -48,7 +48,7 @@ and reusable, without a JavaScript runtime, dynamic plugins, or a second UI mode
 - JSX remains the declaration surface; TypeScript types come from the manifest.
 - Input/picking and tests use the same paths as built-in nodes.
 - Reuse/lifecycle/determinism align with normal components.
-- No JS runtime, dynamic plugin ABI, or runtime shader compilation.
+- No JS runtime, dynamic plugin ABI (application binary interface), or runtime shader compilation.
 
 ### Negative / risks
 

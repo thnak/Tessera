@@ -1,22 +1,31 @@
 # OS events and display capabilities v1
 
-Status: proposed for Big Step B3. Researched against platform documentation (see §12).
-Normative companion to [`window-resize.md`](../design/window-resize.md). Mobile
+Status: proposed for Big Step B3 (window/swapchain path with resize/DPI/lifecycle, defined in
+[AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Researched against platform documentation
+(see §12). Decision:
+[ADR-023](../../decisions/ADR-023-os-event-normalization-and-foldables.md) (OS event
+normalization and foldables). Normative companion to
+[`window-resize.md`](../design/window-resize.md). Mobile
 surface/input/IME/accessibility/declarations are in
 [`mobile-integration.md`](../design/mobile-integration.md).
 
 ## 1. Purpose and rules
 
-Tessera normalizes OS events into a small, platform-neutral event model. The HAL owns the
-platform APIs; the declarative layer (styles/animations/components) only sees
-`WindowMetrics`, display capabilities, and normalized input/lifecycle events.
+Tessera normalizes OS events into a small, platform-neutral event model. The HAL (hardware/OS
+abstraction layer, [`hal.md`](../design/hal.md)) owns the platform APIs; the declarative layer
+(styles/animations/components) only sees `WindowMetrics` (normalized window/display/fold
+metrics, defined in [`window-resize.md`](../design/window-resize.md)), display capabilities, and
+normalized input/lifecycle events. Abbreviations used below: IME = input method editor; PiP =
+picture-in-picture; VRR = variable refresh rate; HDR = high dynamic range.
 
 Rules:
 
 1. A platform callback **records** an event; it does not lay out, render, or block.
-2. Events are coalesced and consumed at a frame/tick boundary.
+2. Events are coalesced and consumed at a frame/tick boundary (a tick is one fixed-step
+   update; see [`game-loop.md`](../design/game-loop.md)).
 3. Ordering is stable and documented; synthetic event scripts are deterministic.
-4. Events that can change visible output are wake sources for the loop.
+4. Events that can change visible output are wake sources for the loop (they request a frame
+   in render-on-demand mode; see the [glossary](../reference/glossary.md)).
 5. Unknown/unsupported events are ignored with a diagnostic; never a crash.
 6. Foldables are modeled as **display features + metrics**, not as a separate UI mode.
 7. No UI-thread blocking on the compositor/GPU; resize/swapchain follow
@@ -54,6 +63,11 @@ struct OsEvent {
     bool handled;
 };
 ```
+
+In the platform tables below, a shorthand such as `Theme/Accent/HighContrast` abbreviates
+`ThemeChanged/AccentColorChanged/HighContrastChanged`, and `Occluded` is not a value of
+`OsEventType` (occlusion is reported through `WindowMetrics` and `WindowHidden`; the file does
+not define a separate event).
 
 `WindowMetrics` carries logical/physical size, DPI/scale, refresh/VRR, safe/work areas,
 orientation, focus/occlusion/minimized/fullscreen, and multi-window/PiP state.
@@ -124,8 +138,9 @@ Representative messages/APIs (not exhaustive):
 Compliance notes:
 
 - Per-monitor DPI awareness v2; honor `WM_DPICHANGED` suggested rect.
-- Do not fight the modal resize loop; coalesce and recreate on `WM_EXITSIZEMOVE` (or a safe
-  boundary).
+- Do not fight the modal resize loop; coalesce and recreate on `WM_EXITSIZEMOVE` (or another
+  point where no GPU frame is in flight; the exact boundary is defined in
+  [`window-resize.md`](../design/window-resize.md)).
 - Re-query display topology/refresh/VRR after `WM_DISPLAYCHANGE`/device notifications.
 - `WM_SETTINGCHANGE` covers many accessibility/theme/work-area changes; inspect the parameter.
 - Never block the message loop with GPU/device waits.
@@ -238,7 +253,8 @@ Foldable semantics (Android):
 
 ## 8. iOS / iPadOS
 
-Representative delegates/notifications (not exhaustive; backend deferred):
+Representative delegates/notifications (not exhaustive; the iOS backend is not implemented;
+[AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step) Big Step F says "Android first; iOS later"):
 
 | Trigger | Source | Normalized | Runtime action |
 |---|---|---|---|
@@ -267,6 +283,9 @@ Compliance notes:
 - No mainstream foldable iOS hardware; if it appears, model it through scene geometry/traits.
 
 ## 9. macOS (deferred, ADR-010)
+
+macOS support is deferred from V1 (first-release scope) by
+[ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md) (macOS through MoltenVK).
 
 Representative delegates/notifications (not exhaustive):
 
@@ -308,6 +327,9 @@ Fold layout rules:
 - Do not restart animations on every fold transition; retarget at a frame boundary.
 
 ## 11. Runtime mapping
+
+In this table, "maybe" means the effect depends on whether the change touches that domain; the
+condition is not specified here, and "yes"/"no" mean always/never.
 
 | Normalized event | Style environment | Layout | Paint/render | Pacing/power | Diagnostics |
 |---|---|---|---|---|---|
@@ -378,7 +400,8 @@ Research references (official documentation):
 
 - Windows foldable/dual-screen: no stable cross-vendor hinge API; per-device verification.
 - Android multi-display topology and desktop windowing: which signals are stable across OEMs.
-- Wayland compositor-specific fold/hinge protocols (if any) and fallback behavior.
+- Wayland compositor-specific fold/hinge protocols (none known; no decision yet) and fallback
+  behavior.
 - iOS external display/Stage Manager scene roles across versions.
 - Standardized thermal/power taxonomy across platforms.
 - Whether to expose raw platform events for advanced integrations behind a capability flag.

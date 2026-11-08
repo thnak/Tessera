@@ -1,8 +1,9 @@
 # Memory model v1
 
 Status: proposed. Normative companion to [`threading-and-memory.md`](../design/threading-and-memory.md)
-and [`resources.md`](../design/resources.md). Bridge policy: ADR-024 and
-[`bridges.md`](../design/bridges.md).
+and [`resources.md`](../design/resources.md). Bridge policy:
+[ADR-024](../../decisions/ADR-024-native-first-boundaries.md) (native-first boundaries; no
+production bridges) and [`bridges.md`](../design/bridges.md).
 
 Goals: deterministic allocation behavior, bounded memory, no leaks, no cross-language
 ownership, no hidden allocations in the frame hot path, and explicit GPU memory budgets.
@@ -36,8 +37,8 @@ Rules:
 | Frame arena | one frame | temporary per-frame data, command scratch |
 | Persistent arena | app | long-lived tables, interned ids, style rules |
 | Pool | app/frame | fixed-size nodes/commands/descriptors |
-| GPU allocator (VMA) | device | buffers/images/staging |
-| Bridge scratch | one callback | JNI/ObjC/Wasm marshalling, reset after callback |
+| GPU allocator (VMA, Vulkan Memory Allocator) | device | buffers/images/staging |
+| Bridge scratch | one callback | JNI (Java Native Interface) / ObjC (Objective-C) / Wasm (WebAssembly) marshalling, reset after callback |
 
 Rules:
 
@@ -59,17 +60,19 @@ begin frame -> frame arena reset
 
 - Data referenced by submitted commands must outlive the GPU submission; use persistent/GPU
   allocations or copy into a frame-owned buffer that is not reset until completion.
-- Deferred deletion: resources in flight are not destroyed; retire after fence/timeline value.
+- Deferred deletion: resources in flight are not destroyed; retire after fence/timeline value (GPU completion signals).
 - Async results are moved into UI-owned state at a frame boundary; no dangling references.
-- Resize/swapchain keeps old targets until in-flight frames retire (ADR-020).
+- Resize/swapchain keeps old targets until in-flight frames retire
+  ([ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md), window resize and
+  lifecycle).
 
 ## 4. GPU memory
 
 - VMA sub-allocates; no raw `vkAllocateMemory` in the backend.
 - Categories: vertex, index, uniform, texture, staging, render target, glyph atlas, path cache.
 - Uploads use pooled staging buffers; batch per frame; no per-draw allocation.
-- Budgets are explicit per category; eviction is LRU/age-based and never evicts in-flight data.
-- OOM degrades: evict caches, reduce optional quality, skip prefetch; fatal only if the device
+- Budgets are explicit per category; eviction is LRU (least recently used)/age-based and never evicts in-flight data.
+- OOM (out of memory) degrades: evict caches, reduce optional quality, skip prefetch; fatal only if the device
   cannot continue.
 - Track bytes, peak, fragmentation, staging bytes, and eviction counts.
 
@@ -87,7 +90,8 @@ Bounded caches with keys and eviction:
 | Path | path hash/quality | LRU |
 
 - No unbounded cache growth under animation/scroll.
-- Cache budgets are configurable; defaults differ desktop vs embedded.
+- Cache budgets are configurable (see [`buffer-config-v1.md`](buffer-config-v1.md)); defaults
+  differ desktop vs embedded (the values are an open question, section 11).
 - Eviction must not change pixels for the current frame.
 
 ## 6. Bridge memory
@@ -118,8 +122,9 @@ Rules:
 
 - Use a thin Objective-C++ adapter; C++ owns the engine, ObjC owns the view/controller.
 - Per-callback `@autoreleasepool`; no unbounded autoreleased objects in the frame loop.
-- Use `CFData`/`NSData` no-copy where safe; define who owns the buffer.
-- ARC handles ObjC lifetime; C++ objects must not hold unretained ObjC pointers without a policy.
+- Use `CFData`/`NSData` no-copy only when the buffer's owner and lifetime are defined at the
+  boundary (section 6 rule "Define ownership at the boundary"); define who owns the buffer.
+- ARC handles ObjC lifetime; C++ objects must not hold unretained ObjC pointers (no such policy is written yet; the rule is to avoid it).
 - Avoid per-frame ObjC message sends in the render path; cache callbacks/pointers.
 - `CAMetalLayer`/drawable ownership follows the view/scene lifecycle.
 
@@ -134,7 +139,8 @@ See [`bridges.md`](../design/bridges.md) for the native-first bridge policy.
 
 ## 7. OOM and failure
 
-- Recoverable allocation failure returns an error/`StatusOr` (or `std::expected` where available).
+- Recoverable allocation failure returns an error value (`StatusOr`, or `std::expected`; which
+  one the code uses is not specified here, [AGENTS.md](../../AGENTS.md#code-conventions) "Code conventions" names `std::expected`).
 - Evict caches, drop optional quality, skip prefetch, retry once; then surface a diagnostic.
 - Never crash on a cache allocation failure if a fallback exists.
 - Fatal OOM triggers controlled shutdown, not undefined behavior.
@@ -159,7 +165,7 @@ See [`bridges.md`](../design/bridges.md) for the native-first bridge policy.
 ## 10. Tests
 
 - Allocation counters: steady-state frame allocates zero after warm-up.
-- ASan/LSan/TSan; leak tests for nodes/resources/bridges.
+- ASan/LSan/TSan (AddressSanitizer, LeakSanitizer, ThreadSanitizer); leak tests for nodes/resources/bridges.
 - OOM injection: caches/queues degrade, no crash.
 - In-flight resource retirement: old target/upload survives until completion.
 - JNI local-ref overflow, global-ref release, thread attach/detach.

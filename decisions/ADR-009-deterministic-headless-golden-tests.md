@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-001, ADR-002, ADR-003, ADR-006
+- Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-002](ADR-002-webgpu-dawn-for-wasm.md) (WebGPU/Dawn for WebAssembly), [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin render hardware interface and batched 2D renderer), [ADR-006](ADR-006-text-stack.md) (text stack)
 
 ## Context
 
@@ -11,19 +11,19 @@ and rendering regressions. But GPU rendering is not bit-identical across drivers
 even driver versions. Comparing raw GPU pixels produces flaky tests.
 
 Tessera already needs an offscreen path for the AI-agent loop. The question is which path is
-allowed to produce the golden images.
+allowed to produce the [golden images](../docs/reference/glossary.md).
 
 ## Decision
 
 1. **Golden images come from a deterministic software path**, never from a real GPU
    framebuffer:
-   - Vulkan parity: **Mesa lavapipe** (software Vulkan ICD)
+   - Vulkan parity: **Mesa [lavapipe](../docs/reference/glossary.md)** (software Vulkan ICD (installable client driver, the Vulkan driver plug-in))
    - software backend: our CPU rasterizer, kept deliberately simple
 2. **Fixed simulation clock**: golden runs use a fixed delta (e.g. 16.666 ms) and never read
    the wall clock during layout, animation, or rendering.
-3. **Fixed inputs**: committed font files, fixed DPI/scale, fixed window/offscreen size,
+3. **Fixed inputs**: committed font files, fixed DPI (dots per inch, the display scale)/scale, fixed window/offscreen size,
    deterministic text shaping, no subpixel positioning in golden mode.
-4. **GPU runs are smoke tests only.** They may use perceptual tolerance (SSIM / ΔE) but do not
+4. **GPU runs are smoke tests only.** They may use perceptual tolerance (SSIM (structural similarity index) / ΔE (perceptual color difference)) but do not
    produce or update goldens.
 5. **Bit-exact comparison** for the software path. Any diff is a failure unless a reviewed
    `--update-goldens` run explicitly rewrites the baseline.
@@ -37,7 +37,7 @@ allowed to produce the golden images.
 
 ### Positive
 
-- Reproducible tests across machines and CI.
+- Reproducible tests across machines and CI (continuous integration).
 - The AI-agent loop gets stable visual + structural feedback.
 - CI does not need a GPU; lavapipe runs on a normal runner.
 
@@ -60,6 +60,6 @@ allowed to produce the golden images.
 
 ## Follow-up
 
-- Add the golden runner and baseline layout in Big Step E.
+- Add the golden runner and baseline layout in [Big Step E](../AGENTS.md#big-steps-group-work-dont-micro-step) (data-heavy UI).
 - Lock the lavapipe version in CI.
 - Define the `report.json` schema together with the AI-agent integration.

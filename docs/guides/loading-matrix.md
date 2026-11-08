@@ -1,8 +1,8 @@
 # Loading strategy matrix
 
-Status: proposed (B2/F). Companion to
-[`startup-and-loading.md`](../design/startup-and-loading.md) and
-[`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md).
+Status: proposed (Big Steps B2 and F; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Companion to
+[`startup-and-loading.md`](../design/startup-and-loading.md) (startup design and budgets) and
+[`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md) (lazy/preload/lease/unload rules). Terms: first meaningful frame = first frame showing usable content; skeleton = placeholder layout shown before data arrives; lease/pin = a hold that prevents a resource from unloading.
 
 Use this to choose startup, loading UI, auth, and resource policy. Default is **lazy +
 critical-only eager + explicit preload + unload**.
@@ -43,7 +43,7 @@ lazy/preload/unload.
 | Route code/data | lazy | on intent/back-stack | route exit |
 | Images | lazy | viewport proximity | route exit/memory pressure |
 | Charts/media | lazy/streaming | next item/page | offscreen/timeout |
-| Shader/pipeline | lazy at first use | first draw | device loss/route exit if unused |
+| Shader/pipeline | lazy at first use | first draw | device loss, or route exit if no longer used |
 | User data/profile | after auth, lazy | post-auth home | logout |
 | Diagnostics/tracing | lazy/off | debug only | release build off |
 
@@ -87,10 +87,10 @@ post-auth:
   show shell + skeleton
   preload: home route shell, visible charts, user profile
   lazy: images, secondary routes, reports
-  unload: on logout, route exit, background (policy), memory pressure
+  unload: on logout, route exit, background (per the app's policy), memory pressure
 ```
 
-Budgets: first frame < 300 ms warm; auth cached check < 150 ms; shell < 100 ms; data streams;
+Budgets (desktop dashboard targets from [startup-and-loading.md](../design/startup-and-loading.md), which also gives < 1 s cold): first frame < 300 ms warm; auth cached check < 150 ms; route shell < 100 ms; data streams;
 no full-screen spinner after the shell exists.
 
 ## 7. Example: kiosk dashboard
@@ -109,5 +109,5 @@ resources:
 ## 8. Status
 
 - Matrix/guide only; not implemented.
-- Tune budgets per platform/scene class; measure on real devices.
-- Link the chosen profile in the app's design doc and test it in CI.
+- Budgets for platforms other than desktop are not specified here; the startup doc says mobile budgets are stricter. Measure on real devices.
+- Record the chosen profile in the app's design doc and test it in CI (no CI job for this exists yet).

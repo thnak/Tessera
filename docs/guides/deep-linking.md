@@ -1,8 +1,8 @@
 # Deep linking guide
 
-Status: proposed (F). Companion to
-[`deep-linking-v1.md`](../specs/deep-linking-v1.md) and
-[`project-config-v1.md`](../specs/project-config-v1.md).
+Status: proposed (Big Step F, production breadth; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-026](../../decisions/ADR-026-deep-links-and-external-activation.md) (deep links and external activation). Companion to
+[`deep-linking-v1.md`](../specs/deep-linking-v1.md) (normative spec) and
+[`project-config-v1.md`](../specs/project-config-v1.md) (`tessera.json` schema).
 
 Use this to let `myapp://...` or `https://app.example.com/...` open/focus the app and navigate.
 
@@ -27,9 +27,9 @@ Use this to let `myapp://...` or `https://app.example.com/...` open/focus the ap
 
 - `schemes`: custom URL schemes.
 - `hosts`: HTTPS hosts for App/Universal Links.
-- `routes`: pattern -> canonical route, `auth`, `confirm`.
+- `routes`: pattern -> canonical route name, `auth` (require login first), `confirm` (ask the user before acting).
 - `fileTypes`: file associations.
-- `singleInstance`: focus existing process by default.
+- `singleInstance`: when true, a second launch forwards the link to the running process and focuses its window instead of starting a new process.
 - `fallbackUrl`: web page when the app is not installed.
 
 ## 2. Platform setup
@@ -48,7 +48,7 @@ HKCU\Software\Classes\myapp\shell\open\command
 
 Packaged MSIX: add `uap:Protocol`/`uap:FileTypeAssociation` to the manifest. Parse the
 activation/command line at startup; forward to the existing instance (named mutex/pipe or
-`AppInstance`) and focus its window.
+`AppInstance`, the Windows App SDK single-instance API) and focus its window.
 
 Test:
 
@@ -72,7 +72,7 @@ Chrome may show an "Open app?" prompt; do not assume silent launch.
 </array>
 ```
 
-Universal Links: add `com.apple.developer.associated-domains` (`applinks:app.example.com`) and
+Universal Links (iOS/macOS HTTPS links that open the app): add `com.apple.developer.associated-domains` (`applinks:app.example.com`) and
 host `apple-app-site-association`; handle `scene(_:openURLContexts:)`/`scene(_:continue:)`.
 File types: `CFBundleDocumentTypes`.
 
@@ -143,7 +143,7 @@ xcrun simctl openurl booted "myapp://orders/42"
 - Canonical share link should be `https://app.example.com/...`.
 - If the app is installed, the OS may open it (App/Universal Links on mobile).
 - Otherwise show the web page with an "Open app" button using `myapp://...`.
-- Custom schemes often require a user gesture; don't auto-launch.
+- Browsers can require a user gesture before opening a custom scheme; do not auto-launch.
 - Provide a copyable link and a download/store link.
 - Never put tokens/secrets in the URL.
 
@@ -152,13 +152,13 @@ xcrun simctl openurl booted "myapp://orders/42"
 - `:id` captures one path segment; no wildcard hosts.
 - Percent-decode once; reject encoded traversal/control chars.
 - Validate query params (type/range/length) per route.
-- Unknown route -> home/error, not a crash.
-- `auth=true` -> pending until login; `confirm=true` -> ask before destructive action.
+- Unknown route -> home or error screen; which of the two is not specified in the spec; never a crash.
+- `auth=true` -> the link stays pending until login completes; `confirm=true` -> ask before destructive action.
 
 ## 5. Single instance
 
-- Default: focus the existing window and route.
-- `openIn=newWindow`: create a new window (if supported).
+- Default (`openIn=existing`): focus the existing window and route.
+- `openIn=newWindow`: create a new window (only if the app supports multi-window; see [deep-linking-v1](../specs/deep-linking-v1.md)).
 - Cold start: create main window, route after shell/auth.
 - Deduplicate identical activations; don't open five windows for one click.
 
@@ -179,7 +179,7 @@ xcrun simctl openurl booted "myapp://orders/42"
 ## 7. Common mistakes
 
 - Hardcoding platform manifests that drift from `tessera.json`.
-- Assuming Chrome/Safari will open a custom scheme silently.
+- Assuming Chrome/Safari will open a custom scheme without a prompt.
 - Using a custom scheme as the only link on mobile.
 - Passing raw URL/path to a shell.
 - Putting auth tokens in the URL.
@@ -191,5 +191,5 @@ xcrun simctl openurl booted "myapp://orders/42"
 ## 8. Status
 
 - Spec/guide only; not implemented.
-- The generator should validate `deepLinks` and emit/check platform declarations where possible.
-- Test on real browsers/devices; emulator/simulator behavior differs.
+- The generator (`tessera generate`, see [project-generator.md](project-generator.md)) is intended to validate `deepLinks` and emit/check platform declarations; which platform files it can check is not specified.
+- Test on real browsers/devices; emulator/simulator behavior differs from real devices.

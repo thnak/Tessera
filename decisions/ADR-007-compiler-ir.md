@@ -1,8 +1,8 @@
 # ADR-007: A neutral IR between JSX and C++ codegen
 
-- Status: Accepted (the "no error boundaries" V1 limit is superseded by ADR-025)
+- Status: Accepted (the "no error boundaries" [V1](../docs/reference/glossary.md) limit is superseded by [ADR-025](ADR-025-error-boundaries.md) (error boundaries))
 - Date: 2026-11-07
-- Related: ADR-008, ADR-025
+- Related: [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest), [ADR-025](ADR-025-error-boundaries.md)
 
 ## Context
 
@@ -17,7 +17,7 @@ running the generator.
 
 ## Decision
 
-1. Define a **neutral, versioned IR** in `src/compiler/ir/`. Codegen consumes only the IR.
+1. Define a **neutral, versioned IR (intermediate representation)** in `src/compiler/ir/`. Codegen consumes only the IR.
 2. The IR describes:
    - module and imports
    - component name, parameters, slots/children
@@ -30,10 +30,10 @@ running the generator.
 3. Tier 1 validates React semantics and rejects unsupported constructs **before** lowering.
 4. Tier 2 lowers AST -> IR and resolves `bind::` annotations to binding ids.
 5. Codegen maps IR nodes to C++ scene-graph construction and lifecycle stubs.
-6. The IR is **serializable to JSON** for debugging, snapshot tests, and future tools.
+6. The IR is **serializable to JSON** for debugging, snapshot tests, and other tools (none are specified yet).
 7. **V1 IR limits** (reject loudly):
    - no custom hooks
-   - no context/suspense (error boundaries are now supported by ADR-025)
+   - no context/suspense (error boundaries are now supported by [ADR-025](ADR-025-error-boundaries.md))
    - no dynamic component types
    - conditionals and loops must be statically analyzable; dynamic lists map to an explicit
      runtime list model
@@ -45,7 +45,7 @@ running the generator.
 
 - Parser, IR, and codegen evolve independently.
 - IR snapshots make compiler changes reviewable without reading generated C++.
-- A future second target (e.g., a Wasm interpreter) can consume the same IR.
+- A second target, such as a Wasm (WebAssembly) interpreter (not scheduled in this ADR), can consume the same IR.
 
 ### Negative / risks
 
@@ -56,7 +56,7 @@ running the generator.
 ## Alternatives considered
 
 - **Codegen directly from Babel/SWC AST.** Rejected: brittle, parser-coupled, hard to test.
-- **Use React's reconciler in production.** Rejected: production must be pure C++ (AGENTS.md).
+- **Use React's reconciler in production.** Rejected: production must be pure C++ ([AGENTS.md](../AGENTS.md), non-negotiable 7, "No React runtime in production").
 - **Adopt a generic agent-UI schema (e.g., A2UI).** Rejected: not expressive enough for hooks,
   effects, refs, and layout; A2UI is a runtime protocol, not a compile-time IR.
 - **Generate a bytecode instead of C++.** Rejected for V1: loses native optimization and
@@ -64,6 +64,6 @@ running the generator.
 
 ## Follow-up
 
-- Write `docs/specs/ir-v1.md` with a JSON schema and examples.
+- Write [`docs/specs/ir-v1.md`](../docs/specs/ir-v1.md) with a JSON schema and examples.
 - Add IR snapshot tests to the compiler test suite.
-- Decide the parser (SWC or oxc) in Big Step C; the IR must not depend on that choice.
+- Parser: decided in [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own JSX front end and React-like model) (own front end; SWC/oxc/tree-sitter not used). The IR must not depend on it.

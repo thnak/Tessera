@@ -1,7 +1,12 @@
 # Window resize, DPI, and lifecycle
 
-Status: design for Big Step B3 (window/swapchain). This document draws the line between
-**declarative style/animation** and **window/renderer infrastructure**.
+Status: design for Big Step B3 (window/swapchain path; B3 and the other Big Steps are defined in
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision record:
+[ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (window resize and lifecycle).
+This document draws the line between
+**declarative style/animation** and **window/renderer infrastructure**. HAL = hardware/OS abstraction
+layer ([`hal.md`](hal.md)); tick, golden, VRR and `WindowMetrics` are in
+[`glossary.md`](../reference/glossary.md).
 
 ## 1. Separation of concerns
 
@@ -78,7 +83,7 @@ OS event (WM_SIZE / ConfigureNotify / xdg configure)
 
 Rules:
 
-1. **Frame boundary.** Resize is consumed at a tick/frame boundary, not in the OS callback.
+1. **Frame boundary.** Resize is consumed at a tick/frame boundary (a tick is one fixed-step update, see [`game-loop.md`](game-loop.md)), not in the OS callback.
    The callback only records the event.
 2. **Coalesce.** A live drag can produce hundreds of events; keep the latest size and the union
    of reasons. Render at most one resize frame per tick.
@@ -98,7 +103,7 @@ Rules:
 |---|---|---|
 | `live` | Present at the new size as often as the compositor allows | desktop apps, interactive tools |
 | `deferred` | Use the last stable size until resize settles, then recreate | expensive scenes, remote/virtual displays |
-| `adaptive` | Live for small changes, defer/throttle for large or slow frames | default |
+| `adaptive` | Live for small changes, defer/throttle for large or slow frames (the thresholds are not specified) | default (see [`runtime-config-v1.md`](../specs/runtime-config-v1.md)) |
 
 `resizeMode` is infrastructure config; styles/animations never branch on it. Debouncing and
 swapchain-recreate delay are runtime knobs, not component code.
@@ -135,7 +140,7 @@ swapchain-recreate delay are runtime knobs, not component code.
   `WM_DPICHANGED`, `WM_SETTINGCHANGE`, `WM_THEMECHANGED`, `WM_ACTIVATEAPP`,
   `WM_SHOWWINDOW`, `WM_POWERBROADCAST`.
 - Gate swapchain recreation with `WM_ENTERSIZEMOVE`/`WM_EXITSIZEMOVE`: coalesce during the modal
-  resize loop, recreate on exit (or at a safe boundary), not once per `WM_SIZE`.
+  resize loop, recreate on exit (or at a frame boundary with no frame in flight on the old swapchain), not once per `WM_SIZE`.
 - Per-monitor DPI awareness v2 (`SetProcessDpiAwarenessContext`); use
   `AdjustWindowRectExForDpi` for non-client sizing; honor the suggested rect in `WM_DPICHANGED`.
 - Honor system minimum/maximum track sizes; do not fight the shell.
@@ -148,7 +153,7 @@ swapchain-recreate delay are runtime knobs, not component code.
 
 - Handle `ConfigureNotify`, RandR `RRScreenChangeNotify` (then `XRRUpdateConfiguration`),
   `PropertyNotify`, `_NET_WM_STATE`, and `WM_DELETE_WINDOW`.
-- Use `_NET_WM_SYNC_REQUEST`/`_NET_WM_SYNC_REQUEST_COUNTER` where the compositor supports it to
+- Use `_NET_WM_SYNC_REQUEST`/`_NET_WM_SYNC_REQUEST_COUNTER` when the compositor supports it to
   avoid tearing during resize; do not block waiting for the counter.
 - Respect ICCCM size hints (`WM_NORMAL_HINTS`) and EWMH states (maximized, fullscreen, tiled).
 - Re-query refresh/scale on RandR changes; use the Present extension for timing/damage.
@@ -164,15 +169,15 @@ swapchain-recreate delay are runtime knobs, not component code.
   scaling; `wl_surface.set_buffer_scale` for integer scale.
 - Pace with `wl_surface.frame` callbacks and `wp_presentation`; never busy-wait.
 - Surface damage (`wl_surface.damage_buffer`) for partial updates; the compositor owns damage.
-- Decorations: prefer server-side decorations when available; client-side decorations must
+- Decorations: prefer server-side decorations when the compositor offers them; client-side decorations must
   respect `xdg_toplevel` states and hit-testing.
 - Minimized/occluded: stop presenting; do not render empty frames.
 
 ### macOS / Android
 
-- macOS (deferred): `NSWindowDelegate` resize, `viewDidChangeBackingProperties` for scale,
+- macOS (deferred; [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via MoltenVK): `NSWindowDelegate` resize, `viewDidChangeBackingProperties` for scale,
   `CVDisplayLink`/`CAMetalDisplayLink` for pacing; MoltenVK surface recreation.
-- Android (deferred): `onSurfaceChanged`, `onConfigurationChanged`, `Choreographer` frame
+- Android (deferred to Big Step F, see [`mobile-integration.md`](mobile-integration.md)): `onSurfaceChanged`, `onConfigurationChanged`, `Choreographer` frame
   callbacks, multi-window/split-screen lifecycle.
 
 ### Cross-platform rules
@@ -182,7 +187,7 @@ swapchain-recreate delay are runtime knobs, not component code.
 - Multi-monitor: per-monitor DPI/scale/refresh; re-query present modes and VRR on display change.
 - Do not assume 60 Hz or 1.0 scale when the platform cannot report them; use documented fallbacks.
 - Never block the UI/message loop on the compositor, GPU, or a synchronous cross-thread call.
-- Resize/DPI/theme/display changes are deterministic inputs; golden tests synthesize them.
+- Resize/DPI/theme/display changes are deterministic inputs; golden tests (deterministic reference images, [`golden-tests-v1.md`](../specs/golden-tests-v1.md)) synthesize them.
 
 ### 4.1 Mobile and foldables
 
@@ -213,6 +218,6 @@ swapchain-recreate delay are runtime knobs, not component code.
 
 - Default `resizeMode` per platform (Windows modal loop vs Wayland compositor-driven).
 - Exact swapchain-recreate delay heuristic for slow GPUs.
-- Safe-area APIs for Android/macOS when those backends land.
+- Safe-area APIs for Android/macOS (both backends are unscheduled; macOS per ADR-010, Android in Big Step F).
 - Whether to expose a declarative `onResize`/`ResizeObserver` API or keep it internal.
 - Fractional scaling + text rasterization on mixed-DPI multi-monitor setups.

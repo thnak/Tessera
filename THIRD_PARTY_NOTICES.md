@@ -86,8 +86,8 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | {fmt} | MIT | Victor Zverovich |
 | glm | MIT | G-Truc Creation |
 | mimalloc | MIT | Microsoft Corporation |
-| tree-sitter / oxc / nlohmann-json / Inja | MIT | their respective authors |
-| SWC / simdjson | Apache-2.0 | their respective authors |
+| nlohmann-json / Inja | MIT | their respective authors |
+| simdjson | Apache-2.0 | their respective authors |
 | libFuzzer | Apache-2.0 with LLVM exception | LLVM Project |
 | Noto Sans / Inter | SIL Open Font License 1.1 | their respective authors |
 

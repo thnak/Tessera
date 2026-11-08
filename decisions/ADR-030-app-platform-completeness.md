@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-020, ADR-022, ADR-023, ADR-026, ADR-029
+- Related: [ADR-020](ADR-020-window-resize-and-lifecycle.md) (window resize, display scale, and lifecycle), [ADR-022](ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling), [ADR-023](ADR-023-os-event-normalization-and-foldables.md) (OS event normalization and foldables), [ADR-026](ADR-026-deep-links-and-external-activation.md) (deep links and external activation), [ADR-029](ADR-029-interaction-completeness.md) (interaction completeness)
 
 ## Context
 
@@ -20,7 +20,7 @@ framework is usable in production.
 3. **Platform shell** is a service: clipboard, internal/external drag-drop, context menus, file
    dialogs, menu bar/tray, shortcuts. Async, permission-aware, capability handles, no OS types
    in UI.
-4. **i18n** is runtime behavior: locale negotiation, ICU catalogs/plurals, number/date/currency,
+4. **i18n (internationalization)** is runtime behavior: locale negotiation, ICU (International Components for Unicode) catalogs/plurals, number/date/currency,
    RTL/bidi, font fallback, text expansion, pseudo-localization, compile-time catalog validation.
 5. **Accessibility** is normative: semantics tree, roles/states/actions, focus/keyboard,
    text editing, overlays/navigation, virtualized/custom elements, announcements, platform
@@ -50,6 +50,6 @@ framework is usable in production.
 - Implement route table/stack/guards/deep-link integration.
 - Implement versioned restoration and multi-window snapshots.
 - Implement shell services per platform with fake/headless tests.
-- Adopt ICU catalogs and pseudo-locale CI.
+- Adopt ICU catalogs and pseudo-locale CI (continuous integration).
 - Complete semantics/actions/announcements and platform bridge tests.
 - Implement resource cache/query/mutation/offline queue.

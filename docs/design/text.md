@@ -1,7 +1,14 @@
 # Text: shaping, bidi, line breaking, and glyph atlas
 
-Status: design for Big Step B2. `src/ui/text/` is a placeholder today. ADR-006 selects
-FreeType + HarfBuzz + SheenBidi + ICU.
+Status: design for Big Step B2 (runtime slice; see
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/ui/text/` is a
+placeholder today. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
+FreeType + HarfBuzz + SheenBidi + ICU (licenses and module ownership in
+[`dependencies.md`](../specs/dependencies.md)). Terms: IME = input method editor; HAL = hardware/OS
+abstraction layer ([`hal.md`](hal.md)); golden = deterministic reference image; atlas = GPU texture
+holding packed glyph bitmaps; SDF = signed distance field; tofu = the placeholder box drawn for a missing
+glyph; V1 = first release (scope rule in [AGENTS.md Non-negotiables](../../AGENTS.md#non-negotiables) item
+8). See also [`glossary.md`](../reference/glossary.md).
 
 ## 1. Stack
 
@@ -22,7 +29,7 @@ text + TextStyle + constraints
   -> itemize by script/language/direction (ICU/HarfBuzz)
   -> bidi paragraph (SheenBidi) -> visual runs
   -> shape each run (HarfBuzz) -> glyph ids + advances + clusters
-  -> line break (ICU / libunibreak) -> lines
+  -> line break (ICU / libunibreak, the optional fallback listed in dependencies.md) -> lines
   -> glyph raster (FreeType) -> atlas entries
   -> quads -> batched 2D renderer
 ```
@@ -57,8 +64,8 @@ V1 text style properties:
 - `line-height`, `letter-spacing`, `word-spacing`
 - `text-align`, `text-transform`, `white-space`, `text-overflow`
 - `color`, `opacity`
-- `direction`, `writing-mode` (parsed; vertical layout later)
-- `font-feature-settings` (parsed; selected features later)
+- `direction`, `writing-mode` (parsed; vertical layout is not in V1, see section 12)
+- `font-feature-settings` (parsed; which features are honored is not specified)
 
 Units resolve through the style engine: `em`/`rem`/`%`/viewport units become pixels before
 shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
@@ -67,7 +74,7 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
 
 - A style has an ordered font stack.
 - Missing glyphs fall through to the next face that covers the codepoint.
-- Emoji/color fonts are a later slice; fallback must still be deterministic.
+- Emoji/color fonts are not in V1 ([ADR-006](../../decisions/ADR-006-text-stack.md) item 6; no release is named for them); fallback must still be deterministic.
 - Fallback decisions are cached per `(font stack, codepoint sequence)`.
 - A missing glyph renders a deterministic tofu/placeholder and emits a diagnostic; it never
   silently changes the font stack across runs.
@@ -78,16 +85,16 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
 - Per-face/size caches; atlas pages are bounded.
 - Eviction policy: LRU with a frame-age guard; never evict glyphs used by the current frame.
 - Atlas updates are GPU texture uploads; they go through the resource/async path.
-- Subpixel positioning is disabled in golden mode; normal mode may use it if deterministic
-  enough for the target platform (documented per backend).
+- Subpixel positioning is disabled in golden mode; normal mode may use it; whether it is deterministic enough is decided and
+  documented per backend (no decision yet).
 - Hinting/AA settings are fixed per build; do not depend on system FreeType configuration.
 
 ## 6. Line breaking and alignment
 
-- ICU line breaking (or libunibreak fallback) for Unicode line/word opportunities.
-- `white-space`: normal/nowrap/pre/pre-wrap/break-spaces (V1 subset documented).
+- ICU line breaking (or the libunibreak fallback) for Unicode line/word opportunities.
+- `white-space`: normal/nowrap/pre/pre-wrap/break-spaces (the V1 subset is not enumerated; see [`stylesheet-v1.md`](../specs/stylesheet-v1.md)).
 - `text-overflow: ellipsis` needs measured ellipsis width; no mid-glyph clipping.
-- `text-align`: start/end/left/right/center/justify (justify later).
+- `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
 - Bidi: visual order per line; alignment uses the paragraph direction.
 - Baseline: layout uses the first line's baseline for alignment; multi-line boxes document
   their baseline choice.
@@ -120,7 +127,7 @@ normative in [`text-editing-v1.md`](../specs/text-editing-v1.md). This section i
 summary.
 
 - IME composition is owned by the focused text input; the platform IME events are normalized by
-  the HAL (`docs/design/input.md`).
+  the HAL ([`input.md`](input.md)).
 - Composition text is rendered with an underline/selection style; the committed text replaces
   it atomically.
 - Caret/selection are style/paint concerns; cluster boundaries come from HarfBuzz.
@@ -130,8 +137,8 @@ summary.
 
 - Shape only dirty text; cache shaped runs/layouts.
 - Avoid per-frame atlas uploads; batch glyph updates.
-- Use glyph quads with the existing `(scissor, texture)` batching key.
-- Target: a 10k-glyph screen at 60 Hz with bounded cache growth.
+- Use glyph quads with the existing `(scissor, texture)` batching key (the B1 batched 2D renderer's draw-merge key; see [`renderer.md`](renderer.md)).
+- Target: a 10k-glyph screen at 60 Hz with bounded cache growth (reference hardware is not specified).
 - Track glyph cache hit rate, atlas pages, upload bytes, and shaping time.
 
 ## 11. Tests
@@ -150,5 +157,5 @@ summary.
 - Variable fonts and axis animation.
 - Justification/hyphenation.
 - Vertical writing modes.
-- Whether to subset ICU data for binary size (ADR-012).
+- Whether to subset ICU data for binary size ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking).
 - Atlas format: R8 vs RGBA8, SDF vs raster for scaling.

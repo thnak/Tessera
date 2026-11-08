@@ -1,24 +1,24 @@
 # Media playback, printing, and export
 
-Status: design (optional, post-V1). Not core renderer work; decide per app/product.
+Status: design (optional, after V1; V1 is the first-release scope referred to by [AGENTS.md rule 8](../../AGENTS.md#non-negotiables), and no release is assigned to this work). Not core renderer work; decide per app/product.
 
 A UI framework does not need to become a media engine, but it must define the seams so apps can
 embed playback, print, and export without leaking OS/GPU types into components.
 
 ## 1. Media playback
 
-- Video/audio are **services** or **custom elements**, not built-in scene nodes.
-- Video surface: platform decoder/texture or RHI external texture; no raw OS handle in UI.
+- Video/audio are **services** ([`services.md`](services.md)) or **custom elements** ([`custom-elements-v1.md`](../specs/custom-elements-v1.md)), not built-in scene nodes.
+- Video surface: platform decoder/texture or RHI (render hardware interface, [glossary](../reference/glossary.md)) external texture; no raw OS handle in UI.
 - Audio: optional service (miniaudio or platform); no blocking on the UI thread.
 - Playback state (position, duration, buffering, error) is exposed as a resource/state; UI
   controls are normal components.
-- DRM/platform-protected playback is app/platform-specific; document supported paths.
+- DRM (digital rights management)/platform-protected playback is app/platform-specific; document supported paths.
 - Background/audio focus/now-playing integration follows platform policy.
 - Power: pause when hidden/occluded; no continuous decode without a visible/active reason.
 
 ## 2. Printing and PDF
 
-- Printing is a platform-shell service: enumerate printers, page setup, print dialog, status.
+- Printing is a platform-shell service ([`platform-shell-v1.md`](../specs/platform-shell-v1.md)): enumerate printers, page setup, print dialog, status.
 - Page layout is app-owned; the framework supplies text/layout primitives and a render target.
 - PDF export may use a platform API or an optional library; output must be deterministic where
   tested.
@@ -29,9 +29,9 @@ embed playback, print, and export without leaking OS/GPU types into components.
 ## 3. Image/vector export
 
 - Snapshot a subtree/window to a texture/PNG/SVG-path export.
-- Use the software/golden path for deterministic output; GPU readback only for diagnostics.
+- Use the software/golden path (CPU-rendered deterministic reference output, see [glossary](../reference/glossary.md)) for deterministic output; GPU readback only for diagnostics.
 - Bound dimensions/bytes; no unbounded full-scene export.
-- Text/vector export should preserve shaping/bidi where possible; raster fallback is explicit.
+- Text/vector export should preserve shaping/bidi; when it cannot, the export falls back to raster explicitly (the conditions are not specified).
 - Export is app-facing API, not a hidden side effect of screenshots.
 
 ## 4. Platform mapping
@@ -112,11 +112,11 @@ Failure/edge cases:
 - Unsupported codec/format -> error state; no crash/fallback decoder.
 - Device loss/occlusion -> recreate/pause; resume only if policy allows.
 - Print/export cancel -> delete partial output; no corrupt file.
-- PDF/vector font fallback -> deterministic embedded/pinned fonts where possible.
+- PDF/vector font fallback -> deterministic embedded/pinned fonts; cases where this is not possible are not specified.
 
 Gap-closure decisions:
 
-- **G-27/Q-25**: media/print/PDF/export are optional app/platform packages, not core. Video uses
+- **G-27/Q-25** (gap and question ids in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md), where G-27 is marked Deferred): media/print/PDF/export are optional app/platform packages, not core. Video uses
   an external texture or custom element; audio focus/interruption is platform policy; playback
   state is explicit. Print/PDF/export require deterministic software layout for tests. No
   default media engine or DRM stack ships in V1.
@@ -127,4 +127,4 @@ Gap-closure decisions:
 - PDF/print library choice and licensing.
 - SVG/vector export fidelity.
 - Background audio/video policy per platform.
-- Whether an optional `tessera-media` package ships after V1.
+- Whether an optional `tessera-media` package ships after V1 (no decision yet).

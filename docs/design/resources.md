@@ -1,22 +1,22 @@
 # Resources and asset pipeline
 
-Status: design for Big Step B2/B3. `src/rendering/resources/` is a placeholder; B1 uses
+Status: design for Big Step B2/B3 (runtime slice and window/swapchain phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/rendering/resources/` is a placeholder; B1 uses
 one-shot textures/buffers. Memory/ownership: [`memory-model-v1.md`](../specs/memory-model-v1.md);
 buffer/tunable config: [`buffer-config-v1.md`](../specs/buffer-config-v1.md); lifecycle:
 [`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md) and
 [`startup-and-loading.md`](startup-and-loading.md).
 
 Resources cover images, fonts, SVG/paths, shaders, themes, and GPU objects. The pipeline must
-be deterministic, bounded, and asynchronous enough to avoid UI stalls.
+be deterministic, bounded, and asynchronous: loading never blocks the UI thread ([ADR-021](../../decisions/ADR-021-async-runtime.md), async runtime).
 
 ## 1. Asset kinds
 
 | Kind | Source | Runtime representation |
 |---|---|---|
-| Image | PNG/JPEG/WebP (optional decoders) | GPU texture + sampler |
-| Font | committed TTF/OTF | FreeType face + glyph atlas entries |
-| SVG/path | SVG/ThorVG/Skia | path geometry/tessellation |
-| Shader | GLSL/WGSL + manifest | pipeline + reflection |
+| Image | PNG/JPEG/WebP (decoder set not chosen yet, see section 9) | GPU texture + sampler |
+| Font | committed TTF/OTF | FreeType face + glyph atlas entries (text stack: [`text.md`](text.md)) |
+| SVG/path | SVG/ThorVG/Skia ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)) | path geometry/tessellation |
+| Shader | GLSL/WGSL + manifest ([`shader-manifest-v1.md`](../specs/shader-manifest-v1.md)) | pipeline + reflection |
 | Theme | JSON tokens | custom properties |
 | Data | JSON/CSV/binary | app-owned buffers |
 
@@ -32,7 +32,7 @@ asset id -> cache lookup -> async load/decode -> CPU resource
 
 - Loading starts off the UI thread; the UI thread never blocks on file/network/decode.
 - CPU decode has size/format limits (decompression bombs, huge dimensions).
-- GPU upload happens on the render thread or via a staging queue; completion is queued.
+- GPU upload happens on the render thread (see [`threading-and-memory.md`](threading-and-memory.md)) or via a staging queue; completion is queued.
 - A placeholder is shown until ready; missing assets produce a deterministic error placeholder.
 - Cancellation is supported when a node no longer needs the asset.
 
@@ -42,23 +42,23 @@ asset id -> cache lookup -> async load/decode -> CPU resource
 - Uploads are batched per frame; no per-texture command list/submit.
 - Image layout transitions are owned by the backend/resource layer, not the UI.
 - Samplers/filters are part of the texture desc; no hidden global state.
-- Texture format/color space is explicit (`R8G8B8A8_UNORM` baseline; sRGB later).
+- Texture format/color space is explicit (`R8G8B8A8_UNORM` baseline; sRGB support is not scheduled, see "B2 / known limits" in [`renderer.md`](renderer.md)).
 - Mipmaps/compression are opt-in; document the color-space and filtering rules.
 
 ## 4. Caches and lifetime
 
 | Cache | Key | Eviction |
 |---|---|---|
-| Texture | asset id + decode params | LRU, not in current frame |
+| Texture | asset id + decode params | LRU (least recently used), not in current frame |
 | Glyph atlas | face/size/glyph | LRU with frame-age guard |
 | Pipeline | shader/vertex layout/blend | refcount + LRU |
 | Path | SVG/path hash + quality | LRU |
 | Theme | theme path/hash | replace on change |
 | Custom element target | element id + pixel size/format | LRU, not in flight |
 
-- Caches are bounded by bytes and item count.
+- Caches are bounded by bytes and item count. "Frame-age guard" means an entry used by a frame that is still in flight is not evicted.
 - Resources used by in-flight frames are not destroyed; retire after completion.
-- Hot reload replaces an asset generation; old generation retires when unreferenced.
+- Hot reload (live replacement of an asset without restarting; see [`designer.md`](designer.md)) replaces an asset generation; old generation retires when unreferenced.
 - Shutdown drains/retires caches deterministically.
 - Custom elements share pipelines/meshes/textures through these caches; per-instance offscreen
   targets are bounded and retire after frames in flight. See
@@ -84,9 +84,9 @@ asset id -> cache lookup -> async load/decode -> CPU resource
 
 ## 6. Determinism
 
-- Golden mode uses committed assets only; no system fonts/network.
+- Golden mode (deterministic test rendering, see [glossary](../reference/glossary.md)) uses committed assets only; no system fonts/network.
 - Decode settings (color space, filtering, mipmaps) are fixed.
-- Cache insertion order is deterministic where it affects atlas packing/output.
+- Cache insertion order is deterministic because it determines atlas packing and therefore pixel output.
 - Async completion order must not change pixels; results are applied at frame boundaries with
   deterministic ordering.
 

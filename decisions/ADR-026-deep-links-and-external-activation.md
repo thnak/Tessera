@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-020, ADR-023, ADR-025
+- Related: [ADR-020](ADR-020-window-resize-and-lifecycle.md) (window resize, display scale, and lifecycle), [ADR-023](ADR-023-os-event-normalization-and-foldables.md) (OS event normalization and foldables), [ADR-025](ADR-025-error-boundaries.md) (error boundaries)
 
 ## Context
 
@@ -28,7 +28,7 @@ are lost, auth gates drop the pending link, and multiple instances/windows fight
    resumed after login; logout clears pending user-scoped links.
 6. **Deep links are untrusted.** Allowlist scheme/host/route; size/encoding/path validation; no
    tokens/secrets in URLs; no shell execution; destructive actions require confirmation.
-7. **Platform declarations are generated/validated from config** where supported; manual
+7. **Platform declarations are generated/validated from config** for the platforms the generator supports (the platform list is not stated in this ADR; see [`docs/specs/deep-linking-v1.md`](../docs/specs/deep-linking-v1.md)); manual
    manifests must match.
 8. **Tests cover cold/warm start, single instance, auth, malformed/oversized links, file
    associations, browser fallback, and redaction.**
@@ -48,7 +48,7 @@ are lost, auth gates drop the pending link, and multiple instances/windows fight
 - Platform setup remains OS-specific (registry, plist, manifest, desktop file).
 - Custom schemes can be spoofed; HTTPS verification requires hosting files.
 - Browser launch prompts are outside our control.
-- Single-instance forwarding needs IPC per platform.
+- Single-instance forwarding needs IPC (inter-process communication) per platform.
 - Pending-link/auth state adds lifecycle complexity.
 
 ## Alternatives considered

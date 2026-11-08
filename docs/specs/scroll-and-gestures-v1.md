@@ -1,9 +1,22 @@
 # Scroll and gestures v1
 
-Status: proposed (Big Step B2). Decision: ADR-029. Companion to
+Status: proposed (Big Step B2, the runtime slice; see [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision:
+[ADR-029](../../decisions/ADR-029-interaction-completeness.md) (text editing, scrolling/gestures,
+overlays, forms). Companion to
 [`input.md`](../design/input.md), [`layout.md`](../design/layout.md),
 [`virtualization-v1.md`](virtualization-v1.md), [`mobile-integration.md`](../design/mobile-integration.md),
 and [`animation-v1.md`](animation-v1.md) (overscroll/spring-back).
+
+Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8).
+**HAL** is the hardware/OS abstraction layer. **Tick** is one fixed-timestep runtime step.
+**Damage** is the screen region that must be repainted. **Fling/coast** is scroll momentum after the
+pointer is released. **Overscroll** is a visual stretch past a scroll edge. **Gesture arena** is the per-pointer
+claim/reject protocol in section 9.1. **Golden** is a deterministic reference image. **UiId** and
+**ItemKey** are the numeric node id ([`automation-ids-v1.md`](automation-ids-v1.md)) and the stable
+list-item key ([`virtualization-v1.md`](virtualization-v1.md)). **Reduced motion** is the user/OS
+preference described in [`accessibility-v1.md`](accessibility-v1.md). Other terms:
+[glossary](../reference/glossary.md). Gap ids (`G-06`, `G-07`) refer to rows in
+[`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md).
 
 Scrolling and gestures are one system: a drag must decide whether it scrolls, selects, or
 activates; nested containers must chain predictably; headless input must be deterministic.
@@ -30,7 +43,7 @@ struct ScrollState {
 - `content_size` comes from layout; changes clamp/retain offset deterministically.
 - Sticky headers/anchors are resolved in the scroll/layout pass; see §6.
 - `Scroll` is the only built-in scrollable container; custom elements manage their own internal
-  scroll only if declared.
+  scroll only if declared (see [`custom-elements-v1.md`](custom-elements-v1.md)).
 
 ## 2. Scroll state and APIs
 
@@ -45,7 +58,8 @@ set_scroll_offset(offset);   // immediate, no animation
 
 - Programmatic scroll uses the same clamping/snap/physics as input.
 - `scroll_into_view` respects safe area, sticky headers, and virtualized item realization.
-- `scroll_to_key` is the supported way to reveal a list/grid item; see virtualization.
+- `scroll_to_key` is the supported way to reveal a list/grid item; see
+  [`virtualization-v1.md`](virtualization-v1.md).
 - Scroll state is snapshot-testable: offset, velocity, viewport, content size, axis, snap.
 
 ## 3. Physics
@@ -55,7 +69,7 @@ set_scroll_offset(offset);   // immediate, no animation
 | Wheel/trackpad | line/pixel delta, platform acceleration, coalesced |
 | Touch/pen drag | 1:1 until release, then fling |
 | Keyboard | line/page/home/end; focus-aware |
-| Gamepad | later; normalized axis with deadzone |
+| Gamepad | not specified for V1 (no decision yet); normalized axis with deadzone |
 | Scrollbar | thumb drag, track click, min thumb size |
 | Programmatic | animated or immediate; cancellable |
 
@@ -103,7 +117,7 @@ struct OverscrollState {
 - A gesture arena decides between scroll, drag, selection, and custom element capture.
 - Nested scroll must not cause layout thrash or double-apply deltas.
 - `scroll-behavior: auto|smooth` and `overscroll-behavior: auto|contain|none` are style/runtime
-  inputs, not component logic.
+  inputs, not component logic (stylesheet side: [`stylesheet-v1.md`](stylesheet-v1.md) section 11).
 
 ## 5. Gesture recognition
 
@@ -126,7 +140,7 @@ Rules:
 - Pointer capture routes move/up/cancel to the winner; cancel is first-class.
 - Multi-touch: per-pointer ids; pinch/rotate use two pointers; no global pointer state.
 - Mouse/pen/touch share the normalized pointer model; pressure/tilt/orientation preserved.
-- Custom elements may consume raw pointer events or use recognizers; see custom elements spec.
+- Custom elements may consume raw pointer events or use recognizers; see [`custom-elements-v1.md`](custom-elements-v1.md) section 8.
 - Gesture handlers run on the UI thread, at tick boundaries; no layout/render/block.
 - Reduced motion/disability alternatives: keyboard/accessibility actions for scroll/drag.
 
@@ -135,8 +149,10 @@ Rules:
 - Sticky headers are constrained to their scroll container and resolved after offset changes.
 - Scroll anchoring keeps the visible content stable when content above changes; opt-in per
   container, disabled during explicit programmatic scroll.
-- Focused/selected item is kept visible on layout/content changes where possible.
-- Virtualized lists realize the focused item before focus/scroll; see virtualization.
+- Focused/selected item is kept visible on layout/content changes when the item still exists
+  after the change.
+- Virtualized lists realize the focused item before focus/scroll; see
+  [`virtualization-v1.md`](virtualization-v1.md) section 7.
 - Scrollbars are painted overlays; they do not affect layout unless `scrollbar-gutter` is set.
 
 ## 7. Rendering and dirty behavior
@@ -244,14 +260,14 @@ Gap-closure decisions:
 
 - **G-06**: recognizers/arena live in `ui/input`; a recognizer claims/rejects per pointer and
   the winner owns capture. HAL reserves system back/home/edge gestures; an app may opt into an
-  edge gesture only where the platform allows it. Custom elements consume only declared
+  edge gesture only on platforms that allow it (which platforms is not specified). Custom elements consume only declared
   gestures (`capture_pointer` + claim), and internal scroll must be declared.
 - **G-07**: overlay scrollbars by default (8 px visual, 24 px hit target); sticky nodes clamp
   within their scroll container; RTL uses logical axes and non-negative start offsets.
 
 ## 10. Deferred/open questions
 
-- Exact per-platform physics profiles and accessibility "reduce motion" tuning.
+- Exact per-platform physics profiles and accessibility "reduce motion" tuning (no decision yet).
 - Momentum handoff between nested native/custom surfaces.
 - Scrollbar auto-hide timing and overlay-vs-gutter defaults per platform.
 - Pull-to-refresh/custom overscroll effects (library, not core).

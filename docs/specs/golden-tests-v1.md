@@ -1,12 +1,18 @@
 # Golden tests v1
 
-Status: proposed (Big Step B2/B3). Normative for visual regression; ADR-009 is the decision.
+Status: proposed (Big Steps B2 and B3, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Steps"). Normative for visual regression;
+[ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md) (deterministic
+headless golden tests on a software rasterization path) is the decision.
 Headless runner/agent protocol: [`headless-automation-v1.md`](headless-automation-v1.md).
 Custom element goldens: [`custom-elements-v1.md`](custom-elements-v1.md).
 
 ## 1. Rules
 
-1. Golden images come from a deterministic software path, never a real GPU framebuffer.
+1. Golden images (deterministic reference images; see
+   [glossary](../reference/glossary.md)) come from a deterministic software path, never a real
+   GPU framebuffer. The software path is either the Tessera CPU rasterizer (`software` backend)
+   or Mesa lavapipe (a software Vulkan driver, ICD), per ADR-009.
 2. Bit-exact comparison on the software path; any diff fails unless explicitly updated.
 3. GPU runs are smoke tests with perceptual tolerance; they do not produce/update baselines.
 4. Fixed clock, size, DPI, fonts, locale, inputs, and event scripts.
@@ -63,13 +69,13 @@ tests/golden/
 | `name` | yes | Unique, stable |
 | `backend` | yes | `software` for goldens; `vulkan`/`webgpu` for smoke |
 | `size` | yes | Logical/physical pixels |
-| `scale` | yes | DPI scale; goldens usually `1.0` |
+| `scale` | yes | DPI scale (physical pixels per logical pixel); fixed per case, the example uses `1.0` |
 | `locale` | no | Pinned locale |
 | `fonts` | no | Committed font files |
 | `scene` | yes | Scene/IR/draw-list input |
 | `events` | no | Synthetic input/OS script |
 | `compare.mode` | no | `exact` (software) or `perceptual` (GPU) |
-| `compare.tolerance` | no | SSIM/ΔE thresholds for GPU smoke only |
+| `compare.tolerance` | no | SSIM (structural similarity index) / ΔE (colour difference) thresholds for GPU smoke only |
 | `tags` | no | CI filtering |
 
 ## 4. Comparison
@@ -122,6 +128,8 @@ tests/golden/
 ```
 
 Reports include structural data even when images pass, so agents can reason about layout.
+In `nodes[].dirty`, values are dirty domains (`style`, `layout`, `paint`, ...) as defined in
+[`dirty-rendering.md`](../design/dirty-rendering.md).
 
 ## 6. Update policy
 
@@ -139,16 +147,17 @@ Reports include structural data even when images pass, so agents can reason abou
 - [ ] fixed simulation clock/delta
 - [ ] fixed offscreen size/scale/DPI
 - [ ] committed fonts; no system fonts
-- [ ] fixed locale/time zone/ICU data
+- [ ] fixed locale/time zone/ICU data (ICU = International Components for Unicode)
 - [ ] synthetic inputs/events
 - [ ] no network/filesystem outside fixtures
-- [ ] deterministic executor/ordering
+- [ ] deterministic executor/ordering (executor: see [`async.md`](../design/async.md))
 - [ ] no random ids/timestamps in scene/report
 
 ## 8. CI
 
 - Linux: lavapipe/software path, `ctest` golden target.
-- Windows: software path if available; otherwise Vulkan smoke only.
+- Windows: software path if one is available on the runner (this spec does not say which);
+  otherwise Vulkan smoke only.
 - Golden artifacts uploaded on failure (image, diff, report).
 - Baseline changes require review; CI never writes baselines.
 

@@ -2,8 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-007
-- Evidence: `tessera_merger` + `merger_poc` in Phase 0; unit and CLI tests verify idempotency.
+- Related: [ADR-007](ADR-007-compiler-ir.md) (compiler intermediate representation)
+- Evidence: `tessera_merger` + `merger_poc` (a proof-of-concept merger library and command-line tool built in Phase 0); unit and CLI (command-line interface) tests verify idempotency.
 
 ## Context
 
@@ -24,7 +24,7 @@ duplicate ids, mismatched markers, renames, and formatting drift.
 
 ## Decision
 
-1. Protected regions use the marker format above. The `id` is a **stable binding identifier**
+1. [Protected regions](../docs/reference/glossary.md) use the marker format shown in the Context section. The `id` is a **stable binding identifier**
    derived from `bind::<id>` annotations in JSX.
 2. The compiler owns everything **outside** protected regions. The developer owns everything
    **inside** them. This ownership rule is absolute.
@@ -36,7 +36,7 @@ duplicate ids, mismatched markers, renames, and formatting drift.
    - Duplicate ids, missing end markers, or id mismatches are **hard errors**.
 4. **Idempotency is a tested invariant**:
    `merge(merge(g, e), e) == merge(g, e)`.
-5. Maintain a **binding manifest** (JSON) mapping each `bind::<id>` to its component, file, and
+5. Maintain a **[binding manifest](../docs/reference/glossary.md)** (JSON) mapping each `bind::<id>` to its component, file, and
    region. Renames go through a migration step; the merger never guesses.
 6. Run **clang-format** with a pinned style on generated C++ so marker placement and
    indentation are stable before merging. Formatting is part of the determinism contract.
@@ -54,7 +54,7 @@ duplicate ids, mismatched markers, renames, and formatting drift.
 
 ### Negative / risks
 
-- Marker comments become part of the generated-file ABI; changing them is a breaking change.
+- Marker comments become part of the generated-file ABI (application binary interface); changing them is a breaking change.
 - clang-format becomes a build/toolchain dependency for deterministic output.
 - A developer editing outside protected regions will lose those edits by design; this must be
   documented and warned about.
@@ -62,7 +62,7 @@ duplicate ids, mismatched markers, renames, and formatting drift.
 
 ## Alternatives considered
 
-- **AST-level merging.** Rejected for V1: language-specific, expensive, and still needs a
+- **AST-level merging.** Rejected for [V1](../docs/reference/glossary.md): language-specific, expensive, and still needs a
   policy for "what is developer code".
 - **Partial classes / inheritance hooks.** Rejected: C++ has no partial classes; hooks add
   boilerplate and still need a merge policy.
@@ -73,6 +73,6 @@ duplicate ids, mismatched markers, renames, and formatting drift.
 
 ## Follow-up
 
-- Extend the Phase 0 prototype with the binding manifest and clang-format step in Big Step C.
+- Extend the Phase 0 prototype with the binding manifest and clang-format step in [Big Step C](../AGENTS.md#big-steps-group-work-dont-micro-step) (compiler vertical slice).
 - Add tests for duplicate ids, mismatched markers, and rename warnings.
-- Document the ownership rule in `docs/guides/developer-workflow.md`.
+- Document the ownership rule in [`docs/guides/developer-workflow.md`](../docs/guides/developer-workflow.md).

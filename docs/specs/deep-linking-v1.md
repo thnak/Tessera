@@ -1,7 +1,7 @@
 # Deep linking and external activation v1
 
-Status: proposed (Big Step F). Route matching/stack/guards:
-[`navigation-v1.md`](navigation-v1.md). Decision: ADR-026. Companion to
+Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Route matching/stack/guards:
+[`navigation-v1.md`](navigation-v1.md). Decision: [ADR-026](../../decisions/ADR-026-deep-links-and-external-activation.md) (deep links and external activation). Companion to
 [`startup-and-loading.md`](../design/startup-and-loading.md),
 [`services.md`](../design/services.md), and [`security.md`](../design/security.md).
 
@@ -53,15 +53,15 @@ OS activation -> platform adapter -> validate/allowlist -> queue
   -> dedupe duplicate activations
 ```
 
-- Pending activation is bounded (latest wins or a small queue); never an unbounded backlog.
-- Cold start: parse before first screen; route after shell/auth.
-- Warm start: route immediately; focus existing window unless `openIn=newWindow`.
-- Duplicate activation (same URL within a short window) is ignored.
+- Pending activation is bounded (latest wins or a small queue; the choice is an open question, section 10); never an unbounded backlog.
+- Cold start (the app process is not running when the link arrives): parse before first screen; route after the app shell (see [`startup-and-loading.md`](../design/startup-and-loading.md)) and auth.
+- Warm start (the app is already running): route immediately; focus existing window unless `openIn=newWindow`.
+- Duplicate activation (same URL within a short window; the window length is not specified) is ignored.
 - Unknown route -> configured home/error route; malformed -> error, not crash.
 
 ## 3. Developer declaration
 
-`tessera.json`:
+`tessera.json` ([`project-config-v1.md`](project-config-v1.md)):
 
 ```json
 "deepLinks": {
@@ -85,7 +85,7 @@ OS activation -> platform adapter -> validate/allowlist -> queue
 | `schemes` | string[] | `[]` | Custom URL schemes; lowercase, `[a-z][a-z0-9+.-]*` |
 | `hosts` | string[] | `[]` | HTTPS hosts for App/Universal Links |
 | `routes` | Route[] | `[]` | Pattern -> canonical route + auth/confirm |
-| `fileTypes` | string[] | `[]` | Extensions/UTIs/MIME handled by the app |
+| `fileTypes` | string[] | `[]` | Extensions/UTIs (Apple Uniform Type Identifiers)/MIME types handled by the app |
 | `singleInstance` | boolean | `true` | Forward activation to existing instance |
 | `openIn` | string | `existing` | `existing` or `newWindow` |
 | `allowColdStart` | boolean | `true` | Allow launch via link |
@@ -103,14 +103,14 @@ Rules:
 
 ## 4. Platform declarations
 
-The generator validates `deepLinks` and emits or checks platform declarations where supported;
+The generator (the project generator, [`project-generator.md`](../guides/project-generator.md)) validates `deepLinks` and emits or checks the platform declarations listed below (which of emit or check applies per platform is not specified);
 manual files must match the schema.
 
 ### Windows
 
 - Unpackaged Win32: registry `HKCU\Software\Classes\<scheme>` with `URL Protocol` and
   `shell\open\command = "app.exe" "%1"`.
-- MSIX: `uap:Protocol` / `uap:FileTypeAssociation` extensions in the manifest.
+- MSIX (Windows app package format): `uap:Protocol` / `uap:FileTypeAssociation` extensions in the manifest.
 - Command line/activation payload parsed at startup; single-instance via named mutex/pipe or
   `AppInstance` redirection; `SetForegroundWindow` for focus.
 - File associations via `OpenWithProgids`/`shell\open\command` or MSIX file-type association.
@@ -168,7 +168,7 @@ manual files must match the schema.
 - `openIn=existing`: reuse/focus the main window.
 - `openIn=newWindow`: create a new window with the route (if the app supports multi-window).
 - If no window exists (cold start), create the main window and route.
-- Deduplicate identical activations within a short window.
+- Deduplicate identical activations within a short window (length not specified).
 - Do not steal focus without a user-driven activation; platform focus rules apply.
 
 ## 7. Security
@@ -191,7 +191,7 @@ manual files must match the schema.
 - Offline: route to cached/offline shell; retry when online.
 - Auth failure/cancel: keep or discard the pending link explicitly; never leak route params.
 - Logout: clear pending user-scoped links and cached route state.
-- Multiple links: latest wins or bounded queue; define per app.
+- Multiple links: latest wins or bounded queue; defined per app (open question, section 10).
 
 ## 9. Testing
 

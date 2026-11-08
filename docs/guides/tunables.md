@@ -1,10 +1,10 @@
 # Exposing buffer/runtime tunables to users
 
-Status: proposed (B2/B3). Companion to
-[`buffer-config-v1.md`](../specs/buffer-config-v1.md) and
-[`memory-model-v1.md`](../specs/memory-model-v1.md).
+Status: proposed (Big Steps B2/B3; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Companion to
+[`buffer-config-v1.md`](../specs/buffer-config-v1.md) (buffer sizes, tunables schema) and
+[`memory-model-v1.md`](../specs/memory-model-v1.md) (ownership and allocation rules).
 
-This guide is for developers who want a few safe parameters (buffer sizes, cache budgets,
+A tunable is a parameter exposed for end users to adjust at run time. This guide is for developers who want a few safe parameters (buffer sizes, cache budgets,
 list read-ahead, power/quality) to be user-adjustable.
 
 ## 1. Rule of thumb
@@ -13,18 +13,18 @@ Expose **capacity/budget/quality** knobs, not correctness/security/determinism i
 
 Good candidates:
 
-- upload/staging buffer size
-- glyph atlas / texture cache budget
+- upload/staging buffer size (CPU-to-GPU copy buffer)
+- glyph atlas (GPU texture of rendered glyphs) / texture cache budget
 - layer/draw-list cache budget
 - virtual list pool cap / overscan
-- async queue capacity (restart)
+- async queue capacity (needs a restart to apply)
 - power/quality preset
 
 Bad candidates:
 
 - vertex format/alignment
-- color space / golden mode
-- `FLAG_SECURE` / security policy
+- color space / golden mode (deterministic image-test mode, see [golden-tests-v1](../specs/golden-tests-v1.md))
+- `FLAG_SECURE` (Android flag that blocks screenshots) / security policy
 - protocol/schema versions
 - anything that changes pixels
 
@@ -69,7 +69,7 @@ Checklist:
 
 - [ ] id matches a real buffer/runtime value
 - [ ] type/min/max/step are correct
-- [ ] max <= engine hard cap
+- [ ] max <= engine hard cap (the maximum the engine accepts, defined in buffer-config-v1)
 - [ ] scope is honest (`restartRenderer` for GPU buffers)
 - [ ] label/description keys exist
 - [ ] category/power impact are set
@@ -77,7 +77,7 @@ Checklist:
 
 ## 4. Build the settings UI
 
-Do not hardcode a row per tunable. Read metadata:
+Do not hardcode a row per tunable. Read the tunable metadata (id, type, range, scope):
 
 ```cpp
 for (const auto& t : tunables.list()) {
@@ -107,12 +107,12 @@ user_settings.save(id, value);
 
 | Scope | What the user sees |
 |---|---|
-| `live` | Applies smoothly at the next safe boundary |
+| `live` | Applies without a visible stall at the next frame boundary where no GPU work uses the old buffer (see [buffer-config-v1](../specs/buffer-config-v1.md), apply scopes) |
 | `nextFrame` | Applies next frame; may cause a one-frame layout/paint update |
-| `restartRenderer` | Brief renderer reset; scene/app state preserved |
+| `restartRenderer` | Renderer buffers/targets/pipelines are recreated; scene/app state preserved |
 | `restartApp` | Prompt to relaunch |
 
-For GPU buffers, prefer `restartRenderer`. Old resources retire after in-flight frames; do not
+For GPU buffers, prefer `restartRenderer`. Old resources are released only after all frames in flight (frames the GPU may still be reading) complete; do not
 reallocate in the frame loop.
 
 ## 6. Persistence
@@ -125,7 +125,7 @@ reallocate in the frame loop.
 
 ## 7. Budget and hard caps
 
-- `buffers.budgetBytes` is a hard total; per-category budgets may also exist.
+- `buffers.budgetBytes` is a hard total; whether per-category budgets exist is defined in [buffer-config-v1](../specs/buffer-config-v1.md).
 - If a user raises one buffer, reject or require lowering another; show why.
 - Clamp to engine/platform hard caps; round to alignment.
 - OOM: keep the previous generation, report an error, do not crash.
@@ -153,4 +153,4 @@ reallocate in the frame loop.
 ## 10. Status
 
 - Spec/guide only; not implemented.
-- Depends on `buffer-config-v1`, `memory-model-v1`, runtime config, and the settings service.
+- Depends on [`buffer-config-v1`](../specs/buffer-config-v1.md), [`memory-model-v1`](../specs/memory-model-v1.md), [`runtime-config-v1`](../specs/runtime-config-v1.md), and the settings service ([services.md](../design/services.md)).

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-001, ADR-002, ADR-004, ADR-010
+- Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-002](ADR-002-webgpu-dawn-for-wasm.md) (WebGPU/Dawn for WebAssembly), [ADR-004](ADR-004-buy-vector-path-rasterization.md) (vector path rasterization), [ADR-010](ADR-010-macos-via-moltenvk-deferred.md) (macOS via MoltenVK, deferred from the first release)
 - Supersedes: —
 
 ## Context
@@ -15,9 +15,9 @@ Static linking is not just a build flag; it interacts with:
 
 - license obligations (LGPL static linking requires relinkable object files; GPL static
   linking relicenses the whole application)
-- the C/C++ runtime (CRT duplication, ABI boundaries)
-- ICU data packaging
-- platform and GPU driver architecture (Vulkan loader and ICDs)
+- the C/C++ runtime (CRT (C runtime) duplication, ABI (application binary interface) boundaries)
+- ICU (International Components for Unicode) data packaging
+- platform and GPU driver architecture (Vulkan loader and ICDs (installable client driver, the Vulkan driver plug-in))
 - accessibility libraries (AT-SPI/glib are LGPL)
 
 ## Decision
@@ -27,7 +27,7 @@ Static linking is not just a build flag; it interacts with:
 2. **System components remain dynamic** and are explicitly outside the "static" promise:
    - the Vulkan loader (`vulkan-1.dll` / `libvulkan.so.1`) and GPU ICDs/drivers
    - OS frameworks: Win32/User32/GDI, X11/Wayland, Cocoa/AppKit, Android system libraries
-   - glibc on Linux (a fully static glibc is not required and is problematic with NSS and
+   - glibc on Linux (a fully static glibc is not required and is problematic with NSS (glibc Name Service Switch) and
      `dlopen`; use musl if a fully static Linux binary is ever required)
 3. **No LGPL/GPL in statically linked code.**
    - LGPL static linking requires providing relinkable object files or an equivalent
@@ -47,7 +47,7 @@ Static linking is not just a build flag; it interacts with:
    Windows; the GPU driver/ICD is a system component.
 7. **No plugin ABI in V1.** A static link model precludes a stable dynamic plugin boundary;
    plugins are out of scope until a concrete requirement appears.
-8. **CI verifies the link graph**: `dumpbin /dependents` (Windows), `ldd`/`readelf -d`
+8. **CI (continuous integration) verifies the link graph**: `dumpbin /dependents` (Windows), `ldd`/`readelf -d`
    (Linux), `otool -L` (macOS). Unexpected third-party dynamic libraries fail the build.
 
 ## Consequences
@@ -71,8 +71,8 @@ Static linking is not just a build flag; it interacts with:
 ## Alternatives considered
 
 - **Dynamic linking for everything.** Rejected: contradicts the deployment requirement.
-- **Hybrid (static core, dynamic optional modules).** Deferred: useful for accessibility or
-  codecs later, but not part of V1.
+- **Hybrid (static core, dynamic optional modules).** Not adopted: it may be useful for accessibility or
+  codecs, but it is not part of [V1](../docs/reference/glossary.md) and no later release is named.
 - **Ignore LGPL obligations by linking anyway.** Rejected: not legally safe.
 - **Force a fully static Linux binary with glibc.** Rejected for V1: NSS/`dlopen` problems and
   GPU drivers still dynamic; musl is the option if this becomes a hard requirement.
@@ -83,4 +83,4 @@ Static linking is not just a build flag; it interacts with:
 - Add the CI dependency allowlist check.
 - Add the notices generator and an About/licenses surface.
 - Build ICU with static data packaging when the text stack lands.
-- Revisit the hybrid accessibility path in Big Step F.
+- Revisit the hybrid accessibility path in [Big Step F](../AGENTS.md#big-steps-group-work-dont-micro-step) (production breadth).

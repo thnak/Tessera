@@ -1,6 +1,6 @@
 # Getting started
 
-Status: the repository is pre-alpha (Big Step B1). The `tessera` CLI and generated-project
+Status: the repository is pre-alpha (Big Step B1, the core renderer, is complete; Big Step B2 is in progress; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). The `tessera` CLI and generated-project
 workflow are designed but not implemented yet. Today you can build the framework, run its
 tests, and run the offscreen/batched2d demos.
 
@@ -15,7 +15,7 @@ tests, and run the offscreen/batched2d demos.
 - Ninja (recommended), or a Visual Studio generator
 - Optional: `sccache`/`ccache` for faster rebuilds
 
-Linux CI also uses Mesa lavapipe (`mesa-vulkan-drivers`) for a software Vulkan ICD.
+Linux CI also uses Mesa lavapipe (`mesa-vulkan-drivers`), a software Vulkan ICD (installable client driver, the Vulkan loader's name for a GPU driver), so tests run without a GPU.
 
 ### Windows
 
@@ -86,7 +86,7 @@ vendored `third_party/{stb,volk,vma}`.
 | `vulkan_offscreen_poc` | Vulkan 1.3 dynamic rendering, readback, PNG output, no window/swapchain |
 | `batched2d_poc --backend vulkan` | RHI + batched 2D (solid/SDF/textured quads, clip/transform stacks) |
 | `batched2d_poc --backend null` | Same scene without a GPU; deterministic command stats |
-| `merger_poc` | Protected-region merge/idempotency prototype |
+| `merger_poc` | Protected-region (developer C++ block that survives regeneration) merge/idempotency prototype |
 
 Reference image: [`docs/images/batched2d.png`](../images/batched2d.png).
 
@@ -97,7 +97,7 @@ batched2d_poc --backend vulkan|null --out file.png --raw file.rgba
              --width N --height N --validation --golden
 ```
 
-`--golden` disables AA for hard, pixel-stable edges. It is not yet a full golden-test runner.
+`--golden` disables AA (anti-aliasing) for hard, pixel-stable edges. It is not a full golden-test runner; the pixel-golden pipeline is a Big Step B2 item (see [testing.md](testing.md)).
 
 ## 3. Current tests
 
@@ -111,7 +111,7 @@ Current tests:
 - `merger_unit` — protected-region extract/merge/idempotency
 - `rhi_null` — null device command stats
 - `scene_graph` — hit testing, capture/target/bubble, stop propagation
-- `batched2d` — batch/vertex counts on the null backend
+- `batched2d` — batch/vertex counts on the null backend (the RHI backend that records commands without a GPU)
 - `batched2d_vulkan_smoke` — Vulkan 1.3 smoke render
 - `merger_cli_help`, `merger_cli_idempotent`
 
@@ -140,13 +140,13 @@ tessera run
 ```
 
 The project layout, `tessera.json`, hooks subset, and generated-code contract are defined in
-[`project-generator.md`](project-generator.md) and
-[`project-config-v1.md`](../specs/project-config-v1.md). Treat this as the target contract, not
+[`project-generator.md`](project-generator.md) (project layout and generator) and
+[`project-config-v1.md`](../specs/project-config-v1.md) (`tessera.json` schema). Treat this as the target contract, not
 a currently runnable CLI.
 
 ## 6. Next steps
 
 - Read [`docs/README.md`](../README.md) and [`architecture/overview.md`](../architecture/overview.md).
-- Read [`developer-workflow.md`](developer-workflow.md) before editing generated code.
+- Read [`developer-workflow.md`](developer-workflow.md) (protected regions and regeneration) before editing generated code.
 - Read [`testing.md`](testing.md) before adding tests.
 - Read [`packaging.md`](packaging.md) before shipping a binary.

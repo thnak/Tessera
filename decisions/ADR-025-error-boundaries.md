@@ -2,9 +2,9 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-007, ADR-021, ADR-022, ADR-024
-- Supersedes: the "no error boundaries" V1 limit in ADR-007 and the component-model text that
-  rejected error boundaries.
+- Related: [ADR-007](ADR-007-compiler-ir.md) (compiler intermediate representation), [ADR-021](ADR-021-async-runtime.md) (async runtime), [ADR-022](ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling), [ADR-024](ADR-024-native-first-boundaries.md) (native-first boundaries)
+- Supersedes: the "no error boundaries" [V1](../docs/reference/glossary.md) limit in [ADR-007](ADR-007-compiler-ir.md) and the text in
+  [`docs/specs/component-model-v1.md`](../docs/specs/component-model-v1.md) that rejected error boundaries.
 
 ## Context
 
@@ -14,7 +14,7 @@ scene. Earlier V1 scope rejected error boundaries to keep the surface small; tha
 acceptable for production apps.
 
 C++ exceptions also interact with async, bridges, and frame-critical code: throwing across
-JNI/ObjC/Wasm/thread boundaries is unsafe, and try/catch per line would hurt codegen and
+JNI (Java Native Interface)/ObjC/Wasm/thread boundaries is unsafe, and try/catch per line would hurt codegen and
 determinism.
 
 ## Decision
@@ -26,7 +26,7 @@ determinism.
 3. **Async errors are values**, not exceptions: tasks return `Result<T, Error>` and report to
    the owning boundary on the UI thread.
 4. **Do not catch** fatal/OOM/stack overflow/abort, cancellation/timeout, platform/GPU/device
-   loss, errors in the boundary's own fallback/onError, or exceptions crossing FFI/thread
+   loss, errors in the boundary's own fallback/onError, or exceptions crossing FFI (foreign function interface)/thread
    boundaries.
 5. **No silent catch.** Report once to diagnostics/onError; redact secrets; no raw stack to
    users.
@@ -36,7 +36,7 @@ determinism.
    bounded with loop protection.
 8. **Codegen guards boundary entry points**, not every line. Hot paths still avoid exceptions;
    recoverable paths use `Error`/`std::expected`.
-9. **No throw across C ABI/JNI/ObjC/Wasm**; convert to `Error` values.
+9. **No throw across C ABI (application binary interface)/JNI/ObjC/Wasm**; convert to `Error` values.
 10. **Resource cleanup**: cancel child tasks/animations, release refs, detach child, retire GPU
     resources after frames in flight.
 11. **Tests**: fallback/retry/nested/async/event/fallback-failure/loop/redaction/cleanup.
@@ -70,7 +70,7 @@ determinism.
 
 ## Follow-up
 
-- Implement `ErrorBoundary` in IR/codegen and the runtime.
+- Implement `ErrorBoundary` in IR (intermediate representation)/codegen and the runtime.
 - Add diagnostics codes and redaction tests.
 - Add root boundary/crash-report integration.
 - Document no-exceptions build behavior.

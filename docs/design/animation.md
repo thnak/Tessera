@@ -1,10 +1,10 @@
 # Animation and transitions
 
-Status: design for Big Step B2. `src/ui/animation/` is a placeholder today.
+Status: design for [Big Step B2](../../AGENTS.md#big-steps-group-work-dont-micro-step) (runtime slice). `src/ui/animation/` is a placeholder today.
 Normative animation/interaction/overscroll contract:
 [`animation-v1.md`](../specs/animation-v1.md).
 
-Animation is declarative at the style/component level and sampled by the fixed-step runtime.
+Animation is declarative at the style/component level and sampled by the fixed-step runtime ([`game-loop.md`](game-loop.md)).
 It never reads the wall clock and never blocks a frame.
 
 ## 1. Sources of animation
@@ -20,7 +20,7 @@ It never reads the wall clock and never blocks a frame.
 | Overscroll | stretch/bounce/glow + spring-back | scroll + animation runtime |
 | Route/overlay | enter/exit/focus | navigation/overlay |
 | View transition | theme switch circle reveal, crossfade, shader glitch | animation runtime + compositor ([spec](../specs/view-transitions-v1.md)) |
-| Scroll-driven | later | layout/scroll |
+| Scroll-driven | not specified (open question, section 11) | layout/scroll |
 
 ## 2. Timeline and sampling
 
@@ -34,14 +34,14 @@ tick(dt):
   if no active animations: idle (no wake)
 ```
 
-- `now` is the fixed-step simulation clock, not wall time.
+- `tick` is one update of the fixed-step runtime loop ([`game-loop.md`](game-loop.md)); `now` is the fixed-step simulation clock, not wall time.
 - `dt` is the fixed timestep (e.g. 16.666 ms); animation is frame-rate independent.
-- Deterministic mode uses the same fixed clock and an injected start time.
+- Deterministic mode (fixed clock, no wall time; see [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md), input and fixed-step runtime) uses the same fixed clock and an injected start time.
 - Sampling happens **before layout/paint** so animated values participate in the frame.
 
 ## 3. Easing and interpolation
 
-V1:
+V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables)):
 
 - linear, ease, ease-in, ease-out, ease-in-out
 - cubic-bezier(x1,y1,x2,y2)
@@ -51,7 +51,7 @@ V1:
 Interpolate:
 
 - numbers, lengths, percentages (when compatible)
-- colors in a documented space (sRGB in V1; wide-gamut later)
+- colors in a documented space (sRGB in V1; wide-gamut has no decision yet, see section 11)
 - transforms (translate/scale/rotate/skew) as affine matrices
 - opacity
 
@@ -63,13 +63,13 @@ Discrete properties (display, visibility) use step semantics; do not interpolate
 - Interrupted transitions retarget from the current value; do not jump to the old endpoint.
 - Multiple properties can run with different durations/delays/easings.
 - `transition: none` cancels/does not start.
-- Transitions run on the UI thread and mark only the affected dirty domains.
+- Transitions run on the UI thread and mark only the affected dirty domains (style/layout/paint/render invalidation scopes, see [`dirty-rendering.md`](dirty-rendering.md)).
 
 ## 5. Keyframes
 
 - `@keyframes` parsed by the style engine; sampling uses the fixed clock.
 - `animation-iteration-count`, `direction`, `fill-mode`, `delay`, `duration`, `timing-function`.
-- `infinite` animations are allowed but must respect power policy: pause when hidden/occluded,
+- `infinite` animations are allowed but must respect power policy ([ADR-019](../../decisions/ADR-019-power-aware-runtime.md), power-aware runtime defaults): pause when hidden/occluded,
   and reduce/disable optional motion when `prefers-reduced-motion` is set.
 - Animations that only affect paint (opacity/color) do not mark layout dirty.
 
@@ -83,7 +83,7 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Dragging beyond an edge applies asymptotic resistance; release runs a damped spring back to
   zero. A new pointer down catches the current visual value without a jump.
 - Stretch/bounce transforms the content layer only; sticky headers/scrollbars/overlays stay
-  outside the effect. No relayout; damage is the visual union.
+  outside the effect. No relayout; damage (the screen region that must be redrawn) is the visual union.
 - `prefers-reduced-motion` disables stretch/bounce/glow and clamps immediately.
 - The effect never changes scroll offset, content size, focus, or automation IDs.
 
@@ -93,15 +93,15 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Generated C++ owns the `AnimationController`; the component reads the sampled value.
 - Setting the value starts/retargets the animation; `set(value, { animate: false })` snaps.
 - Animated values can drive style properties, transforms, or chart data.
-- Completion callbacks are delivered on the UI thread via the completion queue; no detached
+- Completion callbacks are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 
 ## 7. Scheduling and power
 
 - A frame with active animations is a wake source.
 - No active animations -> no animation ticks; if nothing else is dirty, the loop idles.
-- Hidden/occluded/minimized -> pause animations (unless explicitly configured otherwise).
-- `powerPolicy` may reduce animation quality (e.g. fewer samples, no spring overshoot) before
+- Hidden/occluded/minimized -> pause animations (unless the app configures otherwise; the setting is not named in this file).
+- `powerPolicy` (runtime setting, see [`runtime-config-v1.md`](../specs/runtime-config-v1.md)) may reduce animation quality (e.g. fewer samples, no spring overshoot) before
   dropping frames.
 - `prefers-reduced-motion` -> skip non-essential motion, keep functional state changes.
 - Never busy-wait for the next animation sample; use the loop's deadline/wakeup.
@@ -118,7 +118,7 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 
 - Fixed timestep, fixed start time, fixed inputs.
 - Sample at exact times (0, duration/2, duration) and compare values with tolerance.
-- Golden images for visual transitions at fixed frames.
+- Golden images (deterministic reference images, see [glossary](../reference/glossary.md)) for visual transitions at fixed frames.
 - Tests: easing curves, cubic-bezier, spring convergence, interruption/retarget, fill modes,
   reduced motion, hidden/occluded pause.
 - No wall clock, random seeds, or system animation settings in goldens (inject them).
@@ -137,8 +137,8 @@ Record:
 
 - CSS `animation-composition` and additive animations.
 - Scroll-driven animations.
-- Shared-element transitions (window-root view transitions: see `view-transitions-v1.md`).
+- Shared-element transitions (window-root view transitions: see [`view-transitions-v1.md`](../specs/view-transitions-v1.md)).
 - Whether springs are a CSS extension or a component-only API.
-- Wide-gamut color interpolation.
+- Wide-gamut color interpolation (V1 uses sRGB only).
 - Exact per-platform overscroll profile tuning.
 - Haptics/audio feedback coupled to overscroll.

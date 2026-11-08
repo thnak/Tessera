@@ -1,7 +1,7 @@
 # Module map
 
-Status: reflects the repository at Big Step B1 plus documented B2/B3 placeholders. Empty
-directories marked **planned** are seams, not implemented features.
+Status: reflects the repository at [Big Step B1](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core) plus documented B2/B3 placeholders. Empty
+directories marked **planned** are seams, not implemented features. In the Status columns, B1, B2, and B3 are the phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core, runtime slice, window/swapchain/OS); C, D, and F are Big Steps C (compiler vertical slice), D (design-time preview), and F (production breadth); a letter in parentheses, such as "(D)", is the Big Step in which the directory is planned.
 
 ## 1. Top level
 
@@ -10,40 +10,40 @@ directories marked **planned** are seams, not implemented features.
 | `include/tessera/` | Public headers; light, no backend/OS headers | B1 subset |
 | `src/core/` | object, memory, threading, events, resources | planned |
 | `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | planned |
-| `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL | planned (B3) |
+| `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL (hardware/OS abstraction layer) | planned (B3) |
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; rest B2 |
-| `src/rendering/rhi/` | thin RHI interfaces | B1 |
+| `src/rendering/rhi/` | thin RHI (render hardware interface) interfaces | B1 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
 | `src/rendering/null/` | deterministic no-GPU backend | B1 |
-| `src/rendering/backend/vulkan/` | Vulkan 1.3 backend (volk + VMA) | B1 offscreen |
+| `src/rendering/backend/vulkan/` | Vulkan 1.3 backend (volk + VMA (Vulkan Memory Allocator)) | B1 offscreen |
 | `src/rendering/backend/webgpu/` | WebGPU/Dawn backend | planned (D) |
 | `src/rendering/software/` | deterministic CPU/software path | planned (B2/B3) |
 | `src/rendering/resources/` | textures, samplers, uploads, caches | planned |
 | `src/rendering/scheduler/` | frame scheduling, fences, presentation | planned (B3) |
-| `src/compiler/analyzer/` | parser adapter + React rules | planned (C) |
+| `src/compiler/analyzer/` | own JSX/TSX front end + React-like rules | planned (C) |
 | `src/compiler/rules/` | framework/binding rules | planned (C) |
-| `src/compiler/ir/` | neutral IR + serialization | planned (C) |
+| `src/compiler/ir/` | neutral IR (intermediate representation) + serialization | planned (C) |
 | `src/compiler/codegen/` | IR -> C++ | planned (C) |
 | `src/compiler/merger/` | protected-region merge | B1 |
 | `src/runtime/` | App, loop, generated-code support | planned (B2/C) |
-| `src/services/` | i18n, navigation, state restore, storage, networking, notifications, shell | planned (F) |
+| `src/services/` | i18n (internationalization), navigation, state restore, storage, networking, notifications, shell | planned (F) |
 | `src/data/` | async resource cache, mutations, offline queue | planned (F) |
 | `src/diagnostics/` | logging, tracing, profiling, crash reporting | planned (B2) |
 | `src/devtools/` | local inspector/hot-reload protocol | planned (C/D) |
 | `src/updates/` | signed manifest, staging, rollback | planned (F) |
-| `designer/web/` | Wasm + WebGPU viewer, reconciler, IPC | planned (D) |
+| `designer/web/` | Wasm (WebAssembly) + WebGPU viewer, live view, IPC (inter-process communication) | planned (D) |
 | `designer/native/` | native host/IPC | planned (D) |
 | `tests/unit/` | unit tests (CTest) | B1 subset |
 | `tests/integration/` | cross-module tests | planned |
-| `tests/golden/` | deterministic goldens + report | planned |
+| `tests/golden/` | deterministic [goldens](../reference/glossary.md) + report | planned |
 | `tests/fixtures/` | fonts, images, merger/compiler fixtures | B1 merger |
 | `tests/benchmarks/` | performance budgets | planned |
 | `samples/hello`, `samples/dashboard` | sample projects | placeholder |
 | `tools/poc/` | Phase 0/B1 proofs | B1 |
 | `tools/shaders/`, `tools/font/` | shader/font tooling | planned |
 | `third_party/` | vendored dependencies (stb, volk, vma) | B1 |
-| `decisions/` | ADRs | 34 |
+| `decisions/` | ADRs | 37 ([ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline) through [ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md) (self-contained WebAssembly designer)) |
 | `docs/` | specs, design, guides, architecture | this set |
 
 ## 2. Dependency direction
@@ -69,7 +69,7 @@ Rules:
 - `hal` has no UI/renderer dependencies; platform code implements HAL interfaces.
 - `ui` may use RHI *types* (`Rect`, `Mat3`, `Color`) but never backend headers.
 - `element` may use the public RHI/shader API; it never includes backend/OS headers.
-- `rendering` consumes immutable display lists; it does not mutate the scene graph.
+- `rendering` consumes immutable display lists; it does not mutate the [scene graph](../reference/glossary.md).
 - `runtime` orchestrates; it does not contain compiler/parser code.
 - `compiler` is build-time only and must not be linked into production.
 - `diagnostics` is cross-cutting but must not pull UI/renderer internals into `core`.
@@ -100,7 +100,7 @@ merger prototype.
 |---|---|---|
 | `tessera_rhi` | static | RHI interfaces |
 | `tessera_gpu` | static | batched 2D renderer |
-| `tessera_rhi_null` | static | null backend |
+| `tessera_rhi_null` | static | [null backend](../reference/glossary.md) |
 | `tessera_scene` | static | scene graph/events |
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
@@ -108,7 +108,7 @@ merger prototype.
 | `tessera_stb` | static | stb image write |
 | `vulkan_offscreen_poc` | exe | offscreen Vulkan proof |
 | `batched2d_poc` | exe | batched 2D demo (Vulkan/null) |
-| `merger_poc` | exe | merger CLI |
+| `merger_poc` | exe | merger CLI (command-line interface) |
 | `*_tests` | exe | unit/CLI tests |
 
 ## 5. Where to add code
@@ -120,14 +120,14 @@ merger prototype.
 - New service: `src/services/<name>/`; async, cancellable, no UI blocking.
 - New diagnostic sink: `src/diagnostics/<area>/`; bounded and redacted.
 - New test: `tests/unit/<area>_tests.cpp` + `tests/unit/CMakeLists.txt`.
-- New doc: `docs/{architecture,design,specs,guides,reference}/`; update `docs/README.md`.
-- New decision: `decisions/ADR-XXX-slug.md` + `decisions/README.md`.
+- New doc: `docs/{architecture,design,specs,guides,reference}/`; update [`docs/README.md`](../README.md).
+- New decision: `decisions/ADR-XXX-slug.md` + [`decisions/README.md`](../../decisions/README.md).
 
 ## 6. Ownership rules
 
-- The compiler owns everything outside protected regions; developers own inside them.
+- The compiler owns everything outside [protected regions](../reference/glossary.md); developers own inside them.
 - Generated files are never edited outside `[DEVELOPER_LOGIC_START/END]`.
-- The binding manifest is the source of truth for binding ids.
+- The [binding manifest](../reference/glossary.md) is the source of truth for binding ids.
 - UI code never owns a window/swapchain; the HAL/runtime does.
 - GPU resources are owned by the device; destroy resources before the device.
 - Specs are normative; design notes explain; ADRs record contentious choices.
@@ -135,6 +135,6 @@ merger prototype.
 ## 7. Naming and size
 
 - Namespaces `tessera::<area>::<module>`.
-- One primary type per header; soft 300 / hard 500 lines (ADR-015).
+- One primary type per header; soft 300 / hard 500 lines ([ADR-015](../../decisions/ADR-015-code-style-build-cache.md) (code style and build cache)).
 - Public headers stay light; heavy third-party headers in `.cpp`/`detail/`.
 - Tests are deterministic and do not read the wall clock, network, or system fonts.

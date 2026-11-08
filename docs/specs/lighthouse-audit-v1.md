@@ -1,6 +1,9 @@
 # Lighthouse-style runtime audits v1
 
-Status: proposed (Big Step B2/F). Decision: ADR-027. Companion to
+Status: proposed (Big Steps B2 and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Steps"). Decision:
+[ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric automation IDs,
+headless harness, Lighthouse-style audits). Companion to
 [`diagnostics.md`](../design/diagnostics.md), [`startup-and-loading.md`](../design/startup-and-loading.md),
 and [`headless-automation-v1.md`](headless-automation-v1.md).
 
@@ -43,7 +46,7 @@ local/offline unless the audit includes services.
 - `input_to_handler` — input timestamp to handler start
 - `handler_duration`
 - `handler_to_paint` — handler end to frame present
-- `interaction_to_next_paint` (INP-like) = input timestamp → next presented frame
+- `interaction_to_next_paint` (INP-like; INP is the web "Interaction to Next Paint" metric) = input timestamp → next presented frame
 - p50/p95/p99 per interaction class (click/type/scroll)
 - long tasks (> budget) and missed input deadlines
 
@@ -51,7 +54,7 @@ local/offline unless the audit includes services.
 
 - frame time (CPU/GPU if available), missed frame deadline, jank
 - draw calls, vertices, batches, overdraw proxy (optional)
-- present mode/refresh/VRR decisions
+- present mode/refresh/VRR (variable refresh rate) decisions
 - static-idle presents/submissions (should be 0)
 
 ### Resources
@@ -109,7 +112,8 @@ higher-is-better: score = 100 * (value - poor) / (good - poor)
 - Category score = weighted average of its audits.
 - Overall score = weighted average of categories.
 
-Suggested category weights:
+Suggested category weights (starting values; section 10 lists exact weights per profile as an
+open question):
 
 | Category | Weight |
 |---|---|
@@ -165,11 +169,13 @@ Weights are profile-configurable; document changes. Raw metrics are always repor
 
 ## 7. CI and baselines
 
-- Run fixed audit profiles on a fixed machine class (CPU/GPU variance documented).
+- Run fixed audit profiles on a fixed machine class (CPU/GPU variance documented; the machine
+  class is not specified).
 - Fail on threshold regression or score drop beyond tolerance.
 - Compare raw metrics to baseline; do not compare across different profiles.
 - Upload report/trace/screenshots; keep synthetic data only.
-- Nightly/full audit; PR fast structural audit.
+- Nightly/full audit; PR fast structural audit (structural mode: see
+  [`headless-automation-v1.md`](headless-automation-v1.md) section 1).
 
 ## 8. Cautions
 
@@ -192,7 +198,7 @@ Weights are profile-configurable; document changes. Raw metrics are always repor
 
 - Exact thresholds/weights per app profile.
 - Real-vs-simulated time in CI.
-- GPU timestamp support on lavapipe.
+- GPU timestamp support on lavapipe (Mesa software Vulkan driver).
 - Accessibility audit depth.
 - Baseline storage/trending and flake policy.
 - HTML report generation.

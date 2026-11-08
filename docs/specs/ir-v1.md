@@ -1,9 +1,17 @@
 # Tessera IR v1
 
-Status: proposed (Big Step C). Normative for `src/compiler/ir/` and codegen.
+Status: proposed (Big Step C, the compiler vertical slice, defined in
+[AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Normative for `src/compiler/ir/` and
+codegen. "V1" in this file means the first-release scope ([AGENTS.md](../../AGENTS.md#non-negotiables) rule 8, "V1 scope
+discipline"); "IR" means the compiler intermediate representation (see the
+[glossary](../reference/glossary.md)).
 
 The IR is the only input to C++ codegen. It is neutral, versioned, serializable to JSON, and
-independent of the JSX parser (ADR-007). Codegen must not read the parser AST.
+independent of the JSX parser
+([ADR-007](../../decisions/ADR-007-compiler-ir.md), a neutral IR between JSX and C++ codegen;
+the JSX front end is described in
+[ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)). Codegen must not
+read the parser AST.
 
 ## 1. Top level
 
@@ -123,7 +131,8 @@ represent VM/container virtualization or a virtual DOM.
 
 ## 3.1 Automation IDs
 
-- `componentId` and `uiId` are uint64 decimal strings in JSON; `uint64_t` in C++.
+- `componentId` and `uiId` (numeric ids of a component and of a node, used by automation and
+  traces) are uint64 decimal strings in JSON; `uint64_t` in C++.
 - The compiler emits `generated/automation.manifest.json` mapping numeric IDs to debug paths,
   kinds, components, and source spans.
 - `automationId` is optional; if set, it must equal `uiId`.
@@ -176,10 +185,11 @@ represent VM/container virtualization or a virtual DOM.
 ```
 
 - `TextInput`/`TextArea` are leaf intrinsics; `children` must be empty.
-- Editing state/commands/IME/undo/clipboard are defined by
+- Editing state/commands/IME (input method editor)/undo/clipboard are defined by
   [`text-editing-v1.md`](text-editing-v1.md).
 - `value`/`defaultValue`/selection are typed; validation is a form concern.
-- `secure` fields redact diagnostics/snapshots and restrict clipboard by policy.
+- `secure` fields redact diagnostics/snapshots and disable clipboard by default (see
+  [`platform-shell-v1.md`](platform-shell-v1.md) section 2).
 - `Scroll` behavior/physics is defined by [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md).
 
 ## 4. Expressions
@@ -215,7 +225,7 @@ function expressions, `await`, `yield`, `new`, dynamic imports, and any call wit
 - `source` must be a list ref or a static list literal.
 - `key` is required for dynamic lists; missing keys are a hard error.
 - Loop body is a node subtree; `item`/`index` are local refs.
-- No nested dynamic loops beyond a documented depth (V1: 2).
+- No nested dynamic loops beyond depth 2 in V1.
 
 ## 5.1 ErrorBoundary
 
@@ -262,7 +272,7 @@ function expressions, `await`, `yield`, `new`, dynamic imports, and any call wit
 | `component` | string | Owning component id |
 | `kind` | string | `state`, `effect`, `ref`, `animated`, `event`, `logic` |
 | `source` | SourceSpan | Annotation location |
-| `region` | string | Protected-region id (without `bind::`) |
+| `region` | string | Protected-region id (without `bind::`); a protected region is the developer-owned C++ block, see [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) |
 
 Binding ids are stable across regeneration. Renames go through a migration; the merger never
 guesses. See [`developer-workflow.md`](../guides/developer-workflow.md).
@@ -286,7 +296,8 @@ style semantics. See [`stylesheet-v1.md`](stylesheet-v1.md).
 - 1-based line/column.
 - Paths are project-relative, POSIX separators.
 - Source spans are required on components, nodes, bindings, and diagnostics.
-- Generated C++ may carry `#line`-style source maps later; V1 emits a sidecar map.
+- Generated C++ may carry `#line`-style source maps after V1 (open question, section 14); V1
+  emits a sidecar map.
 
 ## 9. Validation
 
@@ -342,6 +353,7 @@ Warnings:
 - Adding optional fields keeps v1; changing meaning/removing fields bumps the version and ships
   a migration.
 - Codegen rejects unsupported versions with `TESSERA_IR_VERSION`.
+- Versions of all schemas are tabulated in [`versioning-v1.md`](versioning-v1.md).
 - Snapshots and `bindings.json` record the IR version.
 
 ## 13. Example: Counter
@@ -408,9 +420,12 @@ Warnings:
 
 ## 14. Open questions
 
+Each item has no decision yet.
+
 - Virtual collection data source/paging and nested virtualization; see
   [`virtualization-v1.md`](virtualization-v1.md).
 - Source-map format and `#line` emission.
 - Whether styles are inlined as tokens or referenced by compiled rule ids.
-- Expression extensions (string methods, formatting) and their purity allowlist.
+- Expression extensions (string methods, formatting) and their purity allowlist (the
+  allowlist of pure `call` functions is not defined in this file).
 - Incremental IR diffs for hot reload.

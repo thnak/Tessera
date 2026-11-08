@@ -1,7 +1,12 @@
 # Async/await runtime and non-blocking rules
 
-Status: design for Big Step B2/B3. Normative decision:
-[ADR-021](../../decisions/ADR-021-async-runtime.md). Resource loading lifecycle:
+Status: design for Big Step B2 (runtime slice) and B3 (window/swapchain path); both are defined in
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Normative decision:
+[ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime; no UI-thread blocking). Terms: tick =
+one fixed-step update of the runtime loop ([`game-loop.md`](game-loop.md)); golden = deterministic
+reference image; V1 = first release, V1.1 = the release after V1 (as defined in
+[`stylesheet-v1.md`](../specs/stylesheet-v1.md) line 8); see also
+[`glossary.md`](../reference/glossary.md). Resource loading lifecycle:
 [`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md).
 
 ## 1. Goals
@@ -44,7 +49,7 @@ Rules:
 - Do not use `std::async`/`std::future` as the primary model: no cancellation, no affinity,
   blocking waits.
 - `when_all`, `when_any`, `timeout`, and cancellation are first-class.
-- Errors propagate as `Result<T, Error>` or a documented exception boundary; no exceptions across
+- Errors propagate as `Result<T, Error>` or a documented exception boundary ([`error-boundaries-v1.md`](../specs/error-boundaries-v1.md)); no exceptions across
   a C ABI or platform callback.
 - Task names/ids are captured for tracing.
 
@@ -53,13 +58,13 @@ Rules:
 | Executor | Runs | Examples |
 |---|---|---|
 | Main/UI | input, style, layout, scene mutation | completion continuations, `mark_dirty` |
-| Worker pool | CPU-heavy, no UI state | image decode, text shaping (later), compression |
+| Worker pool | CPU-heavy, no UI state | image decode, text shaping (not in V1; see section 10), compression |
 | I/O | file/socket waits | asset read, network request |
 | GPU scheduler | command submission/fence wait | upload queue, target recreation (state machine) |
 
 - UI state is UI-thread-owned. Workers receive immutable snapshots or owned buffers and return
   results; they never mutate the scene graph.
-- The render thread (later) owns command recording; resource creation is posted to it.
+- A render thread is not part of V1 (see section 10); if added, it owns command recording; resource creation is posted to it.
 - No locks in the steady-state hot path; use SPSC queues and message passing.
 - Bounded queues: apply backpressure, coalesce, or cancel; never grow without limit.
 
@@ -76,7 +81,7 @@ Rules:
 | Swapchain acquire/present | bounded state machine | may block/timeout |
 | Window resize | event + state machine | compositor-driven |
 | Style resolution | synchronous UI | small, deterministic |
-| Layout | synchronous UI in V1 | Yoga is CPU-bound; snapshot later |
+| Layout | synchronous UI in V1 | Yoga is CPU-bound; async layout from a snapshot is not planned for V1 |
 | Paint/draw-list build | synchronous UI in V1 | cacheable |
 | Animation | fixed tick | deterministic |
 | Dialogs | `Task` | user wait |
@@ -99,7 +104,8 @@ tick:
 - Async completion posts a message to the main queue; the loop drains it at a tick boundary.
 - A pending task is a wake source only when it can produce visible work; background cancellations
   do not force frames.
-- Per-tick main-thread completion budget (for example 2 ms); excess continuations are deferred to
+- Per-tick main-thread completion budget (`asyncMainThreadBudgetMs`, default 2.0 ms in
+  [`runtime-config-v1.md`](../specs/runtime-config-v1.md)); excess continuations are deferred to
   the next tick, with priority order:
   1. input/visible resources
   2. layout/paint-critical data
@@ -146,7 +152,7 @@ tick:
 ## 10. Open questions
 
 - Lazy vs eager `Task` and the exact allocator strategy for coroutine frames.
-- Whether text shaping moves to the worker pool in V1.1.
+- Whether text shaping moves to the worker pool in V1.1 (no decision yet; see [`text.md`](text.md)).
 - Render-thread ownership and command recording.
 - Priority inversion between UI completions and background prefetch.
 - Structured-concurrency library vs a small in-house implementation.

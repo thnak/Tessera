@@ -1,8 +1,8 @@
 # Diagnostics and profiling configuration v1
 
-Status: proposed for Big Step B2/B3. Extends [`project-config-v1.md`](project-config-v1.md)
+Status: proposed for Big Steps B2 and B3 (defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Extends [`project-config-v1.md`](project-config-v1.md)
 with the top-level `diagnostics` object. Design: [`diagnostics.md`](../design/diagnostics.md),
-decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
+decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling).
 
 ## 1. Schema
 
@@ -46,6 +46,8 @@ decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
 
 ## 2. Fields
 
+Sink and backend names are OS or tool names: ETW (Event Tracing for Windows), Perfetto and Tracy (tracing/profiling tools), Instruments (Apple's profiler); see section 7 and [`dependencies.md`](dependencies.md) section 8.
+
 | Field | Type | Default | Values | Notes |
 |---|---|---|---|---|
 | `level` | string | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` | Minimum log level. |
@@ -67,12 +69,12 @@ decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
 | `frameCapture` | string | `manual` | `manual`, `on-error`, `off` | GPU capture trigger policy. |
 | `crashDumps` | boolean | `true` | | Enable crash handler/dumps. |
 | `crashDumpDir` | string | `logs/crash` | relative path | Dump/core output. |
-| `breadcrumbs` | integer | `256` | `0..8192` | Ring entries included in crash reports. |
+| `breadcrumbs` | integer | `256` | `0..8192` | Ring entries included in crash reports (breadcrumbs, [`crash-reporting-v1.md`](crash-reporting-v1.md)). |
 | `blockingWaitDetection` | boolean | `true` | | Debug assert on UI-thread blocking waits. |
 | `redactPaths` | boolean | `true` | | Redact user paths in logs/dumps. |
 | `redactWindowTitles` | boolean | `false` | | Redact window titles. |
 | `telemetry` | boolean | `false` | | Opt-in upload; offline by default. |
-| `audit.enabled` | boolean | `false` | | Enable Lighthouse-style audit collection. |
+| `audit.enabled` | boolean | `false` | | Enable Lighthouse-style audit collection ([`lighthouse-audit-v1.md`](lighthouse-audit-v1.md)). |
 | `audit.profile` | string | `desktop` | `desktop`, `mobile`, `power-save`, `custom` | Audit profile. |
 | `audit.reportPath` | string | `artifacts/audit.json` | relative path | JSON report output. |
 | `audit.failOnScoreBelow` | number | `0` | `0..100` | Optional CI failure threshold. |
@@ -86,13 +88,13 @@ decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
 3. `file`, `tracingFile`, and `crashDumpDir` must be relative and inside the project/output
    directory; absolute paths are errors.
 4. `maxFileSizeMb`, `rotate`, `ringEntries`, `breadcrumbs`, and `sampleRate` must be in range.
-5. `overlay=true` is allowed in debug; release packaging warns/rejects unless explicitly allowed.
+5. `overlay=true` is allowed in debug; release packaging warns or rejects (which of the two is not specified) unless explicitly allowed.
 6. `telemetry=true` requires an explicit privacy acknowledgement; default is false.
 7. `gpuTimestamps`/`profilingBackend` fall back silently if the backend/device/tool is
    unavailable.
 8. `frameCapture=on-error` only triggers on crash/device-loss, never in normal frames.
 9. `blockingWaitDetection` is debug-only; release builds ignore it with a diagnostic.
-10. Diagnostics must not change rendering output or golden results.
+10. Diagnostics must not change rendering output or golden results (reference images, [`golden-tests-v1.md`](golden-tests-v1.md)).
 11. `audit.reportPath` is relative and inside the output/artifacts directory; audit is disabled
     by default and thresholds are non-negative.
 12. Audit metrics/scores follow [lighthouse-audit-v1.md](lighthouse-audit-v1.md); raw metrics are
@@ -174,9 +176,9 @@ struct DiagnosticsConfig {
 
 - Windows: debugger output, ETW, PIX/WPA, minidumps (DbgHelp/Crashpad).
 - Linux: stderr/journald/file, perf/ftrace, RenderDoc, sysprof, core dumps.
-- Android: logcat, Perfetto/systrace, tombstones (later).
-- macOS: os_log/Instruments (later).
-- Optional dependencies (spdlog/Tracy/Crashpad) stay behind interfaces; core rendering does not
+- Android: logcat, Perfetto/systrace, tombstones (Android: Big Step F).
+- macOS: os_log/Instruments (macOS: deferred, [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md) (macOS via MoltenVK, deferred)).
+- Optional dependencies (spdlog/Tracy/Crashpad, see [`dependencies.md`](dependencies.md) section 8) stay behind interfaces; core rendering does not
   require them.
 
 ## 8. Open questions
@@ -185,4 +187,4 @@ struct DiagnosticsConfig {
 - Built-in tracer vs Perfetto/Tracy adapters.
 - Crash upload service/privacy policy.
 - Overlay cost and dirty/damage interaction.
-- GPU timestamp support on lavapipe/CI.
+- GPU timestamp support on lavapipe (Mesa's software Vulkan driver used in CI) and CI.

@@ -10,23 +10,23 @@ for the project overview. This page is the map and reading order for the framewo
 - [`architecture/app-completeness-cross-check-v1.md`](architecture/app-completeness-cross-check-v1.md)
   — cross-check, canonical ownership, gap register, open questions
 - [`architecture/app-completeness-gap-resolutions-v1.md`](architecture/app-completeness-gap-resolutions-v1.md)
-  — resolved/deferred decisions for G-01..G-28 and Q-01..Q-26
+  — resolved/deferred decisions for gaps G-01..G-28 and open questions Q-01..Q-26 (defined in the cross-check above)
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
   ownership, dependency direction.
 
 ## 2. Decisions
 
-[`../decisions/README.md`](../decisions/README.md) is the ADR index. Runtime-related ADRs:
+[`../decisions/README.md`](../decisions/README.md) is the ADR index. The list below covers [ADR-005](../decisions/ADR-005-yoga-layout-adapter.md) to [ADR-009](../decisions/ADR-009-deterministic-headless-golden-tests.md) and [ADR-016](../decisions/ADR-016-stylesheet-engine.md) to [ADR-037](../decisions/ADR-037-self-contained-wasm-designer.md) (layout, text, compiler, goldens, runtime, app-level, and design-time ADRs). [ADR-001](../decisions/ADR-001-vulkan-1-3-baseline.md) to [ADR-004](../decisions/ADR-004-buy-vector-path-rasterization.md) (rendering baseline) and [ADR-010](../decisions/ADR-010-macos-via-moltenvk-deferred.md) to [ADR-015](../decisions/ADR-015-code-style-build-cache.md) (macOS, shader authoring, static linking, license, project config, code style) appear only in the index:
 
 - [ADR-005](../decisions/ADR-005-yoga-layout-adapter.md) — Yoga Flexbox + small Grid subset
 - [ADR-006](../decisions/ADR-006-text-stack.md) — FreeType/HarfBuzz/SheenBidi/ICU
-- [ADR-007](../decisions/ADR-007-compiler-ir.md) — neutral IR before codegen
-- [ADR-008](../decisions/ADR-008-protected-regions-and-manifest.md) — protected regions/merge
-- [ADR-009](../decisions/ADR-009-deterministic-headless-golden-tests.md) — deterministic goldens
+- [ADR-007](../decisions/ADR-007-compiler-ir.md) — neutral IR (intermediate representation) before codegen
+- [ADR-008](../decisions/ADR-008-protected-regions-and-manifest.md) — [protected regions](reference/glossary.md)/merge
+- [ADR-009](../decisions/ADR-009-deterministic-headless-golden-tests.md) — deterministic [goldens](reference/glossary.md)
 - [ADR-016](../decisions/ADR-016-stylesheet-engine.md) — stylesheet engine
 - [ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md) — input + fixed-step loop
 - [ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) — dirty rendering +
-  frame pacing/VRR
+  [frame pacing](reference/glossary.md)/VRR
 - [ADR-019](../decisions/ADR-019-power-aware-runtime.md) — power-aware defaults; no full-load loop
 - [ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md) — resize/DPI/lifecycle separation
 - [ADR-021](../decisions/ADR-021-async-runtime.md) — async/await; never block the UI thread
@@ -43,6 +43,9 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-032](../decisions/ADR-032-bundled-component-library.md) — component library/design tokens
 - [ADR-033](../decisions/ADR-033-app-completeness-gap-resolutions.md) — gap resolutions/deferrals
 - [ADR-034](../decisions/ADR-034-interaction-and-overscroll-animation.md) — interaction/overscroll animation
+- [ADR-035](../decisions/ADR-035-view-transitions.md) — view transitions (global UI effects)
+- [ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) — own JSX/TSX front end; React-like model
+- [ADR-037](../decisions/ADR-037-self-contained-wasm-designer.md) — self-contained Wasm (WebAssembly) designer engine
 
 ## 3. Specs (normative)
 
@@ -74,9 +77,9 @@ for the project overview. This page is the map and reading order for the framewo
 - [`specs/headless-automation-v1.md`](specs/headless-automation-v1.md) — deterministic harness,
   scripts/actions/asserts, agent protocol
 - [`specs/lighthouse-audit-v1.md`](specs/lighthouse-audit-v1.md) — response-time metrics,
-  categories, scoring, reports, CI thresholds
+  categories, scoring, reports, CI (continuous integration) thresholds
 - [`specs/custom-elements-v1.md`](specs/custom-elements-v1.md) — JSX-declared native elements,
-  RHI/shader API, 3D composition, element input, reuse, headless tests
+  RHI (render hardware interface)/shader API, 3D composition, element input, reuse, headless tests
 - [`specs/text-editing-v1.md`](specs/text-editing-v1.md) — selection/caret/IME/undo/clipboard,
   TextInput/TextArea, secure fields
 - [`specs/scroll-and-gestures-v1.md`](specs/scroll-and-gestures-v1.md) — scroll physics, nested
@@ -95,7 +98,7 @@ for the project overview. This page is the map and reading order for the framewo
   focus/draft restoration
 - [`specs/platform-shell-v1.md`](specs/platform-shell-v1.md) — clipboard, drag/drop, context
   menus, file dialogs, menu bar/tray
-- [`specs/i18n-v1.md`](specs/i18n-v1.md) — locale negotiation, ICU catalogs, formatting, RTL,
+- [`specs/i18n-v1.md`](specs/i18n-v1.md) — locale negotiation, ICU (International Components for Unicode) catalogs, formatting, RTL,
   pseudo-localization
 - [`specs/accessibility-v1.md`](specs/accessibility-v1.md) — semantics/roles/actions/focus/
   announcements/platform bridges/tests
@@ -111,7 +114,7 @@ for the project overview. This page is the map and reading order for the framewo
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
   interface
-- [`specs/versioning-v1.md`](specs/versioning-v1.md) — SemVer, schema/IR/manifest versions,
+- [`specs/versioning-v1.md`](specs/versioning-v1.md) — SemVer (semantic versioning), schema/IR/manifest versions,
   migrations
 - [`specs/error-model-v1.md`](specs/error-model-v1.md) — error codes, severity, propagation,
   redaction
@@ -120,7 +123,7 @@ for the project overview. This page is the map and reading order for the framewo
 ## 4. Design
 
 - [`design/renderer.md`](design/renderer.md) — RHI, batched 2D, Vulkan backend
-- [`design/antialiasing.md`](design/antialiasing.md) — current SDF AA, text/path/MSAA gaps
+- [`design/antialiasing.md`](design/antialiasing.md) — current SDF (signed distance field) AA, text/path/MSAA gaps
 - [`design/startup-and-loading.md`](design/startup-and-loading.md) — startup, loading screen,
   auth gate, route load, failure/offline
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
@@ -133,8 +136,8 @@ for the project overview. This page is the map and reading order for the framewo
   postures
 - [`design/accessibility.md`](design/accessibility.md) — semantics tree, platform bridges,
   focus, contrast/motion
-- [`design/input.md`](design/input.md) — input normalization, focus, capture, IME
-- [`design/game-loop.md`](design/game-loop.md) — fixed timestep, frame cap, vsync, VRR
+- [`design/input.md`](design/input.md) — input normalization, focus, capture, IME (input method editor)
+- [`design/game-loop.md`](design/game-loop.md) — fixed timestep, frame cap, vsync, VRR (variable refresh rate)
 - [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage,
   multi-frame execution
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
@@ -144,22 +147,22 @@ for the project overview. This page is the map and reading order for the framewo
 - [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction
 - [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input,
   IME, accessibility, lifecycle, and manifest/Info.plist declarations
-- [`design/bridges.md`](design/bridges.md) — native-first bridge policy (JNI/ObjC/Wasm/IPC)
+- [`design/bridges.md`](design/bridges.md) — native-first bridge policy (JNI (Java Native Interface)/ObjC/Wasm/IPC)
 - [`design/async.md`](design/async.md) — C++20 coroutines, executors, cancellation, no blocking
 - [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,
   crash, capture
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
-- [`design/designer.md`](design/designer.md) — Wasm/WebGPU preview, IPC, hot reload
+- [`design/designer.md`](design/designer.md) — Wasm/WebGPU preview, IPC (inter-process communication), hot reload
 - [`design/threading-and-memory.md`](design/threading-and-memory.md) — threads, ownership,
   allocators, GPU memory, shutdown
 - [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
-- [`design/services.md`](design/services.md) — i18n, navigation, storage, networking,
+- [`design/services.md`](design/services.md) — i18n (internationalization), navigation, storage, networking,
   notifications
 - [`design/security.md`](design/security.md) — threat model, compiler/runtime/designer,
   supply chain, privacy
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI
 - [`design/build-and-packaging.md`](design/build-and-packaging.md) — CMake, static linking,
-  assets, notices, SBOM, release
+  assets, notices, SBOM (software bill of materials), release
 - [`design/component-library.md`](design/component-library.md) — tokens, accessible primitives,
   data grid, packaging, roadmap
 - [`design/media-and-export.md`](design/media-and-export.md) — video/audio seams, printing, PDF,
@@ -323,46 +326,48 @@ for the project overview. This page is the map and reading order for the framewo
 
 ## 8. Status
 
+In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core, runtime slice, window/swapchain/OS); C, D, E, and F are Big Steps C (compiler vertical slice), D (design-time preview), E (data-heavy UI), and F (production breadth), defined in the same AGENTS.md section. "Proposed" and "accepted" repeat the ADR status from the [ADR index](../decisions/README.md); "design only" means documentation exists and no code does. V1 is the first release scope described under Big Steps in AGENTS.md.
+
 | Area | State |
 |---|---|
 | RHI + Vulkan batched 2D | B1 implemented |
 | Anti-aliasing | B1 partial: SDF rounded rects only |
-| Scene graph + events | B1 implemented |
+| [Scene graph](reference/glossary.md) + events | B1 implemented |
 | Protected-region merger | B1 prototype |
-| Stylesheet engine | B2 proposed (ADR-016) |
+| Stylesheet engine | B2 proposed ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |
 | Yoga layout / text / glyph atlas | B2 planned |
-| Input handler | B2 proposed (ADR-017) |
-| Fixed-step loop | B2 proposed (ADR-017) |
-| Dirty rendering + frame pacing | B2/B3 proposed (ADR-018) |
-| Power-aware idle/adaptive defaults | B2 proposed (ADR-019) |
-| Window resize/DPI/lifecycle | B3 proposed (ADR-020) |
-| Async/await runtime | B2 proposed (ADR-021) |
-| Diagnostics/profiling | B2 proposed (ADR-022) |
-| OS events / foldables | B3 proposed (ADR-023) |
+| Input handler | B2 proposed ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
+| Fixed-step loop | B2 proposed ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
+| Dirty rendering + frame pacing | B2/B3 proposed ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
+| Power-aware idle/adaptive defaults | B2 proposed ([ADR-019](../decisions/ADR-019-power-aware-runtime.md)) |
+| Window resize/DPI/lifecycle | B3 proposed ([ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md)) |
+| Async/await runtime | B2 proposed ([ADR-021](../decisions/ADR-021-async-runtime.md)) |
+| Diagnostics/profiling | B2 proposed ([ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md)) |
+| OS events / foldables | B3 proposed ([ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md)) |
 | Compiler/IR/codegen | C proposed |
 | UI virtualization (list/grid) | B2/E proposed |
 | Mobile integration (Android first) | design only |
-| Memory model / bridge policy | proposed / ADR-024 accepted |
+| Memory model / bridge policy | proposed / [ADR-024](../decisions/ADR-024-native-first-boundaries.md) accepted |
 | Buffer config / user tunables | B2/B3 proposed |
 | Startup / loading / auth | design only |
 | Resource lifecycle (lazy/preload/unload) | B2/F proposed |
-| Error boundaries | C/F proposed (ADR-025 accepted) |
-| Deep links / external activation | F proposed (ADR-026 accepted) |
-| Numeric automation IDs / headless | C proposed (ADR-027 accepted) |
-| Lighthouse-style audits | B2/F proposed (ADR-027 accepted) |
-| Custom native elements / 3D | B2/C/D proposed (ADR-028 accepted) |
-| Text editing / forms | B2/C proposed (ADR-029 accepted) |
-| Scroll / gestures | B2 proposed (ADR-029 accepted) |
-| Animation / overscroll | B2 proposed (ADR-034 accepted) |
-| Overlays / layers | B2/C proposed (ADR-029 accepted) |
-| Navigation / state restore | F proposed (ADR-030 accepted) |
-| Platform shell / i18n | F proposed (ADR-030 accepted) |
-| Accessibility | F proposed (ADR-030 accepted) |
-| Async data / offline | F proposed (ADR-030 accepted) |
-| Devtools / hot reload | C/D proposed (ADR-031 accepted) |
-| Updates / signing / crash | F proposed (ADR-031 accepted) |
-| Component library | post-V1 proposed (ADR-032 accepted) |
+| Error boundaries | C/F proposed ([ADR-025](../decisions/ADR-025-error-boundaries.md) accepted) |
+| Deep links / external activation | F proposed ([ADR-026](../decisions/ADR-026-deep-links-and-external-activation.md) accepted) |
+| Numeric automation IDs / headless | C proposed ([ADR-027](../decisions/ADR-027-agent-automation-and-audits.md) accepted) |
+| Lighthouse-style audits | B2/F proposed ([ADR-027](../decisions/ADR-027-agent-automation-and-audits.md) accepted) |
+| Custom native elements / 3D | B2/C/D proposed ([ADR-028](../decisions/ADR-028-custom-native-elements.md) accepted) |
+| Text editing / forms | B2/C proposed ([ADR-029](../decisions/ADR-029-interaction-completeness.md) accepted) |
+| Scroll / gestures | B2 proposed ([ADR-029](../decisions/ADR-029-interaction-completeness.md) accepted) |
+| Animation / overscroll | B2 proposed ([ADR-034](../decisions/ADR-034-interaction-and-overscroll-animation.md) accepted) |
+| Overlays / layers | B2/C proposed ([ADR-029](../decisions/ADR-029-interaction-completeness.md) accepted) |
+| Navigation / state restore | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |
+| Platform shell / i18n | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |
+| Accessibility | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |
+| Async data / offline | F proposed ([ADR-030](../decisions/ADR-030-app-platform-completeness.md) accepted) |
+| Devtools / hot reload | C/D proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
+| Updates / signing / crash | F proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
+| Component library | post-V1 proposed ([ADR-032](../decisions/ADR-032-bundled-component-library.md) accepted) |
 | Samples / media / export | planned/deferred |
 | Designer/Wasm | D proposed |
 | Packaging/release | F proposed |
-| Pixel goldens on lavapipe/software | B2/B3 planned |
+| Pixel goldens on [lavapipe](reference/glossary.md)/software | B2/B3 planned |

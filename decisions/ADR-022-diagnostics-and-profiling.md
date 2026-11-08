@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-07
-- Related: ADR-009, ADR-018, ADR-019, ADR-021
+- Related: [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests), [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame pacing), [ADR-019](ADR-019-power-aware-runtime.md) (power-aware runtime defaults), [ADR-021](ADR-021-async-runtime.md) (async runtime)
 
 ## Context
 
@@ -16,18 +16,18 @@ not acceptable in production.
 1. Provide layered diagnostics: structured logging, tracing/spans, metrics/counters, debug
    overlay, profiling hooks, crash reports, and frame capture.
 2. **Structured logging** with levels/categories/fields/source/thread/frame ids; bounded async
-   sinks (debugger, rotating file, in-memory ring, optional ETW/Perfetto); redaction; no hot-path
+   sinks (debugger, rotating file, in-memory ring, optional ETW (Event Tracing for Windows)/Perfetto); redaction; no hot-path
    allocation/formatting when disabled.
-3. **Tracing** with RAII spans for frame/tick/input/style/layout/paint/render/async/GPU; export
+3. **Tracing** with RAII spans for frame/tick (simulation step, see [ADR-017](ADR-017-input-and-fixed-step-runtime.md) (input and fixed-step runtime loop))/input/style/layout/paint/render/async/GPU; export
    Chrome Trace/Perfetto; optional Tracy/ETW/ftrace/systrace/Instruments adapters.
 4. **Metrics**: frame/CPU/GPU time, present wait, steps/dropped, input latency, dirty counts,
-   draw calls/vertices, damage ratio, cache hits, uploads, queue depth, memory, present/VRR,
-   DPI/resize state, power/adaptive quality.
+   draw calls/vertices, damage ratio (defined with damage rectangles in decision 4 of [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md)), cache hits, uploads, queue depth, memory, present/VRR,
+   DPI (dots per inch, the display scale)/resize state, power/adaptive quality.
 5. **Debug overlay** is dev-only, non-blocking, and must not defeat dirty rendering.
 6. **Crash handling**: bounded breadcrumb ring, minidump/core dump, build/GPU/OS/config metadata
    (redacted), symbolization; upload is opt-in.
 7. **Frame capture**: GPU capture markers, screenshot/raw RGBA + structural report, draw-list/frame
-   graph dump, golden diff integration.
+   graph dump, [golden](../docs/reference/glossary.md) diff integration.
 8. **Validation**: Vulkan validation layers in debug/CI, API validation, leak checks; optional
    GPU-assisted validation.
 9. Optional third-party implementations (spdlog/Tracy/Crashpad) stay behind interfaces; core
@@ -36,7 +36,7 @@ not acceptable in production.
     opt-in telemetry, treat dumps as sensitive.
 11. Diagnostics must not change rendering output or deterministic goldens; disabled paths add zero
     measurable frame time.
-12. Configuration lives in `tessera.json.diagnostics`; CI/tools may force tracing/capture.
+12. Configuration lives in `tessera.json.diagnostics`; CI (continuous integration)/tools may force tracing/capture.
 
 ## Consequences
 
@@ -52,7 +52,7 @@ not acceptable in production.
 - Tracing/profiling overhead if misconfigured.
 - Platform-specific crash/tracing integrations add maintenance.
 - Log/dump privacy requires discipline and tests.
-- Overlay can interact with dirty/damage and frame pacing.
+- Overlay can interact with dirty/damage and [frame pacing](../docs/reference/glossary.md).
 
 ## Alternatives considered
 

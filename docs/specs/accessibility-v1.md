@@ -1,11 +1,11 @@
 # Accessibility v1
 
-Status: proposed (Big Step F). Decision: ADR-030. This is the normative contract; design
+Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Decision: [ADR-030](../../decisions/ADR-030-app-platform-completeness.md) (navigation, restore, shell, i18n, accessibility, async data). This is the normative contract; design
 rationale is in [`accessibility.md`](../design/accessibility.md). Companion to
 [`text-editing-v1.md`](text-editing-v1.md), [`overlays-and-layers-v1.md`](overlays-and-layers-v1.md),
 [`navigation-v1.md`](navigation-v1.md), and [`mobile-integration.md`](../design/mobile-integration.md).
 
-Accessibility is a first-class tree parallel to the scene graph, not a post-processing step.
+Accessibility is a first-class tree parallel to the scene graph ([`scene-graph.md`](../design/scene-graph.md)), not a post-processing step. `NodeId` is the runtime scene-node id defined in [`automation-ids-v1.md`](automation-ids-v1.md) section 1.
 
 ## 1. Semantics model
 
@@ -48,16 +48,16 @@ struct SemanticsNode {
 - Modal focus trap and restore; escape/back has an explicit path.
 - Screen-reader focus and keyboard focus synchronize; avoid double announcements.
 - Arrow keys navigate lists/tabs/grids; Enter/Space activate; Escape dismisses.
-- Shortcuts do not fire during IME composition unless explicitly allowed.
-- Focused item is scrolled into view and realized (virtualized/custom).
+- Shortcuts do not fire during IME (input method editor) composition unless explicitly allowed (this file does not say what grants the permission).
+- Focused item is scrolled into view and realized (virtualized lists, [`virtualization-v1.md`](virtualization-v1.md), or custom elements, [`custom-elements-v1.md`](custom-elements-v1.md)).
 
 ## 4. Text editing accessibility
 
 - Expose text value, selection range, caret position, placeholder, read-only/disabled.
 - Support set value/select/copy/cut/paste actions; secure fields redact value.
 - Errors/help/required are associated and announced once.
-- Composition/marked text is exposed where the platform supports it.
-- Caret/selection rectangles come from shaped layout; bidi visual order is respected.
+- Composition/marked text is exposed on platforms whose accessibility API supports it (the per-platform list is not specified).
+- Caret/selection rectangles come from shaped layout; bidi (bidirectional text) visual order is respected.
 - Announce selection changes at a bounded rate.
 
 ## 5. Overlays, navigation, and live regions
@@ -65,7 +65,7 @@ struct SemanticsNode {
 - Dialog role + name + initial focus + focus trap + restore.
 - Menu/menuitem roles, expanded/checked states, keyboard navigation.
 - Tooltips are associated with the trigger and are not the only information source.
-- Route/screen changes announce the new screen title/context; focus moves to a sensible node.
+- Route/screen changes announce the new screen title/context; focus moves to the heading or first control (section 10.1).
 - Toasts/status use live regions; coalesce to avoid screen-reader flooding.
 - Background is hidden from the semantics tree while a modal is open.
 
@@ -75,7 +75,7 @@ struct SemanticsNode {
 - Focused/selected item is realized before focus/announcement.
 - Custom elements declare semantics in `ui/elements.json` and may update via
   `on_semantics(SemanticsBuilder&)`; 3D/custom rendering needs a meaningful fallback.
-- `partId` may refine custom sub-targets; the semantics node still has a stable role/name.
+- `partId` (a per-element sub-target id, [`automation-ids-v1.md`](automation-ids-v1.md) section 5.1) may refine custom sub-targets; the semantics node still has a stable role/name.
 - See [`virtualization-v1.md`](virtualization-v1.md) and
   [`custom-elements-v1.md`](custom-elements-v1.md).
 
@@ -84,10 +84,10 @@ struct SemanticsNode {
 | Platform | API | Notes |
 |---|---|---|
 | Windows | UI Automation (UIA) | providers, fragments, focus/selection/scroll patterns |
-| Linux | AT-SPI over D-Bus | no libatspi/glib linkage (ADR-012) |
-| macOS | NSAccessibility | later macOS port |
-| iOS/iPadOS | UIAccessibility | later mobile target |
-| Android | AccessibilityNodeInfo/ExploreByTouchHelper | JNI at OS edge |
+| Linux | AT-SPI (Assistive Technology Service Provider Interface) over D-Bus | no libatspi/glib linkage ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking) |
+| macOS | NSAccessibility | macOS port (deferred from V1, [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)) |
+| iOS/iPadOS | UIAccessibility | iOS comes after Android (Big Step F); no release assigned |
+| Android | AccessibilityNodeInfo/ExploreByTouchHelper | JNI (Java Native Interface) at the OS edge |
 
 - Bridges are optional at runtime; if unavailable, the app runs with accessibility disabled
   and a diagnostic.
@@ -104,7 +104,7 @@ announce(message, priority);   // polite/assertive
 - Errors are announced and associated with the field; summaries link to fields.
 - Busy/loading announcements are debounced; avoid announcing every progress tick.
 - Do not announce sensitive/secure text.
-- Localized messages use `i18n`; no raw internal codes.
+- Localized messages use `i18n` ([`i18n-v1.md`](i18n-v1.md)); no raw internal codes.
 
 ## 9. Testing
 
@@ -113,13 +113,13 @@ announce(message, priority);   // polite/assertive
 - Text editing selection/caret/error/secure redaction.
 - Overlay/menu/tooltip/toast roles and announcements.
 - Virtualized/custom element semantics and realization.
-- Text scale/high contrast/reduced motion layout goldens.
-- Platform bridge tests with real screen readers (Windows/NVDA, Linux/Orca; mobile later).
+- Text scale/high contrast/reduced motion layout goldens (reference images, [`golden-tests-v1.md`](golden-tests-v1.md)).
+- Platform bridge tests with real screen readers (Windows/NVDA, Linux/Orca, both screen readers; mobile is deferred, see section 11).
 - Missing names/roles/actions are CI failures.
 
 ## 10. Performance and security
 
-- Semantics snapshots are bounded and updated on dirty, not per frame.
+- Semantics snapshots are bounded and updated on dirty flags ([`dirty-rendering.md`](../design/dirty-rendering.md)), not per frame.
 - Platform bridge payloads are size-limited; no unbounded trees.
 - Redact values for secure fields; no secrets/PII in snapshots/diagnostics.
 - Accessibility actions validate node ids/permissions; no arbitrary action execution.
@@ -141,7 +141,7 @@ Semantics update pipeline:
 ```text
 node/style/layout/text/focus/selection change
   -> mark semantics dirty (node/subtree)
-  -> coalesce at tick/frame boundary
+  -> coalesce at tick/frame boundary (tick: see game-loop.md)
   -> rebuild/diff SemanticsNode snapshots
   -> platform bridge reads immutable snapshot
 ```
@@ -181,12 +181,12 @@ Focus/announcements:
 
 Platform mapping notes:
 
-- Windows UIA: providers/fragments, patterns per role; COM apartment rules; batch property
+- Windows UIA: providers/fragments, patterns per role; COM (Component Object Model) apartment rules; batch property
   changes; never block the UI thread on a client call.
 - Linux AT-SPI: D-Bus protocol without linking libatspi; expose a bounded node subset; actions
   return immediately and complete asynchronously.
 - Android/iOS/macOS: map roles/states/actions to native accessibility APIs; mobile bridges are
-  later but the semantics contract is the same.
+  deferred (Big Step F, Android first) but the semantics contract is the same.
 
 Failure/edge cases:
 
@@ -196,9 +196,9 @@ Failure/edge cases:
 - Platform client disconnects during a snapshot -> discard, rebuild on next request.
 - Text selection/caret updates are coalesced; never announce every keystroke.
 
-Gap-closure decisions:
+Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`app-completeness-cross-check-v1.md`](../architecture/app-completeness-cross-check-v1.md); resolutions in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
-- **G-18/Q-17**: the role/action/state matrix in §2 is normative; inference is allowed only for
+- **G-18/Q-17**: the role/action/state matrix in section 2 of this file is normative; inference is allowed only for
   text/labels, while interactive/custom/3D nodes must declare semantics. Action requests carry
   an epoch and run on the UI thread. Announcements dedupe identical messages within 250 ms and
   progress within 1 s. Unknown roles fall back to generic + diagnostic.
@@ -211,5 +211,5 @@ Gap-closure decisions:
 - Exact per-platform role/action mapping edge cases (documented in the bridge layer).
 - Multi-window/global focus.
 - High-contrast token coverage in the component library.
-- Switch/voice control and text navigation by word/line (post-V1).
-- Screen-reader automation on mobile (deferred with the mobile backend).
+- Switch/voice control and text navigation by word/line (after V1; no release assigned).
+- Screen-reader automation on mobile (deferred until the mobile backend exists, Big Step F).

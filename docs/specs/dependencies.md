@@ -14,20 +14,22 @@ module, role, and status.
    OFL / Unicode / FreeType / public domain. No GPL/LGPL in the core.
 3. **Build-time tools are not runtime dependencies.** The JSX parser, formatter, and shader
    compiler must not be linked into production apps.
-4. **Pin everything.** Versions, hashes, fonts, lavapipe, shader compiler. Produce an SBOM.
+4. **Pin everything.** Versions, hashes, fonts, lavapipe, shader compiler. Produce an SBOM (software bill of materials).
 5. **Determinism first.** No system fonts, no wall clock, no floating driver versions in
-   golden tests (ADR-009).
-6. **Watch the big four.** Skia (or ThorVG), ICU, Dawn, and Emscripten dominate build time
+   golden tests ([ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests).
+6. **Watch the big four.** Skia (or ThorVG), ICU (International Components for Unicode), Dawn, and Emscripten dominate build time
    and binary size; make them optional where possible.
 
 ## Status legend
 
-- **V1 hard** — required for V1
+- **V1 hard** — required for V1 (V1 is the first-release scope, [AGENTS.md](../../AGENTS.md) Non-negotiables rule 8)
 - **V1 optional** — feature-gated, not needed for the first vertical slice
 - **Build-time** — not shipped in the runtime
 - **Candidate** — decision pending a spike
-- **Deferred** — post-V1
+- **Deferred** — after V1 (no release assigned)
 - **Future** — long-term, not committed
+
+Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golden, IR, HAL) are defined in the [glossary](../reference/glossary.md).
 
 ## 1. GPU and rendering
 
@@ -37,18 +39,18 @@ module, role, and status.
 | VMA (VulkanMemoryAllocator) | V1 hard (vendored) | MIT | `rendering/backend/vulkan` | GPU memory allocation; `third_party/vma` |
 | volk | V1 hard (vendored) | MIT | `rendering/backend/vulkan` | Vulkan function loading; `third_party/volk` |
 | SPIRV-Reflect | V1 optional | Apache-2.0 | `rendering/backend/vulkan` | Shader reflection for pipeline layouts |
-| stb_image_write | PoC/demo only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 and batched2d demos |
+| stb_image_write | PoC (proof of concept)/demo only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 (proof-of-concept stage, executables under `tools/poc/`) and batched2d demos |
 | stb_image | V1 test | Public domain / MIT | `tests/golden`, image decode | PNG/JPG decode for goldens and assets |
-| ThorVG | Candidate (ADR-004) | MIT | `rendering/backend` | Vector paths, SVG |
-| Skia Graphite | Candidate (ADR-004 fallback) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
+| ThorVG | Candidate ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buying vector path rasterization) | MIT | `rendering/backend` | Vector paths, SVG |
+| Skia Graphite | Candidate ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) fallback) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
 | Emscripten | V1 hard for design-time | MIT / UIUC | `designer/web` | C++ → WebAssembly toolchain |
 | Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu) | V1 hard for design-time | MIT / UIUC | `designer/web` | Browser WebGPU API |
-| Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan ICD for deterministic goldens |
+| Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan ICD (installable client driver, the plug-in the Vulkan loader uses to reach a GPU or software rasterizer) for deterministic goldens |
 | Vulkan ValidationLayers | V1 debug | Apache-2.0 | dev / CI | Validation |
-| naga | Future (ADR-011) | MIT / Apache-2.0 | `tools/shaders` | SPIR-V → WGSL |
-| Tint | Future (ADR-011) | BSD-3-Clause | `tools/shaders` | WGSL → SPIR-V |
-| Slang | Future (ADR-011) | Apache-2.0 (LLVM exception) | `tools/shaders` | Single-source shaders |
+| naga | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md), shader authoring and cross-compilation) | MIT / Apache-2.0 | `tools/shaders` | SPIR-V → WGSL |
+| Tint | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)) | BSD-3-Clause | `tools/shaders` | WGSL → SPIR-V |
+| Slang | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)) | Apache-2.0 (LLVM exception) | `tools/shaders` | Single-source shaders |
 | SPIRV-Cross | Future | Apache-2.0 | `tools/shaders` | SPIR-V → HLSL/GLSL/MSL if needed |
 | zlib | V1 transitive | zlib | `rendering/resources` | PNG/texture compression |
 
@@ -56,7 +58,7 @@ VMA and volk are vendored from Vulkan SDK 1.4.357.0 (`Include/vma`, `Include/Vol
 `third_party/vma` and `third_party/volk`, so Linux CI does not depend on optional SDK
 components. Their MIT headers are preserved.
 
-Frame pacing, refresh-rate/VRR queries, and damage use system APIs (DXGI, Vulkan present modes,
+Frame pacing, refresh-rate/VRR (variable refresh rate) queries, and damage (screen region to repaint) use system APIs (DXGI, Vulkan present modes,
 X11 RandR/Present, Wayland `wp_presentation`). They are system components, not linked
 dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 [`game-loop.md`](../design/game-loop.md).
@@ -94,11 +96,9 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
-| tree-sitter + JSX/TSX grammars | Candidate | MIT | `compiler/analyzer` | Embeddable JSX/TSX parser (C) |
-| SWC | Candidate | Apache-2.0 | `compiler/analyzer` | JSX/TSX parsing via Node/Rust |
-| oxc | Candidate | MIT | `compiler/analyzer` | JSX/TSX parsing via Node/Rust |
-| clang-format | V1 hard (toolchain) | Apache-2.0 (LLVM exception) | `compiler/codegen`, `scripts/` | Deterministic formatting before merge (ADR-008, ADR-015) |
-| clang-tidy | V1 build-time | Apache-2.0 (LLVM exception) | `scripts/`, CI | Static analysis (ADR-015) |
+| tree-sitter / SWC / oxc | Rejected ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md), own JSX/TSX front end and React-like model) | - | - | Replaced by Tessera's own JSX/TSX front end; tree-sitter may be reconsidered for editor highlighting only |
+| clang-format | V1 hard (toolchain) | Apache-2.0 (LLVM exception) | `compiler/codegen`, `scripts/` | Deterministic formatting before merge ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest), [ADR-015](../../decisions/ADR-015-code-style-build-cache.md) (code style and build cache)) |
+| clang-tidy | V1 build-time | Apache-2.0 (LLVM exception) | `scripts/`, CI | Static analysis ([ADR-015](../../decisions/ADR-015-code-style-build-cache.md)) |
 | sccache | V1 optional build | Apache-2.0 | build | Compiler cache (preferred) |
 | ccache | V1 optional build | GPL-3.0-or-later | build | Compiler cache; build-time only, never linked/shipped |
 | EditorConfig | V1 tool config | — | repo | Whitespace and line-ending consistency |
@@ -108,7 +108,7 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 | CMake | V1 build | BSD-3-Clause | build | Build system |
 | vcpkg | V1 build (recommended) | MIT | build | Dependency management |
 | Ninja | V1 optional | Apache-2.0 | build | Fast builds |
-| Node.js | Build-time if SWC/oxc | MIT | `compiler` | Host for JSX parser |
+| Node.js | Not required ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | MIT | - | Was the host for SWC/oxc; not a build dependency |
 | Python 3 | Build-time | PSF | `scripts` | Tooling and CI helpers |
 
 ## 6. Platform and HAL
@@ -119,13 +119,13 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 | X11 | V1 (Linux) | MIT/X11 | `platform/linux` | Window, input |
 | Wayland (`libwayland-client`, `wayland-protocols`) | V1 (Linux) | MIT | `platform/linux` | Window, input |
 | libxkbcommon | V1 (Linux) | MIT | `hal/input` | Keyboard mapping |
-| AndroidX WindowManager (`androidx.window:window`) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | `WindowMetrics`, fold posture/hinge via JNI |
-| Cocoa / AppKit | Deferred (macOS, ADR-010) | System | `platform/macos` | Window, input |
+| AndroidX WindowManager (`androidx.window:window`) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | `WindowMetrics`, fold posture/hinge via JNI (Java Native Interface) |
+| Cocoa / AppKit | Deferred (macOS, [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md) (macOS via MoltenVK, deferred)) | System | `platform/macos` | Window, input |
 | GLFW | Candidate (buy) | zlib | `hal/window` | Window/input abstraction |
 | SDL3 | Candidate (buy) | zlib | `hal/window`, `hal/audio` | Window/input/audio abstraction |
 | inotify / ReadDirectoryChangesW / FSEvents | V1 | System | `hal/filesystem` | File watching |
 | Vulkan surface extensions | V1 | Apache-2.0 | `rendering/backend/vulkan` | `KHR_surface` + platform surfaces |
-| UIA / AT-SPI / NSAccessibility | Deferred | System (AT-SPI: LGPL) | `ui/accessibility` | Accessibility |
+| UIA (UI Automation) / AT-SPI (Assistive Technology Service Provider Interface) / NSAccessibility | Deferred | System (AT-SPI: LGPL) | `ui/accessibility` | Accessibility |
 | D-Bus / libdbus | Deferred | System | `ui/accessibility` | AT-SPI transport on Linux |
 
 Mobile/foldable signals use AndroidX WindowManager via JNI; iOS/iPadOS/macOS use system scene
@@ -184,14 +184,14 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
 ## Not dependencies (deliberate)
 
 - **Qt, Slint, Flutter, Electron, Chromium/WebView** — the framework owns its renderer.
-- **A React runtime in production** — production is pure C++ (AGENTS.md).
+- **A React runtime in production** — production is pure C++ ([AGENTS.md](../../AGENTS.md)).
 - **Platform text APIs for rendering** (DirectWrite, CoreText) — not cross-platform or
-  deterministic (ADR-006).
-- **A Vulkan-on-WebGPU shim** — design-time uses Dawn directly (ADR-002).
-- **A general 3D engine** — the renderer is 2D-first (ADR-003).
-- **A browser layout engine** — Yoga and a small Grid subset cover V1 (ADR-005).
-- **GPL/LGPL libraries in the shipped core** — system-only access is allowed for deferred
-  accessibility integration.
+  deterministic ([ADR-006](../../decisions/ADR-006-text-stack.md), text stack).
+- **A Vulkan-on-WebGPU shim** — design-time uses Dawn directly ([ADR-002](../../decisions/ADR-002-webgpu-dawn-for-wasm.md), WebGPU/Dawn for Wasm).
+- **A general 3D engine** — the renderer is 2D-first ([ADR-003](../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md), thin RHI and batched 2D renderer).
+- **A browser layout engine** — Yoga and a small Grid subset cover V1 ([ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md), Yoga layout adapter).
+- **GPL/LGPL libraries in the shipped core** — system-only access is allowed for the accessibility integration marked Deferred
+  in section 6.
 
 ## Dependency budget and risks
 
@@ -207,10 +207,10 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
 
 1. **Windowing:** native HAL (Win32/X11/Wayland/Cocoa) vs GLFW/SDL3 behind `hal/window`.
    Recommendation: SDL3 or GLFW for V1, so platform work does not block the renderer;
-   replace with native backends later if needed.
-2. **JSX parser:** tree-sitter (C, embeddable) vs SWC/oxc (Node/Rust, better React coverage).
-3. **Vector paths:** ThorVG vs Skia Graphite (ADR-004 spike).
-4. **Shaders:** GLSL + WGSL in parallel vs a single-source path via Slang/naga/Tint (ADR-011).
+   replace with native backends if needed (no release or trigger condition is specified).
+2. **JSX parser:** resolved in [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end).
+3. **Vector paths:** ThorVG vs Skia Graphite ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) spike).
+4. **Shaders:** GLSL + WGSL in parallel vs a single-source path via Slang/naga/Tint ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)).
 5. **Image codecs:** stb only (simple) vs libpng/libjpeg-turbo/libwebp (production).
 6. **Networking:** libcurl + IXWebSocket + mbedTLS vs a smaller std-only stack.
 
@@ -226,7 +226,7 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
 
 ## Static linking (ADR-012 — hard requirement)
 
-Tessera and every third-party C/C++ library are linked **statically** into the application.
+Decision record: [ADR-012](../../decisions/ADR-012-static-linking.md) (static linking). Tessera and every third-party C/C++ library are linked **statically** into the application.
 The goal is a single self-contained executable with no third-party DLLs/`.so` shipped
 alongside it.
 
@@ -280,7 +280,7 @@ This is the concrete answer to "which library does what, in which component".
 
 ```text
 .jsx/.tsx
-  -> [tree-sitter | SWC | oxc]        parse to AST              compiler/analyzer
+  -> [own JSX/TSX front end]           parse to AST              compiler/analyzer
   -> [Tier 1 analyzer]                 React rules, purity       compiler/analyzer
   -> [Tier 2 rules + bind extractor]   lower to IR                compiler/rules
   -> [nlohmann/json]                   IR/manifest JSON           compiler/ir
@@ -290,7 +290,8 @@ This is the concrete answer to "which library does what, in which component".
   -> .cpp/.h
 ```
 
-- **tree-sitter / SWC / oxc** — parser only. Produces an AST; no UI semantics.
+- **Tier 1 / Tier 2** — Tier 1 is the analyzer for React rules and purity; Tier 2 lowers to the IR (intermediate representation) and extracts `bind::` bindings ([`compiler.md`](../design/compiler.md) sections 4 and 5).
+- **Own front end** — Tessera lexer/parser for the JSX/TSX subset ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)). Produces an AST; no UI semantics.
 - **nlohmann/json** — serializes the IR and the binding manifest; also used for snapshot
   tests. Not on the runtime hot path.
 - **clang-format** — invoked as a build tool, never linked into the app.
@@ -313,6 +314,7 @@ input event
   -> GPU
 ```
 
+- **2D batching** (our code) groups quads, SDF (signed distance field) rounded rects, glyphs, and clips into few draw calls ([ADR-003](../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md)).
 - **Yoga** computes boxes; it does not paint.
 - **ICU** segments text (grapheme/word/line) and normalizes; it does not shape.
 - **SheenBidi** resolves bidi runs; it does not shape.
@@ -322,7 +324,7 @@ input event
 - **volk** only loads Vulkan entry points; it has no rendering behavior.
 - **VMA** only allocates GPU memory; it does not record commands.
 - **SPIRV-Reflect** reads shader binding metadata; it does not compile shaders.
-- **Vulkan loader + ICD** are the actual GPU path; they stay dynamic (ADR-012).
+- **Vulkan loader + ICD** are the actual GPU path; they stay dynamic ([ADR-012](../../decisions/ADR-012-static-linking.md)).
 
 ### Design-time: browser
 
@@ -369,10 +371,10 @@ renderer -> [lavapipe | CPU rasterizer] -> RGBA buffer
 | HarfBuzz | `ui::TextShaper` | swap shaper; test with a fake |
 | SheenBidi | `ui::BidiResolver` | isolate bidi policy |
 | ICU | `ui::TextSegmenter`, `services::I18n` | make ICU optional/feature-gated |
-| ThorVG / Skia | `rendering::PathRasterizer` | swap vector backend (ADR-004) |
-| Vulkan / WebGPU | `rendering::RhiDevice` | two backends, one renderer (ADR-003) |
+| ThorVG / Skia | `rendering::PathRasterizer` | swap vector backend ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)) |
+| Vulkan / WebGPU | `rendering::RhiDevice` | two backends, one renderer ([ADR-003](../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md)) |
 | VMA / volk / SPIRV-Reflect | internal to `backend/vulkan` | never leak into UI code |
-| tree-sitter / SWC / oxc | `compiler::JsxParser` | parser choice is not an ABI |
+| own front end | `compiler::JsxParser` | parser is internal, not an ABI |
 | nlohmann/json | `compiler::JsonCodec` | keep IR schema independent of the JSON library |
 | clang-format | `compiler::Formatter` | tool, not a linked library |
 | Win32 / X11 / Wayland / Cocoa | `hal::WindowSystem` | platform backends stay replaceable |
@@ -390,7 +392,7 @@ code. They are the differentiators and are not delegated.
 
 ### Project license: MIT (decided 2026-11-07, ADR-013)
 
-Tessera is released under the **MIT License**. See [`LICENSE`](../../LICENSE) and
+Tessera is released under the **MIT License** ([ADR-013](../../decisions/ADR-013-project-license-mit.md), project license is MIT). See [`LICENSE`](../../LICENSE) and
 [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md).
 
 MIT obligations:
@@ -423,7 +425,7 @@ and are not linked into or shipped with Tessera. Prefer `sccache` (Apache-2.0) w
 
 LGPL:
 
-- **Not allowed in statically linked code** (ADR-012). LGPL static linking requires
+- **Not allowed in statically linked code** ([ADR-012](../../decisions/ADR-012-static-linking.md)). LGPL static linking requires
   relinkable object files and reverse-engineering permission.
 - Permitted only for optional, dynamically loaded system integration that ships with the OS
   (e.g. AT-SPI via D-Bus), never as part of the static core.
@@ -434,7 +436,7 @@ LGPL:
   the `NOTICE` file; state modifications to Apache-2.0 files.
 - **MIT/BSD dependency in an Apache-2.0 project:** allowed. Keep the copyright notice.
 - **Static linking:** every permissive license above allows it with notice preservation.
-  LGPL/GPL do not (ADR-012).
+  LGPL/GPL do not ([ADR-012](../../decisions/ADR-012-static-linking.md)).
 - **Boost Software License 1.0 (BSL-1.0):** permissive. Do not confuse it with the Business
   Source License (also abbreviated BSL). Catch2 uses the Boost license.
 - **OFL-1.1 fonts:** may be bundled; keep the license; do not rename modified fonts
@@ -480,8 +482,8 @@ LGPL:
 | GoogleTest | BSD-3-Clause | `NOTICE` |
 | Google Benchmark | Apache-2.0 | `NOTICE` |
 | libFuzzer, clang-format | Apache-2.0 (LLVM exception) | `NOTICE` |
-| tree-sitter, oxc, nlohmann/json, Inja | MIT | Build-time |
-| SWC, simdjson | Apache-2.0 | Build-time |
+| nlohmann/json, Inja | MIT | Build-time |
+| simdjson | Apache-2.0 | Build-time |
 | CMake, vcpkg, Ninja, Node.js | permissive | Build-time |
 | Python | PSF | Build-time |
 | Noto Sans / Inter | OFL-1.1 | Test fonts; keep the license |
@@ -491,7 +493,7 @@ LGPL:
 - **AT-SPI2 (Linux accessibility): LGPL-2.1.** It is a system component accessed over D-Bus;
   do not link it into the core. Keep accessibility optional and dynamically integrated.
 - **libdbus: AFL-2.1 or GPL-2.0+.** Avoid linking; use the D-Bus protocol/system service, or a
-  permissively licensed client if one is selected later.
+  permissively licensed client if one is selected (no decision yet).
 - **macOS Cocoa/AppKit and Windows Win32/UIA:** system frameworks/APIs; no redistribution
   issue.
 

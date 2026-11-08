@@ -1,7 +1,12 @@
 # Runtime loop, frame pacing, and display refresh
 
-Status: design for Big Step B2 (offscreen) and B3 (window/swapchain). Normative terms are used
-by [`runtime-config-v1.md`](../specs/runtime-config-v1.md).
+Status: design for Big Step B2 (runtime slice, rendered offscreen) and B3 (window/swapchain path); both
+are defined in [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Normative
+terms are used by [`runtime-config-v1.md`](../specs/runtime-config-v1.md) (runtime config keys and
+defaults). Design basis: [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input and
+fixed-step runtime), [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty
+rendering and frame pacing) and [ADR-019](../../decisions/ADR-019-power-aware-runtime.md) (power-aware
+runtime defaults). Other terms are in [`glossary.md`](../reference/glossary.md) and section 1 below.
 
 ## 0. Runtime pipeline
 
@@ -12,7 +17,7 @@ platform input (hal/input)
        sample input            [input.md]
        update(dt)              hooks, animations, data streams
        resolve dirty styles    [stylesheet-v1.md]
-       layout dirty subtrees   [ADR-005]
+       layout dirty subtrees   [ADR-005, Yoga layout adapter]
        paint dirty subtrees    [dirty-rendering.md]
   -> render if dirty/continuous
        record draws, submit, present
@@ -39,6 +44,8 @@ in [`diagnostics.md`](diagnostics.md); animation/overscroll in
 | **Frame pacing** | Scheduling presents to hit a stable cadence/deadline. |
 | **VRR** | Variable refresh rate (FreeSync/G-Sync/HDMI VRR). |
 | **Damage** | Region of the target that changed and must be redrawn. |
+| **Golden** | Reference image produced by the deterministic software path (see [`golden-tests-v1.md`](../specs/golden-tests-v1.md)). |
+| **HAL** | Hardware/OS abstraction layer ([`hal.md`](hal.md)); `hal/input` in the pipeline above is its input part. |
 
 ## 2. Invariants
 
@@ -126,6 +133,8 @@ or explicit_frame_request
 or alpha changed enough to matter for interpolation
 ```
 
+The threshold for "alpha changed enough" is not specified.
+
 A wake source must be edge-triggered; the loop must not poll devices or the filesystem.
 
 ## 4. Frame cap and frame pacing
@@ -159,8 +168,8 @@ else:           effective = min(maxFps, refresh)
 | `low-latency` | Present as soon as ready; minimal queue | tools, pointer-driven UI |
 | `power-save` | Prefer lower present rate when content is static; allow longer sleeps | kiosks, battery |
 
-`latencyFrames` (1–3) bounds swapchain/queue depth. `1` is lowest latency; `2` is a common
-smooth default. The runtime never queues more than `latencyFrames` unfinished frames.
+`latencyFrames` (1–3) bounds swapchain/queue depth. `1` is lowest latency; `2` is the default
+(`latencyFrames` in [`runtime-config-v1.md`](../specs/runtime-config-v1.md)). The runtime never queues more than `latencyFrames` unfinished frames.
 
 ### 4.3 Deadline scheduling
 
@@ -179,7 +188,8 @@ The pacer measures present latency and adjusts the margin. It reports:
 - `effective_fps`
 - `refresh_hz`, `vrr_active`
 
-If the renderer consistently misses the deadline, the runtime may:
+If the renderer misses the deadline repeatedly (the miss count/window is not specified; see
+[`performance.md`](performance.md) for budgets), the runtime may:
 
 1. reduce optional effects,
 2. reduce `renderScale` toward `minRenderScale`,
@@ -196,7 +206,7 @@ determinism; it does **not** mean the GPU is driven continuously.
 
 - Default policy `adaptive`: on-demand rendering, dirty work, capped present rate.
 - Static content: zero presents, zero GPU submissions, no active animation ticks.
-- Occluded/minimized: paused by default (`pauseWhenOccluded`).
+- Occluded/minimized: paused by default (`pauseWhenOccluded`, default `true` in [`runtime-config-v1.md`](../specs/runtime-config-v1.md)).
 - Continuous mode is explicit for video/live dashboards (`renderOnDemand=false`,
   `powerPolicy=performance`).
 - `benchmark` mode (uncapped/full redraw) is diagnostic only and never a production default.
@@ -257,8 +267,9 @@ Platform notes:
   damage. VRR depends on the driver/compositor.
 - **Linux/Wayland**: use `wp_presentation` feedback and frame callbacks; the compositor owns
   refresh/VRR policy. Do not busy-wait for frame callbacks.
-- **macOS**: deferred (ADR-010); use `CVDisplayLink`/`CAMetalDisplayLink` when MoltenVK lands.
-- **Android**: deferred; use `Choreographer` frame callbacks and display refresh rate APIs.
+- **macOS**: deferred ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via
+  MoltenVK); use `CVDisplayLink`/`CAMetalDisplayLink` when MoltenVK lands.
+- **Android**: deferred (see [`mobile-integration.md`](mobile-integration.md)); use `Choreographer` frame callbacks and display refresh rate APIs.
 
 The loop must degrade gracefully when a platform cannot report refresh/VRR: assume 60 Hz,
 `vsync=on`, no VRR, and record the assumption in diagnostics.
@@ -299,10 +310,11 @@ for (int frame = 0; frame < frames; ++frame) {
 
 ## 9. Threading
 
-- V1: UI thread owns input sampling, style, layout, paint, and command recording.
+- V1 (first release; scope rule in [AGENTS.md Non-negotiables](../../AGENTS.md#non-negotiables) item 8):
+  UI thread owns input sampling, style, layout, paint, and command recording.
 - Platform input threads push into a single-producer/single-consumer queue; no locks in the
   steady-state path.
-- A render thread may be added later; the scene graph and style state remain UI-thread-owned.
+- A render thread is not part of V1 and has no decision yet (see section 12); the scene graph and style state remain UI-thread-owned.
 - The frame pacer may block the UI thread on a waitable object; it must not hold locks while
   waiting.
 
@@ -335,6 +347,7 @@ The debug overlay shows a compact subset; the full set is available to tests and
 ## 12. Open questions
 
 - Exact VRR capability APIs per platform and driver quirks.
-- Whether to interpolate layout positions or only paint transforms in V1.
+- Whether to interpolate layout positions or only paint transforms in V1 (first release).
 - Render-thread architecture and command-buffer reuse.
-- Power-save behavior when the window is occluded/minimized.
+- Power-save behavior when the window is occluded/minimized (section 4.4 says paused by default under
+  `pauseWhenOccluded`; what `power-save` pacing adds beyond that is not specified).

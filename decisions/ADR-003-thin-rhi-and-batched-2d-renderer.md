@@ -2,13 +2,13 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-001, ADR-002, ADR-004, ADR-009
+- Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-002](ADR-002-webgpu-dawn-for-wasm.md) (WebGPU/Dawn for WebAssembly), [ADR-004](ADR-004-buy-vector-path-rasterization.md) (vector path rasterization), [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests)
 
 ## Context
 
 The framework renders a 2D UI scene: rectangles, rounded rectangles, shadows, text, images,
 and vector paths, with clips and transforms. It does not need a general-purpose 3D engine.
-The native and Wasm backends (ADR-001, ADR-002) must share as much renderer logic as possible
+The native and Wasm (WebAssembly) backends ([ADR-001](ADR-001-vulkan-1-3-baseline.md), [ADR-002](ADR-002-webgpu-dawn-for-wasm.md)) must share as much renderer logic as possible
 without leaking API-specific concepts into the UI layer.
 
 Writing a full GPU abstraction is also a trap: too thin and the backends diverge; too thick
@@ -16,11 +16,11 @@ and it becomes a second engine.
 
 ## Decision
 
-1. Define a **thin RHI** under `src/rendering/rhi/` covering only what the 2D renderer needs:
+1. Define a **thin RHI (render hardware interface)** under `src/rendering/rhi/` covering only what the 2D renderer needs:
    - instance / adapter / device / queue
    - buffer and image resources, samplers
    - shader modules and pipeline layouts
-   - render pipelines and compute pipelines (compute optional in V1)
+   - render pipelines and compute pipelines (compute optional in [V1](../docs/reference/glossary.md))
    - command recording, render passes via dynamic rendering
    - fences / semaphores / submission
    - bind groups (WebGPU terminology) mapped to descriptor sets on Vulkan
@@ -28,25 +28,25 @@ and it becomes a second engine.
    The renderer owns frame graph / barrier policy.
 3. Implement a **batched 2D renderer** above the RHI:
    - instanced quad batching for solid and textured rectangles
-   - SDF rounded rectangles and borders
+   - SDF (signed distance field) rounded rectangles and borders
    - glyph atlas for text
-   - clip stack (rect + rounded-rect; path clips later)
+   - clip stack (rect + rounded-rect; path clips are not decided in this ADR)
    - transform stack (2D affine)
    - painter's-order sorting; batching keyed by pipeline + texture + clip
-4. Use a **retained scene graph + immediate vertex streaming hybrid**:
+4. Use a **retained [scene graph](../docs/reference/glossary.md) + immediate vertex streaming hybrid**:
    - static containers are retained and cached
    - dynamic data (charts, animations) streams vertex data into per-frame buffers
    - dirty flags invalidate only affected nodes
-5. **No generic 3D pipeline, no scene lighting, no PBR** in V1. Add only if a concrete UI
+5. **No generic 3D pipeline, no scene lighting, no PBR (physically based rendering)** in V1. Add only if a concrete UI
    feature requires it.
-6. Vector paths are delegated (ADR-004); text is delegated (ADR-006).
+6. Vector paths are delegated ([ADR-004](ADR-004-buy-vector-path-rasterization.md)); text is delegated ([ADR-006](ADR-006-text-stack.md) (text stack)).
 
 ## Consequences
 
 ### Positive
 
 - Renderer logic is shared between Vulkan and WebGPU.
-- The rendering model matches the UI workload (2D, batching, retained/immediate hybrid).
+- The rendering model matches the UI workload (2D, batching, [retained/immediate hybrid](../docs/reference/glossary.md)).
 - Dirty-flag invalidation keeps high-frequency chart updates cheap.
 
 ### Negative / risks
@@ -54,7 +54,7 @@ and it becomes a second engine.
 - Batching correctness (clip changes, texture changes, blend modes) is subtle; needs visual
   regression tests.
 - An RHI that is too thin leaks backend details; too thick becomes a second engine. Keep the
-  interface to the list above and resist growth.
+  interface to the list in Decision item 1 and resist growth.
 - Retained/immediate hybrid needs careful lifetime rules for buffers and descriptors.
 
 ## Alternatives considered
@@ -70,6 +70,6 @@ and it becomes a second engine.
 
 ## Follow-up
 
-- Write the RHI interface and a null backend test before the Vulkan implementation.
-- Define the batching key and sort order precisely in `docs/design/renderer.md`.
-- Add a frame-budget/dirty-flag design note in Big Step B.
+- Write the RHI interface and a [null backend](../docs/reference/glossary.md) test before the Vulkan implementation.
+- Define the [batching key](../docs/reference/glossary.md) and sort order precisely in [`docs/design/renderer.md`](../docs/design/renderer.md).
+- Add a frame-budget/dirty-flag design note in [Big Step B](../AGENTS.md#big-steps-group-work-dont-micro-step) (core renderer).

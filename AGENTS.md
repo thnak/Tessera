@@ -38,7 +38,9 @@ A cross-platform C++ UI framework:
 6. **Deterministic headless tests use a software path.** Golden images come from
    Mesa **lavapipe** or the CPU rasterizer, never from a real GPU framebuffer.
 7. **No React runtime in production.** Production is pure C++. React semantics exist only
-   at design time (custom reconciler in the Wasm viewer).
+   at design time (live view in the Wasm viewer, ADR-036). The model is React-like, not
+   React-identical; the compiled UI is "UI-like" and parity with React + browser is a goal,
+   not a guarantee.
 8. **V1 scope discipline.** Support a small, explicit hooks subset and reject unsupported
    patterns loudly. Do not grow the surface before Big Step C is proven.
 9. **Static linking is a hard requirement** (ADR-012). Tessera and third-party C/C++ libraries
@@ -115,7 +117,7 @@ Repo + build + the two riskiest proofs.
       fold posture/hinge/occlusion (ADR-023).
 
 ### Big Step C — Compiler vertical slice
-- [ ] JSX/TSX parser adapter (SWC or oxc) + Tier-1 React rules.
+- [ ] Own JSX/TSX front end (ADR-036; no SWC/oxc/Node) + Tier-1 React-like rules.
 - [ ] Tier-2 binding extractor (`bind::`) + IR.
 - [ ] C++ codegen + incremental merger.
 - [ ] Acceptance: one sample screen with `useState`/`useEffect`/`useRef` regenerates without
@@ -123,7 +125,8 @@ Repo + build + the two riskiest proofs.
 
 ### Big Step D — Design-time preview
 - [ ] C++ engine → Wasm (Emscripten) + WebGPU/Dawn surface.
-- [ ] Custom React reconciler + IPC bridge + hot reload.
+- [ ] Self-contained Wasm engine (front end + IR evaluator, ADR-037) renders parsed UI
+      immediately; picker + style editing with source patches; IPC bridge + hot reload.
 - [ ] Acceptance: same screen previews in a browser and matches native output.
 
 ### Big Step E — Data-heavy UI

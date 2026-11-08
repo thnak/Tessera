@@ -1,7 +1,7 @@
 # Renderer and RHI design (Big Step B1)
 
-Status: B1 implemented. B2 adds Yoga layout, text shaping/glyph atlas, dirty rendering, and
-pixel goldens. B3 adds the window/swapchain path with frame pacing and dynamic refresh.
+Status: B1 (renderer core, first phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) implemented. B2 (runtime slice) adds Yoga layout (Flexbox engine, see [glossary](../reference/glossary.md)), text shaping/glyph atlas, dirty rendering, and
+pixel goldens. B3 (window/swapchain/OS compliance) adds the window/swapchain path (swapchain = the images presented to a window) with frame pacing and dynamic refresh.
 
 See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering.md),
 [`input.md`](input.md), [`window-resize.md`](window-resize.md), [`async.md`](async.md),
@@ -24,7 +24,7 @@ and [`custom-elements-v1.md`](../specs/custom-elements-v1.md).
 | WebGPU backend | `src/rendering/backend/webgpu/` (B3) |
 | Demo | `tools/poc/batched2d/` |
 
-The UI layer never includes Vulkan, volk, VMA, or WebGPU headers. The only GPU seam is
+The UI layer never includes Vulkan, volk, VMA, or WebGPU headers. The only GPU seam (the RHI, render hardware interface; see [glossary](../reference/glossary.md)) is
 `rhi::Device` / `rhi::CommandList`. Custom elements use that same RHI seam; they do not get raw
 backend handles.
 
@@ -60,23 +60,23 @@ Rules:
 
 - **Batching key:** `(scissor, texture)`. Consecutive quads with the same key share one draw.
   Painter's order is preserved; there is no depth buffer.
-- **Clip stack:** axis-aligned scissor rectangles, intersected on push. Rounded/path clips are B2+.
+- **Clip stack:** axis-aligned scissor rectangles (GPU clip rectangles), intersected on push. Rounded/path clips are B2 or later (no specific release assigned).
 - **Transform stack:** 2D affine matrices. Positions are transformed on the CPU, so transforms do
   not break batching. Local coordinates stay in the rectangle's space so the SDF rotates/scales
   with the quad.
-- **SDF rounded rects:** fragment shader evaluates a rounded-box signed distance. AA radius is
+- **SDF rounded rects:** (SDF = signed distance field) fragment shader evaluates a rounded-box signed distance. AA (anti-aliasing, see [`antialiasing.md`](antialiasing.md)) radius is
   1 px normally; `--golden` sets it to 0 for hard, pixel-stable edges.
 - **Textures:** one combined image sampler per texture; solid/SDF quads bind a 1x1 white texture.
-  A glyph atlas will reuse the same path.
+  The B2 glyph atlas (text rendering, see [`text.md`](text.md)) is planned to reuse the same path.
 - **No `discard`:** transparent SDF fragments write alpha 0 and vanish through alpha blending.
   This avoids a dependency on `shaderDemoteToHelperInvocation`.
 
 ## Vulkan backend
 
-- Vulkan 1.3 baseline with dynamic rendering; no legacy render passes or framebuffers.
-- **volk** loads instance/device entry points dynamically; **VMA** owns buffer/image memory.
+- Vulkan 1.3 baseline ([ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)) with dynamic rendering (Vulkan 1.3 feature that replaces render-pass objects); no legacy render passes or framebuffers.
+- **volk** (Vulkan function loader) loads instance/device entry points dynamically; **VMA** (Vulkan Memory Allocator) owns buffer/image memory.
 - One graphics queue and one frame in flight in B1.
-- Buffers are host-visible in V1 (vertex, staging, readback). The readback buffer is
+- Buffers are host-visible in V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables)) (vertex, staging, readback). The readback buffer is
   `TRANSFER_DST` with host-random access.
 - Textures are `SAMPLED | TRANSFER_DST`, uploaded through a staging buffer, then transitioned to
   `SHADER_READ_ONLY_OPTIMAL`. Each texture owns its sampler and descriptor set.
@@ -95,7 +95,7 @@ Rules:
   then composite as a texture. Preserves 2D ordering/clipping and supports transparency.
 - **Inline** (advanced): record into the current frame target at the node viewport with a depth
   attachment. Opaque/full-bleed only; no 2D children; depth clear/order constraints apply.
-- `onDemand` renders on changes; `continuous` animates while visible and pauses when
+- `onDemand` (render only when the element changes) renders on changes; `continuous` animates while visible and pauses when
   hidden/occluded/backgrounded.
 - Targets/pipelines are cached; no per-frame pipeline creation; old targets retire after frames
   in flight. No raw backend/OS handles, no runtime shader compilation.
@@ -110,7 +110,7 @@ exists so batching, clipping, transforms, and command sequencing can be tested o
 
 - **B1:** offscreen target, one frame in flight, full redraw, synchronous submit/wait.
 - **B2:** fixed-step loop, dirty style/layout/paint/render, retained draw lists/layers, bounded
-  caches, damage rectangles on the offscreen path.
+  caches, damage rectangles (regions to redraw, see [`dirty-rendering.md`](dirty-rendering.md)) on the offscreen path.
 - **B3:** window + swapchain, acquire/present, `maxFps`, vsync modes, dynamic refresh/VRR,
   incremental present/damage where the platform supports it; resize/DPI/lifecycle and
   old-swapchain retirement follow [`window-resize.md`](window-resize.md).
@@ -131,17 +131,17 @@ batched2d_poc --backend null
 
 Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 
-`--golden` disables AA. A pixel golden pipeline on lavapipe/software (ADR-009) is B2/B3 work.
+`--golden` disables AA. A pixel golden pipeline on lavapipe/software (lavapipe = Mesa software Vulkan driver; [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests) is B2/B3 work.
 
 ## B2 / known limits
 
 - B1 is offscreen only; no window or swapchain.
 - B1 always full-redraws; dirty caches/damage are B2/B3.
-- One frame in flight; no timeline semaphores or multi-frame pipelining yet.
-- No FPS cap, vsync/VRR, or dynamic refresh yet; these are B3 window-path features.
+- One frame in flight (frames in flight = frames submitted to the GPU but not yet finished); no timeline semaphores (Vulkan synchronization primitive) or multi-frame pipelining yet (listed under B2 in AGENTS.md).
+- No FPS cap, vsync/VRR (variable refresh rate), or dynamic refresh yet; these are B3 window-path features.
 - No Yoga layout; scene nodes use explicit bounds.
 - No text shaping or glyph atlas.
-- No vector path rasterizer (ADR-004).
-- No sRGB/color-management policy yet (ADR-001 follow-up).
-- No bindless/descriptor indexing; one descriptor set per texture.
+- No vector path rasterizer ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buy vector-path rasterization).
+- No sRGB/color-management policy yet (follow-up to [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md); no release assigned).
+- No bindless/descriptor indexing (Vulkan features letting shaders index many textures from one set); one descriptor set per texture.
 - Pixel goldens from lavapipe/software are not wired yet.

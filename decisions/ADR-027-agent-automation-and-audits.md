@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-009, ADR-017, ADR-022, ADR-025
+- Related: [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests), [ADR-017](ADR-017-input-and-fixed-step-runtime.md) (input and fixed-step runtime loop), [ADR-022](ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling), [ADR-025](ADR-025-error-boundaries.md) (error boundaries)
 
 ## Context
 
@@ -20,16 +20,16 @@ response-time metrics, not just counters or vendor GPU utilization.
    pins a target. List items use `(UiId, ItemKey)`.
 3. **Scene/snapshot API:** nodes carry `(NodeId, UiId, ComponentId)`; snapshots and queries use
    numeric IDs; actions go through the normal input path.
-4. **Headless harness:** deterministic fake HAL + fixed clock/size/DPI/fonts/locale; structural,
-   golden (software/lavapipe), GPU smoke, and audit modes; JSON scripts; report/snapshot/trace.
+4. **Headless harness:** deterministic fake HAL (hardware/OS abstraction layer) + fixed clock/size/DPI/fonts/locale; structural,
+   [golden](../docs/reference/glossary.md) (software/[lavapipe](../docs/reference/glossary.md)), GPU smoke, and audit modes; JSON scripts; report/snapshot/trace.
 5. **Agent protocol:** line-delimited JSON over local stdin/stdout or socket; serialized
    commands; decimal-string IDs; timeouts; no network exposure.
 6. **Lighthouse-style audits:** measure startup, interaction latency (`input_to_handler`,
    `handler_to_paint`, `interaction_to_next_paint` p50/p95/p99), rendering, resources,
    reliability, accessibility, memory/power; report raw metrics + category/overall scores.
-7. **CI:** structural tests on PRs, goldens on software/lavapipe, audits with thresholds, GPU
+7. **CI (continuous integration):** structural tests on PRs, goldens on software/lavapipe, audits with thresholds, GPU
    smoke only; no GPU baseline updates.
-8. **Privacy/overhead:** automation/audit disabled by default in release; no PII; redaction;
+8. **Privacy/overhead:** automation/audit disabled by default in release; no PII (personally identifiable information); redaction;
    no pixel/output changes when disabled.
 
 ## Consequences

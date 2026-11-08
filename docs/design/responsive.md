@@ -1,7 +1,7 @@
 # Responsive UI, safe areas, and fold postures
 
-Status: design for Big Step B2/B3. Depends on the stylesheet, layout, window-resize, and
-OS-events specs.
+Status: design for Big Step B2/B3 (runtime slice and window/swapchain phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Depends on the stylesheet ([`stylesheet-v1.md`](../specs/stylesheet-v1.md)), layout ([`layout.md`](layout.md)), window-resize ([`window-resize.md`](window-resize.md)), and
+OS-events ([`os-events-v1.md`](../specs/os-events-v1.md)) specs.
 
 Responsive behavior is a function of **metrics**, not a separate UI mode. The same component
 tree adapts to size, DPI, orientation, safe areas, multi-window, and fold posture. Mobile
@@ -9,41 +9,41 @@ surface/input/IME/declaration details are in [`mobile-integration.md`](mobile-in
 
 ## 1. Inputs
 
-From `WindowMetrics` (`docs/specs/os-events-v1.md`):
+From `WindowMetrics` ([glossary](../reference/glossary.md); defined in [`os-events-v1.md`](../specs/os-events-v1.md)):
 
 - logical/physical size, DPI/scale
 - orientation
-- safe area (notch/cutout/system bars/IME)
+- safe area (notch/cutout/system bars/IME = input method editor, on-screen keyboard)
 - work area (taskbar/dock/panels)
 - fold: state, orientation, occlusion, separating, hinge bounds
-- multi-window / PiP / desktop windowing
-- display id, refresh/VRR, HDR/color
+- multi-window / PiP (picture-in-picture) / desktop windowing
+- display id, refresh/VRR (variable refresh rate), HDR (high dynamic range)/color
 - text scale, locale/layout direction, reduced motion, high contrast
 
 ## 2. Breakpoints and media queries
 
-CSS `@media` V1:
+CSS `@media` V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables); the normative list is in [`stylesheet-v1.md`](../specs/stylesheet-v1.md)):
 
 - `min-width`/`max-width`, `min-height`/`max-height`
 - `orientation: portrait|landscape`
 - `resolution` / `min-resolution`
 - `prefers-color-scheme`
 - `prefers-reduced-motion`
-- `prefers-contrast` (later)
-- `display-mode` (later)
+- `prefers-contrast` (no release assigned; not listed in stylesheet-v1.md)
+- `display-mode` (no release assigned; not listed in stylesheet-v1.md)
 
 Breakpoints are app-authored; Tessera does not impose a fixed set. Recommended defaults for
-dashboard-style apps: compact < 600 dp, medium 600–839 dp, expanded >= 840 dp. Document that
-these are guidance, not semantics.
+dashboard-style apps: compact < 600 dp, medium 600–839 dp, expanded >= 840 dp. These values
+are guidance, not semantics.
 
-`@container` is parsed and evaluated in a later slice. Until then, use size classes derived
+`@container` is parsed but not evaluated; evaluation has no release assigned (stylesheet-v1.md calls it "Later"; open question, section 10). Until then, use size classes derived
 from metrics or explicit props.
 
 ## 3. Size classes
 
 The runtime may expose derived size classes (compact/medium/expanded) as custom properties or
 media-query-like inputs. They are computed from the **window** (not the display) and update on
-resize/fold/multi-window. Container size classes are later.
+resize/fold/multi-window. Container size classes have no release assigned (see section 10).
 
 ## 4. Safe areas
 
@@ -62,6 +62,8 @@ resize/fold/multi-window. Container size classes are later.
 | `HALF_OPENED` | `VERTICAL` | book: left/right logical panes |
 | `occlusion=FULL` | any | hinge is not visible/touchable; never place content there |
 | `separating=true` | any | treat as two logical areas; split content/controls |
+
+Fold terms (`FLAT`, `HALF_OPENED`, occlusion, separating, hinge bounds) are defined in [`os-events-v1.md`](../specs/os-events-v1.md) (`FoldInfo`, see the glossary).
 
 Rules:
 
@@ -82,17 +84,16 @@ Rules:
 ## 7. Text scale, locale, and accessibility
 
 - Text scale (font scale) reflows layout; do not clip text.
-- RTL flips logical start/end; icons with direction are mirrored only when semantically
-  appropriate.
+- RTL flips logical start/end; icons with direction are mirrored only when the icon declares `mirror` (see [`component-library.md`](component-library.md) section 8.1).
 - High contrast/reduced motion change colors/motion via media queries/inputs.
-- Touch targets remain >= platform minimum (44/48 dp) after scaling where possible.
+- Touch targets remain >= platform minimum (44/48 dp, density-independent pixels) after scaling; behavior when scaling makes this impossible is not specified.
 
 ## 8. Invalidation
 
-- Size/orientation/safe-area/fold/text-scale/locale changes -> root layout dirty.
+- Size/orientation/safe-area/fold/text-scale/locale changes -> root layout dirty (dirty = needs recomputation, see [`dirty-rendering.md`](dirty-rendering.md)).
 - Breakpoint changes -> style dirty for affected rules; layout/paint follow computed changes.
 - Fold posture changes -> style/layout dirty (container/query inputs).
-- Display/DPI change -> style/layout/paint; target may recreate (window-resize).
+- Display/DPI change -> style/layout/paint; target may recreate ([`window-resize.md`](window-resize.md)).
 - No full-tree rebuild unless the platform forces a restart; preserve state.
 
 ## 9. Testing

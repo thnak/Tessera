@@ -1,128 +1,185 @@
-# View transitions v1 (global UI transitions)
+# View transitions v1 (window-wide UI transitions)
 
-Status: proposed (Big Step B2/C; custom effects V1.1). Decision: ADR-035. Companion to
-[`animation-v1.md`](animation-v1.md), [`stylesheet-v1.md`](stylesheet-v1.md),
-[`shader-manifest-v1.md`](shader-manifest-v1.md), [`custom-elements-v1.md`](custom-elements-v1.md),
-[`overlays-and-layers-v1.md`](overlays-and-layers-v1.md), and
-[`../design/dirty-rendering.md`](../design/dirty-rendering.md).
+Status: proposed. Proposed scope: built-in effects and CSS keyframe effects are in "V1" (the first
+release scope, see the [glossary](../reference/glossary.md); its Big Step range is an open
+decision); shader effects are "V1.1" (the first release after V1; no date is set).
+Decision record: [ADR-035](../../decisions/ADR-035-view-transitions.md).
 
-A **view transition** animates the whole window from the old UI to the new UI after an atomic
-state change. Typical uses: theme switch with a circle reveal, route/locale/density switch with a
-crossfade or wipe, a stylised glitch. The API is deliberately shaped like the web View Transitions
-API (`document.startViewTransition`, `::view-transition-old/new(root)`) so web developers and
-design-time previews map 1:1 onto the native engine.
+## 0. How to read this document
 
-## 1. Scope
+### 0.1 Terms
 
-- One transition at a time, targeting the window `root`.
+| Term | Meaning in this document |
+|---|---|
+| View transition | An animation of the whole window from the old UI image to the new UI image after one state change |
+| Old image | A texture holding what the window showed before the state change (called texture `A`) |
+| New image | A texture holding the UI after the state change, rendered offscreen (called texture `B`) |
+| Update function | A synchronous function that performs the state change (for example `setTheme(next)`) |
+| Tick | One fixed-step update of the runtime loop, see [`game-loop.md`](../design/game-loop.md) |
+| Tick boundary | The point between two ticks; code that must not run mid-tick runs here |
+| Simulation clock | The loop's fixed-step clock; never the wall clock, see [`game-loop.md`](../design/game-loop.md) |
+| Skip | Apply the final state at once: render the new UI directly, release both textures, resolve `finished` |
+| Damage | The screen region that must be redrawn, see [`dirty-rendering.md`](../design/dirty-rendering.md) |
+| SDF | Signed distance field; the shader technique the batched 2D renderer already uses for rounded rectangles, see [`renderer.md`](../design/renderer.md) |
+| Framework default styles | Styles built into Tessera that apply before any developer stylesheet (the equivalent of a browser user-agent stylesheet) |
+| Reduced motion | The operating-system setting exposed as `prefers-reduced-motion`, handled as in [`animation-v1.md`](animation-v1.md) §4 |
+
+### 0.2 References used by number
+
+| Reference | Subject |
+|---|---|
+| [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) | Protected regions: developer C++ that code generation must preserve |
+| [ADR-019](../../decisions/ADR-019-power-aware-runtime.md) | Power-aware defaults; a static UI must produce no presents |
+| [ADR-021](../../decisions/ADR-021-async-runtime.md) | Async runtime; the UI thread never blocks; completions go through a bounded queue |
+| [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) | Structured, bounded diagnostics |
+| [ADR-024](../../decisions/ADR-024-native-first-boundaries.md) | No JavaScript/React runtime in production |
+| [ADR-025](../../decisions/ADR-025-error-boundaries.md) | Exceptions are caught at error boundaries |
+| [ADR-028](../../decisions/ADR-028-custom-native-elements.md) | Custom native elements; shaders are compiled at build time only |
+| [ADR-035](../../decisions/ADR-035-view-transitions.md) | The decision this document implements |
+| [`compiler.md`](../design/compiler.md) §4 | "Tier 1" rules: checks the compiler applies to React-style source |
+| [`shader-manifest-v1.md`](shader-manifest-v1.md) | How shaders are declared and validated for Vulkan and WebGPU |
+| [`resource-lifecycle-v1.md`](resource-lifecycle-v1.md) | Texture pool, retirement of GPU resources while frames are in flight |
+| [WCAG 2.3.1](https://www.w3.org/TR/WCAG22/#three-flashes-or-below-threshold) | Three Flashes or Below Threshold: no more than three flashes in any one-second period |
+
+## 1. Purpose and scope
+
+A view transition makes a window-wide change (theme switch, locale switch, route switch) look
+like a designed effect (circle reveal, crossfade, glitch) instead of an instant swap. The API
+follows the web View Transitions API (`document.startViewTransition`, `::view-transition-old`,
+`::view-transition-new`) so that web developers can reuse that knowledge. Tessera does not
+promise identical behavior to browsers; this document is the contract.
+
+In scope:
+- One transition at a time, applied to the whole window (`root`).
 - Built-in effects: `crossfade` (default), `circle-reveal`, `wipe`, `slide`.
-- Developer effects: CSS keyframes on the `::view-transition-*` pseudo-elements (V1) and
-  build-time shader effects declared in `ui/effects.json` (V1.1).
-- Reduced motion, power policy, interruption, determinism, tests.
-- Not in V1: per-element `view-transition-name` (shared elements), nested/scoped transitions,
-  async update callbacks, multi-pass or feedback effects, runtime shader source.
+- Developer effects written as CSS `@keyframes` on the `::view-transition-*` pseudo-elements (V1).
+- Developer effects written as build-time shaders declared in `ui/effects.json` (V1.1).
+- Reduced motion, low-power behavior, interruption, resource limits, determinism, tests.
 
-## 2. Principles
+Out of scope in V1 and V1.1 (rejected with a diagnostic; no release is scheduled):
+- Per-element `view-transition-name` (shared-element transitions).
+- Transitions that cover only a subtree of the window.
+- Async update functions (a function that returns a promise).
+- Effects that need more than one shader pass or that read previous output.
+- Shader source supplied at runtime.
 
-- **State commits first.** The update runs synchronously and the new UI is the truth for input,
-  focus, semantics, and automation. The old UI is a non-interactive image (same rule as
-  `animation-v1.md` §8).
-- **Native-first.** No JS runtime. The compiler lowers `startViewTransition` to C++ (§3).
-- **Deterministic.** Progress comes from the simulation clock; `seed` is derived, never random.
-- **Bounded and optional.** Textures are budgeted; failure to allocate degrades to an instant
-  update, never to an error or a stuck frame.
-- **Idle afterwards.** Zero presents/submissions after the transition finishes (ADR-019).
+## 2. Rules that apply to every transition
+
+1. **State changes first.** The update function runs synchronously. After it returns, the new UI
+   is the only UI that receives input, focus, semantics (accessibility) and automation IDs. The
+   old image is a picture only. Input and back/dismiss are never blocked while a transition runs.
+2. **No script runtime.** There is no JavaScript or React runtime in a production app
+   ([ADR-024](../../decisions/ADR-024-native-first-boundaries.md)). The compiler turns the DSL
+   call into C++ (section 3).
+3. **Deterministic.** Progress is computed from the simulation clock. Random values are never
+   used; the shader `seed` is computed from a counter (section 7).
+4. **Bounded.** The transition uses at most two window-sized textures. If they cannot be
+   allocated, the transition is skipped; this is not an error.
+5. **Idle afterwards.** When a transition finishes, no presents and no GPU submissions occur
+   until something else changes ([ADR-019](../../decisions/ADR-019-power-aware-runtime.md)).
 
 ## 3. API
 
-### 3.1 JSX/TS (design DSL)
+### 3.1 DSL (JSX/TSX)
 
 ```tsx
 const vt = startViewTransition(() => setTheme(next), {
-  effect: "circle-reveal",        // built-in id or manifest effect id
-  origin: "pointer",              // "pointer" | "center" | { x, y } in px
-  duration: "slow",               // token or ms
-  easing: "ease-in-out",
-  reducedMotion: "skip",          // "skip" (default) | "crossfade"
+  effect: "circle-reveal",   // built-in id (section 6) or an id from ui/effects.json (section 7)
+  origin: "pointer",         // "pointer" | "center" | { x, y }; see the origin rule below
+  duration: "slow",          // token (fast=120 ms, normal=200 ms, slow=320 ms) or a number of ms
+  easing: "ease-in-out",     // any easing listed in animation-v1.md section 4
+  reducedMotion: "skip",     // "skip" (default) or "crossfade"
 });
-vt.finished.then(() => {});       // resolves at the tick boundary after the last frame
-vt.skip();                        // jump to the end state
+vt.finished.then(() => {});  // resolves at a tick boundary after the last frame is presented
+vt.skip();                   // see "Skip" in section 0.1; safe to call more than once
 ```
 
-Tier-1 rules for the callback: a closure whose body contains only hook setters (`setX(...)`) and
-pure expressions. Anything else (I/O, `await`, effects, refs) is rejected loudly (AGENTS.md
-non-negotiable 8). `async` callbacks are rejected in V1.
+Origin rule:
+- `"pointer"`: the window position (device-independent pixels) of the most recent pointer-down or
+  pointer-up event handled before the update function was called. If there is none (for example,
+  the update came from a keyboard shortcut or a timer), the window center is used.
+- `"center"`: the window center.
+- `{ x, y }`: a position in window coordinates, device-independent pixels.
+
+The update function must contain only calls to state setters of hooks (for example `setX(...)`)
+and pure expressions. Any other construct (I/O, `await`, `useEffect`, refs) is a compile error
+under the Tier 1 rules in [`compiler.md`](../design/compiler.md) §4. An `async` update function is
+also a compile error.
 
 ### 3.2 Generated C++
 
 ```cpp
 namespace tessera::ui::animation {
 struct ViewTransitionSpec {
-    EffectId effect = EffectId::Crossfade;     // built-in or manifest-generated id
-    Origin origin = Origin::Center();          // pointer | center | point(px)
+    EffectId effect = EffectId::Crossfade;     // built-in id, or an id generated from ui/effects.json
+    Origin origin = Origin::Center();          // Pointer, Center, or a point in px
     Duration duration = Duration::Token(DurationToken::Slow);
     Easing easing = Easing::EaseInOut();
     ReducedMotion reduced = ReducedMotion::Skip;
-    EffectParams params;                       // bounded, validated against the manifest
+    EffectParams params;                       // limited to the keys and ranges in the manifest
 };
 
 class ViewTransition {
 public:
     static ViewTransition start(UpdateFn update, const ViewTransitionSpec& spec);
-    Completion ready();      // old captured, update applied, first frame composed
-    Completion finished();   // all frames presented, resources released
-    void skip();             // idempotent
+    Completion ready();      // old image captured, update applied, first composed frame ready
+    Completion finished();   // last frame presented and textures released
+    void skip();
 };
 }
 ```
 
 - `UpdateFn` is a synchronous `void()` called on the UI thread at a tick boundary.
-- Completions are delivered through the bounded completion queue (ADR-021); no detached tasks.
-- An exception in `update` is routed to the nearest error boundary (ADR-025) and the transition
-  is skipped (state change that happened before the throw is kept, as for any event handler).
-- Developer C++ may call `ViewTransition::start` from a `[DEVELOPER_LOGIC_START: bind::id]`
-  region; it survives regeneration like any developer logic.
+- `Completion` values are delivered through the bounded completion queue defined in
+  [ADR-021](../../decisions/ADR-021-async-runtime.md). No detached tasks are used.
+- If `update` throws, the exception goes to the nearest error boundary
+  ([ADR-025](../../decisions/ADR-025-error-boundaries.md)) and the transition is skipped. State
+  changes made before the throw are kept, as for any event handler.
+- Developer C++ may call `ViewTransition::start` inside a protected region
+  (`[DEVELOPER_LOGIC_START: bind::id]`, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)).
 
 ## 4. Lifecycle
 
 ```text
 Idle -> Capturing -> Updating -> Composing -> Finished -> Idle
           |            |            |
-          +------------+------------+--> Skipped (any error/cancel) -> Idle
+          +------------+------------+--> Skipped (error, cancel, or any rule in section 8/9) -> Idle
 ```
 
-1. **Capturing** (tick boundary): obtain the *old image* = the last presented frame if its
-   target is still valid and clean, else render the current tree to texture `A`. In
-   deterministic mode always re-render at this tick. Pending input for this tick is already
-   drained.
-2. **Updating**: run `update()`. Style transitions/keyframes are **not started** for the
-   style recalc caused by this update (`suppressTransitions`), so the theme change is not
-   animated twice. Layout/style/paint run normally for the new tree.
-3. **Composing**: render the new tree into texture `B`; each tick compose `A` + `B` with the
-   effect at `progress = clamp((now - start) / duration)` through the easing. Everything is
-   sampled by the fixed-step clock before style/layout/paint.
-4. **Finished**: free `A`/`B` through resource lifecycle retirement (frames in flight),
-   restore normal direct rendering, drop to idle. Damage on the last tick is the full window;
-   afterwards no wake source remains.
+"Composing" means the old image and the new image are drawn together by the effect.
 
-Input, focus, back/dismiss, and automation always see the new tree. The old image has
-`pointer-events: none` and no semantics node. A transition never changes layout semantics or
-automation IDs.
+1. **Capturing** (at a tick boundary, after this tick's input is processed): the old image is the
+   last presented frame if its render target is still valid and has no pending damage;
+   otherwise the current tree is rendered into texture `A`. In deterministic mode the current
+   tree is always re-rendered into `A`.
+2. **Updating**: call the update function. For the style recalculation caused by this call only,
+   CSS transitions and keyframe animations are not started. This prevents the change from being
+   animated twice (once per node and once by the view transition). Style, layout and paint then
+   run for the new tree as usual.
+3. **Composing**: render the new tree into texture `B`. On each tick, draw `A` and `B` with the
+   effect at `progress = easing(clamp((now - start) / duration, 0, 1))`, where `now` is the
+   simulation clock. Progress is computed before style, layout and paint, as for other animations.
+4. **Finished**: release `A` and `B` (section 9), return to direct rendering, and stop requesting
+   frames. The last composed tick has full-window damage; after it, nothing remains scheduled.
+
+During Composing, the old image has `pointer-events: none` and has no accessibility node. The
+transition never changes layout or automation IDs.
 
 ## 5. Pseudo-elements and CSS
 
-The UA generates a fixed tree during Composing:
+During Composing, Tessera creates this fixed tree above all overlay layers:
 
 ```text
-::view-transition                      (window-sized, above all layers)
+::view-transition                       (window-sized)
  └─ ::view-transition-group(root)
      └─ ::view-transition-image-pair(root)
-         ├─ ::view-transition-old(root)   (texture A)
-         └─ ::view-transition-new(root)   (texture B)
+         ├─ ::view-transition-old(root)   (shows texture A)
+         └─ ::view-transition-new(root)   (shows texture B)
 ```
 
-Default UA styles: `old` and `new` are opaque, full window; the built-in effect animation is
-applied to them. Developers override with normal `animation`/`@keyframes`:
+The framework default styles make `old` and `new` opaque and window-sized, and apply the
+built-in effect's keyframes (section 6). A developer overrides them with normal `animation`
+and `@keyframes` rules that use the same selectors:
 
 ```css
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
@@ -136,43 +193,49 @@ applied to them. Developers override with normal `animation`/`@keyframes`:
 }
 ```
 
-UA-injected custom properties on `:root` while Composing: `--vt-x`, `--vt-y` (origin px),
-`--vt-r` (distance from origin to the farthest window corner), `--vt-w`, `--vt-h`,
-`--vt-duration`, `--vt-progress` (0..1, read-only, for `calc()` use).
+Custom properties that Tessera sets on `:root` while Composing:
 
-V1 CSS subset (anything else on these pseudo-elements is a loud diagnostic):
+| Property | Value |
+|---|---|
+| `--vt-x`, `--vt-y` | Origin position in px (section 3.1 origin rule) |
+| `--vt-r` | Distance in px from the origin to the farthest window corner |
+| `--vt-w`, `--vt-h` | Window size in px |
+| `--vt-duration` | Duration in ms, with unit (for example `320ms`) |
+| `--vt-progress` | Eased progress, number from 0 to 1; read-only; usable inside `calc()` |
 
-| Property | V1 | Notes |
+Properties allowed on these pseudo-elements in V1. Any other property is a diagnostic:
+
+| Property | Allowed | Note |
 |---|---|---|
-| `animation*`, `@keyframes` | yes | Fixed-step sampling |
-| `opacity`, `transform` | yes | Paint-only |
-| `clip-path` | `circle()`, `inset([round])`, `ellipse()` | Only on view-transition pseudos; rendered with an SDF mask in the compositor; same shape function required for interpolation |
-| `mix-blend-mode` | no | later |
-| `filter`, `mask`, gradients | no | later |
-| `view-transition-name` | `root` only | other names are rejected (shared elements deferred) |
-| `view-transition-effect` | V1.1 | Tessera extension, selects a manifest effect |
+| `animation*`, `@keyframes` | yes | Sampled on the simulation clock |
+| `opacity`, `transform` | yes | Paint only; no layout |
+| `clip-path` | `circle()`, `inset()` (optionally with `round`), `ellipse()` only | Only on these pseudo-elements. Drawn with an SDF mask. Both keyframes must use the same function to be interpolated |
+| `z-index` | yes | Orders `old` and `new` |
+| `mix-blend-mode`, `filter`, `mask`, gradients | no | Not supported in V1 or V1.1 |
+| `view-transition-name` | `root` only | Any other value is a diagnostic |
+| `view-transition-effect` | V1.1 | Tessera extension: selects an effect from `ui/effects.json` (section 7) |
 
-Pseudo-elements are not selectable by app code, are not in the scene graph, and are absent from
-semantics and automation snapshots.
+These pseudo-elements cannot be selected from app code, are not nodes in the scene graph, and do
+not appear in semantics or automation snapshots.
 
 ## 6. Built-in effects
 
-| Effect | Behavior | Implementation |
+| Effect | Visible result | How it is defined |
 |---|---|---|
-| `crossfade` | `old` fades out, `new` fades in | opacity |
-| `circle-reveal` | `new` revealed by a growing circle from `origin` | `clip-path: circle` SDF mask |
-| `wipe` | `new` revealed by a moving straight edge (`direction` param) | `inset()` mask |
-| `slide` | `old` and `new` translate together | transform |
+| `crossfade` | Old image fades out while the new image fades in | `opacity` keyframes |
+| `circle-reveal` | A growing circle centered on the origin shows the new image | `clip-path: circle()` keyframes on `new` |
+| `wipe` | A straight edge moves across the window and shows the new image | `clip-path: inset()` keyframes on `new`; `direction` param: `left`, `right`, `up`, `down` |
+| `slide` | Old and new images move together | `transform` keyframes |
 
-Built-ins are generated as the same keyframes a developer could write, so the custom-CSS path
-and the built-in path share one implementation and one set of goldens. `circle-reveal` needs only
-a rounded-rect SDF with radius = half the side, which the batched 2D renderer already has; no path
-rasterizer is introduced.
+Each built-in effect is a `@keyframes` rule in the framework default styles. A developer rule
+with the same pseudo-element selector overrides it. `circle-reveal` uses the SDF already used for
+rounded rectangles, with radius equal to the circle radius; no general path rasterizer is added.
 
 ## 7. Shader effects (V1.1)
 
-For effects that cannot be expressed as opacity/transform/clip (glitch, RGB split, pixelate,
-dissolve), developers declare a build-time effect. No runtime shader source (ADR-028).
+Use a shader effect when opacity, transform and clip cannot express the look (glitch, RGB split,
+pixelate, dissolve). Shaders are compiled at build time; runtime shader source is rejected
+([ADR-028](../../decisions/ADR-028-custom-native-elements.md)).
 
 `ui/effects.json`:
 
@@ -194,97 +257,128 @@ dissolve), developers declare a build-time effect. No runtime shader source (ADR
 }
 ```
 
-Shader (`interface: "view-transition-effect"` in `shader-manifest-v1`): full-screen triangle,
-no vertex buffers, one pass, fragment inputs:
+`duration` is in milliseconds. `shader` must be the `name` of an entry in the shader manifest
+([`shader-manifest-v1.md`](shader-manifest-v1.md)). That manifest has no field today that marks a
+shader as a view-transition effect, and its `vertexLayout` and `bindings` describe the batched
+2D renderer. When this feature is implemented, `shader-manifest-v1.md` must be extended with a
+`kind` field (value `view-transition-effect`) and the fixed bindings listed below; this document
+does not change that file.
+
+Shader contract: one full-screen triangle, no vertex buffers, one pass.
 
 | Binding | Content |
 |---|---|
-| texture `old`, `new` | premultiplied sRGB window images, sampler fixed by the framework |
-| uniform block | `progress` (eased), `time` (sim seconds since start), `size` px, `origin` px, `scale` (DPI), `seed` (u32), `params` (declared floats/ints) |
+| texture `old`, texture `new` | Premultiplied-alpha sRGB images of the window; sampler chosen by the framework |
+| uniform block | `progress` (eased, 0 to 1), `time` (seconds on the simulation clock since start), `size` (px), `origin` (px), `scale` (DPI scale), `seed` (unsigned 32-bit integer), `params` (the declared numbers) |
 
-- `seed = hash(transition_counter, effect_id)`; same inputs => same frames. No wall clock,
-  no `rand`, no noise textures from disk beyond manifest resources.
-- GLSL → SPIR-V (Vulkan) and WGSL (WebGPU) variants are validated against the manifest like any
-  shader; both must pass the shared golden corpus.
-- Limits: one pass, no storage buffers, no feedback/history textures, bounded uniform size,
-  bounded `params` count; the framework owns render targets and sampler state.
-- `photosensitive: true` marks flashing/strobing risk: such effects are disabled by
-  reduced motion and low-power policy, and a lint rejects manifests whose declared peak
-  luminance flashes exceed 3 per second.
-- Developers can also parameterize an effect from CSS: `view-transition-effect: glitch(intensity 0.8)`
-  on `:root` (Tessera extension; the JSX option wins when both are present).
+- `seed = hash(transition_counter, effect_id)`. `transition_counter` is the number of view
+  transitions started since the runtime started. Identical inputs produce identical frames. No
+  wall clock, random function, or noise texture outside the manifest is used.
+- Shader sources exist in GLSL (compiled to SPIR-V for Vulkan) and WGSL (WebGPU), validated against
+  the manifest. Both must pass the shared golden corpus
+  ([`golden-tests-v1.md`](golden-tests-v1.md)).
+- Not allowed: more than one pass, storage buffers, textures that keep previous output, shader
+  access to render targets or samplers other than those listed above.
+- `photosensitive: true` means the effect can flash. Such an effect is turned into `crossfade`
+  when reduced motion is on or low-power mode is active (section 9). A golden test measures its
+  frame sequence against the WCAG 2.3.1 flash threshold (no more than three flashes in any
+  one-second period); an effect that fails the test cannot be added to the corpus.
+- CSS selection (Tessera extension): `view-transition-effect: glitch(intensity 0.8)` on `:root`.
+  If both the DSL option and the CSS property are present, the DSL option is used.
 
-## 8. Interruption, resize, lifecycle
+## 8. Interruption and lifecycle events
 
-- **Start during Composing:** capture the *currently composited output* as the new `A` (visual
-  continuity, no jump), end the running transition immediately (its `finished` resolves), then
-  proceed with Updating. At most one transition runs; a call arriving while a start is already
-  pending in the same tick is coalesced (last `update` wins, earlier updates still run in order).
-- **`skip()`:** jump to progress 1, release textures, resolve `finished`.
-- **Resize/DPI/swapchain loss/fold posture change:** skip (state is already new; re-layout
-  proceeds normally). Never keep stale-size textures.
-- **Hidden/occluded/minimized:** skip rather than pause; resuming must not show a stale image.
-- **Shutdown:** cancel, no callbacks after the runtime stops.
-- **Route/overlay transitions** (`animation-v1.md` §8) remain local; a view transition is drawn
-  above all overlay layers. If both occur, the local ones complete inside `B`.
+| Event while Composing | Result |
+|---|---|
+| `start` is called again | The currently composed output becomes the new old image (no visual jump). The running transition finishes at once (its `finished` resolves). Then the new transition starts at Updating. |
+| `start` is called more than once in the same tick | All update functions run in call order. One transition runs, using the options of the last call. |
+| `skip()` is called | Skip (section 0.1) |
+| Window resize, DPI change, swapchain loss, fold-posture change | Skip. The new UI is already committed and re-lays out normally. Stale-size textures are never kept. |
+| Window hidden, occluded, or minimized | Skip, not pause, so a resumed window never shows a stale image |
+| Runtime shutdown | Cancel; no callback runs after the runtime stops |
+| Route or overlay animation inside the new UI | Runs normally inside the new image. A view transition is drawn above all overlay layers. |
 
-## 9. Resources, power, accessibility
+## 9. Resources, power and accessibility
 
-- Two window-sized textures (`A`, `B`) from the framework pool, budgeted by
-  `viewTransition.maxBytes` (default 64 MiB; 4K RGBA8 pair ≈ 66 MB, so 4K needs a raised
-  limit or degrades). Over budget or allocation failure => skip. Never allocate per frame.
-- No `vkDeviceWaitIdle`/fence wait on the UI thread; retirement uses frames-in-flight rules.
-- `prefers-reduced-motion`: `reducedMotion: "skip"` (default) applies the update instantly;
-  `"crossfade"` allows a ≤120 ms opacity-only fade. Circle/wipe/slide/shader effects are never
-  used under reduced motion.
-- Power policy: shader effects fall back to `crossfade`; low-power/battery-saver => skip.
-- The transition is a wake source while Composing; pacing follows `maxFps`/vsync like any
-  animation. Damage is the full window while Composing; nothing afterwards.
-- Accessibility: semantics tree reflects the new state immediately; screen readers receive no
-  extra events for the animation. A theme switch must still announce the setting change through
-  its control, not the transition.
+Resources:
+- Two window-sized textures (`A`, `B`) come from the framework texture pool
+  ([`resource-lifecycle-v1.md`](resource-lifecycle-v1.md)) and are released by that document's
+  retirement rules (a texture is freed only after the GPU frames that use it complete).
+- Memory limit: configuration key `viewTransition.maxBytes`, default 64 MiB, for `A` plus `B`.
+  This key does not exist yet; add it to [`runtime-config-v1.md`](runtime-config-v1.md) when
+  implementing. A 3840x2160 RGBA8 texture is about 33 MB, so `A` plus `B` is about 66 MB and
+  exceeds the default; at that size the transition is skipped unless the key is raised.
+- If the limit is exceeded or allocation fails, the transition is skipped.
+- No textures are created per frame. The UI thread never waits on a GPU fence or on device idle
+  ([ADR-021](../../decisions/ADR-021-async-runtime.md)).
+
+Reduced motion (OS setting on):
+- `reducedMotion: "skip"` (default): apply the update with no animation.
+- `reducedMotion: "crossfade"`: an opacity-only crossfade of at most 120 ms.
+- `circle-reveal`, `wipe`, `slide` and shader effects are never run.
+
+Low power (power policy reports low-power or battery-saver, see
+[`performance.md`](../design/performance.md)):
+- Shader effects run as `crossfade`.
+- If battery-saver is active, the transition is skipped.
+
+Scheduling and accessibility:
+- While Composing, the transition requests frames like any animation and follows `maxFps` and
+  vsync. Damage is the full window while Composing and none afterwards.
+- The accessibility tree describes the new UI immediately. Screen readers receive no event for
+  the animation itself. A theme switch is announced by the control that changed it, not by the
+  transition.
 
 ## 10. Rendering notes
 
-- Compose in the batched 2D renderer as two textured full-window quads plus an SDF mask for
-  clip effects; shader effects replace the quad pass.
-- No backdrop filter/blur is introduced (damage tracking assumptions in `dirty-rendering.md`
-  stay valid; Composing simply forces full damage).
-- Color: sRGB in V1 (matches `animation-v1.md` §4). Alpha is premultiplied.
-- Text in `A`/`B` is rasterized at native scale; no resampling unless `scale` changes mid-flight
-  (which skips, §8).
-- WebGPU (Wasm viewer) uses the same lifecycle and pass structure. The design-time preview must
-  use the engine's implementation, not the browser's `document.startViewTransition`, so preview
-  and native match.
+- Compositing uses the batched 2D renderer: two textured full-window quads and, for clip
+  effects, an SDF mask. A shader effect replaces the quads' fragment shader.
+- No blur or backdrop filter is added; the damage rules in `dirty-rendering.md` are unchanged
+  (Composing simply marks the whole window as damaged).
+- Color: sRGB; alpha is premultiplied.
+- Text inside `A` and `B` is rasterized at the window's current DPI scale. DPI changes skip
+  the transition (section 8), so textures are never resampled.
+- The WebGPU backend (browser designer) uses the same lifecycle and passes. The browser designer
+  must use this engine implementation and must not call the browser's own
+  `document.startViewTransition`, so the preview matches native output.
 
 ## 11. Diagnostics
 
-Structured, bounded, optional (ADR-022): transition id, effect id, state transitions, duration,
-frames composed, bytes allocated, skip reason (`reducedMotion`, `powerSave`, `resize`, `budget`,
-`hidden`, `error`, `interrupted`), shader validation failures, CSS-subset violations,
-photosensitive downgrade. No pixel contents in logs.
+Records follow [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) (structured,
+bounded, optional): transition id, effect id, lifecycle state changes, duration, composed frame
+count, texture bytes, skip reason, shader validation failures, CSS-subset violations,
+photosensitive downgrade. Skip reasons: `reducedMotion`, `lowPower`, `resize`, `budget`, `hidden`,
+`error`, `interrupted`, `userSkip`. Pixel contents are never logged.
 
-## 12. Determinism and tests
+## 12. Tests
 
-- Fixed dt/start time/origin/seed; no wall clock or system animation settings in goldens.
-- Unit: lifecycle state machine, coalescing/interruption, skip reasons, suppressTransitions,
-  progress/easing sampling, `--vt-r` computation, clip interpolation (same-shape rule),
-  manifest validation (unknown id/param, range, traversal, oversize, photosensitive lint).
-- Golden (lavapipe/software): each built-in effect and a sample shader effect at progress
-  0, 0.25, 0.5, 0.75, 1.0; theme light→dark with circle origin at corners/center; RTL; DPI 1/2.
-- Headless: new tree receives input and semantics during Composing; old image absent from
-  snapshots; automation IDs unchanged; focus/back work mid-transition.
-- Resource: no leak after skip/interrupt/resize; budget exceed => instant update; static scene
-  after Finished produces zero presents/submissions.
-- Cross-backend: Vulkan and WebGPU outputs match within the golden tolerance.
-- Compiler: callback restricted to setters (rejects `await`, effects, refs); lowering golden.
+All tests use a fixed time step, fixed start time, fixed origin and fixed seed. No wall clock and
+no system animation settings are used in golden tests.
 
-## 13. Deferred/open questions
+- Unit: lifecycle states; interruption; same-tick calls; each skip reason; style transitions not
+  started during Updating; progress and easing values at fixed times; `--vt-r` value;
+  clip-path interpolation (same function required); manifest validation (unknown id, unknown
+  param, out-of-range value, path traversal, oversize file).
+- Golden (software rendering with Mesa lavapipe, see [`golden-tests-v1.md`](golden-tests-v1.md)):
+  each built-in effect and one sample shader effect at progress 0, 0.25, 0.5, 0.75 and 1.0; light
+  to dark theme with the origin at each corner and at the center; right-to-left layout; DPI
+  scale 1 and 2.
+- Headless ([`headless-automation-v1.md`](headless-automation-v1.md)): during Composing, the new
+  tree receives input and appears in semantics snapshots; the old image does not; automation IDs
+  are unchanged; focus and back work.
+- Resources: no leaked textures after skip, interruption or resize; budget exceeded gives an
+  instant update; after Finished a static scene produces zero presents and zero submissions.
+- Backends: Vulkan and WebGPU outputs match within the tolerance defined in
+  [`golden-tests-v1.md`](golden-tests-v1.md).
+- Compiler: update functions containing anything except setters are rejected; the lowering to
+  C++ matches a stored golden file.
 
-- Per-element `view-transition-name` and shared-element morphing.
-- Scoped/nested transitions (a subtree instead of the window).
-- Async `update` (promise) and "ready" gating on data.
-- Multi-pass and feedback shader effects; `mix-blend-mode`, `filter`, general `clip-path`.
-- Snapshot at reduced scale for shader effects to save memory.
-- Optimization: draw `new` live into the frame for clip-only effects, avoiding texture `B`.
-- Wide-gamut compositing.
+## 13. Open questions (no decision yet)
+
+- Shared-element transitions with `view-transition-name`.
+- Transitions limited to a subtree.
+- Async update functions and waiting for data before starting.
+- Multi-pass or feedback shader effects; `mix-blend-mode`, `filter`, general `clip-path`.
+- Rendering `A` at reduced resolution for shader effects to save memory.
+- Drawing the new UI directly to the frame (without texture `B`) for clip-only effects.
+- Wide-gamut color compositing.

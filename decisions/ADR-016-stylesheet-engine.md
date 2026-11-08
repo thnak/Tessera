@@ -2,12 +2,12 @@
 
 - Status: Proposed (direction accepted; parser/buy decision pending)
 - Date: 2026-11-07
-- Related: ADR-005, ADR-009, ADR-014, ADR-017, ADR-018
+- Related: [ADR-005](ADR-005-yoga-layout-adapter.md) (Yoga layout adapter), [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (deterministic headless golden tests), [ADR-014](ADR-014-project-config-format.md) (project config format), [ADR-017](ADR-017-input-and-fixed-step-runtime.md) (input and fixed-step runtime loop), [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame pacing)
 
 ## Context
 
-Tessera exposes a CSS-like UI model. ADR-005 commits to Yoga for Flexbox and a small Grid
-subset; the execution plan describes a controlled CSS subset. The product direction is now a
+Tessera exposes a CSS-like UI model. [ADR-005](ADR-005-yoga-layout-adapter.md) commits to Yoga for Flexbox and a small Grid
+subset; the execution plan (a planning document that is not in this repository) describes a controlled CSS subset. The product direction is now a
 **full CSS engine** with web stylesheet support, while keeping native rendering deterministic
 and browser-free.
 
@@ -15,7 +15,7 @@ A literal implementation of every CSS module is unbounded: selectors, cascade, i
 custom properties, at-rules, media/container queries, color spaces, flex/grid, transitions,
 animations, and vendor quirks. A browser engine cannot be embedded without violating the
 native/deterministic constraints. Stylo/Servo would add Rust, a large runtime, and a DOM model
-that conflicts with the scene graph.
+that conflicts with the [scene graph](../docs/reference/glossary.md).
 
 ## Decision
 
@@ -27,7 +27,7 @@ that conflicts with the scene graph.
    No browser, DOM, JavaScript, or platform text API dependency.
 3. Match selectors against a minimal `StyleNode` interface (tag/id/classes/attributes/
    pseudo-states/parent/siblings). The scene graph adapts to it; no HTML DOM.
-4. Implement the cascade with origins (UA/user/author/inline), `!important`, specificity,
+4. Implement the cascade with origins (UA = user agent, user, author, inline), `!important`, specificity,
    source order, inheritance, and custom properties with `var()` fallback/cycle handling.
 5. Expand shorthands and validate values through a property registry that produces a typed
    `ComputedStyle` (layout, paint, animation groups).
@@ -40,9 +40,9 @@ that conflicts with the scene graph.
 9. If full semantic coverage becomes an unsustainable maintenance burden, isolate a mature
    parser/cascade (for example `libcss`) behind the `CssParser` interface and record a
    follow-up ADR. Do not embed a browser engine or Stylo in V1.
-10. V1 semantic priorities: box model, Flexbox, small Grid subset, typography, colors,
+10. [V1](../docs/reference/glossary.md) semantic priorities: box model, Flexbox, small Grid subset, typography, colors,
     borders/radius/shadows, 2D transforms, transitions/keyframes, `@media`, `@supports`,
-    `@layer`, `@font-face` parsing, custom properties. Later: `:has()`, `@container`,
+    `@layer`, `@font-face` parsing, custom properties. Not in the V1 priority list (no release is named): `:has()`, `@container`,
     `@scope`, `@property`, wide-gamut colors, full Grid.
 
 ## Consequences
@@ -77,5 +77,5 @@ that conflicts with the scene graph.
 - Implement selector matching, specificity, cascade, inheritance, custom properties.
 - Publish the compatibility matrix in [`docs/specs/stylesheet-v1.md`](../docs/specs/stylesheet-v1.md)
   and keep it current.
-- Add parser fuzzing and deterministic computed-style dumps to CI.
+- Add parser fuzzing and deterministic computed-style dumps to CI (continuous integration).
 - Decide build-time precompilation format (binary AST vs generated tables).

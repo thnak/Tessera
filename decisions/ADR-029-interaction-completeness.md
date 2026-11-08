@@ -2,19 +2,19 @@
 
 - Status: Accepted
 - Date: 2026-11-07
-- Related: ADR-007, ADR-017, ADR-018, ADR-025
+- Related: [ADR-007](ADR-007-compiler-ir.md) (compiler intermediate representation), [ADR-017](ADR-017-input-and-fixed-step-runtime.md) (input and fixed-step runtime loop), [ADR-018](ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame pacing), [ADR-025](ADR-025-error-boundaries.md) (error boundaries)
 
 ## Context
 
-The framework defines rendering, scene graph, input, virtualization, and error boundaries, but
+The framework defines rendering, [scene graph](../docs/reference/glossary.md), input, virtualization, and error boundaries, but
 real applications also need text editing, scroll/gesture arbitration, layers above the base tree,
 and form validation. Without these, every app reinvents fragile widgets.
 
 ## Decision
 
 1. **Text editing** is a core primitive: `TextInput`/`TextArea`, grapheme/bidi selection,
-   caret/composition, IME, undo/redo, clipboard, secure fields, accessibility, deterministic
-   tests. Text/plain is V1; rich text is later.
+   caret/composition, IME (input method editor), undo/redo, clipboard, secure fields, accessibility, deterministic
+   tests. Text/plain is [V1](../docs/reference/glossary.md); rich text is not part of V1 (see the deferral in [ADR-033](ADR-033-app-completeness-gap-resolutions.md) (app-completeness gap resolutions)).
 2. **Scroll/gesture** is one system: `Scroll` container, physics, nested scroll/chaining,
    snap/paging, scrollbars/anchoring, and a gesture arena (tap/drag/pinch/rotate) on the
    normalized pointer stream.
@@ -33,7 +33,7 @@ and form validation. Without these, every app reinvents fragile widgets.
 - More surface area in UI runtime and component library.
 - Text/IME/gesture behavior must be platform-tested, not just golden-tested.
 - Overlay focus/back interactions need careful integration with navigation.
-- Forms validation must integrate i18n/accessibility.
+- Forms validation must integrate i18n (internationalization)/accessibility.
 
 ## Alternatives
 

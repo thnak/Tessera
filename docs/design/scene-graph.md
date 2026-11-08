@@ -19,7 +19,7 @@ Derived values:
 - `world_bounds()` = axis-aligned bounding box of the four transformed corners
 
 There is no implicit clipping in the scene graph. Clipping is a paint concern handled by the
-batched 2D renderer's scissor stack.
+batched 2D renderer's ([`renderer.md`](renderer.md)) scissor stack (axis-aligned GPU clip rectangles).
 
 `UiId`/`ComponentId` are stable build-time IDs for coding agents/traces; `NodeId` is the live
 instance. List/grid items are identified by `(UiId, ItemKey)`. Snapshot/query APIs and the
@@ -31,13 +31,13 @@ input, and paint/render work to it. Offscreen/inline composition and input are d
 
 ## Dirty state
 
-Each node carries dirty bits:
+Each node carries dirty bits (invalidation flags; see "Dirty domain" in the [glossary](../reference/glossary.md)):
 
 - `StyleDirty` — class/id/attribute/pseudo-state/theme/inline-style changed.
 - `LayoutDirty` — a layout-affecting style change, child add/remove, text/font change, or resize.
 - `PaintDirty` — paint-affecting style change, transform/clip/visibility, layout move/resize,
   texture/atlas change.
-- `RenderDirty` — any paint change, target resize, damage, or explicit request.
+- `RenderDirty` — any paint change, target resize, damage (screen region to redraw), or explicit request.
 
 Marking walks ancestors and sets `has_dirty_descendant`; it does not walk the whole subtree
 unless the change is subtree-affecting (`display:none`, visibility, transform/clip, theme scope).
@@ -61,13 +61,13 @@ groups actually change.
   1. return null if the node is invisible;
   2. visit children in reverse order (topmost first);
   3. finally test the node itself.
-- Parent clipping and rounded-rect hit regions are deferred to B2.
+- Parent clipping and rounded-rect hit regions are deferred to B2 (runtime slice of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)).
 
 ## Events
 
-Event types in V1: `PointerDown`, `PointerUp`, `PointerMove`.
+Event types in V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables)): `PointerDown`, `PointerUp`, `PointerMove`.
 
-Dispatch is W3C-style:
+Dispatch is W3C-style (the DOM event model of the World Wide Web Consortium):
 
 1. hit-test to find the target;
 2. build the path from root to target;
@@ -78,7 +78,7 @@ Dispatch is W3C-style:
 `Event::stop_propagation()` stops the remaining handlers immediately. `handled` is advisory and
 does not stop propagation by itself.
 
-The dispatcher is UI-thread-only. No locking, no async delivery, no event pooling yet.
+The dispatcher is UI-thread-only. No locking, no async delivery, and no event pooling (not implemented; no plan is written down).
 
 ## Tests
 
@@ -89,8 +89,8 @@ The dispatcher is UI-thread-only. No locking, no async delivery, no event poolin
 
 ## B2 direction
 
-- Yoga adapter produces `bounds` from flex/grid styles.
+- Yoga adapter (Flexbox layout engine, see [glossary](../reference/glossary.md); [`layout.md`](layout.md)) produces `bounds` from flex/grid styles.
 - Full dirty-bit plumbing into style/layout/paint caches.
-- Focus, keyboard, pointer capture, hover/active state, and IME.
-- Accessibility tree mirroring the node tree.
+- Focus, keyboard, pointer capture, hover/active state, and IME (input method editor); see [`input.md`](input.md).
+- Accessibility tree mirroring the node tree ([`accessibility.md`](accessibility.md)).
 - Rounded-rect/path clip regions in the renderer, with matching hit testing.
