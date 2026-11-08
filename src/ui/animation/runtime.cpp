@@ -69,34 +69,19 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
     std::vector<AnimationEntry> finished;
     for (AnimationEntry& entry : entries_) {
         if (entry.paused) {
-            AnimationSample sample = sample_entry(entry, entry.elapsed);
-            result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
-            result.samples.push_back(std::move(sample));
             continue;
         }
 
         entry.elapsed += dt;
         if (!is_finished(entry)) {
-            AnimationSample sample = sample_entry(entry, entry.elapsed);
-            result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
-            result.samples.push_back(std::move(sample));
             continue;
         }
 
         result.finished.push_back(entry.id);
         if (entry.timing.fill == FillMode::Forwards || entry.timing.fill == FillMode::Both) {
             entry.elapsed = entry.timing.delay + entry.timing.duration * entry.timing.iterations;
-            AnimationSample sample = sample_entry(entry, entry.elapsed);
-            result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
-            result.samples.push_back(std::move(sample));
         }
         finished.push_back(std::move(entry));
-    }
-
-    for (const AnimationEntry& fill : fills_) {
-        AnimationSample sample = sample_entry(fill, fill.elapsed);
-        result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
-        result.samples.push_back(std::move(sample));
     }
 
     entries_.erase(std::remove_if(entries_.begin(), entries_.end(),
@@ -126,6 +111,17 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
     }
     for (FinishedCallback& entry : callbacks) {
         entry.callback(entry.id);
+    }
+
+    for (const AnimationEntry& entry : entries_) {
+        AnimationSample sample = sample_entry(entry, entry.elapsed);
+        result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
+        result.samples.push_back(std::move(sample));
+    }
+    for (const AnimationEntry& fill : fills_) {
+        AnimationSample sample = sample_entry(fill, fill.elapsed);
+        result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
+        result.samples.push_back(std::move(sample));
     }
 
     result.keep_awake = std::any_of(entries_.begin(), entries_.end(),

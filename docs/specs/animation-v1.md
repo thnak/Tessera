@@ -47,8 +47,9 @@ stopping a target/name pair removes only that animation and its retained fill. R
 target/name pair or a single id rewinds matching active entries and revives retained fills from
 their start.
 Completion callbacks run after forwards/both fills are retained, so clearing, stopping, or replacing
-from a callback removes or supersedes that fill. Target/name state exposes active and settled counts
-for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+from a callback removes or supersedes that fill. Samples and dirty domains are produced after
+callbacks, so the tick result reflects the post-callback runtime without stale entries. Target/name
+state exposes active and settled counts for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),

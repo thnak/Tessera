@@ -301,6 +301,13 @@ target_link_libraries(animation_restart_id_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_restart_id COMMAND animation_restart_id_tests)
 
+add_executable(animation_tick_reentrancy_tests
+    animation_tick_reentrancy_tests.cpp)
+
+target_link_libraries(animation_tick_reentrancy_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_tick_reentrancy COMMAND animation_tick_reentrancy_tests)
+
 add_executable(easing_tests
     easing_tests.cpp)
 
