@@ -25,6 +25,12 @@ jobs:
           python3 -m pip install --user clang-format==22.1.3
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Select lavapipe ICD
+        run: |
+          icd="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -n1)"
+          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
+          echo "VK_ICD_FILENAMES=$icd" >> "$GITHUB_ENV"
+
       - name: Format check
         run: bash scripts/format.sh --check
 
@@ -43,13 +49,9 @@ jobs:
           fi
 
       - name: Tests (null + lavapipe + validation)
-        env:
-          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
         run: ctest --preset ci --output-on-failure
 
       - name: Vulkan offscreen PoC (lavapipe)
-        env:
-          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
         run: |
           ./build/ci/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
             --out offscreen.png --no-validation
