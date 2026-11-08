@@ -67,7 +67,6 @@ below is a summary:
 | viewer -> host | `ready`, `error`, `diagnostic` | status/logs |
 | viewer -> host | `selection.changed` | picked component/node ids + source span |
 | viewer -> host | `source.patch` | minimal text edit from a style commit (host/editor applies) |
-| viewer -> host | `state.patch` | optional state restore after reload |
 
 The bridge is local-only by default; no remote code execution. Never expose arbitrary
 filesystem/network access to the browser context.
@@ -129,7 +128,8 @@ source change -> hash -> viewer front end (changed components) -> IR diff
 - Pick mode: hovering highlights the node under the pointer (its box, margin and padding areas,
   and its name); clicking selects it. The default selection is the deepest component instance
   under the pointer. Its primitive nodes (View, Text, and so on) and its ancestors are selected
-  through the breadcrumb or the tree panel; keyboard modifiers are not defined yet.
+  through the breadcrumb or the tree panel, or by `Alt` click (primitive) and `Ctrl`/`Cmd` click (parent
+  instance) as in [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) section 8.1.
 - Selection can also be set from the tree panel or from the editor cursor (`source -> node`).
 - The overlay (highlight, handles, guides) is drawn on a designer-only layer: no semantics,
   no automation IDs, no effect on input routing while pick mode is off, excluded from goldens.
@@ -170,10 +170,9 @@ source change -> hash -> viewer front end (changed components) -> IR diff
 
 ## 10. Open questions
 
-- Wasm module size/startup budget; parse on the main thread tick vs a Web Worker.
-- Whether the designer can run with no native host (using the browser File System Access API or
-  an editor inside the page) or always requires the native host.
+- Wasm module size/startup budget. (The front end runs in a Web Worker and the designer requires a host in
+  V1: [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) sections 11 and 14.)
 - Patch format for hot reload (IR diff vs generated C++ diff).
-- State preservation across structural changes.
+- State preservation across structural changes (not in V1: [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) section 14).
 - Dawn version and WebGPU feature floor.
 - Multi-view/multi-window preview.

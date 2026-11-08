@@ -52,9 +52,8 @@ Not in scope:
 - Editing component props or children (no release scheduled, [`designer.md`](../design/designer.md) section 8.2).
 - Writing files from the viewer. Only the host writes files.
 - Editing developer C++ or any text inside a protected region ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)).
-- The transport (WebSocket, `postMessage`, stdio). This document defines the message content only;
-  the transport is not specified yet (section 14).
-- Binary encoding. All messages are JSON ([`designer.md`](../design/designer.md) section 3).
+- Other transports than those of section 2.1 (for example stdio). Message content is defined here;
+  the two V1 transports are defined in section 2.1.
 
 ## 2. Envelope
 
@@ -84,7 +83,29 @@ Rules:
   is not processed. Minor changes in this protocol add optional fields and new message types only.
 - Messages from one sender are processed in the order sent. There is no ordering guarantee between
   the two directions.
-- Maximum message size and the maximum number of open requests are not specified yet (section 14).
+- Size and request limits are in section 2.1.
+
+### 2.1 Transport and limits
+
+The envelope is the same on every transport. V1 defines two:
+
+| Transport | Use | Rules |
+|---|---|---|
+| WebSocket | The default: a viewer page served by the host | URL `ws://127.0.0.1:<port>/designer`, where `<port>` is `dev.preview.port` ([`project-config-v1.md`](project-config-v1.md)). One message per text frame, UTF-8 JSON. The host binds the loopback interface only and checks the `Origin` header against the origin that served the page |
+| `postMessage` | A viewer embedded in an editor webview | One message per `postMessage` call, the envelope as a structured-clone object. The viewer accepts messages only from its parent window and only with the origin the editor gave it at start |
+
+Limits, which both sides enforce before parsing. A violation is answered with `error` code
+`TESSERA_DESIGNER_LIMIT`, and the message is not processed:
+
+| Limit | Value |
+|---|---|
+| Message size | 8 MiB (8388608 bytes) of JSON text |
+| One project file in `project.load` or `source.update` | 1 MiB, the same as `ui.limits.maxFileBytes` |
+| Open requests per sender | 64 |
+| Assets | Not sent as messages. `asset.update` lists paths; the viewer fetches each file by HTTP `GET /assets/<path>` from the origin that served it, within the limits of [`resources.md`](../design/resources.md) section 2.1 |
+
+There is no binary encoding; all messages are JSON ([`designer.md`](../design/designer.md) section 3).
+These values were chosen by the assistant as starting points.
 
 ## 3. Common types
 
@@ -181,7 +202,6 @@ host                                   viewer
 | `style.override.result` | response | `ok`, `diagnostics`, `overrides` (array of `{node, property, value}` after the operation) | Answer to an override request |
 | `style.commit.result` | response | `ok`, optional `reason`, optional `patchId` | Section 10 |
 | `source.patch` | event | `patchId`, `baseVersions` (object path → file version), `edits` (array of TextEdit) | Section 10.2 |
-| `state.patch` | event | `components` (array of `{componentId, instanceKey, state}`) | Optional state snapshot taken before a reload so the viewer can restore it afterwards; its format is not specified yet (section 14) |
 
 ## 7. Source synchronization
 
@@ -228,6 +248,11 @@ placeholder). `span` is the component declaration's span in the version that was
   `hover.changed` when the node under the pointer changes, at most once per rendered frame, and a
   click selects the node under the pointer instead of being delivered to the UI. The click is
   consumed: it does not reach any component handler.
+- A click selects by modifier: no modifier selects the deepest component instance under the pointer;
+  `Alt` selects the primitive node (View, Text, and so on) under the pointer; `Ctrl` (or `Cmd` on macOS)
+  selects the parent component instance of the deepest one, and each further `Ctrl` or `Cmd` click on the
+  same spot selects the next ancestor. The hover highlight follows the same modifiers. Ancestors and
+  primitives can also be chosen with `selection.set` ([`designer.md`](../design/designer.md) section 8.1).
 - While pick mode is off, the viewer routes input to the UI normally and sends no `hover.changed`.
 - The node under the pointer is the deepest component instance's root-most node by default; finer
   selection uses `selection.set` with `node` or `parent` ([`designer.md`](../design/designer.md)
@@ -304,7 +329,7 @@ operations the commit consumed.
 | `destination` | Extra fields | What is edited |
 |---|---|---|
 | `"inline"` | none | The `style` attribute of the JSX element for `node` in its component source; it is created if absent. The change affects every instance of that component, because it edits the source |
-| `"class"` | `className` (string) | The rule for `.className` in the project CSS file named by `file` (extra field); the rule is appended to that file if missing. If the element does not list `className`, the `className` attribute is edited to add it |
+| `"class"` | `className` (string) | The rule for `.className` in the project CSS file named by `file` (extra field); the rule is appended to that file if missing. The file must already be a project file: a commit never creates a CSS file. If the element does not list `className`, the `className` attribute is edited to add it |
 | `"token"` | `token` (string, for example `--accent`) | The value of the existing token declaration in the token file; the node's override must be of a property whose value is `var(<token>)` or the commit is rejected with `reason: "not_token_bound"` |
 
 All of the node's current overrides are committed together. A commit of a node with no overrides
@@ -353,7 +378,12 @@ The viewer sends no new `source.patch` for the same node while a patch for it is
 - `hover.changed` and `selection.changed` are coalesced to the latest state per rendered frame.
 - The viewer never blocks the browser main thread on a host message
   ([AGENTS.md non-negotiable 12](../../AGENTS.md#non-negotiables)); processing that could take
-  long is run in a way that keeps the page responsive. How is not specified (section 14).
+  long runs off the main thread: the viewer runs the front end in a dedicated Web Worker, separate from the
+  thread that renders. The worker parses and builds IR for one batch at a time, in arrival order. While a
+  batch is being processed, newer `source.update` messages are queued and merged as section 7.2 allows,
+  so a result for a version that a later queued message already replaces is discarded and never
+  applied. The main thread applies the IR of a finished batch between frames. `source.applied` is sent
+  only after that application.
 
 ## 12. Errors
 
@@ -387,16 +417,16 @@ An error never ends the session and never leaves the viewer without a frame.
 
 ## 14. Open questions (no decision yet)
 
-- Transport between host and shell (WebSocket, `postMessage` from an editor webview, stdio) and the
-  maximum message size, the maximum open requests, and the size limits for files and assets.
-- Content and encoding of `state.patch` and whether state restoration is part of V1.
-- Whether the viewer may run the front end in a Web Worker ([`designer.md`](../design/designer.md)
-  section 10) and, if so, how section 11 changes.
-- Keyboard modifiers for picking an ancestor or primitive by click
-  ([`designer.md`](../design/designer.md) section 8.1).
-- Whether `style.commit` to `"class"` may create a new CSS file.
-- Whether the designer can run with no host ([`designer.md`](../design/designer.md) section 10); this
-  protocol assumes a host exists.
+None. Decided and recorded: transports and limits (2.1), front end in a Web Worker (11), pick modifiers
+(8.1), no CSS file creation (10.1), and the two decisions below. These were chosen by the assistant as
+defaults and may be revised by the project owner.
+
+**State.** V1 has no state snapshot or restore. After a reload the viewer keeps only the selection
+(section 8.2); component state starts from its initial values. A `state.patch` message is not defined;
+adding one is a minor protocol change.
+
+**Host.** The viewer always works with a host. With no host connection it shows a "no host" status and
+loads no project; a mode that reads project files in the browser itself is not part of V1.
 
 ## 15. Tests
 
@@ -412,3 +442,6 @@ An error never ends the session and never leaves the viewer without a frame.
   `version_mismatch`, `PATCH_MISMATCH` detection, patch round trip gives the same IR and clears the
   override ([`designer.md`](../design/designer.md) section 9).
 - Security: path rejection, edit to a non-UI file rejected, oversized input.
+- Transport limits: message over 8 MiB, file over 1 MiB, 65th open request, wrong `Origin`.
+- Worker: a result superseded by a newer queued `source.update` is never applied; `source.applied` follows application.
+- Picker modifiers: plain, `Alt`, repeated `Ctrl`/`Cmd` click up the ancestors.
