@@ -2,8 +2,9 @@
 
 Status: design for Big Step B2 (runtime slice, rendered offscreen) and B3 (window/swapchain path); both
 are defined in [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). The
-deterministic fixed-step accumulator is implemented in `src/runtime/fixed_step.*`; HAL clock,
-pacing, and presentation remain design-only. Normative
+deterministic fixed-step accumulator is implemented in `src/runtime/fixed_step.*`, with a clock
+interface and deterministic `ManualClock` in `src/runtime/clock.*`; HAL/system clock, pacing, and
+presentation remain design-only. Normative
 terms are used by [`runtime-config-v1.md`](../specs/runtime-config-v1.md) (runtime config keys and
 defaults). Design basis: [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input and
 fixed-step runtime), [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty
