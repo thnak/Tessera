@@ -153,10 +153,38 @@ std::size_t AnimationRuntime::pause_target(std::uint64_t target) {
     return count;
 }
 
+std::size_t AnimationRuntime::pause_target_name(std::uint64_t target, std::string_view name) {
+    if (name.empty()) {
+        return 0;
+    }
+    std::size_t count = 0;
+    for (AnimationEntry& entry : entries_) {
+        if (entry.target == target && entry.keyframes.name == name) {
+            entry.paused = true;
+            ++count;
+        }
+    }
+    return count;
+}
+
 std::size_t AnimationRuntime::resume_target(std::uint64_t target) {
     std::size_t count = 0;
     for (AnimationEntry& entry : entries_) {
         if (entry.target == target) {
+            entry.paused = false;
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::size_t AnimationRuntime::resume_target_name(std::uint64_t target, std::string_view name) {
+    if (name.empty()) {
+        return 0;
+    }
+    std::size_t count = 0;
+    for (AnimationEntry& entry : entries_) {
+        if (entry.target == target && entry.keyframes.name == name) {
             entry.paused = false;
             ++count;
         }

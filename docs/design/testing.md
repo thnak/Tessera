@@ -79,6 +79,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `animation_runtime` | start/tick/finish, callbacks, stop/clear, target/property stop, wake state, dirty domains |
 | `animation_fill` | retained forward/both finals, no wake or repeat callback, overlay persistence, supersession, stop/clear cleanup |
 | `animation_pause` | per-id/target pause/resume, held samples, no completion or wake while paused, invalid dt wake rules |
+| `animation_pause_name` | exact target/name pause/resume counts, idempotence, sibling/target isolation, paused-only sleep, fills ignored |
 | `animation_stop` | target-wide stop count, paused entries removed, other targets preserved, no callbacks, target zero |
 | `animation_stop_name` | exact target/name stop, active and retained fills, case sensitivity, siblings preserved, no stopped callback |
 | `animation_restart` | active elapsed reset/unpause, retained fill revival, callback repeat, exact name/target isolation |

@@ -57,7 +57,9 @@ public:
     bool pause(AnimationId id);
     bool resume(AnimationId id);
     std::size_t pause_target(std::uint64_t target);
+    std::size_t pause_target_name(std::uint64_t target, std::string_view name);
     std::size_t resume_target(std::uint64_t target);
+    std::size_t resume_target_name(std::uint64_t target, std::string_view name);
     std::size_t stop_target(std::uint64_t target);
     std::size_t stop_target_name(std::uint64_t target, std::string_view name);
     bool restart_target_name(std::uint64_t target, std::string_view name);
