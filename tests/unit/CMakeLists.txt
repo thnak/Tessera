@@ -56,6 +56,13 @@ target_link_libraries(clock_tests PRIVATE tessera_runtime)
 
 add_test(NAME clock COMMAND clock_tests)
 
+add_executable(hal_timer_tests
+    hal_timer_tests.cpp)
+
+target_link_libraries(hal_timer_tests PRIVATE tessera_runtime tessera_hal_timer)
+
+add_test(NAME hal_timer COMMAND hal_timer_tests)
+
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)
 

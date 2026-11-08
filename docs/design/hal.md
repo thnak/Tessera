@@ -1,8 +1,8 @@
 # HAL and platform layer
 
-Status: design for Big Step B3 (window/swapchain path; see
-[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/hal/` and
-`src/platform/` are placeholders today. Decision record:
+Status: the B2 timer seam is implemented in `src/hal/timer/` (`tessera_hal_timer`); the rest of
+`src/hal/` and `src/platform/` is design for Big Step B3 (window/swapchain path; see
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision record:
 [ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (window resize and lifecycle; OS
 compliance lives in the HAL) and
 [ADR-023](../../decisions/ADR-023-os-event-normalization-and-foldables.md) (OS event normalization
@@ -24,13 +24,32 @@ or `NSWindow*`.
 | Input | pointer, keyboard, touch, pen, wheel, IME, focus/capture | WM_POINTER/WM_KEY, XInput2/XKB, wl_seat, Android MotionEvent, NSEvent |
 | Lifecycle | activate/deactivate, show/hide, minimize/restore, suspend/resume, lock/unlock, shutdown | WM_*, X11/Wayland, Android Activity/scene, Cocoa |
 | Power | AC/battery, battery saver, thermal, screen on/off | power GUIDs, logind/UPower, Android PowerManager, NSProcessInfo |
-| Timer | monotonic clock, sleep/wakeup, frame deadlines | OS timers + runtime loop |
+| Timer | monotonic clock, bounded idle wait, frame deadlines | `src/hal/timer/` (portable), OS timers/event waits in B3 |
 | Filesystem | paths, watch, atomic write, asset roots | Win32, inotify/FSEvents, Android assets |
 | Graphics | surface creation/destruction, resize handshake | Vulkan surface extensions per platform |
 | Audio | optional notification/UI sounds | miniaudio (optional; see [`dependencies.md`](../specs/dependencies.md)) |
 
 The detailed OS event mapping is normative in [`os-events-v1.md`](../specs/os-events-v1.md).
 Resize/DPI/lifecycle rules are in [`window-resize.md`](window-resize.md).
+
+### 1.1 Timer seam (implemented)
+
+`src/hal/timer/steady_time.*` is the first implemented HAL module (`tessera_hal_timer`, B2):
+
+- `steady_now_seconds()` returns monotonic seconds from a fixed epoch whose origin is arbitrary
+  (typically boot), backed by `std::chrono::steady_clock`; values may be compared and subtracted
+  but are not wall-clock time.
+- `seconds_until(now, deadline)` is the pure boundary helper: `max(0, deadline - now)`; a NaN
+  comparison yields `0`.
+- `wait_until_seconds(deadline)` performs one bounded sleep and never spins. It returns immediately
+  when the deadline is already past or the remaining duration is non-finite.
+
+The UI thread may idle in `wait_until_seconds` between ticks because the wait is bounded by the
+next deadline and holds no locks; [ADR-021](../../decisions/ADR-021-async-runtime.md) treats this
+as idling rather than blocking. Early wakeups from input, async completions, and
+`request_frame()` require the B3 platform event/timer wait and are not provided by this portable
+primitive. `runtime::SystemClock` (`src/runtime/system_clock.*`) is the only runtime adapter and
+delegates here; `src/hal/` never depends on `src/runtime/`.
 
 ## 2. Core types
 
@@ -190,13 +209,16 @@ See [`window-resize.md`](window-resize.md) for the state machine and
 - Synthetic event scripts per platform: resize, DPI, display hotplug, refresh/VRR, fold,
   suspend/resume, lock/unlock, IME, power/thermal.
 - A fake HAL for unit tests: deterministic `WindowSystem`/`Window`/`GraphicsSurface`.
+- Timer seam: pure boundary math, prompt return for past deadlines, and a non-decreasing clock,
+  without real sleeps for scheduling assertions.
 - Golden mode (deterministic reference-image tests, [`golden-tests-v1.md`](../specs/golden-tests-v1.md)) never calls platform APIs.
 - Platform smoke tests run in CI on Windows and Linux (the only platforms with a build in AGENTS.md Definition of done).
 - Multi-monitor/DPI and fold sequences are explicit test fixtures.
 
 ## 10. Current status
 
-- `src/hal/*` and `src/platform/*` contain placeholders only.
+- `src/hal/timer/` is implemented (`tessera_hal_timer`): monotonic clock + bounded idle wait.
+- Other `src/hal/*` and `src/platform/*` contain placeholders only.
 - B1 is offscreen; no window or swapchain.
 - B3 implements the window/swapchain path and native platform backends (Windows and Linux per Big Step F; macOS via [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per [`mobile-integration.md`](mobile-integration.md)).
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).
