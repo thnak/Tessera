@@ -9,7 +9,9 @@ a Yoga measure callback, backed by a bounded `TextMeasureCache` (capacity config
 the default `StubTextMeasurer` is deterministic until the real text stack lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
 leaving unchanged boxes clean and marking changed ones paint/render dirty. Incremental relayout is
 not wired yet. `add_scene_damage` consumes a `DirtyPass` result, filters `Paint`/`Render` nodes,
-snaps their world bounds with `pixel_snap`, and feeds the damage accumulator.
+snaps their world bounds with `pixel_snap`, and feeds the damage accumulator. `DamageTracker` retains
+the previous world bounds per node (bounded LRU), damages both old and new rects when a node moves,
+and prunes ids no longer present in the scene.
 [ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md) (Yoga layout adapter) requires the adapter
 and the documented rounding rule below. Terms (`ComputedStyle`, Yoga, golden, scene graph) are in
 [`glossary.md`](../reference/glossary.md). Style inputs come from the stylesheet engine

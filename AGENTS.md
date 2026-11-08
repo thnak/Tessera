@@ -416,7 +416,8 @@ measurement is wired through `ui/text/text_measure.hpp` and a Yoga measure callb
 deterministic stub until the real text stack lands. `apply_layout` writes absolute boxes back to
 scene nodes as parent-relative bounds with dirty propagation, and `ui/layout/pixel_snap.hpp` holds
 the paint-time edge-snapping contract (fractional layout stays unchanged). `add_scene_damage` turns
-dirty Paint/Render scene bounds into snapped damage rectangles. `@supports` evaluates
+dirty Paint/Render scene bounds into snapped damage rectangles, and `DamageTracker` keeps prior
+bounds to damage both old and new positions. `@supports` evaluates
 `not`/`and`/`or` declarations against the property registry. `ui/animation/keyframes.hpp` samples
 parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation, and
 `ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, and

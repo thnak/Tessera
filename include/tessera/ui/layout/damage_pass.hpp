@@ -6,6 +6,9 @@
 #include "tessera/ui/scene/dirty_pass.hpp"
 
 #include <cstddef>
+#include <list>
+#include <optional>
+#include <unordered_map>
 
 namespace tessera::ui::layout {
 
@@ -18,5 +21,32 @@ struct DamagePassResult {
 
 DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccumulator& damage,
                                   float dpi_scale = 1.0f, float margin = 0.0f);
+
+class DamageTracker {
+public:
+    explicit DamageTracker(std::size_t max_entries = 4096);
+
+    DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccumulator& damage,
+                                      float dpi_scale = 1.0f, float margin = 0.0f);
+
+    std::size_t prune_removed(const Node& root);
+    void clear();
+
+    [[nodiscard]] std::size_t entries() const;
+    [[nodiscard]] std::size_t capacity() const {
+        return capacity_;
+    }
+    [[nodiscard]] std::optional<rendering::rhi::Rect> previous_bounds(NodeId id) const;
+
+private:
+    struct Entry {
+        NodeId id = 0;
+        rendering::rhi::Rect bounds;
+    };
+
+    std::list<Entry> entries_;
+    std::unordered_map<NodeId, std::list<Entry>::iterator> index_;
+    std::size_t capacity_ = 0;
+};
 
 } // namespace tessera::ui::layout

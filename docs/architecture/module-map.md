@@ -117,7 +117,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga mapping + boxes + cached measure callback |
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |
-| `ui/layout/damage_pass.hpp` | dirty Paint/Render scene bounds -> snapped damage rects |
+| `ui/layout/damage_pass.hpp` | dirty bounds -> damage rects + previous-bounds tracker |
 | `runtime/async.hpp` | cancellation + ManualExecutor + prioritized completion queue (B2) |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |

@@ -57,6 +57,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `layout_apply` | id matching, parent-relative bounds, dirty propagation, missing/extra boxes |
 | `pixel_snap` | half-up/negative symmetry, scales 1/1.25/2, clamp below 1, joined edges |
 | `damage_pass` | Paint/Render filtering, snapped world bounds, merge, DPI scale, cap/full-redraw, overflow |
+| `damage_tracker` | old+new bounds, unchanged dirty, prune removed, retention eviction, capacity guard |
 | `animation` | linear/unit/discrete interpolation, delay/fill, reverse/alternate, infinite iterations |
 | `animation_runtime` | start/tick/finish, callbacks, stop/clear, wake state, dirty domains |
 | `easing` | linear/presets/bezier identity/steps variants, parser rejection, sampler integration |

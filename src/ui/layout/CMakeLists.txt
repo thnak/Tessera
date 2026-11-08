@@ -3,6 +3,7 @@
 add_library(tessera_layout STATIC
     apply_layout.cpp
     damage_pass.cpp
+    damage_tracker.cpp
     layout_engine.cpp
     pixel_snap.cpp)
 
