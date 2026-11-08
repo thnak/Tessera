@@ -32,7 +32,8 @@ public:
         std::size_t peak_in_flight = 0;
     };
 
-    IoExecutor(WorkerExecutor& workers, CompletionQueue& completions, Config config = {});
+    IoExecutor(WorkerExecutor& workers, CompletionQueue& completions);
+    IoExecutor(WorkerExecutor& workers, CompletionQueue& completions, Config config);
 
     IoExecutor(const IoExecutor&) = delete;
     IoExecutor& operator=(const IoExecutor&) = delete;

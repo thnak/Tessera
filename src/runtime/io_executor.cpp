@@ -19,6 +19,9 @@ void update_peak(std::atomic<std::size_t>& peak, std::size_t value) {
 
 } // namespace
 
+IoExecutor::IoExecutor(WorkerExecutor& workers, CompletionQueue& completions)
+    : IoExecutor(workers, completions, Config{}) {}
+
 IoExecutor::IoExecutor(WorkerExecutor& workers, CompletionQueue& completions, Config config)
     : workers_(&workers),
       completions_(&completions),
