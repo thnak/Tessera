@@ -89,8 +89,9 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/null/null_device.hpp` | null device + command stats |
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
-| `ui/scene/node.hpp` | retained scene node, hit testing, dispatch |
+| `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
 | `ui/scene/event.hpp` | event types/phases |
+| `ui/dirty.hpp` | style/layout/paint/render/resource/GPU dirty bitmask |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 
 `src/compiler/merger/include/tessera/compiler/merger.hpp` is a build-time public header for the

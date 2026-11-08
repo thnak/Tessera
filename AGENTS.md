@@ -105,7 +105,8 @@ Repo + build + the two riskiest proofs.
       (ADR-017).
 - [ ] **B2:** Fixed-step runtime loop: accumulator core in `src/runtime/fixed_step.*`; HAL clock,
       pacing, and deterministic driver pending (ADR-017).
-- [ ] **B2:** Dirty rendering: style/layout/paint/render domains, caches, damage (ADR-018).
+- [ ] **B2:** Dirty rendering: node domain bitmask + ancestor aggregation in `ui/dirty.hpp` and
+      `ui/scene/node.cpp`; caches, draw-list rebuild, damage pending (ADR-018).
 - [ ] **B2:** Frame pacing: `maxFps`, vsync modes, dynamic refresh/VRR, render-on-demand
       (ADR-018).
 - [ ] **B2:** Power-aware defaults: idle/on-demand, adaptive quality, occlusion/background

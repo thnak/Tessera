@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/dirty.hpp"
 #include "tessera/ui/scene/event.hpp"
 
 #include <cstdint>
@@ -35,25 +36,28 @@ public:
     }
     Node& add_child(std::unique_ptr<Node> child);
 
-    void set_bounds(const rhi::Rect& bounds) {
-        bounds_ = bounds;
-    }
+    void set_bounds(const rhi::Rect& bounds);
     [[nodiscard]] const rhi::Rect& bounds() const {
         return bounds_;
     }
 
-    void set_transform(const rhi::Mat3& transform) {
-        transform_ = transform;
-    }
+    void set_transform(const rhi::Mat3& transform);
     [[nodiscard]] const rhi::Mat3& transform() const {
         return transform_;
     }
 
-    void set_visible(bool visible) {
-        visible_ = visible;
-    }
+    void set_visible(bool visible);
     [[nodiscard]] bool visible() const {
         return visible_;
+    }
+
+    void mark_dirty(Dirty flags);
+    void clear_dirty(Dirty flags);
+    [[nodiscard]] Dirty dirty() const {
+        return dirty_;
+    }
+    [[nodiscard]] Dirty subtree_dirty() const {
+        return subtree_dirty_;
     }
 
     [[nodiscard]] rhi::Mat3 world_transform() const;
@@ -65,12 +69,16 @@ public:
     virtual void on_event(Event& event);
 
 private:
+    void refresh_subtree_dirty();
+
     NodeId id_ = 0;
     Node* parent_ = nullptr;
     std::vector<std::unique_ptr<Node>> children_;
     rhi::Rect bounds_;
     rhi::Mat3 transform_;
     bool visible_ = true;
+    Dirty dirty_ = Dirty::None;
+    Dirty subtree_dirty_ = Dirty::None;
 };
 
 bool dispatch_event(Node& root, Event& event);

@@ -29,6 +29,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `merger_unit` | protected-region extraction/merge/idempotency/CRLF/warnings |
 | `rhi_null` | null backend (RHI backend with no GPU) device commands, buffer round-trip |
 | `scene_graph` | hit testing, capture/target/bubble, stop propagation |
+| `scene_dirty` | dirty domains, ancestor aggregation, clear/recompute, setter invalidation |
 | `fixed_step` | fixed-timestep accumulator, clamp, catch-up cap, time scale |
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |

@@ -33,6 +33,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `merger_unit` | protected-region merger (keeps developer C++ across regeneration) extraction/merge/idempotency/CRLF/warnings |
 | `rhi_null` | null device command stats, buffer round-trip |
 | `scene_graph` | world bounds, deep hit testing, capture/target/bubble, stop propagation |
+| `scene_dirty` | dirty domains, ancestor aggregation, clear/recompute, setter invalidation |
 | `fixed_step` | deterministic accumulator, delta clamp, catch-up cap, time scale |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |

@@ -12,15 +12,93 @@ namespace {
 
 constexpr float kEpsilon = 1.0e-6f;
 
+bool same_rect(const rhi::Rect& lhs, const rhi::Rect& rhs) {
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.width == rhs.width && lhs.height == rhs.height;
+}
+
+bool same_transform(const rhi::Mat3& lhs, const rhi::Mat3& rhs) {
+    for (int i = 0; i < 9; ++i) {
+        if (lhs.m[i] != rhs.m[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 Node::Node(NodeId id)
     : id_(id) {}
 
 Node& Node::add_child(std::unique_ptr<Node> child) {
+    child->mark_dirty(Dirty::Style | Dirty::Layout | Dirty::Paint | Dirty::Render);
     child->parent_ = this;
     children_.push_back(std::move(child));
+    mark_dirty(Dirty::Layout | Dirty::Paint | Dirty::Render);
+    refresh_subtree_dirty();
     return *children_.back();
+}
+
+void Node::set_bounds(const rhi::Rect& bounds) {
+    if (same_rect(bounds_, bounds)) {
+        return;
+    }
+    bounds_ = bounds;
+    mark_dirty(Dirty::Paint | Dirty::Render);
+}
+
+void Node::set_transform(const rhi::Mat3& transform) {
+    if (same_transform(transform_, transform)) {
+        return;
+    }
+    transform_ = transform;
+    mark_dirty(Dirty::Paint | Dirty::Render);
+}
+
+void Node::set_visible(bool visible) {
+    if (visible_ == visible) {
+        return;
+    }
+    visible_ = visible;
+    mark_dirty(Dirty::Layout | Dirty::Paint | Dirty::Render);
+}
+
+void Node::mark_dirty(Dirty flags) {
+    if (flags == Dirty::None) {
+        return;
+    }
+
+    dirty_ |= flags;
+    subtree_dirty_ |= flags;
+    for (Node* ancestor = parent_; ancestor != nullptr; ancestor = ancestor->parent_) {
+        if ((ancestor->subtree_dirty_ & flags) == flags) {
+            break;
+        }
+        ancestor->subtree_dirty_ |= flags;
+    }
+}
+
+void Node::clear_dirty(Dirty flags) {
+    const Dirty remaining = dirty_ & ~flags;
+    if (remaining == dirty_) {
+        return;
+    }
+    dirty_ = remaining;
+    refresh_subtree_dirty();
+}
+
+void Node::refresh_subtree_dirty() {
+    Dirty next = dirty_;
+    for (const auto& child : children_) {
+        next |= child->subtree_dirty();
+    }
+    if (next == subtree_dirty_) {
+        return;
+    }
+    subtree_dirty_ = next;
+    if (parent_ != nullptr) {
+        parent_->refresh_subtree_dirty();
+    }
 }
 
 rhi::Mat3 Node::world_transform() const {
