@@ -87,6 +87,9 @@ public:
     [[nodiscard]] const std::vector<AnimationEntry>& entries() const {
         return entries_;
     }
+    [[nodiscard]] const std::vector<AnimationEntry>& settled_entries() const {
+        return fills_;
+    }
 
 private:
     std::vector<AnimationEntry> entries_;

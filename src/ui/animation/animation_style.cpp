@@ -2,6 +2,7 @@
 
 #include "tessera/ui/animation/animation_style.hpp"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -116,6 +117,59 @@ std::size_t apply_style_play_state(AnimationRuntime& runtime, std::uint64_t targ
         ++changed;
     }
     return changed;
+}
+
+StyleAnimationSync sync_style_animations(AnimationRuntime& runtime, std::uint64_t target,
+                                         const style::ComputedStyle& style,
+                                         const std::vector<style::KeyframeBlock>& keyframes,
+                                         AnimationCallback on_complete) {
+    StyleAnimationSync result;
+    const AnimationParseResult parsed = parse_style_animations(style);
+    if (!parsed.ok) {
+        return result;
+    }
+    result.ok = true;
+
+    std::vector<std::string> desired;
+    for (const AnimationSpec& spec : parsed.animations) {
+        if (!spec.name.empty() && spec.name != "none") {
+            desired.push_back(spec.name);
+        }
+    }
+    const auto wanted = [&](const std::string& name) {
+        return std::find(desired.begin(), desired.end(), name) != desired.end();
+    };
+
+    std::vector<AnimationId> obsolete;
+    for (const AnimationEntry& entry : runtime.entries()) {
+        if (entry.target == target && !entry.keyframes.name.empty() &&
+            !wanted(entry.keyframes.name)) {
+            obsolete.push_back(entry.id);
+        }
+    }
+    for (const AnimationId id : obsolete) {
+        if (runtime.stop(id)) {
+            ++result.stopped;
+        }
+    }
+
+    obsolete.clear();
+    for (const AnimationEntry& entry : runtime.settled_entries()) {
+        if (entry.target == target && !entry.keyframes.name.empty() &&
+            !wanted(entry.keyframes.name)) {
+            obsolete.push_back(entry.id);
+        }
+    }
+    for (const AnimationId id : obsolete) {
+        if (runtime.stop(id)) {
+            ++result.stopped;
+        }
+    }
+
+    const std::size_t before = runtime.active();
+    result.ids = ensure_style_animations(runtime, target, style, keyframes, on_complete);
+    result.started = runtime.active() - before;
+    return result;
 }
 
 } // namespace tessera::ui::animation
