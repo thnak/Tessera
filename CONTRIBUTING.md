@@ -86,6 +86,8 @@ below is review-blocking.
 - **License header:** new repository source files carry `SPDX-License-Identifier: MIT`.
 - **Formatting/linting:** `.clang-format` (LLVM base, 4 spaces, 100 cols, pointer left) and
   `.clang-tidy`; run the scripts above before opening a PR.
+- **Warnings:** `TESSERA_WARNINGS_AS_ERRORS=ON` is the default (`-Werror`/`/WX`). Fix warnings;
+  suppress only the narrow third-party source that cannot be fixed.
 - **Dependencies:** static linking is required; no LGPL/GPL in statically linked code. Every new
   dependency needs entries in [docs/specs/dependencies.md](docs/specs/dependencies.md) and
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

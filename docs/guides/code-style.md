@@ -101,6 +101,7 @@ The build must be fast to rerun after a small edit.
 | EditorConfig | `.editorconfig` | Whitespace, line endings, charset |
 | CMake presets | `CMakePresets.json` | Reproducible `dev`, `release`, `ci`, VS presets |
 | Compiler cache | `cmake/CompilerCache.cmake` | Auto-detect `sccache`/`ccache` |
+| Warning policy | `CMakeLists.txt` (`TESSERA_WARNINGS_AS_ERRORS`) | `-Werror`/`/WX` on by default; CI keeps it on |
 | Format script | `scripts/format.ps1`, `scripts/format.sh` | Format or check the tree |
 | Lint script | `scripts/lint.ps1`, `scripts/lint.sh` | Run clang-tidy over the tree |
 
@@ -137,6 +138,7 @@ Local commands:
 This list is the style-related subset of the full definition of done in [AGENTS.md](../../AGENTS.md#definition-of-done-every-change).
 
 - `scripts/format.* --check` passes.
+- Build with `TESSERA_WARNINGS_AS_ERRORS=ON`; fix warnings instead of adding blanket suppressions.
 - `clang-tidy` reports no new warnings in changed files.
 - Files stay under the soft limit unless there is a documented reason (the hard limit of 500 lines has no exceptions except the Phase 0 PoC targets listed in AGENTS.md).
 - No new heavy include in a public header.

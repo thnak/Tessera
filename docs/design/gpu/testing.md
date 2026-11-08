@@ -20,7 +20,7 @@ proposed. Overall test strategy: [`../testing.md`](../testing.md); golden format
 | RHI contract | same command script on null/lavapipe/Vulkan | every CI (null); GPU job |
 | Integration | upload -> draw -> readback; resize; frames in flight | CI/software |
 | Golden | fixed offscreen images/structural reports | software/lavapipe |
-| GPU smoke | real device, tolerance, no baselines | optional/nightly |
+| GPU smoke | real device, tolerance, no baselines; validation layers when available | optional/nightly |
 | Stress/bench | resource churn, upload ring, frames in flight | nightly |
 
 ## 3. Directory tree

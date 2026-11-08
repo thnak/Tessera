@@ -10,6 +10,7 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +20,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake ninja-build libvulkan-dev vulkan-tools \
-            mesa-vulkan-drivers glslc glslang-tools
+            mesa-vulkan-drivers vulkan-validationlayers \
+            glslc glslang-tools
           python3 -m pip install --user clang-format==22.1.3
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
@@ -27,7 +29,7 @@ jobs:
         run: bash scripts/format.sh --check
 
       - name: Configure
-        run: cmake --preset ci
+        run: cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
         run: cmake --build --preset ci
@@ -40,10 +42,10 @@ jobs:
             exit 1
           fi
 
-      - name: Unit tests
+      - name: Tests (null + lavapipe + validation)
         env:
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-        run: ctest --preset ci
+        run: ctest --preset ci --output-on-failure
 
       - name: Vulkan offscreen PoC (lavapipe)
         env:
@@ -58,3 +60,44 @@ jobs:
           name: offscreen-png
           path: offscreen.png
           retention-days: 14
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (MSVC, null backend)
+        run: >
+          cmake --preset vs2022
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset vs2022-release
+
+      - name: Tests
+        run: ctest --preset vs2022-release --output-on-failure
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (AppleClang, null backend)
+        run: >
+          cmake -S . -B build/macos
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build/macos --parallel
+
+      - name: Tests
+        run: ctest --test-dir build/macos --output-on-failure

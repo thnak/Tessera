@@ -103,7 +103,8 @@ Repo + build + the two riskiest proofs.
 - [ ] **B2:** FreeType/HarfBuzz/SheenBidi/ICU + glyph atlas + text batching.
 - [ ] **B2:** Input handler: normalized events, focus, pointer capture, pseudo-state dispatch
       (ADR-017).
-- [ ] **B2:** Fixed-step runtime loop: accumulator, time scale, deterministic mode (ADR-017).
+- [ ] **B2:** Fixed-step runtime loop: accumulator core in `src/runtime/fixed_step.*`; HAL clock,
+      pacing, and deterministic driver pending (ADR-017).
 - [ ] **B2:** Dirty rendering: style/layout/paint/render domains, caches, damage (ADR-018).
 - [ ] **B2:** Frame pacing: `maxFps`, vsync modes, dynamic refresh/VRR, render-on-demand
       (ADR-018).
@@ -277,6 +278,8 @@ rules below are review-blocking unless a documented exception exists.
   wall clock, network, system fonts, random ids, or real-GPU baselines.
 - **Formatting/linting:** `.clang-format` (LLVM base, 4 spaces, 100 cols, pointer left) and
   `.clang-tidy`. Run `scripts/format.* --check` and `scripts/lint.*`; CI enforces both.
+- **Warnings:** `TESSERA_WARNINGS_AS_ERRORS=ON` by default (`-Werror`/`/WX`). Do not add a
+  blanket suppression; fix the warning or suppress the narrow third-party source.
 - **Build cache:** small translation units, stable public headers, no PCH/unity by default;
   `TESSERA_USE_COMPILER_CACHE=ON` auto-detects sccache/ccache.
 - **Project config:** `tessera.json` schema v1 (ADR-014); see
@@ -313,7 +316,8 @@ live in one place and are linked, not copied.
 
 ## Definition of done (every change)
 
-- [ ] Builds on Windows and Linux.
+- [ ] Builds with `TESSERA_WARNINGS_AS_ERRORS=ON` on Windows and Linux (macOS in CI where
+      supported).
 - [ ] Unit/integration tests pass (`ctest`).
 - [ ] Vulkan paths run clean under validation layers (debug builds).
 - [ ] No new dependency without entries in `docs/specs/dependencies.md` and
@@ -366,9 +370,11 @@ live in one place and are linked, not copied.
 
 ## Current focus
 
-**Big Step B2.** Implement the runtime slice in this order: stylesheet engine, Yoga adapter,
-input handler, fixed-step loop, dirty rendering, frame pacing/FPS/VRR, power-aware idle/adaptive
-defaults, async/await runtime, diagnostics/tracing, then text/glyph atlas and the
-lavapipe/software pixel golden pipeline. B3 adds the window/swapchain path with resize/DPI/OS
-lifecycle, normalized OS events, and mobile/foldable metrics. Keep the B1 RHI, batched 2D
-renderer, and scene graph stable while doing so.
+**Big Step B2.** The deterministic fixed-step accumulator core is implemented in
+`src/runtime/fixed_step.*` with tests. Continue the runtime slice in this order: stylesheet
+engine, Yoga adapter, input handler, wire the fixed-step loop to the HAL clock and pacing, dirty
+rendering, frame pacing/FPS/VRR, power-aware idle/adaptive defaults, async/await runtime,
+diagnostics/tracing, then text/glyph atlas and the lavapipe/software pixel golden pipeline. B3
+adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
+mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
+so.

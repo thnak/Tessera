@@ -14,6 +14,13 @@ target_link_libraries(scene_graph_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_graph COMMAND scene_graph_tests)
 
+add_executable(fixed_step_tests
+    fixed_step_tests.cpp)
+
+target_link_libraries(fixed_step_tests PRIVATE tessera_runtime)
+
+add_test(NAME fixed_step COMMAND fixed_step_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

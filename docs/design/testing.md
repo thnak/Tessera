@@ -26,15 +26,17 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | Performance | frame budgets, allocation counts, cache hit rates | nightly/benchmark |
 | Fuzz | parser/CSS/IR/asset decoders | scheduled |
 
-## 3. Current tests (B1)
+## 3. Current tests
 
 | Test | Covers |
 |---|---|
 | `merger_unit` | protected-region merger (keeps developer C++ across regeneration) extraction/merge/idempotency/CRLF/warnings |
 | `rhi_null` | null device command stats, buffer round-trip |
 | `scene_graph` | world bounds, deep hit testing, capture/target/bubble, stop propagation |
+| `fixed_step` | deterministic accumulator, delta clamp, catch-up cap, time scale |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
+| `batched2d_vulkan_validation` | Vulkan render with validation layers |
 | `merger_cli_help`, `merger_cli_idempotent` | merger CLI behavior |
 
 Run:
@@ -104,16 +106,17 @@ This is the structured feedback channel for automated visual regression fixes.
 
 ## 11. CI
 
-Current Linux CI:
+CI matrix (`.github/workflows/ci.yml`):
 
-1. install toolchain + lavapipe + `clang-format==22.1.3`
-2. format check
-3. configure/build (`ci` preset)
-4. static C++ runtime check (`ldd`)
-5. `ctest` with `VK_ICD_FILENAMES` pointing at lavapipe
-6. offscreen Vulkan smoke + artifact upload
+| Job | Toolchain | Coverage |
+|---|---|---|
+| Linux | GCC + Ninja + Vulkan SDK/lavapipe | format, full build with `TESSERA_WARNINGS_AS_ERRORS=ON`, null tests, Vulkan smoke + validation, static-runtime check, offscreen artifact |
+| Windows | MSVC + VS2022 | null/offscreen build with `TESSERA_WARNINGS_AS_ERRORS=ON`, tests |
+| macOS | AppleClang | null/offscreen build with `TESSERA_WARNINGS_AS_ERRORS=ON`, tests |
 
-Windows CI is not present yet (see [`build-and-packaging.md`](build-and-packaging.md) section 10); it should mirror: VS preset build, ctest, Vulkan smoke, format/lint, static link check.
+Linux is the full GPU gate (lavapipe is the deterministic software Vulkan driver); Windows/macOS
+gate portable compilation and the null/offscreen paths until their Vulkan SDK setup is added.
+Real-GPU runs are local/nightly smoke only, never golden baselines.
 
 ## 12. Test conventions
 

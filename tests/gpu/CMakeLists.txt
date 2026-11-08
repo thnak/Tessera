@@ -15,4 +15,8 @@ if (TARGET batched2d_poc)
         NAME batched2d_vulkan_smoke
         COMMAND batched2d_poc --backend vulkan --width 128 --height 128 --golden
             --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_smoke.png)
+    add_test(
+        NAME batched2d_vulkan_validation
+        COMMAND batched2d_poc --backend vulkan --width 128 --height 128 --validation --golden
+            --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_validation.png)
 endif()

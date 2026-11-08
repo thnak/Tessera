@@ -26,7 +26,7 @@ directories marked **planned** are seams, not implemented features. In the Statu
 | `src/compiler/ir/` | neutral IR (intermediate representation) + serialization | planned (C) |
 | `src/compiler/codegen/` | IR -> C++ | planned (C) |
 | `src/compiler/merger/` | protected-region merge | B1 |
-| `src/runtime/` | App, loop, generated-code support | planned (B2/C) |
+| `src/runtime/` | fixed-step core; app/loop/generated-code support | B2 core |
 | `src/services/` | i18n (internationalization), navigation, state restore, storage, networking, notifications, shell | planned (F) |
 | `src/data/` | async resource cache, mutations, offline queue | planned (F) |
 | `src/diagnostics/` | logging, tracing, profiling, crash reporting | planned (B2) |
@@ -77,7 +77,7 @@ Rules:
 
 ## 3. Public headers
 
-Only `include/tessera/` is public. Current B1 headers:
+Only `include/tessera/` is public. Current headers:
 
 | Header | Purpose |
 |---|---|
@@ -91,6 +91,7 @@ Only `include/tessera/` is public. Current B1 headers:
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch |
 | `ui/scene/event.hpp` | event types/phases |
+| `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 
 `src/compiler/merger/include/tessera/compiler/merger.hpp` is a build-time public header for the
 merger prototype.
@@ -103,6 +104,7 @@ merger prototype.
 | `tessera_gpu` | static | batched 2D renderer |
 | `tessera_rhi_null` | static | [null backend](../reference/glossary.md) |
 | `tessera_scene` | static | scene graph/events |
+| `tessera_runtime` | static | fixed-step core (B2) |
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |

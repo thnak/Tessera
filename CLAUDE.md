@@ -55,6 +55,7 @@ Source of truth: [docs/guides/code-style.md](docs/guides/code-style.md) (ADR-015
 - **Errors/ownership:** `unique_ptr` for ownership, `shared_ptr` only for genuinely shared lifetime; no RTTI/reflection or hidden allocations on hot paths.
 - **Comments:** explain why, not what; no commented-out code.
 - **Format/lint:** run `scripts/format.* --check` and `scripts/lint.*`; CI enforces `.clang-format` and `.clang-tidy`.
+- **Warnings:** `TESSERA_WARNINGS_AS_ERRORS=ON` by default (`-Werror`/`/WX`); fix warnings instead of suppressing them, except narrow third-party `-w`/`/W0` sources.
 - **Tests:** deterministic, one component per file, no wall clock/network/system fonts/random ids; GPU tests live in `tests/gpu/` and goldens in `tests/golden/gpu/`.
 
 ## Documentation rules
