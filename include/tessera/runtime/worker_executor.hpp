@@ -34,7 +34,7 @@ public:
         std::size_t active = 0;
     };
 
-    explicit WorkerExecutor(CompletionQueue& completions, Config config = {});
+    explicit WorkerExecutor(CompletionQueue& completions, Config config = Config{});
     ~WorkerExecutor();
 
     WorkerExecutor(const WorkerExecutor&) = delete;

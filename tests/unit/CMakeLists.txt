@@ -84,6 +84,14 @@ target_link_libraries(hal_timer_tests PRIVATE tessera_runtime tessera_hal_timer)
 
 add_test(NAME hal_timer COMMAND hal_timer_tests)
 
+add_executable(window_metrics_tests
+    window_metrics_tests.cpp)
+
+target_include_directories(window_metrics_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/include)
+
+add_test(NAME window_metrics COMMAND window_metrics_tests)
+
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)
 
@@ -631,3 +639,10 @@ add_executable(layout_scheduler_tests
 target_link_libraries(layout_scheduler_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_scheduler COMMAND layout_scheduler_tests)
+
+add_executable(swapchain_tests
+    swapchain_tests.cpp)
+
+target_link_libraries(swapchain_tests PRIVATE tessera_rhi_null)
+
+add_test(NAME swapchain COMMAND swapchain_tests)

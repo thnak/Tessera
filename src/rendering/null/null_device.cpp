@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/rendering/null/null_device.hpp"
+#include "tessera/rendering/null/null_swapchain.hpp"
 
 #include <algorithm>
 #include <cstring>
+#include <expected>
 #include <utility>
 
 namespace tessera::rendering::null {
@@ -120,6 +122,15 @@ public:
 
     std::unique_ptr<rhi::CommandList> create_command_list() override {
         return std::make_unique<NullCommandList>();
+    }
+
+    std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
+    create_swapchain(const rhi::SwapchainDesc& desc) override {
+        if (desc.image_count < 2) {
+            return std::unexpected(rhi::SwapchainError::NotSupported);
+        }
+        std::unique_ptr<rhi::Swapchain> swapchain = std::make_unique<NullSwapchain>(desc);
+        return swapchain;
     }
 
     void wait_idle() override {}

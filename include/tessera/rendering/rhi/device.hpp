@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "tessera/rendering/rhi/swapchain.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <memory>
 
 namespace tessera::rendering::rhi {
@@ -71,6 +73,12 @@ public:
     virtual std::unique_ptr<Pipeline> create_pipeline(const PipelineDesc& desc) = 0;
     virtual std::unique_ptr<RenderTarget> create_render_target(const RenderTargetDesc& desc) = 0;
     virtual std::unique_ptr<CommandList> create_command_list() = 0;
+
+    // Creates a presentation swapchain. Invalid descriptors (image_count < 2) and backends
+    // without a surface path report NotSupported rather than throwing or returning nullptr.
+    [[nodiscard]] virtual std::expected<std::unique_ptr<Swapchain>, SwapchainError>
+    create_swapchain(const SwapchainDesc& desc) = 0;
+
     virtual void wait_idle() = 0;
 };
 

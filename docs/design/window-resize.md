@@ -8,6 +8,23 @@ This document draws the line between
 layer ([`hal.md`](hal.md)); tick, golden, VRR and `WindowMetrics` are in
 [`glossary.md`](../reference/glossary.md).
 
+## 0. Implemented subset (first B3 slice)
+
+The first B3 slice lands the platform-neutral seams without an OS window:
+
+- [`include/tessera/hal/window.hpp`](../../include/tessera/hal/window.hpp) defines `WindowInsets`,
+  `WindowMetrics`, `WindowEventType`/`WindowEvent`, and the abstract `hal::Window` interface
+  (`metrics`, `poll_events`, `show`, `hide`, `request_redraw`, `close`). It carries no OS handles;
+  the Win32 implementation is the next slice.
+- [`include/tessera/rendering/rhi/swapchain.hpp`](../../include/tessera/rendering/rhi/swapchain.hpp)
+  defines `SwapchainDesc`, `SwapchainError`, the `Swapchain` interface, and
+  `Device::create_swapchain`. The null backend returns a deterministic rotating swapchain
+  (resize -> one `OutOfDate`, forced-timeout test control, stats); the Vulkan backend reports
+  `SwapchainError::NotSupported` because a swapchain needs a `VkSurfaceKHR` and a window.
+- Still pending: Win32 window + `VkSurfaceKHR`, real acquire/present and old-swapchain retirement,
+  producing `WindowEvent`s from OS messages, and frame-pacing integration. The platform rules in
+  §4 describe the target behavior, not the implemented subset.
+
 ## 1. Separation of concerns
 
 ### Declarative layer (what developers write)
@@ -207,6 +224,8 @@ swapchain-recreate delay are runtime knobs, not component code.
 
 - Synthetic resize sequences: grow/shrink, zero-size, minimize/restore, maximize/fullscreen,
   tiled, DPI change, multi-monitor move.
+- Swapchain seam: null-backend descriptor validation, image rotation, out-of-date resize,
+  configurable timeout, and missing/duplicate/out-of-range present rejection.
 - Live-resize storms: coalescing, one resize frame per tick, no unbounded queue.
 - In-flight frames: old swapchain retirement, no use-after-free, no validation errors.
 - Style/layout: viewport/media/container re-evaluation, text reflow, percentages/flex/grid.
