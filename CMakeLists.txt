@@ -45,7 +45,7 @@ option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)
 # Win32) the HAL keeps the headless stub and the Vulkan device reports NotSupported for
 # presentation, so headless Linux builds still work.
 set(TESSERA_X11_FOUND OFF)
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT ANDROID AND NOT EMSCRIPTEN)
     find_package(X11 QUIET)
     if (X11_FOUND)
         set(TESSERA_X11_FOUND ON)
