@@ -49,6 +49,13 @@ target_link_libraries(runtime_loop_tests PRIVATE tessera_runtime)
 
 add_test(NAME runtime_loop COMMAND runtime_loop_tests)
 
+add_executable(runtime_loop_async_tests
+    runtime_loop_async_tests.cpp)
+
+target_link_libraries(runtime_loop_async_tests PRIVATE tessera_runtime)
+
+add_test(NAME runtime_loop_async COMMAND runtime_loop_async_tests)
+
 add_executable(async_tests
     async_tests.cpp)
 

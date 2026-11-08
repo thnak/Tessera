@@ -38,6 +38,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `fixed_step` | deterministic accumulator, delta clamp, catch-up cap, time scale |
 | `clock` | deterministic manual clock, monotonic advance validation |
 | `runtime_loop` | clock-driven steps, one-shot requests, dirty persistence, continuous/on-demand modes |
+| `runtime_loop_async` | completion budget, pending wake, callback frame/dirty requests, no-queue path |
 | `frame_pacer` | uncapped/deadline waits, lateness, cadence reset, validation |
 | `async` | cancellation propagation, FIFO/nested posting, bounded overflow, skip cancelled, budget |
 | `completion_queue` | visible/layout/background priority, FIFO, per-tick budget, cancellation, overflow |

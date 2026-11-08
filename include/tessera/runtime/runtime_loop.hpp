@@ -5,13 +5,18 @@
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/fixed_step.hpp"
 
+#include <cstddef>
 #include <cstdint>
 
 namespace tessera::runtime {
 
+class CompletionQueue;
+
 struct RuntimeLoopConfig {
     FixedStepConfig fixed_step;
     bool render_on_demand = true;
+    CompletionQueue* completion_queue = nullptr;
+    std::size_t completion_budget = 64;
 };
 
 struct RuntimeTick {
@@ -19,6 +24,8 @@ struct RuntimeTick {
     double alpha = 0.0;
     bool should_render = false;
     bool dropped_backlog = false;
+    std::size_t completions = 0;
+    bool completions_pending = false;
 };
 
 class RuntimeLoop {
@@ -33,6 +40,8 @@ public:
 
     void set_render_on_demand(bool enabled);
     void set_continuous(bool enabled);
+    void set_completion_queue(CompletionQueue* queue);
+    void set_completion_budget(std::size_t budget);
 
     [[nodiscard]] bool should_render() const;
     [[nodiscard]] bool render_on_demand() const {

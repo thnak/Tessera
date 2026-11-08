@@ -121,7 +121,7 @@ Only `include/tessera/` is public. Current headers:
 | `runtime/async.hpp` | cancellation + ManualExecutor + prioritized completion queue (B2) |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
-| `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |
+| `runtime/runtime_loop.hpp` | fixed-step driver + render wake + completion drain (B2) |
 | `runtime/frame_pacer.hpp` | deadline-based `maxFps` pacer, no sleep/busy-wait (B2) |
 
 `src/compiler/merger/include/tessera/compiler/merger.hpp` is a build-time public header for the

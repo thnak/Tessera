@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/runtime/async.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 
 namespace tessera::runtime {
@@ -15,13 +16,23 @@ RuntimeTick RuntimeLoop::tick() {
     started_ = true;
     last_time_ = now;
 
+    std::size_t completions = 0;
+    if (config_.completion_queue != nullptr) {
+        completions = config_.completion_queue->run(config_.completion_budget);
+    }
+
     const FixedStepResult step = fixed_step_.advance(delta);
     const bool render = should_render();
     if (render) {
         frame_requested_ = false;
     }
 
-    return RuntimeTick{step.steps, step.alpha, render, step.dropped_backlog};
+    const bool pending = config_.completion_queue != nullptr && !config_.completion_queue->empty();
+    if (pending) {
+        frame_requested_ = true;
+    }
+
+    return RuntimeTick{step.steps, step.alpha, render, step.dropped_backlog, completions, pending};
 }
 
 void RuntimeLoop::request_frame() {
@@ -51,6 +62,14 @@ void RuntimeLoop::set_render_on_demand(bool enabled) {
 
 void RuntimeLoop::set_continuous(bool enabled) {
     continuous_ = enabled;
+}
+
+void RuntimeLoop::set_completion_queue(CompletionQueue* queue) {
+    config_.completion_queue = queue;
+}
+
+void RuntimeLoop::set_completion_budget(std::size_t budget) {
+    config_.completion_budget = budget;
 }
 
 bool RuntimeLoop::should_render() const {

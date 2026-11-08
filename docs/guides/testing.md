@@ -34,6 +34,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `fixed_step` | fixed-timestep accumulator, clamp, catch-up cap, time scale |
 | `clock` | deterministic manual clock, monotonic advance validation |
 | `runtime_loop` | clock-driven steps, wake requests, continuous/on-demand render modes |
+| `runtime_loop_async` | completion budget, pending wake, callback frame/dirty requests, no-queue path |
 | `frame_pacer` | uncapped/deadline waits, lateness, cadence reset, validation |
 | `async` | cancellation propagation, FIFO/nested posting, bounded overflow, skip cancelled, budget |
 | `completion_queue` | visible/layout/background priority, FIFO, per-tick budget, cancellation, overflow |
