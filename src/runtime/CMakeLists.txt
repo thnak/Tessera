@@ -19,5 +19,5 @@ target_compile_features(tessera_runtime PUBLIC cxx_std_23)
 find_package(Threads REQUIRED)
 
 target_link_libraries(tessera_runtime
-    PUBLIC Threads::Threads
+    PUBLIC Threads::Threads tessera_hal_window
     PRIVATE tessera_hal_timer)

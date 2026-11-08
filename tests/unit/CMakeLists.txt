@@ -662,3 +662,10 @@ add_executable(swapchain_tests
 target_link_libraries(swapchain_tests PRIVATE tessera_rhi_null)
 
 add_test(NAME swapchain COMMAND swapchain_tests)
+
+add_executable(frame_wait_tests
+    frame_wait_tests.cpp)
+
+target_link_libraries(frame_wait_tests PRIVATE tessera_runtime)
+
+add_test(NAME frame_wait COMMAND frame_wait_tests)

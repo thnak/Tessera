@@ -329,8 +329,7 @@ for (int frame = 0; frame < frames; ++frame) {
   input, async completion posts, `request_frame()`), so input and completions are handled
   immediately and the loop never busy-waits. This idle wait is bounded by the next deadline and
   holds no locks. The HAL seam for the platform part is `wait_for_events_until(window, deadline)`
-  from `hal/window_wait.hpp` (see [`hal.md`](hal.md) ยง1.2); wiring it into `RuntimeLoop` is the
-  pending runtime slice. Acquire/present use the bounded state machine of [`async.md`](async.md).
+  from `hal/window_wait.hpp` (see [`hal.md`](hal.md) ง1.2). `runtime::wait_for_next_frame(window, pacer)` (`runtime/frame_wait.hpp`) combines the FramePacer deadline with that wait; application loops call it between ticks, while full `RuntimeLoop` integration remains pending. Acquire/present use the bounded state machine of [`async.md`](async.md).
 
 ## 10. Metrics and diagnostics
 

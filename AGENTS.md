@@ -479,9 +479,9 @@ RAII tracing spans with Chrome Trace JSON (`diagnostics/trace.hpp`), and an over
 lavapipe). Next slices, in order:
 
 1. Broader lavapipe golden corpus + CPU rasterizer, remaining diagnostics (overlay rendering/exporters/crash).
-2. B3 window/present path: the Windows HAL window and Vulkan Win32 surface/swapchain (bounded
-   acquire/present, old-swapchain retirement) landed; event-driven wait/deadline integration and
-   the Linux backend are next.
+2. B3 window/present path: the Windows HAL window, Vulkan Win32 surface/swapchain, and bounded
+   event wait with `runtime::wait_for_next_frame` landed; the Linux backend, swapchain-image render
+   targets, frames-in-flight, and full runtime-loop integration are next.
 3. Platform input translation and remaining focus polish (`focus-visible`, hover/active, IME;
    tab order, `:focus`, and modal trapping landed).
 4. Golden-image equivalence for damage redraw (the scissor path landed).
