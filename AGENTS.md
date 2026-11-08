@@ -415,7 +415,8 @@ compiled stylesheet. The Yoga Flexbox adapter is
 v3.2.2 (`third_party/yoga`), mapping computed-style longhands to fractional absolute boxes. Text
 measurement is wired through `ui/text/text_measure.hpp` and a Yoga measure callback, with a
 deterministic stub until the real text stack lands; `ui/text/font_metrics.hpp` supplies
-ascent/descent/line-gap for baselines and normal line height. `apply_layout` writes absolute boxes back to
+ascent/descent/line-gap for baselines and normal line height; `ui/text/text_layout.hpp` exposes the
+wrapped line boxes from the same pass. `apply_layout` writes absolute boxes back to
 scene nodes as parent-relative bounds with dirty propagation, and `ui/layout/pixel_snap.hpp` holds
 the paint-time edge-snapping contract (fractional layout stays unchanged). `add_scene_damage` turns
 dirty Paint/Render scene bounds into snapped damage rectangles, and `DamageTracker` keeps prior

@@ -113,6 +113,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/color.hpp` | CSS color parser/formatter + sRGB interpolation |
 | `ui/text/font_metrics.hpp` | ascent/descent/line-gap provider + deterministic stub |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
+| `ui/text/text_layout.hpp` | wrapped line boxes (width/height/baseline) |
 | `ui/text/text_measure_cache.hpp` | bounded LRU measurement cache + stats |
 | `ui/animation/easing.hpp` | linear/cubic-bezier/steps easing parser + evaluator |
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |

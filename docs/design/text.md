@@ -5,7 +5,8 @@ Status: design for Big Step B2 (runtime slice; see
 the measurement seam: `TextMeasurer`, `TextStyle`, `TextConstraints`, `TextMetrics`, and a
 deterministic `StubTextMeasurer` (fixed advance, greedy word wrap) wired into Yoga through
 `LayoutInput::text`. `FontMetricsProvider`/`StubFontMetricsProvider` supply ascent/descent/line-gap
-for baselines and `line-height: normal`; `TextMeasureCache` adds a bounded LRU keyed by
+for baselines and `line-height: normal`; `TextLayout` exposes per-line width/height/baseline from the
+same wrapping pass used by measurement. `TextMeasureCache` adds a bounded LRU keyed by
 text/style/constraints with hit/miss/eviction/invalidation stats. Real shaping/rasterization is not implemented. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
 FreeType + HarfBuzz + SheenBidi + ICU (licenses and module ownership in
 [`dependencies.md`](../specs/dependencies.md)). Terms: IME = input method editor; HAL = hardware/OS
