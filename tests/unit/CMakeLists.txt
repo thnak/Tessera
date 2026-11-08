@@ -91,6 +91,13 @@ target_link_libraries(selector_tests PRIVATE tessera_style)
 
 add_test(NAME selector COMMAND selector_tests)
 
+add_executable(selector_match_tests
+    selector_match_tests.cpp)
+
+target_link_libraries(selector_match_tests PRIVATE tessera_style)
+
+add_test(NAME selector_match COMMAND selector_match_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

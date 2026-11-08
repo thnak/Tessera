@@ -101,6 +101,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/tokenizer.hpp` | streaming CSS tokenizer with source offsets |
 | `ui/style/parser.hpp` | tolerant rule/declaration/at-rule AST |
 | `ui/style/selector.hpp` | selector AST, combinators, attributes, specificity |
+| `ui/style/selector_match.hpp` | StyleNode view, right-to-left matcher, selector index |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |
