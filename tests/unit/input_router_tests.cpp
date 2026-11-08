@@ -32,6 +32,14 @@ const char* type_name(EventType type) {
         return "up";
     case EventType::PointerMove:
         return "move";
+    case EventType::KeyDown:
+        return "keydown";
+    case EventType::KeyUp:
+        return "keyup";
+    case EventType::Focus:
+        return "focus";
+    case EventType::Blur:
+        return "blur";
     }
     return "unknown";
 }
@@ -74,6 +82,7 @@ int main() {
     root.set_bounds({0, 0, 200, 200});
     auto child = std::make_unique<Recorder>(2);
     child->set_bounds({10, 10, 50, 50});
+    child->set_focusable(true);
     Recorder& child_ref = static_cast<Recorder&>(root.add_child(std::move(child)));
 
     InputRouter router;
@@ -81,8 +90,14 @@ int main() {
     if (!expect(down.dispatched, "down dispatched") ||
         !expect(down.target == &child_ref, "down target") ||
         !expect(router.captured() == &child_ref, "down captures") ||
-        !expect(child_ref.log.size() == 1, "down child event") ||
-        !expect(root.log.size() == 2, "down root capture/bubble")) {
+        !expect(router.focus_manager().focused() == &child_ref, "down focuses target") ||
+        !expect(child_ref.log.size() == 2 && child_ref.log[0] == "2:focus:target" &&
+                    child_ref.log[1] == "2:down:target",
+                "down child focus and pointer events") ||
+        !expect(root.log.size() == 4 && root.log[0] == "1:focus:capture" &&
+                    root.log[1] == "1:focus:bubble" && root.log[2] == "1:down:capture" &&
+                    root.log[3] == "1:down:bubble",
+                "down root focus and pointer capture/bubble")) {
         return 1;
     }
 
@@ -106,6 +121,7 @@ int main() {
     if (!expect(up.dispatched, "captured up dispatched") ||
         !expect(up.target == &child_ref, "captured up target child") ||
         !expect(router.captured() == nullptr, "up releases capture") ||
+        !expect(router.focus_manager().focused() == &child_ref, "up keeps focus") ||
         !expect(child_ref.log.size() == 1 && child_ref.log[0] == "2:up:target",
                 "child receives up")) {
         return 3;
@@ -120,30 +136,47 @@ int main() {
         return 4;
     }
 
+    const auto root_down = router.dispatch(root, pointer(InputEventType::PointerDown, 150, 150));
+    if (!expect(root_down.dispatched, "root down dispatched") ||
+        !expect(root_down.target == &root, "root down target") ||
+        !expect(router.captured() == &root, "root down captures") ||
+        !expect(router.focus_manager().focused() == nullptr, "non-focusable down clears focus")) {
+        return 5;
+    }
+    router.dispatch(root, pointer(InputEventType::PointerUp, 150, 150));
+
     const auto outside = router.dispatch(root, pointer(InputEventType::PointerDown, 500, 500));
     if (!expect(!outside.dispatched, "outside down ignored") ||
-        !expect(router.captured() == nullptr, "outside no capture")) {
-        return 5;
+        !expect(router.captured() == nullptr, "outside no capture") ||
+        !expect(router.focus_manager().focused() == nullptr, "outside clears focus")) {
+        return 6;
     }
 
     router.dispatch(root, pointer(InputEventType::PointerDown, 20, 20));
     const auto cancelled = router.dispatch(root, pointer(InputEventType::PointerCancel, 20, 20));
     if (!expect(!cancelled.dispatched, "cancel not dispatched") ||
-        !expect(router.captured() == nullptr, "cancel releases capture")) {
-        return 6;
+        !expect(router.captured() == nullptr, "cancel releases capture") ||
+        !expect(router.focus_manager().focused() == &child_ref, "cancel keeps focus")) {
+        return 7;
     }
 
     router.dispatch(root, pointer(InputEventType::PointerDown, 20, 20));
+    child_ref.log.clear();
+    root.log.clear();
     InputEvent key;
     key.type = InputEventType::KeyDown;
-    const auto unsupported = router.dispatch(root, key);
-    if (!expect(!unsupported.dispatched, "key ignored") ||
+    key.key = 0x41;
+    const auto keyed = router.dispatch(root, key);
+    if (!expect(keyed.dispatched, "key routed to focus") ||
+        !expect(keyed.type == EventType::KeyDown, "key type") ||
+        !expect(keyed.target == &child_ref, "key target") ||
         !expect(router.captured() == &child_ref, "key keeps capture")) {
-        return 7;
+        return 8;
     }
     router.reset();
-    if (!expect(router.captured() == nullptr, "reset releases capture")) {
-        return 8;
+    if (!expect(router.captured() == nullptr, "reset releases capture") ||
+        !expect(router.focus_manager().focused() == nullptr, "reset clears focus")) {
+        return 9;
     }
 
     std::cout << "input_router: ok\n";

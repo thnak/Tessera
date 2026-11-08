@@ -5,6 +5,19 @@
 namespace tessera::ui {
 namespace {
 
+bool key_event_type(InputEventType input, EventType& output) {
+    switch (input) {
+    case InputEventType::KeyDown:
+        output = EventType::KeyDown;
+        return true;
+    case InputEventType::KeyUp:
+        output = EventType::KeyUp;
+        return true;
+    default:
+        return false;
+    }
+}
+
 bool pointer_event_type(InputEventType input, EventType& output) {
     switch (input) {
     case InputEventType::PointerDown:
@@ -34,6 +47,21 @@ InputDispatchResult dispatch_to_target(Node& target, EventType type, float x, fl
     return result;
 }
 
+InputDispatchResult dispatch_key_to_target(Node& target, EventType type, const InputEvent& input) {
+    InputDispatchResult result;
+    result.type = type;
+    result.target = &target;
+
+    Event event;
+    event.type = type;
+    event.key = input.key;
+    event.modifiers = input.modifiers;
+    event.text_codepoint = input.text_codepoint;
+    event.repeat = input.repeat;
+    result.dispatched = dispatch_event_to(target, event);
+    return result;
+}
+
 } // namespace
 
 InputDispatchResult dispatch_input(Node& root, const InputEvent& input) {
@@ -59,18 +87,33 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     }
 
     EventType type = EventType::PointerMove;
+    if (key_event_type(input.type, type)) {
+        result.type = type;
+        Node* target = focus_manager_.focused();
+        if (target == nullptr) {
+            return result;
+        }
+        return dispatch_key_to_target(*target, type, input);
+    }
     if (!pointer_event_type(input.type, type)) {
         return result;
     }
     result.type = type;
 
     if (input.type == InputEventType::PointerDown) {
+        focus_manager_.set_root(root);
         Node* target = root.hit_test_deep(input.x, input.y);
         if (target == nullptr) {
             captured_ = nullptr;
+            focus_manager_.clear_focus();
             return result;
         }
         captured_ = target;
+        if (target->focusable()) {
+            focus_manager_.request_focus(target);
+        } else {
+            focus_manager_.clear_focus();
+        }
         return dispatch_to_target(*target, type, input.x, input.y);
     }
 
@@ -94,6 +137,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
 
 void InputRouter::reset() {
     captured_ = nullptr;
+    focus_manager_.clear_focus();
 }
 
 } // namespace tessera::ui

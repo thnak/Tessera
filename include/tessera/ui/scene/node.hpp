@@ -51,6 +51,11 @@ public:
         return visible_;
     }
 
+    void set_focusable(bool focusable);
+    [[nodiscard]] bool focusable() const {
+        return focusable_;
+    }
+
     void mark_dirty(Dirty flags);
     void clear_dirty(Dirty flags);
     [[nodiscard]] Dirty dirty() const {
@@ -77,6 +82,7 @@ private:
     rhi::Rect bounds_;
     rhi::Mat3 transform_;
     bool visible_ = true;
+    bool focusable_ = false;
     Dirty dirty_ = Dirty::None;
     Dirty subtree_dirty_ = Dirty::None;
 };

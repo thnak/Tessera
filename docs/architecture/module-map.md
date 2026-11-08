@@ -100,8 +100,9 @@ Only `include/tessera/` is public. Current headers:
 | `hal/timer/steady_time.hpp` | monotonic seconds + bounded idle wait (B2) |
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
 | `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
-| `ui/scene/event.hpp` | event types/phases |
-| `ui/scene/input_dispatch.hpp` | pointer input -> hit-test/dispatch + capture router |
+| `ui/scene/event.hpp` | pointer/keyboard/focus event types, phases, key payload |
+| `ui/scene/focus.hpp` | focus target, focus transitions, depth-first Tab traversal |
+| `ui/scene/input_dispatch.hpp` | pointer/keyboard input -> scene dispatch, focus + capture router |
 | `ui/dirty.hpp` | style/layout/paint/render/resource/GPU dirty bitmask |
 | `ui/input.hpp` | normalized input event, bounded SPSC queue, sampler |
 | `ui/style/token.hpp` | CSS token types and source slices |
@@ -159,7 +160,7 @@ merger prototype.
 | `tessera_rhi` | static | RHI interfaces |
 | `tessera_gpu` | static | batched 2D renderer |
 | `tessera_rhi_null` | static | [null backend](../reference/glossary.md) |
-| `tessera_scene` | static | scene graph/events |
+| `tessera_scene` | static | scene graph/events, focus manager, keyboard routing |
 | `tessera_hal_timer` | static | monotonic clock + bounded idle wait (B2) |
 | `tessera_runtime` | static | fixed-step/clock/pacing core + system clock (B2) |
 | `tessera_input` | static | normalized input queue + sampler (B2) |
