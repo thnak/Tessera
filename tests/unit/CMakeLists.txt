@@ -105,6 +105,13 @@ target_link_libraries(cascade_tests PRIVATE tessera_style)
 
 add_test(NAME cascade COMMAND cascade_tests)
 
+add_executable(compiled_stylesheet_tests
+    compiled_stylesheet_tests.cpp)
+
+target_link_libraries(compiled_stylesheet_tests PRIVATE tessera_style)
+
+add_test(NAME compiled_stylesheet COMMAND compiled_stylesheet_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

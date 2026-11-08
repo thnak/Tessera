@@ -2,6 +2,7 @@
 
 add_library(tessera_style STATIC
     cascade.cpp
+    compiled_stylesheet.cpp
     parser.cpp
     selector.cpp
     selector_match.cpp
