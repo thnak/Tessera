@@ -34,4 +34,10 @@ struct AnimationParseResult {
 
 AnimationParseResult parse_animation_list(std::string_view text);
 
+AnimationParseResult
+parse_animation_longhands(std::string_view names, std::string_view durations,
+                          std::string_view timing_functions, std::string_view delays,
+                          std::string_view iteration_counts, std::string_view directions,
+                          std::string_view fill_modes, std::string_view play_states);
+
 } // namespace tessera::ui::animation

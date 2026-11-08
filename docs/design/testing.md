@@ -71,6 +71,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `damage_tracker` | old+new bounds, unchanged dirty, prune removed, retention eviction, capacity guard |
 | `animation` | linear/unit/discrete interpolation, delay/fill, reverse/alternate, infinite iterations |
 | `animation_shorthand` | keyword ordering, comma lists, defaults, two times, directions/fills/play states, invalid specs |
+| `animation_longhand` | eight independent lists, cycling, defaults, ms/s and negative delays, infinite/zero, all-or-nothing rejection |
 | `animation_start` | timing mapping, delay/fill, reverse final, zero duration, infinite, callback, skip guards |
 | `animation_lookup` | exact/case-sensitive name lookup, last duplicate wins, batch starts, missing blocks skipped |
 | `animation_pipeline` | parse -> lookup -> start -> tick -> overlay, dirty/wake, multiple animations, fill-forwards final |

@@ -128,6 +128,20 @@ bool is_identifier(std::string_view value) {
                        [&](char c) { return is_part(static_cast<unsigned char>(c)); });
 }
 
+bool collect_list(std::string_view text, std::vector<std::string>& values) {
+    const std::string trimmed = trim(text);
+    if (trimmed.empty()) {
+        return true;
+    }
+    for (std::string& part : split_top_level(trimmed)) {
+        if (part.empty()) {
+            return false;
+        }
+        values.push_back(std::move(part));
+    }
+    return true;
+}
+
 bool parse_spec(std::string_view text, AnimationSpec& spec) {
     std::vector<std::string> tokens;
     if (!tokenize_spec(text, tokens) || tokens.empty()) {
@@ -271,6 +285,123 @@ AnimationParseResult parse_animation_list(std::string_view text) {
         result.animations.push_back(std::move(spec));
     }
     return result;
+}
+
+AnimationParseResult
+parse_animation_longhands(std::string_view names, std::string_view durations,
+                          std::string_view timing_functions, std::string_view delays,
+                          std::string_view iteration_counts, std::string_view directions,
+                          std::string_view fill_modes, std::string_view play_states) {
+    const auto fail = [] { return AnimationParseResult{{}, false}; };
+
+    std::vector<std::string> name_values;
+    if (!collect_list(names, name_values)) {
+        return fail();
+    }
+    if (name_values.empty()) {
+        return AnimationParseResult{};
+    }
+    if (name_values.size() == 1 && lower(name_values.front()) == "none") {
+        return AnimationParseResult{};
+    }
+    for (const std::string& name : name_values) {
+        if (lower(name) != "none" && !is_identifier(name)) {
+            return fail();
+        }
+    }
+
+    std::vector<std::string> duration_values;
+    std::vector<std::string> timing_values;
+    std::vector<std::string> delay_values;
+    std::vector<std::string> iteration_values;
+    std::vector<std::string> direction_values;
+    std::vector<std::string> fill_values;
+    std::vector<std::string> play_values;
+    if (!collect_list(durations, duration_values) ||
+        !collect_list(timing_functions, timing_values) || !collect_list(delays, delay_values) ||
+        !collect_list(iteration_counts, iteration_values) ||
+        !collect_list(directions, direction_values) || !collect_list(fill_modes, fill_values) ||
+        !collect_list(play_states, play_values)) {
+        return fail();
+    }
+
+    std::vector<AnimationSpec> specs;
+    specs.reserve(name_values.size());
+    for (std::size_t i = 0; i < name_values.size(); ++i) {
+        AnimationSpec spec;
+        spec.name = lower(name_values[i]) == "none" ? "none" : name_values[i];
+
+        if (!duration_values.empty()) {
+            float duration = 0.0f;
+            if (!parse_time(duration_values[i % duration_values.size()], duration) ||
+                duration < 0.0f) {
+                return fail();
+            }
+            spec.duration = duration;
+        }
+        if (!delay_values.empty()) {
+            float delay = 0.0f;
+            if (!parse_time(delay_values[i % delay_values.size()], delay)) {
+                return fail();
+            }
+            spec.delay = delay;
+        }
+        if (!timing_values.empty()) {
+            const EasingParseResult easing = parse_easing(timing_values[i % timing_values.size()]);
+            if (!easing.ok) {
+                return fail();
+            }
+            spec.easing = easing.easing;
+        }
+        if (!iteration_values.empty()) {
+            double iterations = 0.0;
+            if (!parse_iterations(iteration_values[i % iteration_values.size()], iterations)) {
+                return fail();
+            }
+            spec.iterations = iterations;
+        }
+        if (!direction_values.empty()) {
+            const std::string direction = lower(direction_values[i % direction_values.size()]);
+            if (direction == "normal") {
+                spec.direction = Direction::Normal;
+            } else if (direction == "reverse") {
+                spec.direction = Direction::Reverse;
+            } else if (direction == "alternate") {
+                spec.direction = Direction::Alternate;
+            } else if (direction == "alternate-reverse") {
+                spec.direction = Direction::AlternateReverse;
+            } else {
+                return fail();
+            }
+        }
+        if (!fill_values.empty()) {
+            const std::string fill = lower(fill_values[i % fill_values.size()]);
+            if (fill == "none") {
+                spec.fill = FillMode::None;
+            } else if (fill == "forwards") {
+                spec.fill = FillMode::Forwards;
+            } else if (fill == "backwards") {
+                spec.fill = FillMode::Backwards;
+            } else if (fill == "both") {
+                spec.fill = FillMode::Both;
+            } else {
+                return fail();
+            }
+        }
+        if (!play_values.empty()) {
+            const std::string play = lower(play_values[i % play_values.size()]);
+            if (play == "running") {
+                spec.play_state = PlayState::Running;
+            } else if (play == "paused") {
+                spec.play_state = PlayState::Paused;
+            } else {
+                return fail();
+            }
+        }
+        specs.push_back(std::move(spec));
+    }
+
+    return AnimationParseResult{std::move(specs), true};
 }
 
 } // namespace tessera::ui::animation

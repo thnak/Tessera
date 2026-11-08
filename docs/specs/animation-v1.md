@@ -24,7 +24,9 @@ transition supersedes the active transition for the same target and property, so
 continues from the current sampled value. Ticking applies samples over the target's
 `ComputedStyle`, preserving untouched properties and reporting layout/paint/render dirty domains.
 The `animation` shorthand parser accepts name, duration, timing function, delay, iteration count,
-direction, fill mode, and play state in any order across comma-separated lists. Starting an
+direction, fill mode, and play state in any order across comma-separated lists. The eight longhand
+properties accept independent comma lists, cycle shorter lists, and default omitted values.
+Starting an
 animation maps the parsed spec onto `AnimationRuntime` timing, skips `none`/empty/zero-iteration/
 paused entries, and keeps the final sample when fill-forwards applies. Keyframes resolve by exact
 name (last duplicate wins), batch starts skip specs whose block is missing, and ticking samples
