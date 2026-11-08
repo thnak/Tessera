@@ -36,6 +36,32 @@ Forbidden:
   native plugin/module loading
 ```
 
+### 1.1 Bridge inventory
+
+| Component | Bridge type | Location | Production? |
+|---|---|---|---|
+| Window/surface/lifecycle | OS API, JNI/NDK, ObjC | `src/platform/*` -> `src/hal/window`, `src/hal/lifecycle` | yes (OS edge) |
+| Display/refresh/power | OS API, JNI, ObjC | `src/platform/*` -> `src/hal/display`, `src/hal/power` | yes (OS edge) |
+| Input/IME/text | OS API, JNI, ObjC, Wayland/X11 protocols | `src/platform/*` -> `src/hal/input`, `src/ui/text` | yes (OS edge) |
+| Accessibility | UIA/COM, AT-SPI/D-Bus, NSAccessibility, AccessibilityNodeProvider | `src/ui/accessibility` -> `src/platform/*` | yes (OS edge) |
+| Notifications/storage/network/permissions/clipboard/DnD | JNI/SAF, ObjC, COM/WinRT, D-Bus/portal | `src/services/*` -> `src/platform/*` | yes (OS edge) |
+| JSX/TSX parser/formatter | process/FFI adapter | `src/compiler/analyzer`, build scripts | build-time only |
+| Designer preview | Emscripten/JS/WebGPU/IPC | `designer/web`, `designer/native` | design-time only |
+| UI scene/style/layout/animation | **none** (direct C++) | `src/ui/*` | yes |
+| Renderer/RHI/Vulkan/WebGPU | **none** (direct C/C++ APIs) | `src/rendering/*` | yes |
+| Runtime loop/async/memory/diagnostics core | **none** (direct C++) | `src/runtime`, `src/core`, `src/diagnostics` | yes |
+| Compiler IR/codegen/merger | **none** (direct C++) | `src/compiler/{ir,codegen,merger}` | build-time only |
+| Virtualized lists/grids | **none** (direct C++) | `src/ui/*` + runtime | yes |
+
+Notes:
+
+- Win32/X11/Wayland/Vulkan are **direct C APIs**, not cross-language bridges. They are OS/GPU
+  boundaries, but no marshalling runtime sits between C++ and the API.
+- Android JNI/NDK and iOS ObjC are true bridges; keep them thin and event-only.
+- UIA/COM and AT-SPI/D-Bus are system protocol boundaries, not UI hot-path bridges.
+- The parser adapter is build-time only; it is never linked into production.
+- The Wasm/WebGPU/IPC designer is development-only; production has no JS runtime.
+
 ## 2. Bridge design rules
 
 - **Ownership:** copy-in/copy-out or explicit shared memory; never borrow a language object past
