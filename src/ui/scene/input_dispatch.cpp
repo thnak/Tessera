@@ -105,13 +105,17 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         Node* target = root.hit_test_deep(input.x, input.y);
         if (target == nullptr) {
             captured_ = nullptr;
-            focus_manager_.clear_focus();
+            // A click outside the scene must not break an active modal trap.
+            if (focus_manager_.modal_root() == nullptr) {
+                focus_manager_.clear_focus();
+            }
             return result;
         }
         captured_ = target;
         if (target->focusable()) {
+            // request_focus rejects targets outside the active modal subtree.
             focus_manager_.request_focus(target);
-        } else {
+        } else if (focus_manager_.allows_focus(*target)) {
             focus_manager_.clear_focus();
         }
         return dispatch_to_target(*target, type, input.x, input.y);
@@ -137,7 +141,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
 
 void InputRouter::reset() {
     captured_ = nullptr;
-    focus_manager_.clear_focus();
+    focus_manager_.reset();
 }
 
 } // namespace tessera::ui

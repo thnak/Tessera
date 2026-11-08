@@ -2,40 +2,15 @@
 
 #pragma once
 
+#include "tessera/ui/style/pseudo_state.hpp"
 #include "tessera/ui/style/selector.hpp"
 
 #include <cstddef>
-#include <cstdint>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace tessera::ui::style {
-
-enum class PseudoState : std::uint32_t {
-    None = 0,
-    Hover = 1u << 0,
-    Active = 1u << 1,
-    Focus = 1u << 2,
-    FocusVisible = 1u << 3,
-    Disabled = 1u << 4,
-    Checked = 1u << 5,
-    Required = 1u << 6,
-};
-
-constexpr PseudoState operator|(PseudoState lhs, PseudoState rhs) {
-    return static_cast<PseudoState>(static_cast<std::uint32_t>(lhs) |
-                                    static_cast<std::uint32_t>(rhs));
-}
-
-constexpr PseudoState operator&(PseudoState lhs, PseudoState rhs) {
-    return static_cast<PseudoState>(static_cast<std::uint32_t>(lhs) &
-                                    static_cast<std::uint32_t>(rhs));
-}
-
-constexpr bool has_state(PseudoState value, PseudoState flag) {
-    return (value & flag) != PseudoState::None;
-}
 
 struct AttributeView {
     std::string_view name;

@@ -7,17 +7,26 @@
 namespace tessera::ui {
 
 // Tracks the keyboard focus target for a scene tree. Focus changes are dispatched through the
-// normal capture/target/bubble path so ancestors can observe them. The manager stores raw node
-// pointers and does not observe destruction: destroy it before the scene root, and clear focus
-// before destroying the focused subtree.
+// normal capture/target/bubble path so ancestors can observe them. The manager resolves nodes by
+// `NodeId` under the scene root on every operation, so a removed subtree cannot be dereferenced;
+// it still stores raw pointers and does not observe destruction, so clear focus before destroying
+// a subtree that currently holds it.
+//
+// Sequential tab order (`focus_next` / `focus_previous`):
+//   1. focusable descendants with a positive `tab_index`, ascending; equal values keep depth-first
+//      tree order (pre-order);
+//   2. focusable descendants with `tab_index == 0`, in depth-first tree order.
+// Negative `tab_index` values are skipped by sequential traversal but remain valid targets for
+// `request_focus` (programmatic focus). Invisible subtrees are skipped; non-focusable nodes are
+// skipped while their children are still visited. Both ends wrap.
 class FocusManager {
 public:
     // Defines the scene root used to decide whether a node is attached. Requesting focus on the
     // root itself is only accepted after the root is known.
     void set_root(Node& root);
 
-    // Focuses a visible, attached, focusable node. Invalid requests are rejected without changing
-    // the current focus.
+    // Focuses a visible, attached, focusable node inside the active modal subtree (if any).
+    // Invalid requests are rejected without changing the current focus.
     bool request_focus(Node* node);
     void clear_focus();
 
@@ -25,18 +34,53 @@ public:
         return focused_;
     }
 
-    // Moves focus in depth-first document order (pre-order), wrapping at both ends. Invisible
-    // subtrees are skipped; non-focusable nodes are skipped but their children are visited.
     bool focus_next(Node& root);
     bool focus_previous(Node& root);
+
+    // Restricts focus to `node` and its descendants. Setting a trap saves the current focus when
+    // it is outside the new subtree and moves focus to the first sequential candidate inside it
+    // (or clears focus when the subtree has no candidates). `nullptr` is equivalent to
+    // `clear_modal_root`.
+    //
+    // `clear_modal_root` releases the trap and restores the saved focus when that node is still
+    // attached, visible, focusable, and allowed by the current trap state; otherwise the current
+    // focus stays where it is.
+    //
+    // A modal root that is removed or destroyed without an explicit clear is detected by the next
+    // focus operation through the id lookup: the trap is released and the saved focus restored.
+    // Returns false (leaving state unchanged) when `node` is not attached, visible, or has an
+    // invisible ancestor.
+    bool set_modal_root(Node* node);
+    void clear_modal_root();
+
+    // Drops focus and any modal trap without restoring the saved focus. Dispatches `Blur` for the
+    // current target when it is still reachable, and emits no `Focus`.
+    void reset();
+
+    // Resolves the active modal root, or nullptr when no trap is active (or the saved root is no
+    // longer part of the scene root).
+    [[nodiscard]] Node* modal_root() const;
+
+    // True when `node` may receive focus under the active trap (always true without a trap).
+    [[nodiscard]] bool allows_focus(const Node& node) const;
 
 private:
     [[nodiscard]] bool is_attached(const Node& node) const;
     [[nodiscard]] bool is_valid(const Node& node) const;
+    [[nodiscard]] bool is_within_modal(const Node& node) const;
+    [[nodiscard]] Node* find_node(NodeId id) const;
+    void refresh_state();
+    void release_modal_trap();
+    bool focus_first_in_modal();
     bool move_focus(Node& root, bool forward);
 
     Node* focused_ = nullptr;
+    NodeId focused_id_ = 0;
     Node* root_ = nullptr;
+    Node* modal_root_ = nullptr;
+    NodeId modal_root_id_ = 0;
+    Node* saved_focus_ = nullptr;
+    NodeId saved_focus_id_ = 0;
 };
 
 } // namespace tessera::ui
