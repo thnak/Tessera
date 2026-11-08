@@ -10,8 +10,6 @@
 namespace tessera::ui {
 namespace {
 
-constexpr float kEpsilon = 1.0e-6f;
-
 bool same_rect(const rhi::Rect& lhs, const rhi::Rect& rhs) {
     return lhs.x == rhs.x && lhs.y == rhs.y && lhs.width == rhs.width && lhs.height == rhs.height;
 }

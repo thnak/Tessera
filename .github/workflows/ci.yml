@@ -70,16 +70,16 @@ jobs:
 
       - name: Configure (MSVC, null backend)
         run: >
-          cmake --preset vs2022
+          cmake --preset vs2026
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_BUILD_POC=OFF
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
-        run: cmake --build --preset vs2022-release
+        run: cmake --build --preset vs2026-release
 
       - name: Tests
-        run: ctest --preset vs2022-release --output-on-failure
+        run: ctest --preset vs2026-release --output-on-failure
 
   macos:
     runs-on: macos-latest

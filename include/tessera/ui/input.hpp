@@ -103,7 +103,6 @@ public:
 private:
     std::vector<InputEvent> buffer_;
     std::size_t capacity_ = 0;
-    std::size_t mask_ = 0;
     std::atomic<std::size_t> head_{0};
     std::atomic<std::size_t> tail_{0};
     std::atomic<bool> overflowed_{false};
