@@ -39,6 +39,7 @@ AnimationId AnimationRuntime::start(AnimationInput input) {
     entry.keyframes = std::move(input.keyframes);
     entry.timing = input.timing;
     entry.on_complete = std::move(input.on_complete);
+    entry.property = std::move(input.property);
     entries_.push_back(std::move(entry));
     return entries_.back().id;
 }
@@ -98,6 +99,20 @@ bool AnimationRuntime::stop(AnimationId id) {
     }
     entries_.erase(found);
     return true;
+}
+
+std::size_t AnimationRuntime::stop_target_property(std::uint64_t target,
+                                                   std::string_view property) {
+    if (property.empty()) {
+        return 0;
+    }
+    const auto removed =
+        std::remove_if(entries_.begin(), entries_.end(), [&](const AnimationEntry& entry) {
+            return entry.target == target && entry.property == property;
+        });
+    const std::size_t count = static_cast<std::size_t>(entries_.end() - removed);
+    entries_.erase(removed, entries_.end());
+    return count;
 }
 
 void AnimationRuntime::clear() {

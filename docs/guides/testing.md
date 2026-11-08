@@ -66,13 +66,14 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `damage_pass` | Paint/Render filtering, snapped world bounds, merge, DPI scale, cap/full-redraw, overflow |
 | `damage_tracker` | old+new bounds, unchanged dirty, prune removed, retention eviction, capacity guard |
 | `animation` | linear/unit/discrete interpolation, delay/fill, reverse/alternate, infinite iterations |
-| `animation_runtime` | start/tick/finish, callbacks, stop/clear, wake state, dirty domains |
+| `animation_runtime` | start/tick/finish, callbacks, stop/clear, target/property stop, wake state, dirty domains |
 | `easing` | linear/presets/bezier identity/steps variants, parser rejection, sampler integration |
 | `spring` | exact semi-implicit step, convergence/epsilon stop, retarget, invalid config, determinism |
 | `spring_runtime` | sample declarations, layout/paint dirty, settle/finish, retarget final, callbacks, dt guards |
 | `animation_overlay` | target filtering, later-sample precedence, property merge, unanimated preservation |
 | `transition` | shorthand lists, time units, bezier/steps commas, defaults, invalid specs |
 | `transition_runtime` | exact-vs-all match, 0→1 sample, fill-final, zero duration, style diff, units/colors, invalid guards |
+| `transition_lifecycle` | supersede same target/property, preserve other keys, current-value restart, callback suppression |
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |

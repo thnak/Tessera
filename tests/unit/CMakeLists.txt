@@ -252,6 +252,13 @@ target_link_libraries(transition_runtime_tests PRIVATE tessera_animation)
 
 add_test(NAME transition_runtime COMMAND transition_runtime_tests)
 
+add_executable(transition_lifecycle_tests
+    transition_lifecycle_tests.cpp)
+
+target_link_libraries(transition_lifecycle_tests PRIVATE tessera_animation)
+
+add_test(NAME transition_lifecycle COMMAND transition_lifecycle_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 

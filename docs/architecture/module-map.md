@@ -117,13 +117,13 @@ Only `include/tessera/` is public. Current headers:
 | `ui/text/text_measure_cache.hpp` | bounded LRU measurement cache + stats |
 | `ui/animation/easing.hpp` | linear/cubic-bezier/steps easing parser + evaluator |
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |
-| `ui/animation/runtime.hpp` | active animation entries, tick, completion, dirty reporting |
+| `ui/animation/runtime.hpp` | active animation entries, tick, completion, target/property supersession, dirty reporting |
 | `ui/animation/spring.hpp` | semi-implicit Euler spring with retarget/epsilon settle |
 | `ui/animation/spring_runtime.hpp` | active spring entries -> property declarations |
 | `ui/animation/property_dirty.hpp` | property -> layout/paint/render dirty-domain mapping |
 | `ui/animation/style_overlay.hpp` | animation samples -> per-target `ComputedStyle` overlay |
 | `ui/animation/transition.hpp` | CSS `transition` shorthand parser |
-| `ui/animation/transition_runtime.hpp` | transition matching, string/numeric starts, computed-style diffs |
+| `ui/animation/transition_runtime.hpp` | transition matching, string/numeric starts, computed-style diffs, interruption |
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga mapping + boxes + cached measure callback |
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace tessera::ui::animation {
@@ -20,6 +21,7 @@ struct AnimationInput {
     style::KeyframeBlock keyframes;
     KeyframeTiming timing;
     AnimationCallback on_complete;
+    std::string property;
 };
 
 struct AnimationEntry {
@@ -29,6 +31,7 @@ struct AnimationEntry {
     KeyframeTiming timing;
     double elapsed = 0.0;
     AnimationCallback on_complete;
+    std::string property;
 };
 
 struct AnimationSample {
@@ -50,6 +53,7 @@ public:
 
     [[nodiscard]] AnimationTickResult tick(double dt);
     bool stop(AnimationId id);
+    std::size_t stop_target_property(std::uint64_t target, std::string_view property);
     void clear();
 
     [[nodiscard]] std::size_t active() const {

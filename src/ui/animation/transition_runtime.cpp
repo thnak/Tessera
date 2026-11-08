@@ -63,6 +63,8 @@ AnimationId start_transition_values(AnimationRuntime& runtime, std::uint64_t tar
     input.keyframes = std::move(keyframes);
     input.timing = timing;
     input.on_complete = std::move(on_complete);
+    input.property = property;
+    runtime.stop_target_property(target, property);
     return runtime.start(std::move(input));
 }
 
