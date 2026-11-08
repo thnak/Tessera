@@ -34,6 +34,18 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
 
+## 2.1 GPU tests
+
+GPU tests live under `tests/gpu/` and are registered in `tests/gpu/CMakeLists.txt`:
+
+```text
+tests/gpu/{rhi,resources,pipelines,frames,backends,shaders,batched2d}/
+tests/integration/gpu/  tests/golden/gpu/  tests/fixtures/gpu/  tests/benchmarks/gpu/
+```
+
+Use the null backend for command/validation structure and lavapipe/software for pixel goldens.
+Real GPUs are smoke/tolerance only. See [GPU testing](../design/gpu/testing.md).
+
 ## 3. Add a unit test
 
 1. Create `tests/unit/<component>_tests.cpp`.

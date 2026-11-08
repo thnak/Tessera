@@ -117,12 +117,28 @@ Windows CI is not present yet (see [`build-and-packaging.md`](build-and-packagin
 
 ## 12. Test conventions
 
-- One test file per component; `tests/unit/<component>_tests.cpp`.
-- Register in `tests/unit/CMakeLists.txt` with `add_test`.
+- UI/compiler unit tests: `tests/unit/<component>_tests.cpp`, registered in
+  `tests/unit/CMakeLists.txt`.
+- GPU tests: `tests/gpu/<area>/`, registered in `tests/gpu/CMakeLists.txt`; see
+  [`gpu/testing.md`](gpu/testing.md).
 - Tests return nonzero on failure and print a clear message.
 - No test framework is used in B1; whether to adopt one has no decision yet.
-- Fixtures live in `tests/fixtures/`; golden baselines in `tests/golden/baseline/`.
+- Fixtures live in `tests/fixtures/` (GPU: `tests/fixtures/gpu/`); golden baselines in
+  `tests/golden/` (GPU: `tests/golden/gpu/`).
 - Do not commit generated artifacts or machine-specific paths.
+
+### 12.1 GPU test tree
+
+```text
+tests/gpu/{rhi,resources,pipelines,frames,backends,shaders,batched2d}/
+tests/integration/gpu/
+tests/golden/gpu/
+tests/fixtures/gpu/
+tests/benchmarks/gpu/
+```
+
+New GPU tests go under `tests/gpu`; do not add them to `tests/unit`. The null backend covers
+command/validation structure; lavapipe/software covers pixels; real GPUs are smoke/tolerance only.
 
 ## 13. Status
 

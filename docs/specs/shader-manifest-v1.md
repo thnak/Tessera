@@ -66,8 +66,8 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
         ]
       },
       "tests": [
-        { "name": "solid_quad", "golden": "tests/golden/shaders/batched2d_solid.png" },
-        { "name": "sdf_rounded", "golden": "tests/golden/shaders/batched2d_sdf.png" }
+        { "name": "solid_quad", "golden": "tests/golden/gpu/shaders/batched2d_solid.png" },
+        { "name": "sdf_rounded", "golden": "tests/golden/gpu/shaders/batched2d_sdf.png" }
       ]
     }
   ]

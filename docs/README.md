@@ -3,6 +3,13 @@
 Start with [`../AGENTS.md`](../AGENTS.md) for the operating rules and [`../README.md`](../README.md)
 for the project overview. This page is the map and reading order for the framework.
 
+## 0. Documentation rules
+
+- One topic per file; target 400 lines, hard limit 600 lines.
+- A topic over 600 lines becomes a folder with a `README.md` index and linked parts.
+- New/edited docs follow this rule; an existing oversized document is split when next edited.
+- Update this map and the relevant folder index whenever a doc is added or moved.
+
 ## 1. Architecture
 
 - [`architecture/overview.md`](architecture/overview.md) — layers, pipelines, threading,
@@ -128,7 +135,18 @@ for the project overview. This page is the map and reading order for the framewo
 
 ## 4. Design
 
-- [`design/renderer.md`](design/renderer.md) — RHI, batched 2D, Vulkan backend
+- [`design/renderer.md`](design/renderer.md) — B1 renderer summary, batched 2D, Vulkan backend
+- [`design/gpu/README.md`](design/gpu/README.md) — GPU docs index: RHI, frames/sync, resources,
+  pipelines, backends, tests
+- [`design/gpu/rhi.md`](design/gpu/rhi.md) — device/resource/command contract, lifetime, errors
+- [`design/gpu/frames.md`](design/gpu/frames.md) — frame lifecycle, frames in flight, barriers,
+  uploads/readbacks, resize
+- [`design/gpu/resources.md`](design/gpu/resources.md) — buffers/textures/targets/samplers/memory
+- [`design/gpu/pipelines.md`](design/gpu/pipelines.md) — pipeline cache, descriptors, vertex
+  layout, shaders
+- [`design/gpu/backends.md`](design/gpu/backends.md) — Vulkan/WebGPU/null/software parity and
+  capabilities
+- [`design/gpu/testing.md`](design/gpu/testing.md) — GPU test pyramid/tree, goldens, CI
 - [`design/antialiasing.md`](design/antialiasing.md) — current SDF (signed distance field) AA, text/path/MSAA gaps
 - [`design/startup-and-loading.md`](design/startup-and-loading.md) — startup, loading screen,
   auth gate, route load, failure/offline
@@ -241,6 +259,16 @@ for the project overview. This page is the map and reading order for the framewo
 23. [Buffer config & tunables](specs/buffer-config-v1.md)
 24. [Tunables guide](guides/tunables.md)
 25. [Bridges](design/bridges.md)
+
+### GPU rendering
+
+1. [GPU docs index](design/gpu/README.md)
+2. [RHI contract](design/gpu/rhi.md)
+3. [Frame execution/sync](design/gpu/frames.md)
+4. [Resources/memory](design/gpu/resources.md)
+5. [Pipelines/shaders](design/gpu/pipelines.md)
+6. [Backends/parity](design/gpu/backends.md)
+7. [GPU testing](design/gpu/testing.md)
 
 ### Startup / loading / auth
 

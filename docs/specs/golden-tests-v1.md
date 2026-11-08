@@ -44,6 +44,8 @@ tests/golden/
 - `baseline/` is committed.
 - `cases/` contains the scene description and deterministic inputs.
 - `out/` is generated and ignored.
+- GPU-specific baselines/cases use the same `baseline/cases/out` structure under
+  `tests/golden/gpu/`; see [`../design/gpu/testing.md`](../design/gpu/testing.md).
 
 ## 3. Case file
 

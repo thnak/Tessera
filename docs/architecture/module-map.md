@@ -34,11 +34,12 @@ directories marked **planned** are seams, not implemented features. In the Statu
 | `src/updates/` | signed manifest, staging, rollback | planned (F) |
 | `designer/web/` | Wasm (WebAssembly) + WebGPU viewer, live view, IPC (inter-process communication) | planned (D) |
 | `designer/native/` | native host/IPC | planned (D) |
-| `tests/unit/` | unit tests (CTest) | B1 subset |
-| `tests/integration/` | cross-module tests | planned |
-| `tests/golden/` | deterministic [goldens](../reference/glossary.md) + report | planned |
-| `tests/fixtures/` | fonts, images, merger/compiler fixtures | B1 merger |
-| `tests/benchmarks/` | performance budgets | planned |
+| `tests/unit/` | UI/compiler unit tests (CTest) | B1 subset |
+| `tests/gpu/` | GPU/RHI contract/resource/frame tests (CTest) | B1 subset |
+| `tests/integration/` | cross-module tests (GPU under `integration/gpu/`) | planned |
+| `tests/golden/` | deterministic [goldens](../reference/glossary.md) + report (GPU under `gpu/`) | planned |
+| `tests/fixtures/` | fonts, images, merger/compiler/GPU fixtures | B1 merger |
+| `tests/benchmarks/` | performance budgets (GPU under `gpu/`) | planned |
 | `samples/hello`, `samples/dashboard` | sample projects | placeholder |
 | `tools/poc/` | Phase 0/B1 proofs | B1 |
 | `tools/shaders/`, `tools/font/` | shader/font tooling | planned |
@@ -119,7 +120,8 @@ merger prototype.
 - New compiler pass: `src/compiler/{analyzer,rules,ir,codegen}/`; IR is the only codegen input.
 - New service: `src/services/<name>/`; async, cancellable, no UI blocking.
 - New diagnostic sink: `src/diagnostics/<area>/`; bounded and redacted.
-- New test: `tests/unit/<area>_tests.cpp` + `tests/unit/CMakeLists.txt`.
+- New test: UI/compiler in `tests/unit/<area>_tests.cpp`; GPU in `tests/gpu/<area>/` +
+  `tests/gpu/CMakeLists.txt`.
 - New doc: `docs/{architecture,design,specs,guides,reference}/`; update [`docs/README.md`](../README.md).
 - New decision: `decisions/ADR-XXX-slug.md` + [`decisions/README.md`](../../decisions/README.md).
 

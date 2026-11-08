@@ -3,6 +3,9 @@
 Status: B1 (renderer core, first phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) implemented. B2 (runtime slice) adds Yoga layout (Flexbox engine, see [glossary](../reference/glossary.md)), text shaping/glyph atlas, dirty rendering, and
 pixel goldens, and frame pacing/dynamic refresh. B3 (window/swapchain/OS compliance) adds the window/swapchain path (swapchain = the images presented to a window).
 
+Detailed GPU contract: [`gpu/README.md`](gpu/README.md) (RHI, frames/sync, resources, pipelines,
+backends, GPU tests). This file remains the B1 summary/acceptance record.
+
 See also: [`game-loop.md`](game-loop.md), [`dirty-rendering.md`](dirty-rendering.md),
 [`input.md`](input.md), [`window-resize.md`](window-resize.md), [`async.md`](async.md),
 [`diagnostics.md`](diagnostics.md), [`resources.md`](resources.md),

@@ -84,8 +84,8 @@ The dispatcher is UI-thread-only. No locking, no async delivery, and no event po
 
 - `tests/unit/scene_graph_tests.cpp`: world bounds, deep hit testing, capture/target/bubble
   order, stop propagation, invisible subtree skipping, outside-bounds misses.
-- `tests/unit/batched2d_tests.cpp`: batch count and vertex count across texture and scissor
-  changes, with the null backend.
+- `tests/gpu/batched2d/batched2d_tests.cpp`: batch count and vertex count across texture and
+  scissor changes, with the null backend.
 
 ## B2 direction
 

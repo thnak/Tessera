@@ -25,7 +25,7 @@ ctest --preset vs2026-release -R scene_graph      # single test (names: merger_u
 
 Linux: same with `--preset dev`; Vulkan runs headless via Mesa lavapipe (a software Vulkan ICD, i.e. installable client driver, selected with `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`). Use `bash scripts/format.sh --check` and `BUILD_DIR=build/dev bash scripts/lint.sh` (clang-tidy needs the Ninja `compile_commands.json`).
 
-Unit tests are registered in `tests/unit/CMakeLists.txt` via `add_test` as one executable per area (`*_tests.cpp`).
+Unit tests are registered in `tests/unit/CMakeLists.txt` via `add_test` as one executable per area (`*_tests.cpp`). GPU tests live under `tests/gpu/` and are registered in `tests/gpu/CMakeLists.txt`.
 
 ## Architecture (big picture)
 

@@ -192,7 +192,7 @@ Add a normal entry to `tools/shaders/manifest.json` (see
     { "group": 0, "binding": 1, "type": "sampled_texture", "name": "heightmap" }
   ],
   "tests": [
-    { "name": "waterfall_smoke", "golden": "tests/golden/elements/waterfall3d.png" }
+    { "name": "waterfall_smoke", "golden": "tests/golden/gpu/elements/waterfall3d.png" }
   ]
 }
 ```
