@@ -434,6 +434,24 @@ target_link_libraries(font_metrics_tests PRIVATE tessera_text)
 
 add_test(NAME font_metrics COMMAND font_metrics_tests)
 
+set(TESSERA_FONT_FIXTURE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSans-Regular.ttf")
+get_filename_component(TESSERA_FONT_FIXTURE "${TESSERA_FONT_FIXTURE}" REALPATH)
+
+add_executable(font_face_tests
+    font_face_tests.cpp)
+
+target_link_libraries(font_face_tests PRIVATE tessera_text)
+
+add_test(NAME font_face COMMAND font_face_tests "${TESSERA_FONT_FIXTURE}")
+
+add_executable(freetype_metrics_tests
+    freetype_metrics_tests.cpp)
+
+target_link_libraries(freetype_metrics_tests PRIVATE tessera_text)
+
+add_test(NAME freetype_metrics COMMAND freetype_metrics_tests "${TESSERA_FONT_FIXTURE}")
+
 add_executable(text_layout_tests
     text_layout_tests.cpp)
 

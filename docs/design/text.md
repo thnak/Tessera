@@ -7,7 +7,11 @@ deterministic `StubTextMeasurer` (fixed advance, greedy word wrap) wired into Yo
 `LayoutInput::text`. `FontMetricsProvider`/`StubFontMetricsProvider` supply ascent/descent/line-gap
 for baselines and `line-height: normal`; `TextLayout` exposes per-line width/height/baseline from the
 same wrapping pass used by measurement. `TextMeasureCache` adds a bounded LRU keyed by
-text/style/constraints with hit/miss/eviction/invalidation stats. Real shaping/rasterization is not implemented. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
+text/style/constraints with hit/miss/eviction/invalidation stats. Font files now load through
+FreeType (`ui/text/font_face.hpp`) and `FreeTypeFontMetricsProvider`
+(`ui/text/freetype_metrics.hpp`) scales the face's design metrics to the requested pixel size; the
+deterministic test face is `tests/fixtures/fonts/NotoSans-Regular.ttf` (OFL-1.1). Shaping, bidi,
+line breaking, and rasterization are not implemented. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
 FreeType + HarfBuzz + SheenBidi + ICU (licenses and module ownership in
 [`dependencies.md`](../specs/dependencies.md)). Terms: IME = input method editor; HAL = hardware/OS
 abstraction layer ([`hal.md`](hal.md)); golden = deterministic reference image; atlas = GPU texture

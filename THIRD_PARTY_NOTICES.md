@@ -52,6 +52,24 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: Meta Platforms, Inc. and affiliates
 - Upstream: https://github.com/facebook/yoga (v3.2.2)
 
+### FreeType
+
+- Used by: `src/ui/text/`
+- Fetched at configure time from
+  `https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz` (pinned SHA-256);
+  not vendored in the tree
+- License: FreeType License (FTL, BSD-style); the GPL option is not used
+- Copyright: The FreeType Project and contributors
+- Upstream: https://github.com/freetype/freetype (2.13.3)
+
+### Noto Sans (test font)
+
+- Files: `tests/fixtures/fonts/NotoSans-Regular.ttf`, `tests/fixtures/fonts/OFL.txt`
+- Used by: deterministic unit and golden tests
+- License: SIL Open Font License 1.1 (OFL-1.1)
+- Copyright: The Noto Project Authors
+- Upstream: https://github.com/notofonts/noto-fonts
+
 ### Mesa (lavapipe)
 
 - Used by: CI only; not shipped in an application
