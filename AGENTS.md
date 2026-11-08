@@ -459,7 +459,8 @@ bounded deterministic atlas packs them (`ui/text/glyph_atlas.hpp`), and `TextRen
 (`ui/text/text_renderer.hpp`, `tessera_text_render`) batches atlas quads through
 `Batched2DRenderer`; `rhi::Texture::write` updates atlas pages in place. The HAL has a steady clock and bounded idle wait
 (`src/hal/timer/`, `src/runtime/system_clock.*`); the scene has focus/keyboard dispatch
-(`ui/scene/focus.hpp`); and the batched 2D renderer has a damage-scissored `begin_damaged` path
+(`ui/scene/focus.hpp`) with `tab_index` ordering, modal trapping, and `:focus` style re-evaluation;
+and the batched 2D renderer has a damage-scissored `begin_damaged` path
 with null-backend draw records. Async primitives (`ui/runtime/async.hpp`) add cancellation tokens
 and once-only callbacks, a bounded deterministic `ManualExecutor`, and a thread-safe prioritized
 `CompletionQueue` drained by `RuntimeLoop` under a per-tick budget; `WorkerExecutor`
@@ -480,8 +481,8 @@ lavapipe). Next slices, in order:
 1. Broader lavapipe golden corpus + CPU rasterizer, remaining diagnostics (overlay rendering/exporters/crash).
 2. B3 window/present path: event-driven wait, vsync/present, deadline integration (the clock/wait
    seam landed).
-3. Platform input translation and remaining focus policy (`tab_index`, `:focus`, modal trapping;
-   focus/keyboard routing landed).
+3. Platform input translation and remaining focus polish (`focus-visible`, hover/active, IME;
+   tab order, `:focus`, and modal trapping landed).
 4. Golden-image equivalence for damage redraw (the scissor path landed).
 5. Incremental relayout.
 
