@@ -52,7 +52,7 @@ read the parser AST.
     { "id": "state::count", "name": "count", "type": "int", "initial": 0 }
   ],
   "effects": [
-    { "id": "effect::sync", "deps": ["state::count"], "handler": "bind::on_count_changed" }
+    { "id": "effect::sync", "deps": ["state::count"], "handler": "bind::on_count_changed", "cleanup": "bind::on_count_changed_cleanup" }
   ],
   "refs": [
     { "id": "ref::label", "name": "label", "target": "node::2" }
@@ -78,7 +78,7 @@ read the parser AST.
 | `source` | SourceSpan | yes | For diagnostics/source maps |
 | `props` | Prop[] | no | Typed props |
 | `state` | State[] | no | `useState` |
-| `effects` | Effect[] | no | `useEffect` |
+| `effects` | Effect[] | no | `useEffect`. An Effect has `id`, `deps`, `handler` (binding id), `source`, and an optional `cleanup` (binding id of the cleanup handler; it runs before the effect runs again and on unmount) |
 | `refs` | Ref[] | no | `useRef` |
 | `animatedValues` | AnimatedValue[] | no | `useAnimatedValue` |
 | `root` | Node | yes | Exactly one root node |

@@ -116,7 +116,7 @@ are lexed and rejected (section 12).
 
 Not supported in V1. Every statement ends with `;`. A missing `;` is reported at the end of the
 previous token with the suggested fix "insert `;`". This is a design choice to keep the grammar
-unambiguous; it can be revisited (section 18).
+unambiguous. The project owner decided this.
 
 ## 4. Module structure
 
@@ -167,8 +167,19 @@ Member     = IDENT [ "?" ] ":" TypeExpr ;
 ParamType  = IDENT ":" TypeExpr ;
 ```
 
-- `number` lowers to the IR numeric types `int` or `float` according to the context rules in
-  [`ir-v1.md`](ir-v1.md) (the selection rule between them is not specified there; see section 18).
+- **Numeric types.** Written types are `int` and `float`, both imported from `"tessera"` as type
+  aliases of TypeScript `number` (so `tsc` and editors accept them). They lower one to one to the IR
+  types `int` and `float` ([`ir-v1.md`](ir-v1.md) section 2). A bare `number` in a state type, prop
+  type, handler parameter, return type or record member is rejected with
+  `TESSERA_JSX_TYPE_NUMBER` and the suggestion to write `int` or `float`. The project owner decided this.
+- **Literal types.** A number literal without a fraction or exponent (`0`, `42`) is `int`, unless the
+  expected type at that position is `float`, in which case it is `float`. A literal with a fraction or
+  exponent (`0.5`, `1e3`) is `float`; it is an error where `int` is expected
+  (`TESSERA_JSX_TYPE_MISMATCH`).
+- **Arithmetic types.** `int` widens to `float` implicitly. `float` never narrows to `int` implicitly.
+  `+ - *` and unary `-` on two `int` give `int`, otherwise `float`. `/` always gives `float`. `%` on two
+  `int` gives `int`, otherwise `float`. Integer width, overflow, division by zero and number
+  formatting are defined by [`ir-v1.md`](ir-v1.md), not here (section 18).
 - A union is accepted only as `T | null` or as a union of string literals (an enum).
 - Type aliases are non-recursive and may refer only to earlier or later aliases without cycles.
 - Built-in generic names accepted: `Ref<T>` is not written by developers; refs use the element type
@@ -214,9 +225,9 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 
 | Statement | Accepted form | Notes |
 |---|---|---|
-| State | `const [x, setX] = useState<T>(init);` | Exactly two names. `<T>` may be omitted when `init` is a literal or a prop with a declared type. `init` must be pure |
+| State | `const [x, setX] = useState<T>(init);` | Exactly two names. `<T>` may be omitted when `init` is a string, boolean or `null` literal or a prop with a declared type; it is required when `init` is a number literal `init` must be pure |
 | Ref | `const r = useRef<ElementType>(null);` | `ElementType` is an intrinsic name (section 11). The initial value must be `null` |
-| Animated value | `const v = useAnimatedValue(init);` | `init` is a number literal or a pure expression of numbers. Use in handlers is `v.set(expr)` and `v.set(expr, { animate: false })`, as in [`animation.md`](../design/animation.md) section 6; other member forms are not specified (section 18) |
+| Animated value | `const v = useAnimatedValue(init);` | `init` is a number literal or a pure expression of numbers. Use in handlers is `v.set(expr)` and `v.set(expr, { animate: false })`, as in [`animation.md`](../design/animation.md) section 6. Reading the value (`v.value` or any other member) is rejected with `TESSERA_JSX_SUBSET_ANIMATED_READ`; an animated value is passed whole as a prop or style value. The project owner decided this |
 | Effect | `useEffect(() => { ... }, [dep, ...]);` | The body is a native handler body (section 9.3). Dependencies are names of props, state variables or animated values; an expression is not allowed. Exact matching is enforced as in [`component-model-v1.md`](component-model-v1.md) section 2 |
 
 - Other hooks are accepted only if they are declared in the built-in hook manifest. That manifest is
@@ -226,8 +237,14 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
   rejected (`TESSERA_REACT_CUSTOM_HOOK`).
 - A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an
   error (`TESSERA_REACT_HOOK_ORDER`).
-- The returned value of `useEffect` is not used. A cleanup function is returned from the effect body
-  as `return () => { ... };` (its mapping to IR is not specified, section 18).
+- The returned value of `useEffect` is not used. An effect may have a cleanup function, written as the
+  last statement of the effect body: `return () => { ... };`. The cleanup is a second native handler:
+  its protected region id is the effect's bind id followed by `_cleanup` (effect `bind::sync` has
+  cleanup `bind::sync_cleanup`), and the IR effect has an optional `cleanup` field holding that id
+  ([`ir-v1.md`](ir-v1.md) section 2). The cleanup runs before the effect runs again and on unmount
+  ([`component-model-v1.md`](component-model-v1.md) section 2). Its arrow body is its preview body
+  (section 9.3). A `return` in any other position of an effect body is `TESSERA_REACT_EFFECT_RETURN`;
+  an id that collides with another bind id is `TESSERA_REACT_BIND_ID`. The project owner decided this.
 
 ## 8. Expressions
 
@@ -344,10 +361,11 @@ const submit = (values: FormValues): void => {
   not translated to C++.
 - The TSX body is the **preview body**: the browser designer runs it (it cannot run C++). It follows
   the rules of section 9.2, and may additionally contain `return <PureExpr>;` for a non-`void` handler.
-  A native handler with an empty body is allowed; the designer then does nothing for that event and
-  shows a diagnostic that native logic does not run in the preview.
+  The preview body is optional. A native handler with an empty body is allowed; the designer then does
+  nothing for that event and reports the warning `TESSERA_REACT_NO_PREVIEW_BODY` (severity `warning`,
+  never an error, and it does not stop code generation). The project owner decided this.
 - The preview body is not checked against the C++ code; keeping them equivalent is the developer's
-  responsibility (section 18 lists this as an open question).
+  responsibility. No tool compares them.
 - The annotation may also precede a hook call to give its protected region a stable id; the accepted
   positions are: before a handler declaration and before a `useEffect` statement. Any other position
   is `TESSERA_REACT_BIND_POSITION`.
@@ -513,6 +531,9 @@ and no silent skipping.
 | Missing key on a list element | `TESSERA_REACT_LIST_KEY` | Add `key` |
 | Types in `.jsx`; `any`, `enum`, `interface`, etc. | `TESSERA_JSX_SUBSET_TYPES` | Use the types of section 5 |
 | Array methods other than `.map` (`filter`, `reduce`, `forEach`, `slice`, `sort`, ...) | `TESSERA_JSX_SUBSET_ARRAY_METHOD` | Filter or sort in a setter or in developer C++ |
+| Bare `number` type | `TESSERA_JSX_TYPE_NUMBER` | Write `int` or `float` (section 5) |
+| Reading an animated value (`v.value`) | `TESSERA_JSX_SUBSET_ANIMATED_READ` | Pass the animated value whole (section 7) |
+| `return` inside an effect body other than the final cleanup | `TESSERA_REACT_EFFECT_RETURN` | Use the cleanup form (section 7) |
 | Unknown `use...` hook name | `TESSERA_REACT_UNKNOWN_HOOK` | Use one of the four hooks (section 7) |
 | Import cycle between files | `TESSERA_JSX_SUBSET_IMPORT_CYCLE` | Move shared code to a third file |
 | Malformed or duplicate `bind::` id | `TESSERA_REACT_BIND_ID` | Use `[a-z][a-z0-9_]*`, unique in the project |
@@ -547,8 +568,8 @@ start of the line. [`ir-v1.md`](ir-v1.md) section 8 defines the same span fields
 
 ### 13.3 Error count
 
-The front end reports all independent errors it can find in a file, in source order, up to a
-configured maximum per file; the maximum is not specified yet (section 15). Errors caused only by an
+The front end reports all independent errors it can find in a file, in source order, up to the
+diagnostics limit of section 15. Errors caused only by an
 earlier error (for example a use of a name whose declaration failed) are not reported.
 
 ## 14. Error-tolerant parsing (live view)
@@ -579,7 +600,18 @@ Recovery mode is not used by production code generation.
 - The front end allocates from bounded arenas and has configurable limits for: file size, token
   count, nesting depth of parentheses/JSX/expressions, number of diagnostics per file, and number of
   components per file. Exceeding a limit is an error with its own code
-  (`TESSERA_JSX_LIMIT_*`), never a crash or a hang. The values of the limits are not specified yet.
+  (`TESSERA_JSX_LIMIT_*`), never a crash or a hang. Default values, decided by the project owner as
+  starting points to be re-measured once the parser exists, and changeable in project configuration:
+
+  | Limit | Default | Code |
+  |---|---|---|
+  | File size | 1 MiB | `TESSERA_JSX_LIMIT_FILE_SIZE` |
+  | Tokens per file | 200000 | `TESSERA_JSX_LIMIT_TOKENS` |
+  | Nesting depth (parentheses, JSX elements, expressions) | 128 | `TESSERA_JSX_LIMIT_DEPTH` |
+  | Diagnostics per file (reporting stops after this many) | 100 | `TESSERA_JSX_LIMIT_DIAGNOSTICS` |
+  | Components per file | 64 | `TESSERA_JSX_LIMIT_COMPONENTS` |
+
+  The configuration key names are not specified yet.
 - It is portable C++: no operating-system, threading or filesystem calls inside the parser. File
   reading happens in the caller so the same library links into the native CLI and the Wasm module.
 
@@ -595,7 +627,7 @@ reads only the IR (AGENTS.md Non-negotiables item 4).
 ### 16.2 Generated typings
 
 For editor support the build generates `.d.ts` files: framework typings for `"tessera"` (intrinsic
-props, event objects, built-in hooks) and, per project, typings for components and for
+props, event objects, built-in hooks, and the type aliases `int` and `float`) and, per project, typings for components and for
 `ui/elements.json` ([`custom-elements-v1.md`](custom-elements-v1.md)). Editors use them for completion
 and hover; the front end does not read them to decide validity.
 
@@ -622,17 +654,15 @@ and hover; the front end does not read them to decide validity.
 
 ## 18. Open questions (no decision yet)
 
-- Semicolons: whether to support automatic semicolon insertion (section 3.6).
-- Native handler preview body: whether the TSX body of a `bind::` handler is required, optional, or
-  checked against the C++ (section 9.3). The designer needs it to run; production ignores it.
-- How an effect cleanup function maps to IR, which has a single `handler` field per effect
-  ([`ir-v1.md`](ir-v1.md) section 2).
-- How the IR numeric types `int` and `float` are chosen from TypeScript's single `number` type, and the
-  rules for overflow, division by zero and formatting ([`ir-v1.md`](ir-v1.md)).
+Decided by the project owner and recorded in the sections named: no automatic semicolon insertion
+(3.6), optional preview body (9.3), `int`/`float` types (5), cleanup mapping (7), no reading of animated
+values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults (15).
+
+Still open:
+
+- Integer width, overflow, division by zero and number formatting rules of the IR numeric types
+  ([`ir-v1.md`](ir-v1.md)).
 - Allowlist of pure functions available in expressions ([`ir-v1.md`](ir-v1.md) section 14).
 - Built-in hook manifest format and the first library hooks.
-- Members of an animated value other than `.set` (reading its current value).
-- Whether lowercase HTML tags may be offered as aliases of intrinsics (`div` to `View`) for porting.
-- Values of the parser limits in section 15.
 - Props of `Image`, `Path` and `Spacer` (section 11).
-- Whether `export default` components are needed for compatibility with existing React code.
+- Configuration key names for the parser limits (section 15).

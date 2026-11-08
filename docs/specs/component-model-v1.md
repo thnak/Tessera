@@ -56,6 +56,7 @@ Rules:
 
 - State updates are batched per tick/frame (a tick is one fixed-step update, [`game-loop.md`](../design/game-loop.md)); setters do not render synchronously.
 - Effects run on the UI thread after commit; they must not block.
+- An effect may declare a cleanup handler (IR field `cleanup`, [`ir-v1.md`](ir-v1.md) section 2; source form in [`jsx-subset-v1.md`](jsx-subset-v1.md) section 7). It runs before the effect runs again and on unmount.
 - Effect dependency arrays are exact; V1 rejects missing/extra deps.
 - Ref cleanup: refs are cleared when the target node is destroyed.
 - Animated values are sampled at the fixed timestep (see [`animation.md`](../design/animation.md) and [`animation-v1.md`](animation-v1.md)).
