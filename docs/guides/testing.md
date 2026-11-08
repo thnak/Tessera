@@ -35,6 +35,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `clock` | deterministic manual clock, monotonic advance validation |
 | `runtime_loop` | clock-driven steps, wake requests, continuous/on-demand render modes |
 | `frame_pacer` | uncapped/deadline waits, lateness, cadence reset, validation |
+| `async` | cancellation propagation, FIFO/nested posting, bounded overflow, skip cancelled, budget |
 | `input` | bounded queue FIFO/overflow, modifier flags, adjacent-move coalescing |
 | `damage` | clip, overlap/touch merge, margin, cap/full-redraw fallback |
 | `tokenizer` | CSS tokens, offsets, escapes, strings, numbers, functions, match tokens, ranges |

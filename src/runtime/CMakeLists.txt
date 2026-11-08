@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_runtime STATIC
+    async.cpp
     clock.cpp
     fixed_step.cpp
     frame_pacer.cpp

@@ -39,6 +39,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `clock` | deterministic manual clock, monotonic advance validation |
 | `runtime_loop` | clock-driven steps, one-shot requests, dirty persistence, continuous/on-demand modes |
 | `frame_pacer` | uncapped/deadline waits, lateness, cadence reset, validation |
+| `async` | cancellation propagation, FIFO/nested posting, bounded overflow, skip cancelled, budget |
 | `input` | bounded queue FIFO/overflow, modifier flags, adjacent-move coalescing |
 | `damage` | clip, overlap/touch merge, margin, cap/full-redraw fallback |
 | `tokenizer` | CSS tokens, offsets, escapes, strings, numbers, functions, match tokens, ranges |
