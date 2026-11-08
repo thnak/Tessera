@@ -88,6 +88,8 @@ Unexpected third-party dynamic libraries fail the release.
 - [ ] Windows + Linux clean builds/tests
 - [ ] validation layers clean (debug)
 - [ ] link-graph allowlist passes
+- [ ] no JS/Wasm/React runtime or dynamic plugin loader in the production binary (ADR-024)
+- [ ] bridge contract/leak tests pass
 - [ ] notices/SBOM generated and shipped
 - [ ] assets/fonts/ICU data packaged
 - [ ] clean-VM smoke test (no SDK)

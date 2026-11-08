@@ -1,7 +1,7 @@
 # Resources and asset pipeline
 
 Status: design for Big Step B2/B3. `src/rendering/resources/` is a placeholder; B1 uses
-one-shot textures/buffers.
+one-shot textures/buffers. Memory/ownership: [`memory-model-v1.md`](../specs/memory-model-v1.md).
 
 Resources cover images, fonts, SVG/paths, shaders, themes, and GPU objects. The pipeline must
 be deterministic, bounded, and asynchronous enough to avoid UI stalls.

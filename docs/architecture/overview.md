@@ -117,6 +117,10 @@ and [`performance.md`](../design/performance.md).
 OS-specific code lives under `src/platform/{windows,linux,macos,android}` and implements
 `src/hal/` interfaces. The UI layer sees normalized metrics/events, not platform types.
 
+**No production bridge in the UI/render/input/memory hot path.** Bridges are limited to OS
+edges, build-time tooling, and the design-time viewer; UI objects never cross JNI/ObjC/Wasm
+boundaries (ADR-024, [`bridges.md`](../design/bridges.md)).
+
 ## 6. Threading model
 
 - **UI thread** owns the scene graph, style/layout/animation state, input dispatch, and

@@ -59,6 +59,11 @@ A cross-platform C++ UI framework:
     normalized and tested per platform.
 14. **Diagnostics are structured, bounded, and optional** (ADR-022). No printf-only debugging;
     logs/traces/metrics/crash/capture are privacy-safe and cheap when disabled.
+15. **Native-first boundaries; no production bridges** (ADR-024). The UI/render/input/memory
+    hot path is direct C++. No JS/React/scripting runtime, virtual DOM, per-frame FFI/IPC, or
+    UI objects across JNI/ObjC/Wasm. Bridges are only at OS/build-time/design-time edges; see
+    [`docs/design/bridges.md`](docs/design/bridges.md) and
+    [`docs/specs/memory-model-v1.md`](docs/specs/memory-model-v1.md).
 
 ## Big Steps (group work, don't micro-step)
 
@@ -214,6 +219,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | UI virtualization | [`docs/specs/virtualization-v1.md`](docs/specs/virtualization-v1.md) |
 | Designer / Wasm | [`docs/design/designer.md`](docs/design/designer.md) |
 | Threading / memory | [`docs/design/threading-and-memory.md`](docs/design/threading-and-memory.md) |
+| Memory model / bridges | [`docs/specs/memory-model-v1.md`](docs/specs/memory-model-v1.md), [`docs/design/bridges.md`](docs/design/bridges.md) |
 | Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |
 | Testing / goldens | [`docs/guides/testing.md`](docs/guides/testing.md), [`docs/specs/golden-tests-v1.md`](docs/specs/golden-tests-v1.md) |
 | Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |

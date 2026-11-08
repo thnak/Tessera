@@ -2,6 +2,7 @@
 
 Status: design only. No Android/iOS backend is implemented; B1 is desktop/offscreen.
 Android is the first mobile target; iOS/iPadOS is deferred (ADR-010 covers macOS, not iOS).
+Bridge policy: [`bridges.md`](bridges.md); memory rules: [`memory-model-v1.md`](../specs/memory-model-v1.md).
 
 Tessera owns the renderer and input pipeline, but **the OS owns the app lifecycle, surface,
 window/view hierarchy, input delivery, IME, accessibility, and permissions**. The HAL must be a

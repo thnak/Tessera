@@ -44,6 +44,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Window resize & lifecycle](docs/design/window-resize.md)
 - [HAL](docs/design/hal.md), [OS events & foldables](docs/specs/os-events-v1.md)
 - [Mobile integration](docs/design/mobile-integration.md)
+- [Memory model](docs/specs/memory-model-v1.md), [bridges](docs/design/bridges.md)
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),
@@ -154,7 +155,7 @@ Tools and demos:
 
 ## Next
 
-1. ADR-001 … ADR-023 in `decisions/`.
+1. ADR-001 … ADR-024 in `decisions/`.
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
    async runtime, diagnostics, Yoga/text, pixel goldens.
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.

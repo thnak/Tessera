@@ -115,6 +115,8 @@ tests, fuzz job, performance job.
 - [ ] configure/build/tests on Windows + Linux
 - [ ] validation layers clean (debug)
 - [ ] static link graph allowlist passes
+- [ ] production binary contains no JS/Wasm/React runtime or dynamic plugin loader (ADR-024)
+- [ ] bridge contract/leak tests pass (JNI/ObjC/IPC)
 - [ ] notices/SBOM updated and shipped
 - [ ] assets/fonts/ICU data packaged
 - [ ] clean-VM smoke test (no SDK)

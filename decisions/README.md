@@ -31,6 +31,7 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-021](ADR-021-async-runtime.md) | Async/await runtime; never block the UI thread | Proposed |
 | [ADR-022](ADR-022-diagnostics-and-profiling.md) | Structured diagnostics, tracing, and profiling | Proposed |
 | [ADR-023](ADR-023-os-event-normalization-and-foldables.md) | OS event normalization and foldable metrics | Proposed |
+| [ADR-024](ADR-024-native-first-boundaries.md) | Native-first boundaries; no production bridges | Accepted |
 
 ## Dependency overview
 
@@ -54,6 +55,7 @@ ADR-020 window resize/lifecycle ── ADR-017 loop, ADR-021 async
 ADR-021 async/await runtime ── ADR-020 resize, ADR-022 diagnostics
 ADR-022 diagnostics/profiling (cross-cutting: all subsystems)
 ADR-023 OS event normalization/foldables ── ADR-020 lifecycle, ADR-017 input
+ADR-024 native-first boundaries (cross-cutting: runtime, compiler, designer, mobile)
 ```
 
 ## Adding an ADR

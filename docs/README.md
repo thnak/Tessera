@@ -28,6 +28,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-021](../decisions/ADR-021-async-runtime.md) — async/await; never block the UI thread
 - [ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md) — diagnostics/profiling
 - [ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md) — OS events/foldables
+- [ADR-024](../decisions/ADR-024-native-first-boundaries.md) — native-first; no production bridges
 
 ## 3. Specs (normative)
 
@@ -44,6 +45,8 @@ for the project overview. This page is the map and reading order for the framewo
   reconciliation, generated C++
 - [`specs/virtualization-v1.md`](specs/virtualization-v1.md) — virtualized lists/grids,
   recycling, scroll anchoring, accessibility
+- [`specs/memory-model-v1.md`](specs/memory-model-v1.md) — ownership, allocators, frame/GPU
+  lifetime, caches, bridge memory, budgets
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -78,6 +81,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction
 - [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input,
   IME, accessibility, lifecycle, and manifest/Info.plist declarations
+- [`design/bridges.md`](design/bridges.md) — native-first bridge policy (JNI/ObjC/Wasm/IPC)
 - [`design/async.md`](design/async.md) — C++20 coroutines, executors, cancellation, no blocking
 - [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,
   crash, capture
@@ -144,6 +148,8 @@ for the project overview. This page is the map and reading order for the framewo
 19. [Diagnostics](design/diagnostics.md)
 20. [Runtime config](specs/runtime-config-v1.md)
 21. [Diagnostics config](specs/diagnostics-config-v1.md)
+22. [Memory model](specs/memory-model-v1.md)
+23. [Bridges](design/bridges.md)
 
 ### Compiler / codegen
 
@@ -192,6 +198,7 @@ for the project overview. This page is the map and reading order for the framewo
 | Compiler/IR/codegen | C proposed |
 | UI virtualization (list/grid) | B2/E proposed |
 | Mobile integration (Android first) | design only |
+| Memory model / bridge policy | proposed / ADR-024 accepted |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |

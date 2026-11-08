@@ -1,6 +1,7 @@
 # Threading, ownership, and memory
 
-Status: design for Big Step B2/B3. The B1 runtime is synchronous and offscreen.
+Status: design for Big Step B2/B3. The B1 runtime is synchronous and offscreen. Normative
+details: [`memory-model-v1.md`](../specs/memory-model-v1.md) and [`bridges.md`](bridges.md).
 
 Tessera must stay responsive while doing IO, decoding, shaping, and GPU uploads. The rules
 below are normative; ADR-021 ("never block the UI thread") is the top-level constraint.
