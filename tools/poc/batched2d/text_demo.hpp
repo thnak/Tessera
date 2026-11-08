@@ -9,6 +9,7 @@
 #include "tessera/ui/text/text_renderer.hpp"
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -37,6 +38,19 @@ public:
         style.font_size = static_cast<float>(pixel_size_);
         const ui::text::ShapedRun run = shaper_.shape(text_, style);
         renderer_.draw(renderer, run, x, baseline_y, pixel_size_, color);
+    }
+
+    void draw_lines(rendering::gpu::Batched2DRenderer& renderer, std::span<const std::string> lines,
+                    float x, float first_baseline, float line_height, std::uint16_t pixel_size,
+                    rendering::rhi::Color color) {
+        ui::text::TextStyle style;
+        style.font_size = static_cast<float>(pixel_size);
+        float baseline = first_baseline;
+        for (const std::string& line : lines) {
+            const ui::text::ShapedRun run = shaper_.shape(line, style);
+            renderer_.draw(renderer, run, x, baseline, pixel_size, color);
+            baseline += line_height;
+        }
     }
 
     [[nodiscard]] const ui::text::GlyphAtlas& atlas() const {

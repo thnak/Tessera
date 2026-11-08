@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 #include "damage_cli.hpp"
+#include "tessera/diagnostics/metrics.hpp"
+#include "tessera/diagnostics/overlay.hpp"
 #include "tessera/rendering/golden/image_diff.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/null/null_device.hpp"
@@ -31,6 +33,7 @@ struct Options {
     std::uint32_t height = 512;
     bool validation = false;
     bool golden = false;
+    bool overlay = false;
     std::string font;
     std::string text = "Tessera";
     float text_size = 24.0f;
@@ -45,7 +48,7 @@ void print_usage() {
                  "                     [--width N] [--height N] [--validation] [--golden]\n"
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
-                 "                     [--max-mismatch ratio]\n";
+                 "                     [--max-mismatch ratio] [--overlay]\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -69,6 +72,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.validation = true;
         } else if (arg == "--golden") {
             options.golden = true;
+        } else if (arg == "--overlay") {
+            options.overlay = true;
         } else if (arg == "--font" && i + 1 < argc) {
             options.font = argv[++i];
         } else if (arg == "--text" && i + 1 < argc) {
@@ -188,14 +193,49 @@ make_text_demo(tessera::rendering::rhi::Device& device, const Options& options) 
 }
 
 void draw_text_overlay(tessera::poc::batched2d::TextDemo* text,
-                       tessera::rendering::gpu::Batched2DRenderer& renderer) {
+                       tessera::rendering::gpu::Batched2DRenderer& renderer, bool overlay) {
     if (text == nullptr) {
         return;
     }
     text->begin_frame();
-    text->draw(renderer, 150.0f, 34.0f, tessera::rendering::rhi::rgba8(226, 232, 240));
+    text->draw(renderer, overlay ? 360.0f : 150.0f, 34.0f,
+               tessera::rendering::rhi::rgba8(226, 232, 240));
     std::cout << "text glyphs=" << text->atlas().stats().misses + text->atlas().stats().hits
               << " pages=" << text->atlas().page_count() << "\n";
+}
+
+void draw_diagnostics_overlay(tessera::poc::batched2d::TextDemo* text,
+                              tessera::rendering::gpu::Batched2DRenderer& renderer,
+                              const Options& options) {
+    if (!options.overlay) {
+        return;
+    }
+    if (text == nullptr) {
+        throw std::runtime_error("--overlay requires --font");
+    }
+    using tessera::diagnostics::MetricKind;
+    using tessera::diagnostics::MetricSample;
+    using tessera::diagnostics::OverlayFrame;
+    using tessera::diagnostics::OverlayModel;
+
+    // Capture the pre-overlay work without flushing: a mid-frame flush would upload the same
+    // vertex buffer again and invalidate the scene draw that is still recording.
+    OverlayFrame frame;
+    frame.frame = 1;
+    frame.steps = 1;
+    frame.completions = 0;
+    frame.damage_rects = options.damage.size();
+    frame.scissors = options.damage.size();
+    frame.full_redraw = options.damage.empty();
+
+    const MetricSample metrics[] = {
+        {"paint.batches", renderer.pending_batches(), MetricKind::Counter},
+        {"paint.vertices", renderer.vertex_count(), MetricKind::Counter},
+    };
+    const auto lines = OverlayModel::build(frame, metrics, 2);
+    renderer.push_rounded_rect({8, 8, 250, 88}, tessera::rendering::rhi::rgba8(15, 23, 42, 232), 8);
+    text->draw_lines(renderer, lines, 16.0f, 26.0f, 18.0f, 14,
+                     tessera::rendering::rhi::rgba8(226, 232, 240));
 }
 
 std::array<std::uint8_t, 8 * 8 * 4> make_checker_pixels() {
@@ -289,7 +329,8 @@ int run_vulkan(const Options& options) {
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
     build_screen(renderer, *checker, options.width, options.height);
-    draw_text_overlay(text_demo.get(), renderer);
+    draw_text_overlay(text_demo.get(), renderer, options.overlay);
+    draw_diagnostics_overlay(text_demo.get(), renderer, options);
     renderer.end();
 
     commands->copy_target_to_buffer(*target, *readback);
@@ -347,7 +388,8 @@ int run_null(const Options& options) {
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
     build_screen(renderer, *checker, options.width, options.height);
-    draw_text_overlay(text_demo.get(), renderer);
+    draw_text_overlay(text_demo.get(), renderer, options.overlay);
+    draw_diagnostics_overlay(text_demo.get(), renderer, options);
     renderer.end();
     commands->submit();
 

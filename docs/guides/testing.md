@@ -108,6 +108,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |
 | `batched2d_golden` | lavapipe bit-exact batched2d dashboard baseline (Linux only) |
+| `batched2d_overlay_golden` | lavapipe bit-exact diagnostics overlay baseline (Linux only) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -175,6 +176,8 @@ Implemented for the batched2d proof:
   (`lvp_icd*.json`). It renders with `--golden` and compares
   `tests/golden/baseline/batched2d/dashboard.png` bit-exactly
   (`--tolerance 0 --max-mismatch 0`).
+- `batched2d_overlay_golden` does the same with `--overlay --font <fixture>` against
+  `tests/golden/baseline/batched2d/dashboard_overlay.png`.
 - Generate or update a baseline only through lavapipe:
 
   ```bash

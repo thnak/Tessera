@@ -59,6 +59,10 @@ public:
     [[nodiscard]] std::uint32_t vertex_count() const {
         return emitted_vertices_;
     }
+    [[nodiscard]] std::uint32_t pending_batches() const {
+        return static_cast<std::uint32_t>(batches_.size() +
+                                          (current_batch_.vertex_count > 0 ? 1 : 0));
+    }
 
 private:
     struct Batch {

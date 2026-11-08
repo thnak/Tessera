@@ -84,7 +84,8 @@ Implemented core (`diagnostics::TraceRecorder`, `diagnostics/trace.hpp`):
   exporters, and automatic instrumentation.
 
 `diagnostics::OverlayModel` (`diagnostics/overlay.hpp`) turns a frame snapshot plus metric samples
-into short overlay lines; rendering them through the text stack in the proof is still pending.
+into short overlay lines; the batched2d proof draws them through `TextRenderer` with `--overlay`
+and the `dashboard_overlay.png` lavapipe golden.
 
 - RAII span macros:
 
