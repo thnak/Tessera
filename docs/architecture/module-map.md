@@ -107,6 +107,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/property_registry.hpp` | supported properties, initial values, shorthand expansion |
 | `ui/style/media_query.hpp` | media-query parsing/evaluation against fixed context |
 | `ui/style/keyframes.hpp` | `@keyframes` block parsing into offset steps |
+| `ui/style/supports.hpp` | `@supports` condition parser/evaluator against the registry |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga flexbox mapping + absolute boxes + measure callback |
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |

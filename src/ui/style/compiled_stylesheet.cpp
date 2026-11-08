@@ -2,6 +2,7 @@
 
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/selector.hpp"
+#include "tessera/ui/style/supports.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -147,6 +148,20 @@ void CompiledStyleSheet::compile_at_rule(const AtRule& at_rule, std::uint64_t& s
             }
         }
         compile_rules(parse_stylesheet(at_rule.block), source_order, target);
+        return;
+    }
+
+    if (name == "supports") {
+        const SupportsParseResult condition = parse_supports_condition(at_rule.prelude);
+        if (!condition.ok) {
+            diagnostics_.push_back(StyleDiagnostic{StyleDiagnosticKind::InvalidAtRule,
+                                                   at_rule.offset, name,
+                                                   "invalid supports condition"});
+            return;
+        }
+        if (evaluate_supports(condition.condition, registry_)) {
+            compile_rules(parse_stylesheet(at_rule.block), source_order, layer);
+        }
         return;
     }
 

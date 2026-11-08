@@ -207,9 +207,49 @@ button { padding: 1px; }
         return 17;
     }
 
+    const CompiledStyleSheet supports_true =
+        compile_stylesheet("@supports (display: flex) { .card { color: red; } }");
+    if (!expect(supports_true.rules().size() == 1, "supports true compiles") ||
+        !expect(value_is(supports_true.compute(button, nullptr), "color", "red"),
+                "supports true style")) {
+        return 18;
+    }
+
+    const CompiledStyleSheet supports_false =
+        compile_stylesheet("@supports (display: grid) { .card { color: red; } }");
+    if (!expect(supports_false.rules().empty(), "supports false skips") ||
+        !expect(value_is(supports_false.compute(button, nullptr), "color", "black"),
+                "supports false keeps initial style")) {
+        return 19;
+    }
+
+    const CompiledStyleSheet supports_not =
+        compile_stylesheet("@supports not (display: grid) { .card { color: green; } }");
+    if (!expect(value_is(supports_not.compute(button, nullptr), "color", "green"),
+                "supports not")) {
+        return 20;
+    }
+
+    const CompiledStyleSheet supports_or =
+        compile_stylesheet("@supports (display: grid) or (display: flex) {"
+                           ".card { color: blue; } }");
+    if (!expect(value_is(supports_or.compute(button, nullptr), "color", "blue"), "supports or")) {
+        return 21;
+    }
+
+    const CompiledStyleSheet supports_invalid =
+        compile_stylesheet("@supports () { .card { color: red; } }");
+    if (!expect(supports_invalid.rules().empty(), "invalid supports skips") ||
+        !expect(supports_invalid.diagnostics().size() == 1, "invalid supports diagnostic") ||
+        !expect(supports_invalid.diagnostics()[0].kind ==
+                    tessera::ui::style::StyleDiagnosticKind::InvalidAtRule,
+                "invalid supports diagnostic kind")) {
+        return 22;
+    }
+
     const CompiledStyleSheet empty = compile_stylesheet("");
     if (!expect(empty.rules().empty() && empty.index().size() == 0, "empty stylesheet")) {
-        return 18;
+        return 23;
     }
 
     std::cout << "compiled_stylesheet: ok\n";

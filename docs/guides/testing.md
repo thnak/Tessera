@@ -46,6 +46,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `property_registry` | metadata, box/pair/flex expansion, diagnostics, initial values |
 | `media_query` | width/height/resolution, orientation, color scheme, reduced motion, lists/not |
 | `keyframes` | from/to/percent offsets, comma selectors, invalid steps |
+| `supports` | property/value support, custom properties, not/and/or precedence and nesting |
 | `layout` | flex row/column, grow, gap/padding, absolute, percent/min/max, ratio, RTL, wrap, text measure, determinism |
 | `text_measure` | stub advance, word wrap, long-word break, newlines, letter spacing, style parsing |
 | `layout_apply` | id matching, parent-relative bounds, dirty propagation, missing/extra boxes |

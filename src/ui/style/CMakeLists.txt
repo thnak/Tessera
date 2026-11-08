@@ -7,6 +7,7 @@ add_library(tessera_style STATIC
     media_query.cpp
     parser.cpp
     property_registry.cpp
+    supports.cpp
     selector.cpp
     selector_match.cpp
     tokenizer.cpp)

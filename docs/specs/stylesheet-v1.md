@@ -13,9 +13,9 @@ The property registry (supported properties, initial values, box/pair/flex short
 and diagnostics) is `src/ui/style/property_registry.cpp`. At-rule application for `@media`
 (width/height/resolution/orientation/color-scheme/reduced-motion), nested media rules, `@keyframes`
 parsing, and `@layer` precedence (plus the generated `Theme` origin) is in
-`src/ui/style/media_query.cpp`, `src/ui/style/keyframes.cpp`, and
-`src/ui/style/compiled_stylesheet.cpp`. `@supports`, the semantic matrix, and animation runtime
-remain proposed.
+`src/ui/style/media_query.cpp`, `src/ui/style/keyframes.cpp`, `src/ui/style/supports.cpp`, and
+`src/ui/style/compiled_stylesheet.cpp`. `@supports` evaluates registry-level declarations with
+`not`/`and`/`or`. The semantic matrix and animation runtime remain proposed.
 Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md) (stylesheet engine).
 
 Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8);

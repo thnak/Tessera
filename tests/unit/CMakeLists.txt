@@ -133,6 +133,13 @@ target_link_libraries(keyframes_tests PRIVATE tessera_style)
 
 add_test(NAME keyframes COMMAND keyframes_tests)
 
+add_executable(supports_tests
+    supports_tests.cpp)
+
+target_link_libraries(supports_tests PRIVATE tessera_style)
+
+add_test(NAME supports COMMAND supports_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 
