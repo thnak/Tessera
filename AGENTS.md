@@ -421,8 +421,8 @@ dirty Paint/Render scene bounds into snapped damage rectangles. `@supports` eval
 parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation, and
 `ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, and
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
-retargetable springs, and `ui/text/text_measure_cache.hpp` bounds measurement caching. Next slices,
-in order:
+retargetable springs, and `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
+Yoga measure callback). Next slices, in order:
 
 1. Real text stack seam: font loading/metrics, shaping, glyph atlas.
 2. Async runtime, diagnostics, lavapipe goldens.

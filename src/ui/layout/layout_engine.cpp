@@ -2,6 +2,7 @@
 
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/text/text_measure.hpp"
+#include "tessera/ui/text/text_measure_cache.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -438,13 +439,13 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
 struct MeasureContext {
     const LayoutInput* input = nullptr;
     text::TextStyle style;
-    const text::TextMeasurer* measurer = nullptr;
+    text::TextMeasureCache* cache = nullptr;
 };
 
 YGSize measure_text(YGNodeConstRef node, float width, YGMeasureMode width_mode, float height,
                     YGMeasureMode height_mode) {
     auto* context = static_cast<MeasureContext*>(YGNodeGetContext(node));
-    if (context == nullptr || context->measurer == nullptr) {
+    if (context == nullptr || context->cache == nullptr) {
         return YGSize{0.0f, 0.0f};
     }
 
@@ -453,7 +454,7 @@ YGSize measure_text(YGNodeConstRef node, float width, YGMeasureMode width_mode, 
         width_mode == YGMeasureModeUndefined ? std::numeric_limits<float>::infinity() : width;
     constraints.wrap = width_mode != YGMeasureModeUndefined;
     const text::TextMetrics metrics =
-        context->measurer->measure(context->input->text, context->style, constraints);
+        context->cache->measure(context->input->text, context->style, constraints);
 
     const float measured_width = width_mode == YGMeasureModeExactly ? width : metrics.width;
     const float measured_height = height_mode == YGMeasureModeExactly ? height : metrics.height;
@@ -461,18 +462,18 @@ YGSize measure_text(YGNodeConstRef node, float width, YGMeasureMode width_mode, 
 }
 
 YGNodeRef build_node(const LayoutInput& input, const LayoutViewport& viewport,
-                     const text::TextMeasurer& measurer,
+                     text::TextMeasureCache& cache,
                      std::vector<std::unique_ptr<MeasureContext>>& contexts) {
     YGNodeRef node = YGNodeNew();
     apply_style(node, input.style, viewport);
     if (!input.text.empty() && input.children.empty()) {
         contexts.push_back(std::make_unique<MeasureContext>(
-            MeasureContext{&input, text::text_style_from(input.style), &measurer}));
+            MeasureContext{&input, text::text_style_from(input.style), &cache}));
         YGNodeSetContext(node, contexts.back().get());
         YGNodeSetMeasureFunc(node, measure_text);
     }
     for (std::size_t i = 0; i < input.children.size(); ++i) {
-        YGNodeInsertChild(node, build_node(input.children[i], viewport, measurer, contexts), i);
+        YGNodeInsertChild(node, build_node(input.children[i], viewport, cache, contexts), i);
     }
     return node;
 }
@@ -499,17 +500,19 @@ YGDirection root_direction(const LayoutInput& root) {
 } // namespace
 
 struct LayoutEngine::Impl {
-    explicit Impl(std::shared_ptr<const text::TextMeasurer> text_measurer)
-        : measurer(std::move(text_measurer)) {}
+    Impl(std::shared_ptr<const text::TextMeasurer> text_measurer, std::size_t cache_capacity)
+        : cache(
+              std::make_shared<text::TextMeasureCache>(std::move(text_measurer), cache_capacity)) {}
 
-    std::shared_ptr<const text::TextMeasurer> measurer;
+    std::shared_ptr<text::TextMeasureCache> cache;
 };
 
-LayoutEngine::LayoutEngine(std::shared_ptr<const text::TextMeasurer> measurer) {
+LayoutEngine::LayoutEngine(std::shared_ptr<const text::TextMeasurer> measurer,
+                           std::size_t text_cache_capacity) {
     if (!measurer) {
         measurer = std::make_shared<text::StubTextMeasurer>();
     }
-    impl_ = std::make_unique<Impl>(std::move(measurer));
+    impl_ = std::make_unique<Impl>(std::move(measurer), text_cache_capacity);
 }
 
 LayoutEngine::~LayoutEngine() = default;
@@ -518,7 +521,7 @@ LayoutEngine& LayoutEngine::operator=(LayoutEngine&&) noexcept = default;
 
 LayoutResult LayoutEngine::layout(const LayoutInput& root, const LayoutViewport& viewport) const {
     std::vector<std::unique_ptr<MeasureContext>> contexts;
-    YGNodeRef root_node = build_node(root, viewport, *impl_->measurer, contexts);
+    YGNodeRef root_node = build_node(root, viewport, *impl_->cache, contexts);
     YGNodeCalculateLayout(root_node, viewport.width, viewport.height, root_direction(root));
 
     LayoutResult result;
@@ -526,6 +529,10 @@ LayoutResult LayoutEngine::layout(const LayoutInput& root, const LayoutViewport&
     collect_boxes(root_node, root, 0.0f, 0.0f, result);
     YGNodeFreeRecursive(root_node);
     return result;
+}
+
+std::shared_ptr<text::TextMeasureCache> LayoutEngine::text_cache() const {
+    return impl_->cache;
 }
 
 } // namespace tessera::ui::layout

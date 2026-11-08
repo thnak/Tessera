@@ -175,6 +175,13 @@ target_link_libraries(layout_tests PRIVATE tessera_layout)
 
 add_test(NAME layout COMMAND layout_tests)
 
+add_executable(layout_cache_tests
+    layout_cache_tests.cpp)
+
+target_link_libraries(layout_cache_tests PRIVATE tessera_layout)
+
+add_test(NAME layout_cache COMMAND layout_cache_tests)
+
 add_executable(text_measure_tests
     text_measure_tests.cpp)
 

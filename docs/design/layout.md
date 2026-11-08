@@ -5,8 +5,8 @@ Status: implementation started for Big Step B2 (runtime slice; see
 `include/tessera/ui/layout/layout_engine.hpp` + `src/ui/layout/layout_engine.cpp`, backed by vendored
 Yoga v3.2.2. It maps `ComputedStyle` longhands to a parallel `LayoutInput` tree and returns fractional
 absolute boxes in DFS order. Non-empty leaf `text` is measured through `ui/text/text_measure.hpp` and
-a Yoga measure callback; the default `StubTextMeasurer` is deterministic until the real text stack
-lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
+a Yoga measure callback, backed by a bounded `TextMeasureCache` (capacity configurable per engine);
+the default `StubTextMeasurer` is deterministic until the real text stack lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
 leaving unchanged boxes clean and marking changed ones paint/render dirty. Incremental relayout is
 not wired yet. `add_scene_damage` consumes a `DirtyPass` result, filters `Paint`/`Render` nodes,
 snaps their world bounds with `pixel_snap`, and feeds the damage accumulator.

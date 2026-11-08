@@ -114,7 +114,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |
 | `ui/animation/runtime.hpp` | active animation entries, tick, completion, dirty reporting |
 | `ui/animation/spring.hpp` | semi-implicit Euler spring with retarget/epsilon settle |
-| `ui/layout/layout_engine.hpp` | computed-style to Yoga flexbox mapping + absolute boxes + measure callback |
+| `ui/layout/layout_engine.hpp` | computed-style to Yoga mapping + boxes + cached measure callback |
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |
 | `ui/layout/damage_pass.hpp` | dirty Paint/Render scene bounds -> snapped damage rects |

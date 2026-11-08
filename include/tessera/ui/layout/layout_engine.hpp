@@ -5,14 +5,16 @@
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace tessera::ui::text {
+class TextMeasureCache;
 class TextMeasurer;
-}
+} // namespace tessera::ui::text
 
 namespace tessera::ui::layout {
 
@@ -42,7 +44,8 @@ struct LayoutResult {
 
 class LayoutEngine {
 public:
-    explicit LayoutEngine(std::shared_ptr<const text::TextMeasurer> measurer = nullptr);
+    explicit LayoutEngine(std::shared_ptr<const text::TextMeasurer> measurer = nullptr,
+                          std::size_t text_cache_capacity = 1024);
     ~LayoutEngine();
 
     LayoutEngine(LayoutEngine&&) noexcept;
@@ -52,6 +55,8 @@ public:
 
     [[nodiscard]] LayoutResult layout(const LayoutInput& root,
                                       const LayoutViewport& viewport) const;
+
+    [[nodiscard]] std::shared_ptr<text::TextMeasureCache> text_cache() const;
 
 private:
     struct Impl;
