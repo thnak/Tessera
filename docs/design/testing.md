@@ -79,6 +79,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `transition_longhand` | property/duration/delay/easing lists, cycling, defaults, negative delay, invalid slots |
 | `transition_runtime` | exact-vs-all match, 0→1 sample, fill-final, zero duration, style diff, units/colors, invalid guards |
 | `transition_lifecycle` | supersede same target/property, preserve other keys, current-value restart, callback suppression |
+| `transition_pipeline` | longhand parse → style diff → tick → overlay, dirty/wake, untouched properties, settled style |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |
