@@ -38,7 +38,8 @@ public:
 ## 3. Navigation
 
 - Routes are declarative; a stack model with push/pop/replace/reset.
-- Deep links map to routes with validated parameters.
+- Deep links map to routes with validated parameters; see
+  [`deep-linking-v1.md`](../specs/deep-linking-v1.md).
 - Back handling is platform-aware (Android back, browser history, keyboard shortcuts).
 - State restoration: save/restore route stack and per-route state.
 - Transitions are animations, not navigation semantics; reduced motion skips them.

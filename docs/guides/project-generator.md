@@ -122,7 +122,11 @@ The full field list, defaults, and validation rules are in
 vsync/VRR, render-on-demand, dirty rendering, resize, and async are defined in
 [`docs/specs/runtime-config-v1.md`](../specs/runtime-config-v1.md). Buffer defaults and the
 user-tunable allowlist are in [`docs/specs/buffer-config-v1.md`](../specs/buffer-config-v1.md)
-(how-to: [`docs/guides/tunables.md`](tunables.md)). Logging/tracing/profiling/crash are defined
+(how-to: [`docs/guides/tunables.md`](tunables.md)). Loading/auth/resource policy is in
+[`docs/specs/resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md) and
+[`docs/design/startup-and-loading.md`](../design/startup-and-loading.md). Deep links/platform
+activation are in [`docs/specs/deep-linking-v1.md`](../specs/deep-linking-v1.md) and
+[`docs/guides/deep-linking.md`](deep-linking.md). Logging/tracing/profiling/crash are defined
 in [`docs/specs/diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md).
 
 ## C++ API for developers

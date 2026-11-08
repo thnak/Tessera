@@ -30,6 +30,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md) — OS events/foldables
 - [ADR-024](../decisions/ADR-024-native-first-boundaries.md) — native-first; no production bridges
 - [ADR-025](../decisions/ADR-025-error-boundaries.md) — error boundaries/exception isolation
+- [ADR-026](../decisions/ADR-026-deep-links-and-external-activation.md) — deep links/activation
 
 ## 3. Specs (normative)
 
@@ -54,6 +55,8 @@ for the project overview. This page is the map and reading order for the framewo
   unload/eviction, budgets, determinism
 - [`specs/error-boundaries-v1.md`](specs/error-boundaries-v1.md) — caught/not-caught errors,
   fallback/reset/retry, async errors, exception policy
+- [`specs/deep-linking-v1.md`](specs/deep-linking-v1.md) — external activation, route mapping,
+  single instance, auth gate, untrusted-link security
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -122,6 +125,8 @@ for the project overview. This page is the map and reading order for the framewo
 - [`guides/tunables.md`](guides/tunables.md) — expose a few buffer/runtime knobs to users
 - [`guides/loading-matrix.md`](guides/loading-matrix.md) — choose startup/loading/auth/resource
   strategy by app profile
+- [`guides/deep-linking.md`](guides/deep-linking.md) — declare schemes/hosts/routes and test
+  browser/file activation
 
 ## 6. Reference
 
@@ -171,11 +176,12 @@ for the project overview. This page is the map and reading order for the framewo
 1. [Startup & loading design](design/startup-and-loading.md)
 2. [Resource lifecycle](specs/resource-lifecycle-v1.md)
 3. [Error boundaries](specs/error-boundaries-v1.md)
-4. [Loading strategy matrix](guides/loading-matrix.md)
-5. [Resources & assets](design/resources.md)
-6. [Async runtime](design/async.md)
-7. [Performance & power](design/performance.md)
-8. [Security](design/security.md)
+4. [Deep linking](specs/deep-linking-v1.md)
+5. [Loading strategy matrix](guides/loading-matrix.md)
+6. [Resources & assets](design/resources.md)
+7. [Async runtime](design/async.md)
+8. [Performance & power](design/performance.md)
+9. [Security](design/security.md)
 
 ### Compiler / codegen
 
@@ -230,6 +236,7 @@ for the project overview. This page is the map and reading order for the framewo
 | Startup / loading / auth | design only |
 | Resource lifecycle (lazy/preload/unload) | B2/F proposed |
 | Error boundaries | C/F proposed (ADR-025 accepted) |
+| Deep links / external activation | F proposed (ADR-026 accepted) |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |

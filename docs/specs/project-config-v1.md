@@ -19,6 +19,7 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `dev` | object | no | see below | Browser preview |
 | `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering, resize, async |
 | `loading` | object | no | see [resource-lifecycle-v1.md](resource-lifecycle-v1.md) | Startup/loading/auth/route and lazy/preload/unload policy |
+| `deepLinks` | object | no | see [deep-linking-v1.md](deep-linking-v1.md) | External URL/file/command-line activation |
 | `buffers` | object | no | see [buffer-config-v1.md](buffer-config-v1.md) | Engine buffer/cache/queue defaults |
 | `tunables` | array | no | `[]` | Explicit allowlist of user-adjustable settings |
 | `diagnostics` | object | no | see [diagnostics-config-v1.md](diagnostics-config-v1.md) | Logging, tracing, profiling, crash |
@@ -162,6 +163,40 @@ Rules: `criticalResources` stays small; `preload` is bounded/cancellable; user s
 adjust budgets only within hard caps; golden/deterministic mode pins the critical set and load
 order and ignores network/system fonts.
 
+## `deepLinks`
+
+External URL/file/command-line activation. See
+[`deep-linking-v1.md`](deep-linking-v1.md) and [`guides/deep-linking.md`](../guides/deep-linking.md).
+
+```json
+"deepLinks": {
+  "schemes": ["myapp"],
+  "hosts": ["app.example.com"],
+  "routes": [
+    { "pattern": "/orders/:id", "route": "orders.detail", "auth": true },
+    { "pattern": "/share", "route": "share", "auth": false, "confirm": true }
+  ],
+  "fileTypes": ["myapp"],
+  "singleInstance": true,
+  "openIn": "existing",
+  "allowColdStart": true,
+  "fallbackUrl": "https://app.example.com",
+  "maxUrlLength": 4096
+}
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `schemes` | string[] | `[]` | Custom schemes; lowercase, no spaces |
+| `hosts` | string[] | `[]` | HTTPS App/Universal Link hosts; no wildcards |
+| `routes` | Route[] | `[]` | `pattern`, `route`, `auth`, `confirm` |
+| `fileTypes` | string[] | `[]` | Extensions/UTIs/MIME |
+| `singleInstance` | boolean | `true` | Forward to existing process |
+| `openIn` | string | `existing` | `existing` or `newWindow` |
+| `allowColdStart` | boolean | `true` | Allow launch via link |
+| `fallbackUrl` | string | — | HTTPS web fallback |
+| `maxUrlLength` | integer | `4096` | Reject oversized input |
+
 ## `buffers`
 
 Developer defaults for engine buffers. See
@@ -263,6 +298,9 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 16. `loading` follows [resource-lifecycle-v1.md](resource-lifecycle-v1.md): `criticalResources`
     is a small explicit set, `preload` is bounded/cancellable, and unload/eviction are enabled
     by policy. Deterministic mode pins the critical set and load order.
+17. `deepLinks` follows [deep-linking-v1.md](deep-linking-v1.md): schemes/hosts/routes are
+    unique allowlists, route patterns resolve to real routes, `fallbackUrl` is HTTPS, and no
+    secrets/tokens are allowed in URLs.
 
 ## Example
 
@@ -336,6 +374,19 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     "diskCacheMb": 512,
     "unloadOnBackground": true,
     "evictOnMemoryPressure": true
+  },
+  "deepLinks": {
+    "schemes": ["factory"],
+    "hosts": ["app.example.com"],
+    "routes": [
+      { "pattern": "/orders/:id", "route": "orders.detail", "auth": true },
+      { "pattern": "/share", "route": "share", "auth": false, "confirm": true }
+    ],
+    "fileTypes": ["factory"],
+    "singleInstance": true,
+    "openIn": "existing",
+    "allowColdStart": true,
+    "fallbackUrl": "https://app.example.com"
   },
   "buffers": {
     "renderer": { "stagingRingBytes": 16777216, "glyphAtlasBytes": 33554432 },

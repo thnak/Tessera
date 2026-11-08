@@ -66,7 +66,8 @@ boundaries, and no arbitrary code execution from UI sources.
 - Secrets/tokens in platform keystore where available; never in config/logs. Auth/session
   startup behavior is in [`startup-and-loading.md`](startup-and-loading.md).
 - Redact headers, query params, file paths, and user data in logs/crash dumps.
-- Validate deep links/notification payloads; allowlist schemes/hosts.
+- Validate deep links/notification payloads; allowlist schemes/hosts/routes. See
+  [`deep-linking-v1.md`](../specs/deep-linking-v1.md).
 - Storage paths are sandboxed; atomic writes prevent corruption.
 - Telemetry opt-in, aggregated, and documented; no PII by default.
 

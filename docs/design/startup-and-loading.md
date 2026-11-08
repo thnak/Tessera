@@ -115,7 +115,8 @@ Rules:
 - Don't render user-scoped data before auth is confirmed; don't flash stale data.
 - Store tokens in secure storage; never in logs/project config.
 - Support refresh, expiry, offline, cancellation, timeout, and retry.
-- After auth, continue the pending route/deep link; don't drop it.
+- After auth, continue the pending route/deep link; don't drop it. See
+  [`deep-linking-v1.md`](../specs/deep-linking-v1.md).
 - On logout: clear user-scoped caches/resources, cancel tasks, return to auth/guest.
 - Protect sensitive screens from capture (`FLAG_SECURE`/platform equivalents).
 - Auth screen must be accessible: labels, focus order, errors, progress, reduced motion.

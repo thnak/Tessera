@@ -159,6 +159,9 @@ Custom-drawn UI is invisible to TalkBack unless bridged.
 
 ### 3.7 Android declarations
 
+Deep link/App Link intent filters are declared via `deepLinks` in `tessera.json` and validated
+against the manifest; see [`deep-linking-v1.md`](../specs/deep-linking-v1.md).
+
 `AndroidManifest.xml` (representative; not exhaustive):
 
 ```xml

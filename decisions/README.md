@@ -33,6 +33,7 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-023](ADR-023-os-event-normalization-and-foldables.md) | OS event normalization and foldable metrics | Proposed |
 | [ADR-024](ADR-024-native-first-boundaries.md) | Native-first boundaries; no production bridges | Accepted |
 | [ADR-025](ADR-025-error-boundaries.md) | Error boundaries and exception isolation | Accepted |
+| [ADR-026](ADR-026-deep-links-and-external-activation.md) | Deep links and external activation | Accepted |
 
 ## Dependency overview
 
@@ -58,6 +59,7 @@ ADR-022 diagnostics/profiling (cross-cutting: all subsystems)
 ADR-023 OS event normalization/foldables ── ADR-020 lifecycle, ADR-017 input
 ADR-024 native-first boundaries (cross-cutting: runtime, compiler, designer, mobile)
 ADR-025 error boundaries (supersedes the error-boundary limit in ADR-007)
+ADR-026 deep links/external activation (cross-cutting: HAL, routing, security, startup)
 ```
 
 ## Adding an ADR
