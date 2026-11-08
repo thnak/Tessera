@@ -31,3 +31,35 @@ jobs:
 
       - name: Build
         run: cmake --build build/ios --parallel
+
+      # Simulator binaries run on the arm64 macOS runner; no device provisioning is required.
+      - name: Configure simulator tests
+        run: >
+          cmake -S . -B build/ios-tests
+          -DCMAKE_SYSTEM_NAME=iOS
+          -DCMAKE_OSX_SYSROOT=iphonesimulator
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_TESTS=ON
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build simulator tests
+        run: cmake --build build/ios-tests --parallel
+
+      - name: Run unit and null-GPU tests in simulator
+        run: |
+          device="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')"
+          xcrun simctl boot "$device" 2>/dev/null || true
+          xcrun simctl bootstatus "$device" -b
+          fail=0
+          for t in "$PWD"/build/ios-tests/tests/unit/*_tests "$PWD"/build/ios-tests/tests/gpu/*_tests; do
+            case "$t" in
+              *font_face_tests|*freetype_metrics_tests|*glyph_raster_tests|*glyph_atlas_tests|*harfbuzz_shaper_tests|*text_render_tests) continue ;;
+            esac
+            echo "== $t"
+            xcrun simctl spawn "$device" "$t" || fail=1
+          done
+          exit $fail

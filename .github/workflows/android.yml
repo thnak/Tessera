@@ -31,3 +31,41 @@ jobs:
 
       - name: Build
         run: cmake --build build/android --parallel
+
+      # Separate x86_64 build so the tests can run on the Linux x86_64 emulator.
+      - name: Configure tests (x86_64 emulator, null backend)
+        run: |
+          ndk="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          cmake -S . -B build/android-tests \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ndk/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=x86_64 \
+            -DANDROID_PLATFORM=android-24 \
+            -DANDROID_STL=c++_static \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTESSERA_BUILD_TESTS=ON \
+            -DTESSERA_BUILD_VULKAN=OFF \
+            -DTESSERA_BUILD_POC=OFF \
+            -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build tests
+        run: cmake --build build/android-tests --parallel
+
+      - name: Run unit and null-GPU tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            adb shell rm -rf /data/local/tmp/tessera
+            adb shell mkdir -p /data/local/tmp/tessera
+            for f in build/android-tests/tests/unit/*_tests build/android-tests/tests/gpu/*_tests; do
+              adb push "$f" /data/local/tmp/tessera/
+            done
+            adb shell chmod +x /data/local/tmp/tessera/*_tests
+            # Font tests need a fixture path that exists on the device; they stay covered on the
+            # host platforms instead.
+            adb shell 'cd /data/local/tmp/tessera && fail=0; for t in *_tests; do case "$t" in font_face_tests|freetype_metrics_tests|glyph_raster_tests|glyph_atlas_tests|harfbuzz_shaper_tests|text_render_tests) continue;; esac; echo "== $t"; ./$t || fail=1; done; exit $fail'
