@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 
+#include "swapchain_render.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "vulkan_internal.hpp"
 
 #include <X11/Xlib.h>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -154,12 +157,25 @@ int main() {
         return 5;
     }
 
+    const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
+    tessera::rendering::rhi::TextureDesc white_desc;
+    white_desc.extent = {1, 1};
+    white_desc.pixels = white_pixel.data();
+    white_desc.row_pitch = 4;
+    auto white = device->create_texture(white_desc);
+    auto pipeline = device->create_pipeline(tessera::rendering::vulkan::batched2d_pipeline_desc());
+    auto renderer = std::make_unique<tessera::rendering::gpu::Batched2DRenderer>(
+        *device, *pipeline, *white, tessera::rendering::gpu::Batched2DConfig{4096, true, true});
+
     auto acquired = swapchain->acquire_next_image(1000);
     if (!expect(acquired.has_value(), "acquire succeeds")) {
         XCloseDisplay(display);
         return 6;
     }
     if (!expect(acquired.value() < swapchain->image_count(), "acquired index is in range") ||
+        !expect(
+            tessera::test::render_swapchain_frame(*device, *renderer, *swapchain, acquired.value()),
+            "render to swapchain image") ||
         !expect(present_ok(*swapchain, acquired.value()), "present succeeds")) {
         XCloseDisplay(display);
         return 7;
@@ -196,6 +212,9 @@ int main() {
 
     auto adopted = swapchain->acquire_next_image(1000);
     if (!expect(adopted.has_value(), "acquire adopts the new swapchain") ||
+        !expect(
+            tessera::test::render_swapchain_frame(*device, *renderer, *swapchain, adopted.value()),
+            "render after resize") ||
         !expect(present_ok(*swapchain, adopted.value()), "present after resize succeeds")) {
         XCloseDisplay(display);
         return 11;
@@ -206,6 +225,9 @@ int main() {
 
     // Dependency order: the swapchain owns the surface on `display`, so it goes first; then the
     // device, the HAL window (its own connection), and finally the test's display.
+    renderer.reset();
+    white.reset();
+    pipeline.reset();
     swapchain.reset();
     device.reset();
     window.reset();

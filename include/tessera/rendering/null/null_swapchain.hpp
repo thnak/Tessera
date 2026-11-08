@@ -35,6 +35,8 @@ public:
     [[nodiscard]] std::expected<void, rhi::SwapchainError> present(std::uint32_t image) override;
     void resize(rhi::Extent2D extent) override;
 
+    [[nodiscard]] rhi::RenderTarget* image_target(std::uint32_t index) override;
+
     // Deterministically models a swapchain with no image ready. While enabled,
     // acquire_next_image returns Timeout regardless of its timeout argument.
     void set_acquire_timeout(bool enabled);

@@ -87,6 +87,7 @@ if (WIN32 AND TARGET tessera_rhi_vulkan)
         ${PROJECT_SOURCE_DIR}/third_party/volk
         ${PROJECT_SOURCE_DIR}/third_party/vma)
     target_link_libraries(vulkan_swapchain_tests PRIVATE
+        tessera_gpu
         tessera_rhi_vulkan
         tessera_hal_window)
 
@@ -103,6 +104,7 @@ if (TESSERA_X11_FOUND AND TARGET tessera_rhi_vulkan AND TARGET tessera_hal_windo
         ${PROJECT_SOURCE_DIR}/third_party/volk
         ${PROJECT_SOURCE_DIR}/third_party/vma)
     target_link_libraries(vulkan_swapchain_x11_tests PRIVATE
+        tessera_gpu
         tessera_rhi_vulkan
         tessera_hal_window
         X11::X11)

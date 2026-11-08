@@ -68,6 +68,9 @@ VulkanPipeline::~VulkanPipeline() {
 }
 
 VulkanRenderTarget::~VulkanRenderTarget() {
+    if (!owns_) {
+        return;
+    }
     if (view_ != VK_NULL_HANDLE) {
         vkDestroyImageView(device_, view_, nullptr);
     }

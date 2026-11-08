@@ -77,6 +77,10 @@ void NullSwapchain::resize(rhi::Extent2D extent) {
     ++stats_.resizes;
 }
 
+rhi::RenderTarget* NullSwapchain::image_target(std::uint32_t) {
+    return nullptr;
+}
+
 void NullSwapchain::set_acquire_timeout(bool enabled) {
     acquire_timeout_ = enabled;
 }

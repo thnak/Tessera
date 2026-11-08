@@ -44,6 +44,11 @@ public:
 
     [[nodiscard]] virtual Extent2D extent() const = 0;
     [[nodiscard]] virtual TextureFormat format() const = 0;
+
+    // True for swapchain images, which must end in PRESENT_SRC instead of a transfer layout.
+    [[nodiscard]] virtual bool presentable() const {
+        return false;
+    }
 };
 
 class CommandList {

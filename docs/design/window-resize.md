@@ -32,15 +32,20 @@ The B3 seams now have real Windows and Linux/X11 implementations:
 - [`include/tessera/rendering/rhi/swapchain.hpp`](../../include/tessera/rendering/rhi/swapchain.hpp)
   defines `SwapchainDesc` with opaque `native_window`/`native_display` handles supplied by the
   HAL, `SwapchainError` (including `Suboptimal`), the `Swapchain` interface, and
-  `Device::create_swapchain`. The null backend returns a deterministic rotating swapchain
-  (resize -> one `OutOfDate`, forced-timeout test control, stats).
+  `Device::create_swapchain`. `Swapchain::image_target(index)` exposes the acquired image as a
+  presentable `RenderTarget`; the renderer's end-of-pass transitions it to `PRESENT_SRC_KHR` (not
+  a transfer layout) and readback rejects it. The null backend returns a deterministic rotating
+  swapchain (resize -> one `OutOfDate`, forced-timeout test control, stats).
 - `src/rendering/backend/vulkan/src/vulkan_swapchain.cpp` and
   `vulkan_swapchain_present.cpp` share one surface/capability/format/present-mode selection core.
   The Win32 path uses `vkCreateWin32SurfaceKHR`; the X11 path uses `vkCreateXlibSurfaceKHR` with
   `native_display` (`Display*`) and `native_window` (`Window`) and queries
   `vkGetPhysicalDeviceXlibPresentationSupportKHR` for queue selection. Both create image views,
-  acquire with a bounded fence, present, and retire the old swapchain (`oldSwapchain` + bounded
-  empty-submit drain). Missing handles, unsupported surface formats, a surface-incapable queue,
+  acquire with a bounded fence, present, and retire the old swapchain (`oldSwapchain` plus a
+  bounded empty-submit drain **before** destroying the retired images/views). Both swapchain
+  smoke tests now render a real frame through `Batched2DRenderer` into the acquired image and
+  present it, exercising the image-target bridge rather than presenting an empty image. Missing
+  handles, unsupported surface formats, a surface-incapable queue,
   and builds without either platform surface extension report `NotSupported`.
 - Event-driven idling exists at the HAL seam: `hal::Window::wait_for_events` (Win32
   `MsgWaitForMultipleObjectsEx` message pump; X11 `poll()` on the connection fd followed by an
@@ -48,10 +53,9 @@ The B3 seams now have real Windows and Linux/X11 implementations:
   [`include/tessera/hal/window_wait.hpp`](../../include/tessera/hal/window_wait.hpp)'s
   `wait_for_events_until(window, deadline_seconds)`. The runtime loop/frame pacer should idle
   between ticks with the next `FramePacer` deadline once that integration lands; see
-  [`hal.md`](hal.md) §1.2. Still pending: runtime/pacer wiring, Wayland, swapchain-image render
-  targets, per-image frames-in-flight synchronization, device-loss recovery, and full OS
-  compliance beyond the messages handled here. The platform rules in §4 describe the target
-  behavior.
+  [`hal.md`](hal.md) §1.2. Still pending: runtime/pacer wiring, Wayland, per-image
+  frames-in-flight synchronization, device-loss recovery, and full OS compliance beyond the
+  messages handled here. The platform rules in §4 describe the target behavior.
 
 Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe the target):
 

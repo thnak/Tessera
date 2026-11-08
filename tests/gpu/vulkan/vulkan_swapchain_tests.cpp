@@ -7,11 +7,13 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#include "swapchain_render.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "vulkan_internal.hpp"
 
-#include <cstdint>
+#include <array>
 #include <exception>
 #include <iostream>
 #include <memory>
@@ -130,11 +132,24 @@ int main() {
         return 5;
     }
 
+    const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
+    tessera::rendering::rhi::TextureDesc white_desc;
+    white_desc.extent = {1, 1};
+    white_desc.pixels = white_pixel.data();
+    white_desc.row_pitch = 4;
+    auto white = device->create_texture(white_desc);
+    auto pipeline = device->create_pipeline(tessera::rendering::vulkan::batched2d_pipeline_desc());
+    auto renderer = std::make_unique<tessera::rendering::gpu::Batched2DRenderer>(
+        *device, *pipeline, *white, tessera::rendering::gpu::Batched2DConfig{4096, true, true});
+
     auto acquired = swapchain->acquire_next_image(1000);
     if (!expect(acquired.has_value(), "acquire succeeds")) {
         return 6;
     }
-    if (!expect(acquired.value() < swapchain->image_count(), "acquired index is in range")) {
+    if (!expect(acquired.value() < swapchain->image_count(), "acquired index is in range") ||
+        !expect(
+            tessera::test::render_swapchain_frame(*device, *renderer, *swapchain, acquired.value()),
+            "render to swapchain image")) {
         return 7;
     }
     if (!expect(present_ok(*swapchain, acquired.value()), "present succeeds")) {
@@ -171,6 +186,11 @@ int main() {
     if (!expect(adopted.has_value(), "acquire adopts the new swapchain")) {
         return 12;
     }
+    if (!expect(
+            tessera::test::render_swapchain_frame(*device, *renderer, *swapchain, adopted.value()),
+            "render after resize")) {
+        return 13;
+    }
     if (!expect(present_ok(*swapchain, adopted.value()), "present after resize succeeds")) {
         return 13;
     }
@@ -178,8 +198,11 @@ int main() {
     const std::uint32_t swapchains_created = native_swapchain->stats().swapchains_created;
     const std::uint32_t presents = native_swapchain->stats().presents;
 
-    // Destroy in dependency order: swapchain owns the surface and image views, then the device,
-    // then the window.
+    // Destroy in dependency order: renderer/pipeline/texture, then swapchain (surface and views),
+    // then the device, then the window.
+    renderer.reset();
+    white.reset();
+    pipeline.reset();
     swapchain.reset();
     device.reset();
     window.reset();

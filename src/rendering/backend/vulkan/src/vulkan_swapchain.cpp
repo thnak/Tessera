@@ -255,8 +255,10 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
 
-    // The new swapchain has retired the old one; release its views and handle now.
+    // The new swapchain has retired the old one; drain the last present before destroying views
+    // and the handle, otherwise the presentation engine may still be reading them.
     if (swapchain_ != VK_NULL_HANDLE) {
+        wait_for_present_bounded();
         destroy_swapchain_resources();
         ++stats_.swapchain_retires;
     }
@@ -302,6 +304,12 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
     image_acquired_.assign(images_.size(), 0);
     format_ = rhi_format;
     extent_ = chosen_extent;
+    image_targets_.clear();
+    image_targets_.reserve(images_.size());
+    for (std::size_t i = 0; i < images_.size(); ++i) {
+        image_targets_.push_back(std::make_unique<VulkanRenderTarget>(
+            device_, nullptr, images_[i], views_[i], nullptr, extent_, format_, false, true));
+    }
     pending_extent_ = chosen_extent;
     resize_requested_ = false;
     out_of_date_ = false;
@@ -331,6 +339,7 @@ void VulkanSwapchain::ensure_acquire_fence() {
 }
 
 void VulkanSwapchain::destroy_swapchain_resources() {
+    image_targets_.clear();
     for (const VkImageView view : views_) {
         vkDestroyImageView(device_, view, nullptr);
     }

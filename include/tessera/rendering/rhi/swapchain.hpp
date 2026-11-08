@@ -9,6 +9,8 @@
 
 namespace tessera::rendering::rhi {
 
+class RenderTarget;
+
 struct SwapchainDesc {
     Extent2D extent;
     TextureFormat format = TextureFormat::R8G8B8A8Unorm;
@@ -62,6 +64,10 @@ public:
     // swapchain), returns OutOfDate, and adopts the pending extent so the caller can recreate
     // dependent targets before retrying. A same-size resize is a no-op.
     virtual void resize(Extent2D extent) = 0;
+
+    // Render target for a swapchain image. The pointer stays valid until the swapchain is
+    // recreated; re-acquire after OutOfDate. Returns nullptr when the backend cannot present.
+    [[nodiscard]] virtual RenderTarget* image_target(std::uint32_t index) = 0;
 };
 
 } // namespace tessera::rendering::rhi

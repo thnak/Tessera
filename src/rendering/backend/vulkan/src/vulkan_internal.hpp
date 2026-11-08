@@ -220,14 +220,17 @@ private:
 class VulkanRenderTarget final : public rhi::RenderTarget {
 public:
     VulkanRenderTarget(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
-                       VmaAllocation allocation, rhi::Extent2D extent, rhi::TextureFormat format)
+                       VmaAllocation allocation, rhi::Extent2D extent, rhi::TextureFormat format,
+                       bool owns = true, bool presentable = false)
         : device_(device),
           allocator_(allocator),
           image_(image),
           view_(view),
           allocation_(allocation),
           extent_(extent),
-          format_(format) {}
+          format_(format),
+          owns_(owns),
+          presentable_(presentable) {}
 
     ~VulkanRenderTarget() override;
 
@@ -243,6 +246,9 @@ public:
     [[nodiscard]] VkImageView view() const {
         return view_;
     }
+    [[nodiscard]] bool presentable() const override {
+        return presentable_;
+    }
 
 private:
     VkDevice device_ = VK_NULL_HANDLE;
@@ -252,6 +258,8 @@ private:
     VmaAllocation allocation_ = nullptr;
     rhi::Extent2D extent_;
     rhi::TextureFormat format_ = rhi::TextureFormat::R8G8B8A8Unorm;
+    bool owns_ = true;
+    bool presentable_ = false;
 };
 
 class VulkanCommandList final : public rhi::CommandList {
@@ -327,6 +335,7 @@ public:
     acquire_next_image(std::uint64_t timeout_ms) override;
     [[nodiscard]] std::expected<void, rhi::SwapchainError> present(std::uint32_t image) override;
     void resize(rhi::Extent2D extent) override;
+    [[nodiscard]] rhi::RenderTarget* image_target(std::uint32_t index) override;
 
     [[nodiscard]] const VulkanSwapchainStats& stats() const {
         return stats_;
@@ -354,6 +363,7 @@ private:
     VkFence drain_fence_ = VK_NULL_HANDLE;
     std::vector<VkImage> images_;
     std::vector<VkImageView> views_;
+    std::vector<std::unique_ptr<VulkanRenderTarget>> image_targets_;
     std::vector<std::uint8_t> image_acquired_;
     rhi::SwapchainDesc desc_;
     rhi::Extent2D extent_;

@@ -24,16 +24,20 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     recording_ = true;
     current_target_ = vulkan_target;
 
-    // end_render_pass leaves the target in TRANSFER_SRC so copy_target_to_buffer can read it.
-    // A Load frame must preserve that content, so it transitions from that layout instead of
-    // discarding the image from UNDEFINED. Clear/DontCare may discard.
+    // end_render_pass leaves offscreen targets in TRANSFER_SRC for readback and swapchain
+    // images in PRESENT_SRC. A Load frame preserves that layout instead of discarding it.
     const bool preserve = desc.load_op == rhi::LoadOp::Load;
+    const bool present = vulkan_target->presentable();
     record_image_transition(
         buffer_, vulkan_target->image(),
-        preserve ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, preserve ? VK_ACCESS_TRANSFER_READ_BIT : 0,
+        preserve
+            ? (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+            : VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        preserve && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        preserve ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        preserve ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT)
+                 : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
     VkRenderingAttachmentInfo attachment{};
@@ -65,11 +69,13 @@ void VulkanCommandList::end_render_pass() {
     }
 
     vkCmdEndRendering(buffer_);
+    const bool present = current_target_->presentable();
     record_image_transition(
         buffer_, current_target_->image(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT);
+        present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, present ? 0 : VK_ACCESS_TRANSFER_READ_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT);
     render_pass_active_ = false;
 }
 
@@ -139,6 +145,9 @@ void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
     auto* vulkan_buffer = dynamic_cast<VulkanBuffer*>(&buffer);
     if (vulkan_target == nullptr || vulkan_buffer == nullptr) {
         throw std::runtime_error("copy_target_to_buffer: incompatible target or buffer");
+    }
+    if (vulkan_target->presentable()) {
+        throw std::runtime_error("copy_target_to_buffer: swapchain images are not readable");
     }
 
     if (!recording_) {

@@ -214,6 +214,13 @@ void VulkanSwapchain::resize(rhi::Extent2D extent) {
     ++stats_.resizes;
 }
 
+rhi::RenderTarget* VulkanSwapchain::image_target(std::uint32_t index) {
+    if (index >= image_targets_.size()) {
+        return nullptr;
+    }
+    return image_targets_[index].get();
+}
+
 } // namespace tessera::rendering::vulkan
 
 #endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
