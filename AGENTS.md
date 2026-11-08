@@ -96,6 +96,22 @@ same idea in parallel; velocity with a green `main` is the advantage.
 
 A commit is a checkpoint, not a finish line. Keep the tree buildable at every commit.
 
+### Commit batching
+
+One coherent change is one commit: a subsystem slice plus its tests, docs, and index/status
+updates belongs together, not in a trail of tiny commits. Do not split a single logical change
+just to make diffs smaller, and do not pad a batch to reach a size target. Split only when each
+part is independently reviewable or independently revertible. Before every commit, run the
+verification that matches the change (format, build with warnings as errors, `ctest`, and the
+relative-link/index checks for docs); a docs-only batch still needs the format and link checks.
+
+### Command Code context checkpoint
+
+When working in a Command Code session, treat 50% context usage as a manual checkpoint: finish
+the current coherent batch, run `/compact`, then continue. `compact-mode=fast` trims stale tool
+output at its own thresholds between manual compactions. This is a tooling workflow note for
+Command Code sessions, not a Tessera runtime feature or configuration key.
+
 ## Big Steps (group work, don't micro-step)
 
 Each Big Step ends with a demoable, committed result. Do not start the next one before the
