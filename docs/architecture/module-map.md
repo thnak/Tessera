@@ -142,6 +142,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |
 | `ui/layout/damage_pass.hpp` | dirty bounds -> damage rects + previous-bounds tracker |
+| `ui/frame_pipeline.hpp` | one-frame orchestration: animation tick -> target dirty domains -> damage -> normalized redraw plan |
 | `runtime/async.hpp` | cancellation + callbacks + executor + completion queue (B2) |
 | `runtime/diagnostics.hpp` | per-frame/total frame diagnostics counters |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
@@ -172,6 +173,7 @@ merger prototype.
 | `tessera_text` | static | font loading/metrics + shaping + measurement seam + deterministic stub + LRU cache (B2) |
 | `tessera_animation` | static | easing + keyframes + runtime + springs (B2) |
 | `tessera_layout` | static | computed-style to Yoga layout adapter + text measure callback (B2) |
+| `tessera_frame` | static | per-frame animation/dirty/damage/redraw orchestration (B2) |
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |

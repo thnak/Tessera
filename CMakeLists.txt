@@ -54,6 +54,7 @@ add_subdirectory(src/ui/style)
 add_subdirectory(src/ui/text)
 add_subdirectory(src/ui/animation)
 add_subdirectory(src/ui/layout)
+add_subdirectory(src/ui/frame)
 add_subdirectory(src/compiler/merger)
 
 if (TESSERA_BUILD_POC)

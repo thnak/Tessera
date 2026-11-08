@@ -5,11 +5,14 @@ Status: design for Big Step B2 (runtime slice) and Big Step E (data-heavy UI); b
 bitmask, ancestor propagation, and pruned collect/clear pass are implemented in
 `include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`, and `src/ui/scene/dirty_pass.cpp`;
 damage accumulation (clip/merge/cap/full-redraw fallback) is implemented in
+damage accumulation (clip/merge/cap/full-redraw fallback) is implemented in
 `include/tessera/rendering/damage.hpp` and `src/rendering/damage/damage.cpp`; damage-to-scissor
 planning and the offscreen scissor replay (`begin_damaged`) are implemented in
 `include/tessera/rendering/redraw_plan.hpp`, `src/rendering/damage/redraw_plan.cpp`, and
-`src/rendering/gpu/batched2d_renderer.cpp`; retained caches/layers remain design-only. Decision
-record:
+`src/rendering/gpu/batched2d_renderer.cpp`; the per-frame orchestrator that turns animation samples
+into target dirty flags, then dirty nodes into damage and a redraw plan, is
+`include/tessera/ui/frame_pipeline.hpp` (`tessera_frame`). Retained caches/layers remain
+design-only. Decision record:
 [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame
 pacing). Companion to [`game-loop.md`](game-loop.md) (runtime loop and pacing) and
 [`renderer.md`](renderer.md). Terms such as golden, damage, batch key, Yoga and `ComputedStyle` are in
@@ -122,6 +125,18 @@ values and only raise the domains that actually changed.
   - **Damage redraw**: clear/redraw only damage rectangles (see §6).
 - Present; clear per-frame render flags.
 - Never read back the target to decide dirty state.
+
+`FramePipeline` (`ui/frame_pipeline.hpp`) implements this split for one frame:
+
+1. `tick(root, dt)` advances animations through the loop bridge, marks each sampled target with the
+   dirty domains of its declarations, and collects the dirty pass. It reports `needs_style` and
+   `needs_layout` so the caller can run those stages.
+2. The caller resolves style and layout; `apply_layout` and node updates mark paint/render dirty.
+3. `finish_frame(root)` re-collects paint/render dirty, updates the `DamageTracker`, and returns the
+   normalized `RedrawPlan` (`should_render`, `full_redraw`). An empty plan means no frame.
+
+The pipeline owns the damage accumulator for the frame: `tick` clears it, so extra damage must be
+added after `tick` and before `finish_frame`.
 
 ## 5. Retained/immediate hybrid
 

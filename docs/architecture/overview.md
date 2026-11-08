@@ -187,6 +187,7 @@ Implemented B2 slices:
 - normalized input queue, pointer dispatch, capture, and coalescing
 - fixed-step accumulator, deterministic clock, `RuntimeLoop`, `FramePacer`
 - dirty domains/pass, damage accumulation/tracking, redraw plans
+- frame pipeline: animation tick -> per-target dirty domains -> damage -> normalized redraw plan
 - animation runtime: transitions, keyframes, springs, pause/fills/stop/restart, reduced motion,
   loop bridge
 - async primitives: cancellation, bounded manual executor, completion queue

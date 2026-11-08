@@ -529,6 +529,13 @@ target_link_libraries(damage_tracker_tests PRIVATE tessera_layout)
 
 add_test(NAME damage_tracker COMMAND damage_tracker_tests)
 
+add_executable(frame_pipeline_tests
+    frame_pipeline_tests.cpp)
+
+target_link_libraries(frame_pipeline_tests PRIVATE tessera_frame tessera_runtime)
+
+add_test(NAME frame_pipeline COMMAND frame_pipeline_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(
