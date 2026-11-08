@@ -72,6 +72,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `spring_runtime` | sample declarations, layout/paint dirty, settle/finish, retarget final, callbacks, dt guards |
 | `animation_overlay` | target filtering, later-sample precedence, property merge, unanimated preservation |
 | `transition` | shorthand lists, time units, bezier/steps commas, defaults, invalid specs |
+| `transition_longhand` | property/duration/delay/easing lists, cycling, defaults, negative delay, invalid slots |
 | `transition_runtime` | exact-vs-all match, 0→1 sample, fill-final, zero duration, style diff, units/colors, invalid guards |
 | `transition_lifecycle` | supersede same target/property, preserve other keys, current-value restart, callback suppression |
 | `batched2d` | batch/vertex counts on the null backend |

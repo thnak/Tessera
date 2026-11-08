@@ -96,6 +96,49 @@ bool parse_time(std::string_view text, float& seconds) {
     return std::isfinite(seconds);
 }
 
+bool is_identifier(std::string_view value) {
+    if (value.empty()) {
+        return false;
+    }
+    const auto is_start = [](unsigned char c) {
+        return std::isalpha(c) != 0 || c == '-' || c == '_';
+    };
+    const auto is_part = [](unsigned char c) {
+        return std::isalnum(c) != 0 || c == '-' || c == '_';
+    };
+    return is_start(static_cast<unsigned char>(value.front())) &&
+           std::all_of(value.begin() + 1, value.end(),
+                       [&](char c) { return is_part(static_cast<unsigned char>(c)); });
+}
+
+bool parse_times(std::string_view text, bool allow_negative, std::vector<float>& times) {
+    for (const std::string& part : split_top_level(text)) {
+        if (part.empty()) {
+            return false;
+        }
+        float seconds = 0.0f;
+        if (!parse_time(part, seconds) || (!allow_negative && seconds < 0.0f)) {
+            return false;
+        }
+        times.push_back(seconds);
+    }
+    return true;
+}
+
+bool parse_timing_functions(std::string_view text, std::vector<Easing>& easings) {
+    for (const std::string& part : split_top_level(text)) {
+        if (part.empty()) {
+            return false;
+        }
+        const EasingParseResult easing = parse_easing(part);
+        if (!easing.ok) {
+            return false;
+        }
+        easings.push_back(easing.easing);
+    }
+    return true;
+}
+
 bool parse_spec(std::string_view text, TransitionSpec& spec) {
     std::vector<std::string> tokens;
     if (!tokenize_spec(text, tokens) || tokens.empty()) {
@@ -166,6 +209,66 @@ TransitionParseResult parse_transition_list(std::string_view text) {
             result.ok = false;
             continue;
         }
+        result.transitions.push_back(std::move(spec));
+    }
+    return result;
+}
+
+TransitionParseResult parse_transition_longhands(std::string_view properties,
+                                                 std::string_view durations,
+                                                 std::string_view delays,
+                                                 std::string_view timing_functions) {
+    TransitionParseResult result;
+    const std::string property_text = trim(properties);
+    if (property_text.empty()) {
+        return result;
+    }
+
+    std::vector<std::string> names;
+    const std::vector<std::string> property_parts = split_top_level(property_text);
+    for (const std::string& part : property_parts) {
+        if (part.empty() || !is_identifier(part)) {
+            result.ok = false;
+            return result;
+        }
+        if (lower(part) == "none") {
+            if (property_parts.size() != 1) {
+                result.ok = false;
+            }
+            return result;
+        }
+        names.push_back(part);
+    }
+
+    std::vector<float> parsed_durations;
+    std::vector<float> parsed_delays;
+    std::vector<Easing> parsed_easings;
+    const std::string duration_text = trim(durations);
+    if (!duration_text.empty() && !parse_times(duration_text, false, parsed_durations)) {
+        result.ok = false;
+        return result;
+    }
+    const std::string delay_text = trim(delays);
+    if (!delay_text.empty() && !parse_times(delay_text, true, parsed_delays)) {
+        result.ok = false;
+        return result;
+    }
+    const std::string easing_text = trim(timing_functions);
+    if (!easing_text.empty() && !parse_timing_functions(easing_text, parsed_easings)) {
+        result.ok = false;
+        return result;
+    }
+
+    const TransitionSpec defaults;
+    result.transitions.reserve(names.size());
+    for (std::size_t i = 0; i < names.size(); ++i) {
+        TransitionSpec spec;
+        spec.property = names[i];
+        spec.duration =
+            parsed_durations.empty() ? 0.0f : parsed_durations[i % parsed_durations.size()];
+        spec.delay = parsed_delays.empty() ? 0.0f : parsed_delays[i % parsed_delays.size()];
+        spec.easing =
+            parsed_easings.empty() ? defaults.easing : parsed_easings[i % parsed_easings.size()];
         result.transitions.push_back(std::move(spec));
     }
     return result;

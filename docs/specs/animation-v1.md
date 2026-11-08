@@ -16,7 +16,10 @@ comma lists outside functional parentheses and accepts property/duration/delay/e
 `ms`/`s` units, `cubic-bezier()`, `steps()`, `none`, and empty lists. Exact-property transitions win
 over `all`; starting one builds 0→1 keyframes and runs through `AnimationRuntime` with the parsed
 delay/easing and forwards fill. Diffing two `ComputedStyle` snapshots starts transitions only for
-properties present in both and changed, preserving original units and color values. Starting a
+properties present in both and changed, preserving original units and color values. Longhand
+expansion accepts `transition-property`, `transition-duration`, `transition-delay`, and
+`transition-timing-function` comma lists, cycling shorter lists and defaulting omitted values.
+Starting a
 transition supersedes the active transition for the same target and property, so the new segment
 continues from the current sampled value. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction

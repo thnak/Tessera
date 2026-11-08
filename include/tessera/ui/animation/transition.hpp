@@ -24,4 +24,9 @@ struct TransitionParseResult {
 
 TransitionParseResult parse_transition_list(std::string_view text);
 
+TransitionParseResult parse_transition_longhands(std::string_view properties,
+                                                 std::string_view durations,
+                                                 std::string_view delays,
+                                                 std::string_view timing_functions);
+
 } // namespace tessera::ui::animation
