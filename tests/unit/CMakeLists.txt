@@ -77,6 +77,13 @@ target_link_libraries(tokenizer_tests PRIVATE tessera_style)
 
 add_test(NAME tokenizer COMMAND tokenizer_tests)
 
+add_executable(parser_tests
+    parser_tests.cpp)
+
+target_link_libraries(parser_tests PRIVATE tessera_style)
+
+add_test(NAME parser COMMAND parser_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

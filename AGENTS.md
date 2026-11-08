@@ -400,11 +400,11 @@ live in one place and are linked, not copied.
 (`src/ui/input/`), scene dirty-domain flags/ancestor aggregation
 (`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`), and pruned dirty collect/clear
 (`src/ui/scene/dirty_pass.cpp`), and damage accumulation
-(`src/rendering/damage/damage.cpp`), and CSS tokenization (`src/ui/style/tokenizer.cpp`). Next
-slices, in order:
+(`src/rendering/damage/damage.cpp`), CSS tokenization (`src/ui/style/tokenizer.cpp`), and the
+tolerant stylesheet AST parser (`src/ui/style/parser.cpp`). Next slices, in order:
 
-1. Stylesheet parser: rule/declaration AST, selector list, tolerant at-rule skipping.
-2. Selector matcher + cascade/specificity, then compatibility matrix.
+1. Selector parser + specificity + indexed matching.
+2. Cascade (origin/importance/specificity/source order) and computed-style model.
 3. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
 4. HAL/system clock + actual wait/present integration.
 5. Platform input translation and hit-test/focus/capture dispatch.
