@@ -42,7 +42,7 @@ subset; custom elements are leaf-scoped. On the web this is the View Transitions
    `root`, async update functions, and subtree transitions are rejected with a diagnostic and are
    listed as open questions in the spec (section 13); no release is scheduled for them.
 7. Bounded resources: two pooled window-sized textures under a new configuration key
-   `viewTransition.maxBytes` (default 64 MiB). The transition is skipped (the new UI is shown at
+   `viewTransitionMaxMb` (default 64 MiB). The transition is skipped (the new UI is shown at
    once) when the limit is exceeded, the window is resized, hidden or occluded, an error occurs,
    reduced motion is on, or battery-saver is active.
 8. If a transition is started while another is running, the currently composed output becomes
@@ -80,7 +80,7 @@ subset; custom elements are leaf-scoped. On the web this is the View Transitions
 
 - Implement the `ViewTransition` state machine, texture pool use, compose pass and SDF clip masks.
 - Add `::view-transition-*` parsing, UA-injected `--vt-*` properties and the `clip-path` subset.
-- Add the `ui/effects.json` schema and validation, a `kind` field in `shader-manifest-v1.md`, and
-  the `viewTransition.maxBytes` key in `runtime-config-v1.md`.
+- Implement validation of `ui/effects.json`. The `kind` field of `shader-manifest-v1.md` (section 3.1) and the
+  `viewTransitionMaxMb` key of `runtime-config-v1.md` are specified; implement them.
 - Compiler: Tier-1 rule for `startViewTransition` callbacks and lowering.
 - Goldens (all effects, RTL, DPI), headless, resource, budget and reduced-motion tests.

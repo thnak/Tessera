@@ -65,6 +65,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     "fullRedrawThreshold": 0.6,
     "layerCacheBudgetMb": 64,
     "drawListCacheBudgetMb": 32,
+    "viewTransitionMaxMb": 64,
     "gpuFramesInFlight": 2,
     "animationInterpolation": true,
     "deterministic": false
@@ -110,6 +111,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `fullRedrawThreshold` | number | `0.6` | `0.0..1.0` | Damage area ratio above which to full-redraw. |
 | `layerCacheBudgetMb` | integer | `64` | `0..4096` | Retained layer cache budget. `0` disables layers. |
 | `drawListCacheBudgetMb` | integer | `32` | `0..4096` | Draw-list cache budget. `0` disables caching. |
+| `viewTransitionMaxMb` | integer | `64` | `0..4096` | Memory limit in MiB for the two window-sized textures of a view transition ([`view-transitions-v1.md`](view-transitions-v1.md) section 9). A transition that would exceed it is skipped, not an error. `0` skips every transition. |
 | `gpuFramesInFlight` | integer | `2` | `1..3` | CPU/GPU overlap; 1 = lowest memory, 3 = deepest pipeline. |
 | `animationInterpolation` | boolean | `true` | | Interpolate visual state at render rate. |
 | `deterministic` | boolean | `false` | | Simulated clock, fixed steps, no vsync/sleep. Forced in goldens. |
@@ -142,6 +144,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 19. `asyncQueueCapacity` is `64..1048576`; overflow applies backpressure/cancellation, never
     unbounded growth.
 20. `asyncMainThreadBudgetMs` is `0..16`; completions beyond the budget defer to the next tick.
+21. `viewTransitionMaxMb` is `0..4096`. The size checked is 2 x width x height x 4 bytes of the window in pixels.
 
 ## 5. Semantics
 
@@ -305,6 +308,7 @@ struct RuntimeConfig {
     float full_redraw_threshold = 0.6f;
     std::uint32_t layer_cache_budget_mb = 64;
     std::uint32_t draw_list_cache_budget_mb = 32;
+    std::uint32_t view_transition_max_mb = 64;
     std::uint32_t gpu_frames_in_flight = 2;
     bool animation_interpolation = true;
     bool deterministic = false;

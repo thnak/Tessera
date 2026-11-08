@@ -261,18 +261,16 @@ pixelate, dissolve). Shaders are compiled at build time; runtime shader source i
 ```
 
 `duration` is in milliseconds. `shader` must be the `name` of an entry in the shader manifest
-([`shader-manifest-v1.md`](shader-manifest-v1.md)). That manifest has no field today that marks a
-shader as a view-transition effect, and its `vertexLayout` and `bindings` describe the batched
-2D renderer. When this feature is implemented, `shader-manifest-v1.md` must be extended with a
-`kind` field (value `view-transition-effect`) and the fixed bindings listed below; this document
-does not change that file.
+([`shader-manifest-v1.md`](shader-manifest-v1.md)) whose `kind` is `view-transition-effect`
+(section 3.1 of that file); any other kind is a build error. An effect declares at most 8 `params`; more
+is a build error.
 
 Shader contract: one full-screen triangle, no vertex buffers, one pass.
 
 | Binding | Content |
 |---|---|
 | texture `old`, texture `new` | Premultiplied-alpha sRGB images of the window; sampler chosen by the framework |
-| uniform block | `progress` (eased, 0 to 1), `time` (seconds on the simulation clock since start), `size` (px), `origin` (px), `scale` (DPI scale), `seed` (unsigned 32-bit integer), `params` (the declared numbers) |
+| uniform block | `progress` (eased, 0 to 1), `time` (seconds on the simulation clock since start), `size` (px), `origin` (px), `scale` (DPI scale), `seed` (unsigned 32-bit integer), `params` (the declared numbers, in declaration order; an `int` param is converted to `float`; unused slots are 0). The byte layout is in [`shader-manifest-v1.md`](shader-manifest-v1.md) section 3.1 |
 
 - `seed = hash(transition_counter, effect_id)`. `transition_counter` is the number of view
   transitions started since the runtime started. Identical inputs produce identical frames. No
@@ -307,10 +305,10 @@ Resources:
 - Two window-sized textures (`A`, `B`) come from the framework texture pool
   ([`resource-lifecycle-v1.md`](resource-lifecycle-v1.md)) and are released by that document's
   retirement rules (a texture is freed only after the GPU frames that use it complete).
-- Memory limit: configuration key `viewTransition.maxBytes`, default 64 MiB, for `A` plus `B`.
-  This key does not exist yet; add it to [`runtime-config-v1.md`](runtime-config-v1.md) when
-  implementing. A 3840x2160 RGBA8 texture is about 33 MB, so `A` plus `B` is about 66 MB and
-  exceeds the default; at that size the transition is skipped unless the key is raised.
+- Memory limit: configuration key `viewTransitionMaxMb` ([`runtime-config-v1.md`](runtime-config-v1.md)),
+  default 64 MiB, for `A` plus `B`. A 3840x2160 RGBA8 texture is 33,177,600 bytes, so `A` plus `B` is
+  66,355,200 bytes (63.3 MiB) and fits the default; a 5120x2880 window needs 117,964,800 bytes
+  (112.5 MiB), so its transition is skipped unless the key is raised.
 - If the limit is exceeded or allocation fails, the transition is skipped.
 - No textures are created per frame. The UI thread never waits on a GPU fence or on device idle
   ([ADR-021](../../decisions/ADR-021-async-runtime.md)).

@@ -80,6 +80,7 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
 |---|---|---|
 | `manifestVersion` | yes | `1` |
 | `name` | yes | Unique logical shader name |
+| `kind` | no | `element` (default) or `view-transition-effect`; see section 3.1 |
 | `stages` | yes | `vertex`, `fragment`, `compute` (compute optional) |
 | `entry` | no | Defaults to `main` per stage |
 | `sources.vulkan` | yes | GLSL stage files; compiled by `glslc` |
@@ -91,6 +92,37 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
 
 Note on `sources.webgpu`: required for any shader used by WebGPU or the designer; optional for
 Vulkan-only custom elements (see section 7).
+
+### 3.1 `kind`
+
+- `element`: the shader draws geometry for the batched 2D renderer or a custom element
+  ([section 7](#7-custom-element-shaders)). All rules of sections 3 to 5 apply.
+- `view-transition-effect`: a full-screen composition shader for a view transition effect
+  ([`view-transitions-v1.md`](view-transitions-v1.md) section 7). The manifest entry must have exactly this
+  interface; any difference fails the build:
+
+| Part | Required value |
+|---|---|
+| `stages` | `["vertex", "fragment"]` |
+| `vertexLayout` | Omitted or empty. The vertex stage draws one full-screen triangle from the vertex index; there are no vertex buffers |
+| `pushConstants` | Omitted (not allowed on WebGPU) |
+| `bindings` | `{group 0, binding 0, uniform_buffer, "transition"}`, `{group 0, binding 1, sampler, "samp"}`, `{group 0, binding 2, sampled_texture, "old"}`, `{group 0, binding 3, sampled_texture, "new"}`; no other binding |
+| `sources.webgpu` | Required (effects must run in the designer) |
+| `tests` | At least one smoke test and one golden |
+
+Layout of the `transition` uniform buffer (64 bytes; identical under GLSL `std140` and WGSL `uniform` rules):
+
+| Offset | Size | Type | Field |
+|---|---|---|---|
+| 0 | 4 | float | `progress` |
+| 4 | 4 | float | `time` |
+| 8 | 8 | float2 | `size` |
+| 16 | 8 | float2 | `origin` |
+| 24 | 4 | float | `scale` |
+| 28 | 4 | uint | `seed` |
+| 32 | 32 | float4 x 2 | `params` (8 floats) |
+
+Adding `kind` is an optional field and keeps manifest version 1 (section 6).
 
 ## 4. Compatibility rules
 
