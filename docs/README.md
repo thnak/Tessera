@@ -1,7 +1,8 @@
 # Tessera documentation map
 
 Start with [`../AGENTS.md`](../AGENTS.md) for the operating rules and [`../README.md`](../README.md)
-for the project overview. This page is the map and reading order for the framework.
+for the project overview. Contribution workflow: [`../CONTRIBUTING.md`](../CONTRIBUTING.md).
+This page is the map and reading order for the framework.
 
 ## 0. Documentation rules
 

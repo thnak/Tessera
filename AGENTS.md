@@ -1,7 +1,8 @@
 # AGENTS.md — Tessera
 
 Working name. This file is the operating manual for any coding agent (and for humans)
-working in this repo. Read it before touching code.
+working in this repo. Read it before touching code. Contribution workflow:
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## What this project is
 
@@ -257,25 +258,58 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 
 ## Code conventions
 
+Style guide: [`docs/guides/code-style.md`](docs/guides/code-style.md) (ADR-015, ADR-038). The
+rules below are review-blocking unless a documented exception exists.
+
 - **C++23** ([ADR-038](decisions/ADR-038-cpp23-baseline.md)); `std::expected<T, Error>` is the
   error type for recoverable hot paths.
-- Headers: `#pragma once`. Namespace: `tessera::<area>::<module>`.
-- Errors: exceptions at boundaries, `std::expected` for recoverable hot paths.
-- No RTTI/reflection on hot paths. No hidden allocations in frame code.
-- Formatting: `.clang-format` (LLVM base, 4 spaces, 100 cols, pointer left). Run
-  `scripts/format.*`; CI runs `--check`.
-- Linting: `.clang-tidy`; run `scripts/lint.*` against a Ninja `compile_commands.json`.
-- **Short files:** soft limit 300 lines, hard limit 500; one primary type per header
-  (ADR-015, [`docs/guides/code-style.md`](docs/guides/code-style.md)).
+- **Files:** soft limit 300 lines, hard limit 500; one primary type per header. No exceptions to
+  the hard limit except the Phase 0 PoC targets listed in the definition of done.
+- **Naming:** `tessera::lower_case` namespaces, `PascalCase` types, `snake_case` functions and
+  variables, `snake_case_` members, `kPascalCase` constants, `TESSERA_UPPER_SNAKE` macros.
+- **Headers:** `#pragma once`; include what you use; no `using namespace` in headers; no
+  Vulkan/WebGPU/third-party headers in public UI headers.
+- **Errors/ownership:** exceptions at boundaries, `std::expected` for recoverable hot paths;
+  `unique_ptr` for ownership, `shared_ptr` only for genuinely shared lifetime.
+- **Hot paths:** no RTTI/reflection, hidden allocations, blocking calls, or per-frame resource
+  creation; comments explain **why**, not what.
+- **Tests:** every behavior change gets a deterministic test; one component per test file; no
+  wall clock, network, system fonts, random ids, or real-GPU baselines.
+- **Formatting/linting:** `.clang-format` (LLVM base, 4 spaces, 100 cols, pointer left) and
+  `.clang-tidy`. Run `scripts/format.* --check` and `scripts/lint.*`; CI enforces both.
 - **Build cache:** small translation units, stable public headers, no PCH/unity by default;
   `TESSERA_USE_COMPILER_CACHE=ON` auto-detects sccache/ccache.
-- Project config: `tessera.json` schema v1 (ADR-014); see
+- **Project config:** `tessera.json` schema v1 (ADR-014); see
   [`docs/specs/project-config-v1.md`](docs/specs/project-config-v1.md) and
   [`docs/guides/project-generator.md`](docs/guides/project-generator.md).
-- Shaders: GLSL → SPIR-V via `glslc`; SPIR-V is the source of truth for Vulkan.
-- Every subsystem gets a short design note in `docs/design/` and, if contentious, an ADR
-  in `decisions/`. Architecture docs live in `docs/architecture/`, normative specs in
-  `docs/specs/`, and how-to guides in `docs/guides/`; update `docs/README.md` when adding docs.
+- **Shaders:** GLSL → SPIR-V via `glslc`; SPIR-V is the source of truth for Vulkan. No runtime
+  shader compilation in production.
+
+### Documentation rules
+
+Documents are part of the deliverable, not an afterthought. One topic per file; normative rules
+live in one place and are linked, not copied.
+
+| Type | Location | Purpose |
+|---|---|---|
+| Architecture | `docs/architecture/` | cross-cutting structure, ownership, gaps |
+| Normative spec | `docs/specs/` | exact contracts, schemas, invariants |
+| Design note | `docs/design/` | rationale, subsystem design |
+| Guide | `docs/guides/` | task-oriented instructions |
+| Reference | `docs/reference/` | glossary/terms |
+| ADR | `decisions/` | contentious decisions and consequences |
+
+- **Size:** target 400 lines, hard limit **600 lines**. A topic over 600 lines becomes a folder
+  with a `README.md` index and linked parts (see [`docs/design/gpu/`](docs/design/gpu/README.md)).
+- **Index:** every new, moved, or renamed doc updates [`docs/README.md`](docs/README.md); every
+  new ADR updates [`decisions/README.md`](decisions/README.md).
+- **Links:** use relative links; headings are stable; no orphan docs; code fences must balance.
+- **Single source:** specs are normative, design docs explain, ADRs record decisions; do not
+  duplicate a rule in multiple docs.
+- **New subsystem:** add a design note; add an ADR if the decision is contentious or hard to
+  reverse; update the versioning spec when a new artifact/format is introduced.
+- **Change scope:** docs-only changes still need the link/index/fence/size checks; behavior
+  changes update the affected docs and tests in the same change.
 
 ## Definition of done (every change)
 
@@ -289,6 +323,8 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 - [ ] `scripts/format.* --check` passes; clang-tidy reports no new warnings in changed files.
 - [ ] Files stay under the 300/500-line soft/hard limits (ADR-015). Phase 0 PoC targets
       (`tools/poc/vulkan_offscreen`, `offscreen_renderer.cpp`) are exempt until retired.
+- [ ] Docs are updated/indexed; relative links and code fences are valid; no doc exceeds the
+      600-line hard limit (target 400). New ADRs are in `decisions/README.md`.
 - [ ] Generator/config changes update `docs/guides/project-generator.md` and the schema.
 - [ ] If it touches protected regions: idempotency test updated.
 - [ ] If it touches rendering: a golden test or a manual visual check is recorded.

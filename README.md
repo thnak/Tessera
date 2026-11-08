@@ -10,6 +10,8 @@ rendering for AI-agent visual regression.
 
 Status: **pre-alpha / Big Step B1 complete** (RHI = render hardware interface, Vulkan batched 2D, scene graph). Big Steps A-F are defined in [AGENTS.md, Big Steps](AGENTS.md#big-steps-group-work-dont-micro-step); B2 (runtime slice) is the current focus. Terms are defined in the [glossary](docs/reference/glossary.md).
 
+Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build/test, code style, documentation rules, and the PR checklist.
+
 ## Documents
 
 Start with the [documentation map](docs/README.md) and [architecture overview](docs/architecture/overview.md).

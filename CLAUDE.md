@@ -42,6 +42,33 @@ Pipeline: JSX/TSX → (Tier-1 React rules, Tier-2 `bind::` extractor; see [docs/
 - Static linking of third-party libs (no LGPL/GPL); MIT project license. New dependency → entries in `docs/specs/dependencies.md` and `THIRD_PARTY_NOTICES.md`.
 - Never block the UI thread (no `vkWaitForFences`/`vkDeviceWaitIdle`, blocking I/O); no detached tasks; static UI must idle with zero presents.
 - No hidden allocations or RTTI on frame/hot paths; exceptions at boundaries, `std::expected` for recoverable hot paths; never throw across threads/FFI.
-- New files: `#pragma once`, namespace `tessera::<area>::<module>`, `SPDX-License-Identifier: MIT`, soft 300 / hard 500 line limit, one primary type per header. C++23, `.clang-format` (4 spaces, 100 cols).
-- Shaders are GLSL → SPIR-V via `glslc`.
-- Every new subsystem gets a design note in `docs/design/` (ADR in `decisions/` if contentious) and a `docs/README.md` update.
+- Shaders are GLSL → SPIR-V via `glslc`; no runtime shader compilation in production.
+
+## Code style
+
+Source of truth: [docs/guides/code-style.md](docs/guides/code-style.md) (ADR-015, ADR-038), summarized in [AGENTS.md](AGENTS.md#code-conventions).
+
+- **C++23** everywhere; `std::expected<T, Error>` for recoverable hot paths.
+- **Files:** soft 300 / hard 500 lines, one primary type per header; split by responsibility. Phase 0 PoC targets are the only hard-limit exceptions.
+- **Naming:** `PascalCase` types, `snake_case` functions/variables, `snake_case_` members, `kPascalCase` constants, `TESSERA_UPPER_SNAKE` macros.
+- **Headers:** `#pragma once`, include what you use, no `using namespace` in headers, no GPU/third-party headers in public UI headers.
+- **Errors/ownership:** `unique_ptr` for ownership, `shared_ptr` only for genuinely shared lifetime; no RTTI/reflection or hidden allocations on hot paths.
+- **Comments:** explain why, not what; no commented-out code.
+- **Format/lint:** run `scripts/format.* --check` and `scripts/lint.*`; CI enforces `.clang-format` and `.clang-tidy`.
+- **Tests:** deterministic, one component per file, no wall clock/network/system fonts/random ids; GPU tests live in `tests/gpu/` and goldens in `tests/golden/gpu/`.
+
+## Documentation rules
+
+Source of truth: [AGENTS.md](AGENTS.md#documentation-rules) and [docs/README.md](docs/README.md).
+
+- Stage docs by type: `docs/architecture/`, `docs/specs/` (normative), `docs/design/` (rationale), `docs/guides/` (how-to), `docs/reference/`, `decisions/` (ADR).
+- **Size:** target 400 lines, hard limit **600 lines**. Over 600 → a folder with a `README.md` index and linked parts (see `docs/design/gpu/`).
+- Update [docs/README.md](docs/README.md) for every add/move/rename; update [decisions/README.md](decisions/README.md) for every ADR.
+- Use relative links; keep headings stable; no orphan docs; code fences must balance.
+- One normative source per rule; design docs explain and link instead of copying.
+- New subsystem → design note; contentious/hard-to-reverse decision → ADR; new artifact/format → versioning spec.
+- Docs-only changes still run the link/index/fence/size checks.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build/test commands, branch/commit style, PR checklist, and the docs/code rules above. The canonical remote is <https://github.com/thnak/Tessera.git>.
