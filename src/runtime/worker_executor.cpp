@@ -7,6 +7,9 @@
 
 namespace tessera::runtime {
 
+WorkerExecutor::WorkerExecutor(CompletionQueue& completions)
+    : WorkerExecutor(completions, Config{}) {}
+
 WorkerExecutor::WorkerExecutor(CompletionQueue& completions, Config config)
     : completions_(&completions),
       config_(config) {
