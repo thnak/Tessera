@@ -1,6 +1,7 @@
 # Golden tests v1
 
 Status: proposed (Big Step B2/B3). Normative for visual regression; ADR-009 is the decision.
+Headless runner/agent protocol: [`headless-automation-v1.md`](headless-automation-v1.md).
 
 ## 1. Rules
 

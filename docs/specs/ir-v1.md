@@ -34,6 +34,7 @@ independent of the JSX parser (ADR-007). Codegen must not read the parser AST.
 ```json
 {
   "id": "comp::Counter",
+  "componentId": "1234567890123456789",
   "name": "Counter",
   "source": { "file": "ui/Counter.tsx", "line": 1, "column": 1 },
   "props": [
@@ -51,13 +52,19 @@ independent of the JSX parser (ADR-007). Codegen must not read the parser AST.
   "animatedValues": [
     { "id": "anim::opacity", "name": "opacity", "type": "float", "initial": 1.0 }
   ],
-  "root": { "kind": "View", "id": "node::1", "children": [] }
+  "root": {
+    "kind": "View",
+    "id": "node::1",
+    "uiId": "111111111111111111",
+    "children": []
+  }
 }
 ```
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `id` | string | yes | Unique, stable within the project |
+| `id` | string | yes | Debug key, unique within the project |
+| `componentId` | string | yes | uint64 decimal string; stable automation/trace identity |
 | `name` | string | yes | PascalCase component name |
 | `source` | SourceSpan | yes | For diagnostics/source maps |
 | `props` | Prop[] | no | Typed props |
@@ -75,6 +82,8 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 ```json
 {
   "id": "node::2",
+  "uiId": "987654321098765432",
+  "automationId": null,
   "kind": "Text",
   "key": null,
   "props": { "className": "label" },
@@ -89,7 +98,9 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `id` | string | yes | Unique within the component |
+| `id` | string | yes | Debug key, unique within the component |
+| `uiId` | string | yes | uint64 decimal string; stable automation/trace identity |
+| `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
 | `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary` |
 | `key` | string/int/null | no | Stable list identity |
 | `props` | object | no | Typed intrinsic props |
@@ -107,6 +118,17 @@ is no dynamic component type.
 [`virtualization-v1.md`](virtualization-v1.md). They carry a data-source ref/list, a static item
 template, overscan/estimate/gap, a required item key, and optional sticky headers. They do not
 represent VM/container virtualization or a virtual DOM.
+
+## 3.1 Automation IDs
+
+- `componentId` and `uiId` are uint64 decimal strings in JSON; `uint64_t` in C++.
+- The compiler emits `generated/automation.manifest.json` mapping numeric IDs to debug paths,
+  kinds, components, and source spans.
+- `automationId` is optional; if set, it must equal `uiId`.
+- IDs are deterministic per source/config; collisions are hard errors.
+- List/grid instances use `(uiId, itemKey)`; the template keeps one `uiId`.
+- Debug `id` strings remain for humans; tools use numeric IDs.
+- See [`automation-ids-v1.md`](automation-ids-v1.md).
 
 ## 4. Expressions
 
@@ -224,6 +246,7 @@ Hard errors:
 - unsupported node kind, type, operator, or callee
 - `ErrorBoundary` missing `fallback`, more/less than one child subtree, or unresolved `onError`
   binding
+- missing/duplicate `componentId`/`uiId`, `automationId != uiId`, or a 64-bit ID collision
 - dynamic component types, context, suspense, custom hooks
 - missing list key or non-static loop source
 - binding annotation without a matching IR use, or vice versa
@@ -275,6 +298,7 @@ Warnings:
   "components": [
     {
       "id": "comp::Counter",
+      "componentId": "1234567890123456789",
       "name": "Counter",
       "source": { "file": "ui/Counter.tsx", "line": 1, "column": 1 },
       "props": [],
@@ -286,12 +310,14 @@ Warnings:
       "animatedValues": [],
       "root": {
         "id": "node::1",
+        "uiId": "111111111111111111",
         "kind": "View",
         "props": { "className": "counter" },
         "style": { "display": "flex", "gap": "8px" },
         "children": [
           {
             "id": "node::2",
+            "uiId": "222222222222222222",
             "kind": "Text",
             "text": {
               "kind": "template",
@@ -300,6 +326,7 @@ Warnings:
           },
           {
             "id": "node::3",
+            "uiId": "333333333333333333",
             "kind": "Button",
             "props": { "label": "Increment" },
             "events": { "onClick": "bind::on_click" },

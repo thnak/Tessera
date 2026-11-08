@@ -49,6 +49,8 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Startup & loading](docs/design/startup-and-loading.md), [resource lifecycle](docs/specs/resource-lifecycle-v1.md),
   [loading matrix](docs/guides/loading-matrix.md), [error boundaries](docs/specs/error-boundaries-v1.md),
   [deep linking](docs/specs/deep-linking-v1.md), [deep-linking guide](docs/guides/deep-linking.md)
+- [Automation IDs](docs/specs/automation-ids-v1.md), [headless automation](docs/specs/headless-automation-v1.md),
+  [agent guide](docs/guides/agent-automation.md), [Lighthouse audits](docs/specs/lighthouse-audit-v1.md)
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),
@@ -159,7 +161,7 @@ Tools and demos:
 
 ## Next
 
-1. ADR-001 … ADR-026 in `decisions/`.
+1. ADR-001 … ADR-027 in `decisions/`.
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
    async runtime, diagnostics, Yoga/text, pixel goldens.
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.

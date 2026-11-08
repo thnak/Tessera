@@ -230,6 +230,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Resource lifecycle | [`docs/specs/resource-lifecycle-v1.md`](docs/specs/resource-lifecycle-v1.md) |
 | Error boundaries | [`docs/specs/error-boundaries-v1.md`](docs/specs/error-boundaries-v1.md) |
 | Deep links / activation | [`docs/specs/deep-linking-v1.md`](docs/specs/deep-linking-v1.md), [`docs/guides/deep-linking.md`](docs/guides/deep-linking.md) |
+| Automation IDs / headless / audits | [`docs/specs/automation-ids-v1.md`](docs/specs/automation-ids-v1.md), [`docs/specs/headless-automation-v1.md`](docs/specs/headless-automation-v1.md), [`docs/specs/lighthouse-audit-v1.md`](docs/specs/lighthouse-audit-v1.md) |
 | Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |
 | Testing / goldens | [`docs/guides/testing.md`](docs/guides/testing.md), [`docs/specs/golden-tests-v1.md`](docs/specs/golden-tests-v1.md) |
 | Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |
@@ -293,6 +294,8 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
       failure/loop/redaction/cleanup tests pass; no throw across threads/FFI; no silent catch.
 - [ ] If it touches deep links/activation: cold/warm/single-instance/auth/malformed/oversized/
       file-association/browser-fallback tests pass; no secrets in URLs/logs; no shell execution.
+- [ ] If it touches automation/headless/audits: numeric ID manifest is deterministic; snapshot/
+      action/trace/audit schemas pass; golden/GPU separation; audit disabled adds no cost.
 
 ## Current focus
 

@@ -34,6 +34,7 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-024](ADR-024-native-first-boundaries.md) | Native-first boundaries; no production bridges | Accepted |
 | [ADR-025](ADR-025-error-boundaries.md) | Error boundaries and exception isolation | Accepted |
 | [ADR-026](ADR-026-deep-links-and-external-activation.md) | Deep links and external activation | Accepted |
+| [ADR-027](ADR-027-agent-automation-and-audits.md) | Numeric IDs, headless harness, Lighthouse-style audits | Accepted |
 
 ## Dependency overview
 
@@ -60,6 +61,7 @@ ADR-023 OS event normalization/foldables ── ADR-020 lifecycle, ADR-017 input
 ADR-024 native-first boundaries (cross-cutting: runtime, compiler, designer, mobile)
 ADR-025 error boundaries (supersedes the error-boundary limit in ADR-007)
 ADR-026 deep links/external activation (cross-cutting: HAL, routing, security, startup)
+ADR-027 automation IDs/headless/audits (cross-cutting: compiler, UI, diagnostics, CI)
 ```
 
 ## Adding an ADR

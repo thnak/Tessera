@@ -4,7 +4,9 @@
 
 `tessera::ui::Node` is a retained tree node:
 
-- `NodeId id`
+- `NodeId id` — runtime instance (uint64)
+- `UiId ui_id` — build-time stable automation/trace id (uint64)
+- `ComponentId component_id` — owning component (uint64)
 - local `rhi::Rect bounds`
 - local-to-parent `rhi::Mat3 transform`
 - children in **paint order** (the last child is topmost)
@@ -18,6 +20,10 @@ Derived values:
 
 There is no implicit clipping in the scene graph. Clipping is a paint concern handled by the
 batched 2D renderer's scissor stack.
+
+`UiId`/`ComponentId` are stable build-time IDs for coding agents/traces; `NodeId` is the live
+instance. List/grid items are identified by `(UiId, ItemKey)`. Snapshot/query APIs and the
+manifest are defined in [`automation-ids-v1.md`](../specs/automation-ids-v1.md).
 
 ## Dirty state
 

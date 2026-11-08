@@ -35,6 +35,16 @@ Rules:
 - No custom hooks, context, suspense, portals, or dynamic component types.
 - No arbitrary JavaScript execution at runtime; only generated C++.
 
+## 1.1 Identity
+
+- Each component has a stable `ComponentId` (`uint64_t`).
+- Each UI node has a stable `UiId` (`uint64_t`); runtime `NodeId` is separate.
+- An optional `automationId="<uint64>"` pins a stable target across moves/renames.
+- List/grid items use `(UiId, ItemKey)`, not per-instance `UiId`.
+- The compiler emits `generated/automation.manifest.json`; JSON uses decimal strings.
+- IDs support coding agents and tracing; see
+  [`automation-ids-v1.md`](automation-ids-v1.md).
+
 ## 2. Hooks
 
 | Hook | V1 semantics | Generated C++ |
@@ -139,6 +149,8 @@ Rejections are compile errors with source spans; no silent fallback.
 - Node construction and updates are generated; developer logic is only inside protected
   regions (`bind::<id>`).
 - Generated code is deterministic, formatted, and compiles with warnings-as-errors in CI.
+- Node constructors carry `(NodeId, UiId, ComponentId)`; the automation manifest is emitted
+  deterministically.
 - Error boundaries emit guards around child entry points; fallback/onError are outside the
   guard and propagate to the parent/root on failure.
 - The binding manifest maps ids to components/files/regions.

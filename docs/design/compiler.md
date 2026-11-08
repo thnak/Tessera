@@ -94,6 +94,8 @@ See [`ir-v1.md`](../specs/ir-v1.md). Requirements:
 - Developer logic lives only inside protected regions.
 - `ErrorBoundary` emits a guard around child build/update/effect/event entry points; the
   fallback and `onError` are outside that guard and propagate to the parent/root on failure.
+- Assign `ComponentId`/`UiId` deterministically; emit `generated/automation.manifest.json`.
+  Node constructors carry `(NodeId, UiId, ComponentId)`; collisions are hard errors.
 - No timestamps, absolute paths, or random ids.
 - Compile with `/W4` (MSVC) and `-Wall -Wextra -Wpedantic` (GCC/Clang).
 - Generated code includes only public Tessera headers and its own generated headers.

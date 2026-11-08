@@ -55,7 +55,8 @@ Example shape:
   TESSERA_TRACE_TASK(task_id, "load_image");
   ```
 
-- Spans nest and carry frame/tick/task/window ids.
+- Spans nest and carry frame/tick/task/window ids, plus `uiId`/`componentId`/`nodeId` where
+  available (see [`automation-ids-v1.md`](../specs/automation-ids-v1.md)).
 - CPU spans: input, style, layout, paint, draw-list build, submit, present wait.
 - GPU spans: timestamp queries per pass/pipeline; optional pipeline statistics.
 - Async spans: task start/resume/await/cancel; queue wait vs run time.
@@ -77,6 +78,18 @@ Example shape:
 - Window: logical/physical size, DPI, safe area, focused/occluded/minimized, resize sequence.
 
 Metrics are lock-free counters/gauges; snapshots are cheap and non-blocking.
+
+### 5.1 Response-time and Lighthouse-style audits
+
+- Response-time metrics: `input_to_handler`, `handler_duration`, `handler_to_paint`,
+  `interaction_to_next_paint` (INP-like), startup/first-frame/TTI, route load, resource wait.
+- Report p50/p95/p99 per interaction class (click/type/scroll) and long tasks/missed deadlines.
+- Optional audit runner groups metrics into categories (responsiveness, startup, rendering,
+  resources, reliability, accessibility), scores them 0..100, and emits JSON + trace.
+- Raw metrics are primary; the score is a communication tool. No vendor GPU utilization score.
+- Disabled by default; no frame-cost when off; no PII.
+- Normative: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md); harness:
+  [`headless-automation-v1.md`](../specs/headless-automation-v1.md).
 
 ## 6. Debug overlay
 

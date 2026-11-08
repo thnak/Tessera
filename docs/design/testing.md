@@ -1,7 +1,8 @@
 # Testing strategy
 
 Status: document current B1 tests and the target B2/B3/C/D test pyramid. ADR-009 is normative
-for goldens.
+for goldens. Headless automation/agent harness: [`headless-automation-v1.md`](../specs/headless-automation-v1.md);
+audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 
 ## 1. Principles
 
@@ -19,6 +20,7 @@ for goldens.
 | Unit | pure logic, data structures, parsers, merger, layout math | every CI job |
 | Integration | module seams (HAL -> UI -> renderer) | CI, fake HAL |
 | Golden | image + structural report | lavapipe/software |
+| Headless automation | scripts/actions/snapshots/traces/audits | null/software/lavapipe |
 | Platform smoke | window/input/display on real OS | CI/device matrix |
 | Performance | frame budgets, allocation counts, cache hit rates | nightly/benchmark |
 | Fuzz | parser/CSS/IR/asset decoders | scheduled |

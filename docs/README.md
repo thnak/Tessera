@@ -31,6 +31,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-024](../decisions/ADR-024-native-first-boundaries.md) — native-first; no production bridges
 - [ADR-025](../decisions/ADR-025-error-boundaries.md) — error boundaries/exception isolation
 - [ADR-026](../decisions/ADR-026-deep-links-and-external-activation.md) — deep links/activation
+- [ADR-027](../decisions/ADR-027-agent-automation-and-audits.md) — numeric IDs/headless/audits
 
 ## 3. Specs (normative)
 
@@ -57,6 +58,12 @@ for the project overview. This page is the map and reading order for the framewo
   fallback/reset/retry, async errors, exception policy
 - [`specs/deep-linking-v1.md`](specs/deep-linking-v1.md) — external activation, route mapping,
   single instance, auth gate, untrusted-link security
+- [`specs/automation-ids-v1.md`](specs/automation-ids-v1.md) — numeric UiId/ComponentId,
+  manifest, snapshots, trace correlation
+- [`specs/headless-automation-v1.md`](specs/headless-automation-v1.md) — deterministic harness,
+  scripts/actions/asserts, agent protocol
+- [`specs/lighthouse-audit-v1.md`](specs/lighthouse-audit-v1.md) — response-time metrics,
+  categories, scoring, reports, CI thresholds
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -127,6 +134,8 @@ for the project overview. This page is the map and reading order for the framewo
   strategy by app profile
 - [`guides/deep-linking.md`](guides/deep-linking.md) — declare schemes/hosts/routes and test
   browser/file activation
+- [`guides/agent-automation.md`](guides/agent-automation.md) — use IDs/snapshots/actions/traces
+  and audits from a coding agent
 
 ## 6. Reference
 
@@ -183,6 +192,16 @@ for the project overview. This page is the map and reading order for the framewo
 8. [Performance & power](design/performance.md)
 9. [Security](design/security.md)
 
+### Automation / observability
+
+1. [Numeric automation IDs](specs/automation-ids-v1.md)
+2. [Headless automation](specs/headless-automation-v1.md)
+3. [Agent automation guide](guides/agent-automation.md)
+4. [Lighthouse-style audits](specs/lighthouse-audit-v1.md)
+5. [Diagnostics](design/diagnostics.md)
+6. [Diagnostics config](specs/diagnostics-config-v1.md)
+7. [Testing](guides/testing.md)
+
 ### Compiler / codegen
 
 1. [Compiler](design/compiler.md)
@@ -237,6 +256,8 @@ for the project overview. This page is the map and reading order for the framewo
 | Resource lifecycle (lazy/preload/unload) | B2/F proposed |
 | Error boundaries | C/F proposed (ADR-025 accepted) |
 | Deep links / external activation | F proposed (ADR-026 accepted) |
+| Numeric automation IDs / headless | C proposed (ADR-027 accepted) |
+| Lighthouse-style audits | B2/F proposed (ADR-027 accepted) |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |

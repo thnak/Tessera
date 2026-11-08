@@ -48,7 +48,8 @@ my-app/
 ├── generated/
 │   ├── App.g.h           # generated, do not edit outside protected regions
 │   ├── App.g.cpp
-│   └── bindings.json     # binding id -> component/file/region
+│   ├── bindings.json     # binding id -> component/file/region
+│   └── automation.manifest.json  # uint64 uiId/componentId -> source/debug path
 ├── assets/
 │   ├── fonts/
 │   ├── images/
@@ -197,6 +198,8 @@ Ownership, protected regions, and regeneration rules are in
 - Output is formatted with a pinned `clang-format` configuration.
 - Output is deterministic: stable component order, no timestamps, no absolute paths, no
   random identifiers.
+- Numeric `UiId`/`ComponentId` are deterministic; `automation.manifest.json` is emitted and
+  reviewed like generated code. See [`automation-ids-v1.md`](../specs/automation-ids-v1.md).
 - Generated files compile with `/W4` (MSVC) and `-Wall -Wextra -Wpedantic` (GCC/Clang).
 
 ## Incremental generation

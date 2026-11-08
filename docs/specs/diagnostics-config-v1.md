@@ -32,7 +32,14 @@ decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
     "blockingWaitDetection": true,
     "redactPaths": true,
     "redactWindowTitles": false,
-    "telemetry": false
+    "telemetry": false,
+    "audit": {
+      "enabled": false,
+      "profile": "desktop",
+      "reportPath": "artifacts/audit.json",
+      "failOnScoreBelow": 0,
+      "thresholds": { "interactionP95Ms": 100, "startupMs": 1000 }
+    }
   }
 }
 ```
@@ -65,6 +72,11 @@ decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
 | `redactPaths` | boolean | `true` | | Redact user paths in logs/dumps. |
 | `redactWindowTitles` | boolean | `false` | | Redact window titles. |
 | `telemetry` | boolean | `false` | | Opt-in upload; offline by default. |
+| `audit.enabled` | boolean | `false` | | Enable Lighthouse-style audit collection. |
+| `audit.profile` | string | `desktop` | `desktop`, `mobile`, `power-save`, `custom` | Audit profile. |
+| `audit.reportPath` | string | `artifacts/audit.json` | relative path | JSON report output. |
+| `audit.failOnScoreBelow` | number | `0` | `0..100` | Optional CI failure threshold. |
+| `audit.thresholds` | object | `{}` | metric -> number | Raw metric thresholds. |
 
 ## 3. Validation rules
 
@@ -81,6 +93,10 @@ decision: [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md).
 8. `frameCapture=on-error` only triggers on crash/device-loss, never in normal frames.
 9. `blockingWaitDetection` is debug-only; release builds ignore it with a diagnostic.
 10. Diagnostics must not change rendering output or golden results.
+11. `audit.reportPath` is relative and inside the output/artifacts directory; audit is disabled
+    by default and thresholds are non-negative.
+12. Audit metrics/scores follow [lighthouse-audit-v1.md](lighthouse-audit-v1.md); raw metrics are
+    primary, and disabling audit must add no measurable frame cost.
 
 ## 4. C++ API mirror
 

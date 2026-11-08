@@ -49,6 +49,21 @@ add_test(NAME my_component COMMAND my_component_tests)
 4. Keep tests deterministic: no wall clock, network, system fonts, or random ids.
 5. Run `ctest -R my_component --output-on-failure`.
 
+## 3.0 Headless agent tests
+
+```bash
+tessera test --script tests/agent/home.json --report out/report.json
+tessera test --script tests/agent/scroll.json --mode golden --out out/
+tessera headless --mode audit --profile desktop --script tests/audit/home.json
+```
+
+- Use numeric `uiId`/`(uiId,itemKey)` from `generated/automation.manifest.json`, not coordinates.
+- Structural mode (null backend) is fast; golden mode uses software/lavapipe.
+- Assertions: visibility/text/focus/bounds/events/no boundary catches/golden/audit thresholds.
+- Outputs: `report.json`, `snapshot.json`, `trace.json`, `audit.json`.
+- See [`agent-automation.md`](agent-automation.md) and
+  [`headless-automation-v1.md`](../specs/headless-automation-v1.md).
+
 ## 3.1 Error-boundary tests
 
 - Throw in child build/update/effect/event -> fallback shown, error logged.
