@@ -54,11 +54,14 @@ source text (editor/host) -> front end (changed components only) -> IR
 
 ## 3. IPC
 
-Messages are versioned JSON (a binary encoding is not designed yet):
+Messages are versioned JSON (a binary encoding is not designed yet). The normative message
+definitions are in [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md); the table
+below is a summary:
 
 | Direction | Message | Purpose |
 |---|---|---|
 | host -> viewer | `project.load` | config, component list, assets |
+| host -> viewer | `pick.mode`, `selection.set`, `style.*` | picker and style-edit requests |
 | host -> viewer | `source.update` | changed TSX/CSS text (viewer parses it itself) |
 | host -> viewer | `asset.update` | font/image/theme change |
 | viewer -> host | `ready`, `error`, `diagnostic` | status/logs |
