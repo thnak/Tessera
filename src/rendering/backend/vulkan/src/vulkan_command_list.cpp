@@ -24,10 +24,17 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     recording_ = true;
     current_target_ = vulkan_target;
 
-    record_image_transition(buffer_, vulkan_target->image(), VK_IMAGE_LAYOUT_UNDEFINED,
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
-                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    // end_render_pass leaves the target in TRANSFER_SRC so copy_target_to_buffer can read it.
+    // A Load frame must preserve that content, so it transitions from that layout instead of
+    // discarding the image from UNDEFINED. Clear/DontCare may discard.
+    const bool preserve = desc.load_op == rhi::LoadOp::Load;
+    record_image_transition(
+        buffer_, vulkan_target->image(),
+        preserve ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, preserve ? VK_ACCESS_TRANSFER_READ_BIT : 0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        preserve ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
     VkRenderingAttachmentInfo attachment{};
     attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -132,6 +139,14 @@ void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
     auto* vulkan_buffer = dynamic_cast<VulkanBuffer*>(&buffer);
     if (vulkan_target == nullptr || vulkan_buffer == nullptr) {
         throw std::runtime_error("copy_target_to_buffer: incompatible target or buffer");
+    }
+
+    if (!recording_) {
+        VkCommandBufferBeginInfo begin_info{};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        check_vk(vkBeginCommandBuffer(buffer_, &begin_info), "vkBeginCommandBuffer(copy)");
+        recording_ = true;
     }
 
     VkBufferImageCopy copy{};

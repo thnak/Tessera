@@ -68,3 +68,8 @@ if (UNIX AND TARGET batched2d_poc)
             ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
     endif()
 endif()
+
+add_executable(damage_equivalence_tests
+    batched2d/damage_equivalence_tests.cpp)
+target_link_libraries(damage_equivalence_tests PRIVATE tessera_gpu tessera_damage tessera_golden tessera_rhi_vulkan)
+add_test(NAME damage_equivalence COMMAND damage_equivalence_tests)

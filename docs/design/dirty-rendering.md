@@ -5,13 +5,15 @@ Status: design for Big Step B2 (runtime slice) and Big Step E (data-heavy UI); b
 bitmask, ancestor propagation, and pruned collect/clear pass are implemented in
 `include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`, and `src/ui/scene/dirty_pass.cpp`;
 damage accumulation (clip/merge/cap/full-redraw fallback) is implemented in
-damage accumulation (clip/merge/cap/full-redraw fallback) is implemented in
 `include/tessera/rendering/damage.hpp` and `src/rendering/damage/damage.cpp`; damage-to-scissor
 planning and the offscreen scissor replay (`begin_damaged`) are implemented in
 `include/tessera/rendering/redraw_plan.hpp`, `src/rendering/damage/redraw_plan.cpp`, and
 `src/rendering/gpu/batched2d_renderer.cpp`; the per-frame orchestrator that turns animation samples
 into target dirty flags, then dirty nodes into damage and a redraw plan, is
-`include/tessera/ui/frame_pipeline.hpp` (`tessera_frame`). Retained caches/layers remain
+`include/tessera/ui/frame_pipeline.hpp` (`tessera_frame`). Two-frame offscreen equivalence is
+covered by `damage_equivalence_tests`: a full frame followed by a `LoadOp::Load` partial frame is
+bit-identical to a fresh full frame, and the Vulkan command list now preserves the target layout
+across load frames. Retained caches/layers remain
 design-only. Decision record:
 [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame
 pacing). Companion to [`game-loop.md`](game-loop.md) (runtime loop and pacing) and
