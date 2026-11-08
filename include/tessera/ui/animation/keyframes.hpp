@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/ui/animation/easing.hpp"
 #include "tessera/ui/style/keyframes.hpp"
 
 #include <vector>
@@ -28,6 +29,7 @@ struct KeyframeTiming {
     double iterations = 1.0;
     Direction direction = Direction::Normal;
     FillMode fill = FillMode::None;
+    Easing easing;
 };
 
 std::vector<style::Declaration> sample_keyframes(const style::KeyframeBlock& keyframes,

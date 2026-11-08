@@ -109,6 +109,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/keyframes.hpp` | `@keyframes` block parsing into offset steps |
 | `ui/style/supports.hpp` | `@supports` condition parser/evaluator against the registry |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
+| `ui/animation/easing.hpp` | linear/cubic-bezier/steps easing parser + evaluator |
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |
 | `ui/animation/runtime.hpp` | active animation entries, tick, completion, dirty reporting |
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga flexbox mapping + absolute boxes + measure callback |
@@ -137,7 +138,7 @@ merger prototype.
 | `tessera_style` | static | CSS tokenizer (B2) |
 | `tessera_yoga` | static | vendored Yoga flexbox engine |
 | `tessera_text` | static | text measurement seam + deterministic stub (B2) |
-| `tessera_animation` | static | keyframe sampling/timing + active animation runtime (B2) |
+| `tessera_animation` | static | easing + keyframe sampling + active animation runtime (B2) |
 | `tessera_layout` | static | computed-style to Yoga layout adapter + text measure callback (B2) |
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |

@@ -93,6 +93,11 @@ double directed_progress(double local, double iteration, Direction direction) {
     return local;
 }
 
+double eased_progress(const KeyframeTiming& timing, double local, double iteration) {
+    return ease(timing.easing,
+                static_cast<float>(directed_progress(local, iteration, timing.direction)));
+}
+
 std::vector<style::Declaration> sample_at(const style::KeyframeBlock& keyframes, double progress) {
     if (keyframes.steps.empty()) {
         return {};
@@ -160,12 +165,12 @@ std::vector<style::Declaration> sample_keyframes(const style::KeyframeBlock& key
         if (!fill_backwards) {
             return {};
         }
-        return sample_at(keyframes, directed_progress(0.0, 0.0, timing.direction));
+        return sample_at(keyframes, eased_progress(timing, 0.0, 0.0));
     }
 
     const double active = elapsed_seconds - timing.delay;
     if (timing.duration <= 0.0) {
-        return fill_forwards ? sample_at(keyframes, directed_progress(1.0, 0.0, timing.direction))
+        return fill_forwards ? sample_at(keyframes, eased_progress(timing, 1.0, 0.0))
                              : std::vector<style::Declaration>{};
     }
 
@@ -178,13 +183,13 @@ std::vector<style::Declaration> sample_keyframes(const style::KeyframeBlock& key
         const bool exact = timing.iterations == whole;
         const double iteration = exact ? std::max(0.0, whole - 1.0) : whole;
         const double local = exact ? 1.0 : timing.iterations - whole;
-        return sample_at(keyframes, directed_progress(local, iteration, timing.direction));
+        return sample_at(keyframes, eased_progress(timing, local, iteration));
     }
 
     const double iteration_position = active / timing.duration;
     const double iteration = std::floor(iteration_position);
     const double local = iteration_position - iteration;
-    return sample_at(keyframes, directed_progress(local, iteration, timing.direction));
+    return sample_at(keyframes, eased_progress(timing, local, iteration));
 }
 
 } // namespace tessera::ui::animation

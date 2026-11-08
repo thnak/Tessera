@@ -154,6 +154,13 @@ target_link_libraries(animation_runtime_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_runtime COMMAND animation_runtime_tests)
 
+add_executable(easing_tests
+    easing_tests.cpp)
+
+target_link_libraries(easing_tests PRIVATE tessera_animation)
+
+add_test(NAME easing COMMAND easing_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 
