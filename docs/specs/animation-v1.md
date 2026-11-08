@@ -36,7 +36,8 @@ name (last duplicate wins), batch starts skip specs whose block is missing, and 
 overlay onto `ComputedStyle` with layout/paint/render dirty flags while the runtime stays awake.
 Pausing holds an entry's current sample without advancing time or waking the loop; resuming
 continues from that point. Stopping a target removes all of its entries, paused ones included;
-stopping a target/name pair removes only that animation and its retained fill. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+stopping a target/name pair removes only that animation and its retained fill. Restarting a
+target/name pair rewinds matching active entries and revives retained fills from their start. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),

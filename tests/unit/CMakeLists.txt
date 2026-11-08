@@ -238,6 +238,13 @@ target_link_libraries(animation_stop_name_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_stop_name COMMAND animation_stop_name_tests)
 
+add_executable(animation_restart_tests
+    animation_restart_tests.cpp)
+
+target_link_libraries(animation_restart_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_restart COMMAND animation_restart_tests)
+
 add_executable(easing_tests
     easing_tests.cpp)
 

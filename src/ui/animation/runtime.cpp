@@ -199,6 +199,36 @@ std::size_t AnimationRuntime::stop_target_name(std::uint64_t target, std::string
     return count + fill_count;
 }
 
+bool AnimationRuntime::restart_target_name(std::uint64_t target, std::string_view name) {
+    if (name.empty()) {
+        return false;
+    }
+    bool found = false;
+    for (AnimationEntry& entry : entries_) {
+        if (entry.target == target && entry.keyframes.name == name) {
+            entry.elapsed = 0.0;
+            entry.paused = false;
+            found = true;
+        }
+    }
+
+    std::vector<AnimationEntry> revived;
+    const auto removed = std::remove_if(fills_.begin(), fills_.end(), [&](AnimationEntry& entry) {
+        if (entry.target != target || entry.keyframes.name != name) {
+            return false;
+        }
+        entry.elapsed = 0.0;
+        entry.paused = false;
+        revived.push_back(std::move(entry));
+        return true;
+    });
+    fills_.erase(removed, fills_.end());
+    for (AnimationEntry& entry : revived) {
+        entries_.push_back(std::move(entry));
+    }
+    return found || !revived.empty();
+}
+
 bool AnimationRuntime::stop(AnimationId id) {
     const auto found = std::find_if(entries_.begin(), entries_.end(),
                                     [&](const AnimationEntry& entry) { return entry.id == id; });
