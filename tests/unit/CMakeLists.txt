@@ -280,6 +280,13 @@ target_link_libraries(animation_shorthand_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_shorthand COMMAND animation_shorthand_tests)
 
+add_executable(animation_start_tests
+    animation_start_tests.cpp)
+
+target_link_libraries(animation_start_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_start COMMAND animation_start_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 
