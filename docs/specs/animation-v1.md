@@ -8,7 +8,8 @@ with `tick(dt)`, reports samples/finished ids/dirty domains, and runs completion
 tick boundary. Easing supports linear, `ease*` presets, `cubic-bezier()`, and `steps()` with all
 jump positions; matching color keyframes interpolate in sRGB. `Spring` integrates
 stiffness/damping/mass with semi-implicit Euler, preserves
-position/velocity on retarget, and snaps to target below epsilon thresholds. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+position/velocity on retarget, and snaps to target below epsilon thresholds. `SpringRuntime` turns
+active spring entries into property declarations, retargets them, and reports dirty/wake state. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),

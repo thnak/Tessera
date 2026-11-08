@@ -3,8 +3,10 @@
 add_library(tessera_animation STATIC
     easing.cpp
     keyframes.cpp
+    property_dirty.cpp
     runtime.cpp
-    spring.cpp)
+    spring.cpp
+    spring_runtime.cpp)
 
 target_include_directories(tessera_animation PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
