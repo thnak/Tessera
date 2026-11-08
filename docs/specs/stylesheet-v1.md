@@ -266,6 +266,11 @@ Without it, the project has one theme, the built-in `default`, which has no toke
   replaced and every node whose computed style uses a changed token becomes `StyleDirty`.
 - A token defined in some themes but not in all of them is the warning `TESSERA_THEME_TOKEN_MISSING`
   (naming the theme and token); an undefined token resolves through `var()` fallback as usual.
+- **Theme and color scheme are independent.** `prefers-color-scheme` reports the operating-system
+  preference (`light` or `dark`; in the designer, the viewer's `colorScheme` input), never the active
+  theme id, and changing the theme does not change it. A project that wants one theme per scheme writes
+  `@media (prefers-color-scheme: dark)` rules, or calls `setTheme` from an effect that depends on
+  nothing but its own state; the framework does not link them automatically in V1.
 - The compiler embeds the asset in the generated program; changing it needs a rebuild, and the designer
   reloads it on `asset.update`.
 
