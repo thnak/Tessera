@@ -53,6 +53,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `supports` | property/value support, custom properties, not/and/or precedence and nesting |
 | `layout` | flex row/column, grow, gap/padding, absolute, percent/min/max, ratio, RTL, wrap, text measure, determinism |
 | `text_measure` | stub advance, word wrap, long-word break, newlines, letter spacing, style parsing |
+| `text_measure_cache` | key dimensions, LRU eviction, hit/miss stats, invalidate/clear, capacity guards |
 | `layout_apply` | id matching, parent-relative bounds, dirty propagation, missing/extra boxes |
 | `pixel_snap` | half-up/negative symmetry, scales 1/1.25/2, clamp below 1, joined edges |
 | `damage_pass` | Paint/Render filtering, snapped world bounds, merge, DPI scale, cap/full-redraw, overflow |

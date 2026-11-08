@@ -182,6 +182,13 @@ target_link_libraries(text_measure_tests PRIVATE tessera_text)
 
 add_test(NAME text_measure COMMAND text_measure_tests)
 
+add_executable(text_measure_cache_tests
+    text_measure_cache_tests.cpp)
+
+target_link_libraries(text_measure_cache_tests PRIVATE tessera_text)
+
+add_test(NAME text_measure_cache COMMAND text_measure_cache_tests)
+
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)
 

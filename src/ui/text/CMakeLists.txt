@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_text STATIC
-    text_measure.cpp)
+    text_measure.cpp
+    text_measure_cache.cpp)
 
 target_include_directories(tessera_text PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
