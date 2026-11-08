@@ -102,8 +102,10 @@ public:
 
 } // namespace
 
-void NullCommandList::begin_render_pass(const rhi::RenderTarget&, const rhi::RenderTargetDesc&) {
+void NullCommandList::begin_render_pass(const rhi::RenderTarget&,
+                                        const rhi::RenderTargetDesc& desc) {
     ++stats_.begin_render_passes;
+    scissor_ = rhi::Scissor{0, 0, desc.extent.width, desc.extent.height};
 }
 
 void NullCommandList::end_render_pass() {
@@ -124,15 +126,17 @@ void NullCommandList::bind_texture(std::uint32_t, const rhi::Texture&) {
 
 void NullCommandList::set_viewport(const rhi::Viewport&) {}
 
-void NullCommandList::set_scissor(const rhi::Scissor&) {
+void NullCommandList::set_scissor(const rhi::Scissor& scissor) {
+    scissor_ = scissor;
     ++stats_.scissor_changes;
 }
 
 void NullCommandList::push_constants(const void*, std::size_t) {}
 
-void NullCommandList::draw(std::uint32_t vertex_count, std::uint32_t) {
+void NullCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_vertex) {
     ++stats_.draws;
     stats_.vertices += vertex_count;
+    stats_.draw_records.push_back(NullDrawRecord{scissor_, vertex_count, first_vertex});
 }
 
 void NullCommandList::copy_target_to_buffer(const rhi::RenderTarget&, rhi::Buffer&) {}

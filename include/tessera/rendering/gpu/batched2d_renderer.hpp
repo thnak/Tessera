@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/vertex2d.hpp"
+#include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
 #include <cstdint>
@@ -28,6 +29,12 @@ public:
 
     void begin(rhi::CommandList& commands, const rhi::RenderTarget& target,
                const rhi::RenderTargetDesc& desc);
+    // Damage-aware entry point. A full-redraw plan is identical to begin(); a partial
+    // plan clips every emitted draw to exactly one damage region (see redraw_plan.hpp).
+    // An empty partial plan is a no-op: no render pass is opened and nothing is drawn.
+    // `plan.scissors` must be disjoint; DamageAccumulator guarantees that.
+    void begin_damaged(rhi::CommandList& commands, const rhi::RenderTarget& target,
+                       const rhi::RenderTargetDesc& desc, const RedrawPlan& plan);
     void end();
 
     void set_viewport(rhi::Extent2D extent);
@@ -61,6 +68,9 @@ private:
         std::uint32_t vertex_count = 0;
     };
 
+    void begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
+                     const rhi::RenderTargetDesc& desc,
+                     const std::vector<rhi::Scissor>* damage_regions);
     void ensure_capacity(std::size_t additional_vertices);
     void flush_batch();
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
@@ -77,6 +87,7 @@ private:
     rhi::Scissor base_scissor_;
     rhi::Scissor scissor_;
     std::vector<rhi::Scissor> scissor_stack_;
+    std::vector<rhi::Scissor> damage_regions_;
 
     rhi::Mat3 transform_;
     std::vector<rhi::Mat3> transform_stack_;

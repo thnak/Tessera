@@ -11,6 +11,12 @@
 
 namespace tessera::rendering::null {
 
+struct NullDrawRecord {
+    rhi::Scissor scissor;
+    std::uint32_t vertex_count = 0;
+    std::uint32_t first_vertex = 0;
+};
+
 struct NullCommandStats {
     std::uint32_t begin_render_passes = 0;
     std::uint32_t end_render_passes = 0;
@@ -20,6 +26,8 @@ struct NullCommandStats {
     std::uint32_t scissor_changes = 0;
     std::uint32_t draws = 0;
     std::uint32_t vertices = 0;
+    // One entry per draw, in recording order; `scissor` is the state active at draw time.
+    std::vector<NullDrawRecord> draw_records;
 };
 
 class NullCommandList final : public rhi::CommandList {
@@ -46,6 +54,7 @@ public:
 
 private:
     NullCommandStats stats_;
+    rhi::Scissor scissor_;
     bool submitted_ = false;
 };
 

@@ -32,18 +32,46 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
         {static_cast<std::size_t>(capacity_) * kVertex2DStride, rhi::BufferUsage::Vertex});
     vertices_.reserve(capacity_);
     batches_.reserve(64);
+    damage_regions_.reserve(8);
 }
 
 Batched2DRenderer::~Batched2DRenderer() = default;
 
 void Batched2DRenderer::begin(rhi::CommandList& commands, const rhi::RenderTarget& target,
                               const rhi::RenderTargetDesc& desc) {
+    begin_frame(commands, target, desc, nullptr);
+}
+
+void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::RenderTarget& target,
+                                      const rhi::RenderTargetDesc& desc, const RedrawPlan& plan) {
+    if (plan.full_redraw) {
+        begin_frame(commands, target, desc, nullptr);
+        return;
+    }
+    if (plan.scissors.empty()) {
+        // A no-op frame reports no work rather than stale counters from a previous frame.
+        commands_ = nullptr;
+        in_frame_ = false;
+        draw_calls_ = 0;
+        emitted_vertices_ = 0;
+        return;
+    }
+    begin_frame(commands, target, desc, &plan.scissors);
+}
+
+void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
+                                    const rhi::RenderTargetDesc& desc,
+                                    const std::vector<rhi::Scissor>* damage_regions) {
     commands_ = &commands;
     extent_ = desc.extent;
     base_scissor_ = rhi::Scissor{0, 0, static_cast<std::uint32_t>(desc.extent.width),
                                  static_cast<std::uint32_t>(desc.extent.height)};
     scissor_ = base_scissor_;
     scissor_stack_.clear();
+    damage_regions_.clear();
+    if (damage_regions != nullptr) {
+        damage_regions_ = *damage_regions;
+    }
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
     vertices_.clear();
@@ -149,13 +177,36 @@ void Batched2DRenderer::flush() {
     vertex_buffer_->write(vertices_.data(), vertices_.size() * sizeof(Vertex2D));
     commands_->bind_vertex_buffer(*vertex_buffer_);
 
-    for (const Batch& batch : batches_) {
-        commands_->set_scissor(batch.scissor);
-        commands_->bind_texture(0, *batch.texture);
-        commands_->draw(batch.vertex_count, batch.first_vertex);
+    std::uint32_t emitted_draws = 0;
+    if (damage_regions_.empty()) {
+        for (const Batch& batch : batches_) {
+            commands_->set_scissor(batch.scissor);
+            commands_->bind_texture(0, *batch.texture);
+            commands_->draw(batch.vertex_count, batch.first_vertex);
+            ++emitted_draws;
+        }
+    } else {
+        // Replay each batch once per damage region. Regions are disjoint, so a pixel is
+        // never blended twice even when several regions intersect the same batch.
+        for (const Batch& batch : batches_) {
+            bool texture_bound = false;
+            for (const rhi::Scissor& region : damage_regions_) {
+                const rhi::Scissor clipped = rhi::intersect(batch.scissor, region);
+                if (clipped.width == 0 || clipped.height == 0) {
+                    continue;
+                }
+                if (!texture_bound) {
+                    commands_->bind_texture(0, *batch.texture);
+                    texture_bound = true;
+                }
+                commands_->set_scissor(clipped);
+                commands_->draw(batch.vertex_count, batch.first_vertex);
+                ++emitted_draws;
+            }
+        }
     }
 
-    draw_calls_ += static_cast<std::uint32_t>(batches_.size());
+    draw_calls_ += emitted_draws;
     vertices_.clear();
     batches_.clear();
     current_batch_ = Batch{scissor_, current_texture_, 0, 0};
@@ -191,6 +242,9 @@ void Batched2DRenderer::flush_batch() {
 
 void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color,
                                   float radius, float mode, rhi::Texture* texture) {
+    if (!in_frame_) {
+        return;
+    }
     if (texture != current_texture_) {
         flush_batch();
         current_texture_ = texture;
