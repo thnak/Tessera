@@ -402,11 +402,12 @@ live in one place and are linked, not copied.
 (`src/ui/scene/dirty_pass.cpp`), and damage accumulation
 (`src/rendering/damage/damage.cpp`), CSS tokenization (`src/ui/style/tokenizer.cpp`), and the
 tolerant stylesheet AST parser (`src/ui/style/parser.cpp`), selector parsing/specificity
-(`src/ui/style/selector.cpp`), and right-to-left matching/indexing (`src/ui/style/selector_match.cpp`).
-Next slices, in order:
+(`src/ui/style/selector.cpp`), right-to-left matching/indexing
+(`src/ui/style/selector_match.cpp`), and cascade/computed-style/inheritance
+(`src/ui/style/cascade.cpp`). Next slices, in order:
 
-1. Cascade (origin/importance/specificity/source order) and computed-style model.
-2. Stylesheet pipeline: parser selectors -> index -> matched declarations.
+1. Stylesheet pipeline: parser selectors -> index -> matched declarations -> cascade.
+2. Property registry: validation, longhand expansion, initial values.
 3. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
 4. HAL/system clock + actual wait/present integration.
 5. Platform input translation and hit-test/focus/capture dispatch.

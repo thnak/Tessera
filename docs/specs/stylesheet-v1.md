@@ -6,7 +6,9 @@ dimensions, percentages, functions, at-keywords, hashes, match tokens, Unicode r
 implemented in `src/ui/style/tokenizer.cpp`, and the tolerant rule/declaration/at-rule parser in
 `src/ui/style/parser.cpp`; selector parsing/specificity is implemented in
 `src/ui/style/selector.cpp`, with right-to-left matching and id/class/tag indexing in
-`src/ui/style/selector_match.cpp`; cascade and the semantic matrix remain proposed.
+`src/ui/style/selector_match.cpp`, and the origin/importance/specificity/source-order cascade plus
+inheritance/computed-style model in `src/ui/style/cascade.cpp`; layers, the property registry, and
+the semantic matrix remain proposed.
 Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md) (stylesheet engine).
 
 Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8);

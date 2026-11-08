@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_style STATIC
+    cascade.cpp
     parser.cpp
     selector.cpp
     selector_match.cpp

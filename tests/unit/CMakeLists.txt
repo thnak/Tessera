@@ -98,6 +98,13 @@ target_link_libraries(selector_match_tests PRIVATE tessera_style)
 
 add_test(NAME selector_match COMMAND selector_match_tests)
 
+add_executable(cascade_tests
+    cascade_tests.cpp)
+
+target_link_libraries(cascade_tests PRIVATE tessera_style)
+
+add_test(NAME cascade COMMAND cascade_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(
