@@ -22,6 +22,11 @@ target_include_directories(tessera_yoga PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/yoga)
 
 target_compile_features(tessera_yoga PUBLIC cxx_std_20)
+
+if (ANDROID)
+    # Yoga's Android logger calls __android_log_vprint.
+    target_link_libraries(tessera_yoga PUBLIC log)
+endif()
 target_compile_definitions(tessera_yoga PRIVATE
     $<$<CONFIG:Debug>:DEBUG>)
 
