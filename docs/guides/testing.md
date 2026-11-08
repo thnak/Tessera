@@ -39,6 +39,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `damage` | clip, overlap/touch merge, margin, cap/full-redraw fallback |
 | `tokenizer` | CSS tokens, offsets, escapes, strings, numbers, functions, match tokens, ranges |
 | `parser` | rule/declaration/at-rule AST, `!important`, custom properties, tolerant recovery |
+| `selector` | combinators, attributes, pseudos/functions, robustness, specificity |
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |

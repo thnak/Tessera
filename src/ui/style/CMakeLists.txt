@@ -2,6 +2,7 @@
 
 add_library(tessera_style STATIC
     parser.cpp
+    selector.cpp
     tokenizer.cpp)
 
 target_include_directories(tessera_style PUBLIC

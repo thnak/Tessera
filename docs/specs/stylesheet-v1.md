@@ -4,7 +4,8 @@ Status: **proposed** (Big Step B2, the runtime slice; see [`AGENTS.md`](../../AG
 Normative for `ui/style`. The CSS tokenizer (offsets, comments, escapes, strings, numbers,
 dimensions, percentages, functions, at-keywords, hashes, match tokens, Unicode ranges) is
 implemented in `src/ui/style/tokenizer.cpp`, and the tolerant rule/declaration/at-rule parser in
-`src/ui/style/parser.cpp`; selector matching, cascade, and the semantic matrix remain proposed.
+`src/ui/style/parser.cpp`; selector parsing/specificity is implemented in
+`src/ui/style/selector.cpp`; selector matching, cascade, and the semantic matrix remain proposed.
 Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md) (stylesheet engine).
 
 Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8);

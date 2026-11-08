@@ -43,6 +43,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `damage` | clip, overlap/touch merge, margin, cap/full-redraw fallback |
 | `tokenizer` | CSS tokens, offsets, escapes, strings, numbers, functions, match tokens, ranges |
 | `parser` | rule/declaration/at-rule AST, `!important`, custom properties, tolerant recovery |
+| `selector` | combinators, attributes, pseudos/functions, robustness, specificity |
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |

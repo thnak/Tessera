@@ -84,6 +84,13 @@ target_link_libraries(parser_tests PRIVATE tessera_style)
 
 add_test(NAME parser COMMAND parser_tests)
 
+add_executable(selector_tests
+    selector_tests.cpp)
+
+target_link_libraries(selector_tests PRIVATE tessera_style)
+
+add_test(NAME selector COMMAND selector_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

@@ -401,9 +401,10 @@ live in one place and are linked, not copied.
 (`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`), and pruned dirty collect/clear
 (`src/ui/scene/dirty_pass.cpp`), and damage accumulation
 (`src/rendering/damage/damage.cpp`), CSS tokenization (`src/ui/style/tokenizer.cpp`), and the
-tolerant stylesheet AST parser (`src/ui/style/parser.cpp`). Next slices, in order:
+tolerant stylesheet AST parser (`src/ui/style/parser.cpp`), and selector parsing/specificity
+(`src/ui/style/selector.cpp`). Next slices, in order:
 
-1. Selector parser + specificity + indexed matching.
+1. Selector matcher (right-to-left) + id/class/tag index.
 2. Cascade (origin/importance/specificity/source order) and computed-style model.
 3. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
 4. HAL/system clock + actual wait/present integration.
