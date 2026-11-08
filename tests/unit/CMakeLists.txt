@@ -63,6 +63,13 @@ target_link_libraries(input_tests PRIVATE tessera_input)
 
 add_test(NAME input COMMAND input_tests)
 
+add_executable(damage_tests
+    damage_tests.cpp)
+
+target_link_libraries(damage_tests PRIVATE tessera_damage)
+
+add_test(NAME damage COMMAND damage_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

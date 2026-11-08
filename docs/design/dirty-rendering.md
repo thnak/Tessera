@@ -4,7 +4,9 @@ Status: design for Big Step B2 (runtime slice) and Big Step E (data-heavy UI); b
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). The node dirty-domain
 bitmask, ancestor propagation, and pruned collect/clear pass are implemented in
 `include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`, and `src/ui/scene/dirty_pass.cpp`;
-caches/damage/retained layers remain design-only. Decision record:
+damage accumulation (clip/merge/cap/full-redraw fallback) is implemented in
+`include/tessera/rendering/damage.hpp` and `src/rendering/damage/damage.cpp`; retained caches/layers
+remain design-only. Decision record:
 [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame
 pacing). Companion to [`game-loop.md`](game-loop.md) (runtime loop and pacing) and
 [`renderer.md`](renderer.md). Terms such as golden, damage, batch key, Yoga and `ComputedStyle` are in

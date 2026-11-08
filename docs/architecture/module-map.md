@@ -87,6 +87,7 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/gpu/vertex2d.hpp` | `Vertex2D`, attributes, push constants |
 | `rendering/gpu/batched2d_renderer.hpp` | batched 2D renderer |
 | `element/custom_element.hpp` | custom native element interface/contexts (planned) |
+| `rendering/damage.hpp` | damage rectangles: clip, merge, cap, full-redraw fallback |
 | `rendering/null/null_device.hpp` | null device + command stats |
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
@@ -113,6 +114,7 @@ merger prototype.
 | `tessera_scene` | static | scene graph/events |
 | `tessera_runtime` | static | fixed-step/clock/pacing core (B2) |
 | `tessera_input` | static | normalized input queue + sampler (B2) |
+| `tessera_damage` | static | damage rectangle accumulator (B2) |
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |
