@@ -36,7 +36,8 @@ name (last duplicate wins), batch starts skip specs whose block is missing, and 
 overlay onto `ComputedStyle` with layout/paint/render dirty flags while the runtime stays awake.
 Pausing holds an entry's current sample without advancing time or waking the loop; resuming
 continues from that point. Play-state changes can target one animation by exact target/name
-pair without disturbing its siblings. Stopping a target removes all of its entries, paused ones included;
+pair without disturbing its siblings. Applying computed-style play state updates matching active
+animations without starting, stopping, or restarting them. Stopping a target removes all of its entries, paused ones included;
 stopping a target/name pair removes only that animation and its retained fill. Restarting a
 target/name pair rewinds matching active entries and revives retained fills from their start.
 Target/name state exposes active and settled counts for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).

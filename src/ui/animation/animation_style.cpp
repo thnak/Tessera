@@ -15,32 +15,64 @@ std::string value(const style::ComputedStyle& style, const char* property) {
 
 } // namespace
 
-std::vector<AnimationId> start_style_animations(AnimationRuntime& runtime, std::uint64_t target,
-                                                const style::ComputedStyle& style,
-                                                const std::vector<style::KeyframeBlock>& keyframes,
-                                                AnimationCallback on_complete) {
+AnimationParseResult parse_style_animations(const style::ComputedStyle& style) {
     if (const std::string* names = style.find("animation-name"); names != nullptr) {
-        const AnimationParseResult parsed = parse_animation_longhands(
+        return parse_animation_longhands(
             *names, value(style, "animation-duration"), value(style, "animation-timing-function"),
             value(style, "animation-delay"), value(style, "animation-iteration-count"),
             value(style, "animation-direction"), value(style, "animation-fill-mode"),
             value(style, "animation-play-state"));
-        if (!parsed.ok) {
-            return {};
-        }
-        return start_animations(runtime, target, parsed.animations, keyframes,
-                                std::move(on_complete));
     }
-
     if (const std::string* shorthand = style.find("animation"); shorthand != nullptr) {
-        const AnimationParseResult parsed = parse_animation_list(*shorthand);
-        if (!parsed.ok) {
-            return {};
-        }
-        return start_animations(runtime, target, parsed.animations, keyframes,
-                                std::move(on_complete));
+        return parse_animation_list(*shorthand);
     }
     return {};
+}
+
+std::vector<AnimationId> start_style_animations(AnimationRuntime& runtime, std::uint64_t target,
+                                                const style::ComputedStyle& style,
+                                                const std::vector<style::KeyframeBlock>& keyframes,
+                                                AnimationCallback on_complete) {
+    const AnimationParseResult parsed = parse_style_animations(style);
+    if (!parsed.ok) {
+        return {};
+    }
+    return start_animations(runtime, target, parsed.animations, keyframes, std::move(on_complete));
+}
+
+std::size_t apply_style_play_state(AnimationRuntime& runtime, std::uint64_t target,
+                                   const style::ComputedStyle& style) {
+    const AnimationParseResult parsed = parse_style_animations(style);
+    if (!parsed.ok) {
+        return 0;
+    }
+    std::size_t changed = 0;
+    for (const AnimationEntry& entry : runtime.entries()) {
+        if (entry.target != target || entry.keyframes.name.empty()) {
+            continue;
+        }
+        const AnimationSpec* matched = nullptr;
+        for (const AnimationSpec& spec : parsed.animations) {
+            if (spec.name == entry.keyframes.name) {
+                matched = &spec;
+                break;
+            }
+        }
+        if (matched == nullptr) {
+            continue;
+        }
+        const bool paused = matched->play_state == PlayState::Paused;
+        if (paused == entry.paused) {
+            continue;
+        }
+        if (paused) {
+            (void)runtime.pause(entry.id);
+        } else {
+            (void)runtime.resume(entry.id);
+        }
+        ++changed;
+    }
+    return changed;
 }
 
 } // namespace tessera::ui::animation

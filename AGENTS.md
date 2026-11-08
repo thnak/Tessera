@@ -428,7 +428,7 @@ interpolates CSS colors (named/hex/rgb/rgba/hsl). `ui/animation/keyframes.hpp` s
 parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation, and
 `ui/animation/animation_shorthand.hpp` parses `animation` shorthands and longhand lists,
 `ui/animation/animation_start.hpp` looks up keyframes and batch-starts parsed specs,
-`ui/animation/animation_style.hpp` starts animations from computed style,
+`ui/animation/animation_style.hpp` starts animations from computed style and applies play-state changes,
 `ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting, retained fill samples, pause/resume, target/name state/pause/stop/restart, and
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
 retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries, `ui/animation/style_overlay.hpp`
