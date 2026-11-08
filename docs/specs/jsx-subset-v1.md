@@ -231,7 +231,10 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 | Effect | `useEffect(() => { ... }, [dep, ...]);` | The body is a native handler body (section 9.3). Dependencies are names of props, state variables or animated values; an expression is not allowed. Exact matching is enforced as in [`component-model-v1.md`](component-model-v1.md) section 2 |
 
 - Library hooks declared in the built-in hook manifest (section 7.1) are also accepted. Any other name
-  starting with `use` gives `TESSERA_REACT_UNKNOWN_HOOK`.
+  starting with `use` gives `TESSERA_REACT_UNKNOWN_HOOK`. A hook that exists (core or manifest) but is not
+  listed in `ui.hooks.allowed` gives `TESSERA_REACT_HOOK_NOT_ALLOWED`: an error when `ui.hooks.strict` is
+  `true` (the default), a warning when it is `false`; in both cases the hook is still lowered normally
+  ([`project-config-v1.md`](project-config-v1.md)).
 - A function whose name starts with `use` and that is declared in the project is a custom hook and is
   rejected (`TESSERA_REACT_CUSTOM_HOOK`).
 - A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an
@@ -634,7 +637,8 @@ and no silent skipping.
 | Bare `number` type | `TESSERA_JSX_TYPE_NUMBER` | Write `int` or `float` (section 5) |
 | Reading an animated value (`v.value`) | `TESSERA_JSX_SUBSET_ANIMATED_READ` | Pass the animated value whole (section 7) |
 | `return` inside an effect body other than the final cleanup | `TESSERA_REACT_EFFECT_RETURN` | Use the cleanup form (section 7) |
-| Unknown `use...` hook name | `TESSERA_REACT_UNKNOWN_HOOK` | Use one of the four hooks (section 7) |
+| Unknown `use...` hook name | `TESSERA_REACT_UNKNOWN_HOOK` | Use a core hook or a manifest hook (sections 7 and 7.1) |
+| Known hook not in `ui.hooks.allowed` | `TESSERA_REACT_HOOK_NOT_ALLOWED` | Add it to `ui.hooks.allowed`, or remove the call (warning when `ui.hooks.strict` is `false`) |
 | Import cycle between files | `TESSERA_JSX_SUBSET_IMPORT_CYCLE` | Move shared code to a third file |
 | Malformed or duplicate `bind::` id | `TESSERA_REACT_BIND_ID` | Use `[a-z][a-z0-9_]*`, unique in the project |
 | `bind::` annotation in a position other than before a handler or `useEffect` | `TESSERA_REACT_BIND_POSITION` | Move the comment (section 9.3) |

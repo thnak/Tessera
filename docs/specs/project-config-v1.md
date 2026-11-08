@@ -66,7 +66,7 @@ paths are rejected.
 | `include` | string[] | no | `["**/*.tsx", "**/*.jsx"]` | Glob patterns |
 | `exclude` | string[] | no | `["**/*.test.*", "**/node_modules/**"]` | Glob patterns |
 | `hooks.allowed` | string[] | yes | — | Subset of `useState`, `useEffect`, `useRef`, `useAnimatedValue` (the V1 core hooks, see [`component-model-v1.md`](component-model-v1.md)) and the library hooks `useTheme`, `useThemeState`, `useBreakpoint` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1) |
-| `hooks.strict` | boolean | no | `true` | Reject unknown hooks |
+| `hooks.strict` | boolean | no | `true` | Severity of `TESSERA_REACT_HOOK_NOT_ALLOWED` for a known hook missing from `hooks.allowed`: error when `true`, warning when `false`. A hook name that is neither a core hook nor in the manifest is always an error (`TESSERA_REACT_UNKNOWN_HOOK`), and so is a custom hook |
 | `limits.maxFileBytes` | integer | no | `1048576` | Front-end limit: largest source file, in bytes; greater than 0 ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 15) |
 | `limits.maxTokens` | integer | no | `200000` | Front-end limit: tokens per file; greater than 0 |
 | `limits.maxNestingDepth` | integer | no | `128` | Front-end limit: nesting of parentheses, JSX elements and expressions; greater than 0 |

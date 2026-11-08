@@ -186,7 +186,8 @@ V1 supports a deliberately small hooks subset ([ADR-036](../../decisions/ADR-036
 
 Rules:
 
-- `ui.hooks.strict = true` rejects any hook not in `ui.hooks.allowed`.
+- `ui.hooks.strict = true` makes a known hook missing from `ui.hooks.allowed` an error; `false` makes it a
+  warning. Unknown and custom hooks are always errors ([`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 7).
 - A `bind::<id>` must be unique across the project; duplicates are hard errors.
 - A binding that disappears from the UI produces a migration warning; it is never silently
   deleted from the developer's C++.
