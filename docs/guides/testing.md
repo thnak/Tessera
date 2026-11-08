@@ -71,6 +71,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `spring` | exact semi-implicit step, convergence/epsilon stop, retarget, invalid config, determinism |
 | `spring_runtime` | sample declarations, layout/paint dirty, settle/finish, retarget final, callbacks, dt guards |
 | `animation_overlay` | target filtering, later-sample precedence, property merge, unanimated preservation |
+| `transition` | shorthand lists, time units, bezier/steps commas, defaults, invalid specs |
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |

@@ -238,6 +238,13 @@ target_link_libraries(animation_overlay_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_overlay COMMAND animation_overlay_tests)
 
+add_executable(transition_tests
+    transition_tests.cpp)
+
+target_link_libraries(transition_tests PRIVATE tessera_animation)
+
+add_test(NAME transition COMMAND transition_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 
