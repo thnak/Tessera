@@ -33,6 +33,14 @@ const char* type_name(EventType type) {
         return "up";
     case EventType::PointerMove:
         return "move";
+    case EventType::KeyDown:
+        return "keydown";
+    case EventType::KeyUp:
+        return "keyup";
+    case EventType::Focus:
+        return "focus";
+    case EventType::Blur:
+        return "blur";
     }
     return "unknown";
 }

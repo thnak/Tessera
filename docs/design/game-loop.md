@@ -4,9 +4,10 @@ Status: design for Big Step B2 (runtime slice, rendered offscreen) and B3 (windo
 are defined in [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). The
 deterministic fixed-step accumulator is implemented in `src/runtime/fixed_step.*`, with a clock
 interface and deterministic `ManualClock` in `src/runtime/clock.*`, and a `RuntimeLoop` with
-render-on-demand/wake state in `src/runtime/runtime_loop.*`, and a deadline-based `FramePacer`
-(`src/runtime/frame_pacer.*`); HAL/system clock, actual sleep/vsync, and presentation remain
-design-only. Normative
+render-on-demand/wake state in `src/runtime/runtime_loop.*`, a deadline-based `FramePacer`
+(`src/runtime/frame_pacer.*`), the HAL steady clock + bounded wait (`src/hal/timer/`), and
+`runtime::SystemClock`; actual loop sleep/vsync/presentation integration remains design-only.
+Normative
 terms are used by [`runtime-config-v1.md`](../specs/runtime-config-v1.md) (runtime config keys and
 defaults). Design basis: [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input and
 fixed-step runtime), [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty

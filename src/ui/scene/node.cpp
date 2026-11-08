@@ -61,6 +61,14 @@ void Node::set_visible(bool visible) {
     mark_dirty(Dirty::Layout | Dirty::Paint | Dirty::Render);
 }
 
+void Node::set_focusable(bool focusable) {
+    if (focusable_ == focusable) {
+        return;
+    }
+    focusable_ = focusable;
+    mark_dirty(Dirty::Style);
+}
+
 void Node::mark_dirty(Dirty flags) {
     if (flags == Dirty::None) {
         return;

@@ -10,6 +10,11 @@ add_executable(batched2d_tests
 target_link_libraries(batched2d_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME batched2d COMMAND batched2d_tests)
 
+add_executable(damage_redraw_tests
+    batched2d/damage_redraw_tests.cpp)
+target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
+add_test(NAME damage_redraw COMMAND damage_redraw_tests)
+
 if (TARGET batched2d_poc)
     add_test(
         NAME batched2d_vulkan_smoke

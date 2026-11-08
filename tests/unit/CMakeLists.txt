@@ -28,6 +28,13 @@ target_link_libraries(input_router_tests PRIVATE tessera_scene)
 
 add_test(NAME input_router COMMAND input_router_tests)
 
+add_executable(focus_tests
+    focus_tests.cpp)
+
+target_link_libraries(focus_tests PRIVATE tessera_scene)
+
+add_test(NAME focus COMMAND focus_tests)
+
 add_executable(scene_dirty_tests
     scene_dirty_tests.cpp)
 
@@ -55,6 +62,13 @@ add_executable(clock_tests
 target_link_libraries(clock_tests PRIVATE tessera_runtime)
 
 add_test(NAME clock COMMAND clock_tests)
+
+add_executable(hal_timer_tests
+    hal_timer_tests.cpp)
+
+target_link_libraries(hal_timer_tests PRIVATE tessera_runtime tessera_hal_timer)
+
+add_test(NAME hal_timer COMMAND hal_timer_tests)
 
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)
@@ -454,6 +468,31 @@ add_executable(font_metrics_tests
 target_link_libraries(font_metrics_tests PRIVATE tessera_text)
 
 add_test(NAME font_metrics COMMAND font_metrics_tests)
+
+set(TESSERA_FONT_FIXTURE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSans-Regular.ttf")
+get_filename_component(TESSERA_FONT_FIXTURE "${TESSERA_FONT_FIXTURE}" REALPATH)
+
+add_executable(font_face_tests
+    font_face_tests.cpp)
+
+target_link_libraries(font_face_tests PRIVATE tessera_text)
+
+add_test(NAME font_face COMMAND font_face_tests "${TESSERA_FONT_FIXTURE}")
+
+add_executable(freetype_metrics_tests
+    freetype_metrics_tests.cpp)
+
+target_link_libraries(freetype_metrics_tests PRIVATE tessera_text)
+
+add_test(NAME freetype_metrics COMMAND freetype_metrics_tests "${TESSERA_FONT_FIXTURE}")
+
+add_executable(harfbuzz_shaper_tests
+    harfbuzz_shaper_tests.cpp)
+
+target_link_libraries(harfbuzz_shaper_tests PRIVATE tessera_text)
+
+add_test(NAME harfbuzz_shaper COMMAND harfbuzz_shaper_tests "${TESSERA_FONT_FIXTURE}")
 
 add_executable(text_layout_tests
     text_layout_tests.cpp)

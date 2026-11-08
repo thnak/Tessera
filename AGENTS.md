@@ -452,17 +452,24 @@ retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring en
 overlays samples onto `ComputedStyle` per target, `ui/animation/transition.hpp` parses transition
 shorthands and longhand lists, `ui/animation/transition_runtime.hpp` starts matched transitions, diffs computed styles, and supersedes active target/property entries. Runtime assembly, tick ordering, fills, reduced motion, and the loop bridge are documented in [`docs/design/animation-runtime.md`](docs/design/animation-runtime.md), `ui/frame_pipeline.hpp` composes the animation tick, per-target dirty marking, damage tracking, and normalized redraw planning for one frame, and
 `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
-Yoga measure callback). Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
+Yoga measure callback). Font files load through FreeType (`ui/text/font_face.hpp`) with real
+metrics (`ui/text/freetype_metrics.hpp`) and shape through HarfBuzz (`ui/text/text_shaper.hpp`,
+`ui/text/harfbuzz_shaper.hpp`). The HAL has a steady clock and bounded idle wait
+(`src/hal/timer/`, `src/runtime/system_clock.*`); the scene has focus/keyboard dispatch
+(`ui/scene/focus.hpp`); and the batched 2D renderer has a damage-scissored `begin_damaged` path
+with null-backend draw records. Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
 bounded deterministic manual executor with once-only cancellation callbacks and a prioritized completion queue drained by `RuntimeLoop`
 under a per-tick budget, and `runtime/diagnostics.hpp` tracks per-frame/total counters. Next slices,
 in order:
 
-1. Real text stack seam: font loading/metrics, shaping, glyph atlas.
+1. Glyph atlas + text batching (font loading, metrics, and shaping landed).
 2. Async runtime, diagnostics, lavapipe goldens.
-3. HAL/system clock + actual wait/present integration.
-4. Platform input translation and hit-test/focus/capture dispatch.
-5. Damage-aware batched2D redraw path and golden equivalence test.
-6. `@supports` evaluation, animation runtime sampling, incremental relayout.
+3. B3 window/present path: event-driven wait, vsync/present, deadline integration (the clock/wait
+   seam landed).
+4. Platform input translation and remaining focus policy (`tab_index`, `:focus`, modal trapping;
+   focus/keyboard routing landed).
+5. Golden-image equivalence for damage redraw (the scissor path landed).
+6. Incremental relayout.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing

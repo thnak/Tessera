@@ -12,7 +12,8 @@ are marked **planned**; a planned directory is a seam, not an implemented featur
 |---|---|---|
 | `include/tessera/` | Public headers; light, no backend/OS headers | B1 subset |
 | `src/core/` | object, memory, threading, events, resources | planned |
-| `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | planned |
+| `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | timer B2; rest planned |
+| `src/hal/timer/` | monotonic clock + bounded idle wait (`tessera_hal_timer`) | B2 |
 | `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL (hardware/OS abstraction layer) | planned (B3) |
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; style/layout/text/input/animation B2 core; view/responsive/accessibility planned |
 | `src/ui/input/` | normalized input event, bounded queue, move coalescing | B2 core |
@@ -96,10 +97,12 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/null/null_device.hpp` | null device + command stats |
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
+| `hal/timer/steady_time.hpp` | monotonic seconds + bounded idle wait (B2) |
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
 | `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
-| `ui/scene/event.hpp` | event types/phases |
-| `ui/scene/input_dispatch.hpp` | pointer input -> hit-test/dispatch + capture router |
+| `ui/scene/event.hpp` | pointer/keyboard/focus event types, phases, key payload |
+| `ui/scene/focus.hpp` | focus target, focus transitions, depth-first Tab traversal |
+| `ui/scene/input_dispatch.hpp` | pointer/keyboard input -> scene dispatch, focus + capture router |
 | `ui/dirty.hpp` | style/layout/paint/render/resource/GPU dirty bitmask |
 | `ui/input.hpp` | normalized input event, bounded SPSC queue, sampler |
 | `ui/style/token.hpp` | CSS token types and source slices |
@@ -114,7 +117,11 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/keyframes.hpp` | `@keyframes` block parsing into offset steps |
 | `ui/style/supports.hpp` | `@supports` condition parser/evaluator against the registry |
 | `ui/style/color.hpp` | CSS color parser/formatter + sRGB interpolation |
+| `ui/text/font_face.hpp` | FreeType-backed font file loading + design-unit metrics |
 | `ui/text/font_metrics.hpp` | ascent/descent/line-gap provider + deterministic stub |
+| `ui/text/freetype_metrics.hpp` | real ascent/descent/line-gap scaled from a loaded face |
+| `ui/text/text_shaper.hpp` | shaped glyph/cluster/advance seam |
+| `ui/text/harfbuzz_shaper.hpp` | HarfBuzz UTF-8 shaping with pixel advances |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
 | `ui/text/text_layout.hpp` | wrapped line boxes (width/height/baseline) |
 | `ui/text/text_measure_cache.hpp` | bounded LRU measurement cache + stats |
@@ -140,6 +147,7 @@ Only `include/tessera/` is public. Current headers:
 | `runtime/diagnostics.hpp` | per-frame/total frame diagnostics counters |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
+| `runtime/system_clock.hpp` | `Clock` adapter backed by the HAL timer (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render wake + completion drain (B2) |
 | `runtime/frame_pacer.hpp` | deadline-based `maxFps` pacer, no sleep/busy-wait (B2) |
 
@@ -153,13 +161,16 @@ merger prototype.
 | `tessera_rhi` | static | RHI interfaces |
 | `tessera_gpu` | static | batched 2D renderer |
 | `tessera_rhi_null` | static | [null backend](../reference/glossary.md) |
-| `tessera_scene` | static | scene graph/events |
-| `tessera_runtime` | static | fixed-step/clock/pacing core (B2) |
+| `tessera_scene` | static | scene graph/events, focus manager, keyboard routing |
+| `tessera_hal_timer` | static | monotonic clock + bounded idle wait (B2) |
+| `tessera_runtime` | static | fixed-step/clock/pacing core + system clock (B2) |
 | `tessera_input` | static | normalized input queue + sampler (B2) |
 | `tessera_damage` | static | damage rectangle accumulator (B2) |
 | `tessera_style` | static | CSS tokenizer (B2) |
 | `tessera_yoga` | static | vendored Yoga flexbox engine |
-| `tessera_text` | static | text measurement seam + deterministic stub + LRU cache (B2) |
+| `tessera_freetype` | interface | FreeType (FetchContent, pinned archive) for font loading |
+| `tessera_harfbuzz` | interface | HarfBuzz (FetchContent, pinned archive) for shaping |
+| `tessera_text` | static | font loading/metrics + shaping + measurement seam + deterministic stub + LRU cache (B2) |
 | `tessera_animation` | static | easing + keyframes + runtime + springs (B2) |
 | `tessera_layout` | static | computed-style to Yoga layout adapter + text measure callback (B2) |
 | `tessera_frame` | static | per-frame animation/dirty/damage/redraw orchestration (B2) |
@@ -176,6 +187,8 @@ merger prototype.
 
 - New UI widget: `src/ui/view/` + `include/tessera/ui/view/`; no backend headers.
 - New platform window backend: `src/platform/<os>/` implementing `src/hal/window/`.
+- New HAL seam: `src/hal/<area>/` + `include/tessera/hal/<area>/`; the HAL never includes
+  `src/runtime/`.
 - New GPU backend: `src/rendering/backend/<api>/`; add a null fallback/test first.
 - New compiler pass: `src/compiler/{analyzer,rules,ir,codegen}/`; IR is the only codegen input.
 - New service: `src/services/<name>/`; async, cancellable, no UI blocking.

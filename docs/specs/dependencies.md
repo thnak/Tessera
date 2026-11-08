@@ -75,12 +75,21 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
-| FreeType | V1 hard | FreeType License (BSD-style) | `ui/text` | Font loading and glyph rasterization |
-| HarfBuzz | V1 hard | MIT | `ui/text` | Shaping: ligatures, kerning, complex scripts |
+| FreeType | V1 hard (FetchContent 2.13.3) | FreeType License (BSD-style) | `ui/text` | Font loading and glyph rasterization; fetched from a pinned archive hash with image codecs disabled |
+| HarfBuzz | V1 hard (FetchContent 10.2.0) | MIT | `ui/text` | Shaping: ligatures, kerning, complex scripts; fetched from a pinned archive hash without the FreeType/ICU/GLib integrations |
 | SheenBidi | V1 hard | Apache-2.0 | `ui/text` | Bidirectional text |
 | ICU | V1 hard | Unicode License | `ui/text`, `services/i18n` | Segmentation, normalization, locale, optional collation |
 | libunibreak | V1 optional | zlib | `ui/text` | Line breaking if ICU is too heavy |
 | Noto Sans / Inter (test fonts) | V1 test | OFL-1.1 | `tests/fixtures/fonts` | Deterministic golden text |
+
+FreeType is fetched at configure time from the pinned 2.13.3 archive; `FT_DISABLE_ZLIB`,
+`FT_DISABLE_BZIP2`, `FT_DISABLE_PNG`, `FT_DISABLE_HARFBUZZ`, and `FT_DISABLE_BROTLI` keep the
+build self-contained and deterministic. The archive hash pins the exact source, and no FreeType
+type appears in a public header.
+
+HarfBuzz is fetched the same way from the pinned 10.2.0 archive with its utils, tests, subsetter,
+FreeType/ICU/GLib/Graphite2 and platform shaper integrations disabled. Tessera hands HarfBuzz the
+font bytes that FreeType already validated, so the two libraries never share a face object.
 
 ## 4. Images and assets
 

@@ -3,8 +3,11 @@
 Status: design for Big Step B2 (runtime slice; see
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). The normalized event
 model, bounded SPSC queue, and per-tick adjacent-move coalescing are implemented in
-`include/tessera/ui/input.hpp` and `src/ui/input/input_queue.cpp`; platform translation, hit-test
-dispatch, focus/capture, and pseudo-state remain design-only. Decision record:
+`include/tessera/ui/input.hpp` and `src/ui/input/input_queue.cpp`; pointer input dispatch and
+capture are implemented in `src/ui/scene/input_dispatch.cpp`, and focus plus keyboard dispatch are
+implemented in `include/tessera/ui/scene/focus.hpp` and `src/ui/scene/focus.cpp`. Platform
+translation, pseudo-state dispatch, text/IME, and advanced focus policy remain design-only.
+Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
 fixed-step update of the runtime loop; golden = deterministic reference image; SPSC = single-producer
@@ -140,17 +143,35 @@ EventResult on_event(const ElementEvent&, CustomEventDispatch&);
 
 ## 6. Focus and keyboard
 
-- `focusable` is a node flag (buttons, inputs, custom nodes).
-- Focus order: explicit `tab_index`, then tree order; negative tab index skips tab navigation.
-- `:focus` is set on focus; `:focus-visible` is set when focus came from keyboard navigation or
-  an explicit accessibility request.
-- Focus trapping for modal dialogs; escape restores the previous focus.
-- Window blur clears active/pressed state but may retain focus for restore.
-- Keyboard events go to the focused node; if unhandled, bubble to ancestors/window.
-- Shortcuts are matched after normal propagation (or before, if registered as global; the registration API is not specified).
-- Key repeat is delivered with `repeat=true`.
-- Text input: `TextEvent` is delivered to the focused editable node; IME composition events
-  update a composition buffer and are committed as text on end.
+Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
+
+- `focusable` is a node flag (buttons, inputs, custom nodes); it defaults to `false`.
+- Focus only lands on a node that is focusable, visible, attached to the scene root, and has no
+  invisible ancestor. `FocusManager::request_focus` rejects anything else without changing the
+  current focus; `clear_focus` dispatches `Blur` and clears.
+- A focus change dispatches `Blur` to the old target before `Focus` to the new target. Both use
+  the same capture/target/bubble path as pointer events, so ancestors observe them.
+- Tab traversal (`focus_next` / `focus_previous`) visits focusable nodes in depth-first document
+  order (pre-order), wrapping at both ends. It skips invisible subtrees and skips non-focusable
+  nodes while still visiting their children. With no current focus, forward traversal starts at
+  the first candidate and backward traversal starts at the last.
+- `InputRouter` owns a `FocusManager`. `KeyDown`/`KeyUp` go to the focused node through the normal
+  propagation path; with no focus they are not dispatched. Key events carry `key`, `modifiers`,
+  `text_codepoint`, and `repeat`.
+- `PointerDown` on a focusable hit target requests focus; a pointer down anywhere else clears
+  focus. Pointer capture remains independent and is unchanged by focus changes.
+- `FocusManager` stores raw node pointers and does not observe node destruction: it must be
+  destroyed before the scene root, and `clear_focus` must be called before destroying the focused
+  subtree.
+
+Deferred policy (design intent, not implemented):
+
+- Explicit `tab_index` ordering (including negative values that skip Tab) and `focus-visible`
+  heuristics for keyboard-versus-pointer focus.
+- `:focus`/`:focus-visible` pseudo-state updates, modal focus trapping/restore, and window-blur
+  retention.
+- Keyboard shortcuts/global handlers, text input, and IME composition. Text input will go to the
+  focused editable node once those event types are implemented.
 
 ## 7. Pointer state and pseudo-classes
 
@@ -207,8 +228,10 @@ Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
 
 - Hit testing with transforms, clipping, visibility, `pointer-events: none`.
 - Capture/target/bubble order; stop propagation; prevent default.
-- Focus traversal, tab order, focus-visible, focus trap restore.
+- Focus set/clear and blur-before-focus order; invalid focus rejection.
+- Tab traversal order/wrap, hidden-subtree skipping, keyboard routing with stop propagation.
 - Pointer capture across move/up/cancel; multi-touch.
+- Focus-visible, tab index, and focus trap restore (deferred with the policy above).
 - Hover/active state changes and resulting style invalidation.
 - Keyboard repeat, shortcuts, text input, IME composition.
 - Deterministic replay: identical event script -> identical state and pixels.
