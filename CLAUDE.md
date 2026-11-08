@@ -6,7 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status
 
-Pre-alpha. Big Step B1 (RHI = render hardware interface, Vulkan batched 2D, scene graph) is done; **B2 is the current focus** (Big Steps A-F are defined in [AGENTS.md, Big Steps](AGENTS.md#big-steps-group-work-dont-micro-step)) (stylesheet engine → Yoga → input → fixed-step loop → dirty rendering → pacing → power → async → diagnostics → text → lavapipe goldens, where lavapipe is Mesa's software Vulkan driver and a golden is a deterministic reference image). Much of the repo (`docs/specs/`, `docs/design/`, `decisions/`, the ADR = Architecture Decision Record folder, index at [decisions/README.md](decisions/README.md)) is design documentation for subsystems not yet implemented; several `src/` dirs (e.g. `src/runtime`) are empty (checked: `src/runtime` has no files). Check the code before assuming a documented feature exists. Keep the B1 RHI, batched 2D renderer, and scene graph stable.
+Pre-alpha. Big Step B1 (RHI = render hardware interface, Vulkan batched 2D, scene graph) is done; **B2 is the current focus** (Big Steps A-F are defined in [AGENTS.md, Big Steps](AGENTS.md#big-steps-group-work-dont-micro-step)) (stylesheet engine → Yoga → input → fixed-step loop → dirty rendering → pacing → power → async → diagnostics → text → lavapipe goldens, where lavapipe is Mesa's software Vulkan driver and a golden is a deterministic reference image). The B2 foundation is started: fixed-step accumulator (`src/runtime/fixed_step.*`) and scene dirty flags (`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`). Much of the repo (`docs/specs/`, `docs/design/`, `decisions/`, index at [decisions/README.md](decisions/README.md)) is design documentation for subsystems not yet implemented; check the code before assuming a documented feature exists. Keep the B1 RHI, batched 2D renderer, and scene graph stable.
+
+## Execution loop
+
+Work continuously, not stop-and-wait. A parallel clone can ship the same idea; keep a green `main`
+and land verified increments.
+
+- **One Big Goal per cycle**, normally the next unblocked B2 slice.
+- **Split into testable slices**; each slice = behavior + tests + docs.
+- **Commit every green slice** and use multiple commits per part (model → algorithm → integration →
+  tests/docs). Never leave green work uncommitted.
+- **After a commit, take the next slice automatically**; only stop for destructive/ambiguous
+  decisions, blocked external CI, or context exhaustion.
+- On context exhaustion: commit the current green slice and write the exact next slice in
+  Current focus.
+
+A commit is a checkpoint, not a finish line.
 
 ## Commands
 
@@ -16,7 +32,7 @@ Presets live in `CMakePresets.json` (`dev` = Ninja Debug, `release`, `ci`, `vs20
 cmake --preset vs2026
 cmake --build --preset vs2026-release
 ctest --preset vs2026-release
-ctest --preset vs2026-release -R scene_graph      # single test (names: merger_unit, rhi_null, scene_graph, batched2d, ...)
+ctest --preset vs2026-release -R scene_graph      # single test (names: merger_unit, rhi_null, scene_graph, scene_dirty, fixed_step, batched2d, ...)
 .\build\vs2026\tools\poc\batched2d\Release\batched2d_poc.exe --backend vulkan --out batched2d.png
 .\build\vs2026\tools\poc\batched2d\Release\batched2d_poc.exe --backend null
 .\scripts\format.ps1 -Check

@@ -75,6 +75,27 @@ A cross-platform C++ UI framework:
     errors go to the root handler. See
     [`docs/specs/error-boundaries-v1.md`](docs/specs/error-boundaries-v1.md).
 
+## Execution loop (default operating mode)
+
+Work as a continuous implementation loop, not a stop-and-wait assistant. A clone can ship the
+same idea in parallel; velocity with a green `main` is the advantage.
+
+1. **One Big Goal per cycle.** Pick the highest-priority unblocked slice from Current focus
+   (normally Big Step B2). Write the acceptance in one sentence.
+2. **Split the part into independently testable slices.** A slice is one behavior, its tests, and
+   its docs. Do not bundle unrelated cleanup.
+3. **Implement -> test -> format -> commit.** Run `scripts/format.* --check`, build with
+   `TESSERA_WARNINGS_AS_ERRORS=ON`, and `ctest`. Commit immediately when green.
+4. **Multiple commits per part.** Land model -> algorithm -> integration -> tests/docs as separate
+   commits when that keeps each diff reviewable. Never end a cycle with uncommitted green work.
+5. **Continue automatically.** After a commit, take the next slice from the plan; do not stop to
+   ask "what next". Report the batch at a natural boundary.
+6. **Stop only for:** a destructive/irreversible action, a genuinely ambiguous product decision,
+   an external CI failure that needs credentials, or context exhaustion. On context exhaustion,
+   commit the current green slice and write the exact next slice in Current focus.
+
+A commit is a checkpoint, not a finish line. Keep the tree buildable at every commit.
+
 ## Big Steps (group work, don't micro-step)
 
 Each Big Step ends with a demoable, committed result. Do not start the next one before the
@@ -371,11 +392,18 @@ live in one place and are linked, not copied.
 
 ## Current focus
 
-**Big Step B2.** The deterministic fixed-step accumulator core is implemented in
-`src/runtime/fixed_step.*` with tests. Continue the runtime slice in this order: stylesheet
-engine, Yoga adapter, input handler, wire the fixed-step loop to the HAL clock and pacing, dirty
-rendering, frame pacing/FPS/VRR, power-aware idle/adaptive defaults, async/await runtime,
-diagnostics/tracing, then text/glyph atlas and the lavapipe/software pixel golden pipeline. B3
-adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
+**Big Goal: B2 runtime foundation.** Implemented: deterministic fixed-step accumulator
+(`src/runtime/fixed_step.*`) and scene dirty-domain flags/ancestor aggregation
+(`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`). Next slices, in order:
+
+1. `runtime::Clock` + deterministic/manual clock.
+2. `runtime::RuntimeLoop` wiring fixed-step, wake/render-on-demand, and callbacks.
+3. `runtime::FramePacer` (`maxFps`, deadline schedule, no busy-wait).
+4. Normalized input event + bounded queue/coalescing.
+5. Dirty traversal/clear pass and damage aggregation.
+6. Stylesheet tokenizer/parser subset, then cascade/compatibility matrix.
+7. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
+
+B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
 so.
