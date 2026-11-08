@@ -28,6 +28,13 @@ target_link_libraries(input_router_tests PRIVATE tessera_scene)
 
 add_test(NAME input_router COMMAND input_router_tests)
 
+add_executable(focus_tests
+    focus_tests.cpp)
+
+target_link_libraries(focus_tests PRIVATE tessera_scene)
+
+add_test(NAME focus COMMAND focus_tests)
+
 add_executable(scene_dirty_tests
     scene_dirty_tests.cpp)
 

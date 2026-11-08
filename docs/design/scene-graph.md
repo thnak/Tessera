@@ -65,7 +65,9 @@ groups actually change.
 
 ## Events
 
-Event types in V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables)): `PointerDown`, `PointerUp`, `PointerMove`.
+Event types in V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables)):
+`PointerDown`, `PointerUp`, `PointerMove`, `KeyDown`, `KeyUp`, `Focus`, `Blur`. Focus and keyboard
+routing are described in [`input.md`](input.md).
 
 Dispatch is W3C-style (the DOM event model of the World Wide Web Consortium):
 
@@ -84,6 +86,8 @@ The dispatcher is UI-thread-only. No locking, no async delivery, and no event po
 
 - `tests/unit/scene_graph_tests.cpp`: world bounds, deep hit testing, capture/target/bubble
   order, stop propagation, invisible subtree skipping, outside-bounds misses.
+- `tests/unit/focus_tests.cpp`: focus transitions, invalid focus, Tab order/wrap, keyboard
+  routing to the focused node, pointer-down focus, and focus cleanup on router reset.
 - `tests/unit/scene_dirty_tests.cpp`: dirty-domain marking, ancestor aggregation, clear/recompute,
   setter invalidation, add-child propagation.
 - `tests/gpu/batched2d/batched2d_tests.cpp`: batch count and vertex count across texture and
