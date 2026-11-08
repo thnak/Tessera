@@ -52,7 +52,7 @@ if (UNIX AND TARGET batched2d_poc)
         add_test(
             NAME batched2d_overlay_golden
             COMMAND batched2d_poc --backend vulkan --golden --overlay
-                --font ${TESSERA_FONT_FIXTURE} --tolerance 0 --max-mismatch 0
+                --font ${TESSERA_FONT_FIXTURE} --tolerance 1 --max-mismatch 0.001
                 --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_overlay_golden.png
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_overlay.png)
         set_tests_properties(batched2d_overlay_golden PROPERTIES
@@ -61,7 +61,7 @@ if (UNIX AND TARGET batched2d_poc)
         add_test(
             NAME batched2d_text_golden
             COMMAND batched2d_poc --backend vulkan --golden
-                --font ${TESSERA_FONT_FIXTURE} --tolerance 0 --max-mismatch 0
+                --font ${TESSERA_FONT_FIXTURE} --tolerance 1 --max-mismatch 0.001
                 --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_text_golden.png
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_text.png)
         set_tests_properties(batched2d_text_golden PROPERTIES
@@ -69,10 +69,13 @@ if (UNIX AND TARGET batched2d_poc)
     endif()
 endif()
 
-add_executable(damage_equivalence_tests
-    batched2d/damage_equivalence_tests.cpp)
-target_link_libraries(damage_equivalence_tests PRIVATE tessera_gpu tessera_damage tessera_golden tessera_rhi_vulkan)
-add_test(NAME damage_equivalence COMMAND damage_equivalence_tests)
+if (TARGET tessera_rhi_vulkan)
+    add_executable(damage_equivalence_tests
+        batched2d/damage_equivalence_tests.cpp)
+    target_link_libraries(damage_equivalence_tests PRIVATE
+        tessera_gpu tessera_damage tessera_golden tessera_rhi_vulkan)
+    add_test(NAME damage_equivalence COMMAND damage_equivalence_tests)
+endif()
 
 if (WIN32 AND TARGET tessera_rhi_vulkan)
     add_executable(vulkan_swapchain_tests

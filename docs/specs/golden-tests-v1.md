@@ -26,7 +26,10 @@ Custom element goldens: [`custom-elements-v1.md`](custom-elements-v1.md).
 Implementation note: the first harness covers batched2d only. The baseline
 `tests/golden/baseline/batched2d/dashboard.png` is generated with lavapipe, and the
 `batched2d_golden` CTest compares it bit-exactly through `rendering/golden/image_diff.hpp` and
-`batched2d_poc --compare`. `--report` and `--diff` write structural/visual artifacts; the
+`batched2d_poc --compare`. Text-bearing cases (`batched2d_overlay_golden`,
+`batched2d_text_golden`) allow a 1-level channel delta and a 0.1% pixel budget because glyph
+antialiasing rounds differently across lavapipe/LLVM revisions. `--report` and `--diff` write
+structural/visual artifacts; the
 CPU-rasterizer path and larger corpus are not implemented yet.
 
 ## 2. Directory layout

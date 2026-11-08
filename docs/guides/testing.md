@@ -108,8 +108,8 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |
 | `batched2d_golden` | lavapipe bit-exact batched2d dashboard baseline (Linux only) |
-| `batched2d_overlay_golden` | lavapipe bit-exact diagnostics overlay baseline (Linux only) |
-| `batched2d_text_golden` | lavapipe bit-exact text-stack baseline (Linux only) |
+| `batched2d_overlay_golden` | lavapipe overlay baseline, 1 LSB + 0.1% budget (Linux only) |
+| `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -177,10 +177,12 @@ Implemented for the batched2d proof:
   (`lvp_icd*.json`). It renders with `--golden` and compares
   `tests/golden/baseline/batched2d/dashboard.png` bit-exactly
   (`--tolerance 0 --max-mismatch 0`).
-- `batched2d_overlay_golden` does the same with `--overlay --font <fixture>` against
-  `tests/golden/baseline/batched2d/dashboard_overlay.png`.
+- `batched2d_overlay_golden` renders `--overlay --font <fixture>` and compares
+  `tests/golden/baseline/batched2d/dashboard_overlay.png` with `--tolerance 1 --max-mismatch
+  0.001`. Glyph antialiasing rounds differently across lavapipe/LLVM revisions, so text-bearing
+  cases allow one channel level and a 0.1% pixel budget; structural regressions still fail.
 - `batched2d_text_golden` covers the text stack (font loaded, shaped and rasterized) against
-  `tests/golden/baseline/batched2d/dashboard_text.png`.
+  `tests/golden/baseline/batched2d/dashboard_text.png` with the same tolerance.
 - `--report report.json` and `--diff diff.png` write structural failure artifacts for any
   comparison: status, dimensions, mismatch counts, first mismatch coordinate, and a
   magenta-on-gray diff image when per-channel deltas exceed the tolerance.
