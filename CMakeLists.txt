@@ -41,6 +41,20 @@ option(TESSERA_BUILD_POC "Build Phase 0 proof-of-concept tools" ON)
 option(TESSERA_BUILD_TESTS "Build unit tests" ON)
 option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)
 
+# X11 backs the Linux window and the Vulkan Xlib present surface. Without it (and without
+# Win32) the HAL keeps the headless stub and the Vulkan device reports NotSupported for
+# presentation, so headless Linux builds still work.
+set(TESSERA_X11_FOUND OFF)
+if (UNIX AND NOT APPLE)
+    find_package(X11 QUIET)
+    if (X11_FOUND)
+        set(TESSERA_X11_FOUND ON)
+        message(STATUS "X11 found: Linux window and Vulkan Xlib surface enabled")
+    else()
+        message(STATUS "X11 not found: Linux window/presentation disabled (stub)")
+    endif()
+endif()
+
 add_subdirectory(third_party)
 add_subdirectory(src/rendering/rhi)
 add_subdirectory(src/rendering/gpu)

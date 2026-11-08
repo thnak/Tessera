@@ -9,7 +9,7 @@
 
 #include "vulkan_internal.hpp"
 
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 
 #include <algorithm>
 #include <cstdint>
@@ -216,4 +216,4 @@ void VulkanSwapchain::resize(rhi::Extent2D extent) {
 
 } // namespace tessera::rendering::vulkan
 
-#endif // VK_USE_PLATFORM_WIN32_KHR
+#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE

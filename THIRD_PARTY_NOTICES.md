@@ -94,6 +94,15 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: Mesa contributors
 - Upstream: https://gitlab.freedesktop.org/mesa/mesa
 
+### libX11 (system library)
+
+- Used by: `src/platform/linux/` (X11 window), `src/rendering/backend/vulkan/` (Xlib surface)
+- License: MIT/X11
+- Copyright: X.Org Foundation and contributors
+- Upstream: https://gitlab.freedesktop.org/xorg/lib/libx11
+- Linked dynamically from the operating system when X11 is found at configure time; not
+  vendored or redistributed with Tessera.
+
 ## Planned V1 dependencies
 
 | Component | License | Copyright / upstream |

@@ -108,6 +108,17 @@ if (WIN32)
     add_test(NAME window_wait COMMAND window_wait_tests)
 endif()
 
+if (TESSERA_X11_FOUND)
+    add_executable(window_x11_tests
+        window_x11_tests.cpp)
+
+    target_link_libraries(window_x11_tests PRIVATE
+        tessera_hal_window
+        X11::X11)
+
+    add_test(NAME window_x11 COMMAND window_x11_tests)
+endif()
+
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)
 

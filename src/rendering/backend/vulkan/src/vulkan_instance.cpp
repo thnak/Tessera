@@ -6,6 +6,10 @@
 #include <iostream>
 #include <vector>
 
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+#include <X11/Xlib.h>
+#endif
+
 namespace tessera::rendering::vulkan {
 namespace {
 
@@ -54,7 +58,7 @@ bool has_layer(const char* name) {
     return false;
 }
 
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 bool has_device_extension(VkPhysicalDevice device, const char* name) {
     std::uint32_t count = 0;
     if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS) {
@@ -72,7 +76,7 @@ bool has_device_extension(VkPhysicalDevice device, const char* name) {
     }
     return false;
 }
-#endif // VK_USE_PLATFORM_WIN32_KHR
+#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
 
 } // namespace
 
@@ -99,6 +103,13 @@ void VulkanDevice::create_instance() {
         has_instance_extension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME)) {
         extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
         extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+        surface_extensions_enabled_ = true;
+    }
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+    if (has_instance_extension(VK_KHR_SURFACE_EXTENSION_NAME) &&
+        has_instance_extension(VK_KHR_XLIB_SURFACE_EXTENSION_NAME)) {
+        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
         surface_extensions_enabled_ = true;
     }
 #endif
@@ -195,6 +206,18 @@ void VulkanDevice::pick_device() {
     std::vector<VkQueueFamilyProperties> queues(queue_count);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_count, queues.data());
 
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+    // Xlib presentation support is queried per queue family with a Display* and VisualID. The
+    // device keeps no connection, so probe with a short-lived one; a missing display leaves
+    // presentation unsupported while the offscreen device stays usable.
+    Display* probe_display = XOpenDisplay(nullptr);
+    VisualID probe_visual = 0;
+    if (probe_display != nullptr) {
+        probe_visual =
+            XVisualIDFromVisual(DefaultVisual(probe_display, DefaultScreen(probe_display)));
+    }
+#endif
+
     bool found_graphics = false;
     for (std::uint32_t i = 0; i < queue_count; ++i) {
         if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0) {
@@ -213,8 +236,21 @@ void VulkanDevice::pick_device() {
             win32_present_supported_ = true;
             break;
         }
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+        if (probe_display != nullptr && vkGetPhysicalDeviceXlibPresentationSupportKHR != nullptr &&
+            vkGetPhysicalDeviceXlibPresentationSupportKHR(physical_device_, i, probe_display,
+                                                          probe_visual) == VK_TRUE) {
+            queue_family_ = i;
+            xlib_present_supported_ = true;
+            break;
+        }
 #endif
     }
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+    if (probe_display != nullptr) {
+        XCloseDisplay(probe_display);
+    }
+#endif
     if (!found_graphics) {
         throw std::runtime_error("no graphics queue family found");
     }
@@ -248,7 +284,7 @@ void VulkanDevice::create_device() {
     queue_info.pQueuePriorities = &priority;
 
     std::vector<const char*> device_extensions;
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
     if (has_device_extension(physical_device_, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) {
         device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
         swapchain_extension_enabled_ = true;

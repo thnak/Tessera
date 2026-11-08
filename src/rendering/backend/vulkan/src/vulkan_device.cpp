@@ -140,14 +140,25 @@ std::unique_ptr<rhi::CommandList> VulkanDevice::create_command_list() {
 
 std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
 VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-    // A Vulkan swapchain needs a VkSurfaceKHR, which needs a platform window handle from the HAL.
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
+    // A Vulkan swapchain needs a VkSurfaceKHR, which needs the platform window handles from the
+    // HAL. Win32 uses native_window (HWND); X11 uses native_display (Display*) + native_window.
     if (desc.image_count < 2 || desc.extent.width == 0 || desc.extent.height == 0 ||
         desc.native_window == nullptr) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
-    if (!surface_extensions_enabled_ || !swapchain_extension_enabled_ ||
-        !win32_present_supported_) {
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+    if (desc.native_display == nullptr) {
+        return std::unexpected(rhi::SwapchainError::NotSupported);
+    }
+#endif
+    bool present_supported = false;
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    present_supported = win32_present_supported_;
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+    present_supported = xlib_present_supported_;
+#endif
+    if (!surface_extensions_enabled_ || !swapchain_extension_enabled_ || !present_supported) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
 
@@ -158,7 +169,7 @@ VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
     return std::unique_ptr<rhi::Swapchain>(std::move(*created));
 #else
     (void)desc;
-    // The surface/platform window path is Win32-only for now; offscreen devices stay usable.
+    // No platform presentation surface; offscreen devices stay usable.
     return std::unexpected(rhi::SwapchainError::NotSupported);
 #endif
 }

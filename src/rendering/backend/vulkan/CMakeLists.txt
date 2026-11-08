@@ -66,7 +66,8 @@ set(TESSERA_VULKAN_RHI_SOURCES
     ${TESSERA_BATCHED2D_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)
 
-if (WIN32)
+if (WIN32 OR TESSERA_X11_FOUND)
+    # Platform presentation surface + bounded acquire/present state machine.
     list(APPEND TESSERA_VULKAN_RHI_SOURCES
         src/vulkan_swapchain.cpp
         src/vulkan_swapchain_present.cpp)
@@ -86,6 +87,10 @@ if (WIN32)
     # vkCreateWin32SurfaceKHR / vkGetPhysicalDeviceWin32PresentationSupportKHR.
     target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_WIN32_KHR)
     target_link_libraries(tessera_rhi_vulkan PRIVATE user32)
+elseif (TESSERA_X11_FOUND)
+    # vkCreateXlibSurfaceKHR / vkGetPhysicalDeviceXlibPresentationSupportKHR.
+    target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+    target_link_libraries(tessera_rhi_vulkan PRIVATE X11::X11)
 endif()
 target_link_libraries(tessera_rhi_vulkan PUBLIC tessera_rhi Vulkan::Vulkan)
 target_compile_features(tessera_rhi_vulkan PUBLIC cxx_std_23)

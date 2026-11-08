@@ -10,7 +10,7 @@ layer ([`hal.md`](hal.md)); tick, golden, VRR and `WindowMetrics` are in
 
 ## 0. Implemented subset (B3 window/swapchain slice)
 
-The B3 seams now have a real Windows implementation:
+The B3 seams now have real Windows and Linux/X11 implementations:
 
 - [`include/tessera/hal/window.hpp`](../../include/tessera/hal/window.hpp) defines `WindowInsets`,
   `WindowMetrics`, `WindowEventType`/`WindowEvent`, `WindowDesc` (logical client size), the
@@ -21,27 +21,54 @@ The B3 seams now have a real Windows implementation:
   v2, `WM_SIZE`/`WM_DPICHANGED`/`WM_SETFOCUS`/`WM_KILLFOCUS`/`WM_CLOSE`/`WM_SHOWWINDOW`
   normalization, a bounded (fixed-capacity, resize-coalescing) event queue, client-rect + DPI
   `WindowMetrics`, show/hide, `InvalidateRect` redraw requests, and owner-thread destruction.
-  Non-Windows platforms build `src/hal/window/window_stub.cpp` and `create_window` returns
-  `nullptr`.
+- `src/platform/linux/window.cpp` implements the X11 window with Xlib: `XOpenDisplay`, a hidden
+  `XCreateWindow`, `WM_PROTOCOLS`/`WM_DELETE_WINDOW` close, `ConfigureNotify` -> `Resize`,
+  `FocusIn`/`FocusOut` -> `Focus`/`Blur`, `Expose` -> coalesced redraw wake, `ClientMessage`
+  `WM_DELETE_WINDOW` -> `Close`, `XMapWindow`/`XUnmapWindow` show/hide, `XClearArea` redraw
+  requests, and client-rect metrics whose DPI comes from the `Xft.dpi` Xresource (96 fallback,
+  clamped to 48-768). CMake probes `find_package(X11 QUIET)` on Linux; without X11 the
+  `src/hal/window/window_stub.cpp` path is built and `create_window` returns `nullptr`.
+  `src/hal/window/window_event_queue.hpp` is the private shared ring (resize coalescing).
 - [`include/tessera/rendering/rhi/swapchain.hpp`](../../include/tessera/rendering/rhi/swapchain.hpp)
   defines `SwapchainDesc` with opaque `native_window`/`native_display` handles supplied by the
   HAL, `SwapchainError` (including `Suboptimal`), the `Swapchain` interface, and
   `Device::create_swapchain`. The null backend returns a deterministic rotating swapchain
   (resize -> one `OutOfDate`, forced-timeout test control, stats).
-- `src/rendering/backend/vulkan/src/vulkan_swapchain.cpp` implements the Win32 path:
-  `vkCreateWin32SurfaceKHR`, surface-format/present-mode selection (`vsync` -> FIFO, otherwise
-  MAILBOX/IMMEDIATE when available), image views, bounded fence-based acquire, present, and
-  old-swapchain retirement (`oldSwapchain` + bounded empty-submit drain). Missing
-  `native_window`, unsupported surface formats, and non-Windows builds report `NotSupported`.
-- Event-driven idling now exists at the HAL seam: `hal::Window::wait_for_events` (Win32
-  `MsgWaitForMultipleObjectsEx` message pump) and
+- `src/rendering/backend/vulkan/src/vulkan_swapchain.cpp` and
+  `vulkan_swapchain_present.cpp` share one surface/capability/format/present-mode selection core.
+  The Win32 path uses `vkCreateWin32SurfaceKHR`; the X11 path uses `vkCreateXlibSurfaceKHR` with
+  `native_display` (`Display*`) and `native_window` (`Window`) and queries
+  `vkGetPhysicalDeviceXlibPresentationSupportKHR` for queue selection. Both create image views,
+  acquire with a bounded fence, present, and retire the old swapchain (`oldSwapchain` + bounded
+  empty-submit drain). Missing handles, unsupported surface formats, a surface-incapable queue,
+  and builds without either platform surface extension report `NotSupported`.
+- Event-driven idling exists at the HAL seam: `hal::Window::wait_for_events` (Win32
+  `MsgWaitForMultipleObjectsEx` message pump; X11 `poll()` on the connection fd followed by an
+  `XPending` drain) and
   [`include/tessera/hal/window_wait.hpp`](../../include/tessera/hal/window_wait.hpp)'s
   `wait_for_events_until(window, deadline_seconds)`. The runtime loop/frame pacer should idle
   between ticks with the next `FramePacer` deadline once that integration lands; see
-  [`hal.md`](hal.md) §1.2. Still pending: runtime/pacer wiring, Linux (`X11`/Wayland) window and
-  surface backends, live-resize coalescing at the frame-pacing layer, device-loss recovery, and
-  full OS compliance beyond the messages handled here. The platform rules in §4 describe the
-  target behavior.
+  [`hal.md`](hal.md) §1.2. Still pending: runtime/pacer wiring, Wayland, swapchain-image render
+  targets, per-image frames-in-flight synchronization, device-loss recovery, and full OS
+  compliance beyond the messages handled here. The platform rules in §4 describe the target
+  behavior.
+
+Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe the target):
+
+- **X11 only.** Wayland, xdg-shell/`ack_configure`, fractional scale, and compositor-driven
+  resize are not implemented.
+- **DPI is a heuristic.** `Xft.dpi` is read once at creation and applies to every window/screen;
+  RandR per-monitor scale, `_NET_WM_SYNC_REQUEST`, refresh/VRR, and display hotplug are not
+  queried. A bare Xvfb display has no `Xft.dpi` and reports scale 1.
+- **No occlusion/minimize/IME.** `WindowMetrics.occluded`/`minimized` stay `false`, focus is
+  tracked from `FocusIn`/`FocusOut` only, and there is no XIM/IC integration. No window manager
+  is required or spoken to beyond `WM_DELETE_WINDOW`.
+- **No frames in flight.** Acquire/present are bounded (100 ms clamp) and presentation is
+  drained at recreation, but there is no per-image fence/semaphore set and no render-target
+  wrapper yet; images must be fully rendered before `present`.
+- **CI is Xvfb + lavapipe.** Linux tests run under `xvfb-run` with the lavapipe ICD; the overlay
+  and text goldens are bit-exact against a specific Mesa/LLVM build and can drift by a few
+  pixels on a newer software driver (the same drift exists at the base commit).
 
 ## 1. Separation of concerns
 
