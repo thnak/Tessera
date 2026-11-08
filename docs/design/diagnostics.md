@@ -1,8 +1,10 @@
 # Diagnostics, tracing, and profiling
 
 Status: the B2 logging/metrics core is implemented in `src/diagnostics/`
-(`tessera_diagnostics`: `diagnostics/log.hpp`, `diagnostics/metrics.hpp`); tracing, overlay,
-crash reporting, capture, and exporters remain design for B2/B3. Big Steps are defined in
+(`tessera_diagnostics`: `diagnostics/log.hpp`, `diagnostics/metrics.hpp`), together with bounded
+tracing spans (`diagnostics/trace.hpp`) and an overlay line model (`diagnostics/overlay.hpp`);
+tracing exporters, overlay rendering integration, crash reporting, capture, and file/console sinks
+remain design for B2/B3. Big Steps are defined in
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). Normative decision:
 [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling). Crash-report pipeline:
 [`crash-reporting-v1.md`](../specs/crash-reporting-v1.md); devtools:
@@ -71,6 +73,18 @@ Example shape:
 ```
 
 ## 4. Tracing and spans
+
+Implemented core (`diagnostics::TraceRecorder`, `diagnostics/trace.hpp`):
+
+- A bounded ring of `Begin`/`End`/`Instant` events with category, nesting depth, frame, and tick.
+  Timestamps are a deterministic sequence, not wall clock, so traces are reproducible.
+- `TraceSpan` is RAII (records `End` once, movable) and needs no macros.
+- `to_chrome_trace_json` emits Chrome Trace Event JSON with escaped names and frame/tick args.
+- Not implemented yet: wall-clock/GPU timestamps, trace sinks/rotation, sampling, Perfetto/ETW
+  exporters, and automatic instrumentation.
+
+`diagnostics::OverlayModel` (`diagnostics/overlay.hpp`) turns a frame snapshot plus metric samples
+into short overlay lines; rendering them through the text stack in the proof is still pending.
 
 - RAII span macros:
 

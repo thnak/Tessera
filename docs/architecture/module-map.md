@@ -147,8 +147,11 @@ Only `include/tessera/` is public. Current headers:
 | `ui/layout/damage_pass.hpp` | dirty bounds -> damage rects + previous-bounds tracker |
 | `ui/frame_pipeline.hpp` | one-frame orchestration: animation tick -> target dirty domains -> damage -> normalized redraw plan |
 | `runtime/async.hpp` | cancellation + callbacks + executor + completion queue (B2) |
+| `runtime/worker_executor.hpp` | bounded worker pool + shutdown/join + completion handoff (B2) |
 | `runtime/diagnostics.hpp` | per-frame/total frame diagnostics counters |
 | `diagnostics/log.hpp` | structured levels/categories, redaction, bounded ring sink (B2) |
+| `diagnostics/trace.hpp` | bounded RAII spans + Chrome Trace JSON (B2) |
+| `diagnostics/overlay.hpp` | frame/metric overlay line model (B2) |
 | `diagnostics/metrics.hpp` | fixed-capacity atomic counters/gauges + snapshots (B2) |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |

@@ -6,6 +6,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <utility>
 
 namespace tessera::runtime {
@@ -87,6 +88,7 @@ private:
 
     static std::size_t priority_index(CompletionPriority priority);
 
+    mutable std::mutex mutex_;
     std::deque<Task> visible_;
     std::deque<Task> layout_paint_;
     std::deque<Task> background_;

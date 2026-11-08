@@ -7,6 +7,7 @@ add_library(tessera_runtime STATIC
     fixed_step.cpp
     frame_pacer.cpp
     runtime_loop.cpp
+    worker_executor.cpp
     system_clock.cpp)
 
 target_include_directories(tessera_runtime PUBLIC
@@ -14,4 +15,8 @@ target_include_directories(tessera_runtime PUBLIC
 
 target_compile_features(tessera_runtime PUBLIC cxx_std_23)
 
-target_link_libraries(tessera_runtime PRIVATE tessera_hal_timer)
+find_package(Threads REQUIRED)
+
+target_link_libraries(tessera_runtime
+    PUBLIC Threads::Threads
+    PRIVATE tessera_hal_timer)

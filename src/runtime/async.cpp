@@ -98,14 +98,18 @@ bool CompletionQueue::post(CompletionPriority priority, std::function<void()> ta
                            CancellationToken token) {
     const std::size_t index = priority_index(priority);
     if (!task) {
+        std::lock_guard<std::mutex> lock(mutex_);
         ++stats_.dropped;
         return false;
     }
     if (token.cancelled()) {
+        std::lock_guard<std::mutex> lock(mutex_);
         ++stats_.cancelled;
         return false;
     }
-    if (size() >= capacity_) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (visible_.size() + layout_paint_.size() + background_.size() >= capacity_) {
         ++stats_.dropped;
         return false;
     }
@@ -119,35 +123,41 @@ bool CompletionQueue::post(CompletionPriority priority, std::function<void()> ta
 std::size_t CompletionQueue::run(std::size_t budget) {
     std::size_t executed = 0;
     while (executed < budget) {
-        bool ran = false;
-        std::deque<Task>* queues[] = {&visible_, &layout_paint_, &background_};
-        for (std::deque<Task>* queue : queues) {
-            while (!queue->empty()) {
-                Task task = std::move(queue->front());
-                queue->pop_front();
-                if (task.token.cancelled()) {
-                    ++stats_.cancelled;
-                    continue;
+        Task task;
+        bool found = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            std::deque<Task>* queues[] = {&visible_, &layout_paint_, &background_};
+            for (std::deque<Task>* queue : queues) {
+                if (!queue->empty()) {
+                    task = std::move(queue->front());
+                    queue->pop_front();
+                    found = true;
+                    break;
                 }
-                ++stats_.executed;
-                ++executed;
-                task.function();
-                ran = true;
-                break;
-            }
-            if (ran) {
-                break;
             }
         }
-        if (!ran) {
+        if (!found) {
             break;
         }
+        if (task.token.cancelled()) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            ++stats_.cancelled;
+            continue;
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            ++stats_.executed;
+        }
+        ++executed;
+        task.function();
     }
     return executed;
 }
 
 std::size_t CompletionQueue::clear() {
-    const std::size_t discarded = size();
+    std::lock_guard<std::mutex> lock(mutex_);
+    const std::size_t discarded = visible_.size() + layout_paint_.size() + background_.size();
     visible_.clear();
     layout_paint_.clear();
     background_.clear();
@@ -156,14 +166,17 @@ std::size_t CompletionQueue::clear() {
 }
 
 std::size_t CompletionQueue::size() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     return visible_.size() + layout_paint_.size() + background_.size();
 }
 
 bool CompletionQueue::empty() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     return visible_.empty() && layout_paint_.empty() && background_.empty();
 }
 
 std::size_t CompletionQueue::pending(CompletionPriority priority) const {
+    std::lock_guard<std::mutex> lock(mutex_);
     switch (priority) {
     case CompletionPriority::Visible:
         return visible_.size();
@@ -176,8 +189,9 @@ std::size_t CompletionQueue::pending(CompletionPriority priority) const {
 }
 
 CompletionQueue::Stats CompletionQueue::stats() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     Stats result = stats_;
-    result.pending = size();
+    result.pending = visible_.size() + layout_paint_.size() + background_.size();
     result.pending_visible = visible_.size();
     result.pending_layout = layout_paint_.size();
     result.pending_background = background_.size();

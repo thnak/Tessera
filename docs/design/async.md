@@ -3,11 +3,14 @@
 Status: implementation started for Big Step B2 (runtime slice) and design for B3 (window/swapchain
 path); both are defined in [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step).
 `ui/runtime/async.hpp` provides cancellation tokens/sources and a bounded deterministic
-`ManualExecutor` FIFO with stats, plus a bounded `CompletionQueue` with visible/layout/background
-priorities and a per-tick task budget. Cancellation tokens/sources also support once-only
-`on_cancel` callbacks (immediate when already cancelled). `RuntimeLoop` drains the queue at the tick boundary, reports
-the completion count, and keeps a wake pending until the queue is empty. Coroutine/executor
-infrastructure is not wired yet. Normative decision:
+`ManualExecutor` FIFO with stats, plus a bounded thread-safe `CompletionQueue` with
+visible/layout/background priorities and a per-tick task budget. Cancellation tokens/sources also
+support once-only `on_cancel` callbacks (immediate when already cancelled). `WorkerExecutor`
+(`runtime/worker_executor.hpp`) owns a bounded pool of worker threads, rejects work after
+`shutdown()`, drains queued tasks, joins every thread, and can post completions back to the
+`CompletionQueue` by priority. `RuntimeLoop` drains the queue at the tick boundary, reports
+the completion count, and keeps a wake pending until the queue is empty. Coroutine `Task` and I/O
+executors are not wired yet. Normative decision:
 [ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime; no UI-thread blocking). Terms: tick =
 one fixed-step update of the runtime loop ([`game-loop.md`](game-loop.md)); golden = deterministic
 reference image; V1 = first release, V1.1 = the release after V1 (as defined in

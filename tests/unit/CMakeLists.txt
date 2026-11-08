@@ -105,6 +105,20 @@ target_link_libraries(diagnostics_metrics_tests PRIVATE tessera_diagnostics)
 
 add_test(NAME diagnostics_metrics COMMAND diagnostics_metrics_tests)
 
+add_executable(diagnostics_trace_tests
+    diagnostics_trace_tests.cpp)
+
+target_link_libraries(diagnostics_trace_tests PRIVATE tessera_diagnostics)
+
+add_test(NAME diagnostics_trace COMMAND diagnostics_trace_tests)
+
+add_executable(diagnostics_overlay_tests
+    diagnostics_overlay_tests.cpp)
+
+target_link_libraries(diagnostics_overlay_tests PRIVATE tessera_diagnostics)
+
+add_test(NAME diagnostics_overlay COMMAND diagnostics_overlay_tests)
+
 add_executable(async_tests
     async_tests.cpp)
 
@@ -118,6 +132,13 @@ add_executable(completion_queue_tests
 target_link_libraries(completion_queue_tests PRIVATE tessera_runtime)
 
 add_test(NAME completion_queue COMMAND completion_queue_tests)
+
+add_executable(worker_executor_tests
+    worker_executor_tests.cpp)
+
+target_link_libraries(worker_executor_tests PRIVATE tessera_runtime)
+
+add_test(NAME worker_executor COMMAND worker_executor_tests)
 
 add_executable(frame_pacer_tests
     frame_pacer_tests.cpp)
