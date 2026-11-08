@@ -46,6 +46,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `property_registry` | metadata, box/pair/flex expansion, diagnostics, initial values |
 | `media_query` | width/height/resolution, orientation, color scheme, reduced motion, lists/not |
 | `keyframes` | from/to/percent offsets, comma selectors, invalid steps |
+| `layout` | flex row/column, grow, gap/padding, absolute, percent/min/max, ratio, RTL, wrap, determinism |
 | `batched2d` | batch/vertex counts on the null backend |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 smoke render |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |

@@ -44,6 +44,14 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: Arseny Kapoulkine and contributors
 - Upstream: https://github.com/zeux/volk
 
+### Yoga
+
+- Files: `third_party/yoga/yoga/`
+- Used by: `src/ui/layout/`
+- License: MIT
+- Copyright: Meta Platforms, Inc. and affiliates
+- Upstream: https://github.com/facebook/yoga (v3.2.2)
+
 ### Mesa (lavapipe)
 
 - Used by: CI only; not shipped in an application

@@ -107,6 +107,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/style/property_registry.hpp` | supported properties, initial values, shorthand expansion |
 | `ui/style/media_query.hpp` | media-query parsing/evaluation against fixed context |
 | `ui/style/keyframes.hpp` | `@keyframes` block parsing into offset steps |
+| `ui/layout/layout_engine.hpp` | computed-style to Yoga flexbox mapping + absolute boxes |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render-on-demand wake state (B2) |
@@ -127,6 +128,8 @@ merger prototype.
 | `tessera_input` | static | normalized input queue + sampler (B2) |
 | `tessera_damage` | static | damage rectangle accumulator (B2) |
 | `tessera_style` | static | CSS tokenizer (B2) |
+| `tessera_yoga` | static | vendored Yoga flexbox engine |
+| `tessera_layout` | static | computed-style to Yoga layout adapter (B2) |
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |

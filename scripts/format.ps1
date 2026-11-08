@@ -31,7 +31,7 @@ $extensions = @('*.cpp', '*.hpp', '*.h', '*.cc', '*.cxx')
 $files = Get-ChildItem -Path $root -Recurse -File -Include $extensions |
     Where-Object {
         $_.FullName -notmatch '\\build(\\|$)' -and
-        $_.FullName -notmatch '\\third_party\\(stb|volk|vma)\\' -and
+        $_.FullName -notmatch '\\third_party\\(stb|volk|vma|yoga)\\' -and
         $_.FullName -notmatch '\\\.git\\'
     }
 

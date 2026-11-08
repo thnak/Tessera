@@ -409,14 +409,17 @@ tolerant stylesheet AST parser (`src/ui/style/parser.cpp`), selector parsing/spe
 (`src/ui/style/property_registry.cpp`), media query evaluation
 (`src/ui/style/media_query.cpp`), and keyframes parsing (`src/ui/style/keyframes.cpp`). `@media`
 nested rules, `@keyframes`, `@layer` precedence, and the `Theme` origin are wired into the
-compiled stylesheet. Next slices, in order:
+compiled stylesheet. The Yoga Flexbox adapter is
+`include/tessera/ui/layout/layout_engine.hpp` + `src/ui/layout/layout_engine.cpp` with vendored Yoga
+v3.2.2 (`third_party/yoga`), mapping computed-style longhands to fractional absolute boxes. Next
+slices, in order:
 
-1. Yoga adapter consuming computed styles.
-2. Text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
+1. Text/glyph atlas + measurement callback into layout.
+2. Async runtime, diagnostics, lavapipe goldens.
 3. HAL/system clock + actual wait/present integration.
 4. Platform input translation and hit-test/focus/capture dispatch.
 5. Damage-aware batched2D redraw path and golden equivalence test.
-6. `@supports` evaluation and animation runtime sampling.
+6. `@supports` evaluation, animation runtime sampling, incremental relayout.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing

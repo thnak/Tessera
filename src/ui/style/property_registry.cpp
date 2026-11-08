@@ -80,6 +80,7 @@ constexpr PropertyDef kProperties[] = {
     {"flex-shrink", "1", false},
     {"flex-basis", "auto", false},
     {"align-items", "stretch", false},
+    {"align-self", "auto", false},
     {"align-content", "normal", false},
     {"justify-content", "flex-start", false},
     {"justify-items", "legacy", false},

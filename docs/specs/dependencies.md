@@ -67,7 +67,7 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
-| Yoga | V1 hard | MIT | `ui/layout` | Flexbox engine |
+| Yoga | V1 hard (vendored v3.2.2) | MIT | `ui/layout` | Flexbox engine; `third_party/yoga` |
 | taffy | Candidate | MIT | `ui/layout` | Grid engine via C ABI if we do not build a subset |
 | — | — | — | `ui/style` | CSS parser/cascade is custom; no library |
 

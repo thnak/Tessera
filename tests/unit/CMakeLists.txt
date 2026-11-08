@@ -133,6 +133,13 @@ target_link_libraries(keyframes_tests PRIVATE tessera_style)
 
 add_test(NAME keyframes COMMAND keyframes_tests)
 
+add_executable(layout_tests
+    layout_tests.cpp)
+
+target_link_libraries(layout_tests PRIVATE tessera_layout)
+
+add_test(NAME layout COMMAND layout_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

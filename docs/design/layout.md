@@ -1,11 +1,14 @@
 # Layout: Yoga Flexbox and a small Grid subset
 
-Status: design for Big Step B2 (runtime slice; see
-[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/ui/layout/` is a
-placeholder today. [ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md) (Yoga layout adapter)
-requires the Yoga adapter and the documented rounding rule below. Terms (`ComputedStyle`, Yoga, golden,
-scene graph) are in [`glossary.md`](../reference/glossary.md). Style inputs come from the stylesheet
-engine ([`stylesheet-v1.md`](../specs/stylesheet-v1.md)).
+Status: implementation started for Big Step B2 (runtime slice; see
+[AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). The Flexbox adapter is
+`include/tessera/ui/layout/layout_engine.hpp` + `src/ui/layout/layout_engine.cpp`, backed by vendored
+Yoga v3.2.2. It maps `ComputedStyle` longhands to a parallel `LayoutInput` tree and returns fractional
+absolute boxes in DFS order. Text measurement and incremental relayout are not wired yet.
+[ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md) (Yoga layout adapter) requires the adapter
+and the documented rounding rule below. Terms (`ComputedStyle`, Yoga, golden, scene graph) are in
+[`glossary.md`](../reference/glossary.md). Style inputs come from the stylesheet engine
+([`stylesheet-v1.md`](../specs/stylesheet-v1.md)).
 
 ## 1. Goals
 
