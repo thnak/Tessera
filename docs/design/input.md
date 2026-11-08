@@ -160,6 +160,9 @@ Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
   `text_codepoint`, and `repeat`.
 - `PointerDown` on a focusable hit target requests focus; a pointer down anywhere else clears
   focus. Pointer capture remains independent and is unchanged by focus changes.
+- `FocusManager` stores raw node pointers and does not observe node destruction: it must be
+  destroyed before the scene root, and `clear_focus` must be called before destroying the focused
+  subtree.
 
 Deferred policy (design intent, not implemented):
 

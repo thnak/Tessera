@@ -7,7 +7,9 @@
 namespace tessera::ui {
 
 // Tracks the keyboard focus target for a scene tree. Focus changes are dispatched through the
-// normal capture/target/bubble path so ancestors can observe them.
+// normal capture/target/bubble path so ancestors can observe them. The manager stores raw node
+// pointers and does not observe destruction: destroy it before the scene root, and clear focus
+// before destroying the focused subtree.
 class FocusManager {
 public:
     // Defines the scene root used to decide whether a node is attached. Requesting focus on the
