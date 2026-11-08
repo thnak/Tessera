@@ -140,6 +140,13 @@ target_link_libraries(worker_executor_tests PRIVATE tessera_runtime)
 
 add_test(NAME worker_executor COMMAND worker_executor_tests)
 
+add_executable(task_tests
+    task_tests.cpp)
+
+target_link_libraries(task_tests PRIVATE tessera_runtime)
+
+add_test(NAME task COMMAND task_tests)
+
 add_executable(frame_pacer_tests
     frame_pacer_tests.cpp)
 

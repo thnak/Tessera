@@ -190,11 +190,12 @@ Implemented B2 slices:
 - frame pipeline: animation tick -> per-target dirty domains -> damage -> normalized redraw plan
 - animation runtime: transitions, keyframes, springs, pause/fills/stop/restart, reduced motion,
   loop bridge
-- async primitives: cancellation, bounded manual executor, completion queue
+- async primitives: cancellation, bounded manual executor, completion queue, lazy coroutine `Task`
+  (queue-resumed, cancellable, no I/O executor yet)
 - per-frame diagnostics counters
 
 Documented, not implemented: real text stack (font loading/shaping/glyph atlas), frame
-pacing/VRR present path, adaptive quality, coroutine await integration, tracing/profiling/crash,
+pacing/VRR present path, adaptive quality, I/O executor, tracing/profiling/crash,
 window/swapchain, OS events/foldables, compiler/IR/codegen, Wasm designer, services,
 accessibility, packaging.
 

@@ -189,7 +189,7 @@ Tools and demos:
 
 1. ADR-001 … ADR-037 in `decisions/` (ADR = Architecture Decision Record; index at [decisions/README.md](decisions/README.md)).
 2. Big Step B2 remaining: real text stack (shaping/glyph atlas), pixel goldens, frame pacing/VRR
-   present integration, coroutine await integration, tracing/profiling, adaptive quality (the full
+   present integration, I/O executor, tracing/profiling, adaptive quality (the full
    B2 checklist is in [AGENTS.md](AGENTS.md#big-steps-group-work-dont-micro-step)).
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.
 4. Big Step C: JSX → IR → C++ vertical slice with protected regions.

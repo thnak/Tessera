@@ -379,7 +379,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Dirty rendering + frame pacing | B2 implemented (dirty flags/damage/redraw plan/frame pipeline/pacer); B3 vsync/VRR/present pending ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
 | Power-aware idle/adaptive defaults | B2 partial: render-on-demand idle implemented; adaptive quality pending ([ADR-019](../decisions/ADR-019-power-aware-runtime.md)) |
 | Window resize/DPI/lifecycle | B3 proposed ([ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md)) |
-| Async/await runtime | B2 partial: cancellation/executor/completion queue implemented; coroutine await integration pending ([ADR-021](../decisions/ADR-021-async-runtime.md)) |
+| Async/await runtime | B2 partial: cancellation/executor/completion queue and lazy coroutine `Task` implemented; I/O executor pending ([ADR-021](../decisions/ADR-021-async-runtime.md)) |
 | Diagnostics/profiling | B2 partial: per-frame counters implemented; tracing/profiling/crash pending ([ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md)) |
 | OS events / foldables | B3 proposed ([ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md)) |
 | Compiler/IR/codegen | C proposed |
