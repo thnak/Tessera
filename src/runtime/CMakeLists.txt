@@ -3,6 +3,7 @@
 add_library(tessera_runtime STATIC
     async.cpp
     clock.cpp
+    diagnostics.cpp
     fixed_step.cpp
     frame_pacer.cpp
     runtime_loop.cpp)

@@ -56,6 +56,13 @@ target_link_libraries(runtime_loop_async_tests PRIVATE tessera_runtime)
 
 add_test(NAME runtime_loop_async COMMAND runtime_loop_async_tests)
 
+add_executable(diagnostics_tests
+    diagnostics_tests.cpp)
+
+target_link_libraries(diagnostics_tests PRIVATE tessera_runtime)
+
+add_test(NAME diagnostics COMMAND diagnostics_tests)
+
 add_executable(async_tests
     async_tests.cpp)
 

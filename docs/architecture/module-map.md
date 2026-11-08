@@ -120,6 +120,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |
 | `ui/layout/damage_pass.hpp` | dirty bounds -> damage rects + previous-bounds tracker |
 | `runtime/async.hpp` | cancellation + ManualExecutor + prioritized completion queue (B2) |
+| `runtime/diagnostics.hpp` | per-frame/total frame diagnostics counters |
 | `runtime/fixed_step.hpp` | deterministic fixed-step accumulator (B2) |
 | `runtime/clock.hpp` | clock interface + deterministic manual clock (B2) |
 | `runtime/runtime_loop.hpp` | fixed-step driver + render wake + completion drain (B2) |
