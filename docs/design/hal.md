@@ -1,6 +1,8 @@
 # HAL and platform layer
 
 Status: design for Big Step B3. `src/hal/` and `src/platform/` are placeholders today.
+Mobile-specific surface/input/IME/accessibility/declarations are in
+[`mobile-integration.md`](mobile-integration.md).
 
 The HAL is the only place that knows about operating-system APIs. It normalizes window,
 display, input, lifecycle, power, timer, filesystem, graphics-surface, and audio signals into

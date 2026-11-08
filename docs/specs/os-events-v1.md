@@ -1,7 +1,9 @@
 # OS events and display capabilities v1
 
 Status: proposed for Big Step B3. Researched against platform documentation (see §12).
-Normative companion to [`window-resize.md`](../design/window-resize.md).
+Normative companion to [`window-resize.md`](../design/window-resize.md). Mobile
+surface/input/IME/accessibility/declarations are in
+[`mobile-integration.md`](../design/mobile-integration.md).
 
 ## 1. Purpose and rules
 

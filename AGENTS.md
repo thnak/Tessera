@@ -126,6 +126,9 @@ Repo + build + the two riskiest proofs.
 ### Big Step F — Production breadth
 - [ ] Windows + Linux complete; macOS via MoltenVK.
 - [ ] Accessibility (UIA / AT-SPI / NSAccessibility).
+- [ ] Mobile integration (Android first; iOS later): surface, input, IME, accessibility,
+      lifecycle, manifest/Info.plist declarations. See
+      [`docs/design/mobile-integration.md`](docs/design/mobile-integration.md).
 - [ ] Services (i18n, navigation, storage, networking), diagnostics, packaging.
 - [ ] OS lifecycle compliance (resize/DPI/occlusion), crash reporting, profiling on Windows/Linux.
 - [ ] Acceptance: a real app ships, passes validation layers and golden tests in CI.
@@ -206,6 +209,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | UI model / layout / text / animation | `docs/design/ui-model.md`, `layout.md`, `text.md`, `animation.md` |
 | Responsive / accessibility | `docs/design/responsive.md`, `docs/design/accessibility.md` |
 | HAL | [`docs/design/hal.md`](docs/design/hal.md) |
+| Mobile integration | [`docs/design/mobile-integration.md`](docs/design/mobile-integration.md) |
 | Compiler / IR / component model | [`docs/design/compiler.md`](docs/design/compiler.md), [`docs/specs/ir-v1.md`](docs/specs/ir-v1.md), [`docs/specs/component-model-v1.md`](docs/specs/component-model-v1.md) |
 | UI virtualization | [`docs/specs/virtualization-v1.md`](docs/specs/virtualization-v1.md) |
 | Designer / Wasm | [`docs/design/designer.md`](docs/design/designer.md) |

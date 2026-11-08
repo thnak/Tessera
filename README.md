@@ -43,6 +43,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
 - [Performance & power](docs/design/performance.md)
 - [Window resize & lifecycle](docs/design/window-resize.md)
 - [HAL](docs/design/hal.md), [OS events & foldables](docs/specs/os-events-v1.md)
+- [Mobile integration](docs/design/mobile-integration.md)
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),

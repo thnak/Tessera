@@ -4,7 +4,8 @@ Status: design for Big Step B2/B3. Depends on the stylesheet, layout, window-res
 OS-events specs.
 
 Responsive behavior is a function of **metrics**, not a separate UI mode. The same component
-tree adapts to size, DPI, orientation, safe areas, multi-window, and fold posture.
+tree adapts to size, DPI, orientation, safe areas, multi-window, and fold posture. Mobile
+surface/input/IME/declaration details are in [`mobile-integration.md`](mobile-integration.md).
 
 ## 1. Inputs
 

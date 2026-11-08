@@ -53,7 +53,8 @@ Map roles/actions to platform APIs; unknown roles degrade to generic with a diag
 | Android | AccessibilityNodeInfo / ExploreByTouchHelper via JNI | later mobile target |
 
 Bridges are optional at runtime: if the platform service is unavailable, the app still runs;
-accessibility is disabled with a diagnostic.
+accessibility is disabled with a diagnostic. Mobile-specific semantics/IME/declarations are in
+[`mobile-integration.md`](mobile-integration.md).
 
 ## 4. Focus and keyboard
 

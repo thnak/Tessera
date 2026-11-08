@@ -195,6 +195,8 @@ swapchain-recreate delay are runtime knobs, not component code.
 - Fold/unfold may stop and restart the app on Android; preserve/restore state for continuity.
 - There is no stable cross-vendor hinge API on Windows/Linux; fall back to display topology,
   DPI, orientation, and size changes.
+- Android/iOS surface, IME, accessibility, and manifest/Info.plist requirements are in
+  [`mobile-integration.md`](mobile-integration.md).
 
 ## 5. Tests
 

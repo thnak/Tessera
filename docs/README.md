@@ -76,6 +76,8 @@ for the project overview. This page is the map and reading order for the framewo
 - [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
   infrastructure, OS compliance
 - [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction
+- [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input,
+  IME, accessibility, lifecycle, and manifest/Info.plist declarations
 - [`design/async.md`](design/async.md) — C++20 coroutines, executors, cancellation, no blocking
 - [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,
   crash, capture
@@ -137,10 +139,11 @@ for the project overview. This page is the map and reading order for the framewo
 14. [Window resize & lifecycle](design/window-resize.md)
 15. [OS events & foldables](specs/os-events-v1.md)
 16. [HAL](design/hal.md)
-17. [Async runtime](design/async.md)
-18. [Diagnostics](design/diagnostics.md)
-19. [Runtime config](specs/runtime-config-v1.md)
-20. [Diagnostics config](specs/diagnostics-config-v1.md)
+17. [Mobile integration](design/mobile-integration.md)
+18. [Async runtime](design/async.md)
+19. [Diagnostics](design/diagnostics.md)
+20. [Runtime config](specs/runtime-config-v1.md)
+21. [Diagnostics config](specs/diagnostics-config-v1.md)
 
 ### Compiler / codegen
 
@@ -188,6 +191,7 @@ for the project overview. This page is the map and reading order for the framewo
 | OS events / foldables | B3 proposed (ADR-023) |
 | Compiler/IR/codegen | C proposed |
 | UI virtualization (list/grid) | B2/E proposed |
+| Mobile integration (Android first) | design only |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |
