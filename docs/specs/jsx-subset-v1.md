@@ -250,8 +250,10 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 The **built-in hook manifest** is a JSON file shipped with the Tessera framework that lists every library
 hook (a hook other than the four core hooks above). The front end reads it to validate calls and to lower
 them to IR; the build also generates the editor typings of section 16.2 from it. A project cannot add
-entries: hooks written by app developers are rejected (`TESSERA_REACT_CUSTOM_HOOK`). Where the file is
-stored in the framework package is not specified yet.
+entries: hooks written by app developers are rejected (`TESSERA_REACT_CUSTOM_HOOK`). The source file is
+`src/compiler/frontend/hooks-manifest.json` in the framework repository. The build embeds it in the front end
+(the native compiler and the Wasm designer both contain it, so neither reads it from disk at run time) and
+installs a copy at `share/tessera/hooks-manifest.json` for the typings generator of section 16.2.
 
 ```json
 {
@@ -571,7 +573,7 @@ element (section 10.5). These props were decided by the project owner.
 
 | Prop | Type | Required | Rule |
 |---|---|---|---|
-| `src` | string literal | yes | A project-relative path of a file inside a directory listed in `assets.images` ([`project-config-v1.md`](project-config-v1.md)). The compiler checks that the file exists (`TESSERA_JSX_IMAGE_SRC`). Dynamic sources, URLs and expressions are not accepted in V1 |
+| `src` | string literal | yes | A project-relative path of a file inside a directory listed in `assets.images` ([`project-config-v1.md`](project-config-v1.md)). The compiler checks that the file exists (`TESSERA_JSX_IMAGE_SRC`). The file must be PNG, JPEG or WebP and within the limits of [`resources.md`](../design/resources.md) section 2.1 (`TESSERA_JSX_IMAGE_FORMAT`, `TESSERA_JSX_IMAGE_SIZE`). Dynamic sources, URLs and expressions are not accepted in V1 |
 | `alt` | string, pure expression | yes | The accessible name. The empty string `""` marks the image as decorative: it is left out of the accessibility tree ([`accessibility-v1.md`](accessibility-v1.md)). A missing `alt` is `TESSERA_JSX_IMAGE_ALT` |
 | `fit` | `"contain"`, `"cover"`, `"fill"` or `"none"` (literal) | no | Default `"contain"`. `contain`: scale uniformly to fit inside the element box. `cover`: scale uniformly to cover the box and clip the overflow. `fill`: stretch to the box. `none`: natural size, centered, clipped |
 | `className`, `style` | as section 10.3 | no | Size, margin, opacity and the other properties of [`stylesheet-v1.md`](stylesheet-v1.md). Without a size, the element is the decoded image size in dp |
@@ -760,10 +762,9 @@ values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), pa
 configuration keys (15), numeric semantics and the pure-function allowlist
 ([`ir-v1.md`](ir-v1.md) sections 4.1 and 4.2), the hook manifest and its two V1 hooks (7.1), props of
 `Image`, `Path` and `Spacer` (11.1), the default theme `default` and the `useThemeState()` hook (7.1), the theme asset format
-([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1).
+([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1), the manifest location (7.1), accepted image formats and
+limits ([`resources.md`](../design/resources.md) section 2.1).
 
 Still open:
 
-- Where the built-in hook manifest file is stored in the framework package.
-- Image formats accepted for `Image.src` and the maximum decoded size (see
-  [`resources.md`](../design/resources.md)).
+- None.

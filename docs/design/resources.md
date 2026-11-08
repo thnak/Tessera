@@ -31,10 +31,29 @@ asset id -> cache lookup -> async load/decode -> CPU resource
 ```
 
 - Loading starts off the UI thread; the UI thread never blocks on file/network/decode.
-- CPU decode has size/format limits (decompression bombs, huge dimensions).
+- CPU decode has size/format limits (decompression bombs, huge dimensions); the values are in section 2.1.
 - GPU upload happens on the render thread (see [`threading-and-memory.md`](threading-and-memory.md)) or via a staging queue; completion is queued.
 - A placeholder is shown until ready; missing assets produce a deterministic error placeholder.
 - Cancellation is supported when a node no longer needs the asset.
+
+### 2.1 Image formats and limits
+
+| Item | V1 rule |
+|---|---|
+| Accepted formats | PNG, JPEG and WebP, identified by file signature, not by extension. Other formats (GIF, BMP, TIFF, AVIF, SVG as raster) are rejected |
+| Maximum file size | 16 MiB |
+| Maximum width or height | 8192 pixels |
+| Maximum decoded size | 64 MiB, computed as width x height x 4 bytes (RGBA8) |
+| Color handling | Decoded to 8-bit RGBA, sRGB; embedded color profiles other than sRGB are ignored |
+| Animation | Only the first frame of an animated WebP is used |
+
+The compiler reads the file header (not the pixels) and checks format and limits for every `Image.src`
+([`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 11.1; codes `TESSERA_JSX_IMAGE_FORMAT` and
+`TESSERA_JSX_IMAGE_SIZE`). The runtime decoder enforces the same limits before allocating, so a file
+replaced after the build fails with the error placeholder of section 2 instead of exhausting memory. The
+limits can be lowered or raised with `assets.imageMaxFileBytes`, `assets.imageMaxDimension` and
+`assets.imageMaxDecodedBytes` ([`project-config-v1.md`](../specs/project-config-v1.md)). These values were
+chosen by the assistant as starting points and are to be re-measured on target devices.
 
 ## 3. GPU uploads
 
