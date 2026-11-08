@@ -87,6 +87,9 @@ public:
     bool create(const WindowDesc& desc);
 
     [[nodiscard]] WindowMetrics metrics() const override;
+    [[nodiscard]] NativeWindowHandle native_handle() const override {
+        return {display_, reinterpret_cast<void*>(window_)};
+    }
     std::size_t poll_events(std::span<WindowEvent> events) override;
     bool wait_for_events(double timeout_seconds) override;
     void show() override;

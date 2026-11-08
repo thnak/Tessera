@@ -111,6 +111,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_overlay_golden` | lavapipe overlay baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
+| `batched2d_windowed_smoke` | window + swapchain render/present + pacer wait for 3 frames |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -188,6 +189,10 @@ Implemented for the batched2d proof:
   clipping, translation, and a combined clip+transform strip against
   `tests/golden/baseline/batched2d/dashboard_shapes.png` bit-exactly (`--tolerance 0
   --max-mismatch 0`).
+- `batched2d_windowed_smoke` creates a hidden platform window, a Vulkan swapchain, renders the
+  dashboard into acquired images, presents three frames, and uses `wait_for_next_frame` for
+  pacing. It runs under Xvfb on Linux and on Windows; it skips cleanly when no window backend or
+  presentation surface exists.
 - `--report report.json` and `--diff diff.png` write structural failure artifacts for any
   comparison: status, dimensions, mismatch counts, first mismatch coordinate, and a
   magenta-on-gray diff image when per-channel deltas exceed the tolerance.

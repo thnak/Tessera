@@ -51,11 +51,13 @@ The B3 seams now have real Windows and Linux/X11 implementations:
   `MsgWaitForMultipleObjectsEx` message pump; X11 `poll()` on the connection fd followed by an
   `XPending` drain) and
   [`include/tessera/hal/window_wait.hpp`](../../include/tessera/hal/window_wait.hpp)'s
-  `wait_for_events_until(window, deadline_seconds)`. The runtime loop/frame pacer should idle
-  between ticks with the next `FramePacer` deadline once that integration lands; see
-  [`hal.md`](hal.md) §1.2. Still pending: runtime/pacer wiring, Wayland, per-image
-  frames-in-flight synchronization, device-loss recovery, and full OS compliance beyond the
-  messages handled here. The platform rules in §4 describe the target behavior.
+  `wait_for_events_until(window, deadline_seconds)`. `runtime::wait_for_next_frame` combines
+  that wait with the `FramePacer` deadline. The `batched2d_poc --windowed --frames N` path is the
+  end-to-end demo: hidden platform window -> `Swapchain::image_target` render -> present ->
+  pacer/event wait, with resize/OutOfDate recovery; it is registered as
+  `batched2d_windowed_smoke` on Windows and under Xvfb on Linux. Still pending: Wayland,
+  per-image frames-in-flight synchronization, device-loss recovery, and full OS compliance
+  beyond the messages handled here. The platform rules in §4 describe the target behavior.
 
 Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe the target):
 

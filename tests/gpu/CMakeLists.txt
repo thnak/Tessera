@@ -35,6 +35,12 @@ if (TARGET batched2d_poc)
             --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_validation.png)
 endif()
 
+if (WIN32 AND TARGET batched2d_poc AND TARGET tessera_rhi_vulkan)
+    add_test(
+        NAME batched2d_windowed_smoke
+        COMMAND batched2d_poc --backend vulkan --windowed --frames 3 --width 256 --height 256)
+endif()
+
 if (UNIX AND TARGET batched2d_poc)
     find_file(TESSERA_LAVAPIPE_ICD
         NAMES lvp_icd.x86_64.json lvp_icd.json
@@ -73,6 +79,12 @@ if (UNIX AND TARGET batched2d_poc)
                 --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_shapes_golden.png
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_shapes.png)
         set_tests_properties(batched2d_shapes_golden PROPERTIES
+            ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
+
+        add_test(
+            NAME batched2d_windowed_smoke
+            COMMAND batched2d_poc --backend vulkan --windowed --frames 3 --width 256 --height 256)
+        set_tests_properties(batched2d_windowed_smoke PROPERTIES
             ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
     endif()
 endif()

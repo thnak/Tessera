@@ -3,11 +3,16 @@
 #include "damage_cli.hpp"
 #include "tessera/diagnostics/metrics.hpp"
 #include "tessera/diagnostics/overlay.hpp"
+#include "tessera/hal/window.hpp"
+#include "tessera/hal/window_wait.hpp"
 #include "tessera/rendering/golden/image_diff.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/null/null_device.hpp"
+#include "tessera/rendering/rhi/swapchain.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
+#include "tessera/runtime/frame_pacer.hpp"
+#include "tessera/runtime/frame_wait.hpp"
 #include "text_demo.hpp"
 
 #include <array>
@@ -15,6 +20,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -35,6 +41,8 @@ struct Options {
     bool golden = false;
     bool overlay = false;
     bool shapes = false;
+    bool windowed = false;
+    std::uint32_t frames = 3;
     std::string font;
     std::string text = "Tessera";
     float text_size = 24.0f;
@@ -81,6 +89,10 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.overlay = true;
         } else if (arg == "--shapes") {
             options.shapes = true;
+        } else if (arg == "--windowed") {
+            options.windowed = true;
+        } else if (arg == "--frames" && i + 1 < argc) {
+            options.frames = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--font" && i + 1 < argc) {
             options.font = argv[++i];
         } else if (arg == "--text" && i + 1 < argc) {
@@ -522,6 +534,145 @@ int run_null(const Options& options) {
     return 0;
 }
 
+int run_windowed(const Options& options) {
+    using namespace tessera;
+    using namespace tessera::rendering;
+
+    hal::WindowDesc window_desc;
+    window_desc.title = "Tessera windowed POC";
+    window_desc.width = options.width;
+    window_desc.height = options.height;
+    window_desc.visible = false;
+    auto window = hal::create_window(window_desc);
+    if (window == nullptr) {
+        std::cout << "windowed: skipped (no platform window backend)\n";
+        return 0;
+    }
+    const hal::NativeWindowHandle native = window->native_handle();
+    if (native.window == nullptr) {
+        std::cout << "windowed: skipped (window has no native handle)\n";
+        return 0;
+    }
+
+    auto device =
+        vulkan::create_vulkan_device(rhi::DeviceDesc{rhi::Backend::Vulkan, options.validation, -1});
+
+    const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
+    rhi::TextureDesc white_desc;
+    white_desc.extent = {1, 1};
+    white_desc.pixels = white_pixel.data();
+    white_desc.row_pitch = 4;
+    auto white = device->create_texture(white_desc);
+
+    auto checker_pixels = make_checker_pixels();
+    rhi::TextureDesc checker_desc;
+    checker_desc.extent = {8, 8};
+    checker_desc.pixels = checker_pixels.data();
+    checker_desc.row_pitch = 8 * 4;
+    checker_desc.filter = rhi::Filter::Nearest;
+    auto checker = device->create_texture(checker_desc);
+
+    const hal::WindowMetrics initial = window->metrics();
+    rhi::SwapchainDesc swap_desc;
+    swap_desc.extent = {initial.physical_width, initial.physical_height};
+    swap_desc.image_count = 2;
+    swap_desc.vsync = true;
+    swap_desc.native_window = native.window;
+    swap_desc.native_display = native.display;
+
+    auto created = device->create_swapchain(swap_desc);
+    if (!created) {
+        if (created.error() == rhi::SwapchainError::NotSupported) {
+            std::cout << "windowed: skipped (presentation surface unavailable)\n";
+            return 0;
+        }
+        throw std::runtime_error("windowed: create_swapchain failed");
+    }
+    std::unique_ptr<rhi::Swapchain> swapchain = std::move(*created);
+
+    auto pipeline = device->create_pipeline(vulkan::batched2d_pipeline_desc());
+    gpu::Batched2DRenderer renderer(*device, *pipeline, *white,
+                                    gpu::Batched2DConfig{4096, true, true});
+
+    runtime::FramePacer pacer(runtime::FramePacerConfig{60.0});
+    pacer.present(hal::steady_now_seconds());
+
+    std::array<hal::WindowEvent, 16> events{};
+    std::uint32_t rendered = 0;
+    std::uint32_t presented = 0;
+    bool closed = false;
+    for (std::uint32_t frame = 0; frame < options.frames && !closed; ++frame) {
+        const std::size_t event_count = window->poll_events(events);
+        for (std::size_t i = 0; i < event_count; ++i) {
+            if (events[i].type == hal::WindowEventType::Close) {
+                closed = true;
+            }
+        }
+        if (closed) {
+            break;
+        }
+
+        (void)runtime::wait_for_next_frame(*window, pacer);
+        window->poll_events(events);
+
+        const hal::WindowMetrics metrics = window->metrics();
+        if (metrics.physical_width != swapchain->extent().width ||
+            metrics.physical_height != swapchain->extent().height) {
+            swapchain->resize({metrics.physical_width, metrics.physical_height});
+        }
+
+        std::optional<std::uint32_t> image;
+        for (int attempt = 0; attempt < 4 && !image; ++attempt) {
+            const auto acquired = swapchain->acquire_next_image(100);
+            if (acquired) {
+                image = *acquired;
+                break;
+            }
+            if (acquired.error() == rhi::SwapchainError::OutOfDate) {
+                swapchain->resize({metrics.physical_width, metrics.physical_height});
+                continue;
+            }
+            break;
+        }
+        if (!image) {
+            continue;
+        }
+
+        auto* target = swapchain->image_target(*image);
+        if (target == nullptr) {
+            continue;
+        }
+
+        rhi::RenderTargetDesc target_desc;
+        target_desc.extent = swapchain->extent();
+        target_desc.format = swapchain->format();
+        target_desc.load_op = rhi::LoadOp::Clear;
+        target_desc.clear_color = rhi::rgba8(11, 18, 32);
+
+        auto commands = device->create_command_list();
+        renderer.begin(*commands, *target, target_desc);
+        if (options.shapes) {
+            build_shapes(renderer, *checker, target_desc.extent.width, target_desc.extent.height);
+        } else {
+            build_screen(renderer, *checker, target_desc.extent.width, target_desc.extent.height);
+        }
+        renderer.end();
+        commands->submit();
+        ++rendered;
+
+        const auto result = swapchain->present(*image);
+        if (result || result.error() == rhi::SwapchainError::Suboptimal) {
+            ++presented;
+        } else if (result.error() == rhi::SwapchainError::OutOfDate) {
+            swapchain->resize({metrics.physical_width, metrics.physical_height});
+        }
+        pacer.present(hal::steady_now_seconds());
+    }
+
+    std::cout << "windowed: rendered=" << rendered << " presented=" << presented << "\n";
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -535,6 +686,9 @@ int main(int argc, char** argv) {
             return run_null(options);
         }
         if (options.backend == "vulkan") {
+            if (options.windowed) {
+                return run_windowed(options);
+            }
             return run_vulkan(options);
         }
         std::cerr << "unsupported backend: " << options.backend << "\n";

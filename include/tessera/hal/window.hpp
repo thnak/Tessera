@@ -43,6 +43,12 @@ enum class WindowEventType {
     Close,
 };
 
+// Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.
+struct NativeWindowHandle {
+    void* display = nullptr;
+    void* window = nullptr;
+};
+
 struct WindowEvent {
     WindowEventType type = WindowEventType::Resize;
     WindowMetrics metrics;
@@ -86,6 +92,11 @@ public:
     // Requests graceful shutdown. Implementations emit WindowEventType::Close; calling twice is
     // harmless.
     virtual void close() = 0;
+
+    // Renderer/swapchain glue only. Win32 sets window (HWND); X11 sets display and window.
+    [[nodiscard]] virtual NativeWindowHandle native_handle() const {
+        return {};
+    }
 };
 
 // Creates a platform window from `desc`. Platforms without a window backend return nullptr;
