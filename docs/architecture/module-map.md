@@ -96,6 +96,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
 | `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
 | `ui/scene/event.hpp` | event types/phases |
+| `ui/scene/input_dispatch.hpp` | normalized pointer input -> hit-test + scene event dispatch |
 | `ui/dirty.hpp` | style/layout/paint/render/resource/GPU dirty bitmask |
 | `ui/input.hpp` | normalized input event, bounded SPSC queue, sampler |
 | `ui/style/token.hpp` | CSS token types and source slices |

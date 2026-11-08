@@ -14,6 +14,13 @@ target_link_libraries(scene_graph_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_graph COMMAND scene_graph_tests)
 
+add_executable(input_dispatch_tests
+    input_dispatch_tests.cpp)
+
+target_link_libraries(input_dispatch_tests PRIVATE tessera_scene)
+
+add_test(NAME input_dispatch COMMAND input_dispatch_tests)
+
 add_executable(scene_dirty_tests
     scene_dirty_tests.cpp)
 

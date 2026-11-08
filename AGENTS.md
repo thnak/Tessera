@@ -397,7 +397,7 @@ live in one place and are linked, not copied.
 (`src/runtime/clock.*`), `RuntimeLoop` render-on-demand/wake state
 (`src/runtime/runtime_loop.*`), `FramePacer` deadline scheduling
 (`src/runtime/frame_pacer.*`), normalized input event + bounded queue/coalescing
-(`src/ui/input/`), scene dirty-domain flags/ancestor aggregation
+(`src/ui/input/`), pointer input -> scene hit-test/dispatch (`src/ui/scene/input_dispatch.cpp`), scene dirty-domain flags/ancestor aggregation
 (`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`), and pruned dirty collect/clear
 (`src/ui/scene/dirty_pass.cpp`), and damage accumulation
 (`src/rendering/damage/damage.cpp`), CSS tokenization (`src/ui/style/tokenizer.cpp`), and the
