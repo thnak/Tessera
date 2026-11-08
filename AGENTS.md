@@ -464,7 +464,10 @@ with null-backend draw records. Async primitives (`ui/runtime/async.hpp`) add ca
 and once-only callbacks, a bounded deterministic `ManualExecutor`, and a thread-safe prioritized
 `CompletionQueue` drained by `RuntimeLoop` under a per-tick budget; `WorkerExecutor`
 (`runtime/worker_executor.hpp`) owns bounded worker threads, drains queued work on shutdown, joins
-every thread, and can post prioritized completions. `runtime/diagnostics.hpp` tracks
+every thread, and can post prioritized completions. Lazy `Task<T>`/`Task<void>`
+(`runtime/task.hpp`) coroutines post every resume to the `CompletionQueue`, propagate
+results/exceptions at the `co_await` boundary, and observe cancellation before each resume.
+`runtime/diagnostics.hpp` tracks
 per-frame/total counters. The structured diagnostics core is `src/diagnostics/`:
 `diagnostics::Logger` (levels, categories, path redaction, bounded ring sink, disabled fast path),
 `diagnostics::MetricsRegistry` (fixed-capacity atomic counters/gauges with snapshots), bounded
