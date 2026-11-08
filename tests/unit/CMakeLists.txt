@@ -624,3 +624,10 @@ add_executable(image_diff_tests
 target_link_libraries(image_diff_tests PRIVATE tessera_golden)
 
 add_test(NAME image_diff COMMAND image_diff_tests)
+
+add_executable(layout_scheduler_tests
+    layout_scheduler_tests.cpp)
+
+target_link_libraries(layout_scheduler_tests PRIVATE tessera_layout)
+
+add_test(NAME layout_scheduler COMMAND layout_scheduler_tests)

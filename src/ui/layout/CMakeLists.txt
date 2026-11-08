@@ -5,6 +5,7 @@ add_library(tessera_layout STATIC
     damage_pass.cpp
     damage_tracker.cpp
     layout_engine.cpp
+    layout_scheduler.cpp
     pixel_snap.cpp)
 
 target_include_directories(tessera_layout PUBLIC

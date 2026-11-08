@@ -7,8 +7,10 @@ Yoga v3.2.2. It maps `ComputedStyle` longhands to a parallel `LayoutInput` tree 
 absolute boxes in DFS order. Non-empty leaf `text` is measured through `ui/text/text_measure.hpp` and
 a Yoga measure callback, backed by a bounded `TextMeasureCache` (capacity configurable per engine);
 the default `StubTextMeasurer` is deterministic until the real text stack lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
-leaving unchanged boxes clean and marking changed ones paint/render dirty. Incremental relayout is
-not wired yet. `add_scene_damage` consumes a `DirtyPass` result, filters `Paint`/`Render` nodes,
+leaving unchanged boxes clean and marking changed ones paint/render dirty. `LayoutScheduler`
+(`ui/layout/layout_scheduler.hpp`) caches the last result and recomputes only when layout is dirty
+or the viewport changes, so paint-only and animation-only frames reuse boxes; Yoga has no
+partial-layout API, so any layout dirt still recomputes the tree. `add_scene_damage` consumes a `DirtyPass` result, filters `Paint`/`Render` nodes,
 snaps their world bounds with `pixel_snap`, and feeds the damage accumulator. `DamageTracker` retains
 the previous world bounds per node (bounded LRU), damages both old and new rects when a node moves,
 and prunes ids no longer present in the scene.
