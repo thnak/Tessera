@@ -82,5 +82,6 @@ private:
 };
 
 bool dispatch_event(Node& root, Event& event);
+bool dispatch_event_to(Node& target, Event& event);
 
 } // namespace tessera::ui

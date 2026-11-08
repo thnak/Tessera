@@ -7,14 +7,9 @@
 
 namespace tessera::ui {
 
-bool dispatch_event(Node& root, Event& event) {
-    Node* target = root.hit_test_deep(event.x, event.y);
-    if (target == nullptr) {
-        return false;
-    }
-
+bool dispatch_event_to(Node& target, Event& event) {
     std::vector<Node*> path;
-    for (Node* node = target; node != nullptr; node = node->parent()) {
+    for (Node* node = &target; node != nullptr; node = node->parent()) {
         path.push_back(node);
     }
     std::reverse(path.begin(), path.end());
@@ -28,7 +23,7 @@ bool dispatch_event(Node& root, Event& event) {
     }
 
     event.phase = EventPhase::Target;
-    target->on_event(event);
+    target.on_event(event);
     if (event.stopped) {
         return true;
     }
@@ -42,6 +37,14 @@ bool dispatch_event(Node& root, Event& event) {
     }
 
     return true;
+}
+
+bool dispatch_event(Node& root, Event& event) {
+    Node* target = root.hit_test_deep(event.x, event.y);
+    if (target == nullptr) {
+        return false;
+    }
+    return dispatch_event_to(*target, event);
 }
 
 } // namespace tessera::ui

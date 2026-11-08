@@ -45,6 +45,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `completion_queue` | visible/layout/background priority, FIFO, per-tick budget, cancellation, overflow |
 | `input` | bounded queue FIFO/overflow, modifier flags, adjacent-move coalescing |
 | `input_dispatch` | pointer mapping, hit-test target, capture/target/bubble, outside/unsupported |
+| `input_router` | pointer capture, move/up outside, release on up/cancel, reset, key retention |
 | `damage` | clip, overlap/touch merge, margin, cap/full-redraw fallback |
 | `redraw_plan` | integer edge rounding, clipping, full-redraw plan, area/scissor-count policy |
 | `tokenizer` | CSS tokens, offsets, escapes, strings, numbers, functions, match tokens, ranges |

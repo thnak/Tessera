@@ -16,4 +16,17 @@ struct InputDispatchResult {
 
 InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 
+class InputRouter {
+public:
+    InputDispatchResult dispatch(Node& root, const InputEvent& input);
+    void reset();
+
+    [[nodiscard]] Node* captured() const {
+        return captured_;
+    }
+
+private:
+    Node* captured_ = nullptr;
+};
+
 } // namespace tessera::ui
