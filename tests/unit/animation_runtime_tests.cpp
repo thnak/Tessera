@@ -76,11 +76,14 @@ int main() {
 
     KeyframeTiming timing;
     timing.duration = 1.0;
-    const AnimationId pulse =
-        runtime.start(AnimationInput{42, opacity_block(), timing, [&](AnimationId id) {
-                                         ++completions;
-                                         completed = id;
-                                     }});
+    const AnimationId pulse = runtime.start(AnimationInput{42,
+                                                           opacity_block(),
+                                                           timing,
+                                                           [&](AnimationId id) {
+                                                               ++completions;
+                                                               completed = id;
+                                                           },
+                                                           {}});
     if (!expect(runtime.active() == 1, "start adds entry") || !expect(pulse != 0, "id assigned")) {
         return 1;
     }
@@ -110,7 +113,8 @@ int main() {
 
     KeyframeTiming forwards = timing;
     forwards.fill = FillMode::Forwards;
-    const AnimationId forward_id = runtime.start(AnimationInput{7, opacity_block(), forwards, {}});
+    const AnimationId forward_id =
+        runtime.start(AnimationInput{7, opacity_block(), forwards, {}, {}});
     if (!expect(forward_id != 0, "forward id assigned")) {
         return 4;
     }
@@ -123,7 +127,7 @@ int main() {
         return 5;
     }
 
-    const AnimationId width_id = runtime.start(AnimationInput{9, width_block(), timing, {}});
+    const AnimationId width_id = runtime.start(AnimationInput{9, width_block(), timing, {}, {}});
     if (!expect(width_id != 0, "width id assigned")) {
         return 6;
     }
@@ -139,7 +143,7 @@ int main() {
         return 8;
     }
 
-    const AnimationId stopped = runtime.start(AnimationInput{10, opacity_block(), timing, {}});
+    const AnimationId stopped = runtime.start(AnimationInput{10, opacity_block(), timing, {}, {}});
     if (!expect(runtime.stop(stopped), "stop existing") ||
         !expect(!runtime.stop(stopped), "stop missing") ||
         !expect(runtime.empty(), "stopped removed")) {
@@ -149,9 +153,13 @@ int main() {
     AnimationRuntime restart;
     AnimationId restarted = 0;
     const AnimationId before = restart.start(AnimationInput{
-        11, opacity_block(), timing, [&](AnimationId) {
-            restarted = restart.start(AnimationInput{12, opacity_block(), timing, {}});
-        }});
+        11,
+        opacity_block(),
+        timing,
+        [&](AnimationId) {
+            restarted = restart.start(AnimationInput{12, opacity_block(), timing, {}, {}});
+        },
+        {}});
     if (!expect(before != 0, "callback source started")) {
         return 10;
     }
@@ -167,7 +175,7 @@ int main() {
     KeyframeTiming infinite = timing;
     infinite.iterations = std::numeric_limits<double>::infinity();
     const AnimationId forever =
-        infinite_runtime.start(AnimationInput{13, opacity_block(), infinite, {}});
+        infinite_runtime.start(AnimationInput{13, opacity_block(), infinite, {}, {}});
     const auto long_tick = infinite_runtime.tick(100.0);
     if (!expect(forever != 0, "infinite id") ||
         !expect(long_tick.finished.empty(), "infinite not finished") ||
