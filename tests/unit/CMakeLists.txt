@@ -294,6 +294,13 @@ target_link_libraries(animation_lookup_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_lookup COMMAND animation_lookup_tests)
 
+add_executable(animation_pipeline_tests
+    animation_pipeline_tests.cpp)
+
+target_link_libraries(animation_pipeline_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_pipeline COMMAND animation_pipeline_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 
