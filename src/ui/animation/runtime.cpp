@@ -142,6 +142,15 @@ std::size_t AnimationRuntime::resume_target(std::uint64_t target) {
     return count;
 }
 
+std::size_t AnimationRuntime::stop_target(std::uint64_t target) {
+    const auto removed =
+        std::remove_if(entries_.begin(), entries_.end(),
+                       [&](const AnimationEntry& entry) { return entry.target == target; });
+    const std::size_t count = static_cast<std::size_t>(entries_.end() - removed);
+    entries_.erase(removed, entries_.end());
+    return count;
+}
+
 bool AnimationRuntime::stop(AnimationId id) {
     const auto found = std::find_if(entries_.begin(), entries_.end(),
                                     [&](const AnimationEntry& entry) { return entry.id == id; });
