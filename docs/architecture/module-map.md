@@ -3,25 +3,26 @@
 Status: reflects the repository at [Big Step B1](../../AGENTS.md#big-steps-group-work-dont-micro-step)
 (renderer core) plus the implemented B2 runtime slices: stylesheet engine, Yoga layout,
 text-measurement stub, normalized input, fixed-step loop, dirty rendering/damage, diagnostics
-counters, async primitives, and the animation runtime. Remaining B2/B3 work and empty directories
-are marked **planned**; a planned directory is a seam, not an implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core, runtime slice, window/swapchain/OS); C, D, and F are Big Steps C (compiler vertical slice), D (design-time preview), and F (production breadth); a letter in parentheses, such as "(D)", is the Big Step in which the directory is planned.
+counters, async primitives, the animation runtime, and the window/swapchain seams. Remaining
+B2/B3 work and empty directories are marked **planned**; a planned directory is a seam, not an
+implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core, runtime slice, window/swapchain/OS); C, D, and F are Big Steps C (compiler vertical slice), D (design-time preview), and F (production breadth); a letter in parentheses, such as "(D)", is the Big Step in which the directory is planned.
 
 ## 1. Top level
 
 | Path | Responsibility | Status |
 |---|---|---|
-| `include/tessera/` | Public headers; light, no backend/OS headers | B1 subset |
+| `include/tessera/` | Public headers; light, no backend/OS headers | B1 + B3 seams |
 | `src/core/` | object, memory, threading, events, resources | planned |
-| `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | timer B2; rest planned |
+| `src/hal/` | window, display, input, lifecycle, power, timer, filesystem, graphics, audio | timer B2; window seam B3; rest planned |
 | `src/hal/timer/` | monotonic clock + bounded idle wait (`tessera_hal_timer`) | B2 |
 | `src/platform/` | Windows/X11/Wayland/Cocoa/Android implementations of HAL (hardware/OS abstraction layer) | planned (B3) |
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; style/layout/text/input/animation B2 core; view/responsive/accessibility planned |
 | `src/ui/input/` | normalized input event, bounded queue, move coalescing | B2 core |
 | `src/ui/style/` | CSS tokenizer, parser, selectors, cascade, media queries, `@supports`, keyframes, property registry | B2 core |
-| `src/rendering/rhi/` | thin RHI (render hardware interface) interfaces | B1 |
+| `src/rendering/rhi/` | thin RHI (render hardware interface) interfaces | B1; swapchain seam B3 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
-| `src/rendering/null/` | deterministic no-GPU backend | B1 |
+| `src/rendering/null/` | deterministic no-GPU backend + swapchain | B1; swapchain seam B3 |
 | `src/rendering/backend/vulkan/` | Vulkan 1.3 backend (volk + VMA (Vulkan Memory Allocator)) | B1 offscreen |
 | `src/rendering/backend/webgpu/` | WebGPU/Dawn backend | planned (D) |
 | `src/rendering/software/` | deterministic CPU/software path | planned (B2/B3) |
@@ -89,6 +90,8 @@ Only `include/tessera/` is public. Current headers:
 |---|---|
 | `rendering/rhi/types.hpp` | geometry, color, descriptors, enums, `Mat3` |
 | `rendering/rhi/device.hpp` | `Device`, `Buffer`, `Texture`, `Pipeline`, `RenderTarget`, `CommandList` |
+| `rendering/rhi/swapchain.hpp` | `Swapchain`, `SwapchainDesc`, `SwapchainError`, `Device::create_swapchain` (B3 seam) |
+| `rendering/null/null_swapchain.hpp` | deterministic null swapchain + test stats (B3 seam) |
 | `rendering/gpu/vertex2d.hpp` | `Vertex2D`, attributes, push constants |
 | `rendering/gpu/batched2d_renderer.hpp` | batched 2D renderer |
 | `element/custom_element.hpp` | custom native element interface/contexts (planned) |
@@ -99,6 +102,7 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/vulkan/vulkan_device.hpp` | Vulkan device factory (backend-specific) |
 | `rendering/vulkan/batched2d_pipeline.hpp` | Vulkan batched2D pipeline factory |
 | `hal/timer/steady_time.hpp` | monotonic seconds + bounded idle wait (B2) |
+| `hal/window.hpp` | window metrics/events + abstract `Window` interface, no OS handles (B3 seam) |
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
 | `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
 | `ui/scene/event.hpp` | pointer/keyboard/focus event types, phases, key payload |
@@ -170,7 +174,7 @@ merger prototype.
 |---|---|---|
 | `tessera_rhi` | static | RHI interfaces |
 | `tessera_gpu` | static | batched 2D renderer |
-| `tessera_rhi_null` | static | [null backend](../reference/glossary.md) |
+| `tessera_rhi_null` | static | [null backend](../reference/glossary.md) + deterministic swapchain |
 | `tessera_scene` | static | scene graph/events, focus manager, keyboard routing |
 | `tessera_hal_timer` | static | monotonic clock + bounded idle wait (B2) |
 | `tessera_diagnostics` | static | structured logging + metrics core (B2) |

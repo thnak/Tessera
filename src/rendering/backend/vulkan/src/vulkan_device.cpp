@@ -136,6 +136,14 @@ std::unique_ptr<rhi::CommandList> VulkanDevice::create_command_list() {
     return std::make_unique<VulkanCommandList>(device_, queue_, pool, command_buffer);
 }
 
+std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
+VulkanDevice::create_swapchain(const rhi::SwapchainDesc&) {
+    // A Vulkan swapchain needs a VkSurfaceKHR, which needs a platform window. The Win32 window
+    // and surface creation are the next B3 slice; reporting NotSupported keeps the seam usable
+    // without creating an object that cannot present.
+    return std::unexpected(rhi::SwapchainError::NotSupported);
+}
+
 void VulkanDevice::wait_idle() {
     if (device_ != VK_NULL_HANDLE) {
         check_vk(vkDeviceWaitIdle(device_), "vkDeviceWaitIdle");

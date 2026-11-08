@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -291,6 +292,8 @@ public:
     std::unique_ptr<rhi::RenderTarget>
     create_render_target(const rhi::RenderTargetDesc& desc) override;
     std::unique_ptr<rhi::CommandList> create_command_list() override;
+    std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
+    create_swapchain(const rhi::SwapchainDesc& desc) override;
     void wait_idle() override;
 
     // Full-image upload used by Texture::write (dynamic atlases).
