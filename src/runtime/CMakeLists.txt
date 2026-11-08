@@ -7,6 +7,7 @@ add_library(tessera_runtime STATIC
     fixed_step.cpp
     frame_pacer.cpp
     runtime_loop.cpp
+    task.cpp
     worker_executor.cpp
     system_clock.cpp)
 

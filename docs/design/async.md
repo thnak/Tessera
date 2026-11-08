@@ -9,8 +9,12 @@ support once-only `on_cancel` callbacks (immediate when already cancelled). `Wor
 (`runtime/worker_executor.hpp`) owns a bounded pool of worker threads, rejects work after
 `shutdown()`, drains queued tasks, joins every thread, and can post completions back to the
 `CompletionQueue` by priority. `RuntimeLoop` drains the queue at the tick boundary, reports
-the completion count, and keeps a wake pending until the queue is empty. Coroutine `Task` and I/O
-executors are not wired yet. Normative decision:
+the completion count, and keeps a wake pending until the queue is empty. The coroutine slice
+(`runtime/task.hpp`) adds a lazy `Task<T>`/`Task<void>` that resumes only through a
+`CompletionQueue`, propagates results and exceptions at the `co_await` boundary, and checks
+cancellation before every resume; an I/O executor is not implemented yet. The exact implemented
+subset and its limitations are in [section 2.1](#21-implemented-coroutine-subset-b2). Normative
+decision:
 [ADR-021](../../decisions/ADR-021-async-runtime.md) (async runtime; no UI-thread blocking). Terms: tick =
 one fixed-step update of the runtime loop ([`game-loop.md`](game-loop.md)); golden = deterministic
 reference image; V1 = first release, V1.1 = the release after V1 (as defined in
@@ -28,31 +32,32 @@ reference image; V1 = first release, V1.1 = the release after V1 (as defined in
 
 ## 2. Model
 
-C++20 coroutines with an explicit executor/affinity model:
+C++20 coroutines with an explicit executor/affinity model. The B2 slice implements the `Task` half
+plus the queue/worker scheduling primitives; the named executors below are target design for B3+:
 
 ```cpp
 template <typename T>
-class Task;                      // lazy or eager, single-consumer
+class Task;                      // lazy, single-consumer (implemented)
 
-class Executor;                  // post/invoke
-class MainThreadExecutor;        // resumes on the UI thread
-class WorkerPool;                // CPU-heavy work
-class IoExecutor;                // file/network waits
+class Executor;                  // post/invoke (CompletionQueue today)
+class MainThreadExecutor;        // resumes on the UI thread (target)
+class WorkerPool;                // CPU-heavy work (WorkerExecutor today)
+class IoExecutor;                // file/network waits (planned)
 
-Task<Image> load_image(Path path, CancellationToken token);
-Task<void>   upload(Image image, CancellationToken token);
+Task<Image> load_image(TaskContext ctx, Path path);
+Task<void>   upload(TaskContext ctx, Image image);
 
-Task<void> load_card(Card& card) {
-    auto image = co_await load_image(card.path, card.cancel_token());
-    co_await upload(std::move(image), card.cancel_token());
-    card.mark_dirty();            // main-thread continuation
+Task<void> load_card(TaskContext ctx, Card& card) {
+    auto image = co_await load_image(ctx, card.path);
+    co_await upload(ctx, std::move(image));
+    card.mark_dirty();            // queue-drained continuation
 }
 ```
 
 Rules:
 
 - `co_await` must resume on the declared executor; UI-affine continuations use
-  `MainThreadExecutor`.
+  `MainThreadExecutor` (in B2, the `CompletionQueue` drained by `RuntimeLoop`).
 - No detached fire-and-forget tasks. Every task has an owner/cancel scope.
 - `sync_wait`/`future::get` are allowed only in tests/tools, never on the UI thread.
 - Do not use `std::async`/`std::future` as the primary model: no cancellation, no affinity,
@@ -61,6 +66,49 @@ Rules:
 - Errors propagate as `Result<T, Error>` or a documented exception boundary ([`error-boundaries-v1.md`](../specs/error-boundaries-v1.md)); no exceptions across
   a C ABI or platform callback.
 - Task names/ids are captured for tracing.
+
+### 2.1 Implemented coroutine subset (B2)
+
+`include/tessera/runtime/task.hpp` + `src/runtime/task.cpp` implement the following subset:
+
+- **Lazy.** Calling a task coroutine creates the frame and returns a `Task<T>`/`Task<void>`; nothing
+  runs until `start()` posts the first resume or another task `co_await`s it.
+- **Context.** Every task coroutine takes `TaskContext` as its first parameter (completion queue,
+  priority, cancellation token). A task without one does not compile; the queue and token must
+  outlive the task.
+- **Queue-only resumption.** `start()` and every continuation post a closure to the task's
+  `CompletionQueue` at the priority from its context. A continuation is posted to the *awaiting*
+  task's queue/priority, so completion never resumes inline and no thread is created, detached, or
+  joined.
+- **Results and errors.** `co_await` yields the value (or void) and rethrows the child's exception
+  at the await point. An exception that leaves a task body is stored in the task state, so a root
+  task fails without terminating.
+- **Cancellation.** Checked inside the queued resume: before the first resume and before every
+  later resume, including resumptions of the awaiting task. A cancelled task never runs its body
+  (or the part after the await) and finishes with `TaskCancelled`; the awaiter sees it rethrown at
+  `co_await`.
+- **Single consumer.** A `Task` is awaited at most once; a second `co_await` throws
+  `std::logic_error`. A second `start()` returns `false` and does not double-resume.
+- **Lifetime.** An internal shared state owns the coroutine frame; an awaiting task keeps the
+  frame alive while suspended, and the frame is destroyed exactly once, when the result is
+  consumed or the last `Task`/awaiter is dropped.
+
+Limitations of this slice:
+
+- **No I/O executor and no thread affinity beyond the queue.** A resume runs on whichever thread
+  drains the `CompletionQueue` (the UI thread in `RuntimeLoop`); nothing migrates or pins a task to
+  a thread, and a worker thread must not touch UI state. One task graph must be pumped by one
+  thread at a time: the queue is thread-safe, but task state assumes a single drainer.
+- No `sync_wait`, `when_all`, `when_any`, `timeout`, task names/ids, or coroutine-frame allocator
+  hooks yet (see [section 10](#10-open-questions)).
+- Cancellation is observed only at resume boundaries. A task suspended on a child is cancelled
+  when the child next completes; there is no eager cancellation wakeup.
+- Dropping the last `Task` handle does not cancel or detach a graph: a started task still runs to
+  its next completion on the queue, and a parent suspended on a child keeps both states alive until
+  the child finishes (the reference cycle breaks at that point). Cancel the token to stop work.
+- A full bounded queue drops the resume (`CompletionQueue::Stats::dropped`) and the task stays
+  suspended; the caller sizes the queue and the per-tick budget.
+- One `shared_ptr` control block per task frame; no frame pool yet.
 
 ## 3. Executors and threading
 
@@ -135,6 +183,8 @@ tick:
 ## 7. Determinism and tests
 
 - Deterministic tests use a manual executor with a stable FIFO order and simulated time.
+- Tasks resume only from the queue, so a test pumps `CompletionQueue::run` and asserts the exact
+  execution order and step count (`tests/unit/task_tests.cpp`); nothing runs on a timer or thread.
 - Golden mode performs all required resource loads before the first tick, or uses a deterministic
   scheduler; no background thread may reorder visible work.
 - Task completion order is part of the test contract.
@@ -160,7 +210,8 @@ tick:
 
 ## 10. Open questions
 
-- Lazy vs eager `Task` and the exact allocator strategy for coroutine frames.
+- Lazy vs eager `Task`: settled as lazy (B2); the coroutine-frame allocator/pool strategy is still
+  open.
 - Whether text shaping moves to the worker pool in V1.1 (no decision yet; see [`text.md`](text.md)).
 - Render-thread ownership and command recording.
 - Priority inversion between UI completions and background prefetch.
