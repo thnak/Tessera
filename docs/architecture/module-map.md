@@ -114,6 +114,8 @@ Only `include/tessera/` is public. Current headers:
 | `ui/text/font_face.hpp` | FreeType-backed font file loading + design-unit metrics |
 | `ui/text/font_metrics.hpp` | ascent/descent/line-gap provider + deterministic stub |
 | `ui/text/freetype_metrics.hpp` | real ascent/descent/line-gap scaled from a loaded face |
+| `ui/text/text_shaper.hpp` | shaped glyph/cluster/advance seam |
+| `ui/text/harfbuzz_shaper.hpp` | HarfBuzz UTF-8 shaping with pixel advances |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
 | `ui/text/text_layout.hpp` | wrapped line boxes (width/height/baseline) |
 | `ui/text/text_measure_cache.hpp` | bounded LRU measurement cache + stats |
@@ -158,7 +160,8 @@ merger prototype.
 | `tessera_style` | static | CSS tokenizer (B2) |
 | `tessera_yoga` | static | vendored Yoga flexbox engine |
 | `tessera_freetype` | interface | FreeType (FetchContent, pinned archive) for font loading |
-| `tessera_text` | static | font loading/metrics + text measurement seam + deterministic stub + LRU cache (B2) |
+| `tessera_harfbuzz` | interface | HarfBuzz (FetchContent, pinned archive) for shaping |
+| `tessera_text` | static | font loading/metrics + shaping + measurement seam + deterministic stub + LRU cache (B2) |
 | `tessera_animation` | static | easing + keyframes + runtime + springs (B2) |
 | `tessera_layout` | static | computed-style to Yoga layout adapter + text measure callback (B2) |
 | `tessera_merger` | static | protected-region merger |

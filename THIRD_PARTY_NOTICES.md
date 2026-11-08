@@ -62,6 +62,16 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: The FreeType Project and contributors
 - Upstream: https://github.com/freetype/freetype (2.13.3)
 
+### HarfBuzz
+
+- Used by: `src/ui/text/`
+- Fetched at configure time from
+  `https://github.com/harfbuzz/harfbuzz/archive/refs/tags/10.2.0.tar.gz` (pinned SHA-256);
+  not vendored in the tree
+- License: MIT
+- Copyright: HarfBuzz contributors
+- Upstream: https://github.com/harfbuzz/harfbuzz (10.2.0)
+
 ### Noto Sans (test font)
 
 - Files: `tests/fixtures/fonts/NotoSans-Regular.ttf`, `tests/fixtures/fonts/OFL.txt`

@@ -9,6 +9,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tessera::ui::text {
 
@@ -65,8 +66,13 @@ public:
     [[nodiscard]] bool has_glyph(char32_t codepoint) const noexcept;
     [[nodiscard]] std::string family_name() const;
 
+    // The original font file bytes; shapers parse the same pinned asset that FreeType loaded.
+    [[nodiscard]] std::span<const std::uint8_t> data() const noexcept;
+
 private:
     explicit FontFace(std::shared_ptr<detail::FontFaceState> state);
+    [[nodiscard]] static std::expected<FontFace, FontError>
+    load_owned(std::vector<std::uint8_t> bytes, std::uint32_t face_index);
 
     std::shared_ptr<detail::FontFaceState> state_;
 };

@@ -452,6 +452,13 @@ target_link_libraries(freetype_metrics_tests PRIVATE tessera_text)
 
 add_test(NAME freetype_metrics COMMAND freetype_metrics_tests "${TESSERA_FONT_FIXTURE}")
 
+add_executable(harfbuzz_shaper_tests
+    harfbuzz_shaper_tests.cpp)
+
+target_link_libraries(harfbuzz_shaper_tests PRIVATE tessera_text)
+
+add_test(NAME harfbuzz_shaper COMMAND harfbuzz_shaper_tests "${TESSERA_FONT_FIXTURE}")
+
 add_executable(text_layout_tests
     text_layout_tests.cpp)
 

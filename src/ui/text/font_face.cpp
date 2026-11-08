@@ -6,6 +6,8 @@
 #include FT_FREETYPE_H
 
 #include <cstdint>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -62,6 +64,21 @@ bool make_scalable(const detail::FontFaceState& state) {
     return true;
 }
 
+std::expected<std::vector<std::uint8_t>, FontError> read_file(std::string_view path) {
+    std::ifstream stream(std::string(path), std::ios::binary);
+    if (!stream) {
+        return std::unexpected(FontError{FontErrorCode::file_not_found,
+                                         "cannot open font file: " + std::string(path)});
+    }
+    std::vector<std::uint8_t> bytes{std::istreambuf_iterator<char>(stream),
+                                    std::istreambuf_iterator<char>()};
+    if (!stream.eof() && stream.fail()) {
+        return std::unexpected(FontError{FontErrorCode::file_not_found,
+                                         "cannot read font file: " + std::string(path)});
+    }
+    return bytes;
+}
+
 } // namespace
 
 FontFace::FontFace(std::shared_ptr<detail::FontFaceState> state)
@@ -72,41 +89,34 @@ std::expected<FontFace, FontError> FontFace::load_from_file(std::string_view pat
     if (path.empty()) {
         return std::unexpected(FontError{FontErrorCode::file_not_found, "font path is empty"});
     }
-
-    auto state = std::make_shared<detail::FontFaceState>();
-    const std::string path_string(path);
-    FT_Error error = FT_Init_FreeType(&state->library);
-    if (error != 0) {
-        return std::unexpected(
-            error_from(error, FontErrorCode::invalid_font, "initializing FreeType"));
+    auto bytes = read_file(path);
+    if (!bytes) {
+        return std::unexpected(std::move(bytes.error()));
     }
-    error = FT_New_Face(state->library, path_string.c_str(), static_cast<FT_Long>(face_index),
-                        &state->face);
-    if (error != 0) {
-        return std::unexpected(error_from(error, FontErrorCode::invalid_font, "opening font file"));
-    }
-    if (!make_scalable(*state)) {
-        return std::unexpected(FontError{FontErrorCode::not_scalable, "font face is not scalable"});
-    }
-    return FontFace(std::move(state));
+    return load_owned(std::move(*bytes), face_index);
 }
 
 std::expected<FontFace, FontError> FontFace::load_from_memory(std::span<const std::uint8_t> data,
                                                               std::uint32_t face_index) {
-    if (data.empty()) {
+    std::vector<std::uint8_t> bytes(data.begin(), data.end());
+    return load_owned(std::move(bytes), face_index);
+}
+
+std::expected<FontFace, FontError> FontFace::load_owned(std::vector<std::uint8_t> bytes,
+                                                        std::uint32_t face_index) {
+    if (bytes.empty()) {
         return std::unexpected(FontError{FontErrorCode::invalid_font, "font data is empty"});
     }
 
     auto state = std::make_shared<detail::FontFaceState>();
+    state->owned_bytes = std::move(bytes);
     FT_Error error = FT_Init_FreeType(&state->library);
     if (error != 0) {
         return std::unexpected(
             error_from(error, FontErrorCode::invalid_font, "initializing FreeType"));
     }
-
-    // FreeType keeps a pointer to the buffer for the lifetime of the face, so the bytes move
-    // into the shared state instead of referencing caller memory.
-    state->owned_bytes.assign(data.begin(), data.end());
+    // FreeType keeps a pointer to the buffer for the lifetime of the face, so the bytes live in
+    // the shared state rather than referencing caller memory.
     error = FT_New_Memory_Face(state->library, state->owned_bytes.data(),
                                static_cast<FT_Long>(state->owned_bytes.size()),
                                static_cast<FT_Long>(face_index), &state->face);
@@ -155,6 +165,13 @@ std::string FontFace::family_name() const {
         return {};
     }
     return state_->face->family_name;
+}
+
+std::span<const std::uint8_t> FontFace::data() const noexcept {
+    if (!valid()) {
+        return {};
+    }
+    return state_->owned_bytes;
 }
 
 } // namespace tessera::ui::text
