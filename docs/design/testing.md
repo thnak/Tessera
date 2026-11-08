@@ -75,6 +75,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `animation_start` | timing mapping, delay/fill, reverse final, zero duration, infinite, callback, skip guards |
 | `animation_lookup` | exact/case-sensitive name lookup, last duplicate wins, batch starts, missing blocks skipped |
 | `animation_pipeline` | parse -> lookup -> start -> tick -> overlay, dirty/wake, multiple animations, fill-forwards final |
+| `animation_style` | computed-style longhands, shorthand fallback, longhand precedence, invalid/paused/missing starts nothing, overlay |
 | `animation_runtime` | start/tick/finish, callbacks, stop/clear, target/property stop, wake state, dirty domains |
 | `easing` | linear/presets/bezier identity/steps variants, parser rejection, sampler integration |
 | `spring` | exact semi-implicit step, convergence/epsilon stop, retarget, invalid config, determinism |

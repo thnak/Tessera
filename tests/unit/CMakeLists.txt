@@ -308,6 +308,13 @@ target_link_libraries(animation_pipeline_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_pipeline COMMAND animation_pipeline_tests)
 
+add_executable(animation_style_tests
+    animation_style_tests.cpp)
+
+target_link_libraries(animation_style_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_style COMMAND animation_style_tests)
+
 add_executable(layout_tests
     layout_tests.cpp)
 

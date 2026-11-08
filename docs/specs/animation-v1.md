@@ -26,7 +26,8 @@ continues from the current sampled value. Ticking applies samples over the targe
 The `animation` shorthand parser accepts name, duration, timing function, delay, iteration count,
 direction, fill mode, and play state in any order across comma-separated lists. The eight longhand
 properties accept independent comma lists, cycle shorter lists, and default omitted values.
-Starting an
+Starting from computed style reads the animation longhands when `animation-name` is present and
+otherwise falls back to the `animation` shorthand. Starting an
 animation maps the parsed spec onto `AnimationRuntime` timing, skips `none`/empty/zero-iteration/
 paused entries, and keeps the final sample when fill-forwards applies. Keyframes resolve by exact
 name (last duplicate wins), batch starts skip specs whose block is missing, and ticking samples
