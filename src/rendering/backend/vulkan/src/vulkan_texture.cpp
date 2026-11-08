@@ -122,7 +122,59 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     }
 
     return std::make_unique<VulkanTexture>(device_, allocator_, image, view, sampler, allocation,
-                                           descriptor_set, desc.extent, desc.format);
+                                           descriptor_set, desc.extent, desc.format, this);
+}
+
+void VulkanTexture::write(const void* data, std::size_t size) {
+    if (owner_ == nullptr) {
+        throw std::runtime_error("VulkanTexture::write: missing device owner");
+    }
+    owner_->upload_texture(*this, data, size);
+}
+
+void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std::size_t size) {
+    const rhi::Extent2D extent = texture.extent();
+    const std::size_t expected =
+        static_cast<std::size_t>(extent.width) * extent.height * bytes_per_pixel(texture.format());
+    if (data == nullptr || size != expected) {
+        throw std::invalid_argument("texture upload must cover the whole tightly packed image");
+    }
+    if (size == 0) {
+        return;
+    }
+
+    auto staging = create_buffer({size, rhi::BufferUsage::Staging});
+    staging->write(data, size);
+    auto* staging_buffer = dynamic_cast<VulkanBuffer*>(staging.get());
+    if (staging_buffer == nullptr) {
+        throw std::runtime_error("texture upload: staging buffer allocation failed");
+    }
+
+    submit_one_shot([&](VkCommandBuffer command_buffer) {
+        record_image_transition(command_buffer, texture.image(),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_SHADER_READ_BIT,
+                                VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+        VkBufferImageCopy copy{};
+        copy.bufferOffset = 0;
+        copy.bufferRowLength = 0;
+        copy.bufferImageHeight = 0;
+        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy.imageSubresource.mipLevel = 0;
+        copy.imageSubresource.baseArrayLayer = 0;
+        copy.imageSubresource.layerCount = 1;
+        copy.imageExtent = {extent.width, extent.height, 1};
+        vkCmdCopyBufferToImage(command_buffer, staging_buffer->handle(), texture.image(),
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+        record_image_transition(
+            command_buffer, texture.image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    });
 }
 
 } // namespace tessera::rendering::vulkan

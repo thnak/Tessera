@@ -50,7 +50,10 @@ public:
 
     // References stay valid until the next get() that inserts or evicts.
     const GlyphAtlasEntry& get(char32_t codepoint, std::uint16_t pixel_size);
+    const GlyphAtlasEntry& get_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size);
     [[nodiscard]] const GlyphAtlasEntry* find(char32_t codepoint, std::uint16_t pixel_size) const;
+    [[nodiscard]] const GlyphAtlasEntry* find_glyph(std::uint32_t glyph_index,
+                                                    std::uint16_t pixel_size) const;
 
     void begin_frame();
     void touch(const GlyphAtlasEntry& entry);
@@ -72,18 +75,18 @@ public:
 
 private:
     struct Key {
-        char32_t codepoint = 0;
+        std::uint32_t glyph_index = 0;
         std::uint16_t pixel_size = 0;
 
         bool operator==(const Key& other) const {
-            return codepoint == other.codepoint && pixel_size == other.pixel_size;
+            return glyph_index == other.glyph_index && pixel_size == other.pixel_size;
         }
     };
 
     struct KeyHash {
         std::size_t operator()(const Key& key) const noexcept {
             const std::uint64_t value =
-                (static_cast<std::uint64_t>(key.codepoint) << 16) | key.pixel_size;
+                (static_cast<std::uint64_t>(key.glyph_index) << 16) | key.pixel_size;
             return std::hash<std::uint64_t>{}(value);
         }
     };

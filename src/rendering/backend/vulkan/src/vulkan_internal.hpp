@@ -135,11 +135,13 @@ private:
     void* mapped_ = nullptr;
 };
 
+class VulkanDevice;
+
 class VulkanTexture final : public rhi::Texture {
 public:
     VulkanTexture(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
                   VkSampler sampler, VmaAllocation allocation, VkDescriptorSet descriptor_set,
-                  rhi::Extent2D extent, rhi::TextureFormat format)
+                  rhi::Extent2D extent, rhi::TextureFormat format, VulkanDevice* owner)
         : device_(device),
           allocator_(allocator),
           image_(image),
@@ -148,7 +150,8 @@ public:
           allocation_(allocation),
           descriptor_set_(descriptor_set),
           extent_(extent),
-          format_(format) {}
+          format_(format),
+          owner_(owner) {}
 
     ~VulkanTexture() override;
 
@@ -157,6 +160,11 @@ public:
     }
     [[nodiscard]] rhi::TextureFormat format() const override {
         return format_;
+    }
+    void write(const void* data, std::size_t size) override;
+
+    [[nodiscard]] VkImage image() const {
+        return image_;
     }
     [[nodiscard]] VkDescriptorSet descriptor_set() const {
         return descriptor_set_;
@@ -172,6 +180,7 @@ private:
     VkDescriptorSet descriptor_set_ = VK_NULL_HANDLE;
     rhi::Extent2D extent_;
     rhi::TextureFormat format_ = rhi::TextureFormat::R8G8B8A8Unorm;
+    VulkanDevice* owner_ = nullptr;
 };
 
 class VulkanPipeline final : public rhi::Pipeline {
@@ -283,6 +292,9 @@ public:
     create_render_target(const rhi::RenderTargetDesc& desc) override;
     std::unique_ptr<rhi::CommandList> create_command_list() override;
     void wait_idle() override;
+
+    // Full-image upload used by Texture::write (dynamic atlases).
+    void upload_texture(VulkanTexture& texture, const void* data, std::size_t size);
 
 private:
     void create_instance();

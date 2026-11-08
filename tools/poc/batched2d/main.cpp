@@ -5,11 +5,13 @@
 #include "tessera/rendering/null/null_device.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
+#include "text_demo.hpp"
 
 #include <array>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -26,13 +28,17 @@ struct Options {
     std::uint32_t height = 512;
     bool validation = false;
     bool golden = false;
+    std::string font;
+    std::string text = "Tessera";
+    float text_size = 24.0f;
     std::vector<tessera::rendering::rhi::Rect> damage;
 };
 
 void print_usage() {
     std::cout << "usage: batched2d_poc [--backend vulkan|null] [--out path] [--raw path]\n"
                  "                     [--width N] [--height N] [--validation] [--golden]\n"
-                 "                     [--damage x,y,w,h]...\n";
+                 "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
+                 "                     [--text-size N]\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -56,6 +62,12 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.validation = true;
         } else if (arg == "--golden") {
             options.golden = true;
+        } else if (arg == "--font" && i + 1 < argc) {
+            options.font = argv[++i];
+        } else if (arg == "--text" && i + 1 < argc) {
+            options.text = argv[++i];
+        } else if (arg == "--text-size" && i + 1 < argc) {
+            options.text_size = std::stof(argv[++i]);
         } else if (arg == "--damage" && i + 1 < argc) {
             tessera::rendering::rhi::Rect rect;
             const char* value = argv[++i];
@@ -149,6 +161,30 @@ void build_screen(tessera::rendering::gpu::Batched2DRenderer& renderer,
     renderer.push_rounded_rect({410, 410, 40, 12}, green, 6);
 }
 
+std::unique_ptr<tessera::poc::batched2d::TextDemo>
+make_text_demo(tessera::rendering::rhi::Device& device, const Options& options) {
+    if (options.font.empty()) {
+        return nullptr;
+    }
+    auto face = tessera::ui::text::FontFace::load_from_file(options.font);
+    if (!face) {
+        throw std::runtime_error("failed to load font: " + face.error().message);
+    }
+    return std::make_unique<tessera::poc::batched2d::TextDemo>(device, std::move(*face),
+                                                               options.text, options.text_size);
+}
+
+void draw_text_overlay(tessera::poc::batched2d::TextDemo* text,
+                       tessera::rendering::gpu::Batched2DRenderer& renderer) {
+    if (text == nullptr) {
+        return;
+    }
+    text->begin_frame();
+    text->draw(renderer, 150.0f, 34.0f, tessera::rendering::rhi::rgba8(226, 232, 240));
+    std::cout << "text glyphs=" << text->atlas().stats().misses + text->atlas().stats().hits
+              << " pages=" << text->atlas().page_count() << "\n";
+}
+
 std::array<std::uint8_t, 8 * 8 * 4> make_checker_pixels() {
     std::array<std::uint8_t, 8 * 8 * 4> pixels{};
     for (int y = 0; y < 8; ++y) {
@@ -208,9 +244,11 @@ int run_vulkan(const Options& options) {
 
     gpu::Batched2DRenderer renderer(*device, *pipeline, *white,
                                     gpu::Batched2DConfig{4096, true, options.golden});
+    auto text_demo = make_text_demo(*device, options);
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
     build_screen(renderer, *checker, options.width, options.height);
+    draw_text_overlay(text_demo.get(), renderer);
     renderer.end();
 
     commands->copy_target_to_buffer(*target, *readback);
@@ -263,9 +301,11 @@ int run_null(const Options& options) {
 
     gpu::Batched2DRenderer renderer(*device, *pipeline, *white,
                                     gpu::Batched2DConfig{4096, true, options.golden});
+    auto text_demo = make_text_demo(*device, options);
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
     build_screen(renderer, *checker, options.width, options.height);
+    draw_text_overlay(text_demo.get(), renderer);
     renderer.end();
     commands->submit();
 

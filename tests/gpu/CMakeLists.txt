@@ -15,6 +15,15 @@ add_executable(damage_redraw_tests
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
 add_test(NAME damage_redraw COMMAND damage_redraw_tests)
 
+set(TESSERA_FONT_FIXTURE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSans-Regular.ttf")
+get_filename_component(TESSERA_FONT_FIXTURE "${TESSERA_FONT_FIXTURE}" REALPATH)
+
+add_executable(text_render_tests
+    text/text_render_tests.cpp)
+target_link_libraries(text_render_tests PRIVATE tessera_text_render tessera_rhi_null)
+add_test(NAME text_render COMMAND text_render_tests "${TESSERA_FONT_FIXTURE}")
+
 if (TARGET batched2d_poc)
     add_test(
         NAME batched2d_vulkan_smoke

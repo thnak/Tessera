@@ -13,7 +13,11 @@ FreeType (`ui/text/font_face.hpp`) and `FreeTypeFontMetricsProvider`
 deterministic test face is `tests/fixtures/fonts/NotoSans-Regular.ttf` (OFL-1.1).
 `HarfBuzzShaper` (`ui/text/harfbuzz_shaper.hpp`, behind the `ui/text/text_shaper.hpp` seam) turns
 UTF-8 runs into glyph ids, byte clusters, and pixel advances, including kerning and standard
-ligatures. Bidi run splitting, line breaking, and rasterization are not implemented. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
+ligatures. `GlyphRasterizer` (`ui/text/glyph_raster.hpp`) renders hinted 8-bit coverage,
+`GlyphAtlas` (`ui/text/glyph_atlas.hpp`) shelf-packs bounded RGBA8 pages with a frame-age LRU, and
+`TextRenderer` (`ui/text/text_renderer.hpp`, target `tessera_text_render`) emits glyph quads through
+`Batched2DRenderer`. Bidi run splitting, line breaking, font-stack fallback, and SDF/subpixel
+rasterization are not implemented. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
 FreeType + HarfBuzz + SheenBidi + ICU (licenses and module ownership in
 [`dependencies.md`](../specs/dependencies.md)). Terms: IME = input method editor; HAL = hardware/OS
 abstraction layer ([`hal.md`](hal.md)); golden = deterministic reference image; atlas = GPU texture
@@ -90,15 +94,23 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
 - A missing glyph renders a deterministic tofu/placeholder and emits a diagnostic; it never
   silently changes the font stack across runs.
 
-## 5. Glyph atlas
+## 5. Glyph atlas (implemented subset)
 
-- Dynamic packing (shelf/skyline); deterministic insertion order in golden mode.
-- Per-face/size caches; atlas pages are bounded.
-- Eviction policy: LRU with a frame-age guard; never evict glyphs used by the current frame.
-- Atlas updates are GPU texture uploads; they go through the resource/async path.
-- Subpixel positioning is disabled in golden mode; normal mode may use it; whether it is deterministic enough is decided and
-  documented per backend (no decision yet).
-- Hinting/AA settings are fixed per build; do not depend on system FreeType configuration.
+- `GlyphRasterizer` rasterizes hinted `FT_PIXEL_MODE_GRAY` coverage at integer pixel sizes; a
+  missing codepoint renders `.notdef` and keeps its advance.
+- `GlyphAtlas` shelf-packs pages in deterministic insertion order. `GlyphAtlasConfig` bounds page
+  size, page count, and padding. Pages are RGBA8 with white RGB and coverage alpha, so the batched
+  2D shader needs no swizzle.
+- Eviction is page-level LRU with a frame-age guard: a page touched in the current frame is never
+  evicted. If every page was touched, the glyph is reported as dropped
+  (`GlyphAtlasStats::dropped`) and only its advance is kept.
+- `TextRenderer` owns one RHI texture per page, creates it from the page pixels, and updates it in
+  place through `rhi::Texture::write` when the page generation changes. Each glyph becomes a
+  textured quad with atlas UVs through `Batched2DRenderer`.
+- Not implemented: skyline packing, subpixel positioning, SDF/MSDF, multi-face fallback, async
+  uploads, and per-glyph (rather than per-page) eviction.
+- Hinting/AA settings come from the pinned FreeType build; no system FreeType configuration is
+  read.
 
 ## 6. Line breaking and alignment
 

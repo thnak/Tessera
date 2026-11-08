@@ -25,6 +25,10 @@ public:
 
     [[nodiscard]] virtual Extent2D extent() const = 0;
     [[nodiscard]] virtual TextureFormat format() const = 0;
+
+    // Uploads one tightly packed image (offset 0, extent.width * extent.height * bytes-per-pixel).
+    // Dynamic atlas updates use this instead of recreating the GPU resource.
+    virtual void write(const void* data, std::size_t size) = 0;
 };
 
 class Pipeline {

@@ -20,8 +20,8 @@ struct GlyphBitmap {
     std::vector<std::uint8_t> coverage;
 };
 
-// Rasterizes codepoints from one loaded face at integer pixel sizes. The rasterizer mutates the
-// face's FreeType size/glyph slots, so it is not thread-safe and not const.
+// Rasterizes glyphs from one loaded face at integer pixel sizes. The rasterizer mutates the
+// face's FreeType size/glyph slots, so it is not thread-safe even though queries are const.
 class GlyphRasterizer {
 public:
     explicit GlyphRasterizer(FontFace face);
@@ -31,7 +31,10 @@ public:
     GlyphRasterizer(GlyphRasterizer&&) noexcept = default;
     GlyphRasterizer& operator=(GlyphRasterizer&&) noexcept = default;
 
-    [[nodiscard]] GlyphBitmap rasterize(char32_t codepoint, std::uint16_t pixel_size);
+    [[nodiscard]] std::uint32_t glyph_index(char32_t codepoint) const;
+    [[nodiscard]] GlyphBitmap rasterize(char32_t codepoint, std::uint16_t pixel_size) const;
+    [[nodiscard]] GlyphBitmap rasterize_glyph(std::uint32_t glyph_index,
+                                              std::uint16_t pixel_size) const;
 
 private:
     FontFace face_;

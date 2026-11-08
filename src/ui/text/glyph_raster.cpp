@@ -16,7 +16,20 @@ namespace tessera::ui::text {
 GlyphRasterizer::GlyphRasterizer(FontFace face)
     : face_(std::move(face)) {}
 
-GlyphBitmap GlyphRasterizer::rasterize(char32_t codepoint, std::uint16_t pixel_size) {
+std::uint32_t GlyphRasterizer::glyph_index(char32_t codepoint) const {
+    if (!face_.valid()) {
+        return 0;
+    }
+    return static_cast<std::uint32_t>(
+        FT_Get_Char_Index(face_.state_->face, static_cast<FT_ULong>(codepoint)));
+}
+
+GlyphBitmap GlyphRasterizer::rasterize(char32_t codepoint, std::uint16_t pixel_size) const {
+    return rasterize_glyph(glyph_index(codepoint), pixel_size);
+}
+
+GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index,
+                                             std::uint16_t pixel_size) const {
     GlyphBitmap result;
     if (!face_.valid() || pixel_size == 0) {
         return result;
@@ -29,8 +42,7 @@ GlyphBitmap GlyphRasterizer::rasterize(char32_t codepoint, std::uint16_t pixel_s
 
     // A missing codepoint maps to glyph 0 (.notdef), which keeps fallback visible instead of
     // silently dropping the character.
-    const FT_UInt glyph_index = FT_Get_Char_Index(face, static_cast<FT_ULong>(codepoint));
-    if (FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT) != 0) {
+    if (FT_Load_Glyph(face, static_cast<FT_UInt>(glyph_index), FT_LOAD_DEFAULT) != 0) {
         return result;
     }
     if (FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL) != 0) {

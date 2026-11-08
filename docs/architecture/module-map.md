@@ -122,6 +122,9 @@ Only `include/tessera/` is public. Current headers:
 | `ui/text/freetype_metrics.hpp` | real ascent/descent/line-gap scaled from a loaded face |
 | `ui/text/text_shaper.hpp` | shaped glyph/cluster/advance seam |
 | `ui/text/harfbuzz_shaper.hpp` | HarfBuzz UTF-8 shaping with pixel advances |
+| `ui/text/glyph_raster.hpp` | FreeType 8-bit glyph coverage rasterization (B2) |
+| `ui/text/glyph_atlas.hpp` | bounded deterministic RGBA8 glyph atlas + page LRU (B2) |
+| `ui/text/text_renderer.hpp` | shaped run -> atlas quads through Batched2DRenderer (B2) |
 | `ui/text/text_measure.hpp` | text measurement seam + deterministic stub metrics |
 | `ui/text/text_layout.hpp` | wrapped line boxes (width/height/baseline) |
 | `ui/text/text_measure_cache.hpp` | bounded LRU measurement cache + stats |
@@ -171,6 +174,7 @@ merger prototype.
 | `tessera_freetype` | interface | FreeType (FetchContent, pinned archive) for font loading |
 | `tessera_harfbuzz` | interface | HarfBuzz (FetchContent, pinned archive) for shaping |
 | `tessera_text` | static | font loading/metrics + shaping + measurement seam + deterministic stub + LRU cache (B2) |
+| `tessera_text_render` | static | glyph atlas + shaped text batching on `tessera_gpu` (B2) |
 | `tessera_animation` | static | easing + keyframes + runtime + springs (B2) |
 | `tessera_layout` | static | computed-style to Yoga layout adapter + text measure callback (B2) |
 | `tessera_frame` | static | per-frame animation/dirty/damage/redraw orchestration (B2) |

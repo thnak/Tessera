@@ -454,7 +454,10 @@ shorthands and longhand lists, `ui/animation/transition_runtime.hpp` starts matc
 `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
 Yoga measure callback). Font files load through FreeType (`ui/text/font_face.hpp`) with real
 metrics (`ui/text/freetype_metrics.hpp`) and shape through HarfBuzz (`ui/text/text_shaper.hpp`,
-`ui/text/harfbuzz_shaper.hpp`). The HAL has a steady clock and bounded idle wait
+`ui/text/harfbuzz_shaper.hpp`). Glyphs rasterize through FreeType (`ui/text/glyph_raster.hpp`), a
+bounded deterministic atlas packs them (`ui/text/glyph_atlas.hpp`), and `TextRenderer`
+(`ui/text/text_renderer.hpp`, `tessera_text_render`) batches atlas quads through
+`Batched2DRenderer`; `rhi::Texture::write` updates atlas pages in place. The HAL has a steady clock and bounded idle wait
 (`src/hal/timer/`, `src/runtime/system_clock.*`); the scene has focus/keyboard dispatch
 (`ui/scene/focus.hpp`); and the batched 2D renderer has a damage-scissored `begin_damaged` path
 with null-backend draw records. Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
@@ -462,14 +465,13 @@ bounded deterministic manual executor with once-only cancellation callbacks and 
 under a per-tick budget, and `runtime/diagnostics.hpp` tracks per-frame/total counters. Next slices,
 in order:
 
-1. Glyph atlas + text batching (font loading, metrics, and shaping landed).
-2. Async runtime, diagnostics, lavapipe goldens.
-3. B3 window/present path: event-driven wait, vsync/present, deadline integration (the clock/wait
+1. Async runtime, diagnostics, lavapipe goldens.
+2. B3 window/present path: event-driven wait, vsync/present, deadline integration (the clock/wait
    seam landed).
-4. Platform input translation and remaining focus policy (`tab_index`, `:focus`, modal trapping;
+3. Platform input translation and remaining focus policy (`tab_index`, `:focus`, modal trapping;
    focus/keyboard routing landed).
-5. Golden-image equivalence for damage redraw (the scissor path landed).
-6. Incremental relayout.
+4. Golden-image equivalence for damage redraw (the scissor path landed).
+5. Incremental relayout.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing

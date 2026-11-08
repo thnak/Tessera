@@ -38,8 +38,22 @@ private:
 
 class NullTexture final : public rhi::Texture {
 public:
-    explicit NullTexture(rhi::TextureDesc desc)
-        : desc_(std::move(desc)) {}
+    explicit NullTexture(const rhi::TextureDesc& desc)
+        : desc_(desc) {
+        const std::size_t bytes = bytes_per_pixel(desc.format);
+        data_.assign(static_cast<std::size_t>(desc.extent.width) * desc.extent.height * bytes, 0);
+        if (desc.pixels != nullptr && bytes != 0) {
+            const std::size_t row_pitch = desc.row_pitch != 0
+                                              ? desc.row_pitch
+                                              : static_cast<std::size_t>(desc.extent.width) * bytes;
+            for (std::uint32_t row = 0; row < desc.extent.height; ++row) {
+                std::memcpy(data_.data() +
+                                static_cast<std::size_t>(row) * desc.extent.width * bytes,
+                            static_cast<const std::uint8_t*>(desc.pixels) + row * row_pitch,
+                            static_cast<std::size_t>(desc.extent.width) * bytes);
+            }
+        }
+    }
 
     [[nodiscard]] rhi::Extent2D extent() const override {
         return desc_.extent;
@@ -47,9 +61,20 @@ public:
     [[nodiscard]] rhi::TextureFormat format() const override {
         return desc_.format;
     }
+    void write(const void* data, std::size_t size) override {
+        if (data == nullptr || size != data_.size()) {
+            return;
+        }
+        std::memcpy(data_.data(), data, size);
+    }
 
 private:
+    static std::size_t bytes_per_pixel(rhi::TextureFormat format) {
+        return format == rhi::TextureFormat::R8G8B8A8Unorm ? 4 : 1;
+    }
+
     rhi::TextureDesc desc_;
+    std::vector<std::uint8_t> data_;
 };
 
 class NullPipeline final : public rhi::Pipeline {};

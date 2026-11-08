@@ -17,3 +17,5 @@ target_include_directories(tessera_text PUBLIC
 target_link_libraries(tessera_text PUBLIC tessera_style PRIVATE tessera_freetype tessera_harfbuzz)
 
 target_compile_features(tessera_text PUBLIC cxx_std_23)
+
+add_subdirectory(render)
