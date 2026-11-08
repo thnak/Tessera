@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+
+name: macOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (AppleClang, null backend)
+        run: >
+          cmake -S . -B build/macos
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build/macos --parallel
+
+      - name: Tests
+        run: ctest --test-dir build/macos --output-on-failure

@@ -2,8 +2,11 @@
 
 > Working name — easy to rename.
 
-[![CI](https://github.com/thnak/Tessera/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/github/actions/workflow/status/thnak/Tessera/ci.yml?branch=main&label=tests)](https://github.com/thnak/Tessera/actions/workflows/ci.yml)
+[![Windows](https://github.com/thnak/Tessera/actions/workflows/windows.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/windows.yml)
+[![Linux](https://github.com/thnak/Tessera/actions/workflows/linux.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/linux.yml)
+[![macOS](https://github.com/thnak/Tessera/actions/workflows/macos.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/macos.yml)
+[![iOS](https://github.com/thnak/Tessera/actions/workflows/ios.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/ios.yml)
+[![Android](https://github.com/thnak/Tessera/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/android.yml)
 
 A high-performance, cross-platform C++ UI framework:
 JSX/React syntax as the design DSL, compiled to native C++,
