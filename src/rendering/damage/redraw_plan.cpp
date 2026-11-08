@@ -53,4 +53,24 @@ RedrawPlan make_redraw_plan(const DamageAccumulator& damage) {
     return plan;
 }
 
+bool should_full_redraw(const RedrawPlan& plan, rhi::Extent2D target, const RedrawPolicy& policy) {
+    if (plan.full_redraw) {
+        return true;
+    }
+    if (target.width == 0 || target.height == 0 || plan.scissors.empty()) {
+        return false;
+    }
+    if (plan.scissors.size() > policy.max_scissors) {
+        return true;
+    }
+
+    std::uint64_t area = 0;
+    for (const rhi::Scissor& scissor : plan.scissors) {
+        area += static_cast<std::uint64_t>(scissor.width) * scissor.height;
+    }
+    const double target_area = static_cast<double>(target.width) * target.height;
+    const double ratio = static_cast<double>(area) / target_area;
+    return ratio >= static_cast<double>(policy.full_redraw_area_ratio);
+}
+
 } // namespace tessera::rendering

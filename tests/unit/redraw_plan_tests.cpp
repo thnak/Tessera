@@ -10,6 +10,8 @@ using tessera::rendering::DamageAccumulator;
 using tessera::rendering::DamageConfig;
 using tessera::rendering::make_redraw_plan;
 using tessera::rendering::RedrawPlan;
+using tessera::rendering::RedrawPolicy;
+using tessera::rendering::should_full_redraw;
 using tessera::rendering::rhi::Extent2D;
 using tessera::rendering::rhi::Rect;
 using tessera::rendering::rhi::Scissor;
@@ -32,7 +34,8 @@ int main() {
     DamageAccumulator empty_damage(DamageConfig{Extent2D{100, 100}, 4});
     const RedrawPlan empty_plan = make_redraw_plan(empty_damage);
     if (!expect(!empty_plan.full_redraw, "empty not full") ||
-        !expect(empty_plan.scissors.empty(), "empty scissors")) {
+        !expect(empty_plan.scissors.empty(), "empty scissors") ||
+        !expect(!should_full_redraw(empty_plan, Extent2D{100, 100}), "empty policy")) {
         return 1;
     }
 
@@ -73,7 +76,8 @@ int main() {
     const RedrawPlan capped_plan = make_redraw_plan(capped);
     if (!expect(capped_plan.full_redraw, "full redraw flag") ||
         !expect(capped_plan.scissors.size() == 1, "full scissor") ||
-        !expect(scissor_is(capped_plan.scissors[0], 0, 0, 100, 100), "full bounds")) {
+        !expect(scissor_is(capped_plan.scissors[0], 0, 0, 100, 100), "full bounds") ||
+        !expect(should_full_redraw(capped_plan, Extent2D{100, 100}), "full policy")) {
         return 6;
     }
 
@@ -89,6 +93,20 @@ int main() {
     if (!expect(repeat.scissors.size() == plan.scissors.size(), "deterministic size") ||
         !expect(scissor_is(repeat.scissors[0], 10, 20, 31, 41), "deterministic scissor")) {
         return 8;
+    }
+
+    RedrawPlan large{{}, {Scissor{0, 0, 80, 80}}};
+    RedrawPlan two{{}, {Scissor{0, 0, 10, 10}, Scissor{20, 20, 10, 10}}};
+    if (!expect(!should_full_redraw(plan, Extent2D{100, 100}), "small damage stays partial") ||
+        !expect(should_full_redraw(large, Extent2D{100, 100}), "area threshold") ||
+        !expect(!should_full_redraw(two, Extent2D{100, 100}, RedrawPolicy{0.99f, 8}),
+                "below area threshold") ||
+        !expect(should_full_redraw(two, Extent2D{100, 100}, RedrawPolicy{0.99f, 1}),
+                "scissor count threshold") ||
+        !expect(!should_full_redraw(two, Extent2D{100, 100}, RedrawPolicy{1.1f, 8}),
+                "area threshold above one") ||
+        !expect(!should_full_redraw(large, Extent2D{0, 0}), "zero target policy")) {
+        return 9;
     }
 
     std::cout << "redraw_plan: ok\n";
