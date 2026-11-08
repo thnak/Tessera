@@ -76,6 +76,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `animation_fill` | retained forward/both finals, no wake or repeat callback, overlay persistence, supersession, stop/clear cleanup |
 | `animation_pause` | per-id/target pause/resume, held samples, no completion or wake while paused, invalid dt wake rules |
 | `animation_stop` | target-wide stop count, paused entries removed, other targets preserved, no callbacks, target zero |
+| `animation_stop_name` | exact target/name stop, active and retained fills, case sensitivity, siblings preserved, no stopped callback |
 | `easing` | linear/presets/bezier identity/steps variants, parser rejection, sampler integration |
 | `spring` | exact semi-implicit step, convergence/epsilon stop, retarget, invalid config, determinism |
 | `spring_runtime` | sample declarations, layout/paint dirty, settle/finish, retarget final, callbacks, dt guards |

@@ -120,7 +120,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/animation/animation_start.hpp` | keyframe lookup + parsed animation spec -> runtime entries |
 | `ui/animation/animation_style.hpp` | computed-style animation longhands/shorthand -> runtime entries |
 | `ui/animation/keyframes.hpp` | fixed-step `@keyframes` sampling + direction/fill |
-| `ui/animation/runtime.hpp` | active animation entries, tick, completion, retained fill samples, pause/resume, target-wide stop, target/property supersession, dirty reporting |
+| `ui/animation/runtime.hpp` | active animation entries, tick, completion, retained fill samples, pause/resume, target/name/property stop, dirty reporting |
 | `ui/animation/spring.hpp` | semi-implicit Euler spring with retarget/epsilon settle |
 | `ui/animation/spring_runtime.hpp` | active spring entries -> property declarations |
 | `ui/animation/property_dirty.hpp` | property -> layout/paint/render dirty-domain mapping |
