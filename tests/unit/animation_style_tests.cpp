@@ -210,10 +210,26 @@ int main() {
 
     ComputedStyle paused;
     paused.set("animation-name", "fade");
+    paused.set("animation-duration", "1s");
+    paused.set("animation-timing-function", "linear");
     paused.set("animation-play-state", "paused");
     AnimationRuntime paused_runtime;
-    if (!expect(start_style_animations(paused_runtime, 13, paused, blocks).empty(),
-                "paused skipped")) {
+    const auto paused_ids = start_style_animations(paused_runtime, 13, paused, blocks);
+    if (!expect(paused_ids.size() == 1, "paused started") ||
+        !expect(paused_runtime.active() == 1, "paused active")) {
+        return 15;
+    }
+    const auto paused_hold = paused_runtime.tick(0.5);
+    const std::string* paused_value = value_for(paused_hold, paused_ids.front());
+    if (!expect(paused_value != nullptr && near(std::stof(*paused_value), 0.0f), "paused held") ||
+        !expect(!paused_hold.keep_awake, "paused sleeps")) {
+        return 15;
+    }
+    (void)paused_runtime.resume(paused_ids.front());
+    const auto paused_resumed = paused_runtime.tick(0.5);
+    const std::string* resumed_value = value_for(paused_resumed, paused_ids.front());
+    if (!expect(resumed_value != nullptr && near(std::stof(*resumed_value), 0.5f),
+                "paused resumes")) {
         return 15;
     }
 

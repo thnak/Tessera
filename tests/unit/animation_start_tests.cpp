@@ -157,10 +157,29 @@ int main() {
         return 10;
     }
 
+    AnimationRuntime paused_runtime;
+    const AnimationId paused_id =
+        start_animation(paused_runtime, 14, parse_one("spin 1s linear paused"), opacity_block());
+    const auto paused_hold = paused_runtime.tick(0.5);
+    const std::string* paused_value = value(paused_hold);
+    if (!expect(paused_id != 0, "paused id") ||
+        !expect(paused_runtime.active() == 1, "paused active") ||
+        !expect(paused_value != nullptr && near(std::stof(*paused_value), 0.0f), "paused held") ||
+        !expect(!paused_hold.keep_awake, "paused sleeps")) {
+        return 11;
+    }
+    (void)paused_runtime.resume(paused_id);
+    const auto paused_resumed = paused_runtime.tick(0.5);
+    const std::string* resumed_value = value(paused_resumed);
+    if (!expect(resumed_value != nullptr && near(std::stof(*resumed_value), 0.5f),
+                "paused resumes") ||
+        !expect(paused_resumed.keep_awake, "resumed wakes")) {
+        return 12;
+    }
+
     AnimationRuntime skipped;
     KeyframeBlock empty;
     empty.name = "spin";
-    AnimationSpec paused = parse_one("spin 1s paused");
     AnimationSpec zero_iterations = parse_one("spin 1s 0");
     AnimationSpec negative;
     negative.name = "spin";
@@ -172,7 +191,6 @@ int main() {
 
     if (!expect(start_animation(skipped, 1, none, opacity_block()) == 0, "none skipped") ||
         !expect(start_animation(skipped, 1, parse_one("spin 1s"), empty) == 0, "empty skipped") ||
-        !expect(start_animation(skipped, 1, paused, opacity_block()) == 0, "paused skipped") ||
         !expect(start_animation(skipped, 1, zero_iterations, opacity_block()) == 0,
                 "zero iterations skipped") ||
         !expect(start_animation(skipped, 1, negative, opacity_block()) == 0,
@@ -182,7 +200,7 @@ int main() {
         !expect(start_animation(skipped, 1, parse_one("spin 1s"), opacity_block("other")) == 0,
                 "name mismatch skipped") ||
         !expect(skipped.empty(), "nothing started")) {
-        return 11;
+        return 13;
     }
 
     std::cout << "animation_start: ok\n";

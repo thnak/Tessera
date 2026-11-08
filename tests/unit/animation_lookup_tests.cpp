@@ -92,15 +92,18 @@ int main() {
     int completed = 0;
     const auto ids =
         start_animations(runtime, 7, parsed.animations, blocks, [&](AnimationId) { ++completed; });
-    if (!expect(ids.size() == 2, "two started") || !expect(runtime.active() == 2, "two active")) {
+    if (!expect(ids.size() == 3, "three started") ||
+        !expect(runtime.active() == 3, "three active")) {
         return 4;
     }
 
     const auto half = runtime.tick(0.5);
     const std::string* fade_value = value_for(half, ids[0]);
     const std::string* spin_value = value_for(half, ids[1]);
+    const std::string* rest_value = value_for(half, ids[2]);
     if (!expect(fade_value != nullptr && near(std::stof(*fade_value), 0.5f), "fade halfway") ||
-        !expect(spin_value != nullptr && near(std::stof(*spin_value), 0.25f), "spin halfway")) {
+        !expect(spin_value != nullptr && near(std::stof(*spin_value), 0.25f), "spin halfway") ||
+        !expect(rest_value != nullptr && near(std::stof(*rest_value), 0.0f), "rest held")) {
         return 5;
     }
 
@@ -108,28 +111,38 @@ int main() {
     if (!expect(fade_done.finished.size() == 1 && fade_done.finished[0] == ids[0],
                 "fade finishes") ||
         !expect(completed == 1, "one completion") ||
-        !expect(runtime.active() == 1, "spin remains")) {
+        !expect(runtime.active() == 2, "spin and rest remain")) {
         return 6;
     }
 
     const auto spin_done = runtime.tick(1.0);
     if (!expect(spin_done.finished.size() == 1 && spin_done.finished[0] == ids[1],
                 "spin finishes") ||
-        !expect(completed == 2, "two completions") || !expect(runtime.empty(), "settled")) {
+        !expect(completed == 2, "two completions") ||
+        !expect(runtime.active() == 1, "rest remains") ||
+        !expect(runtime.entries().front().paused, "rest paused")) {
         return 7;
+    }
+
+    (void)runtime.resume(ids[2]);
+    const auto rest_done = runtime.tick(1.0);
+    if (!expect(rest_done.finished.size() == 1 && rest_done.finished[0] == ids[2],
+                "rest finishes") ||
+        !expect(completed == 3, "three completions") || !expect(runtime.empty(), "settled")) {
+        return 8;
     }
 
     AnimationRuntime duplicate_runtime;
     const auto duplicate_ids =
         start_animations(duplicate_runtime, 8, parsed.animations, duplicates);
     if (!expect(duplicate_ids.size() == 1, "duplicate spec starts fade only")) {
-        return 8;
+        return 9;
     }
     const auto duplicate_done = duplicate_runtime.tick(1.0);
     const std::string* duplicate_value = value(duplicate_done);
     if (!expect(duplicate_value != nullptr && near(std::stof(*duplicate_value), 2.0f),
                 "last block used")) {
-        return 9;
+        return 10;
     }
 
     AnimationRuntime empty_runtime;
@@ -137,7 +150,7 @@ int main() {
         !expect(start_animations(empty_runtime, 9, parsed.animations, {}).empty(),
                 "no keyframes") ||
         !expect(empty_runtime.empty(), "nothing started")) {
-        return 10;
+        return 11;
     }
 
     std::cout << "animation_lookup: ok\n";

@@ -22,6 +22,7 @@ struct AnimationInput {
     KeyframeTiming timing;
     AnimationCallback on_complete;
     std::string property;
+    bool paused = false;
 };
 
 struct AnimationEntry {

@@ -25,9 +25,8 @@ AnimationId start_animation(AnimationRuntime& runtime, std::uint64_t target,
                             const AnimationSpec& spec, const style::KeyframeBlock& keyframes,
                             AnimationCallback on_complete) {
     if (spec.name.empty() || spec.name == "none" || keyframes.steps.empty() ||
-        spec.play_state == PlayState::Paused || !std::isfinite(spec.duration) ||
-        spec.duration < 0.0f || !std::isfinite(spec.delay) || std::isnan(spec.iterations) ||
-        spec.iterations <= 0.0) {
+        !std::isfinite(spec.duration) || spec.duration < 0.0f || !std::isfinite(spec.delay) ||
+        std::isnan(spec.iterations) || spec.iterations <= 0.0) {
         return 0;
     }
     if (!keyframes.name.empty() && keyframes.name != spec.name) {
@@ -47,6 +46,7 @@ AnimationId start_animation(AnimationRuntime& runtime, std::uint64_t target,
     input.keyframes = keyframes;
     input.timing = timing;
     input.on_complete = std::move(on_complete);
+    input.paused = spec.play_state == PlayState::Paused;
     return runtime.start(std::move(input));
 }
 

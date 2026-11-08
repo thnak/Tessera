@@ -40,6 +40,7 @@ AnimationId AnimationRuntime::start(AnimationInput input) {
     entry.timing = input.timing;
     entry.on_complete = std::move(input.on_complete);
     entry.property = std::move(input.property);
+    entry.paused = input.paused;
     entries_.push_back(std::move(entry));
     return entries_.back().id;
 }
