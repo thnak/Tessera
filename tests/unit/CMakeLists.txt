@@ -35,6 +35,13 @@ target_link_libraries(clock_tests PRIVATE tessera_runtime)
 
 add_test(NAME clock COMMAND clock_tests)
 
+add_executable(runtime_loop_tests
+    runtime_loop_tests.cpp)
+
+target_link_libraries(runtime_loop_tests PRIVATE tessera_runtime)
+
+add_test(NAME runtime_loop COMMAND runtime_loop_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

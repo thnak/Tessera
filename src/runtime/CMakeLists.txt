@@ -2,7 +2,8 @@
 
 add_library(tessera_runtime STATIC
     clock.cpp
-    fixed_step.cpp)
+    fixed_step.cpp
+    runtime_loop.cpp)
 
 target_include_directories(tessera_runtime PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

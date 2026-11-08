@@ -394,15 +394,15 @@ live in one place and are linked, not copied.
 
 **Big Goal: B2 runtime foundation.** Implemented: deterministic fixed-step accumulator
 (`src/runtime/fixed_step.*`), clock interface + deterministic `ManualClock`
-(`src/runtime/clock.*`), and scene dirty-domain flags/ancestor aggregation
+(`src/runtime/clock.*`), `RuntimeLoop` render-on-demand/wake state
+(`src/runtime/runtime_loop.*`), and scene dirty-domain flags/ancestor aggregation
 (`include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`). Next slices, in order:
 
-1. `runtime::RuntimeLoop` wiring fixed-step, wake/render-on-demand, and callbacks.
-2. `runtime::FramePacer` (`maxFps`, deadline schedule, no busy-wait).
-3. Normalized input event + bounded queue/coalescing.
-4. Dirty traversal/clear pass and damage aggregation.
-5. Stylesheet tokenizer/parser subset, then cascade/compatibility matrix.
-6. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
+1. `runtime::FramePacer` (`maxFps`, deadline schedule, no busy-wait).
+2. Normalized input event + bounded queue/coalescing.
+3. Dirty traversal/clear pass and damage aggregation.
+4. Stylesheet tokenizer/parser subset, then cascade/compatibility matrix.
+5. Yoga adapter, text/glyph atlas, async runtime, diagnostics, lavapipe goldens.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
