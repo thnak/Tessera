@@ -3,14 +3,37 @@
 #include "tessera/runtime/async.hpp"
 
 #include <atomic>
+#include <mutex>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace tessera::runtime {
 
 struct detail::CancellationState {
     std::atomic<bool> cancelled{false};
+    std::mutex mutex;
+    std::vector<std::function<void()>> callbacks;
 };
+
+namespace {
+
+void register_cancel_callback(const std::shared_ptr<detail::CancellationState>& state,
+                              std::function<void()> callback) {
+    if (state == nullptr || !callback) {
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        if (!state->cancelled.load(std::memory_order_acquire)) {
+            state->callbacks.push_back(std::move(callback));
+            return;
+        }
+    }
+    callback();
+}
+
+} // namespace
 
 CancellationToken CancellationSource::token() const {
     return CancellationToken{state_};
@@ -20,15 +43,36 @@ bool CancellationToken::cancelled() const {
     return state_ != nullptr && state_->cancelled.load(std::memory_order_acquire);
 }
 
+void CancellationToken::on_cancel(std::function<void()> callback) const {
+    register_cancel_callback(state_, std::move(callback));
+}
+
 CancellationSource::CancellationSource()
     : state_(std::make_shared<detail::CancellationState>()) {}
 
 void CancellationSource::cancel() {
-    state_->cancelled.store(true, std::memory_order_release);
+    if (state_->cancelled.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    std::vector<std::function<void()>> callbacks;
+    {
+        std::lock_guard<std::mutex> lock(state_->mutex);
+        callbacks.swap(state_->callbacks);
+    }
+    for (std::function<void()>& callback : callbacks) {
+        if (callback) {
+            callback();
+        }
+    }
 }
 
 bool CancellationSource::cancelled() const {
     return state_->cancelled.load(std::memory_order_acquire);
+}
+
+void CancellationSource::on_cancel(std::function<void()> callback) const {
+    register_cancel_callback(state_, std::move(callback));
 }
 
 CompletionQueue::CompletionQueue(std::size_t capacity)

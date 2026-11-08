@@ -428,7 +428,7 @@ parsed keyframes at fixed-step time with direction/fill and linear numeric inter
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
 retargetable springs, and `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
 Yoga measure callback). Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
-bounded deterministic manual executor and a prioritized completion queue drained by `RuntimeLoop`
+bounded deterministic manual executor with once-only cancellation callbacks and a prioritized completion queue drained by `RuntimeLoop`
 under a per-tick budget, and `runtime/diagnostics.hpp` tracks per-frame/total counters. Next slices,
 in order:
 

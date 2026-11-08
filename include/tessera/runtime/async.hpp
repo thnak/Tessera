@@ -27,12 +27,13 @@ public:
     CancellationToken() = default;
 
     [[nodiscard]] bool cancelled() const;
+    void on_cancel(std::function<void()> callback) const;
 
 private:
-    explicit CancellationToken(std::shared_ptr<const detail::CancellationState> state)
+    explicit CancellationToken(std::shared_ptr<detail::CancellationState> state)
         : state_(std::move(state)) {}
 
-    std::shared_ptr<const detail::CancellationState> state_;
+    std::shared_ptr<detail::CancellationState> state_;
     friend class CancellationSource;
 };
 
@@ -42,6 +43,7 @@ public:
 
     void cancel();
     [[nodiscard]] bool cancelled() const;
+    void on_cancel(std::function<void()> callback) const;
     [[nodiscard]] CancellationToken token() const;
 
 private:

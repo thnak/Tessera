@@ -45,6 +45,47 @@ int main() {
         return 4;
     }
 
+    CancellationSource callbacks;
+    std::vector<int> callback_order;
+    callbacks.on_cancel([&] { callback_order.push_back(1); });
+    const auto callback_token = callbacks.token();
+    callback_token.on_cancel([&] { callback_order.push_back(2); });
+    callbacks.cancel();
+    if (!expect(callback_order == std::vector<int>{1, 2}, "callbacks once in order")) {
+        return 20;
+    }
+    callbacks.cancel();
+    if (!expect(callback_order == std::vector<int>{1, 2}, "callbacks not repeated")) {
+        return 21;
+    }
+    callback_token.on_cancel([&] { callback_order.push_back(3); });
+    callbacks.on_cancel([&] { callback_order.push_back(4); });
+    if (!expect(callback_order == std::vector<int>{1, 2, 3, 4}, "late callbacks immediate")) {
+        return 22;
+    }
+    callback_token.on_cancel({});
+    if (!expect(callback_order.size() == 4, "empty callback ignored")) {
+        return 23;
+    }
+
+    CancellationSource nested_callbacks;
+    std::vector<int> nested_callback_order;
+    nested_callbacks.on_cancel([&] {
+        nested_callback_order.push_back(1);
+        nested_callbacks.on_cancel([&] { nested_callback_order.push_back(2); });
+    });
+    nested_callbacks.cancel();
+    if (!expect(nested_callback_order == std::vector<int>{1, 2},
+                "callback registration after cancel")) {
+        return 24;
+    }
+
+    const CancellationToken no_source;
+    no_source.on_cancel([&] { callback_order.push_back(99); });
+    if (!expect(callback_order.size() == 4, "default token callback ignored")) {
+        return 25;
+    }
+
     ManualExecutor executor(4);
     std::vector<int> order;
     if (!expect(executor.post([&] { order.push_back(1); }), "post one") ||

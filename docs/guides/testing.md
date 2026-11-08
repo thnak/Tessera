@@ -37,7 +37,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `runtime_loop_async` | completion budget, pending wake, callback frame/dirty requests, no-queue path |
 | `diagnostics` | frame sampling, totals, full-redraw count, reset, default state |
 | `frame_pacer` | uncapped/deadline waits, lateness, cadence reset, validation |
-| `async` | cancellation propagation, FIFO/nested posting, bounded overflow, skip cancelled, budget |
+| `async` | cancellation propagation/callbacks, FIFO/nested posting, bounded overflow, skip cancelled, budget |
 | `completion_queue` | visible/layout/background priority, FIFO, per-tick budget, cancellation, overflow |
 | `input` | bounded queue FIFO/overflow, modifier flags, adjacent-move coalescing |
 | `damage` | clip, overlap/touch merge, margin, cap/full-redraw fallback |
