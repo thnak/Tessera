@@ -30,7 +30,8 @@ Starting from computed style reads the animation longhands when `animation-name`
 otherwise falls back to the `animation` shorthand. Starting an
 animation maps the parsed spec onto `AnimationRuntime` timing, skips `none`/empty/zero-iteration
 entries, starts `paused` entries held at their initial sample, and keeps the final sample when
-fill-forwards applies. Keyframes resolve by exact
+fill-forwards applies. Completed forward/both fills re-emit that sample without waking the loop
+until the entry is stopped or superseded. Keyframes resolve by exact
 name (last duplicate wins), batch starts skip specs whose block is missing, and ticking samples
 overlay onto `ComputedStyle` with layout/paint/render dirty flags while the runtime stays awake.
 Pausing holds an entry's current sample without advancing time or waking the loop; resuming

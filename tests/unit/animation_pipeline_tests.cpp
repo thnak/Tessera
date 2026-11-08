@@ -131,12 +131,15 @@ int main() {
     ComputedStyle settled = base;
     apply_animation_result(settled, end, 7);
     if (!expect(end.finished.size() == 1 && end.finished[0] == ids[1], "grow finishes") ||
-        !expect(end.samples.empty(), "no fill-final sample") ||
+        !expect(end.samples.size() == 1, "retained fade fill sample") ||
         !expect(!end.keep_awake, "wake released") ||
-        !expect(end.dirty == Dirty::None, "no dirty") || !expect(runtime.empty(), "settled") ||
+        !expect(has_flag(end.dirty, Dirty::Paint), "fill paint dirty") ||
+        !expect(!has_flag(end.dirty, Dirty::Layout), "fill not layout") ||
+        !expect(runtime.empty(), "no active entries") ||
+        !expect(runtime.settled() == 1, "fill retained") ||
         !expect(completed == 2, "two completions") ||
         !expect(*settled.find("opacity") == "1" && *settled.find("width") == "10px",
-                "settled base") ||
+                "settled fill") ||
         !expect(*settled.find("height") == "5px", "settled height")) {
         return 9;
     }

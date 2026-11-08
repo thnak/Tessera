@@ -66,6 +66,9 @@ public:
     [[nodiscard]] std::size_t active() const {
         return entries_.size();
     }
+    [[nodiscard]] std::size_t settled() const {
+        return fills_.size();
+    }
     [[nodiscard]] bool empty() const {
         return entries_.empty();
     }
@@ -75,6 +78,7 @@ public:
 
 private:
     std::vector<AnimationEntry> entries_;
+    std::vector<AnimationEntry> fills_;
     AnimationId next_id_ = 1;
 };
 

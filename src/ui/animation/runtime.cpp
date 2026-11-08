@@ -41,6 +41,19 @@ AnimationId AnimationRuntime::start(AnimationInput input) {
     entry.on_complete = std::move(input.on_complete);
     entry.property = std::move(input.property);
     entry.paused = input.paused;
+    fills_.erase(std::remove_if(fills_.begin(), fills_.end(),
+                                [&](const AnimationEntry& fill) {
+                                    if (fill.target != entry.target) {
+                                        return false;
+                                    }
+                                    if (!entry.keyframes.name.empty() &&
+                                        fill.keyframes.name == entry.keyframes.name) {
+                                        return true;
+                                    }
+                                    return !entry.property.empty() &&
+                                           fill.property == entry.property;
+                                }),
+                 fills_.end());
     entries_.push_back(std::move(entry));
     return entries_.back().id;
 }
@@ -72,13 +85,18 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
 
         result.finished.push_back(entry.id);
         if (entry.timing.fill == FillMode::Forwards || entry.timing.fill == FillMode::Both) {
-            const double total =
-                entry.timing.delay + entry.timing.duration * entry.timing.iterations;
-            AnimationSample sample = sample_entry(entry, total);
+            entry.elapsed = entry.timing.delay + entry.timing.duration * entry.timing.iterations;
+            AnimationSample sample = sample_entry(entry, entry.elapsed);
             result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
             result.samples.push_back(std::move(sample));
         }
         finished.push_back(std::move(entry));
+    }
+
+    for (const AnimationEntry& fill : fills_) {
+        AnimationSample sample = sample_entry(fill, fill.elapsed);
+        result.dirty = result.dirty | dirty_for_declarations(sample.declarations);
+        result.samples.push_back(std::move(sample));
     }
 
     entries_.erase(std::remove_if(entries_.begin(), entries_.end(),
@@ -93,6 +111,9 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
     for (AnimationEntry& entry : finished) {
         if (entry.on_complete) {
             entry.on_complete(entry.id);
+        }
+        if (entry.timing.fill == FillMode::Forwards || entry.timing.fill == FillMode::Both) {
+            fills_.push_back(std::move(entry));
         }
     }
 
@@ -149,16 +170,28 @@ std::size_t AnimationRuntime::stop_target(std::uint64_t target) {
                        [&](const AnimationEntry& entry) { return entry.target == target; });
     const std::size_t count = static_cast<std::size_t>(entries_.end() - removed);
     entries_.erase(removed, entries_.end());
-    return count;
+
+    const auto removed_fills =
+        std::remove_if(fills_.begin(), fills_.end(),
+                       [&](const AnimationEntry& entry) { return entry.target == target; });
+    const std::size_t fill_count = static_cast<std::size_t>(fills_.end() - removed_fills);
+    fills_.erase(removed_fills, fills_.end());
+    return count + fill_count;
 }
 
 bool AnimationRuntime::stop(AnimationId id) {
     const auto found = std::find_if(entries_.begin(), entries_.end(),
                                     [&](const AnimationEntry& entry) { return entry.id == id; });
-    if (found == entries_.end()) {
+    if (found != entries_.end()) {
+        entries_.erase(found);
+        return true;
+    }
+    const auto settled = std::find_if(fills_.begin(), fills_.end(),
+                                      [&](const AnimationEntry& entry) { return entry.id == id; });
+    if (settled == fills_.end()) {
         return false;
     }
-    entries_.erase(found);
+    fills_.erase(settled);
     return true;
 }
 
@@ -173,11 +206,19 @@ std::size_t AnimationRuntime::stop_target_property(std::uint64_t target,
         });
     const std::size_t count = static_cast<std::size_t>(entries_.end() - removed);
     entries_.erase(removed, entries_.end());
-    return count;
+
+    const auto removed_fills =
+        std::remove_if(fills_.begin(), fills_.end(), [&](const AnimationEntry& entry) {
+            return entry.target == target && entry.property == property;
+        });
+    const std::size_t fill_count = static_cast<std::size_t>(fills_.end() - removed_fills);
+    fills_.erase(removed_fills, fills_.end());
+    return count + fill_count;
 }
 
 void AnimationRuntime::clear() {
     entries_.clear();
+    fills_.clear();
 }
 
 } // namespace tessera::ui::animation
