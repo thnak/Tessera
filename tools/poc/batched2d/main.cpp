@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "damage_cli.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/null/null_device.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -25,11 +26,13 @@ struct Options {
     std::uint32_t height = 512;
     bool validation = false;
     bool golden = false;
+    std::vector<tessera::rendering::rhi::Rect> damage;
 };
 
 void print_usage() {
     std::cout << "usage: batched2d_poc [--backend vulkan|null] [--out path] [--raw path]\n"
-                 "                     [--width N] [--height N] [--validation] [--golden]\n";
+                 "                     [--width N] [--height N] [--validation] [--golden]\n"
+                 "                     [--damage x,y,w,h]...\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -53,6 +56,14 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.validation = true;
         } else if (arg == "--golden") {
             options.golden = true;
+        } else if (arg == "--damage" && i + 1 < argc) {
+            tessera::rendering::rhi::Rect rect;
+            const char* value = argv[++i];
+            if (!tessera::poc::batched2d::parse_damage_rect(value, rect)) {
+                std::cerr << "invalid damage rect: " << value << " (expected x,y,w,h)\n";
+                return false;
+            }
+            options.damage.push_back(rect);
         } else {
             std::cerr << "unknown argument: " << arg << "\n";
             print_usage();
@@ -197,7 +208,8 @@ int run_vulkan(const Options& options) {
 
     gpu::Batched2DRenderer renderer(*device, *pipeline, *white,
                                     gpu::Batched2DConfig{4096, true, options.golden});
-    renderer.begin(*commands, *target, target_desc);
+    tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
+                                               options.damage);
     build_screen(renderer, *checker, options.width, options.height);
     renderer.end();
 
@@ -251,7 +263,8 @@ int run_null(const Options& options) {
 
     gpu::Batched2DRenderer renderer(*device, *pipeline, *white,
                                     gpu::Batched2DConfig{4096, true, options.golden});
-    renderer.begin(*commands, *target, target_desc);
+    tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
+                                               options.damage);
     build_screen(renderer, *checker, options.width, options.height);
     renderer.end();
     commands->submit();

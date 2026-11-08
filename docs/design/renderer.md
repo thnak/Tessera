@@ -106,14 +106,18 @@ Rules:
 
 ## Null backend
 
-Records render-pass, bind, scissor, draw, and vertex counts. It has no GPU and no image output; it
-exists so batching, clipping, transforms, and command sequencing can be tested on any machine.
+Records render-pass, bind, scissor, draw, and vertex counts, plus the active scissor of every draw
+(`NullCommandStats::draw_records`). It has no GPU and no image output; it exists so batching,
+clipping, transforms, damage scissor containment, and command sequencing can be tested on any
+machine.
 
 ## Runtime integration (B2/B3)
 
 - **B1:** offscreen target, one frame in flight, full redraw, synchronous submit/wait.
 - **B2:** fixed-step loop, dirty style/layout/paint/render, retained draw lists/layers, bounded
-  caches, damage rectangles (regions to redraw, see [`dirty-rendering.md`](dirty-rendering.md)) on the offscreen path.
+  caches, damage rectangles (regions to redraw, see [`dirty-rendering.md`](dirty-rendering.md)) on
+  the offscreen path. The scissor-clipped offscreen replay is implemented by
+  `Batched2DRenderer::begin_damaged`; present-path damage is still B3.
 - **B2:** frame pacing (`maxFps`, vsync modes, dynamic refresh/VRR, render-on-demand; see
   [`game-loop.md`](game-loop.md)) is implemented in the runtime loop (AGENTS.md lists it under B2).
 - **B3:** window + swapchain, acquire/present, incremental present/damage where the platform supports it; resize/DPI/lifecycle and
@@ -131,7 +135,11 @@ exists so batching, clipping, transforms, and command sequencing can be tested o
 ```bash
 batched2d_poc --backend vulkan --width 512 --height 512 --out batched2d.png
 batched2d_poc --backend null
+batched2d_poc --backend null --damage 140,64,160,104
 ```
+
+`--damage x,y,w,h` is repeatable; it builds a `DamageAccumulator`, prints the redraw plan, and uses
+the damaged entry point. With no `--damage` flag the output is unchanged.
 
 Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 
@@ -140,7 +148,8 @@ Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 ## B2 / known limits
 
 - B1 is offscreen only; no window or swapchain.
-- B1 always full-redraws; dirty caches/damage are B2/B3.
+- B1 full-redraws; B2 adds the offscreen `begin_damaged` scissor replay. Swapchain/present-path
+  damage and dirty caches/layers remain B3/later work.
 - One frame in flight (frames in flight = frames submitted to the GPU but not yet finished); no timeline semaphores (Vulkan synchronization primitive) or multi-frame pipelining yet (listed under B2 in AGENTS.md).
 - No FPS cap, vsync/VRR (variable refresh rate), or dynamic refresh yet; frame pacing is B2 (AGENTS.md), and presenting to a window is B3.
 - No Yoga layout; scene nodes use explicit bounds.

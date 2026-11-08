@@ -6,6 +6,6 @@ add_library(tessera_gpu STATIC
 target_include_directories(tessera_gpu PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_gpu PUBLIC tessera_rhi)
+target_link_libraries(tessera_gpu PUBLIC tessera_rhi tessera_damage)
 
 target_compile_features(tessera_gpu PUBLIC cxx_std_23)

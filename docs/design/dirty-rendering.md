@@ -5,8 +5,11 @@ Status: design for Big Step B2 (runtime slice) and Big Step E (data-heavy UI); b
 bitmask, ancestor propagation, and pruned collect/clear pass are implemented in
 `include/tessera/ui/dirty.hpp`, `src/ui/scene/node.cpp`, and `src/ui/scene/dirty_pass.cpp`;
 damage accumulation (clip/merge/cap/full-redraw fallback) is implemented in
-`include/tessera/rendering/damage.hpp` and `src/rendering/damage/damage.cpp`; retained caches/layers
-remain design-only. Decision record:
+`include/tessera/rendering/damage.hpp` and `src/rendering/damage/damage.cpp`; damage-to-scissor
+planning and the offscreen scissor replay (`begin_damaged`) are implemented in
+`include/tessera/rendering/redraw_plan.hpp`, `src/rendering/damage/redraw_plan.cpp`, and
+`src/rendering/gpu/batched2d_renderer.cpp`; retained caches/layers remain design-only. Decision
+record:
 [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame
 pacing). Companion to [`game-loop.md`](game-loop.md) (runtime loop and pacing) and
 [`renderer.md`](renderer.md). Terms such as golden, damage, batch key, Yoga and `ComputedStyle` are in
@@ -176,8 +179,35 @@ Otherwise fall back to full redraw. This is conservative by design.
 - **X11**: Present extension damage.
 - Offscreen/headless: always full target for deterministic goldens.
 
-The B1 offscreen renderer (Big Step B phase 1, already complete) always does a full redraw; damage is a
-B3 (window/swapchain phase of Big Step B) window-path feature.
+The B1 offscreen renderer always full-redraws; B2 adds the offscreen scissor-based damage replay
+described in §6.4. Swapchain/OS present-path damage stays B3 (window/swapchain phase of Big
+Step B).
+
+### 6.4 Offscreen damage mechanics (B2)
+
+`gpu::Batched2DRenderer` exposes `begin_damaged(commands, target, desc, plan)`. `begin()` remains
+the full-redraw entry point and its command stream is unchanged.
+
+- **Full plan:** `plan.full_redraw == true` delegates to the normal `begin()` path, so full-redraw
+  output is byte-identical to the pre-damage renderer.
+- **Partial plan:** each flushed batch is replayed once per damage region with
+  `rhi::intersect(batch.scissor, region)` applied before the draw. Every emitted draw therefore
+  lies inside exactly one plan region. Regions must be disjoint; `DamageAccumulator` guarantees
+  this by merging touching rectangles, which also prevents translucent geometry from being blended
+  twice. A batch that intersects no region emits no draw.
+- **Empty plan:** a non-full plan with no regions is a true no-op: no render pass is opened and no
+  draw is recorded, so the caller should skip submission for that frame.
+- **Load op:** a partial redraw begins the target with `LoadOp::Load`; the renderer never clears
+  undamaged pixels itself. The `batched2d` POC keeps `Clear` because it renders one synthetic
+  frame.
+- **Fallback:** `should_full_redraw()` still owns the area/scissor-count policy; when it returns
+  true the caller sets `plan.full_redraw` and the renderer takes the full path. Damage that is not
+  provably safe (overlapping translucent layers, backdrop blur, shadows crossing the boundary)
+  follows the same fallback.
+- **Determinism:** the null backend records the active scissor for every draw
+  (`NullCommandStats::draw_records`), so containment is asserted without a GPU.
+
+Swapchain dirty rects and incremental present remain B3.
 
 ## 7. GPU resources and synchronization
 
@@ -234,7 +264,8 @@ Tests assert both visual output and work bounds.
 - **Equivalence**: dirty-only render vs full redraw must be pixel-identical in golden mode.
 - **Invalidation matrix**: every change class in §3 produces the expected dirty domains.
 - **Cache correctness**: class/id/state/theme/transform/clip changes invalidate the right caches.
-- **Damage**: damage rects cover all changed pixels; conservative fallback is exercised.
+- **Damage**: damage rects cover all changed pixels; conservative fallback is exercised; the null
+  backend proves every partial draw is scissored inside a plan region.
 - **Stress**: 10k nodes, 1M chart points, rapid resize/theme switching; no unbounded memory.
 - **Leak checks**: layer/draw-list caches are bounded and evictable.
 
