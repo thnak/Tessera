@@ -5,8 +5,9 @@ are defined in [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-m
 deterministic fixed-step accumulator is implemented in `src/runtime/fixed_step.*`, with a clock
 interface and deterministic `ManualClock` in `src/runtime/clock.*`, and a `RuntimeLoop` with
 render-on-demand/wake state in `src/runtime/runtime_loop.*`, a deadline-based `FramePacer`
-(`src/runtime/frame_pacer.*`), the HAL steady clock + bounded wait (`src/hal/timer/`), and
-`runtime::SystemClock`; actual loop sleep/vsync/presentation integration remains design-only.
+(`src/runtime/frame_pacer.*`), the HAL steady clock + bounded wait (`src/hal/timer/`),
+`runtime::SystemClock`, and the Windows HAL event wait (`hal::Window::wait_for_events`,
+`hal/window_wait.hpp`); actual loop sleep/vsync/presentation integration remains design-only.
 Normative
 terms are used by [`runtime-config-v1.md`](../specs/runtime-config-v1.md) (runtime config keys and
 defaults). Design basis: [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input and
@@ -327,7 +328,9 @@ for (int frame = 0; frame < frames; ++frame) {
   (a timer for the next present deadline plus the edge-triggered wake sources of section 3.2:
   input, async completion posts, `request_frame()`), so input and completions are handled
   immediately and the loop never busy-waits. This idle wait is bounded by the next deadline and
-  holds no locks. Acquire/present use the bounded state machine of [`async.md`](async.md).
+  holds no locks. The HAL seam for the platform part is `wait_for_events_until(window, deadline)`
+  from `hal/window_wait.hpp` (see [`hal.md`](hal.md) §1.2); wiring it into `RuntimeLoop` is the
+  pending runtime slice. Acquire/present use the bounded state machine of [`async.md`](async.md).
 
 ## 10. Metrics and diagnostics
 

@@ -33,10 +33,15 @@ The B3 seams now have a real Windows implementation:
   MAILBOX/IMMEDIATE when available), image views, bounded fence-based acquire, present, and
   old-swapchain retirement (`oldSwapchain` + bounded empty-submit drain). Missing
   `native_window`, unsupported surface formats, and non-Windows builds report `NotSupported`.
-- Still pending: event-driven wait integration with the runtime deadline/timer seam, Linux
-  (`X11`/Wayland) window and surface backends, live-resize coalescing at the frame-pacing layer,
-  device-loss recovery, and full OS compliance beyond the messages handled here. The platform
-  rules in §4 describe the target behavior.
+- Event-driven idling now exists at the HAL seam: `hal::Window::wait_for_events` (Win32
+  `MsgWaitForMultipleObjectsEx` message pump) and
+  [`include/tessera/hal/window_wait.hpp`](../../include/tessera/hal/window_wait.hpp)'s
+  `wait_for_events_until(window, deadline_seconds)`. The runtime loop/frame pacer should idle
+  between ticks with the next `FramePacer` deadline once that integration lands; see
+  [`hal.md`](hal.md) §1.2. Still pending: runtime/pacer wiring, Linux (`X11`/Wayland) window and
+  surface backends, live-resize coalescing at the frame-pacing layer, device-loss recovery, and
+  full OS compliance beyond the messages handled here. The platform rules in §4 describe the
+  target behavior.
 
 ## 1. Separation of concerns
 
