@@ -161,6 +161,13 @@ target_link_libraries(pixel_snap_tests PRIVATE tessera_layout)
 
 add_test(NAME pixel_snap COMMAND pixel_snap_tests)
 
+add_executable(damage_pass_tests
+    damage_pass_tests.cpp)
+
+target_link_libraries(damage_pass_tests PRIVATE tessera_layout)
+
+add_test(NAME damage_pass COMMAND damage_pass_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

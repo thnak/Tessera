@@ -2,6 +2,7 @@
 
 add_library(tessera_layout STATIC
     apply_layout.cpp
+    damage_pass.cpp
     layout_engine.cpp
     pixel_snap.cpp)
 
@@ -9,6 +10,7 @@ target_include_directories(tessera_layout PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_link_libraries(tessera_layout PUBLIC
+    tessera_damage
     tessera_scene
     tessera_style
     tessera_text
