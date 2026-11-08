@@ -183,6 +183,18 @@ Paused-only, settled-fill-only, and idle ticks request nothing. A finishing tick
 frame so the last sample can be rendered. The bridge returns the full `AnimationTickResult`; callers
 still decide how to apply samples and overlay styles.
 
+`ui/frame_pipeline.hpp` (`tessera_frame`) composes the bridge with dirty collection and damage:
+
+- `tick(root, dt)` ticks through the bridge, marks each sampled target with the dirty domains of its
+  declarations, collects the dirty pass, and reports `needs_style`/`needs_layout`.
+- The caller resolves style/layout; those stages mark paint/render dirty.
+- `finish_frame(root)` re-collects paint/render dirty, updates `DamageTracker`, and returns a
+  normalized `RedrawPlan`. An empty plan means no frame; area/count overflow is normalized to one
+  full-target scissor.
+
+The pipeline clears the damage accumulator at `tick`, so extra damage must be added after `tick` and
+before `finish_frame`.
+
 ## 11. Reduced motion
 
 `AnimationRuntime::set_reduced_motion(true)` applies the OS/accessibility preference to future
@@ -248,6 +260,7 @@ The tick result already contains the union of dirty domains from the post-callba
 | `animation_reduced_motion` | opacity clamp, instant non-opacity, spring snap |
 | `animation_pipeline` | parse -> lookup -> start -> tick -> overlay |
 | `animation_style` | longhands, shorthand fallback, paused starts, invalid input |
+| `frame_pipeline` | animation -> target dirty, needs-style/layout, damage/redraw plan, full-redraw normalization, idle skip |
 
 ## 15. Deferred
 

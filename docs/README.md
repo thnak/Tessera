@@ -376,7 +376,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Yoga layout / text / glyph atlas | B2 partial: Yoga layout + text-measurement stub implemented; real shaping/font loading/glyph atlas planned |
 | Input handler | B2 implemented: normalized queue + pointer dispatch/capture ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
 | Fixed-step loop | B2 implemented: accumulator, clock, `RuntimeLoop`, pacer ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
-| Dirty rendering + frame pacing | B2 implemented (dirty flags/damage/redraw plan/pacer); B3 vsync/VRR/present pending ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
+| Dirty rendering + frame pacing | B2 implemented (dirty flags/damage/redraw plan/frame pipeline/pacer); B3 vsync/VRR/present pending ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
 | Power-aware idle/adaptive defaults | B2 partial: render-on-demand idle implemented; adaptive quality pending ([ADR-019](../decisions/ADR-019-power-aware-runtime.md)) |
 | Window resize/DPI/lifecycle | B3 proposed ([ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md)) |
 | Async/await runtime | B2 partial: cancellation/executor/completion queue implemented; coroutine await integration pending ([ADR-021](../decisions/ADR-021-async-runtime.md)) |
