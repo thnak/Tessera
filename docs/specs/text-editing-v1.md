@@ -239,14 +239,23 @@ Failure/edge cases:
 - Undo during composition is ignored until commit/cancel.
 - Secure fields never appear in undo persistence, snapshots, logs, or clipboard by default.
 
-Remaining design gaps: large-document rope/index (G-01), touch handles/magnifier (G-02),
-autofill/credential manager (G-03), spellcheck/autocorrect (G-04), rich/HTML clipboard (G-05).
+Gap-closure decisions:
 
-## 11. Open questions
+- **G-01**: contiguous UTF-8 buffer up to 64 KiB; piece table above it; incremental
+  grapheme/paragraph index versioned by `revision`. Undo cap 4 MiB/256 commands per field.
+- **G-02**: `ui/editing` owns selection handles (44 dp); long-press selects a word; handle drag
+  claims the gesture arena before scroll; platform magnifier if available, framework loupe
+  fallback.
+- **G-03**: autofill uses the platform credential/autofill service via the `autofill` hint; no
+  framework password vault; secure fields never log/persist/clipboard by default.
+- **G-04**: platform-local spellcheck/autocorrect only, disabled for secure/code fields; no
+  network provider/custom dictionaries in V1.
+- **G-05 deferred**: clipboard is text/plain only; HTML/RTF is sanitized to plain text; rich-text
+  editing is out of scope.
 
-- UTF-8 grapheme offsets vs opaque handles for very large documents.
-- Rich text/HTML clipboard and paste sanitization.
-- Spellcheck/autocorrect integration and privacy.
-- IME candidate-window geometry on multi-monitor/foldables.
-- Undo persistence for drafts.
-- Multi-caret/column selection (not v1).
+## 11. Deferred/open questions
+
+- Undo/draft persistence for drafts (opt-in via restore; not implemented in V1).
+- Multi-caret/column selection and text search/replace (post-V1).
+- IME candidate-window styling on multi-monitor/foldable devices (platform UI).
+- Touch magnifier visual parity across platforms (best-effort).

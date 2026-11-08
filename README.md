@@ -62,6 +62,8 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
   [sample apps](docs/guides/sample-apps.md), [media/export](docs/design/media-and-export.md)
 - [App-completeness cross-check](docs/architecture/app-completeness-cross-check-v1.md) —
   ownership, conflicts, gap register, consolidated open questions
+- [Gap resolutions](docs/architecture/app-completeness-gap-resolutions-v1.md) —
+  resolved/deferred decisions (ADR-033)
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
 - [Resources](docs/design/resources.md), [services](docs/design/services.md),
@@ -172,7 +174,7 @@ Tools and demos:
 
 ## Next
 
-1. ADR-001 … ADR-032 in `decisions/`.
+1. ADR-001 … ADR-033 in `decisions/`.
 2. Big Step B2: stylesheet engine, input, fixed-step loop, dirty rendering, frame pacing,
    async runtime, diagnostics, Yoga/text, pixel goldens.
 3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.

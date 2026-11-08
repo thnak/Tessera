@@ -136,12 +136,18 @@ Failure/edge cases:
 - Power loss during swap -> recover previous/complete slot.
 - Downgrade -> blocked by default; explicit signed policy only.
 
-Remaining design gaps: delta/key rotation/health/consent (G-23), Q-22.
+Gap-closure decisions:
 
-## 7. Open questions
+- **G-23/Q-22**: full package is V1; delta is deferred to v1.1. Manifest signing is Ed25519 with
+  pinned keys and signed key rotation. Health check = version/first frame on next launch; two
+  failed launches trigger rollback. Consent: check/download may be automatic, applying requires
+  an explicit policy (`onRestart`/`prompt`/`manual`). Downgrades are blocked unless explicitly
+  signed.
 
+## 7. Deferred/open questions
+
+- Delta format/tooling and signing (v1.1).
 - In-app updater vs platform store per OS.
-- Delta format/tooling and signing.
-- Update consent/quiet-hours policy.
-- Rollback and data migration guarantees.
+- Quiet-hours/consent UX details.
 - Enterprise/MDM distribution.
+- Data migration guarantees across major versions.

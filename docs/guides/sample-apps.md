@@ -90,11 +90,15 @@ Maintenance risk:
   broken.
 - Mobile sample is deferred until the Android backend exists.
 
-Remaining design gaps: CI/maintenance/golden ownership (G-26).
+Gap-closure decisions:
 
-## 5. Open questions
+- **G-26**: samples are checked-in and generator-compatible (the generator emits the same
+  templates); CI builds/tests them on Windows/Linux, `generate --check` rejects drift, and
+  goldens are owned/reviewed by the framework. `notes` is the docs golden path. A mobile sample
+  is deferred until the Android backend exists.
 
-- Template generator vs checked-in samples.
-- Maintenance cost and version skew.
-- Which sample is the “golden path” for docs.
-- Mobile-first sample after B3.
+## 5. Deferred/open questions
+
+- Maintenance cost/version skew after 1.0.
+- Mobile-first sample (post-B3).
+- Whether archived examples stay in-tree or move to a separate repo.

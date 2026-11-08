@@ -183,13 +183,18 @@ Failure/edge cases:
 - Mobile SAF/security-scoped URLs are held only for the operation lifetime.
 - Tray/menu bar unavailable -> hide action; no silent no-op.
 
-Remaining design gaps: capability/file-promise DnD/menu conflicts (G-15), Linux tray/cross-process
-(Q-14).
+Gap-closure decisions:
 
-## 10. Open questions
+- **G-15/Q-14**: capabilities are a bitmask; unsupported/permission-denied returns
+  `Unsupported/Denied`, never a silent no-op. External file promises read only after an accepted
+  drop, capped at 64 MiB/16 files (configurable). Component shortcuts are scoped to the focused
+  subtree; app/global shortcuts win; conflicts are startup diagnostics. Cross-process DnD and
+  Linux tray are best-effort/deferred.
 
-- Clipboard file/URI format and permissions on each platform.
-- Drag promise lifetime and cross-process DnD.
-- Tray support matrix on Linux.
-- Global shortcuts/accessibility conflicts.
-- Document picker security-scoped URLs on iOS/macOS.
+## 10. Deferred/open questions
+
+- Clipboard file/URI formats and per-platform permission prompts.
+- Global shortcuts vs accessibility conflicts.
+- Linux tray/status-item matrix.
+- Security-scoped URL lifetime on iOS/macOS.
+- Cross-process drag promise implementation.

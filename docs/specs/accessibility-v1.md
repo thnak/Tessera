@@ -196,14 +196,20 @@ Failure/edge cases:
 - Platform client disconnects during a snapshot -> discard, rebuild on next request.
 - Text selection/caret updates are coalesced; never announce every keystroke.
 
-Remaining design gaps: platform role/action mapping/threading (G-18), screen-reader automation/
-3D fallback (G-19), Q-17/Q-18.
+Gap-closure decisions:
 
-## 11. Open questions
+- **G-18/Q-17**: the role/action/state matrix in §2 is normative; inference is allowed only for
+  text/labels, while interactive/custom/3D nodes must declare semantics. Action requests carry
+  an epoch and run on the UI thread. Announcements dedupe identical messages within 250 ms and
+  progress within 1 s. Unknown roles fall back to generic + diagnostic.
+- **G-19/Q-18**: semantics snapshots are CI gates; Windows/Linux screen-reader smoke runs
+  nightly; custom/3D elements require a non-visual fallback and a semantics snapshot. Canvas-only
+  interaction is a test failure.
 
-- Exact role mapping per platform and fallback behavior.
-- Announcement deduplication across bridges.
-- Semantics for 3D/custom elements and charts.
+## 11. Deferred/open questions
+
+- Exact per-platform role/action mapping edge cases (documented in the bridge layer).
 - Multi-window/global focus.
-- High-contrast token coverage.
-- Screen-reader test automation in CI.
+- High-contrast token coverage in the component library.
+- Switch/voice control and text navigation by word/line (post-V1).
+- Screen-reader automation on mobile (deferred with the mobile backend).

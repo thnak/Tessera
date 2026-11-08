@@ -167,13 +167,21 @@ Failure/edge cases:
 - Nested overlays: only topmost modal owns focus; closing restores the previous entry.
 - Multiple hosts: overlays belong to one host; cross-window overlays require a window spec.
 
-Remaining design gaps: scene/dirty/semantics integration/multiple hosts (G-08), back ordering
-(G-09), cross-window/nested menus (Q-07/Q-08).
+Gap-closure decisions:
 
-## 9. Open questions
+- **G-08**: one default `OverlayHost` per window; additional hosts are explicit. Layer nodes are
+  children of the host (no reparenting), render after base, clip to host bounds, and modal
+  entries make lower layers inert in input and semantics. Cross-window overlays require a
+  window spec and are deferred.
+- **G-09**: a shared `BackDispatcher` orders handlers: topmost dismissible overlay -> modal
+  route -> route stack -> OS exit. A handler returning handled stops propagation; overlay and
+  navigation cannot both act on one back event.
 
-- Multiple overlay hosts and cross-window overlays.
-- Nested overlay stacks and focus ownership.
-- Overlay transitions with navigation.
+## 9. Deferred/open questions
+
+- Cross-window overlays, multiple hosts, and nested-host ownership.
+- Sheet drag-to-dismiss and nested-menu interaction details.
+- Toast queue/priority policy (library).
+- Overlay transition choreography with navigation (visual only).
 - Whether toasts/dialogs are framework primitives or library components.
 - Virtualized overlay lists and large menus.

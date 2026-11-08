@@ -138,12 +138,17 @@ Failure/edge cases:
 - Hot reload failure keeps the last good frame; never a white screen.
 - Multiple clients: one primary inspector session; others read-only or rejected.
 
-Remaining design gaps: protocol schema/auth/patch format/state preservation (G-22), Q-21.
+Gap-closure decisions:
 
-## 8. Open questions
+- **G-22/Q-21**: protocol v1 is JSON-lines over stdio or a per-user socket with a session token.
+  Hot reload has two patch kinds: style-only patch and structural reconcile; state is preserved
+  by `(component,key)` where safe, otherwise full reload. Failed compile keeps the last good
+  frame. One primary client; extra clients are read-only or rejected. Remote debugging is
+  forbidden.
 
-- Socket transport/auth and multi-client sessions.
-- Diff/patch format for hot reload.
+## 8. Deferred/open questions
+
 - Time-travel/recording format.
-- Integration with IDEs/editor protocol.
-- Remote debugging policy (likely forbidden).
+- IDE/editor protocol integration.
+- Multi-client collaboration beyond one primary session.
+- Structural patch format details for nested control flow (reconcile fallback).

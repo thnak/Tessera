@@ -1,8 +1,12 @@
 # App-completeness cross-check and gap register v1
 
-Status: review (docs-only). Scope: the app-level specs added by ADR-029..032, cross-checked
+Status: analysis (docs-only). Scope: the app-level specs added by ADR-029..032, cross-checked
 against the existing framework docs. This document does **not** replace the specs; it records
 ownership, conflicts, missing contracts, and decisions still needed.
+
+Resolution status: G-01..G-27 and Q-01..Q-25 are resolved or explicitly deferred in
+[`app-completeness-gap-resolutions-v1.md`](app-completeness-gap-resolutions-v1.md) (ADR-033).
+This document remains the analysis/rationale; the ledger is the decision record.
 
 ## 1. Method
 

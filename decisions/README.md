@@ -40,6 +40,7 @@ Status legend: **Accepted** (in force), **Proposed** (direction chosen, spike pe
 | [ADR-030](ADR-030-app-platform-completeness.md) | Navigation, restore, shell, i18n, accessibility, async data | Accepted |
 | [ADR-031](ADR-031-production-tooling-and-distribution.md) | Devtools, updates/signing, crash reporting | Accepted |
 | [ADR-032](ADR-032-bundled-component-library.md) | Bundled component library and design tokens | Accepted |
+| [ADR-033](ADR-033-app-completeness-gap-resolutions.md) | App-completeness gap resolutions/deferrals | Accepted |
 
 ## Dependency overview
 
@@ -72,6 +73,7 @@ ADR-029 interaction completeness (text editing, scroll/gestures, overlays, forms
 ADR-030 app platform (navigation, restore, shell, i18n, accessibility, async data)
 ADR-031 production tooling (devtools/hot reload, updates, crash reporting)
 ADR-032 component library/design tokens (product layer)
+ADR-033 gap resolutions (cross-cutting: text/scroll/overlay/forms/nav/restore/shell/i18n/a11y/data/production)
 ```
 
 ## Adding an ADR

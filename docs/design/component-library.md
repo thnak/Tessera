@@ -132,12 +132,18 @@ Testing contract:
 - No component ships without an accessibility contract and a headless interaction test.
 - Visual changes require reviewed goldens; semantic token changes are versioned.
 
-Remaining design gaps: token versioning/API contract/DataGrid scope (G-25), Q-24.
+Gap-closure decisions:
 
-## 9. Open questions
+- **G-25/Q-24**: token JSON v1 is semantic and SemVer-versioned; component API contract includes
+  controlled state, focus, and accessibility; DataGrid V1 supports virtual rows/columns,
+  selection, sort, resize/reorder, keyboard. Editing/grouping/pivot are deferred.
+- Components ship styled by default with a headless escape hatch for custom rendering; fonts are
+  app assets unless the app opts into the bundled font pack.
+
+## 9. Deferred/open questions
 
 - Icon set/format and licensing.
-- Headless vs styled component split.
-- DataGrid feature scope (editing, grouping, pivot).
-- Whether to bundle fonts or require app assets.
-- Versioning of token names.
+- DataGrid editing/grouping/pivot.
+- Bundled font pack/versioning.
+- Token rename migration tooling.
+- Charts/3D component wrappers.

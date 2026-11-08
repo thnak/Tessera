@@ -181,14 +181,19 @@ Failure/edge cases:
 - Missing route/screen/scroll key -> ignore that fragment, keep the rest.
 - Logout/tenant switch clears user-scoped snapshots before writing new state.
 
-Remaining design gaps: schema generation/migration/stable keys/write cadence (G-14), format/
-encryption (Q-13).
+Gap-closure decisions:
 
-## 8. Open questions
+- **G-14/Q-13**: canonical JSON snapshot v1, <=256 KiB/window; debounce 1 s and force on
+  background/suspend/window close; temp+fsync+rename with one previous good snapshot. Keys are
+  `route_id` + numeric `uiId` + `ItemKey`; no `NodeId`. Migrations are explicit and forward-only;
+  sensitive drafts may be encrypted, but secure fields are never persisted.
+- Virtualized scroll restores by anchor key (first visible stable item + delta), not raw index.
+- Overlay/modal stack is not restored by default; a modal route is restored only if its parent
+  route and auth state are valid.
 
-- Binary vs JSON encoding and size budgets.
-- Per-route state schema generation.
-- Draft autosave cadence vs battery/IO.
-- Cross-device/session restore (cloud) — likely out of scope.
-- Overlay/modal restore policy.
-- Restoration of virtualized scroll positions.
+## 8. Deferred/open questions
+
+- Cross-device/cloud session restore (out of scope).
+- Per-window vs per-app draft merge policy.
+- Snapshot format compaction/encryption key management.
+- Restoring a modal route whose parent route changed (policy).

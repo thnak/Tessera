@@ -114,13 +114,17 @@ Failure/edge cases:
 - Print/export cancel -> delete partial output; no corrupt file.
 - PDF/vector font fallback -> deterministic embedded/pinned fonts where possible.
 
-Remaining design gaps: media service vs custom element, audio focus, print/PDF determinism
-(G-27), Q-25.
+Gap-closure decisions:
 
-## 7. Open questions
+- **G-27/Q-25**: media/print/PDF/export are optional app/platform packages, not core. Video uses
+  an external texture or custom element; audio focus/interruption is platform policy; playback
+  state is explicit. Print/PDF/export require deterministic software layout for tests. No
+  default media engine or DRM stack ships in V1.
 
-- Whether to ship a default media service or leave it to platform packages.
+## 7. Deferred/open questions
+
 - DRM/protected playback.
 - PDF/print library choice and licensing.
 - SVG/vector export fidelity.
 - Background audio/video policy per platform.
+- Whether an optional `tessera-media` package ships after V1.

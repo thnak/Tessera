@@ -172,14 +172,19 @@ Failure/edge cases:
 - Refresh failure -> keep old data and show retry/stale indicator.
 - Streaming/subscriptions are not V1; if added, define ordering/backpressure separately.
 
-Remaining design gaps: key/scope/disk/encryption/offline conflicts (G-20), streaming/pagination
-(G-21), Q-19/Q-20.
+Gap-closure decisions:
 
-## 9. Open questions
+- **G-20/Q-19/Q-20**: keys are canonical JSON + hash with mandatory scope; disk cache is
+  optional and encrypted for sensitive data; cross-window invalidation uses store events.
+  Offline queue is capped at 100 mutations/1 MiB. Default conflict policy is server-wins with a
+  surfaced conflict error; merge is opt-in per mutation.
+- **G-21**: V1 supports cursor/page pagination; streaming/subscriptions/GraphQL are deferred.
+  Pagination dedupes by stable item key and preserves anchor/scroll state.
+
+## 9. Deferred/open questions
 
 - Query language/schema generation vs hand-written resources.
-- Disk cache format/encryption and migration.
-- Offline mutation conflict resolution.
-- Cross-window cache sharing/invalidation.
+- Disk cache migration/compaction and key rotation.
 - Prefetch budgets vs power policy.
-- GraphQL/streaming/subscription support (out of scope for v1).
+- Streaming/subscriptions (post-V1).
+- Cross-window cache sharing beyond invalidation events.

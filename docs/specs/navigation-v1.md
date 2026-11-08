@@ -201,13 +201,22 @@ Failure/edge cases:
 - Rapid push/pop -> epoch cancellation; no stale transition completion.
 - Multi-window: each window owns its stack; deep-link targeting is explicit.
 
-Remaining design gaps: guard/transition reentrancy (G-12), route data/prefetch (G-13), nested
-stacks (Q-11), route data boundary (Q-12).
+Gap-closure decisions:
 
-## 11. Open questions
+- **G-12**: guards return `Allow/Redirect/Deny/Login`, run with an epoch/cancel, default 5 s
+  timeout, max 8 redirects, and one commit at a time. Back during a transition targets the
+  transition destination; a second request cancels/queues by policy.
+- **G-13**: route loaders start after guards and may mount a skeleton; results live in
+  `async-data`, keyed by `(route_id, entry_id, params)`. Prefetch is intent-based. The navigation
+  stack stores only serializable UI state, never data payloads.
+- **Q-11**: one global stack by default; modal/sheet entries are stack entries with
+  `presentation`; per-tab nested stacks are deferred.
+- **Q-12**: route loader -> async-data boundary is fixed as above; route cache is not a second
+  data cache.
 
-- Nested stack vs flat stack for modals.
-- Browser history integration for desktop/web preview.
-- Route-level data loading/caching contract.
-- Multi-window link targeting.
-- Type generation for params from route table.
+## 11. Deferred/open questions
+
+- Browser-history integration for desktop/web preview.
+- Multi-window/deep-link targeting policy.
+- Type generation for params from the route table.
+- Per-tab nested stacks (post-V1).

@@ -108,12 +108,18 @@ Failure/edge cases:
 - Symbol mismatch -> group by module/offset, mark "unsymbolicated".
 - GPU device-loss vs app crash -> separate signatures/paths.
 
-Remaining design gaps: per-OS handler/symbol server/consent/grouping (G-24), Q-23.
+Gap-closure decisions:
 
-## 7. Open questions
+- **G-24/Q-23**: use Crashpad where available, with a platform-native handler fallback. Symbols
+  live in an internal symbol store keyed by build id; upload is opt-in. Group by top 3 frames +
+  build id; retention is configurable (default 90 days). Breadcrumbs are a bounded 256-entry
+  redacted ring; GPU device-loss uses a separate signature.
+- Crash reporting never blocks startup/first frame; upload queue is bounded/rate-limited.
 
-- Crashpad vs platform-native handler per OS.
-- Symbol server/retention and access control.
-- Crash reporting opt-in UX and regulation.
-- GPU device-loss reports vs app crashes.
-- Breadcrumb schema/limits.
+## 7. Deferred/open questions
+
+- Public/self-hosted symbol server and access control.
+- Consent UX/regulation per region.
+- Breadcrumb schema versioning/limits.
+- GPU device-loss detail beyond a separate signature.
+- Mobile handler integration (deferred with the mobile backend).

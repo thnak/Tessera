@@ -204,13 +204,20 @@ Failure/edge cases:
 - Custom element internal scroll must be declared and must not fight the parent arena.
 - Pointer cancel/background cancels drag/coast and releases capture.
 
-Remaining design gaps: arena/system-gesture API (G-06), scrollbar/sticky/RTL details (G-07).
+Gap-closure decisions:
 
-## 10. Open questions
+- **G-06**: recognizers/arena live in `ui/input`; a recognizer claims/rejects per pointer and
+  the winner owns capture. HAL reserves system back/home/edge gestures; an app may opt into an
+  edge gesture only where the platform allows it. Custom elements consume only declared
+  gestures (`capture_pointer` + claim), and internal scroll must be declared.
+- **G-07**: overlay scrollbars by default (8 px visual, 24 px hit target); sticky nodes clamp
+  within their scroll container; RTL uses logical axes and non-negative start offsets.
 
-- Exact platform physics profiles and user accessibility settings.
-- Scrollbar overlay vs gutter defaults.
-- Nested scroll chaining across custom elements/native surfaces.
-- Pinch/rotate for content vs custom elements.
+## 10. Deferred/open questions
+
+- Exact per-platform physics profiles and accessibility "reduce motion" tuning.
+- Momentum handoff between nested native/custom surfaces.
+- Scrollbar auto-hide timing and overlay-vs-gutter defaults per platform.
+- Pull-to-refresh/overscroll visual effects (library, not core).
 - Scroll anchoring heuristics for virtualized lists.
-- Momentum handoff between nested containers.
+- Pinch/rotate for content vs custom-element content.

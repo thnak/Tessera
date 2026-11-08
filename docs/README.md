@@ -9,6 +9,8 @@ for the project overview. This page is the map and reading order for the framewo
   determinism, status.
 - [`architecture/app-completeness-cross-check-v1.md`](architecture/app-completeness-cross-check-v1.md)
   — cross-check, canonical ownership, gap register, open questions
+- [`architecture/app-completeness-gap-resolutions-v1.md`](architecture/app-completeness-gap-resolutions-v1.md)
+  — resolved/deferred decisions for G-01..G-27 and Q-01..Q-25
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
   ownership, dependency direction.
 
@@ -39,6 +41,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-030](../decisions/ADR-030-app-platform-completeness.md) — navigation/restore/shell/i18n/a11y/data
 - [ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) — devtools/updates/crash
 - [ADR-032](../decisions/ADR-032-bundled-component-library.md) — component library/design tokens
+- [ADR-033](../decisions/ADR-033-app-completeness-gap-resolutions.md) — gap resolutions/deferrals
 
 ## 3. Specs (normative)
 
@@ -191,10 +194,11 @@ for the project overview. This page is the map and reading order for the framewo
 1. [Architecture overview](architecture/overview.md)
 2. [Module map](architecture/module-map.md)
 3. [App-completeness cross-check](architecture/app-completeness-cross-check-v1.md)
-4. [Getting started](guides/getting-started.md)
-5. [Code style](guides/code-style.md)
-6. [Developer workflow](guides/developer-workflow.md)
-7. [Testing](guides/testing.md)
+4. [Gap resolutions](architecture/app-completeness-gap-resolutions-v1.md)
+5. [Getting started](guides/getting-started.md)
+6. [Code style](guides/code-style.md)
+7. [Developer workflow](guides/developer-workflow.md)
+8. [Testing](guides/testing.md)
 
 ### Runtime / UI
 

@@ -179,13 +179,20 @@ Failure/races:
   input and surface a conflict.
 - Autofill is a normal value change with a distinct source for UX/diagnostics.
 
-Remaining design gaps: schema/type generation/arrays (G-10), server errors/reset/autofill races
-(G-11), Q-09/Q-10.
+Gap-closure decisions:
 
-## 9. Open questions
+- **G-10**: form schema/types are generated from field declarations; nested paths and keyed
+  arrays are supported; cross-field validators run in topological order and cycles are compile
+  errors.
+- **G-11**: server errors map to `Issue{path,code,severity,message_key}`; reset/submit use
+  epochs; autofill is a value source. Untouched fields may merge external values; touched fields
+  keep user input and surface a conflict issue.
 
-- Schema/type generation from IR vs hand-written validators.
+## 9. Deferred/open questions
+
+- Multi-step/wizard forms and file fields.
+- Server-provided validation schemas/dynamic rules (not V1).
+- Draft persistence conflict merge across windows.
+- Whether `Field` ships as a library component or an intrinsic wrapper (currently library).
 - Field-level vs form-level async validation scheduling.
-- Draft persistence and multi-window conflict policy.
-- Whether `Field` is a library component or an intrinsic wrapper.
-- Dynamic field arrays and keyed field identity.
+- Dynamic field arrays and keyed field identity are defined; large-array performance is open.
