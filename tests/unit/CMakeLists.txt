@@ -35,6 +35,20 @@ target_link_libraries(focus_tests PRIVATE tessera_scene)
 
 add_test(NAME focus COMMAND focus_tests)
 
+add_executable(focus_policy_tests
+    focus_policy_tests.cpp)
+
+target_link_libraries(focus_policy_tests PRIVATE tessera_scene)
+
+add_test(NAME focus_policy COMMAND focus_policy_tests)
+
+add_executable(focus_style_tests
+    focus_style_tests.cpp)
+
+target_link_libraries(focus_style_tests PRIVATE tessera_style)
+
+add_test(NAME focus_style COMMAND focus_style_tests)
+
 add_executable(scene_dirty_tests
     scene_dirty_tests.cpp)
 

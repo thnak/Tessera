@@ -37,6 +37,21 @@ Node& Node::add_child(std::unique_ptr<Node> child) {
     return *children_.back();
 }
 
+std::unique_ptr<Node> Node::remove_child(const Node& child) {
+    for (auto it = children_.begin(); it != children_.end(); ++it) {
+        if (it->get() != &child) {
+            continue;
+        }
+        std::unique_ptr<Node> removed = std::move(*it);
+        children_.erase(it);
+        removed->parent_ = nullptr;
+        mark_dirty(Dirty::Layout | Dirty::Paint | Dirty::Render);
+        refresh_subtree_dirty();
+        return removed;
+    }
+    return nullptr;
+}
+
 void Node::set_bounds(const rhi::Rect& bounds) {
     if (same_rect(bounds_, bounds)) {
         return;
@@ -67,6 +82,23 @@ void Node::set_focusable(bool focusable) {
     }
     focusable_ = focusable;
     mark_dirty(Dirty::Style);
+}
+
+void Node::set_tab_index(int tab_index) {
+    tab_index_ = tab_index;
+}
+
+void Node::set_pseudo_state(style::PseudoState state) {
+    if (pseudo_state_ == state) {
+        return;
+    }
+    pseudo_state_ = state;
+    mark_dirty(Dirty::Style);
+}
+
+void Node::set_pseudo_state(style::PseudoState state, bool enabled) {
+    const style::PseudoState next = enabled ? (pseudo_state_ | state) : (pseudo_state_ & ~state);
+    set_pseudo_state(next);
 }
 
 void Node::mark_dirty(Dirty flags) {

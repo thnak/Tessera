@@ -15,16 +15,72 @@ void dispatch_focus_event(Node& target, EventType type) {
     dispatch_event_to(target, event);
 }
 
-void collect_focusable(Node& node, std::vector<Node*>& order) {
+void collect_focusable(Node& node, std::vector<Node*>& tree_order) {
     if (!node.visible()) {
         return;
     }
     if (node.focusable()) {
-        order.push_back(&node);
+        tree_order.push_back(&node);
     }
     for (const auto& child : node.children()) {
-        collect_focusable(*child, order);
+        collect_focusable(*child, tree_order);
     }
+}
+
+// Positive tab_index values come first, ascending; equal values keep tree order because the
+// candidate list was collected in pre-order and the sort is stable. tab_index == 0 follows in
+// tree order. Negative values are intentionally absent: they skip sequential traversal but remain
+// valid request_focus targets.
+std::vector<Node*> tab_order(Node& root) {
+    std::vector<Node*> tree_order;
+    collect_focusable(root, tree_order);
+
+    std::vector<Node*> ordered;
+    ordered.reserve(tree_order.size());
+    for (Node* node : tree_order) {
+        if (node->tab_index() > 0) {
+            ordered.push_back(node);
+        }
+    }
+    std::stable_sort(ordered.begin(), ordered.end(), [](const Node* lhs, const Node* rhs) {
+        return lhs->tab_index() < rhs->tab_index();
+    });
+    for (Node* node : tree_order) {
+        if (node->tab_index() == 0) {
+            ordered.push_back(node);
+        }
+    }
+    return ordered;
+}
+
+bool visible_chain(const Node& node) {
+    for (const Node* current = &node; current != nullptr; current = current->parent()) {
+        if (!current->visible()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool contains(const Node& ancestor, const Node& node) {
+    for (const Node* current = &node; current != nullptr; current = current->parent()) {
+        if (current == &ancestor) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Node* find_node_in(Node& node, NodeId id) {
+    if (node.id() == id) {
+        return &node;
+    }
+    for (const auto& child : node.children()) {
+        if (Node* found = find_node_in(*child, id)) {
+            return found;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace
@@ -46,27 +102,111 @@ bool FocusManager::is_attached(const Node& node) const {
 }
 
 bool FocusManager::is_valid(const Node& node) const {
-    if (!node.focusable() || !node.visible() || !is_attached(node)) {
-        return false;
+    return node.focusable() && visible_chain(node) && is_attached(node) && is_within_modal(node);
+}
+
+Node* FocusManager::find_node(NodeId id) const {
+    if (root_ == nullptr) {
+        return nullptr;
     }
-    for (const Node* ancestor = node.parent(); ancestor != nullptr; ancestor = ancestor->parent()) {
-        if (!ancestor->visible()) {
-            return false;
+    return find_node_in(*root_, id);
+}
+
+Node* FocusManager::modal_root() const {
+    if (modal_root_ == nullptr) {
+        return nullptr;
+    }
+    if (root_ == nullptr) {
+        return modal_root_;
+    }
+    return find_node(modal_root_id_);
+}
+
+bool FocusManager::allows_focus(const Node& node) const {
+    const Node* trap = modal_root();
+    return trap == nullptr || contains(*trap, node);
+}
+
+bool FocusManager::is_within_modal(const Node& node) const {
+    const Node* trap = modal_root();
+    return trap == nullptr || contains(*trap, node);
+}
+
+void FocusManager::refresh_state() {
+    if (root_ == nullptr) {
+        return;
+    }
+    if (focused_ != nullptr) {
+        if (Node* resolved = find_node(focused_id_)) {
+            focused_ = resolved;
+        } else {
+            focused_ = nullptr;
+            focused_id_ = 0;
         }
     }
-    return true;
+    if (saved_focus_ != nullptr) {
+        if (Node* resolved = find_node(saved_focus_id_)) {
+            saved_focus_ = resolved;
+        } else {
+            saved_focus_ = nullptr;
+            saved_focus_id_ = 0;
+        }
+    }
+    if (modal_root_ != nullptr) {
+        if (Node* resolved = find_node(modal_root_id_)) {
+            modal_root_ = resolved;
+        } else {
+            release_modal_trap();
+        }
+    }
+}
+
+void FocusManager::release_modal_trap() {
+    Node* restore = saved_focus_;
+    const NodeId restore_id = saved_focus_id_;
+    modal_root_ = nullptr;
+    modal_root_id_ = 0;
+    saved_focus_ = nullptr;
+    saved_focus_id_ = 0;
+    if (restore == nullptr) {
+        return;
+    }
+    if (root_ != nullptr) {
+        restore = find_node(restore_id);
+    }
+    if (restore != nullptr) {
+        request_focus(restore);
+    }
+}
+
+bool FocusManager::focus_first_in_modal() {
+    if (modal_root_ == nullptr) {
+        return false;
+    }
+    const std::vector<Node*> order = tab_order(*modal_root_);
+    if (order.empty()) {
+        clear_focus();
+        return false;
+    }
+    return request_focus(order.front());
 }
 
 bool FocusManager::request_focus(Node* node) {
+    refresh_state();
     if (node == nullptr || !is_valid(*node)) {
         return false;
     }
     if (focused_ == node) {
+        node->set_pseudo_state(style::PseudoState::Focus, true);
         return true;
     }
 
     Node* previous = focused_;
+    if (previous != nullptr) {
+        previous->set_pseudo_state(style::PseudoState::Focus, false);
+    }
     focused_ = node;
+    focused_id_ = node->id();
     if (previous != nullptr) {
         dispatch_focus_event(*previous, EventType::Blur);
         // A Blur handler may have moved focus again; do not overwrite that decision.
@@ -75,25 +215,83 @@ bool FocusManager::request_focus(Node* node) {
         }
     }
 
+    node->set_pseudo_state(style::PseudoState::Focus, true);
     dispatch_focus_event(*node, EventType::Focus);
     return true;
 }
 
 void FocusManager::clear_focus() {
+    refresh_state();
     if (focused_ == nullptr) {
         return;
     }
 
     Node* previous = focused_;
     focused_ = nullptr;
+    focused_id_ = 0;
+    previous->set_pseudo_state(style::PseudoState::Focus, false);
     dispatch_focus_event(*previous, EventType::Blur);
+}
+
+bool FocusManager::set_modal_root(Node* node) {
+    refresh_state();
+    if (node == nullptr) {
+        clear_modal_root();
+        return true;
+    }
+    if (!is_attached(*node) || !visible_chain(*node)) {
+        return false;
+    }
+
+    if (modal_root_ != nullptr) {
+        if (modal_root_ == node) {
+            return true;
+        }
+        // Keep the original pre-modal focus unless the new trap contains it.
+        if (saved_focus_ != nullptr && contains(*node, *saved_focus_)) {
+            saved_focus_ = nullptr;
+            saved_focus_id_ = 0;
+        }
+    } else if (focused_ != nullptr && !contains(*node, *focused_)) {
+        saved_focus_ = focused_;
+        saved_focus_id_ = focused_id_;
+    } else {
+        saved_focus_ = nullptr;
+        saved_focus_id_ = 0;
+    }
+
+    modal_root_ = node;
+    modal_root_id_ = node->id();
+    if (focused_ == nullptr || !contains(*node, *focused_)) {
+        focus_first_in_modal();
+    }
+    return true;
+}
+
+void FocusManager::clear_modal_root() {
+    refresh_state();
+    if (modal_root_ == nullptr) {
+        return;
+    }
+    release_modal_trap();
+}
+
+void FocusManager::reset() {
+    // Forget the trap before clearing focus so refresh_state cannot restore the saved target.
+    modal_root_ = nullptr;
+    modal_root_id_ = 0;
+    saved_focus_ = nullptr;
+    saved_focus_id_ = 0;
+    clear_focus();
 }
 
 bool FocusManager::move_focus(Node& root, bool forward) {
     root_ = &root;
+    refresh_state();
 
-    std::vector<Node*> order;
-    collect_focusable(root, order);
+    Node* trap = modal_root();
+    Node& base = trap != nullptr ? *trap : root;
+    const std::vector<Node*> order = tab_order(base);
     if (order.empty()) {
         return false;
     }

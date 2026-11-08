@@ -4,9 +4,13 @@ Status: design for Big Step B2 (runtime slice; see
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). The normalized event
 model, bounded SPSC queue, and per-tick adjacent-move coalescing are implemented in
 `include/tessera/ui/input.hpp` and `src/ui/input/input_queue.cpp`; pointer input dispatch and
-capture are implemented in `src/ui/scene/input_dispatch.cpp`, and focus plus keyboard dispatch are
-implemented in `include/tessera/ui/scene/focus.hpp` and `src/ui/scene/focus.cpp`. Platform
-translation, pseudo-state dispatch, text/IME, and advanced focus policy remain design-only.
+capture are implemented in `src/ui/scene/input_dispatch.cpp`; focus plus keyboard dispatch are
+implemented in `include/tessera/ui/scene/focus.hpp` and `src/ui/scene/focus.cpp`; and the
+`:focus` pseudo-state bridge to selector matching/computed style is implemented in
+`include/tessera/ui/style/scene_style.hpp` and `src/ui/style/scene_style.cpp`. Tab-index ordering,
+`:focus` style re-evaluation, and modal focus trapping/restoration are part of that implementation.
+Platform translation, hover/active pseudo-state dispatch, `:focus-visible` heuristics, window-blur
+retention, and text/IME remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
@@ -151,25 +155,43 @@ Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
   current focus; `clear_focus` dispatches `Blur` and clears.
 - A focus change dispatches `Blur` to the old target before `Focus` to the new target. Both use
   the same capture/target/bubble path as pointer events, so ancestors observe them.
-- Tab traversal (`focus_next` / `focus_previous`) visits focusable nodes in depth-first document
-  order (pre-order), wrapping at both ends. It skips invisible subtrees and skips non-focusable
-  nodes while still visiting their children. With no current focus, forward traversal starts at
-  the first candidate and backward traversal starts at the last.
+- Focus updates the target's `PseudoState::Focus` bit: the old target loses it before `Blur` and
+  the new target gains it before `Focus`. The change marks the `Style` dirty domain so
+  `:focus`/`:not(:focus)` rules re-resolve; `ui/style/scene_style.hpp` exposes that state to
+  selector matching.
+- Sequential traversal order (`focus_next` / `focus_previous`):
+  1. focusable nodes with a positive `tab_index`, ascending; equal values keep depth-first
+     document order (pre-order);
+  2. focusable nodes with `tab_index == 0`, in depth-first document order.
+  Both ends wrap. Negative `tab_index` values are skipped by sequential traversal but remain valid
+  targets for `request_focus` (programmatic focus). Invisible subtrees are skipped and
+  non-focusable nodes are skipped while their children are still visited. With no current focus,
+  forward traversal starts at the first candidate and backward traversal starts at the last.
+- Modal focus trapping: `FocusManager::set_modal_root(node)` restricts `request_focus`, sequential
+  traversal, and pointer-driven focus to `node` and its descendants (the modal root itself is
+  included). Installing a trap saves the current focus when it is outside the new subtree and moves
+  focus to the first candidate inside it, or clears focus when the subtree has no candidates.
+  Focus requests outside the trap return `false` without changing focus. `clear_modal_root()` (or
+  `set_modal_root(nullptr)`) releases the trap and restores the saved focus when that node is still
+  attached, visible, focusable, and allowed; otherwise the current focus stays where it is.
+  `FocusManager::reset()` (used by `InputRouter::reset()`) drops focus and the trap without
+  restoring the saved target.
+- `FocusManager` resolves nodes by `NodeId` under the scene root on every operation. Removing or
+  destroying the modal root without an explicit clear therefore releases the trap on the next
+  focus operation and restores the saved focus. It still stores raw pointers, so callers must
+  destroy the manager before the scene root and should clear focus before destroying a subtree that
+  currently holds focus.
 - `InputRouter` owns a `FocusManager`. `KeyDown`/`KeyUp` go to the focused node through the normal
   propagation path; with no focus they are not dispatched. Key events carry `key`, `modifiers`,
   `text_codepoint`, and `repeat`.
-- `PointerDown` on a focusable hit target requests focus; a pointer down anywhere else clears
-  focus. Pointer capture remains independent and is unchanged by focus changes.
-- `FocusManager` stores raw node pointers and does not observe node destruction: it must be
-  destroyed before the scene root, and `clear_focus` must be called before destroying the focused
-  subtree.
+- `PointerDown` on a focusable hit target requests focus; a pointer down on a non-focusable target
+  inside the trap (or anywhere without an active trap) clears focus. Pointer down outside an
+  active trap neither steals nor clears focus. Pointer capture remains independent and is unchanged
+  by focus changes.
 
 Deferred policy (design intent, not implemented):
 
-- Explicit `tab_index` ordering (including negative values that skip Tab) and `focus-visible`
-  heuristics for keyboard-versus-pointer focus.
-- `:focus`/`:focus-visible` pseudo-state updates, modal focus trapping/restore, and window-blur
-  retention.
+- `focus-visible` heuristics for keyboard-versus-pointer focus, and window-blur retention.
 - Keyboard shortcuts/global handlers, text input, and IME composition. Text input will go to the
   focused editable node once those event types are implemented.
 
@@ -183,10 +205,13 @@ Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
 
 - `:hover` is set on the deepest hit target (and ancestors, when a `:hover` rule targets an ancestor chain).
 - `:active` is set on the press target while a primary button is down.
-- `:focus` is independent of pointer state.
+- `:focus` is independent of pointer state; `FocusManager` owns the `PseudoState::Focus` bit and
+  clears/sets it around `Blur`/`Focus` dispatch.
 - `:disabled`/`:checked` come from node state, not pointer state.
 - State changes mark `StyleDirty`; the style resolver then raises layout/paint/render dirty
-  domains only if the matched rules change those groups.
+  domains only if the matched rules change those groups. `SceneStyleTree::compute` refreshes the
+  cached pseudo-state from the node on each evaluation, so a focus/blur is reflected by the next
+  style resolution without rebuilding the tree.
 - Hover chains must be recomputed on scene changes, not only on pointer moves.
 
 ## 8. Text input and IME
@@ -229,9 +254,15 @@ Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
 - Hit testing with transforms, clipping, visibility, `pointer-events: none`.
 - Capture/target/bubble order; stop propagation; prevent default.
 - Focus set/clear and blur-before-focus order; invalid focus rejection.
-- Tab traversal order/wrap, hidden-subtree skipping, keyboard routing with stop propagation.
+- Tab traversal order/wrap, positive/zero/negative `tab_index` ordering, hidden-subtree skipping,
+  keyboard routing with stop propagation (`tests/unit/focus_tests.cpp`,
+  `tests/unit/focus_policy_tests.cpp`).
 - Pointer capture across move/up/cancel; multi-touch.
-- Focus-visible, tab index, and focus trap restore (deferred with the policy above).
+- Modal trapping: focus confined to the subtree for Tab and pointer input, rejected outside
+  requests, saved-focus restoration, invalid-saved-focus behavior, and trap release when the modal
+  root is removed (`tests/unit/focus_policy_tests.cpp`).
+- `:focus`/`:not(:focus)` selector matching and style re-evaluation, including `Style` dirty
+  marking (`tests/unit/focus_style_tests.cpp`).
 - Hover/active state changes and resulting style invalidation.
 - Keyboard repeat, shortcuts, text input, IME composition.
 - Deterministic replay: identical event script -> identical state and pixels.

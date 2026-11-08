@@ -46,11 +46,14 @@ See [`dirty-rendering.md`](dirty-rendering.md).
 
 ## Style and input state
 
-Nodes expose a `StyleNode` view for selector matching: tag, id, classes, attributes, parent and
-sibling order, inline style, theme scope, and pseudo-state bits. The input dispatcher updates
-`:hover`, `:active`, `:focus`, and `:focus-visible` before style resolution; those changes mark
-`StyleDirty`. The style resolver raises layout/paint/render dirty only when the matched computed
-groups actually change.
+Nodes currently expose pseudo-state bits (`style::PseudoState`) and tab order (`tab_index`).
+`ui/style/scene_style.hpp` materializes a `StyleNode` view from a scene subtree for selector
+matching, including parent/sibling structure and pseudo-state; tag, id, class, attribute, inline
+style, and theme scope bindings arrive with the element layer. The input dispatcher updates
+`:focus` (and, later, `:hover`/`:active`/`:focus-visible`) before style resolution; those changes
+mark `StyleDirty`. `SceneStyleTree::compute` refreshes pseudo-state from the node on each
+evaluation, so focus/blur is visible to the next resolution. The style resolver raises
+layout/paint/render dirty only when the matched computed groups actually change.
 
 ## Hit testing
 
