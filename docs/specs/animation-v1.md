@@ -38,7 +38,8 @@ Pausing holds an entry's current sample without advancing time or waking the loo
 continues from that point. Play-state changes can target one animation by exact target/name
 pair without disturbing its siblings. Stopping a target removes all of its entries, paused ones included;
 stopping a target/name pair removes only that animation and its retained fill. Restarting a
-target/name pair rewinds matching active entries and revives retained fills from their start. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+target/name pair rewinds matching active entries and revives retained fills from their start.
+Target/name state exposes active and settled counts for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),

@@ -49,6 +49,11 @@ struct AnimationTickResult {
     bool keep_awake = false;
 };
 
+struct AnimationNameState {
+    std::size_t active = 0;
+    std::size_t settled = 0;
+};
+
 class AnimationRuntime {
 public:
     AnimationId start(AnimationInput input);
@@ -66,6 +71,9 @@ public:
     bool stop(AnimationId id);
     std::size_t stop_target_property(std::uint64_t target, std::string_view property);
     void clear();
+
+    [[nodiscard]] AnimationNameState target_name_state(std::uint64_t target,
+                                                       std::string_view name) const;
 
     [[nodiscard]] std::size_t active() const {
         return entries_.size();

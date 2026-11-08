@@ -299,4 +299,23 @@ void AnimationRuntime::clear() {
     fills_.clear();
 }
 
+AnimationNameState AnimationRuntime::target_name_state(std::uint64_t target,
+                                                       std::string_view name) const {
+    AnimationNameState state;
+    if (name.empty()) {
+        return state;
+    }
+    for (const AnimationEntry& entry : entries_) {
+        if (entry.target == target && entry.keyframes.name == name) {
+            ++state.active;
+        }
+    }
+    for (const AnimationEntry& entry : fills_) {
+        if (entry.target == target && entry.keyframes.name == name) {
+            ++state.settled;
+        }
+    }
+    return state;
+}
+
 } // namespace tessera::ui::animation
