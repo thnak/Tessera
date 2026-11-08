@@ -6,7 +6,8 @@ samples parsed `@keyframes` at fixed-step time with linear numeric/unit interpol
 iteration/direction, delay, and fill modes. `AnimationRuntime` tracks active entries, advances them
 with `tick(dt)`, reports samples/finished ids/dirty domains, and runs completion callbacks on the
 tick boundary. Easing supports linear, `ease*` presets, `cubic-bezier()`, and `steps()` with all
-jump positions; springs are not wired yet. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+jump positions. `Spring` integrates stiffness/damping/mass with semi-implicit Euler, preserves
+position/velocity on retarget, and snaps to target below epsilon thresholds. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),
