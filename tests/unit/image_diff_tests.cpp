@@ -7,6 +7,7 @@
 #include <cstring>
 #include <iostream>
 #include <span>
+#include <string>
 
 namespace {
 
@@ -64,6 +65,25 @@ int main() {
         !expect(!within_tolerance(wrong_size, 1.0), "size mismatch fails") ||
         !expect(wrong_size.mismatch_ratio() == 1.0, "size mismatch ratio")) {
         return 4;
+    }
+
+    const std::string report =
+        tessera::rendering::golden::golden_report_json(diff, "C:\\gold\\a\"b.png", 0, 0.2);
+    if (!expect(report.find("\"status\":\"fail\"") != std::string::npos, "report status") ||
+        !expect(report.find("C:\\\\gold\\\\a\\\"b.png") != std::string::npos,
+                "report escapes path") ||
+        !expect(report.find("\"first_mismatch\":{\"x\":0,\"y\":0}") != std::string::npos,
+                "report first mismatch") ||
+        !expect(report.find("\"mismatched\":1") != std::string::npos, "report mismatched")) {
+        return 5;
+    }
+    const std::string pass_report =
+        tessera::rendering::golden::golden_report_json(same, "baseline.png", 0, 0.0);
+    if (!expect(pass_report.find("\"status\":\"pass\"") != std::string::npos,
+                "pass report status") ||
+        !expect(pass_report.find("\"first_mismatch\":{\"x\":-1,\"y\":-1}") != std::string::npos,
+                "pass report has no mismatch")) {
+        return 6;
     }
 
     const auto short_buffer =

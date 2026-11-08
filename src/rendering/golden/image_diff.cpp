@@ -4,8 +4,39 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <string>
 
 namespace tessera::rendering::golden {
+namespace {
+
+void append_json_string(std::string& out, std::string_view value) {
+    out.push_back('"');
+    for (const char c : value) {
+        switch (c) {
+        case '"':
+            out += "\\\"";
+            break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        default:
+            out.push_back(c);
+            break;
+        }
+    }
+    out.push_back('"');
+}
+
+} // namespace
 
 double ImageDiff::mismatch_ratio() const {
     if (size_mismatch) {
@@ -64,6 +95,46 @@ bool within_tolerance(const ImageDiff& diff, double max_mismatch_ratio) {
     }
     const double budget = std::clamp(max_mismatch_ratio, 0.0, 1.0);
     return diff.mismatch_ratio() <= budget;
+}
+
+std::string golden_report_json(const ImageDiff& diff, std::string_view baseline,
+                               std::uint32_t per_channel_tolerance, double max_mismatch_ratio) {
+    std::string out = "{\"status\":";
+    out += within_tolerance(diff, max_mismatch_ratio) ? "\"pass\"" : "\"fail\"";
+    out += ",\"baseline\":";
+    append_json_string(out, baseline);
+    out += ",\"width\":";
+    out += std::to_string(diff.actual.width);
+    out += ",\"height\":";
+    out += std::to_string(diff.actual.height);
+    out += ",\"pixels\":";
+    out += std::to_string(diff.pixels);
+    out += ",\"mismatched\":";
+    out += std::to_string(diff.mismatched);
+    out += ",\"ratio\":";
+    out += std::to_string(diff.mismatch_ratio());
+    out += ",\"max_channel_delta\":";
+    out += std::to_string(diff.max_channel_delta);
+    out += ",\"mean_channel_delta\":";
+    out += std::to_string(diff.mean_channel_delta());
+    out += ",\"tolerance\":";
+    out += std::to_string(per_channel_tolerance);
+    out += ",\"max_mismatch\":";
+    out += std::to_string(max_mismatch_ratio);
+    out += ",\"size_mismatch\":";
+    out += diff.size_mismatch ? "true" : "false";
+    out += ",\"first_mismatch\":{";
+    if (diff.first_mismatch == static_cast<std::size_t>(-1) || diff.actual.width == 0) {
+        out += "\"x\":-1,\"y\":-1}";
+    } else {
+        out += "\"x\":";
+        out += std::to_string(diff.first_mismatch % diff.actual.width);
+        out += ",\"y\":";
+        out += std::to_string(diff.first_mismatch / diff.actual.width);
+        out.push_back('}');
+    }
+    out.push_back('}');
+    return out;
 }
 
 } // namespace tessera::rendering::golden

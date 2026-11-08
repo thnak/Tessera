@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
+#include <string_view>
 
 namespace tessera::rendering::golden {
 
@@ -40,5 +42,10 @@ struct ImageDiff {
 
 // True when the images have the same dimensions and the mismatch ratio is within the budget.
 [[nodiscard]] bool within_tolerance(const ImageDiff& diff, double max_mismatch_ratio);
+
+// Structural failure report for golden runs (stable JSON, escaped paths).
+[[nodiscard]] std::string golden_report_json(const ImageDiff& diff, std::string_view baseline,
+                                             std::uint32_t per_channel_tolerance,
+                                             double max_mismatch_ratio);
 
 } // namespace tessera::rendering::golden

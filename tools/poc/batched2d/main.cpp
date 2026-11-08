@@ -38,6 +38,8 @@ struct Options {
     std::string text = "Tessera";
     float text_size = 24.0f;
     std::string compare;
+    std::string report;
+    std::string diff;
     std::uint32_t tolerance = 2;
     double max_mismatch = 0.005;
     std::vector<tessera::rendering::rhi::Rect> damage;
@@ -48,7 +50,8 @@ void print_usage() {
                  "                     [--width N] [--height N] [--validation] [--golden]\n"
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
-                 "                     [--max-mismatch ratio] [--overlay]\n";
+                 "                     [--max-mismatch ratio] [--overlay] [--report report.json]\n"
+                 "                     [--diff diff.png]\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -86,6 +89,10 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.tolerance = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--max-mismatch" && i + 1 < argc) {
             options.max_mismatch = std::stod(argv[++i]);
+        } else if (arg == "--report" && i + 1 < argc) {
+            options.report = argv[++i];
+        } else if (arg == "--diff" && i + 1 < argc) {
+            options.diff = argv[++i];
         } else if (arg == "--damage" && i + 1 < argc) {
             tessera::rendering::rhi::Rect rect;
             const char* value = argv[++i];
@@ -273,13 +280,57 @@ void compare_with_golden(const Options& options, const std::vector<std::uint8_t>
     if (decoded == nullptr) {
         throw std::runtime_error("failed to load golden image: " + options.compare);
     }
-    const std::span<const std::uint8_t> expected(decoded, static_cast<std::size_t>(width) *
+    std::vector<std::uint8_t> expected(decoded, decoded + static_cast<std::size_t>(width) *
                                                               static_cast<std::size_t>(height) * 4);
+    stbi_image_free(decoded);
+
     const auto diff = tessera::rendering::golden::compare_rgba(
         {options.width, options.height}, pixels,
         {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)}, expected,
         options.tolerance);
-    stbi_image_free(decoded);
+
+    if (!options.report.empty()) {
+        std::ofstream stream(options.report);
+        if (!stream) {
+            throw std::runtime_error("failed to open golden report: " + options.report);
+        }
+        stream << tessera::rendering::golden::golden_report_json(
+                      diff, options.compare, options.tolerance, options.max_mismatch)
+               << "\n";
+    }
+
+    if (!options.diff.empty() && !diff.size_mismatch) {
+        std::vector<std::uint8_t> diff_pixels(expected.size());
+        for (std::size_t pixel = 0; pixel < diff.pixels; ++pixel) {
+            bool mismatched = false;
+            for (std::size_t channel = 0; channel < 4; ++channel) {
+                const std::size_t index = pixel * 4 + channel;
+                const auto a = static_cast<std::uint32_t>(pixels[index]);
+                const auto b = static_cast<std::uint32_t>(expected[index]);
+                const std::uint32_t delta = a > b ? a - b : b - a;
+                mismatched = mismatched || delta > options.tolerance;
+            }
+            std::uint8_t value = 0;
+            if (mismatched) {
+                value = 255;
+            } else {
+                value = static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(expected[pixel * 4]) +
+                     static_cast<std::uint32_t>(expected[pixel * 4 + 1]) +
+                     static_cast<std::uint32_t>(expected[pixel * 4 + 2])) /
+                    3);
+            }
+            diff_pixels[pixel * 4] = mismatched ? 255 : value;
+            diff_pixels[pixel * 4 + 1] = value;
+            diff_pixels[pixel * 4 + 2] = mismatched ? 255 : value;
+            diff_pixels[pixel * 4 + 3] = 255;
+        }
+        const int wrote =
+            stbi_write_png(options.diff.c_str(), width, height, 4, diff_pixels.data(), width * 4);
+        if (wrote == 0) {
+            throw std::runtime_error("failed to write golden diff image: " + options.diff);
+        }
+    }
 
     std::cout << "golden: pixels=" << diff.pixels << " mismatched=" << diff.mismatched
               << " max_delta=" << diff.max_channel_delta

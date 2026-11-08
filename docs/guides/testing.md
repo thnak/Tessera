@@ -2,7 +2,7 @@
 
 Status: the Big Step B1 (core renderer) and B2 runtime-slice unit tests run with CTest. A
 lavapipe golden harness now covers the batched2d proof (`batched2d_golden`, Linux with Mesa
-lavapipe); the broader golden corpus and `report.json` protocol remain B2 work (see
+lavapipe); the broader golden corpus and CPU-rasterizer path remain B2 work (see
 [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step); Mesa lavapipe is a
 software Vulkan driver, see
 [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless
@@ -109,6 +109,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_vulkan_validation` | Vulkan render with validation layers (local GPU or lavapipe) |
 | `batched2d_golden` | lavapipe bit-exact batched2d dashboard baseline (Linux only) |
 | `batched2d_overlay_golden` | lavapipe bit-exact diagnostics overlay baseline (Linux only) |
+| `batched2d_text_golden` | lavapipe bit-exact text-stack baseline (Linux only) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -178,6 +179,11 @@ Implemented for the batched2d proof:
   (`--tolerance 0 --max-mismatch 0`).
 - `batched2d_overlay_golden` does the same with `--overlay --font <fixture>` against
   `tests/golden/baseline/batched2d/dashboard_overlay.png`.
+- `batched2d_text_golden` covers the text stack (font loaded, shaped and rasterized) against
+  `tests/golden/baseline/batched2d/dashboard_text.png`.
+- `--report report.json` and `--diff diff.png` write structural failure artifacts for any
+  comparison: status, dimensions, mismatch counts, first mismatch coordinate, and a
+  magenta-on-gray diff image when per-channel deltas exceed the tolerance.
 - Generate or update a baseline only through lavapipe:
 
   ```bash
@@ -191,7 +197,7 @@ Implemented for the batched2d proof:
   GPU smoke checks; GPU runs never update baselines.
 - `rendering/golden/image_diff.hpp` compares RGBA8 images and reports mismatched pixels, max/mean
   channel delta, and the first mismatch.
-- Not implemented yet: `report.json` and diff-image artifacts, CPU-rasterizer goldens, and a
+- Not implemented yet: CPU-rasterizer goldens, the wider corpus, and the
   corpus beyond batched2d. See [`golden-tests-v1.md`](../specs/golden-tests-v1.md) and
   [`design/testing.md`](../design/testing.md).
 
