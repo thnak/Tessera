@@ -32,7 +32,7 @@ Rules:
 - Props are typed; defaults are static literals.
 - Hooks are called unconditionally at the top level, in stable order.
 - Event handlers may set state; render must be pure.
-- No custom hooks, context, suspense, error boundaries, portals, or dynamic component types.
+- No custom hooks, context, suspense, portals, or dynamic component types.
 - No arbitrary JavaScript execution at runtime; only generated C++.
 
 ## 2. Hooks
@@ -102,9 +102,27 @@ deterministic and ordered child-first.
 - Theme tokens are custom properties on `:root`/theme scopes.
 - Layout/paint/animation read the computed style, not JSX expressions.
 
+## 7.1 Error boundaries
+
+An error boundary wraps one subtree and shows a fallback after a caught error. It is a supported
+V1 feature (see [`error-boundaries-v1.md`](error-boundaries-v1.md)):
+
+```tsx
+<ErrorBoundary fallback={<ErrorView />} onError={report} resetKey={routeId}>
+  <Child />
+</ErrorBoundary>
+```
+
+- Catches synchronous exceptions from child build/update/effect/event dispatch.
+- Async errors are `Error` values reported to the owning boundary; they are not thrown.
+- Nested boundaries: nearest catches; fallback/onError failure propagates to parent/root.
+- Fatal/OOM/cancellation/platform errors are not caught by a component boundary.
+- Reset via `resetKey`/manual retry; auto-retry is off by default and bounded.
+- No silent catch: diagnostics + `onError`; redact secrets.
+
 ## 8. Rejected in V1
 
-- custom hooks, context, suspense, error boundaries, portals
+- custom hooks, context, suspense, portals
 - dynamic component types (`<Component is={...}>`)
 - arbitrary JavaScript expressions, closures, async render, generators
 - direct DOM/window/OS access
@@ -121,6 +139,8 @@ Rejections are compile errors with source spans; no silent fallback.
 - Node construction and updates are generated; developer logic is only inside protected
   regions (`bind::<id>`).
 - Generated code is deterministic, formatted, and compiles with warnings-as-errors in CI.
+- Error boundaries emit guards around child entry points; fallback/onError are outside the
+  guard and propagate to the parent/root on failure.
 - The binding manifest maps ids to components/files/regions.
 
 ## 10. Determinism
@@ -147,4 +167,5 @@ Rejections are compile errors with source spans; no silent fallback.
 - Whether `useMemo`/`useCallback` are ever allowed (currently no).
 - Context-free dependency injection for services.
 - Async effects/loading states without suspense.
-- Error boundaries outside V1.
+- Error-boundary retry/reset and event-handler catch policy; see
+  [`error-boundaries-v1.md`](error-boundaries-v1.md).

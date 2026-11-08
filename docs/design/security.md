@@ -48,6 +48,9 @@ boundaries, and no arbitrary code execution from UI sources.
 - Shader/pipeline creation is build-controlled; no runtime shader compilation from user data.
 - FFI/JNI boundaries validate object lifetimes and exceptions.
 - Crash handlers do not execute attacker-controlled code; dumps are bounded/redacted.
+- Error-boundary fallbacks must not display raw stack traces, secrets, or user data; see
+  [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md) and
+  [`error-model-v1.md`](../specs/error-model-v1.md).
 
 ## 5. Designer/Wasm
 

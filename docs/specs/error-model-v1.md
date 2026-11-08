@@ -4,7 +4,8 @@ Status: proposed. Applies to configuration, compiler, runtime, HAL, GPU, async, 
 
 ## 1. Principles
 
-- Errors are explicit values at recoverable boundaries; exceptions only at API boundaries.
+- Errors are explicit values at recoverable boundaries; exceptions only at API/component
+  boundaries, where an error boundary catches them (see §11).
 - Every error has a stable code, severity, message, and source location where applicable.
 - User-facing messages are actionable; internal details are attached for diagnostics.
 - No silent failure: fallbacks are documented and recorded.
@@ -114,9 +115,22 @@ platform/GPU -> translated Error -> completion queue/event
 - HAL failure injection (window/display/power) tests.
 - No test asserts on raw OS/Vulkan text.
 
-## 11. Related
+## 11. Error boundaries
+
+- Error boundaries catch synchronous exceptions from generated component code (build/update/
+  effect/event/generated callbacks). See [`error-boundaries-v1.md`](error-boundaries-v1.md).
+- Async errors are values (`Result<T, Error>`) reported to the owning boundary; never throw
+  across threads.
+- Do not catch fatal/OOM/stack overflow/cancellation/platform/GPU errors in a component
+  boundary; route them to the root/app handler.
+- No silent catch: report once to diagnostics/onError; redact secrets.
+- Fallback/onError failures propagate to the nearest parent boundary/root.
+- Exceptions remain forbidden across C ABI/JNI/ObjC/Wasm boundaries.
+
+## 12. Related
 
 - [`diagnostics.md`](../design/diagnostics.md)
 - [`diagnostics-config-v1.md`](diagnostics-config-v1.md)
 - [`security.md`](../design/security.md)
 - [`compiler.md`](../design/compiler.md)
+- [`error-boundaries-v1.md`](error-boundaries-v1.md)

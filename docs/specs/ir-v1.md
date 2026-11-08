@@ -90,7 +90,7 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | string | yes | Unique within the component |
-| `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary` |
 | `key` | string/int/null | no | Stable list identity |
 | `props` | object | no | Typed intrinsic props |
 | `style` | object | no | Style tokens; inline style |
@@ -142,6 +142,33 @@ function expressions, `await`, `yield`, `new`, dynamic imports, and any call wit
 - `key` is required for dynamic lists; missing keys are a hard error.
 - Loop body is a node subtree; `item`/`index` are local refs.
 - No nested dynamic loops beyond a documented depth (V1: 2).
+
+## 5.1 ErrorBoundary
+
+```json
+{
+  "id": "node::err",
+  "kind": "ErrorBoundary",
+  "props": {
+    "resetKey": { "kind": "ref", "id": "state::route" },
+    "maxAutoRetries": 0,
+    "catchEvents": true
+  },
+  "events": { "onError": "bind::on_error" },
+  "fallback": { "kind": "View", "id": "node::fallback", "children": [] },
+  "children": [
+    { "kind": "View", "id": "node::child", "children": [] }
+  ]
+}
+```
+
+- `fallback` is required (one node subtree).
+- `children` is exactly one subtree in V1; wrap siblings in a `View`.
+- `onError` is optional and must resolve to a binding.
+- `resetKey` is optional; any value change resets the boundary.
+- Nested boundaries are allowed; nearest catches first.
+- The boundary is not painted and does not affect layout.
+- Semantics/exception policy: [`error-boundaries-v1.md`](error-boundaries-v1.md).
 
 ## 6. Binding
 
@@ -195,6 +222,8 @@ Hard errors:
 - duplicate component/node/binding ids
 - unresolved `ref`/`binding`/node targets
 - unsupported node kind, type, operator, or callee
+- `ErrorBoundary` missing `fallback`, more/less than one child subtree, or unresolved `onError`
+  binding
 - dynamic component types, context, suspense, custom hooks
 - missing list key or non-static loop source
 - binding annotation without a matching IR use, or vice versa
@@ -214,6 +243,7 @@ Warnings:
 | Node | `std::make_unique<Node>(id)` + setters/add_child |
 | Text | text node + style + text layout binding |
 | Event binding | `on_event` dispatch to protected region |
+| ErrorBoundary | boundary state + guarded child build/update/effect/event + fallback subtree |
 | Conditional | `if` around node creation/update |
 | Loop | keyed list update/rebuild |
 | Ref | `Node*` member + assignment after creation |

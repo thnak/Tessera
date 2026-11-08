@@ -1,8 +1,8 @@
 # ADR-007: A neutral IR between JSX and C++ codegen
 
-- Status: Accepted
+- Status: Accepted (the "no error boundaries" V1 limit is superseded by ADR-025)
 - Date: 2026-11-07
-- Related: ADR-008
+- Related: ADR-008, ADR-025
 
 ## Context
 
@@ -33,7 +33,7 @@ running the generator.
 6. The IR is **serializable to JSON** for debugging, snapshot tests, and future tools.
 7. **V1 IR limits** (reject loudly):
    - no custom hooks
-   - no context/suspense/error boundaries
+   - no context/suspense (error boundaries are now supported by ADR-025)
    - no dynamic component types
    - conditionals and loops must be statically analyzable; dynamic lists map to an explicit
      runtime list model

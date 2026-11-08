@@ -9,6 +9,7 @@ for goldens.
 - Golden images come from a software path (lavapipe/CPU), never a real GPU.
 - Every bug fix gets a regression test.
 - Platform behavior is tested with synthetic event scripts, not only real devices.
+- Error boundaries are tested with throwing build/update/effect/event/async/fallback cases.
 - CI runs the same commands developers run locally.
 
 ## 2. Test pyramid

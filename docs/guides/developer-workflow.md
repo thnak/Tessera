@@ -61,8 +61,10 @@ merge(merge(g, e), e) == merge(g, e)
 6. Run `tessera build` / tests.
 7. Commit both the TSX and generated files (generated output is deterministic and reviewable).
 
-Unsupported patterns are rejected loudly: custom hooks, context, suspense, error boundaries,
-dynamic component types, and non-static conditionals/loops.
+Unsupported patterns are rejected loudly: custom hooks, context, suspense, dynamic component
+types, and non-static conditionals/loops. Error boundaries are supported for isolating
+subtrees; do not use them as a catch-all to hide bugs. See
+[`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
 
 ## 4. Regeneration
 

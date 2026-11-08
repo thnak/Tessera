@@ -64,6 +64,11 @@ A cross-platform C++ UI framework:
     UI objects across JNI/ObjC/Wasm. Bridges are only at OS/build-time/design-time edges; see
     [`docs/design/bridges.md`](docs/design/bridges.md) and
     [`docs/specs/memory-model-v1.md`](docs/specs/memory-model-v1.md).
+16. **Error boundaries are the catch point** (ADR-025). Catch synchronous exceptions from
+    generated component code at a boundary; async errors are values routed to the owning
+    boundary; never throw across threads/FFI. No silent catch; fatal/OOM/cancellation/platform
+    errors go to the root handler. See
+    [`docs/specs/error-boundaries-v1.md`](docs/specs/error-boundaries-v1.md).
 
 ## Big Steps (group work, don't micro-step)
 
@@ -223,6 +228,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Buffer config / tunables | [`docs/specs/buffer-config-v1.md`](docs/specs/buffer-config-v1.md), [`docs/guides/tunables.md`](docs/guides/tunables.md) |
 | Startup / loading / auth | [`docs/design/startup-and-loading.md`](docs/design/startup-and-loading.md), [`docs/guides/loading-matrix.md`](docs/guides/loading-matrix.md) |
 | Resource lifecycle | [`docs/specs/resource-lifecycle-v1.md`](docs/specs/resource-lifecycle-v1.md) |
+| Error boundaries | [`docs/specs/error-boundaries-v1.md`](docs/specs/error-boundaries-v1.md) |
 | Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |
 | Testing / goldens | [`docs/guides/testing.md`](docs/guides/testing.md), [`docs/specs/golden-tests-v1.md`](docs/specs/golden-tests-v1.md) |
 | Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |
@@ -282,6 +288,8 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
       thread blocking; loading/auth screens are accessible.
 - [ ] If it touches resources: lazy/preload/lease/unload/eviction tests pass; no unload of
       active/pinned resources; no leak/thrash under route churn.
+- [ ] If it touches error boundaries/exceptions: fallback/retry/nested/async/event/fallback-
+      failure/loop/redaction/cleanup tests pass; no throw across threads/FFI; no silent catch.
 
 ## Current focus
 

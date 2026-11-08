@@ -53,7 +53,8 @@ Validate before lowering:
 - valid JSX/TSX and imports
 - hooks called unconditionally at the top level, stable order
 - only allowed hooks: `useState`, `useEffect`, `useRef`, `useAnimatedValue`
-- no custom hooks, context, suspense, error boundaries, portals, or dynamic component types
+- no custom hooks, context, suspense, portals, or dynamic component types
+- error boundaries are supported wrappers; codegen guards boundary entry points
 - state setters are used in event handlers/effects, not during render
 - effects have static dependency arrays; no missing/extra deps (V1: exact matching)
 - conditionals/loops are statically analyzable (no arbitrary runtime expressions)
@@ -91,6 +92,8 @@ See [`ir-v1.md`](../specs/ir-v1.md). Requirements:
 - Construct scene nodes, bind styles/props/events, emit state/effect/ref/animated-value
   members and lifecycle stubs.
 - Developer logic lives only inside protected regions.
+- `ErrorBoundary` emits a guard around child build/update/effect/event entry points; the
+  fallback and `onError` are outside that guard and propagate to the parent/root on failure.
 - No timestamps, absolute paths, or random ids.
 - Compile with `/W4` (MSVC) and `-Wall -Wextra -Wpedantic` (GCC/Clang).
 - Generated code includes only public Tessera headers and its own generated headers.

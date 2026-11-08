@@ -49,6 +49,13 @@ add_test(NAME my_component COMMAND my_component_tests)
 4. Keep tests deterministic: no wall clock, network, system fonts, or random ids.
 5. Run `ctest -R my_component --output-on-failure`.
 
+## 3.1 Error-boundary tests
+
+- Throw in child build/update/effect/event -> fallback shown, error logged.
+- Nested boundary: nearest catches; fallback failure propagates to parent/root.
+- Reset/retry/resetKey; async error report; cancellation does not show fallback.
+- No silent catch; redaction; no throw across threads/FFI; loop protection.
+
 ## 4. Golden tests (target)
 
 - Use the software/lavapipe path, fixed size/scale/fonts/clock/events.

@@ -33,9 +33,10 @@ A component has:
 - a returned node tree (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`, `VirtualList`,
   `VirtualGrid`)
 
-V1 rejects: custom hooks, context, suspense, error boundaries, dynamic component types,
-portals, and non-static conditionals/loops. See
-[`component-model-v1.md`](../specs/component-model-v1.md).
+V1 rejects: custom hooks, context, suspense, dynamic component types, portals, and non-static
+conditionals/loops. Error boundaries are supported wrappers; see
+[`component-model-v1.md`](../specs/component-model-v1.md) and
+[`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
 
 ## 3. Build-time lowering
 

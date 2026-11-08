@@ -165,6 +165,8 @@ Never unload pinned/in-use resources; retire GPU resources after frames in fligh
 - Auth failure is distinct from network failure; don't loop the login screen.
 - Timeouts are bounded; cancellation is supported.
 - Errors are actionable and accessible; no raw OS/HTTP codes in the primary message.
+- Install a **root error boundary** so a startup/auth/first-screen failure shows a safe fallback
+  instead of a blank window; see [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
 
 ## 9. Platform notes
 

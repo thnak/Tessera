@@ -29,6 +29,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md) — diagnostics/profiling
 - [ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md) — OS events/foldables
 - [ADR-024](../decisions/ADR-024-native-first-boundaries.md) — native-first; no production bridges
+- [ADR-025](../decisions/ADR-025-error-boundaries.md) — error boundaries/exception isolation
 
 ## 3. Specs (normative)
 
@@ -51,6 +52,8 @@ for the project overview. This page is the map and reading order for the framewo
   ranges/scopes, memory budget, apply/restart rules
 - [`specs/resource-lifecycle-v1.md`](specs/resource-lifecycle-v1.md) — lazy/preload/lease/
   unload/eviction, budgets, determinism
+- [`specs/error-boundaries-v1.md`](specs/error-boundaries-v1.md) — caught/not-caught errors,
+  fallback/reset/retry, async errors, exception policy
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -167,11 +170,12 @@ for the project overview. This page is the map and reading order for the framewo
 
 1. [Startup & loading design](design/startup-and-loading.md)
 2. [Resource lifecycle](specs/resource-lifecycle-v1.md)
-3. [Loading strategy matrix](guides/loading-matrix.md)
-4. [Resources & assets](design/resources.md)
-5. [Async runtime](design/async.md)
-6. [Performance & power](design/performance.md)
-7. [Security](design/security.md)
+3. [Error boundaries](specs/error-boundaries-v1.md)
+4. [Loading strategy matrix](guides/loading-matrix.md)
+5. [Resources & assets](design/resources.md)
+6. [Async runtime](design/async.md)
+7. [Performance & power](design/performance.md)
+8. [Security](design/security.md)
 
 ### Compiler / codegen
 
@@ -225,6 +229,7 @@ for the project overview. This page is the map and reading order for the framewo
 | Buffer config / user tunables | B2/B3 proposed |
 | Startup / loading / auth | design only |
 | Resource lifecycle (lazy/preload/unload) | B2/F proposed |
+| Error boundaries | C/F proposed (ADR-025 accepted) |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |
