@@ -40,6 +40,49 @@ std::vector<AnimationId> start_style_animations(AnimationRuntime& runtime, std::
     return start_animations(runtime, target, parsed.animations, keyframes, std::move(on_complete));
 }
 
+std::vector<AnimationId> ensure_style_animations(AnimationRuntime& runtime, std::uint64_t target,
+                                                 const style::ComputedStyle& style,
+                                                 const std::vector<style::KeyframeBlock>& keyframes,
+                                                 AnimationCallback on_complete) {
+    const AnimationParseResult parsed = parse_style_animations(style);
+    if (!parsed.ok) {
+        return {};
+    }
+    std::vector<AnimationId> ids;
+    for (const AnimationSpec& spec : parsed.animations) {
+        if (spec.name.empty() || spec.name == "none") {
+            continue;
+        }
+        const AnimationNameState state = runtime.target_name_state(target, spec.name);
+        if (state.active > 0) {
+            if (spec.play_state == PlayState::Paused) {
+                (void)runtime.pause_target_name(target, spec.name);
+            } else {
+                (void)runtime.resume_target_name(target, spec.name);
+            }
+            for (const AnimationEntry& entry : runtime.entries()) {
+                if (entry.target == target && entry.keyframes.name == spec.name) {
+                    ids.push_back(entry.id);
+                    break;
+                }
+            }
+            continue;
+        }
+        if (state.settled > 0) {
+            continue;
+        }
+        const style::KeyframeBlock* block = find_keyframes(keyframes, spec.name);
+        if (block == nullptr) {
+            continue;
+        }
+        const AnimationId id = start_animation(runtime, target, spec, *block, on_complete);
+        if (id != 0) {
+            ids.push_back(id);
+        }
+    }
+    return ids;
+}
+
 std::size_t apply_style_play_state(AnimationRuntime& runtime, std::uint64_t target,
                                    const style::ComputedStyle& style) {
     const AnimationParseResult parsed = parse_style_animations(style);

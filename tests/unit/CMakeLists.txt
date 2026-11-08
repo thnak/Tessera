@@ -266,6 +266,13 @@ target_link_libraries(animation_play_state_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_play_state COMMAND animation_play_state_tests)
 
+add_executable(animation_ensure_tests
+    animation_ensure_tests.cpp)
+
+target_link_libraries(animation_ensure_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_ensure COMMAND animation_ensure_tests)
+
 add_executable(easing_tests
     easing_tests.cpp)
 
