@@ -13,7 +13,9 @@ active spring entries into property declarations, retargets them, and reports di
 Animation samples overlay `ComputedStyle` per target; later samples win, multiple properties merge,
 and properties without an animated declaration are preserved. `transition` shorthand parsing splits
 comma lists outside functional parentheses and accepts property/duration/delay/easing in any order,
-`ms`/`s` units, `cubic-bezier()`, `steps()`, `none`, and empty lists. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+`ms`/`s` units, `cubic-bezier()`, `steps()`, `none`, and empty lists. Exact-property transitions win
+over `all`; starting one builds 0→1 keyframes and runs through `AnimationRuntime` with the parsed
+delay/easing and forwards fill. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),

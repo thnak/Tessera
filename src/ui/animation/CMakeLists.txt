@@ -8,7 +8,8 @@ add_library(tessera_animation STATIC
     spring.cpp
     spring_runtime.cpp
     style_overlay.cpp
-    transition.cpp)
+    transition.cpp
+    transition_runtime.cpp)
 
 target_include_directories(tessera_animation PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

@@ -430,7 +430,7 @@ parsed keyframes at fixed-step time with direction/fill and linear numeric inter
 `ui/animation/easing.hpp` provides linear/bezier/steps easing, `ui/animation/spring.hpp` integrates
 retargetable springs, `ui/animation/spring_runtime.hpp` samples active spring entries, `ui/animation/style_overlay.hpp`
 overlays samples onto `ComputedStyle` per target, `ui/animation/transition.hpp` parses transition
-shorthands, and
+shorthands, `ui/animation/transition_runtime.hpp` starts matched transitions, and
 `ui/text/text_measure_cache.hpp` bounds measurement caching (wired into the
 Yoga measure callback). Async primitives (`ui/runtime/async.hpp`) add cancellation tokens and a
 bounded deterministic manual executor with once-only cancellation callbacks and a prioritized completion queue drained by `RuntimeLoop`
