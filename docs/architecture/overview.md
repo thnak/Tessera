@@ -156,6 +156,8 @@ dirty reasons). See [`testing.md`](../design/testing.md) and
 - Project: `tessera.json` — [`project-config-v1.md`](../specs/project-config-v1.md)
 - Runtime: loop/FPS/vsync/VRR/dirty/power/async/resize —
   [`runtime-config-v1.md`](../specs/runtime-config-v1.md)
+- Buffers/user tunables: engine buffer defaults and the explicit user-adjustable allowlist —
+  [`buffer-config-v1.md`](../specs/buffer-config-v1.md)
 - Diagnostics: logging/tracing/profiling/crash/overlay —
   [`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md)
 - C++ API mirrors the schema (`tessera::AppConfig`).

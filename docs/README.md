@@ -47,6 +47,8 @@ for the project overview. This page is the map and reading order for the framewo
   recycling, scroll anchoring, accessibility
 - [`specs/memory-model-v1.md`](specs/memory-model-v1.md) — ownership, allocators, frame/GPU
   lifetime, caches, bridge memory, budgets
+- [`specs/buffer-config-v1.md`](specs/buffer-config-v1.md) — buffer defaults, user tunables,
+  ranges/scopes, memory budget, apply/restart rules
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
@@ -109,6 +111,7 @@ for the project overview. This page is the map and reading order for the framewo
 - [`guides/testing.md`](guides/testing.md) — run/add tests, sanitizers, CI, triage
 - [`guides/packaging.md`](guides/packaging.md) — release/static-link/notices/assets checklist
 - [`guides/debugging.md`](guides/debugging.md) — validation, GPU tools, common failures
+- [`guides/tunables.md`](guides/tunables.md) — expose a few buffer/runtime knobs to users
 
 ## 6. Reference
 
@@ -149,7 +152,9 @@ for the project overview. This page is the map and reading order for the framewo
 20. [Runtime config](specs/runtime-config-v1.md)
 21. [Diagnostics config](specs/diagnostics-config-v1.md)
 22. [Memory model](specs/memory-model-v1.md)
-23. [Bridges](design/bridges.md)
+23. [Buffer config & tunables](specs/buffer-config-v1.md)
+24. [Tunables guide](guides/tunables.md)
+25. [Bridges](design/bridges.md)
 
 ### Compiler / codegen
 
@@ -199,6 +204,7 @@ for the project overview. This page is the map and reading order for the framewo
 | UI virtualization (list/grid) | B2/E proposed |
 | Mobile integration (Android first) | design only |
 | Memory model / bridge policy | proposed / ADR-024 accepted |
+| Buffer config / user tunables | B2/B3 proposed |
 | Designer/Wasm | D proposed |
 | Accessibility/services | F proposed |
 | Packaging/release | F proposed |

@@ -120,8 +120,10 @@ Minimal example:
 The full field list, defaults, and validation rules are in
 [`docs/specs/project-config-v1.md`](../specs/project-config-v1.md). Runtime pacing, FPS cap,
 vsync/VRR, render-on-demand, dirty rendering, resize, and async are defined in
-[`docs/specs/runtime-config-v1.md`](../specs/runtime-config-v1.md). Logging/tracing/profiling/crash
-are defined in [`docs/specs/diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md).
+[`docs/specs/runtime-config-v1.md`](../specs/runtime-config-v1.md). Buffer defaults and the
+user-tunable allowlist are in [`docs/specs/buffer-config-v1.md`](../specs/buffer-config-v1.md)
+(how-to: [`docs/guides/tunables.md`](tunables.md)). Logging/tracing/profiling/crash are defined
+in [`docs/specs/diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md).
 
 ## C++ API for developers
 

@@ -1,7 +1,8 @@
 # Runtime configuration v1
 
 Status: proposed for Big Step B2/B3. Extends [`project-config-v1.md`](project-config-v1.md)
-with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`.
+with the `runtime` object. The C++ API mirror is `tessera::RuntimeConfig`. Buffer capacities and
+user tunables are in [`buffer-config-v1.md`](buffer-config-v1.md).
 
 ## 1. Goals
 

@@ -220,6 +220,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Designer / Wasm | [`docs/design/designer.md`](docs/design/designer.md) |
 | Threading / memory | [`docs/design/threading-and-memory.md`](docs/design/threading-and-memory.md) |
 | Memory model / bridges | [`docs/specs/memory-model-v1.md`](docs/specs/memory-model-v1.md), [`docs/design/bridges.md`](docs/design/bridges.md) |
+| Buffer config / tunables | [`docs/specs/buffer-config-v1.md`](docs/specs/buffer-config-v1.md), [`docs/guides/tunables.md`](docs/guides/tunables.md) |
 | Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |
 | Testing / goldens | [`docs/guides/testing.md`](docs/guides/testing.md), [`docs/specs/golden-tests-v1.md`](docs/specs/golden-tests-v1.md) |
 | Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |
@@ -273,6 +274,8 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 - [ ] If it touches OS events/foldables: synthetic fold/posture/display scripts pass.
 - [ ] If it touches async: no blocking UI wait; cancellation/shutdown/queue-overflow tests pass.
 - [ ] If it touches diagnostics: disabled paths add no measurable cost; redaction tests pass.
+- [ ] If it touches buffers/tunables: schema/min/max/step/budget validation passes; user
+      settings are bounded; golden output is unaffected by buffer sizes.
 
 ## Current focus
 

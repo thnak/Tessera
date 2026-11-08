@@ -18,6 +18,8 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `build` | object | no | see below | CMake and toolchain |
 | `dev` | object | no | see below | Browser preview |
 | `runtime` | object | no | see [runtime-config-v1.md](runtime-config-v1.md) | Loop, FPS, vsync/VRR, dirty rendering, resize, async |
+| `buffers` | object | no | see [buffer-config-v1.md](buffer-config-v1.md) | Engine buffer/cache/queue defaults |
+| `tunables` | array | no | `[]` | Explicit allowlist of user-adjustable settings |
 | `diagnostics` | object | no | see [diagnostics-config-v1.md](diagnostics-config-v1.md) | Logging, tracing, profiling, crash |
 | `dependencies` | object | no | empty | Include/link additions |
 
@@ -120,6 +122,59 @@ See [runtime-config-v1.md](runtime-config-v1.md). Key defaults:
 | `gpuFramesInFlight` | `2` | `1..3` |
 | `deterministic` | `false` | Forced by golden/headless runs |
 
+## `buffers`
+
+Developer defaults for engine buffers. See
+[buffer-config-v1.md](buffer-config-v1.md). Existing runtime fields
+(`layerCacheBudgetMb`, `drawListCacheBudgetMb`, `asyncQueueCapacity`, `gpuFramesInFlight`)
+remain under `runtime`; do not duplicate them here.
+
+```json
+"buffers": {
+  "renderer": {
+    "frameArenaBytes": 8388608,
+    "vertexInitialVertices": 4096,
+    "vertexMaxVertices": 262144,
+    "stagingRingBytes": 16777216,
+    "glyphAtlasBytes": 33554432,
+    "textureCacheBytes": 134217728
+  },
+  "input": { "queueCapacity": 2048 },
+  "ui": { "virtualListPoolCap": 256, "virtualListOverscanPx": 200 },
+  "budgetBytes": 536870912
+}
+```
+
+Rules: values are defaults, not user settings; sizes are aligned/rounded by the engine; total
+budgets must not exceed `budgetBytes`; zero disables optional caches only where documented.
+
+## `tunables`
+
+Explicit allowlist of values users may change. See
+[buffer-config-v1.md](buffer-config-v1.md) and
+[`guides/tunables.md`](../guides/tunables.md).
+
+```json
+"tunables": [
+  {
+    "id": "renderer.stagingRingBytes",
+    "type": "bytes",
+    "labelKey": "settings.upload_buffer",
+    "descriptionKey": "settings.upload_buffer.description",
+    "min": 4194304,
+    "max": 134217728,
+    "step": 4194304,
+    "scope": "restartRenderer",
+    "category": "graphics",
+    "powerImpact": "low"
+  }
+]
+```
+
+Rules: `id` must resolve to a real buffer/runtime value; `min <= default <= max`; `step > 0`;
+`max` must not exceed the engine hard cap; `scope` is `live`, `nextFrame`,
+`restartRenderer`, or `restartApp`; only listed ids are user-tunable.
+
 ## `diagnostics`
 
 See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
@@ -159,6 +214,12 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     is forced for golden/headless runs.
 12. `diagnostics` follows [diagnostics-config-v1.md](diagnostics-config-v1.md) validation;
     telemetry is opt-in and overlay is not a release default.
+13. `buffers` follows [buffer-config-v1.md](buffer-config-v1.md): no duplicate values already
+    owned by `runtime`, budgets are respected, and sizes are within engine hard caps.
+14. `tunables` ids must resolve to a real buffer/runtime value; `min <= default <= max`,
+    `step > 0`, and `max` is within the engine hard cap.
+15. User settings are stored outside `tessera.json`; they may override only exposed tunable
+    ids and never rewrite the project file. Deterministic/golden mode ignores user tunables.
 
 ## Example
 
@@ -221,6 +282,24 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     "asyncMainThreadBudgetMs": 2.0,
     "gpuFramesInFlight": 2
   },
+  "buffers": {
+    "renderer": { "stagingRingBytes": 16777216, "glyphAtlasBytes": 33554432 },
+    "ui": { "virtualListPoolCap": 256, "virtualListOverscanPx": 200 },
+    "budgetBytes": 536870912
+  },
+  "tunables": [
+    {
+      "id": "renderer.stagingRingBytes",
+      "type": "bytes",
+      "labelKey": "settings.upload_buffer",
+      "min": 4194304,
+      "max": 134217728,
+      "step": 4194304,
+      "scope": "restartRenderer",
+      "category": "graphics",
+      "powerImpact": "low"
+    }
+  ],
   "diagnostics": {
     "level": "info",
     "sinks": ["debugger", "ring"],

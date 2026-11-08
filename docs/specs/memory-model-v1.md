@@ -6,6 +6,7 @@ and [`resources.md`](../design/resources.md). Bridge policy: ADR-024 and
 
 Goals: deterministic allocation behavior, bounded memory, no leaks, no cross-language
 ownership, no hidden allocations in the frame hot path, and explicit GPU memory budgets.
+Buffer defaults/tunables are in [`buffer-config-v1.md`](buffer-config-v1.md).
 
 ## 1. Ownership classes
 

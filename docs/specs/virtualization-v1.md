@@ -151,7 +151,8 @@ O(1) range calculation; no per-item measurement.
 
 ## 8. Async, prefetch, cancellation
 
-- Prefetch data/measure for items just outside the overscan (bounded).
+- Prefetch data/measure for items just outside the overscan (bounded). Pool cap/overscan
+  defaults and user tunables are in [`buffer-config-v1.md`](buffer-config-v1.md).
 - Cancel prefetch for items that leave the window.
 - Completion callbacks are delivered on the UI thread via the bounded completion queue
   ([`async.md`](../design/async.md)).
