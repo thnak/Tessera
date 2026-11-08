@@ -65,8 +65,13 @@ paths are rejected.
 | `sourceDirs` | string[] | yes | — | Directories containing components |
 | `include` | string[] | no | `["**/*.tsx", "**/*.jsx"]` | Glob patterns |
 | `exclude` | string[] | no | `["**/*.test.*", "**/node_modules/**"]` | Glob patterns |
-| `hooks.allowed` | string[] | yes | — | Subset of `useState`, `useEffect`, `useRef`, `useAnimatedValue` (the V1 hooks subset, see [`component-model-v1.md`](component-model-v1.md)) |
+| `hooks.allowed` | string[] | yes | — | Subset of `useState`, `useEffect`, `useRef`, `useAnimatedValue` (the V1 core hooks, see [`component-model-v1.md`](component-model-v1.md)) and the library hooks `useTheme`, `useBreakpoint` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1) |
 | `hooks.strict` | boolean | no | `true` | Reject unknown hooks |
+| `limits.maxFileBytes` | integer | no | `1048576` | Front-end limit: largest source file, in bytes; greater than 0 ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 15) |
+| `limits.maxTokens` | integer | no | `200000` | Front-end limit: tokens per file; greater than 0 |
+| `limits.maxNestingDepth` | integer | no | `128` | Front-end limit: nesting of parentheses, JSX elements and expressions; greater than 0 |
+| `limits.maxDiagnostics` | integer | no | `100` | Front-end limit: diagnostics reported per file; greater than 0 |
+| `limits.maxComponents` | integer | no | `64` | Front-end limit: components per file; greater than 0 |
 | `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids tying JSX logic to protected C++ regions, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
 | `bindings.manifest` | string | no | `generated/bindings.json` | Must stay inside `codegen.outDir` |
 

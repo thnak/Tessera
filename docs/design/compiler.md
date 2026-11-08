@@ -64,7 +64,8 @@ Validate before lowering:
 - valid JSX/TSX and imports
 - hooks called unconditionally at the top level, stable order
 - allowed hooks: `useState`, `useEffect`, `useRef`, `useAnimatedValue` plus built-in library
-  hooks declared in the built-in hook manifest (typed signatures, same ordering rules; ADR-036)
+  hooks declared in the built-in hook manifest (typed signatures, same ordering rules; ADR-036;
+  format in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 7.1)
 - no user-defined custom hooks, context, suspense, portals, or dynamic component types
 - error boundaries are supported wrappers; codegen guards boundary entry points
 - state setters are used in event handlers/effects, not during render
@@ -178,8 +179,8 @@ See [`error-model-v1.md`](../specs/error-model-v1.md).
 
 ## 12. Open questions
 
-- Built-in hook manifest format and the open questions listed in
-  [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18.
+- The open questions listed in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18 (the built-in
+  hook manifest format is specified in its section 7.1).
 - Parser error recovery for the live view (editing partially valid files).
 - Source maps from generated C++ back to TSX.
 - Incremental codegen at the node level vs component level.

@@ -154,7 +154,7 @@ host                                   viewer
 | `project.load` | request | `config` (project configuration object), `files` (array of `{path, version, text}`), `assets` (array of `{path, version}`; bytes are fetched by the shell, not sent in JSON) | Replaces all viewer state; answered by `project.state` |
 | `source.update` | event | `files`: array of `{path, version, text}` | Section 7 |
 | `asset.update` | event | `assets`: array of `{path, version}` | Font, image or theme asset changed; viewer reloads those assets and requests one frame |
-| `viewport.set` | event | optional `width`, `height`, `dpr`, `theme` (`"light"`, `"dark"` or a theme id from the project), `reducedMotion` (boolean), `safeAreas`, `foldPosture` | Sets the preview environment ([`designer.md`](../design/designer.md) section 8); omitted fields keep their value |
+| `viewport.set` | event | optional `width`, `height`, `dpr`, `theme` (`"light"`, `"dark"` or a theme id from the project), `reducedMotion` (boolean), `safeAreas`, `foldPosture` | Sets the preview environment ([`designer.md`](../design/designer.md) section 8); omitted fields keep their value. `theme` is the value of `useTheme()` and `width` determines `useBreakpoint()` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1) |
 | `pick.mode` | event | `enabled` (boolean) | Section 8.1 |
 | `selection.set` | request | one of: `node` (NodeRef), `source` (`{file, offset}`), `parent` (true), `none` (true) | Section 8.2; answered by `selection.set.result` |
 | `style.inspect` | request | `node` (NodeRef) | Answered by `style.info` (section 9.1) |

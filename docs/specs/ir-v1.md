@@ -81,6 +81,7 @@ read the parser AST.
 | `effects` | Effect[] | no | `useEffect`. An Effect has `id`, `deps`, `handler` (binding id), `source`, and an optional `cleanup` (binding id of the cleanup handler; it runs before the effect runs again and on unmount) |
 | `refs` | Ref[] | no | `useRef` |
 | `animatedValues` | AnimatedValue[] | no | `useAnimatedValue` |
+| `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type) and `source`. Read-only; a change of the provider's value updates the component like a state change |
 | `root` | Node | yes | Exactly one root node |
 
 V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`. No
@@ -206,7 +207,7 @@ V1 expressions are pure and statically analyzable:
 | Kind | Shape | Notes |
 |---|---|---|
 | `literal` | `{ "kind": "literal", "value": 42 }` | bool/int/float/string/null |
-| `ref` | `{ "kind": "ref", "id": "state::count" }` | prop/state/ref/animated/local |
+| `ref` | `{ "kind": "ref", "id": "state::count" }` | prop/state/ref/animated/environment/local |
 | `binary` | `{ "kind": "binary", "op": "+", "left": Expr, "right": Expr }` | `+ - * / % == != < <= > >= && ||` |
 | `unary` | `{ "kind": "unary", "op": "!", "value": Expr }` | `! - +` |
 | `conditional` | `{ "kind": "conditional", "test": Expr, "then": Expr, "else": Expr }` | no side effects |

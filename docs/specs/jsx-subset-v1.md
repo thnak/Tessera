@@ -230,8 +230,7 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 | Animated value | `const v = useAnimatedValue(init);` | `init` is a number literal or a pure expression of numbers. Use in handlers is `v.set(expr)` and `v.set(expr, { animate: false })`, as in [`animation.md`](../design/animation.md) section 6. Reading the value (`v.value` or any other member) is rejected with `TESSERA_JSX_SUBSET_ANIMATED_READ`; an animated value is passed whole as a prop or style value. The project owner decided this |
 | Effect | `useEffect(() => { ... }, [dep, ...]);` | The body is a native handler body (section 9.3). Dependencies are names of props, state variables or animated values; an expression is not allowed. Exact matching is enforced as in [`component-model-v1.md`](component-model-v1.md) section 2 |
 
-- Other hooks are accepted only if they are declared in the built-in hook manifest. That manifest is
-  not specified yet; until it exists, only the four hooks above are accepted, and any other name
+- Library hooks declared in the built-in hook manifest (section 7.1) are also accepted. Any other name
   starting with `use` gives `TESSERA_REACT_UNKNOWN_HOOK`.
 - A function whose name starts with `use` and that is declared in the project is a custom hook and is
   rejected (`TESSERA_REACT_CUSTOM_HOOK`).
@@ -245,6 +244,59 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
   ([`component-model-v1.md`](component-model-v1.md) section 2). Its arrow body is its preview body
   (section 9.3). A `return` in any other position of an effect body is `TESSERA_REACT_EFFECT_RETURN`;
   an id that collides with another bind id is `TESSERA_REACT_BIND_ID`. The project owner decided this.
+
+### 7.1 Built-in hook manifest
+
+The **built-in hook manifest** is a JSON file shipped with the Tessera framework that lists every library
+hook (a hook other than the four core hooks above). The front end reads it to validate calls and to lower
+them to IR; the build also generates the editor typings of section 16.2 from it. A project cannot add
+entries: hooks written by app developers are rejected (`TESSERA_REACT_CUSTOM_HOOK`). Where the file is
+stored in the framework package is not specified yet.
+
+```json
+{
+  "schemaVersion": 1,
+  "hooks": [
+    {
+      "name": "useBreakpoint",
+      "params": [],
+      "returns": { "ts": "\"compact\" | \"medium\" | \"expanded\"", "ir": "string" },
+      "lowering": { "kind": "environment", "provider": "breakpoint" }
+    }
+  ]
+}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schemaVersion` | integer | `1`. Any other value makes the front end refuse to start (`TESSERA_JSX_MANIFEST_VERSION`) |
+| `hooks[].name` | string | Hook name; starts with `use` followed by an uppercase letter; unique; must not equal a core hook name |
+| `hooks[].params` | array | Parameters in order, each `{ "name": string, "ts": string, "ir": string }`. `ts` is a type of section 5; `ir` is an IR type of [`ir-v1.md`](ir-v1.md) section 2. V1 library hooks have no parameters |
+| `hooks[].returns` | object | `ts`: the type seen by the analyzer; `ir`: the IR type of the value |
+| `hooks[].lowering` | object | How the call lowers to IR. The only kind in V1 is `environment` (below) |
+
+Call form: `const name = useHook();` (a single `const` binding of the whole value, no destructuring, at the
+top level of the component body). The same placement and ordering rules as for core hooks apply
+(`TESSERA_REACT_HOOK_ORDER`). The value may be used in any pure expression, in JSX, and as an effect
+dependency.
+
+**`environment` lowering.** The call becomes an entry in the IR component field `environment`
+([`ir-v1.md`](ir-v1.md) section 2): `{ "id": "env::<name>", "name": "<name>", "provider": "<provider>",
+"type": "<ir type>" }`, and every use of the variable becomes a `ref` to that id. A **provider** is an
+engine-owned source of a read-only value. When the provider's value changes, the engine marks every
+component that reads it as updated, exactly as for a state change
+([`component-model-v1.md`](component-model-v1.md) section 5). Components cannot write environment values.
+
+V1 library hooks (the full contents of the V1 manifest):
+
+| Hook | Returns | Value |
+|---|---|---|
+| `useTheme()` | `string` | The id of the active theme, as defined by the project's theme asset (`assets.theme` in [`project-config-v1.md`](project-config-v1.md)) |
+| `useBreakpoint()` | `"compact" \| "medium" \| "expanded"` | The size class of the window width in dp (logical pixels): `compact` below 600, `medium` from 600 to 839, `expanded` from 840 upward; the same thresholds as [`responsive.md`](../design/responsive.md) section 2. Uses the window, not the display, and updates on resize, fold change and multi-window changes |
+
+In the browser designer, the values come from the viewer environment set by `viewport.set`
+([`designer-protocol-v1.md`](designer-protocol-v1.md) section 5). Adding a hook, changing a signature or a
+threshold is a change to this specification, the manifest, the evaluator and the code generator together.
 
 ## 8. Expressions
 
@@ -487,10 +539,10 @@ prop set of each is defined by the document named in the last column.
 | `Text` | `Text` | text and expressions | [`component-model-v1.md`](component-model-v1.md) |
 | `Button` | `Button` | text and nodes | [`component-model-v1.md`](component-model-v1.md) |
 | `TextInput`, `TextArea` | same | none | [`text-editing-v1.md`](text-editing-v1.md) |
-| `Image` | `Image` | none | not specified yet |
-| `Path` | `Path` | none | not specified yet |
+| `Image` | `Image` | none | section 11.1 |
+| `Path` | `Path` | none | section 11.1 |
 | `Scroll` | `Scroll` | nodes | [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md) |
-| `Spacer` | `Spacer` | none | not specified yet |
+| `Spacer` | `Spacer` | none | section 11.1 |
 | `VirtualList`, `VirtualGrid` | same | one item template | [`virtualization-v1.md`](virtualization-v1.md) |
 | `ErrorBoundary` | `ErrorBoundary` | exactly one child element | [`error-boundaries-v1.md`](error-boundaries-v1.md) |
 | `CustomElement` | `CustomElement` | none | [`custom-elements-v1.md`](custom-elements-v1.md) |
@@ -498,6 +550,43 @@ prop set of each is defined by the document named in the last column.
 Library components (for example `Form`, `Field`, `DataGrid`) are imported from `"tessera"` and are
 ordinary components for the front end; their props are validated against their declared prop types
 ([`component-library.md`](../design/component-library.md)).
+
+### 11.1 `Image`, `Path` and `Spacer`
+
+All three have no children and no event props (`onClick` and the like give `TESSERA_JSX_SUBSET_UNKNOWN_PROP`).
+Every attribute value is a literal or a pure expression as stated per attribute. `key` is accepted as on any
+element (section 10.5). These props were decided by the project owner.
+
+**`Image`** (raster image from the project's image assets)
+
+| Prop | Type | Required | Rule |
+|---|---|---|---|
+| `src` | string literal | yes | A project-relative path of a file inside a directory listed in `assets.images` ([`project-config-v1.md`](project-config-v1.md)). The compiler checks that the file exists (`TESSERA_JSX_IMAGE_SRC`). Dynamic sources, URLs and expressions are not accepted in V1 |
+| `alt` | string, pure expression | yes | The accessible name. The empty string `""` marks the image as decorative: it is left out of the accessibility tree ([`accessibility-v1.md`](accessibility-v1.md)). A missing `alt` is `TESSERA_JSX_IMAGE_ALT` |
+| `fit` | `"contain"`, `"cover"`, `"fill"` or `"none"` (literal) | no | Default `"contain"`. `contain`: scale uniformly to fit inside the element box. `cover`: scale uniformly to cover the box and clip the overflow. `fill`: stretch to the box. `none`: natural size, centered, clipped |
+| `className`, `style` | as section 10.3 | no | Size, margin, opacity and the other properties of [`stylesheet-v1.md`](stylesheet-v1.md). Without a size, the element is the decoded image size in dp |
+
+**`Path`** (vector path)
+
+| Prop | Type | Required | Rule |
+|---|---|---|---|
+| `d` | string literal | yes | SVG path data (SVG 1.1 section 8.3). The compiler parses it (`TESSERA_JSX_PATH_DATA` on error); the data is stored in IR as written |
+| `viewBox` | string literal `"minX minY width height"` | yes | Four numbers separated by spaces, with width and height greater than 0. The path is scaled uniformly to fit the element box and centered (SVG `preserveAspectRatio="xMidYMid meet"`) |
+| `fill` | CSS color literal, `var(--name)` literal, or `"none"` | no | Default `"none"` |
+| `stroke` | same as `fill` | no | Default `"none"` |
+| `strokeWidth` | number literal | no | In viewBox units. Default `1`. Ignored when `stroke` is `"none"` |
+| `label` | string, pure expression | no | The accessible name. Without it the path is decorative and left out of the accessibility tree |
+| `className`, `style` | as section 10.3 | no | Same as `Image` |
+
+**`Spacer`** (empty space inside a flex container)
+
+| Prop | Type | Required | Rule |
+|---|---|---|---|
+| `size` | length (number of dp, or a string with a unit of [`stylesheet-v1.md`](stylesheet-v1.md) section 8.1) | one of `size`, `grow` | Fixed size along the container's main axis (the flex basis) |
+| `grow` | number literal, 0 or greater | one of `size`, `grow` | Share of the free main-axis space; default `0` |
+
+A `Spacer` with neither prop is `TESSERA_JSX_SPACER_EMPTY`. It never shrinks, accepts no `className` or
+`style`, and is always decorative.
 
 ## 12. Rejected constructs
 
@@ -610,7 +699,9 @@ Recovery mode is not used by production code generation.
   | Diagnostics per file (reporting stops after this many) | 100 | `TESSERA_JSX_LIMIT_DIAGNOSTICS` |
   | Components per file | 64 | `TESSERA_JSX_LIMIT_COMPONENTS` |
 
-  The configuration key names are not specified yet.
+  The configuration keys are `ui.limits.maxFileBytes`, `maxTokens`, `maxNestingDepth`, `maxDiagnostics`
+  and `maxComponents` ([`project-config-v1.md`](project-config-v1.md), section `ui`), in the order of the
+  table.
 - It is portable C++: no operating-system, threading or filesystem calls inside the parser. File
   reading happens in the caller so the same library links into the native CLI and the Wasm module.
 
@@ -655,11 +746,16 @@ and hover; the front end does not read them to decide validity.
 
 Decided by the project owner and recorded in the sections named: no automatic semicolon insertion
 (3.6), optional preview body (9.3), `int`/`float` types (5), cleanup mapping (7), no reading of animated
-values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults (15),
-numeric semantics and the pure-function allowlist ([`ir-v1.md`](ir-v1.md) sections 4.1 and 4.2).
+values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults and
+configuration keys (15), numeric semantics and the pure-function allowlist
+([`ir-v1.md`](ir-v1.md) sections 4.1 and 4.2), the hook manifest and its two V1 hooks (7.1), props of
+`Image`, `Path` and `Spacer` (11.1).
 
 Still open:
 
-- Built-in hook manifest format and the first library hooks.
-- Props of `Image`, `Path` and `Spacer` (section 11).
-- Configuration key names for the parser limits (section 15).
+- Where the built-in hook manifest file is stored in the framework package.
+- The value of `useTheme()` when the project defines no theme, and the API that changes the active theme
+  at run time (the example in [`view-transitions-v1.md`](view-transitions-v1.md) section 3.1 calls
+  `setTheme`, which is not defined anywhere).
+- Image formats accepted for `Image.src` and the maximum decoded size (see
+  [`resources.md`](../design/resources.md)).
