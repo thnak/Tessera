@@ -69,6 +69,14 @@ public:
     // do not fit stay queued for the next poll. Never blocks and never calls user code.
     virtual std::size_t poll_events(std::span<WindowEvent> events) = 0;
 
+    // Idles for at most `timeout_seconds` while pumping the platform message queue, then returns
+    // true if at least one WindowEvent is queued (or a Close is pending) and false on timeout.
+    // Negative or non-finite timeouts are clamped to zero, so the call degrades to a poll. The
+    // platform implementation only records normalized events; no user code runs from the wait.
+    // Must be called on the thread that created the window. The default implementation is a
+    // bounded idle sleep that reports no event, for platforms without an event source.
+    virtual bool wait_for_events(double timeout_seconds);
+
     virtual void show() = 0;
     virtual void hide() = 0;
 

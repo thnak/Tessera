@@ -99,6 +99,13 @@ if (WIN32)
     target_link_libraries(window_win32_tests PRIVATE tessera_hal_window)
 
     add_test(NAME window_win32 COMMAND window_win32_tests)
+
+    add_executable(window_wait_tests
+        window_wait_tests.cpp)
+
+    target_link_libraries(window_wait_tests PRIVATE tessera_hal_window)
+
+    add_test(NAME window_wait COMMAND window_wait_tests)
 endif()
 
 add_executable(runtime_loop_tests

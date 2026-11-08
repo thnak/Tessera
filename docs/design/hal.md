@@ -24,7 +24,7 @@ or `NSWindow*`.
 | Input | pointer, keyboard, touch, pen, wheel, IME, focus/capture | WM_POINTER/WM_KEY, XInput2/XKB, wl_seat, Android MotionEvent, NSEvent |
 | Lifecycle | activate/deactivate, show/hide, minimize/restore, suspend/resume, lock/unlock, shutdown | WM_*, X11/Wayland, Android Activity/scene, Cocoa |
 | Power | AC/battery, battery saver, thermal, screen on/off | power GUIDs, logind/UPower, Android PowerManager, NSProcessInfo |
-| Timer | monotonic clock, bounded idle wait, frame deadlines | `src/hal/timer/` (portable), OS timers/event waits in B3 |
+| Timer | monotonic clock, bounded idle wait, frame deadlines | `src/hal/timer/` (portable), window event wait in §1.2 |
 | Filesystem | paths, watch, atomic write, asset roots | Win32, inotify/FSEvents, Android assets |
 | Graphics | surface creation/destruction, resize handshake | Vulkan surface extensions per platform |
 | Audio | optional notification/UI sounds | miniaudio (optional; see [`dependencies.md`](../specs/dependencies.md)) |
@@ -47,9 +47,29 @@ Resize/DPI/lifecycle rules are in [`window-resize.md`](window-resize.md).
 The UI thread may idle in `wait_until_seconds` between ticks because the wait is bounded by the
 next deadline and holds no locks; [ADR-021](../../decisions/ADR-021-async-runtime.md) treats this
 as idling rather than blocking. Early wakeups from input, async completions, and
-`request_frame()` require the B3 platform event/timer wait and are not provided by this portable
-primitive. `runtime::SystemClock` (`src/runtime/system_clock.*`) is the only runtime adapter and
-delegates here; `src/hal/` never depends on `src/runtime/`.
+`request_frame()` are provided by the B3 window event wait (§1.2), not by this portable primitive.
+`runtime::SystemClock` (`src/runtime/system_clock.*`) is the only runtime adapter and delegates
+here; `src/hal/` never depends on `src/runtime/`.
+
+### 1.2 Window event wait (implemented, Windows)
+
+`hal::Window::wait_for_events(timeout_seconds)` idles on the owning thread while pumping OS
+messages and returns `true` when at least one normalized `WindowEvent` is queued (or a close is
+pending), `false` on timeout. Negative or non-finite timeouts are clamped to zero and every wait is
+bounded. The Win32 implementation (`src/platform/windows/window.cpp`) waits with
+`MsgWaitForMultipleObjectsEx` (`QS_ALLINPUT`, bounded millisecond timeout) and then drains with
+`PeekMessage`/`DispatchMessage`, preserving queue order and the existing resize coalescing. The
+message callbacks only record events, so no user code runs from inside the wait. Non-Windows builds
+keep a bounded `wait_until_seconds` fallback that returns `false` because no X11/Wayland window
+backend exists yet.
+
+[`include/tessera/hal/window_wait.hpp`](../../include/tessera/hal/window_wait.hpp) adds
+`wait_for_events_until(window, deadline_seconds)`: it slices the platform wait so a wakeup cannot
+overshoot `deadline_seconds` and returns `WaitOutcome::Event` as soon as the window reports an
+event, or `WaitOutcome::Deadline` otherwise (a past deadline returns immediately). Runtime
+integration should idle between ticks by computing the next `FramePacer` deadline and calling
+`wait_for_events_until(window, deadline)`; `RuntimeLoop::tick()` behavior is unchanged until that
+runtime slice lands.
 
 ## 2. Core types
 
@@ -220,8 +240,11 @@ See [`window-resize.md`](window-resize.md) for the state machine and
 - `src/hal/timer/` is implemented (`tessera_hal_timer`): monotonic clock + bounded idle wait.
 - `src/hal/window/` provides `tessera_hal_window` and `hal::create_window`. The Win32
   implementation lives in `src/platform/windows/window.cpp`; other platforms build a stub that
-  returns `nullptr`. Window creation, normalized resize/DPI/focus/close events, and
-  owner-thread destruction are covered by `window_win32` tests on Windows.
+  returns `nullptr`. Window creation, normalized resize/DPI/focus/close events, owner-thread
+  destruction, and the event-driven `wait_for_events` idle wait are covered by `window_win32` and
+  `window_wait` tests on Windows. `include/tessera/hal/window_wait.hpp` supplies the
+  deadline-bounded `wait_for_events_until` helper for the runtime/frame pacer. Wiring that helper
+  into `RuntimeLoop` is still pending; the loop's tick behavior is unchanged.
 - The Win32 `VkSurfaceKHR`/swapchain path lives in `src/rendering/backend/vulkan/src/` and is
   created through `Device::create_swapchain` with the opaque `native_window` handle supplied by
   the HAL. Other `src/hal/*` and `src/platform/*` areas remain placeholders.

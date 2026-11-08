@@ -13,6 +13,7 @@
 #define WINVER 0x0A00
 #endif
 
+#include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 
 #include <algorithm>
@@ -20,6 +21,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -108,6 +110,10 @@ public:
         return copied;
     }
 
+    [[nodiscard]] std::size_t count() const {
+        return count_;
+    }
+
     void clear() {
         head_ = 0;
         count_ = 0;
@@ -136,6 +142,7 @@ public:
 
     [[nodiscard]] WindowMetrics metrics() const override;
     std::size_t poll_events(std::span<WindowEvent> events) override;
+    bool wait_for_events(double timeout_seconds) override;
     void show() override;
     void hide() override;
     void request_redraw() override;
@@ -145,6 +152,9 @@ private:
     static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     LRESULT handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     void enqueue(WindowEventType type);
+    void request_close();
+    void pump_messages();
+    [[nodiscard]] bool has_pending_events() const;
 
     HWND hwnd_ = nullptr;
     DWORD owner_thread_ = GetCurrentThreadId();
@@ -155,6 +165,7 @@ private:
     bool applying_dpi_rect_ = false;
     bool close_posted_ = false;
     bool close_requested_ = false;
+    bool close_delivered_ = false;
 };
 
 LRESULT CALLBACK Win32Window::window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -285,8 +296,79 @@ void Win32Window::enqueue(WindowEventType type) {
     events_.push(event);
 }
 
+void Win32Window::request_close() {
+    if (close_requested_) {
+        return;
+    }
+    close_requested_ = true;
+    close_delivered_ = false;
+    enqueue(WindowEventType::Close);
+}
+
+void Win32Window::pump_messages() {
+    MSG message{};
+    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE) != FALSE) {
+        if (message.message == WM_QUIT) {
+            // Thread shutdown has no HWND; surface it as the normalized shutdown event.
+            request_close();
+            continue;
+        }
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
+}
+
+bool Win32Window::has_pending_events() const {
+    return events_.count() > 0 || (close_requested_ && !close_delivered_);
+}
+
 std::size_t Win32Window::poll_events(std::span<WindowEvent> events) {
-    return events_.copy_to(events);
+    const std::size_t copied = events_.copy_to(events);
+    for (std::size_t i = 0; i < copied; ++i) {
+        if (events[i].type == WindowEventType::Close) {
+            close_delivered_ = true;
+        }
+    }
+    return copied;
+}
+
+bool Win32Window::wait_for_events(double timeout_seconds) {
+    // Message pumping and the event queue belong to the creating thread; a foreign-thread wait
+    // cannot observe them safely.
+    if (GetCurrentThreadId() != owner_thread_) {
+        return false;
+    }
+    const double timeout =
+        std::isfinite(timeout_seconds) && timeout_seconds > 0.0 ? timeout_seconds : 0.0;
+    const double deadline = steady_now_seconds() + timeout;
+
+    for (;;) {
+        pump_messages();
+        if (has_pending_events()) {
+            return true;
+        }
+        const double remaining = seconds_until(steady_now_seconds(), deadline);
+        if (remaining <= 0.0) {
+            return false;
+        }
+        // MsgWaitForMultipleObjectsEx takes whole milliseconds. Round up so a sub-millisecond
+        // remainder still parks once instead of spinning, and clamp so the wait stays bounded.
+        const double wait_milliseconds =
+            std::min(std::ceil(remaining * 1000.0),
+                     static_cast<double>(std::numeric_limits<DWORD>::max() - 1));
+        const DWORD wait_ms = static_cast<DWORD>(wait_milliseconds);
+        const DWORD result = MsgWaitForMultipleObjectsEx(0, nullptr, wait_ms, QS_ALLINPUT, 0);
+        if (result == WAIT_FAILED) {
+            // A broken message queue must not spin; idle out the remaining budget once.
+            wait_until_seconds(deadline);
+            return has_pending_events();
+        }
+        if (result == WAIT_TIMEOUT) {
+            pump_messages();
+            return has_pending_events();
+        }
+        // WAIT_OBJECT_0: input is available; loop to drain and re-check for events.
+    }
 }
 
 void Win32Window::show() {
@@ -358,10 +440,7 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
         return 0;
     case WM_CLOSE:
         // Graceful shutdown is a normalized event; the owner destroys the window.
-        if (!close_requested_) {
-            close_requested_ = true;
-            enqueue(WindowEventType::Close);
-        }
+        request_close();
         return 0;
     case WM_SHOWWINDOW:
         if (wparam == FALSE) {
@@ -380,6 +459,15 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
 }
 
 } // namespace
+
+bool Window::wait_for_events(double timeout_seconds) {
+    // Default for platform windows without an OS event source: idle for the bounded timeout and
+    // report no event so a polling caller still throttles instead of spinning.
+    if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
+        wait_until_seconds(steady_now_seconds() + timeout_seconds);
+    }
+    return false;
+}
 
 std::unique_ptr<Window> create_window(const WindowDesc& desc) {
     auto window = std::make_unique<Win32Window>();

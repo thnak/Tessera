@@ -14,4 +14,7 @@ endif()
 target_include_directories(tessera_hal_window PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
+# The base Window fallback and the public window_wait.hpp helper use the HAL steady clock.
+target_link_libraries(tessera_hal_window PUBLIC tessera_hal_timer)
+
 target_compile_features(tessera_hal_window PUBLIC cxx_std_23)
