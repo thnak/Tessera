@@ -81,7 +81,7 @@ read the parser AST.
 | `effects` | Effect[] | no | `useEffect`. An Effect has `id`, `deps`, `handler` (binding id), `source`, and an optional `cleanup` (binding id of the cleanup handler; it runs before the effect runs again and on unmount) |
 | `refs` | Ref[] | no | `useRef` |
 | `animatedValues` | AnimatedValue[] | no | `useAnimatedValue` |
-| `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type) and `source`. Read-only; a change of the provider's value updates the component like a state change |
+| `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1) |
 | `root` | Node | yes | Exactly one root node |
 
 V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`. No

@@ -35,7 +35,7 @@ parity with React plus a browser is neither achievable nor promised.
    behavior. Differences are documented, not hidden.
 3. **Built-in components and hooks.** The framework library provides built-in components
    (`docs/design/component-library.md`) and a registry of built-in hooks: the four hooks named
-   in item 2 plus the library hooks `useTheme` and `useBreakpoint` (specified in
+   in item 2 plus the library hooks `useTheme`, `useThemeState` and `useBreakpoint` (specified in
    [`jsx-subset-v1.md`](../docs/specs/jsx-subset-v1.md) section 7.1; further library hooks need their own spec). Built-in hooks are declared in
    a manifest with typed signatures, so the analyzer validates them like core hooks.
    Hooks written by app developers (custom hooks), React context, suspense, and portals are

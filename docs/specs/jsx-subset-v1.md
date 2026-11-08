@@ -262,6 +262,12 @@ stored in the framework package is not specified yet.
       "params": [],
       "returns": { "ts": "\"compact\" | \"medium\" | \"expanded\"", "ir": "string" },
       "lowering": { "kind": "environment", "provider": "breakpoint" }
+    },
+    {
+      "name": "useThemeState",
+      "params": [],
+      "returns": { "ts": "[string, (id: string) => void]", "ir": "string" },
+      "lowering": { "kind": "environment", "provider": "theme", "writable": true }
     }
   ]
 }
@@ -272,11 +278,12 @@ stored in the framework package is not specified yet.
 | `schemaVersion` | integer | `1`. Any other value makes the front end refuse to start (`TESSERA_JSX_MANIFEST_VERSION`) |
 | `hooks[].name` | string | Hook name; starts with `use` followed by an uppercase letter; unique; must not equal a core hook name |
 | `hooks[].params` | array | Parameters in order, each `{ "name": string, "ts": string, "ir": string }`. `ts` is a type of section 5; `ir` is an IR type of [`ir-v1.md`](ir-v1.md) section 2. V1 library hooks have no parameters |
-| `hooks[].returns` | object | `ts`: the type seen by the analyzer; `ir`: the IR type of the value |
-| `hooks[].lowering` | object | How the call lowers to IR. The only kind in V1 is `environment` (below) |
+| `hooks[].returns` | object | `ts`: the type seen by the analyzer; `ir`: the IR type of the value. For a `writable` hook, `ts` is a pair of the value and its setter |
+| `hooks[].lowering` | object | How the call lowers to IR. The only kind in V1 is `environment` (below), with `provider` and optional `writable` (boolean, default `false`) |
 
 Call form: `const name = useHook();` (a single `const` binding of the whole value, no destructuring, at the
-top level of the component body). The same placement and ordering rules as for core hooks apply
+top level of the component body). A `writable` hook uses the pair form `const [name, setName] = useHook();`
+(exactly two names, as for `useState`). The same placement and ordering rules as for core hooks apply
 (`TESSERA_REACT_HOOK_ORDER`). The value may be used in any pure expression, in JSX, and as an effect
 dependency.
 
@@ -285,13 +292,16 @@ dependency.
 "type": "<ir type>" }`, and every use of the variable becomes a `ref` to that id. A **provider** is an
 engine-owned source of a read-only value. When the provider's value changes, the engine marks every
 component that reads it as updated, exactly as for a state change
-([`component-model-v1.md`](component-model-v1.md) section 5). Components cannot write environment values.
+([`component-model-v1.md`](component-model-v1.md) section 5). A component can write an environment value only through the setter of a `writable` hook; the setter is used
+like a state setter in handlers of section 9.2 and in `startViewTransition` update functions, and lowers to
+a write of `env::<name>`. Other environment values are read-only.
 
 V1 library hooks (the full contents of the V1 manifest):
 
 | Hook | Returns | Value |
 |---|---|---|
-| `useTheme()` | `string` | The id of the active theme, as defined by the project's theme asset (`assets.theme` in [`project-config-v1.md`](project-config-v1.md)) |
+| `useTheme()` | `string` | The id of the active theme. The engine always provides a built-in theme with id `default` (no tokens); it is the active theme at start unless the project's theme asset (`assets.theme` in [`project-config-v1.md`](project-config-v1.md)) names another start theme. Never empty. The project owner decided this |
+| `useThemeState()` | `[string, (id: string) => void]` | The pair of the active theme id (the same value as `useTheme()`) and a setter. `setTheme(id)` makes `id` the active theme: the stylesheet engine re-resolves styles, as for any theme change ([`stylesheet-v1.md`](stylesheet-v1.md) section 9). A string literal that is not a theme id of the project is `TESSERA_JSX_THEME_UNKNOWN`; a non-literal unknown id at run time changes nothing and reports the runtime diagnostic `TESSERA_IR_THEME_UNKNOWN` |
 | `useBreakpoint()` | `"compact" \| "medium" \| "expanded"` | The size class of the window width in dp (logical pixels): `compact` below 600, `medium` from 600 to 839, `expanded` from 840 upward; the same thresholds as [`responsive.md`](../design/responsive.md) section 2. Uses the window, not the display, and updates on resize, fold change and multi-window changes |
 
 In the browser designer, the values come from the viewer environment set by `viewport.set`
@@ -749,13 +759,11 @@ Decided by the project owner and recorded in the sections named: no automatic se
 values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults and
 configuration keys (15), numeric semantics and the pure-function allowlist
 ([`ir-v1.md`](ir-v1.md) sections 4.1 and 4.2), the hook manifest and its two V1 hooks (7.1), props of
-`Image`, `Path` and `Spacer` (11.1).
+`Image`, `Path` and `Spacer` (11.1), the default theme `default` and the `useThemeState()` hook (7.1).
 
 Still open:
 
 - Where the built-in hook manifest file is stored in the framework package.
-- The value of `useTheme()` when the project defines no theme, and the API that changes the active theme
-  at run time (the example in [`view-transitions-v1.md`](view-transitions-v1.md) section 3.1 calls
-  `setTheme`, which is not defined anywhere).
+- The format of the theme asset: how it declares theme ids, tokens per theme and the start theme.
 - Image formats accepted for `Image.src` and the maximum decoded size (see
   [`resources.md`](../design/resources.md)).

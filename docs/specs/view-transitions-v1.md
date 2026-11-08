@@ -101,6 +101,9 @@ Origin rule:
 - `"center"`: the window center.
 - `{ x, y }`: a position in window coordinates, device-independent pixels.
 
+In the example, `setTheme` is the setter returned by the library hook `useThemeState()`
+([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1).
+
 The update function must contain only calls to state setters of hooks (for example `setX(...)`)
 and pure expressions. Any other construct (I/O, `await`, `useEffect`, refs) is a compile error
 under the Tier 1 rules in [`compiler.md`](../design/compiler.md) §4. An `async` update function is
