@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_animation STATIC
-    keyframes.cpp)
+    keyframes.cpp
+    runtime.cpp)
 
 target_include_directories(tessera_animation PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

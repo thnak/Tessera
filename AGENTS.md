@@ -418,8 +418,9 @@ scene nodes as parent-relative bounds with dirty propagation, and `ui/layout/pix
 the paint-time edge-snapping contract (fractional layout stays unchanged). `add_scene_damage` turns
 dirty Paint/Render scene bounds into snapped damage rectangles. `@supports` evaluates
 `not`/`and`/`or` declarations against the property registry. `ui/animation/keyframes.hpp` samples
-parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation. Next
-slices, in order:
+parsed keyframes at fixed-step time with direction/fill and linear numeric interpolation, and
+`ui/animation/runtime.hpp` drives active entries with tick/completion/dirty reporting. Next slices,
+in order:
 
 1. Real text stack seam: font loading/metrics, shaping, glyph atlas.
 2. Async runtime, diagnostics, lavapipe goldens.
