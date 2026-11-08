@@ -45,7 +45,9 @@ one, without waking for paused-only or retained-fill samples. Stopping a target 
 entries, paused ones included;
 stopping a target/name pair removes only that animation and its retained fill. Restarting a
 target/name pair rewinds matching active entries and revives retained fills from their start.
-Target/name state exposes active and settled counts for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
+Completion callbacks run after forwards/both fills are retained, so clearing, stopping, or replacing
+from a callback removes or supersedes that fill. Target/name state exposes active and settled counts
+for style reconciliation. "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8).
 Decision: [ADR-034](../../decisions/ADR-034-interaction-and-overscroll-animation.md) (interaction
 animation and overscroll stretch/spring-back). Companion to
 [`animation.md`](../design/animation.md), [`game-loop.md`](../design/game-loop.md),

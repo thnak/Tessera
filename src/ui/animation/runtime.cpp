@@ -108,13 +108,24 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
                                   }),
                    entries_.end());
 
+    struct FinishedCallback {
+        AnimationId id = 0;
+        AnimationCallback callback;
+    };
+    std::vector<FinishedCallback> callbacks;
+    callbacks.reserve(finished.size());
     for (AnimationEntry& entry : finished) {
-        if (entry.on_complete) {
-            entry.on_complete(entry.id);
-        }
+        const AnimationId id = entry.id;
+        AnimationCallback callback = entry.on_complete;
         if (entry.timing.fill == FillMode::Forwards || entry.timing.fill == FillMode::Both) {
             fills_.push_back(std::move(entry));
         }
+        if (callback) {
+            callbacks.push_back(FinishedCallback{id, std::move(callback)});
+        }
+    }
+    for (FinishedCallback& entry : callbacks) {
+        entry.callback(entry.id);
     }
 
     result.keep_awake = std::any_of(entries_.begin(), entries_.end(),
