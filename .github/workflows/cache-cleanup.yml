@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: MIT
+
+name: Cache cleanup
+
+# Compiler caches are only useful on the day they were written (the key carries the date), so
+# remove anything older than 24 hours instead of waiting for GitHub's 7-day eviction.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete caches older than 24 hours
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cutoff="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          gh cache list --limit 1000 --json id,createdAt,key \
+            --jq ".[] | select(.createdAt < \"$cutoff\") | \"\(.id) \(.key)\"" |
+          while read -r id key; do
+            echo "deleting $key"
+            gh cache delete "$id"
+          done

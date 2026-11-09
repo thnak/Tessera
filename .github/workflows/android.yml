@@ -15,6 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: ./.github/actions/ccache
+        with:
+          name: android
+
       - name: Configure (NDK, arm64-v8a, null backend)
         run: |
           ndk="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
@@ -50,6 +54,9 @@ jobs:
 
       - name: Build tests
         run: cmake --build build/android-tests --parallel
+
+      - name: ccache statistics
+        run: ccache --show-stats
 
       - name: Run unit and null-GPU tests on emulator
         uses: reactivecircus/android-emulator-runner@v2

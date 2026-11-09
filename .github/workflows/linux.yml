@@ -34,11 +34,18 @@ jobs:
       - name: Format check
         run: bash scripts/format.sh --check
 
+      - uses: ./.github/actions/ccache
+        with:
+          name: linux
+
       - name: Configure
         run: cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
         run: cmake --build --preset ci
+
+      - name: ccache statistics
+        run: ccache --show-stats
 
       - name: Check static C++ runtime (ADR-012)
         run: |

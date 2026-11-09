@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: MIT
+
+name: ccache (one-day cache)
+description: >
+  Installs ccache and restores/saves its directory. The key carries the UTC date, so a cache is
+  only ever reused on the day it was written; the codebase changes fast and an older cache would
+  mostly miss anyway. cache-cleanup.yml deletes caches older than 24 hours.
+
+inputs:
+  name:
+    description: Job-specific cache name (separate caches per platform/toolchain)
+    required: true
+  max-size:
+    description: ccache size limit
+    default: 400M
+
+runs:
+  using: composite
+  steps:
+    - name: Install ccache
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          brew install ccache
+        else
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+        fi
+
+    - name: Configure ccache
+      id: config
+      shell: bash
+      run: |
+        echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        echo "CCACHE_DIR=$RUNNER_TEMP/ccache" >> "$GITHUB_ENV"
+        echo "CCACHE_MAXSIZE=${{ inputs.max-size }}" >> "$GITHUB_ENV"
+        # CMakeLists already launches C++ through ccache when it finds it; C (FreeType) needs this.
+        echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> "$GITHUB_ENV"
+        echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> "$GITHUB_ENV"
+
+    # The unique per-commit key makes every successful run save a fresh entry; the restore prefix
+    # stops at today's date, so yesterday's entries are never picked up.
+    - name: Restore ccache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/ccache
+        key: ccache-${{ inputs.name }}-${{ steps.config.outputs.date }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ inputs.name }}-${{ steps.config.outputs.date }}-
+
+    - name: Reset ccache statistics
+      shell: bash
+      run: ccache --zero-stats
