@@ -27,9 +27,28 @@ begin_frame
   -> reuse slot
 ```
 
-B1: one slot, synchronous `submit` + wait. B2: 2 slots by default (config 1..3), CPU records the
-next frame while the GPU executes the previous one. B3 adds swapchain acquire/present around the
-same lifecycle.
+B1 blocking path: one slot, synchronous `submit` (offscreen, readback, goldens). B2: 2 slots by
+default (config 1..3), CPU records the next frame while the GPU executes the previous one. B3 adds
+swapchain acquire/present around the same lifecycle.
+
+### Current implementation
+
+The frame-slot idea is implemented by `Batched2DRenderer`, not yet by a device-level frame object:
+
+- `Batched2DConfig::frames_in_flight` (default 1) sets the number of vertex-buffer slots used
+  round-robin, one per frame.
+- **Caller contract:** with N slots, frame k + N must not begin until frame k's command list is
+  complete (`is_complete()` or a bounded `wait()`), because it rewrites frame k's slot. With the
+  default of 1, finish each frame (blocking `submit()` or a wait) before beginning the next.
+  Nothing enforces this at runtime, and synchronization validation cannot detect a host write
+  racing a GPU vertex read, so it is covered only by the renderer's recording-device test.
+- Within one frame, flushes append at increasing offsets and draw with a base vertex, so a mid-frame
+  flush (for example a viewport change) never overwrites vertices that earlier draws still read.
+  When a slot's buffer is full, a larger one is added; buffers already referenced by recorded
+  draws are never destroyed until the slot is next reused.
+- Reference loop: the windowed mode of `tools/poc/batched2d` uses two slots, `submit_async`, a
+  bounded wait on the slot's previous list (a timeout skips the frame), and one `wait_idle` at
+  shutdown. This is the shape a real loop should follow.
 
 ## 3. Frame slots
 
@@ -75,7 +94,9 @@ Rules:
 
 ## 6. Uploads and readbacks
 
-- Uploads use a per-slot staging ring; no per-texture command list or submit.
+- Target: uploads use a per-slot staging ring; no per-texture command list or submit. Today each
+  texture upload still records and submits its own list, but asynchronously, with its staging
+  buffer retired after completion (see [backends.md](backends.md#3-vulkan-13)).
 - Upload work is batched before drawing; the first use of a resource is ordered after its copy.
 - Readback uses a `Readback` buffer; mapping is bounded and never on the UI hot path.
 - Readback for tests is explicit (`copy_target_to_buffer` + completion); production screenshots

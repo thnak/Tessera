@@ -77,7 +77,14 @@ Invariants:
 - `set_viewport`/`set_scissor` are explicit; there is no hidden default in the RHI.
 - `push_constants` size must match `PipelineDesc::push_constant_size`.
 - `copy_target_to_buffer` happens outside the render pass.
-- `submit` submits once; B1 is synchronous and waits for completion.
+- A list is submitted once, in one of two ways:
+  - `submit_async()` queues the work and returns; this is the frame-path call.
+    `is_complete()` polls without blocking and `wait(timeout_ms)` blocks for at most that long and
+    returns whether the list finished. A timeout is a result, not an error.
+  - `submit()` queues and waits for completion with no bound. It exists for offscreen renders,
+    readback, and goldens; frame code on the UI thread must not call it ([ADR-021](../../../decisions/ADR-021-async-runtime.md)).
+- Dropping a list that is still executing is allowed: the backend keeps its resources alive until
+  the GPU is done with them.
 - A command list is not recorded concurrently by multiple threads.
 - The backend owns image-layout transitions, queue ownership, and API barriers; the RHI exposes
   no raw barrier calls in B1. A future explicit-barrier API needs a decision.
@@ -87,8 +94,12 @@ Invariants:
 - The device owns GPU objects; users own handles and destroy them before the device.
 - Resources referenced by in-flight frames retire after their completion value; never destroy
   immediately after submit.
-- B1: one thread, synchronous submit/wait. B2 may add a render thread; the UI thread records
-  immutable command data and never blocks indefinitely.
+- B1 baseline: one thread. `submit_async` and bounded `wait` are in place; B2 may add a render
+  thread, where the UI thread records immutable command data and never blocks indefinitely.
+- `Device` state (recycled command resources, pending uploads, deferred destruction) is not
+  thread-safe: use one device from one thread at a time until the render-thread work lands.
+- Mixing objects from different backends is a programming error. Debug builds assert; release
+  builds do not check (the frame path uses `static_cast`, not RTTI).
 - Cross-thread ownership transfer is explicit; no hidden locking in the steady-state path.
 - Hot reload/resize creates a new generation; old generation retires after frames in flight.
 - Shutdown: stop new work, bounded wait, retire resources, then destroy the device.
@@ -98,6 +109,10 @@ Invariants:
 - Creation returns an owning handle or an explicit error; no nullable handle is treated as valid.
 - B2 target: `std::expected<Handle, RhiError>` with stable categories:
   `invalid-argument`, `unsupported`, `out-of-memory`, `device-lost`, `validation`, `backend`.
+- `Buffer::write`/`read` never fail silently: an out-of-range request throws `std::out_of_range`
+  (the bounds check cannot overflow) and a failed mapping throws `std::runtime_error`. Both the
+  Null and Vulkan backends behave the same.
+- A `create_*` call that fails part-way releases everything it already created.
 - Device loss is sticky: all new submissions fail until recreated; UI state is preserved.
 - Out-of-memory must evict caches/fallbacks before failing the app.
 - Validation errors are fatal in debug/tests; release behavior is backend-defined but logged.

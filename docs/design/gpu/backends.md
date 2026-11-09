@@ -45,12 +45,23 @@ A missing optional capability uses the documented fallback or fails at creation.
 
 - Dynamic rendering; no legacy render-pass/framebuffer objects.
 - volk loads entry points; VMA sub-allocates memory; one graphics queue in B1.
-- B1: one frame in flight, synchronous submit/wait, host-visible buffers.
+- Host-visible buffers in B1. Submission is asynchronous (`submit_async`); each list owns a
+  command pool, buffer, and fence taken from a small recycled free list (capped at 8). Lists that
+  were dropped while running are reaped by polling their fences, never by waiting.
+- Texture upload does not block: staging buffers stay alive in a pending list until the upload
+  completes, and destroying a texture defers the Vulkan objects until every upload that could
+  reference them has finished (a monotonically increasing upload serial).
+- Descriptor sets come from a pool created with `FREE_DESCRIPTOR_SET`; destroying a texture frees
+  its set, so create/destroy churn does not exhaust the pool.
+- Swapchain present waits on a per-image render-finished semaphore signaled by `submit_async`, so
+  the CPU does not wait for the GPU between render and present.
+- With `validation` on, synchronization validation is enabled whenever the layer supports it.
 - Targets: `COLOR_ATTACHMENT | TRANSFER_SRC`; textures: `SAMPLED | TRANSFER_DST` uploaded through
   staging and transitioned to shader-read.
 - Readback: copy target to a `TRANSFER_DST` host-random-access buffer, fence-wait, map/read.
 - Validation layers opt-in (`--validation`) and mandatory in debug/CI GPU runs.
-- B2 adds frames in flight/timeline semaphores, device loss, and persistent pipeline cache.
+- B2 adds timeline semaphores, device loss, and persistent pipeline cache. Binary fences and
+  per-image semaphores are what exist today.
 
 ## 4. WebGPU/Dawn
 
