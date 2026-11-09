@@ -1,7 +1,9 @@
 # Anti-aliasing
 
-Status: B1 (renderer-core phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) has **partial** AA (anti-aliasing). It is analytic SDF (signed distance field) AA for rounded rectangles; text uses grayscale coverage from the glyph atlas. There is no
-MSAA (multisample AA)/FXAA (fast approximate AA)/TAA (temporal AA) and no vector-path AA yet.
+Status: B1 (renderer-core phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) has **partial** AA (anti-aliasing): analytic SDF (signed distance field) AA for rounded rectangles,
+grayscale coverage from the glyph atlas for text, and an opt-in 4x MSAA color-target resolve path
+(§2.1). There is no MSAA 8x, no FXAA (fast approximate AA)/TAA (temporal AA), and no vector-path AA
+beyond what the path backend rasterizes.
 
 ## 1. What exists today
 
@@ -31,16 +33,43 @@ color.a *= alpha;
 
 | Area | Current state |
 |---|---|
-| Solid quads | Axis-aligned; fractional edges can alias; no geometric AA |
-| Textured quads | Texture filtering only (nearest/linear); no geometric AA |
+| Solid quads | Axis-aligned; fractional edges can alias; no geometric AA unless a 4x target is used |
+| Textured quads | Texture filtering only (nearest/linear); no geometric AA unless 4x |
 | Text/glyphs | Text stack/atlas is B2 ([`text.md`](text.md)); expected FreeType/atlas AA + subpixel policy |
 | Vector paths/strokes | [ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) (ThorVG/Skia); no path rasterizer yet |
 | Lines/circles/arbitrary shapes | Only rounded-box SDF; no general SDF |
 | Rounded clip edges | Hard pixel-center coverage mask (no clip AA); uses alpha 0, not `discard` |
-| MSAA | No multisample pipeline/sample count |
+| MSAA | 4x color targets implemented (opt-in); 8x/per-format/depth MSAA deferred |
 | FXAA/TAA/post-process | Not implemented |
 | Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | AA radius is fixed in local units (1.0); scaled/rotated quads may get a different screen-space width |
-| Golden coverage | No pixel golden asserts AA quality yet; B1 tests check draws/vertices |
+| Golden coverage | CPU goldens stay 1-sample; 4x coverage is a deterministic real-GPU readback test |
+
+## 2.1 MSAA 4x (implemented, opt-in)
+
+- `RenderTargetDesc::sample_count = 4` creates a multisample render image plus a 1-sample resolve
+  image; dynamic rendering resolves with `VK_RESOLVE_MODE_AVERAGE_BIT` at end of pass
+  (`storeOp=DONT_CARE` for the multisample image). Readback/sampling observe the resolved image.
+- `PipelineDesc::sample_count = 4` must match the target; `Batched2DConfig::sample_count = 4` opts
+  the renderer in. A mismatch is rejected explicitly (never silently degrade).
+- `Device::supports_sample_count(format, 4)` is the capability gate; on failure creation reports the
+  requested format/count and tests skip (no silent 1x fallback).
+- What benefits: non-SDF geometry — rotated/scaled solid quads, path/triangulated edges and thin
+  strokes, and anything else with hard geometric edges. SDF rounded rects already get analytic AA
+  and coverage text already carries atlas coverage; both keep working unchanged on a 4x target (they
+  don't need MSAA, and their resolved output equals the 1-sample output when geometry is
+  sample-aligned).
+- Not anti-aliased by MSAA: clip edges (the clip mask is a hard coverage test, so rounding the
+  clip stack does not smooth them), post-process effects, and any alpha-blended overlap that is
+  already resolved per-sample.
+- Memory: ~5x the 1-sample color bytes for a 4x target (four color samples + the resolve image) plus
+  resolve bandwidth; see [`gpu/resources.md`](gpu/resources.md) §4. MSAA is a per-target opt-in
+  (quality/power tradeoff), not a global default.
+- Golden policy: `batched2d_cpu_golden` stays 1-sample and byte-exact. The CPU canvas and current
+  lavapipe corpus do not include a 4x target, so no 4x image golden is added; the 4x path is covered
+  by a deterministic real-GPU readback test (edge-differ/interior-equal/repeat-identical). A
+  lavapipe 4x golden would be CI-only (software Vulkan) if added later.
+- Deferred: MSAA 8x, per-format sample-count sets beyond 1/4, depth/stencil MSAA, other resolve
+  modes, HDR/wide-gamut interactions, and tying sample count to a quality/power policy.
 
 ## 3. Quality and configuration (proposed)
 

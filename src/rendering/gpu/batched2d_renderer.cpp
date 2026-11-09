@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
+#include <string>
 
 namespace tessera::rendering::gpu {
 namespace {
@@ -75,6 +77,16 @@ void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::Ren
 void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
                                     const rhi::RenderTargetDesc& desc,
                                     const std::vector<rhi::Scissor>* damage_regions) {
+    // MSAA opt-in: the renderer never silently renders with a mismatched pipeline/target.
+    const std::uint32_t target_samples = target.sample_count();
+    if (desc.sample_count != target_samples || config_.sample_count != target_samples ||
+        (pipeline_ != nullptr && pipeline_->sample_count() != target_samples)) {
+        throw std::runtime_error(
+            "batched2d: sample count mismatch (config " + std::to_string(config_.sample_count) +
+            ", desc " + std::to_string(desc.sample_count) + ", target " +
+            std::to_string(target_samples) + ", pipeline " +
+            std::to_string(pipeline_ != nullptr ? pipeline_->sample_count() : 0) + ")");
+    }
     select_next_slot();
     commands_ = &commands;
     extent_ = desc.extent;

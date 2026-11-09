@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 
 int main() {
     using namespace tessera::rendering;
@@ -109,6 +110,103 @@ int main() {
     if (recovery.has_value() || recovery.error() != rhi::DeviceRecoveryError::NotSupported) {
         std::cerr << "null device recovery should report NotSupported\n";
         return 11;
+    }
+
+    // MSAA parity: 4x is declared for supported formats, invalid sample counts are rejected, and a
+    // pipeline/target sample-count mismatch is rejected at bind time (no silent degradation).
+    if (!device->supports_sample_count(rhi::TextureFormat::R8G8B8A8Unorm, 4)) {
+        std::cerr << "null device should declare 4x support\n";
+        return 12;
+    }
+    if (device->supports_sample_count(rhi::TextureFormat::R8G8B8A8Unorm, 2)) {
+        std::cerr << "null device should reject 2x sample count\n";
+        return 13;
+    }
+
+    rhi::TextureDesc msaa_texture_desc;
+    msaa_texture_desc.extent = {4, 4};
+    msaa_texture_desc.sample_count = 4;
+    const auto msaa_texture = device->create_texture(msaa_texture_desc);
+    if (msaa_texture->sample_count() != 4) {
+        std::cerr << "4x texture does not report sample_count 4\n";
+        return 14;
+    }
+    bool rejected = false;
+    try {
+        const std::uint8_t pixel[4] = {1, 2, 3, 4};
+        msaa_texture->write(pixel, sizeof(pixel));
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    if (!rejected) {
+        std::cerr << "4x texture should reject uploads\n";
+        return 15;
+    }
+    rejected = false;
+    try {
+        rhi::TextureDesc invalid_desc;
+        invalid_desc.extent = {4, 4};
+        invalid_desc.sample_count = 2;
+        (void)device->create_texture(invalid_desc);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    if (!rejected) {
+        std::cerr << "invalid texture sample count should be rejected\n";
+        return 16;
+    }
+
+    rhi::RenderTargetDesc msaa_target_desc;
+    msaa_target_desc.extent = {4, 4};
+    msaa_target_desc.sample_count = 4;
+    const auto msaa_target = device->create_render_target(msaa_target_desc);
+    if (msaa_target->sample_count() != 4) {
+        std::cerr << "4x render target does not report sample_count 4\n";
+        return 17;
+    }
+    rhi::PipelineDesc msaa_pipeline_desc;
+    msaa_pipeline_desc.sample_count = 4;
+    const auto msaa_pipeline = device->create_pipeline(msaa_pipeline_desc);
+    const auto one_sample_pipeline = device->create_pipeline(rhi::PipelineDesc{});
+    if (msaa_pipeline->sample_count() != 4 || one_sample_pipeline->sample_count() != 1) {
+        std::cerr << "pipeline sample_count not recorded\n";
+        return 18;
+    }
+
+    auto msaa_commands = device->create_command_list();
+    msaa_commands->begin_render_pass(*msaa_target, msaa_target_desc);
+    rejected = false;
+    try {
+        msaa_commands->bind_pipeline(*one_sample_pipeline);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    if (!rejected) {
+        std::cerr << "1x pipeline should be rejected on a 4x target\n";
+        return 19;
+    }
+    msaa_commands->bind_pipeline(*msaa_pipeline);
+    msaa_commands->end_render_pass();
+    if (static_cast<null::NullCommandList*>(msaa_commands.get())
+            ->stats()
+            .last_render_pass_sample_count != 4) {
+        std::cerr << "null backend did not record the render pass sample count\n";
+        return 20;
+    }
+
+    rejected = false;
+    try {
+        auto mismatched_commands = device->create_command_list();
+        rhi::RenderTargetDesc wrong_desc;
+        wrong_desc.extent = {4, 4};
+        wrong_desc.sample_count = 1;
+        mismatched_commands->begin_render_pass(*msaa_target, wrong_desc);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    if (!rejected) {
+        std::cerr << "begin_render_pass should reject a descriptor sample-count mismatch\n";
+        return 21;
     }
 
     std::cout << "rhi_null: ok\n";

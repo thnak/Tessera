@@ -132,6 +132,12 @@ VulkanRenderTarget::~VulkanRenderTarget() {
     }
     const bool destroy_handles = owner_ == nullptr || owner_->destroyable_epoch(epoch_);
     if (destroy_handles) {
+        if (resolve_view_ != VK_NULL_HANDLE) {
+            vkDestroyImageView(device_, resolve_view_, nullptr);
+        }
+        if (resolve_image_ != VK_NULL_HANDLE) {
+            vmaDestroyImage(allocator_, resolve_image_, resolve_allocation_);
+        }
         if (view_ != VK_NULL_HANDLE) {
             vkDestroyImageView(device_, view_, nullptr);
         }

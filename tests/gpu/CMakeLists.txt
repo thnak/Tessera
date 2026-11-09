@@ -155,6 +155,12 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME rounded_clip COMMAND rounded_clip_tests)
     set_tests_properties(rounded_clip PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    add_executable(msaa_tests
+        batched2d/msaa_tests.cpp)
+    target_link_libraries(msaa_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME msaa COMMAND msaa_tests)
+    set_tests_properties(msaa PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(vulkan_surface_format_tests
         vulkan/vulkan_surface_format_tests.cpp)
     target_include_directories(vulkan_surface_format_tests PRIVATE

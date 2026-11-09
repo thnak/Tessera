@@ -60,6 +60,8 @@ B1 batched 2D:
 - Triangle list, no index buffer, no depth.
 - Alpha blend (`src_alpha`, `one_minus_src_alpha`); solid/SDF/textured quads.
 - Color format `R8G8B8A8_UNORM`; cull/depth disabled.
+- `PipelineDesc::sample_count` (1 default, 4 opt-in) sets the multisample state
+  (`VK_SAMPLE_COUNT_1_BIT`/`_4_BIT`); it must match the render target's sample count.
 
 Custom elements:
 
@@ -95,6 +97,9 @@ Custom elements:
 - Corrupt/partial persistent cache is discarded, not trusted.
 - Cache creation failure is non-fatal; fall back to in-memory creation.
 - Diagnostics record hits/misses/creation time and evictions.
+- The pipeline key includes the color format, blend mode, vertex layout, push-constant size, shader
+  bytes/hashes, and **MSAA sample count**: a 1x and a 4x pipeline are different pipeline objects and
+  callers must not reuse one for the other (`Batched2DRenderer` rejects a mismatch explicitly).
 
 ## 8. Failure and fallback
 

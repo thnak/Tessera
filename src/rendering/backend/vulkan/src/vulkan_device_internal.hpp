@@ -24,6 +24,8 @@ public:
     [[nodiscard]] rhi::Backend backend() const override {
         return rhi::Backend::Vulkan;
     }
+    [[nodiscard]] bool supports_sample_count(rhi::TextureFormat format,
+                                             std::uint32_t sample_count) const override;
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override;
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override;
     std::unique_ptr<rhi::Pipeline> create_pipeline(const rhi::PipelineDesc& desc) override;

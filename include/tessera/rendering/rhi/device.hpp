@@ -30,15 +30,25 @@ public:
 
     [[nodiscard]] virtual Extent2D extent() const = 0;
     [[nodiscard]] virtual TextureFormat format() const = 0;
+    // 1 or 4 (MSAA storage resource); multisampled textures cannot be sampled by the 2D pipeline.
+    [[nodiscard]] virtual std::uint32_t sample_count() const {
+        return 1;
+    }
 
     // Uploads one tightly packed image (offset 0, extent.width * extent.height * bytes-per-pixel).
-    // Dynamic atlas updates use this instead of recreating the GPU resource.
+    // Dynamic atlas updates use this instead of recreating the GPU resource. Only valid for
+    // sample_count == 1.
     virtual void write(const void* data, std::size_t size) = 0;
 };
 
 class Pipeline {
 public:
     virtual ~Pipeline() = default;
+
+    // Sample count the pipeline was created for; it must equal the target's sample count.
+    [[nodiscard]] virtual std::uint32_t sample_count() const {
+        return 1;
+    }
 };
 
 class RenderTarget {
@@ -47,6 +57,11 @@ public:
 
     [[nodiscard]] virtual Extent2D extent() const = 0;
     [[nodiscard]] virtual TextureFormat format() const = 0;
+    // 1 or 4. A 4x target owns a multisample render image plus a 1-sample resolve image; readback
+    // and sampling observe the resolved image.
+    [[nodiscard]] virtual std::uint32_t sample_count() const {
+        return 1;
+    }
 
     // True for swapchain images, which must end in PRESENT_SRC instead of a transfer layout.
     [[nodiscard]] virtual bool presentable() const {
@@ -125,6 +140,14 @@ public:
     create_swapchain(const SwapchainDesc& desc) = 0;
 
     virtual void wait_idle() = 0;
+
+    // True when `sample_count` (1 or 4) is supported for `format` as a color render target on this
+    // device. Unsupported requests must be reported to the caller (creation throws); backends never
+    // silently fall back to 1-sample. The default implementation supports 1 sample only.
+    [[nodiscard]] virtual bool supports_sample_count(TextureFormat /*format*/,
+                                                     std::uint32_t sample_count) const {
+        return sample_count == 1;
+    }
 
     // Current health. Losses are detected by the backend on submit/acquire/present/fence waits and
     // are recorded here; a caller that sees `Lost` must stop using the device and recover.

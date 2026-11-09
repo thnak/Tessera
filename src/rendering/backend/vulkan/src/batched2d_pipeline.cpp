@@ -20,7 +20,8 @@ alignas(4) const std::uint32_t kFragSpv[] =
 
 namespace tessera::rendering::vulkan {
 
-rhi::PipelineDesc batched2d_pipeline_desc() {
+rhi::PipelineDesc batched2d_pipeline_desc(rhi::TextureFormat color_format,
+                                          std::uint32_t sample_count) {
     rhi::PipelineDesc desc;
     desc.vertex_spirv = kVertSpv;
     desc.vertex_spirv_size = sizeof(kVertSpv);
@@ -29,7 +30,8 @@ rhi::PipelineDesc batched2d_pipeline_desc() {
     desc.vertex_layout.stride = gpu::kVertex2DStride;
     desc.vertex_layout.attributes = gpu::kVertex2DAttributes;
     desc.vertex_layout.attribute_count = gpu::kVertex2DAttributeCount;
-    desc.color_format = rhi::TextureFormat::R8G8B8A8Unorm;
+    desc.color_format = color_format;
+    desc.sample_count = sample_count;
     desc.blend = rhi::BlendMode::Alpha;
     desc.push_constant_size = sizeof(gpu::Batched2DPushConstants);
     return desc;

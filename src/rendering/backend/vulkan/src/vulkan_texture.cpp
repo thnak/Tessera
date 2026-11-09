@@ -10,6 +10,15 @@ namespace tessera::rendering::vulkan {
 
 std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDesc& desc) {
     require_ready("create_texture");
+    const std::uint32_t sample_count = checked_sample_count(desc.sample_count, "create_texture");
+    if (sample_count > 1 && desc.pixels != nullptr) {
+        throw std::invalid_argument(
+            "create_texture: pixels cannot be uploaded to a multisampled texture");
+    }
+    if (sample_count > 1 && !supports_sample_count(desc.format, sample_count)) {
+        throw std::runtime_error("create_texture: " + std::to_string(sample_count) +
+                                 "x MSAA is not supported for this texture format");
+    }
     const VkFormat format = to_vk_format(desc.format);
 
     VkImageCreateInfo image_info{};
@@ -19,9 +28,15 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     image_info.extent = {desc.extent.width, desc.extent.height, 1};
     image_info.mipLevels = 1;
     image_info.arrayLayers = 1;
-    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_info.samples = to_vk_sample_count(sample_count);
     image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (sample_count > 1) {
+        // Multisampled textures are storage/attachment-style resources; the 2D pipeline samples
+        // 1-sample textures only (sampler2D vs sampler2DMS).
+        image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    } else {
+        image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    }
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -88,9 +103,9 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     // From here the texture owns every handle: if the upload below throws, its destructor
     // releases them (deferred past any upload already queued), so the guards step aside.
     resource_created();
-    auto texture = std::make_unique<VulkanTexture>(device_, allocator_, image, view, sampler,
-                                                   allocation, descriptor_pool_, descriptor_set,
-                                                   desc.extent, desc.format, this, epoch_);
+    auto texture = std::make_unique<VulkanTexture>(
+        device_, allocator_, image, view, sampler, allocation, descriptor_pool_, descriptor_set,
+        desc.extent, desc.format, this, epoch_, sample_count);
     set_guard.dismiss();
     sampler_guard.dismiss();
     view_guard.dismiss();
@@ -136,6 +151,15 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     } else {
         submit_upload(
             [&](VkCommandBuffer command_buffer) {
+                if (sample_count > 1) {
+                    // Multisample storage texture (no upload): move it to the attachment layout.
+                    record_image_transition(command_buffer, image, VK_IMAGE_LAYOUT_UNDEFINED,
+                                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
+                                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+                    return;
+                }
                 record_image_transition(
                     command_buffer, image, VK_IMAGE_LAYOUT_UNDEFINED,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, VK_ACCESS_SHADER_READ_BIT,
@@ -157,6 +181,9 @@ void VulkanTexture::write(const void* data, std::size_t size) {
 void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std::size_t size) {
     if (!usable_epoch(texture.epoch())) {
         throw std::runtime_error("upload_texture: texture belongs to a lost device generation");
+    }
+    if (texture.sample_count() != 1) {
+        throw std::invalid_argument("upload_texture: multisampled textures cannot be uploaded");
     }
     const rhi::Extent2D extent = texture.extent();
     const std::size_t expected =

@@ -5,9 +5,35 @@
 #include "vulkan_scope_guard.hpp"
 #include "vulkan_swapchain.hpp"
 
+#include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace tessera::rendering::vulkan {
+
+bool VulkanDevice::supports_sample_count(rhi::TextureFormat format,
+                                         std::uint32_t sample_count) const {
+    if (!rhi::is_supported_sample_count(sample_count)) {
+        return false;
+    }
+    if (physical_device_ == VK_NULL_HANDLE) {
+        return false;
+    }
+    const VkFormat vk_format = to_vk_format(format);
+    if (vk_format == VK_FORMAT_UNDEFINED) {
+        return false;
+    }
+    VkImageFormatProperties properties{};
+    const VkResult result = vkGetPhysicalDeviceImageFormatProperties(
+        physical_device_, vk_format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, 0, &properties);
+    if (result != VK_SUCCESS) {
+        return false;
+    }
+    const VkSampleCountFlags requested =
+        sample_count == 4 ? VK_SAMPLE_COUNT_4_BIT : VK_SAMPLE_COUNT_1_BIT;
+    return (properties.sampleCounts & requested) != 0;
+}
 
 VulkanDevice::VulkanDevice(const rhi::DeviceDesc& desc)
     : desc_(desc) {
@@ -77,6 +103,8 @@ std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& 
 std::unique_ptr<rhi::RenderTarget>
 VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
     require_ready("create_render_target");
+    const std::uint32_t sample_count =
+        checked_sample_count(desc.sample_count, "create_render_target");
     const VkFormat format = to_vk_format(desc.format);
 
     VkFormatProperties format_properties{};
@@ -85,49 +113,94 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
         (format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_SRC_BIT) == 0) {
         throw std::runtime_error("render target format does not support color attachment/copy");
     }
+    if (sample_count > 1 && !supports_sample_count(desc.format, sample_count)) {
+        throw std::runtime_error("create_render_target: " + std::to_string(sample_count) +
+                                 "x MSAA is not supported for this format on this device");
+    }
 
-    VkImageCreateInfo image_info{};
-    image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_info.imageType = VK_IMAGE_TYPE_2D;
-    image_info.format = format;
-    image_info.extent = {desc.extent.width, desc.extent.height, 1};
-    image_info.mipLevels = 1;
-    image_info.arrayLayers = 1;
-    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    struct ImageAllocation {
+        VkImage image = VK_NULL_HANDLE;
+        VmaAllocation allocation = nullptr;
+    };
+    const auto create_image = [&](VkSampleCountFlagBits samples,
+                                  VkImageUsageFlags usage) -> ImageAllocation {
+        VkImageCreateInfo image_info{};
+        image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image_info.imageType = VK_IMAGE_TYPE_2D;
+        image_info.format = format;
+        image_info.extent = {desc.extent.width, desc.extent.height, 1};
+        image_info.mipLevels = 1;
+        image_info.arrayLayers = 1;
+        image_info.samples = samples;
+        image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        image_info.usage = usage;
+        image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    VmaAllocationCreateInfo allocation_info{};
-    allocation_info.usage = VMA_MEMORY_USAGE_AUTO;
+        VmaAllocationCreateInfo allocation_info{};
+        allocation_info.usage = VMA_MEMORY_USAGE_AUTO;
+        ImageAllocation result;
+        check_vk(vmaCreateImage(allocator_, &image_info, &allocation_info, &result.image,
+                                &result.allocation, nullptr),
+                 "vmaCreateImage(render target)");
+        return result;
+    };
 
-    VkImage image = VK_NULL_HANDLE;
-    VmaAllocation allocation = nullptr;
-    check_vk(
-        vmaCreateImage(allocator_, &image_info, &allocation_info, &image, &allocation, nullptr),
-        "vmaCreateImage(render target)");
-    ScopeGuard image_guard([&] { vmaDestroyImage(allocator_, image, allocation); });
+    // The 1-sample image is the render image for 1x and the resolve target for 4x. A 4x target also
+    // owns the multisample render image that is discarded after the resolve.
+    ImageAllocation render_image;
+    ImageAllocation resolve_image;
+    if (sample_count > 1) {
+        render_image =
+            create_image(to_vk_sample_count(sample_count), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+        resolve_image = create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                                                VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    } else {
+        render_image = create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    }
 
-    VkImageViewCreateInfo view_info{};
-    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_info.image = image;
-    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.format = format;
-    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    view_info.subresourceRange.levelCount = 1;
-    view_info.subresourceRange.layerCount = 1;
-    VkImageView view = VK_NULL_HANDLE;
-    check_vk(vkCreateImageView(device_, &view_info, nullptr, &view), "vkCreateImageView");
-    ScopeGuard view_guard([&] { vkDestroyImageView(device_, view, nullptr); });
+    const auto create_view = [&](VkImage target_image) -> VkImageView {
+        VkImageViewCreateInfo view_info{};
+        view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        view_info.image = target_image;
+        view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        view_info.format = format;
+        view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        view_info.subresourceRange.levelCount = 1;
+        view_info.subresourceRange.layerCount = 1;
+        VkImageView view = VK_NULL_HANDLE;
+        check_vk(vkCreateImageView(device_, &view_info, nullptr, &view), "vkCreateImageView");
+        return view;
+    };
+    VkImageView view = create_view(render_image.image);
+    VkImageView resolve_view =
+        resolve_image.image != VK_NULL_HANDLE ? create_view(resolve_image.image) : VK_NULL_HANDLE;
 
-    // The target owns image and view from here; if allocating it throws, the guards release them.
+    // The target owns images/views from here. On failure to allocate the wrapper, release manually.
     resource_created();
-    auto target = std::make_unique<VulkanRenderTarget>(this, epoch_, device_, allocator_, image,
-                                                       view, allocation, desc.extent, desc.format);
-    view_guard.dismiss();
-    image_guard.dismiss();
-    return target;
+    try {
+        auto target = std::make_unique<VulkanRenderTarget>(
+            this, epoch_, device_, allocator_, render_image.image, view, render_image.allocation,
+            desc.extent, desc.format, true, false, resolve_image.image, resolve_view,
+            resolve_image.allocation, sample_count);
+        return target;
+    } catch (...) {
+        if (resolve_view != VK_NULL_HANDLE) {
+            vkDestroyImageView(device_, resolve_view, nullptr);
+        }
+        if (view != VK_NULL_HANDLE) {
+            vkDestroyImageView(device_, view, nullptr);
+        }
+        if (resolve_image.image != VK_NULL_HANDLE) {
+            vmaDestroyImage(allocator_, resolve_image.image, resolve_image.allocation);
+        }
+        if (render_image.image != VK_NULL_HANDLE) {
+            vmaDestroyImage(allocator_, render_image.image, render_image.allocation);
+        }
+        resource_destroyed();
+        throw;
+    }
 }
 
 std::unique_ptr<rhi::CommandList> VulkanDevice::create_command_list() {

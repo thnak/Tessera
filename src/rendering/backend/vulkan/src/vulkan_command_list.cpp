@@ -38,6 +38,12 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
                                           const rhi::RenderTargetDesc& desc) {
     require_usable("begin_render_pass");
     const auto* vulkan_target = &vulkan_cast<const VulkanRenderTarget>(target);
+    const std::uint32_t sample_count = vulkan_target->sample_count();
+    if (desc.sample_count != sample_count) {
+        throw std::invalid_argument(
+            "begin_render_pass: descriptor sample count " + std::to_string(desc.sample_count) +
+            " does not match target sample count " + std::to_string(sample_count));
+    }
 
     VkCommandBufferBeginInfo begin_info{};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -47,27 +53,50 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     current_target_ = vulkan_target;
 
     // end_render_pass leaves offscreen targets in TRANSFER_SRC for readback and swapchain
-    // images in PRESENT_SRC. A Load frame preserves that layout instead of discarding it.
+    // images in PRESENT_SRC. A Load frame preserves that layout instead of discarding it. A 4x
+    // target renders into the multisample image (discarded after the resolve) and resolves into its
+    // 1-sample image, which then becomes the readback source.
     const bool preserve = desc.load_op == rhi::LoadOp::Load;
     const bool present = vulkan_target->presentable();
+    const bool multisampled = sample_count > 1;
     record_image_transition(
         buffer_, vulkan_target->image(),
-        preserve
-            ? (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-            : VK_IMAGE_LAYOUT_UNDEFINED,
+        multisampled
+            ? (preserve ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED)
+            : (preserve ? (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                   : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                        : VK_IMAGE_LAYOUT_UNDEFINED),
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        preserve && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0,
+        multisampled ? (preserve ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0)
+                     : (preserve && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0),
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        preserve ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT)
-                 : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        multisampled ? (preserve ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                 : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)
+                     : (preserve ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+                                            : VK_PIPELINE_STAGE_TRANSFER_BIT)
+                                 : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT),
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    if (multisampled) {
+        record_image_transition(
+            buffer_, vulkan_target->resolve_image(), VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    }
 
     VkRenderingAttachmentInfo attachment{};
     attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     attachment.imageView = vulkan_target->view();
     attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attachment.loadOp = to_vk_load_op(desc.load_op);
-    attachment.storeOp = to_vk_store_op(desc.store_op);
+    // For MSAA the multisample image is discarded after the resolve; only the resolved image is
+    // stored. 1x targets keep the caller's store op.
+    attachment.storeOp =
+        multisampled ? VK_ATTACHMENT_STORE_OP_DONT_CARE : to_vk_store_op(desc.store_op);
+    if (multisampled) {
+        attachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+        attachment.resolveImageView = vulkan_target->resolve_view();
+        attachment.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
     attachment.clearValue.color.float32[0] = desc.clear_color.r;
     attachment.clearValue.color.float32[1] = desc.clear_color.g;
     attachment.clearValue.color.float32[2] = desc.clear_color.b;
@@ -97,12 +126,22 @@ void VulkanCommandList::end_render_pass() {
 
     vkCmdEndRendering(buffer_);
     const bool present = current_target_->presentable();
-    record_image_transition(
-        buffer_, current_target_->image(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, present ? 0 : VK_ACCESS_TRANSFER_READ_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT);
+    if (current_target_->sample_count() > 1) {
+        // The resolve wrote the 1-sample image during the pass; the multisample image is discarded
+        // (DONT_CARE). The resolved image becomes the readback source.
+        record_image_transition(
+            buffer_, current_target_->resolve_image(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
+    } else {
+        record_image_transition(
+            buffer_, current_target_->image(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, present ? 0 : VK_ACCESS_TRANSFER_READ_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT);
+    }
     render_pass_active_ = false;
 }
 
@@ -112,6 +151,14 @@ void VulkanCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
     if (vulkan_pipeline.epoch() != epoch_) {
         throw std::runtime_error("bind_pipeline: pipeline belongs to a lost device generation");
     }
+    if (current_target_ != nullptr && render_pass_active_ &&
+        vulkan_pipeline.sample_count() != current_target_->sample_count()) {
+        throw std::runtime_error("bind_pipeline: pipeline sample count " +
+                                 std::to_string(vulkan_pipeline.sample_count()) +
+                                 " does not match target sample count " +
+                                 std::to_string(current_target_->sample_count()));
+    }
+    current_pipeline_sample_count_ = vulkan_pipeline.sample_count();
     vkCmdBindPipeline(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_pipeline.handle());
     current_layout_ = vulkan_pipeline.layout();
 }
@@ -206,8 +253,8 @@ void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
     copy.imageSubresource.layerCount = 1;
     copy.imageExtent = {vulkan_target->extent().width, vulkan_target->extent().height, 1};
 
-    vkCmdCopyImageToBuffer(buffer_, vulkan_target->image(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           vulkan_buffer->handle(), 1, &copy);
+    vkCmdCopyImageToBuffer(buffer_, vulkan_target->readback_image(),
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, vulkan_buffer->handle(), 1, &copy);
 }
 
 void VulkanCommandList::submit_async() {

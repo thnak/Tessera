@@ -95,6 +95,27 @@ inline VkFormat to_vk_vertex_format(rhi::VertexFormat format) {
     return VK_FORMAT_UNDEFINED;
 }
 
+inline VkSampleCountFlagBits to_vk_sample_count(std::uint32_t sample_count) {
+    switch (sample_count) {
+    case 1:
+        return VK_SAMPLE_COUNT_1_BIT;
+    case 4:
+        return VK_SAMPLE_COUNT_4_BIT;
+    default:
+        break;
+    }
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
+// Rejects unsupported sample counts with an explicit value instead of silently lowering them.
+inline std::uint32_t checked_sample_count(std::uint32_t sample_count, const char* what) {
+    if (!rhi::is_supported_sample_count(sample_count)) {
+        throw std::invalid_argument(std::string(what) + ": unsupported sample count " +
+                                    std::to_string(sample_count) + " (expected 1 or 4)");
+    }
+    return sample_count;
+}
+
 inline std::size_t bytes_per_pixel(rhi::TextureFormat format) {
     switch (format) {
     case rhi::TextureFormat::R8G8B8A8Unorm:
@@ -196,7 +217,7 @@ public:
     VulkanTexture(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
                   VkSampler sampler, VmaAllocation allocation, VkDescriptorPool descriptor_pool,
                   VkDescriptorSet descriptor_set, rhi::Extent2D extent, rhi::TextureFormat format,
-                  VulkanDevice* owner, std::uint32_t epoch)
+                  VulkanDevice* owner, std::uint32_t epoch, std::uint32_t sample_count = 1)
         : device_(device),
           allocator_(allocator),
           image_(image),
@@ -208,7 +229,8 @@ public:
           extent_(extent),
           format_(format),
           owner_(owner),
-          epoch_(epoch) {}
+          epoch_(epoch),
+          sample_count_(sample_count) {}
 
     ~VulkanTexture() override;
 
@@ -217,6 +239,9 @@ public:
     }
     [[nodiscard]] rhi::TextureFormat format() const override {
         return format_;
+    }
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return sample_count_;
     }
     void write(const void* data, std::size_t size) override;
 
@@ -243,17 +268,19 @@ private:
     rhi::TextureFormat format_ = rhi::TextureFormat::R8G8B8A8Unorm;
     VulkanDevice* owner_ = nullptr;
     std::uint32_t epoch_ = 0;
+    std::uint32_t sample_count_ = 1;
 };
 
 class VulkanPipeline final : public rhi::Pipeline {
 public:
     VulkanPipeline(VulkanDevice* owner, std::uint32_t epoch, VkDevice device, VkPipeline pipeline,
-                   VkPipelineLayout layout)
+                   VkPipelineLayout layout, std::uint32_t sample_count)
         : owner_(owner),
           epoch_(epoch),
           device_(device),
           pipeline_(pipeline),
-          layout_(layout) {}
+          layout_(layout),
+          sample_count_(sample_count) {}
 
     ~VulkanPipeline() override;
 
@@ -266,6 +293,9 @@ public:
     [[nodiscard]] std::uint32_t epoch() const {
         return epoch_;
     }
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return sample_count_;
+    }
 
 private:
     VulkanDevice* owner_ = nullptr;
@@ -273,6 +303,7 @@ private:
     VkDevice device_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     VkPipelineLayout layout_ = VK_NULL_HANDLE;
+    std::uint32_t sample_count_ = 1;
 };
 
 class VulkanRenderTarget final : public rhi::RenderTarget {
@@ -280,7 +311,10 @@ public:
     VulkanRenderTarget(VulkanDevice* owner, std::uint32_t epoch, VkDevice device,
                        VmaAllocator allocator, VkImage image, VkImageView view,
                        VmaAllocation allocation, rhi::Extent2D extent, rhi::TextureFormat format,
-                       bool owns = true, bool presentable = false)
+                       bool owns = true, bool presentable = false,
+                       VkImage resolve_image = VK_NULL_HANDLE,
+                       VkImageView resolve_view = VK_NULL_HANDLE,
+                       VmaAllocation resolve_allocation = nullptr, std::uint32_t sample_count = 1)
         : owner_(owner),
           epoch_(epoch),
           device_(device),
@@ -288,10 +322,14 @@ public:
           image_(image),
           view_(view),
           allocation_(allocation),
+          resolve_image_(resolve_image),
+          resolve_view_(resolve_view),
+          resolve_allocation_(resolve_allocation),
           extent_(extent),
           format_(format),
           owns_(owns),
-          presentable_(presentable) {}
+          presentable_(presentable),
+          sample_count_(sample_count) {}
 
     ~VulkanRenderTarget() override;
 
@@ -301,11 +339,24 @@ public:
     [[nodiscard]] rhi::TextureFormat format() const override {
         return format_;
     }
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return sample_count_;
+    }
     [[nodiscard]] VkImage image() const {
         return image_;
     }
     [[nodiscard]] VkImageView view() const {
         return view_;
+    }
+    // Resolved 1-sample image for 4x targets; identical to image() for 1-sample targets.
+    [[nodiscard]] VkImage readback_image() const {
+        return resolve_image_ != VK_NULL_HANDLE ? resolve_image_ : image_;
+    }
+    [[nodiscard]] VkImage resolve_image() const {
+        return resolve_image_;
+    }
+    [[nodiscard]] VkImageView resolve_view() const {
+        return resolve_view_;
     }
     [[nodiscard]] bool presentable() const override {
         return presentable_;
@@ -336,10 +387,14 @@ private:
     VkImage image_ = VK_NULL_HANDLE;
     VkImageView view_ = VK_NULL_HANDLE;
     VmaAllocation allocation_ = nullptr;
+    VkImage resolve_image_ = VK_NULL_HANDLE;
+    VkImageView resolve_view_ = VK_NULL_HANDLE;
+    VmaAllocation resolve_allocation_ = nullptr;
     rhi::Extent2D extent_;
     rhi::TextureFormat format_ = rhi::TextureFormat::R8G8B8A8Unorm;
     bool owns_ = true;
     bool presentable_ = false;
+    std::uint32_t sample_count_ = 1;
     VkSemaphore render_finished_ = VK_NULL_HANDLE;
     mutable bool render_pending_ = false;
 };
@@ -392,6 +447,7 @@ private:
     CommandResources resources_;
     VkCommandBuffer buffer_ = VK_NULL_HANDLE;
     VkPipelineLayout current_layout_ = VK_NULL_HANDLE;
+    std::uint32_t current_pipeline_sample_count_ = 1;
     const VulkanRenderTarget* current_target_ = nullptr;
     bool recording_ = false;
     bool render_pass_active_ = false;

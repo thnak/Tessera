@@ -18,6 +18,11 @@ struct Batched2DConfig {
     std::uint32_t initial_vertex_capacity = 4096;
     bool enable_aa = true;
     bool golden_mode = false;
+    // MSAA opt-in: 1 (default) or 4. Must equal the render target's sample count and the pipeline's
+    // sample count; the renderer rejects a mismatch instead of rendering with the wrong pipeline.
+    // A 4x target resolves into its 1-sample image at end of pass; the batched2d path itself is
+    // sample-count agnostic (SDF rounding and coverage text keep working unchanged).
+    std::uint32_t sample_count = 1;
 
     // Number of frames whose vertex data may be alive on the GPU at once. Each frame writes into
     // its own buffer slot, used round-robin. With the default of 1 the caller finishes a frame

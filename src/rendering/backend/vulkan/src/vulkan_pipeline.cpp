@@ -9,6 +9,11 @@ namespace tessera::rendering::vulkan {
 
 std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::PipelineDesc& desc) {
     require_ready("create_pipeline");
+    const std::uint32_t sample_count = checked_sample_count(desc.sample_count, "create_pipeline");
+    if (sample_count > 1 && !supports_sample_count(desc.color_format, sample_count)) {
+        throw std::runtime_error("create_pipeline: " + std::to_string(sample_count) +
+                                 "x MSAA is not supported for this target format on this device");
+    }
     VkShaderModule vertex_module = VK_NULL_HANDLE;
     VkShaderModule fragment_module = VK_NULL_HANDLE;
 
@@ -93,7 +98,7 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
 
     VkPipelineMultisampleStateCreateInfo multisample{};
     multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisample.rasterizationSamples = to_vk_sample_count(sample_count);
 
     VkPipelineColorBlendAttachmentState blend_attachment{};
     blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -149,8 +154,8 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
     // The wrapper owns the pipeline and layout from here; if allocating it throws, the guards
     // above still release them.
     resource_created();
-    auto result =
-        std::make_unique<VulkanPipeline>(this, epoch_, device_, pipeline, pipeline_layout);
+    auto result = std::make_unique<VulkanPipeline>(this, epoch_, device_, pipeline, pipeline_layout,
+                                                   sample_count);
     pipeline_guard.dismiss();
     layout_guard.dismiss();
     return result;

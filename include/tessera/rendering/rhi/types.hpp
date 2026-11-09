@@ -214,6 +214,10 @@ struct TextureDesc {
     std::size_t row_pitch = 0;
     Filter filter = Filter::Nearest;
     AddressMode address = AddressMode::ClampToEdge;
+    // MSAA sample count: 1 (default) or 4. Multisampled textures are storage/render-target style
+    // resources; the 2D pipeline samples 1-sample textures only and pixels cannot be uploaded for
+    // sample_count > 1. Backends report support through Device::supports_sample_count.
+    std::uint32_t sample_count = 1;
 };
 
 struct RenderTargetDesc {
@@ -222,6 +226,10 @@ struct RenderTargetDesc {
     Color clear_color{0.02f, 0.02f, 0.03f, 1.0f};
     LoadOp load_op = LoadOp::Clear;
     StoreOp store_op = StoreOp::Store;
+    // MSAA sample count: 1 (default) or 4. A 4x target renders into a multisample image and is
+    // resolved into an internal 1-sample image at the end of the render pass; readback and
+    // sampling see the resolved image.
+    std::uint32_t sample_count = 1;
 };
 
 struct VertexAttribute {
@@ -245,6 +253,17 @@ struct PipelineDesc {
     TextureFormat color_format = TextureFormat::R8G8B8A8Unorm;
     BlendMode blend = BlendMode::Alpha;
     std::uint32_t push_constant_size = 0;
+    // MSAA sample count; must match the render target's sample count at draw time (1 or 4).
+    std::uint32_t sample_count = 1;
 };
+
+// Supported MSAA sample counts for the 1-sample-first RHI. Values outside this set are rejected at
+// resource creation with an explicit error (never silently lowered).
+inline constexpr std::uint32_t kSampleCount1 = 1;
+inline constexpr std::uint32_t kSampleCount4 = 4;
+
+[[nodiscard]] constexpr bool is_supported_sample_count(std::uint32_t sample_count) {
+    return sample_count == kSampleCount1 || sample_count == kSampleCount4;
+}
 
 } // namespace tessera::rendering::rhi

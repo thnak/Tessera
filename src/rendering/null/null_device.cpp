@@ -46,6 +46,13 @@ class NullTexture final : public rhi::Texture {
 public:
     explicit NullTexture(const rhi::TextureDesc& desc)
         : desc_(desc) {
+        if (!rhi::is_supported_sample_count(desc.sample_count)) {
+            throw std::invalid_argument("NullTexture: unsupported sample count");
+        }
+        if (desc.sample_count > 1 && desc.pixels != nullptr) {
+            throw std::invalid_argument(
+                "NullTexture: pixels cannot be uploaded to a multisampled texture");
+        }
         const std::size_t bytes = bytes_per_pixel(desc.format);
         data_.assign(static_cast<std::size_t>(desc.extent.width) * desc.extent.height * bytes, 0);
         if (desc.pixels != nullptr && bytes != 0) {
@@ -67,7 +74,13 @@ public:
     [[nodiscard]] rhi::TextureFormat format() const override {
         return desc_.format;
     }
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return desc_.sample_count;
+    }
     void write(const void* data, std::size_t size) override {
+        if (desc_.sample_count > 1) {
+            throw std::invalid_argument("NullTexture: multisampled textures cannot be uploaded");
+        }
         if (data == nullptr || size != data_.size()) {
             return;
         }
@@ -83,18 +96,36 @@ private:
     std::vector<std::uint8_t> data_;
 };
 
-class NullPipeline final : public rhi::Pipeline {};
+class NullPipeline final : public rhi::Pipeline {
+public:
+    explicit NullPipeline(std::uint32_t sample_count)
+        : sample_count_(sample_count) {}
+
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return sample_count_;
+    }
+
+private:
+    std::uint32_t sample_count_ = 1;
+};
 
 class NullRenderTarget final : public rhi::RenderTarget {
 public:
     explicit NullRenderTarget(rhi::RenderTargetDesc desc)
-        : desc_(std::move(desc)) {}
+        : desc_(std::move(desc)) {
+        if (!rhi::is_supported_sample_count(desc_.sample_count)) {
+            throw std::invalid_argument("NullRenderTarget: unsupported sample count");
+        }
+    }
 
     [[nodiscard]] rhi::Extent2D extent() const override {
         return desc_.extent;
     }
     [[nodiscard]] rhi::TextureFormat format() const override {
         return desc_.format;
+    }
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return desc_.sample_count;
     }
 
 private:
@@ -107,16 +138,29 @@ public:
         return rhi::Backend::Null;
     }
 
+    // Null parity: declares 4x support for every format it accepts so MSAA code paths are testable
+    // without a GPU. It enforces the same 1/4 validation rules as the Vulkan backend.
+    [[nodiscard]] bool supports_sample_count(rhi::TextureFormat,
+                                             std::uint32_t sample_count) const override {
+        return rhi::is_supported_sample_count(sample_count);
+    }
+
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {
         return std::make_unique<NullBuffer>(desc.size);
     }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
+        if (!rhi::is_supported_sample_count(desc.sample_count)) {
+            throw std::invalid_argument("null create_texture: unsupported sample count");
+        }
         return std::make_unique<NullTexture>(desc);
     }
 
-    std::unique_ptr<rhi::Pipeline> create_pipeline(const rhi::PipelineDesc&) override {
-        return std::make_unique<NullPipeline>();
+    std::unique_ptr<rhi::Pipeline> create_pipeline(const rhi::PipelineDesc& desc) override {
+        if (!rhi::is_supported_sample_count(desc.sample_count)) {
+            throw std::invalid_argument("null create_pipeline: unsupported sample count");
+        }
+        return std::make_unique<NullPipeline>(desc.sample_count);
     }
 
     std::unique_ptr<rhi::RenderTarget>
@@ -142,17 +186,29 @@ public:
 
 } // namespace
 
-void NullCommandList::begin_render_pass(const rhi::RenderTarget&,
+void NullCommandList::begin_render_pass(const rhi::RenderTarget& target,
                                         const rhi::RenderTargetDesc& desc) {
+    if (desc.sample_count != target.sample_count()) {
+        throw std::invalid_argument(
+            "null begin_render_pass: descriptor sample count does not match the target");
+    }
     ++stats_.begin_render_passes;
+    stats_.last_render_pass_sample_count = target.sample_count();
+    pass_sample_count_ = target.sample_count();
+    in_pass_ = true;
     scissor_ = rhi::Scissor{0, 0, desc.extent.width, desc.extent.height};
 }
 
 void NullCommandList::end_render_pass() {
     ++stats_.end_render_passes;
+    in_pass_ = false;
 }
 
-void NullCommandList::bind_pipeline(const rhi::Pipeline&) {
+void NullCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
+    if (in_pass_ && pipeline.sample_count() != pass_sample_count_) {
+        throw std::invalid_argument(
+            "null bind_pipeline: pipeline sample count does not match the render target");
+    }
     ++stats_.pipeline_binds;
 }
 

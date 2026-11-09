@@ -26,6 +26,8 @@ struct NullCommandStats {
     std::uint32_t scissor_changes = 0;
     std::uint32_t draws = 0;
     std::uint32_t vertices = 0;
+    // Sample count of the most recent begin_render_pass target (1 or 4).
+    std::uint32_t last_render_pass_sample_count = 0;
     // One entry per draw, in recording order; `scissor` is the state active at draw time.
     std::vector<NullDrawRecord> draw_records;
 };
@@ -59,6 +61,8 @@ private:
     NullCommandStats stats_;
     rhi::Scissor scissor_;
     bool submitted_ = false;
+    bool in_pass_ = false;
+    std::uint32_t pass_sample_count_ = 1;
 };
 
 std::unique_ptr<rhi::Device> create_null_device(const rhi::DeviceDesc& desc);
