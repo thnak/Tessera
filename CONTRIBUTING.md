@@ -54,6 +54,18 @@ BUILD_DIR=build/dev bash scripts/lint.sh
 The manual `cmake -S . -B build ...` path still works, but presets are the supported route. See
 [AGENTS.md](AGENTS.md#build--test) for the PoC/demo commands.
 
+### Repository gates
+
+Run the fast release gates with one command from the repository root:
+
+```bash
+python -B scripts/gates.py            # --only docs,pins runs a subset
+```
+
+`--archive <path>` also validates a distributable archive, `--list` prints the gate order, and
+`--json` emits a machine-readable summary. The same command runs in CI on Linux, Windows and macOS;
+details are in [`docs/guides/packaging.md`](docs/guides/packaging.md#13-run-the-gates-locally).
+
 ## 3. Branch, commit, and PR workflow
 
 - Branch from `main`; use a short descriptive name (`fix/rhi-resource-lifetime`,
