@@ -381,12 +381,12 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3 |
 | Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage; no MSAA/path AA |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
-| Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D; text, clip and damage wiring pending ([design](design/paint-pass.md)) |
+| Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due; text, clip and damage-clipped paint pending ([design](design/paint-pass.md)) |
 | Protected-region merger | B1 prototype |
 | JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; expression lowering implemented, node/hook/component lowering pending ([design](design/jsx-ir-lowering.md)) |
 | Stylesheet engine | B2 implemented ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |
 | Yoga layout / text / glyph atlas | B2 implemented: Yoga adapter, FreeType/HarfBuzz shaping, glyph atlas and text batching; bidi/ICU segmentation pending |
-| Input handler | B2 implemented: normalized queue/coalescing, pointer capture, focus/keyboard, wheel/text routing, Tab traversal, per-tick `InputPump`; Linux translation, hover/active, IME and gestures pending ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
+| Input handler | B2 implemented: normalized queue/coalescing, pointer capture, focus/keyboard, wheel/text routing, Tab traversal, hover/active pseudo-states, per-tick `InputPump`; Linux translation, IME, gestures and multi-touch pending ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
 | Fixed-step loop | B2 implemented: accumulator, clock, `RuntimeLoop`, pacer ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
 | Dirty rendering + frame pacing | B2 implemented (dirty flags/damage/redraw plan/frame pipeline/pacer); B3 present landed on Win32/X11 (two frames in flight), VRR/dynamic refresh and present-path damage pending ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
 | Power-aware idle/adaptive defaults | B2 partial: render-on-demand idle implemented; adaptive quality pending ([ADR-019](../decisions/ADR-019-power-aware-runtime.md)) |
