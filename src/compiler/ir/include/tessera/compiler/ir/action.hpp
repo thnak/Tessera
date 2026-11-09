@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: MIT
+
+#pragma once
+
+#include "tessera/compiler/ir/expr.hpp"
+
+#include <string>
+
+namespace tessera::compiler::ir {
+
+// A typed parameter of a handler (docs/specs/ir-v1.md sections 2.1 and 6).
+struct Param {
+    std::string name;
+    std::string type;
+};
+
+enum class ActionKind { Set, AnimSet };
+
+// One step of an inline handler or of a preview body.
+struct Action {
+    ActionKind kind = ActionKind::Set;
+    std::string target; // state::x or anim::x
+    ExprPtr value;
+    bool animate = true; // AnimSet only
+};
+
+} // namespace tessera::compiler::ir

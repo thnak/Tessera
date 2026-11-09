@@ -1,0 +1,326 @@
+{
+  "bindings": [
+    {
+      "component": "comp::List",
+      "id": "bind::on_pick",
+      "kind": "event",
+      "params": [
+        {
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "preview": {
+        "actions": [
+          {
+            "kind": "set",
+            "target": "state::n",
+            "value": {
+              "kind": "literal",
+              "value": "a\"b\\c\n\u0001é"
+            }
+          }
+        ],
+        "return": {
+          "kind": "literal",
+          "value": true
+        }
+      },
+      "region": "on_pick",
+      "returnType": "bool",
+      "source": {
+        "column": 3,
+        "endColumn": 21,
+        "endLine": 7,
+        "file": "ui/Counter.tsx",
+        "length": 18,
+        "line": 7,
+        "offset": 60
+      }
+    }
+  ],
+  "components": [
+    {
+      "animatedValues": [
+        {
+          "id": "anim::fade",
+          "initial": 1.0,
+          "name": "fade",
+          "type": "float"
+        }
+      ],
+      "componentId": "42",
+      "effects": [
+        {
+          "cleanup": "bind::on_sync_cleanup",
+          "deps": [
+            "state::n"
+          ],
+          "handler": "bind::on_sync",
+          "id": "effect::sync",
+          "source": {
+            "column": 5,
+            "endColumn": 8,
+            "endLine": 14,
+            "file": "ui/Counter.tsx",
+            "length": 60,
+            "line": 12,
+            "offset": 150
+          }
+        }
+      ],
+      "environment": [
+        {
+          "id": "env::theme",
+          "name": "theme",
+          "provider": "theme",
+          "source": {
+            "column": 3,
+            "endColumn": 33,
+            "endLine": 3,
+            "file": "ui/Counter.tsx",
+            "length": 30,
+            "line": 3,
+            "offset": 20
+          },
+          "type": "string",
+          "writable": true
+        }
+      ],
+      "handlers": [
+        {
+          "actions": [
+            {
+              "kind": "set",
+              "target": "state::n",
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "id": "state::n",
+                  "kind": "ref"
+                },
+                "op": "+",
+                "right": {
+                  "kind": "literal",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "animate": false,
+              "kind": "animSet",
+              "target": "anim::fade",
+              "value": {
+                "kind": "literal",
+                "value": 0.5
+              }
+            }
+          ],
+          "id": "handler::1",
+          "params": [
+            {
+              "name": "e",
+              "type": "string"
+            }
+          ],
+          "source": {
+            "column": 5,
+            "endColumn": 45,
+            "endLine": 9,
+            "file": "ui/Counter.tsx",
+            "length": 40,
+            "line": 9,
+            "offset": 100
+          }
+        }
+      ],
+      "id": "comp::List",
+      "name": "List",
+      "props": [
+        {
+          "default": 1,
+          "name": "start",
+          "type": "int"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        }
+      ],
+      "refs": [
+        {
+          "id": "ref::box",
+          "name": "box",
+          "target": "node::1"
+        }
+      ],
+      "root": {
+        "children": [
+          {
+            "component": "comp::Row",
+            "condition": {
+              "kind": "unary",
+              "op": "!",
+              "value": {
+                "id": "prop::title",
+                "kind": "ref"
+              }
+            },
+            "events": {
+              "onPick": "handler::1"
+            },
+            "id": "node::2",
+            "key": {
+              "id": "item.id",
+              "kind": "ref"
+            },
+            "kind": "Component",
+            "loop": {
+              "index": "index",
+              "item": "item",
+              "kind": "loop",
+              "source": {
+                "id": "state::rows",
+                "kind": "ref"
+              }
+            },
+            "props": {
+              "label": {
+                "id": "item.label",
+                "kind": "ref"
+              },
+              "tone": "calm"
+            },
+            "source": {
+              "column": 5,
+              "endColumn": 65,
+              "endLine": 17,
+              "file": "ui/Counter.tsx",
+              "length": 60,
+              "line": 17,
+              "offset": 210
+            },
+            "uiId": "2"
+          },
+          {
+            "automationId": "3",
+            "children": [
+              {
+                "id": "node::4",
+                "kind": "Text",
+                "source": {
+                  "column": 7,
+                  "endColumn": 27,
+                  "endLine": 20,
+                  "file": "ui/Counter.tsx",
+                  "length": 20,
+                  "line": 20,
+                  "offset": 290
+                },
+                "text": {
+                  "else": {
+                    "kind": "literal",
+                    "value": null
+                  },
+                  "kind": "conditional",
+                  "test": {
+                    "id": "prop::title",
+                    "kind": "ref"
+                  },
+                  "then": {
+                    "args": [
+                      {
+                        "id": "state::n",
+                        "kind": "ref"
+                      },
+                      {
+                        "kind": "literal",
+                        "value": 2
+                      }
+                    ],
+                    "callee": "formatNumber",
+                    "kind": "call"
+                  }
+                },
+                "uiId": "4"
+              }
+            ],
+            "fallback": {
+              "id": "node::5",
+              "kind": "View",
+              "source": {
+                "column": 7,
+                "endColumn": 17,
+                "endLine": 22,
+                "file": "ui/Counter.tsx",
+                "length": 10,
+                "line": 22,
+                "offset": 300
+              },
+              "uiId": "5"
+            },
+            "id": "node::3",
+            "kind": "ErrorBoundary",
+            "source": {
+              "column": 5,
+              "endColumn": 7,
+              "endLine": 25,
+              "file": "ui/Counter.tsx",
+              "length": 100,
+              "line": 19,
+              "offset": 280
+            },
+            "uiId": "3"
+          }
+        ],
+        "id": "node::1",
+        "kind": "View",
+        "source": {
+          "column": 3,
+          "endColumn": 9,
+          "endLine": 28,
+          "file": "ui/Counter.tsx",
+          "length": 250,
+          "line": 16,
+          "offset": 200
+        },
+        "uiId": "1"
+      },
+      "source": {
+        "column": 1,
+        "endColumn": 2,
+        "endLine": 30,
+        "file": "ui/Counter.tsx",
+        "length": 500,
+        "line": 1,
+        "offset": 0
+      },
+      "state": [
+        {
+          "id": "state::rows",
+          "initial": {
+            "id": "prop::start",
+            "kind": "ref"
+          },
+          "name": "rows",
+          "type": "list<int>"
+        },
+        {
+          "id": "state::n",
+          "initial": 1.0,
+          "name": "n",
+          "type": "float"
+        }
+      ]
+    }
+  ],
+  "irVersion": 1,
+  "module": {
+    "name": "demo"
+  },
+  "stylesheets": []
+}

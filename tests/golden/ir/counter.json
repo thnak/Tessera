@@ -1,0 +1,124 @@
+{
+  "bindings": [
+    {
+      "component": "comp::Counter",
+      "id": "bind::on_click",
+      "kind": "event",
+      "region": "on_click",
+      "source": {
+        "column": 5,
+        "endColumn": 20,
+        "endLine": 12,
+        "file": "ui/Counter.tsx",
+        "length": 15,
+        "line": 12,
+        "offset": 240
+      }
+    }
+  ],
+  "components": [
+    {
+      "componentId": "1234567890123456789",
+      "id": "comp::Counter",
+      "name": "Counter",
+      "root": {
+        "children": [
+          {
+            "id": "node::2",
+            "kind": "Text",
+            "source": {
+              "column": 5,
+              "endColumn": 57,
+              "endLine": 4,
+              "file": "ui/Counter.tsx",
+              "length": 52,
+              "line": 4,
+              "offset": 80
+            },
+            "text": {
+              "kind": "template",
+              "parts": [
+                "Count: ",
+                {
+                  "id": "state::count",
+                  "kind": "ref"
+                }
+              ]
+            },
+            "uiId": "222222222222222222"
+          },
+          {
+            "events": {
+              "onClick": "bind::on_click"
+            },
+            "id": "node::3",
+            "kind": "Button",
+            "props": {
+              "label": "Increment"
+            },
+            "source": {
+              "column": 5,
+              "endColumn": 65,
+              "endLine": 5,
+              "file": "ui/Counter.tsx",
+              "length": 60,
+              "line": 5,
+              "offset": 140
+            },
+            "uiId": "333333333333333333"
+          }
+        ],
+        "id": "node::1",
+        "kind": "View",
+        "props": {
+          "className": "counter"
+        },
+        "source": {
+          "column": 3,
+          "endColumn": 9,
+          "endLine": 13,
+          "file": "ui/Counter.tsx",
+          "length": 250,
+          "line": 3,
+          "offset": 52
+        },
+        "style": {
+          "display": "flex",
+          "gap": "8px"
+        },
+        "uiId": "111111111111111111"
+      },
+      "source": {
+        "column": 1,
+        "endColumn": 2,
+        "endLine": 14,
+        "file": "ui/Counter.tsx",
+        "length": 310,
+        "line": 1,
+        "offset": 0
+      },
+      "state": [
+        {
+          "id": "state::count",
+          "initial": 0,
+          "name": "count",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "irVersion": 1,
+  "module": {
+    "imports": [
+      "tessera"
+    ],
+    "name": "demo"
+  },
+  "stylesheets": [
+    {
+      "hash": "sha256:placeholder",
+      "id": "css::app",
+      "path": "ui/app.css"
+    }
+  ]
+}

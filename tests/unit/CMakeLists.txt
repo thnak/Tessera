@@ -72,6 +72,33 @@ target_link_libraries(jsx_adversarial_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_adversarial COMMAND jsx_adversarial_tests)
 
+add_executable(ir_json_value_tests
+    ir_json_value_tests.cpp)
+
+target_link_libraries(ir_json_value_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_json_value COMMAND ir_json_value_tests)
+
+add_executable(ir_json_tests
+    ir_json_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp)
+
+target_link_libraries(ir_json_tests PRIVATE tessera_ir)
+
+target_compile_definitions(ir_json_tests PRIVATE
+    TESSERA_IR_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/ir")
+
+add_test(NAME ir_json COMMAND ir_json_tests)
+
+add_executable(ir_layering_tests
+    ir_layering_tests.cpp)
+
+target_compile_definitions(ir_layering_tests PRIVATE
+    TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+
+add_test(NAME ir_layering COMMAND ir_layering_tests)
+
 add_executable(scene_graph_tests
     scene_graph_tests.cpp)
 
