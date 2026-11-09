@@ -77,8 +77,8 @@ resolve_content_raster(const rhi::Rect& dest, std::uint32_t raster_width,
     request.dest = dest;
     request.raster_width = width;
     request.raster_height = height;
-    request.scale_milli =
-        static_cast<std::uint32_t>(std::clamp<double>(std::llround(milli), 1.0, 16000.0));
+    request.scale_milli = static_cast<std::uint32_t>(
+        std::clamp<double>(static_cast<double>(std::llround(milli)), 1.0, 16000.0));
     return request;
 }
 
