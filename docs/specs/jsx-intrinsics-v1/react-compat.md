@@ -77,7 +77,7 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | React feature | Status | Why / migration |
 |---|---|---|
 | `children` of intrinsics (text, elements, expressions) | Supported; text under `View` becomes `Text` nodes ([`elements-basic.md`](elements-basic.md) section 0) | decision 11 |
-| `children` prop of a user component (`{children}`) | Not supported [Q14] | `Component` nodes have no children in V1 ([`ir-v1.md`](../ir-v1.md) section 3.4) although [`component-model-v1.md`](../component-model-v1.md) section 3 says slots lower to child nodes. Pass elements through a typed prop once slots exist |
+| `children` prop of a user component (`{children}`) | Supported as a static slot [Q14, O2] | Pending spec edits in [`ir-v1.md`](../ir-v1.md) section 3.4 (`Component` node carries `children`) and subset section 5 (`Children` type); rejected until they land |
 | `class` | Not accepted (`HTML_ATTR`) | React itself requires `className`; ports already use it |
 | `htmlFor` | Not accepted [Q11] | No label to control association is specified. Use `aria-label` on the field, or the library `Field label` |
 | `style={{ width: 100, flex: 1, opacity: 0.5 }}` | Supported | Numbers: px for length properties, unitless otherwise, from the stylesheet table (subset 10.3); `lineHeight: 1.5` stays unitless |
@@ -124,7 +124,7 @@ the first three rows. The subset spec section 12 row and the open-question line 
 [`component-model-v1.md`](../component-model-v1.md) section 12 are updated. The hook table of subset
 section 7 gains the two forms when the code slice lands (the front end rejects them until then).
 
-### 4.3 `children` of user components (Q14, OPEN)
+### 4.3 `children` of user components (Q14, decided: O2)
 
 The two normative statements conflict:
 
@@ -143,9 +143,12 @@ Options:
 | O2. Static slot: `children` content is compiled into the callee | New type (for example `Children`) for a prop named `children`; `Component` node carries `children`; callee writes `{children}` as a child expression, lowered to a new IR `Slot` position or to inlined nodes per instance | New IR addition (closed kind list or a node field), validator, evaluator and runtime reconcile rules; instances keep separate state because the slot content is owned by the caller |
 | O3. Named element props only | Reuse the element-valued attribute of Q8 for any component prop typed `Element` (`header={<X />}`); no implicit `children` | Same IR need as O2 for one subtree per prop; no implicit children, so `<Card>..</Card>` ports still need edits |
 
-Recommendation: O1 now, because it needs no IR change and slice 9 (`Component` nodes) can proceed; plan
-O2 together with the component library, which needs slots. This is a recommendation only: **Q14 remains
-open until the owner chooses**, and slice 9 should not start before it is decided.
+Decision (owner, 2026-11-09): **O2**, a static `Children` slot. Porting `<Card>...</Card>` unchanged
+outweighs the IR cost. Consequences, to be written into the owning specs before slice 9 starts:
+`ir-v1.md` section 3.4 (a `Component` node carries `children`, additive so `irVersion` stays `1`),
+`component-model-v1.md` section 3 (already says slots lower to child nodes, now accurate), and
+`jsx-subset-v1.md` section 5 (a `Children` type for `children`). Until those land the front end still
+rejects component children.
 
 ## 5. Code slice required by ADR-039 (not done in this round)
 
@@ -178,7 +181,7 @@ that list together with the alias code above; `tessera_schema` is slice 12. `jsx
 
 ## 6. Open questions
 
-The owner accepted every recommendation below except Q14, which stays OPEN (section 4.3). The tables of
+The owner accepted every recommendation below; Q14 was decided as O2 (section 4.3). The tables of
 this folder follow the decided options; rows depend on the number in brackets. Decisions that need an
 edit of a spec this folder does not own are pending there: `ir-v1.md` (Q9 `itemTemplate` field, Q26
 allowlist functions), `text-editing-v1.md` (Q4 read-only behavior, Q5 trigger, Q19 defaults),
@@ -200,7 +203,7 @@ allowlist functions), `text-editing-v1.md` (Q4 read-only behavior, Q5 trigger, Q
 | 11 | Decided: reject | `htmlFor`, `a href` | Reject (as written); define a label/control relation and a link target | Reject for V1; define with navigation and forms specs. Cost: label click and in-app links are lost until then |
 | 12 | Decided: opt-in stylesheet | Default styles for aliases (heading size, bold) | None (as written); inline injected style; an opt-in shipped stylesheet | Opt-in `tessera-html-defaults.css` (never injected inline: inline would beat project class rules) |
 | 13 | Decided: keep deferred | Focusable `View`, `tabIndex`, key/focus events on `View`; role inference for clickable `View` | Keep deferred and warn (as written); allow `tabIndex={0}` | Keep deferred; revisit with the accessibility spec |
-| 14 | **OPEN** (section 4.3) | `children` prop of user components | Reject in V1 (as written); lower to child nodes as `component-model-v1.md` says, which needs the `Component` node to carry children | Decide before slice 9; the two documents conflict today |
+| 14 | Decided: O2 (section 4.3) | `children` prop of user components | Reject in V1 (as written); lower to child nodes as `component-model-v1.md` says, which needs the `Component` node to carry children | Static `Children` slot; `ir-v1.md` and subset specs must be updated before slice 9 |
 | 15 | Decided: accept the three hooks | `import ... from "react"` | Reject; accept `useState`, `useEffect`, `useRef` from `"react"` as `"tessera"` and ignore `import React` | Accept the three hooks from `"react"`; every React file starts with this import |
 | 16 | Decided: lower safe forms | `useMemo`/`useCallback` | Keep rejecting; lower the safe forms of section 4.2 | Lower the safe forms; reject the rest |
 | 17 | Decided: rewrite | `svg` with one `path` | Unsupported (as written); rewrite to `Path` | Rewrite when `d` and `viewBox` are literals (typical ported icon) |
