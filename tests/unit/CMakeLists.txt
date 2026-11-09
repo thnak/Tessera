@@ -1101,16 +1101,11 @@ target_link_libraries(scroll_insets_tests PRIVATE tessera_scene tessera_paint)
 
 add_test(NAME scroll_insets COMMAND scroll_insets_tests)
 
-# Accessibility semantics snapshot. The builder source is compiled into this test until the
-# root CMakeLists adds `add_subdirectory(src/ui/accessibility)` (Lead-owned); at that point this
-# target can link tessera_accessibility instead.
 add_executable(a11y_tree_tests
     a11y_tree_tests.cpp
-    a11y_semantics_tests.cpp
-    ${PROJECT_SOURCE_DIR}/src/ui/accessibility/a11y_tree.cpp
-    ${PROJECT_SOURCE_DIR}/src/ui/accessibility/a11y_roles.cpp)
+    a11y_semantics_tests.cpp)
 
-target_link_libraries(a11y_tree_tests PRIVATE tessera_scene tessera_style tessera_schema)
+target_link_libraries(a11y_tree_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_tree COMMAND a11y_tree_tests)
 
