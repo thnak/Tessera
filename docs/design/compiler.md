@@ -226,7 +226,8 @@ them. `useAnimatedValue` remains a plain field: `ui::AnimationRuntime` is target
 the exact gap for a later animation slice.
 
 **Remaining missing runtime API:** inline style attachment/computed-style feed, and a per-value
-animation controller for `useAnimatedValue` hand-off.
+animation controller for `useAnimatedValue` hand-off. The generated-UI demo below adds the codegen
+gap list: state interpolation/regeneration, controlled input wiring, and `automationId` emission.
 
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
@@ -239,6 +240,24 @@ produce them yet. `samples/compiler-demo/` proves the flow end to end: `Demo.tsx
 committed developer seed `tests/golden/codegen/demo/Demo.cpp` with hand-written region bodies, regenerated into the build
 dir and compiled as `tessera_compiler_demo` under warnings-as-errors; `codegen_cli_tests` asserts
 idempotent runs, mtime no-op, region preservation and outside-region repair.
+
+**Generated-UI integration demo (headless, implemented):**
+`tests/integration/generated_ui_tests.cpp` instantiates the generated `demo::gen::Demo`, builds it
+into a scene, lays it out with Yoga, paints with `paint_scene` through the deterministic CPU canvas
+(`CpuPaintSink`), dispatches synthetic pointer/text input, and compares committed CPU goldens
+(`tests/golden/baseline/generated_ui/{before,after}.png`, tolerance 0). It asserts the generated
+`Button` `PointerUp` binding increments `state_count_`, the W3C capture/target/bubble route, the
+`Paint|Render` dirty domains (never `Layout`) for the repaint, and byte-identical repeat renders.
+Run it with `ctest -R generated_ui`; regenerate the goldens with
+`generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui`. The demo is registered
+from `tests/unit/CMakeLists.txt` because the root CMakeLists (Lead-owned) does not add
+`tests/integration` yet. Codegen gaps the demo documents: (a) no state interpolation into node
+content and no re-render/diff step, so a click updates state but not pixels until the caller writes
+the state into `PaintData` (the demo performs that step explicitly); (b) no controlled
+`value`/`onChange` wiring for `TextInput` — bindings receive the generic `Event` and there is no
+value-to-text feed, so typing is asserted through the generated `EditText` handler and the
+edit-controller buffer; (c) the sample emits no `automationId`, so nodes are resolved by element
+kind; (d) inline style attachment is still missing, so the demo supplies the style-sheet values.
 
 Deferred: conditional/list emission, component composition and `Slot`, reusing computed styles,
 multi-file watch mode, cross-module incremental generation, and single-node incremental

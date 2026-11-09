@@ -100,6 +100,32 @@ The output directory is build output: keep it out of version control. Commit onl
 sources and the developer files that the team owns (the sample's `samples/compiler-demo/Demo.cpp`
 is the committed developer seed that the build regenerates over).
 
+### 4.1 Generated-UI headless demo
+
+`tests/integration/generated_ui_tests.cpp` runs the generated sample UI for real, without a GPU or
+window: it instantiates `demo::gen::Demo`, calls the generated `build()` into a scene, lays the tree
+out with Yoga (`LayoutEngine` + `apply_layout`), paints it through `paint_scene` and the
+deterministic CPU canvas, dispatches synthetic pointer/text input, and compares two committed CPU
+goldens at tolerance 0.
+
+```bash
+# CTest (registered from tests/unit because tests/integration is not in the root build yet).
+ctest -R generated_ui --output-on-failure
+
+# Run directly; --write regenerates the committed goldens deliberately.
+./build/<preset>/tests/unit/generated_ui_tests <font.ttf> tests/golden/baseline/generated_ui
+./build/<preset>/tests/unit/generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui
+```
+
+What it proves today: the generated `Button` `PointerUp` binding increments the component's state
+cell, the event route is the standard W3C capture/target/bubble order, the repaint after the state
+change marks `Paint|Render` (never `Layout`), two runs are byte-identical, and the two goldens
+(`before.png`, `after.png`) match exactly. What it also documents as codegen gaps: state
+interpolation into node content and a re-render/diff step (the demo writes the counter into the
+`Text` node's `PaintData` itself), controlled `value`/`onChange` wiring for `TextInput` (typing is
+asserted through the generated `EditText` handler and the edit-controller buffer, not painted
+text), and `automationId` emission (the demo resolves nodes by element kind).
+
 ## 5. Binding manifest
 
 `generated/bindings.json` maps each binding id to its component, file, and protected region.

@@ -1171,6 +1171,10 @@ target_link_libraries(gesture_pipeline_tests PRIVATE tessera_input_pump)
 
 add_test(NAME gesture_pipeline COMMAND gesture_pipeline_tests)
 
+# Headless generated-UI integration demo (task-56). The canonical target definition lives in
+# tests/integration/CMakeLists.txt; this include is the build fallback until the root CMakeLists
+# (Lead-owned) adds tests/integration. Both paths are guarded to stay idempotent.
+include(${PROJECT_SOURCE_DIR}/tests/integration/CMakeLists.txt)
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(
