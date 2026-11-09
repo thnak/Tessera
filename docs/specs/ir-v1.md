@@ -128,7 +128,7 @@ it is an IR record of its own, referenced from `events`:
   "kind": "Text",
   "key": null,
   "props": { "className": "label" },
-  "style": { "fontSize": "14px", "color": "var(--text)" },
+  "style": { "font-size": "14px", "color": "var(--text)" },
   "events": { "onClick": "bind::on_click" },
   "text": { "kind": "template", "parts": ["Count: ", { "kind": "ref", "id": "state::count" }] },
   "children": [],
@@ -434,7 +434,8 @@ Hard errors:
 - `TextInput`/`TextArea` with children or unsupported props/event payloads
 - dynamic component types, context, suspense, custom hooks
 - missing list key or non-static loop source
-- binding annotation without a matching IR use, or vice versa
+- binding annotation without a matching IR use, or vice versa (a binding no event or effect uses
+  is this error, not a warning)
 - unresolved or duplicate `handler::` id, an `events` value that is neither a `bind::` nor a
   `handler::` id, a `Component` node with an unresolved `component`, an unknown prop, or a prop or
   event the referenced component does not declare
@@ -442,7 +443,7 @@ Hard errors:
 
 Warnings:
 
-- unused binding/ref/state
+- unused ref/state
 - binding present in existing code but not in generated IR (rename/removal)
 - deprecated fields
 
@@ -467,6 +468,9 @@ Warnings:
 - Nodes in source order; bindings sorted by id.
 - No timestamps, absolute paths, random ids, or hash-map iteration.
 - JSON snapshot output is stable (sorted keys in tests).
+- The writer omits empty optional fields (examples that show `[]` or `{}` are only explicit);
+  `components`, `bindings` and `stylesheets` are always written.
+- V1 limit: the validator accepts any identifier as a record type until a type table exists.
 - Repeated compilation of the same input is byte-identical.
 
 ## 12. Versioning
