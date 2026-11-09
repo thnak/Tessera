@@ -21,6 +21,10 @@
 
 namespace {
 
+constexpr int kAsyncFrames = 12;
+constexpr std::size_t kFramesInFlight = 2;
+constexpr std::uint64_t kFrameWaitMs = 5000;
+
 using tessera::rendering::rhi::Swapchain;
 using tessera::rendering::rhi::SwapchainDesc;
 using tessera::rendering::rhi::SwapchainError;
@@ -108,7 +112,7 @@ int main() {
 
     tessera::rendering::rhi::DeviceDesc device_desc;
     device_desc.backend = tessera::rendering::rhi::Backend::Vulkan;
-    device_desc.validation = false;
+    device_desc.validation = true;
 
     std::unique_ptr<tessera::rendering::rhi::Device> device;
     try {
@@ -219,6 +223,40 @@ int main() {
         XCloseDisplay(display);
         return 11;
     }
+
+    // Frame loop the way the windowed POC runs it: queue each frame with submit_async() and present
+    // right behind it, waiting only for the frame two iterations back (the one whose vertex-buffer
+    // slot is about to be reused). It runs on the replacement swapchain from the resize above, and
+    // present must wait for rendering through the image's semaphore; synchronization validation
+    // reports a present that races the render as "[vulkan] ... hazard", which fails this test.
+    tessera::rendering::gpu::Batched2DConfig async_config{4096, true, true};
+    async_config.frames_in_flight = static_cast<std::uint32_t>(kFramesInFlight);
+    auto async_renderer = std::make_unique<tessera::rendering::gpu::Batched2DRenderer>(
+        *device, *pipeline, *white, async_config);
+    std::array<std::unique_ptr<tessera::rendering::rhi::CommandList>, kFramesInFlight> in_flight;
+    for (int frame = 0; frame < kAsyncFrames; ++frame) {
+        auto& slot = in_flight[static_cast<std::size_t>(frame) % kFramesInFlight];
+        if (slot != nullptr) {
+            if (!expect(slot->wait(kFrameWaitMs), "frame two iterations back completes")) {
+                XCloseDisplay(display);
+                return 12;
+            }
+            slot.reset();
+        }
+        const auto next = swapchain->acquire_next_image(1000);
+        if (!expect(next.has_value(), "async acquire succeeds") ||
+            !expect(tessera::test::render_swapchain_frame(*device, *async_renderer, *swapchain,
+                                                          next.value(), true, &slot),
+                    "async render to swapchain image") ||
+            !expect(present_ok(*swapchain, next.value()), "async present succeeds")) {
+            XCloseDisplay(display);
+            return 13;
+        }
+    }
+    // Drain before tearing down the resources the last frames still reference.
+    device->wait_idle();
+    in_flight = {};
+    async_renderer.reset();
 
     const std::uint32_t swapchains_created = native_swapchain->stats().swapchains_created;
     const std::uint32_t presents = native_swapchain->stats().presents;

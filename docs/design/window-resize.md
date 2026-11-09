@@ -44,7 +44,10 @@ The B3 seams now have real Windows and Linux/X11 implementations:
   acquire with a bounded fence, present, and retire the old swapchain (`oldSwapchain` plus a
   bounded empty-submit drain **before** destroying the retired images/views). Both swapchain
   smoke tests now render a real frame through `Batched2DRenderer` into the acquired image and
-  present it, exercising the image-target bridge rather than presenting an empty image. Missing
+  present it, exercising the image-target bridge rather than presenting an empty image. Both
+  also run a 12-frame `submit_async` loop with two frames in flight (present queued right behind
+  the submit, waiting through the image's semaphore) under validation, which fails on a
+  `[vulkan]` hazard message. Missing
   handles, unsupported surface formats, a surface-incapable queue,
   and builds without either platform surface extension report `NotSupported`.
 - Event-driven idling exists at the HAL seam: `hal::Window::wait_for_events` (Win32

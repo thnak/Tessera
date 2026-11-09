@@ -190,4 +190,5 @@ if (TESSERA_X11_FOUND AND TARGET tessera_rhi_vulkan AND TARGET tessera_hal_windo
         X11::X11)
 
     add_test(NAME vulkan_swapchain_x11 COMMAND vulkan_swapchain_x11_tests)
+    set_tests_properties(vulkan_swapchain_x11 PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 endif()
