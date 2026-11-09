@@ -145,8 +145,9 @@ This page is the map and reading order for the framework.
   quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits
 - [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
   static-linking and license gates, rendering workstreams, dependency matrix
-- [`design/thorvg-spike.md`](design/thorvg-spike.md) — ThorVG P1 spike: pinned bring-up,
-  `PathRasterizer` seam, determinism, measurements, Go decision
+- [`design/thorvg-spike/README.md`](design/thorvg-spike/README.md) — ThorVG P1 spike and the path
+  pipeline: pinned bring-up, `PathRasterizer`, texture cache, SVG decode/document cache,
+  measurements, Go decision
 - [`design/gpu/README.md`](design/gpu/README.md) — GPU docs index: RHI, frames/sync, resources,
   pipelines, backends, tests
 - [`design/gpu/rhi.md`](design/gpu/rhi.md) — device/resource/command contract, lifetime, errors
@@ -384,7 +385,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 |---|---|
 | RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3; device-loss status + one-shot recovery with generation guards (D7) landed |
 | Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage + analytic rounded-rect clip intersection with a scissor fast path; MSAA 4x in progress; no path AA for geometry edges |
-| Vector paths (ThorVG, D1) | P1 implemented behind `TESSERA_ENABLE_THORVG` (default OFF; meson-only upstream so a CMake wrapper compiles pinned v1.1.3 sources): `rendering::PathRasterizer` + null backend, bounded `PathTextureCache` (rasterize -> RHI texture, D7-aware), static SVG decode into path geometry, deterministic goldens; next is the scene `Path`/`Image` node and asset packaging ([spike](design/thorvg-spike.md), [plan](design/rendering-production-plan.md)) |
+| Vector paths (ThorVG, D1) | P1 implemented behind `TESSERA_ENABLE_THORVG` (default OFF; meson-only upstream so a CMake wrapper compiles pinned v1.1.3 sources): `rendering::PathRasterizer` + null backend, bounded `PathTextureCache` (rasterize -> RHI texture, D7-aware), static SVG decode into path geometry, deterministic goldens; next is the scene `Path`/`Image` node and asset packaging ([spike](design/thorvg-spike/README.md), [plan](design/rendering-production-plan.md)) |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
 | Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due, damage-clipped via the redraw plan, `overflow`/border-radius children clipped with rounded-rect clip intersection, text runs from `ui::PaintData` through `PaintSink::draw_text`/`TextRenderer` (D9) ([design](design/paint-pass.md)) |
 | Protected-region merger | B1 prototype |

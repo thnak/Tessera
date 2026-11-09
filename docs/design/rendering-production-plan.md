@@ -86,7 +86,7 @@ out of the release until decided.
 
 ### P1 — production quality
 
-1. **ThorVG paths (D1)**: spike done — Go ([`thorvg-spike.md`](thorvg-spike.md)); pinned v1.1.3
+1. **ThorVG paths (D1)**: spike done — Go ([`thorvg-spike/README.md`](thorvg-spike/README.md)); pinned v1.1.3
    behind `TESSERA_ENABLE_THORVG` (default OFF), `PathRasterizer` seam and a null backend landed.
    Next: RHI texture upload, `Path` node, SVG asset path.
 2. **MSAA 4x** for non-SDF geometry, resolve into the 2D target; golden updates deliberate.
