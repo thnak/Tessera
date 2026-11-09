@@ -106,3 +106,7 @@ if (TESSERA_BUILD_TESTS)
     add_subdirectory(tests/unit)
     add_subdirectory(tests/gpu)
 endif()
+
+# Ship the project license, third-party notices and the generated license bundle with an install.
+# Kept last so the module can see every option and target defined above.
+include(cmake/tessera_packaging.cmake)

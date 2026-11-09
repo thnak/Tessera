@@ -8,7 +8,7 @@ release gates and remain open to owner review. The acceptance gates are normativ
 build. Related:
 [`renderer.md`](renderer.md), [`gpu/README.md`](gpu/README.md),
 [`dependencies.md`](../specs/dependencies.md), [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md),
-[ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license.md),
+[ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license-mit.md),
 [ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md).
 
 ## 1. Goal and constraints
@@ -16,7 +16,7 @@ build. Related:
 The production build is a native application. It must ship **statically linked third-party
 C/C++ code**, keep **system components** (Vulkan loader/ICDs, X11/Wayland, Win32, macOS
 frameworks) dynamic, and contain **no copyleft obligation** (no LGPL/GPL/AGPL in linked code).
-This is [ADR-012](../../decisions/ADR-012-static-linking.md) plus [ADR-013](../../decisions/ADR-013-project-license.md) (MIT).
+This is [ADR-012](../../decisions/ADR-012-static-linking.md) plus [ADR-013](../../decisions/ADR-013-project-license-mit.md) (MIT).
 
 Two walls must stay separate:
 
@@ -85,8 +85,9 @@ out of the release until decided.
 
 ### P1 — production quality
 
-1. **ThorVG paths (D1)**: spike (build size, startup, memory, determinism, Vulkan viability),
-   then `PathRasterizer` + `Path` node + SVG asset path; null implementation for tests.
+1. **ThorVG paths (D1)**: spike done — Go ([`thorvg-spike.md`](thorvg-spike.md)); pinned v1.1.3
+   behind `TESSERA_ENABLE_THORVG` (default OFF), `PathRasterizer` seam and a null backend landed.
+   Next: RHI texture upload, `Path` node, SVG asset path.
 2. **MSAA 4x** for non-SDF geometry, resolve into the 2D target; golden updates deliberate.
 3. **Present-path damage and frame pacing polish** (D4); VRR only if the platform APIs are decided.
 4. **Text scaling**: SDF atlas or multi-size atlas (D6); line breaking/bidi once ICU/SheenBidi land.

@@ -145,6 +145,8 @@ This page is the map and reading order for the framework.
   quads, source coordinates, sink seam, limits
 - [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
   static-linking and license gates, rendering workstreams, dependency matrix
+- [`design/thorvg-spike.md`](design/thorvg-spike.md) — ThorVG P1 spike: pinned bring-up,
+  `PathRasterizer` seam, determinism, measurements, Go decision
 - [`design/gpu/README.md`](design/gpu/README.md) — GPU docs index: RHI, frames/sync, resources,
   pipelines, backends, tests
 - [`design/gpu/rhi.md`](design/gpu/rhi.md) — device/resource/command contract, lifetime, errors
@@ -380,15 +382,16 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 
 | Area | State |
 |---|---|
-| RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3 |
+| RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3; device-loss status + one-shot recovery with generation guards (D7) landed |
 | Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage; no MSAA/path AA |
+| Vector paths (ThorVG, D1) | P1 spike complete, Go: pinned ThorVG v1.1.3 behind `TESSERA_ENABLE_THORVG` (default OFF, meson-only upstream so a CMake wrapper compiles the pinned sources), `rendering::PathRasterizer` + null backend, deterministic 512x512 golden; 894 KiB Release archive, +336 KiB linked, ~1 ms first render; RHI upload, `Path` node and SVG assets next ([spike](design/thorvg-spike.md), [plan](design/rendering-production-plan.md)) |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
 | Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due, damage-clipped via the redraw plan; text runs and rounded/squircle clip intersection pending ([design](design/paint-pass.md)) |
 | Protected-region merger | B1 prototype |
 | JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; expression and hook/binding lowering implemented, node/component lowering pending ([design](design/jsx-ir-lowering.md)) |
 | Stylesheet engine | B2 implemented ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |
 | Yoga layout / text / glyph atlas | B2 implemented: Yoga adapter, FreeType/HarfBuzz shaping, glyph atlas and text batching; bidi/ICU segmentation pending |
-| Input handler | B2 implemented: normalized queue/coalescing, per-pointer capture, focus/keyboard, wheel/text routing, Tab traversal, hover/active and `:focus-visible` pseudo-states, per-tick `InputPump`; Linux translation, IME, gestures and multi-touch pending ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
+| Input handler | B2 implemented: normalized queue/coalescing with pointer kinds, per-pointer capture, focus/keyboard, wheel/text routing, Tab traversal, hover/active and `:focus-visible` pseudo-states, per-tick `InputPump`, Windows touch/pen translation (WM_POINTER + WM_TOUCH fallback), gesture arena with deterministic recognizers driven by the pump; Linux/Wayland touch, IME and scrolling pending ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
 | Fixed-step loop | B2 implemented: accumulator, clock, `RuntimeLoop`, pacer ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
 | Dirty rendering + frame pacing | B2 implemented (dirty flags/damage/redraw plan/frame pipeline/pacer); B3 present landed on Win32/X11 (two frames in flight), VRR/dynamic refresh and present-path damage pending ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
 | Power-aware idle/adaptive defaults | B2 partial: render-on-demand idle implemented; adaptive quality pending ([ADR-019](../decisions/ADR-019-power-aware-runtime.md)) |
