@@ -20,10 +20,32 @@ jobs:
           cmake --preset vs2026
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
         run: cmake --build --preset vs2026-release
+
+      - name: Package build (CPack ZIP)
+        run: |
+          cmake --build --preset vs2026-release --target tessera-package-stage
+          cpack --config build/vs2026/CPackConfig.cmake -G ZIP -C Release -B build/vs2026/package
+
+      - name: Package gate (check_package.py)
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem build/vs2026/package/tessera-*.zip | Select-Object -First 1
+          if (-not $archive) { throw 'no package archive found' }
+          python -B scripts/check_package.py --archive $archive.FullName
+
+      - name: Install layout (cmake --install)
+        shell: pwsh
+        run: |
+          cmake --install build/vs2026 --config Release --prefix build/vs2026/install-check --component licenses
+          foreach ($name in @('LICENSE', 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_LICENSES.txt', 'sbom.spdx.json')) {
+            $path = Join-Path 'build/vs2026/install-check/share/tessera/licenses' $name
+            if (-not (Test-Path $path)) { throw "missing installed file: $path" }
+          }
 
       - name: Static-link allowlist (ADR-012, Windows)
         run: >

@@ -217,3 +217,38 @@ OS matrix: the same `gates.py` runs in the `release-gates` job on Linux, Windows
 gate self-test suite (`--fixtures`) stays on Linux, where it is cheap; the Windows/macOS jobs run
 only the aggregator so they stay around a minute. The release-only checks (static runtime,
 package contents, reproducible build) run in the platform build jobs on Linux and Windows.
+
+## 14. Release checklist
+
+Run the steps below from a clean checkout of the release commit on each OS; do not publish until all
+three platforms are green. Steps 1-2 run everywhere; step 5 produces one artifact per OS.
+
+1. **Repository gates** — `python -B scripts/gates.py` (dependencies, license bundle, SBOM, docs,
+   pins). Proves the tree is internally consistent; add `--archive` once step 5 produced an archive.
+2. **Release build and static-runtime proof** — configure with `TESSERA_STATIC_RUNTIME=ON` and
+   `BUILD_SHARED_LIBS=OFF` (both default), build the shipped target set, then run
+   `python -B scripts/check_static_runtime.py --config Release --target <target>`. Proves the
+   C/C++ runtime is linked statically (ADR-012).
+3. **Install layout** — `cmake --install <build> --prefix <temp> --component licenses`; the prefix
+   must contain `share/tessera/licenses/{LICENSE,THIRD_PARTY_NOTICES.md,THIRD_PARTY_LICENSES.txt,
+   sbom.spdx.json}`. Proves the installer ships the compliance files even outside the archive.
+4. **Reproducible proof** — `python -B scripts/check_reproducible.py --config Release --target
+   <target>`. Proves two clean builds of the same commit in different build directories are
+   byte-identical (Linux/Windows CI; macOS when its toolchain supports the same flags).
+5. **Distributable archive** — configure with `-DTESSERA_PACKAGE_EXECUTABLES=<targets>`, build
+   `tessera-package-stage`, run `cpack --config <build>/CPackConfig.cmake -G <TGZ|ZIP> -B <out>`,
+   then `python -B scripts/check_package.py --archive <artifact>`. Proves the archive contains
+   exactly the shipped executables plus the compliance files and a valid SPDX-2.3 SBOM, with no
+   build-path or timestamp leaks. Artifact names:
+   - Linux: `tessera-<version>-linux-x86_64.tar.gz`
+   - Windows: `tessera-<version>-windows-x86_64.zip` (a `.tar.gz` is generated as well)
+   - macOS: `tessera-<version>-macos-arm64.tar.gz` on Apple Silicon (the `macos-latest` runner;
+     `tessera-<version>-macos-x86_64.tar.gz` on Intel runners)
+6. **Static-link gate on the artifact** — `python -B scripts/check_static_link.py --os <os>
+   --binary <exe>` (the platform build jobs do this); proves no unexpected dynamic third-party
+   library and no dynamic MSVC/`libstdc++`/`libgcc_s` runtime.
+7. **Review and publish (manual)** — code signing and notarization, installer formats
+   (MSIX/dmg/pkg/AppImage), a clean-VM smoke test without the Vulkan SDK, artifact upload and
+   release notes stay manual. No signing or publishing automation is provided.
+
+The platform CI jobs run steps 1-2 and 3-6 on Linux, Windows and macOS; step 7 is always manual.

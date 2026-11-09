@@ -25,10 +25,29 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
         run: cmake --build build/macos --parallel
+
+      - name: Package build (CPack TGZ)
+        run: |
+          cmake --build build/macos --target tessera-package-stage
+          cpack --config build/macos/CPackConfig.cmake -G TGZ -B build/macos/package
+
+      - name: Package gate (check_package.py)
+        run: |
+          python3 -B scripts/check_package.py \
+            --archive "$(ls build/macos/package/tessera-*.tar.gz | head -n1)"
+
+      - name: Install layout (cmake --install)
+        run: |
+          cmake --install build/macos --prefix build/macos/install-check --component licenses
+          for name in LICENSE THIRD_PARTY_NOTICES.md THIRD_PARTY_LICENSES.txt sbom.spdx.json; do
+            test -f "build/macos/install-check/share/tessera/licenses/$name" || {
+              echo "missing installed file: $name"; exit 1; }
+          done
 
       - name: ccache statistics
         run: ccache --show-stats
