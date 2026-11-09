@@ -52,6 +52,33 @@ Unexpected third-party dynamic libraries fail the release.
 - Expose an About/licenses UI in the app.
 - CI checks notices cover the link graph and fail on new unlisted dependencies.
 
+### Shipping license compliance
+
+A distributable must contain three files. `cmake/tessera_packaging.cmake` installs them under
+`${CMAKE_INSTALL_DATADIR}/tessera/licenses` (normally `share/tessera/licenses`) and fails the
+configure step loudly if any is missing:
+
+| File | Contents |
+|---|---|
+| `LICENSE` | the project MIT license |
+| `THIRD_PARTY_NOTICES.md` | component map: files, upstream, copyright |
+| `THIRD_PARTY_LICENSES.txt` | generated bundle: component -> license -> copyright map, then each distinct license text once |
+
+The canonical texts live in [`licenses/`](../../licenses/README.md), one file per license with a
+provenance header. Regenerate and verify the bundle from the repository root:
+
+```bash
+python -B scripts/gen_license_bundle.py --write
+python -B scripts/gen_license_bundle.py --check
+```
+
+`--check` fails on a stale bundle, a production-linked license without a local text, or a
+component without a resolved copyright holder; the cheap `release-gates` CI job runs it. Regenerate
+the bundle in the same change as any dependency/notices update and ship the result with the app.
+The About/licenses UI should show these files. The bundle covers third-party code linked into the
+binary; system libraries that stay dynamic (Vulkan loader/ICDs, OS frameworks, glibc) are not
+linked third-party code and are not part of the bundle.
+
 ## 6. Windows
 
 - Static CRT (`/MT`), x64.

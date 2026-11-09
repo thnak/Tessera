@@ -1,0 +1,5 @@
+SPDX-License-Identifier: IJG
+Source: https://example.invalid/licenses/IJG
+
+IJG FIXTURE LICENSE TEXT.
+Second line of the fixture IJG text.

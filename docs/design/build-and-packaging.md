@@ -105,6 +105,10 @@ instead of passing or failing; it applies to Release only.
 - Preserve Apache-2.0 NOTICE, MIT/BSD copyright, OFL/FTL, and ICU/Unicode notices.
 - New dependency -> update `docs/specs/dependencies.md` and `THIRD_PARTY_NOTICES.md`.
 - CI checks that notices cover the link graph.
+- Full license texts ship with the app: `cmake/tessera_packaging.cmake` installs `LICENSE`,
+  `THIRD_PARTY_NOTICES.md` and the generated `THIRD_PARTY_LICENSES.txt`; see
+  [`packaging.md`](../guides/packaging.md#shipping-license-compliance) and
+  [`licenses/README.md`](../../licenses/README.md).
 
 ## 7. Windows packaging (target)
 

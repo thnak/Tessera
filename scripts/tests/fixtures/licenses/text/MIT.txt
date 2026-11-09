@@ -1,0 +1,5 @@
+SPDX-License-Identifier: MIT
+Source: https://example.invalid/licenses/MIT
+
+MIT FIXTURE LICENSE TEXT.
+Second line of the fixture MIT text.

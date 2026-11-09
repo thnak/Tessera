@@ -1,0 +1,5 @@
+SPDX-License-Identifier: NONE (public domain)
+Source: https://example.invalid/licenses/public-domain
+
+PUBLIC DOMAIN FIXTURE TEXT.
+Second line of the fixture public-domain text.
