@@ -181,6 +181,8 @@ This page is the map and reading order for the framework.
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
 - [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
   modes, diagnostics, spec gaps decided
+- [`design/jsx-ir-lowering.md`](design/jsx-ir-lowering.md) — AST to IR lowering design: construct
+  mapping, analysis pass, spans, bind ids, layout, tests, slices, open questions
 - [`design/designer.md`](design/designer.md) — Wasm/WebGPU preview, IPC (inter-process communication), hot reload
 - [`design/threading-and-memory.md`](design/threading-and-memory.md) — threads, ownership,
   allocators, GPU memory, shutdown
