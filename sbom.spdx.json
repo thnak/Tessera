@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "https://github.com/thnak/Tessera/spdx/tessera-0.0.1-da1a4bbae95fadb3",
+  "documentNamespace": "https://github.com/thnak/Tessera/spdx/tessera-0.0.1-a8d570eb4d5f1ef0",
   "hasExtractedLicensingInfos": [
     {
       "extractedText": "SQLite Is Public Domain\n\nAll of the code and documentation in SQLite has been dedicated to the public domain by the\nauthors. All code authors, and representatives of the companies they work for, have signed\naffidavits dedicating their contributions to the public domain and originals of those signed\naffidavits are stored in a firesafe at the main offices of Hwaci. All contributors are citizens of\ncountries that allow creative works to be dedicated into the public domain. Anyone is free to\ncopy, modify, publish, use, compile, sell, or distribute the original SQLite code, either in\nsource code form or as a compiled binary, for any purpose, commercial or non-commercial, and by\nany means.",
@@ -272,7 +272,8 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "name": "SheenBidi",
-      "supplier": "NOASSERTION"
+      "supplier": "NOASSERTION",
+      "versionInfo": "3.0.0"
     },
     {
       "SPDXID": "SPDXRef-Package-simdjson",
