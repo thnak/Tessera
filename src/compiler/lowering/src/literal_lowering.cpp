@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// Literal lowering and the int/float typing rule (docs/specs/ir-v1.md section 4.1).
+// Literal lowering and the int/float typing rule (docs/specs/jsx-subset-v1.md section 5,
+// "Literal types"; docs/specs/ir-v1.md section 4.1).
 
 #include "expression_lowering_internal.hpp"
 
@@ -15,17 +16,25 @@ namespace {
 
 constexpr std::string_view kLiteral = "TESSERA_IR_LITERAL";
 
-// ir-v1.md section 4.1 fixes `int` at signed 32-bit. The spec is silent on how a numeric literal
-// spelling becomes int or float, so slice 5 uses the narrowest lossless mapping and leaves the
-// final decision to the type pass (slice 4):
-//   - a spelling with `.` or an exponent is a float (1.0, 0.5, 1e3);
-//   - an integer spelling that fits int32 is an int (0, 42, 2147483647);
-//   - an integer spelling outside int32 stays a float, because the IR has no wider int. This is
-//     provisional: slice 4 can reject or retype it once literal types are checked.
+// jsx-subset-v1.md section 5: a literal without a fraction or exponent is `int`; one with them is
+// `float`. The expected-type override (an integer spelling in a `float` position becomes float)
+// needs the type table of slice 4, so lowering only decides the base type here.
+std::string float_spelling_suggestion(std::string_view spelling) {
+    if (spelling.empty()) {
+        return "write the literal with a fraction or exponent if a float was intended";
+    }
+    return "write `" + std::string(spelling) +
+           ".0` if a float was intended (the expected-type override needs the type pass)";
+}
+
+} // namespace
+
 bool has_fraction_or_exponent(std::string_view spelling) {
     return spelling.find_first_of(".eE") != std::string_view::npos;
 }
 
+// ir-v1.md section 4.1 fixes `int` at signed 32-bit. A value outside that range has no IR int
+// form, so lowering rejects it instead of silently changing its type to float.
 std::optional<std::int64_t> int32_value(double number) {
     constexpr double kMin = -2147483648.0;
     constexpr double kMax = 2147483647.0;
@@ -34,8 +43,6 @@ std::optional<std::int64_t> int32_value(double number) {
     }
     return static_cast<std::int64_t>(number);
 }
-
-} // namespace
 
 ir::ExprPtr lower_literal(LoweringState& state, const jsx::Expr& expr) {
     switch (expr.kind) {
@@ -48,6 +55,11 @@ ir::ExprPtr lower_literal(LoweringState& state, const jsx::Expr& expr) {
             if (const std::optional<std::int64_t> integer = int32_value(expr.number)) {
                 return ir::make_literal(*integer);
             }
+            fail(state, kLiteral,
+                 "integer literal `" + expr.text +
+                     "` is outside the IR int range (signed 32-bit, ir-v1.md section 4.1)",
+                 expr.span, float_spelling_suggestion(expr.text));
+            return nullptr;
         }
         return ir::make_literal(expr.number);
     case jsx::ExprKind::String:

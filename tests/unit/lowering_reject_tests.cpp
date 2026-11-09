@@ -112,6 +112,30 @@ void test_unresolved_references() {
     }
 }
 
+void test_integer_literals_outside_int32() {
+    const Lowered too_large = lower("2147483648");
+    check(!too_large.result, "an integer outside int32 produces no IR");
+    check(expr_of(too_large) == nullptr, "no partial IR is returned for an out-of-range integer");
+    check_eq(first_code(too_large.result), "TESSERA_IR_LITERAL", "out-of-range integer code");
+    if (!too_large.result) {
+        check(too_large.result.error().size() == 1, "one diagnostic for the literal");
+        const jsx::Diagnostic diagnostic = first_diagnostic(too_large.result);
+        check(diagnostic.span.span.offset == 0 && diagnostic.span.span.length == 10,
+              "the diagnostic covers the literal");
+        check(diagnostic.suggestion.find("2147483648.0") != std::string::npos,
+              "the diagnostic suggests the float spelling");
+    }
+
+    // The minimum-int fold only covers the negated value that fits; one below it stays an error.
+    const Lowered below_minimum = lower("-2147483649");
+    check(!below_minimum.result, "an integer below the minimum int produces no IR");
+    check_eq(first_code(below_minimum.result), "TESSERA_IR_LITERAL", "below-minimum integer code");
+
+    const Lowered nested = lower("2147483648 + 1");
+    check(!nested.result, "an out-of-range literal fails the whole expression");
+    check(expr_of(nested) == nullptr, "a failed tree returns no IR");
+}
+
 void test_hand_built_loose_equality_is_rejected() {
     jsx::Expr binary;
     binary.kind = jsx::ExprKind::Binary;
@@ -188,6 +212,7 @@ int main() {
     test_assignment_is_rejected();
     test_member_and_call_forms_are_rejected();
     test_unresolved_references();
+    test_integer_literals_outside_int32();
     test_hand_built_loose_equality_is_rejected();
     test_hand_built_unsupported_unary_is_rejected();
     test_malformed_hand_built_asts();

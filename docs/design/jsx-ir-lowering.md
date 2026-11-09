@@ -159,19 +159,26 @@ no record field types, and slice 4 has not landed, so lowering does not try to i
 will implement the resolver in slice 9; tests supply a small map. The returned id is used
 verbatim and is checked against the component scope later by the IR validator.
 
-Numeric literal typing is silent in the spec. The slice 5 rule is: a spelling with `.` or an
-exponent is a float (`0.5`, `1e3`, `1.0`); an integer spelling that fits signed 32-bit is an int
-(`0`, `42`, `2147483647`); an integer spelling outside int32 stays a float because the IR has no
-wider int. The last case is provisional: slice 4 may reject or retype it once literal types are
-checked. A non-finite number is `TESSERA_IR_LITERAL`.
+Numeric literal typing follows
+[`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 5 ("Literal types"): a spelling without a
+fraction or exponent is an `int` (`0`, `42`, `2147483647`), and a spelling with one is a `float`
+(`0.5`, `1e3`, `1.0`). The spec also lets an integer spelling become a `float` when the expected
+type at that position is `float`; that override needs the type table of slice 4, so slice 5 only
+decides the base type. Because [`ir-v1.md`](../specs/ir-v1.md) section 4.1 fixes `int` at signed
+32-bit, an integer spelling outside int32 has no IR form and is `TESSERA_IR_LITERAL` (suggestion:
+write it with a fraction, for example `2147483648.0`), not a silent float. One deliberate
+exception keeps the minimum int expressible: unary `-` over an integer literal that does not fit
+int32 is folded when the negated value does, so `-2147483648` lowers to the int `-2147483648`
+(section 4.1 defines it) while `-2147483649` stays an error. That fold is limited to this case and
+is not the deferred top-level constant folding. A non-finite number is also `TESSERA_IR_LITERAL`.
 
 Diagnostics reuse `jsx::Diagnostic` with `TESSERA_IR_*` codes: `TESSERA_IR_UNSUPPORTED` for array
 and object literals, arrows, JSX in an expression, assignment, indexing, member access on a value
 without a record type, unsupported unary/binary operators and non-allowlisted calls;
 `TESSERA_IR_UNRESOLVED` for a reference without a resolver or one the resolver rejects;
 `TESSERA_IR_MALFORMED` for a hand-built node with the wrong operand count or missing operands; and
-`TESSERA_IR_LITERAL` for a non-finite number. Lowering stops at the first error, so the result is
-either a complete expression or diagnostics with no IR at all.
+`TESSERA_IR_LITERAL` for a non-finite number or an integer literal outside int32. Lowering stops
+at the first error, so the result is either a complete expression or diagnostics with no IR at all.
 
 Not in slice 5: types and expression typing (slice 4); hooks, bindings, nodes, components,
 conditionals/loops in JSX and imports (slices 6 to 9); array and object literals in their accepted

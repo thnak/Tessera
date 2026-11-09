@@ -5,7 +5,10 @@
 
 #include "expression_lowering_internal.hpp"
 
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -94,6 +97,19 @@ ir::ExprPtr lower_unary(LoweringState& state, const jsx::Expr& expr) {
                  "`; ir-v1.md section 4 allows `!`, `-` and `+`",
              expr.span);
         return nullptr;
+    }
+    // `-2147483648` is the one integer spelling that only exists after the minus sign: the
+    // positive value does not fit int32, but the negated one is the minimum int that ir-v1.md
+    // section 4.1 defines. Fold exactly that case so the minimum int is expressible; any other
+    // literal keeps its unary node (this is not general constant folding).
+    if (expr.text == "-") {
+        const jsx::Expr& operand = *expr.operands[0];
+        if (operand.kind == jsx::ExprKind::Number && !has_fraction_or_exponent(operand.text) &&
+            std::isfinite(operand.number) && !int32_value(operand.number)) {
+            if (const std::optional<std::int64_t> negated = int32_value(-operand.number)) {
+                return ir::make_literal(*negated);
+            }
+        }
     }
     ir::ExprPtr value = lower_expr(state, *expr.operands[0]);
     if (!value) {

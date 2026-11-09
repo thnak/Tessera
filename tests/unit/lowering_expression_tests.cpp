@@ -53,12 +53,28 @@ void test_integer_and_float_literals() {
     check(lowers_to_int("0", 0), "0 is an int literal");
     check(lowers_to_int("42", 42), "42 is an int literal");
     check(lowers_to_int("2147483647", 2147483647), "the largest int stays an int");
-    // The spec leaves literal typing open; slice 5 widens an integer outside int32 to float
-    // because the IR has no wider int (ir-v1.md section 4.1, documented in the design note).
-    check(lowers_to_float("2147483648", 2147483648.0), "an integer outside int32 becomes a float");
+    // jsx-subset-v1.md section 5: a spelling with a fraction or an exponent is a float.
     check(lowers_to_float("0.5", 0.5), "a fraction is a float");
     check(lowers_to_float("1e3", 1000.0), "an exponent spelling is a float");
     check(lowers_to_float("1.0", 1.0), "1.0 keeps the float spelling");
+}
+
+void test_minimum_int_is_folded() {
+    // `-2147483648` is unary minus over a spelling outside int32, but ir-v1.md section 4.1
+    // defines the minimum int, so exactly this case folds to an int literal.
+    const Lowered minimum = lower("-2147483648");
+    const ir::Expr* folded = expr_of(minimum);
+    check(folded != nullptr && folded->kind == ir::ExprKind::Literal,
+          "-2147483648 lowers to a literal");
+    check(is_int(folded, -2147483648), "-2147483648 is the minimum int");
+
+    // An ordinary negation keeps its unary node; this is not general constant folding.
+    const Lowered ordinary = lower("-42");
+    const ir::Expr* unary = expr_of(ordinary);
+    check(unary != nullptr && unary->kind == ir::ExprKind::Unary && unary->op == "-",
+          "-42 keeps the unary minus");
+    check(unary != nullptr && unary->operands.size() == 1 && is_int(unary->operands[0].get(), 42),
+          "-42 negates the int literal 42");
 }
 
 void test_string_boolean_and_null_literals() {
@@ -251,6 +267,7 @@ void test_serialised_shapes() {
 
 int main() {
     test_integer_and_float_literals();
+    test_minimum_int_is_folded();
     test_string_boolean_and_null_literals();
     test_unary_operators();
     test_binary_operators();
