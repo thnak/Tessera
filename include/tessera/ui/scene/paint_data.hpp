@@ -4,6 +4,8 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -70,6 +72,7 @@ struct PaintImageStyle {
         return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
     }
 };
+
 // PaintData vector options (embedded SVG asset). The asset name is a BORROWED view, consistent with
 // the node metadata rule (generated code passes string literals, whose storage is static); the
 // paint pass hands it straight to the sink for the duration of the paint call.
@@ -148,6 +151,33 @@ struct TextDecoration {
     bool operator==(const TextDecoration&) const = default;
 };
 
+// Linear gradient background (V1). Stops are clamped to [0,1] and sorted by offset; equal offsets
+// keep their input order and the later stop wins at the duplicate sample point (documented rule).
+// `angle_degrees` uses the CSS convention: 0 = to top, 90 = to right, 180 = to bottom.
+// Interpolation is encoded-space (sRGB bytes, no linearization) — the V1 sRGB approximation — and
+// the paint pass folds node opacity into each stop's alpha before handing the gradient to a sink.
+struct LinearGradientStop {
+    float offset = 0.0f;
+    rendering::rhi::Color color;
+
+    bool operator==(const LinearGradientStop& other) const {
+        return offset == other.offset && color.r == other.color.r && color.g == other.color.g &&
+               color.b == other.color.b && color.a == other.color.a;
+    }
+};
+
+struct LinearGradient {
+    static constexpr std::size_t kMaxStops = 8;
+    float angle_degrees = 180.0f;
+    std::array<LinearGradientStop, kMaxStops> stops{};
+    std::size_t stop_count = 0;
+
+    bool operator==(const LinearGradient& other) const {
+        return angle_degrees == other.angle_degrees && stop_count == other.stop_count &&
+               std::equal(stops.begin(), stops.begin() + stop_count, other.stops.begin());
+    }
+};
+
 struct PaintData {
     static constexpr std::size_t kMaxTextBytes = 4096;
     // Embedded asset names are short by construction; longer names are ignored by the paint pass
@@ -173,6 +203,10 @@ struct PaintData {
     PaintVectorStyle vector;
     // Image payload; only painted when kind == PaintKind::Image.
     PaintImageStyle image;
+    // Optional linear-gradient background, painted where the background would be (node box,
+    // rounded by border-radius) under content/text/vector/image draws. Absent keeps the solid
+    // background-color behavior.
+    std::optional<LinearGradient> gradient;
 
     [[nodiscard]] bool empty() const {
         if (kind == PaintKind::Vector) {

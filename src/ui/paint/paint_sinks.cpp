@@ -49,6 +49,48 @@ void Batched2DSink::fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& c
     renderer_->push_rounded_rect(rect, color, radius);
 }
 
+// V1 gradient emission: 64 dominant-axis bands sampled with the shared encoded-space ramp, inside
+// the node's border-rounded clip. This keeps the existing solid-quad pipeline (no new shader) and
+// is exact for 0/90/180/270 degrees; other angles are a documented banded approximation
+// (LUT/per-pixel gradient is the follow-up). CPU parity uses the same bands/ramp.
+void Batched2DSink::fill_linear_gradient(const GradientDraw& draw) {
+    if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+        return;
+    }
+    const bool clipped = draw.clip.rounded();
+    if (clipped) {
+        renderer_->push_clip(rendering::gpu::clip::RoundedRect{
+            draw.clip.rect, draw.clip.top_left, draw.clip.top_right, draw.clip.bottom_right,
+            draw.clip.bottom_left});
+    }
+    const float radians = draw.angle_degrees * 3.14159265358979323846f / 180.0f;
+    const float dx = std::sin(radians);
+    const float dy = -std::cos(radians);
+    const float span =
+        std::max(draw.rect.width * std::abs(dx) + draw.rect.height * std::abs(dy), 1.0f);
+    constexpr int kBands = 64;
+    if (std::abs(dx) >= std::abs(dy)) {
+        const float band = draw.rect.width / static_cast<float>(kBands);
+        for (int index = 0; index < kBands; ++index) {
+            const float x = draw.rect.x + (static_cast<float>(index) + 0.5f) * band;
+            const float t = 0.5f + ((x - (draw.rect.x + draw.rect.width * 0.5f)) * dx) / span;
+            renderer_->push_rect({x - band * 0.5f, draw.rect.y, band + 0.5f, draw.rect.height},
+                                 sample_linear_gradient(draw, t));
+        }
+    } else {
+        const float band = draw.rect.height / static_cast<float>(kBands);
+        for (int index = 0; index < kBands; ++index) {
+            const float y = draw.rect.y + (static_cast<float>(index) + 0.5f) * band;
+            const float t = 0.5f + ((y - (draw.rect.y + draw.rect.height * 0.5f)) * dy) / span;
+            renderer_->push_rect({draw.rect.x, y - band * 0.5f, draw.rect.width, band + 0.5f},
+                                 sample_linear_gradient(draw, t));
+        }
+    }
+    if (clipped) {
+        renderer_->pop_clip();
+    }
+}
+
 void Batched2DSink::push_clip(const RoundedClip& clip) {
     renderer_->push_clip(rendering::gpu::clip::RoundedRect{clip.rect, clip.top_left, clip.top_right,
                                                            clip.bottom_right, clip.bottom_left});

@@ -76,6 +76,39 @@ public:
         fill_rect(rect, color);
     }
 
+    // V1 gradient parity: the same 64 dominant-axis bands the GPU sink emits, sampled with the
+    // shared encoded-space ramp. Rounded corners are approximated by rect bounds here (the CPU
+    // golden path documents that approximation), so parity is exact for unrounded gradients.
+    void fill_linear_gradient(const ui::paint::GradientDraw& draw) override {
+        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+            return;
+        }
+        const float radians = draw.angle_degrees * 3.14159265358979323846f / 180.0f;
+        const float dx = std::sin(radians);
+        const float dy = -std::cos(radians);
+        const float span_x = draw.rect.width * std::abs(dx);
+        const float span_y = draw.rect.height * std::abs(dy);
+        const float span = std::max(span_x + span_y, 1.0f);
+        constexpr int kBands = 64;
+        if (std::abs(dx) >= std::abs(dy)) {
+            const float band = draw.rect.width / static_cast<float>(kBands);
+            for (int index = 0; index < kBands; ++index) {
+                const float x = draw.rect.x + (static_cast<float>(index) + 0.5f) * band;
+                const float t = 0.5f + ((x - (draw.rect.x + draw.rect.width * 0.5f)) * dx) / span;
+                fill_rect({x - band * 0.5f, draw.rect.y, band + 0.5f, draw.rect.height},
+                          ui::paint::sample_linear_gradient(draw, t));
+            }
+        } else {
+            const float band = draw.rect.height / static_cast<float>(kBands);
+            for (int index = 0; index < kBands; ++index) {
+                const float y = draw.rect.y + (static_cast<float>(index) + 0.5f) * band;
+                const float t = 0.5f + ((y - (draw.rect.y + draw.rect.height * 0.5f)) * dy) / span;
+                fill_rect({draw.rect.x, y - band * 0.5f, draw.rect.width, band + 0.5f},
+                          ui::paint::sample_linear_gradient(draw, t));
+            }
+        }
+    }
+
     void push_clip(const ui::paint::RoundedClip& clip) override {
         stack_.push_back(clip_);
         clip_ = intersect(clip_, clip.rect);

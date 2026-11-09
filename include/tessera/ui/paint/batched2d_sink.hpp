@@ -98,6 +98,7 @@ public:
 
     void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override;
     void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override;
+    void fill_linear_gradient(const GradientDraw& draw) override;
     void push_clip(const RoundedClip& clip) override;
     void pop_clip() override;
     void draw_text(const TextDraw& run) override;

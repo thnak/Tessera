@@ -435,7 +435,6 @@ Deferrals: glyph-run caching (shaped runs/atlas entries), a shaping cache, incre
 edited paragraph, sharing the cache with the layout engine (which measures with its own
 `TextMeasurer`), and a shaping/advance memoization cache for the real-metrics path.
 
-
 ### 10.1.2 Metrics sources: stub vs real font (task-53)
 
 Paint wrapping measures through a documented `PaintTextMetricsSource`
@@ -561,3 +560,41 @@ determinism). No new PNG golden was added: the RecordingSink op record is byte-e
 text path needs a real-font fixture for pixels (the existing `paint_text_gpu` readback covers the
 decorated GPU path). Deferrals: candidate-window positioning, per-composition styling (squiggly or
 coloured underline), bidi preedit, selection inside the preedit range, GPU readback of the preedit.
+
+## 12. Raster image assets (D12)
+
+A node may paint one embedded PNG/JPEG instead of text or a vector: `PaintData::kind ==
+PaintKind::Image` with `PaintImageStyle` (borrowed asset name bounded by `kMaxAssetBytes`, optional
+device-pixel raster size, scale hint, tint and opacity multiplier). `PaintKind` selects exactly one
+active payload (text/vector/image are mutually exclusive); fields of the other kinds are ignored and
+`PaintData::empty()` follows the active kind.
+
+Emission and compositing mirror vectors: after the node's background/borders, inside its own
+overflow/scroll clip, before its children; `rect` is the padded content box; effective tint alpha is
+`tint.a * payload.opacity * computed opacity`; `PaintStats::images` counts draws. `PaintSink` gained
+an additive default no-op `draw_image(const ImageDraw&)`, and `ClippedPaintSink` replays image draws
+per damage region under the region clip exactly like glyphs and vectors.
+
+`Batched2DSink` implements the hook with constructor injection (`ImagePaintConfig`: asset bundle,
+`ImageDecodeCache`, `ImageTextureCache`, device scale, texture format matching the target color
+space). One decode per content hash and one texture per (content, raster extent, format); missing,
+corrupt, unsupported and unconfigured cases are documented silent no-ops counted in
+`ImagePaintStats` - paint never crashes because an image is absent. PNG/JPEG bytes are authored
+sRGB, so the upload format follows the target color space (UNORM for UNORM targets, sRGB for sRGB
+targets; the D2 rule), which differs from vector rasterizer output only in provenance, not in the
+rule. Full contract, caps, cache keys, CPU golden and measurements:
+[`thorvg-spike/12-image-assets.md`](thorvg-spike/12-image-assets.md).
+
+### 10.3 Bidirectional visual-run emission
+
+Empty `visual_runs` keeps the pre-bidi emission; bidi lines emit one `TextDraw` per visual run and
+caret/selection use `bidi_offset_x` (details in `text.md`); RTL click-to-position is deferred.
+
+### 13. Linear gradients (task-76)
+
+`PaintData::gradient` (1-8 stops; offsets clamped/sorted, later duplicate wins; CSS angle 0=top,
+90=right, 180=bottom) paints after `background-color`, before borders/content, inside border radius;
+opacity folds into stop alphas. Interpolation is encoded-space sRGB (V1); emission is 64 dominant-axis
+solid bands (exact on axes, banded otherwise; LUT/dithering follow-up), shared by CPU/GPU within
+2/255 per channel. CPU rounds corners by bounds; GPU uses the rounded clip; damage replay is
+band-identical (readback-verified). Deferrals: radial/conic, dithering, text/clip gradients, LUT.

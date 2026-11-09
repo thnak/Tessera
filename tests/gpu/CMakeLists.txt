@@ -186,6 +186,14 @@ if (TARGET tessera_rhi_vulkan)
         tessera_paint tessera_text_render tessera_gpu tessera_rhi_vulkan)
     add_test(NAME paint_text_gpu COMMAND paint_text_gpu_tests "${TESSERA_FONT_FIXTURE}")
     set_tests_properties(paint_text_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    add_executable(paint_gradient_gpu_tests
+        paint_gradient_tests.cpp)
+    target_include_directories(paint_gradient_gpu_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    target_link_libraries(paint_gradient_gpu_tests PRIVATE
+        tessera_paint tessera_text_render tessera_gpu tessera_rhi_vulkan tessera_software)
+    add_test(NAME paint_gradient_gpu COMMAND paint_gradient_gpu_tests)
+    set_tests_properties(paint_gradient_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(paint_bidi_gpu_tests
         text/paint_bidi_tests.cpp)

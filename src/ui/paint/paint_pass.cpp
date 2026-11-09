@@ -518,6 +518,41 @@ std::optional<rhi::Rect> scrollport_clip(const Node& node, const style::Computed
                      height};
 }
 
+// Linear-gradient background: emitted after the solid background and before borders/content, at
+// the node box clipped by the node's own border radius. Stops are clamped to [0,1] and stably
+// sorted; equal offsets keep input order (the later stop wins at the duplicate point). Node opacity
+// is folded into each stop's alpha here, so sinks never see the node opacity separately.
+void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
+                           const rhi::Rect& rect, float opacity, PaintSink& sink,
+                           PaintStats& stats) {
+    const auto& data = node.paint_data();
+    if (!data || !data->gradient || data->gradient->stop_count == 0 || opacity <= 0.0f) {
+        return;
+    }
+    LinearGradient gradient = *data->gradient;
+    if (gradient.stop_count > LinearGradient::kMaxStops) {
+        gradient.stop_count = LinearGradient::kMaxStops;
+    }
+    for (std::size_t index = 0; index < gradient.stop_count; ++index) {
+        gradient.stops[index].offset = std::clamp(gradient.stops[index].offset, 0.0f, 1.0f);
+    }
+    std::stable_sort(gradient.stops.begin(), gradient.stops.begin() + gradient.stop_count,
+                     [](const LinearGradientStop& lhs, const LinearGradientStop& rhs) {
+                         return lhs.offset < rhs.offset;
+                     });
+    for (std::size_t index = 0; index < gradient.stop_count; ++index) {
+        gradient.stops[index].color.a *= opacity;
+    }
+    GradientDraw draw;
+    draw.rect = rect;
+    draw.clip = detail::corner_clip(style, rect);
+    draw.angle_degrees = gradient.angle_degrees;
+    draw.stops = gradient.stops;
+    draw.stop_count = gradient.stop_count;
+    sink.fill_linear_gradient(draw);
+    ++stats.gradients;
+}
+
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
                 const PaintContext& context) {
     if (!node.visible()) {
@@ -533,6 +568,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         const float opacity = detail::opacity_value(style);
         const rhi::Color current = detail::current_color(style);
         paint_background(style, rect, opacity, current, sink, stats);
+        paint_linear_gradient(node, style, rect, opacity, sink, stats);
         paint_borders(style, rect, opacity, current, sink, stats);
     }
 

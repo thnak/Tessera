@@ -44,6 +44,7 @@ struct PaintStats {
     std::size_t texts = 0;           // text runs emitted (non-empty PaintData)
     std::size_t vectors = 0;         // embedded-vector draws emitted (PaintKind::Vector)
     std::size_t images = 0;          // raster-image draws emitted (PaintKind::Image)
+    std::size_t gradients = 0;       // linear-gradient fills emitted
 };
 
 // Optional per-paint context. The cache is caller-owned (paint frame/sink) and deliberately not a

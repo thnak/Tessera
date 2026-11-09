@@ -847,6 +847,13 @@ target_link_libraries(paint_bidi_tests PRIVATE tessera_paint tessera_text)
 
 add_test(NAME paint_bidi COMMAND paint_bidi_tests)
 
+add_executable(paint_gradient_tests
+    paint_gradient_tests.cpp)
+
+target_link_libraries(paint_gradient_tests PRIVATE tessera_paint tessera_text)
+
+add_test(NAME paint_gradient COMMAND paint_gradient_tests)
+
 add_executable(text_edit_tests
     text_edit_tests.cpp)
 
