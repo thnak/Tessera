@@ -1,0 +1,6 @@
+Tessera package
+Version: @PROJECT_VERSION@
+Commit: @_tessera_package_commit@
+Platform: @_tessera_package_platform@
+StaticRuntime: @_tessera_package_static_runtime@
+Executables: @_tessera_package_executable_list@

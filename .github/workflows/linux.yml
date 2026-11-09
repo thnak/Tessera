@@ -110,3 +110,18 @@ jobs:
 
       - name: Release static-runtime proof (ADR-012)
         run: python3 -B scripts/check_static_runtime.py --config Release --target merger_tests
+
+      - name: Package the Release artifact (CPack)
+        run: |
+          cmake -S . -B build/package \
+            -DCMAKE_BUILD_TYPE=Release -DTESSERA_STATIC_RUNTIME=ON \
+            -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_POC=OFF \
+            -DTESSERA_BUILD_TESTS=ON -DTESSERA_USE_COMPILER_CACHE=OFF \
+            -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
+          cmake --build build/package --config Release --target tessera-package-stage --parallel
+          cpack --config build/package/CPackConfig.cmake -G TGZ -B build/package/out
+
+      - name: Package content gate
+        run: |
+          python3 -B scripts/check_package.py \
+            --archive "$(ls build/package/out/tessera-*.tar.gz | head -n1)"

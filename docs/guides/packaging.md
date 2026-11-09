@@ -104,6 +104,36 @@ license files under `share/tessera/licenses`. Out of scope: build-time/CI toolin
 transitive build dependencies, per-file checksums or provenance attestations
 (`filesAnalyzed: false` means no file hashes), and vulnerability/SCA data.
 
+### Distributable archive
+
+CPack can produce a release archive, gated by `scripts/check_package.py`. Packaging is opt-in, so a
+normal configure and `cmake --install` are unchanged; pass the explicit executable set:
+
+```bash
+cmake -S . -B build/package \
+  -DCMAKE_BUILD_TYPE=Release -DTESSERA_STATIC_RUNTIME=ON \
+  -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_TESTS=ON \
+  -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
+cmake --build build/package --config Release --target tessera-package-stage
+cpack --config build/package/CPackConfig.cmake -G TGZ -B build/package/out
+python -B scripts/check_package.py --archive build/package/out/tessera-*.tar.gz
+```
+
+The archive (TGZ, plus ZIP on Windows) contains one top-level
+`tessera-<version>-<os>-<arch>/` directory with exactly the built executables, `LICENSE`,
+`THIRD_PARTY_NOTICES.md`, `THIRD_PARTY_LICENSES.txt`, `sbom.spdx.json` and `PACKAGE-INFO.txt`
+(version, commit, platform, static-runtime statement). CPack packages a staged directory rather
+than the install tree, so fetched dependency headers/libraries cannot leak in. `check_package.py`
+verifies the layout and executable set, that the SBOM parses as SPDX-2.3, that the license bundle
+covers every production-linked license, that the static runtime is ON, and that `PACKAGE-INFO.txt`
+leaks no build paths or timestamps; `--json` gives a machine-readable report.
+
+What it proves: the shipped artifact links the static C/C++ runtime and carries complete
+license/SBOM material next to the binaries. What it does not prove: installer signing, per-OS
+installer formats (MSIX/dmg/AppImage), translated assets, or a clean-VM smoke run. CI builds,
+packages and checks the archive without uploading it: the checker fixtures run on every PR and the
+archive itself is a release-time artifact produced with the command above.
+
 ## 6. Windows
 
 - Static CRT (`/MT`), x64.
