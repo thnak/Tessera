@@ -516,3 +516,8 @@ Paint exposure (task-58): the editing layer's caret and selection byte offsets a
 `PaintData::TextDecoration`; paint resolves them through the same metrics/line-box path as wrap and
 emits selection fills behind glyphs, then the caret on top (clipped by node/scroll/damage clips,
 opacity folded). No timers or edit-buffer access live in paint. See `paint-pass.md` section 10.2.
+
+Bidi caret mapping (task-71): the text layer exposes per-line `TextLine::visual_runs` and
+`text::bidi_offset_x(logical offset -> visual x, right-biased run-join affinity)`; the edit
+controller's logical caret/selection values can be mapped once paint consumes visual runs. Not wired
+into the edit UI in this slice.

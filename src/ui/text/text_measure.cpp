@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/text/bidi.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -15,6 +16,12 @@
 
 namespace tessera::ui::text {
 namespace {
+
+TextLayout finalize_bidi(TextLayout layout, std::string_view text) {
+    layout.direction = bidi_paragraph_direction(text);
+    bidi_apply_visual_runs(text, layout.direction, layout.lines);
+    return layout;
+}
 
 std::string lower(std::string_view value) {
     std::string result(value);
@@ -193,7 +200,7 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
                                   : metrics.ascent + metrics.descent + metrics.line_gap;
 
     auto add_line = [&](float width, std::size_t begin, std::size_t end) {
-        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end});
+        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end, {}});
         result.width = std::max(result.width, width);
     };
 
@@ -201,7 +208,7 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
         add_line(static_cast<float>(codepoint_count(text)) * advance, 0, text.size());
         result.height = line_height;
         result.baseline = metrics.ascent;
-        return result;
+        return finalize_bidi(std::move(result), text);
     }
 
     const float max_width = std::max(advance, constraints.max_width);
@@ -267,7 +274,7 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
     }
     result.height = static_cast<float>(result.lines.size()) * line_height;
     result.baseline = metrics.ascent;
-    return result;
+    return finalize_bidi(std::move(result), text);
 }
 
 TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& style,
@@ -299,7 +306,7 @@ TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
     const float space_advance = measure_text(" ");
 
     auto add_line = [&](float width, std::size_t begin, std::size_t end) {
-        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end});
+        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end, {}});
         result.width = std::max(result.width, width);
     };
 
@@ -307,7 +314,7 @@ TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
         add_line(measure_text(text), 0, text.size());
         result.height = line_height;
         result.baseline = metrics.ascent;
-        return result;
+        return finalize_bidi(std::move(result), text);
     }
 
     const float max_width = std::max(0.1f, constraints.max_width);
@@ -389,7 +396,7 @@ TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
     }
     result.height = static_cast<float>(result.lines.size()) * line_height;
     result.baseline = metrics.ascent;
-    return result;
+    return finalize_bidi(std::move(result), text);
 }
 
 } // namespace tessera::ui::text

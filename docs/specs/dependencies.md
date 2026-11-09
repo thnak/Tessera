@@ -88,7 +88,7 @@ dependencies. See [`runtime-config-v1.md`](runtime-config-v1.md) and
 |---|---|---|---|---|
 | FreeType | V1 hard (FetchContent 2.13.3) | FreeType License (BSD-style) | `ui/text` | Font loading and glyph rasterization; fetched from a pinned archive hash with image codecs disabled |
 | HarfBuzz | V1 hard (FetchContent 10.2.0) | MIT | `ui/text` | Shaping: ligatures, kerning, complex scripts; fetched from a pinned archive hash without the FreeType/ICU/GLib integrations |
-| SheenBidi | V1 hard | Apache-2.0 | `ui/text` | Bidirectional text |
+| SheenBidi | V1 hard (FetchContent v3.0.0) | Apache-2.0 | `ui/text` | Bidirectional text: paragraph level and per-line visual runs; fetched from a pinned archive hash, upstream CMake unity build (no meson) |
 | ICU | V1 hard | Unicode License | `ui/text`, `services/i18n` | Segmentation, normalization, locale, optional collation |
 | libunibreak | V1 optional | zlib | `ui/text` | Line breaking if ICU is too heavy |
 | Noto Sans / Inter (test fonts) | V1 test | OFL-1.1 | `tests/fixtures/fonts` | Deterministic golden text |

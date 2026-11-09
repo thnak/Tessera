@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_text STATIC
+    bidi.cpp
     edit_buffer.cpp
     edit_grapheme.cpp
     font_face.cpp
@@ -16,7 +17,9 @@ target_include_directories(tessera_text PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 # Third-party headers stay private: public text headers must not include them.
-target_link_libraries(tessera_text PUBLIC tessera_style PRIVATE tessera_freetype tessera_harfbuzz)
+target_link_libraries(tessera_text
+    PUBLIC tessera_style
+    PRIVATE tessera_freetype tessera_harfbuzz tessera_sheenbidi)
 
 target_compile_features(tessera_text PUBLIC cxx_std_23)
 

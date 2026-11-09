@@ -102,6 +102,30 @@ if (TARGET harfbuzz)
     target_link_libraries(tessera_harfbuzz INTERFACE harfbuzz)
 endif()
 
+# SheenBidi resolves Unicode bidirectional embedding levels and per-line visual runs (Apache-2.0,
+# pure C, upstream CMake, no meson). Pinned by archive hash; unity build keeps it a single object
+# and disables its own non-unity test suite, so it is a small static dependency.
+set(SB_CONFIG_UNITY ON CACHE BOOL "" FORCE)
+set(SB_CONFIG_EXPERIMENTAL_TEXT_API OFF CACHE BOOL "" FORCE)
+set(BUILD_GENERATOR OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    sheenbidi
+    URL https://github.com/Tehreer/SheenBidi/archive/refs/tags/v3.0.0.tar.gz
+    URL_HASH SHA256=86c56014034739ba39a24c23eb00323b0bf6f737354f665786015fca842af786
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(sheenbidi)
+
+if (TARGET SheenBidi)
+    if (MSVC)
+        target_compile_options(SheenBidi PRIVATE /W0)
+    else()
+        target_compile_options(SheenBidi PRIVATE -w)
+    endif()
+
+    add_library(tessera_sheenbidi INTERFACE)
+    target_link_libraries(tessera_sheenbidi INTERFACE SheenBidi)
+endif()
+
 # ThorVG rasterizes vector paths behind the PathRasterizer seam (ADR-004, decision D1). It is
 # opt-in because it is the largest optional dependency; the default build is unchanged when the
 # option is OFF. Upstream is meson-only, so cmake/ThorVG.cmake builds the pinned sources.

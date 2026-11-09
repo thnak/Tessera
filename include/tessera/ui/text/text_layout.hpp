@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/ui/text/bidi_types.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 
 #include <cstddef>
@@ -18,6 +19,9 @@ struct TextLine {
     // are excluded from both ends; a line's slice may contain the original inner separators).
     std::size_t begin = 0;
     std::size_t end = 0;
+    // Visual (left-to-right) bidi runs. Empty means logical order is visual order (pure LTR/even
+    // text), which keeps the existing paint path byte-identical.
+    std::vector<BidiVisualRun> visual_runs;
 };
 
 struct TextLayout {
@@ -25,6 +29,7 @@ struct TextLayout {
     float width = 0.0f;
     float height = 0.0f;
     float baseline = 0.0f;
+    TextDirection direction = TextDirection::LeftToRight;
 };
 
 TextLayout layout_text(std::string_view text, const TextStyle& style, const FontMetrics& metrics,

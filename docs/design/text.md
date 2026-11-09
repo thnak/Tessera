@@ -229,3 +229,14 @@ only at paint time), so real-font lines no longer overflow the content box. Debu
 (200-word/300 px): stub ~200.8 us, real ~13.2 ms per layout (per-word HarfBuzz in Debug), real cache
 hit ~1.0 us; faster real measuring is deferred, as are bidi/ICU breaking, hyphenation, subpixel
 positioning, emoji/fallback and a shaping cache.
+
+Bidi layout (task-71): SheenBidi v3.0.0 (Apache-2.0, pinned archive `86c560…`) resolves the
+paragraph direction (UBA P2/P3 first-strong) and per-line visual runs after the unchanged greedy
+wrap. `TextLine` keeps its logical byte range and gains optional `visual_runs` (begin/end/level, in
+visual order; empty means logical order is visual order, so pure LTR layout/paint stays
+byte-identical); `TextLayout` records the paragraph `direction`. `bidi_offset_x` maps a logical
+caret/selection offset to a visual x with the documented right-biased run-join affinity (at a join
+the offset belongs to the run whose logical range ends there; RTL runs map from their right edge).
+Paint consumption of the visual runs and wiring the edit controller's caret to it is the next
+additive slice. The deterministic fixture font has no Hebrew/Arabic glyphs, so bidi tests are
+structural-only for now; pixel proof needs an approved bidi-capable OFL test font (deferred).

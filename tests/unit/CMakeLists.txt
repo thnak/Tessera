@@ -833,6 +833,13 @@ target_link_libraries(text_layout_tests PRIVATE tessera_text)
 
 add_test(NAME text_layout COMMAND text_layout_tests)
 
+add_executable(text_bidi_tests
+    text_bidi_tests.cpp)
+
+target_link_libraries(text_bidi_tests PRIVATE tessera_text)
+
+add_test(NAME text_bidi COMMAND text_bidi_tests)
+
 add_executable(text_edit_tests
     text_edit_tests.cpp)
 
