@@ -17,6 +17,9 @@ public:
     virtual ~Buffer() = default;
 
     [[nodiscard]] virtual std::size_t size() const = 0;
+
+    // Both throw std::out_of_range when [offset, offset + size) does not lie inside the buffer,
+    // and std::runtime_error if the memory cannot be mapped.
     virtual void write(const void* data, std::size_t size, std::size_t offset = 0) = 0;
     virtual void read(void* data, std::size_t size, std::size_t offset = 0) const = 0;
 };

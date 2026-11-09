@@ -5,6 +5,15 @@ add_executable(rhi_null_tests
 target_link_libraries(rhi_null_tests PRIVATE tessera_rhi_null)
 add_test(NAME rhi_null COMMAND rhi_null_tests)
 
+add_executable(rhi_buffer_bounds_tests
+    rhi/rhi_buffer_bounds_tests.cpp)
+target_link_libraries(rhi_buffer_bounds_tests PRIVATE tessera_rhi_null)
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(rhi_buffer_bounds_tests PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(rhi_buffer_bounds_tests PRIVATE TESSERA_TEST_HAS_VULKAN)
+endif()
+add_test(NAME rhi_buffer_bounds COMMAND rhi_buffer_bounds_tests)
+
 add_executable(batched2d_tests
     batched2d/batched2d_tests.cpp)
 target_link_libraries(batched2d_tests PRIVATE tessera_gpu tessera_rhi_null)

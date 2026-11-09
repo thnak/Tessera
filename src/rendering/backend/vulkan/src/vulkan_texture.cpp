@@ -85,10 +85,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     if (desc.pixels != nullptr && staging_size > 0) {
         auto staging = create_buffer({staging_size, rhi::BufferUsage::Staging});
         staging->write(desc.pixels, staging_size);
-        auto* staging_buffer = dynamic_cast<VulkanBuffer*>(staging.get());
-        if (staging_buffer == nullptr) {
-            throw std::runtime_error("create_texture: staging buffer allocation failed");
-        }
+        auto* staging_buffer = &vulkan_cast<VulkanBuffer>(*staging);
 
         // Queued without waiting; the device keeps the staging buffer until the copy finishes.
         submit_upload(
@@ -153,10 +150,7 @@ void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std:
 
     auto staging = create_buffer({size, rhi::BufferUsage::Staging});
     staging->write(data, size);
-    auto* staging_buffer = dynamic_cast<VulkanBuffer*>(staging.get());
-    if (staging_buffer == nullptr) {
-        throw std::runtime_error("texture upload: staging buffer allocation failed");
-    }
+    auto* staging_buffer = &vulkan_cast<VulkanBuffer>(*staging);
 
     submit_upload(
         [&](VkCommandBuffer command_buffer) {

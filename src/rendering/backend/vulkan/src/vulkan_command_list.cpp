@@ -12,10 +12,7 @@ VulkanCommandList::~VulkanCommandList() {
 
 void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
                                           const rhi::RenderTargetDesc& desc) {
-    auto* vulkan_target = dynamic_cast<const VulkanRenderTarget*>(&target);
-    if (vulkan_target == nullptr) {
-        throw std::runtime_error("begin_render_pass: incompatible render target");
-    }
+    const auto* vulkan_target = &vulkan_cast<const VulkanRenderTarget>(target);
 
     VkCommandBufferBeginInfo begin_info{};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -80,30 +77,23 @@ void VulkanCommandList::end_render_pass() {
 }
 
 void VulkanCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
-    auto* vulkan_pipeline = dynamic_cast<const VulkanPipeline*>(&pipeline);
-    if (vulkan_pipeline == nullptr) {
-        throw std::runtime_error("bind_pipeline: incompatible pipeline");
-    }
-    vkCmdBindPipeline(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_pipeline->handle());
-    current_layout_ = vulkan_pipeline->layout();
+    const auto& vulkan_pipeline = vulkan_cast<const VulkanPipeline>(pipeline);
+    vkCmdBindPipeline(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_pipeline.handle());
+    current_layout_ = vulkan_pipeline.layout();
 }
 
 void VulkanCommandList::bind_vertex_buffer(const rhi::Buffer& buffer) {
-    auto* vulkan_buffer = dynamic_cast<const VulkanBuffer*>(&buffer);
-    if (vulkan_buffer == nullptr) {
-        throw std::runtime_error("bind_vertex_buffer: incompatible buffer");
-    }
-    const VkBuffer handle = vulkan_buffer->handle();
+    const VkBuffer handle = vulkan_cast<const VulkanBuffer>(buffer).handle();
     const VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(buffer_, 0, 1, &handle, &offset);
 }
 
 void VulkanCommandList::bind_texture(std::uint32_t slot, const rhi::Texture& texture) {
-    auto* vulkan_texture = dynamic_cast<const VulkanTexture*>(&texture);
-    if (vulkan_texture == nullptr || current_layout_ == VK_NULL_HANDLE) {
-        throw std::runtime_error("bind_texture: incompatible texture or missing pipeline");
+    if (current_layout_ == VK_NULL_HANDLE) {
+        throw std::runtime_error("bind_texture: missing pipeline");
     }
-    const VkDescriptorSet descriptor_set = vulkan_texture->descriptor_set();
+    const VkDescriptorSet descriptor_set =
+        vulkan_cast<const VulkanTexture>(texture).descriptor_set();
     vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, current_layout_, slot, 1,
                             &descriptor_set, 0, nullptr);
 }
@@ -141,11 +131,8 @@ void VulkanCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_ver
 
 void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
                                               rhi::Buffer& buffer) {
-    auto* vulkan_target = dynamic_cast<const VulkanRenderTarget*>(&target);
-    auto* vulkan_buffer = dynamic_cast<VulkanBuffer*>(&buffer);
-    if (vulkan_target == nullptr || vulkan_buffer == nullptr) {
-        throw std::runtime_error("copy_target_to_buffer: incompatible target or buffer");
-    }
+    const auto* vulkan_target = &vulkan_cast<const VulkanRenderTarget>(target);
+    auto* vulkan_buffer = &vulkan_cast<VulkanBuffer>(buffer);
     if (vulkan_target->presentable()) {
         throw std::runtime_error("copy_target_to_buffer: swapchain images are not readable");
     }

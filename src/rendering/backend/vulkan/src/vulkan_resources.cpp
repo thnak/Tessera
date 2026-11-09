@@ -12,36 +12,40 @@ VulkanBuffer::~VulkanBuffer() {
     }
 }
 
-void VulkanBuffer::write(const void* data, std::size_t size, std::size_t offset) {
-    if (offset + size > size_) {
-        return;
+namespace {
+
+// A range outside the buffer is a caller bug; dropping the write silently would corrupt the frame
+// without any trace. The comparison avoids overflowing offset + size.
+void check_range(std::size_t buffer_size, std::size_t size, std::size_t offset, const char* what) {
+    if (size > buffer_size || offset > buffer_size - size) {
+        throw std::out_of_range(std::string(what) + ": range exceeds the buffer size");
     }
+}
+
+} // namespace
+
+void VulkanBuffer::write(const void* data, std::size_t size, std::size_t offset) {
+    check_range(size_, size, offset, "VulkanBuffer::write");
     if (mapped_ != nullptr) {
         std::memcpy(static_cast<std::uint8_t*>(mapped_) + offset, data, size);
         return;
     }
 
     void* mapped = nullptr;
-    if (vmaMapMemory(allocator_, allocation_, &mapped) != VK_SUCCESS) {
-        return;
-    }
+    check_vk(vmaMapMemory(allocator_, allocation_, &mapped), "vmaMapMemory(write)");
     std::memcpy(static_cast<std::uint8_t*>(mapped) + offset, data, size);
     vmaUnmapMemory(allocator_, allocation_);
 }
 
 void VulkanBuffer::read(void* data, std::size_t size, std::size_t offset) const {
-    if (offset + size > size_) {
-        return;
-    }
+    check_range(size_, size, offset, "VulkanBuffer::read");
     if (mapped_ != nullptr) {
         std::memcpy(data, static_cast<const std::uint8_t*>(mapped_) + offset, size);
         return;
     }
 
     void* mapped = nullptr;
-    if (vmaMapMemory(allocator_, allocation_, &mapped) != VK_SUCCESS) {
-        return;
-    }
+    check_vk(vmaMapMemory(allocator_, allocation_, &mapped), "vmaMapMemory(read)");
     std::memcpy(data, static_cast<const std::uint8_t*>(mapped) + offset, size);
     vmaUnmapMemory(allocator_, allocation_);
 }

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstring>
 #include <expected>
+#include <stdexcept>
 #include <utility>
 
 namespace tessera::rendering::null {
@@ -21,20 +22,23 @@ public:
     }
 
     void write(const void* data, std::size_t size, std::size_t offset) override {
-        if (offset + size > data_.size()) {
-            return;
-        }
+        check_range(size, offset);
         std::memcpy(data_.data() + offset, data, size);
     }
 
     void read(void* data, std::size_t size, std::size_t offset) const override {
-        if (offset + size > data_.size()) {
-            return;
-        }
+        check_range(size, offset);
         std::memcpy(data, data_.data() + offset, size);
     }
 
 private:
+    // Matches the Vulkan backend: a range outside the buffer is a caller bug, not a no-op.
+    void check_range(std::size_t size, std::size_t offset) const {
+        if (size > data_.size() || offset > data_.size() - size) {
+            throw std::out_of_range("NullBuffer: range exceeds the buffer size");
+        }
+    }
+
     std::vector<std::uint8_t> data_;
 };
 

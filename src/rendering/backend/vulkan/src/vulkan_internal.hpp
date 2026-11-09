@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/rhi/device.hpp"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -32,6 +33,14 @@
 #endif
 
 namespace tessera::rendering::vulkan {
+
+// RHI objects are only ever created by the matching device, so passing one from another backend is
+// a contract violation, not a runtime condition. Debug builds verify the type; release builds do
+// a plain static_cast so the frame path pays for no RTTI.
+template<typename To, typename From> To& vulkan_cast(From& from) {
+    assert(dynamic_cast<To*>(&from) != nullptr && "RHI object belongs to a different backend");
+    return static_cast<To&>(from);
+}
 
 inline void check_vk(VkResult result, const char* what) {
     if (result != VK_SUCCESS) {
