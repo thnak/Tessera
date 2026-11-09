@@ -4,6 +4,7 @@
 // per-corner radius clamping, rectangular clips, `overflow: visible`, and nested clips.
 
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/scroll.hpp"
 
 #include <iostream>
 #include <map>
@@ -180,6 +181,43 @@ bool test_nested_clips() {
            expect(sink.pop_after_fills.size() == 2, "both clips pop");
 }
 
+// A container's children clip at the padding edge: the border box inset by the painted border
+// widths (CSS child clip region), while the container's own background/border still paint over the
+// whole border box. Scroll containers always clip; the clip is their scroll viewport boundary.
+bool test_padding_box_clip() {
+    Node root(1);
+    root.set_bounds({0, 0, 200, 200});
+    auto container_owner = std::make_unique<Node>(2);
+    container_owner->set_bounds({10, 10, 100, 80});
+    container_owner->set_scrollable_y(true);
+    container_owner->set_content_size(100.0f, 300.0f);
+    Node& container = root.add_child(std::move(container_owner));
+    auto child_owner = std::make_unique<Node>(3);
+    child_owner->set_bounds({0, 150, 20, 20});
+    Node& child = container.add_child(std::move(child_owner));
+
+    StubStyles styles;
+    styles.set(2, styled({{"border-top-width", "3px"},
+                          {"border-top-style", "solid"},
+                          {"border-right-width", "5px"},
+                          {"border-right-style", "solid"},
+                          {"border-bottom-width", "7px"},
+                          {"border-bottom-style", "solid"},
+                          {"border-left-width", "2px"},
+                          {"border-left-style", "solid"}}));
+    styles.set(3, styled({{"background-color", "red"}}));
+
+    tessera::ui::scroll_to(container, 0.0f, 120.0f);
+
+    RecordingSink sink;
+    const PaintStats stats = paint_scene(root, styles, sink);
+    return expect(stats.clips == 1 && sink.clips.size() == 1, "scroll container clips once") &&
+           expect(same_rect(sink.clips[0].rect, {12, 13, 93, 70}),
+                  "clip is the padding box, not the border box") &&
+           expect(!sink.clips[0].rounded(), "rectangular padding-box clip") &&
+           expect(child.world_bounds().y == 40.0f, "child keeps its scrolled position");
+}
+
 } // namespace
 
 int main() {
@@ -188,6 +226,7 @@ int main() {
     ok = test_visible_overflow_does_not_clip() && ok;
     ok = test_rectangular_clip() && ok;
     ok = test_nested_clips() && ok;
+    ok = test_padding_box_clip() && ok;
 
     if (!ok) {
         return 1;

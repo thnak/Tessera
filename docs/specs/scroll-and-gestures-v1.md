@@ -67,9 +67,10 @@ set_scroll_offset(offset);   // immediate, no animation
 `include/tessera/ui/scene/scroll.hpp` + `src/ui/scene/scroll.cpp` (library `tessera_scene`) implement
 the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the wheel default action.
 
-- Model: per-node `scroll_x/scroll_y`, `content_width/height`, `scrollable_x/y`; the viewport is
-  the node's border box (padding-box clipping is deferred). Content size is supplied explicitly by
-  layout or the caller; layout bounds are never changed by scrolling.
+- Model: per-node `scroll_x/scroll_y`, `content_width/height`, `scrollable_x/y`; the scrollport
+  used for clamping is the node's border box and the paint clip is the padding box (border box inset
+  by the painted border widths, see below). Content size is supplied explicitly by layout or the
+  caller; layout bounds are never changed by scrolling.
 - Clamping: `scroll_to/scroll_by` clamp each scrollable axis to
   `[0, max(0, content - viewport)]`; a non-scrollable axis clamps to 0. `NaN`/infinity sanitize to 0.
   A request that does not change the offset returns `false` and mutates nothing; a node with no
@@ -79,14 +80,19 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   `Dirty::Paint | Dirty::Render`, even when the clamped offset stays at 0, because the paint clip
   and hit-test clipping of the subtree start or stop with the flag.
 - Paint: children are offset by `-scroll` because `Node::world_transform()` places them in the
-  parent's content space; a scrollable node is a clipping parent (rounded border-box clip via
+  parent's content space; a scrollable node is a clipping parent (rounded padding-box clip via
   `PaintSink::push_clip`), exactly as documented in
-  [`paint-pass.md`](../design/paint-pass.md) section 3.1. Damage after a scroll is the container's
+  [`paint-pass.md`](../design/paint-pass.md) section 3.1. The padding box is the border box inset by
+  the four painted border widths, so children cannot paint over the border; with no border it equals
+  the border box and the emitted commands are unchanged. Damage after a scroll is the container's
   border box, which covers the old and new visible content because children are clipped inside it.
+  Because clamping uses the border box, a bordered container under-reveals its far edge by the
+  bottom/right border width; layout-provided scrollport insets are deferred.
 - Hit testing: inverse world transforms already account for the scroll offset, and a scroll
   container clips its subtree to its border box, so scrolled-out children miss. Scroll container
   clipping applies to hit testing even when the node's paint style is not `overflow: hidden`; CSS
-  `overflow` clipping for hit testing remains style-free in the scene (deferred).
+  `overflow` clipping for hit testing remains style-free in the scene (deferred), so hit testing
+  clips at the border box while paint clips at the padding box.
 - Wheel: the event dispatches through the normal capture/target/bubble path, then (unless a handler
   set `prevent_default`) the nearest scrollable ancestor, including the target, scrolls by the
   deltas. Wheel deltas are platform wheel units (Win32: one unit per 120-unit notch) converted with
@@ -100,8 +106,8 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   frame/layout pass (deferred).
 
 Deferred: inertia/spring-back/overscroll physics, scrollbars, snap/sticky, nested chaining policy,
-virtualization, padding-box (vs border-box) clipping, scroll-linked animation, and layout-produced
-content sizes.
+virtualization, layout-provided scrollport insets (clamping currently uses the border box),
+scroll-linked animation, and layout-produced content sizes.
 
 ## 3. Physics
 

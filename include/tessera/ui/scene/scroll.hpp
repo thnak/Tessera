@@ -7,8 +7,9 @@
 namespace tessera::ui {
 
 // Scroll container core (docs/specs/scroll-and-gestures-v1.md section 1). Scroll offsets are in
-// logical/CSS pixels; the viewport is the node's border box (padding-box clipping is a later
-// slice). Content size is supplied explicitly by layout or the caller.
+// logical/CSS pixels; the scrollport used for clamping is the node's border box, while the paint
+// pass clips children to its padding box (border box inset by the painted border widths). Content
+// size is supplied explicitly by layout or the caller.
 //
 // Wheel deltas on `InputEvent` are platform wheel units (Win32 emits one unit per 120-unit notch).
 // The default scroll action converts them to logical pixels with this deterministic constant;

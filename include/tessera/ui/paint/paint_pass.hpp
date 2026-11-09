@@ -48,8 +48,9 @@ struct PaintStats {
 // Coordinates: bounds() are parent-relative and Node::world_bounds() composes their origins,
 // transforms, and any ancestor scroll offset into absolute coordinates, so the pass paints that
 // rect. Rotation/scale are approximated by the world_bounds() AABB. Scroll containers (see
-// Node::scrollable_x/scrollable_y) clip their children to their border box through
-// `PaintSink::push_clip`; their children are offset by -scroll by the world transform.
+// Node::scrollable_x/scrollable_y) clip their children to their padding box - the border box inset
+// by the painted border widths - through `PaintSink::push_clip`; their children are offset by
+// -scroll by the world transform.
 //
 // Limits (deliberate, one slice): no text, no damage/redraw plan, no gradients,
 // shadows, or layers, no percentage/em lengths, and no per-node compositing. Opacity multiplies

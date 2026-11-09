@@ -62,18 +62,48 @@ void paint_background(const style::ComputedStyle& style, const rhi::Rect& rect, 
     ++stats.backgrounds;
 }
 
+struct BorderWidths {
+    float top = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
+    float left = 0.0f;
+};
+
+// The four painted border widths, clamped against each other so the edge strips stay disjoint.
+BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& rect) {
+    BorderWidths widths;
+    widths.top = detail::border_width(style, "border-top-width", "border-top-style");
+    widths.right = detail::border_width(style, "border-right-width", "border-right-style");
+    widths.bottom = detail::border_width(style, "border-bottom-width", "border-bottom-style");
+    widths.left = detail::border_width(style, "border-left-width", "border-left-style");
+
+    widths.top = std::min(widths.top, rect.height);
+    widths.bottom = std::min(widths.bottom, rect.height - widths.top);
+    widths.left = std::min(widths.left, rect.width);
+    widths.right = std::min(widths.right, rect.width - widths.left);
+    return widths;
+}
+
+// The padding box: the border box inset by the painted border widths. CSS clips a container's
+// children at this edge, so they cannot paint over its border. Empty when the insets consume the
+// box (the caller then skips the clip instead of pushing a degenerate one).
+std::optional<rhi::Rect> padding_box(const style::ComputedStyle& style, const rhi::Rect& rect) {
+    const BorderWidths widths = border_widths(style, rect);
+    const float width = rect.width - widths.left - widths.right;
+    const float height = rect.height - widths.top - widths.bottom;
+    if (width <= 0.0f || height <= 0.0f) {
+        return std::nullopt;
+    }
+    return rhi::Rect{rect.x + widths.left, rect.y + widths.top, width, height};
+}
+
 void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, float opacity,
                    const rhi::Color& current, PaintSink& sink, PaintStats& stats) {
-    float top = detail::border_width(style, "border-top-width", "border-top-style");
-    float right = detail::border_width(style, "border-right-width", "border-right-style");
-    float bottom = detail::border_width(style, "border-bottom-width", "border-bottom-style");
-    float left = detail::border_width(style, "border-left-width", "border-left-style");
-
-    // Keep opposing edges from overlapping so every strip stays a disjoint rect.
-    top = std::min(top, rect.height);
-    bottom = std::min(bottom, rect.height - top);
-    left = std::min(left, rect.width);
-    right = std::min(right, rect.width - left);
+    const BorderWidths widths = border_widths(style, rect);
+    const float top = widths.top;
+    const float right = widths.right;
+    const float bottom = widths.bottom;
+    const float left = widths.left;
 
     const float middle_height = rect.height - top - bottom;
 
@@ -227,14 +257,19 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
 
     // `overflow` clipping applies to the children (the element's own background/border are painted
     // above). Scroll containers clip their children as well: the children are offset by -scroll via
-    // world_transform(), and the clip keeps them inside the container box. The clip is the border
-    // box because the paint model has no padding-box yet.
+    // world_transform(), and the clip keeps them inside the container's padding box - the border
+    // box inset by the painted border widths, which is the CSS region children may not paint into.
+    // The scrollport used for clamping is still the border box (see scroll-and-gestures-v1.md 2.1).
     const bool scroll_clips = node.scrollable_x() || node.scrollable_y();
-    const bool clips =
+    const bool clip_children =
         (detail::clips_children(style) || scroll_clips) && rect.width > 0.0f && rect.height > 0.0f;
-    if (clips) {
-        sink.push_clip(detail::corner_clip(style, rect));
-        ++stats.clips;
+    bool pushed_clip = false;
+    if (clip_children) {
+        if (const std::optional<rhi::Rect> clip_rect = padding_box(style, rect)) {
+            sink.push_clip(detail::corner_clip(style, *clip_rect));
+            ++stats.clips;
+            pushed_clip = true;
+        }
     }
     // Text runs are content: paint them after the element's own background/borders and inside its
     // own overflow/scroll clip, before the children (paint order).
@@ -242,7 +277,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     for (const auto& child : node.children()) {
         paint_node(*child, styles, sink, stats);
     }
-    if (clips) {
+    if (pushed_clip) {
         sink.pop_clip();
     }
 }

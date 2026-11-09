@@ -52,7 +52,8 @@ paint_rect(node) = world_bounds(node)
 - `world_bounds()` is the axis-aligned box of the transformed box-local rect; rotation/scale are
   approximated by that AABB.
 - Clipping (overflow and scroll containers) is a clip push around the children; the node's own
-  background/border still paint over its border box.
+  background/border still paint over its border box. The clip rect is the padding box: the border
+  box inset by the painted border widths (identical to the border box when there is no border).
 
 ### 3.1 Scroll containers
 
@@ -61,12 +62,14 @@ Scroll state is additive scene state ([`scroll.hpp`](../../include/tessera/ui/sc
 special offset code because `Node::world_transform()` places every child in its parent's content
 space, so a scroll container's children paint at `world_bounds() - scroll` while the container's own
 box is unchanged. A node with `scrollable_x() || scrollable_y()` is treated as a clipping parent:
-`paint_scene` pushes the same rounded border-box clip used for `overflow` around its children and
-pops it after them (`PaintStats::clips`). Layout bounds and transforms are never mutated by
-scrolling. Damage for a scroll is the container's border box (the children are clipped inside it, so
-one region covers both the old and the new visible content); the frame pipeline's dirty collection
-turns the container's Paint/Render dirty flags into that region. Padding-box clipping, scrollbars,
-and physics are later slices.
+`paint_scene` pushes the same rounded padding-box clip used for `overflow` around its children and
+pops it after them (`PaintStats::clips`); a border-inset that consumes the box skips the clip rather
+than pushing a degenerate one. Layout bounds and transforms are never mutated by scrolling. Damage
+for a scroll is the container's border box (the children are clipped inside it, so one region covers
+both the old and the new visible content); the frame pipeline's dirty collection turns the
+container's Paint/Render dirty flags into that region. The scrollport used for clamping is still the
+border box, so a bordered container under-reveals its far edge by the border width until layout
+supplies padding-box scrollport insets; scrollbars and physics are later slices.
 
 ## 4. Property mapping
 
@@ -114,13 +117,13 @@ property in this slice, not a border ring.
 ## 6. Deliberate limits
 
 - No text, glyphs, or inline content in the box pass; text runs are painted from
-  optional `ui::PaintData` payloads (Â§10).
-- Overflow clipping is rounded-rect only ([Ã‚Â§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
+  optional `ui::PaintData` payloads (§10).
+- Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
   filters, gradients, shadows, or images.
-- Scroll containers clip and offset children ([Ã‚Â§3.1](#31-scroll-containers)); scroll physics,
+- Scroll containers clip and offset children ([§3.1](#31-scroll-containers)); scroll physics,
   inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
-  The frame pipeline clips around it with a sink decorator ([Ã‚Â§8.1](#81-damage-clipped-painting)).
+  The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
 - No percentage/`em`/`rem`/viewport units and no non-pixel radii.
 - Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
@@ -140,12 +143,14 @@ paint never submits the command list (the caller does).
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
 
-Overflow clips (Ã‚Â§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
+Overflow clips (§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
 paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
-visible` emitting no clip, and nested clips. Scroll containers are covered in
+visible` emitting no clip, nested clips, and the padding-box rect (border box inset by the painted
+border widths). Scroll containers are covered in
 [`tests/unit/scroll_tests.cpp`](../../tests/unit/scroll_tests.cpp) (`scroll_core`): child rects
-shifted by `-scroll`, the border-box clip pushed around the children, balanced pop, and a
-deterministic repeat paint.
+shifted by `-scroll`, the padding-box clip pushed around the children, balanced pop, and a
+deterministic repeat paint; `tests/unit/paint_clip_tests.cpp` asserts the bordered padding-box clip
+and the scrolled child position.
 
 ## 8. Frame integration
 
@@ -264,17 +269,18 @@ DamageTracker regions repaint the background and the node respectively.
 
 `paint_scene` clips a parent's children when its computed `overflow-x`/`overflow-y` is anything but
 `visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the paint pass itself only clips;
-scrolling is scene state applied by the world transform, see [Ã‚Â§3.1](#31-scroll-containers)). The clip
+scrolling is scene state applied by the world transform, see [§3.1](#31-scroll-containers)). The clip
 is
 emitted around the children, after the parent's own background/borders, through
 `PaintSink::push_clip`/`pop_clip`:
 
 - `RoundedClip { rect, top_left, top_right, bottom_right, bottom_left }`: `rect` is the parent's
-  border box in absolute coordinates and each radius is already clamped to
-  `min(width, height) / 2`. All-zero radii mean a rectangular clip (the renderer keeps the scissor
-  fast path); any non-zero radius switches that draw batch to the analytic fragment test.
-- The clip is the border box, not the CSS padding box. Padding-box clipping, `clip-path`, masks and
-  scroll are out of scope.
+  padding box in absolute coordinates (the border box inset by the painted border widths) and each
+  radius is already clamped to `min(width, height) / 2`. All-zero radii mean a rectangular clip (the
+  renderer keeps the scissor fast path); any non-zero radius switches that draw batch to the
+  analytic fragment test.
+- The clip is the padding box, the CSS child clip region; the outer radii are reused on the inset
+  rect (inner-radius adjustment is not modelled). `clip-path` and masks are out of scope.
 - `PaintSink` keeps default no-op clip hooks so existing recording sinks are unaffected;
   `Batched2DSink` forwards to `Batched2DRenderer::push_clip`/`pop_clip`. The damage-clipped paint
   decorator in the frame pipeline forwards clip pushes/pops unchanged, so clipping and damage
