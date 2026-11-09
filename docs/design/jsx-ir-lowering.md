@@ -2,9 +2,9 @@
 
 Status: slices 1 to 3 are implemented (IR model and writer, IR validator, analysis skeleton; see
 "Slice 3 status" below), slice 5 (expression lowering), slice 6 (hooks and bindings), slice 7 (JSX
-nodes), slice 8 (conditionals and list loops) and slice 12 (the shared schema table) are implemented
-as well — see their status sections. `src/compiler/codegen/` is still an empty folder. The input is
-the parser of
+nodes), slice 8 (conditionals and list loops), slice 9 (component references and module lowering)
+and slice 12 (the shared schema table) are implemented as well — see their status sections.
+`src/compiler/codegen/` is still an empty folder. The input is the parser of
 [`jsx-frontend.md`](jsx-frontend.md); the output is the IR of [`ir-v1.md`](../specs/ir-v1.md)
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md)). The accepted source forms are in
 [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) (the "subset spec"); this note links to its
@@ -183,12 +183,9 @@ without a record type, unsupported unary/binary operators and non-allowlisted ca
 at the first error, so the result is either a complete expression or diagnostics with no IR at all.
 
 Not in slice 5: types and expression typing (slice 4); hooks, bindings, nodes, components,
-conditionals/loops in JSX and imports (slices 6 to 9); array and object literals in their accepted
-positions; an implementation of `NameResolver` from the analysis result; and IR expressions carry
-no source span in v1, so spans appear only on diagnostics (`to_source_span` is ready for the nodes
-and bindings of slices 6 to 8). Top-level constant folding (section 2, expression row) is **not**
-implemented: it needs the module (constant declarations, imports, their values) and the type
-table, none of which exist yet, so no folding semantics were invented here.
+conditionals/loops and imports (slices 6 to 9); array and object literals in accepted positions;
+`NameResolver`; IR expression spans (diagnostics only). Top-level constant folding is **not**
+implemented: it needs the module (constants, imports) and the type table, which do not exist yet.
 
 Tests are `lowering_expression`, `lowering_reject`, `lowering_span`, `lowering_determinism`,
 `lowering_golden` and `lowering_layering`, registered in `tests/unit/CMakeLists.txt`. The golden
@@ -273,9 +270,9 @@ the optional `preview` of decision 6 is **not** (it needs the analyzer's preview
 not needed by slice 7).
 
 Not in slice 6: JSX nodes, props, events on elements, `ref` targets, style and children (slice 7);
-conditionals/loops (slice 8); imports, components and `LoweringOptions` (slice 9); the type table
-and expression typing (slice 4); `environment`/library hooks (slice 11); local inlining, array
-literals as initial values and `preview` bodies (later slices); `uiId`/`componentId` (slice 10).
+conditionals/loops (slice 8); components and `LoweringOptions` (slice 9); the type table and
+expression typing (slice 4); `environment`/library hooks (slice 11); local inlining, array-literal
+initials and `preview` bodies; `uiId`/`componentId` (slice 10).
 
 Tests are `lowering_hooks` (every hook and binding form, spans, lookups, action lowering),
 `lowering_hooks_reject` (each rejection, first-error-only, no partial IR, precondition checks) and
@@ -334,12 +331,10 @@ What the slice lowers:
 
 Not in slice 7: component references (`Component` nodes, slice 9); conditional rendering and loops
 (`&&`, `?:`, `.map`, virtualized templates, `key` placement, slice 8); the type table and expression
-typing (slice 4), so required props, prop/event type mismatches and the schema constraints are not
-evaluated here; custom elements (slice 11); lowercase HTML alias resolution and attribute rewrites
-(slice 13, and the parser rejects lowercase tags until then); `environment`/library hooks (slice
-11); `props[]` (props parameter and defaults, slice 4/9); `componentId`/`uiId` (slice 10).
-`tessera_lowering`'s own component expression lowering and the schema tables are reused, not
-duplicated.
+typing (slice 4), so required props, type mismatches and schema constraints are not evaluated;
+custom elements (slice 11); lowercase alias resolution (slice 13, the parser rejects them until
+then); `environment`/library hooks (slice 11); `props[]` (props parameter and defaults, 4/9);
+`componentId`/`uiId` (slice 10). Slices 5 and 12 are reused, not duplicated.
 
 Tests are `lowering_nodes` (one fixture per construct in the table above), `lowering_nodes_reject`
 (every rejection and slice boundary, first-error-only, no partial component) and
@@ -381,10 +376,10 @@ zero/three callback parameters, a non-arrow or additional callback argument, a b
 non-element body, a missing key, and every array method other than `.map` (`flatMap`, `filter`,
 ...).
 
-Not in slice 8: `VirtualList`/`VirtualGrid` item templates (they need the `itemTemplate` IR field
-that ir-v1 does not have yet, Q9, so those elements stay rejected); component references (slice 9);
-the type table (slice 4), so conditions and keys are not type-checked and `key` placement outside a
-loop is still not validated; custom elements (slice 11); alias resolution (slice 13).
+Not in slice 8: `VirtualList`/`VirtualGrid` item templates (the `itemTemplate` IR field is missing,
+Q9, so those elements stay rejected); component references (slice 9); the type table (slice 4), so
+conditions/keys are not type-checked and `key` placement outside a loop is not validated; custom
+elements (slice 11); alias resolution (slice 13).
 
 Tests are `lowering_control` (one fixture per row above, ids across branches, handler numbering
 across branches, loops in conditionals and conditionals in loops, text conditionals),
@@ -392,6 +387,39 @@ across branches, loops in conditionals and conditionals in loops, text condition
 `lowering_control_determinism` (twice, and eight threads on a fixture with both forms);
 `lowering_nodes_reject` was updated because its slice-8 boundary cases are now implemented.
 
+### Slice 9 status (component references and module-level lowering)
+
+`node_lowering.hpp` adds the module API (`lower_component` stays the single-component entry point);
+the slice 6 to 8 helpers are reused as-is:
+
+```cpp
+struct ModuleSource { std::string_view file; const jsx::Module* module;
+                      const rules::AnalyzedModule* analysis; const jsx::SourceMap* source_map; };
+struct LoweredModule { std::string name; std::vector<ir::Component> components;
+                       std::vector<ir::Binding> bindings; };
+lower_module(const ModuleSource&, std::string_view module_name);            // no imports
+lower_project(std::span<const ModuleSource>, std::string_view module_name); // imports
+```
+
+- Every declaration is lowered once; components sort by source path then name (ir-v1 section 11),
+  bindings by id, files in sorted path order (diagnostics are caller-order independent); duplicate
+  component names are errors (decision 3); `componentId`/`uiId` stay empty (slice 10) and
+  `module.name` is a caller argument (decision 14).
+- `<Card .../>` is a `Component` node (`component` = `comp::<Name>`): props keep source names as
+  literals/Expressions, `onX` callback props are events (declared handler, or a zero-parameter
+  inline handler), children are the caller's slot content with the caller's `node::N` ids, and
+  `ref`/`automationId` work as on intrinsics; recursion and mutual recursion are supported because
+  references are never inlined (tested).
+- Imports: relative `./X`/`../X` resolve against the given file set (extension omitted); each name
+  must be a component, type alias or constant of the target; type/constant imports are tolerated.
+  Unknown file/name, conflicting duplicate names, a cycle and bare package names are errors.
+- Deferred/rejected: prop, event and children *types* (slice 4), so unknown props and children are
+  forwarded unvalidated; a component callback parameter or setter reference, `style` on a
+  component, a props-parameter spread and a component reference as an ordinary prop value are
+  rejected (`fallback` accepts one). Library components are slice 11; `LoweringOptions` is not
+  introduced; `lower_module` rejects relative imports (use `lower_project`).
+
+Tests are `lowering_module`, `lowering_module_reject` and `lowering_module_determinism`.
 ## 4. Spans and diagnostics
 
 - The AST keeps `Span` (byte offset and length). Lowering needs the file's `SourceMap` and the
@@ -512,7 +540,7 @@ Each slice is behavior, tests and docs, committed on its own.
 7. **Lowering of nodes (done).** Intrinsic kinds, attributes, text, children, fragments, events,
    `style`, `className`, `ref` targets.
 8. **Conditionals and loops (done).**
-9. **Components across files.** Imports, references, cycles, prop checks; `LoweringOptions`.
+9. **Components across files (done).** Imports, references, cycles, prop checks; `LoweringOptions`.
 10. **Identity.** `uiId`, `componentId`, automation manifest, collision errors (after decision 1).
 11. **Library and custom elements.** Hook manifest reader, `environment`, `ui/elements.json`.
 12. **Schema table (done).** `tessera_schema` (`src/schema/`): the `constexpr` intrinsic, alias and style

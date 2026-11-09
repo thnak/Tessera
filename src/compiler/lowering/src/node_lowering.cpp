@@ -21,6 +21,16 @@ std::optional<ir::Node> make_node(NodeState& state, const jsx::JsxNode& element)
     node.kind = info->kind;
     node.id = next_node_id(state);
     node.source = to_source_span(state.context.source_map, element.span, state.context.file);
+    if (info->is_component) {
+        node.component = info->component_id;
+        if (!lower_component_attributes(state, element, *info, node)) {
+            return std::nullopt;
+        }
+        if (!lower_slot_children(state, element, node)) {
+            return std::nullopt;
+        }
+        return node;
+    }
     if (!lower_attributes(state, element, *info, node)) {
         return std::nullopt;
     }

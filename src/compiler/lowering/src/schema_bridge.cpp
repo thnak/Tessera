@@ -136,7 +136,7 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                       element.tag_span);
             return std::nullopt;
         }
-        return ElementInfo{row, *kind};
+        return ElementInfo{row, *kind, false, {}};
     }
     if (const schema::AliasRow* alias = schema::find_alias(element.tag); alias != nullptr) {
         if (alias->status == schema::AliasStatus::Unsupported) {
@@ -152,11 +152,22 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
         }
         return std::nullopt;
     }
+    for (const ComponentRef& reference : state.context.component_refs) {
+        if (reference.name == element.tag) {
+            ElementInfo info;
+            info.kind = ir::NodeKind::Component;
+            info.is_component = true;
+            info.component_id = reference.id;
+            return info;
+        }
+    }
     const bool component = !element.tag.empty() && element.tag[0] >= 'A' && element.tag[0] <= 'Z';
     if (component) {
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                  "`<" + element.tag + ">` is a component reference; `Component` nodes are slice 9",
-                  element.tag_span, "use an intrinsic element");
+                  "`<" + element.tag +
+                      ">` is neither an intrinsic element nor a component declared or imported in "
+                      "this file (slice 9)",
+                  element.tag_span, "declare or import the component, or fix the tag");
     } else {
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
                   "`<" + element.tag + ">` is not an intrinsic element", element.tag_span,

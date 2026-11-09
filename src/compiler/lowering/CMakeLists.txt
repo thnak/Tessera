@@ -6,6 +6,7 @@
 add_library(tessera_lowering STATIC
     src/binding_lowering.cpp
     src/call_lowering.cpp
+    src/component_lowering.cpp
     src/component_names.cpp
     src/control_lowering.cpp
     src/event_lowering.cpp
@@ -16,6 +17,7 @@ add_library(tessera_lowering STATIC
     src/hook_lookups.cpp
     src/hook_type.cpp
     src/literal_lowering.cpp
+    src/module_lowering.cpp
     src/node_attributes.cpp
     src/node_children.cpp
     src/node_lowering.cpp

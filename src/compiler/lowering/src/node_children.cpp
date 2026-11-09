@@ -257,6 +257,17 @@ bool lower_button_children(NodeState& state, const std::vector<ChildItem>& items
 
 } // namespace
 
+// Slice 9: the children of a component reference are the caller's static slot content. They follow
+// the View rules (text runs become synthetic Text children) and are validated against the target
+// component's `children` prop by slice 4, not here.
+bool lower_slot_children(NodeState& state, const jsx::JsxNode& element, ir::Node& node) {
+    std::vector<ChildItem> items;
+    if (!flatten_children(state, element, items, false)) {
+        return false;
+    }
+    return append_runs_and_elements(state, items, node);
+}
+
 bool lower_children(NodeState& state, const jsx::JsxNode& element, const ElementInfo& info,
                     ir::Node& node) {
     const schema::ChildrenKind kind = info.row->children;

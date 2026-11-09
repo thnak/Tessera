@@ -13,6 +13,7 @@
 #include "tessera/compiler/rules/component_analysis.hpp"
 
 #include <expected>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,6 +24,13 @@
 // element.
 namespace tessera::compiler::lowering {
 
+// Slice 9: a component tag that the component being lowered may reference (declared in the same
+// file, or imported from another project file). `id` is the IR component id of the declaration.
+struct ComponentRef {
+    std::string name; // tag as written
+    std::string id;   // `comp::<Name>`
+};
+
 // One component: its AST item, the analysis of that item, and where its spans live. The analysis
 // must be the one produced from `component`; `source_map` must be the map of the same source.
 struct HookLoweringContext {
@@ -30,6 +38,9 @@ struct HookLoweringContext {
     const rules::ComponentAnalysis& analysis;
     const jsx::SourceMap& source_map;
     std::string_view file; // project-relative, POSIX separators
+    // Slice 9: the component tags this component may reference, local first and imported after.
+    // Empty for the single-component entry points, where any component tag is rejected.
+    std::span<const ComponentRef> component_refs{};
 };
 
 // What an event attribute value resolves to (docs/specs/ir-v1.md sections 2.1 and 6).

@@ -6,8 +6,12 @@
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/compiler/jsx/diagnostic.hpp"
 #include "tessera/compiler/lowering/hook_lowering.hpp"
+#include "tessera/compiler/rules/analyzed_module.hpp"
 
 #include <expected>
+#include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 // Slice 7 of docs/design/jsx-ir-lowering.md: lower the returned JSX element of one analysed
@@ -36,5 +40,38 @@ using LoweredComponentResult = std::expected<LoweredComponent, NodeLoweringError
 //
 // A failing component yields diagnostics and no component data at all (first error only).
 [[nodiscard]] LoweredComponentResult lower_component(const HookLoweringContext& context);
+
+// One parsed and analysed file of the project (slice 9; file reading stays with the caller,
+// decision 13). `file` is the project-relative POSIX path without a leading "./".
+struct ModuleSource {
+    std::string_view file;
+    const jsx::Module* module = nullptr;
+    const rules::AnalyzedModule* analysis = nullptr;
+    const jsx::SourceMap* source_map = nullptr;
+};
+
+// All components of a project plus its module-level data. `components` are sorted by source file
+// and then by name (ir-v1 section 11) and `bindings` by id; `componentId`/`uiId` stay empty for
+// slice 10.
+struct LoweredModule {
+    std::string name;
+    std::vector<ir::Component> components;
+    std::vector<ir::Binding> bindings;
+};
+
+using ModuleLoweringResult = std::expected<LoweredModule, NodeLoweringErrors>;
+
+// Lowers one file with no cross-file imports; a relative import is an error here (use
+// `lower_project`). Component references resolve to components declared in the same file. Mutual
+// recursion is supported because references are not inlined (a `Component` node names its target).
+[[nodiscard]] ModuleLoweringResult lower_module(const ModuleSource& source,
+                                                std::string_view module_name);
+
+// Lowers every file of a project. Relative imports (`./X`, `../X`) are resolved against `files`,
+// each imported name must be a component exported by the target file, and an import cycle is an
+// error. A component reference resolves to the local component of that name first, then to an
+// import; an unknown tag is a `TESSERA_IR_UNSUPPORTED` naming it.
+[[nodiscard]] ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
+                                                 std::string_view module_name);
 
 } // namespace tessera::compiler::lowering

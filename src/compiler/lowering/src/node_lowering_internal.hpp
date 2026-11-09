@@ -48,9 +48,18 @@ void fail_node(NodeState& state, std::string_view code, std::string_view message
 struct ElementInfo {
     const schema::ElementRow* row = nullptr;
     ir::NodeKind kind = ir::NodeKind::View;
+    bool is_component = false; // slice 9: kind is Component and `component_id` is set
+    std::string component_id;  // `comp::<Name>`
 };
 [[nodiscard]] std::optional<ElementInfo> resolve_element(NodeState& state,
                                                          const jsx::JsxNode& element);
+
+// Slice 9: attributes and children of a `Component` node. Props are accepted by name (their types
+// are checked by slice 4); callback props are events; children are the caller's slot content.
+[[nodiscard]] bool lower_component_attributes(NodeState& state, const jsx::JsxNode& element,
+                                              const ElementInfo& info, ir::Node& node);
+[[nodiscard]] bool lower_slot_children(NodeState& state, const jsx::JsxNode& element,
+                                       ir::Node& node);
 
 // What an attribute name means on one element, from the shared schema table.
 struct AttributeInfo {

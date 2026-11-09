@@ -945,6 +945,29 @@ target_link_libraries(lowering_control_determinism_tests PRIVATE
 
 add_test(NAME lowering_control_determinism COMMAND lowering_control_determinism_tests)
 
+add_executable(lowering_module_tests
+    lowering_module_tests.cpp)
+
+target_link_libraries(lowering_module_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_module COMMAND lowering_module_tests)
+
+add_executable(lowering_module_reject_tests
+    lowering_module_reject_tests.cpp)
+
+target_link_libraries(lowering_module_reject_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_module_reject COMMAND lowering_module_reject_tests)
+
+add_executable(lowering_module_determinism_tests
+    lowering_module_determinism_tests.cpp)
+
+target_link_libraries(lowering_module_determinism_tests PRIVATE
+    tessera_lowering
+    Threads::Threads)
+
+add_test(NAME lowering_module_determinism COMMAND lowering_module_determinism_tests)
+
 add_executable(paint_pass_tests
     paint_pass_tests.cpp)
 
