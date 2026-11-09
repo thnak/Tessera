@@ -60,8 +60,7 @@ void check_ref(Context& ctx, std::size_t index, const Statement& statement, cons
     }
 }
 
-void check_animated(Context& ctx, std::size_t index, const Statement& statement,
-                    const Expr& call) {
+void check_animated(Context& ctx, std::size_t index, const Statement& statement, const Expr& call) {
     if (!statement.names.empty()) {
         add_symbol(ctx, statement.names[0], SymbolKind::AnimatedValue, statement.span, index);
     }
@@ -107,8 +106,8 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
 } // namespace
 
 void report_unknown_hook(Context& ctx, std::string_view name, jsx::Span span) {
-    const bool unsupported = name == "useMemo" || name == "useCallback" || name == "useReducer" ||
-                             name == "useContext";
+    const bool unsupported =
+        name == "useMemo" || name == "useCallback" || name == "useReducer" || name == "useContext";
     if (unsupported) {
         ctx.error("TESSERA_REACT_UNSUPPORTED_API",
                   "`" + std::string(name) + "` is not supported in V1", span,

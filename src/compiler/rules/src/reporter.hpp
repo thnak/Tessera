@@ -30,9 +30,9 @@ struct Context {
 void report_unknown_hook(Context& ctx, std::string_view name, jsx::Span span);
 
 // Passes, in the order analyze_module runs them.
-void check_hooks(Context& ctx);       // hooks.cpp: symbols and forms, then the placement checks
+void check_hooks(Context& ctx);          // hooks.cpp: symbols and forms, then the placement checks
 void check_hook_placement(Context& ctx); // hook_placement.cpp: nesting and declaration order
-void classify_arrows(Context& ctx);   // arrows.cpp: roles, BIND_MISSING, effect returns
-void check_effect_deps(Context& ctx); // effect_deps.cpp: exact dependency match
+void classify_arrows(Context& ctx);      // arrows.cpp: roles, BIND_MISSING, effect returns
+void check_effect_deps(Context& ctx);    // effect_deps.cpp: exact dependency match
 
 } // namespace tessera::compiler::rules

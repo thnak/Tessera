@@ -98,7 +98,8 @@ void check_nesting(Context& ctx) {
         if (!statement.init) {
             continue;
         }
-        const Expr* top = is_hook_name(callee_name(*statement.init)) ? statement.init.get() : nullptr;
+        const Expr* top =
+            is_hook_name(callee_name(*statement.init)) ? statement.init.get() : nullptr;
         NestedHookScanner scanner(ctx, top);
         if (top != nullptr) {
             // The call itself is fine; its arguments are not allowed to hold hooks.
@@ -130,13 +131,14 @@ void check_order(Context& ctx) {
             const Symbol* symbol = ctx.out.find(read.name);
             const bool later = symbol != nullptr && is_hook_symbol(symbol->kind) &&
                                symbol->statement != kNoStatement && symbol->statement > i;
-            if (!later || std::find(reported.begin(), reported.end(), read.name) != reported.end()) {
+            if (!later ||
+                std::find(reported.begin(), reported.end(), read.name) != reported.end()) {
                 continue;
             }
             reported.push_back(read.name);
             ctx.error("TESSERA_REACT_HOOK_ORDER",
-                      "`" + read.name + "` is used before the hook that declares it",
-                      read.span, "move the hook above this statement");
+                      "`" + read.name + "` is used before the hook that declares it", read.span,
+                      "move the hook above this statement");
         }
     }
 }

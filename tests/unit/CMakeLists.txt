@@ -129,6 +129,42 @@ target_compile_definitions(ir_layering_tests PRIVATE
 
 add_test(NAME ir_layering COMMAND ir_layering_tests)
 
+add_executable(rules_hooks_tests
+    rules_hooks_tests.cpp)
+
+target_link_libraries(rules_hooks_tests PRIVATE tessera_react_rules)
+
+add_test(NAME rules_hooks COMMAND rules_hooks_tests)
+
+add_executable(rules_arrows_tests
+    rules_arrows_tests.cpp)
+
+target_link_libraries(rules_arrows_tests PRIVATE tessera_react_rules)
+
+add_test(NAME rules_arrows COMMAND rules_arrows_tests)
+
+add_executable(rules_effect_deps_tests
+    rules_effect_deps_tests.cpp)
+
+target_link_libraries(rules_effect_deps_tests PRIVATE tessera_react_rules)
+
+add_test(NAME rules_effect_deps COMMAND rules_effect_deps_tests)
+
+add_executable(rules_concurrent_tests
+    rules_concurrent_tests.cpp)
+
+target_link_libraries(rules_concurrent_tests PRIVATE tessera_react_rules Threads::Threads)
+
+add_test(NAME rules_concurrent COMMAND rules_concurrent_tests)
+
+add_executable(rules_layering_tests
+    rules_layering_tests.cpp)
+
+target_compile_definitions(rules_layering_tests PRIVATE
+    TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+
+add_test(NAME rules_layering COMMAND rules_layering_tests)
+
 add_executable(scene_graph_tests
     scene_graph_tests.cpp)
 

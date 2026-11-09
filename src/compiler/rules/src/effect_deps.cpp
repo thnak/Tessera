@@ -96,16 +96,17 @@ void check_listed(Context& ctx, EffectInfo& effect, const Expr& array,
     for (const auto& element : array.operands) {
         if (element->kind != ExprKind::Identifier) {
             ctx.error("TESSERA_REACT_EFFECT_DEPS",
-                      "an effect dependency must be a plain name, not an expression",
-                      element->span, "list the prop, state variable or animated value by name");
+                      "an effect dependency must be a plain name, not an expression", element->span,
+                      "list the prop, state variable or animated value by name");
             continue;
         }
         const std::string& name = element->text;
         effect.dependencies.push_back(name);
         const Symbol* symbol = ctx.out.find(name);
         if (symbol == nullptr || !is_dependency_kind(symbol->kind)) {
-            const std::string what = symbol == nullptr ? "is not declared in this component"
-                                                       : "is " + std::string(kind_text(symbol->kind));
+            const std::string what = symbol == nullptr
+                                         ? "is not declared in this component"
+                                         : "is " + std::string(kind_text(symbol->kind));
             ctx.error("TESSERA_REACT_EFFECT_DEPS",
                       "`" + name + "` " + what + ", so it cannot be an effect dependency",
                       element->span, "list props, state variables and animated values only");
@@ -113,8 +114,8 @@ void check_listed(Context& ctx, EffectInfo& effect, const Expr& array,
         }
         const auto first = std::find(effect.dependencies.begin(), effect.dependencies.end(), name);
         if (first != effect.dependencies.end() - 1) {
-            ctx.error("TESSERA_REACT_EFFECT_DEPS", "`" + name + "` is listed twice",
-                      element->span, "remove the duplicate");
+            ctx.error("TESSERA_REACT_EFFECT_DEPS", "`" + name + "` is listed twice", element->span,
+                      "remove the duplicate");
         } else if (!contains(required, name)) {
             ctx.error("TESSERA_REACT_EFFECT_DEPS",
                       "`" + name + "` is listed but the effect body does not read it",
@@ -128,8 +129,7 @@ void check_effect(Context& ctx, EffectInfo& effect) {
     if (effect.dependency_array == nullptr) {
         ctx.error("TESSERA_REACT_EFFECT_DEPS",
                   "`useEffect` needs a dependency array (V1 dependencies are exact)",
-                  ctx.item.body[effect.statement].span,
-                  "add `[]`, or list what the effect reads");
+                  ctx.item.body[effect.statement].span, "add `[]`, or list what the effect reads");
         return;
     }
     const Expr& array = *effect.dependency_array;
@@ -144,8 +144,8 @@ void check_effect(Context& ctx, EffectInfo& effect) {
         if (contains(effect.dependencies, name)) {
             continue;
         }
-        const bool props_member = !ctx.item.props_name.empty() &&
-                                  name.starts_with(ctx.item.props_name + ".");
+        const bool props_member =
+            !ctx.item.props_name.empty() && name.starts_with(ctx.item.props_name + ".");
         ctx.error("TESSERA_REACT_EFFECT_DEPS",
                   "the effect reads `" + name + "` but does not list it as a dependency",
                   array.span,

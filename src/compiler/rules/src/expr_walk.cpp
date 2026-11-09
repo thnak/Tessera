@@ -58,10 +58,9 @@ private:
 
     void visit_call(const Expr& call) {
         const Expr& callee = *call.operands[0];
-        const bool skipped =
-            !options_.include_callees &&
-            (callee.kind == ExprKind::Identifier ||
-             (callee.kind == ExprKind::Member && callee.text == "set"));
+        const bool skipped = !options_.include_callees &&
+                             (callee.kind == ExprKind::Identifier ||
+                              (callee.kind == ExprKind::Member && callee.text == "set"));
         if (!skipped) {
             (*this)(callee);
         }

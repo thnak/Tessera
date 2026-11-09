@@ -40,9 +40,10 @@ bool is_setter_call(const Context& ctx, const Expr& expr) {
 
 // Spec 9.2. An empty body is not a handler of this form (least committal; decision 4 is silent).
 bool is_setter_only(const Context& ctx, const Expr& arrow) {
-    return !arrow.operands.empty() &&
-           std::all_of(arrow.operands.begin(), arrow.operands.end(),
-                       [&](const jsx::ExprPtr& statement) { return is_setter_call(ctx, *statement); });
+    return !arrow.operands.empty() && std::all_of(arrow.operands.begin(), arrow.operands.end(),
+                                                  [&](const jsx::ExprPtr& statement) {
+                                                      return is_setter_call(ctx, *statement);
+                                                  });
 }
 
 void classify_declared_arrow(Context& ctx, const jsx::Statement& statement) {
@@ -53,13 +54,14 @@ void classify_declared_arrow(Context& ctx, const jsx::Statement& statement) {
         add_arrow(ctx, arrow, ArrowRole::InlineHandler);
     } else {
         const std::string name = statement.names.empty() ? std::string() : statement.names[0];
-        ctx.error("TESSERA_REACT_BIND_MISSING",
-                  "handler `" + name +
-                      "` has no `// Note: bind::<id>` annotation and its body is not made of setter "
-                      "calls only",
-                  statement.span,
-                  "add `// Note: bind::<id>` on the line before it, or reduce the body to setter "
-                  "calls");
+        ctx.error(
+            "TESSERA_REACT_BIND_MISSING",
+            "handler `" + name +
+                "` has no `// Note: bind::<id>` annotation and its body is not made of setter "
+                "calls only",
+            statement.span,
+            "add `// Note: bind::<id>` on the line before it, or reduce the body to setter "
+            "calls");
         add_arrow(ctx, arrow, ArrowRole::Other);
     }
 }
@@ -92,7 +94,8 @@ public:
 
 private:
     void report(const Expr& expr) {
-        const bool last_statement = effect_.arrow_block_body && &expr == effect_.operands.back().get();
+        const bool last_statement =
+            effect_.arrow_block_body && &expr == effect_.operands.back().get();
         ctx_.error("TESSERA_REACT_EFFECT_RETURN",
                    last_statement ? "the final `return` of an effect must return a cleanup arrow "
                                     "function"

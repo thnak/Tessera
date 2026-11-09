@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/compiler/rules/analyze.hpp"
-
 #include "reporter.hpp"
+#include "tessera/compiler/rules/analyze.hpp"
 
 #include <algorithm>
 
@@ -21,16 +20,14 @@ const ArrowInfo* ComponentAnalysis::find_arrow(const jsx::Expr* arrow) const {
 }
 
 bool AnalyzedModule::has_errors() const {
-    return std::any_of(diagnostics.begin(), diagnostics.end(), [](const jsx::Diagnostic& d) {
-        return d.severity == jsx::Severity::Error;
-    });
+    return std::any_of(diagnostics.begin(), diagnostics.end(),
+                       [](const jsx::Diagnostic& d) { return d.severity == jsx::Severity::Error; });
 }
 
 const ComponentAnalysis* AnalyzedModule::find_component(std::size_t item_index) const {
     const auto found =
-        std::find_if(components.begin(), components.end(), [&](const ComponentAnalysis& c) {
-            return c.item_index == item_index;
-        });
+        std::find_if(components.begin(), components.end(),
+                     [&](const ComponentAnalysis& c) { return c.item_index == item_index; });
     return found == components.end() ? nullptr : &*found;
 }
 
