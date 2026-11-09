@@ -274,6 +274,13 @@ std::string metadata_member(const DynamicMetadata& entry) {
         return base + "class";
     case MetadataField::Role:
         return base + "role";
+    case MetadataField::Style: {
+        std::string name = "style_";
+        for (const char c : entry.name) {
+            name += (c == '-' || c == ':') ? '_' : c;
+        }
+        return base + name;
+    }
     case MetadataField::Aria: {
         std::string name = "aria_";
         for (const char c : entry.name) {
@@ -318,6 +325,11 @@ bool collect_dynamic_metadata(const ir::Node& node, const ir::Component& compone
             continue;
         }
         if (!dynamic_value(MetadataField::Aria, name, value.get())) {
+            return false;
+        }
+    }
+    for (const auto& [name, value] : node.style) {
+        if (!dynamic_value(MetadataField::Style, name, value.get())) {
             return false;
         }
     }
@@ -467,6 +479,10 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         case MetadataField::Aria:
             writer.line(base + "_node_->set_aria(" + literal_text(ir::LiteralValue{entry.name}) +
                         ", " + base + "_value_);");
+            break;
+        case MetadataField::Style:
+            writer.line(base + "_node_->set_inline_style(" +
+                        literal_text(ir::LiteralValue{entry.name}) + ", " + base + "_value_);");
             break;
         }
         --writer.indent;

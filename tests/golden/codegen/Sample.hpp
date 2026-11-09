@@ -57,6 +57,11 @@ namespace demo {
       std::string meta_1_aria_aria_label_value_;
       std::uint64_t meta_1_aria_aria_label_hash_ = 0;
       bool meta_1_aria_aria_label_set_ = false;
+      // Interpolated `opacity` metadata; the component owns the string, the node borrows it.
+      tessera::ui::Node* meta_1_style_opacity_node_ = nullptr;
+      std::string meta_1_style_opacity_value_;
+      std::uint64_t meta_1_style_opacity_hash_ = 0;
+      bool meta_1_style_opacity_set_ = false;
       // Controlled text field: value -> PaintData, committed edits -> onChange.
       tessera::ui::text::EditController input_5_editor_;
       tessera::ui::text::TextInputRuntime input_5_runtime_{input_5_editor_};

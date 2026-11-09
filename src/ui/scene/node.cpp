@@ -478,6 +478,39 @@ std::size_t Node::run_event_bindings(const Event& event) const {
     return invoked;
 }
 
+bool Node::set_inline_style(std::string_view name, std::string_view value) {
+    const std::string_view bounded_name = bounded_view(name, kMaxInlineStyleNameBytes);
+    if (bounded_name.empty()) {
+        return false;
+    }
+    const std::string_view bounded_value = bounded_view(value, kMaxInlineStyleValueBytes);
+    for (std::size_t i = 0; i < inline_style_count_; ++i) {
+        if (inline_style_[i].name != bounded_name) {
+            continue;
+        }
+        if (inline_style_[i].value == bounded_value) {
+            return true;
+        }
+        inline_style_[i].value = bounded_value;
+        mark_dirty(Dirty::Style);
+        return true;
+    }
+    if (inline_style_count_ == kMaxInlineStyleDeclarations) {
+        return false;
+    }
+    inline_style_[inline_style_count_++] = InlineStyleDeclaration{bounded_name, bounded_value};
+    mark_dirty(Dirty::Style);
+    return true;
+}
+
+void Node::clear_inline_style() {
+    if (inline_style_count_ == 0) {
+        return;
+    }
+    inline_style_count_ = 0;
+    mark_dirty(Dirty::Style);
+}
+
 void Node::set_paint_data(std::optional<PaintData> data) {
     if (data) {
         data->text = truncate_utf8(data->text, PaintData::kMaxTextBytes);

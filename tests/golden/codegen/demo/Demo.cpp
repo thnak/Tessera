@@ -57,9 +57,10 @@ namespace demo {
     }
     
     void Demo::build(tessera::ui::Node& parent) {
-      // node::1 style.opacity=<expr>
+      // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1u));
       node_1->set_element_kind("View");
+      meta_1_style_opacity_node_ = node_1.get();
       node_1->set_class_name("card");
       this->ref_box_ = node_1.get();
       // node::2
@@ -133,6 +134,19 @@ namespace demo {
           tessera::ui::PaintData paint_5;
           paint_5.text = text_node_5_value_;
           text_node_5_->set_paint_data(std::move(paint_5));
+      }
+      std::uint64_t meta_1_style_opacity_hash = tessera::ui::kEffectHashSeed;
+      meta_1_style_opacity_hash = tessera::ui::effect_hash(meta_1_style_opacity_hash, anim_fade_);
+      if (!meta_1_style_opacity_set_ || meta_1_style_opacity_hash != meta_1_style_opacity_hash_) {
+          meta_1_style_opacity_hash_ = meta_1_style_opacity_hash;
+          meta_1_style_opacity_set_ = true;
+          std::string next_meta_1_style_opacity;
+          next_meta_1_style_opacity += format_value(anim_fade_);
+          if (meta_1_style_opacity_value_ != next_meta_1_style_opacity) {
+            std::string previous_meta_1_style_opacity = std::move(meta_1_style_opacity_value_);
+            meta_1_style_opacity_value_ = std::move(next_meta_1_style_opacity);
+            meta_1_style_opacity_node_->set_inline_style("opacity", meta_1_style_opacity_value_);
+        }
       }
       if (input_5_editor_.buffer().text() != text_node_5_value_) {
           input_5_editor_.set_text(text_node_5_value_);

@@ -140,6 +140,7 @@ ir::IrModule make_sample_module() {
     }
     root.automation_id = "1";
     root.style.emplace("width", text("10px"));
+    root.style.emplace("opacity", ir::make_ref("anim::opacity"));
 
     ir::Node button = leaf(ir::NodeKind::Button, "node::2", "2");
     button.props.emplace("label", text("Go"));
@@ -301,7 +302,11 @@ void test_generated_shape() {
     check(source.find("state_count_ = 1;\n      apply_state();") != std::string::npos ||
               source.find("state_count_ = 1;") != std::string::npos,
           "inline setters apply the new state");
-    check(source.find("style.width=\"10px\"") != std::string::npos, "remaining style gap comment");
+    check(source.find("->set_inline_style(\"width\", \"10px\");") != std::string::npos,
+          "static inline style is emitted as an attribute setter");
+    check(source.find("meta_1_style_opacity_node_->set_inline_style(\"opacity\",") !=
+              std::string::npos,
+          "dynamic inline style is applied through apply_state");
     check(source.find("events={onClick:bind::on_click}") != std::string::npos,
           "remaining event gap comment");
     check(source.find("// [DEVELOPER_LOGIC_START: bind::on_click]") != std::string::npos,

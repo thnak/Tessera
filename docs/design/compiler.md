@@ -257,10 +257,10 @@ it, and only on change moves the old buffer out, assigns the new value, calls th
 `automationId` stays literal-only because lowering requires a string literal today; other dynamic
 intrinsic props and inline style remain gaps.
 
-**Remaining missing runtime API / gaps:** inline style attachment/computed-style feed; a per-value
-animation controller for `useAnimatedValue` hand-off; dynamic `automationId` (lowering requires a
-string literal today) and dynamic non-metadata intrinsic props; sample `automationId` emission
-(numeric `automationId` is emitted when the IR has it).
+**Remaining missing runtime API / gaps:** a per-value animation controller for `useAnimatedValue`
+hand-off; dynamic `automationId` (lowering requires a string literal today) and dynamic
+non-metadata intrinsic props; sample `automationId` emission (numeric `automationId` is emitted
+when the IR has it).
 
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →

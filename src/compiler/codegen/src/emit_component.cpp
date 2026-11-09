@@ -33,16 +33,6 @@ bool fail(std::string& error, std::string message) {
     return false;
 }
 
-std::string value_repr(const ir::Expr* expr) {
-    if (expr == nullptr) {
-        return "null";
-    }
-    if (expr->kind == ir::ExprKind::Literal) {
-        return literal_text(expr->literal);
-    }
-    return "<expr>";
-}
-
 std::string node_id_text(const ir::Node& node, unsigned& next_id, std::string& error) {
     if (node.ui_id.empty()) {
         // Slice 10 computes uiId; until then the pre-order index is the deterministic placeholder.
@@ -62,9 +52,6 @@ std::string node_id_text(const ir::Node& node, unsigned& next_id, std::string& e
 // are recorded in a deterministic comment (docs/design/compiler.md section 11).
 std::string node_comment(const ir::Node& node) {
     std::string out = "// " + node.id;
-    for (const auto& [name, value] : node.style) {
-        out += " style." + name + "=" + value_repr(value.get());
-    }
     if (!node.events.empty()) {
         out += " events={";
         bool first = true;
@@ -138,12 +125,12 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
             }
         }
     }
+    if (node.style.size() > 16) {
+        return fail(error, "node `" + node.id + "` has more than 16 inline style declarations");
+    }
     for (const auto& [name, value] : node.style) {
-        if (value) {
-            const ExprEmission emission = emit_expr(*value, component);
-            if (!emission.error.empty()) {
-                return fail(error, "style `" + name + "`: " + emission.error);
-            }
+        if (value && !printable_text_expression(*value, component)) {
+            return fail(error, "style `" + name + "` has no printable C++ type");
         }
     }
     if (node.key) {
@@ -237,6 +224,39 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
             controlled_input = &input;
             break;
         }
+    }
+    for (const auto& [name, value] : node.style) {
+        if (!value) {
+            continue;
+        }
+        const std::optional<std::string> static_value = static_text_value(value.get());
+        if (!static_value || value->kind == ir::ExprKind::Literal) {
+            const std::string_view text = [&]() -> std::string_view {
+                if (const auto* s = std::get_if<std::string>(&value->literal)) {
+                    return *s;
+                }
+                return {};
+            }();
+            if (!text.empty()) {
+                writer.line(variable + "->set_inline_style(" +
+                            literal_text(ir::LiteralValue{std::string(name)}) + ", " +
+                            literal_text(ir::LiteralValue{std::string(text)}) + ");");
+                continue;
+            }
+            if (const auto* integer = std::get_if<std::int64_t>(&value->literal)) {
+                writer.line(variable + "->set_inline_style(" +
+                            literal_text(ir::LiteralValue{std::string(name)}) + ", " +
+                            literal_text(ir::LiteralValue{std::to_string(*integer)}) + ");");
+                continue;
+            }
+            if (std::holds_alternative<double>(value->literal)) {
+                writer.line(variable + "->set_inline_style(" +
+                            literal_text(ir::LiteralValue{std::string(name)}) + ", " +
+                            literal_text(value->literal) + ");");
+                continue;
+            }
+        }
+        // A non-literal style value is applied by apply_state() through its dynamic entry.
     }
     for (const auto& [jsx_name, target] : node.events) {
         (void)target;

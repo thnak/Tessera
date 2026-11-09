@@ -61,14 +61,16 @@ namespace demo {
     }
     
     void Sample::build(tessera::ui::Node& parent) {
-      // node::1 style.width="10px"
+      // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
       node_1->set_element_kind("View");
       meta_1_id_node_ = node_1.get();
       meta_1_class_node_ = node_1.get();
       meta_1_role_node_ = node_1.get();
       meta_1_aria_aria_label_node_ = node_1.get();
+      meta_1_style_opacity_node_ = node_1.get();
       node_1->set_automation_id(1ull);
+      node_1->set_inline_style("width", "10px");
       // node::2 events={onClick:bind::on_click}
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
       node_2->set_element_kind("Button");
@@ -195,6 +197,19 @@ namespace demo {
             std::string previous_meta_1_aria_aria_label = std::move(meta_1_aria_aria_label_value_);
             meta_1_aria_aria_label_value_ = std::move(next_meta_1_aria_aria_label);
             meta_1_aria_aria_label_node_->set_aria("aria-label", meta_1_aria_aria_label_value_);
+        }
+      }
+      std::uint64_t meta_1_style_opacity_hash = tessera::ui::kEffectHashSeed;
+      meta_1_style_opacity_hash = tessera::ui::effect_hash(meta_1_style_opacity_hash, anim_opacity_);
+      if (!meta_1_style_opacity_set_ || meta_1_style_opacity_hash != meta_1_style_opacity_hash_) {
+          meta_1_style_opacity_hash_ = meta_1_style_opacity_hash;
+          meta_1_style_opacity_set_ = true;
+          std::string next_meta_1_style_opacity;
+          next_meta_1_style_opacity += format_value(anim_opacity_);
+          if (meta_1_style_opacity_value_ != next_meta_1_style_opacity) {
+            std::string previous_meta_1_style_opacity = std::move(meta_1_style_opacity_value_);
+            meta_1_style_opacity_value_ = std::move(next_meta_1_style_opacity);
+            meta_1_style_opacity_node_->set_inline_style("opacity", meta_1_style_opacity_value_);
         }
       }
       if (input_5_editor_.buffer().text() != text_node_5_value_) {

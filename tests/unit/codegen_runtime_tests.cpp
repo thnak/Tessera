@@ -5,6 +5,8 @@
 
 #include "Sample.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/style/compiled_stylesheet.hpp"
+#include "tessera/ui/style/scene_style.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -46,6 +48,13 @@ int main() {
     check_eq(view.class_name(), "box 0", "dynamic className metadata");
     check_eq(view.role(), "generic", "dynamic role metadata");
     check(view.automation_id() == 1, "automationId metadata");
+    check(view.inline_style().size() == 2, "inline style declarations attached");
+    if (view.inline_style().size() == 2) {
+        check_eq(view.inline_style()[0].name, "width", "inline style name");
+        check_eq(view.inline_style()[0].value, "10px", "static inline style value");
+        check_eq(view.inline_style()[1].name, "opacity", "dynamic inline style name");
+        check_eq(view.inline_style()[1].value, "1", "dynamic inline style value");
+    }
     check(view.aria_attributes().size() == 1, "one aria pair is attached");
     if (view.aria_attributes().size() == 1) {
         check_eq(view.aria_attributes()[0].name, "aria-label", "aria name");
@@ -68,6 +77,27 @@ int main() {
                  "interpolated text is attached through PaintData");
     }
     check(!label.focusable(), "a Text node is not focusable");
+
+    // Inline style is consumed by the style tree: empty sheet + inline width resolves to 42px,
+    // clearing it returns to the initial value, and both mark Dirty::Style only.
+    const tessera::ui::style::CompiledStyleSheet sheet = tessera::ui::style::compile_stylesheet("");
+    tessera::ui::style::SceneStyleTree tree(view);
+    const tessera::ui::style::ComputedStyle initial = tree.compute(sheet, view);
+    check(initial.find("width") == nullptr || *initial.find("width") != "42px",
+          "the stylesheet alone does not produce the inline width");
+    view.clear_dirty(ui::Dirty::All);
+    check(view.set_inline_style("width", "42px"), "an inline declaration is accepted");
+    tessera::ui::style::SceneStyleTree inline_tree(view);
+    const tessera::ui::style::ComputedStyle overridden = inline_tree.compute(sheet, view);
+    check(overridden.find("width") != nullptr && *overridden.find("width") == "42px",
+          "the style tree applies the inline declaration");
+    check(ui::has_flag(view.dirty(), ui::Dirty::Style), "inline style marks Dirty::Style");
+    view.clear_inline_style();
+    tessera::ui::style::SceneStyleTree cleared_tree(view);
+    const tessera::ui::style::ComputedStyle cleared = cleared_tree.compute(sheet, view);
+    check(cleared.find("width") == nullptr || *cleared.find("width") != "42px",
+          "clearing inline declarations restores the cascade");
+    check(view.inline_style().empty(), "inline declarations are cleared");
 
     check(sample.state_count_ == 0, "useState cell starts at its IR initial value");
     check(sample.ref_box_ != nullptr, "useRef is assigned its target node");

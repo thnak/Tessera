@@ -218,6 +218,28 @@ public:
         return std::span<const AriaAttribute>(aria_.data(), aria_count_);
     }
 
+    // Inline style declarations (compiler `style={{...}}`, docs/design/compiler.md section 11).
+    // Bounded and borrowed: the caller owns the strings (generated code passes literals or keeps
+    // per-node members alive); the style tree applies them with Origin::Inline after the cascade.
+    // Setting or clearing any declaration marks Dirty::Style and is a no-op when unchanged.
+    struct InlineStyleDeclaration {
+        std::string_view name;
+        std::string_view value;
+
+        bool operator==(const InlineStyleDeclaration&) const = default;
+    };
+
+    static constexpr std::size_t kMaxInlineStyleDeclarations = 16;
+    static constexpr std::size_t kMaxInlineStyleNameBytes = 64;
+    static constexpr std::size_t kMaxInlineStyleValueBytes = 256;
+
+    // Appends/replaces one declaration; false when the declaration cap is reached or name empty.
+    bool set_inline_style(std::string_view name, std::string_view value);
+    void clear_inline_style();
+    [[nodiscard]] std::span<const InlineStyleDeclaration> inline_style() const {
+        return std::span<const InlineStyleDeclaration>(inline_style_.data(), inline_style_count_);
+    }
+
     // Generated event bindings (docs/design/scene-graph.md section 6). Storage is bounded and
     // allocation-free: at most kMaxEventBindings per node, invoked at the Target phase after the
     // node's own on_event listeners and before bubbling. A binding receives a read-only const
@@ -268,6 +290,8 @@ private:
     std::uint64_t automation_id_ = 0;
     std::array<AriaAttribute, kMaxAriaPairs> aria_{};
     std::size_t aria_count_ = 0;
+    std::array<InlineStyleDeclaration, kMaxInlineStyleDeclarations> inline_style_{};
+    std::size_t inline_style_count_ = 0;
     std::array<EventBinding, kMaxEventBindings> event_bindings_{};
     std::size_t event_binding_count_ = 0;
     bool scrollable_x_ = false;

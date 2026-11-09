@@ -61,6 +61,15 @@ ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Nod
         result = std::move(next);
         parent = &result;
     }
+    // Inline declarations win over the cascade (Origin::Inline). They are already bounded and
+    // borrowed on the node; the registry expands shorthands into longhands.
+    for (const Node::InlineStyleDeclaration& declaration : node.inline_style()) {
+        Declaration parsed{std::string(declaration.name), std::string(declaration.value), false};
+        const PropertyExpansionResult expanded = sheet.registry().expand(parsed);
+        for (const Declaration& longhand : expanded.declarations) {
+            result.set(longhand.property, longhand.value);
+        }
+    }
     return result;
 }
 

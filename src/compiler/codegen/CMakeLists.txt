@@ -117,7 +117,8 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(codegen_runtime_tests PRIVATE ${_tessera_codegen_golden_dir})
     target_link_libraries(codegen_runtime_tests PRIVATE
         tessera_codegen_sample
-        tessera_scene)
+        tessera_scene
+        tessera_style)
 
     add_test(NAME codegen_runtime COMMAND codegen_runtime_tests)
 
