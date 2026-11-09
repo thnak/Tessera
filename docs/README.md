@@ -181,7 +181,7 @@ This page is the map and reading order for the framework.
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
   quality, hardware utilization
 - [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
-  infrastructure, OS compliance
+  infrastructure, OS compliance, present-path hardening (`--msaa 4`, `--simulate-loss`)
 - [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction
 - [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input,
   IME, accessibility, lifecycle, and manifest/Info.plist declarations
@@ -384,8 +384,8 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 
 | Area | State |
 |---|---|
-| RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3; device-loss status + one-shot recovery with generation guards (D7) landed |
-| Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage + analytic rounded-rect clip intersection with a scissor fast path; MSAA 4x in progress; no path AA for geometry edges |
+| RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3; device-loss status + one-shot recovery with generation guards (D7) landed; the windowed POC proves offscreen-4x resolve present (`--msaa 4`) and end-to-end loss recovery (`--simulate-loss`), and `present_hardening` covers 3 deterministic frames + 4x resolve + the loss cycle |
+| Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage + analytic rounded-rect clip intersection with a scissor fast path; MSAA 4x implemented (opt-in; offscreen resolve bridge in the POC); no path AA for geometry edges |
 | Vector paths (ThorVG, D1) | P1 implemented behind `TESSERA_ENABLE_THORVG` (default OFF; meson-only upstream so a CMake wrapper compiles pinned v1.1.3 sources): `rendering::PathRasterizer` + null backend, bounded `PathTextureCache` (rasterize -> RHI texture, D7-aware), static SVG decode into path geometry, deterministic goldens; next is the scene `Path`/`Image` node and asset packaging ([spike](design/thorvg-spike/README.md), [plan](design/rendering-production-plan.md)) |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
 | Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due, damage-clipped via the redraw plan, `overflow`/border-radius children clipped with rounded-rect clip intersection, text runs from `ui::PaintData` through `PaintSink::draw_text`/`TextRenderer` (D9) ([design](design/paint-pass.md)) |

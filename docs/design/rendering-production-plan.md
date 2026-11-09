@@ -40,7 +40,8 @@ set.
 - Null backend and CPU canvas for deterministic tests; lavapipe/CPU pixel goldens; image diff.
 - Box paint pass (style -> quads) wired into `FramePipeline::paint_frame` when a frame is due.
 - Gaps relevant here: no vector paths, no depth/index/compute in the RHI, WebGPU backend empty,
-  present-path damage/VRR absent. (sRGB policy and paint-time text landed: D2/D9.)
+  present-path VRR/partial present absent (render-side damage landed, D4). (sRGB policy and
+  paint-time text landed: D2/D9.)
 
 ## 3. Decisions
 
@@ -52,7 +53,7 @@ the release gates enforce; they can be revisited by the owner without changing t
 | D1 | **Vector paths: ThorVG first (approved).** Spike ThorVG (MIT) behind a `PathRasterizer` seam; Skia Graphite stays a fallback only if the spike fails the gate. Do not write a rasterizer. | Both permissive and static-linkable; ThorVG is far smaller, so the production static size and build time stay bounded. |
 | D2 | **Color: 8-bit sRGB-encoded formats in V1 (approved).** Prefer `*_SRGB` swapchain/target formats, document that blending happens in the encoded space (approximation), and keep linear-light/HDR out of V1. | No license impact; avoids a large color-management refactor before release. |
 | D3 | **Design-time wall.** Dawn/WebGPU and Emscripten are design-time only; the native production binary links Vulkan + MoltenVK (macOS, later) and never Dawn. | Dawn/Emscripten notices apply to design-time artifacts only; production link line stays lean. |
-| D4 | **Present-path damage and VRR are post-production optimizations.** Correct full-frame present plus the offscreen damaged path ship first. | No license impact; VRR depends on platform APIs that are still open questions. |
+| D4 | **Present-path damage and VRR are post-production optimizations (refined by the task-50 API check).** Damage is *render-side* work reduction (redraw plan + scissor replay), not partial OS presentation. Win32 DXGI flip-model `IDXGISwapChain1::Present1` accepts dirty rects/scrolled areas but requires per-frame back-buffer coherence bookkeeping (first full Present, intersect dirty regions across N buffers); Vulkan `VK_KHR_incremental_present` regions are presentation-engine hints; X11 partial updates (`XPutImage`/`XShmPutImage`/`XCopyArea`) do not reduce compositor work and XDamage only reports. Keep full-frame present as the correctness baseline; defer VRR/partial present to a platform-capability slice that queries the real APIs. | No license impact; VRR/partial present depend on open platform APIs. |
 | D5 | **MSAA and depth/index/compute follow paths.** 4x MSAA is P1 for geometry quality; depth/index/compute (custom 3D) are P2 and widen the RHI only then. | Vulkan core features; no dependency change. |
 | D6 | **Text AA stays coverage-based** (glyph atlas, 8-bit coverage); an SDF atlas is optional P1 for scaling, not a production blocker. | No license impact. |
 | D7 | **Device loss is a production requirement**: explicit recoverable failure, no UI-thread indefinite waits; device-loss UX policy can stay minimal (recreate device once, surface error). | No license impact. |
@@ -70,10 +71,12 @@ out of the release until decided.
 1. **Paint completeness — done**: damage-clipped paint via `RedrawPlan`; text runs in the paint
    pass via the D9 `ui::PaintData` payload (`PaintSink::draw_text` -> `TextRenderer`); rounded
    clip intersection with the scissor stack.
-2. **Present correctness**: swapchain present/damage-free path on Win32/X11 already renders and
-   presents; device-loss detection + one-shot recovery and runtime-loop orchestration landed
-   (D7), bounded acquire/present policy tests, and swapchain image lifetime checks under
-   validation.
+2. **Present correctness — hardening landed**: swapchain present/damage-free path on Win32/X11
+   renders and presents; device-loss detection + one-shot recovery and runtime-loop orchestration
+   (D7) are proven end-to-end by the windowed POC (`--msaa 4` offscreen-4x resolve bridge,
+   `--simulate-loss`: 3 frames before, recovered at tick 4/generation 1, 3 frames after, validation
+   clean) and by the offscreen `present_hardening` smoke (3 deterministic frames, 4x resolve
+   readback, loss cycle). Remaining: platform VRR/partial-present capability slice (D4).
 3. **Color policy (D2) — done**: sRGB texture/render-target/swapchain formats in the RHI, the
    plain-data swapchain preference policy (sRGB surfaces first, UNORM fallback), documented
    encoded-space blending approximation; deterministic golden paths stay UNORM so existing CPU and
@@ -90,7 +93,8 @@ out of the release until decided.
    behind `TESSERA_ENABLE_THORVG` (default OFF), `PathRasterizer` seam and a null backend landed.
    Next: RHI texture upload, `Path` node, SVG asset path.
 2. **MSAA 4x** for non-SDF geometry, resolve into the 2D target; golden updates deliberate.
-3. **Present-path damage and frame pacing polish** (D4); VRR only if the platform APIs are decided.
+3. **Present-path damage and frame pacing polish** (D4): damage stays render-side; VRR and partial/
+   incremental present wait for a platform-capability slice.
 4. **Text scaling**: SDF atlas or multi-size atlas (D6); line breaking/bidi once ICU/SheenBidi land.
 
 ### P2 — post-V1
