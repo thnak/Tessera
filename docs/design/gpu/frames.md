@@ -66,11 +66,11 @@ The frame-slot idea is implemented by `Batched2DRenderer`, not yet by a device-l
 
 V1 uses an explicit pass list, not a general render graph:
 
-1. **Upload/copy** â€” staging to textures/buffers; no UI draws.
-2. **Offscreen 2D** â€” clear/load target; batched quads; custom elements composited or recorded.
-3. **Custom element passes** â€” offscreen targets (default) or inline pass (advanced).
-4. **Composite** â€” offscreen element targets into the frame target.
-5. **Readback/present** â€” copy to readback buffer (tests) or present (B3).
+1. **Upload/copy** — staging to textures/buffers; no UI draws.
+2. **Offscreen 2D** — clear/load target; batched quads; custom elements composited or recorded.
+3. **Custom element passes** — offscreen targets (default) or inline pass (advanced).
+4. **Composite** — offscreen element targets into the frame target.
+5. **Readback/present** — copy to readback buffer (tests) or present (B3).
 
 Rules:
 
