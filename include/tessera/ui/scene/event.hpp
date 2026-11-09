@@ -4,6 +4,7 @@
 
 #include "tessera/ui/input.hpp"
 
+#include <array>
 #include <cstdint>
 
 namespace tessera::ui {
@@ -25,7 +26,15 @@ enum class EventType {
     PointerOver,
     PointerOut,
     PointerEnter,
-    PointerLeave
+    PointerLeave,
+    // IME/text events, delivered to the focused node only. `EditText` carries committed
+    // multi-codepoint text; the composition events carry the in-progress composition string.
+    // `prevent_default` is advisory for these: there is no framework text insertion yet, so it is
+    // a documented no-op until the text editor consumes it.
+    CompositionStart,
+    CompositionUpdate,
+    CompositionEnd,
+    EditText
 };
 
 enum class EventPhase { Capture, Target, Bubble };
@@ -55,6 +64,13 @@ struct Event {
     double timestamp_s = 0;
     bool is_primary = false;
     bool prevent_default = false;
+    // IME/text payload, mirrored from the normalized event: UTF-8 bytes plus the UTF-16
+    // code-unit selection range. `text_truncated` marks a payload cut at `kMaxEditTextBytes`.
+    std::array<char, kMaxEditTextBytes> text{};
+    std::uint32_t text_size = 0;
+    bool text_truncated = false;
+    std::uint32_t selection_start = 0;
+    std::uint32_t selection_end = 0;
 
     void stop_propagation() {
         stopped = true;

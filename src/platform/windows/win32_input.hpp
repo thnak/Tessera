@@ -23,10 +23,10 @@
 
 namespace tessera::hal {
 
-// Translates Win32 mouse, touch/pen (WM_POINTER*, WM_TOUCH fallback), wheel, keyboard and
-// character messages into ui::InputEvent and pushes them into the application's queue. No Win32
-// type crosses into ui/. Everything runs on the window's owning thread, so the queue's single
-// producer is the UI thread.
+// Translates Win32 mouse, touch/pen (WM_POINTER*, WM_TOUCH fallback), IME/text (WM_IME_*,
+// WM_CHAR), wheel, keyboard and character messages into ui::InputEvent and pushes them into the
+// application's queue. No Win32 type crosses into ui/. Everything runs on the window's owning
+// thread, so the queue's single producer is the UI thread.
 class Win32InputTranslator {
 public:
     void set_queue(ui::InputQueue* queue) {
@@ -50,6 +50,7 @@ private:
                         WPARAM wparam);
     void pointer_message(HWND window, WPARAM wparam, win32::PointerMessage message);
     void touch_input(HWND window, WPARAM wparam, LPARAM lparam);
+    void ime_composition(HWND window, LPARAM lparam);
     void cancel_pointer(HWND window);
 
     ui::InputQueue* queue_ = nullptr;

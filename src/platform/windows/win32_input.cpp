@@ -404,6 +404,21 @@ bool Win32InputTranslator::handle(HWND window, UINT message, WPARAM wparam, LPAR
         // System keys (Alt combinations, F10) must still reach DefWindowProc.
         return message == WM_KEYDOWN || message == WM_KEYUP;
     }
+    case WM_IME_STARTCOMPOSITION: {
+        ui::InputEvent event;
+        event.type = ui::InputEventType::CompositionStart;
+        push(event);
+        return true;
+    }
+    case WM_IME_COMPOSITION:
+        ime_composition(window, lparam);
+        return true;
+    case WM_IME_ENDCOMPOSITION: {
+        ui::InputEvent event;
+        event.type = ui::InputEventType::CompositionEnd;
+        push(event);
+        return true;
+    }
     case WM_CHAR: {
         const auto unit = static_cast<wchar_t>(wparam);
         std::uint32_t codepoint = 0;

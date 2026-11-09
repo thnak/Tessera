@@ -56,6 +56,14 @@ const char* type_name(EventType type) {
         return "enter";
     case EventType::PointerLeave:
         return "leave";
+    case EventType::CompositionStart:
+        return "composition-start";
+    case EventType::CompositionUpdate:
+        return "composition-update";
+    case EventType::CompositionEnd:
+        return "composition-end";
+    case EventType::EditText:
+        return "edit-text";
     }
     return "unknown";
 }

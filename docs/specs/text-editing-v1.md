@@ -18,6 +18,14 @@ the [glossary](../reference/glossary.md). Gap ids (`G-01` to `G-05`) refer to ro
 Text editing is a core primitive, not an app-level widget. It must work with shaping, bidi,
 IME, accessibility, clipboard, selection, undo/redo, and deterministic tests.
 
+Input plumbing status: the normalized input model and scene routing for text/IME are implemented
+(`InputEventType::CompositionStart/Update/End` and `EditText`, bounded inline UTF-8 payload with
+truncation, UTF-16 code-unit offsets, focused-node-only delivery, Win32 `WM_IME_*` translation;
+see [`input.md`](../design/input.md) sections 2.1 and 8). The editor itself is not implemented:
+editable nodes/`TextInputKind`, caret/selection rendering and editing commands, default text
+insertion, candidate-window positioning, undo/redo/clipboard, bidi/grapheme logic, and IME
+producers beyond Win32 remain future work.
+
 ## 1. Scope
 
 - Single-line `TextInput`, multi-line `TextArea`.

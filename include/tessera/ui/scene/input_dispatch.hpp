@@ -84,6 +84,15 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 //   `FocusManager::set_focus_visible(true)` after a keyboard traversal (also when a Blur handler
 //   redirected focus). See docs/design/input.md section 6 for the exact rule.
 //
+// Keyboard and text:
+// - `KeyDown`/`KeyUp` go to the focused node through the normal propagation path; with no focus
+//   they are not dispatched.
+// - Single-codepoint `Text` input and the IME composition family (`CompositionStart`/`Update`/
+//   `End`, plus multi-codepoint `EditText`) go to the focused node as the matching scene
+//   `EventType`, carrying the bounded inline UTF-8 payload and the UTF-16 code-unit selection
+//   range. Without focus they are dropped. `prevent_default` is advisory for these events: there
+//   is no framework text insertion yet, so it has no default action to suppress.
+//
 // Pseudo-state changes go through `Node::set_pseudo_state`, which marks `Dirty::Style` so
 // `:hover`/`:active` rules re-resolve. `hovered()` and `active()` are raw scene pointers: reset or
 // destroy the router before destroying a subtree that currently carries one of those states.

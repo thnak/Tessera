@@ -6,7 +6,8 @@ add_library(tessera_scene STATIC
     dirty_pass.cpp
     focus.cpp
     hover_dispatch.cpp
-    input_dispatch.cpp)
+    input_dispatch.cpp
+    text_input_dispatch.cpp)
 
 target_include_directories(tessera_scene PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

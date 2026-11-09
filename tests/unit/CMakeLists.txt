@@ -269,6 +269,17 @@ if (WIN32)
 
     add_test(NAME window_win32_input COMMAND window_win32_input_tests)
 
+    add_executable(win32_ime_tests
+        win32_ime_tests.cpp)
+
+    target_link_libraries(win32_ime_tests PRIVATE tessera_hal_window)
+
+    # Pure IME translation decisions are tested without an HWND or an IME.
+    target_include_directories(win32_ime_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/windows)
+
+    add_test(NAME win32_ime COMMAND win32_ime_tests)
+
     add_executable(window_wait_tests
         window_wait_tests.cpp)
 
@@ -949,6 +960,20 @@ add_executable(input_pipeline_tests
 target_link_libraries(input_pipeline_tests PRIVATE tessera_input_pump)
 
 add_test(NAME input_pipeline COMMAND input_pipeline_tests)
+
+add_executable(input_hover_tests
+    input_hover_tests.cpp)
+
+target_link_libraries(input_hover_tests PRIVATE tessera_scene)
+
+add_test(NAME input_hover COMMAND input_hover_tests)
+
+add_executable(input_text_tests
+    input_text_tests.cpp)
+
+target_link_libraries(input_text_tests PRIVATE tessera_scene)
+
+add_test(NAME input_text COMMAND input_text_tests)
 
 add_executable(schema_tests
     schema_tests.cpp)

@@ -4,6 +4,7 @@
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
+#include "text_input_dispatch.hpp"
 
 namespace tessera::ui {
 namespace {
@@ -196,6 +197,25 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
             return result;
         }
         Event event = make_text_event(input);
+        return dispatch_to_target(*target, event);
+    }
+
+    if (input.type == InputEventType::CompositionStart ||
+        input.type == InputEventType::CompositionUpdate ||
+        input.type == InputEventType::CompositionEnd || input.type == InputEventType::EditText) {
+        // IME plumbing: composition and committed edit text go to the focused node through the
+        // normal dispatch path. Without focus the event is dropped. `prevent_default` is advisory
+        // for these types (there is no framework text insertion yet).
+        EventType composition_type = EventType::CompositionStart;
+        if (!composition_event_type(input.type, composition_type)) {
+            return result;
+        }
+        result.type = composition_type;
+        Node* target = focus_manager_.focused();
+        if (target == nullptr) {
+            return result;
+        }
+        Event event = make_composition_event(composition_type, input);
         return dispatch_to_target(*target, event);
     }
 

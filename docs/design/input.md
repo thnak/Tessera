@@ -21,13 +21,11 @@ implemented in
 per-tick input pump
 (queue -> sampler -> router -> `RuntimeLoop::request_frame`) is
 `include/tessera/ui/input_pump.hpp` and `src/ui/input/input_pump.cpp`. Windows platform translation
-(pointer, wheel, key and character messages into `InputEvent`, see section 2.1) is implemented in
-`src/platform/windows/win32_input.cpp`. Linux/X11 and other platform translation,
+(mouse, touch/pen, IME, wheel, key and character messages into `InputEvent`, see section 2.1) is
+implemented in `src/platform/windows/`. Linux/X11 and other platform translation,
 platform-specific `:focus-visible` refinements (see section 6), window-blur focus retention policy
 (blur already cancels captures, hover, and active), ancestor hover chains and hover recomputation on
-scene changes, platform touch/pen translation (the normalized `pointer_kind` model is implemented;
-no platform emits `Touch`/`Pen` yet) and gesture translation, IME composition, gestures, and
-deterministic recording remain design-only.
+scene changes, IME producers beyond Win32, gestures, and deterministic recording remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
@@ -100,29 +98,34 @@ window's thread, so the queue's single producer is the UI thread.
   never produces hover; pen in-range updates do produce `PointerMove` with `PointerKind::Pen`. The
   window does not call `EnableMouseInPointer`, so the legacy mouse path remains the only mouse
   producer, and handling pointer messages stops Windows from promoting contacts to mouse messages.
-- **`WM_TOUCH` fallback (implemented):** windows that receive legacy touch messages (for example
-  after `RegisterTouchWindow`) translate each `TOUCHINPUT` contact: `TOUCHEVENTF_DOWN`/`UP`/`MOVE`
-  map to the event type, `TOUCHEVENTF_PRIMARY` sets `is_primary`, and `TOUCHINPUT.dwID` maps to a
-  stable pointer id with the high bit set (`0x80000000 | (dwID & 0x7fffffff)`). That WM_TOUCH id
-  space is disjoint from WM_POINTER ids, which are used verbatim; a contact keeps the same id for
-  its whole down/move/up sequence. Up to 32 contacts per message are translated (bounded stack
-  buffer; extras are dropped, no allocation).
+- **`WM_TOUCH` fallback (implemented):** legacy touch messages (for example after
+  `RegisterTouchWindow`) translate each `TOUCHINPUT`: `TOUCHEVENTF_DOWN`/`UP`/`MOVE` map to the
+  event type, `TOUCHEVENTF_PRIMARY` sets `is_primary`, and `dwID` maps to
+  `0x80000000 | (dwID & 0x7fffffff)` (disjoint from WM_POINTER ids, stable per contact). Up to 32
+  contacts per message are translated (bounded buffer; extras dropped, no allocation).
 - **Wheel:** vertical and horizontal, in notches (120 units) with the web sign: positive `dy`
-  scrolls content down, positive `dx` scrolls right. The message's screen coordinates are
-  converted to client logical pixels.
+  scrolls content down, positive `dx` scrolls right; screen coordinates become client pixels.
 - **Keys:** `KeyDown`/`KeyUp` with a logical code from `include/tessera/ui/key_code.hpp`
   (upper-case ASCII for letters and digits, `0x100`+ for non-printable keys). Auto-repeat sets
   `repeat` on key down. System keys (Alt combinations, F10) are recorded and still reach the
   default window procedure.
 - **Text:** `WM_CHAR` becomes `Text` with the code point; surrogate pairs are combined, an orphan
   half is dropped, and control characters (including Backspace, Enter and Tab) are left to key
-  events.
+  events. Keyboard text stays a single-codepoint `Text` event.
+- **IME (`WM_IME_*`, implemented):** start/end composition emit `CompositionStart`/`CompositionEnd`;
+  `WM_IME_COMPOSITION` reads `GCS_COMPSTR`/`GCS_RESULTSTR`/`GCS_CURSORPOS` with
+  `ImmGetCompositionStringW` and emits `CompositionUpdate` and/or committed `EditText` (result
+  first). Payloads are bounded UTF-8 (`kMaxEditTextBytes` = 256, `text_truncated`) with UTF-16
+  code-unit selection offsets and at most 512 UTF-16 units read per string. Messages are returned
+  handled, so there is no default insertion; candidate-window styling is deferred (`WM_CHAR` still
+  produces `Text`).
 - **Focus:** `WM_SETFOCUS`/`WM_KILLFOCUS` also emit `Focus`/`Blur` input events.
 - **Waking:** `wait_for_events` returns `true` while the queue holds unconsumed input, because
   input never becomes a `WindowEvent`; this is what lets a render-on-demand loop sleep until a
   pointer or key event.
-- **Not yet:** IME composition, dead keys, per-key `code` (physical position), OS-level pointer
-  capture, and pen barrel/tilt/orientation beyond pressure.
+- **Not yet:** dead keys, per-key `code` (physical position), OS-level pointer
+  capture, IME candidate-window styling/positioning, and pen barrel/tilt/orientation beyond
+  pressure.
 
 ## 3. Event model
 
@@ -159,9 +162,13 @@ event types plus the hover-boundary types `PointerOver`, `PointerOut`, `PointerE
 `pointer_kind`, `pressure`, `scroll_x`/`scroll_y` (web sign), `timestamp_s`, `is_primary`, and
 `prevent_default`. `PointerOver`/`PointerOut` bubble (like `mouseover`/`mouseout`), while
 `PointerEnter`/`PointerLeave` do not bubble and fire once per node on the entered/left chain
-(section 7). `handled` stays advisory; `prevent_default` is read by the dispatcher after
-propagation and currently suppresses only the Tab focus default action. Pointer and wheel fields
-are zero (mouse kind) for key, text, and focus events.
+(section 7). `EditText` carries committed multi-codepoint text and `CompositionStart`/`Update`/`End`
+carry the in-progress composition; both use the bounded inline UTF-8 payload (at most
+`kMaxEditTextBytes` = 256 bytes, `text_truncated` when cut) plus a UTF-16 code-unit selection
+range. `handled` stays advisory; `prevent_default` is read by the dispatcher after propagation and
+currently suppresses only the Tab focus default action (it is advisory/no-op for text events, which
+have no framework default insertion yet). Pointer and wheel fields are zero (mouse kind) for key,
+text, IME, and focus events.
 
 ## 4. Queue and sampling
 
@@ -450,6 +457,13 @@ Hover/active (implemented, primary pointer only):
   `hovered()` and `active()` remain raw scene pointers for observation, so reset or destroy the
   router before destroying the scene root.
 
+Text/IME routing (implemented, plumbing only): `Text` (one codepoint) and the IME family
+(`CompositionStart`/`Update`/`End`, `EditText`) go to the focused node through the normal
+capture/target/bubble path as the matching scene `EventType`; without focus they are dropped. The
+inline UTF-8 payload is capped at `kMaxEditTextBytes` (256 bytes), cut at a UTF-8 boundary with
+`text_truncated`, and selection offsets are UTF-16 code units. `prevent_default` is advisory (no
+framework text insertion exists yet).
+
 Not implemented: ancestor `:hover` bits and hover recomputation on scene changes (boundary events
 fire on the chain, but the pseudo-state bit remains deepest-target only), OS-level pointer capture,
 accessibility announcements for pointer boundaries, platform touch/pen translation and gesture
@@ -459,13 +473,18 @@ node keeps its hover/active bits; only an id-resolvable node is cleared.
 
 ## 8. Text input and IME
 
-- Editable nodes declare `TextInputKind` (single-line, multiline, numeric, password).
-- `TextEvent` carries the committed Unicode codepoint(s).
-- `CompositionEvent` carries start/update/end plus the preedit string and caret range.
-- The platform candidate window is positioned by the platform backend; the UI reports the
-  caret rectangle in logical pixels.
-- Password fields never emit plaintext to logs or diagnostics.
-- IME is platform-specific; deterministic tests use synthetic text/composition events.
+Implemented plumbing (the text editor itself is a later slice):
+
+- `Text` is one committed codepoint from `WM_CHAR`; `EditText` is committed UTF-8 text from an IME
+  result string; `CompositionStart`/`Update`/`End` mirror the IME preedit lifecycle. All are routed
+  to the focused node only (section 7).
+- Payload: inline UTF-8 capped at `kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection
+  offsets are UTF-16 code units as the platform reports them.
+- Win32 reads `GCS_COMPSTR`/`GCS_RESULTSTR`/`GCS_CURSORPOS` bounded to 512 UTF-16 units and returns
+  the messages handled, so there is no default IME insertion.
+
+Not implemented: editable nodes (`TextInputKind`), candidate-window positioning/styles, password
+handling, and IME producers beyond Win32.
 
 ## 9. Determinism and recording
 
@@ -533,7 +552,10 @@ node keeps its hover/active bits; only an id-resolvable node is cleared.
   `:focus-visible` clear; and the sampler never coalesces moves of different kinds
   (`tests/unit/input_dispatch_tests.cpp`, `tests/unit/input_tests.cpp`,
   `tests/unit/focus_tests.cpp`).
-- Keyboard repeat, shortcuts, IME composition (only committed `Text` routing exists).
+- IME/text plumbing: pure Win32 translation (result vs composition strings, end, empty, UTF-8
+  truncation at the inline cap, surrogate pairs, cursor clamping), and routing to the focused node
+  only with dropped input when unfocused (`tests/unit/win32_ime_tests.cpp`,
+  `tests/unit/input_text_tests.cpp`).
 - Deterministic replay: identical event script -> identical state and pixels (not implemented).
 - Queue overflow and window blur/cancel behavior.
 - Scene payload mapping: button, pointer id, pointer kind, pressure, wheel deltas, timestamp
