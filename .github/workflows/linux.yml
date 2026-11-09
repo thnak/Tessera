@@ -95,6 +95,9 @@ jobs:
       - name: License bundle check (ADR-013)
         run: python3 -B scripts/gen_license_bundle.py --check
 
+      - name: Docs link/index/fence/size gate
+        run: python3 -B scripts/check_docs.py
+
   static-runtime-proof:
     runs-on: ubuntu-latest
     timeout-minutes: 15
