@@ -28,7 +28,9 @@ Editable-node scene integration, undo/redo, clipboard, bidi visual movement, can
 positioning, and IME producers beyond Win32 remain future work. The editable field path is
 demonstrated headlessly in `tests/integration/generated_ui_tests.cpp`: the edit controller's caret
 and half-open selection are published as `PaintData::decoration` (UTF-8 byte offsets) and painted
-as caret/selection pixels; the `editing.png` CPU golden covers it. The controlled `value`/`onChange`
+as caret/selection pixels; the `editing.png` CPU golden covers it. Committed-edit change events and
+the typed handler adapter are implemented in `tessera_text_edit`
+(`EventType::TextChange`, `TextInputRuntime`, `TextChangeBinding`); the controlled `value`/`onChange`
 contract codegen must emit is recorded in [`compiler.md`](../design/compiler.md) section 11.
 
 ## 1. Scope
@@ -382,6 +384,50 @@ rects stay inside the field's content box, the caret sits at the right edge of a
 selection, and deleting the selection collapses it. Current paint limitation found here: an empty
 text run paints no decoration, so an empty focused field has no visible caret until the paint pass
 grows an empty-run caret.
+
+Runtime change events (implemented, task-63): `TextInputRuntime`
+([`text_input_runtime.hpp`](../../include/tessera/ui/text/text_input_runtime.hpp), library
+`tessera_text_edit`) wires one `EditController` to the scene node that owns the field:
+
+```cpp
+editor.attach(node);                 // node outlives the runtime; nullptr detaches
+if (runtime.handle_event(event)) {   // forward the node's on_event input
+    event.handled = true;
+}
+```
+
+- **Dedicated event type:** committed edits dispatch `EventType::TextChange`, not a second
+  `EditText`. `EditText` remains the platform/IME commit event (raw handlers and recording sinks see
+  it once); re-dispatching `EditText` would re-run those handlers for the same commit. The dedicated
+  type lets a generated `onChange` bind only committed edits and keeps the existing route log
+  unchanged when nothing is bound.
+- **When:** exactly one event per committed text mutation - `Text` insertion, an `EditText`/IME
+  commit, or a controller mutation such as Backspace/Delete/paste. Preedit `CompositionUpdate`s,
+  caret/selection moves, the external controlled-value `set_text` sync, unfocused fields, read-only
+  controllers and detached/destroyed targets emit nothing. Auto-repeat is not a separate rule: only
+  an actual mutation emits, so a repeated arrow is silent while a repeated Backspace that really
+  deletes emits one event for that deletion.
+- **Route:** the runtime calls the scene's `dispatch_event_to` from the target, so the change event
+  is delivered synchronously through the normal capture -> target -> bubble path. It is dispatched
+  from inside the input handler; a change handler must not mutate the same controller re-entrantly
+  (that would invalidate the borrowed value view and recurse).
+- **Payload:** `TextChangeEvent { value, target_value, selection_start, selection_end }`.
+  `value`/`target_value` are the new full UTF-8 text, **borrowed** from the edit buffer and valid
+  only for the duration of the handler (copy it to store). `Event::text` additionally carries a
+  bounded inline copy (`kMaxEditTextBytes` = 256 bytes, `text_truncated` when cut) for recording
+  sinks. `selection_start`/`selection_end` are **half-open UTF-8 byte offsets**, the units
+  `PaintData::TextDecoration` consumes; `EditText`/IME events keep their UTF-16 code-unit selection
+  (documented difference). The schema `TextSelection` row still says grapheme offsets and must be
+  aligned to UTF-8 bytes in the schema slice.
+- **Handled:** handlers set `handled` through the event dispatch; the runtime marks the change event
+  handled when the target has a `TextChange` binding.
+- **Adapter:** `TextChangeBinding { void (*handler)(void*, const TextChangeEvent&); void* context; }`
+  plus `bind_text_change(node, binding)` (a template over the node's `bind_event`, so codegen does
+  not include the node header from the payload header and never sees the trampoline). Codegen emits
+  one binding member per handler and a `void on_change(const TextChangeEvent&)` method. The binding
+  must outlive the node.
+- **Bounded:** the runtime allocates nothing per event; the change event only copies the bounded
+  inline 256-byte view, and the full value stays a borrowed view into the controller buffer.
 
 Deferred: caret/selection/composition rendering and blink, undo/redo (grouping/caps), clipboard
 (copy/cut/paste and secure redaction), editable-node scene model (`TextInputKind`, value/selection

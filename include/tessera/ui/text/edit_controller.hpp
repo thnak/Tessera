@@ -6,6 +6,7 @@
 #include "tessera/ui/text/edit_buffer.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -81,11 +82,18 @@ public:
         changed_ = false;
         return changed;
     }
+    // Number of committed text mutations: insert/replace/delete/backspace/delete, multi-line Enter,
+    // and composition commits. Selection-only commands, preedit updates and the external
+    // controlled-value `set_text` sync do not increment it. The runtime change-event layer
+    // (text_input_runtime.hpp) turns each increment into one TextChange scene event.
+    [[nodiscard]] std::uint64_t committed_edit_count() const {
+        return committed_edits_;
+    }
 
 private:
     bool handle_key(const Event& event);
     bool commit_text(std::string_view text);
-    bool accept(EditResult result);
+    bool accept(EditResult result, bool text_edit = false);
 
     EditBuffer buffer_;
     std::string preedit_;
@@ -96,6 +104,7 @@ private:
     bool multiline_ = false;
     EditResult last_result_;
     bool changed_ = false;
+    std::uint64_t committed_edits_ = 0;
 };
 
 } // namespace tessera::ui::text

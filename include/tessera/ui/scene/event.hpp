@@ -34,7 +34,12 @@ enum class EventType {
     CompositionStart,
     CompositionUpdate,
     CompositionEnd,
-    EditText
+    EditText,
+    // A committed text edit from an attached edit controller (docs/specs/text-editing-v1.md
+    // section 12). One event per committed mutation (insert/replace/delete/backspace/delete or an
+    // IME commit), never for preedit updates. `text_view`/`selection_*` below carry the payload;
+    // generated `onChange` handlers bind through the typed adapter in event_payloads.hpp.
+    TextChange
 };
 
 enum class EventPhase { Capture, Target, Bubble };
@@ -69,8 +74,15 @@ struct Event {
     std::array<char, kMaxEditTextBytes> text{};
     std::uint32_t text_size = 0;
     bool text_truncated = false;
+    // For `TextChange` these are half-open UTF-8 byte offsets; for the IME/EditText events they are
+    // UTF-16 code units, as the platform reports them.
     std::uint32_t selection_start = 0;
     std::uint32_t selection_end = 0;
+    // Borrowed full-text view used by `TextChange`: points into the edit buffer and is only valid
+    // for the duration of the dispatch (null on every other event type). When set it supersedes the
+    // bounded inline `text` copy above, which recording sinks can still read.
+    const char* text_view = nullptr;
+    std::uint32_t text_view_size = 0;
 
     void stop_propagation() {
         stopped = true;

@@ -67,6 +67,8 @@ const char* type_name(EventType type) {
         return "composition-end";
     case EventType::EditText:
         return "edit-text";
+    case EventType::TextChange:
+        return "text-change";
     }
     return "unknown";
 }

@@ -839,6 +839,12 @@ add_executable(text_edit_controller_tests
 target_link_libraries(text_edit_controller_tests PRIVATE tessera_text_edit)
 
 add_test(NAME text_edit_controller COMMAND text_edit_controller_tests)
+add_executable(text_input_runtime_tests
+    text_input_runtime_tests.cpp)
+
+target_link_libraries(text_input_runtime_tests PRIVATE tessera_text_edit)
+
+add_test(NAME text_input_runtime COMMAND text_input_runtime_tests)
 
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)

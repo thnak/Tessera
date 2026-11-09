@@ -18,7 +18,8 @@ namespace tessera::ui {
 //   ClickEvent       -> ClickEvent
 //   KeyEvent         -> KeyEventInfo
 //   FocusEvent       -> FocusEventInfo
-//   TextChangeEvent  -> TextChangeEvent   (TextSubmitEvent = TextChangeEvent)
+//   TextChangeEvent  -> TextChangeEvent   (TextSubmitEvent = TextChangeEvent);
+//                       delivered by EventType::TextChange through the typed adapter below
 //   TextSelection    -> TextSelection
 //   CompositionEvent -> CompositionEvent
 //   ScrollEvent      -> ScrollEventInfo
@@ -72,10 +73,15 @@ struct FocusEventInfo {
     bool operator==(const FocusEventInfo&) const = default;
 };
 
+// A committed text-edit payload (docs/specs/text-editing-v1.md section 12). `value` is the new full
+// UTF-8 text and is BORROWED: it stays valid only for the duration of the handler call (a generated
+// handler that stores it must copy). `selection_start`/`selection_end` are the half-open selection
+// as UTF-8 byte offsets (the units `PaintData::TextDecoration` consumes); the schema
+// `TextSelection` row still says grapheme offsets and must be aligned in the schema slice.
 struct TextChangeEvent {
-    std::string_view value;        // borrowed from Event::text; valid during dispatch only
-    std::string_view target_value; // the Tessera form: equal to `value`
-    std::uint32_t selection_start = 0;
+    std::string_view value;            // borrowed from the edit buffer; valid during dispatch only
+    std::string_view target_value;     // the Tessera form: equal to `value`
+    std::uint32_t selection_start = 0; // half-open UTF-8 byte offsets
     std::uint32_t selection_end = 0;
 };
 
@@ -111,6 +117,9 @@ constexpr bool modifier_held(Modifier value, Modifier flag) {
 }
 
 inline std::string_view event_text(const Event& event) {
+    if (event.text_view != nullptr) {
+        return std::string_view(event.text_view, event.text_view_size);
+    }
     return std::string_view(event.text.data(), event.text_size);
 }
 
@@ -163,6 +172,38 @@ inline TextChangeEvent text_change_event(const Event& event) {
 
 inline TextSubmitEvent text_submit_event(const Event& event) {
     return text_change_event(event);
+}
+
+// Typed adapter for a generated handler `void on_change(const TextChangeEvent&)`.
+//
+// The node binding storage is `{function pointer, void* context}` with a generic
+// `void(*)(void*, const Event&)` signature, so codegen never has to know about the trampoline: it
+// declares one `TextChangeBinding` member per binding and calls `bind_text_change(node, binding)`.
+// The binding object must outlive the node (or be unbound before the node is destroyed). The
+// trampoline converts the scene `Event` to `TextChangeEvent` and calls the typed handler; the
+// payload view is valid only for the duration of that call (see `TextChangeEvent`).
+struct TextChangeBinding {
+    void (*handler)(void* context, const TextChangeEvent& event) = nullptr;
+    void* context = nullptr;
+
+    [[nodiscard]] bool bound() const {
+        return handler != nullptr;
+    }
+};
+
+inline void text_change_trampoline(void* context, const Event& event) {
+    auto* binding = static_cast<TextChangeBinding*>(context);
+    if (binding == nullptr || binding->handler == nullptr || event.type != EventType::TextChange) {
+        return;
+    }
+    binding->handler(binding->context, text_change_event(event));
+}
+
+// Binds a typed change handler on `node`. `NodeT` only needs the scene node's
+// `bind_event(EventType, BoundEventHandler, void*)`; keeping this a template lets codegen include
+// this header without pulling the node header in here.
+template<typename NodeT> bool bind_text_change(NodeT& node, TextChangeBinding& binding) {
+    return node.bind_event(EventType::TextChange, &text_change_trampoline, &binding);
 }
 
 inline TextSelection text_selection_event(const Event& event) {

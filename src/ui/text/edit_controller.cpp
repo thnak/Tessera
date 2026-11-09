@@ -53,14 +53,17 @@ bool EditController::commit_text(std::string_view text) {
         const EditOffset end = composition_end_;
         composing_ = false;
         preedit_.clear();
-        return accept(buffer_.replace_range(start, end, text));
+        return accept(buffer_.replace_range(start, end, text), true);
     }
-    return accept(buffer_.insert(text));
+    return accept(buffer_.insert(text), true);
 }
 
-bool EditController::accept(EditResult result) {
+bool EditController::accept(EditResult result, bool text_edit) {
     last_result_ = result;
     changed_ = changed_ || result.changed;
+    if (text_edit && result.changed) {
+        ++committed_edits_;
+    }
     return true;
 }
 
@@ -83,7 +86,7 @@ bool EditController::handle_event(Event& event) {
         std::string bytes;
         append_utf8(bytes, cp);
         event.handled = true;
-        return accept(buffer_.insert(bytes));
+        return accept(buffer_.insert(bytes), true);
     }
     case EventType::EditText: {
         if (read_only_) {
@@ -142,7 +145,8 @@ bool EditController::handle_key(const Event& event) {
             return false;
         }
         return accept(key == key::kBackspace ? buffer_.delete_backward(control)
-                                             : buffer_.delete_forward(control));
+                                             : buffer_.delete_forward(control),
+                      true);
     }
     if (key == key::kArrowLeft || key == key::kArrowRight) {
         return accept(key == key::kArrowLeft ? buffer_.move_left(control, shift)
@@ -159,7 +163,7 @@ bool EditController::handle_key(const Event& event) {
         if (read_only_ || !multiline_) {
             return false;
         }
-        return accept(buffer_.insert("\n"));
+        return accept(buffer_.insert("\n"), true);
     }
     return false;
 }

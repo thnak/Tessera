@@ -25,7 +25,8 @@ add_subdirectory(render)
 # Editing core on top of the text layer: the UTF-8 edit buffer plus the scene-event controller.
 # Kept separate from tessera_text so the shaping/text layer stays free of scene dependencies.
 add_library(tessera_text_edit STATIC
-    edit_controller.cpp)
+    edit_controller.cpp
+    text_input_runtime.cpp)
 
 target_include_directories(tessera_text_edit PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
