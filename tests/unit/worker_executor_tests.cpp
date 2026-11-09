@@ -97,12 +97,27 @@ int main() {
         CompletionQueue completions(8);
         WorkerExecutor executor(completions);
         std::atomic<int> ran{0};
+        // Keep the only worker busy so the completion post queues behind it. Checking right after
+        // post() would race with a worker that is already free, and a fast one passes or fails
+        // the "not posted yet" check depending on scheduling.
+        std::latch busy_started(1);
+        std::latch release_worker(1);
+        if (!expect(executor.post([&] {
+                busy_started.count_down();
+                release_worker.wait();
+            }),
+                    "post blocking task")) {
+            return 8;
+        }
+        busy_started.wait();
         if (!expect(executor.post(CompletionPriority::Background, [&ran] { ++ran; }),
                     "post background completion") ||
             !expect(completions.pending(CompletionPriority::Background) == 0,
                     "completion waits for task")) {
+            release_worker.count_down();
             return 8;
         }
+        release_worker.count_down();
         executor.shutdown();
         if (!expect(completions.pending(CompletionPriority::Background) == 1,
                     "background completion posted") ||
