@@ -109,7 +109,7 @@ build_cpu_image_screen(rendering::software::CpuCanvas& canvas,
     canvas.clear(background);
     const ui::paint::PaintStats stats = ui::paint::paint_scene(root, styles, sink);
     result.built = stats.images > 0U || decoded.stats().decodes > 0U;
-    result.draws = stats.images;
+    result.draws = static_cast<std::uint32_t>(stats.images);
     return result;
 }
 
