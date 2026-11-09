@@ -114,6 +114,11 @@ jobs:
       - name: Release static-runtime proof (ADR-012)
         run: python3 -B scripts/check_static_runtime.py --config Release --target merger_tests
 
+      - name: Reproducible build proof (ADR-009)
+        run: |
+          python3 -B scripts/check_reproducible.py \
+            --config Release --target merger_tests --build-root build/repro
+
       - name: Package the Release artifact (CPack)
         run: |
           cmake -S . -B build/package \
