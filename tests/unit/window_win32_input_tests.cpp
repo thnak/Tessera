@@ -10,6 +10,7 @@
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/key_code.hpp"
+#include "win32_pointer_translation.hpp"
 
 #include <array>
 #include <cstdint>
@@ -25,6 +26,7 @@ using tessera::ui::InputEvent;
 using tessera::ui::InputEventType;
 using tessera::ui::InputQueue;
 using tessera::ui::PointerButton;
+using tessera::ui::PointerKind;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -263,7 +265,166 @@ int main() {
     if (!expect(drain(queue).empty(), "resetting the queue stops delivery")) {
         return 17;
     }
+
+    // Pointer messages for ids Windows no longer knows are dropped unless they are a cancel.
+    window->set_input_queue(&queue);
+    SendMessageW(hwnd, WM_POINTERDOWN, 9999, 0);
+    if (!expect(drain(queue).empty(), "unknown pointer id produces no event")) {
+        return 18;
+    }
+    SendMessageW(hwnd, WM_POINTERCAPTURECHANGED, 9999, 0);
+    events = drain(queue);
+    if (!expect(events.size() == 1, "pointer cancel queues one event") ||
+        !expect(events[0].type == InputEventType::PointerCancel, "capture loss cancels") ||
+        !expect(events[0].pointer_id == 9999, "cancel keeps the pointer id")) {
+        return 19;
+    }
+    window->set_input_queue(nullptr);
     window.reset();
+
+    // Pure translation decisions, no HWND or device involved.
+    using tessera::hal::win32::kTouchPointerIdBase;
+    using tessera::hal::win32::make_pointer_event;
+    using tessera::hal::win32::make_touch_event;
+    using tessera::hal::win32::pointer_kind_of;
+    using tessera::hal::win32::PointerMessage;
+    using tessera::hal::win32::PointerSample;
+    using tessera::hal::win32::PointerType;
+    using tessera::hal::win32::touch_pointer_id;
+    using tessera::hal::win32::TouchSample;
+
+    if (!expect(pointer_kind_of(PointerType::Mouse) == PointerKind::Mouse, "mouse type kind") ||
+        !expect(pointer_kind_of(PointerType::Touch) == PointerKind::Touch, "touch type kind") ||
+        !expect(pointer_kind_of(PointerType::Pen) == PointerKind::Pen, "pen type kind") ||
+        !expect(pointer_kind_of(PointerType::Unknown) == PointerKind::Mouse,
+                "unknown pointer types keep the mouse kind")) {
+        return 20;
+    }
+
+    PointerSample pen;
+    pen.type = PointerType::Pen;
+    pen.pointer_id = 42;
+    pen.primary = true;
+    pen.pressure = 512;
+    pen.client_x = 20.0f;
+    pen.client_y = 10.0f;
+    pen.message = PointerMessage::Down;
+    pen.button = PointerButton::Left;
+    InputEvent event;
+    if (!expect(make_pointer_event(pen, 2.0f, event), "pen down translates") ||
+        !expect(event.type == InputEventType::PointerDown, "pen down type") ||
+        !expect(event.pointer_id == 42, "pointer id preserved") ||
+        !expect(event.pointer_kind == PointerKind::Pen, "pen down kind") ||
+        !expect(event.is_primary, "primary flag propagated") ||
+        !expect(approx(event.pressure, 0.5f), "pen pressure normalized") ||
+        !expect(approx(event.x, 10.0f) && approx(event.y, 5.0f), "DPI scale applied") ||
+        !expect(event.button == PointerButton::Left, "pen down uses the left button")) {
+        return 21;
+    }
+
+    pen.pressure = 4096;
+    if (!expect(make_pointer_event(pen, 1.0f, event), "pen pressure sample translates") ||
+        !expect(approx(event.pressure, 1.0f), "pen pressure clamps to one")) {
+        return 22;
+    }
+    pen.pressure = 0;
+    if (!expect(make_pointer_event(pen, 1.0f, event), "zero pressure sample translates") ||
+        !expect(event.pressure == 0.0f, "zero pressure stays zero")) {
+        return 23;
+    }
+
+    PointerSample touch;
+    touch.type = PointerType::Touch;
+    touch.pointer_id = 7;
+    touch.pressure = 512;
+    touch.in_contact = true;
+    touch.message = PointerMessage::Update;
+    if (!expect(make_pointer_event(touch, 1.0f, event), "touch contact update translates") ||
+        !expect(event.type == InputEventType::PointerMove, "touch update is a move") ||
+        !expect(event.pointer_kind == PointerKind::Touch, "touch move keeps the touch kind") ||
+        !expect(event.pressure == 0.0f, "touch pressure is zero")) {
+        return 24;
+    }
+
+    touch.in_contact = false;
+    if (!expect(!make_pointer_event(touch, 1.0f, event), "touch never hovers")) {
+        return 25;
+    }
+
+    PointerSample pen_hover = pen;
+    pen_hover.in_contact = false;
+    pen_hover.message = PointerMessage::Update;
+    if (!expect(make_pointer_event(pen_hover, 1.0f, event), "pen hover move is allowed") ||
+        !expect(event.pointer_kind == PointerKind::Pen, "pen hover kind")) {
+        return 26;
+    }
+
+    PointerSample cancel = touch;
+    cancel.in_contact = false;
+    cancel.message = PointerMessage::Cancel;
+    if (!expect(make_pointer_event(cancel, 1.0f, event), "cancel always translates") ||
+        !expect(event.type == InputEventType::PointerCancel, "cancel maps to PointerCancel")) {
+        return 27;
+    }
+    PointerSample release = pen;
+    release.in_contact = true;
+    release.message = PointerMessage::Up;
+    if (!expect(make_pointer_event(release, 1.0f, event), "pen up translates") ||
+        !expect(event.type == InputEventType::PointerUp, "pen up type")) {
+        return 28;
+    }
+
+    TouchSample contact;
+    contact.touch_id = 3;
+    contact.primary = true;
+    contact.down = true;
+    contact.client_x = 30.0f;
+    contact.client_y = 40.0f;
+    InputEvent touch_down;
+    if (!expect(make_touch_event(contact, 2.0f, touch_down), "touch down translates") ||
+        !expect(touch_down.type == InputEventType::PointerDown, "touch down type") ||
+        !expect(touch_down.pointer_kind == PointerKind::Touch, "touch down kind") ||
+        !expect(touch_down.is_primary, "touch primary contact flag") ||
+        !expect(touch_down.pointer_id == (kTouchPointerIdBase | 3u),
+                "touch id mapped into the fallback space") ||
+        !expect((touch_down.pointer_id & kTouchPointerIdBase) != 0u,
+                "touch id has the disjoint high bit") ||
+        !expect(approx(touch_down.x, 15.0f) && approx(touch_down.y, 20.0f),
+                "touch DPI scale applied") ||
+        !expect(touch_down.button == PointerButton::Left, "touch down button")) {
+        return 29;
+    }
+
+    contact.down = false;
+    contact.move = true;
+    InputEvent touch_move;
+    if (!expect(make_touch_event(contact, 1.0f, touch_move), "touch move translates") ||
+        !expect(touch_move.type == InputEventType::PointerMove, "touch move type") ||
+        !expect(touch_move.pointer_id == touch_down.pointer_id, "touch id is stable on move") ||
+        !expect(touch_move.pointer_kind == PointerKind::Touch, "touch move is a contact move") ||
+        !expect(touch_move.button == PointerButton::None, "contact move has no button")) {
+        return 30;
+    }
+
+    contact.move = false;
+    contact.up = true;
+    InputEvent touch_up;
+    if (!expect(make_touch_event(contact, 1.0f, touch_up), "touch up translates") ||
+        !expect(touch_up.type == InputEventType::PointerUp, "touch up type") ||
+        !expect(touch_up.pointer_id == touch_down.pointer_id, "touch id is stable on up")) {
+        return 31;
+    }
+
+    contact.up = false;
+    if (!expect(!make_touch_event(contact, 1.0f, touch_up), "touch without flags emits nothing")) {
+        return 32;
+    }
+    if (!expect(touch_pointer_id(4) != touch_down.pointer_id,
+                "distinct contacts get distinct ids") ||
+        !expect(touch_pointer_id(3) == touch_down.pointer_id, "touch id mapping is stable") ||
+        !expect(touch_pointer_id(0xFFFFFFFFu) != 0u, "large touch ids stay non-zero")) {
+        return 33;
+    }
 
     std::cout << "window_win32_input: ok\n";
     return 0;

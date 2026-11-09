@@ -9,7 +9,8 @@ target_include_directories(tessera_hal_window PRIVATE
 if (WIN32)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp)
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_pointer_translation.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/windows)
     # Input is translated straight into the application's ui::InputQueue.

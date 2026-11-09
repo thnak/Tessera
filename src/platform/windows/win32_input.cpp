@@ -4,6 +4,8 @@
 #include "tessera/ui/key_code.hpp"
 #include "win32_input.hpp"
 
+#include <algorithm>
+#include <array>
 #include <windowsx.h>
 
 namespace tessera::hal {
@@ -12,6 +14,7 @@ namespace {
 constexpr UINT kDefaultDpi = 96;
 constexpr float kWheelNotch = static_cast<float>(WHEEL_DELTA);
 constexpr float kActivePressure = 0.5f;
+constexpr std::size_t kMaxTouchContacts = 32;
 constexpr wchar_t kHighSurrogateFirst = 0xD800;
 constexpr wchar_t kHighSurrogateLast = 0xDBFF;
 constexpr wchar_t kLowSurrogateFirst = 0xDC00;
@@ -20,6 +23,19 @@ constexpr std::uint32_t kSurrogateBase = 0x10000;
 constexpr std::uint32_t kSurrogateBits = 10;
 constexpr wchar_t kFirstPrintable = 0x20;
 constexpr wchar_t kDelete = 0x7F;
+
+win32::PointerType pointer_type_of(POINTER_INPUT_TYPE type) {
+    switch (type) {
+    case PT_MOUSE:
+        return win32::PointerType::Mouse;
+    case PT_TOUCH:
+        return win32::PointerType::Touch;
+    case PT_PEN:
+        return win32::PointerType::Pen;
+    default:
+        return win32::PointerType::Unknown;
+    }
+}
 
 float dpi_scale_of(HWND window) {
     UINT dpi = GetDpiForWindow(window);
@@ -195,6 +211,88 @@ void Win32InputTranslator::pointer_button(HWND window, ui::PointerButton button,
     }
 }
 
+void Win32InputTranslator::pointer_message(HWND window, WPARAM wparam,
+                                           win32::PointerMessage message) {
+    const std::uint32_t pointer_id = GET_POINTERID_WPARAM(wparam);
+    POINTER_INFO info{};
+    const bool has_info = GetPointerInfo(pointer_id, &info) != FALSE;
+    // A stale pointer id (already gone) has nothing to translate except a cancel, which must still
+    // clear the router's capture/active state for that id.
+    if (!has_info && message != win32::PointerMessage::Cancel) {
+        return;
+    }
+
+    win32::PointerSample sample;
+    sample.pointer_id = pointer_id;
+    sample.message = message;
+    // The SDK exposes the PRIMARY message flag; there is no INPRIMARY_RANGE flag on this SDK, so
+    // the primary pointer is the one Windows marks primary in the message.
+    sample.primary = IS_POINTER_PRIMARY_WPARAM(wparam) != FALSE;
+    if (has_info) {
+        sample.type = pointer_type_of(info.pointerType);
+        sample.in_contact = (info.pointerFlags & POINTER_FLAG_INCONTACT) != 0;
+        // Windows has no WM_POINTERCANCEL message: a canceled sequence is reported through the
+        // POINTER_FLAG_CANCELED flag (typically on the up message) and through
+        // WM_POINTERCAPTURECHANGED. Both map to ui::InputEventType::PointerCancel.
+        if ((info.pointerFlags & POINTER_FLAG_CANCELED) != 0) {
+            sample.message = win32::PointerMessage::Cancel;
+        }
+        POINT point = info.ptPixelLocation;
+        if (ScreenToClient(window, &point) != FALSE) {
+            sample.client_x = static_cast<float>(point.x);
+            sample.client_y = static_cast<float>(point.y);
+        }
+        if (info.pointerType == PT_PEN) {
+            POINTER_PEN_INFO pen_info{};
+            if (GetPointerPenInfo(pointer_id, &pen_info) != FALSE) {
+                sample.pressure = pen_info.pressure;
+            }
+        }
+    } else {
+        sample.type = win32::PointerType::Unknown;
+        sample.in_contact = true;
+    }
+    if (sample.message == win32::PointerMessage::Down ||
+        sample.message == win32::PointerMessage::Up) {
+        sample.button = ui::PointerButton::Left;
+    }
+
+    ui::InputEvent event;
+    if (win32::make_pointer_event(sample, dpi_scale_of(window), event)) {
+        push(event);
+    }
+}
+
+void Win32InputTranslator::touch_input(HWND window, WPARAM wparam, LPARAM lparam) {
+    const auto handle = reinterpret_cast<HTOUCHINPUT>(lparam);
+    const UINT contact_count = LOWORD(wparam);
+    if (contact_count != 0) {
+        std::array<TOUCHINPUT, kMaxTouchContacts> inputs{};
+        const UINT requested = std::min<UINT>(contact_count, static_cast<UINT>(inputs.size()));
+        if (GetTouchInputInfo(handle, requested, inputs.data(), sizeof(TOUCHINPUT)) != FALSE) {
+            const float scale = dpi_scale_of(window);
+            for (UINT i = 0; i < requested; ++i) {
+                const TOUCHINPUT& input = inputs[i];
+                POINT point{TOUCH_COORD_TO_PIXEL(input.x), TOUCH_COORD_TO_PIXEL(input.y)};
+                ScreenToClient(window, &point);
+                win32::TouchSample sample;
+                sample.touch_id = input.dwID;
+                sample.primary = (input.dwFlags & TOUCHEVENTF_PRIMARY) != 0;
+                sample.down = (input.dwFlags & TOUCHEVENTF_DOWN) != 0;
+                sample.up = (input.dwFlags & TOUCHEVENTF_UP) != 0;
+                sample.move = (input.dwFlags & TOUCHEVENTF_MOVE) != 0;
+                sample.client_x = static_cast<float>(point.x);
+                sample.client_y = static_cast<float>(point.y);
+                ui::InputEvent event;
+                if (win32::make_touch_event(sample, scale, event)) {
+                    push(event);
+                }
+            }
+        }
+    }
+    CloseTouchInputHandle(handle);
+}
+
 void Win32InputTranslator::cancel_pointer(HWND window) {
     if (buttons_down_ == 0) {
         return;
@@ -215,6 +313,26 @@ bool Win32InputTranslator::handle(HWND window, UINT message, WPARAM wparam, LPAR
                                   LRESULT& result) {
     result = 0;
     switch (message) {
+    // Touch and pen arrive as pointer messages. Handling them here (returning true) also stops
+    // Windows from promoting the contact to legacy mouse messages, so the mouse path below stays
+    // the only mouse producer.
+    case WM_POINTERDOWN:
+        pointer_message(window, wparam, win32::PointerMessage::Down);
+        return true;
+    case WM_POINTERUPDATE:
+        pointer_message(window, wparam, win32::PointerMessage::Update);
+        return true;
+    case WM_POINTERUP:
+        pointer_message(window, wparam, win32::PointerMessage::Up);
+        return true;
+    case WM_POINTERCAPTURECHANGED:
+        // Pointer cancellation is surfaced here (there is no WM_POINTERCANCEL message).
+        pointer_message(window, wparam, win32::PointerMessage::Cancel);
+        return true;
+    // Legacy fallback for windows that register for WM_TOUCH instead of pointer promotion.
+    case WM_TOUCH:
+        touch_input(window, wparam, lparam);
+        return true;
     case WM_MOUSEMOVE:
         push(pointer_event(window, ui::InputEventType::PointerMove, GET_X_LPARAM(lparam),
                            GET_Y_LPARAM(lparam), mouse_modifiers(wparam)));

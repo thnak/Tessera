@@ -8,17 +8,25 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#ifndef WINVER
+#define WINVER 0x0A00
+#endif
 
 #include "tessera/ui/input.hpp"
+#include "win32_pointer_translation.hpp"
 
 #include <cstdint>
 #include <windows.h>
 
 namespace tessera::hal {
 
-// Translates Win32 mouse, wheel, keyboard and character messages into ui::InputEvent and pushes
-// them into the application's queue. No Win32 type crosses into ui/. Everything runs on the
-// window's owning thread, so the queue's single producer is the UI thread.
+// Translates Win32 mouse, touch/pen (WM_POINTER*, WM_TOUCH fallback), wheel, keyboard and
+// character messages into ui::InputEvent and pushes them into the application's queue. No Win32
+// type crosses into ui/. Everything runs on the window's owning thread, so the queue's single
+// producer is the UI thread.
 class Win32InputTranslator {
 public:
     void set_queue(ui::InputQueue* queue) {
@@ -40,6 +48,8 @@ private:
                                                ui::Modifier modifiers);
     void pointer_button(HWND window, ui::PointerButton button, bool down, LPARAM lparam,
                         WPARAM wparam);
+    void pointer_message(HWND window, WPARAM wparam, win32::PointerMessage message);
+    void touch_input(HWND window, WPARAM wparam, LPARAM lparam);
     void cancel_pointer(HWND window);
 
     ui::InputQueue* queue_ = nullptr;

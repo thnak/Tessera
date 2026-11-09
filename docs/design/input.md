@@ -88,6 +88,25 @@ window's thread, so the queue's single producer is the UI thread.
   (`SetCapture`) so the move and release arrive outside the window; losing the capture, focus
   or modal mode emits `PointerCancel` and clears the pressed buttons. A release without a seen
   press is ignored. Shift and Control come from the message, Alt and Meta from the keyboard state.
+- **Touch and pen (`WM_POINTER*`, implemented):** `WM_POINTERDOWN`/`WM_POINTERUPDATE`/
+  `WM_POINTERUP` map to pointer down/move/up for `PT_TOUCH` (`PointerKind::Touch`) and `PT_PEN`
+  (`PointerKind::Pen`); `PT_MOUSE` maps to `Mouse`, and `WM_POINTERCAPTURECHANGED` or a
+  `POINTER_FLAG_CANCELED` flag maps to `PointerCancel` (Windows has no `WM_POINTERCANCEL`
+  message). `pointer_id` is `GET_POINTERID_WPARAM` (a Windows pointer id, used verbatim and not
+  reused across kinds); `is_primary` is `IS_POINTER_PRIMARY_WPARAM`; pen pressure comes from
+  `GetPointerPenInfo().pressure`, normalized and clamped to 0..1, and is 0 for touch and mouse.
+  Coordinates come from `GetPointerInfo().ptPixelLocation`, converted screen->client and divided
+  by the same DPI scale as the mouse path. Touch updates without contact are dropped, so touch
+  never produces hover; pen in-range updates do produce `PointerMove` with `PointerKind::Pen`. The
+  window does not call `EnableMouseInPointer`, so the legacy mouse path remains the only mouse
+  producer, and handling pointer messages stops Windows from promoting contacts to mouse messages.
+- **`WM_TOUCH` fallback (implemented):** windows that receive legacy touch messages (for example
+  after `RegisterTouchWindow`) translate each `TOUCHINPUT` contact: `TOUCHEVENTF_DOWN`/`UP`/`MOVE`
+  map to the event type, `TOUCHEVENTF_PRIMARY` sets `is_primary`, and `TOUCHINPUT.dwID` maps to a
+  stable pointer id with the high bit set (`0x80000000 | (dwID & 0x7fffffff)`). That WM_TOUCH id
+  space is disjoint from WM_POINTER ids, which are used verbatim; a contact keeps the same id for
+  its whole down/move/up sequence. Up to 32 contacts per message are translated (bounded stack
+  buffer; extras are dropped, no allocation).
 - **Wheel:** vertical and horizontal, in notches (120 units) with the web sign: positive `dy`
   scrolls content down, positive `dx` scrolls right. The message's screen coordinates are
   converted to client logical pixels.
@@ -102,10 +121,8 @@ window's thread, so the queue's single producer is the UI thread.
 - **Waking:** `wait_for_events` returns `true` while the queue holds unconsumed input, because
   input never becomes a `WindowEvent`; this is what lets a render-on-demand loop sleep until a
   pointer or key event.
-- **Not yet:** touch and pen (`WM_POINTER*`), IME composition, dead keys, per-key `code`
-  (physical position), and pointer enter/leave (hover is derived from moves, see section 7).
-  Touch/pen translation must set `InputEvent::pointer_kind` (`Touch`/`Pen`) and a distinct
-  `pointer_id` per contact; the current translator emits only `PointerKind::Mouse`.
+- **Not yet:** IME composition, dead keys, per-key `code` (physical position), pointer enter/leave
+  (hover is derived from moves, see section 7), and pen barrel/tilt/orientation beyond pressure.
 
 ## 3. Event model
 
@@ -359,9 +376,10 @@ Pointer kinds (implemented):
   not reuse an id for two live pointers, so a mouse and a touch pointer keep separate ids; events
   for one id from different kinds would share the capture entry. The sampler never coalesces moves
   of different kinds even if an id is reused.
-- Platform sources still need to set the field where touch/pen input is translated: the Windows
-  translator currently emits `Mouse` for mouse messages only, and Linux/X11, Windows `WM_POINTER*`,
-  and Wayland touch/pen translation are deferred (section 2.1).
+- Platform sources set the field where touch/pen input is translated: the Windows translator emits
+  `Touch`/`Pen` from `WM_POINTER*` and `Touch` from the legacy `WM_TOUCH` fallback (id spaces in
+  section 2.1), while mouse messages remain the mouse producer. Linux/X11 and Wayland touch/pen,
+  macOS `NSResponder`, and Android `MotionEvent` translation are still deferred.
 
 Hover/active (implemented, primary pointer only):
 
@@ -486,6 +504,10 @@ id-resolvable node is cleared.
 - Wheel hit-testing/bubbling, text delivered to focus only, Focus/Blur input cancelling capture and
   clearing hover/active.
 - Tab/Shift+Tab default focus movement and `prevent_default` suppression.
+- Windows translation: mouse/wheel/key/text through the real window, plus pure pointer/touch
+  mapping tests (type->kind with unknown->Mouse, primary flag, pressure clamp, pointer-id
+  preservation, `WM_TOUCH` fallback ids/flags, no touch hover)
+  (`tests/unit/window_win32_input_tests.cpp`).
 - `InputPump`: per-tick budget, move coalescing, dropped counters, `request_frame` wake with a
   `ManualClock`, queue overflow, and reset (`tests/unit/input_pipeline_tests.cpp`).
 

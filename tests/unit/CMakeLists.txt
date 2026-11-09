@@ -263,6 +263,10 @@ if (WIN32)
 
     target_link_libraries(window_win32_input_tests PRIVATE tessera_hal_window tessera_input)
 
+    # The pure pointer/touch translation decisions are tested without an HWND or a device.
+    target_include_directories(window_win32_input_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/windows)
+
     add_test(NAME window_win32_input COMMAND window_win32_input_tests)
 
     add_executable(window_wait_tests
