@@ -182,3 +182,11 @@ summary.
 - Vertical writing modes.
 - Whether to subset ICU data for binary size ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking).
 - Atlas format: R8 vs RGBA8, SDF vs raster for scaling.
+
+Paint-time text runs (D9): `ui::PaintData` (`include/tessera/ui/scene/paint_data.hpp`) lets a scene
+node carry a text run painted by the paint pass. It reuses this text stack end to end: `paint_scene`
+emits `PaintSink::draw_text`, and `Batched2DSink` shapes through `TextShaper` and draws through
+`TextRenderer`/`GlyphAtlas` (no second rasterizer). Paint-time text is single-line, top-aligned in
+the node border box, and never affects layout; `paint-pass.md` section 10 has the payload/precedence
+contract. Goldens: paint-text image goldens are GPU-only for now because the CPU canvas has no text
+rasterizer.

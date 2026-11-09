@@ -5,10 +5,12 @@
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/dirty.hpp"
 #include "tessera/ui/scene/event.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace tessera::ui {
@@ -122,6 +124,17 @@ public:
     [[nodiscard]] bool hit_test(float x, float y) const;
     [[nodiscard]] Node* hit_test_deep(float x, float y);
 
+    // Optional app/compiler-supplied paint payload (D9): currently a text run painted after this
+    // node's background/borders and inside the active clip. Purely visual - it never affects
+    // layout, style, or hit testing. Setting/clearing it marks Paint|Render only and is a no-op when
+    // the payload is unchanged. Text longer than PaintData::kMaxTextBytes is truncated at a UTF-8
+    // code-point boundary.
+    void set_paint_data(std::optional<PaintData> data);
+    void clear_paint_data();
+    [[nodiscard]] const std::optional<PaintData>& paint_data() const {
+        return paint_data_;
+    }
+
     virtual void on_event(Event& event);
 
 private:
@@ -135,6 +148,7 @@ private:
     bool visible_ = true;
     bool focusable_ = false;
     int tab_index_ = 0;
+    std::optional<PaintData> paint_data_;
     bool scrollable_x_ = false;
     bool scrollable_y_ = false;
     float content_width_ = 0.0f;

@@ -161,6 +161,13 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME msaa COMMAND msaa_tests)
     set_tests_properties(msaa PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    add_executable(paint_text_gpu_tests
+        text/paint_text_tests.cpp)
+    target_link_libraries(paint_text_gpu_tests PRIVATE
+        tessera_paint tessera_text_render tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME paint_text_gpu COMMAND paint_text_gpu_tests "${TESSERA_FONT_FIXTURE}")
+    set_tests_properties(paint_text_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(vulkan_surface_format_tests
         vulkan/vulkan_surface_format_tests.cpp)
     target_include_directories(vulkan_surface_format_tests PRIVATE

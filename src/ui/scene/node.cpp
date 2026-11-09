@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace tessera::ui {
@@ -21,6 +23,18 @@ bool same_transform(const rhi::Mat3& lhs, const rhi::Mat3& rhs) {
         }
     }
     return true;
+}
+
+// Truncates to at most `max_bytes` without splitting a UTF-8 code point.
+std::string truncate_utf8(std::string_view text, std::size_t max_bytes) {
+    if (text.size() <= max_bytes) {
+        return std::string(text);
+    }
+    std::size_t end = max_bytes;
+    while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xC0U) == 0x80U) {
+        --end;
+    }
+    return std::string(text.substr(0, end));
 }
 
 } // namespace
@@ -275,5 +289,21 @@ Node* Node::hit_test_deep(float x, float y) {
 }
 
 void Node::on_event(Event&) {}
+
+void Node::set_paint_data(std::optional<PaintData> data) {
+    if (data) {
+        data->text = truncate_utf8(data->text, PaintData::kMaxTextBytes);
+    }
+    if (paint_data_ == data) {
+        return;
+    }
+    paint_data_ = std::move(data);
+    // Visual payload only: no style/layout invalidation.
+    mark_dirty(Dirty::Paint | Dirty::Render);
+}
+
+void Node::clear_paint_data() {
+    set_paint_data(std::nullopt);
+}
 
 } // namespace tessera::ui

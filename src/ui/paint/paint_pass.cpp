@@ -80,6 +80,39 @@ void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, flo
               detail::color_value(style, "border-left-color", current), opacity, stats.borders);
 }
 
+// Paints an optional PaintData text run (D9) after the node's background/borders and inside the
+// active clip. Precedence: PaintData override > computed style > backend default; node opacity
+// multiplies the effective color alpha.
+void paint_text(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
+                PaintSink& sink, PaintStats& stats) {
+    const auto& data = node.paint_data();
+    if (!data || data->kind != PaintKind::Text || data->text.empty()) {
+        return;
+    }
+    if (rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+    const float opacity = detail::opacity_value(style);
+    if (opacity <= 0.0f) {
+        return;
+    }
+
+    TextDraw run;
+    run.rect = rect;
+    run.text = data->text;
+    run.font_size = data->text_style.font_size > 0.0f ? data->text_style.font_size
+                                                      : detail::font_size_value(style);
+    run.font_weight = data->text_style.font_weight > 0 ? data->text_style.font_weight
+                                                       : detail::font_weight_value(style);
+    run.color = data->text_style.color.value_or(detail::current_color(style));
+    run.color.a *= opacity;
+    if (run.font_size <= 0.0f || run.color.a <= 0.0f) {
+        return;
+    }
+    sink.draw_text(run);
+    ++stats.texts;
+}
+
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats) {
     if (!node.visible()) {
         ++stats.hidden_subtrees;
@@ -108,6 +141,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         sink.push_clip(detail::corner_clip(style, rect));
         ++stats.clips;
     }
+    // Text runs are content: paint them after the element's own background/borders and inside its
+    // own overflow clip, before the children (paint order).
+    paint_text(node, style, rect, sink, stats);
     for (const auto& child : node.children()) {
         paint_node(*child, styles, sink, stats);
     }

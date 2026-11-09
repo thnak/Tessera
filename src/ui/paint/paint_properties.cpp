@@ -185,4 +185,21 @@ RoundedClip corner_clip(const style::ComputedStyle& style, const rhi::Rect& rect
     return clip;
 }
 
+float font_size_value(const style::ComputedStyle& style) {
+    const std::optional<float> size = length_value(style, "font-size");
+    return size.value_or(16.0f);
+}
+
+int font_weight_value(const style::ComputedStyle& style) {
+    const std::string* text = raw(style, "font-weight");
+    if (text == nullptr) {
+        return 400;
+    }
+    float weight = 0.0f;
+    if (!parse_number(*text, weight)) {
+        return 400;
+    }
+    return std::clamp(static_cast<int>(std::lround(weight)), 1, 1000);
+}
+
 } // namespace tessera::ui::paint::detail

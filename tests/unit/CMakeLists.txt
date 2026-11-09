@@ -1003,6 +1003,13 @@ target_link_libraries(paint_clip_tests PRIVATE tessera_paint)
 
 add_test(NAME paint_clip COMMAND paint_clip_tests)
 
+add_executable(paint_text_tests
+    paint_text_tests.cpp)
+
+target_link_libraries(paint_text_tests PRIVATE tessera_paint tessera_frame tessera_runtime)
+
+add_test(NAME paint_text COMMAND paint_text_tests)
+
 add_executable(input_pipeline_tests
     input_pipeline_tests.cpp)
 

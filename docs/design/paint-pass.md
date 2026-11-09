@@ -113,13 +113,14 @@ property in this slice, not a border ring.
 
 ## 6. Deliberate limits
 
-- No text, glyphs, or inline content; text has its own renderer.
-- Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
+- No text, glyphs, or inline content in the box pass; text runs are painted from
+  optional `ui::PaintData` payloads (§10).
+- Overflow clipping is rounded-rect only ([Â§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
   filters, gradients, shadows, or images.
-- Scroll containers clip and offset children ([§3.1](#31-scroll-containers)); scroll physics,
+- Scroll containers clip and offset children ([Â§3.1](#31-scroll-containers)); scroll physics,
   inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
-  The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
+  The frame pipeline clips around it with a sink decorator ([Â§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
 - No percentage/`em`/`rem`/viewport units and no non-pixel radii.
 - Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
@@ -139,7 +140,7 @@ paint never submits the command list (the caller does).
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
 
-Overflow clips (§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
+Overflow clips (Â§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
 paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
 visible` emitting no clip, and nested clips. Scroll containers are covered in
 [`tests/unit/scroll_tests.cpp`](../../tests/unit/scroll_tests.cpp) (`scroll_core`): child rects
@@ -263,7 +264,7 @@ DamageTracker regions repaint the background and the node respectively.
 
 `paint_scene` clips a parent's children when its computed `overflow-x`/`overflow-y` is anything but
 `visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the paint pass itself only clips;
-scrolling is scene state applied by the world transform, see [§3.1](#31-scroll-containers)). The clip
+scrolling is scene state applied by the world transform, see [Â§3.1](#31-scroll-containers)). The clip
 is
 emitted around the children, after the parent's own background/borders, through
 `PaintSink::push_clip`/`pop_clip`:
@@ -297,3 +298,48 @@ emitted around the children, after the parent's own background/borders, through
   unchanged (`batched2d_cpu_golden` stays byte-exact). A dedicated lavapipe rounded-clip golden is
   deferred until such a scene enters the corpus and the baseline can be produced on the software
   path (never from a real GPU).
+
+## 10. Text paint rules (D9)
+
+Scene nodes may carry an optional `ui::PaintData` payload
+([`paint_data.hpp`](../../include/tessera/ui/scene/paint_data.hpp)): `PaintKind::Text`, UTF-8 `text`
+(at most `PaintData::kMaxTextBytes = 4096` bytes; longer input is truncated at a UTF-8 code-point
+boundary), and an optional `PaintTextStyle` override. Layout and style never read it;
+`Node::set_paint_data` marks `Dirty::Paint|Render` only and is a no-op when the payload is unchanged.
+The app/compiler owns text content; visual properties still come from computed style.
+
+Emission: after the node's background and borders, inside the node's own overflow/scroll clip and
+the ancestors' clips, before the children (paint order). `PaintSink::draw_text(TextDraw)` is additive
+and defaults to a no-op (same pattern as `push_clip`), so recording sinks compile unchanged.
+`TextDraw` carries the absolute border-box rect, a borrowed UTF-8 view, resolved font size/weight/
+color, and the node opacity folded into alpha; empty text emits nothing.
+
+Style precedence: PaintData override > computed style (`font-size`, `font-weight`, `color`) >
+backend default (font size 16, weight 400, black). Missing/invalid computed values fall back to the
+defaults; a non-positive effective size or fully transparent color skips the run.
+
+Batching/flush (`Batched2DSink`): text is shaped with the caller's `TextShaper` and drawn through the
+existing `TextRenderer`/glyph atlas path - no second text rasterizer. Glyph quads are textured quads
+through `Batched2DRenderer::push_texture`, so a text run flushes the current solid/rounded batch when
+the texture changes and then emits one batch per atlas page; rects after the run start a new batch.
+The renderer's scissor and folded rounded-clip state apply to the glyph quads, so text is clipped
+exactly like rects. Callers must call `Batched2DSink::begin_text_frame()` once per painted frame
+(atlas frame bookkeeping); font, rasterizer, shaper, and atlas lifetime stay caller-owned. On an sRGB
+target the glyph color follows the same linear-to-sRGB write conversion as rects; atlas coverage is
+alpha, so it is unaffected.
+
+Damage-clipped painting: the frame pipeline's damage decorator replays a text run once per
+intersecting damage region under a square damage clip, keeping the run origin (baseline and pen
+start), so glyph positions match the full paint and nothing outside the plan is repainted.
+
+Tests: `paint_text` covers emission order/clip, precedence/opacity, empty/missing payloads, UTF-8
+truncation and dirty domains, and damage-clipped replay; `paint_text_gpu` renders a fixture string
+and asserts glyph coverage inside the box, background outside, byte-identical repeat, and an sRGB
+target pass. No new image golden: the CPU canvas has no text rasterizer and the existing lavapipe
+text goldens come from the direct `TextRenderer` path, so paint-text coverage stays a deterministic
+GPU readback test (documented as GPU-only).
+
+Limits/deferred: single-line text only (no wrapping, line breaking, bidi, or ICU); no rich text or
+inline images; no text selection/editing; no per-glyph damage caching; font stack/fallback and
+shaping options stay caller-owned; text does not affect layout (it paints in the node's existing
+box); paint-text goldens are deferred until the CPU/software path rasterizes text deterministically.

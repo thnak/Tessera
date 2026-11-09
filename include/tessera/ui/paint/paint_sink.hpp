@@ -4,9 +4,21 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 
+#include <string_view>
+
 namespace tessera::ui::paint {
 
 namespace rhi = tessera::rendering::rhi;
+
+// One resolved text run emitted by the paint pass. The paint pass applies the PaintData override >
+// computed style > default precedence and the node opacity before handing this to the sink.
+struct TextDraw {
+    rhi::Rect rect;        // node border box in absolute coordinates (text is top-aligned in it)
+    std::string_view text; // UTF-8; borrowed for the duration of the draw_text call
+    float font_size = 16.0f;
+    int font_weight = 400;
+    rhi::Color color{0.0f, 0.0f, 0.0f, 1.0f};
+};
 
 // Clip emitted by the paint pass for a parent with `overflow` clipping. `rect` is the parent's
 // border box in absolute coordinates; the four radii are already clamped to half the smaller side.
@@ -38,6 +50,10 @@ public:
     // pops it afterwards; push/pop are balanced in paint order.
     virtual void push_clip(const RoundedClip& /*clip*/) {}
     virtual void pop_clip() {}
+
+    // Optional text-run hook (default no-op so recording/stub sinks keep compiling). paint_scene
+    // emits a node's text after its background/borders and inside the active clip.
+    virtual void draw_text(const TextDraw& /*run*/) {}
 };
 
 } // namespace tessera::ui::paint

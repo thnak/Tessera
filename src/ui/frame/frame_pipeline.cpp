@@ -101,6 +101,24 @@ public:
         target_->pop_clip();
     }
 
+    // A text run cannot be trimmed like a rect: replay it once per intersecting damage region under
+    // a square clip for that region. The run origin is unchanged, so glyph positions match a full
+    // paint; pixels outside every damage region are deliberately not repainted.
+    void draw_text(const paint::TextDraw& run) override {
+        for (const rhi::Scissor& scissor : *regions_) {
+            const rhi::Rect region = region_rect(scissor);
+            const rhi::Rect overlap = clip_rect(run.rect, region);
+            if (overlap.width <= 0.0f || overlap.height <= 0.0f) {
+                continue;
+            }
+            paint::RoundedClip clip;
+            clip.rect = region;
+            target_->push_clip(clip);
+            target_->draw_text(run);
+            target_->pop_clip();
+        }
+    }
+
 private:
     paint::PaintSink* target_ = nullptr;
     const std::vector<rhi::Scissor>* regions_ = nullptr;

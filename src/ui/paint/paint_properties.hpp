@@ -43,4 +43,9 @@ bool clips_children(const style::ComputedStyle& style);
 // per-corner and clamped to half the smaller side. A zero-radius result is a rectangular clip.
 RoundedClip corner_clip(const style::ComputedStyle& style, const rhi::Rect& rect);
 
+// `font-size` in px (default 16) and `font-weight` (default 400), for painting text runs whose
+// PaintData does not override them.
+float font_size_value(const style::ComputedStyle& style);
+int font_weight_value(const style::ComputedStyle& style);
+
 } // namespace tessera::ui::paint::detail
