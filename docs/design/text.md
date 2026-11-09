@@ -208,3 +208,13 @@ or lavapipe; GPU text goldens keep their 1-LSB/0.1% tolerance because GPU blendi
 before UNORM conversion. The CPU path does not cover SDF/subpixel text, platform shaping beyond the
 deterministic fixture, or rounded-clip AA. See `docs/guides/testing.md` section 4 for the
 regeneration command and `antialiasing.md` section 2.2 for the blend rules.
+
+Paint text-layout cache (task-46): `PaintData` wrapped-text line boxes can now be reused across
+paints through a caller-owned bounded LRU (`ui::paint::TextLayoutCache`, passed via
+`PaintContext::text_layout_cache`; null keeps the uncached path). Key = text, wrap width, font
+size/weight/italic/letter-spacing/line-height, wrap mode, max_lines and metrics-source id; exact
+byte accounting, default 64 entries / 256 KiB, LRU eviction, no allocation on hit, `invalidate()`
+for font/metrics changes, and a disable-for-tests mode. Debug benchmark for the 200-word/300 px
+paragraph (45 lines): fresh layout ~96.8 us, miss+insert ~98.1 us, cache hit ~0.75 us. Glyph-run
+caching, shaping caches, incremental layout, and sharing the cache with the layout engine remain
+deferred. See `paint-pass.md` section 10.1.1.

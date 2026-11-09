@@ -3,10 +3,12 @@
 #pragma once
 
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/paint/text_layout_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
 #include <cstddef>
+#include <cstdint>
 
 namespace tessera::ui::paint {
 
@@ -42,6 +44,16 @@ struct PaintStats {
     std::size_t texts = 0;           // text runs emitted (non-empty PaintData)
 };
 
+// Optional per-paint context. The cache is caller-owned (paint frame/sink) and deliberately not a
+// global singleton: pass the same instance across frames to reuse wrapped line boxes. Null means
+// every paint recomputes text layout (the uncached path). `text_metrics_source_id` identifies the
+// metrics provider used for the layout (0 = the deterministic stub metrics paint uses today); a
+// caller switching font faces must invalidate the cache.
+struct PaintContext {
+    TextLayoutCache* text_layout_cache = nullptr;
+    std::uint32_t text_metrics_source_id = kStubTextMetricsId;
+};
+
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in
 // pre-order (parent before children, children in paint order). Does not mutate the scene.
 //
@@ -52,14 +64,15 @@ struct PaintStats {
 // by the painted border widths - through `PaintSink::push_clip`; their children are offset by
 // -scroll by the world transform.
 //
-// Limits (deliberate, one slice): no text, no damage/redraw plan, no gradients,
-// shadows, or layers, no percentage/em lengths, and no per-node compositing. Opacity multiplies
-// the alpha of every color the node emits; it does not isolate a group.
+// Limits (deliberate, one slice): no gradients, shadows, or layers, no percentage/em lengths, and
+// no per-node compositing. Opacity multiplies the alpha of every color the node emits; it does not
+// isolate a group. Text runs come from PaintData (see docs/design/paint-pass.md section 10).
 //
 // Paint order per node: background, then the top, right, bottom, and left border edges. A uniform
 // non-zero corner radius paints the background as one rounded rect; borders stay plain edge rects,
 // so their corners are square over the rounded background. Border styles other than none/hidden are
 // painted solid. Unparseable color values and zero-alpha colors are skipped.
-PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink);
+PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
+                       const PaintContext& context = {});
 
 } // namespace tessera::ui::paint

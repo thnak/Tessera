@@ -1031,6 +1031,13 @@ target_link_libraries(cpu_canvas_tests PRIVATE tessera_software)
 
 add_test(NAME cpu_canvas COMMAND cpu_canvas_tests)
 
+add_executable(paint_text_layout_cache_tests
+    paint_text_layout_cache_tests.cpp)
+
+target_link_libraries(paint_text_layout_cache_tests PRIVATE tessera_paint tessera_text)
+
+add_test(NAME paint_text_layout_cache COMMAND paint_text_layout_cache_tests)
+
 add_executable(input_pipeline_tests
     input_pipeline_tests.cpp)
 

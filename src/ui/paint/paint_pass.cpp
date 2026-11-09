@@ -113,7 +113,7 @@ PaintTextAlign computed_text_align(const style::ComputedStyle& style) {
 }
 
 void paint_text_lines(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
-                      PaintSink& sink, PaintStats& stats) {
+                      PaintSink& sink, PaintStats& stats, const PaintContext& context) {
     const auto& data = node.paint_data();
     if (!data || data->kind != PaintKind::Text || data->text.empty()) {
         return;
@@ -169,16 +169,26 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     text::TextConstraints constraints;
     constraints.wrap = true;
     constraints.max_width = content_width;
-    const text::TextLayout layout = text::layout_text(data->text, text_style, metrics, constraints);
-    std::size_t line_count = layout.lines.size();
-    if (data->max_lines > 0) {
-        line_count = std::min(line_count, static_cast<std::size_t>(data->max_lines));
+
+    // Caller-owned cache: a hit returns stable line boxes without recomputing or allocating; a
+    // miss computes exactly what the uncached path would and stores the (already max_lines
+    // truncated) result. Null cache keeps the uncached behavior.
+    text::TextLayout local_layout;
+    const text::TextLayout* layout = nullptr;
+    if (context.text_layout_cache != nullptr && context.text_layout_cache->enabled()) {
+        layout = &context.text_layout_cache->get(data->text, text_style, metrics, constraints,
+                                                 context.text_metrics_source_id, data->max_lines);
+    } else {
+        local_layout = text::layout_text(data->text, text_style, metrics, constraints);
+        if (data->max_lines > 0 && local_layout.lines.size() > data->max_lines) {
+            local_layout.lines.resize(data->max_lines);
+        }
+        layout = &local_layout;
     }
 
     const PaintTextAlign align = data->text_align.value_or(computed_text_align(style));
     float line_top = content_y;
-    for (std::size_t index = 0; index < line_count; ++index) {
-        const text::TextLine& line = layout.lines[index];
+    for (const text::TextLine& line : layout->lines) {
         if (line.end > line.begin) {
             float line_x = content_x;
             if (align == PaintTextAlign::Center) {
@@ -203,7 +213,8 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     }
 }
 
-void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats) {
+void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
+                const PaintContext& context) {
     if (!node.visible()) {
         ++stats.hidden_subtrees;
         return;
@@ -238,9 +249,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
     // Text runs are content: paint them after the element's own background/borders and inside its
     // own overflow/scroll clip, before the children (paint order).
-    paint_text_lines(node, style, rect, sink, stats);
+    paint_text_lines(node, style, rect, sink, stats, context);
     for (const auto& child : node.children()) {
-        paint_node(*child, styles, sink, stats);
+        paint_node(*child, styles, sink, stats, context);
     }
     if (pushed_clip) {
         sink.pop_clip();
@@ -258,9 +269,10 @@ style::ComputedStyle SceneStyleProvider::compute(const Node& node) {
     return tree_->compute(*sheet_, node);
 }
 
-PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink) {
+PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
+                       const PaintContext& context) {
     PaintStats stats;
-    paint_node(root, styles, sink, stats);
+    paint_node(root, styles, sink, stats, context);
     return stats;
 }
 

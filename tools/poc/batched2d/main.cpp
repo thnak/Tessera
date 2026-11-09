@@ -1094,6 +1094,9 @@ void build_cpu_text_screen(tessera::rendering::software::CpuCanvas& canvas,
 
     CpuStyles styles;
     styles.set(1, cpu_style({{"background-color", "#0B1220"}}));
+    tessera::ui::paint::TextLayoutCache text_cache;
+    tessera::ui::paint::PaintContext paint_context;
+    paint_context.text_layout_cache = &text_cache;
     styles.set(2, cpu_style({{"background-color", "#0F172A"}}));
     styles.set(3, cpu_style({{"background-color", "#38BDF8"}}));
     styles.set(4, cpu_style({{"color", "#E2E8F0"}, {"font-size", "20px"}}));
@@ -1130,7 +1133,7 @@ void build_cpu_text_screen(tessera::rendering::software::CpuCanvas& canvas,
 
     canvas.clear(background);
     const tessera::ui::paint::PaintStats stats =
-        tessera::ui::paint::paint_scene(root, styles, sink);
+        tessera::ui::paint::paint_scene(root, styles, sink, paint_context);
     std::cout << "cpu-text: nodes=" << stats.nodes << " texts=" << stats.texts
               << " fills=" << stats.backgrounds + stats.borders << "\n";
 }

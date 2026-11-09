@@ -384,20 +384,56 @@ Damage replay: the frame pipeline's damage decorator replays every emitted line 
 damage clip (one clip push/pop per line per intersecting region); lines outside the plan are not
 repainted, and a line keeps its origin relative to the full paint.
 
-Caching/determinism: no paint text-layout cache is added. Line boxes are recomputed per paint and
-are a pure function of text + content width + style, so repeated runs produce identical line boxes
-and pixels (GPU test asserts byte-identical repeat). A bounded keyed cache can be added later without
-changing the sink contract.
+Caching/determinism: line boxes are a pure function of text + content width + style, so repeated
+runs produce identical line boxes and pixels. The paint pass optionally uses a caller-owned bounded
+cache (section 10.1.1): `PaintContext::text_layout_cache == nullptr` recomputes every paint (the
+default, uncached path); a supplied `ui::paint::TextLayoutCache` reuses line boxes across frames.
+No global singleton exists.
+
+### 10.1.1 Paint text-layout cache (task-46)
+
+`include/tessera/ui/paint/text_layout_cache.hpp` defines the caller-owned bounded LRU cache. The
+paint frame/sink owns one instance and passes it through `paint_scene(..., PaintContext)`; the
+context also carries a `text_metrics_source_id` (0 = the deterministic stub metrics paint uses
+today). Callers that measure with a real face use a stable distinct id and `invalidate()` when the
+face/generation changes.
+
+Key (all fields, exact equality, floats compared by IEEE bit pattern, no epsilon): UTF-8 text
+bytes, wrap width (content-box width; normalized to 0 when no-wrap so unused width does not split
+the cache), font size, font weight, italic, letter spacing, line height, effective wrap mode,
+`max_lines`, and the metrics-source id. Value: the line boxes (byte ranges, widths/heights,
+baselines) already truncated to `max_lines`, plus the full-layout width/height/baseline.
+
+Bounds and eviction: defaults are **64 entries / 256 KiB**, both enforced; exact byte accounting is
+`sizeof(Entry) + 2 * (sizeof(Key) + text.capacity())` (map key + LRU key) `+ 2 pointers` (LRU node)
+`+ line capacity * sizeof(TextLine)`. Entries are evicted least-recently-used first, so eviction is
+deterministic for a fixed request sequence. A single entry larger than the byte budget is returned
+through a scratch layout instead of breaking the bound. A hit performs no allocation (heterogeneous
+`std::map` lookup with a string-view key, then an LRU-list splice) and returns a stable reference
+until the next insert/evict/invalidate/clear. `invalidate()` drops everything (font/metrics change),
+`clear()` empties without counting an invalidation, and `set_enabled(false)` bypasses the cache for
+tests while returning identical fresh line boxes.
+
+Benchmarks (Debug, local dev machine, clang 22, `paint_text_layout_cache_tests --bench`): the same
+200-word paragraph at a 300 px wrap width (45 lines) costs 96.8 us per uncached layout, 98.1 us
+for a miss+insert, and 0.75 us for a cache hit (200 iterations averaged; the previous task-39 baseline was ~104.7 us, so treat fresh/miss as the same cost within Debug variance). The previous per-paint
+measurement was ~104.7 us; the hit path removes the layout cost from steady-state painting.
+
+Tests: `paint_text_layout_cache` covers hit/miss counters, per-key-field miss isolation (including
+exact float-key bits), LRU eviction by both budgets, exact byte accounting, cached-vs-fresh line-box
+equality over a fixture set, invalidate/no-cache behavior, paint integration (cached vs uncached
+`draw_text` lines identical, second paint hits), determinism across instances, and the `--bench`
+measurement.
+
+Deferrals: glyph-run caching (shaped runs/atlas entries), a shaping cache, incremental layout of an
+edited paragraph, sharing the cache with the layout engine (which measures with its own
+`TextMeasurer`), and real-font metrics inside the paint wrap (paint still uses deterministic stub
+metrics while glyph rendering uses HarfBuzz, so wrapped lines may not exactly fill the content box).
 
 Batching: one `draw_text` per line; `Batched2DSink` shapes each line with the caller's `TextShaper`
 and pushes atlas quads through `Batched2DRenderer`. Consecutive lines that use the same atlas page
-stay in the same renderer batch; a page/clip change flushes as before (see section 10). The server
+stay in the same renderer batch; a page/clip change flushes as before (see section 10). The sink
 does not re-wrap: line breaks are fixed by the paint pass.
-
-Measurements (Debug, local dev machine, clang 22, `paint_text_wrap_tests --bench`): a 200-word
-paragraph at a 300 px wrap width lays out to 45 lines in ~105 us per `layout_text` call
-(200 iterations averaged; measurement flushes are excluded). This is the per-paint cost for a
-paragraph of that size; no cache is used.
 
 Tests: `paint_text_wrap` (NoWrap vs Wrap, padding-box width, multi-line order/offsets/baselines,
 `max_lines` truncation, alignment + computed fallback, `white-space: nowrap` suppression, damage
@@ -407,7 +443,7 @@ byte-identical repeat, sRGB target). No new image golden: the CPU canvas cannot 
 wrapped-text pixels remain covered by the deterministic GPU readback test (GPU-only, documented).
 
 Deferrals: bidi/SheenBidi, ICU line breaking, hyphenation, rich text/inline images, ellipsis and
-overflow markers, text selection/editing, a paint text-layout cache, real-font metrics inside the
-paint wrap (paint uses deterministic stub metrics while glyph rendering uses HarfBuzz, so wrapped
-lines may not exactly fill the content box), vertical content-box clipping (use an `overflow` clip),
-and percentage padding.
+overflow markers, text selection/editing, real-font metrics inside the paint wrap (paint uses
+deterministic stub metrics while glyph rendering uses HarfBuzz, so wrapped lines may not exactly
+fill the content box), vertical content-box clipping (use an `overflow` clip), and percentage
+padding.

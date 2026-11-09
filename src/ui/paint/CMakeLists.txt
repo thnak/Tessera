@@ -3,7 +3,8 @@
 add_library(tessera_paint STATIC
     paint_pass.cpp
     paint_properties.cpp
-    paint_sinks.cpp)
+    paint_sinks.cpp
+    text_layout_cache.cpp)
 
 target_include_directories(tessera_paint PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
