@@ -51,7 +51,11 @@ enum class Outcome { Skipped, Passed, Failed };
 
 // Runs `body` on a fresh validation-enabled device, destroys the device, and fails if the
 // validation layer reported a leaked object. `body` must report that it hit the forced failure.
-Outcome run_part(const char* name, const std::function<bool(Device&)>& body) {
+//
+// `required` says whether the failure is deterministic everywhere. The descriptor-pool case is not:
+// some drivers (lavapipe) do not enforce the pool's set limit, so there the failure never happens
+// and the part only proves that a run without failure leaks nothing.
+Outcome run_part(const char* name, const std::function<bool(Device&)>& body, bool required = true) {
     CerrCapture capture;
     tessera::rendering::rhi::DeviceDesc desc;
     desc.backend = tessera::rendering::rhi::Backend::Vulkan;
@@ -74,8 +78,11 @@ Outcome run_part(const char* name, const std::function<bool(Device&)>& body) {
     // destroyed" followed by the object list.
     const bool leaked = text.find("leaked objects") != std::string::npos;
     if (!hit_failure) {
-        std::clog << "vulkan_create_failure[" << name << "]: the forced failure did not happen\n";
-        return Outcome::Failed;
+        std::clog << "vulkan_create_failure[" << name << "]: the forced failure did not happen"
+                  << (required ? "\n" : " (driver does not enforce it; not required)\n");
+        if (required) {
+            return Outcome::Failed;
+        }
     }
     if (leaked) {
         std::clog << "vulkan_create_failure[" << name << "]: leaked Vulkan objects:\n" << text;
@@ -98,6 +105,22 @@ bool exhaust_descriptor_pool(Device& device) {
     return false;
 }
 
+bool fail_texture_upload(Device& device) {
+    // The image, view, sampler and descriptor set exist and the texture object owns them when the
+    // staging buffer is requested; a row pitch no device can allocate makes that request fail.
+    const std::uint8_t pixel[4] = {0, 0, 0, 0};
+    tessera::rendering::rhi::TextureDesc desc;
+    desc.extent = {1, 1};
+    desc.pixels = pixel;
+    desc.row_pitch = std::size_t{1} << 40; // 1 TiB
+    try {
+        const auto texture = device.create_texture(desc);
+    } catch (const std::exception&) {
+        return true;
+    }
+    return false;
+}
+
 bool break_fragment_shader(Device& device) {
     static const std::array<std::uint32_t, 4> kNotSpirv = {0, 0, 0, 0};
     tessera::rendering::rhi::PipelineDesc desc =
@@ -115,13 +138,16 @@ bool break_fragment_shader(Device& device) {
 } // namespace
 
 int main() {
-    const Outcome textures = run_part("texture", exhaust_descriptor_pool);
-    if (textures == Outcome::Skipped) {
+    const Outcome upload = run_part("texture-upload", fail_texture_upload);
+    if (upload == Outcome::Skipped) {
         std::cout << "vulkan_create_failure: skipped (Vulkan device unavailable)\n";
         return 0;
     }
-    if (textures == Outcome::Failed) {
+    if (upload == Outcome::Failed) {
         return 1;
+    }
+    if (run_part("texture-pool", exhaust_descriptor_pool, false) == Outcome::Failed) {
+        return 3;
     }
     if (run_part("pipeline", break_fragment_shader) == Outcome::Failed) {
         return 2;
