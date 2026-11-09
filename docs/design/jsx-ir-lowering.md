@@ -136,6 +136,21 @@ src/compiler/codegen/       (later)             depends on tessera_ir only
   `CMakeLists.txt`. Tests register in `tests/unit/CMakeLists.txt` as `ir_*`, `rules_*`, `lowering_*`.
 - IR in memory is the contract with codegen; JSON is the snapshot format (ADR-007). A reader waits (decision 15).
 
+### Validator coverage (slice 2)
+
+`validate(const IrModule&)` in `tessera_ir` returns `TESSERA_IR_*` diagnostics: version; duplicate
+and missing ids (components, nodes, `uiId`, `componentId`, handlers, bindings, declarations);
+`automationId` equal to `uiId`; unresolved references, events, effect dependencies, effect
+bindings, ref targets, action targets and `Component` targets; operators and functions outside
+[`ir-v1.md`](../specs/ir-v1.md) section 4; operand counts; type syntax; spans; leaf nodes,
+`ErrorBoundary` shape, loop key, loop source and loop depth 2; binding id, region and unused
+bindings; sorted components and bindings.
+
+Not covered: type checking of expressions and props (the analysis pass), element and prop schemas
+of `CustomElement` and intrinsics, a `Component` node's props against the referenced component's
+props, 64-bit id hashing, warnings (unused state or refs), and record type declarations (any
+identifier is accepted as a record type name until the type table exists).
+
 ## 7. Serialisation and determinism
 
 - A hand-written writer in `tessera_ir`, no JSON dependency (a new dependency needs entries in

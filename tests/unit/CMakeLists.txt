@@ -91,6 +91,36 @@ target_compile_definitions(ir_json_tests PRIVATE
 
 add_test(NAME ir_json COMMAND ir_json_tests)
 
+add_executable(ir_validate_tests
+    ir_validate_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp)
+
+target_link_libraries(ir_validate_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_validate COMMAND ir_validate_tests)
+
+add_executable(ir_validate_shape_tests
+    ir_validate_shape_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp)
+
+target_link_libraries(ir_validate_shape_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_validate_shape COMMAND ir_validate_shape_tests)
+
+add_executable(ir_validate_expr_tests
+    ir_validate_expr_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp)
+
+target_link_libraries(ir_validate_expr_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_validate_expr COMMAND ir_validate_expr_tests)
+
 add_executable(ir_layering_tests
     ir_layering_tests.cpp)
 
