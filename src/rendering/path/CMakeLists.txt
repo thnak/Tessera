@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_path STATIC
-    path_rasterizer.cpp)
+    path_rasterizer.cpp
+    path_texture_cache.cpp
+    path_texture_key.cpp)
 
 target_include_directories(tessera_path PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_compile_features(tessera_path PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_path PUBLIC tessera_rhi)
 
 if (TESSERA_ENABLE_THORVG)
     target_sources(tessera_path PRIVATE
@@ -42,4 +46,18 @@ if (_path_layering_violations)
     message(FATAL_ERROR
         "ThorVG headers may only be included by src/rendering/path/${_path_adapter_name}; "
         "found in:\n  ${_path_violation_text}")
+endif()
+
+# Path-owned cache test. It is registered from this subdirectory (source still under tests/unit)
+# so the path lane never edits the shared tests/unit registry while other lanes are working in it.
+# The subdirectory is added before the root enable_testing() call, so enable it here; CTest still
+# reads the top-level CTestTestfile. The GPU draw test lives in tests/gpu because it needs the
+# batched2d renderer.
+if (TESSERA_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(path_texture_cache_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/path_texture_cache_tests.cpp)
+    target_link_libraries(path_texture_cache_tests PRIVATE tessera_path)
+    add_test(NAME path_texture_cache COMMAND path_texture_cache_tests)
 endif()
