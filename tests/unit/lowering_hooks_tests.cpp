@@ -46,7 +46,10 @@ void test_state_forms() {
     check_eq(hooks.state[5].type, "list<Row>", "T[] becomes list<T>");
     check_eq(expr_text(hooks.state[5].initial.get()), "{\"kind\":\"ref\",\"id\":\"prop::rows\"}",
              "props.x resolves to a prop reference");
-    for (const std::string& setter :
+    // `const char*` rather than `const std::string&`: the braced list is an initializer_list of
+    // string literals, and GCC's -Wrange-loop-construct (CI builds with -Werror) rejects binding a
+    // reference to the temporary std::string that would be constructed per element.
+    for (const char* setter :
          {"setCount", "setRatio", "setName", "setFlag", "setMaybe", "setRows"}) {
         check(hooks.find_setter(setter) != nullptr, std::string("setter ") + setter + " indexed");
     }
