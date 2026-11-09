@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifndef TESSERA_COMPILER_SOURCE_DIR
@@ -39,7 +40,8 @@ std::vector<std::string> project_includes(const fs::path& file) {
     return found;
 }
 
-void check_directory(const fs::path& root, const std::string& name, bool expect_files) {
+void check_directory(const fs::path& root, const std::string& name, bool expect_files,
+                     std::string_view own_prefix = "tessera/compiler/ir/") {
     int files = 0;
     if (fs::exists(root)) {
         for (const auto& entry : fs::recursive_directory_iterator(root)) {
@@ -50,9 +52,10 @@ void check_directory(const fs::path& root, const std::string& name, bool expect_
             ++files;
             for (const auto& include : project_includes(entry.path())) {
                 const bool allowed = include.rfind("tessera/compiler/ir/", 0) == 0 ||
+                                     include.rfind(own_prefix, 0) == 0 ||
                                      include.find('/') == std::string::npos;
                 check(allowed, name + ": " + entry.path().filename().string() +
-                                   " includes a header outside the IR: " + include);
+                                   " includes a header outside the IR/codegen layers: " + include);
             }
         }
     }
@@ -66,6 +69,6 @@ void check_directory(const fs::path& root, const std::string& name, bool expect_
 int main() {
     const fs::path root = TESSERA_COMPILER_SOURCE_DIR;
     check_directory(root / "ir", "ir", true);
-    check_directory(root / "codegen", "codegen", false);
+    check_directory(root / "codegen", "codegen", true, "tessera/compiler/codegen/");
     return finish("ir layering tests");
 }

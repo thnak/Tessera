@@ -83,6 +83,7 @@ add_subdirectory(src/compiler/analyzer)
 add_subdirectory(src/compiler/ir)
 add_subdirectory(src/compiler/rules)
 add_subdirectory(src/compiler/lowering)
+add_subdirectory(src/compiler/codegen)
 add_subdirectory(tools/schema_dump)
 
 if (TESSERA_BUILD_POC)

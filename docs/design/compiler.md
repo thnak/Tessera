@@ -165,6 +165,46 @@ working tree differs from generated output. The report lists generated/skipped/m
 
 See [`error-model-v1.md`](../specs/error-model-v1.md).
 
+## 11. C++ codegen (first slice, implemented)
+
+`tessera_codegen` (`src/compiler/codegen/`, links `tessera_ir` only) emits one `.hpp` and one `.cpp`
+per IR component into the module namespace (`<module.name>::gen`), sorted by component name and
+byte-identical for the same IR (two runs and eight threads; golden-tested).
+
+Per component: a struct with one field per `useState`, `useRef`, `useAnimatedValue` and prop (IR
+types mapped to `bool`/`int`/`double`/`std::string`/`tessera::ui::Node*`/`std::vector`/
+`std::optional`); `build(tessera::ui::Node& parent)` constructing the static intrinsic tree with
+`node::N` order (the IR `uiId` when it is numeric, otherwise a pre-order placeholder until slice
+10) and attaching it with `add_child`; a method per inline handler record (setter actions assign the
+state cells); and one merger-protected `[DEVELOPER_LOGIC_START: bind::<id>]` region per binding
+(event handlers take `const tessera::ui::Event&`, effect/cleanup bindings are `void` stubs). Merger
+idempotency is re-verified over generated output: `merge(merge(g,e),e) == merge(g,e)`.
+
+Expressions: literals (string escaping, float shortest round-trip), `state::`/`prop::`/`ref::`/
+`anim::` references as generated fields, `! - +` unary, `== != < <= > >= + - * / && ||` binary (`/`
+emits an explicit double cast because IR division is float), `?:`, text templates whose parts are
+all text (folded to one string literal), and calls to `min max clamp abs floor ceil round toInt
+toFloat`. Rejected loudly with `TESSERA_CODEGEN_UNSUPPORTED`: record-field references (`prop::row.x`,
+`event.value`), `%` (int vs float remainder needs slice 4), text templates with substitutions,
+`length`/`formatNumber`, `env::` references, record-typed fields, conditional/loop nodes,
+`Component`/`CustomElement`/`VirtualList`/`VirtualGrid` nodes, and `environment` hooks.
+
+Scene APIs in use: node construction/`add_child`, `set_focusable` for `Button`/`TextInput`/
+`TextArea`, and `set_scrollable_x/y` from `Scroll.axis`. Properties with no runtime API yet are
+recorded as deterministic `// node::N kind=... id=... role=... className=... style.x=... text=...
+events=...` comments. **Missing runtime API (next codegen slice):** element kind/tag storage on
+scene nodes; `id`/`className` attachment and stylesheet re-resolution; `role`/`aria-*`
+accessibility metadata; `automationId` node field; text content and text-run attachment; inline
+style attachment/computed-style feed; C++ event payload records (`ClickEvent`, `TextChangeEvent`,
+...); event dispatch wiring from IR node events to the generated handler methods; ref-target
+assignment after node creation; an animated-value controller and effect lifecycle invocation
+(initial/unmount/deps).
+
+Deferred: effect invocation, conditional/list emission, component composition and `Slot`,
+reusing computed styles, incremental regeneration/mtime, and a codegen CLI. Goldens live in
+`tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild: the
+build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).
+
 ## 11. Testing
 
 - Parser fixtures: valid/invalid JSX/TSX, imports, escapes.
