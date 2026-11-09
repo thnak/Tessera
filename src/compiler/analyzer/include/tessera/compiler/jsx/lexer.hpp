@@ -46,6 +46,12 @@ public:
     [[nodiscard]] const std::vector<Comment>& comments() const {
         return comments_;
     }
+    // Moves the read position forward inside the token just returned. Used to split `>>` into two
+    // `>` when closing nested generic arguments.
+    void seek(std::size_t position) {
+        pos_ = position;
+    }
+
     // True once the lexer gave up (file size or token limit); it has already reported why.
     [[nodiscard]] bool stopped() const {
         return stopped_;

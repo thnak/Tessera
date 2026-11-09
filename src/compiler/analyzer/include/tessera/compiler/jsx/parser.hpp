@@ -5,6 +5,7 @@
 #include "tessera/compiler/jsx/ast.hpp"
 #include "tessera/compiler/jsx/diagnostic.hpp"
 #include "tessera/compiler/jsx/limits.hpp"
+#include "tessera/compiler/jsx/module_ast.hpp"
 #include "tessera/compiler/jsx/token.hpp"
 
 #include <memory>
@@ -40,6 +41,17 @@ template<typename Node> struct ParseResult {
 
 using JsxParseResult = ParseResult<JsxNode>;
 using ExpressionParseResult = ParseResult<Expr>;
+using ModuleParseResult = ParseResult<Module>;
+
+// Parses a whole file: imports, type aliases, constants and component functions (spec sections 4
+// to 7). Recovery is per top-level item (section 14): an error inside one item marks that item
+// invalid, the parser skips to the next item start, and the other items are still parsed.
+// `root` is null only when the file cannot be read at all (file size limit).
+ModuleParseResult parse_module(std::string_view source, const Limits& limits = {});
+
+// Type expression (spec section 5), used by the type tests.
+using TypeParseResult = ParseResult<TypeNode>;
+TypeParseResult parse_type(std::string_view source, const Limits& limits = {});
 
 // Parses exactly one JSX element or fragment (spec section 10.1) and nothing else.
 // `source` must outlive the call only; the result owns everything it returns.
@@ -51,5 +63,7 @@ ExpressionParseResult parse_expression(std::string_view source, const Limits& li
 // Deterministic S-expression dumps for golden and determinism tests. Spans are not included.
 std::string dump(const Expr& expr);
 std::string dump(const JsxNode& node);
+std::string dump(const TypeNode& type);
+std::string dump(const Module& module);
 
 } // namespace tessera::compiler::jsx

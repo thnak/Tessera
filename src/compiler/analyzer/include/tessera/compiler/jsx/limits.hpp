@@ -15,6 +15,7 @@ struct Limits {
     // counts the same as nested parentheses and deleting the AST cannot overflow the stack.
     std::size_t max_nesting_depth = 128;
     std::size_t max_diagnostics = 100;
+    std::size_t max_components = 64;
 };
 
 } // namespace tessera::compiler::jsx

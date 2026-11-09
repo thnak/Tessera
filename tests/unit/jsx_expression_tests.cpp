@@ -74,6 +74,10 @@ void test_arrow_functions() {
              "(arrow () (block (call (id setA) (num 1)) (call (id setB) (num 2))))",
              "block body of calls");
     check_eq(dump_expr("() => {}"), "(arrow () (block))", "empty block");
+    check_eq(dump_expr("() => { a(); return () => { b(); }; }"),
+             "(arrow () (block (call (id a)) (return (arrow () (block (call (id b)))))))",
+             "return of a function in a block body (effect cleanup form)");
+    check_eq(dump_expr("() => { return; }"), "(arrow () (block (return)))", "bare return");
     check_eq(dump_expr("(a)"), "(id a)", "a parenthesized identifier is not an arrow");
     check_eq(dump_expr("(a) * 2"), "(binary * (id a) (num 2))", "paren then operator");
     check_eq(dump_expr("(row, i) => (row.id)"), "(arrow (row i) (member id (id row)))",
@@ -83,6 +87,26 @@ void test_arrow_functions() {
     const auto bad = parse_expression("(a, b)");
     check(bad.root == nullptr, "a parenthesized list is not an expression");
     check_eq(codes(bad), "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;", "reported once");
+}
+
+void test_hook_calls_with_type_arguments() {
+    check_eq(dump_expr("useState<int>(0)"), "(call (id useState) <int> (num 0))",
+             "type argument on a hook call");
+    check_eq(dump_expr("useRef<Text>(null)"), "(call (id useRef) <Text> (null))", "ref");
+    check_eq(dump_expr("useState<Array<int>>(x)"), "(call (id useState) <Array<int>> (id x))",
+             "`>>` closes two argument lists");
+    check_eq(dump_expr("useState<{ a: int } | null>(null)"),
+             "(call (id useState) <{a:int}|null> (null))", "object and union arguments");
+    check_eq(dump_expr("useX < 3"), "(binary < (id useX) (num 3))",
+             "a comparison is not a type argument list");
+    check_eq(dump_expr("useX < y > z"), "(binary > (binary < (id useX) (id y)) (id z))",
+             "type arguments only count when a call follows");
+    check_eq(dump_expr("useX < y > (z)"), "(call (id useX) <y> (id z))",
+             "ambiguous input is read as TypeScript reads it");
+    check_eq(dump_expr("foo<int>(1)"), "(binary > (binary < (id foo) (id int)) (num 1))",
+             "only use* names take type arguments");
+    check_eq(codes(parse_expression("useState<number>(0)")), "TESSERA_JSX_TYPE_NUMBER;",
+             "bare number in a type argument");
 }
 
 void test_speculation_leaves_no_diagnostics_behind() {
@@ -140,7 +164,7 @@ void test_rejected_keywords_are_fatal_and_specific() {
         {"this", "TESSERA_JSX_SUBSET_CLASS;"},
         {"let x", "TESSERA_JSX_SUBSET_MUTATION;"},
         {"if (a) {}", "TESSERA_JSX_SUBSET_STATEMENT;"},
-        {"() => { return 1; }", "TESSERA_JSX_SUBSET_STATEMENT;"},
+        {"return 1", "TESSERA_JSX_SUBSET_STATEMENT;"},
         {"async () => 1", "TESSERA_JSX_SUBSET_ASYNC;"},
         {"function () {}", "TESSERA_JSX_SUBSET_FUNCTION_VALUE;"},
         {"import x", "TESSERA_JSX_SUBSET_IMPORT;"},
@@ -214,6 +238,7 @@ int main() {
     test_unary_conditional_member_call();
     test_literals();
     test_arrow_functions();
+    test_hook_calls_with_type_arguments();
     test_speculation_leaves_no_diagnostics_behind();
     test_subset_rejections_keep_parsing();
     test_rejected_keywords_are_fatal_and_specific();

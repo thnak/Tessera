@@ -497,7 +497,7 @@ lavapipe). Next slices, in order:
 4. Golden-image equivalence for damage redraw (the scissor path landed).
 5. Incremental relayout: `LayoutScheduler` skips clean frames and patches independent subtrees;
    general Yoga partial reflow remains.
-6. Big Step C: JSX lexer + element/expression parser landed (`src/compiler/analyzer/`); next is the module-level parser (`docs/design/jsx-frontend.md`, slice 3).
+6. Big Step C: JSX lexer, expression/type/module parser with per-item recovery landed (`src/compiler/analyzer/`); next is typed native handlers and `bind::` pairing (`docs/design/jsx-frontend.md`, slice 4).
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing

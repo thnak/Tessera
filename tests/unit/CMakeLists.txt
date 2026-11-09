@@ -28,6 +28,20 @@ target_link_libraries(jsx_parser_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_parser COMMAND jsx_parser_tests)
 
+add_executable(jsx_type_tests
+    jsx_type_tests.cpp)
+
+target_link_libraries(jsx_type_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_type COMMAND jsx_type_tests)
+
+add_executable(jsx_module_tests
+    jsx_module_tests.cpp)
+
+target_link_libraries(jsx_module_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_module COMMAND jsx_module_tests)
+
 add_executable(jsx_adversarial_tests
     jsx_adversarial_tests.cpp)
 

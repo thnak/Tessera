@@ -57,6 +57,16 @@ inline std::string dump_jsx(std::string_view source) {
     return result.root ? tessera::compiler::jsx::dump(*result.root) : "<null>";
 }
 
+inline std::string dump_type(std::string_view source) {
+    const auto result = tessera::compiler::jsx::parse_type(source);
+    return result.root ? tessera::compiler::jsx::dump(*result.root) : "<null>";
+}
+
+inline std::string dump_module(std::string_view source) {
+    const auto result = tessera::compiler::jsx::parse_module(source);
+    return result.root ? tessera::compiler::jsx::dump(*result.root) : "<null>";
+}
+
 inline int finish(const char* name) {
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";

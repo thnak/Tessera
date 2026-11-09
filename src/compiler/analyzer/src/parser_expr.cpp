@@ -221,6 +221,9 @@ ExprPtr Parser::parse_postfix() {
     while (expr && !fatal_) {
         const std::uint32_t begin = expr->span.offset;
         std::vector<ExprPtr> operands;
+        std::vector<TypePtr> type_args;
+        const bool generic = at_punct("<") && expr->kind == ExprKind::Identifier &&
+                             expr->text.starts_with("use") && parse_call_type_args(type_args);
         if (at_punct(".") || at_punct("?.")) {
             if (at_punct("?.")) {
                 report(kOperatorCode, "`?.` is not supported", cur_.span,
@@ -236,7 +239,7 @@ ExprPtr Parser::parse_postfix() {
             advance(LexMode::Code);
             operands.push_back(std::move(expr));
             expr = make_operator(ExprKind::Member, begin, std::move(name), std::move(operands));
-        } else if (at_punct("(")) {
+        } else if (generic || at_punct("(")) {
             operands.push_back(std::move(expr));
             advance(LexMode::Code);
             while (!fatal_ && !at_punct(")")) {
@@ -254,6 +257,9 @@ ExprPtr Parser::parse_postfix() {
                 return nullptr;
             }
             expr = make_operator(ExprKind::Call, begin, {}, std::move(operands));
+            if (expr) {
+                expr->type_args = std::move(type_args);
+            }
         } else if (at_punct("[")) {
             report("TESSERA_JSX_SUBSET_MEMBER", "indexing is not supported", cur_.span,
                    "use `.map` in JSX for lists");

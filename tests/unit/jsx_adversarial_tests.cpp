@@ -220,6 +220,74 @@ void test_every_truncation_and_mutation_has_a_tree_or_an_error() {
     }
 }
 
+constexpr std::string_view kModuleSample =
+    "import { useState, View } from \"tessera\";\n"
+    "type P = { a: int; b?: Row[] } | null;\n"
+    "const kMax: int = 10;\n"
+    "export function A({ a = 1 }: P): Node {\n"
+    "  const [n, setN] = useState<Array<int>>(a);\n"
+    "  useEffect(() => { go(n); return () => { stop(); }; }, [n]);\n"
+    "  return (<View onClick={() => setN(n + 1)}>{`t${n}`} &amp; x</View>);\n"
+    "}\n"
+    "function B() { return <A/>; }\n";
+
+void test_module_inputs_always_give_a_module() {
+    const Limits limits;
+    const auto clean = parse_module(kModuleSample);
+    check(clean.ok(), "the module sample is valid: " + codes(clean));
+
+    // A module is produced for anything readable, with the damage confined to its items.
+    const auto check_module = [&](const std::string& source, const std::string& what) {
+        const auto result = parse_module(source);
+        check(result.root != nullptr, "module present: " + what);
+        check(result.diagnostics.size() <= limits.max_diagnostics + 1, "bounded: " + what);
+        if (result.root && !result.has_errors()) {
+            for (const auto& item : result.root->items) {
+                check(item.valid, "no error means every item is valid: " + what);
+            }
+        }
+    };
+    for (std::size_t length = 0; length < kModuleSample.size(); ++length) {
+        check_module(std::string(kModuleSample.substr(0, length)),
+                     "prefix " + std::to_string(length));
+    }
+    constexpr std::string_view kMutations = "<>{}/\"'`$&(),;=.!-+:[]|\\\n\r ";
+    for (std::size_t at = 0; at < kModuleSample.size(); ++at) {
+        for (const char replacement : kMutations) {
+            std::string mutated(kModuleSample);
+            mutated[at] = replacement;
+            check_module(mutated, "mutation at " + std::to_string(at));
+        }
+    }
+}
+
+void test_module_level_limits_and_floods() {
+    const std::size_t depth = 30000;
+    check_eq(codes(parse_module("function A() { return " + repeat("<A>", depth))),
+             "TESSERA_JSX_LIMIT_DEPTH;", "deep elements inside a component");
+    check_eq(codes(parse_module("type T = " + repeat("A<", depth))), "TESSERA_JSX_LIMIT_DEPTH;",
+             "deep generic type");
+    check_eq(codes(parse_module("const a = " + repeat("(", depth))), "TESSERA_JSX_LIMIT_DEPTH;",
+             "deep parentheses in a constant");
+    check_eq(codes(parse_module("function A() { const [a] = " + repeat("f(", depth))),
+             "TESSERA_JSX_LIMIT_DEPTH;", "deep calls in a statement");
+
+    const auto many = parse_module(repeat("const a = 1;\n", 30000));
+    check(many.ok() && many.root->items.size() == 30000, "30000 small items");
+
+    const auto bad = parse_module(repeat("const = 1;\n", 30000));
+    check(bad.root && bad.root->items.size() == 30000, "every bad item is kept");
+    check(bad.diagnostics.size() == Limits{}.max_diagnostics + 1 && bad.diagnostics_truncated,
+          "the report is capped");
+
+    // Recovery must be linear: a long run of open braces before the next item.
+    const auto braces = parse_module("function A() { " + repeat("{", 100000) + "\nconst b = 1;\n");
+    check(braces.root && braces.root->items.size() == 2, "recovered after 100000 open braces");
+
+    const auto tokens = parse_module(repeat("const a=1;", 45000));
+    check_eq(codes(tokens), "TESSERA_JSX_LIMIT_TOKENS;", "token limit across a module");
+}
+
 void test_random_bytes() {
     const Limits limits;
     std::uint32_t state = 2024;
@@ -243,6 +311,8 @@ int main() {
     test_unterminated_constructs();
     test_invalid_bytes_do_not_stop_the_parse();
     test_every_truncation_and_mutation_has_a_tree_or_an_error();
+    test_module_inputs_always_give_a_module();
+    test_module_level_limits_and_floods();
     test_random_bytes();
     return finish("jsx adversarial tests");
 }

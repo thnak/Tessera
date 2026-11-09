@@ -137,6 +137,21 @@ void dump_expr(std::string& out, const Expr& expr) {
         break;
     case ExprKind::Call:
         out += "(call";
+        if (!expr.type_args.empty()) {
+            out += " ";
+            dump_expr(out, *expr.operands[0]);
+            out += " <";
+            for (std::size_t i = 0; i < expr.type_args.size(); ++i) {
+                out += (i == 0 ? "" : ",") + dump(*expr.type_args[i]);
+            }
+            out += ">";
+            dump_operands(out, expr.operands, 1);
+            out.push_back(')');
+            return;
+        }
+        break;
+    case ExprKind::Return:
+        out += "(return";
         break;
     case ExprKind::Array:
         out += "(array";

@@ -26,6 +26,8 @@ public:
 
     JsxPtr parse_jsx_root();
     ExprPtr parse_expression_root();
+    std::unique_ptr<Module> parse_module_root();
+    TypePtr parse_type_root();
 
     template<typename Node> ParseResult<Node> finish(std::unique_ptr<Node> root) {
         ParseResult<Node> result;
@@ -42,6 +44,7 @@ private:
         DiagnosticSink::Mark sink;
         Token cur;
         std::uint32_t prev_end = 0;
+        std::size_t brace_depth = 0;
     };
 
     // Counts one level of parser recursion; entered() is false (and the parse failed with
@@ -88,6 +91,8 @@ private:
     }
     [[nodiscard]] bool finish_node(Expr& expr);
     [[nodiscard]] bool finish_node(JsxNode& node);
+    [[nodiscard]] bool finish_node(TypeNode& type);
+    bool expect_semicolon();
     [[nodiscard]] std::string describe_current() const;
 
     // parser_expr.cpp
@@ -108,6 +113,31 @@ private:
     ExprPtr parse_array();
     ExprPtr parse_object();
     ExprPtr parse_rejected_keyword();
+    ExprPtr parse_return_statement();
+    bool parse_call_type_args(std::vector<TypePtr>& type_args);
+
+    // parser_type.cpp
+    TypePtr parse_type_expr();
+    TypePtr parse_type_primary();
+    TypePtr parse_type_object(std::uint32_t begin);
+    TypePtr parse_type_function(std::uint32_t begin);
+    bool expect_type_close();
+
+    // parser_module.cpp
+    bool parse_item(ModuleItem& item);
+    bool parse_import(ModuleItem& item);
+    bool parse_type_alias(ModuleItem& item);
+    bool parse_const_item(ModuleItem& item);
+    void recover_to_next_item(std::uint32_t item_start);
+    [[nodiscard]] bool at_item_start() const;
+
+    // parser_component.cpp
+    bool parse_component(ModuleItem& item);
+    bool parse_component_param(ModuleItem& item);
+    bool parse_component_body(ModuleItem& item);
+    bool parse_statement(ModuleItem& item);
+    bool parse_const_statement(Statement& statement);
+    bool parse_returned_element(ModuleItem& item);
 
     // parser_jsx.cpp
     ExprPtr parse_jsx_expression();
@@ -131,7 +161,8 @@ private:
     Lexer lexer_;
     Token cur_;
     std::uint32_t prev_end_ = 0;
-    Span closing_lt_; // the `<` that started the closing tag found by parse_children
+    std::size_t brace_depth_ = 0; // `{` minus `}` consumed since the item start; for recovery
+    Span closing_lt_;             // the `<` that started the closing tag found by parse_children
     std::size_t depth_ = 0;
     bool fatal_ = false;
 };

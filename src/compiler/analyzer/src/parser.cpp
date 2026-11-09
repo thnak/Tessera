@@ -13,6 +13,13 @@ Parser::Parser(std::string_view source, const Limits& limits)
       lexer_(source, sink_, limits_) {}
 
 void Parser::advance(LexMode mode) {
+    if (cur_.kind == TokenKind::Punct) {
+        if (cur_.text == "{") {
+            ++brace_depth_;
+        } else if (cur_.text == "}" && brace_depth_ > 0) {
+            --brace_depth_;
+        }
+    }
     prev_end_ = cur_.span.end();
     cur_ = lexer_.next(mode);
 }
@@ -23,7 +30,7 @@ void Parser::advance_template() {
 }
 
 Parser::Checkpoint Parser::checkpoint() const {
-    return Checkpoint{lexer_.mark(), sink_.mark(), cur_, prev_end_};
+    return Checkpoint{lexer_.mark(), sink_.mark(), cur_, prev_end_, brace_depth_};
 }
 
 void Parser::restore(Checkpoint saved) {
@@ -31,6 +38,58 @@ void Parser::restore(Checkpoint saved) {
     sink_.rewind(saved.sink);
     cur_ = std::move(saved.cur);
     prev_end_ = saved.prev_end;
+    brace_depth_ = saved.brace_depth;
+}
+
+bool Parser::expect_semicolon() {
+    if (at_punct(";")) {
+        advance(LexMode::Code);
+    } else {
+        // No automatic semicolon insertion (spec 3.6). The next token still starts something
+        // sensible in every caller, so report and keep going.
+        report("TESSERA_JSX_PARSE_MISSING_SEMICOLON", "missing `;`", Span{prev_end_, 0},
+               "insert `;`");
+    }
+    return true;
+}
+
+bool Parser::finish_node(TypeNode& type) {
+    std::uint32_t tallest = 0;
+    for (const auto& child : type.children) {
+        tallest = std::max(tallest, child->height);
+    }
+    for (const auto& member : type.members) {
+        tallest = std::max(tallest, member.type->height);
+    }
+    type.height = tallest + 1;
+    if (type.height > limits_.max_nesting_depth) {
+        fail("TESSERA_JSX_LIMIT_DEPTH",
+             "type is deeper than " + std::to_string(limits_.max_nesting_depth) + " levels",
+             type.span, "split the type");
+        return false;
+    }
+    return true;
+}
+
+TypePtr Parser::parse_type_root() {
+    advance(LexMode::Code);
+    TypePtr root = parse_type_expr();
+    if (!fatal_ && cur_.kind != TokenKind::Eof) {
+        fail_unexpected("end of input after the type");
+    }
+    return fatal_ ? nullptr : std::move(root);
+}
+
+ModuleParseResult parse_module(std::string_view source, const Limits& limits) {
+    Parser parser(source, limits);
+    auto root = parser.parse_module_root();
+    return parser.finish(std::move(root));
+}
+
+TypeParseResult parse_type(std::string_view source, const Limits& limits) {
+    Parser parser(source, limits);
+    TypePtr root = parser.parse_type_root();
+    return parser.finish(std::move(root));
 }
 
 void Parser::report(std::string_view code, std::string message, Span span, std::string suggestion) {

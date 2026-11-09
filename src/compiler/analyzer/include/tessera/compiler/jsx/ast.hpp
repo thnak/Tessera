@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/compiler/jsx/source_map.hpp"
+#include "tessera/compiler/jsx/type_ast.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -29,11 +30,12 @@ enum class ExprKind {
     Binary,      // text = operator, operands = [lhs, rhs]; also assignments the subset rejects
     Conditional, // operands = [test, then, else]
     Member,      // text = property name, operands = [object]; `a[i]` has text "[]" and [a, i]
-    Call,        // operands = [callee, arguments...]
+    Call,        // operands = [callee, arguments...]; type_args for `useState<int>(0)`
     Array,       // operands = elements
     Object,      // properties
     Jsx,         // jsx
     Arrow,       // params; operands = [body] or the statements of a block body
+    Return,      // `return e;` in a block body; operands = [value] or empty
 };
 
 struct ObjectProperty {
@@ -58,6 +60,7 @@ struct Expr {
     std::vector<std::string> template_strings;
     std::vector<ObjectProperty> properties;
     std::vector<std::string> params;
+    std::vector<TypePtr> type_args;
     bool arrow_block_body = false;
     JsxPtr jsx;
 };

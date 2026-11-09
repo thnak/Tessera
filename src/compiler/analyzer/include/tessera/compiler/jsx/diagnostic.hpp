@@ -62,6 +62,9 @@ public:
     [[nodiscard]] const SourceMap& map() const {
         return *map_;
     }
+    [[nodiscard]] std::size_t error_count() const {
+        return error_count_;
+    }
     [[nodiscard]] bool has_errors() const {
         return error_count_ > 0;
     }

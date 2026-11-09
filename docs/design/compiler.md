@@ -1,7 +1,7 @@
 # Compiler: JSX/TSX -> IR -> C++
 
 Status: design for Big Step C. `src/compiler/{rules,ir,codegen}` are placeholders; the
-protected-region merger exists in B1, and the JSX/TSX lexer and element/expression parser are in
+protected-region merger exists in B1, and the JSX/TSX lexer and module/element/expression parser are in
 `src/compiler/analyzer` ([`jsx-frontend.md`](jsx-frontend.md)).
 
 The compiler is build-time only. It never ships in a production app and never executes
