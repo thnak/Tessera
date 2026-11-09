@@ -247,6 +247,10 @@ Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
 - `InputRouter` owns a `FocusManager`. `KeyDown`/`KeyUp` go to the focused node through the normal
   propagation path; with no focus they are not dispatched. Key events carry `key`, `modifiers`,
   `text_codepoint`, and `repeat`.
+- `KeyDown` of Tab is a default action: after propagation it runs `focus_next` (or
+  `focus_previous` with Shift) unless a handler set `prevent_default`. It runs even with no current
+  focus, so the first Tab focuses the first candidate (Shift+Tab the last) and a modal trap limits
+  the traversal. `InputDispatchResult` reports `default_prevented` and `focus_moved`.
 - `PointerDown` on a focusable hit target requests focus; a pointer down on a non-focusable target
   inside the trap (or anywhere without an active trap) clears focus. Pointer down outside an
   active trap neither steals nor clears focus. Pointer capture remains independent and is unchanged

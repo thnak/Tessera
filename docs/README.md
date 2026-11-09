@@ -141,6 +141,8 @@ This page is the map and reading order for the framework.
 ## 4. Design
 
 - [`design/renderer.md`](design/renderer.md) — B1 renderer summary, batched 2D, Vulkan backend
+- [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border
+  quads, source coordinates, sink seam, limits
 - [`design/gpu/README.md`](design/gpu/README.md) — GPU docs index: RHI, frames/sync, resources,
   pipelines, backends, tests
 - [`design/gpu/rhi.md`](design/gpu/rhi.md) — device/resource/command contract, lifetime, errors
@@ -376,22 +378,23 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 
 | Area | State |
 |---|---|
-| RHI + Vulkan batched 2D | B1 implemented |
-| Anti-aliasing | B1 partial: SDF rounded rects only |
+| RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3 |
+| Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage; no MSAA/path AA |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
+| Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D; text, clip and damage wiring pending ([design](design/paint-pass.md)) |
 | Protected-region merger | B1 prototype |
-| JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; IR lowering pending ([design](design/jsx-frontend.md)) |
+| JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; expression lowering implemented, node/hook/component lowering pending ([design](design/jsx-ir-lowering.md)) |
 | Stylesheet engine | B2 implemented ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |
-| Yoga layout / text / glyph atlas | B2 partial: Yoga layout + text-measurement stub implemented; real shaping/font loading/glyph atlas planned |
-| Input handler | B2 implemented: normalized queue + pointer dispatch/capture ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
+| Yoga layout / text / glyph atlas | B2 implemented: Yoga adapter, FreeType/HarfBuzz shaping, glyph atlas and text batching; bidi/ICU segmentation pending |
+| Input handler | B2 implemented: normalized queue/coalescing, pointer capture, focus/keyboard, wheel/text routing, Tab traversal, per-tick `InputPump`; Linux translation, hover/active, IME and gestures pending ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
 | Fixed-step loop | B2 implemented: accumulator, clock, `RuntimeLoop`, pacer ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
-| Dirty rendering + frame pacing | B2 implemented (dirty flags/damage/redraw plan/frame pipeline/pacer); B3 vsync/VRR/present pending ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
+| Dirty rendering + frame pacing | B2 implemented (dirty flags/damage/redraw plan/frame pipeline/pacer); B3 present landed on Win32/X11 (two frames in flight), VRR/dynamic refresh and present-path damage pending ([ADR-018](../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)) |
 | Power-aware idle/adaptive defaults | B2 partial: render-on-demand idle implemented; adaptive quality pending ([ADR-019](../decisions/ADR-019-power-aware-runtime.md)) |
-| Window resize/DPI/lifecycle | B3 proposed ([ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md)) |
+| Window resize/DPI/lifecycle | B3 implemented on Windows/X11 (resize/DPI/focus/close, swapchain retirement); Wayland and macOS pending ([ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md)) |
 | Async/await runtime | B2 partial: cancellation/executor/completion queue and lazy coroutine `Task` implemented; I/O executor pending ([ADR-021](../decisions/ADR-021-async-runtime.md)) |
 | Diagnostics/profiling | B2 partial: per-frame counters implemented; tracing/profiling/crash pending ([ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md)) |
 | OS events / foldables | B3 proposed ([ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md)) |
-| Compiler/IR/codegen | C proposed |
+| Compiler/IR/codegen | C started: IR model, JSON writer/validator and expression lowering implemented; node/hook/component lowering and C++ codegen pending ([design](design/jsx-ir-lowering.md)) |
 | UI virtualization (list/grid) | B2/E proposed |
 | Mobile integration (Android first) | design only |
 | Memory model / bridge policy | proposed / [ADR-024](../decisions/ADR-024-native-first-boundaries.md) accepted |
