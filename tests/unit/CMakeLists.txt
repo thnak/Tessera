@@ -998,6 +998,13 @@ target_link_libraries(input_text_tests PRIVATE tessera_scene)
 
 add_test(NAME input_text COMMAND input_text_tests)
 
+add_executable(input_accelerator_tests
+    input_accelerator_tests.cpp)
+
+target_link_libraries(input_accelerator_tests PRIVATE tessera_scene)
+
+add_test(NAME input_accelerator COMMAND input_accelerator_tests)
+
 add_executable(schema_tests
     schema_tests.cpp)
 

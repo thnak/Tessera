@@ -396,6 +396,20 @@ Research references (official documentation):
 - macOS: [NSWindowDelegate](https://developer.apple.com/documentation/appkit/nswindowdelegate),
   [NSApplicationDelegate](https://developer.apple.com/documentation/appkit/nsapplicationdelegate).
 
+## 12.1 Keyboard accelerators (framework layer)
+
+The input layer registers application shortcuts in a bounded `KeyBindingRegistry`
+(`include/tessera/ui/input/key_bindings.hpp`): `KeyChord { key, modifiers }` with exact modifier
+matching by default (Ctrl+S never fires for Ctrl+Shift+S), an opt-in broad form where extra
+modifiers are allowed, and an opt-in repeat form for auto-repeat. Exact bindings are evaluated before
+broad ones, then registration order; at most one binding fires per KeyDown. A focused node can
+consume a key (`handled`/`prevent_default`) to opt out; otherwise the accelerator runs after the
+focused node's handler, and a fired accelerator suppresses the router's Tab default action. Unmatched
+keys pass through unchanged and no bindings keeps today's behaviour identical. Bounds: at most 64
+bindings, stable never-reused ids, bounded scan with no allocation on the key path. Deferred:
+menu/command integration, accessibility shortcut discovery, platform-reserved key declarations, and
+user-remappable profiles.
+
 ## 13. Open questions
 
 - Windows foldable/dual-screen: no stable cross-vendor hinge API; per-device verification.

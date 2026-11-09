@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/ui/input.hpp"
+#include "tessera/ui/input/key_bindings.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -25,6 +26,10 @@ struct InputDispatchResult {
     bool default_prevented = false;
     // True when the default action actually moved focus (Tab/Shift+Tab).
     bool focus_moved = false;
+    // BindingId of the accelerator that fired for this key event (0 when none). An accelerator
+    // fires only for KeyDown after the focused node's handler and only when the event was not
+    // consumed; a fired accelerator suppresses the router's Tab default action.
+    BindingId accelerator_fired = kInvalidBindingId;
 };
 
 InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
@@ -87,6 +92,12 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 // Keyboard and text:
 // - `KeyDown`/`KeyUp` go to the focused node through the normal propagation path; with no focus
 //   they are not dispatched.
+// - Application accelerators (`KeyBindingRegistry`) are evaluated for `KeyDown` after the focused
+//   node's handler and only when it did not consume the event (`handled` or `prevent_default`).
+//   Chord matching is exact by default (broad/superset and repeat opt-in per binding), and the
+//   first matching binding fires. A fired accelerator is reported in
+//   `InputDispatchResult::accelerator_fired` and suppresses the Tab focus default action. With no
+//   bindings registered key behaviour is unchanged.
 // - Single-codepoint `Text` input and the IME composition family (`CompositionStart`/`Update`/
 //   `End`, plus multi-codepoint `EditText`) go to the focused node as the matching scene
 //   `EventType`, carrying the bounded inline UTF-8 payload and the UTF-16 code-unit selection
@@ -139,6 +150,15 @@ public:
         return focus_manager_;
     }
 
+    // Application-level keyboard accelerators. The registry is owned by the router and survives
+    // `reset()` (bindings are app state, not scene interaction state).
+    [[nodiscard]] KeyBindingRegistry& accelerators() {
+        return accelerators_;
+    }
+    [[nodiscard]] const KeyBindingRegistry& accelerators() const {
+        return accelerators_;
+    }
+
 private:
     struct CaptureEntry {
         std::uint32_t pointer_id = 0;
@@ -168,6 +188,7 @@ private:
     std::array<CaptureEntry, kMaxPointerCaptures> captures_{};
     std::size_t capture_count_ = 0;
     FocusManager focus_manager_;
+    KeyBindingRegistry accelerators_;
 };
 
 } // namespace tessera::ui

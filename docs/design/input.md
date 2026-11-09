@@ -82,8 +82,8 @@ window's thread, so the queue's single producer is the UI thread.
 - **Pointer:** `WM_MOUSEMOVE`, the left/right/middle/X1/X2 buttons. Coordinates are logical pixels
   (physical client position divided by the window's DPI scale), `dx`/`dy` are the change from the
   previous pointer event, pressure is 0.5 while any button is down, and `pointer_kind` stays the
-  default `Mouse`. A press captures the mouse
-  (`SetCapture`) so the move and release arrive outside the window; losing the capture, focus
+  default `Mouse`. A press captures the mouse (`SetCapture`) so the move and release arrive outside
+  the window; losing the capture, focus
   or modal mode emits `PointerCancel` and clears the pressed buttons. A release without a seen
   press is ignored. Shift and Control come from the message, Alt and Meta from the keyboard state.
 - **Touch and pen (`WM_POINTER*`, implemented):** `WM_POINTERDOWN`/`WM_POINTERUPDATE`/
@@ -388,10 +388,9 @@ Pointer kinds (implemented):
 - A touch/pen `PointerDown` still becomes `Active` and is captured exactly like a mouse press; its
   `PointerUp`/`PointerCancel` clears `Active` and never leaves `Hover` on the press target (no
   touch/pen path sets hover, so a previous mouse hover target is left untouched).
-- Because hover follows the primary pointer, a pen that has not pressed yet hovers only when its
-  `pointer_id` is the primary pointer (pointer 0 before the first press); platform translation must
-  map a primary pen hover to that id. Secondary mouse/pen moves and any touch contact never move
-  hover.
+- A pen that has not pressed yet hovers only when its `pointer_id` is the primary pointer (pointer 0
+  before the first press); platform translation must map a primary pen hover to that id. Secondary
+  mouse/pen moves and any touch contact never move hover.
 - Touch/pen focus is pointer modality for the `:focus-visible` heuristic (section 6): the ring
   stays clear after a touch/pen press focuses a node.
 - Capture remains keyed by `pointer_id` only. Ids are document-scoped across kinds: producers must
@@ -458,11 +457,13 @@ Hover/active (implemented, primary pointer only):
   router before destroying the scene root.
 
 Text/IME routing (implemented, plumbing only): `Text` (one codepoint) and the IME family
-(`CompositionStart`/`Update`/`End`, `EditText`) go to the focused node through the normal
-capture/target/bubble path as the matching scene `EventType`; without focus they are dropped. The
-inline UTF-8 payload is capped at `kMaxEditTextBytes` (256 bytes), cut at a UTF-8 boundary with
-`text_truncated`, and selection offsets are UTF-16 code units. `prevent_default` is advisory (no
-framework text insertion exists yet).
+(`CompositionStart`/`Update`/`End`, `EditText`) go to the focused node through the normal path as
+the matching scene `EventType`; without focus they are dropped. The inline UTF-8 payload is capped at
+`kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection offsets are UTF-16 code units.
+`prevent_default` is advisory (no framework text insertion yet).
+
+Keyboard accelerators (implemented): `InputRouter` owns a bounded `KeyBindingRegistry` of
+`KeyChord` shortcuts; see [`os-events-v1.md`](../specs/os-events-v1.md) §12.1 (rules/bounds).
 
 Not implemented: ancestor `:hover` bits and hover recomputation on scene changes (boundary events
 fire on the chain, but the pseudo-state bit remains deepest-target only), OS-level pointer capture,

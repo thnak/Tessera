@@ -160,10 +160,23 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     if (key_event_type(input.type, type)) {
         result.type = type;
         bool prevent_default = false;
+        bool consumed = false;
         if (Node* target = focus_manager_.focused()) {
             Event event = make_key_event(type, input);
             result = dispatch_to_target(*target, event);
             prevent_default = event.prevent_default;
+            consumed = event.handled || event.prevent_default;
+        }
+
+        // Accelerators run after the focused node's handler and only when the key event was not
+        // consumed by it (a text field opts out by setting handled or prevent_default). A fired
+        // accelerator also suppresses the router's Tab focus default action below. KeyUp never
+        // fires bindings.
+        if (type == EventType::KeyDown && !consumed) {
+            const BindingId fired = accelerators_.dispatch(input);
+            if (fired != kInvalidBindingId) {
+                result.accelerator_fired = fired;
+            }
         }
 
         // Default action: Tab moves sequential focus unless a handler prevented it. It runs even
@@ -173,7 +186,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         if (type == EventType::KeyDown && input.key == key::kTab) {
             if (prevent_default) {
                 result.default_prevented = true;
-            } else {
+            } else if (result.accelerator_fired == kInvalidBindingId) {
                 Node* const before = focus_manager_.focused();
                 const bool cycled = has_modifier(input.modifiers, Modifier::Shift)
                                         ? focus_manager_.focus_previous(root)

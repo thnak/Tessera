@@ -2,6 +2,7 @@
 
 add_library(tessera_input STATIC
     input_queue.cpp
+    key_bindings.cpp
     gesture_arena.cpp
     gesture_recognizers.cpp
     gesture_swipe.cpp
