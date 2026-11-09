@@ -858,6 +858,18 @@ add_executable(caret_blink_tests
 target_link_libraries(caret_blink_tests PRIVATE tessera_text_edit)
 
 add_test(NAME caret_blink COMMAND caret_blink_tests)
+add_executable(text_edit_history_tests
+    text_edit_history_tests.cpp)
+
+target_link_libraries(text_edit_history_tests PRIVATE tessera_text_edit)
+
+add_test(NAME text_edit_history COMMAND text_edit_history_tests)
+add_executable(text_undo_tests
+    text_undo_tests.cpp)
+
+target_link_libraries(text_undo_tests PRIVATE tessera_text_edit)
+
+add_test(NAME text_undo COMMAND text_undo_tests)
 
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)

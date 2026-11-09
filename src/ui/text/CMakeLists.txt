@@ -27,6 +27,7 @@ add_subdirectory(render)
 add_library(tessera_text_edit STATIC
     caret_blink.cpp
     edit_controller.cpp
+    edit_history.cpp
     text_input_runtime.cpp)
 
 target_include_directories(tessera_text_edit PUBLIC

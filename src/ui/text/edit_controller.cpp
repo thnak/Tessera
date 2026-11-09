@@ -35,27 +35,85 @@ std::string_view event_text(const Event& event) {
 
 } // namespace
 
-EditController::EditController(std::size_t max_bytes)
-    : buffer_(max_bytes) {}
+EditController::EditController(std::size_t max_bytes, EditHistoryConfig history_config)
+    : buffer_(max_bytes),
+      history_(history_config) {}
 
 EditResult EditController::set_text(std::string_view text) {
     composing_ = false;
     preedit_.clear();
     const EditResult result = buffer_.set_text(text);
+    // Controlled value sync is a clean history boundary: the app replaced the field's value, so
+    // undoing back across it would resurrect state the app no longer owns. No entry is recorded.
+    history_.clear();
     last_result_ = result;
     changed_ = changed_ || result.changed;
     return result;
 }
 
 bool EditController::commit_text(std::string_view text) {
+    const EditSnapshot before = snapshot();
     if (composing_) {
         const EditOffset start = composition_start_;
         const EditOffset end = composition_end_;
         composing_ = false;
         preedit_.clear();
-        return accept(buffer_.replace_range(start, end, text), true);
+        return record_mutation(before, buffer_.replace_range(start, end, text),
+                               EditCommitKind::Composition);
     }
-    return accept(buffer_.insert(text), true);
+    // A committed EditText is a paste or an IME commit; both always start a new undo step.
+    return record_mutation(before, buffer_.insert(text), EditCommitKind::Paste);
+}
+
+EditSnapshot EditController::snapshot() const {
+    return EditSnapshot{std::string(buffer_.text()), buffer_.caret(), buffer_.anchor()};
+}
+
+bool EditController::record_mutation(const EditSnapshot& before, EditResult result,
+                                     EditCommitKind kind) {
+    if (result.changed) {
+        history_.record_commit(before, kind);
+    }
+    return accept(result, true);
+}
+
+void EditController::restore(const EditSnapshot& snapshot) {
+    composing_ = false;
+    preedit_.clear();
+    buffer_.set_text(snapshot.text);
+    buffer_.set_selection(snapshot.anchor, snapshot.caret);
+    // Restoring is a committed edit for the TextChange runtime (the controlled value refreshes) but
+    // it is not recorded in the history: undo/redo move between existing snapshots only.
+    EditResult restored;
+    restored.status = EditStatus::Ok;
+    restored.changed = true;
+    restored.caret = buffer_.caret_position();
+    restored.anchor = buffer_.anchor();
+    accept(restored, true);
+}
+
+bool EditController::undo() {
+    if (read_only_ || composing_) {
+        return false;
+    }
+    const std::optional<EditSnapshot> target = history_.undo(snapshot());
+    if (!target.has_value()) {
+        return false;
+    }
+    restore(*target);
+    return true;
+}
+
+bool EditController::redo() {
+    if (read_only_ || composing_) {
+        return false;
+    }
+    const std::optional<EditSnapshot> target = history_.redo(snapshot());
+    if (!target.has_value()) {
+        return false;
+    }
+    restore(*target);
+    return true;
 }
 
 bool EditController::accept(EditResult result, bool text_edit) {
@@ -63,6 +121,11 @@ bool EditController::accept(EditResult result, bool text_edit) {
     changed_ = changed_ || result.changed;
     if (result.changed) {
         ++activity_count_;
+        if (!text_edit) {
+            // A caret move or selection change ends a typing/delete run, so the next edit starts a
+            // new undo step instead of merging across the move.
+            history_.break_coalescing();
+        }
     }
     if (text_edit && result.changed) {
         ++committed_edits_;
@@ -88,8 +151,12 @@ bool EditController::handle_event(Event& event) {
         }
         std::string bytes;
         append_utf8(bytes, cp);
+        const EditCommitKind kind =
+            cp == '\n' ? EditCommitKind::Newline
+                       : (buffer_.has_selection() ? EditCommitKind::Other : EditCommitKind::Typing);
+        const EditSnapshot before = snapshot();
         event.handled = true;
-        return accept(buffer_.insert(bytes), true);
+        return record_mutation(before, buffer_.insert(bytes), kind);
     }
     case EventType::EditText: {
         if (read_only_) {
@@ -138,18 +205,40 @@ bool EditController::handle_event(Event& event) {
     }
 }
 
-bool EditController::handle_key(const Event& event) {
+bool EditController::handle_key(Event& event) {
     const std::uint32_t key = event.key;
     const bool control = has_modifier(event.modifiers, Modifier::Control);
     const bool shift = has_modifier(event.modifiers, Modifier::Shift);
+    const bool alt = has_modifier(event.modifiers, Modifier::Alt);
+    const bool meta = has_modifier(event.modifiers, Modifier::Meta);
+
+    if (control && !alt && !meta) {
+        if (key == 'Z') {
+            if (shift ? redo() : undo()) {
+                event.handled = true;
+                return true;
+            }
+            return false;
+        }
+        if (key == 'Y' && !shift) {
+            if (redo()) {
+                event.handled = true;
+                return true;
+            }
+            return false;
+        }
+    }
 
     if (key == key::kBackspace || key == key::kDelete) {
         if (read_only_) {
             return false;
         }
-        return accept(key == key::kBackspace ? buffer_.delete_backward(control)
-                                             : buffer_.delete_forward(control),
-                      true);
+        const EditCommitKind kind = control ? EditCommitKind::WordDelete : EditCommitKind::Delete;
+        const EditSnapshot before = snapshot();
+        return record_mutation(before,
+                               key == key::kBackspace ? buffer_.delete_backward(control)
+                                                      : buffer_.delete_forward(control),
+                               kind);
     }
     if (key == key::kArrowLeft || key == key::kArrowRight) {
         return accept(key == key::kArrowLeft ? buffer_.move_left(control, shift)
@@ -166,7 +255,8 @@ bool EditController::handle_key(const Event& event) {
         if (read_only_ || !multiline_) {
             return false;
         }
-        return accept(buffer_.insert("\n"), true);
+        const EditSnapshot before = snapshot();
+        return record_mutation(before, buffer_.insert("\n"), EditCommitKind::Newline);
     }
     return false;
 }

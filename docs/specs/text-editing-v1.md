@@ -468,7 +468,44 @@ publish_caret_visibility(*paint_data.decoration, blink);  // caret_visible + bli
   decoration is present), which is conservative for a caret-only change; tighter caret-rect damage
   needs a paint-side caret rect and is deferred.
 
-Deferred: composition/preedit rendering (blink landed, task-67), undo/redo (grouping/caps), clipboard
+Undo/redo history (implemented, task-69): `EditHistory`
+([`edit_history.hpp`](../../include/tessera/ui/text/edit_history.hpp), library `tessera_text_edit`)
+is a bounded snapshot stack owned by the field's `EditController` (one history per field; there is
+no global stack). The controller records the **state before** each committed mutation; undo/redo
+restore the full UTF-8 text plus the exact caret and selection bytes.
+
+- **Bounds:** at most `max_entries` (default **128**) states and `max_bytes` (default **256 KiB**)
+  across both stacks. The oldest undo entries are evicted first, then the oldest redo entries; the
+  newest state of each non-empty stack is always kept, so a single oversized snapshot still works.
+  No unbounded growth.
+- **Coalescing:** consecutive **plain typing** (a `Text` insertion that is not a newline and does
+  not replace a selection) and consecutive **plain Backspace/Delete** runs merge into one undo step
+  when they land within `coalesce_seconds` (default **0.5 s**, driven by the deterministic
+  `tick(now_seconds)`, never a wall clock). A caret move or selection change ends the run even inside
+  the window. **Never merged:** a newline (Enter or `\n` typing), word-delete/word-backspace
+  (Ctrl+Backspace/Delete), paste/IME commits (`EditText`), composition commits, selection-replacing
+  edits and non-typing commands - each starts its own undo step.
+- **`set_text` boundary:** a programmatic controlled-value sync is a clean boundary: it applies the
+  text, clears the whole history (no entry) and stops coalescing, so generated `apply_state()` syncs
+  create no undo noise and undo never resurrects state the app no longer owns.
+- **API:** `can_undo()`/`can_redo()`, `undo()`/`redo()` (return true when the buffer changed and
+  restore text/caret/selection), `clear_history()`, `tick(now_seconds)` and `history()` for
+  diagnostics. Undo/redo move entries between the stacks and never record new history; they count
+  as committed edits for the `TextChange` runtime (the controlled value refreshes through generated
+  `onChange`) and as activity for caret blink. A new edit after undo truncates the redo tail.
+- **Key policy:** Ctrl+Z undoes, Ctrl+Shift+Z and Ctrl+Y redo (the normalized Windows/Linux
+  editor convention; macOS Cmd+Z/Cmd+Shift+Z are mapped by the platform layer onto the same
+  Control chord - this layer only sees the normalized modifiers). Chords with Alt or Meta are not
+  consumed. A chord is consumed (`event.handled = true`) **only when it actually changes the
+  buffer**, so an app can fall back to its own handling when the stack is empty; read-only fields
+  ignore undo/redo and leave the history intact; `prevent_default`/`handled` suppress the chord like
+  any other editor key.
+- **Deferrals:** clipboard cut/copy/paste and their history grouping (`EditText` paste already
+  starts its own step), selection-only undo steps, IME-composition-aware granularity (a commit is
+  one step), per-field history sharing/merge across fields, and platform blink/history preferences.
+
+Deferred: composition/preedit rendering (blink landed, task-67), undo/redo grouping/caps (landed,
+task-69), clipboard
 (copy/cut/paste and secure redaction), editable-node scene model (`TextInputKind`, value/selection
 props and generated events), bidi caret affinity and visual line movement (up/down), grapheme
 `maxLength` whole-reject, dead-key composition beyond the platform path, caret rect/candidate-window

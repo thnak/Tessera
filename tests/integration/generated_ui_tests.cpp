@@ -348,7 +348,7 @@ int main(int argc, char** argv) {
                 "every committed edit repainted the generated controlled text")) {
         return 12;
     }
-    publish_editor_state(*text_input, field.buffer());
+    publish_decoration(*text_input, field.buffer());
     if (!expect(has_flag(text_input->dirty(), Dirty::Paint) &&
                     has_flag(text_input->dirty(), Dirty::Render),
                 "publishing the edit state marks Paint and Render") ||
@@ -382,9 +382,9 @@ int main(int argc, char** argv) {
 
     // Typing moves the caret: the caret at byte 0 is left of the caret after the whole text.
     const std::string field_text(field.buffer().text());
-    publish_caret_only(*text_input, field.buffer(), 0);
+    publish_caret_decoration(*text_input, 0);
     const DecorationRects at_start = decoration_rects(*fixture.root, fixture.styles, paint_context);
-    publish_caret_only(*text_input, field.buffer(), field_text.size());
+    publish_caret_decoration(*text_input, field_text.size());
     const DecorationRects at_end = decoration_rects(*fixture.root, fixture.styles, paint_context);
     if (!expect(at_start.carets.size() == 1 && at_end.carets.size() == 1,
                 "caret-only decoration emits one caret each") ||
@@ -408,7 +408,7 @@ int main(int argc, char** argv) {
                 "delete repainted the generated controlled text")) {
         return 15;
     }
-    publish_editor_state(*text_input, field.buffer());
+    publish_decoration(*text_input, field.buffer());
     const DecorationRects collapsed_rects =
         decoration_rects(*fixture.root, fixture.styles, paint_context);
     if (!expect(collapsed_rects.selection.empty(),
@@ -424,7 +424,7 @@ int main(int argc, char** argv) {
                 "restored edit script reached the editable frame")) {
         return 15;
     }
-    publish_editor_state(*text_input, field.buffer());
+    publish_decoration(*text_input, field.buffer());
 
     if (write_mode) {
         if (!expect(save_png(baseline_dir + "/editing.png", editing), "write editing golden")) {
@@ -462,7 +462,7 @@ int main(int argc, char** argv) {
         !expect(replay_field.buffer().text() == field_text, "replayed buffer text")) {
         return 18;
     }
-    publish_editor_state(*replay_input, replay_field.buffer());
+    publish_decoration(*replay_input, replay_field.buffer());
     CpuCanvas replay_canvas(kWidth, kHeight);
     const std::vector<std::uint8_t> replay_editing =
         render(*replay.root, replay.styles, replay_canvas, rasterizer, shaper, paint_context);
