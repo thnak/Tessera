@@ -26,11 +26,16 @@ ir::Node leaf(ir::NodeKind kind, const std::string& id, const std::string& ui_id
 void test_node_shapes() {
     expect(
         "custom element without an element id",
-        [](auto& m) { label_node(m).kind = ir::NodeKind::CustomElement; }, kUnresolved);
+        [](auto& m) {
+            label_node(m).text.reset();
+            label_node(m).kind = ir::NodeKind::CustomElement;
+        },
+        kUnresolved);
     expect("element on a View", [](auto& m) { label_node(m).element = "X"; }, kMalformed);
     expect(
         "custom element with an element id",
         [](auto& m) {
+            label_node(m).text.reset();
             label_node(m).kind = ir::NodeKind::CustomElement;
             label_node(m).element = "Waterfall3D";
         },
@@ -38,6 +43,7 @@ void test_node_shapes() {
     expect(
         "custom element with a child",
         [](auto& m) {
+            label_node(m).text.reset();
             label_node(m).kind = ir::NodeKind::CustomElement;
             label_node(m).element = "Waterfall3D";
             label_node(m).children.push_back(leaf(ir::NodeKind::View, "node::90", "90"));
@@ -46,6 +52,7 @@ void test_node_shapes() {
     expect(
         "text input with a child",
         [](auto& m) {
+            label_node(m).text.reset();
             label_node(m).kind = ir::NodeKind::TextInput;
             label_node(m).children.push_back(leaf(ir::NodeKind::View, "node::90", "90"));
         },
@@ -53,6 +60,7 @@ void test_node_shapes() {
     expect(
         "text area with a child",
         [](auto& m) {
+            label_node(m).text.reset();
             label_node(m).kind = ir::NodeKind::TextArea;
             label_node(m).children.push_back(leaf(ir::NodeKind::View, "node::90", "90"));
         },
@@ -67,9 +75,9 @@ void test_node_shapes() {
         "component node of an unknown component",
         [](auto& m) { row_node(m).component = "comp::Gone"; }, kUnresolved);
     expect(
-        "component node with a child",
+        "component node with slot children is allowed",
         [](auto& m) { row_node(m).children.push_back(leaf(ir::NodeKind::View, "node::90", "90")); },
-        "TESSERA_IR_LEAF;");
+        "");
     expect(
         "component reference on a View", [](auto& m) { label_node(m).component = "comp::Row"; },
         kMalformed);

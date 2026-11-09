@@ -36,6 +36,7 @@ struct ComponentChecker {
     void check_handlers();
     void check_effects_and_refs();
     bool resolve_binding(const std::string& id, const std::string& what);
+    bool resolve_effect_binding(const std::string& id, const std::string& what);
 };
 
 void ComponentChecker::check_declarations() {
@@ -108,6 +109,21 @@ bool ComponentChecker::resolve_binding(const std::string& id, const std::string&
     return true;
 }
 
+// Section 6: an effect body and its cleanup are protected regions, so their bindings have kind
+// `effect`; a native event handler binding has kind `event` (checked on the node that uses it).
+bool ComponentChecker::resolve_effect_binding(const std::string& id, const std::string& what) {
+    if (!resolve_binding(id, what)) {
+        return false;
+    }
+    const auto found = context.bindings.find(id);
+    if (found != context.bindings.end() && found->second->kind != BindingKind::Effect) {
+        context.report("TESSERA_IR_BINDING",
+                       what + " names `" + id + "`, which is not an effect binding (section 6)",
+                       component.source);
+    }
+    return true;
+}
+
 void ComponentChecker::check_effects_and_refs() {
     for (const auto& effect : component.effects) {
         declare(effect.id, "effect::", effect.source);
@@ -121,9 +137,9 @@ void ComponentChecker::check_effects_and_refs() {
                                effect.source);
             }
         }
-        resolve_binding(effect.handler, "effect `" + effect.id + "`");
+        resolve_effect_binding(effect.handler, "effect `" + effect.id + "`");
         if (!effect.cleanup.empty()) {
-            resolve_binding(effect.cleanup, "effect `" + effect.id + "` cleanup");
+            resolve_effect_binding(effect.cleanup, "effect `" + effect.id + "` cleanup");
         }
     }
     for (const auto& ref : component.refs) {

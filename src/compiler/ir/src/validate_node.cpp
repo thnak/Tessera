@@ -4,8 +4,10 @@
 
 #include "validate_internal.hpp"
 
+#include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 namespace tessera::compiler::ir {
 namespace {
@@ -16,6 +18,26 @@ bool starts_with(std::string_view text, std::string_view prefix) {
     return text.substr(0, prefix.size()) == prefix;
 }
 
+// A loop item or index is an action-style local name (subset 10.5 callback parameter).
+bool valid_local_name(std::string_view name) {
+    if (name.empty()) {
+        return false;
+    }
+    const auto word_start = [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$';
+    };
+    const auto word = [&](char c) { return word_start(c) || (c >= '0' && c <= '9'); };
+    if (!word_start(name.front())) {
+        return false;
+    }
+    for (const char c : name) {
+        if (!word(c)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 struct NodeWalker {
     ValidationContext& context;
     ComponentScope& scope;
@@ -24,6 +46,7 @@ struct NodeWalker {
     void check_identity(const Node& node);
     void check_shape(const Node& node);
     void check_events(const Node& node);
+    void check_condition(const Node& node);
     void check_loop(const Node& node, const LocalNames& outer, int loop_depth);
 };
 
@@ -65,8 +88,16 @@ void NodeWalker::check_shape(const Node& node) {
         context.report("TESSERA_IR_MALFORMED", "only a Component node has `component`",
                        node.source);
     }
-    const bool leaf =
-        custom || component || node.kind == NodeKind::TextInput || node.kind == NodeKind::TextArea;
+    if (component && !node.style.empty()) {
+        context.report("TESSERA_IR_MALFORMED",
+                       "a Component node carries props, not style (section 3.4)", node.source);
+    }
+    if (node.text && node.kind != NodeKind::Text) {
+        context.report("TESSERA_IR_MALFORMED", "only a Text node has `text`", node.source);
+    }
+    // A CustomElement, TextInput and TextArea are leaves; a Component node may carry the caller's
+    // slot children (section 3.4), validated against the target props by the type pass.
+    const bool leaf = custom || node.kind == NodeKind::TextInput || node.kind == NodeKind::TextArea;
     if (leaf && !node.children.empty()) {
         context.report("TESSERA_IR_LEAF",
                        std::string(node_kind_name(node.kind)) + " must not have children",
@@ -76,6 +107,11 @@ void NodeWalker::check_shape(const Node& node) {
         if (!node.fallback) {
             context.report("TESSERA_IR_ERROR_BOUNDARY", "an ErrorBoundary needs a fallback",
                            node.source);
+        } else if (node.fallback->condition || node.fallback->loop) {
+            context.report("TESSERA_IR_ERROR_BOUNDARY",
+                           "an ErrorBoundary fallback is a static element, not conditional or "
+                           "looped (section 5.1)",
+                           node.fallback->source);
         }
         if (node.children.size() != 1) {
             context.report("TESSERA_IR_ERROR_BOUNDARY",
@@ -94,6 +130,11 @@ void NodeWalker::check_events(const Node& node) {
                 found->second->component != scope.component->id) {
                 context.report("TESSERA_IR_UNRESOLVED",
                                "event `" + name + "` names unknown binding `" + target + "`",
+                               node.source);
+            } else if (found->second->kind != BindingKind::Event) {
+                context.report("TESSERA_IR_BINDING",
+                               "event `" + name + "` names `" + target +
+                                   "`, which is not an event binding (section 6)",
                                node.source);
             } else {
                 context.used_bindings.insert(target);
@@ -118,6 +159,12 @@ void NodeWalker::check_loop(const Node& node, const LocalNames& outer, int loop_
     }
     if (loop.item.empty()) {
         context.report("TESSERA_IR_MALFORMED", "a loop needs an item name", node.source);
+    } else if (!valid_local_name(loop.item)) {
+        context.report("TESSERA_IR_LOOP", "a loop item must be a local name", node.source);
+    }
+    if (!loop.index.empty() && (!valid_local_name(loop.index) || loop.index == loop.item)) {
+        context.report("TESSERA_IR_LOOP",
+                       "a loop index must be a local name different from the item", node.source);
     }
     if (!loop.source || loop.source->kind != ExprKind::Ref) {
         context.report("TESSERA_IR_UNSUPPORTED", "a loop source must be a list reference",
@@ -128,6 +175,21 @@ void NodeWalker::check_loop(const Node& node, const LocalNames& outer, int loop_
     if (!node.key) {
         context.report("TESSERA_IR_LIST_KEY", "a node that carries a loop needs a key",
                        node.source);
+    }
+}
+
+// Section 3: `condition` is a boolean-valued expression. Types are the type pass; the structural
+// part is that a template (always a string) or a non-bool literal cannot be a condition.
+void NodeWalker::check_condition(const Node& node) {
+    if (!node.condition) {
+        return;
+    }
+    if (node.condition->kind == ExprKind::Template) {
+        context.report("TESSERA_IR_CONDITION",
+                       "a condition is boolean-valued; a template is a string", node.source);
+    } else if (node.condition->kind == ExprKind::Literal &&
+               !std::holds_alternative<bool>(node.condition->literal)) {
+        context.report("TESSERA_IR_CONDITION", "a condition literal must be a bool", node.source);
     }
 }
 
@@ -158,6 +220,7 @@ void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth)
         require_expr(context, scope, locals, value.get(), node.source, "style `" + name + "`");
     }
     validate_expr(context, scope, locals, node.text.get(), node.source);
+    check_condition(node);
     validate_expr(context, scope, locals, node.condition.get(), node.source);
     for (const auto& child : node.children) {
         walk(child, locals, loop_depth);

@@ -54,7 +54,14 @@ ir::Node make_root() {
     row.events.emplace("onPick", "handler::1");
     row.condition = ir::make_unary("!", ir::make_ref("prop::title"));
     row.loop = ir::Loop{"item", "index", ir::make_ref("state::rows")};
+    ir::Node slot = node_of(ir::NodeKind::Text, "node::6", "6", span(240, 12, 17, 20, 17, 32));
+    slot.text = text("slot");
+    row.children.push_back(std::move(slot));
     root.children.push_back(std::move(row));
+
+    root.props.emplace("className", text("root"));
+    root.style.emplace("width", text("10px"));
+    root.style.emplace("opacity", ir::make_literal(0.5));
 
     ir::Node boundary =
         node_of(ir::NodeKind::ErrorBoundary, "node::3", "3", span(280, 100, 19, 5, 25, 7));

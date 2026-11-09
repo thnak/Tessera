@@ -121,6 +121,18 @@ target_link_libraries(ir_validate_expr_tests PRIVATE tessera_ir)
 
 add_test(NAME ir_validate_expr COMMAND ir_validate_expr_tests)
 
+add_executable(ir_construct_tests
+    ir_construct_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp)
+
+target_link_libraries(ir_construct_tests PRIVATE
+    tessera_ir
+    Threads::Threads)
+
+add_test(NAME ir_construct COMMAND ir_construct_tests)
+
 add_executable(ir_layering_tests
     ir_layering_tests.cpp)
 

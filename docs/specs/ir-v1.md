@@ -146,13 +146,13 @@ it is an IR record of its own, referenced from `events`:
 | `component` | string | for `Component` | Id of the referenced component (section 3.4) |
 | `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
 | `source` | SourceSpan | yes | Span of the node's JSX element (section 8) |
-| `key` | string/int/null/Expr | no | Stable list identity; an Expression (section 4) on a node that carries `loop` |
+| `key` | string/int/null/Expr | no | Stable list identity; an Expression (section 4) on a node that carries `loop`, a literal otherwise |
 | `props` | object | no | Typed intrinsic props |
 | `style` | object | no | Style tokens; inline style |
 | `events` | object | no | Event name -> binding id (`bind::...`) or inline handler id (`handler::...`, section 2.1) |
-| `text` | Expr/null | no | Text content for `Text` |
+| `text` | Expr/null | no | Text content; only a `Text` node has this field |
 | `children` | Node[] | no | Paint order |
-| `condition` | Expr/null | no | Static conditional; V1 bool expression |
+| `condition` | Expr/null | no | Static conditional; V1 bool expression (never a template or a non-bool literal) |
 | `loop` | Loop/null | no | Static list loop; this node is the repeated template (section 5) |
 
 Node kinds are closed in V1; the list above, with `Component` and `Slot` (section 3.4), is the complete list.
@@ -334,6 +334,7 @@ The `loop` is a field of the node it repeats; the key is that node's `key`:
 - `source` must be a list ref or a static list literal.
 - The node's `key` is required for dynamic lists; a missing key is a hard error.
 - The node that carries `loop` and its subtree are the template; `item`/`index` are local refs.
+  They are distinct valid local names (no dots), and the source is an existing list reference.
 - No nested dynamic loops beyond depth 2 in V1.
 
 ## 5.1 ErrorBoundary
@@ -392,8 +393,10 @@ A binding for a native handler may also carry its signature and preview body
 | `returnType` | string | IR type; absent means `void` |
 | `preview` | `{ actions, return }` | `actions` as in section 2.1; `return` is an optional Expression for a non-`void` handler. Absent when the handler has no preview body |
 
-Binding ids are stable across regeneration. Renames go through a migration; the merger never
-guesses. See [`developer-workflow.md`](../guides/developer-workflow.md).
+`kind` must match the use: an event binding is named by a node `events` entry, and an effect (and
+its cleanup) is named by `effects[].handler`/`cleanup`. Binding ids are stable across regeneration.
+Renames go through a migration; the merger never guesses. See
+[`developer-workflow.md`](../guides/developer-workflow.md).
 
 ## 7. Stylesheet references
 
@@ -442,7 +445,12 @@ Hard errors:
   with children
 - `TextInput`/`TextArea` with children or unsupported props/event payloads
 - dynamic component types, context, suspense, custom hooks
-- missing list key or non-static loop source
+- missing list key or non-static loop source; a loop `item`/`index` that is empty, dotted or equal
+  (`TESSERA_IR_LOOP`)
+- a field outside its node kind (`text` on a non-`Text` node, `style` on a `Component` node), a
+  template or non-bool literal `condition` (`TESSERA_IR_CONDITION`), or an `ErrorBoundary` fallback
+  with `condition`/`loop`
+- a binding whose `kind` does not match its use (`TESSERA_IR_BINDING`)
 - binding annotation without a matching IR use, or vice versa (a binding no event or effect uses
   is this error, not a warning)
 - unresolved or duplicate `handler::` id, an `events` value that is neither a `bind::` nor a
@@ -458,6 +466,24 @@ Warnings:
 - unused ref/state
 - binding present in existing code but not in generated IR (rename/removal)
 - deprecated fields
+
+### 9.1 Writer and validator coverage (slices 6 to 9)
+
+Every construct lowering emits is written; structural invariants are validated. Goldens
+`tests/golden/ir/{counter,rich}.json` are re-baselined deliberately with `ir_json_tests --write`;
+a full IR reader is still deferred (jsx-ir-lowering decision 15), so round-trip tests compare
+canonical text, not a re-parsed model.
+
+| Construct | Writer | Validator |
+|---|---|---|
+| `condition` | expression object | boolean-valued shape (`TESSERA_IR_CONDITION`) |
+| loop `item`/`index`/`source`/`key` | `loop` object; `index` when present | distinct local names, source ref, key required, depth 2 |
+| `Component` reference | `component`, props, events, slot `children` | target resolves, no `style`, children allowed |
+| text, style/className, events, `fallback` | `text`/`style`/`props`/`events`, fallback node | `text` only on `Text`; event ids resolve to event bindings; fallback static |
+
+Deliberately not covered: the `Slot` kind (section 3.4) has no model/writer/validator form until
+lowering emits it (slice 4 children typing); intrinsic prop/event schemas (the IR is a leaf and does
+not link `tessera_schema`); component prop and `children` types.
 
 ## 10. Codegen mapping
 

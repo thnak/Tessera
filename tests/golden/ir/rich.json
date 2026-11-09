@@ -161,6 +161,26 @@
       "root": {
         "children": [
           {
+            "children": [
+              {
+                "id": "node::6",
+                "kind": "Text",
+                "source": {
+                  "column": 20,
+                  "endColumn": 32,
+                  "endLine": 17,
+                  "file": "ui/Counter.tsx",
+                  "length": 12,
+                  "line": 17,
+                  "offset": 240
+                },
+                "text": {
+                  "kind": "literal",
+                  "value": "slot"
+                },
+                "uiId": "6"
+              }
+            ],
             "component": "comp::Row",
             "condition": {
               "kind": "unary",
@@ -279,6 +299,9 @@
         ],
         "id": "node::1",
         "kind": "View",
+        "props": {
+          "className": "root"
+        },
         "source": {
           "column": 3,
           "endColumn": 9,
@@ -287,6 +310,10 @@
           "length": 250,
           "line": 16,
           "offset": 200
+        },
+        "style": {
+          "opacity": 0.5,
+          "width": "10px"
         },
         "uiId": "1"
       },

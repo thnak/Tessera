@@ -7,7 +7,9 @@
 #include "tessera/compiler/ir/ir_json.hpp"
 
 #include <cstdint>
+#include <fstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -216,7 +218,20 @@ void test_output_is_deterministic() {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 1 && std::string_view(argv[1]) == "--write") {
+        // Deliberate golden update: run with --write after an intentional writer change, then
+        // review the diff against docs/specs/ir-v1.md before committing.
+        const std::string dir = TESSERA_IR_GOLDEN_DIR;
+        const auto write = [&](const std::string& name, const std::string& text) {
+            std::ofstream out(dir + "/" + name, std::ios::binary | std::ios::trunc);
+            out << text;
+            check(static_cast<bool>(out), "wrote " + name);
+        };
+        write("counter.json", ir::write_ir_json(make_counter_module()));
+        write("rich.json", ir::write_ir_json(make_rich_module()));
+        return finish("ir json golden update");
+    }
     test_expression_forms();
     test_value_position_is_bare_for_literals_only();
     test_malformed_ir_is_written_with_gaps();
