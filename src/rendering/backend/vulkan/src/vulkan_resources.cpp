@@ -47,6 +47,10 @@ void VulkanBuffer::read(void* data, std::size_t size, std::size_t offset) const 
 }
 
 VulkanTexture::~VulkanTexture() {
+    // Return the set so texture churn (atlas growth, resize) cannot exhaust the fixed-size pool.
+    if (descriptor_set_ != VK_NULL_HANDLE && descriptor_pool_ != VK_NULL_HANDLE) {
+        vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set_);
+    }
     if (sampler_ != VK_NULL_HANDLE) {
         vkDestroySampler(device_, sampler_, nullptr);
     }

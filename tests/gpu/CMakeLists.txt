@@ -103,6 +103,11 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(damage_equivalence_tests PRIVATE
         tessera_gpu tessera_damage tessera_golden tessera_rhi_vulkan)
     add_test(NAME damage_equivalence COMMAND damage_equivalence_tests)
+
+    add_executable(vulkan_texture_churn_tests
+        vulkan/vulkan_texture_churn_tests.cpp)
+    target_link_libraries(vulkan_texture_churn_tests PRIVATE tessera_rhi_vulkan)
+    add_test(NAME vulkan_texture_churn COMMAND vulkan_texture_churn_tests)
 endif()
 
 if (WIN32 AND TARGET tessera_rhi_vulkan)

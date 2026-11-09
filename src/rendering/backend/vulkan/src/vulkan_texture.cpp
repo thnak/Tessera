@@ -122,7 +122,8 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     }
 
     return std::make_unique<VulkanTexture>(device_, allocator_, image, view, sampler, allocation,
-                                           descriptor_set, desc.extent, desc.format, this);
+                                           descriptor_pool_, descriptor_set, desc.extent,
+                                           desc.format, this);
 }
 
 void VulkanTexture::write(const void* data, std::size_t size) {
