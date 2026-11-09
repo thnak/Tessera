@@ -7,7 +7,10 @@ interface and deterministic `ManualClock` in `src/runtime/clock.*`, and a `Runti
 render-on-demand/wake state in `src/runtime/runtime_loop.*`, a deadline-based `FramePacer`
 (`src/runtime/frame_pacer.*`), the HAL steady clock + bounded wait (`src/hal/timer/`),
 `runtime::SystemClock`, and the Windows HAL event wait (`hal::Window::wait_for_events`,
-`hal/window_wait.hpp`); actual loop sleep/vsync/presentation integration remains design-only.
+`hal/window_wait.hpp`). The windowed `batched2d_poc` runs these together: `RuntimeLoop` on
+`runtime::SteadyClock` decides whether to render, `wait_for_next_frame` sleeps to the pacer deadline,
+and frames are presented asynchronously through a swapchain. A scene-driven render-on-demand loop
+and the remaining wiring (completion queue, animation bridge, frame pipeline) are still pending.
 Normative
 terms are used by [`runtime-config-v1.md`](../specs/runtime-config-v1.md) (runtime config keys and
 defaults). Design basis: [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input and
@@ -334,7 +337,7 @@ for (int frame = 0; frame < frames; ++frame) {
   input, async completion posts, `request_frame()`), so input and completions are handled
   immediately and the loop never busy-waits. This idle wait is bounded by the next deadline and
   holds no locks. The HAL seam for the platform part is `wait_for_events_until(window, deadline)`
-  from `hal/window_wait.hpp` (see [`hal.md`](hal.md) §1.2). `runtime::wait_for_next_frame(window, pacer)` (`runtime/frame_wait.hpp`) combines the FramePacer deadline with that wait; application loops call it between ticks, while full `RuntimeLoop` integration remains pending. Acquire/present use the bounded state machine of [`async.md`](async.md).
+  from `hal/window_wait.hpp` (see [`hal.md`](hal.md) §1.2). `runtime::wait_for_next_frame(window, pacer)` (`runtime/frame_wait.hpp`) combines the FramePacer deadline with that wait; application loops call it between ticks (the windowed POC does, driving `RuntimeLoop::tick()` in continuous mode); wiring `RuntimeLoop` to a real scene in render-on-demand mode remains pending. Acquire/present use the bounded state machine of [`async.md`](async.md).
 
 ## 10. Metrics and diagnostics
 
