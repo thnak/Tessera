@@ -4,6 +4,8 @@ Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-g
 rationale is in [`accessibility.md`](../design/accessibility.md). Companion to
 [`text-editing-v1.md`](text-editing-v1.md), [`overlays-and-layers-v1.md`](overlays-and-layers-v1.md),
 [`navigation-v1.md`](navigation-v1.md), and [`mobile-integration.md`](../design/mobile-integration.md).
+The deterministic semantics snapshot builder (roles, names, hidden rules, focus, actions, bounds)
+is implemented; see section 12.
 
 Accessibility is a first-class tree parallel to the scene graph ([`scene-graph.md`](../design/scene-graph.md)), not a post-processing step. `NodeId` is the runtime scene-node id defined in [`automation-ids-v1.md`](automation-ids-v1.md) section 1.
 
@@ -213,3 +215,117 @@ Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`
 - High-contrast token coverage in the component library.
 - Switch/voice control and text navigation by word/line (after V1; no release assigned).
 - Screen-reader automation on mobile (deferred until the mobile backend exists, Big Step F).
+
+## 12. Implemented subset: deterministic semantics snapshot
+
+`include/tessera/ui/accessibility/a11y_tree.hpp` + `src/ui/accessibility/a11y_tree.cpp` (library
+target `tessera_accessibility`) implement the first semantics slice: one bounded, pre-order snapshot
+of scene nodes with roles, names, states, actions, and world bounds. No platform API is called and
+no action is invoked in this slice. The builder is a read-only consumer of the scene, node metadata,
+computed style, focus, and scroll state.
+
+Model and caps:
+
+```cpp
+struct A11yNode {
+    NodeId id; std::uint64_t automation_id;
+    Role role; State states; Action actions;
+    char name[kMaxTextBytes]; char value[kMaxTextBytes]; char description[kMaxTextBytes];
+    rhi::Rect bounds;                       // world bounds, window logical pixels
+    A11yIndex children[kMaxChildren]; std::uint16_t child_count; bool children_truncated;
+};
+```
+
+- Flat `std::vector<A11yNode>` snapshot (bounded, reused across builds): `kMaxNodes = 256`,
+  `kMaxChildren = 64`, `kMaxTextBytes = 128` UTF-8 bytes per name/value/description (truncated at a
+  code-point boundary). Text is copied inline, so the snapshot owns no scene strings.
+- Order is pre-order (parent first, children in scene order); `children` holds indices into the
+  snapshot. Bounds are `Node::world_bounds()` (AABB) and include ancestor scroll offsets.
+- API: `build_a11y_tree(root, styles, out, options) -> BuildStats`,
+  `find_by_automation_id`, `find_by_node_id`, `name_of`/`value_of`/`description_of`,
+  `role_from_string`/`to_string`. `StyleProvider` here has the same shape as the paint provider
+  (one forwarding adapter) so the layer does not depend on paint/render.
+- Build registration: the library target lives in `src/ui/accessibility/CMakeLists.txt`; the root
+  CMakeLists does not add the subdirectory yet, so `tests/unit/a11y_tree_tests` compiles the source
+  directly. Adding `add_subdirectory(src/ui/accessibility)` is the one-line integration step
+  (Lead-owned).
+
+Role derivation (first match wins):
+
+| Priority | Source | Rule |
+|---|---|---|
+| 1 | `Node::role()` | Explicit ARIA-style role name. Known names map; an unknown explicit role degrades to generic and does not fall back to the element kind. |
+| 2 | `Node::element_kind()` through the schema `impliedRole` table (`tessera_schema`, read-only) | View generic, Text text, Button button, TextInput/TextArea textbox, Image/Path img, Scroll scroll view, VirtualList/VirtualGrid list, Spacer presentation; ErrorBoundary/CustomElement/unknown tags generic. |
+| 3 | Fallback | generic. |
+
+`presentation` (and `role="none"`) marks a node decorative: it is not emitted and its subtree is
+skipped (`skipped_decorative`). Unknown roles never drop a node.
+
+Name precedence:
+
+1. `aria-label`.
+2. `aria-labelledby`: whitespace-separated ids resolved by `Node::element_id()` inside the same
+   scene; the first resolvable token contributes that node's `aria-label`, else its D9 paint text.
+   Unresolvable tokens are skipped and the next token is tried.
+3. D9 paint text (`PaintData::kind == Text`, non-empty).
+4. `aria-placeholder`.
+5. `Node::element_id()`.
+6. Empty.
+
+Text-field exception (documented): for `textbox` and `slider` roles the D9 text is the control's
+*value*, so it is exposed as `value` and only used as a last-resort name after placeholder/id.
+`value` is D9 text for text fields and `aria-valuetext`/`aria-valuenow` for slider/progress;
+`description` is `aria-description`.
+
+Hidden/ignored rules (evaluated in this order; "subtree" means the node and its descendants are not
+emitted and the BuildStats counter is incremented):
+
+| Rule | Condition | Effect |
+|---|---|---|
+| invisible | `Node::visible()` false | subtree, `skipped_invisible` |
+| aria hidden | `aria-hidden="true"` | subtree, `skipped_aria_hidden` |
+| style hidden | computed `display: none`, or `visibility: hidden`/`collapse` | subtree, `skipped_style_hidden` |
+| scroll-clipped | world rect does not intersect the intersection of every ancestor scroll container's scrollport (border box inset by `scrollport_insets`) | subtree, `skipped_clipped` |
+| zero size | world width or height `<= 0` | subtree, `skipped_zero_size` (no hoisting) |
+| depth | deeper than 128 | `dropped_nodes` + `truncated` |
+| decorative | presentation/none role | subtree, `skipped_decorative` |
+
+Partially visible nodes are emitted with their full world bounds (the bridge clips); a scroll
+container whose scrollport becomes empty stops its whole subtree with one `skipped_clipped` count.
+Ignored wrappers are not hoisted in this slice (children indices stay exact).
+
+States:
+
+| State | Derivation |
+|---|---|
+| focusable | `Node::focusable()` and not disabled |
+| focused | exactly one entry: `BuildOptions::focused_id` (the FocusManager's focus); a hidden focus target produces no focused flag |
+| disabled | `PseudoState::Disabled` or `aria-disabled="true"` |
+| selected | `aria-selected="true"` |
+| checked | `PseudoState::Checked` or `aria-checked` true/`mixed` (mixed is exposed as checked; no tri-state yet) |
+| expanded | `aria-expanded="true"` |
+
+Actions (mask only; no invocation):
+
+| Action | Derivation |
+|---|---|
+| focus | `Node::focusable()` (kept for disabled focusable controls) |
+| press | not disabled and role is button/link/checkbox/radio/switch/tab/menuitem |
+| set value | not disabled and role is textbox/slider |
+| scroll | not disabled and `scrollable_x()`/`scrollable_y()` |
+
+Disabled clears press/set-value/scroll. Actions are validated/executed by a later bridge slice
+(epochs, UI-thread dispatch).
+
+Determinism and tests: the builder reads no clock/random state and allocates nothing after the
+snapshot `reserve`, so two builds of the same scene are identical. Coverage in
+`tests/unit/a11y_tree_tests.cpp` (`a11y_tree`): role/name precedence matrix, hidden/zero-size/
+aria-hidden/scroll-clip rules, focused uniqueness, actions and states per role, pre-order and
+children indices, node/child/text caps and truncation flags, automation-id lookup, determinism,
+and a combined scroll + focus + metadata scene.
+
+Deferred: platform bridges (UIA/AT-SPI/NSAccessibility/Android), action invocation and epochs,
+events/notifications/live regions, semantics diffing and dirty flags, ignored-wrapper hoisting,
+tri-state checked, virtualized item realization, hidden-but-laid-out entries, text selection/
+caret/IME semantics, relations (`describedby`, reverse `labelledby`), localization, and
+screen-reader testing.
