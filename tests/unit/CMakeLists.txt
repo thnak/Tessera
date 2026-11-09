@@ -806,6 +806,70 @@ target_link_libraries(frame_pipeline_tests PRIVATE tessera_frame tessera_runtime
 
 add_test(NAME frame_pipeline COMMAND frame_pipeline_tests)
 
+add_executable(lowering_expression_tests
+    lowering_expression_tests.cpp)
+
+target_link_libraries(lowering_expression_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_expression COMMAND lowering_expression_tests)
+
+add_executable(lowering_reject_tests
+    lowering_reject_tests.cpp)
+
+target_link_libraries(lowering_reject_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_reject COMMAND lowering_reject_tests)
+
+add_executable(lowering_span_tests
+    lowering_span_tests.cpp)
+
+target_link_libraries(lowering_span_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_span COMMAND lowering_span_tests)
+
+add_executable(lowering_determinism_tests
+    lowering_determinism_tests.cpp)
+
+target_link_libraries(lowering_determinism_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_determinism COMMAND lowering_determinism_tests)
+
+add_executable(lowering_golden_tests
+    lowering_golden_tests.cpp)
+
+target_link_libraries(lowering_golden_tests PRIVATE tessera_lowering)
+
+target_compile_definitions(lowering_golden_tests PRIVATE
+    TESSERA_LOWERING_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/lowering")
+
+add_test(NAME lowering_golden COMMAND lowering_golden_tests)
+
+add_executable(lowering_layering_tests
+    lowering_layering_tests.cpp)
+
+target_link_libraries(lowering_layering_tests PRIVATE tessera_lowering)
+
+target_compile_definitions(lowering_layering_tests PRIVATE
+    TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+
+add_test(NAME lowering_layering COMMAND lowering_layering_tests)
+
+add_executable(paint_pass_tests
+    paint_pass_tests.cpp)
+
+target_link_libraries(paint_pass_tests PRIVATE
+    tessera_paint
+    tessera_rhi_null)
+
+add_test(NAME paint_pass COMMAND paint_pass_tests)
+
+add_executable(input_pipeline_tests
+    input_pipeline_tests.cpp)
+
+target_link_libraries(input_pipeline_tests PRIVATE tessera_input_pump)
+
+add_test(NAME input_pipeline COMMAND input_pipeline_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(
