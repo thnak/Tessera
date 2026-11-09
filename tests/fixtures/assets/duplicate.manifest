@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# Duplicate normalized names are rejected by the generator.
+dup.svg = hello.txt
+dup.svg = hello.txt
