@@ -30,9 +30,9 @@ public:
 
     [[nodiscard]] virtual std::uint32_t id() const = 0;
     [[nodiscard]] virtual text::FontMetrics metrics(const text::TextStyle& style) const = 0;
-    [[nodiscard]] virtual text::TextLayout layout(std::string_view text,
-                                                  const text::TextStyle& style,
-                                                  const text::TextConstraints& constraints) const = 0;
+    [[nodiscard]] virtual text::TextLayout
+    layout(std::string_view text, const text::TextStyle& style,
+           const text::TextConstraints& constraints) const = 0;
 };
 
 class StubPaintTextMetrics final : public PaintTextMetricsSource {

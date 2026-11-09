@@ -25,13 +25,13 @@ namespace {
 using tessera::ui::Node;
 using tessera::ui::NodeId;
 using tessera::ui::paint::kStubTextMetricsId;
-using tessera::ui::paint::PaintTextMetricsSource;
-using tessera::ui::paint::StubPaintTextMetrics;
 using tessera::ui::paint::paint_scene;
 using tessera::ui::paint::PaintContext;
 using tessera::ui::paint::PaintSink;
 using tessera::ui::paint::PaintStats;
+using tessera::ui::paint::PaintTextMetricsSource;
 using tessera::ui::paint::RoundedClip;
+using tessera::ui::paint::StubPaintTextMetrics;
 using tessera::ui::paint::StyleProvider;
 using tessera::ui::paint::TextDraw;
 using tessera::ui::paint::TextLayoutCache;
@@ -95,9 +95,9 @@ const TextLayout& get(TextLayoutCache& cache, const Request& request) {
     constraints.max_width = request.width;
     StubPaintTextMetrics stub;
     FixedMetrics fake(request.metrics_id);
-    const PaintTextMetricsSource& source =
-        request.metrics_id == kStubTextMetricsId ? static_cast<const PaintTextMetricsSource&>(stub)
-                                                 : static_cast<const PaintTextMetricsSource&>(fake);
+    const PaintTextMetricsSource& source = request.metrics_id == kStubTextMetricsId
+                                               ? static_cast<const PaintTextMetricsSource&>(stub)
+                                               : static_cast<const PaintTextMetricsSource&>(fake);
     return cache.get(request.text, style, constraints, source, request.max_lines);
 }
 

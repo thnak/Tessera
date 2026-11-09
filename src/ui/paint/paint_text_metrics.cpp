@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/paint/paint_text_metrics.hpp"
-
 #include "tessera/ui/text/freetype_metrics.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 

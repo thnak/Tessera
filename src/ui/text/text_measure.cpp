@@ -332,7 +332,8 @@ TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
                 // Split an over-wide word at the largest measured code-point prefix that fits.
                 std::size_t chunk_begin = word.begin;
                 while (chunk_begin < word.end) {
-                    const std::string_view remaining = text.substr(chunk_begin, word.end - chunk_begin);
+                    const std::string_view remaining =
+                        text.substr(chunk_begin, word.end - chunk_begin);
                     const std::size_t codepoints = codepoint_count(remaining);
                     std::size_t best = 1;
                     std::size_t low = 1;

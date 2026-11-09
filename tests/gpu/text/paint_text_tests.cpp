@@ -395,8 +395,7 @@ int main(int argc, char** argv) {
     paint_scene(centered, styles, centered_sink, real_context);
     ok = expect(!centered_sink.lines.empty(), "centered real-metrics paint emits lines") && ok;
     for (const RecordedLine& recorded : centered_sink.lines) {
-        const float expected_x =
-            std::round(12.0f + (88.0f - recorded.rect.width) * 0.5f);
+        const float expected_x = std::round(12.0f + (88.0f - recorded.rect.width) * 0.5f);
         ok = expect(recorded.rect.x == expected_x && recorded.rect.x >= 12.0f &&
                         recorded.rect.x + recorded.rect.width <= 100.0f,
                     "real-metrics center alignment stays inside the content box") &&
@@ -448,7 +447,6 @@ int main(int argc, char** argv) {
                      stub_sink.lines[0].rect.width != mixed_real_sink.lines[0].rect.width),
                 "real metrics select a different wrap than the stub") &&
          ok;
- 
 
     if (argc > 2 && std::string_view(argv[2]) == "--bench") {
         std::string words;
@@ -470,9 +468,8 @@ int main(int argc, char** argv) {
                 (void)source.layout(words, bench_style, bench_constraints);
             }
             const auto elapsed = std::chrono::steady_clock::now() - started;
-            return static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                           elapsed)
-                                           .count()) /
+            return static_cast<double>(
+                       std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()) /
                    (100.0 * 1000.0);
         };
         const double stub_us = time_source(stub_source);
@@ -493,8 +490,8 @@ int main(int argc, char** argv) {
                 std::chrono::duration_cast<std::chrono::nanoseconds>(hit_elapsed).count()) /
             (200.0 * 1000.0);
         std::cout << "paint_text_gpu bench: 200 words, 300px -> " << bench_lines
-                  << " lines, stub=" << stub_us << " us, real=" << real_us << " us, real cache hit="
-                  << hit_us << " us (Debug)\n";
+                  << " lines, stub=" << stub_us << " us, real=" << real_us
+                  << " us, real cache hit=" << hit_us << " us (Debug)\n";
     }
 
     if (!ok) {
