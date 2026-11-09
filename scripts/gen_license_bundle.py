@@ -69,6 +69,7 @@ class Component:
     name: str
     licenses: Tuple[str, ...]
     copyright: str
+    status: str = ""
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,7 @@ class NoticeEntry:
     name: str
     source: str  # "in-repo" heading or "planned" table row
     copyright: str = ""
+    upstream: str = ""
 
 
 def clean_text(text: str) -> str:
@@ -128,6 +130,7 @@ def production_components(dependencies_text: str) -> List[Component]:
                 name=clean_text(row.name),
                 licenses=elect_licenses(row.name, tokens),
                 copyright="",
+                status=row.status,
             )
         )
     return components
@@ -147,6 +150,7 @@ def parse_notice_entries(notices_text: str) -> List[NoticeEntry]:
                     name=current.get("name", ""),
                     source="in-repo",
                     copyright=clean_text(current.get("copyright", "")),
+                    upstream=clean_text(current.get("upstream", "")),
                 )
             )
             current = None
@@ -181,6 +185,7 @@ def parse_notice_entries(notices_text: str) -> List[NoticeEntry]:
                         name=clean_text(parts[0]),
                         source="planned",
                         copyright=clean_text(parts[2]),
+                        upstream=clean_text(parts[2]),
                     )
                 )
             continue
@@ -197,11 +202,16 @@ def parse_notice_entries(notices_text: str) -> List[NoticeEntry]:
     return entries
 
 
-def copyright_for(component: str, entries: Sequence[NoticeEntry]) -> str:
+def notice_entry_for(
+    component: str,
+    entries: Sequence[NoticeEntry],
+    require_copyright: bool = False,
+) -> Optional[NoticeEntry]:
+    """Resolve the notices entry (copyright/upstream metadata) for a component."""
     tokens = set(deps.name_tokens(component))
-    candidates: List[Tuple[int, int, int, NoticeEntry]] = []
+    candidates: List[Tuple[int, int, int, int, NoticeEntry]] = []
     for index, entry in enumerate(entries):
-        if not entry.copyright:
+        if require_copyright and not entry.copyright:
             continue
         entry_tokens = set(deps.name_tokens(entry.name))
         if not entry_tokens:
@@ -212,15 +222,23 @@ def copyright_for(component: str, entries: Sequence[NoticeEntry]) -> str:
             score = 1
         else:
             continue
+        has_metadata = 0 if (entry.copyright or entry.upstream) else 1
         source_rank = 0 if entry.source == "in-repo" else 1
-        candidates.append((source_rank, score, index, entry))
+        candidates.append((has_metadata, source_rank, score, index, entry))
     if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[:4])
+    return candidates[0][4]
+
+
+def copyright_for(component: str, entries: Sequence[NoticeEntry]) -> str:
+    entry = notice_entry_for(component, entries, require_copyright=True)
+    if entry is None or not entry.copyright:
         raise BundleError(
             "no copyright holder for production-linked component {!r}; add it to "
             "THIRD_PARTY_NOTICES.md".format(component)
         )
-    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
-    return candidates[0][3].copyright
+    return entry.copyright
 
 
 def load_license_text(licenses_dir: Path, license_name: str, components: Sequence[str]) -> str:

@@ -1,0 +1,603 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "comment": "Deterministic SBOM for the shipped Tessera runtime: production-linked components only, no build-time/CI/design-time rows; creation time and tool version are fixed so repeated runs are byte-identical. filesAnalyzed is false: no per-file hashes.",
+  "creationInfo": {
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: tessera-gen-sbom"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://github.com/thnak/Tessera/spdx/tessera-0.0.1-da1a4bbae95fadb3",
+  "hasExtractedLicensingInfos": [
+    {
+      "extractedText": "SQLite Is Public Domain\n\nAll of the code and documentation in SQLite has been dedicated to the public domain by the\nauthors. All code authors, and representatives of the companies they work for, have signed\naffidavits dedicating their contributions to the public domain and originals of those signed\naffidavits are stored in a firesafe at the main offices of Hwaci. All contributors are citizens of\ncountries that allow creative works to be dedicated into the public domain. Anyone is free to\ncopy, modify, publish, use, compile, sell, or distribute the original SQLite code, either in\nsource code form or as a compiled binary, for any purpose, commercial or non-commercial, and by\nany means.",
+      "licenseId": "LicenseRef-Public-Domain",
+      "name": "Public domain (no SPDX license id)",
+      "seeAlsos": [
+        "https://www.sqlite.org/copyright.html"
+      ]
+    }
+  ],
+  "name": "Tessera-0.0.1",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-Tessera",
+      "copyrightText": "Copyright (c) 2026 thnak",
+      "downloadLocation": "https://github.com/thnak/Tessera",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "Tessera",
+      "supplier": "NOASSERTION",
+      "versionInfo": "0.0.1"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-AndroidX-WindowManager-androidx.window-window",
+      "copyrightText": "Google / Android Open Source Project",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "AndroidX WindowManager (androidx.window:window)",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Breakpad",
+      "copyrightText": "Google LLC / Breakpad authors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "Breakpad",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Crashpad",
+      "copyrightText": "Google LLC",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "Crashpad",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Dawn",
+      "copyrightText": "Google LLC",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "Dawn",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-FreeType",
+      "copyrightText": "The FreeType Project and contributors",
+      "downloadLocation": "https://github.com/freetype/freetype",
+      "filesAnalyzed": false,
+      "licenseConcluded": "FTL",
+      "licenseDeclared": "FTL",
+      "name": "FreeType",
+      "supplier": "NOASSERTION",
+      "versionInfo": "2.13.3"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-glm",
+      "copyrightText": "G-Truc Creation",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "glm",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-HarfBuzz",
+      "copyrightText": "HarfBuzz contributors",
+      "downloadLocation": "https://github.com/harfbuzz/harfbuzz",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "HarfBuzz",
+      "supplier": "NOASSERTION",
+      "versionInfo": "10.2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ICU",
+      "copyrightText": "Unicode, Inc. / ICU contributors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Unicode-3.0",
+      "licenseDeclared": "Unicode-3.0",
+      "name": "ICU",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Inja",
+      "copyrightText": "their respective authors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "Inja",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-IXWebSocket",
+      "copyrightText": "Machine Zone, Inc.",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "IXWebSocket",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-libcurl",
+      "copyrightText": "Daniel Stenberg and contributors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "curl",
+      "licenseDeclared": "curl",
+      "name": "libcurl",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-libjpeg-turbo",
+      "copyrightText": "libjpeg-turbo contributors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause OR IJG",
+      "licenseDeclared": "BSD-3-Clause OR IJG",
+      "name": "libjpeg-turbo",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-libpng",
+      "copyrightText": "PNG Reference Library authors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Libpng",
+      "licenseDeclared": "Libpng",
+      "name": "libpng",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-libsodium",
+      "copyrightText": "Frank Denis and contributors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "name": "libsodium",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-libunibreak",
+      "copyrightText": "Wu Yongwei and libunibreak contributors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Zlib",
+      "licenseDeclared": "Zlib",
+      "name": "libunibreak",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-libwebp",
+      "copyrightText": "Google LLC",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "libwebp",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lunasvg",
+      "copyrightText": "lunasvg contributors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "lunasvg",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-mbedTLS",
+      "copyrightText": "ARM Limited",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "mbedTLS",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-mimalloc",
+      "copyrightText": "Microsoft Corporation",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "mimalloc",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-miniaudio",
+      "copyrightText": "David Reid (mackron)",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT-0",
+      "licenseDeclared": "MIT-0",
+      "name": "miniaudio",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-OpenSSL",
+      "copyrightText": "The OpenSSL Project",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "OpenSSL",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Perfetto-SDK",
+      "copyrightText": "Google",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "Perfetto SDK",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-rpmalloc",
+      "copyrightText": "Mattias Jansson",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "rpmalloc",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-SheenBidi",
+      "copyrightText": "Tejus Adiga",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "SheenBidi",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-simdjson",
+      "copyrightText": "their respective authors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "simdjson",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-spdlog",
+      "copyrightText": "Gabi Melman and contributors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "spdlog",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-SPIRV-Reflect",
+      "copyrightText": "Google / Khronos",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "SPIRV-Reflect",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-sqlite3",
+      "copyrightText": "SQLite authors",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LicenseRef-Public-Domain",
+      "licenseDeclared": "LicenseRef-Public-Domain",
+      "name": "sqlite3",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ThorVG",
+      "copyrightText": "2020 - 2026 ThorVG Project",
+      "downloadLocation": "https://github.com/thorvg/thorvg",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "ThorVG",
+      "supplier": "NOASSERTION",
+      "versionInfo": "1.1.3"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Tracy",
+      "copyrightText": "Bartosz Taudul",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "Tracy",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-VMA-VulkanMemoryAllocator",
+      "copyrightText": "Advanced Micro Devices, Inc. and contributors",
+      "downloadLocation": "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "VMA (VulkanMemoryAllocator)",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-volk",
+      "copyrightText": "Arseny Kapoulkine and contributors",
+      "downloadLocation": "https://github.com/zeux/volk",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "volk",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Vulkan-SDK-Headers-Loader-glslc-ValidationLayers",
+      "copyrightText": "The Khronos Group Inc. and contributors",
+      "downloadLocation": "https://github.com/KhronosGroup/Vulkan-Headers",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "name": "Vulkan SDK (Headers, Loader, glslc, ValidationLayers)",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Yoga",
+      "copyrightText": "Meta Platforms, Inc. and affiliates",
+      "downloadLocation": "https://github.com/facebook/yoga",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "Yoga",
+      "supplier": "NOASSERTION",
+      "versionInfo": "3.2.2"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zlib",
+      "copyrightText": "Jean-loup Gailly and Mark Adler",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Zlib",
+      "licenseDeclared": "Zlib",
+      "name": "zlib",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zstd",
+      "copyrightText": "Meta Platforms, Inc.",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "zstd",
+      "supplier": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-fmt",
+      "copyrightText": "Victor Zverovich",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "name": "{fmt}",
+      "supplier": "NOASSERTION"
+    }
+  ],
+  "relationships": [
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Tessera",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-AndroidX-WindowManager-androidx.window-window",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Breakpad",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Crashpad",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Dawn",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-FreeType",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-HarfBuzz",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-ICU",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-IXWebSocket",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Inja",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-OpenSSL",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Perfetto-SDK",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-SPIRV-Reflect",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-SheenBidi",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-ThorVG",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Tracy",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-VMA-VulkanMemoryAllocator",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Vulkan-SDK-Headers-Loader-glslc-ValidationLayers",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-Yoga",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-fmt",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-glm",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-libcurl",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-libjpeg-turbo",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-libpng",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-libsodium",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-libunibreak",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-libwebp",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-lunasvg",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-mbedTLS",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-mimalloc",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-miniaudio",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-rpmalloc",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-simdjson",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-spdlog",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-sqlite3",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-volk",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-zlib",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-zstd",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-Tessera"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

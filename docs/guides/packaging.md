@@ -54,7 +54,7 @@ Unexpected third-party dynamic libraries fail the release.
 
 ### Shipping license compliance
 
-A distributable must contain three files. `cmake/tessera_packaging.cmake` installs them under
+A distributable must contain four files. `cmake/tessera_packaging.cmake` installs them under
 `${CMAKE_INSTALL_DATADIR}/tessera/licenses` (normally `share/tessera/licenses`) and fails the
 configure step loudly if any is missing:
 
@@ -63,6 +63,7 @@ configure step loudly if any is missing:
 | `LICENSE` | the project MIT license |
 | `THIRD_PARTY_NOTICES.md` | component map: files, upstream, copyright |
 | `THIRD_PARTY_LICENSES.txt` | generated bundle: component -> license -> copyright map, then each distinct license text once |
+| `sbom.spdx.json` | generated SPDX 2.3 JSON SBOM for production-linked components (see below) |
 
 The canonical texts live in [`licenses/`](../../licenses/README.md), one file per license with a
 provenance header. Regenerate and verify the bundle from the repository root:
@@ -78,6 +79,30 @@ the bundle in the same change as any dependency/notices update and ship the resu
 The About/licenses UI should show these files. The bundle covers third-party code linked into the
 binary; system libraries that stay dynamic (Vulkan loader/ICDs, OS frameworks, glibc) are not
 linked third-party code and are not part of the bundle.
+
+### Software bill of materials
+
+`sbom.spdx.json` is an SPDX 2.3 JSON document describing the project package and every
+production-linked third-party component (the same rows as the license bundle; test, CI, build-time
+and design-time rows are excluded). Each package records its license expression
+(`licenseConcluded`/`licenseDeclared`), copyright, `downloadLocation` where the notices file has an
+upstream URL, a pinned `versionInfo` where the dependency map pins one, and `filesAnalyzed: false`.
+Licenses without an SPDX identifier use an `LicenseRef-*` with an `hasExtractedLicensingInfos`
+entry (currently SQLite's public-domain dedication).
+
+The document is byte-deterministic: the creation time and tool creator are fixed, the
+`documentNamespace` is content-derived and packages/relationships are sorted, so two runs and two
+checkouts produce identical bytes. Regenerate and verify from the repository root:
+
+```bash
+python -B scripts/gen_sbom.py --write
+python -B scripts/gen_sbom.py --check
+```
+
+`--check` fails on drift and is part of the `release-gates` CI job. The SBOM installs next to the
+license files under `share/tessera/licenses`. Out of scope: build-time/CI tooling and deep
+transitive build dependencies, per-file checksums or provenance attestations
+(`filesAnalyzed: false` means no file hashes), and vulnerability/SCA data.
 
 ## 6. Windows
 
