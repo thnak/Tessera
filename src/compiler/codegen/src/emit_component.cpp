@@ -382,7 +382,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
             rest = rest.substr(newline + 1);
         }
         if (!dynamic_text.empty()) {
-            writer.line("state_dirty_ = true;");
+            writer.line("apply_state();");
         }
         writer.close("");
         writer.line("");
@@ -413,7 +413,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
         writer.indent -= 1;
         writer.line("// [DEVELOPER_LOGIC_END: " + binding->id + "]");
         if (!dynamic_text.empty() && event_parameter && binding->return_type.empty()) {
-            writer.line("state_dirty_ = true;");
+            writer.line("apply_state();");
         }
         writer.close("");
         writer.line("");

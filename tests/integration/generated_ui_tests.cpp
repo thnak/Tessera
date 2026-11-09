@@ -5,10 +5,11 @@
 // input, and repainted. This is the "generated UI is interactive" acceptance (task-56).
 //
 // The generated code supplies the component struct (state cells/effects), the node tree, the
-// Button's `PointerUp` binding (`handler_1` increments `state_count_`) and the TextInput's
-// `EditText` binding (`on_name` copies the committed text into `state_name_`). Codegen does not yet
-// emit state interpolation into node content or controlled `value`/onChange wiring, so this demo
-// applies the state -> PaintData step explicitly and documents that as the next compiler item.
+// Button's `PointerUp` binding (`handler_1` increments `state_count_`), the TextInput's `EditText`
+// binding (`on_name` copies the committed text into `state_name_`) and the interpolated Text
+// children (`Count: {count}`, `Name: {name}`) that the generated setters/regions refresh through
+// `apply_state()`; `update()` runs the changed effect. Controlled TextInput value/onChange wiring
+// remains a documented codegen gap.
 //
 // Usage: generated_ui_tests [--write] <font.ttf> <baseline_dir>
 
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
 
     // --- 1. Generated tree + Yoga layout + CPU paint -------------------------------------------
     Fixture fixture;
-    if (!expect(fixture.layout_applied.applied == 5, "layout applied to every generated node") ||
+    if (!expect(fixture.layout_applied.applied == 6, "layout applied to every generated node") ||
         !expect(fixture.layout_applied.missing == 0 && fixture.layout_applied.extra == 0,
                 "layout covered the tree exactly")) {
         return 3;
@@ -81,7 +82,17 @@ int main(int argc, char** argv) {
     Node* const button = fixture.find(*fixture.root, "Button");
     Node* const text_input = fixture.find(*fixture.root, "TextInput");
     if (!expect(card != nullptr && counter != nullptr && button != nullptr && text_input != nullptr,
-                "generated kinds are present")) {
+                "generated kinds are present") ||
+        !expect(card->children().size() == 4,
+                "the card has two Text children, a Button and an input")) {
+        return 3;
+    }
+    Node* const name = card->children()[1].get();
+    if (!expect(name->element_kind() == "Text", "the second Text is the Name interpolation")) {
+        return 3;
+    }
+    if (!expect(counter->paint_data().has_value() && counter->paint_data()->text == "Count: 0",
+                "the generated build interpolated Count: 0")) {
         return 3;
     }
     if (!expect(counter->world_bounds().width > 0.0f, "text node laid out with a measured size") ||
@@ -126,21 +137,19 @@ int main(int argc, char** argv) {
         !expect(route_is_w3c(*fixture.root, EventType::PointerUp), "PointerUp route is W3C")) {
         return 6;
     }
-    if (!expect(!has_flag(counter->dirty(), Dirty::Paint),
-                "the generated handler itself marks no dirty domain (codegen gap)")) {
+    if (!expect(counter->paint_data().has_value() && counter->paint_data()->text == "Count: 1",
+                "the generated setter interpolated Count: 1")) {
         return 6;
     }
-
-    // The missing regeneration step: a framework would write the state back into the Text node's
-    // PaintData. The demo performs exactly that interpolation and proves the repaint path.
-    tessera::ui::PaintData updated;
-    updated.text = "Count: " + std::to_string(fixture.demo.state_count_);
-    counter->set_paint_data(std::move(updated));
     if (!expect(has_flag(counter->dirty(), Dirty::Paint) &&
                     has_flag(counter->dirty(), Dirty::Render),
-                "state interpolation marks Paint and Render") ||
+                "the generated setter marks Paint and Render") ||
         !expect(!has_flag(counter->dirty(), Dirty::Layout),
                 "text interpolation does not mark Layout (no reflow needed)")) {
+        return 7;
+    }
+    fixture.demo.update();
+    if (!expect(fixture.demo.effect_sync_state_.runs >= 1, "update() ran the generated effect")) {
         return 7;
     }
 
@@ -191,7 +200,11 @@ int main(int argc, char** argv) {
         !expect(route_is_w3c(*fixture.root, EventType::EditText),
                 "EditText route is W3C capture/target/bubble") ||
         !expect(fixture.demo.state_name_ == "Ada",
-                "generated on_name handler copied the committed text into state")) {
+                "generated on_name handler copied the committed text into state") ||
+        !expect(name->paint_data().has_value() && name->paint_data()->text == "Name: Ada",
+                "the developer region's state change interpolated Name: Ada") ||
+        !expect(has_flag(name->dirty(), Dirty::Paint),
+                "typing marks the interpolated Name text Paint")) {
         return 10;
     }
 
@@ -210,14 +223,12 @@ int main(int argc, char** argv) {
     }
     const std::vector<std::uint8_t> typed_render =
         render(*fixture.root, fixture.styles, canvas, rasterizer, shaper);
-    if (!expect(typed_render == after,
-                "typing does not repaint: no controlled value -> PaintData wiring (documented)")) {
+    if (!expect(typed_render != after, "typing repaints through generated interpolation")) {
         return 11;
     }
 
     // --- 4. Determinism: rebuild the whole generated UI and reproduce the frames ----------------
     Fixture replay;
-    Node* replay_counter = replay.find(*replay.root, "Text");
     Node* replay_button = replay.find(*replay.root, "Button");
     InputRouter replay_router;
     const auto replay_click = [&](InputEventType type) {
@@ -227,9 +238,6 @@ int main(int argc, char** argv) {
     };
     replay_click(InputEventType::PointerDown);
     replay_click(InputEventType::PointerUp);
-    tessera::ui::PaintData replay_updated;
-    replay_updated.text = "Count: " + std::to_string(replay.demo.state_count_);
-    replay_counter->set_paint_data(std::move(replay_updated));
     CpuCanvas replay_canvas(kWidth, kHeight);
     const std::vector<std::uint8_t> replay_after =
         render(*replay.root, replay.styles, replay_canvas, rasterizer, shaper);

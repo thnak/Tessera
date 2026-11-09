@@ -43,11 +43,11 @@ namespace demo {
     }
     
     namespace {
-      void event_adapter_3_onClick(void* context, const tessera::ui::Event& event) {
+      void event_adapter_4_onClick(void* context, const tessera::ui::Event& event) {
         auto* component = static_cast<Demo*>(context);
         component->handler_1(event);
       }
-      void event_adapter_4_onChange(void* context, const tessera::ui::Event& event) {
+      void event_adapter_5_onChange(void* context, const tessera::ui::Event& event) {
         auto* component = static_cast<Demo*>(context);
         component->on_name(event);
       }
@@ -64,46 +64,55 @@ namespace demo {
       node_2->set_element_kind("Text");
       this->text_node_2_ = node_2.get();
       node_1->add_child(std::move(node_2));
-      // node::3 events={onClick:handler::1}
+      // node::3
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3u));
-      node_3->set_element_kind("Button");
-      node_3->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_3_onClick, this);
-      node_3->set_focusable(true);
+      node_3->set_element_kind("Text");
+      this->text_node_3_ = node_3.get();
       node_1->add_child(std::move(node_3));
-      // node::4 events={onChange:bind::on_name}
+      // node::4 events={onClick:handler::1}
       auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4u));
-      node_4->set_element_kind("TextInput");
-      node_4->bind_event(tessera::ui::EventType::EditText, &event_adapter_4_onChange, this);
+      node_4->set_element_kind("Button");
+      node_4->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_4_onClick, this);
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
+      // node::5 events={onChange:bind::on_name}
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5u));
+      node_5->set_element_kind("TextInput");
+      node_5->bind_event(tessera::ui::EventType::EditText, &event_adapter_5_onChange, this);
+      node_5->set_focusable(true);
+      node_1->add_child(std::move(node_5));
       parent.add_child(std::move(node_1));
       apply_state();
     }
     
     void Demo::apply_state() {
       std::uint64_t hash_2 = tessera::ui::kEffectHashSeed;
-      if (state_count_ == 0) {
-        hash_2 = tessera::ui::effect_hash(hash_2, "Counter");
-      } else {
-        hash_2 = tessera::ui::effect_hash(hash_2, "Count: ");
-        hash_2 = tessera::ui::effect_hash(hash_2, state_count_);
-        hash_2 = tessera::ui::effect_hash(hash_2, "");
-      }
+      hash_2 = tessera::ui::effect_hash(hash_2, "Count: ");
+      hash_2 = tessera::ui::effect_hash(hash_2, state_count_);
       if (!text_node_2_set_ || hash_2 != text_node_2_hash_) {
           text_node_2_hash_ = hash_2;
           text_node_2_set_ = true;
           std::string next_2;
-          if (state_count_ == 0) {
-            next_2 += format_value("Counter");
-          } else {
-            next_2 += "Count: ";
-            next_2 += format_value(state_count_);
-            next_2 += "";
-          }
+          next_2 += "Count: ";
+          next_2 += format_value(state_count_);
           text_node_2_value_ = std::move(next_2);
           tessera::ui::PaintData paint_2;
           paint_2.text = text_node_2_value_;
           text_node_2_->set_paint_data(std::move(paint_2));
+      }
+      std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
+      hash_3 = tessera::ui::effect_hash(hash_3, "Name: ");
+      hash_3 = tessera::ui::effect_hash(hash_3, state_name_);
+      if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
+          text_node_3_hash_ = hash_3;
+          text_node_3_set_ = true;
+          std::string next_3;
+          next_3 += "Name: ";
+          next_3 += format_value(state_name_);
+          text_node_3_value_ = std::move(next_3);
+          tessera::ui::PaintData paint_3;
+          paint_3.text = text_node_3_value_;
+          text_node_3_->set_paint_data(std::move(paint_3));
       }
     }
     
@@ -129,12 +138,12 @@ namespace demo {
       if (tessera::ui::effect_needs_run(effect_sync_state_, dep_hash_0(*this))) {
         sync();
       }
+      apply_state();
     }
     
     void Demo::update() {
       update_effects();
       apply_state();
-      state_dirty_ = false;
     }
     
     void Demo::unmount() {
@@ -147,14 +156,14 @@ namespace demo {
     void Demo::handler_1(const tessera::ui::Event& event) {
       (void)event;
       state_count_ = (state_count_ + 1);
-      state_dirty_ = true;
+      apply_state();
     }
     
     void Demo::on_name(const tessera::ui::Event& event) {
       // [DEVELOPER_LOGIC_START: bind::on_name]
         state_name_ = std::string(event.text.data(), event.text_size);
       // [DEVELOPER_LOGIC_END: bind::on_name]
-      state_dirty_ = true;
+      apply_state();
     }
     
     void Demo::sync() {

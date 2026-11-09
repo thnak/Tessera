@@ -94,25 +94,18 @@ int main() {
     label.clear_dirty(ui::Dirty::All);
     ui::dispatch_event_to(*view.children()[1], click);
     check(sample.state_count_ == 1, "a dispatched PointerUp runs the generated setter handler");
-    check(label.dirty() == ui::Dirty::Clean,
-          "the setter marks only the component dirty, not the node");
-    check(sample.state_dirty_, "the generated setter raises the component dirty flag");
-    if (label.paint_data()) {
-        check_eq(label.paint_data()->text, "Count: 0", "text is not rebuilt before update()");
-    }
-
-    // The host-driven update applies the new state, runs changed effects, and marks Paint|Render.
-    sample.update();
-    check(!sample.state_dirty_, "update() clears the component dirty flag");
     check(label.dirty() == (ui::Dirty::Paint | ui::Dirty::Render),
-          "update() applies interpolation and marks Paint|Render only");
+          "the setter applies interpolation and marks Paint|Render only");
     check(!ui::has_flag(label.dirty(), ui::Dirty::Layout), "interpolation is paint-only");
     if (label.paint_data()) {
-        check_eq(label.paint_data()->text, "Count: 1", "update() refreshed the interpolated text");
+        check_eq(label.paint_data()->text, "Count: 1",
+                 "the setter refreshed the interpolated text");
     }
+
+    // update() runs the changed effect; the text hash is unchanged, so it marks no new dirty bits.
+    sample.update();
     check(sample.effect_sync_state_.runs == 2,
           "update() runs the effect for the changed dependency");
-
     label.clear_dirty(ui::Dirty::All);
     sample.update();
     check(label.dirty() == ui::Dirty::Clean, "an unchanged update marks no dirty domain");

@@ -77,10 +77,6 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
                     "` (a plain field until the animation controller API exists).");
         writer.line(*type + " " + member_name(value.id) + " = " + initial.text + ";");
     }
-    if (!dynamic_text.empty()) {
-        writer.line("// Set by generated setters/event regions; update() applies the new state.");
-        writer.line("bool state_dirty_ = false;");
-    }
     for (const DynamicText& entry : dynamic_text) {
         const std::string suffix = std::to_string(entry.ordinal);
         writer.line("// Interpolated text for the node with pre-order index " + suffix +

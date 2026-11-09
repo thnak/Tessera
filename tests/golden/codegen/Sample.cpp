@@ -123,12 +123,12 @@ namespace demo {
       if (tessera::ui::effect_needs_run(effect_sync_state_, dep_hash_0(*this))) {
         sync();
       }
+      apply_state();
     }
     
     void Sample::update() {
       update_effects();
       apply_state();
-      state_dirty_ = false;
     }
     
     void Sample::unmount() {
@@ -141,7 +141,7 @@ namespace demo {
     void Sample::handler_1(const tessera::ui::ClickEvent& event) {
       (void)event;
       state_count_ = 1;
-      state_dirty_ = true;
+      apply_state();
     }
     
     void Sample::on_click(const tessera::ui::ClickEvent& event) {
@@ -149,7 +149,7 @@ namespace demo {
         // TODO(tessera-codegen): implement the developer body for bind::on_click.
         (void)event;
       // [DEVELOPER_LOGIC_END: bind::on_click]
-      state_dirty_ = true;
+      apply_state();
     }
     
     void Sample::sync() {

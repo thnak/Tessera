@@ -272,9 +272,10 @@ into a scene, lays it out with Yoga, paints with `paint_scene` through the deter
 Run it with `ctest -R generated_ui`; regenerate the goldens with
 `generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui`. The demo is registered
 from `tests/unit/CMakeLists.txt` because the root CMakeLists (Lead-owned) does not add
-`tests/integration` yet. The demo currently performs the text interpolation step itself; the generated `apply_state()` and
-`update()` entry points now provide it, so the integration demo can drop that manual step in a
-follow-up owned by the ui-input lane. Remaining demo-documented gaps: (a) no controlled
+`tests/integration` yet. The demo now drives the repaint through the generated `apply_state()`/`update()` path (no manual
+interpolation): the click sets `Count: 1`, the committed EditText sets `Name: Ada`, and
+`update()` runs the generated effect; the demo asserts Paint|Render-only dirty domains and keeps
+the W3C route/state/damage/determinism checks. Remaining demo-documented gaps: (a) no controlled
 `value`/`onChange` wiring for `TextInput` — bindings receive the generic `Event` and there is no
 value-to-text feed, so typing is asserted through the generated `EditText` handler and the
 edit-controller buffer; (b) the sample emits no `automationId`, so nodes are resolved by element
