@@ -6,7 +6,11 @@
 // documented 0/1/2.
 
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -54,7 +58,12 @@ int run_cli(const fs::path& cli, const std::string& arguments, const fs::path& l
 #endif
     const std::string command =
         prefix + quoted(cli) + " " + arguments + " > " + quoted(log) + " 2>&1";
-    return std::system(command.c_str());
+    const int status = std::system(command.c_str());
+#ifdef _WIN32
+    return status;
+#else
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
 }
 
 std::string region_body(const std::string& text, std::string_view region_id) {
