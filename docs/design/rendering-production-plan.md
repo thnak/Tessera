@@ -2,8 +2,10 @@
 
 Status: plan for the rendering workstream from the current B1/B2/B3 state to the production
 milestone. The project owner approved **D1 (ThorVG first)** and **D2 (sRGB-encoded formats)** on
-2026-11-09; D3-D8 are engineering defaults enforced by the release gates and remain open to owner
-review. The acceptance gates are normative for the release build. Related:
+2026-11-09; D2 is implemented (RHI sRGB formats, swapchain preference policy, UNORM goldens
+unchanged), D1's integration spike is next, and D3-D8 are engineering defaults enforced by the
+release gates and remain open to owner review. The acceptance gates are normative for the release
+build. Related:
 [`renderer.md`](renderer.md), [`gpu/README.md`](gpu/README.md),
 [`dependencies.md`](../specs/dependencies.md), [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md),
 [ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license.md),
@@ -69,12 +71,15 @@ out of the release until decided.
    pass (needs a scene paint-data decision: text content/visual props on nodes); clipping/rounded
    clip intersection with the scissor stack.
 2. **Present correctness**: swapchain present/damage-free path on Win32/X11 already renders and
-   presents; add device-loss recovery, bounded acquire/present policy tests, and swapchain image
-   lifetime checks under validation.
-3. **Color policy (D2)**: sRGB format support in the RHI, swapchain preference rules, golden
-   expectations updated once, documented approximation.
-4. **Static/license gates**: dependency allowlist checker, notices completeness checker,
-   per-OS static-link allowlist checker, CI wiring (task-8).
+   presents; device-loss recovery (in progress, D7), bounded acquire/present policy tests, and
+   swapchain image lifetime checks under validation.
+3. **Color policy (D2) — done**: sRGB texture/render-target/swapchain formats in the RHI, the
+   plain-data swapchain preference policy (sRGB surfaces first, UNORM fallback), documented
+   encoded-space blending approximation; deterministic golden paths stay UNORM so existing CPU and
+   lavapipe goldens are byte-identical.
+4. **Static/license gates — done**: dependency/notice allowlist checker, per-OS static-link
+   allowlist checker, forbidden dynamic C++ runtime rule, fixtures and CI wiring; a Release
+   static-runtime proof build is in progress.
 5. **Golden/validation corpus**: dashboard/overlay/text/shapes already; add damage-redraw,
    resize, and present-path structural tests.
 
