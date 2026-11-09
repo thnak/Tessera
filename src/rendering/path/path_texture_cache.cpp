@@ -41,6 +41,7 @@ constexpr std::uint32_t kMaxRasterExtent = 16384;
     mix(key.stroke.miter_milli);
     mix(static_cast<std::uint64_t>(key.stroke.cap));
     mix(static_cast<std::uint64_t>(key.stroke.join));
+    mix(key.document ? 1U : 0U);
     return static_cast<std::size_t>(hash);
 }
 
@@ -125,23 +126,29 @@ struct PathTextureCache::Impl {
     }
 
     [[nodiscard]] std::expected<CachedPathTexture, PathTextureError>
-    rasterize_and_upload(const PathTextureKey& key, const PathShape& shape, rhi::Extent2D extent) {
+    rasterize_and_upload(const PathTextureKey& key, std::span<const PathShape> shapes,
+                         rhi::Extent2D extent) {
         const std::uint64_t row_bytes = static_cast<std::uint64_t>(extent.width) * kBytesPerPixel;
         const std::uint64_t entry_bytes = row_bytes * extent.height;
 
         // Geometry and stroke scale together, so drawing the larger texture down into the logical
-        // box restores the authored stroke width.
+        // box restores the authored stroke width. A whole document is scaled as a unit.
         const float scale = static_cast<float>(key.scale_milli) / 1000.0f;
-        PathShape scaled = shape;
+        std::vector<PathShape> scaled_storage;
+        std::span<const PathShape> to_rasterize = shapes;
         if (scale != 1.0f) {
-            for (PathSegment& segment : scaled.path.segments) {
-                segment.p0 = {segment.p0.x * scale, segment.p0.y * scale};
-                segment.p1 = {segment.p1.x * scale, segment.p1.y * scale};
-                segment.p2 = {segment.p2.x * scale, segment.p2.y * scale};
+            scaled_storage.assign(shapes.begin(), shapes.end());
+            for (PathShape& scaled : scaled_storage) {
+                for (PathSegment& segment : scaled.path.segments) {
+                    segment.p0 = {segment.p0.x * scale, segment.p0.y * scale};
+                    segment.p1 = {segment.p1.x * scale, segment.p1.y * scale};
+                    segment.p2 = {segment.p2.x * scale, segment.p2.y * scale};
+                }
+                if (scaled.paint.stroke.has_value()) {
+                    scaled.paint.stroke->width *= scale;
+                }
             }
-            if (scaled.paint.stroke.has_value()) {
-                scaled.paint.stroke->width *= scale;
-            }
+            to_rasterize = std::span<const PathShape>(scaled_storage);
         }
 
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(entry_bytes), 0);
@@ -149,7 +156,7 @@ struct PathTextureCache::Impl {
                             extent.height, static_cast<std::uint32_t>(row_bytes)};
 
         ++stats.rasterizations;
-        const auto raster = rasterizer.rasterize(std::span<const PathShape>(&scaled, 1), target);
+        const auto raster = rasterizer.rasterize(to_rasterize, target);
         if (!raster.has_value()) {
             return std::unexpected(map_raster_error(raster.error()));
         }
@@ -203,6 +210,11 @@ PathTextureCache::~PathTextureCache() = default;
 
 std::expected<CachedPathTexture, PathTextureError>
 PathTextureCache::acquire(const PathTextureKey& key, const PathShape& shape) {
+    return acquire(key, std::span<const PathShape>(&shape, 1));
+}
+
+std::expected<CachedPathTexture, PathTextureError>
+PathTextureCache::acquire(const PathTextureKey& key, std::span<const PathShape> shapes) {
     if (impl_->observe_device()) {
         return std::unexpected(PathTextureError::device_lost);
     }
@@ -232,7 +244,7 @@ PathTextureCache::acquire(const PathTextureKey& key, const PathShape& shape) {
         return std::unexpected(PathTextureError::entry_too_large);
     }
 
-    return impl_->rasterize_and_upload(key, shape, rhi::Extent2D{extent_width, extent_height});
+    return impl_->rasterize_and_upload(key, shapes, rhi::Extent2D{extent_width, extent_height});
 }
 
 void PathTextureCache::invalidate_all() {

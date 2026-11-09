@@ -20,6 +20,8 @@ struct SvgLimits {
     std::uint32_t max_depth = 32;                // nested group/scene depth
     std::uint32_t max_segments = 65536;          // total path segments in the document
     std::uint32_t max_extent = 16384;            // document width/height upper bound, in units
+
+    [[nodiscard]] bool operator==(const SvgLimits&) const noexcept = default;
 };
 
 enum class SvgError : std::uint8_t {

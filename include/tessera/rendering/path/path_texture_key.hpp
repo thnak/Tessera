@@ -44,6 +44,10 @@ struct PathTextureKey {
     FillRule fill_rule = FillRule::non_zero;
     PathFillKey fill;
     PathStrokeKey stroke;
+    // True for a whole-document composite produced by `acquire_svg_texture()` (the document, not a
+    // single shape, is the content identity, so the per-shape fill/stroke signature is unused).
+    // Single-shape keys leave this false; the flag keeps the two namespaces from colliding.
+    bool document = false;
 
     [[nodiscard]] bool operator==(const PathTextureKey&) const noexcept = default;
 };

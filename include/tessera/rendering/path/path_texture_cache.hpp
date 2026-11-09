@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <span>
 
 namespace tessera::rendering::path {
 
@@ -85,6 +86,12 @@ public:
     // `make_path_texture_key()` to build keys so the signature and geometry stay consistent.
     [[nodiscard]] std::expected<CachedPathTexture, PathTextureError>
     acquire(const PathTextureKey& key, const PathShape& shape);
+
+    // Composites several shapes in one raster + one upload: used for a whole decoded SVG document
+    // (one texture per document/size/scale) instead of one texture per shape. Hit, eviction, bounds
+    // and D7 generation handling are identical to the single-shape form.
+    [[nodiscard]] std::expected<CachedPathTexture, PathTextureError>
+    acquire(const PathTextureKey& key, std::span<const PathShape> shapes);
 
     // Drops every entry (textures are destroyed through the RHI). Call before Device::recover().
     void invalidate_all();

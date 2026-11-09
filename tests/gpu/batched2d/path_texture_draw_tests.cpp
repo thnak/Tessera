@@ -11,7 +11,9 @@
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/path/path_texture_cache.hpp"
 #include "tessera/rendering/path/path_texture_key.hpp"
+#include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/rendering/path/svg_loader.hpp"
+#include "tessera/rendering/path/svg_texture.hpp"
 
 #ifdef TESSERA_TEST_HAS_VULKAN
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -32,6 +34,7 @@
 #include <iterator>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -105,13 +108,52 @@ private:
     return path::make_path_texture_key(id, 1, kBox, kBox, scale_milli, shape);
 }
 
-[[nodiscard]] std::vector<std::uint8_t> read_svg_fixture() {
-    // The fixture directory is derived from this source file (CMake compiles with an absolute
-    // path), so the test needs no extra compile definition and works from any build directory and
-    // from a clean-checkout worktree.
+// Resolves an SVG fixture without a compile definition (shared test registries stay untouched).
+// An absolute __FILE__ works from any build directory; when the build tree lives inside the source
+// tree the compiler records a relative source path, so fall back to walking up from the working
+// directory (CTest runs in <build>/tests/gpu, whose ancestors include the repository root).
+[[nodiscard]] std::filesystem::path find_svg_fixture(std::string_view name) {
+#ifdef TESSERA_SVG_FIXTURE_DIR
+    {
+        const std::filesystem::path candidate =
+            std::filesystem::path(TESSERA_SVG_FIXTURE_DIR) / std::string(name);
+        if (std::filesystem::exists(candidate)) {
+            return candidate;
+        }
+    }
+#endif
+    // Fallbacks for builds that do not pass the compile definition: an absolute __FILE__ works from
+    // any build directory, and when the compiler records a relative source path the test walks up
+    // from the working directory (CTest runs in <build>/tests/gpu).
     const std::filesystem::path source(__FILE__);
-    const std::filesystem::path path =
-        source.parent_path().parent_path().parent_path() / "fixtures" / "svg" / "stroke_path.svg";
+    if (source.is_absolute()) {
+        const std::filesystem::path candidate = source.parent_path().parent_path().parent_path() /
+                                                "fixtures" / "svg" / std::string(name);
+        if (std::filesystem::exists(candidate)) {
+            return candidate;
+        }
+    }
+    std::filesystem::path directory = std::filesystem::current_path();
+    for (int depth = 0; depth < 8 && !directory.empty(); ++depth) {
+        const std::filesystem::path candidate =
+            directory / "tests" / "fixtures" / "svg" / std::string(name);
+        if (std::filesystem::exists(candidate)) {
+            return candidate;
+        }
+        if (directory == directory.root_path()) {
+            break;
+        }
+        directory = directory.parent_path();
+    }
+    return {};
+}
+
+[[nodiscard]] std::vector<std::uint8_t> read_svg_fixture(std::string_view name) {
+    const std::filesystem::path path = find_svg_fixture(name);
+    if (path.empty()) {
+        std::cerr << "path_texture_draw: cannot locate fixture " << name << "\n";
+        return {};
+    }
     std::ifstream input(path, std::ios::binary);
     if (!input) {
         std::cerr << "path_texture_draw: cannot open " << path.string() << "\n";
@@ -120,6 +162,18 @@ private:
     return std::vector<std::uint8_t>(std::istreambuf_iterator<char>(input),
                                      std::istreambuf_iterator<char>());
 }
+
+#ifdef TESSERA_TEST_HAS_VULKAN
+[[nodiscard]] std::uint64_t retained_document_bytes(const path::SvgDocument& document) {
+    std::uint64_t bytes = 0;
+    for (const path::PathShape& shape : document.shapes) {
+        bytes += sizeof(path::PathShape);
+        bytes +=
+            static_cast<std::uint64_t>(shape.path.segments.capacity()) * sizeof(path::PathSegment);
+    }
+    return bytes;
+}
+#endif
 
 // Null-device cover: the cached texture reaches batched2d's textured-quad path exactly once.
 bool null_device_draw() {
@@ -235,6 +289,79 @@ void measure_upload_and_hits(rhi::Device& device) {
               << " upload_again_ms_avg=" << (upload_total_ms / kUploadIterations)
               << " hit_ms_avg=" << (hit_total_ms / kHitIterations)
               << " texture_bytes=" << (512ULL * 512ULL * 4ULL) << "\n";
+}
+
+// Manual measurement for the decoded-document pipeline: document-cache first vs cached acquire and
+// document-texture first upload vs cached acquire, plus retained document memory vs texture memory.
+void measure_svg_document(rhi::Device& device) {
+    const auto bytes = read_svg_fixture("icon_shapes.svg");
+    auto rasterizer = path::make_path_rasterizer(path::PathBackend::thorvg);
+    if (bytes.empty() || !path::svg_backend_available() || rasterizer == nullptr) {
+        std::cout << "path_texture_draw: SVG measure unavailable (backend or fixture missing)\n";
+        return;
+    }
+
+    path::SvgDocumentCache documents;
+    const auto key = path::make_svg_document_key(std::span<const std::uint8_t>(bytes));
+    const auto document_start = std::chrono::steady_clock::now();
+    const auto document = documents.acquire(key, std::span<const std::uint8_t>(bytes));
+    const auto document_end = std::chrono::steady_clock::now();
+    if (!document.has_value()) {
+        std::cout << "path_texture_draw: SVG measure decode failed\n";
+        return;
+    }
+    const double document_first_ms =
+        std::chrono::duration<double, std::milli>(document_end - document_start).count();
+
+    constexpr int kDocumentHits = 10000;
+    double document_hit_total_ms = 0.0;
+    for (int i = 0; i < kDocumentHits; ++i) {
+        const auto begin = std::chrono::steady_clock::now();
+        const auto hit = documents.acquire(key, std::span<const std::uint8_t>());
+        const auto end = std::chrono::steady_clock::now();
+        document_hit_total_ms += std::chrono::duration<double, std::milli>(end - begin).count();
+        if (!hit.has_value()) {
+            std::cout << "path_texture_draw: SVG measure cache hit failed\n";
+            return;
+        }
+    }
+
+    const path::SvgTextureKey texture_key = path::make_svg_texture_key(9, 1, *document.value());
+    path::PathTextureCache textures(device, *rasterizer, {});
+    const auto texture_start = std::chrono::steady_clock::now();
+    const auto uploaded = path::acquire_svg_texture(textures, texture_key, *document.value());
+    const auto texture_end = std::chrono::steady_clock::now();
+    if (!uploaded.has_value()) {
+        std::cout << "path_texture_draw: SVG measure texture upload failed\n";
+        return;
+    }
+    const double texture_first_ms =
+        std::chrono::duration<double, std::milli>(texture_end - texture_start).count();
+
+    constexpr int kTextureHits = 1000;
+    double texture_hit_total_ms = 0.0;
+    for (int i = 0; i < kTextureHits; ++i) {
+        const auto begin = std::chrono::steady_clock::now();
+        const auto hit = path::acquire_svg_texture(textures, texture_key, *document.value());
+        const auto end = std::chrono::steady_clock::now();
+        texture_hit_total_ms += std::chrono::duration<double, std::milli>(end - begin).count();
+        if (!hit.has_value()) {
+            std::cout << "path_texture_draw: SVG measure texture hit failed\n";
+            return;
+        }
+    }
+
+    const path::SvgDocument& decoded = *document.value();
+    std::cout << std::fixed << std::setprecision(4)
+              << "svg_document: first_acquire_ms=" << document_first_ms
+              << " cached_acquire_ms_avg=" << (document_hit_total_ms / kDocumentHits)
+              << " doc_shapes=" << decoded.shapes.size()
+              << " doc_segments=" << documents.segment_count()
+              << " doc_bytes=" << retained_document_bytes(decoded)
+              << " first_texture_ms=" << texture_first_ms
+              << " cached_texture_ms_avg=" << (texture_hit_total_ms / kTextureHits)
+              << " texture_bytes_1x="
+              << (static_cast<std::uint64_t>(decoded.width) * decoded.height * 4U) << "\n";
 }
 
 struct RenderSpec {
@@ -415,41 +542,57 @@ bool vulkan_draw() {
 
 #endif // TESSERA_TEST_HAS_VULKAN
 
-// End-to-end SVG asset path: decode -> rasterize -> cache -> textured quad. The null-device
-// assertions run in every configuration; the readback pixels run when Vulkan is part of the build.
+// End-to-end SVG asset path: decode once into a document cache, rasterize the whole document into
+// one texture, then draw it as a textured quad. The null-device assertions run in every
+// configuration; the readback pixels run when Vulkan is part of the build.
 bool svg_end_to_end() {
-    const auto bytes = read_svg_fixture();
+    const auto bytes = read_svg_fixture("icon_shapes.svg");
     if (!expect(!bytes.empty(), "SVG fixture is readable")) {
         return false;
     }
-    const auto document = path::load_svg(std::span<const std::uint8_t>(bytes.data(), bytes.size()));
-    if (!path::svg_backend_available()) {
+    const bool available = path::svg_backend_available();
+    path::SvgDocumentCache documents;
+    const path::SvgDocumentKey document_key =
+        path::make_svg_document_key(std::span<const std::uint8_t>(bytes));
+    const auto document = documents.acquire(document_key, std::span<const std::uint8_t>(bytes));
+    if (!available) {
         return expect(!document.has_value() &&
                           document.error() == path::SvgError::backend_unavailable,
-                      "ThorVG OFF returns backend_unavailable from the SVG API (no link error)");
+                      "ThorVG OFF returns backend_unavailable from the document cache (no link "
+                      "error)");
     }
     if (!expect(document.has_value(), "SVG fixture decodes")) {
         return false;
     }
-    if (!expect(document->width == kBox && document->height == kBox && document->shapes.size() == 1,
-                "SVG fixture decodes one 64x64 shape")) {
+    if (!expect(document.value()->width == kBox && document.value()->height == kBox &&
+                    document.value()->shapes.size() == 2,
+                "icon_shapes decodes two 64x64 shapes")) {
         return false;
     }
+    const auto again = documents.acquire(document_key, std::span<const std::uint8_t>());
+    bool ok = expect(again.has_value() && again.value() == document.value() &&
+                         documents.stats().decodes == 1,
+                     "the document is decoded once for every rasterization");
 
     auto rasterizer = path::make_path_rasterizer(path::PathBackend::thorvg);
     if (!expect(rasterizer != nullptr, "ThorVG rasterizer is available for the SVG path")) {
         return false;
     }
-    const auto& shape = document->shapes[0];
-    const auto key =
-        path::make_path_texture_key(7, 1, document->width, document->height, 1000, shape);
+    const path::SvgTextureKey key = path::make_svg_texture_key(7, 1, *document.value());
 
     auto null_device = tessera::rendering::null::create_null_device(rhi::DeviceDesc{});
     path::PathTextureCache null_cache(*null_device, *rasterizer, {});
-    const auto cached = null_cache.acquire(key, shape);
-    bool ok = expect(cached.has_value() && cached->texture != nullptr,
-                     "SVG path uploads through the texture cache");
+    const auto cached = path::acquire_svg_texture(null_cache, key, *document.value());
+    ok = expect(cached.has_value() && cached->texture != nullptr,
+                "the SVG document uploads as one texture") &&
+         ok;
     if (ok) {
+        const auto cached_again = path::acquire_svg_texture(null_cache, key, *document.value());
+        ok = expect(cached_again.has_value() && cached_again->texture == cached->texture &&
+                        null_cache.stats().uploads == 1,
+                    "the second document acquire is a texture-cache hit") &&
+             ok;
+
         auto target = null_device->create_render_target(rhi::RenderTargetDesc{{kBox, kBox}});
         auto white = null_device->create_texture(rhi::TextureDesc{{1, 1}});
         auto pipeline = null_device->create_pipeline(rhi::PipelineDesc{});
@@ -469,7 +612,7 @@ bool svg_end_to_end() {
             ok = expect(null_commands != nullptr && null_commands->stats().draws == 1 &&
                             null_commands->stats().vertices == 6 &&
                             null_commands->stats().texture_binds >= 1,
-                        "SVG texture draws as one 6-vertex textured quad") &&
+                        "the document texture draws as one 6-vertex quad") &&
                  ok;
         }
     }
@@ -485,22 +628,27 @@ bool svg_end_to_end() {
         return ok;
     }
     path::PathTextureCache cache(*device, *rasterizer, {});
-    const auto uploaded = cache.acquire(key, shape);
-    if (!expect(uploaded.has_value(), "Vulkan: SVG path texture uploads")) {
+    const auto uploaded = path::acquire_svg_texture(cache, key, *document.value());
+    if (!expect(uploaded.has_value(), "Vulkan: SVG document texture uploads")) {
         return false;
     }
     const RenderSpec spec;
     const auto first = render_and_readback(*device, *uploaded->texture, spec);
     const auto second = render_and_readback(*device, *uploaded->texture, spec);
-    // stroke_path.svg: #2e8b57 triangle at fill-opacity 0.75 over an opaque black clear.
-    const std::array<int, 4> inside = {static_cast<int>(std::lround(46.0 * 191.0 / 255.0)),
-                                       static_cast<int>(std::lround(139.0 * 191.0 / 255.0)),
-                                       static_cast<int>(std::lround(87.0 * 191.0 / 255.0)), 255};
-    ok = expect(vk_pixel_near(first, 40, 20, inside, 2),
-                "Vulkan: SVG fill pixel matches the decoded fill/alpha") &&
-         expect(vk_pixel_near(first, 4, 50, {0, 0, 0, 255}, 0),
-                "Vulkan: SVG pixel outside the triangle is the clear color") &&
-         expect(first == second, "Vulkan: two SVG renders are byte-identical") && ok;
+    // icon_shapes.svg: an opaque #3366cc rect and a #cc6633 circle at ~50% fill-opacity.
+    const path::PathShape& circle = document.value()->shapes[1];
+    const int alpha = circle.paint.fill.has_value() ? circle.paint.fill->a : 128;
+    const std::array<int, 4> circle_pixel = {static_cast<int>(std::lround(204.0 * alpha / 255.0)),
+                                             static_cast<int>(std::lround(102.0 * alpha / 255.0)),
+                                             static_cast<int>(std::lround(51.0 * alpha / 255.0)),
+                                             255};
+    ok = expect(vk_pixel_near(first, 16, 16, {51, 102, 204, 255}, 0),
+                "Vulkan: opaque rect pixel matches the SVG fill") &&
+         expect(vk_pixel_near(first, 4, 4, {0, 0, 0, 255}, 0),
+                "Vulkan: pixel outside the shapes is the clear color") &&
+         expect(vk_pixel_near(first, 40, 40, circle_pixel, 2),
+                "Vulkan: translucent circle pixel matches fill-opacity") &&
+         expect(first == second, "Vulkan: two document renders are byte-identical") && ok;
 #endif
     return ok;
 }
@@ -519,6 +667,7 @@ int main(int argc, char** argv) {
         try {
             const auto device = tessera::rendering::vulkan::create_vulkan_device(device_desc);
             measure_upload_and_hits(*device);
+            measure_svg_document(*device);
         } catch (const std::exception& error) {
             std::cerr << "path_texture_draw: measure skipped (" << error.what() << ")\n";
         }

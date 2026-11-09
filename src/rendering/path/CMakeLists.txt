@@ -4,7 +4,9 @@ add_library(tessera_path STATIC
     path_rasterizer.cpp
     path_texture_cache.cpp
     path_texture_key.cpp
-    svg_loader.cpp)
+    svg_document_cache.cpp
+    svg_loader.cpp
+    svg_texture.cpp)
 
 target_include_directories(tessera_path PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -73,4 +75,11 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(svg_loader_tests PRIVATE
         TESSERA_SVG_FIXTURE_DIR="${TESSERA_SVG_FIXTURE_DIR}")
     add_test(NAME svg_loader COMMAND svg_loader_tests)
+
+    add_executable(svg_document_cache_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/svg_document_cache_tests.cpp)
+    target_link_libraries(svg_document_cache_tests PRIVATE tessera_path)
+    target_compile_definitions(svg_document_cache_tests PRIVATE
+        TESSERA_SVG_FIXTURE_DIR="${TESSERA_SVG_FIXTURE_DIR}")
+    add_test(NAME svg_document_cache COMMAND svg_document_cache_tests)
 endif()

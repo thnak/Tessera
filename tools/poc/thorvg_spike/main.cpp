@@ -8,6 +8,7 @@
 #include "scene.hpp"
 #include "tessera/rendering/golden/image_diff.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
+#include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/rendering/path/svg_loader.hpp"
 
 #include <chrono>
@@ -99,6 +100,17 @@ void scale_shapes(std::vector<tessera::rendering::path::PathShape>& shapes, floa
             shape.paint.stroke->width *= scale;
         }
     }
+}
+
+// Approximate retained size of a decoded document: vector objects plus allocated segment storage.
+[[nodiscard]] std::uint64_t document_bytes(const tessera::rendering::path::SvgDocument& document) {
+    std::uint64_t bytes = 0;
+    for (const tessera::rendering::path::PathShape& shape : document.shapes) {
+        bytes += sizeof(tessera::rendering::path::PathShape);
+        bytes += static_cast<std::uint64_t>(shape.path.segments.capacity()) *
+                 sizeof(tessera::rendering::path::PathSegment);
+    }
+    return bytes;
 }
 
 void fill_background(std::span<std::uint8_t> pixels, std::uint32_t width, std::uint32_t height,
@@ -221,6 +233,42 @@ int main(int argc, char** argv) {
         if (bytes.empty()) {
             std::cerr << "cannot read " << options.svg << "\n";
             return 2;
+        }
+        if (options.svg_measure) {
+            // Document-cache measurement: first acquire decodes, cached acquires are lookups.
+            tessera::rendering::path::SvgDocumentCache cache;
+            const auto key = tessera::rendering::path::make_svg_document_key(bytes);
+            const auto first_start = std::chrono::steady_clock::now();
+            const auto first = cache.acquire(key, std::span<const std::uint8_t>(bytes));
+            const auto first_end = std::chrono::steady_clock::now();
+            if (!first.has_value()) {
+                std::cerr << "svg decode failed: " << svg_error_name(first.error()) << "\n";
+                return 3;
+            }
+            constexpr int kCachedAcquires = 10000;
+            double cached_total_ms = 0.0;
+            for (int i = 0; i < kCachedAcquires; ++i) {
+                const auto begin = std::chrono::steady_clock::now();
+                const auto hit = cache.acquire(key, std::span<const std::uint8_t>());
+                const auto end = std::chrono::steady_clock::now();
+                cached_total_ms += elapsed_ms(begin, end);
+                if (!hit.has_value()) {
+                    std::cerr << "cached acquire failed\n";
+                    return 3;
+                }
+            }
+            const auto& document = *first.value();
+            const std::uint64_t texture_bytes =
+                static_cast<std::uint64_t>(document.width) * document.height * 4U;
+            std::cout << std::fixed << std::setprecision(4)
+                      << "svg_cache: first_acquire_ms=" << elapsed_ms(first_start, first_end)
+                      << " cached_acquire_ms_avg=" << (cached_total_ms / kCachedAcquires)
+                      << " doc_shapes=" << document.shapes.size()
+                      << " doc_segments=" << cache.segment_count()
+                      << " doc_bytes=" << document_bytes(document)
+                      << " texture_bytes_1x=" << texture_bytes
+                      << " decode_count=" << cache.stats().decodes << "\n";
+            return 0;
         }
         auto document = tessera::rendering::path::load_svg(
             std::span<const std::uint8_t>(bytes.data(), bytes.size()));

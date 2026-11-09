@@ -44,6 +44,8 @@ add_executable(path_texture_draw_tests
     batched2d/path_texture_draw_tests.cpp)
 target_link_libraries(path_texture_draw_tests PRIVATE
     tessera_gpu tessera_path tessera_rhi_null)
+target_compile_definitions(path_texture_draw_tests PRIVATE
+    TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
 if (TARGET tessera_rhi_vulkan)
     target_link_libraries(path_texture_draw_tests PRIVATE tessera_rhi_vulkan)
     target_compile_definitions(path_texture_draw_tests PRIVATE TESSERA_TEST_HAS_VULKAN)
