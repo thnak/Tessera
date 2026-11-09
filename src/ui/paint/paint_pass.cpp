@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "paint_properties.hpp"
+#include "paint_vector.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
@@ -273,9 +274,11 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
             pushed_clip = true;
         }
     }
-    // Text runs are content: paint them after the element's own background/borders and inside its
-    // own overflow/scroll clip, before the children (paint order).
+    // Text and vector runs are content: paint them after the element's own background/borders and
+    // inside its own overflow/scroll clip, before the children (paint order). PaintKind selects one
+    // active payload; the other is ignored.
     paint_text_lines(node, style, rect, sink, stats, context);
+    detail::paint_vector_content(node, style, rect, sink, stats);
     for (const auto& child : node.children()) {
         paint_node(*child, styles, sink, stats, context);
     }

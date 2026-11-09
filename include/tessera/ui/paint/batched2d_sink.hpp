@@ -2,7 +2,12 @@
 
 #pragma once
 
+#include "tessera/rendering/path/path_texture_cache.hpp"
+#include "tessera/rendering/path/svg_document_cache.hpp"
+#include "tessera/ui/assets/asset_bundle.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+
+#include <cstdint>
 
 namespace tessera::rendering::gpu {
 class Batched2DRenderer;
@@ -15,6 +20,39 @@ class TextShaper;
 
 namespace tessera::ui::paint {
 
+// Vector-paint resources for Batched2DSink. All pointers are BORROWED and must outlive the sink:
+// the composition root (frame/app code or a test) owns the embedded bundle and both caches.
+//
+// Ownership/lifetime rules:
+// - `bundle` must be the generated AssetBundle for this app; names are looked up per draw.
+// - `documents` caches decoded SVG documents by content hash; safe to share across sinks/frames.
+// - `textures` caches uploaded document textures (one per document/size/scale). It polls the RHI
+//   device for D7 loss, so the caller must call `notify_device_lost()` before `Device::recover()`
+//   (the same rule as any PathTextureCache owner). With more than one frame in flight, size the
+//   cache so the assets of all in-flight frames stay resident (eviction destroys textures).
+// - `texture_format` must match the destination color space: UNORM targets keep the raster bytes
+//   (deterministic goldens), sRGB targets need R8G8B8A8Srgb so sampling/target encoding round-trips
+//   (D2).
+// - With any pointer null (or in a ThorVG-OFF build) vector draws become documented no-ops; the
+//   rest of the paint pass is unaffected.
+struct VectorPaintConfig {
+    const ui::assets::AssetBundle* bundle = nullptr;
+    rendering::path::SvgDocumentCache* documents = nullptr;
+    rendering::path::PathTextureCache* textures = nullptr;
+    float device_scale = 1.0f;
+    rendering::rhi::TextureFormat texture_format = rendering::rhi::TextureFormat::R8G8B8A8Unorm;
+};
+
+// Counting outcomes for tests/diagnostics. A vector draw either draws one textured quad or is a
+// silent no-op (missing asset, unsupported/malformed asset, backend unavailable, or no resources).
+struct VectorPaintStats {
+    std::uint64_t draws = 0;
+    std::uint64_t missing_assets = 0;
+    std::uint64_t unavailable_backend = 0;
+    std::uint64_t failed_assets = 0;
+    std::uint64_t missing_resources = 0;
+};
+
 // Forwards paint commands to the batched 2D renderer. Deliberately not a backend adapter: the
 // renderer already owns the only GPU seam (rhi::CommandList), so this header stays free of
 // Vulkan/WebGPU includes.
@@ -22,26 +60,38 @@ namespace tessera::ui::paint {
 // Text (D9): draw_text shapes the UTF-8 run with the supplied TextShaper and draws it through the
 // existing TextRenderer/glyph-atlas path. Fonts/atlases are owned by the caller; pass both pointers
 // to enable text and call `begin_text_frame()` once per painted frame (atlas frame bookkeeping).
+//
+// Vectors: draw_vector decodes the embedded asset through SvgDocumentCache (decode once, keyed by
+// content hash), rasterizes/uploads through PathTextureCache (one texture per document/size/scale)
+// and draws it as one textured quad with the resolved tint. Missing assets are a no-op (see
+// VectorPaintStats); nothing throws.
 class Batched2DSink final : public PaintSink {
 public:
     explicit Batched2DSink(rendering::gpu::Batched2DRenderer& renderer,
                            text::TextRenderer* text_renderer = nullptr,
-                           text::TextShaper* shaper = nullptr);
+                           text::TextShaper* shaper = nullptr, VectorPaintConfig vector = {});
 
     void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override;
     void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override;
     void push_clip(const RoundedClip& clip) override;
     void pop_clip() override;
     void draw_text(const TextDraw& run) override;
+    void draw_vector(const VectorDraw& draw) override;
 
     // Forwards to TextRenderer::begin_frame. Call once per painted frame before any draw_text so
     // atlas pages are not evicted while still referenced by this frame.
     void begin_text_frame();
 
+    [[nodiscard]] const VectorPaintStats& vector_stats() const {
+        return vector_stats_;
+    }
+
 private:
     rendering::gpu::Batched2DRenderer* renderer_ = nullptr;
     text::TextRenderer* text_renderer_ = nullptr;
     text::TextShaper* shaper_ = nullptr;
+    VectorPaintConfig vector_;
+    VectorPaintStats vector_stats_;
 };
 
 } // namespace tessera::ui::paint

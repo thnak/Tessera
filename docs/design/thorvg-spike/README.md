@@ -19,6 +19,7 @@ plan is [`../rendering-production-plan.md`](../rendering-production-plan.md).
 - [SVG decode into path geometry](07-svg-decode.md) — load_svg / SvgDocument: supported subset, reject-vs-ignore rule, bounds and goldens.
 - [Decoded-document cache and document textures](08-document-cache.md) — SvgDocumentCache and acquire_svg_texture: content key, dual budgets, batching rule.
 - [Embedded asset bundles](09-assets.md) — AssetBundle, the host-side `cmake/embed_assets.cmake` script + `tessera_embed_assets`, manifest names and memory cost.
+- [Painting embedded vector assets](10-paint-integration.md) — PaintKind::Vector payload, emission/damage rules, sink cache ownership, measurements, CPU-golden outcome.
 
 ## Related
 

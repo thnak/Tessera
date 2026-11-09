@@ -117,13 +117,13 @@ property in this slice, not a border ring.
 ## 6. Deliberate limits
 
 - No text, glyphs, or inline content in the box pass; text runs are painted from
-  optional `ui::PaintData` payloads (Â§10).
-- Overflow clipping is rounded-rect only ([Â§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
+  optional `ui::PaintData` payloads (§10).
+- Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
   filters, gradients, shadows, or images.
-- Scroll containers clip and offset children ([Â§3.1](#31-scroll-containers)); scroll physics,
+- Scroll containers clip and offset children ([§3.1](#31-scroll-containers)); scroll physics,
   inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
-  The frame pipeline clips around it with a sink decorator ([Â§8.1](#81-damage-clipped-painting)).
+  The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
 - No percentage/`em`/`rem`/viewport units and no non-pixel radii.
 - Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
@@ -143,7 +143,7 @@ paint never submits the command list (the caller does).
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
 
-Overflow clips (Â§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
+Overflow clips (§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
 paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
 visible` emitting no clip, nested clips, and the padding-box rect (border box inset by the painted
 border widths). Scroll containers are covered in
@@ -269,7 +269,7 @@ DamageTracker regions repaint the background and the node respectively.
 
 `paint_scene` clips a parent's children when its computed `overflow-x`/`overflow-y` is anything but
 `visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the paint pass itself only clips;
-scrolling is scene state applied by the world transform, see [Â§3.1](#31-scroll-containers)). The clip
+scrolling is scene state applied by the world transform, see [§3.1](#31-scroll-containers)). The clip
 is
 emitted around the children, after the parent's own background/borders, through
 `PaintSink::push_clip`/`pop_clip`:
@@ -429,6 +429,7 @@ Deferrals: glyph-run caching (shaped runs/atlas entries), a shaping cache, incre
 edited paragraph, sharing the cache with the layout engine (which measures with its own
 `TextMeasurer`), and a shaping/advance memoization cache for the real-metrics path.
 
+
 ### 10.1.2 Metrics sources: stub vs real font (task-53)
 
 Paint wrapping measures through a documented `PaintTextMetricsSource`
@@ -475,3 +476,25 @@ wrapped-text pixels remain covered by the deterministic GPU readback test (GPU-o
 Deferrals: bidi/SheenBidi, ICU line breaking, hyphenation, rich text/inline images, ellipsis and
 overflow markers, text selection/editing, vertical content-box clipping (use an `overflow`
 clip), and percentage padding.
+
+## 11. Embedded vector assets (D10)
+
+A node may paint one embedded SVG asset instead of text: `PaintData::kind == PaintKind::Vector`
+with `PaintVectorStyle` (asset name borrowed; optional device-pixel raster size, uniform scale
+hint, tint, and opacity multiplier). `PaintKind` selects the active payload - text fields are
+ignored for a vector node and vice versa; `PaintData::empty()` follows the active kind. Names over
+`kMaxAssetBytes` (256) are ignored, never truncated.
+
+Emission mirrors text: after the node's background/borders, inside its own overflow/scroll clip,
+before its children; `rect` is the padded content box in absolute coordinates. Node opacity folds
+into the tint alpha together with the payload opacity (`tint.a * opacity`), so a vector composites
+exactly like a text run. `PaintStats::vectors` counts emitted draws, and `PaintSink` gained an
+additive default no-op `draw_vector(const VectorDraw&)` hook.
+
+`Batched2DSink` implements the hook by constructor injection (`VectorPaintConfig`: generated asset
+bundle, `SvgDocumentCache`, `PathTextureCache`, device scale, texture format matching the target
+color space). One texture per (document, content, raster scale); N nodes sharing an asset cost one
+decode and one upload. Missing, malformed, unsupported and ThorVG-OFF cases are documented silent
+no-ops counted in `VectorPaintStats` - paint never crashes because an asset is absent - and
+`ClippedPaintSink` replays vector draws per damage region exactly like glyphs. Full contract,
+lifetime rules and measurements: [`thorvg-spike/10-paint-integration.md`](thorvg-spike/10-paint-integration.md).

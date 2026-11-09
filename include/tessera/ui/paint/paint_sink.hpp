@@ -38,6 +38,24 @@ struct RoundedClip {
     }
 };
 
+// One resolved vector-asset draw emitted by the paint pass. Coordinates are absolute device pixels:
+// `rect` is the node's content box (border box inset by padding) and the whole document is mapped
+// into it. `asset` is a borrowed embedded-asset name (valid for the duration of draw_vector).
+//
+// Raster sizing: `raster_width`/`raster_height` are device pixels (0 in both = derive from the rect
+// and the sink device scale); one explicit axis derives the other from the document aspect.
+// `scale` > 0 is an explicit uniform multiplier on the sink device scale (0 = sink default). The
+// explicit raster size wins over `scale`. `tint` multiplies the sampled colors; its alpha already
+// includes node opacity and the payload opacity multiplier.
+struct VectorDraw {
+    rhi::Rect rect;
+    std::string_view asset;
+    std::uint32_t raster_width = 0;
+    std::uint32_t raster_height = 0;
+    float scale = 0.0f;
+    rhi::Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+};
+
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no
 // draw list and no backend state: a recording sink is enough to test it, and Batched2DSink
 // forwards the same commands to rendering::gpu::Batched2DRenderer.
@@ -58,6 +76,11 @@ public:
     // Optional text-run hook (default no-op so recording/stub sinks keep compiling). paint_scene
     // emits a node's text after its background/borders and inside the active clip.
     virtual void draw_text(const TextDraw& /*run*/) {}
+
+    // Optional embedded-vector hook (default no-op). Emitted like text: after the node's
+    // background/borders, inside the node's own overflow/scroll clip, before its children, and only
+    // for PaintKind::Vector payloads. Sinks without a vector backend silently skip the draw.
+    virtual void draw_vector(const VectorDraw& /*draw*/) {}
 };
 
 } // namespace tessera::ui::paint
