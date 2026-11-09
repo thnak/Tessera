@@ -43,6 +43,41 @@ namespace demo {
     }
     
     namespace {
+      // Attach (or reposition) a conditional branch at its deterministic child position.
+      void attach_child_at(tessera::ui::Node& parent, std::size_t index,
+                           std::unique_ptr<tessera::ui::Node>& slot,
+                           tessera::ui::Node*& live) {
+        if (live == nullptr) {
+          if (!slot) {
+            return;
+          }
+          const std::size_t at =
+              index < parent.children().size() ? index : parent.children().size();
+          parent.insert_child(at, std::move(slot));
+          live = parent.children()[at].get();
+          return;
+        }
+        if (index < parent.children().size() && parent.children()[index].get() == live) {
+          return;
+        }
+        std::unique_ptr<tessera::ui::Node> moved = parent.remove_child(*live);
+        parent.insert_child(index, std::move(moved));
+      }
+      
+      // Detach a conditional branch, keeping its subtree alive for a later re-attach.
+      void detach_child(tessera::ui::Node& parent,
+                        std::unique_ptr<tessera::ui::Node>& slot,
+                        tessera::ui::Node*& live) {
+        if (live == nullptr) {
+          return;
+        }
+        slot = parent.remove_child(*live);
+        live = nullptr;
+      }
+      
+    }
+    
+    namespace {
       void event_adapter_4_onClick(void* context, const tessera::ui::Event& event) {
         auto* component = static_cast<Demo*>(context);
         component->handler_1(event);
@@ -63,6 +98,7 @@ namespace demo {
       meta_1_style_opacity_node_ = node_1.get();
       node_1->set_class_name("card");
       this->ref_box_ = node_1.get();
+      this->children_parent_1_ = node_1.get();
       // node::2
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2u));
       node_2->set_element_kind("Text");
@@ -90,11 +126,19 @@ namespace demo {
       node_5->set_focusable(true);
       this->text_node_5_ = node_5.get();
       node_1->add_child(std::move(node_5));
+      // node::6
+      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6u));
+      node_6->set_element_kind("Text");
+      tessera::ui::PaintData paint_node_6;
+      paint_node_6.text = "Positive";
+      node_6->set_paint_data(std::move(paint_node_6));
+      this->branch_6_owned_ = std::move(node_6);
       parent.add_child(std::move(node_1));
       apply_state();
     }
     
     void Demo::apply_state() {
+      apply_children_1();
       std::uint64_t hash_2 = tessera::ui::kEffectHashSeed;
       hash_2 = tessera::ui::effect_hash(hash_2, std::string_view("Count: "));
       hash_2 = tessera::ui::effect_hash(hash_2, state_count_);
@@ -150,6 +194,37 @@ namespace demo {
       }
       if (input_5_editor_.buffer().text() != text_node_5_value_) {
           input_5_editor_.set_text(text_node_5_value_);
+      }
+    }
+    
+    void Demo::apply_children_1() {
+      if (children_parent_1_ == nullptr) {
+        return;
+      }
+      tessera::ui::Node& parent = *children_parent_1_;
+      std::size_t position = 0;
+      ++position; // a static child is attached by build()
+      ++position; // a static child is attached by build()
+      ++position; // a static child is attached by build()
+      ++position; // a static child is attached by build()
+      {
+        std::uint64_t branch_6_hash = tessera::ui::kEffectHashSeed;
+        branch_6_hash = tessera::ui::effect_hash(branch_6_hash, (state_count_ > 0));
+        const bool branch_6_show = (state_count_ > 0);
+        if (!branch_6_set_ || branch_6_hash != branch_6_hash_ || branch_6_show != branch_6_present_) {
+          branch_6_hash_ = branch_6_hash;
+          branch_6_set_ = true;
+          branch_6_present_ = branch_6_show;
+          if (branch_6_show) {
+            attach_child_at(parent, position, branch_6_owned_, branch_6_node_);
+          }
+          else {
+            detach_child(parent, branch_6_owned_, branch_6_node_);
+          }
+        }
+        if (branch_6_show) {
+          ++position;
+        }
       }
     }
     

@@ -19,6 +19,8 @@ namespace demo {
   namespace gen {
     // comp::Sample (Sample).
     struct Sample {
+      // prop `title`.
+      std::string prop_title_ = {};
       // useState `count`.
       int state_count_ = 0;
       // useState `name`.
@@ -75,8 +77,6 @@ namespace demo {
       [[nodiscard]] std::size_t text_input_change_events(std::size_t index) const;
       // useEffect `effect::sync` state (deps hash, run counter, active flag).
       tessera::ui::EffectState effect_sync_state_;
-      // prop `title`.
-      std::string prop_title_ = {};
       
       void build(tessera::ui::Node& parent);
       // Lifecycle: mount() runs effects once; update_effects() re-runs changed deps;

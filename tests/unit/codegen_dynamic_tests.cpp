@@ -1,0 +1,474 @@
+// SPDX-License-Identifier: MIT
+
+// Conditional and keyed-list codegen tests (docs/design/compiler.md section 11): generated shape,
+// byte-identical determinism, goldens, loud rejection of the deferred dynamic forms, and merger
+// idempotency over the generated output.
+//
+// The `Dynamic` fixture is hand-built IR: the real `.tsx` front end cannot author a list yet (a
+// list-typed `useState` initial value is rejected by lowering, see
+// lowering_hooks_reject_tests.cpp), so the list contract is proved against IR directly.
+//
+// Deliberate golden update path: `codegen_dynamic_tests --write` rewrites
+// tests/golden/codegen/Dynamic.*; then review the diff and rebuild.
+
+#include "tessera/compiler/codegen/codegen.hpp"
+#include "tessera/compiler/ir/validate.hpp"
+#include "tessera/compiler/merger.hpp"
+
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#ifndef TESSERA_CODEGEN_GOLDEN_DIR
+#error "TESSERA_CODEGEN_GOLDEN_DIR must be defined by the build"
+#endif
+
+namespace {
+
+namespace ir = tessera::compiler::ir;
+namespace codegen = tessera::compiler::codegen;
+
+int failures = 0;
+
+void check(bool condition, std::string_view message) {
+    if (!condition) {
+        std::cerr << "FAIL: " << message << "\n";
+        ++failures;
+    }
+}
+
+void check_eq(const std::string& actual, const std::string& expected, std::string_view message) {
+    if (actual != expected) {
+        std::cerr << "FAIL: " << message << "\n  expected: " << expected
+                  << "\n  actual:   " << actual << "\n";
+        ++failures;
+    }
+}
+
+ir::SourceSpan span(std::uint32_t offset, std::uint32_t length, std::uint32_t line,
+                    std::uint32_t column) {
+    return ir::SourceSpan{"ui/Dynamic.tsx", offset, length, line, column, line, column + length};
+}
+
+ir::ExprPtr integer(std::int64_t value) {
+    return ir::make_literal(value);
+}
+
+ir::Node leaf(ir::NodeKind kind, std::string id, std::string ui_id) {
+    ir::Node node;
+    node.kind = kind;
+    node.id = std::move(id);
+    node.ui_id = std::move(ui_id);
+    node.source = span(10, 5, 1, 1);
+    return node;
+}
+
+// `{item} @ {count}`: the item text depends on both the loop item and component state, so a
+// content-only change (same keys, different state) is observable without a structural change.
+ir::ExprPtr item_text() {
+    std::vector<ir::TemplatePart> parts;
+    parts.push_back(ir::expr_part(ir::make_ref("item")));
+    parts.push_back(ir::text_part(" @ "));
+    parts.push_back(ir::expr_part(ir::make_ref("state::count")));
+    return ir::make_template(std::move(parts));
+}
+
+ir::IrModule make_dynamic_module() {
+    ir::IrModule module;
+    module.name = "dynamic";
+
+    ir::Component component;
+    component.id = "comp::Dynamic";
+    component.component_id = "1";
+    component.name = "Dynamic";
+    component.source = span(0, 200, 1, 1);
+    // A list-typed prop seeds the list state (the only IR-expressible list initial value).
+    component.props.push_back({"seed", "list<string>", nullptr});
+    component.state.push_back({"state::count", "count", "int", integer(0)});
+    component.state.push_back(
+        {"state::items", "items", "list<string>", ir::make_ref("prop::seed")});
+
+    ir::Node root = leaf(ir::NodeKind::View, "node::1", "1");
+    root.children.push_back(leaf(ir::NodeKind::Text, "node::2", "2"));
+    root.children.back().text = ir::make_literal(std::string("Header"));
+
+    // `{count > 0 && <Text>Positive</Text>}`: one conditional branch.
+    ir::Node positive = leaf(ir::NodeKind::Text, "node::3", "3");
+    positive.condition = ir::make_binary(">", ir::make_ref("state::count"), integer(0));
+    positive.text = ir::make_literal(std::string("Positive"));
+    root.children.push_back(std::move(positive));
+
+    // Component-level interpolation next to the dynamic children.
+    ir::Node counter = leaf(ir::NodeKind::Text, "node::4", "4");
+    {
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::text_part("Count: "));
+        parts.push_back(ir::expr_part(ir::make_ref("state::count")));
+        counter.text = ir::make_template(std::move(parts));
+    }
+    root.children.push_back(std::move(counter));
+
+    // `{items.map((item) => <Text key={item}>{item} @ {count}</Text>)}`: the list template.
+    ir::Node item = leaf(ir::NodeKind::Text, "node::5", "5");
+    item.text = item_text();
+    item.key = ir::make_ref("item");
+    item.loop = ir::Loop{"item", "", ir::make_ref("state::items")};
+    root.children.push_back(std::move(item));
+
+    // `count === 0 ? <View><Text>Empty</Text></View> : <View><Text>Filled</Text></View>`: two
+    // complementary sibling branches, each with a child subtree.
+    ir::Node empty = leaf(ir::NodeKind::View, "node::6", "6");
+    empty.condition = ir::make_binary("==", ir::make_ref("state::count"), integer(0));
+    ir::Node empty_text = leaf(ir::NodeKind::Text, "node::7", "7");
+    empty_text.text = ir::make_literal(std::string("Empty"));
+    empty.children.push_back(std::move(empty_text));
+    root.children.push_back(std::move(empty));
+
+    ir::Node filled = leaf(ir::NodeKind::View, "node::8", "8");
+    filled.condition =
+        ir::make_unary("!", ir::make_binary("==", ir::make_ref("state::count"), integer(0)));
+    ir::Node filled_text = leaf(ir::NodeKind::Text, "node::9", "9");
+    filled_text.text = ir::make_literal(std::string("Filled"));
+    filled.children.push_back(std::move(filled_text));
+    root.children.push_back(std::move(filled));
+
+    // A protected-region binding next to the dynamic children (merger idempotency coverage).
+    ir::Node button = leaf(ir::NodeKind::Button, "node::10", "10");
+    button.events.emplace("onClick", "bind::on_click");
+    ir::Node add_text = leaf(ir::NodeKind::Text, "node::11", "11");
+    add_text.text = ir::make_literal(std::string("Add"));
+    button.children.push_back(std::move(add_text));
+    root.children.push_back(std::move(button));
+
+    ir::Node footer = leaf(ir::NodeKind::Text, "node::12", "12");
+    footer.text = ir::make_literal(std::string("Footer"));
+    root.children.push_back(std::move(footer));
+
+    component.root = std::move(root);
+    module.components.push_back(std::move(component));
+
+    ir::Binding binding;
+    binding.id = "bind::on_click";
+    binding.component = "comp::Dynamic";
+    binding.kind = ir::BindingKind::Event;
+    binding.region = "on_click";
+    binding.source = span(40, 10, 4, 3);
+    binding.params.push_back({"event", "ClickEvent"});
+    module.bindings.push_back(std::move(binding));
+    return module;
+}
+
+std::string read_file(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    std::ostringstream text;
+    text << in.rdbuf();
+    return text.str();
+}
+
+void write_file(const std::string& path, const std::string& text) {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out << text;
+}
+
+std::string first_error(const codegen::CodegenResult& result) {
+    if (result) {
+        return {};
+    }
+    return result.error().empty() ? std::string("<empty>") : result.error().front();
+}
+
+std::string concatenated(const std::vector<codegen::GeneratedFile>& files) {
+    std::string out;
+    for (const codegen::GeneratedFile& file : files) {
+        out += file.path + "\n" + file.text;
+    }
+    return out;
+}
+
+void test_fixture_is_valid() {
+    const ir::IrModule module = make_dynamic_module();
+    std::string codes;
+    for (const ir::IrDiagnostic& diagnostic : ir::validate(module)) {
+        codes += diagnostic.code + ":" + diagnostic.message + "; ";
+    }
+    check_eq(codes, "", "the dynamic codegen fixture is a valid IR module");
+}
+
+void test_generated_shape() {
+    const auto result = codegen::generate(make_dynamic_module());
+    check(result.has_value(), "the dynamic sample generates");
+    if (!result) {
+        std::cerr << "  error: " << first_error(result) << "\n";
+        return;
+    }
+    check(result->size() == 2, "one header and one source");
+    if (result->size() != 2) {
+        return;
+    }
+    check_eq((*result)[0].path, "Dynamic.hpp", "deterministic header path");
+    check_eq((*result)[1].path, "Dynamic.cpp", "deterministic source path");
+    const std::string& header = (*result)[0].text;
+    const std::string& source = (*result)[1].text;
+    check(header.find("inline constexpr std::size_t kMaxGeneratedListItems = 32;") !=
+              std::string::npos,
+          "the bounded item cap is emitted in the header");
+    check(header.find("struct Item_5 {") != std::string::npos, "the per-list item node struct");
+    check(header.find("std::array<tessera::ui::Node*, 1> texts{};") != std::string::npos,
+          "the item struct records its interpolated text nodes");
+    check(header.find("std::unique_ptr<tessera::ui::Node> branch_3_owned_;") != std::string::npos,
+          "a conditional branch owns its detached subtree");
+    check(header.find("tessera::ui::Node* branch_3_node_ = nullptr;") != std::string::npos,
+          "a conditional branch tracks its attached node");
+    check(header.find("std::uint64_t branch_3_hash_ = 0;") != std::string::npos,
+          "a conditional branch hashes its condition");
+    check(header.find("tessera::ui::Node* children_parent_1_ = nullptr;") != std::string::npos,
+          "the dynamic child group keeps its parent node");
+    check(header.find("std::array<Item_5, kMaxGeneratedListItems> list_5_items_{};") !=
+              std::string::npos,
+          "the bounded list item table");
+    check(header.find("std::array<std::string, kMaxGeneratedListItems> list_5_keys_{};") !=
+              std::string::npos,
+          "the key table");
+    check(header.find("void apply_children_1();") != std::string::npos,
+          "the child-set update is declared");
+    check(header.find("std::unique_ptr<tessera::ui::Node> build_item_5(const std::string& item, "
+                      "std::size_t tessera_index, Item_5& tessera_out);") != std::string::npos,
+          "the per-item builder signature");
+    check(header.find("void apply_list_5(tessera::ui::Node& parent, std::size_t insert_at);") !=
+              std::string::npos,
+          "the list update signature");
+    check(source.find("void Dynamic::apply_state()") != std::string::npos, "apply_state");
+    check(source.find("apply_children_1();") != std::string::npos,
+          "apply_state drives the dynamic child set");
+    check(source.find("constexpr std::uint64_t kItemIdStride = 13ull;") != std::string::npos,
+          "item ids use a deterministic stride past the component's pre-order ids");
+    check(source.find("void attach_child_at(tessera::ui::Node& parent, std::size_t index,") !=
+              std::string::npos,
+          "the attach helper is generated");
+    check(source.find("void detach_child(tessera::ui::Node& parent,") != std::string::npos,
+          "the detach helper is generated");
+    check(source.find("attach_child_at(parent, position, branch_3_owned_, branch_3_node_);") !=
+              std::string::npos,
+          "a present branch attaches at its source position");
+    check(source.find("detach_child(parent, branch_3_owned_, branch_3_node_);") !=
+              std::string::npos,
+          "an absent branch detaches");
+    check(source.find("apply_list_5(parent, position);") != std::string::npos,
+          "the list advances the child position by its item count");
+    check(source.find("position += list_5_count_;") != std::string::npos,
+          "the list item count is added to the position");
+    check(source.find("std::uint64_t tessera_order = tessera::ui::kEffectHashSeed;") !=
+              std::string::npos,
+          "the list hashes its key order first");
+    check(source.find("tessera_order = tessera::ui::effect_hash(tessera_order, "
+                      "static_cast<int>(tessera_position));") != std::string::npos,
+          "the order hash includes the item count");
+    check(source.find("std::string tessera_key = format_value(item);") != std::string::npos,
+          "keys are formatted only on a structural change");
+    check(source.find("tessera_next_items[tessera_next] = tessera_old_items[tessera_match];") !=
+              std::string::npos,
+          "a matching key reuses the existing item node");
+    check(source.find("build_item_5(item, tessera_next, tessera_next_items[tessera_next]);") !=
+              std::string::npos,
+          "a new key builds one item");
+    check(source.find("parent.insert_child(insert_at + tessera_next,") != std::string::npos,
+          "items are inserted at their deterministic position");
+    check(source.find("std::unique_ptr<tessera::ui::Node> Dynamic::build_item_5(") !=
+              std::string::npos,
+          "the item builder is emitted");
+    check(source.find("+ tessera_index * kItemIdStride)") != std::string::npos,
+          "item node ids are offset by the item index");
+    check(source.find("apply_item_5(tessera_slot, item, tessera_slot);") != std::string::npos,
+          "the content pass runs per item");
+    check(source.find("if (!list_5_set_[tessera_slot] || tessera_hash != "
+                      "list_5_hashes_[tessera_slot])") != std::string::npos,
+          "item content is hash-compared");
+}
+
+void test_goldens(bool update) {
+    const auto result = codegen::generate(make_dynamic_module());
+    check(result.has_value(), "the dynamic golden sample generates");
+    if (!result) {
+        return;
+    }
+    const std::string directory = TESSERA_CODEGEN_GOLDEN_DIR;
+    if (update) {
+        std::filesystem::create_directories(directory);
+    }
+    for (const codegen::GeneratedFile& file : *result) {
+        const std::string path = directory + "/" + file.path;
+        if (update) {
+            write_file(path, file.text);
+            continue;
+        }
+        const std::string golden = read_file(path);
+        check(!golden.empty(), "golden " + file.path + " is readable");
+        check_eq(golden, file.text, file.path + " golden matches (codegen_dynamic_tests --write)");
+    }
+    if (update) {
+        std::cout << "dynamic codegen goldens written to " << directory << "\n";
+    }
+}
+
+void test_determinism() {
+    const auto first = codegen::generate(make_dynamic_module());
+    const auto second = codegen::generate(make_dynamic_module());
+    check(first.has_value() && second.has_value(), "the dynamic sample generates twice");
+    if (first && second) {
+        check_eq(concatenated(*first), concatenated(*second), "two runs are byte-identical");
+    }
+}
+
+void test_rejections() {
+    const auto expect_error = [](const ir::IrModule& module, std::string_view what) {
+        const auto result = codegen::generate(module);
+        check(!result.has_value(), what);
+        check(first_error(result).rfind("TESSERA_CODEGEN_", 0) == 0,
+              std::string(what) + " reports a TESSERA_CODEGEN_ code");
+    };
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].root.condition = ir::make_literal(true);
+        expect_error(module, "a conditional component root is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].root.loop = ir::Loop{"item", "", ir::make_ref("state::items")};
+        module.components[0].root.key = ir::make_ref("item");
+        expect_error(module, "a loop component root is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        // A conditional nested in a conditional branch is supported (only templates restrict it).
+        ir::Node nested = leaf(ir::NodeKind::Text, "node::13", "13");
+        nested.condition = ir::make_literal(true);
+        nested.text = ir::make_literal(std::string("Nested"));
+        module.components[0].root.children[4].children.push_back(std::move(nested));
+        const auto result = codegen::generate(module);
+        check(result.has_value(), "a conditional inside a conditional branch generates");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        // A nested list inside the list template.
+        ir::Node inner = leaf(ir::NodeKind::Text, "node::13", "13");
+        inner.text = ir::make_ref("item");
+        inner.key = ir::make_ref("item");
+        inner.loop = ir::Loop{"inner", "", ir::make_ref("state::items")};
+        module.components[0].root.children[3].children.push_back(std::move(inner));
+        expect_error(module, "a nested list template is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        // A TextInput inside the list template needs per-item edit state.
+        ir::Node input = leaf(ir::NodeKind::TextInput, "node::13", "13");
+        input.props.emplace("value", ir::make_ref("item"));
+        module.components[0].root.children[3].children.push_back(std::move(input));
+        expect_error(module, "a TextInput inside a list template is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        // Dynamic metadata inside the template needs per-item storage.
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::expr_part(ir::make_ref("item")));
+        module.components[0].root.children[3].props.emplace("className",
+                                                            ir::make_template(std::move(parts)));
+        expect_error(module, "dynamic metadata inside a list template is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].root.children[3].style.emplace("width", ir::make_ref("state::count"));
+        expect_error(module, "a dynamic inline style inside a list template is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].refs.push_back({"ref::row", "row", "node::5"});
+        expect_error(module, "a useRef targeting a node inside a list template is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].state[1].type = "int";
+        expect_error(module, "a list source that is not a list<T> is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].state[1].type = "list<Row>";
+        expect_error(module, "a record element type has no C++ form in this slice");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].state[1].id = "state::other";
+        expect_error(module, "a list source without a declared type is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].root.children[3].loop->item = "tessera_item";
+        expect_error(module, "a loop local that shadows generated code names is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].root.children[3].loop->source =
+            ir::make_binary("+", ir::make_ref("state::items"), ir::make_ref("state::items"));
+        expect_error(module, "a non-reference loop source is rejected");
+    }
+    {
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].root.children[3].key = ir::make_ref("state::count");
+        expect_error(module, "a key expression outside its loop locals is rejected");
+    }
+}
+
+void test_merger_idempotency() {
+    const auto result = codegen::generate(make_dynamic_module());
+    check(result.has_value(), "the dynamic sample generates for the merger test");
+    if (!result) {
+        return;
+    }
+    std::string generated;
+    for (const codegen::GeneratedFile& file : *result) {
+        if (file.path == "Dynamic.cpp") {
+            generated = file.text;
+        }
+    }
+    check(!generated.empty(), "the generated dynamic source exists");
+    constexpr std::string_view kMarker = "// [DEVELOPER_LOGIC_START: bind::on_click]";
+    const std::size_t marker = generated.find(kMarker);
+    check(marker != std::string::npos, "the on_click region survives next to the dynamic code");
+    if (marker == std::string::npos) {
+        return;
+    }
+    std::string existing = generated;
+    existing.insert(marker + kMarker.size(), "\n    // developer body next to generated lists");
+    const tessera::compiler::MergeResult first = tessera::compiler::merge(generated, existing);
+    check(first.text.find("developer body next to generated lists") != std::string::npos,
+          "the developer body survives the merge");
+    const tessera::compiler::MergeResult second = tessera::compiler::merge(first.text, existing);
+    check_eq(second.text, first.text, "merge(merge(g, e), e) == merge(g, e) over dynamic output");
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    const bool update = argc > 1 && std::string_view(argv[1]) == "--write";
+    if (update) {
+        test_goldens(true);
+        return failures == 0 ? 0 : 1;
+    }
+    test_fixture_is_valid();
+    test_generated_shape();
+    test_goldens(false);
+    test_determinism();
+    test_rejections();
+    test_merger_idempotency();
+    if (failures != 0) {
+        std::cerr << failures << " check(s) failed\n";
+        return 1;
+    }
+    std::cout << "dynamic codegen tests passed\n";
+    return 0;
+}

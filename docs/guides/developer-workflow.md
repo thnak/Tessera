@@ -113,6 +113,15 @@ run and interpolated text is written (the next frame is stale until you do). Dev
 regions run inside `update_effects()`; mutate state cells there and `update()` refreshes the text
 afterwards.
 
+A component with a conditional child or a keyed list also gets generated child-set paths;
+`apply_state()` runs them first. A conditional branch is built once and attached/detached at its
+source position, so a child-set change marks the shared parent `Layout|Paint|Render` (never `Style`)
+and an unchanged condition marks nothing. A keyed list is capped at `kMaxGeneratedListItems` (32)
+items, reuses nodes by key, and allocates nothing when the key list is unchanged; a longer source
+list is truncated deterministically at the prefix. A `.tsx` keyed list is not authorable yet (the
+front end rejects an array-literal `useState` initial value), so the sample only uses the conditional
+and the list contract is covered by golden/runtime tests from IR.
+
 ### 4.1 Generated-UI headless demo
 
 `tests/integration/generated_ui_tests.cpp` runs the generated sample UI for real, without a GPU or

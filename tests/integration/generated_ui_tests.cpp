@@ -198,6 +198,12 @@ int main(int argc, char** argv) {
     if (!expect(button->automation_id() == 0, "sample sets no automationId (documented gap)")) {
         return 3;
     }
+    // `{count > 0 && <Text>Positive</Text>}`: the branch is built once by build() and starts
+    // detached, so the initial child set, the layout and the before frame are unchanged.
+    if (!expect(fixture.demo.branch_6_owned_ != nullptr && fixture.demo.branch_6_node_ == nullptr,
+                "the generated conditional branch is built once and starts detached")) {
+        return 3;
+    }
 
     CpuCanvas canvas(kWidth, kHeight);
     const std::vector<std::uint8_t> before =
@@ -262,6 +268,23 @@ int main(int argc, char** argv) {
     if (!expect(damage_result.nodes >= 1 && !damage.rects().empty(),
                 "dirty paint produces damage") ||
         !expect(damaged, "the changed text node is inside the damage region")) {
+        return 7;
+    }
+
+    // The conditional attaches at its source position (last child) once `count > 0`; the demo
+    // re-runs layout so the attached branch gets a box and appears in the after frame.
+    if (!expect(fixture.demo.branch_6_node_ != nullptr,
+                "the generated conditional branch attached after the click") ||
+        !expect(has_flag(card->dirty(), Dirty::Layout),
+                "attaching the branch marks the parent Layout")) {
+        return 7;
+    }
+    fixture.layout_scene();
+    const auto branch_bounds = fixture.demo.branch_6_node_->world_bounds();
+    if (!expect(card->children().size() == 5, "the attached branch is the fifth child") ||
+        !expect(branch_bounds.width > 0.0f && branch_bounds.height > 0.0f,
+                "the attached branch is laid out after the reflow") ||
+        !expect(fixture.layout_applied.applied == 7, "layout covered the attached branch")) {
         return 7;
     }
 
@@ -452,6 +475,8 @@ int main(int argc, char** argv) {
     replay_click(InputEventType::PointerDown);
     replay_click(InputEventType::PointerUp);
     replay.demo.update();
+    // Same reflow as the first run: the attached conditional branch needs a box in the replay too.
+    replay.layout_scene();
     replay_router.focus_manager().request_focus(replay_input);
     // Replay the generated onChange commit too, so the interpolated Name text matches.
     replay_router.dispatch(*replay.root, typed);

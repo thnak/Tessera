@@ -39,12 +39,28 @@ struct CppWriter {
 // The generated member name for a reference id (`state::count` -> `state_count_`).
 [[nodiscard]] std::string member_name(std::string_view ir_id);
 
-// Emits one IR expression as C++ source. A nullopt `text` carries the error message in `error`.
+// One loop local (`item`, `index`) visible inside a generated list-item builder: the IR reference
+// id the template expressions use, the C++ expression that names the value, and its IR element
+// type. Generated item bodies bind the item by `const T&` and the index as `std::size_t`; the C++
+// form is what expression emission substitutes for the IR reference.
+struct LocalBinding {
+    std::string name;
+    std::string cpp;
+    std::string ir_type;
+};
+using LocalBindings = std::vector<LocalBinding>;
+
+// The binding for an IR reference id inside a list template, or nullptr outside one.
+[[nodiscard]] const LocalBinding* find_local(const LocalBindings& locals, std::string_view id);
+
+// Emits one IR expression as C++ source; `locals` supplies the loop item/index of a list template.
+// A nullopt `text` carries the error message in `error`.
 struct ExprEmission {
     std::string text;
     std::string error;
 };
-[[nodiscard]] ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component);
+[[nodiscard]] ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
+                                     const LocalBindings& locals = {});
 
 // Emits the body of an inline handler or preview: one line per action.
 [[nodiscard]] std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
@@ -64,6 +80,7 @@ struct DynamicText {
 enum class MetadataField { ElementId, ClassName, Role, Aria, Style };
 
 struct ControlledInput;
+struct DynamicPlan;
 
 struct DynamicMetadata {
     unsigned ordinal = 0;
@@ -79,7 +96,8 @@ struct DynamicMetadata {
                                          const std::vector<DynamicText>& dynamic_text,
                                          const std::vector<DynamicMetadata>& dynamic_metadata,
                                          const std::vector<ControlledInput>& controlled_inputs,
-                                         GeneratedFile& file, std::string& error);
+                                         const DynamicPlan& plan, GeneratedFile& file,
+                                         std::string& error);
 
 // Emits the effect deps-hash helpers and mount/update_effects/unmount (emit_lifecycle.cpp).
 [[nodiscard]] bool emit_lifecycle(const ir::Component& component,

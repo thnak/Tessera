@@ -4,7 +4,7 @@ Status: slices 1 to 3 are implemented (IR model and writer, IR validator, analys
 "Slice 3 status" below), slice 5 (expression lowering), slice 6 (hooks and bindings), slice 7 (JSX
 nodes), slice 8 (conditionals and list loops), slice 9 (component references and module lowering)
 and slice 12 (the shared schema table) are implemented as well — see their status sections.
-`src/compiler/codegen/` is still an empty folder. The input is the parser of
+`src/compiler/codegen/` emits these IR forms (conditionals and keyed lists included — see [`compiler.md` §11](compiler.md#11-c-codegen-first-slice-implemented)). The input is the parser of
 [`jsx-frontend.md`](jsx-frontend.md); the output is the IR of [`ir-v1.md`](../specs/ir-v1.md)
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md)). The accepted source forms are in
 [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) (the "subset spec"); this note links to its

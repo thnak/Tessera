@@ -5,12 +5,18 @@
 add_library(tessera_codegen STATIC
     src/codegen.cpp
     src/emit_component.cpp
+    src/emit_conditional.cpp
     src/emit_controlled.cpp
+    src/emit_dynamic_header.cpp
+    src/emit_dynamic_plan.cpp
     src/emit_events.cpp
     src/emit_expr.cpp
     src/emit_header.cpp
     src/emit_lifecycle.cpp
-    src/interpolation.cpp)
+    src/emit_list.cpp
+    src/emit_node.cpp
+    src/interpolation.cpp
+    src/value_ops.cpp)
 
 target_include_directories(tessera_codegen
     PUBLIC
@@ -50,6 +56,16 @@ if (EXISTS ${_tessera_codegen_golden_dir}/Sample.cpp)
     target_include_directories(tessera_codegen_sample PRIVATE ${_tessera_codegen_golden_dir})
     target_link_libraries(tessera_codegen_sample PRIVATE tessera_scene tessera_text_edit)
     target_compile_features(tessera_codegen_sample PUBLIC cxx_std_23)
+endif ()
+
+# Conditional + keyed-list fixture (generated from the hand-built IR in codegen_dynamic_tests).
+# Same deliberate golden path: `codegen_dynamic_tests --write` owns Dynamic.cpp/hpp.
+if (EXISTS ${_tessera_codegen_golden_dir}/Dynamic.cpp)
+    add_library(tessera_codegen_dynamic_sample STATIC
+        ${_tessera_codegen_golden_dir}/Dynamic.cpp)
+    target_include_directories(tessera_codegen_dynamic_sample PRIVATE ${_tessera_codegen_golden_dir})
+    target_link_libraries(tessera_codegen_dynamic_sample PRIVATE tessera_scene)
+    target_compile_features(tessera_codegen_dynamic_sample PUBLIC cxx_std_23)
 endif ()
 
 # Big Step C sample: seed the committed developer file (protected regions) into the build dir and
@@ -121,6 +137,33 @@ if (TESSERA_BUILD_TESTS)
         tessera_style)
 
     add_test(NAME codegen_runtime COMMAND codegen_runtime_tests)
+
+    # Conditional + keyed-list codegen: goldens from hand-built IR (the `.tsx` front end cannot
+    # author a list type yet) and a runtime test over the compiled generated component.
+    add_executable(codegen_dynamic_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_tests.cpp)
+
+    target_link_libraries(codegen_dynamic_tests PRIVATE
+        tessera_codegen
+        tessera_merger)
+
+    target_compile_definitions(codegen_dynamic_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_dynamic COMMAND codegen_dynamic_tests)
+
+    if (TARGET tessera_codegen_dynamic_sample)
+        add_executable(codegen_dynamic_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_runtime_tests.cpp)
+
+        target_include_directories(codegen_dynamic_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir})
+        target_link_libraries(codegen_dynamic_runtime_tests PRIVATE
+            tessera_codegen_dynamic_sample
+            tessera_scene)
+
+        add_test(NAME codegen_dynamic_runtime COMMAND codegen_dynamic_runtime_tests)
+    endif ()
 
     add_executable(codegen_cli_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)

@@ -1,6 +1,7 @@
 // A small Tessera screen used by the codegen CLI sample and the Big Step C acceptance:
 // useState, useEffect (deps + cleanup), useRef, useAnimatedValue, a declared handler bound through
-// a protected region, and inline setter handlers.
+// a protected region, inline setter handlers, and a conditional child (the keyed-list demo needs a
+// list-typed state cell, which the front end cannot author yet).
 
 export function Demo(): Node {
   const [count, setCount] = useState<int>(0);
@@ -23,6 +24,7 @@ export function Demo(): Node {
       <Text>Name: {name}</Text>
       <Button onClick={() => setCount(count + 1)}>Add</Button>
       <TextInput value={name} onChange={(e) => setName(e.value)} />
+      {count > 0 && <Text>Positive</Text>}
     </View>
   );
 }

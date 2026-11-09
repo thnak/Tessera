@@ -158,19 +158,38 @@ std::optional<std::string> cpp_type(std::string_view ir_type) {
     return std::nullopt;
 }
 
-ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
+const LocalBinding* find_local(const LocalBindings& locals, std::string_view id) {
+    for (const LocalBinding& local : locals) {
+        if (local.name == id) {
+            return &local;
+        }
+    }
+    return nullptr;
+}
+
+ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
+                       const LocalBindings& locals) {
     (void)component;
     switch (expr.kind) {
     case ir::ExprKind::Literal:
         return ExprEmission{literal_text(expr.literal), {}};
     case ir::ExprKind::Ref: {
-        if (expr.id.find('.') != std::string::npos) {
+        if (const LocalBinding* local = find_local(locals, expr.id)) {
+            return ExprEmission{local->cpp, {}};
+        }
+        if (const std::size_t dot = expr.id.find('.'); dot != std::string::npos) {
+            if (find_local(locals, std::string_view(expr.id).substr(0, dot)) != nullptr) {
+                return fail("`" + expr.id +
+                            "` reads a field of a loop item; record element types have no C++ form "
+                            "in this codegen slice (list element types are primitives only)");
+            }
             return fail("record field `" + expr.id +
                         "` needs the type table (slice 4); unsupported in this codegen slice");
         }
         const std::size_t split = expr.id.find("::");
         if (split == std::string::npos || !member_prefix(expr.id.substr(0, split + 2))) {
-            return fail("unsupported reference `" + expr.id + "`");
+            return fail("unsupported reference `" + expr.id +
+                        "`; a local is only visible inside the list template that binds it");
         }
         return ExprEmission{member_name(expr.id), {}};
     }
@@ -181,11 +200,11 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
         if (expr.operands.size() != 2 || !expr.operands[0] || !expr.operands[1]) {
             return fail("a binary expression needs two operands");
         }
-        ExprEmission left = emit_expr(*expr.operands[0], component);
+        ExprEmission left = emit_expr(*expr.operands[0], component, locals);
         if (!left.error.empty()) {
             return left;
         }
-        ExprEmission right = emit_expr(*expr.operands[1], component);
+        ExprEmission right = emit_expr(*expr.operands[1], component, locals);
         if (!right.error.empty()) {
             return right;
         }
@@ -201,7 +220,7 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
         if (expr.operands.size() != 1 || !expr.operands[0]) {
             return fail("a unary expression needs one operand");
         }
-        ExprEmission value = emit_expr(*expr.operands[0], component);
+        ExprEmission value = emit_expr(*expr.operands[0], component, locals);
         if (!value.error.empty()) {
             return value;
         }
@@ -212,9 +231,9 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
             !expr.operands[2]) {
             return fail("a conditional needs three operands");
         }
-        ExprEmission test = emit_expr(*expr.operands[0], component);
-        ExprEmission then_value = emit_expr(*expr.operands[1], component);
-        ExprEmission else_value = emit_expr(*expr.operands[2], component);
+        ExprEmission test = emit_expr(*expr.operands[0], component, locals);
+        ExprEmission then_value = emit_expr(*expr.operands[1], component, locals);
+        ExprEmission else_value = emit_expr(*expr.operands[2], component, locals);
         if (!test.error.empty()) {
             return test;
         }
@@ -250,7 +269,7 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
             if (expr.operands.size() != 1 || !expr.operands[0]) {
                 return fail("`" + expr.id + "` takes one argument");
             }
-            ExprEmission value = emit_expr(*expr.operands[0], component);
+            ExprEmission value = emit_expr(*expr.operands[0], component, locals);
             if (!value.error.empty()) {
                 return value;
             }
@@ -274,7 +293,7 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
             if (!expr.operands[i]) {
                 return fail("a call argument is missing");
             }
-            ExprEmission arg = emit_expr(*expr.operands[i], component);
+            ExprEmission arg = emit_expr(*expr.operands[i], component, locals);
             if (!arg.error.empty()) {
                 return arg;
             }

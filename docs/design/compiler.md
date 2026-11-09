@@ -186,7 +186,7 @@ emits an explicit double cast because IR division is float), `?:`, text template
 all text (folded to one string literal), and calls to `min max clamp abs floor ceil round toInt
 toFloat`. Rejected loudly with `TESSERA_CODEGEN_UNSUPPORTED`: record-field references (`prop::row.x`,
 `event.value`), `%` (int vs float remainder needs slice 4), text templates with substitutions,
-`length`/`formatNumber`, `env::` references, record-typed fields, conditional/loop nodes,
+`length`/`formatNumber`, `env::` references, record-typed fields,
 `Component`/`CustomElement`/`VirtualList`/`VirtualGrid` nodes, and `environment` hooks.
 
 Scene APIs in use, in the documented per-node emission order: `set_element_kind`,
@@ -262,6 +262,43 @@ hand-off; dynamic `automationId` (lowering requires a string literal today) and 
 non-metadata intrinsic props; sample `automationId` emission (numeric `automationId` is emitted
 when the IR has it).
 
+**Dynamic child sets: conditional branches and keyed lists (implemented).** Lowering emits a
+conditional child as a *sibling* node carrying `condition`, so codegen builds every branch subtree
+once in `build()` into an ownership slot (`std::unique_ptr<tessera::ui::Node> branch_N_owned_`) and
+attaches it on demand. `apply_state()` first calls one generated `apply_children_<p>()` per parent
+with dynamic children. That walk keeps a running `position` in IR child order: a static child
+advances it, a present conditional branch advances it after `insert_child(position, ...)`, and a
+list advances it by its item count. A branch therefore lands at its source position without
+rebuilding the trailing siblings. Each branch keeps an FNV-1a hash of its condition plus the last
+presence flag, so an unchanged condition and presence touch no node API and mark nothing dirty; a
+change attaches/detaches through `insert_child`/`remove_child`, which mark the parent
+`Layout|Paint|Render` (the child set changed) and never `Style`. A detached branch stays alive in
+its slot (no re-allocation when it reappears) and keeps its stable `node::N` id. Nested conditionals
+are supported. Damage contract: a detached branch's own bounds are not individually damaged because
+`DamageTracker` never sees a detached node, but the shared parent is marked `Layout|Paint|Render`, so
+the tracker damages its previous *and* current bounds, which contain the vacated in-flow branch. The
+residual un-damaged case is a branch that overflows its parent's box (deferred; a full-target redraw
+covers it). A conditional inside a list template is deferred (it needs per-item presence state).
+
+A list template (a node carrying `loop` + `key`) generates a bounded item table
+(`kMaxGeneratedListItems = 32`): `Item_<n>` per slot (item subtree root plus its interpolated text
+pointers), the key strings, per-item content hashes, `count` and `order_hash`. `apply_list_<n>(parent,
+at)` hashes the key list first (no allocation, no formatting, no node access when unchanged) and only
+on a changed hash detaches the current items, matches new keys against the previous key strings,
+reuses a matched node (with its text pointers and content hash), builds one node for a new key via
+`build_item_<n>(item, index, out)`, re-inserts everything in order with `insert_child`, and clears the
+stale slots. The per-item content pass `apply_item_<n>(slot, item, index)` hash-compares the item's
+interpolated values and repaints only changed items through `PaintData` (`Paint|Render` only). Item
+node ids are the template's pre-order id plus `index * kItemIdStride`, where `kItemIdStride` is one
+past the component's last pre-order id, so every generated instance has a unique `NodeId` for damage
+tracking and automation. The loop source must be a `state::`/`prop::` reference with a declared
+`list<T>`; supported element types are the printable primitives (`bool`, `int`, `float`, `length`,
+`string`, `color`); the key must read the loop item or index. Rejected loudly with
+`TESSERA_CODEGEN_UNSUPPORTED`: record element types, nested list templates, conditionals /
+`TextInput` / `TextArea` / dynamic metadata / dynamic inline style / `useRef` targets inside a
+template, and list sources without a `list<T>` type. A source longer than the cap materializes the
+deterministic prefix (documented truncation, no hidden growth).
+
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
 IR validation → codegen, first-error-only with `file:line:column`, exit 0/1/2. Every generated file
@@ -272,7 +309,9 @@ outside-region edits) and writes nothing. Slice 10 identity diagnostics (`compon
 produce them yet. `samples/compiler-demo/` proves the flow end to end: `Demo.tsx` +
 committed developer seed `tests/golden/codegen/demo/Demo.cpp` with hand-written region bodies, regenerated into the build
 dir and compiled as `tessera_compiler_demo` under warnings-as-errors; `codegen_cli_tests` asserts
-idempotent runs, mtime no-op, region preservation and outside-region repair.
+idempotent runs, mtime no-op, region preservation and outside-region repair. `Demo.tsx` also carries
+a conditional child (`{count > 0 && <Text>Positive</Text>}`), so the CLI sample exercises branch
+emission end to end; a keyed list is not authorable from `.tsx` yet (see Deferred).
 
 **Generated-UI integration demo (headless, implemented):**
 `tests/integration/generated_ui_tests.cpp` instantiates the generated `demo::gen::Demo`, builds it
@@ -281,7 +320,10 @@ into a scene, lays it out with Yoga, paints with `paint_scene` through the deter
 (`tests/golden/baseline/generated_ui/{before,after,editing}.png`, tolerance 0). It asserts the
 generated `Button` `PointerUp` binding increments `state_count_`, the W3C capture/target/bubble
 route, the `Paint|Render` dirty domains (never `Layout`) for the repaint, and byte-identical repeat
-renders. Run it with `ctest -R generated_ui`; regenerate the goldens with
+renders. It also asserts the generated `{count > 0 && <Text>Positive</Text>}` branch is built once
+and starts detached (so the before frame and its layout are unchanged), attaches at its source
+position after the click, marks the parent `Layout`, and is laid out by a second reflow before the
+after frame. Run it with `ctest -R generated_ui`; regenerate the goldens with
 `generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui`. The demo is registered
 from `tests/unit/CMakeLists.txt` because the root CMakeLists (Lead-owned) does not add
 `tests/integration` yet. The demo drives the repaint through the generated `apply_state()`/`update()`
@@ -334,7 +376,10 @@ values; paint emits no caret for an empty text run (empty text paints no decorat
 focused field has no visible caret until the paint pass grows an empty-run caret.
 
 
-Deferred: conditional/list emission, component composition and `Slot`, reusing computed styles,
+Deferred: authoring a keyed list from `.tsx` (the front end rejects an array-literal `useState`
+initial value, so a list-typed state cell cannot be written yet; the list contract is golden-tested
+from hand-built IR in `codegen_dynamic_tests`), virtualized lists (`VirtualList`/`VirtualGrid`),
+component composition and `Slot`, reusing computed styles,
 multi-file watch mode, cross-module incremental generation, and single-node incremental
 regeneration. Goldens live in
 `tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild: the

@@ -4,28 +4,25 @@
 
 #include "codegen_internal.hpp"
 #include "emit_controlled.hpp"
+#include "emit_dynamic.hpp"
+#include "value_ops.hpp"
 
-#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
-// Text interpolation and the generated update path (docs/design/compiler.md section 11).
+// Text interpolation and the generated update path (docs/design/compiler.md section 11). The value
+// typing/hash helpers live in value_ops.hpp so the keyed-list item content pass shares them.
 namespace tessera::compiler::codegen::internal {
 
-// The C++ type family a text interpolation expression produces.
-enum class TextValueType { Bool, Int, Float, String };
-
 // Walks the node tree in the same pre-order as emit_node and collects the nodes whose text is not a
-// static literal (a string literal or an all-text template). Sets `error` for a text expression
-// with no printable C++ type.
+// static literal (a string literal or an all-text template). A list template subtree is skipped:
+// its text is per item and its interpolation goes through the generated per-item content pass. Sets
+// `error` for a text expression with no printable C++ type.
 [[nodiscard]] bool collect_dynamic_text(const ir::Node& node, const ir::Component& component,
                                         unsigned& ordinal, std::vector<DynamicText>& entries,
                                         std::string& error);
-
-// True when `expr` has a printable text form (interpolation or scalar formatting).
-[[nodiscard]] bool printable_text_expression(const ir::Expr& expr, const ir::Component& component);
 
 // A static text payload: a string literal or an all-text template folded by codegen.
 [[nodiscard]] std::optional<std::string> static_text_value(const ir::Expr* expr);
@@ -33,7 +30,8 @@ enum class TextValueType { Bool, Int, Float, String };
 // Emits the per-file `format_value` helpers into the generated .cpp (anonymous namespace).
 void emit_format_helpers(CppWriter& writer);
 
-// Walks the node tree in pre-order and collects interpolated element metadata values.
+// Walks the node tree in pre-order and collects interpolated element metadata values. List template
+// subtrees are skipped (dynamic metadata inside a template is rejected loudly by the plan).
 [[nodiscard]] bool collect_dynamic_metadata(const ir::Node& node, const ir::Component& component,
                                             unsigned& ordinal,
                                             std::vector<DynamicMetadata>& entries,
@@ -42,11 +40,12 @@ void emit_format_helpers(CppWriter& writer);
 // The generated member base for one dynamic metadata field (`meta_3_class`).
 [[nodiscard]] std::string metadata_member(const DynamicMetadata& entry);
 
-// Emits `<Name>::apply_state()` for the collected dynamic text and metadata entries.
+// Emits `<Name>::apply_state()`: the dynamic child-set groups first, then interpolated text and
+// metadata, then the controlled-editor sync.
 [[nodiscard]] bool emit_apply_state(CppWriter& writer, const ir::Component& component,
                                     const std::vector<DynamicText>& text_entries,
                                     const std::vector<DynamicMetadata>& metadata_entries,
                                     const std::vector<ControlledInput>& controlled_inputs,
-                                    std::string& error);
+                                    const DynamicPlan& plan, std::string& error);
 
 } // namespace tessera::compiler::codegen::internal
