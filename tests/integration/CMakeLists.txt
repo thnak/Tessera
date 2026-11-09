@@ -16,6 +16,7 @@ set(TESSERA_DEMO_FONT_FIXTURE
 get_filename_component(TESSERA_DEMO_FONT_FIXTURE "${TESSERA_DEMO_FONT_FIXTURE}" REALPATH)
 
 add_executable(generated_ui_tests
+    ${CMAKE_CURRENT_LIST_DIR}/generated_ui_demo.hpp
     ${CMAKE_CURRENT_LIST_DIR}/generated_ui_tests.cpp)
 
 target_link_libraries(generated_ui_tests PRIVATE
@@ -30,11 +31,10 @@ target_link_libraries(generated_ui_tests PRIVATE
     tessera_golden
     tessera_stb)
 
-# Generated demo headers live in the codegen build tree; the CPU paint sink is the shared PoC
-# implementation instead of a second copy in the test.
+# Generated demo headers live in the codegen build tree; the CPU paint sink is local to the demo
+# (generated_ui_demo.hpp) because the PoC sink is still owned/changing with the assets lane.
 target_include_directories(generated_ui_tests PRIVATE
-    ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo
-    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
 
 target_compile_features(generated_ui_tests PRIVATE cxx_std_23)
 

@@ -4,285 +4,43 @@
 // a scene, laid out by Yoga, painted through the deterministic CPU canvas, driven by synthetic
 // input, and repainted. This is the "generated UI is interactive" acceptance (task-56).
 //
-// What is generated: the component struct (state cells/effects), the node tree, the Button's
-// `PointerUp` binding (handler::1 increments `state_count_`) and the TextInput's `EditText` binding
-// (`on_name` developer region copies the event text into `state_name_`).
-//
-// What codegen does not emit yet (documented gaps, asserted below where applicable): state
-// interpolation into node content (so a click alone cannot change pixels until a regeneration step
-// writes the counter into the Text node's PaintData) and controlled `value` -> PaintData wiring for
-// TextInput. The demo applies the interpolation itself to prove the input -> state -> repaint path.
+// The generated code supplies the component struct (state cells/effects), the node tree, the
+// Button's `PointerUp` binding (`handler_1` increments `state_count_`) and the TextInput's
+// `EditText` binding (`on_name` copies the committed text into `state_name_`). Codegen does not yet
+// emit state interpolation into node content or controlled `value`/onChange wiring, so this demo
+// applies the state -> PaintData step explicitly and documents that as the next compiler item.
 //
 // Usage: generated_ui_tests [--write] <font.ttf> <baseline_dir>
 
-#include "Demo.hpp"
-#include "cpu_paint_sink.hpp"
-#include "stb_image.h"
-#include "stb_image_write.h"
-#include "tessera/rendering/damage.hpp"
-#include "tessera/rendering/golden/image_diff.hpp"
-#include "tessera/rendering/software/cpu_canvas.hpp"
-#include "tessera/ui/input.hpp"
-#include "tessera/ui/layout/apply_layout.hpp"
+#include "generated_ui_demo.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
-#include "tessera/ui/layout/layout_engine.hpp"
-#include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
-#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/text/edit_controller.hpp"
-#include "tessera/ui/text/harfbuzz_shaper.hpp"
 
-#include <algorithm>
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <memory>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace {
 
-using tessera::rendering::golden::compare_rgba;
+using namespace generated_ui_demo; // NOLINT: test-local helpers live in one namespace.
+using tessera::rendering::DamageAccumulator;
+using tessera::rendering::DamageConfig;
 using tessera::rendering::rhi::Extent2D;
-using tessera::rendering::rhi::Rect;
-using tessera::rendering::software::CpuCanvas;
-using tessera::ui::Dirty;
 using tessera::ui::DirtyPass;
-using tessera::ui::Event;
-using tessera::ui::EventPhase;
-using tessera::ui::EventType;
 using tessera::ui::has_flag;
-using tessera::ui::InputEvent;
-using tessera::ui::InputEventType;
 using tessera::ui::InputRouter;
-using tessera::ui::Node;
-using tessera::ui::PointerButton;
-using tessera::ui::PointerKind;
-using tessera::ui::paint::paint_scene;
-using tessera::ui::paint::PaintSink;
-using tessera::ui::paint::StyleProvider;
-using tessera::ui::style::ComputedStyle;
 using tessera::ui::text::EditController;
-using tessera::ui::text::HarfBuzzShaper;
-using tessera::ui::text::TextShaper;
-
-constexpr std::uint32_t kWidth = 320;
-constexpr std::uint32_t kHeight = 200;
-constexpr tessera::ui::NodeId kRootId = 900;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
-        std::cerr << "generated_ui: " << message << "\n";
+        std::fprintf(stderr, "generated_ui: %s\n", message);
     }
     return condition;
-}
-
-// Deterministic demo styles: the generated nodes carry element kinds/class names only (inline
-// style attachment is a documented codegen gap), so the test supplies the style sheet values the
-// component author wrote in JSX.
-class DemoSettings final : public StyleProvider {
-public:
-    [[nodiscard]] ComputedStyle compute(const Node& node) override {
-        ComputedStyle style;
-        const std::string_view kind = node.element_kind();
-        if (kind.empty()) {
-            style.set("width", "320px");
-            style.set("height", "200px");
-            style.set("display", "flex");
-            style.set("flex-direction", "column");
-            style.set("padding", "16px");
-            style.set("background-color", "#0b1220");
-        } else if (kind == "View") {
-            style.set("width", "240px");
-            style.set("height", "150px");
-            style.set("display", "flex");
-            style.set("flex-direction", "column");
-            style.set("padding", "12px");
-            style.set("background-color", "#1e293b");
-        } else if (kind == "Text") {
-            style.set("font-size", "16px");
-            style.set("color", "#e2e8f0");
-            style.set("margin-bottom", "6px");
-        } else if (kind == "Button") {
-            style.set("width", "96px");
-            style.set("height", "28px");
-            style.set("margin-bottom", "8px");
-            style.set("background-color", "#2563eb");
-        } else if (kind == "TextInput") {
-            style.set("width", "180px");
-            style.set("height", "28px");
-            style.set("background-color", "#0f172a");
-        }
-        return style;
-    }
-};
-
-// Records the event route (node id + phase) so the W3C capture/target/bubble order is asserted.
-class RouteRecorder final : public Node {
-public:
-    using Node::Node;
-
-    void on_event(Event& event) override {
-        route.push_back({event.type, event.phase});
-    }
-
-    struct Entry {
-        EventType type = EventType::PointerDown;
-        EventPhase phase = EventPhase::Target;
-    };
-    std::vector<Entry> route;
-};
-
-struct Fixture {
-    Fixture() {
-        root = std::make_unique<RouteRecorder>(kRootId);
-        demo.build(*root);
-        demo.mount();
-        layout_scene();
-    }
-
-    void layout_scene() {
-        tessera::ui::layout::LayoutEngine engine;
-        tessera::ui::layout::LayoutInput input = build_layout_input(*root);
-        const tessera::ui::layout::LayoutResult result = engine.layout(
-            input, tessera::ui::layout::LayoutViewport{static_cast<float>(kWidth),
-                                                       static_cast<float>(kHeight), 1.0f});
-        const tessera::ui::layout::LayoutApplyResult applied =
-            tessera::ui::layout::apply_layout(result, *root);
-        layout_applied = applied;
-        // apply_layout writes bounds (which marks Paint|Render); a frame would clear those after
-        // painting, so start the interaction assertions from a clean dirty state.
-        clear_dirty(*root);
-    }
-
-    static void clear_dirty(Node& node) {
-        node.clear_dirty(Dirty::All);
-        for (const auto& child : node.children()) {
-            clear_dirty(*child);
-        }
-    }
-
-    [[nodiscard]] Node* find(Node& node, std::string_view kind) {
-        if (node.element_kind() == kind) {
-            return &node;
-        }
-        for (const auto& child : node.children()) {
-            if (Node* const found = find(*child, kind)) {
-                return found;
-            }
-        }
-        return nullptr;
-    }
-
-    [[nodiscard]] tessera::ui::layout::LayoutInput build_layout_input(const Node& node) {
-        tessera::ui::layout::LayoutInput input;
-        input.id = node.id();
-        input.style = styles.compute(node);
-        const auto& paint = node.paint_data();
-        if (paint && paint->kind == tessera::ui::PaintKind::Text) {
-            input.text = paint->text;
-        }
-        for (const auto& child : node.children()) {
-            input.children.push_back(build_layout_input(*child));
-        }
-        return input;
-    }
-
-    std::unique_ptr<RouteRecorder> root;
-    demo::gen::Demo demo;
-    DemoSettings styles;
-    tessera::ui::layout::LayoutApplyResult layout_applied;
-};
-
-bool save_png(const std::string& path, const std::vector<std::uint8_t>& pixels) {
-    return stbi_write_png(path.c_str(), static_cast<int>(kWidth), static_cast<int>(kHeight), 4,
-                          pixels.data(), static_cast<int>(kWidth) * 4) != 0;
-}
-
-bool compare_png(const std::string& path, const std::vector<std::uint8_t>& pixels,
-                 const char* label) {
-    int width = 0;
-    int height = 0;
-    int channels = 0;
-    stbi_uc* decoded = stbi_load(path.c_str(), &width, &height, &channels, 4);
-    if (decoded == nullptr) {
-        std::cerr << "generated_ui: failed to load golden " << path << "\n";
-        return false;
-    }
-    const auto expected_size =
-        static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4;
-    const std::span<const std::uint8_t> expected(decoded, expected_size);
-    const auto diff = compare_rgba(
-        {kWidth, kHeight}, pixels,
-        {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)}, expected, 0);
-    stbi_image_free(decoded);
-    if (diff.size_mismatch || diff.mismatched != 0) {
-        std::cerr << "generated_ui: " << label << " golden mismatch: mismatched=" << diff.mismatched
-                  << " max_delta=" << diff.max_channel_delta << " first=" << diff.first_mismatch
-                  << "\n";
-        return false;
-    }
-    return true;
-}
-
-std::uint64_t fnv1a(std::span<const std::uint8_t> pixels) {
-    std::uint64_t hash = 1469598103934665603ULL;
-    for (const std::uint8_t byte : pixels) {
-        hash ^= byte;
-        hash *= 1099511628211ULL;
-    }
-    return hash;
-}
-
-std::vector<std::uint8_t> render(Node& root, StyleProvider& styles, CpuCanvas& canvas,
-                                 tessera::ui::text::GlyphRasterizer& rasterizer,
-                                 TextShaper& shaper) {
-    using tessera::rendering::rhi::rgba8;
-    canvas.clear(rgba8(11, 18, 32));
-    tessera::poc::batched2d::CpuPaintSink sink(canvas, &rasterizer, &shaper);
-    paint_scene(root, styles, sink);
-    const std::span<const std::uint8_t> pixels = canvas.pixels();
-    return std::vector<std::uint8_t>(pixels.begin(), pixels.end());
-}
-
-bool route_is_w3c(const RouteRecorder& recorder, EventType type) {
-    // The root is the only scene ancestor of the generated Button: it must see Capture before
-    // Bubble, and the whole route has exactly those two entries for the event.
-    std::vector<EventPhase> phases;
-    for (const RouteRecorder::Entry& entry : recorder.route) {
-        if (entry.type == type) {
-            phases.push_back(entry.phase);
-        }
-    }
-    if (phases.size() != 2) {
-        return false;
-    }
-    return phases[0] == EventPhase::Capture && phases[1] == EventPhase::Bubble;
-}
-
-InputEvent pointer_event(InputEventType type, float x, float y) {
-    InputEvent event;
-    event.type = type;
-    event.x = x;
-    event.y = y;
-    event.pointer_id = 1;
-    event.pointer_kind = PointerKind::Mouse;
-    event.button = PointerButton::Left;
-    event.is_primary = true;
-    return event;
-}
-
-InputEvent edit_text_event(std::string_view text) {
-    InputEvent event;
-    event.type = InputEventType::EditText;
-    const std::size_t size = std::min<std::size_t>(text.size(), event.text.size());
-    std::copy_n(text.data(), size, event.text.begin());
-    event.text_size = static_cast<std::uint32_t>(size);
-    return event;
 }
 
 } // namespace
@@ -295,7 +53,7 @@ int main(int argc, char** argv) {
         ++argument;
     }
     if (argument + 1 >= argc) {
-        std::cerr << "usage: generated_ui_tests [--write] <font.ttf> <baseline_dir>\n";
+        std::fprintf(stderr, "usage: generated_ui_tests [--write] <font.ttf> <baseline_dir>\n");
         return 2;
     }
     const std::string font_path = argv[argument];
@@ -303,11 +61,12 @@ int main(int argc, char** argv) {
 
     auto loaded = tessera::ui::text::FontFace::load_from_file(font_path);
     if (!loaded) {
-        std::cerr << "generated_ui: failed to load font: " << loaded.error().message << "\n";
+        std::fprintf(stderr, "generated_ui: failed to load font: %s\n",
+                     loaded.error().message.c_str());
         return 2;
     }
     const tessera::ui::text::FontFace face = *loaded;
-    tessera::ui::text::GlyphRasterizer rasterizer(face);
+    GlyphRasterizer rasterizer(face);
     HarfBuzzShaper shaper(face);
 
     // --- 1. Generated tree + Yoga layout + CPU paint -------------------------------------------
@@ -329,8 +88,8 @@ int main(int argc, char** argv) {
         !expect(button->world_bounds().width == 96.0f, "button width from the style sheet")) {
         return 3;
     }
-    // Resolve the generated nodes the way automation would: the sample does not set
-    // automationIds yet (documented codegen gap), so the demo resolves by element kind.
+    // The sample sets no automationIds yet (documented codegen gap), so the demo resolves nodes by
+    // element kind the way a generated automationId lookup would.
     if (!expect(button->automation_id() == 0, "sample sets no automationId (documented gap)")) {
         return 3;
     }
@@ -354,13 +113,13 @@ int main(int argc, char** argv) {
 
     // --- 2. Click the generated Button: handler + route + state ---------------------------------
     InputRouter router;
-    const Rect button_bounds = button->world_bounds();
-    const float click_x = button_bounds.x + button_bounds.width * 0.5f;
-    const float click_y = button_bounds.y + button_bounds.height * 0.5f;
-    const auto down = router.dispatch(*fixture.root,
-                                      pointer_event(InputEventType::PointerDown, click_x, click_y));
-    const auto up =
-        router.dispatch(*fixture.root, pointer_event(InputEventType::PointerUp, click_x, click_y));
+    const auto click = [&](InputEventType type) {
+        const auto bounds = button->world_bounds();
+        return router.dispatch(*fixture.root, pointer_event(type, bounds.x + bounds.width * 0.5f,
+                                                            bounds.y + bounds.height * 0.5f));
+    };
+    const auto down = click(InputEventType::PointerDown);
+    const auto up = click(InputEventType::PointerUp);
     if (!expect(down.dispatched && up.dispatched, "pointer click dispatched") ||
         !expect(fixture.demo.state_count_ == 1, "generated handler incremented the state cell") ||
         !expect(route_is_w3c(*fixture.root, EventType::PointerDown), "PointerDown route is W3C") ||
@@ -373,7 +132,7 @@ int main(int argc, char** argv) {
     }
 
     // The missing regeneration step: a framework would write the state back into the Text node's
-    // PaintData. The test applies exactly that interpolation and proves the repaint path.
+    // PaintData. The demo performs exactly that interpolation and proves the repaint path.
     tessera::ui::PaintData updated;
     updated.text = "Count: " + std::to_string(fixture.demo.state_count_);
     counter->set_paint_data(std::move(updated));
@@ -387,12 +146,11 @@ int main(int argc, char** argv) {
 
     DirtyPass dirty;
     dirty.collect(*fixture.root, Dirty::Paint | Dirty::Render);
-    tessera::rendering::DamageAccumulator damage(
-        tessera::rendering::DamageConfig{Extent2D{kWidth, kHeight}, 16});
+    DamageAccumulator damage(DamageConfig{Extent2D{kWidth, kHeight}, 16});
     const auto damage_result = tessera::ui::layout::add_scene_damage(dirty, damage, 1.0f);
-    const Rect text_bounds = counter->world_bounds();
+    const auto text_bounds = counter->world_bounds();
     bool damaged = false;
-    for (const Rect& rect : damage.rects()) {
+    for (const auto& rect : damage.rects()) {
         if (rect.x < text_bounds.x + text_bounds.width && rect.x + rect.width > text_bounds.x &&
             rect.y < text_bounds.y + text_bounds.height && rect.y + rect.height > text_bounds.y) {
             damaged = true;
@@ -437,9 +195,8 @@ int main(int argc, char** argv) {
         return 10;
     }
 
-    // The same committed text through the edit controller's buffer (the controller is the owner
-    // that a future controlled TextInput would bind to; there is no generated value/onChange wiring
-    // between the buffer and state yet - documented gap).
+    // The same committed text through the edit controller's buffer (the owner a future controlled
+    // TextInput would bind to; there is no generated value/onChange wiring yet - documented gap).
     EditController editor;
     Event commit;
     commit.type = EventType::EditText;
@@ -462,16 +219,14 @@ int main(int argc, char** argv) {
     Fixture replay;
     Node* replay_counter = replay.find(*replay.root, "Text");
     Node* replay_button = replay.find(*replay.root, "Button");
-    const Rect replay_bounds = replay_button->world_bounds();
     InputRouter replay_router;
-    replay_router.dispatch(*replay.root,
-                           pointer_event(InputEventType::PointerDown,
-                                         replay_bounds.x + replay_bounds.width * 0.5f,
-                                         replay_bounds.y + replay_bounds.height * 0.5f));
-    replay_router.dispatch(*replay.root,
-                           pointer_event(InputEventType::PointerUp,
-                                         replay_bounds.x + replay_bounds.width * 0.5f,
-                                         replay_bounds.y + replay_bounds.height * 0.5f));
+    const auto replay_click = [&](InputEventType type) {
+        const auto bounds = replay_button->world_bounds();
+        replay_router.dispatch(*replay.root, pointer_event(type, bounds.x + bounds.width * 0.5f,
+                                                           bounds.y + bounds.height * 0.5f));
+    };
+    replay_click(InputEventType::PointerDown);
+    replay_click(InputEventType::PointerUp);
     tessera::ui::PaintData replay_updated;
     replay_updated.text = "Count: " + std::to_string(replay.demo.state_count_);
     replay_counter->set_paint_data(std::move(replay_updated));
