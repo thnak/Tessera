@@ -118,9 +118,10 @@ A component with a conditional child or a keyed list also gets generated child-s
 source position, so a child-set change marks the shared parent `Layout|Paint|Render` (never `Style`)
 and an unchanged condition marks nothing. A keyed list is capped at `kMaxGeneratedListItems` (32)
 items, reuses nodes by key, and allocates nothing when the key list is unchanged; a longer source
-list is truncated deterministically at the prefix. A `.tsx` keyed list is not authorable yet (the
-front end rejects an array-literal `useState` initial value), so the sample only uses the conditional
-and the list contract is covered by golden/runtime tests from IR.
+list is truncated deterministically at the prefix. A list-typed state cell is authored like any other
+state: `useState<string[]>(["a", "b"])` (literal elements) or a list reference; dynamic elements,
+record element types and list-typed props are not available yet (see
+[`compiler.md` §11](../design/compiler.md#11-c-codegen-first-slice-implemented)).
 
 ### 4.1 Generated-UI headless demo
 

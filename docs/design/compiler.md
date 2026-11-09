@@ -314,7 +314,7 @@ committed developer seed `tests/golden/codegen/demo/Demo.cpp` with hand-written 
 dir and compiled as `tessera_compiler_demo` under warnings-as-errors; `codegen_cli_tests` asserts
 idempotent runs, mtime no-op, region preservation and outside-region repair. `Demo.tsx` also carries
 a conditional child (`{count > 0 && <Text>Positive</Text>}`), so the CLI sample exercises branch
-emission end to end; a keyed list is not authorable from `.tsx` yet (see Deferred).
+emission end to end; a keyed list is authorable from `.tsx` with literal elements (see Deferred for what stays out).
 
 **Generated-UI integration demo (headless, implemented):**
 `tests/integration/generated_ui_tests.cpp` instantiates the generated `demo::gen::Demo`, builds it
@@ -379,9 +379,9 @@ values; paint emits no caret for an empty text run (empty text paints no decorat
 focused field has no visible caret until the paint pass grows an empty-run caret.
 
 
-Deferred: authoring a keyed list from `.tsx` (the front end rejects an array-literal `useState`
-initial value, so a list-typed state cell cannot be written yet; the list contract is golden-tested
-from hand-built IR in `codegen_dynamic_tests`), virtualized lists (`VirtualList`/`VirtualGrid`),
+Deferred: dynamic list elements and list-typed props (`Component::props` is not populated yet, so a
+list can be seeded only from a literal array initial or another list reference), virtualized lists
+(`VirtualList`/`VirtualGrid`),
 component composition and `Slot`, reusing computed styles,
 multi-file watch mode, cross-module incremental generation, and single-node incremental
 regeneration. Goldens live in
