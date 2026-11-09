@@ -52,7 +52,9 @@ Rejected at lowering (`TESSERA_IR_*`) because they parse but have no V1 IR form:
 with no manifest entry, a `call` off the allowlist ([`ir-v1.md`](../specs/ir-v1.md) section 4.2),
 member access on a value without a known record type, an unknown intrinsic prop or event, and any
 node kind outside the closed list of IR section 3. The parser already rejects classes, `let`,
-async, lowercase tags, `==` and the array methods.
+async, `==` and the array methods. Lowercase tags are HTML aliases resolved in analysis
+([ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md)); the parser stops rejecting them
+when that slice lands.
 Only items with `valid == true` are lowered; an invalid item produces no IR and no cascade.
 
 ## 3. The missing analysis pass
@@ -279,7 +281,9 @@ of this note. Numbers are kept; text elsewhere cites them as "decision N". IR-sh
 
 ## 11. What the repo does not show
 
-- The exact set of events and props per intrinsic: they live in other specs
+- The exact set of events and props per intrinsic is now in
+  [`jsx-intrinsics-v1`](../specs/jsx-intrinsics-v1/README.md) (its machine-readable form is a proposal
+  there). It used to live in other specs
   ([`component-model-v1.md`](../specs/component-model-v1.md), text-editing, scroll) and no generated
   table exists yet. Slice 4 needs a machine-readable intrinsic table; its format and owner are open.
 - Whether the compiler can read `ui.hooks.*` config yet (no config loader under `src/compiler`).

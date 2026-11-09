@@ -457,10 +457,10 @@ Attr        = IDENT { "-" IDENT } [ "=" ( STRING | "{" AttrExpr "}" ) ]
 Child       = JsxElement | JsxText | "{" ChildExpr "}" ;
 ```
 
-- Tag names start with an uppercase letter and name an intrinsic (section 11), a component imported
-  or declared in the project, or a library component imported from `"tessera"`. A tag in lowercase
-  (`<div>`, `<span>`) is rejected with the suggestion of the closest intrinsic
-  (`TESSERA_JSX_SUBSET_HTML_TAG`).
+- Tag names name an intrinsic (section 11), a project component or a library component imported from
+  `"tessera"`; components start with an uppercase letter. A lowercase tag (`<div>`, `<span>`) is an
+  alias of an intrinsic ([`jsx-intrinsics-v1`](jsx-intrinsics-v1/html-aliases.md),
+  [ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md)); one with no mapping is `TESSERA_JSX_SUBSET_HTML_TAG`.
 - Member tags (`<A.B>`), namespace tags (`<a:b>`), and a tag that is a variable (dynamic component
   type) are rejected.
 - Opening and closing tag names must match. A mismatch is a parse error that names both tags.
@@ -546,11 +546,11 @@ intrinsic is `TESSERA_JSX_SUBSET_UNKNOWN_PROP`.
 ## 11. Intrinsic elements
 
 JSX tag names that the front end maps to IR node kinds ([`ir-v1.md`](ir-v1.md) section 3). The
-prop set of each is defined by the document named in the last column.
+prop set of each is in [`jsx-intrinsics-v1`](jsx-intrinsics-v1/README.md) (the last column is the semantic spec).
 
 | Tag | IR kind | Children | Props defined in |
 |---|---|---|---|
-| `View` | `View` | nodes | [`component-model-v1.md`](component-model-v1.md) |
+| `View` | `View` | nodes and text | [`jsx-intrinsics-v1`](jsx-intrinsics-v1/README.md) |
 | `Text` | `Text` | text and expressions | [`component-model-v1.md`](component-model-v1.md) |
 | `Button` | `Button` | text and nodes | [`component-model-v1.md`](component-model-v1.md) |
 | `TextInput`, `TextArea` | same | none | [`text-editing-v1.md`](text-editing-v1.md) |
@@ -619,7 +619,7 @@ and no silent skipping.
 | Custom hooks | `TESSERA_REACT_CUSTOM_HOOK` | Inline the hook or write a native handler |
 | Context, `createContext`, `useContext`, suspense, portals | `TESSERA_REACT_UNSUPPORTED_API` | Use services and overlays ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) |
 | `useMemo`, `useCallback`, `useReducer`, `memo`, `forwardRef` | `TESSERA_REACT_UNSUPPORTED_API` | Compute in a `const`; state updates are batched already |
-| Lowercase tags | `TESSERA_JSX_SUBSET_HTML_TAG` | Use `View`, `Text` |
+| Lowercase tags with no alias mapping | `TESSERA_JSX_SUBSET_HTML_TAG` | See the alternative in `jsx-intrinsics-v1/html-aliases.md` |
 | Dynamic component type, member tags, namespace tags | `TESSERA_JSX_SUBSET_DYNAMIC_TAG` | Use a fixed tag |
 | `==`, `!=` | `TESSERA_JSX_SUBSET_LOOSE_EQUALITY` | Use `===`, `!==` |
 | `??`, `?.`, `**`, bitwise operators, comma, `typeof`, `instanceof`, `in`, `delete`, `void` | `TESSERA_JSX_SUBSET_OPERATOR` | Not available in V1 |
@@ -764,7 +764,7 @@ and hover; the front end does not read them to decide validity.
 
 Decided by the project owner and recorded in the sections named: no automatic semicolon insertion
 (3.6), optional preview body (9.3), `int`/`float` types (5), cleanup mapping (7), no reading of animated
-values (7), no lowercase HTML tag aliases and no `export default` (4 and 12), parser limit defaults and
+values (7), lowercase HTML tag aliases accepted (10.1, ADR-039) and no `export default` (4 and 12), parser limit defaults and
 configuration keys (15), numeric semantics and the pure-function allowlist
 ([`ir-v1.md`](ir-v1.md) sections 4.1 and 4.2), the hook manifest and its two V1 hooks (7.1), props of
 `Image`, `Path` and `Spacer` (11.1), the default theme `default` and the `useThemeState()` hook (7.1), the theme asset format

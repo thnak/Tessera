@@ -48,7 +48,7 @@ Codes implemented so far:
   named `use...`), `TESSERA_JSX_SUBSET_COMPONENT_NAME` (component not starting with an uppercase
   letter; not in the spec table, added here);
 - subset rejections from spec section 12 that are visible in syntax alone,
-  `TESSERA_JSX_SUBSET_*`: `HTML_TAG`, `DYNAMIC_TAG`, `LOOSE_EQUALITY`, `OPERATOR`, `MUTATION`,
+  `TESSERA_JSX_SUBSET_*`: `DYNAMIC_TAG` (`HTML_TAG` moves to analysis, ADR-039), `LOOSE_EQUALITY`, `OPERATOR`, `MUTATION`,
   `MEMBER` (indexing), `CLASS`, `STATEMENT`, `ASYNC`, `FUNCTION_VALUE`, `IMPORT`, `TYPES`,
   `LITERAL` (computed or spread object keys), `UNKNOWN_PROP` (only for attribute names that are
   not identifiers), `DOM` (`dangerouslySetInnerHTML`);

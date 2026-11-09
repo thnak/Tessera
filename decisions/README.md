@@ -47,6 +47,8 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-035](ADR-035-view-transitions.md) | View transitions: global UI effects (theme circle reveal, glitch) | Accepted |
 | [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) | Own JSX/TSX front end; React-like (not React-identical) model; built-in hooks; live view | Accepted |
 | [ADR-037](ADR-037-self-contained-wasm-designer.md) | Self-contained Wasm designer engine (front end + evaluator), picker, style editing | Accepted |
+| [ADR-038](ADR-038-cpp23-baseline.md) | C++23 language baseline (supersedes item 1 of ADR-015) | Accepted |
+| [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule) | Accepted |
 
 ## Dependency overview
 

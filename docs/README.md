@@ -56,6 +56,7 @@ This page is the map and reading order for the framework.
 - [ADR-035](../decisions/ADR-035-view-transitions.md) — view transitions (global UI effects)
 - [ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) — own JSX/TSX front end; React-like model
 - [ADR-037](../decisions/ADR-037-self-contained-wasm-designer.md) — self-contained Wasm (WebAssembly) designer engine
+- [ADR-039](../decisions/ADR-039-lowercase-html-tags-accepted.md) — lowercase HTML tags accepted as intrinsic aliases
 
 ## 3. Specs (normative)
 
@@ -100,6 +101,9 @@ This page is the map and reading order for the framework.
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
   handlers, hooks, rejected constructs, diagnostics, error-tolerant parsing
+- [`specs/jsx-intrinsics-v1/`](specs/jsx-intrinsics-v1/README.md) — intrinsic element table: children,
+  props, events and payloads, refs, IR lowering, lowercase HTML aliases, React compatibility,
+  machine-readable form (folder with index)
 - [`specs/view-transitions-v1.md`](specs/view-transitions-v1.md) — window-wide transitions
   (`startViewTransition`, theme circle reveal, shader effects like glitch)
 - [`specs/overlays-and-layers-v1.md`](specs/overlays-and-layers-v1.md) — overlay/modal/popover/
