@@ -115,6 +115,10 @@ void test_use_before_declaration_is_rejected() {
              "declares it\n",
              "one report per name and statement");
 
+    const auto self = analyze(component("  const [count, setCount] = useState<int>(count);\n"));
+    check_eq(describe_all(*self), "",
+             "a hook reading its own name is not a use before a later hook (not this rule)");
+
     const auto effect_first = analyze(component("  useEffect(() => { setCount(1); }, []);\n"
                                                 "  const [count, setCount] = useState<int>(0);\n"));
     check_eq(describe_all(*effect_first),
