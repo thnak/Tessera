@@ -11,14 +11,16 @@ implemented in `include/tessera/ui/scene/focus.hpp` and `src/ui/scene/focus.cpp`
 `:focus` style re-evaluation, and modal focus trapping/restoration are part of that implementation.
 Wheel and text routing, window focus/blur handling, the Tab/Shift+Tab default focus action with
 `prevent_default`, and the scene-event pointer payload are implemented in
-`src/ui/scene/input_dispatch.cpp` and `include/tessera/ui/scene/event.hpp`. The per-tick input pump
+`src/ui/scene/input_dispatch.cpp` and `include/tessera/ui/scene/event.hpp`. Single-pointer
+hover/active pseudo-state tracking and the window-focus interaction reset are implemented in
+`src/ui/scene/input_dispatch.cpp` (section 7). The per-tick input pump
 (queue -> sampler -> router -> `RuntimeLoop::request_frame`) is
 `include/tessera/ui/input_pump.hpp` and `src/ui/input/input_pump.cpp`. Windows platform translation
 (pointer, wheel, key and character messages into `InputEvent`, see section 2.1) is implemented in
-`src/platform/windows/win32_input.cpp`. Linux/X11 and other platform translation, hover/active
-pseudo-state dispatch, `:focus-visible` heuristics, window-blur retention policy (blur already
-cancels capture), per-pointer-id capture for multi-touch, IME composition, gestures, and
-deterministic recording remain design-only.
+`src/platform/windows/win32_input.cpp`. Linux/X11 and other platform translation,
+`:focus-visible` heuristics, window-blur focus retention policy (blur already cancels capture,
+hover, and active), ancestor hover chains and hover recomputation on scene changes, per-pointer-id
+capture for multi-touch, IME composition, gestures, and deterministic recording remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
@@ -93,7 +95,7 @@ window's thread, so the queue's single producer is the UI thread.
   input never becomes a `WindowEvent`; this is what lets a render-on-demand loop sleep until a
   pointer or key event.
 - **Not yet:** touch and pen (`WM_POINTER*`), IME composition, dead keys, per-key `code`
-  (physical position), pointer leave/enter, and `:hover`/`:active` dispatch.
+  (physical position), and pointer enter/leave (hover is derived from moves, see section 7).
 
 ## 3. Event model
 
@@ -182,8 +184,9 @@ Pointer capture:
 - Losing the window/focus cancels capture and active states.
 
 Implemented subset: `InputRouter` owns one capture target, set by the last `PointerDown` and
-cleared by `PointerUp`, `PointerCancel`, or an `InputEventType::Focus`/`Blur` input event. There is
-no public `set_pointer_capture`, no per-pointer-id capture, and no multi-touch yet. Wheel events are
+cleared by `PointerUp`, `PointerCancel`, or an `InputEventType::Focus`/`Blur` input event. Hover and
+active interaction state are tracked by the same single-pointer model (section 7). There is no
+public `set_pointer_capture`, no per-pointer-id capture, and no multi-touch yet. Wheel events are
 hit-tested at the cursor and are not delivered to the capture target; text events go to the focused
 node; `pointer-events: none`, clipping, and `prevent_default` for scrolling/selection are not
 implemented. `prevent_default` is honored for the Tab default action only (section 6).
@@ -260,8 +263,9 @@ Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
   `Event::prevent_default`. The modal trap is enforced inside `FocusManager`.
   `InputDispatchResult` reports `default_prevented` and `focus_moved`. `KeyUp` for Tab has no
   default action. `Text` input events are delivered to the focused node as `EventType::Text`.
-- Window blur (`InputEventType::Blur`) cancels pointer capture; it does not clear scene focus,
-  because `FocusManager` remains the owner of the scene-level Focus/Blur events.
+- Window focus inputs (`Focus`/`Blur`) cancel pointer capture and clear hover/active interaction
+  state (section 7); they do not clear scene focus, because `FocusManager` remains the owner of the
+  scene-level Focus/Blur events.
 
 Deferred policy (design intent, not implemented):
 
@@ -272,25 +276,44 @@ Deferred policy (design intent, not implemented):
 
 ## 7. Pointer state and pseudo-classes
 
-State machine per pointer:
+Implemented state machine per pointer (single pointer; multi-touch is deferred):
 
 ```text
 Idle -> Hover(target) -> Pressed(target, capture) -> Released(target)
 ```
 
-- `:hover` is set on the deepest hit target (and ancestors, when a `:hover` rule targets an ancestor chain).
-- `:active` is set on the press target while a primary button is down.
+- `:hover` (implemented): `InputRouter::hovered()` is the deepest hit target of the last
+  `PointerMove`. A new hover target gains `PseudoState::Hover` and the previous hover target loses
+  the bit on the next move; a move that hits nothing (the pointer left the scene) clears it.
+  Hover is hit-tested at the cursor even while a press is captured, so a drag moves the hover
+  target instead of freezing it on the capture target. Only `PointerMove` updates hover: a
+  synthetic `PointerDown` with no preceding move activates but does not hover.
+- Only the deepest hit target carries `Hover`; ancestors are not hovered. Ancestor `:hover` chains
+  are deferred together with scene-change recomputation: a chain must be recomputed when the tree,
+  bounds, or visibility change, and the input layer has no change notification yet. Maintaining it
+  from pointer moves alone would leave stale ancestor bits.
+- `:active` (implemented): `InputRouter::active()` is the `PointerDown` hit target. The bit is
+  cleared before the `PointerUp` event is dispatched, and also on `PointerCancel`, a window
+  `Focus`/`Blur` input event, and `InputRouter::reset()`. A press that hits nothing clears any older
+  active target. Capture does not move `Active`.
 - `:focus` is independent of pointer state; `FocusManager` owns the `PseudoState::Focus` bit and
   clears/sets it around `Blur`/`Focus` dispatch.
+- Window `Focus`/`Blur` input events reset interaction state: capture, hover, and active are
+  cleared because the pointer can no longer be considered over the scene. Scene focus is retained
+  (see section 6); `FocusManager` remains the owner of scene-level Focus/Blur events.
 - `:disabled`/`:checked` come from node state, not pointer state.
-- State changes mark `StyleDirty`; the style resolver then raises layout/paint/render dirty
-  domains only if the matched rules change those groups. `SceneStyleTree::compute` refreshes the
-  cached pseudo-state from the node on each evaluation, so a focus/blur is reflected by the next
-  style resolution without rebuilding the tree.
-- Hover chains must be recomputed on scene changes, not only on pointer moves.
+- State changes go through `Node::set_pseudo_state`, which marks `Dirty::Style`; the style resolver
+  then raises layout/paint/render dirty domains only if the matched rules change those groups. A
+  repeated move onto the same target does not churn the dirty flags. `SceneStyleTree::compute`
+  refreshes the cached pseudo-state from the node on each evaluation, so a hover/active change is
+  reflected by the next style resolution without rebuilding the tree.
+- `hovered()`, `active()`, and `captured()` are raw scene pointers: reset or destroy the router
+  before destroying a subtree that holds one of those states.
 
-Not implemented: the input layer does not set `PseudoState::Hover` or `PseudoState::Active` yet, so
-`:hover`/`:active` rules never match on interaction. Only `Focus` is maintained, by `FocusManager`.
+Not implemented: ancestor hover chains and recomputation on scene changes, per-pointer interaction
+state for multi-touch, pointer enter/leave synthesis, `:focus-visible`, and interaction state
+derived from scene mutations (for example a hovered node becoming invisible keeps its bit until the
+next move).
 
 ## 8. Text input and IME
 
@@ -325,7 +348,7 @@ Not implemented: the input layer does not set `PseudoState::Hover` or `PseudoSta
 - `hit_tests`, `pointer_captures`, `focus_changes`
 - `input_to_style_ms`, `input_to_render_ms` (latency)
 - `text_events`, `ime_compositions`
-- Debug overlay: pointer id/position/target, focus path, capture target.
+- Debug overlay: pointer id/position/target, hover/active target, focus path, capture target.
 
 ## 12. Tests
 
@@ -341,13 +364,18 @@ Not implemented: the input layer does not set `PseudoState::Hover` or `PseudoSta
   root is removed (`tests/unit/focus_policy_tests.cpp`).
 - `:focus`/`:not(:focus)` selector matching and style re-evaluation, including `Style` dirty
   marking (`tests/unit/focus_style_tests.cpp`).
-- Hover/active state changes and resulting style invalidation (not implemented yet).
+- Hover/active state changes and style invalidation: hover enter, move to another target, and
+  leave (previous hover cleared), hidden targets skipped, active down/up, cancel and window
+  focus/blur cleanup, `Style` dirty marking, and stateless `dispatch_input` not owning state
+  (`tests/unit/input_router_tests.cpp`, `tests/unit/input_dispatch_tests.cpp`); the same flow
+  through `InputPump` (`tests/unit/input_pipeline_tests.cpp`).
 - Keyboard repeat, shortcuts, IME composition (only committed `Text` routing exists).
 - Deterministic replay: identical event script -> identical state and pixels (not implemented).
 - Queue overflow and window blur/cancel behavior.
 - Scene payload mapping: button, pointer id, pressure, wheel deltas, timestamp
   (`tests/unit/input_pipeline_tests.cpp`).
-- Wheel hit-testing/bubbling, text delivered to focus only, Focus/Blur input cancelling capture.
+- Wheel hit-testing/bubbling, text delivered to focus only, Focus/Blur input cancelling capture and
+  clearing hover/active.
 - Tab/Shift+Tab default focus movement and `prevent_default` suppression.
 - `InputPump`: per-tick budget, move coalescing, dropped counters, `request_frame` wake with a
   `ManualClock`, queue overflow, and reset (`tests/unit/input_pipeline_tests.cpp`).

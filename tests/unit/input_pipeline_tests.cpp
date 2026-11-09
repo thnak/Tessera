@@ -14,6 +14,7 @@ namespace {
 
 using tessera::runtime::ManualClock;
 using tessera::runtime::RuntimeLoop;
+using tessera::ui::Dirty;
 using tessera::ui::Event;
 using tessera::ui::EventType;
 using tessera::ui::InputEvent;
@@ -26,6 +27,8 @@ using tessera::ui::Modifier;
 using tessera::ui::Node;
 using tessera::ui::PointerButton;
 using tessera::ui::key::kTab;
+using tessera::ui::style::has_state;
+using tessera::ui::style::PseudoState;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -271,6 +274,83 @@ bool tab_traversal(Scene& scene, InputRouter& router) {
                   "tab without focus picks the first modal candidate");
 }
 
+bool interaction_states(Scene& scene) {
+    // Start from a clean scene so bits owned by the shared router in earlier cases cannot leak in.
+    scene.root.set_pseudo_state(PseudoState::None);
+    scene.child->set_pseudo_state(PseudoState::None);
+    scene.other->set_pseudo_state(PseudoState::None);
+    scene.root.clear_dirty(Dirty::All);
+    scene.child->clear_dirty(Dirty::All);
+    scene.other->clear_dirty(Dirty::All);
+
+    ManualClock clock;
+    RuntimeLoop loop(clock);
+    InputPump pump;
+
+    pump.queue().push(pointer(InputEventType::PointerMove, 20, 20));
+    pump.pump(scene.root, loop);
+    if (!expect(pump.router().hovered() == scene.child, "pump move hovers child") ||
+        !expect(has_state(scene.child->pseudo_state(), PseudoState::Hover),
+                "pump move sets hover bit") ||
+        !expect(tessera::ui::has_flag(scene.child->dirty(), Dirty::Style),
+                "pump hover marks style dirty")) {
+        return false;
+    }
+
+    // Moving to another target clears the previous hover target.
+    pump.queue().push(pointer(InputEventType::PointerMove, 120, 120));
+    pump.pump(scene.root, loop);
+    if (!expect(pump.router().hovered() == scene.other, "pump move re-hovers") ||
+        !expect(!has_state(scene.child->pseudo_state(), PseudoState::Hover),
+                "pump move clears previous hover")) {
+        return false;
+    }
+
+    // Press activates; release deactivates.
+    pump.queue().push(pointer(InputEventType::PointerDown, 120, 120));
+    pump.pump(scene.root, loop);
+    if (!expect(pump.router().active() == scene.other, "pump press activates target") ||
+        !expect(has_state(scene.other->pseudo_state(), PseudoState::Active),
+                "pump press sets active bit")) {
+        return false;
+    }
+    pump.queue().push(pointer(InputEventType::PointerUp, 120, 120));
+    pump.pump(scene.root, loop);
+    if (!expect(pump.router().active() == nullptr, "pump release clears active") ||
+        !expect(!has_state(scene.other->pseudo_state(), PseudoState::Active),
+                "pump release clears active bit")) {
+        return false;
+    }
+
+    // Window blur input resets capture, hover, and active but not scene focus.
+    pump.queue().push(pointer(InputEventType::PointerMove, 20, 20));
+    pump.queue().push(pointer(InputEventType::PointerDown, 20, 20));
+    pump.pump(scene.root, loop);
+    InputEvent blur;
+    blur.type = InputEventType::Blur;
+    pump.queue().push(blur);
+    pump.pump(scene.root, loop);
+    if (!expect(pump.router().captured() == nullptr, "pump blur clears capture") ||
+        !expect(pump.router().hovered() == nullptr, "pump blur clears hover") ||
+        !expect(pump.router().active() == nullptr, "pump blur clears active") ||
+        !expect(pump.router().focus_manager().focused() == scene.child,
+                "pump blur keeps scene focus")) {
+        return false;
+    }
+
+    // Focus input resets the same interaction state.
+    pump.queue().push(pointer(InputEventType::PointerMove, 20, 20));
+    pump.queue().push(pointer(InputEventType::PointerDown, 20, 20));
+    pump.pump(scene.root, loop);
+    InputEvent focus;
+    focus.type = InputEventType::Focus;
+    pump.queue().push(focus);
+    pump.pump(scene.root, loop);
+    pump.reset();
+    return expect(pump.router().hovered() == nullptr && pump.router().active() == nullptr,
+                  "pump focus input and reset clear interaction state");
+}
+
 bool pump_drain(Scene& scene) {
     ManualClock clock;
     RuntimeLoop loop(clock);
@@ -400,14 +480,17 @@ int main() {
     if (!tab_traversal(scene, router)) {
         return 5;
     }
-    if (!pump_drain(scene)) {
+    if (!interaction_states(scene)) {
         return 6;
     }
-    if (!pump_budget(scene)) {
+    if (!pump_drain(scene)) {
         return 7;
     }
-    if (!pump_overflow(scene)) {
+    if (!pump_budget(scene)) {
         return 8;
+    }
+    if (!pump_overflow(scene)) {
+        return 9;
     }
 
     std::cout << "input_pipeline: ok\n";

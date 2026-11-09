@@ -9,14 +9,17 @@
 
 namespace {
 
+using tessera::ui::Dirty;
 using tessera::ui::dispatch_input;
 using tessera::ui::Event;
 using tessera::ui::EventPhase;
 using tessera::ui::EventType;
+using tessera::ui::has_flag;
 using tessera::ui::InputDispatchResult;
 using tessera::ui::InputEvent;
 using tessera::ui::InputEventType;
 using tessera::ui::Node;
+using tessera::ui::style::PseudoState;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -98,7 +101,9 @@ int main() {
         !expect(root.log.size() == 2, "capture and bubble root") ||
         !expect(root.log[0] == "1:down:capture", "capture phase") ||
         !expect(child_ref.log[0] == "2:down:target", "target phase") ||
-        !expect(root.log[1] == "1:down:bubble", "bubble phase")) {
+        !expect(root.log[1] == "1:down:bubble", "bubble phase") ||
+        !expect(child_ref.pseudo_state() == PseudoState::None, "no active pseudo-state") ||
+        !expect(root.pseudo_state() == PseudoState::None, "no ancestor pseudo-state")) {
         return 1;
     }
 
@@ -132,6 +137,22 @@ int main() {
         return 4;
     }
 
+    // The free dispatch helper is stateless: only InputRouter owns hover/active pseudo-state.
+    child_ref.set_visible(false);
+    child_ref.clear_dirty(Dirty::All);
+    root.clear_dirty(Dirty::All);
+    root.log.clear();
+    const InputDispatchResult hidden =
+        dispatch_input(root, pointer(InputEventType::PointerMove, 20, 20));
+    if (!expect(hidden.dispatched, "hidden child move dispatched") ||
+        !expect(hidden.target == &root, "hidden child skipped by hit testing") ||
+        !expect(root.pseudo_state() == PseudoState::None, "stateless move sets no hover") ||
+        !expect(child_ref.pseudo_state() == PseudoState::None, "hidden child gets no state") ||
+        !expect(!has_flag(root.dirty(), Dirty::Style), "stateless move marks no style dirty")) {
+        return 5;
+    }
+    child_ref.set_visible(true);
+
     InputEvent key;
     key.type = InputEventType::KeyDown;
     key.x = 20;
@@ -139,14 +160,14 @@ int main() {
     const InputDispatchResult unsupported = dispatch_input(root, key);
     if (!expect(!unsupported.dispatched, "key ignored") ||
         !expect(unsupported.target == nullptr, "key target null")) {
-        return 5;
+        return 6;
     }
 
     const InputDispatchResult cancelled =
         dispatch_input(root, pointer(InputEventType::PointerCancel, 20, 20));
     if (!expect(!cancelled.dispatched, "cancel ignored") ||
         !expect(cancelled.target == nullptr, "cancel target null")) {
-        return 6;
+        return 7;
     }
 
     std::cout << "input_dispatch: ok\n";

@@ -2,6 +2,7 @@
 
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 
 namespace tessera::ui {
 namespace {
@@ -108,13 +109,19 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input) {
 InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     InputDispatchResult result;
     if (input.type == InputEventType::PointerCancel) {
+        // A cancelled sequence only ends the press; hover tracks the pointer position and is left
+        // alone until the next move.
         captured_ = nullptr;
+        set_active(nullptr);
         return result;
     }
     if (input.type == InputEventType::Blur || input.type == InputEventType::Focus) {
-        // Window focus changes cancel an in-flight press. Scene Focus/Blur are owned by
-        // FocusManager and are not synthesized here.
+        // Window focus changes cancel an in-flight press and drop hover/active: the pointer can no
+        // longer be considered over the scene. Scene Focus/Blur are owned by FocusManager and are
+        // not synthesized here.
         captured_ = nullptr;
+        set_hover(nullptr);
+        set_active(nullptr);
         return result;
     }
 
@@ -179,12 +186,15 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         Node* target = root.hit_test_deep(input.x, input.y);
         if (target == nullptr) {
             captured_ = nullptr;
+            // A press that lands outside the scene cannot stay active on an older target.
+            set_active(nullptr);
             // A click outside the scene must not break an active modal trap.
             if (focus_manager_.modal_root() == nullptr) {
                 focus_manager_.clear_focus();
             }
             return result;
         }
+        set_active(target);
         captured_ = target;
         if (target->focusable()) {
             // request_focus rejects targets outside the active modal subtree.
@@ -197,7 +207,11 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     }
 
     if (input.type == InputEventType::PointerMove) {
-        Node* target = captured_ != nullptr ? captured_ : root.hit_test_deep(input.x, input.y);
+        // Hover follows hit testing at the pointer position even while a press is captured, so a
+        // hovered node does not keep the bit while the pointer is dragged elsewhere.
+        Node* hit = root.hit_test_deep(input.x, input.y);
+        set_hover(hit);
+        Node* target = captured_ != nullptr ? captured_ : hit;
         if (target == nullptr) {
             return result;
         }
@@ -207,6 +221,8 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
 
     // PointerUp: deliver to the capture target, else the node under the cursor, then release.
     Node* target = captured_ != nullptr ? captured_ : root.hit_test_deep(input.x, input.y);
+    // The press ends before the event is dispatched, so `:active` never outlives the button.
+    set_active(nullptr);
     if (target == nullptr) {
         captured_ = nullptr;
         return result;
@@ -217,8 +233,36 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     return dispatched;
 }
 
+void InputRouter::set_hover(Node* target) {
+    if (hovered_ == target) {
+        return;
+    }
+    if (hovered_ != nullptr) {
+        hovered_->set_pseudo_state(style::PseudoState::Hover, false);
+    }
+    hovered_ = target;
+    if (hovered_ != nullptr) {
+        hovered_->set_pseudo_state(style::PseudoState::Hover, true);
+    }
+}
+
+void InputRouter::set_active(Node* target) {
+    if (active_ == target) {
+        return;
+    }
+    if (active_ != nullptr) {
+        active_->set_pseudo_state(style::PseudoState::Active, false);
+    }
+    active_ = target;
+    if (active_ != nullptr) {
+        active_->set_pseudo_state(style::PseudoState::Active, true);
+    }
+}
+
 void InputRouter::reset() {
     captured_ = nullptr;
+    set_hover(nullptr);
+    set_active(nullptr);
     focus_manager_.reset();
 }
 
