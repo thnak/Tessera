@@ -76,8 +76,11 @@ if (WIN32 AND TARGET batched2d_poc AND TARGET tessera_rhi_vulkan)
     # expression carries the whole check.
     add_test(
         NAME batched2d_on_demand
-        COMMAND batched2d_poc --backend vulkan --on-demand --width 320 --height 240)
+        COMMAND batched2d_poc --backend vulkan --on-demand --validation --width 320 --height 240)
+    # Validation must stay clean: the on-demand path uses LoadOp::Load on swapchain images, which
+    # caught a missing layout transition (PRESENT_SRC assumed for a freshly created image).
     set_tests_properties(batched2d_on_demand PROPERTIES
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]"
         PASS_REGULAR_EXPRESSION "on-demand: rendered=([3-9]|[1-9][0-9]+) presented=[0-9]+ scripted=2 events=[0-9]+ idle_waits=[1-9][0-9]* unjustified=0 missed=0|skipped")
 endif()
 
@@ -146,9 +149,10 @@ if (UNIX AND TARGET batched2d_poc)
             PASS_REGULAR_EXPRESSION "rendered=3 |skipped")
         add_test(
             NAME batched2d_on_demand
-            COMMAND batched2d_poc --backend vulkan --on-demand --width 320 --height 240)
+            COMMAND batched2d_poc --backend vulkan --on-demand --validation --width 320 --height 240)
         set_tests_properties(batched2d_on_demand PROPERTIES
             ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}"
+            FAIL_REGULAR_EXPRESSION "\\[vulkan\\]"
             PASS_REGULAR_EXPRESSION "on-demand: rendered=([3-9]|[1-9][0-9]+) presented=[0-9]+ scripted=2 events=[0-9]+ idle_waits=[1-9][0-9]* unjustified=0 missed=0|skipped")
     endif()
 endif()
@@ -179,13 +183,6 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME paint_text_gpu COMMAND paint_text_gpu_tests "${TESSERA_FONT_FIXTURE}")
     set_tests_properties(paint_text_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
-    add_executable(damage_min_tests
-        batched2d/damage_min_tests.cpp)
-    target_link_libraries(damage_min_tests PRIVATE
-        tessera_gpu tessera_paint tessera_rhi_vulkan)
-    add_test(NAME damage_min COMMAND damage_min_tests)
-    set_tests_properties(damage_min PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
-
     add_executable(damage_present_tests
         batched2d/damage_present_tests.cpp)
     target_link_libraries(damage_present_tests PRIVATE
@@ -194,6 +191,13 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME damage_present
         COMMAND damage_present_tests "${TESSERA_FONT_FIXTURE}")
     set_tests_properties(damage_present PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    add_executable(damage_min_tests
+        batched2d/damage_min_tests.cpp)
+    target_link_libraries(damage_min_tests PRIVATE
+        tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME damage_min COMMAND damage_min_tests)
+    set_tests_properties(damage_min PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(vulkan_surface_format_tests
         vulkan/vulkan_surface_format_tests.cpp)

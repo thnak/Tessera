@@ -379,6 +379,19 @@ public:
         return render_pending_;
     }
 
+    // True once this render target has been rendered to at least once since creation. A fresh
+    // target image is UNDEFINED, so a preserving (LoadOp::Load) pass must transition from
+    // UNDEFINED instead of assuming the layout the target would have after a first render
+    // (PRESENT_SRC for swapchain images, TRANSFER_SRC for offscreen readback targets,
+    // COLOR_ATTACHMENT_OPTIMAL for multisampled images). Mutable because command lists hold
+    // targets as const.
+    void mark_content_initialized() const {
+        content_initialized_ = true;
+    }
+    [[nodiscard]] bool content_initialized() const {
+        return content_initialized_;
+    }
+
 private:
     VulkanDevice* owner_ = nullptr;
     std::uint32_t epoch_ = 0;
@@ -397,6 +410,7 @@ private:
     std::uint32_t sample_count_ = 1;
     VkSemaphore render_finished_ = VK_NULL_HANDLE;
     mutable bool render_pending_ = false;
+    mutable bool content_initialized_ = false;
 };
 
 // Command pool, buffer and completion fence for one submission. The device recycles these instead

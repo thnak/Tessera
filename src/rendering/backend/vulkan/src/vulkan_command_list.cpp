@@ -61,24 +61,31 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     const bool multisampled = sample_count > 1;
     // loadOp=LOAD reads the existing color attachment, so the destination access must include
     // COLOR_ATTACHMENT_READ (otherwise validation reports a READ_AFTER_WRITE hazard).
+    //
+    // A preserving pass can only assume the layout the target has after a render: PRESENT_SRC for
+    // swapchain images, TRANSFER_SRC for offscreen readback targets, COLOR_ATTACHMENT_OPTIMAL for
+    // multisampled images. A fresh target image is UNDEFINED (including after a swapchain or
+    // target recreation), so the old layout follows the target's history.
+    const bool had_content = vulkan_target->content_initialized();
+    const VkImageLayout previous_layout =
+        !preserve || !had_content
+            ? VK_IMAGE_LAYOUT_UNDEFINED
+            : (multisampled ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                            : (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                       : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL));
+    const bool preserving_existing = preserve && had_content;
     const VkAccessFlags color_access =
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | (preserve ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
     record_image_transition(
-        buffer_, vulkan_target->image(),
-        multisampled
-            ? (preserve ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED)
-            : (preserve ? (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                                   : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-                        : VK_IMAGE_LAYOUT_UNDEFINED),
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        multisampled ? (preserve ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0)
-                     : (preserve && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0),
+        buffer_, vulkan_target->image(), previous_layout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        multisampled ? (preserving_existing ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0)
+                     : (preserving_existing && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0),
         color_access,
-        multisampled ? (preserve ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                 : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)
-                     : (preserve ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
-                                            : VK_PIPELINE_STAGE_TRANSFER_BIT)
-                                 : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT),
+        multisampled ? (preserving_existing ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)
+                     : (preserving_existing ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+                                                       : VK_PIPELINE_STAGE_TRANSFER_BIT)
+                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT),
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     if (multisampled) {
         record_image_transition(
@@ -147,6 +154,9 @@ void VulkanCommandList::end_render_pass() {
             present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT);
     }
     render_pass_active_ = false;
+    // The target now holds a known layout (PRESENT_SRC / TRANSFER_SRC / COLOR_ATTACHMENT_OPTIMAL),
+    // so a later preserving pass may transition from that layout instead of UNDEFINED.
+    current_target_->mark_content_initialized();
 }
 
 void VulkanCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
