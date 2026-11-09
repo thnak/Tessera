@@ -66,6 +66,39 @@ public:
         return tab_index_;
     }
 
+    // Scroll state (additive; docs/specs/scroll-and-gestures-v1.md section 1). The viewport is the
+    // node's border box; `content_width/height` are supplied explicitly by layout or the caller.
+    // Children are positioned in content space, so painting, hit testing, and world transforms all
+    // apply -scroll to them while this node's own bounds/transform stay unchanged.
+    void set_scrollable_x(bool scrollable);
+    void set_scrollable_y(bool scrollable);
+    [[nodiscard]] bool scrollable_x() const {
+        return scrollable_x_;
+    }
+    [[nodiscard]] bool scrollable_y() const {
+        return scrollable_y_;
+    }
+    void set_content_size(float width, float height);
+    [[nodiscard]] float content_width() const {
+        return content_width_;
+    }
+    [[nodiscard]] float content_height() const {
+        return content_height_;
+    }
+    [[nodiscard]] float scroll_x() const {
+        return scroll_x_;
+    }
+    [[nodiscard]] float scroll_y() const {
+        return scroll_y_;
+    }
+    // Clamps to [0, max(0, content - viewport)] per scrollable axis, marks Dirty::Paint and
+    // Dirty::Render when the value changes (never Layout), and returns whether it changed. A
+    // non-scrollable axis clamps to 0 and never mutates.
+    bool set_scroll_offset(float x, float y);
+    // Content-to-world transform: world_transform() * translation(-scroll). Children live in
+    // content space, so this maps their coordinates to the scene.
+    [[nodiscard]] rhi::Mat3 content_transform() const;
+
     // Interaction state seen by selector matching. Focus changes update the `Focus` bit and mark
     // the style domain dirty so the resolver re-evaluates `:focus`/`:not(:focus)`.
     void set_pseudo_state(style::PseudoState state);
@@ -102,6 +135,12 @@ private:
     bool visible_ = true;
     bool focusable_ = false;
     int tab_index_ = 0;
+    bool scrollable_x_ = false;
+    bool scrollable_y_ = false;
+    float content_width_ = 0.0f;
+    float content_height_ = 0.0f;
+    float scroll_x_ = 0.0f;
+    float scroll_y_ = 0.0f;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
     Dirty dirty_ = Dirty::None;
     Dirty subtree_dirty_ = Dirty::None;

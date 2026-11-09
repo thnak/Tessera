@@ -1031,6 +1031,13 @@ target_link_libraries(input_accelerator_tests PRIVATE tessera_scene)
 
 add_test(NAME input_accelerator COMMAND input_accelerator_tests)
 
+add_executable(scroll_tests
+    scroll_tests.cpp)
+
+target_link_libraries(scroll_tests PRIVATE tessera_scene tessera_paint tessera_layout)
+
+add_test(NAME scroll_core COMMAND scroll_tests)
+
 add_executable(schema_tests
     schema_tests.cpp)
 

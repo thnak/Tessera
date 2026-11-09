@@ -98,8 +98,12 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
 
     // `overflow` clipping applies to the children (the element's own background/border are painted
-    // above). The clip is the border box because the paint model has no padding-box yet.
-    const bool clips = detail::clips_children(style) && rect.width > 0.0f && rect.height > 0.0f;
+    // above). Scroll containers clip their children as well: the children are offset by -scroll via
+    // world_transform(), and the clip keeps them inside the container box. The clip is the border
+    // box because the paint model has no padding-box yet.
+    const bool scroll_clips = node.scrollable_x() || node.scrollable_y();
+    const bool clips =
+        (detail::clips_children(style) || scroll_clips) && rect.width > 0.0f && rect.height > 0.0f;
     if (clips) {
         sink.push_clip(detail::corner_clip(style, rect));
         ++stats.clips;

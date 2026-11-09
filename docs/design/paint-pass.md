@@ -51,7 +51,22 @@ paint_rect(node) = world_bounds(node)
   each node and leaves transforms identity; `world_bounds()` resolves the chain.
 - `world_bounds()` is the axis-aligned box of the transformed box-local rect; rotation/scale are
   approximated by that AABB.
-- There is no clipping: children paint over their parent's box, as in the scene graph's paint order.
+- Clipping (overflow and scroll containers) is a clip push around the children; the node's own
+  background/border still paint over its border box.
+
+### 3.1 Scroll containers
+
+Scroll state is additive scene state ([`scroll.hpp`](../../include/tessera/ui/scene/scroll.hpp)):
+`scroll_x/scroll_y` offsets, `content_width/height`, and `scrollable_x/y`. The paint pass needs no
+special offset code because `Node::world_transform()` places every child in its parent's content
+space, so a scroll container's children paint at `world_bounds() - scroll` while the container's own
+box is unchanged. A node with `scrollable_x() || scrollable_y()` is treated as a clipping parent:
+`paint_scene` pushes the same rounded border-box clip used for `overflow` around its children and
+pops it after them (`PaintStats::clips`). Layout bounds and transforms are never mutated by
+scrolling. Damage for a scroll is the container's border box (the children are clipped inside it, so
+one region covers both the old and the new visible content); the frame pipeline's dirty collection
+turns the container's Paint/Render dirty flags into that region. Padding-box clipping, scrollbars,
+and physics are later slices.
 
 ## 4. Property mapping
 
@@ -99,8 +114,10 @@ property in this slice, not a border ring.
 ## 6. Deliberate limits
 
 - No text, glyphs, or inline content; text has its own renderer.
-- Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no scroll, `clip-path`,
-  masks, filters, gradients, shadows, or images.
+- Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
+  filters, gradients, shadows, or images.
+- Scroll containers clip and offset children ([§3.1](#31-scroll-containers)); scroll physics,
+  inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
   The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
@@ -124,7 +141,10 @@ small epsilon), and the recorder captures emission order.
 
 Overflow clips (§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
 paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
-visible` emitting no clip, and nested clips.
+visible` emitting no clip, and nested clips. Scroll containers are covered in
+[`tests/unit/scroll_tests.cpp`](../../tests/unit/scroll_tests.cpp) (`scroll_core`): child rects
+shifted by `-scroll`, the border-box clip pushed around the children, balanced pop, and a
+deterministic repeat paint.
 
 ## 8. Frame integration
 
@@ -242,7 +262,9 @@ DamageTracker regions repaint the background and the node respectively.
 ## 9. Rounded overflow clips
 
 `paint_scene` clips a parent's children when its computed `overflow-x`/`overflow-y` is anything but
-`visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the pass has no scrolling). The clip is
+`visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the paint pass itself only clips;
+scrolling is scene state applied by the world transform, see [§3.1](#31-scroll-containers)). The clip
+is
 emitted around the children, after the parent's own background/borders, through
 `PaintSink::push_clip`/`pop_clip`:
 

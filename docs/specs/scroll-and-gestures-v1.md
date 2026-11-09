@@ -62,6 +62,45 @@ set_scroll_offset(offset);   // immediate, no animation
   [`virtualization-v1.md`](virtualization-v1.md).
 - Scroll state is snapshot-testable: offset, velocity, viewport, content size, axis, snap.
 
+### 2.1 Implemented core (offset, clipping, wheel, hit-test)
+
+`include/tessera/ui/scene/scroll.hpp` + `src/ui/scene/scroll.cpp` (library `tessera_scene`) implement
+the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the wheel default action.
+
+- Model: per-node `scroll_x/scroll_y`, `content_width/height`, `scrollable_x/y`; the viewport is
+  the node's border box (padding-box clipping is deferred). Content size is supplied explicitly by
+  layout or the caller; layout bounds are never changed by scrolling.
+- Clamping: `scroll_to/scroll_by` clamp each scrollable axis to
+  `[0, max(0, content - viewport)]`; a non-scrollable axis clamps to 0. `NaN`/infinity sanitize to 0.
+  A request that does not change the offset returns `false` and mutates nothing; a node with no
+  scrollable axis ignores the request entirely. Changing the offset marks
+  `Dirty::Paint | Dirty::Render` (never `Layout`). Viewport/content changes re-clamp the stored
+  offset so the invariant always holds.
+- Paint: children are offset by `-scroll` because `Node::world_transform()` places them in the
+  parent's content space; a scrollable node is a clipping parent (rounded border-box clip via
+  `PaintSink::push_clip`), exactly as documented in
+  [`paint-pass.md`](../design/paint-pass.md) section 3.1. Damage after a scroll is the container's
+  border box, which covers the old and new visible content because children are clipped inside it.
+- Hit testing: inverse world transforms already account for the scroll offset, and a scroll
+  container clips its subtree to its border box, so scrolled-out children miss. Scroll container
+  clipping applies to hit testing even when the node's paint style is not `overflow: hidden`; CSS
+  `overflow` clipping for hit testing remains style-free in the scene (deferred).
+- Wheel: the event dispatches through the normal capture/target/bubble path, then (unless a handler
+  set `prevent_default`) the nearest scrollable ancestor, including the target, scrolls by the
+  deltas. Wheel deltas are platform wheel units (Win32: one unit per 120-unit notch) converted with
+  `kPixelsPerWheelUnit = 40` logical, CSS-like pixels per unit; the sign follows the web (positive
+  `dy` scrolls content down). A wheel over a non-scrollable chain dispatches exactly as before and
+  changes nothing. Nested containers: the innermost scrollable ancestor consumes the wheel; there is
+  no chaining to outer containers when it reaches a clamped edge (deferred).
+- `scroll_into_view(node)` is implemented as a minimal helper that adjusts each scrollable ancestor
+  (inner to outer) until the node's world rect intersects the visible window. Focus traversal does
+  not call it yet: `FocusManager` has no viewport/layout knowledge and wiring it belongs to the
+  frame/layout pass (deferred).
+
+Deferred: inertia/spring-back/overscroll physics, scrollbars, snap/sticky, nested chaining policy,
+virtualization, padding-box (vs border-box) clipping, scroll-linked animation, and layout-produced
+content sizes.
+
 ## 3. Physics
 
 | Input | Behavior |

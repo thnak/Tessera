@@ -5,6 +5,7 @@
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 #include "text_input_dispatch.hpp"
+#include "wheel_dispatch.hpp"
 
 namespace tessera::ui {
 namespace {
@@ -68,14 +69,6 @@ Event make_pointer_event(EventType type, const InputEvent& input) {
     Event event;
     event.type = type;
     fill_pointer_fields(event, input);
-    return event;
-}
-
-Event make_wheel_event(const InputEvent& input) {
-    Event event = make_pointer_event(EventType::Wheel, input);
-    // Win32 already reports wheel deltas in `dx`/`dy` with the web sign.
-    event.scroll_x = input.dx;
-    event.scroll_y = input.dy;
     return event;
 }
 
@@ -233,13 +226,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     }
 
     if (input.type == InputEventType::Wheel) {
-        result.type = EventType::Wheel;
-        Node* target = root.hit_test_deep(input.x, input.y);
-        if (target == nullptr) {
-            return result;
-        }
-        Event event = make_wheel_event(input);
-        return dispatch_to_target(*target, event);
+        return dispatch_wheel(root, input);
     }
 
     if (!pointer_event_type(input.type, type)) {

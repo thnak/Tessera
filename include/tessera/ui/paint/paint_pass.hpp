@@ -44,11 +44,13 @@ struct PaintStats {
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in
 // pre-order (parent before children, children in paint order). Does not mutate the scene.
 //
-// Coordinates: bounds() are parent-relative and Node::world_bounds() composes their origins and
-// transforms into absolute coordinates, so the pass paints that rect. Rotation/scale are
-// approximated by the world_bounds() AABB. There is no clip/overflow.
+// Coordinates: bounds() are parent-relative and Node::world_bounds() composes their origins,
+// transforms, and any ancestor scroll offset into absolute coordinates, so the pass paints that
+// rect. Rotation/scale are approximated by the world_bounds() AABB. Scroll containers (see
+// Node::scrollable_x/scrollable_y) clip their children to their border box through
+// `PaintSink::push_clip`; their children are offset by -scroll by the world transform.
 //
-// Limits (deliberate, one slice): no text, no clipping, no damage/redraw plan, no gradients,
+// Limits (deliberate, one slice): no text, no damage/redraw plan, no gradients,
 // shadows, or layers, no percentage/em lengths, and no per-node compositing. Opacity multiplies
 // the alpha of every color the node emits; it does not isolate a group.
 //

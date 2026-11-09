@@ -58,6 +58,8 @@ void Node::set_bounds(const rhi::Rect& bounds) {
     }
     bounds_ = bounds;
     mark_dirty(Dirty::Paint | Dirty::Render);
+    // A viewport change can lower the maximum offset; never leave the stored offset out of range.
+    set_scroll_offset(scroll_x_, scroll_y_);
 }
 
 void Node::set_transform(const rhi::Mat3& transform) {
@@ -86,6 +88,50 @@ void Node::set_focusable(bool focusable) {
 
 void Node::set_tab_index(int tab_index) {
     tab_index_ = tab_index;
+}
+
+void Node::set_scrollable_x(bool scrollable) {
+    if (scrollable_x_ == scrollable) {
+        return;
+    }
+    scrollable_x_ = scrollable;
+    // The new limit can move the current offset; re-clamp (marks Paint/Render if it changes).
+    set_scroll_offset(scroll_x_, scroll_y_);
+}
+
+void Node::set_scrollable_y(bool scrollable) {
+    if (scrollable_y_ == scrollable) {
+        return;
+    }
+    scrollable_y_ = scrollable;
+    set_scroll_offset(scroll_x_, scroll_y_);
+}
+
+void Node::set_content_size(float width, float height) {
+    const float next_width = std::max(0.0f, width);
+    const float next_height = std::max(0.0f, height);
+    if (content_width_ == next_width && content_height_ == next_height) {
+        return;
+    }
+    content_width_ = next_width;
+    content_height_ = next_height;
+    // Clamping only; a content-size change is not itself a layout request.
+    set_scroll_offset(scroll_x_, scroll_y_);
+}
+
+bool Node::set_scroll_offset(float x, float y) {
+    const float max_x = scrollable_x_ ? std::max(0.0f, content_width_ - bounds_.width) : 0.0f;
+    const float max_y = scrollable_y_ ? std::max(0.0f, content_height_ - bounds_.height) : 0.0f;
+    const float next_x = std::clamp(std::isfinite(x) ? x : 0.0f, 0.0f, max_x);
+    const float next_y = std::clamp(std::isfinite(y) ? y : 0.0f, 0.0f, max_y);
+    if (next_x == scroll_x_ && next_y == scroll_y_) {
+        return false;
+    }
+    scroll_x_ = next_x;
+    scroll_y_ = next_y;
+    // Scrolling moves content, never layout: repaint and re-render only.
+    mark_dirty(Dirty::Paint | Dirty::Render);
+    return true;
 }
 
 void Node::set_pseudo_state(style::PseudoState state) {
@@ -144,9 +190,16 @@ rhi::Mat3 Node::world_transform() const {
     // local-to-parent transform; transform_ then acts around that box origin (animation/rotation).
     const rhi::Mat3 local = rhi::Mat3::translation(bounds_.x, bounds_.y) * transform_;
     if (parent_ != nullptr) {
-        return parent_->world_transform() * local;
+        // Children of a scroll container live in content space: the parent's scroll shifts them
+        // by -scroll without changing this node's own bounds or transform.
+        return parent_->world_transform() *
+               rhi::Mat3::translation(-parent_->scroll_x_, -parent_->scroll_y_) * local;
     }
     return local;
+}
+
+rhi::Mat3 Node::content_transform() const {
+    return world_transform() * rhi::Mat3::translation(-scroll_x_, -scroll_y_);
 }
 
 rhi::Rect Node::world_bounds() const {
@@ -193,6 +246,23 @@ bool Node::hit_test(float x, float y) const {
 Node* Node::hit_test_deep(float x, float y) {
     if (!visible_) {
         return nullptr;
+    }
+
+    // A scroll container clips its children to the border box: points outside the box cannot hit
+    // anything in the subtree. The offset itself is applied by world_transform(), so child inverse
+    // transforms already account for it.
+    if (scrollable_x_ || scrollable_y_) {
+        rhi::Mat3 inverse;
+        if (!world_transform().try_inverse(inverse)) {
+            return nullptr;
+        }
+        float local_x = 0;
+        float local_y = 0;
+        inverse.transform_point(x, y, local_x, local_y);
+        if (local_x < 0.0f || local_y < 0.0f || local_x > bounds_.width ||
+            local_y > bounds_.height) {
+            return nullptr;
+        }
     }
 
     for (auto it = children_.rbegin(); it != children_.rend(); ++it) {

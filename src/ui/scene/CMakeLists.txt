@@ -7,7 +7,9 @@ add_library(tessera_scene STATIC
     focus.cpp
     hover_dispatch.cpp
     input_dispatch.cpp
-    text_input_dispatch.cpp)
+    scroll.cpp
+    text_input_dispatch.cpp
+    wheel_dispatch.cpp)
 
 target_include_directories(tessera_scene PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
