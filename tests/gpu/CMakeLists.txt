@@ -87,6 +87,15 @@ if (TARGET batched2d_poc)
         COMMAND batched2d_poc --backend cpu --tolerance 0 --max-mismatch 0
             --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_cpu_golden.png
             --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_cpu.png)
+
+    add_test(
+        NAME batched2d_cpu_text_golden
+        COMMAND batched2d_poc --backend cpu --cpu-text --font ${TESSERA_FONT_FIXTURE}
+            --text "Tessera CPU text" --text-size 20 --width 320 --height 160
+            --tolerance 0 --max-mismatch 0
+            --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_cpu_text_golden.png
+            --compare
+            ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_text_cpu.png)
 endif()
 
 if (UNIX AND TARGET batched2d_poc)

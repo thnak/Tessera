@@ -115,6 +115,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `window_win32_input` | Win32 mouse, wheel, key and character translation into `InputEvent` (Windows only) |
 | `batched2d_on_demand` | scene-driven render-on-demand: renders only for startup and scene changes, idles between |
 | `batched2d_cpu_golden` | CPU-canvas solid-rect baseline, bit-exact (all platforms) |
+| `batched2d_cpu_text_golden` | CPU-canvas text baseline (single-line + wrapped PaintData), bit-exact (all platforms) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -192,6 +193,22 @@ Implemented for the batched2d proof:
   clipping, translation, and a combined clip+transform strip against
   `tests/golden/baseline/batched2d/dashboard_shapes.png` bit-exactly (`--tolerance 0
   --max-mismatch 0`).
+- `batched2d_cpu_golden` renders the CPU-canvas solid-rect dashboard and compares
+  `tests/golden/baseline/batched2d/dashboard_cpu.png` bit-exactly on every platform (no GPU).
+- `batched2d_cpu_text_golden` renders the CPU text scene through the paint pass
+  (`--backend cpu --cpu-text --font <fixture> --width 320 --height 160`): one `PaintData`
+  single-line title and two wrapped `PaintData` paragraphs, composited from FreeType glyph
+  coverage by `CpuCanvas::blend_coverage` with the documented integer straight-alpha source-over
+  math. It compares `tests/golden/baseline/batched2d/dashboard_text_cpu.png` bit-exactly
+  (`--tolerance 0 --max-mismatch 0`), so text goldens run on the CPU path in CI with no GPU or
+  lavapipe. The CPU path is the deterministic reference; GPU text cases (`batched2d_text_golden`,
+  `batched2d_overlay_golden`) keep their 1-LSB/0.1% tolerance because GPU blending rounds in
+  float before UNORM conversion.
+  Regenerate deliberately (never from CI):
+  `batched2d_poc --backend cpu --cpu-text --font tests/fixtures/fonts/NotoSans-Regular.ttf
+  --text "Tessera CPU text" --text-size 20 --width 320 --height 160 --out
+  tests/golden/baseline/batched2d/dashboard_text_cpu.png`, inspect the PNG, then commit it with
+  the behavior/test change. Two CPU runs must be byte-identical before the baseline is accepted.
 - `batched2d_windowed_smoke` creates a hidden platform window, a Vulkan swapchain, renders the
   dashboard into acquired images, presents three frames, and uses `wait_for_next_frame` for
   pacing while `RuntimeLoop` decides whether each iteration renders. The test requires the

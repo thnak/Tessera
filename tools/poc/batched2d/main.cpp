@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "cpu_paint_sink.hpp"
 #include "damage_cli.hpp"
 #include "tessera/diagnostics/metrics.hpp"
 #include "tessera/diagnostics/overlay.hpp"
@@ -18,19 +19,26 @@
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/input.hpp"
+#include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/text/font_face.hpp"
+#include "tessera/ui/text/glyph_raster.hpp"
+#include "tessera/ui/text/harfbuzz_shaper.hpp"
 #include "text_demo.hpp"
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <stb_image.h>
@@ -48,6 +56,7 @@ struct Options {
     bool golden = false;
     bool overlay = false;
     bool shapes = false;
+    bool cpu_text = false;
     bool windowed = false;
     bool on_demand = false;
     double run_seconds = 0.5;
@@ -68,7 +77,8 @@ void print_usage() {
                  "                     [--width N] [--height N] [--validation] [--golden]\n"
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
-                 "                     [--max-mismatch ratio] [--overlay] [--shapes] [--report "
+                 "                     [--max-mismatch ratio] [--overlay] [--shapes] "
+                 "[--cpu-text] [--report "
                  "report.json]\n"
                  "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
                  "[--run-seconds S]]\n";
@@ -99,6 +109,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.overlay = true;
         } else if (arg == "--shapes") {
             options.shapes = true;
+        } else if (arg == "--cpu-text") {
+            options.cpu_text = true;
         } else if (arg == "--windowed") {
             options.windowed = true;
         } else if (arg == "--run-seconds" && i + 1 < argc) {
@@ -1006,11 +1018,139 @@ void build_cpu_screen(tessera::rendering::software::CpuCanvas& canvas) {
     canvas.fill_rect({140, 220, 220, 6}, yellow);
 }
 
+namespace {
+
+using tessera::rendering::rhi::Rect;
+using tessera::rendering::rhi::rgba8;
+using tessera::ui::NodeId;
+
+class CpuStyles final : public tessera::ui::paint::StyleProvider {
+public:
+    void set(NodeId id, tessera::ui::style::ComputedStyle style) {
+        styles_[id] = std::move(style);
+    }
+
+    tessera::ui::style::ComputedStyle compute(const tessera::ui::Node& node) override {
+        const auto found = styles_.find(node.id());
+        return found == styles_.end() ? tessera::ui::style::ComputedStyle{} : found->second;
+    }
+
+private:
+    std::map<NodeId, tessera::ui::style::ComputedStyle> styles_;
+};
+
+tessera::ui::style::ComputedStyle
+cpu_style(std::initializer_list<std::pair<const char*, const char*>> values) {
+    tessera::ui::style::ComputedStyle style;
+    for (const auto& [property, value] : values) {
+        style.set(property, value);
+    }
+    return style;
+}
+
+// Deterministic CPU text scene: paint pass -> PaintData runs (single-line + wrapped) ->
+// CpuPaintSink glyph coverage compositing. No GPU, no timers, same test-font fixture as the GPU
+// text golden.
+void build_cpu_text_screen(tessera::rendering::software::CpuCanvas& canvas,
+                           const Options& options) {
+    if (options.font.empty()) {
+        throw std::runtime_error("--cpu-text requires --font <fixture.ttf>");
+    }
+    auto loaded = tessera::ui::text::FontFace::load_from_file(options.font);
+    if (!loaded) {
+        throw std::runtime_error("failed to load font: " + loaded.error().message);
+    }
+    tessera::ui::text::FontFace face = std::move(*loaded);
+    tessera::ui::text::GlyphRasterizer rasterizer(face);
+    tessera::ui::text::HarfBuzzShaper shaper(face);
+    tessera::poc::batched2d::CpuPaintSink sink(canvas, rasterizer, shaper);
+
+    const auto background = rgba8(11, 18, 32);
+    const auto green = rgba8(74, 222, 128);
+    const auto muted = rgba8(148, 163, 184);
+    const auto text_color = rgba8(226, 232, 240);
+    const float width = static_cast<float>(canvas.width());
+    const float height = static_cast<float>(canvas.height());
+
+    tessera::ui::Node root(1);
+    root.set_bounds({0, 0, width, height});
+
+    auto& header = root.add_child(std::make_unique<tessera::ui::Node>(2));
+    header.set_bounds({0, 0, width, 36});
+    auto& accent_line = root.add_child(std::make_unique<tessera::ui::Node>(3));
+    accent_line.set_bounds({0, 0, width, 3});
+    auto& title = root.add_child(std::make_unique<tessera::ui::Node>(4));
+    title.set_bounds({16, 10, width - 32.0f, 26});
+
+    auto& left_card = root.add_child(std::make_unique<tessera::ui::Node>(5));
+    left_card.set_bounds({16, 52, 140, 92});
+    auto& left_text = root.add_child(std::make_unique<tessera::ui::Node>(6));
+    left_text.set_bounds({24, 60, 124, 76});
+
+    auto& right_card = root.add_child(std::make_unique<tessera::ui::Node>(7));
+    right_card.set_bounds({width - 148.0f, 52, 132, 92});
+    auto& right_text = root.add_child(std::make_unique<tessera::ui::Node>(8));
+    right_text.set_bounds({width - 140.0f, 60, 116, 76});
+
+    CpuStyles styles;
+    styles.set(1, cpu_style({{"background-color", "#0B1220"}}));
+    styles.set(2, cpu_style({{"background-color", "#0F172A"}}));
+    styles.set(3, cpu_style({{"background-color", "#38BDF8"}}));
+    styles.set(4, cpu_style({{"color", "#E2E8F0"}, {"font-size", "20px"}}));
+    styles.set(5, cpu_style({{"background-color", "#1E293B"}}));
+    styles.set(6, cpu_style({{"color", "#94A3B8"},
+                             {"font-size", "13px"},
+                             {"padding-left", "2px"},
+                             {"padding-right", "2px"}}));
+    styles.set(7, cpu_style({{"background-color", "#1E293B"}}));
+    styles.set(8, cpu_style({{"color", "#4ADE80"}, {"font-size", "13px"}}));
+
+    tessera::ui::PaintData title_data;
+    title_data.text = options.text;
+    title_data.text_style.font_size = options.text_size;
+    title_data.text_style.color = text_color;
+    title.set_paint_data(std::move(title_data));
+
+    tessera::ui::PaintData left_data;
+    left_data.text = "The quick brown fox jumps over the lazy dog near the river bank at dawn";
+    left_data.wrap = tessera::ui::PaintWrap::Wrap;
+    left_data.max_lines = 5;
+    left_data.text_style.font_size = 13.0f;
+    left_data.text_style.color = muted;
+    left_text.set_paint_data(std::move(left_data));
+
+    tessera::ui::PaintData right_data;
+    right_data.text = "Deterministic coverage compositing for software goldens.";
+    right_data.wrap = tessera::ui::PaintWrap::Wrap;
+    right_data.max_lines = 5;
+    right_data.text_align = tessera::ui::PaintTextAlign::Center;
+    right_data.text_style.font_size = 13.0f;
+    right_data.text_style.color = green;
+    right_text.set_paint_data(std::move(right_data));
+
+    canvas.clear(background);
+    const tessera::ui::paint::PaintStats stats =
+        tessera::ui::paint::paint_scene(root, styles, sink);
+    std::cout << "cpu-text: nodes=" << stats.nodes << " texts=" << stats.texts
+              << " fills=" << stats.backgrounds + stats.borders << "\n";
+}
+
+} // namespace
+
 int run_cpu(const Options& options) {
     using namespace tessera::rendering;
 
     software::CpuCanvas canvas(options.width, options.height);
-    build_cpu_screen(canvas);
+    const bool text_scene = options.cpu_text;
+    if (text_scene) {
+        const auto started = std::chrono::steady_clock::now();
+        build_cpu_text_screen(canvas, options);
+        const auto elapsed = std::chrono::steady_clock::now() - started;
+        std::cout << "cpu-text: render_ms="
+                  << std::chrono::duration<double, std::milli>(elapsed).count() << "\n";
+    } else {
+        build_cpu_screen(canvas);
+    }
     const std::vector<std::uint8_t> pixels(canvas.pixels().begin(), canvas.pixels().end());
 
     if (!options.raw.empty()) {

@@ -198,3 +198,13 @@ emits one `PaintSink::draw_text` per line with an absolute baseline. No layout p
 PaintData never affects layout. `max_lines` truncates deterministically without ellipsis; bidi,
 hyphenation, rich text, and selection remain deferred. See `paint-pass.md` section 10.1 for the
 contract, batching notes, and Debug measurements of a 200-word paragraph.
+
+CPU text reference (task-44): the software canvas now composites the same FreeType coverage
+bitmaps as the GPU path (`CpuCanvas::blend_coverage`, integer straight-alpha source-over with
+round-half-up) and the paint text path renders single-line and wrapped `PaintData` through
+`batched2d --backend cpu --cpu-text`. `batched2d_cpu_text_golden` compares the CPU scene
+(`dashboard_text_cpu.png`) at tolerance 0 on every platform, so text goldens no longer require a GPU
+or lavapipe; GPU text goldens keep their 1-LSB/0.1% tolerance because GPU blending rounds in float
+before UNORM conversion. The CPU path does not cover SDF/subpixel text, platform shaping beyond the
+deterministic fixture, or rounded-clip AA. See `docs/guides/testing.md` section 4 for the
+regeneration command and `antialiasing.md` section 2.2 for the blend rules.

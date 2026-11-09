@@ -71,6 +71,33 @@ color.a *= alpha;
 - Deferred: MSAA 8x, per-format sample-count sets beyond 1/4, depth/stencil MSAA, other resolve
   modes, HDR/wide-gamut interactions, and tying sample count to a quality/power policy.
 
+
+## 2.2 CPU text reference (software goldens)
+
+The CPU canvas (`rendering/software/cpu_canvas`) is now a real text reference, not just solid
+rectangles: `CpuCanvas::blend_coverage` composites the existing 8-bit FreeType glyph coverage
+bitmaps (the same rasterizer/atlas source as the GPU text path) into the software framebuffer. The
+paint pass emits `TextDraw` runs (single-line and wrapped `PaintData`), the CPU paint sink shapes
+each run with the deterministic HarfBuzz fixture font and blits its coverage with the documented
+integer math:
+
+- source channels are straight-alpha 8-bit: `round(color.channel * 255)` (same rounding as
+  `fill_rect` uses for its float blend);
+- per-pixel alpha is `(round(color.a * 255) * coverage + 127) / 255` (integer round-half-up);
+- each channel is `(source * alpha + destination * (255 - alpha) + 127) / 255`;
+- coverage 0 leaves the destination untouched, coverage 255 is a plain source-over; the output
+  canvas stays opaque;
+- clipping uses the same pixel-center rule as filled rects; negative/off-canvas blits are clipped,
+  never wrapped.
+
+The CPU result is the deterministic reference: two runs are byte-identical and
+`batched2d_cpu_text_golden` compares at tolerance 0. The GPU path blends in float and converts to
+UNORM (and the shader multiplies color by atlas alpha), so GPU text pixels may differ from the CPU
+reference by 1 LSB; the existing GPU text goldens keep their 1-LSB/0.1% tolerance. The CPU path
+does not cover SDF/subpixel text, platform font shaping beyond the deterministic fixture, or
+rounded-rect clipping (the CPU sink clips with axis-aligned bounds; the golden scene uses plain
+rects). CI can now run text goldens on the CPU (and lavapipe remains the full-fidelity software
+renderer on Linux) with no real GPU.
 ## 3. Quality and configuration (proposed)
 
 AA is a quality/power knob; it must not change layout. Proposed config:
