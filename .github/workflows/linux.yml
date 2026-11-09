@@ -101,6 +101,9 @@ jobs:
       - name: Docs link/index/fence/size gate
         run: python3 -B scripts/check_docs.py
 
+      - name: Dependency pin check (reproducible fetches)
+        run: python3 -B scripts/check_pins.py --check
+
   static-runtime-proof:
     runs-on: ubuntu-latest
     timeout-minutes: 15

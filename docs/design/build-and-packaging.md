@@ -129,6 +129,10 @@ instead of passing or failing; it applies to Release only.
 ## 9. Reproducibility and SBOM
 
 - Pin dependency versions/hashes, shader compiler, lavapipe, fonts.
+- Fetched dependencies need an exact pin: a full 40-hex `GIT_TAG` or
+  `URL_HASH SHA256=<64 hex>`. `scripts/check_pins.py` runs in the `release-gates` CI job and also
+  requires a `docs/specs/dependencies.md` row for every fetch, so a new fetch cannot bypass the
+  license/notice/SBOM pipeline.
 - Avoid timestamps/absolute paths in generated code and binaries; the exceptions that cannot be avoided are not enumerated.
 - Produce an SBOM (software bill of materials; format not decided, see section 12) and a notice bundle.
 - CI artifact: version, commit, toolchain, dependency lock, test results.
