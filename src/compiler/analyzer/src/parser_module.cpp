@@ -56,11 +56,13 @@ std::unique_ptr<Module> Parser::parse_module_root() {
     std::size_t components = 0;
     while (cur_.kind != TokenKind::Eof) {
         brace_depth_ = 0;
+        in_component_ = false;
         ModuleItem item;
         const std::uint32_t start = cur_.span.offset;
         const std::size_t errors_before = sink_.error_count();
         parse_item(item);
         item.span = Span{start, prev_end_ > start ? prev_end_ - start : 0};
+        check_item_comments(item, sink_.error_count() == errors_before);
         item.valid = sink_.error_count() == errors_before;
         if (item.kind == ItemKind::Component && ++components > limits_.max_components) {
             report("TESSERA_JSX_LIMIT_COMPONENTS",
@@ -75,8 +77,10 @@ std::unique_ptr<Module> Parser::parse_module_root() {
                 break;
             }
             recover_to_next_item(start);
+            skip_comments_before_current();
         }
     }
+    check_remaining_comments();
     return module;
 }
 

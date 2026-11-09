@@ -28,6 +28,10 @@ struct Statement {
     bool array_pattern = false;
     TypePtr type;
     ExprPtr init;
+    // Set by `// Note: bind::<id>` on the line before a handler declaration or a `useEffect`
+    // statement (spec 9.3). Empty when the statement has no annotation.
+    std::string bind_id;
+    Span bind_span;
 };
 
 struct PropBinding {

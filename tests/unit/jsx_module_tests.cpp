@@ -151,7 +151,7 @@ void test_item_and_statement_spans() {
 
 void test_comments_keep_their_position() {
     const std::string source =
-        "function A() {\n  // Note: bind::on_x\n  const f = 1;\n  return <B/>;\n}\n";
+        "function A() {\n  // Note: bind::on_x\n  const f = () => go();\n  return <B/>;\n}\n";
     const auto result = parse_module(source);
     check(result.ok() && result.comments.size() == 1, "one comment, no errors");
     if (!result.ok() || result.comments.size() != 1) {

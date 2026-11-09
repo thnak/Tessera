@@ -38,9 +38,10 @@ ExprPtr Parser::parse_primary() {
         std::string name(cur_.text);
         advance(LexMode::Code);
         if (at_punct("=>")) {
-            std::vector<std::string> params;
-            params.push_back(std::move(name));
-            return parse_arrow(begin, std::move(params));
+            ArrowSignature signature;
+            signature.params.push_back(std::move(name));
+            signature.types.emplace_back();
+            return parse_arrow(begin, std::move(signature));
         }
         ExprPtr expr = make_expr(ExprKind::Identifier, begin);
         expr->text = std::move(name);
@@ -139,7 +140,7 @@ ExprPtr Parser::parse_parenthesized_or_arrow() {
     // `(a, b) =>` and `(expr)` share a prefix, so try the arrow parameter list first and back
     // out (tokens, comments and diagnostics) when it is not one.
     Checkpoint saved = checkpoint();
-    std::vector<std::string> params;
+    ArrowSignature signature;
     advance(LexMode::Code);
     bool params_ok = true;
     while (!at_punct(")")) {
@@ -147,8 +148,18 @@ ExprPtr Parser::parse_parenthesized_or_arrow() {
             params_ok = false;
             break;
         }
-        params.emplace_back(cur_.text);
+        signature.params.emplace_back(cur_.text);
         advance(LexMode::Code);
+        TypePtr type;
+        if (at_punct(":")) { // typed parameter of a native handler (spec 9.3)
+            advance(LexMode::Code);
+            type = parse_type_expr();
+            if (!type) {
+                params_ok = false;
+                break;
+            }
+        }
+        signature.types.push_back(std::move(type));
         if (!at_punct(",")) {
             break;
         }
@@ -156,10 +167,18 @@ ExprPtr Parser::parse_parenthesized_or_arrow() {
     }
     if (params_ok && at_punct(")")) {
         advance(LexMode::Code);
-        if (at_punct("=>")) {
-            return parse_arrow(begin, std::move(params));
+        // `(a: T): R =>`. In the then-branch of `c ? (a) : b => d` the colon belongs to the
+        // conditional, so a return type is not tried there.
+        if (at_punct(":") && conditional_then_depth_ == 0) {
+            advance(LexMode::Code);
+            signature.return_type = parse_type_expr();
+            params_ok = signature.return_type != nullptr;
+        }
+        if (params_ok && at_punct("=>")) {
+            return parse_arrow(begin, std::move(signature));
         }
     }
+    fatal_ = false; // an error inside the attempt is re-found, or not, by the real parse
     restore(std::move(saved));
     advance(LexMode::Code);
     ExprPtr inner = parse_expr();
@@ -175,7 +194,7 @@ ExprPtr Parser::parse_parenthesized_or_arrow() {
     return inner;
 }
 
-ExprPtr Parser::parse_arrow(std::uint32_t begin, std::vector<std::string> params) {
+ExprPtr Parser::parse_arrow(std::uint32_t begin, ArrowSignature signature) {
     advance(LexMode::Code); // past `=>`
     std::vector<ExprPtr> body;
     bool block = false;
@@ -206,7 +225,9 @@ ExprPtr Parser::parse_arrow(std::uint32_t begin, std::vector<std::string> params
         body.push_back(std::move(value));
     }
     ExprPtr expr = make_expr(ExprKind::Arrow, begin);
-    expr->params = std::move(params);
+    expr->params = std::move(signature.params);
+    expr->param_types = std::move(signature.types);
+    expr->return_type = std::move(signature.return_type);
     expr->operands = std::move(body);
     expr->arrow_block_body = block;
     return finish_node(*expr) ? std::move(expr) : nullptr;

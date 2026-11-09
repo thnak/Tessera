@@ -60,6 +60,8 @@ struct Expr {
     std::vector<std::string> template_strings;
     std::vector<ObjectProperty> properties;
     std::vector<std::string> params;
+    std::vector<TypePtr> param_types; // one per param; null when the parameter is untyped
+    TypePtr return_type;              // optional `): T =>` annotation
     std::vector<TypePtr> type_args;
     bool arrow_block_body = false;
     JsxPtr jsx;

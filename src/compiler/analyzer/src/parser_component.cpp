@@ -98,6 +98,8 @@ bool Parser::parse_component_param(ModuleItem& item) {
 }
 
 bool Parser::parse_component_body(ModuleItem& item) {
+    in_component_ = true;
+    props_name_ = item.props_name;
     if (!expect_punct("{", LexMode::Code)) {
         return false;
     }

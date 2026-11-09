@@ -77,15 +77,18 @@ std::string fingerprint(const Case& test, const std::string& source) {
 
 std::vector<Case> make_cases() {
     std::vector<Case> cases;
-    const std::string counter = "import { useState, useEffect, View, Text } from \"tessera\";\n"
-                                "type P = { initial: int };\n"
-                                "// Note: bind::on_x\n"
-                                "export function Counter({ initial = 0 }: P) {\n"
-                                "  const [n, setN] = useState<Array<int>>(initial);\n"
-                                "  useEffect(() => { go(n); return () => { stop(); }; }, [n]);\n"
-                                "  return (<View a=\"1\" {...p}>{`t${n}`} &amp; {rows.map((r) => "
-                                "(<Row key={r.id}/>))}</View>);\n"
-                                "}\n";
+    const std::string counter =
+        "import { useState, useEffect, View, Text } from \"tessera\";\n"
+        "type P = { initial: int };\n"
+        "export function Counter({ initial = 0 }: P) {\n"
+        "  const [n, setN] = useState<Array<int>>(initial);\n"
+        "  // Note: bind::on_pick\n"
+        "  const pick = (id: int): void => { setN(id); };\n"
+        "  // Note: bind::sync\n"
+        "  useEffect(() => { go(n); return () => { stop(); }; }, [n]);\n"
+        "  return (<View a=\"1\" {...{ k: 1 }}>{`t${n}`} &amp; {rows.map((r) => "
+        "(<Row key={r.id}/>))}</View>);\n"
+        "}\n";
     cases.push_back({Entry::Module, counter});
     cases.push_back({Entry::Module, counter + "function Broken() { const = ; return <X/>; }\n" +
                                         "function After() { return <A/>; }\n"});

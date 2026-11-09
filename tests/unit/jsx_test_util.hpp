@@ -47,6 +47,17 @@ template<typename Result> tessera::compiler::jsx::Diagnostic first_diag(const Re
     return result.diagnostics.front();
 }
 
+// One letter per module item: V for valid, I for invalid.
+template<typename Result> std::string validity_text(const Result& result) {
+    std::string out;
+    if (result.root) {
+        for (const auto& item : result.root->items) {
+            out += item.valid ? 'V' : 'I';
+        }
+    }
+    return out;
+}
+
 inline std::string dump_expr(std::string_view source) {
     const auto result = tessera::compiler::jsx::parse_expression(source);
     return result.root ? tessera::compiler::jsx::dump(*result.root) : "<null>";

@@ -178,8 +178,14 @@ void dump_expr(std::string& out, const Expr& expr) {
         out += "(arrow (";
         for (std::size_t i = 0; i < expr.params.size(); ++i) {
             out += (i == 0 ? "" : " ") + expr.params[i];
+            if (i < expr.param_types.size() && expr.param_types[i]) {
+                out += ":" + dump(*expr.param_types[i]);
+            }
         }
         out.push_back(')');
+        if (expr.return_type) {
+            out += " -> " + dump(*expr.return_type);
+        }
         if (expr.arrow_block_body) {
             out += " (block";
             dump_operands(out, expr.operands);

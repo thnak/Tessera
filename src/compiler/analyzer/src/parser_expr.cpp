@@ -132,7 +132,9 @@ ExprPtr Parser::parse_conditional() {
     }
     const std::uint32_t begin = test->span.offset;
     advance(LexMode::Code);
+    ++conditional_then_depth_;
     ExprPtr when_true = parse_expr();
+    --conditional_then_depth_;
     if (!when_true || !expect_punct(":", LexMode::Code)) {
         return nullptr;
     }
@@ -259,6 +261,7 @@ ExprPtr Parser::parse_postfix() {
             expr = make_operator(ExprKind::Call, begin, {}, std::move(operands));
             if (expr) {
                 expr->type_args = std::move(type_args);
+                check_call_rules(*expr);
             }
         } else if (at_punct("[")) {
             report("TESSERA_JSX_SUBSET_MEMBER", "indexing is not supported", cur_.span,

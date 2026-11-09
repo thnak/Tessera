@@ -89,6 +89,30 @@ void test_arrow_functions() {
     check_eq(codes(bad), "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;", "reported once");
 }
 
+void test_typed_arrow_functions() {
+    check_eq(dump_expr("(values: FormValues): void => { go(values); }"),
+             "(arrow (values:FormValues) -> void (block (call (id go) (id values))))",
+             "native handler signature (spec 9.3)");
+    check_eq(dump_expr("(a: int, b: string) => a"), "(arrow (a:int b:string) (id a))",
+             "typed parameters without a return type");
+    check_eq(dump_expr("(a: int, b) => a"), "(arrow (a:int b) (id a))",
+             "typed and untyped parameters mix");
+    check_eq(dump_expr("(): int => 1"), "(arrow () -> int (num 1))", "return type only");
+    check_eq(dump_expr("(e: { id: int } | null): void => go()"),
+             "(arrow (e:{id:int}|null) -> void (call (id go)))", "structured parameter type");
+    check_eq(dump_expr("c ? (a) : b => d"), "(cond (id c) (id a) (arrow (b) (id d)))",
+             "the colon of a conditional is not a return type");
+    check_eq(dump_expr("(a): => 1"), "<null>",
+             "a missing return type is a syntax error, not an arrow");
+    check_eq(dump_expr("c ? (a) : (b) : d"), "<null>", "still an error, not an arrow");
+    check_eq(codes(parse_expression("(a: any) => a")), "TESSERA_JSX_SUBSET_TYPES;",
+             "parameter types are checked like any type");
+    check_eq(codes(parse_expression("(a: number) => a")), "TESSERA_JSX_TYPE_NUMBER;",
+             "bare number in a handler parameter");
+    check_eq(codes(parse_expression("(a: ) => a")), "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;",
+             "a failed attempt leaves one diagnostic");
+}
+
 void test_hook_calls_with_type_arguments() {
     check_eq(dump_expr("useState<int>(0)"), "(call (id useState) <int> (num 0))",
              "type argument on a hook call");
@@ -238,6 +262,7 @@ int main() {
     test_unary_conditional_member_call();
     test_literals();
     test_arrow_functions();
+    test_typed_arrow_functions();
     test_hook_calls_with_type_arguments();
     test_speculation_leaves_no_diagnostics_behind();
     test_subset_rejections_keep_parsing();

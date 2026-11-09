@@ -51,6 +51,20 @@ target_link_libraries(jsx_concurrent_tests PRIVATE tessera_jsx_frontend Threads:
 
 add_test(NAME jsx_concurrent COMMAND jsx_concurrent_tests)
 
+add_executable(jsx_bind_tests
+    jsx_bind_tests.cpp)
+
+target_link_libraries(jsx_bind_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_bind COMMAND jsx_bind_tests)
+
+add_executable(jsx_rules_tests
+    jsx_rules_tests.cpp)
+
+target_link_libraries(jsx_rules_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_rules COMMAND jsx_rules_tests)
+
 add_executable(jsx_adversarial_tests
     jsx_adversarial_tests.cpp)
 

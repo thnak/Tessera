@@ -17,12 +17,11 @@ passes the text, so the same library links into the native compiler and the Wasm
 | 1 | Spans, diagnostics, limits, UTF-8 checks, parser-driven tolerant lexer | done |
 | 2 | AST, pure-expression parser (spec section 8), JSX element parser (section 10.1 to 10.4), subset rejections that are purely syntactic, AST dump | done |
 | 3 | Module level: imports, type aliases, constants, component declarations, hook statements (sections 4 to 7), recovery per top-level item (section 14) | done |
-| 4 | Typed native handlers (`const f = (v: T): void => {...}`), `bind::` comment association, list-loop form, attribute rules (sections 9, 10.2, 10.5) | next |
+| 4 | Typed native handlers (`const f = (v: T): void => {...}`), `bind::` comment association, list-loop form, attribute rules (sections 9, 10.2, 10.5) | done |
 | 5 | AST -> IR lowering in `src/compiler/ir/` (codegen still never reads the AST) | later |
 
-Slices 1 to 3 parse a whole file but do not yet associate `bind::` comments with statements:
-every comment is returned with its span, and statements carry spans, so slice 4 can pair them by
-position.
+Slice 4 pairs `bind::` comments with statements (see "Slice 4" below). The next step, slice 5,
+turns valid items into IR; the parser stays unaware of it.
 
 ## Source positions
 
@@ -53,11 +52,16 @@ Codes implemented so far:
   `MEMBER` (indexing), `CLASS`, `STATEMENT`, `ASYNC`, `FUNCTION_VALUE`, `IMPORT`, `TYPES`,
   `LITERAL` (computed or spread object keys), `UNKNOWN_PROP` (only for attribute names that are
   not identifiers), `DOM` (`dangerouslySetInnerHTML`);
+- slice 4: `TESSERA_REACT_BIND_ID` (malformed, duplicate or reserved id), `TESSERA_REACT_BIND_POSITION`,
+  `TESSERA_REACT_LIST_KEY` (`.map` element without `key`), `TESSERA_JSX_SUBSET_ARRAY_METHOD`,
+  `TESSERA_JSX_SUBSET_CALL` (`.map` of the wrong shape), `TESSERA_JSX_SUBSET_STYLE_DYNAMIC`,
+  `TESSERA_JSX_SUBSET_SPREAD` (not in the spec table, added here);
 - limits, `TESSERA_JSX_LIMIT_*`: `FILE_SIZE`, `TOKENS`, `DEPTH`, `DIAGNOSTICS`, `COMPONENTS`.
 
 Per spec section 13.1 the full list is generated from the source, not copied here. Rows of
-section 12 that need names, types or component context (`CALL`, `STYLE_DYNAMIC`, hook rules,
-`TYPE_MISMATCH`) belong to the analyzer slices, not the parser.
+section 12 that need names, types or component context (hook rules, `TYPE_MISMATCH`, event
+handler types, `ref` targets, where `key` may appear) belong to the analyzer slices, not the
+parser.
 
 ## Lexer
 
@@ -134,8 +138,31 @@ contain `const` declarations and expression statements before the one `return`.
   types, function types. `>>` closing nested arguments is split. `number`, `any`, `unknown`,
   `never`, `object`, `Function`, intersections, tuples and `typeof` are rejected.
 
-Tests (all deterministic, no clock or random ids): `jsx_lexer`, `jsx_type`, `jsx_module`, `jsx_concurrent`,
-`jsx_expression`, `jsx_parser`,
+### Slice 4: handlers, `bind::`, list loops, attribute rules
+
+- **Typed arrows.** `(id: int, n: string): void => ...` is a native handler (spec 9.3); the AST
+  keeps `param_types` and `return_type`. Parameters are tried speculatively, as for plain arrows.
+  The return type is not tried inside the then-branch of `?:`, where the colon is the
+  conditional's (`c ? (a) : b => d`).
+- **`bind::` pairing** (`bind_pairing.cpp`). A `// Note: bind::<id>` line comment must be on the
+  line directly before a handler constant (`const f = <arrow>;`, one name) or a `useEffect(...)`
+  statement inside a component. The id is `[a-z][a-z0-9_]*` and unique in the file; an effect
+  whose callback ends with `return () => ...` also reserves `<id>_cleanup`. Pairing runs after an
+  item is parsed and only for valid items, so a broken component adds no bind diagnostics, and
+  bind comments in a skipped region are ignored. Comments outside any component, after the last
+  item, or at the wrong place give `BIND_POSITION`. Other comments (block comments, text
+  other than `Note: bind::`) are ignored. The statement holds `bind_id` and `bind_span`.
+- **List loops.** `.map(...)` must take one arrow with one or two parameters whose body is a
+  single JSX element carrying a `key` attribute. The check is context-free: it fires for any
+  `.map` call. `key` elsewhere and list nesting depth are analyzer work.
+- **Array methods.** Calls of `.filter`, `.reduce`, `.sort`, `.push` and the other methods of
+  spec section 12 are rejected by name; `.set` or `.toString` are not.
+- **Attributes.** `style` must be an inline object literal with identifier keys. Spread inside a
+  component is accepted only for the props parameter or an object literal; outside a
+  component there is no props name and spread is not checked.
+
+Tests (all deterministic, no clock or random ids): `jsx_lexer`, `jsx_type`, `jsx_module`,
+`jsx_concurrent`, `jsx_bind`, `jsx_rules`, `jsx_expression`, `jsx_parser`,
 and `jsx_adversarial` (deep nesting of every construct, size/token/diagnostic limits, unterminated
 constructs, invalid UTF-8, NUL, every prefix and one-byte mutation of a sample, fixed-seed random
 bytes; each must yield a tree or an error). Fuzzing against a corpus with a real fuzzer and the
@@ -191,6 +218,11 @@ These are interpretations, listed so the owner can overrule them.
     none and 7 allows one in an effect, so the analyzer must restrict it.
 12. A component name that is lowercase gets `TESSERA_JSX_SUBSET_COMPONENT_NAME`, a code the
     spec table does not list.
-13. Typed arrow parameters (native handlers, spec 9.3) are not parsed yet, so a component that
-    declares one is invalid until slice 4.
+13. Typed arrow parameters (native handlers, spec 9.3) are parsed; a component that declares one
+    is valid.
 14. A missing `;` is an error, so the item containing it is invalid; the next item is unaffected.
+15. `TESSERA_JSX_SUBSET_SPREAD` is a new code (spec table has none) for spread of anything but
+    the props parameter or an object literal.
+16. A bind id inside an invalid item is not recorded, so a later item may reuse it; a bind
+    diagnostic is reported after the item's own diagnostics.
+17. The `.map` rules do not depend on the receiver, so `.map` on a non-array is still checked.

@@ -374,7 +374,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Anti-aliasing | B1 partial: SDF rounded rects only |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
 | Protected-region merger | B1 prototype |
-| JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery implemented; handlers, Tier 1 rules, IR pending ([design](design/jsx-frontend.md)) |
+| JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; IR lowering pending ([design](design/jsx-frontend.md)) |
 | Stylesheet engine | B2 implemented ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |
 | Yoga layout / text / glyph atlas | B2 partial: Yoga layout + text-measurement stub implemented; real shaping/font loading/glyph atlas planned |
 | Input handler | B2 implemented: normalized queue + pointer dispatch/capture ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |

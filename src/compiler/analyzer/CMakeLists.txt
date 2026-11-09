@@ -10,12 +10,15 @@ add_library(tessera_jsx_frontend STATIC
     src/parser.cpp
     src/parser_expr.cpp
     src/parser_jsx.cpp
+    src/parser_jsx_attributes.cpp
     src/parser_primary.cpp
     src/parser_literals.cpp
     src/parser_type.cpp
     src/parser_module.cpp
     src/parser_component.cpp
     src/module_dump.cpp
+    src/parser_rules.cpp
+    src/bind_pairing.cpp
     src/ast_dump.cpp
     src/source_map.cpp
     src/utf8.cpp)

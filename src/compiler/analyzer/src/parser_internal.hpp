@@ -8,6 +8,7 @@
 #include "tessera/compiler/jsx/parser.hpp"
 
 #include <cstdint>
+#include <set>
 #include <string>
 #include <string_view>
 
@@ -108,12 +109,19 @@ private:
     // parser_primary.cpp
     ExprPtr parse_primary();
     ExprPtr parse_parenthesized_or_arrow();
-    ExprPtr parse_arrow(std::uint32_t begin, std::vector<std::string> params);
+    struct ArrowSignature {
+        std::vector<std::string> params;
+        std::vector<TypePtr> types;
+        TypePtr return_type;
+    };
+    ExprPtr parse_arrow(std::uint32_t begin, ArrowSignature signature);
     ExprPtr parse_template();
     ExprPtr parse_array();
     ExprPtr parse_object();
     ExprPtr parse_rejected_keyword();
     ExprPtr parse_return_statement();
+    void check_call_rules(const Expr& call);
+    void check_attribute_rules(const JsxAttribute& attribute);
     bool parse_call_type_args(std::vector<TypePtr>& type_args);
 
     // parser_type.cpp
@@ -138,6 +146,11 @@ private:
     bool parse_statement(ModuleItem& item);
     bool parse_const_statement(Statement& statement);
     bool parse_returned_element(ModuleItem& item);
+
+    // bind_pairing.cpp
+    void check_item_comments(ModuleItem& item, bool pair_inside);
+    void check_remaining_comments();
+    void skip_comments_before_current();
 
     // parser_jsx.cpp
     ExprPtr parse_jsx_expression();
@@ -164,6 +177,11 @@ private:
     std::size_t brace_depth_ = 0; // `{` minus `}` consumed since the item start; for recovery
     Span closing_lt_;             // the `<` that started the closing tag found by parse_children
     std::size_t depth_ = 0;
+    std::size_t conditional_then_depth_ = 0; // > 0 while parsing the then-branch of `?:`
+    bool in_component_ = false;      // inside a component body: enables the props-spread rule
+    std::string props_name_;         // name of the props parameter, empty when destructured
+    std::set<std::string> bind_ids_; // every bind id (and reserved cleanup id) seen in the file
+    std::size_t comment_cursor_ = 0; // comments before this index were already checked
     bool fatal_ = false;
 };
 

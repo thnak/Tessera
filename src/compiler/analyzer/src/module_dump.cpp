@@ -78,10 +78,12 @@ const char* kind_name(ItemKind kind) {
 
 void dump_statement(std::string& out, const Statement& statement) {
     if (statement.kind == StatementKind::Expression) {
-        out += " (expr " + dump(*statement.init) + ")";
+        out += " (expr " + (statement.bind_id.empty() ? "" : "@" + statement.bind_id + " ") +
+               dump(*statement.init) + ")";
         return;
     }
     out += " (const ";
+    out += statement.bind_id.empty() ? "" : "@" + statement.bind_id + " ";
     out += statement.array_pattern ? "[" : "";
     for (std::size_t i = 0; i < statement.names.size(); ++i) {
         out += (i == 0 ? "" : " ") + statement.names[i];
