@@ -41,8 +41,8 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | SPIRV-Reflect | V1 optional | Apache-2.0 | `rendering/backend/vulkan` | Shader reflection for pipeline layouts |
 | stb_image_write | PoC (proof of concept)/demo only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 (proof-of-concept stage, executables under `tools/poc/`) and batched2d demos |
 | stb_image | V1 test | Public domain / MIT | `tests/golden`, image decode | PNG/JPG decode for goldens and assets |
-| ThorVG | Candidate ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buying vector path rasterization) | MIT | `rendering/backend` | Vector paths, SVG |
-| Skia Graphite | Candidate ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) fallback) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
+| ThorVG | V1 target (owner-approved 2026-11-09; integration spike pending) | MIT | `rendering/backend` | Vector paths, SVG |
+| Skia Graphite | Fallback only ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md); owner chose ThorVG first) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
 | Emscripten | V1 hard for design-time | MIT / UIUC | `designer/web` | C++ → WebAssembly toolchain |
 | Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu) | V1 hard for design-time | MIT / UIUC | `designer/web` | Browser WebGPU API |
@@ -218,7 +218,10 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
    Recommendation: SDL3 or GLFW for V1, so platform work does not block the renderer;
    replace with native backends if needed (no release or trigger condition is specified).
 2. **JSX parser:** resolved in [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end).
-3. **Vector paths:** ThorVG vs Skia Graphite ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) spike).
+3. **Vector paths:** resolved by the project owner (2026-11-09): ThorVG is the V1 target (MIT,
+   static), Skia Graphite is a fallback only if the integration spike fails
+   ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)). The spike measures build
+   size, startup, memory, determinism and Vulkan/WebGPU viability before the dependency is pinned.
 4. **Shaders:** GLSL + WGSL in parallel vs a single-source path via Slang/naga/Tint ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)).
 5. **Image codecs:** stb only (simple) vs libpng/libjpeg-turbo/libwebp (production).
 6. **Networking:** libcurl + IXWebSocket + mbedTLS vs a smaller std-only stack.

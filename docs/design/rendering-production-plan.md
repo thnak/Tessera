@@ -1,8 +1,9 @@
 # Rendering plan to production: static linking and license-clean
 
 Status: plan for the rendering workstream from the current B1/B2/B3 state to the production
-milestone. Engineering decisions here are proposals for the project owner to sign off; the
-acceptance gates are normative for the release build. Related:
+milestone. The project owner approved **D1 (ThorVG first)** and **D2 (sRGB-encoded formats)** on
+2026-11-09; D3-D8 are engineering defaults enforced by the release gates and remain open to owner
+review. The acceptance gates are normative for the release build. Related:
 [`renderer.md`](renderer.md), [`gpu/README.md`](gpu/README.md),
 [`dependencies.md`](../specs/dependencies.md), [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md),
 [ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license.md),
@@ -40,12 +41,15 @@ set.
   recovery, no depth/index/compute in the RHI, WebGPU backend empty, present-path damage/VRR
   absent.
 
-## 3. Decisions this plan proposes
+## 3. Decisions
+
+D1 and D2 are **approved by the project owner (2026-11-09)**. D3-D8 are engineering defaults that
+the release gates enforce; they can be revisited by the owner without changing the gates.
 
 | ID | Decision | License/static impact |
 |---|---|---|
-| D1 | **Vector paths: ThorVG first.** Spike ThorVG (MIT) behind a `PathRasterizer` seam; Skia Graphite stays a fallback only if the spike fails the gate. Do not write a rasterizer. | Both permissive and static-linkable; ThorVG is far smaller, so the production static size and build time stay bounded. |
-| D2 | **Color: 8-bit sRGB-encoded formats in V1.** Prefer `*_SRGB` swapchain/target formats, document that blending happens in the encoded space (approximation), and keep linear-light/HDR out of V1. | No license impact; avoids a large color-management refactor before release. |
+| D1 | **Vector paths: ThorVG first (approved).** Spike ThorVG (MIT) behind a `PathRasterizer` seam; Skia Graphite stays a fallback only if the spike fails the gate. Do not write a rasterizer. | Both permissive and static-linkable; ThorVG is far smaller, so the production static size and build time stay bounded. |
+| D2 | **Color: 8-bit sRGB-encoded formats in V1 (approved).** Prefer `*_SRGB` swapchain/target formats, document that blending happens in the encoded space (approximation), and keep linear-light/HDR out of V1. | No license impact; avoids a large color-management refactor before release. |
 | D3 | **Design-time wall.** Dawn/WebGPU and Emscripten are design-time only; the native production binary links Vulkan + MoltenVK (macOS, later) and never Dawn. | Dawn/Emscripten notices apply to design-time artifacts only; production link line stays lean. |
 | D4 | **Present-path damage and VRR are post-production optimizations.** Correct full-frame present plus the offscreen damaged path ship first. | No license impact; VRR depends on platform APIs that are still open questions. |
 | D5 | **MSAA and depth/index/compute follow paths.** 4x MSAA is P1 for geometry quality; depth/index/compute (custom 3D) are P2 and widen the RHI only then. | Vulkan core features; no dependency change. |
