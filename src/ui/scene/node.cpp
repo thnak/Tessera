@@ -24,6 +24,14 @@ bool same_transform(const rhi::Mat3& lhs, const rhi::Mat3& rhs) {
     }
     return true;
 }
+// One scrollport inset: negative, NaN, and infinite values sanitize to 0 and the inset never takes
+// more than the box extent left for it.
+float clamp_inset(float value, float extent) {
+    if (!std::isfinite(value)) {
+        return 0.0f;
+    }
+    return std::clamp(value, 0.0f, std::max(0.0f, extent));
+}
 
 // Truncates to at most `max_bytes` without splitting a UTF-8 code point.
 std::string truncate_utf8(std::string_view text, std::size_t max_bytes) {
@@ -78,6 +86,8 @@ void Node::set_bounds(const rhi::Rect& bounds) {
     }
     bounds_ = bounds;
     mark_dirty(Dirty::Paint | Dirty::Render);
+    // Insets are stored relative to the box; a smaller box can make them exceed it.
+    clamp_scrollport_insets();
     // A viewport change can lower the maximum offset; never leave the stored offset out of range.
     set_scroll_offset(scroll_x_, scroll_y_);
 }
@@ -142,10 +152,37 @@ void Node::set_content_size(float width, float height) {
     // Clamping only; a content-size change is not itself a layout request.
     set_scroll_offset(scroll_x_, scroll_y_);
 }
+void Node::clamp_scrollport_insets() {
+    scrollport_left_ = clamp_inset(scrollport_left_, bounds_.width);
+    scrollport_top_ = clamp_inset(scrollport_top_, bounds_.height);
+    scrollport_right_ = clamp_inset(scrollport_right_, bounds_.width - scrollport_left_);
+    scrollport_bottom_ = clamp_inset(scrollport_bottom_, bounds_.height - scrollport_top_);
+}
+
+void Node::set_scrollport_insets(float left, float top, float right, float bottom) {
+    const float next_left = clamp_inset(left, bounds_.width);
+    const float next_top = clamp_inset(top, bounds_.height);
+    const float next_right = clamp_inset(right, bounds_.width - next_left);
+    const float next_bottom = clamp_inset(bottom, bounds_.height - next_top);
+    if (next_left == scrollport_left_ && next_top == scrollport_top_ &&
+        next_right == scrollport_right_ && next_bottom == scrollport_bottom_) {
+        return;
+    }
+    scrollport_left_ = next_left;
+    scrollport_top_ = next_top;
+    scrollport_right_ = next_right;
+    scrollport_bottom_ = next_bottom;
+    // The paint clip and the hit-test viewport shrink or grow with the insets; the clamp range
+    // changes with the viewport, so re-clamp the stored offset (Paint|Render either way).
+    mark_dirty(Dirty::Paint | Dirty::Render);
+    set_scroll_offset(scroll_x_, scroll_y_);
+}
 
 bool Node::set_scroll_offset(float x, float y) {
-    const float max_x = scrollable_x_ ? std::max(0.0f, content_width_ - bounds_.width) : 0.0f;
-    const float max_y = scrollable_y_ ? std::max(0.0f, content_height_ - bounds_.height) : 0.0f;
+    const float viewport_x = std::max(0.0f, bounds_.width - scrollport_left_ - scrollport_right_);
+    const float viewport_y = std::max(0.0f, bounds_.height - scrollport_top_ - scrollport_bottom_);
+    const float max_x = scrollable_x_ ? std::max(0.0f, content_width_ - viewport_x) : 0.0f;
+    const float max_y = scrollable_y_ ? std::max(0.0f, content_height_ - viewport_y) : 0.0f;
     const float next_x = std::clamp(std::isfinite(x) ? x : 0.0f, 0.0f, max_x);
     const float next_y = std::clamp(std::isfinite(y) ? y : 0.0f, 0.0f, max_y);
     if (next_x == scroll_x_ && next_y == scroll_y_) {
@@ -272,9 +309,10 @@ Node* Node::hit_test_deep(float x, float y) {
         return nullptr;
     }
 
-    // A scroll container clips its children to the border box: points outside the box cannot hit
-    // anything in the subtree. The offset itself is applied by world_transform(), so child inverse
-    // transforms already account for it.
+    // A scroll container clips its children to its scrollport (the border box inset by
+    // scrollport_insets, so a caller that set them to the border widths gets the padding box):
+    // points outside cannot hit anything in the subtree. The offset itself is applied by
+    // world_transform(), so child inverse transforms already account for it.
     if (scrollable_x_ || scrollable_y_) {
         rhi::Mat3 inverse;
         if (!world_transform().try_inverse(inverse)) {
@@ -283,9 +321,14 @@ Node* Node::hit_test_deep(float x, float y) {
         float local_x = 0;
         float local_y = 0;
         inverse.transform_point(x, y, local_x, local_y);
-        if (local_x < 0.0f || local_y < 0.0f || local_x > bounds_.width ||
-            local_y > bounds_.height) {
-            return nullptr;
+        const float min_x = std::min(scrollport_left_, bounds_.width);
+        const float min_y = std::min(scrollport_top_, bounds_.height);
+        const float max_x = std::max(min_x, bounds_.width - scrollport_right_);
+        const float max_y = std::max(min_y, bounds_.height - scrollport_bottom_);
+        if (local_x < min_x || local_y < min_y || local_x > max_x || local_y > max_y) {
+            // Children are clipped at the scrollport, but the container itself is still hit within
+            // its own box (its border/padding area paints there).
+            return hit_test(x, y) ? this : nullptr;
         }
     }
 

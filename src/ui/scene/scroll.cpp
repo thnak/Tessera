@@ -46,20 +46,29 @@ rhi::Rect transformed_bounds(const rhi::Mat3& transform, const rhi::Rect& rect) 
 
 } // namespace
 
+float scrollport_width(const Node& node) {
+    return std::max(0.0f, node.bounds().width - node.scrollport_left() - node.scrollport_right());
+}
+
+float scrollport_height(const Node& node) {
+    return std::max(0.0f, node.bounds().height - node.scrollport_top() - node.scrollport_bottom());
+}
+
 float max_scroll_x(const Node& node) {
-    return node.scrollable_x() ? std::max(0.0f, node.content_width() - node.bounds().width) : 0.0f;
+    return node.scrollable_x() ? std::max(0.0f, node.content_width() - scrollport_width(node))
+                               : 0.0f;
 }
 
 float max_scroll_y(const Node& node) {
-    return node.scrollable_y() ? std::max(0.0f, node.content_height() - node.bounds().height)
+    return node.scrollable_y() ? std::max(0.0f, node.content_height() - scrollport_height(node))
                                : 0.0f;
 }
 
 bool scroll_to(Node& node, float x, float y) {
     const float next_x =
-        clamp_axis(node.scrollable_x(), node.content_width(), node.bounds().width, x);
+        clamp_axis(node.scrollable_x(), node.content_width(), scrollport_width(node), x);
     const float next_y =
-        clamp_axis(node.scrollable_y(), node.content_height(), node.bounds().height, y);
+        clamp_axis(node.scrollable_y(), node.content_height(), scrollport_height(node), y);
     return node.set_scroll_offset(next_x, next_y);
 }
 
@@ -74,6 +83,30 @@ Node* scroll_target(Node& node) {
         }
     }
     return nullptr;
+}
+
+namespace {
+
+Node* find_node_by_id(Node& node, NodeId id) {
+    if (node.id() == id) {
+        return &node;
+    }
+    for (const auto& child : node.children()) {
+        if (Node* const found = find_node_by_id(*child, id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+Node* scroll_target_for_id(Node& root, NodeId id) {
+    if (id == 0) {
+        return nullptr;
+    }
+    Node* const target = find_node_by_id(root, id);
+    return target == nullptr ? nullptr : scroll_target(*target);
 }
 
 bool apply_wheel_scroll(Node& target, float wheel_x, float wheel_y) {
@@ -94,24 +127,31 @@ bool scroll_into_view(Node& node) {
         if (!ancestor->content_transform().try_inverse(inverse)) {
             continue;
         }
-        // World rect in the container's content space. The visible content window is
-        // [scroll, scroll + viewport] on each axis.
+        // World rect in the container's content space. A content point is visible when it is inside
+        // the scrollport window [scroll + inset_start, scroll + extent - inset_end], where the
+        // extent is the border box inset by both scrollport insets on that axis.
         const rhi::Rect content = transformed_bounds(inverse, node.world_bounds());
+        const float left = ancestor->scrollport_left();
+        const float top = ancestor->scrollport_top();
+        const float extent_x = scrollport_width(*ancestor);
+        const float extent_y = scrollport_height(*ancestor);
 
         float next_x = ancestor->scroll_x();
         float next_y = ancestor->scroll_y();
-        if (ancestor->scrollable_x()) {
-            if (content.x < next_x) {
-                next_x = content.x;
-            } else if (content.x + content.width > next_x + ancestor->bounds().width) {
-                next_x = content.x + content.width - ancestor->bounds().width;
+        if (ancestor->scrollable_x() && extent_x > 0.0f) {
+            if (content.x < next_x + left) {
+                // Starts before the window: align its start edge (an oversized node keeps the top
+                // or left edge visible, matching the pre-inset behaviour).
+                next_x = content.x - left;
+            } else if (content.x + content.width > next_x + left + extent_x) {
+                next_x = content.x + content.width - left - extent_x;
             }
         }
-        if (ancestor->scrollable_y()) {
-            if (content.y < next_y) {
-                next_y = content.y;
-            } else if (content.y + content.height > next_y + ancestor->bounds().height) {
-                next_y = content.y + content.height - ancestor->bounds().height;
+        if (ancestor->scrollable_y() && extent_y > 0.0f) {
+            if (content.y < next_y + top) {
+                next_y = content.y - top;
+            } else if (content.y + content.height > next_y + top + extent_y) {
+                next_y = content.y + content.height - top - extent_y;
             }
         }
         if (scroll_to(*ancestor, next_x, next_y)) {

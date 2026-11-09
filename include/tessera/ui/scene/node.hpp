@@ -99,6 +99,31 @@ public:
     [[nodiscard]] float scroll_y() const {
         return scroll_y_;
     }
+    // Scrollport insets: how far the visible scrollport is inset from the border box on each side.
+    // The clamp viewport is `bounds - insets`, hit testing clips the subtree to the inset box, and
+    // the paint pass clips a scroll container to it when any inset is non-zero (otherwise it falls
+    // back to the style-derived padding box). A caller that owns the computed style sets these to
+    // the painted border widths so clamping, painting, and hit testing agree on a bordered
+    // container. All zero by default (the border box), which keeps the previous behaviour
+    // byte-identical. Negative/non-finite values sanitize to 0; each axis pair is clamped to the
+    // box extent. A change marks Dirty::Paint | Dirty::Render and re-clamps the stored offset.
+    void set_scrollport_insets(float left, float top, float right, float bottom);
+    [[nodiscard]] float scrollport_left() const {
+        return scrollport_left_;
+    }
+    [[nodiscard]] float scrollport_top() const {
+        return scrollport_top_;
+    }
+    [[nodiscard]] float scrollport_right() const {
+        return scrollport_right_;
+    }
+    [[nodiscard]] float scrollport_bottom() const {
+        return scrollport_bottom_;
+    }
+    [[nodiscard]] bool has_scrollport_insets() const {
+        return scrollport_left_ > 0.0f || scrollport_top_ > 0.0f || scrollport_right_ > 0.0f ||
+               scrollport_bottom_ > 0.0f;
+    }
     // Clamps to [0, max(0, content - viewport)] per scrollable axis, marks Dirty::Paint and
     // Dirty::Render when the value changes (never Layout), and returns whether it changed. A
     // non-scrollable axis clamps to 0 and never mutates.
@@ -197,6 +222,7 @@ public:
 
 private:
     void refresh_subtree_dirty();
+    void clamp_scrollport_insets();
 
     NodeId id_ = 0;
     Node* parent_ = nullptr;
@@ -221,6 +247,10 @@ private:
     float content_height_ = 0.0f;
     float scroll_x_ = 0.0f;
     float scroll_y_ = 0.0f;
+    float scrollport_left_ = 0.0f;
+    float scrollport_top_ = 0.0f;
+    float scrollport_right_ = 0.0f;
+    float scrollport_bottom_ = 0.0f;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
     Dirty dirty_ = Dirty::None;
     Dirty subtree_dirty_ = Dirty::None;

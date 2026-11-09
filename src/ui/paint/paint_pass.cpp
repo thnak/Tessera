@@ -213,6 +213,24 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     }
 }
 
+// A scroll container clips its children to its scrollport. When the scene owner set
+// `scrollport_insets` (typically to the painted border widths), the clip uses them so clamping,
+// painting, and hit testing agree; otherwise it falls back to the style-derived padding box, which
+// keeps the default output byte-identical for borderless and bordered containers.
+std::optional<rhi::Rect> scrollport_clip(const Node& node, const style::ComputedStyle& style,
+                                         const rhi::Rect& rect) {
+    if (!node.has_scrollport_insets()) {
+        return detail::padding_box(style, rect);
+    }
+    const float width = rect.width - node.scrollport_left() - node.scrollport_right();
+    const float height = rect.height - node.scrollport_top() - node.scrollport_bottom();
+    if (width <= 0.0f || height <= 0.0f) {
+        return std::nullopt;
+    }
+    return rhi::Rect{rect.x + node.scrollport_left(), rect.y + node.scrollport_top(), width,
+                     height};
+}
+
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
                 const PaintContext& context) {
     if (!node.visible()) {
@@ -233,15 +251,17 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
 
     // `overflow` clipping applies to the children (the element's own background/border are painted
     // above). Scroll containers clip their children as well: the children are offset by -scroll via
-    // world_transform(), and the clip keeps them inside the container's padding box - the border
-    // box inset by the painted border widths, which is the CSS region children may not paint into.
-    // The scrollport used for clamping is still the border box (see scroll-and-gestures-v1.md 2.1).
+    // world_transform(), and the clip keeps them inside the scrollport - the node's
+    // `scrollport_insets` when set, otherwise the style padding box. The same box drives clamping
+    // and hit testing (see scroll-and-gestures-v1.md 2.1).
     const bool scroll_clips = node.scrollable_x() || node.scrollable_y();
     const bool clip_children =
         (detail::clips_children(style) || scroll_clips) && rect.width > 0.0f && rect.height > 0.0f;
     bool pushed_clip = false;
     if (clip_children) {
-        if (const std::optional<rhi::Rect> clip_rect = detail::padding_box(style, rect)) {
+        const std::optional<rhi::Rect> clip_rect =
+            scroll_clips ? scrollport_clip(node, style, rect) : detail::padding_box(style, rect);
+        if (clip_rect) {
             sink.push_clip(detail::corner_clip(style, *clip_rect));
             ++stats.clips;
             pushed_clip = true;

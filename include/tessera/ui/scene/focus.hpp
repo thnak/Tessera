@@ -36,6 +36,11 @@ public:
     // Invalid requests are rejected without changing the current focus. `Focus` is set on the
     // target; `FocusVisible` is cleared on it (and on the previous target) because a programmatic
     // request has no modality.
+    //
+    // A successful request also scrolls the node into view: after the Focus event every scrollable
+    // ancestor is adjusted (innermost to outermost) so the node's border box is inside that
+    // ancestor's scrollport. An already-visible node changes no offset, and programmatic requests
+    // scroll exactly like keyboard traversal (the reveal is not tied to the input modality).
     bool request_focus(Node* node);
     void clear_focus();
 

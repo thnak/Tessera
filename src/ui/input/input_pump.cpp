@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/input_pump.hpp"
+#include "tessera/ui/scene/scroll.hpp"
 
 #include <stdexcept>
 
@@ -31,6 +32,8 @@ InputPumpStats InputPump::pump(Node& root, runtime::RuntimeLoop& loop) {
             // One arena feed per dispatched input event, in queue order. The target id is only
             // meaningful (and only stored) for PointerDown; the arena ignores it otherwise.
             gesture_arena_.process(event, static_cast<std::uint64_t>(result.target_id));
+            // Scroll handoff runs before the callback so observers see the post-scroll offsets.
+            apply_gesture_pan(root);
             deliver_gestures();
         }
     }
@@ -69,6 +72,8 @@ void InputPump::set_gesture_callback(GestureCallback callback, void* user) {
 }
 
 void InputPump::tick(double timestamp_s) {
+    // Time-driven recognizers only (for example long press); a drag emits on pointer moves, which
+    // pump() feeds with the scene root available for the scroll handoff.
     gesture_arena_.tick(timestamp_s);
     deliver_gestures();
 }
@@ -82,6 +87,96 @@ void InputPump::deliver_gestures() {
     }
 }
 
+void InputPump::apply_gesture_pan(Node& root) {
+    for (const GestureEvent& event : gesture_arena_.events()) {
+        if (event.kind != GestureKind::Drag) {
+            continue;
+        }
+        PanSlot* slot = nullptr;
+        for (PanSlot& candidate : pan_slots_) {
+            if (candidate.active && candidate.pointer_id == event.pointer_id) {
+                slot = &candidate;
+                break;
+            }
+        }
+        switch (event.phase) {
+        case GesturePhase::Began: {
+            if (slot == nullptr) {
+                for (PanSlot& candidate : pan_slots_) {
+                    if (!candidate.active) {
+                        slot = &candidate;
+                        break;
+                    }
+                }
+            }
+            if (slot == nullptr) {
+                // Bounded slots exhausted: this drag stays with the other consumers.
+                continue;
+            }
+            slot->pointer_id = event.pointer_id;
+            slot->target_id = event.target_id;
+            slot->last_dx = event.dx;
+            slot->last_dy = event.dy;
+            // Only a press over a scroll container turns the drag into scroll. The arena claims the
+            // drag regardless (it has no scene knowledge), so a non-scrollable press still reaches
+            // pointer handlers and the gesture callback; only the scroll side is declined.
+            slot->active = scroll_target_for_id(root, event.target_id) != nullptr;
+            break;
+        }
+        case GesturePhase::Changed: {
+            if (slot == nullptr || !slot->active) {
+                break;
+            }
+            Node* const container = scroll_target_for_id(root, slot->target_id);
+            if (container == nullptr) {
+                // The pressed subtree was removed; stop the pan instead of dereferencing it.
+                slot->active = false;
+                break;
+            }
+            const float step_x = event.dx - slot->last_dx;
+            const float step_y = event.dy - slot->last_dy;
+            slot->last_dx = event.dx;
+            slot->last_dy = event.dy;
+            // Gesture dx/dy are cumulative from the press point, so scroll by the increment.
+            // Content follows the pointer, hence the opposite sign. scroll_by clamps every move; at
+            // an edge the claim is kept and the excess delta is discarded (no chaining in this
+            // slice).
+            scroll_by(*container, -step_x, -step_y);
+            break;
+        }
+        case GesturePhase::Ended: {
+            if (slot == nullptr) {
+                break;
+            }
+            if (slot->active) {
+                // Apply the tail of the drag (the pointer may have moved since the last move
+                // event), then release the slot. Momentum/fling is a later slice.
+                if (Node* const container = scroll_target_for_id(root, slot->target_id)) {
+                    scroll_by(*container, -(event.dx - slot->last_dx), -(event.dy - slot->last_dy));
+                }
+            }
+            slot->active = false;
+            slot->pointer_id = 0;
+            slot->target_id = 0;
+            break;
+        }
+        case GesturePhase::Canceled: {
+            if (slot != nullptr) {
+                // Cancellation stops immediately; the remaining displacement is dropped.
+                slot->active = false;
+                slot->pointer_id = 0;
+                slot->target_id = 0;
+            }
+            break;
+        }
+        }
+    }
+}
+
+void InputPump::clear_pan_slots() {
+    pan_slots_ = {};
+}
+
 void InputPump::reset() {
     InputEvent event;
     while (queue_.pop(event)) {
@@ -90,6 +185,7 @@ void InputPump::reset() {
     sampler_.sample(queue_);
     router_.reset();
     gesture_arena_.reset();
+    clear_pan_slots();
 }
 
 } // namespace tessera::ui

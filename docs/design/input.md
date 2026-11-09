@@ -25,7 +25,7 @@ per-tick input pump
 implemented in `src/platform/windows/`. Linux/X11 and other platform translation,
 platform-specific `:focus-visible` refinements (see section 6), window-blur focus retention policy
 (blur already cancels captures, hover, and active), ancestor hover chains and hover recomputation on
-scene changes, IME producers beyond Win32, gestures, and deterministic recording remain design-only.
+scene changes, IME producers beyond Win32, gesture handlers, and recording remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
@@ -208,9 +208,9 @@ construction.
 Optional gesture pipeline (implemented, additive): `enable_gestures(config)` registers the built-in
 gesture recognizers on an owned `GestureArena`, and every pumped event is then fed to the arena
 exactly once, in queue order, right after the router dispatched it. Pointer dispatch, capture, and
-focus are unchanged; a gesture claim never suppresses a pointer event in v1 (scroll claiming is a
-later slice). `InputDispatchResult::target_id` carries the stable `NodeId` of the routed target, and
-`GestureEvent::target_id` reports the deepest hit node at `PointerDown` (never a raw pointer; it
+focus are unchanged; a gesture claim never suppresses a pointer event in v1. The gesture pan
+scroll handoff (section 5.2) only changes offsets; `InputDispatchResult::target_id` carries
+the stable `NodeId` of the routed target, and `GestureEvent::target_id` reports the
 survives relayout/removal). `InputPump::tick(timestamp_s)` drives time-based recognizers from the
 frame path with sampled loop time (no wall clock). Gesture events go to a caller-installed bounded
 `InputPump::GestureCallback` (function pointer + user data, called synchronously on the pumping
@@ -467,8 +467,8 @@ Keyboard accelerators (implemented): `InputRouter` owns a bounded `KeyBindingReg
 
 Not implemented: ancestor `:hover` bits and hover recomputation on scene changes (boundary events
 fire on the chain, but the pseudo-state bit remains deepest-target only), OS-level pointer capture,
-accessibility announcements for pointer boundaries, platform touch/pen translation and gesture
-recognizers, and interaction state derived from scene mutations not driven by input (for example a
+accessibility announcements for pointer boundaries, ancestor hover recomputation driven by layout
+changes, and interaction state derived from scene mutations not driven by input (for example a
 hovered node becoming invisible keeps its bit until the next move). A detached-but-not-destroyed
 node keeps its hover/active bits; only an id-resolvable node is cleared.
 
@@ -592,8 +592,8 @@ handling, and IME producers beyond Win32.
   implemented as a pure, scene-independent state machine in `include/tessera/ui/gesture.hpp`
   (bounded per-pointer slots, claim/reject protocol, tap/double-tap/long-press/drag/swipe/pinch/
   rotate recognizers); see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)
-  section 5.1. Remaining: scene and scroll claiming integration, custom-element consumption,
-  wheel/edge-swipe recognizers, and platform edge/back gesture policy in the HAL.
+  section 5.1 and the pan-scroll handoff in section 5.2. Remaining: non-scroll gesture handling,
+  custom-element consumption, wheel/edge-swipe recognizers, and platform edge/back gesture policy.
 - Accessibility actions (invoke, set value) mapped into the same event flow (see [`accessibility.md`](accessibility.md)).
 - Gamepad and stylus pressure/tilt.
 - IME candidate-window styling and positioning across platforms.

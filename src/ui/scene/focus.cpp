@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/scene/focus.hpp"
+#include "tessera/ui/scene/scroll.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -201,6 +202,8 @@ bool FocusManager::request_focus(Node* node) {
         // A programmatic request has no input modality, so the keyboard ring is cleared unless the
         // caller re-enables it. This also covers a pointer press on the already-focused node.
         node->set_pseudo_state(style::PseudoState::FocusVisible, false);
+        // Re-requesting focus also re-reveals the node if the scene scrolled it out of view.
+        scroll_into_view(*node);
         return true;
     }
 
@@ -223,6 +226,10 @@ bool FocusManager::request_focus(Node* node) {
     // Clearing before the Focus event lets the router decide the modality afterwards.
     node->set_pseudo_state(style::PseudoState::FocusVisible, false);
     dispatch_focus_event(*node, EventType::Focus);
+    // Reveal the node in every scrollable ancestor (innermost to outermost) after the Focus event
+    // so handlers that moved or resized it are taken into account. Already-visible nodes change no
+    // offset; this runs for programmatic requests and keyboard traversal alike.
+    scroll_into_view(*node);
     return true;
 }
 

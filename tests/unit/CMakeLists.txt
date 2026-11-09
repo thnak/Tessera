@@ -1073,6 +1073,27 @@ target_link_libraries(scroll_tests PRIVATE tessera_scene tessera_paint tessera_l
 
 add_test(NAME scroll_core COMMAND scroll_tests)
 
+add_executable(scroll_pan_tests
+    scroll_pan_tests.cpp)
+
+target_link_libraries(scroll_pan_tests PRIVATE tessera_input_pump)
+
+add_test(NAME scroll_pan COMMAND scroll_pan_tests)
+
+add_executable(scroll_focus_tests
+    scroll_focus_tests.cpp)
+
+target_link_libraries(scroll_focus_tests PRIVATE tessera_scene)
+
+add_test(NAME scroll_focus COMMAND scroll_focus_tests)
+
+add_executable(scroll_insets_tests
+    scroll_insets_tests.cpp)
+
+target_link_libraries(scroll_insets_tests PRIVATE tessera_scene tessera_paint)
+
+add_test(NAME scroll_insets COMMAND scroll_insets_tests)
+
 add_executable(schema_tests
     schema_tests.cpp)
 

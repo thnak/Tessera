@@ -8,6 +8,7 @@
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -47,6 +48,15 @@ struct InputPumpStats {
 // bounds one call; extra events beyond that bound are dropped, and no per-event allocation is
 // performed. Two-pointer gestures keep per-pointer ids; events for one pointer are delivered in
 // queue order and are never reordered relative to that pointer.
+//
+// Gesture pan scrolling (part of the same opt-in pipeline): a `Drag` claim whose PointerDown target
+// has a scroll container scrolls the innermost scrollable ancestor by the per-move pointer delta in
+// logical pixels, with the scroll model's clamp applied on every move. Content follows the pointer,
+// so a downward drag decreases `scroll_y`. At a clamped edge the gesture keeps its claim and the
+// excess delta is discarded (no nested chaining, no momentum/fling). `PointerCancel` ends the pan
+// and drops the remaining delta. A press over a non-scrollable chain produces no scroll: the drag
+// still reaches the gesture callback and the pointer handlers, because the arena has no scene
+// knowledge and pointer events are never suppressed. Wheel routing is untouched.
 class InputPump {
 public:
     // Gesture delivery callback: a plain function pointer plus opaque user data keeps the
@@ -111,7 +121,21 @@ public:
     void reset();
 
 private:
+    // One gesture-pan scroll slot per arena pointer (fixed capacity, no allocation).
+    struct PanSlot {
+        std::uint32_t pointer_id = 0;
+        std::uint64_t target_id = 0;
+        float last_dx = 0.0f;
+        float last_dy = 0.0f;
+        bool active = false;
+    };
+
     void deliver_gestures();
+    // Applies the current arena event batch to the scroll model (see the class comment). Runs in
+    // `pump` only: a NodeId is resolved against the root passed there, and time-driven ticks never
+    // emit drag events.
+    void apply_gesture_pan(Node& root);
+    void clear_pan_slots();
 
     InputPumpConfig config_;
     InputQueue queue_;
@@ -128,6 +152,7 @@ private:
     SwipeRecognizer swipe_recognizer_;
     DragRecognizer drag_recognizer_;
     PinchRotateRecognizer pinch_rotate_recognizer_;
+    std::array<PanSlot, GestureArena::kMaxPointers> pan_slots_{};
 };
 
 } // namespace tessera::ui

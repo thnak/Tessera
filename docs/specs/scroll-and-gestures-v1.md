@@ -62,37 +62,46 @@ set_scroll_offset(offset);   // immediate, no animation
   [`virtualization-v1.md`](virtualization-v1.md).
 - Scroll state is snapshot-testable: offset, velocity, viewport, content size, axis, snap.
 
-### 2.1 Implemented core (offset, clipping, wheel, hit-test)
+### 2.1 Implemented core (offset, clipping, wheel, pan, focus, hit-test)
 
 `include/tessera/ui/scene/scroll.hpp` + `src/ui/scene/scroll.cpp` (library `tessera_scene`) implement
 the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the wheel default action.
 
-- Model: per-node `scroll_x/scroll_y`, `content_width/height`, `scrollable_x/y`; the scrollport
-  used for clamping is the node's border box and the paint clip is the padding box (border box inset
-  by the painted border widths, see below). Content size is supplied explicitly by layout or the
-  caller; layout bounds are never changed by scrolling.
+- Model: per-node `scroll_x/scroll_y`, `content_width/height`, `scrollable_x/y`, and optional
+  `scrollport_insets` (left/top/right/bottom). The scrollport - the clamp viewport, the paint clip,
+  and the hit-test viewport - is the border box inset by those insets; all zero by default (the
+  border box), which keeps the pre-inset behaviour byte-identical. Content size is supplied
+  explicitly by layout or the caller; layout bounds are never changed by scrolling.
 - Clamping: `scroll_to/scroll_by` clamp each scrollable axis to
-  `[0, max(0, content - viewport)]`; a non-scrollable axis clamps to 0. `NaN`/infinity sanitize to 0.
-  A request that does not change the offset returns `false` and mutates nothing; a node with no
-  scrollable axis ignores the request entirely. Changing the offset marks
+  `[0, max(0, content - scrollport extent)]`; a non-scrollable axis clamps to 0. `NaN`/infinity
+  sanitize to 0. A request that does not change the offset returns `false` and mutates nothing; a
+  node with no scrollable axis ignores the request entirely. Changing the offset marks
   `Dirty::Paint | Dirty::Render` (never `Layout`). Viewport/content changes re-clamp the stored
   offset so the invariant always holds. Toggling `scrollable_x/y` also marks
   `Dirty::Paint | Dirty::Render`, even when the clamped offset stays at 0, because the paint clip
   and hit-test clipping of the subtree start or stop with the flag.
+- Scrollport insets: negative, `NaN`, and infinite values sanitize to 0 and each axis pair is
+  clamped to the box extent (a pair may consume an axis, leaving a zero-extent scrollport and making
+  all content scrollable). Setting a different value marks `Dirty::Paint | Dirty::Render`, re-clamps
+  the stored offset, and never marks `Layout`. The scene owner (a layout/style pass or the
+  application) sets them from the painted border widths; automatic style-to-scene syncing is a later
+  slice, so a bordered container must be configured explicitly today.
 - Paint: children are offset by `-scroll` because `Node::world_transform()` places them in the
-  parent's content space; a scrollable node is a clipping parent (rounded padding-box clip via
+  parent's content space; a scrollable node is a clipping parent (rounded scrollport clip via
   `PaintSink::push_clip`), exactly as documented in
-  [`paint-pass.md`](../design/paint-pass.md) section 3.1. The padding box is the border box inset by
-  the four painted border widths, so children cannot paint over the border; with no border it equals
-  the border box and the emitted commands are unchanged. Damage after a scroll is the container's
-  border box, which covers the old and new visible content because children are clipped inside it.
-  Because clamping uses the border box, a bordered container under-reveals its far edge by the
-  bottom/right border width; layout-provided scrollport insets are deferred.
+  [`paint-pass.md`](../design/paint-pass.md) section 3.1. The paint pass uses the node's
+  `scrollport_insets` when any is non-zero (so the clamp and the clip agree on a bordered
+  container), and otherwise derives the padding box from computed style (border box inset by the
+  painted border widths); with no border and no insets both paths equal the border box and the
+  emitted commands are unchanged. Damage after a scroll is the container's border box, which covers
+  the old and new visible content because children are clipped inside it.
 - Hit testing: inverse world transforms already account for the scroll offset, and a scroll
-  container clips its subtree to its border box, so scrolled-out children miss. Scroll container
-  clipping applies to hit testing even when the node's paint style is not `overflow: hidden`; CSS
-  `overflow` clipping for hit testing remains style-free in the scene (deferred), so hit testing
-  clips at the border box while paint clips at the padding box.
+  container clips its subtree to the same scrollport box (insets, else the border box), so
+  scrolled-out and inset-band points miss. Scroll container clipping applies to hit testing even
+  when the node's paint style is not `overflow: hidden`; CSS `overflow` clipping for hit testing
+  remains style-free in the scene (deferred). A scroll container without explicit insets still
+  hit-clips at its border box while the paint pass clips its style padding box: that remaining
+  border-width difference is the documented reason to set the insets.
 - Wheel: the event dispatches through the normal capture/target/bubble path, then (unless a handler
   set `prevent_default`) the nearest scrollable ancestor, including the target, scrolls by the
   deltas. Wheel deltas are platform wheel units (Win32: one unit per 120-unit notch) converted with
@@ -100,21 +109,27 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   `dy` scrolls content down). A wheel over a non-scrollable chain dispatches exactly as before and
   changes nothing. Nested containers: the innermost scrollable ancestor consumes the wheel; there is
   no chaining to outer containers when it reaches a clamped edge (deferred).
-- `scroll_into_view(node)` is implemented as a minimal helper that adjusts each scrollable ancestor
-  (inner to outer) until the node's world rect intersects the visible window. Focus traversal does
-  not call it yet: `FocusManager` has no viewport/layout knowledge and wiring it belongs to the
-  frame/layout pass (deferred).
+- Gesture pan: with the `InputPump` gesture pipeline enabled, a `Drag` claim whose PointerDown target
+  has a scrollable ancestor pans the innermost container with the per-move pointer delta (logical
+  pixels, clamped every move). See section 5.2 for the handoff rules, the edge behaviour, and the
+  wheel/pan/nested priority.
+- `scroll_into_view(node)`: adjusts each scrollable ancestor (inner to outer) until the node's world
+  rect is inside that ancestor's scrollport. Already-visible axes are untouched and an oversized
+  node aligns to its start edge, so the call is idempotent. `FocusManager::request_focus` calls it
+  after a successful focus change, so Tab/Shift+Tab traversal and programmatic `request_focus`
+  both scroll the target into view (programmatic focus scrolls exactly like keyboard traversal);
+  focusing an already-visible node changes no offset.
 
-Deferred: inertia/spring-back/overscroll physics, scrollbars, snap/sticky, nested chaining policy,
-virtualization, layout-provided scrollport insets (clamping currently uses the border box),
-scroll-linked animation, and layout-produced content sizes.
+Deferred: inertia/spring-back/overscroll physics, fling after a pan release, scrollbars,
+snap/sticky, nested chaining policy, virtualization, automatic style-to-scene scrollport insets
+(callers set them today), scroll-linked animation, and layout-produced content sizes.
 
 ## 3. Physics
 
 | Input | Behavior |
 |---|---|
 | Wheel/trackpad | line/pixel delta, platform acceleration, coalesced |
-| Touch/pen drag | 1:1 until release, then fling |
+| Touch/pen drag | 1:1 after the drag threshold until release; fling is a later slice |
 | Keyboard | line/page/home/end; focus-aware |
 | Gamepad | not specified for V1 (no decision yet); normalized axis with deadzone |
 | Scrollbar | thumb drag, track click, min thumb size |
@@ -253,14 +268,43 @@ pointer events):
   when the same events plus target ids are fed to a bare arena
   (`tests/unit/gesture_pipeline_tests.cpp`).
 
-Not implemented in this slice: scene gesture handlers/capture handoff, scroll claiming or offset
-policy, gesture-driven suppression of pointer events, target re-resolution on hover or move,
-per-pointer recognizer instances for two simultaneous single-pointer gestures (the built-in
-single-pointer recognizers track the first active pointer; a host may install its own recognizers
-through `gesture_arena()`), tap-slop in device pixels (DPI scaling), platform
-velocity/tilt/orientation, wheel and edge-swipe recognizers, OS/system edge gestures, gesture-driven
-accessibility alternatives, and built-in frame-loop wiring (the application calls `tick` with the
-sampled loop time).
+Not implemented in this slice: scene gesture handlers/capture handoff, gesture-driven suppression
+of pointer events, target re-resolution on hover or move, per-pointer recognizer instances for two
+simultaneous single-pointer gestures (the built-in single-pointer recognizers track the first active
+pointer; a host may install its own recognizers through `gesture_arena()`), tap-slop in device
+pixels (DPI scaling), platform velocity/tilt/orientation, wheel and edge-swipe recognizers, OS/system
+edge gestures, gesture-driven accessibility alternatives, and built-in frame-loop wiring (the
+application calls `tick` with the sampled loop time).
+
+### 5.2 Gesture pan to scroll (implemented)
+
+`InputPump` (library `tessera_input_pump`) hands the built-in `Drag` claim to the scroll model; this
+is the first slice where a gesture changes scene state.
+
+- Trigger: a `Drag` `Began` whose pointer-down target resolves to a scroll container (the innermost
+  scrollable ancestor, the target included). `GestureEvent::target_id` is resolved against the pump
+  root on every event via `scroll_target_for_id`, so a removed subtree stops the pan instead of
+  leaving a dangling pointer. A press over a non-scrollable chain produces no scroll; the Drag events
+  still reach the gesture callback and pointer events still dispatch (the arena has no scene
+  knowledge, so a per-target claim filter is deferred; the scroll handoff only declines to act).
+- Motion: `GestureEvent::dx/dy` are cumulative from the press point, so the handoff scrolls by the
+  increment since the previous event. Content follows the pointer: a downward drag decreases
+  `scroll_y`, a rightward drag decreases `scroll_x`. The displacement used to cross the drag
+  threshold is consumed by the claim and not applied (no jump on claim).
+- Clamp and edges: `scroll_by` clamps every move. At a clamped edge the drag keeps its claim and the
+  excess delta is discarded; there is no nested chaining and no fling/momentum yet.
+- End/cancel: `Ended` applies the remaining tail delta (the pointer can move between the last move
+  event and the release) and releases the pointer slot; `Canceled` (pointer cancel or window
+  blur/focus) stops immediately and drops the remaining delta. `InputPump::reset()` clears pan slots
+  without emitting gesture events.
+- Priority: wheel routing is unchanged (a wheel over a scrollable node scrolls the innermost
+  ancestor; `prevent_default` still suppresses it). Wheel and pan are independent input paths. For
+  both, nested containers resolve to the innermost scrollable ancestor of the event/down target and
+  there is no chaining in v1. Gesture pan needs `enable_gestures()`; pointer dispatch and focus are
+  unchanged whether or not the pan scrolls.
+- Determinism: the handoff reads only the arena's event stream and scene state (no wall clock, no
+  allocation; at most `GestureArena::kMaxPointers` pan slots), so the same event script produces the
+  same offsets (`tests/unit/scroll_pan_tests.cpp`).
 
 ## 6. Sticky, anchoring, and focus
 
@@ -268,7 +312,8 @@ sampled loop time).
 - Scroll anchoring keeps the visible content stable when content above changes; opt-in per
   container, disabled during explicit programmatic scroll.
 - Focused/selected item is kept visible on layout/content changes when the item still exists
-  after the change.
+  after the change. Implemented for focus changes: `FocusManager::request_focus` reveals the target
+  in its scrollable ancestors (see section 2.1); content-change anchoring is deferred.
 - Virtualized lists realize the focused item before focus/scroll; see
   [`virtualization-v1.md`](virtualization-v1.md) section 7.
 - Scrollbars are painted overlays; they do not affect layout unless `scrollbar-gutter` is set.
@@ -291,6 +336,14 @@ sampled loop time).
 ## 9. Determinism and tests
 
 - Fixed clock, DPI, input script; no inertial randomness.
+- Implemented coverage: clamping/dirty domains, wheel routing/sign/`prevent_default`, paint
+  offset + scrollport clip, hit testing with an offset, damage after a scroll, nested containers,
+  scrollport insets (sanitization, clamp/paint/hit-test agreement), gesture-pan scrolling
+  (touch/mouse, clamps, cancel, non-scrollable, determinism) and focus scroll-into-view
+  (programmatic and Tab/Shift+Tab, already-visible, nested, insets) in `tests/unit/scroll_tests.cpp`
+  (`scroll_core`), `tests/unit/scroll_pan_tests.cpp` (`scroll_pan`),
+  `tests/unit/scroll_focus_tests.cpp` (`scroll_focus`), `tests/unit/scroll_insets_tests.cpp`
+  (`scroll_insets`), and `tests/unit/paint_clip_tests.cpp` (`paint_clip`).
 - Test: wheel/trackpad, drag/fling, nested scroll chaining, snap/paging, rubber band,
   overscroll resistance/release/interrupt/reduced motion, keyboard, scroll-into-view,
   sticky/anchoring, focus/selection, virtualized lists, RTL axes, multi-touch pinch/rotate,
