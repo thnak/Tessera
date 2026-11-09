@@ -58,6 +58,13 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 //   or destroyed target is never dereferenced. Only the deepest target is hovered; see
 //   docs/design/input.md section 7 for the ancestor-chain rule and why it is deferred.
 //
+// Focus modality (`:focus-visible`):
+// - Pointer-driven focus clears `PseudoState::FocusVisible` on the newly focused node; the
+//   Tab/Shift+Tab default action sets it. The `FocusManager` clears the bit on every
+//   `request_focus`, so a programmatic request is treated as having no modality; the router calls
+//   `FocusManager::set_focus_visible(true)` after a keyboard traversal (also when a Blur handler
+//   redirected focus). See docs/design/input.md section 6 for the exact rule.
+//
 // Pseudo-state changes go through `Node::set_pseudo_state`, which marks `Dirty::Style` so
 // `:hover`/`:active` rules re-resolve. `hovered()` and `active()` are raw scene pointers: reset or
 // destroy the router before destroying a subtree that currently carries one of those states.

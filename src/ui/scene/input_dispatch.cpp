@@ -173,6 +173,11 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
                                         : focus_manager_.focus_next(root);
                 // A single focus candidate wraps to itself; report only an actual change.
                 result.focus_moved = cycled && focus_manager_.focused() != before;
+                if (cycled) {
+                    // Keyboard modality: sequential traversal shows the focus ring, including when
+                    // a Blur handler redirected focus to another node.
+                    focus_manager_.set_focus_visible(true);
+                }
             }
         }
         return result;
@@ -230,7 +235,11 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         set_pointer_capture(target, input.pointer_id);
         if (target->focusable()) {
             // request_focus rejects targets outside the active modal subtree.
-            focus_manager_.request_focus(target);
+            if (focus_manager_.request_focus(target)) {
+                // Pointer modality never shows the keyboard focus ring, including when a Blur
+                // handler moved focus somewhere else during the request.
+                focus_manager_.set_focus_visible(false);
+            }
         } else if (focus_manager_.allows_focus(*target)) {
             focus_manager_.clear_focus();
         }

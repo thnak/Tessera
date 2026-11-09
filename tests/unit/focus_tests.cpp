@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -11,16 +13,21 @@
 
 namespace {
 
+using tessera::ui::Dirty;
 using tessera::ui::Event;
 using tessera::ui::EventPhase;
 using tessera::ui::EventType;
 using tessera::ui::FocusManager;
+using tessera::ui::has_flag;
 using tessera::ui::InputEvent;
 using tessera::ui::InputEventType;
 using tessera::ui::InputRouter;
 using tessera::ui::Modifier;
 using tessera::ui::Node;
 using tessera::ui::NodeId;
+using tessera::ui::key::kTab;
+using tessera::ui::style::has_state;
+using tessera::ui::style::PseudoState;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -80,6 +87,10 @@ struct Recorder : Node {
         if (stop_enabled && event.type == stop_type && event.phase == EventPhase::Target) {
             event.stop_propagation();
         }
+        if (redirect_focus_on_blur != nullptr && event.type == EventType::Blur &&
+            event.phase == EventPhase::Target) {
+            focus_manager->request_focus(redirect_focus_on_blur);
+        }
     }
 
     std::vector<std::string>& trace;
@@ -89,6 +100,9 @@ struct Recorder : Node {
     Modifier last_modifiers = Modifier::None;
     std::uint32_t last_text_codepoint = 0;
     bool last_repeat = false;
+    // Simulates a Blur handler that moves focus elsewhere; the focus manager must not overwrite it.
+    FocusManager* focus_manager = nullptr;
+    Node* redirect_focus_on_blur = nullptr;
 };
 
 std::vector<std::string> target_events(const std::vector<std::string>& trace) {
@@ -108,6 +122,22 @@ InputEvent key_event(InputEventType type) {
     event.modifiers = Modifier::Shift | Modifier::Control;
     event.text_codepoint = 0x61;
     event.repeat = true;
+    return event;
+}
+
+InputEvent pointer(InputEventType type, float x, float y) {
+    InputEvent event;
+    event.type = type;
+    event.x = x;
+    event.y = y;
+    return event;
+}
+
+InputEvent tab_event(Modifier modifier = Modifier::None) {
+    InputEvent event;
+    event.type = InputEventType::KeyDown;
+    event.key = kTab;
+    event.modifiers = modifier;
     return event;
 }
 
@@ -274,6 +304,86 @@ int main() {
         !expect(unfocused.target == nullptr, "key without focus has no target") ||
         !expect(trace.empty(), "key without focus emits no events")) {
         return 13;
+    }
+
+    // :focus-visible heuristic: a programmatic request_focus has no modality, so it clears the
+    // ring bit; the caller can re-enable it explicitly.
+    if (!expect(router.focus_manager().request_focus(&first), "focus first programmatically") ||
+        !expect(has_state(first.pseudo_state(), PseudoState::Focus),
+                "programmatic focus keeps :focus") ||
+        !expect(!has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "programmatic focus clears :focus-visible")) {
+        return 14;
+    }
+    first.clear_dirty(Dirty::Style);
+    router.focus_manager().set_focus_visible(true);
+    if (!expect(has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "explicit set_focus_visible shows the ring") ||
+        !expect(has_flag(first.dirty(), Dirty::Style), "ring change marks Style dirty")) {
+        return 15;
+    }
+
+    // Pointer-driven focus clears the ring even when the node was already focused.
+    const auto pointer_focus = router.dispatch(root, pointer(InputEventType::PointerDown, 20, 20));
+    if (!expect(pointer_focus.dispatched && pointer_focus.target == &first,
+                "pointer down targets first") ||
+        !expect(!has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "pointer focus clears :focus-visible")) {
+        return 16;
+    }
+
+    // Tab and Shift+Tab set the ring on the traversal target.
+    const auto tab_forward = router.dispatch(root, tab_event());
+    if (!expect(tab_forward.focus_moved, "tab moves focus") ||
+        !expect(router.focus_manager().focused() == &second, "tab focuses second") ||
+        !expect(has_state(second.pseudo_state(), PseudoState::Focus) &&
+                    has_state(second.pseudo_state(), PseudoState::FocusVisible),
+                "tab sets :focus and :focus-visible") ||
+        !expect(!has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "tab clears the old target ring")) {
+        return 17;
+    }
+    const auto tab_back = router.dispatch(root, tab_event(Modifier::Shift));
+    if (!expect(tab_back.focus_moved && router.focus_manager().focused() == &first,
+                "shift-tab returns to first") ||
+        !expect(has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "shift-tab sets :focus-visible")) {
+        return 18;
+    }
+
+    // A Blur handler that redirects focus keeps the modality of the causing input: keyboard sets
+    // the ring, pointer leaves it clear.
+    first.focus_manager = &router.focus_manager();
+    first.redirect_focus_on_blur = &third;
+    const auto redirected_tab = router.dispatch(root, tab_event());
+    if (!expect(redirected_tab.focus_moved, "tab with redirect reports movement") ||
+        !expect(router.focus_manager().focused() == &third, "blur redirect wins over tab target") ||
+        !expect(has_state(third.pseudo_state(), PseudoState::FocusVisible),
+                "keyboard redirect sets :focus-visible")) {
+        return 19;
+    }
+    third.focus_manager = &router.focus_manager();
+    third.redirect_focus_on_blur = &first;
+    const auto redirected_down =
+        router.dispatch(root, pointer(InputEventType::PointerDown, 120, 20));
+    if (!expect(redirected_down.dispatched && redirected_down.target == &second,
+                "pointer down targets second") ||
+        !expect(router.focus_manager().focused() == &first, "pointer blur redirect wins") ||
+        !expect(has_state(first.pseudo_state(), PseudoState::Focus) &&
+                    !has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "pointer redirect clears :focus-visible")) {
+        return 20;
+    }
+    first.redirect_focus_on_blur = nullptr;
+    third.redirect_focus_on_blur = nullptr;
+    first.focus_manager = nullptr;
+    third.focus_manager = nullptr;
+
+    // Clearing focus removes both bits.
+    router.focus_manager().clear_focus();
+    if (!expect(first.pseudo_state() == PseudoState::None, "clear_focus clears both bits") ||
+        !expect(has_flag(first.dirty(), Dirty::Style), "clear_focus marks Style dirty")) {
+        return 21;
     }
 
     std::cout << "focus: ok\n";

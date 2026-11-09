@@ -198,12 +198,16 @@ bool FocusManager::request_focus(Node* node) {
     }
     if (focused_ == node) {
         node->set_pseudo_state(style::PseudoState::Focus, true);
+        // A programmatic request has no input modality, so the keyboard ring is cleared unless the
+        // caller re-enables it. This also covers a pointer press on the already-focused node.
+        node->set_pseudo_state(style::PseudoState::FocusVisible, false);
         return true;
     }
 
     Node* previous = focused_;
     if (previous != nullptr) {
         previous->set_pseudo_state(style::PseudoState::Focus, false);
+        previous->set_pseudo_state(style::PseudoState::FocusVisible, false);
     }
     focused_ = node;
     focused_id_ = node->id();
@@ -216,8 +220,17 @@ bool FocusManager::request_focus(Node* node) {
     }
 
     node->set_pseudo_state(style::PseudoState::Focus, true);
+    // Clearing before the Focus event lets the router decide the modality afterwards.
+    node->set_pseudo_state(style::PseudoState::FocusVisible, false);
     dispatch_focus_event(*node, EventType::Focus);
     return true;
+}
+
+void FocusManager::set_focus_visible(bool visible) {
+    refresh_state();
+    if (focused_ != nullptr) {
+        focused_->set_pseudo_state(style::PseudoState::FocusVisible, visible);
+    }
 }
 
 void FocusManager::clear_focus() {
@@ -230,6 +243,7 @@ void FocusManager::clear_focus() {
     focused_ = nullptr;
     focused_id_ = 0;
     previous->set_pseudo_state(style::PseudoState::Focus, false);
+    previous->set_pseudo_state(style::PseudoState::FocusVisible, false);
     dispatch_focus_event(*previous, EventType::Blur);
 }
 

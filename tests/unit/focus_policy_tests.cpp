@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 
@@ -15,6 +16,7 @@ using tessera::ui::InputEvent;
 using tessera::ui::InputEventType;
 using tessera::ui::InputRouter;
 using tessera::ui::Node;
+using tessera::ui::key::kTab;
 using tessera::ui::style::has_state;
 using tessera::ui::style::PseudoState;
 
@@ -253,29 +255,74 @@ int main() {
         return 15;
     }
 
+    // Tab inside the modal trap is keyboard modality: it sets :focus-visible on the traversal
+    // target, and a following pointer press clears it again.
+    InputEvent tab;
+    tab.type = InputEventType::KeyDown;
+    tab.key = kTab;
+    const auto tabbed = router.dispatch(modal_scene, tab);
+    if (!expect(tabbed.focus_moved, "tab inside modal moves focus") ||
+        !expect(router.focus_manager().focused() == &first, "tab wraps to first inside") ||
+        !expect(has_state(first.pseudo_state(), PseudoState::Focus) &&
+                    has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "tab sets :focus-visible inside the trap")) {
+        return 16;
+    }
+    const auto after_tab_down =
+        router.dispatch(modal_scene, pointer(InputEventType::PointerDown, 80, 20));
+    if (!expect(after_tab_down.target == &second, "pointer press hits second") ||
+        !expect(router.focus_manager().focused() == &second, "pointer press moves focus") ||
+        !expect(has_state(second.pseudo_state(), PseudoState::Focus) &&
+                    !has_state(second.pseudo_state(), PseudoState::FocusVisible),
+                "pointer press clears :focus-visible")) {
+        return 17;
+    }
+
     router.reset();
     if (!expect(router.captured() == nullptr, "reset cleared capture") ||
         !expect(router.focus_manager().focused() == nullptr, "reset cleared focus") ||
         !expect(router.focus_manager().modal_root() == nullptr, "reset cleared modal trap")) {
-        return 16;
+        return 18;
+    }
+
+    // Reusing the router across scene roots applies the same modality rule to the new root.
+    Node other_root(40);
+    other_root.set_bounds({0, 0, 100, 100});
+    auto other_focus_ptr = std::make_unique<Node>(41);
+    other_focus_ptr->set_focusable(true);
+    other_focus_ptr->set_bounds({10, 10, 50, 50});
+    Node& other_focus = add(other_root, std::move(other_focus_ptr));
+    const auto second_root_tab = router.dispatch(other_root, tab);
+    if (!expect(second_root_tab.focus_moved, "tab on the second root moves focus") ||
+        !expect(other_focus.pseudo_state() == (PseudoState::Focus | PseudoState::FocusVisible),
+                "second root focus gets :focus-visible")) {
+        return 19;
+    }
+    const auto second_root_down =
+        router.dispatch(other_root, pointer(InputEventType::PointerDown, 20, 20));
+    if (!expect(second_root_down.target == &other_focus, "pointer hits the second root target") ||
+        !expect(has_state(other_focus.pseudo_state(), PseudoState::Focus) &&
+                    !has_state(other_focus.pseudo_state(), PseudoState::FocusVisible),
+                "pointer focus on the second root clears :focus-visible")) {
+        return 20;
     }
 
     // Removing the modal root releases the trap without dereferencing it.
     if (!expect(modal_manager.request_focus(&outside), "pre-modal focus for removal") ||
         !expect(modal_manager.set_modal_root(&dialog), "trap for removal") ||
         !expect(modal_manager.focused() == &first, "trap focus for removal")) {
-        return 17;
+        return 21;
     }
     std::unique_ptr<Node> removed = modal_scene.remove_child(dialog);
     if (!expect(removed != nullptr, "dialog removed") ||
         !expect(modal_manager.modal_root() == nullptr, "removed modal root no longer resolves")) {
-        return 18;
+        return 22;
     }
     // Destroy the subtree before the manager notices; id resolution must not dereference it.
     removed.reset();
     modal_manager.clear_modal_root();
     if (!expect(modal_manager.focused() == &outside, "destroyed modal restores saved focus")) {
-        return 19;
+        return 23;
     }
 
     std::cout << "focus_policy: ok\n";

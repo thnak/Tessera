@@ -12,17 +12,18 @@ implemented in `include/tessera/ui/scene/focus.hpp` and `src/ui/scene/focus.cpp`
 Wheel and text routing, window focus/blur handling, the Tab/Shift+Tab default focus action with
 `prevent_default`, and the scene-event pointer payload are implemented in
 `src/ui/scene/input_dispatch.cpp` and `include/tessera/ui/scene/event.hpp`. Bounded per-pointer
-capture with explicit capture APIs, primary-pointer hover/active tracking, and the window-focus
-interaction reset are implemented in `src/ui/scene/input_dispatch.cpp` (sections 5 and 7). The
-per-tick input pump
+capture with explicit capture APIs, primary-pointer hover/active tracking, the window-focus
+interaction reset, and the `:focus-visible` pointer-versus-keyboard heuristic are implemented in
+`src/ui/scene/input_dispatch.cpp`, `src/ui/scene/focus.cpp`, and
+`include/tessera/ui/scene/focus.hpp` (sections 5-7). The per-tick input pump
 (queue -> sampler -> router -> `RuntimeLoop::request_frame`) is
 `include/tessera/ui/input_pump.hpp` and `src/ui/input/input_pump.cpp`. Windows platform translation
 (pointer, wheel, key and character messages into `InputEvent`, see section 2.1) is implemented in
 `src/platform/windows/win32_input.cpp`. Linux/X11 and other platform translation,
-`:focus-visible` heuristics, window-blur focus retention policy (blur already cancels captures,
-hover, and active), ancestor hover chains and hover recomputation on scene changes, platform
-touch/pen and gesture translation, IME composition, gestures, and deterministic recording remain
-design-only.
+platform-specific `:focus-visible` refinements (see section 6), window-blur focus retention policy
+(blur already cancels captures, hover, and active), ancestor hover chains and hover recomputation on
+scene changes, platform touch/pen and gesture translation, IME composition, gestures, and
+deterministic recording remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
@@ -238,6 +239,17 @@ Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
   the new target gains it before `Focus`. The change marks the `Style` dirty domain so
   `:focus`/`:not(:focus)` rules re-resolve; `ui/style/scene_style.hpp` exposes that state to
   selector matching.
+- `:focus-visible` (implemented heuristic): `FocusManager` also owns the
+  `PseudoState::FocusVisible` bit. `request_focus` clears it on the node it focuses and on the
+  previous node, because a programmatic request has no input modality. The `InputRouter` applies
+  the modality per input event: a pointer press that focuses a node clears the bit, and the
+  Tab/Shift+Tab default action sets it on the resulting focus target. The modality of the causing
+  input wins when a `Blur` handler redirects focus during the request: keyboard leaves the ring
+  set, pointer leaves it clear. `clear_focus`/`reset` clear both bits. A caller that wants the ring
+  after a programmatic `request_focus` must call `FocusManager::set_focus_visible(true)`
+  explicitly; direct `focus_next`/`focus_previous` calls count as programmatic. The change marks
+  `Style` dirty through `set_pseudo_state`, and `ui/style/scene_style.hpp` exposes the bit to
+  selector matching, so `:focus-visible` rules re-resolve on the next style pass.
 - Sequential traversal order (`focus_next` / `focus_previous`):
   1. focusable nodes with a positive `tab_index`, ascending; equal values keep depth-first
      document order (pre-order);
@@ -282,7 +294,8 @@ Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
 
 Deferred policy (design intent, not implemented):
 
-- `focus-visible` heuristics for keyboard-versus-pointer focus, and window-blur focus retention.
+- Platform-specific `:focus-visible` refinements (text-input/IME focus, keyboard shortcuts that
+  focus a node) and window-blur focus retention.
 - Keyboard shortcuts/global handlers, editable-node text editing/selection, and IME composition.
   Committed characters already reach the focused node as `Text` events, but there is no editable
   node model behind them yet.
@@ -353,10 +366,10 @@ Hover/active (implemented, primary pointer only):
   router before destroying the scene root.
 
 Not implemented: ancestor hover chains and recomputation on scene changes, pointer enter/leave
-synthesis, `:focus-visible`, platform touch/pen translation and gesture recognizers, and interaction
-state derived from scene mutations not driven by input (for example a hovered node becoming
-invisible keeps its bit until the next move). A detached-but-not-destroyed node keeps its
-hover/active bits; only an id-resolvable node is cleared.
+synthesis, platform touch/pen translation and gesture recognizers, and interaction state derived
+from scene mutations not driven by input (for example a hovered node becoming invisible keeps its
+bit until the next move). A detached-but-not-destroyed node keeps its hover/active bits; only an
+id-resolvable node is cleared.
 
 ## 8. Text input and IME
 
@@ -411,6 +424,11 @@ hover/active bits; only an id-resolvable node is cleared.
   root is removed (`tests/unit/focus_policy_tests.cpp`).
 - `:focus`/`:not(:focus)` selector matching and style re-evaluation, including `Style` dirty
   marking (`tests/unit/focus_style_tests.cpp`).
+- `:focus-visible` heuristic: pointer focus clears the bit while keeping `:focus`, Tab/Shift+Tab set
+  both, blur/clear remove both, modal-trap Tab and Blur-handler redirects keep the causing
+  modality, programmatic `request_focus` clears unless `set_focus_visible(true)` follows, router
+  reuse across scene roots, and computed-style re-evaluation (`tests/unit/focus_tests.cpp`,
+  `tests/unit/focus_policy_tests.cpp`, `tests/unit/focus_style_tests.cpp`).
 - Hover/active state changes and style invalidation: hover enter, move to another target, and
   leave (previous hover cleared), hidden targets skipped, active down/up, cancel and window
   focus/blur cleanup, `Style` dirty marking, and stateless `dispatch_input` not owning state

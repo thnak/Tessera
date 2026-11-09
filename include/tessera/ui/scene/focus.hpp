@@ -12,6 +12,13 @@ namespace tessera::ui {
 // it still stores raw pointers and does not observe destruction, so clear focus before destroying
 // a subtree that currently holds it.
 //
+// `FocusVisible` (the `:focus-visible` heuristic bit) is owned here too. `request_focus` always
+// clears it on the node it focuses, because a programmatic request carries no input modality: the
+// caller must call `set_focus_visible(true)` when the focus came from keyboard interaction (the
+// `InputRouter` does this after a Tab/Shift+Tab traversal and leaves it clear for pointer focus).
+// `clear_focus`/`reset` clear both `Focus` and `FocusVisible`; moving focus clears both bits on the
+// previous node. Direct `focus_next`/`focus_previous` calls count as programmatic.
+//
 // Sequential tab order (`focus_next` / `focus_previous`):
 //   1. focusable descendants with a positive `tab_index`, ascending; equal values keep depth-first
 //      tree order (pre-order);
@@ -26,9 +33,16 @@ public:
     void set_root(Node& root);
 
     // Focuses a visible, attached, focusable node inside the active modal subtree (if any).
-    // Invalid requests are rejected without changing the current focus.
+    // Invalid requests are rejected without changing the current focus. `Focus` is set on the
+    // target; `FocusVisible` is cleared on it (and on the previous target) because a programmatic
+    // request has no modality.
     bool request_focus(Node* node);
     void clear_focus();
+
+    // Sets or clears `PseudoState::FocusVisible` on the current focus target (no-op without focus).
+    // The input layer uses this to mark keyboard-driven focus; programmatic callers use it to
+    // restore the ring explicitly. The change marks `Dirty::Style` through `set_pseudo_state`.
+    void set_focus_visible(bool visible);
 
     [[nodiscard]] Node* focused() const {
         return focused_;
