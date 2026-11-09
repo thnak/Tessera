@@ -35,6 +35,14 @@
 #include "vulkan_internal.hpp"
 #endif
 
+// Xlib (pulled in by the Vulkan Xlib surface headers on Linux) defines `None` as a macro, which
+// collides with the `ui::Dirty::None` enumerator used below. This translation unit never calls
+// Xlib directly (window creation and surfaces go through the HAL/RHI wrappers), so dropping the
+// macro is safe here; renaming the enumerator repo-wide is tracked as hygiene debt.
+#ifdef None
+#undef None
+#endif
+
 #include <algorithm>
 #include <array>
 #include <chrono>
