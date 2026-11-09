@@ -14,7 +14,16 @@
 #include <vector>
 #include <volk.h>
 
+// VMA annotates pointers with _Nullable/_Nonnull, a Clang extension that -Werror would reject.
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-extension"
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+#endif
 #include <vk_mem_alloc.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 // Presentation surfaces exist only on platforms whose WSI extension is compiled in. Everything
 // else keeps the offscreen device and reports SwapchainError::NotSupported.
@@ -152,14 +161,16 @@ class VulkanDevice;
 class VulkanTexture final : public rhi::Texture {
 public:
     VulkanTexture(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
-                  VkSampler sampler, VmaAllocation allocation, VkDescriptorSet descriptor_set,
-                  rhi::Extent2D extent, rhi::TextureFormat format, VulkanDevice* owner)
+                  VkSampler sampler, VmaAllocation allocation, VkDescriptorPool descriptor_pool,
+                  VkDescriptorSet descriptor_set, rhi::Extent2D extent, rhi::TextureFormat format,
+                  VulkanDevice* owner)
         : device_(device),
           allocator_(allocator),
           image_(image),
           view_(view),
           sampler_(sampler),
           allocation_(allocation),
+          descriptor_pool_(descriptor_pool),
           descriptor_set_(descriptor_set),
           extent_(extent),
           format_(format),
@@ -189,6 +200,7 @@ private:
     VkImageView view_ = VK_NULL_HANDLE;
     VkSampler sampler_ = VK_NULL_HANDLE;
     VmaAllocation allocation_ = nullptr;
+    VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
     VkDescriptorSet descriptor_set_ = VK_NULL_HANDLE;
     rhi::Extent2D extent_;
     rhi::TextureFormat format_ = rhi::TextureFormat::R8G8B8A8Unorm;
