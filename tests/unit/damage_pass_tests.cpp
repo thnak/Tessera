@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 
 #include <cmath>
@@ -10,6 +11,8 @@ namespace {
 
 using tessera::rendering::DamageAccumulator;
 using tessera::rendering::DamageConfig;
+using tessera::rendering::make_redraw_plan;
+using tessera::rendering::RedrawPlan;
 using tessera::rendering::rhi::Extent2D;
 using tessera::rendering::rhi::Rect;
 using tessera::ui::Dirty;
@@ -173,8 +176,66 @@ int main() {
     DamageAccumulator overflow_damage(DamageConfig{Extent2D{100, 100}, 4});
     const DamagePassResult overflow_result =
         add_scene_damage(overflow_dirty, overflow_damage, 1.0f);
-    if (!expect(overflow_result.overflowed, "dirty overflow reported")) {
+    if (!expect(overflow_result.overflowed, "dirty overflow reported") ||
+        !expect(overflow_result.full_redraw, "overflow forces a full-redraw result") ||
+        !expect(overflow_damage.full_redraw(), "overflow latches the accumulator") ||
+        !expect(overflow_damage.rects().empty(), "overflow drops the partial rect list")) {
         return 6;
+    }
+    const RedrawPlan overflow_plan = make_redraw_plan(overflow_damage);
+    if (!expect(overflow_plan.full_redraw, "overflow plan is full") ||
+        !expect(overflow_plan.scissors.size() == 1, "overflow plan has one region") ||
+        !expect(overflow_plan.scissors[0].x == 0 && overflow_plan.scissors[0].y == 0 &&
+                    overflow_plan.scissors[0].width == 100 &&
+                    overflow_plan.scissors[0].height == 100,
+                "overflow plan covers the target")) {
+        return 8;
+    }
+    // The overflow latch is accumulator state, not permanent: clearing returns to partial damage.
+    overflow_damage.clear();
+    overflow_damage.add(Rect{10, 10, 10, 10});
+    const RedrawPlan recovered_plan = make_redraw_plan(overflow_damage);
+    if (!expect(!recovered_plan.full_redraw, "cleared overflow returns to a partial plan") ||
+        !expect(recovered_plan.scissors.size() == 1 && recovered_plan.scissors[0].width == 10 &&
+                    recovered_plan.scissors[0].height == 10,
+                "recovered partial region")) {
+        return 9;
+    }
+
+    // Exactly at the dirty cap is not an overflow; cap + 1 is.
+    Node boundary_root(60);
+    auto boundary_a = std::make_unique<Node>(61);
+    boundary_a->set_bounds({0, 0, 5, 5});
+    Node& boundary_a_ref = boundary_root.add_child(std::move(boundary_a));
+    auto boundary_b = std::make_unique<Node>(62);
+    boundary_b->set_bounds({20, 0, 5, 5});
+    Node& boundary_b_ref = boundary_root.add_child(std::move(boundary_b));
+    auto boundary_c = std::make_unique<Node>(63);
+    boundary_c->set_bounds({40, 0, 5, 5});
+    Node& boundary_c_ref = boundary_root.add_child(std::move(boundary_c));
+    clear_tree(boundary_root);
+    boundary_a_ref.mark_dirty(Dirty::Paint);
+    boundary_b_ref.mark_dirty(Dirty::Paint);
+
+    DirtyPass at_cap(2);
+    at_cap.collect(boundary_root, Dirty::Paint | Dirty::Render);
+    DamageAccumulator at_cap_damage(DamageConfig{Extent2D{100, 100}, 8});
+    const DamagePassResult at_cap_result = add_scene_damage(at_cap, at_cap_damage, 1.0f);
+    if (!expect(!at_cap_result.overflowed, "exactly cap does not overflow") ||
+        !expect(!at_cap_result.full_redraw, "exactly cap stays partial") ||
+        !expect(at_cap_damage.rects().size() == 2, "exactly cap has both rects")) {
+        return 10;
+    }
+
+    boundary_c_ref.mark_dirty(Dirty::Paint);
+    DirtyPass over_cap(2);
+    over_cap.collect(boundary_root, Dirty::Paint | Dirty::Render);
+    DamageAccumulator over_cap_damage(DamageConfig{Extent2D{100, 100}, 8});
+    const DamagePassResult over_cap_result = add_scene_damage(over_cap, over_cap_damage, 1.0f);
+    if (!expect(over_cap_result.overflowed, "cap + 1 overflows") ||
+        !expect(over_cap_result.full_redraw, "cap + 1 forces full damage") ||
+        !expect(make_redraw_plan(over_cap_damage).full_redraw, "cap + 1 plan is full")) {
+        return 11;
     }
 
     std::cout << "damage_pass: ok\n";

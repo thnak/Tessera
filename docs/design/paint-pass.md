@@ -215,6 +215,12 @@ Each paint command is tested against every `RedrawPlan::scissors` region, in reg
 | outside every region | nothing |
 | `plan.full_redraw == true` | the unclipped command (the scissor list is ignored) |
 | empty partial plan | nothing, `painted == false`, zero stats, even with `force` |
+| dirty-pass overflow frame | `plan.full_redraw == true` (the damage pass forces it, dirty-rendering §6.6), so the unclipped row applies |
+
+A dirty-pass overflow (more dirty nodes than the `DirtyPass` cap) marks the frame as a full redraw
+before painting; the clipped overload therefore receives `plan.full_redraw == true` and emits the
+unclipped command stream, exactly like a full-redraw frame. Paint semantics are unchanged: the
+overflow rule lives in the damage/plan layer ([`dirty-rendering.md`](dirty-rendering.md) §6.6).
 
 Region semantics:
 

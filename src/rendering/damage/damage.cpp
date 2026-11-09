@@ -76,6 +76,13 @@ void DamageAccumulator::add(rhi::Rect rect, float margin) {
     rects_.push_back(clipped);
 }
 
+void DamageAccumulator::force_full_redraw() {
+    // Same latch as the rect-cap fallback: no rectangles and a full-target plan. `clear()` resets
+    // it.
+    rects_.clear();
+    full_redraw_ = true;
+}
+
 void DamageAccumulator::clear() {
     rects_.clear();
     full_redraw_ = false;

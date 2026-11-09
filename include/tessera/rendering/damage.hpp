@@ -19,6 +19,12 @@ public:
     explicit DamageAccumulator(DamageConfig config);
 
     void add(rhi::Rect rect, float margin = 0.0f);
+    // Forces the next plan to a full redraw regardless of the area/scissor-count policy and drops
+    // the accumulated rectangles. Used when damage cannot be trusted to be complete (for example a
+    // dirty-pass overflow that truncated the changed-node list): under-damage would leave stale
+    // pixels, while over-damage is always safe. The latch is part of the state that `clear()`
+    // resets, so the next frame starts from a clean accumulator.
+    void force_full_redraw();
     // Resets every piece of accumulated state: the damage rectangles, their count/area inputs to
     // the redraw policy, and the latched full-redraw fallback (set when the rect cap is exceeded).
     // Configuration (target extent, max_rects) and allocated capacity persist. After `clear()` the

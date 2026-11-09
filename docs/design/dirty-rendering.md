@@ -253,6 +253,36 @@ settling") hold for the damaged path. `DirtyPass::overflowed_` is per-collection
 on every `collect()`; the only intentional cross-frame latch is the frame lane's
 `FramePipeline::frame_due_`, which `tick()` resets.
 
+### 6.6 Dirty-pass overflow forces a full redraw
+
+`DirtyPass` has a bounded node cap (`DirtyPass(max_nodes)`, default **1024**; the vector is reserved
+to the cap, so collection never grows past it). When more nodes are dirty than the cap, `collect()`
+stops adding nodes and sets `overflowed()`; the returned list is then a **truncated view** of the
+changed set.
+
+Under-damage is unsafe: a missing node may have changed any pixel inside its (unknown-to-the-damage
+pass) bounds, so a partial plan can leave **stale pixels** on screen indefinitely. Over-damage only
+costs one full repaint and is always correct, so the rule is:
+
+- On `DirtyPass::overflowed()`, `add_scene_damage` and `DamageTracker::add_scene_damage` call
+  `DamageAccumulator::force_full_redraw()`: the partial rectangles are dropped and the accumulator's
+  full-redraw latch is set, so `make_redraw_plan()` returns the whole-target region and
+  `DamagePassResult::full_redraw` reports the frame as full.
+- `FramePipeline::finish_frame()` also forces the plan to full when `FrameRender::damage.overflowed`
+  (defense in depth for a future plan source; the plan decision is unchanged otherwise).
+- The latch is accumulator state, so `DamageAccumulator::clear()` releases it: the next frame whose
+  dirty count fits under the cap is partial again, and an idle frame after settling still produces
+  an empty plan (no render pass, no presents), preserving the power contract.
+- Cost: one full redraw for the overflowing frame only. The alternative - a
+  bounded-but-complete pass that never truncates - was rejected: the changed set is unbounded in
+  the worst case and would break the memory bound the cap exists to provide.
+
+Tests: `damage_pass` (overflow result/latch/plan and the cap boundary: exactly cap stays partial,
+cap + 1 is full, both damage-pass and tracker paths), `damage_tracker` (same rule through the
+tracker), `frame_pipeline_overflow` (overflow frame paints byte-identically to a full redraw, the next
+under-cap frame is partial, the settled frame is idle, determinism), and `damage_clear` (the latch
+clears).
+
 ## 7. GPU resources and synchronization
 
 - `gpuFramesInFlight` frame slots; each slot owns vertex/index/uniform arenas.
@@ -364,10 +394,9 @@ Per-primitive damage table (conservative by design; do not tighten without evide
 
 Conservative/known gaps: text damages the whole text node rather than the changed lines; a glyph
 whose ink overhangs its node box slightly should add a damage margin (the `unknown node` margin path
-in `add_scene_damage` is the place); and **dirty-pass overflow currently under-damages** (truncated
-dirty list is not forced to full-target damage — task-65, owned by ui-input; do not build on the
-assumption that overflow yields full damage). Do not enable partial present/VRR from this: D4 keeps
-those deferred.
+in `add_scene_damage` is the place). Dirty-pass overflow does **not** under-damage: a truncated
+dirty list forces a full-target redraw (§6.6, task-65), so overflow frames are always safe. Do not
+enable partial present/VRR from this: D4 keeps those deferred.
 
 Tests: `damage_min` (solid node move, exact at margin 0 and 2) and `damage_present` (scripted
 card/text/decoration/background changes, partial regions/area, whole-screen fallback, idle/no

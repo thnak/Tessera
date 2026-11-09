@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 
 #include <cmath>
@@ -11,6 +12,7 @@ namespace {
 
 using tessera::rendering::DamageAccumulator;
 using tessera::rendering::DamageConfig;
+using tessera::rendering::make_redraw_plan;
 using tessera::rendering::rhi::Extent2D;
 using tessera::rendering::rhi::Rect;
 using tessera::ui::Dirty;
@@ -130,6 +132,42 @@ int main() {
     }
     if (!expect(threw, "zero capacity rejected")) {
         return 7;
+    }
+
+    // Dirty-pass overflow through the tracker path must also force a full-target redraw.
+    Node overflow_root(90);
+    auto overflow_a = std::make_unique<Node>(91);
+    overflow_a->set_bounds({0, 0, 5, 5});
+    Node& overflow_a_ref = overflow_root.add_child(std::move(overflow_a));
+    auto overflow_b = std::make_unique<Node>(92);
+    overflow_b->set_bounds({20, 0, 5, 5});
+    Node& overflow_b_ref = overflow_root.add_child(std::move(overflow_b));
+    auto overflow_c = std::make_unique<Node>(93);
+    overflow_c->set_bounds({40, 0, 5, 5});
+    Node& overflow_c_ref = overflow_root.add_child(std::move(overflow_c));
+    clear_tree(overflow_root);
+    overflow_a_ref.mark_dirty(Dirty::Paint);
+    overflow_b_ref.mark_dirty(Dirty::Paint);
+    overflow_c_ref.mark_dirty(Dirty::Paint);
+
+    DamageTracker overflow_tracker;
+    DamageAccumulator overflow_damage(DamageConfig{Extent2D{100, 100}, 8});
+    DirtyPass overflow_pass(2);
+    overflow_pass.collect(overflow_root, Dirty::Paint | Dirty::Render);
+    const DamagePassResult overflow_result =
+        overflow_tracker.add_scene_damage(overflow_pass, overflow_damage, 1.0f);
+    if (!expect(overflow_result.overflowed, "tracker overflow reported") ||
+        !expect(overflow_result.full_redraw, "tracker overflow forces full damage") ||
+        !expect(overflow_damage.full_redraw(), "tracker overflow latches the accumulator") ||
+        !expect(make_redraw_plan(overflow_damage).full_redraw, "tracker overflow plan is full")) {
+        return 20;
+    }
+    // ...and the latch clears so later frames go back to partial damage.
+    overflow_damage.clear();
+    overflow_damage.add(Rect{5, 5, 5, 5});
+    if (!expect(!make_redraw_plan(overflow_damage).full_redraw,
+                "tracker overflow recovers after clear")) {
+        return 21;
     }
 
     std::cout << "damage_tracker: ok\n";

@@ -29,6 +29,12 @@ DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccum
         ++result.nodes;
     }
 
+    // A truncated dirty list cannot prove the damage is complete: the missing nodes may have
+    // changed pixels anywhere in their (unknown) bounds. Over-damage is cheap and safe;
+    // under-damage leaves stale pixels, so an overflow forces a full-target redraw.
+    if (dirty.overflowed()) {
+        damage.force_full_redraw();
+    }
     result.rects = damage.rects().size();
     result.full_redraw = damage.full_redraw();
     return result;

@@ -100,6 +100,17 @@ FrameRender FramePipeline::finish_frame(Node& root) {
                                                       config_.damage_margin);
     result.redraw_plan = normalized_plan(rendering::make_redraw_plan(*damage_), damage_->target(),
                                          config_.redraw_policy);
+    // The damage pass already latches a full redraw on a dirty-pass overflow; keep the decision
+    // here as well so a future plan source cannot silently under-damage a truncated frame.
+    if (result.damage.overflowed && !result.redraw_plan.full_redraw) {
+        result.redraw_plan.full_redraw = true;
+        result.redraw_plan.scissors.clear();
+        const rendering::rhi::Extent2D target = damage_->target();
+        if (target.width > 0 && target.height > 0) {
+            result.redraw_plan.scissors.push_back(
+                rendering::rhi::Scissor{0, 0, target.width, target.height});
+        }
+    }
     result.full_redraw = result.redraw_plan.full_redraw;
     result.should_render = !result.redraw_plan.scissors.empty();
     frame_due_ = result.should_render;
