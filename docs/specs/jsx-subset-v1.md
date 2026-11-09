@@ -642,6 +642,8 @@ and no silent skipping.
 | Import cycle between files | `TESSERA_JSX_SUBSET_IMPORT_CYCLE` | Move shared code to a third file |
 | Malformed or duplicate `bind::` id | `TESSERA_REACT_BIND_ID` | Use `[a-z][a-z0-9_]*`, unique in the project |
 | `bind::` annotation in a position other than before a handler or `useEffect` | `TESSERA_REACT_BIND_POSITION` | Move the comment (section 9.3) |
+| A hook written in a form other than those of section 7 (for example `const x = useState(0);`) | `TESSERA_REACT_HOOK_FORM` | Use the form of the table in section 7 |
+| `const f = () => ...` without `bind::` whose body is not made of setter calls only (section 9.2) | `TESSERA_REACT_BIND_MISSING` | Add `// Note: bind::<id>` before it, or reduce the body to setter calls |
 | Member access on a value of unknown record type | `TESSERA_JSX_SUBSET_MEMBER` | Declare a type for the value |
 | Unknown attribute or event name on an intrinsic | `TESSERA_JSX_SUBSET_UNKNOWN_PROP` | See the element's spec (section 11) |
 | Operand or argument type mismatch | `TESSERA_JSX_TYPE_MISMATCH` | Convert explicitly or fix the type |

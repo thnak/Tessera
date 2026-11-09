@@ -1,7 +1,8 @@
 # Lowering the JSX AST to IR (slice 5 design)
 
-Status: design only. No lowering code exists. `src/compiler/ir/`, `src/compiler/codegen/` and
-`src/compiler/rules/` are empty folders. The input is the parser of
+Status: slices 1 to 3 are implemented (IR model and writer, IR validator, analysis skeleton, see
+"Slice 3 status" below). No lowering code exists and `src/compiler/codegen/` is an empty folder. The
+input is the parser of
 [`jsx-frontend.md`](jsx-frontend.md); the output is the IR of [`ir-v1.md`](../specs/ir-v1.md)
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md)). The accepted source forms are in
 [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) (the "subset spec"); this note links to its
@@ -80,6 +81,39 @@ component, the type of every expression node (side table keyed by node pointer),
 arrow, and diagnostics. Lowering takes `(Module, AnalyzedModule)`. Reasons: the live view reparses
 per component, so analysis should be incremental per component; the same checks must not exist in
 two places; and lowering stays a tree-to-tree translation that can assert instead of re-validate.
+
+### Slice 3 status (analysis skeleton)
+
+`tessera_react_rules` (`src/compiler/rules/`, headers `include/tessera/compiler/rules/`, namespace
+`tessera::compiler::rules`) links `tessera_jsx_frontend` only; a test checks that its sources include no
+`tessera/compiler/ir/` header and that CMake does not link `tessera_ir`. `analyze_module(Module, SourceMap)`
+returns an `AnalyzedModule`: per component a `ComponentAnalysis` (symbol table of props, state, setters,
+refs, animated values, locals and handlers; `effects`; the role of every arrow) plus all diagnostics, in
+component then statement order. It points into the `Module`, which must outlive it. A component with any
+error has `ok == false`; items the parser marked invalid are listed with `ok == false` and not analysed.
+All state is per call.
+
+| Check | Code | Notes |
+|---|---|---|
+| Hook not at the top level of the body (condition, `&&`/`\|\|` right side, function, JSX, hook argument) | `TESSERA_REACT_HOOK_ORDER` | one report per call |
+| Hook declared after a statement that reads what it declares | `TESSERA_REACT_HOOK_ORDER` | the fixed-order rule (reading of "fixed order" is a slice question) |
+| `use*` call that is not a core hook | `TESSERA_REACT_UNKNOWN_HOOK` | `useMemo`, `useCallback`, `useReducer`, `useContext` give `TESSERA_REACT_UNSUPPORTED_API` |
+| Hook not in its section 7 form | `TESSERA_REACT_HOOK_FORM` (new) | `useState` pair, `useRef` initial `null`, single-name `useAnimatedValue`, `useEffect` arrow plus array |
+| `return` in an effect body other than the final cleanup arrow | `TESSERA_REACT_EFFECT_RETURN` | cleanup arrows (including their own bodies) are checked too |
+| Dependencies not exact | `TESSERA_REACT_EFFECT_DEPS` | missing, extra, duplicate, non-name, non-array, no array, not a prop/state/animated value |
+| `const f = arrow` without `bind::`, body not setter calls only | `TESSERA_REACT_BIND_MISSING` (new) | decision 4; an empty body also fails |
+
+Arrow roles: `NativeHandler` (with bind id), `InlineHandler`, `Effect`, `Cleanup` (bind id plus
+`_cleanup`), `EventArrow` (arrow written as an attribute value), `ListCallback` (`.map` argument), `Other`.
+Dependency matching reads the effect body for props, state and animated values; setters, `v.set(...)` and
+refs are not reads; a read of a local counts as a read of what the local reads (locals are inlined,
+decision 8); arrow parameters shadow outer names; `props.x` of a non-destructured props parameter is
+reported as `props.x` because only names can be dependencies.
+
+Not in slice 3: types and expression typing, `ref` targets, `key` placement, list depth (slice 4),
+`SETTER_IN_RENDER`, `HOOK_NOT_ALLOWED` and manifest hooks, duplicate declarations, imports (slice 9).
+Questions raised by the slice are listed in the slice report; the choices made here are the
+least-committal ones.
 
 ## 4. Spans and diagnostics
 
@@ -190,7 +224,7 @@ Each slice is behavior, tests and docs, committed on its own.
 1. **IR data model and writer.** `tessera_ir`: types, `SourceSpan`, JSON writer, the Counter golden.
    No parser dependency.
 2. **IR validator.** Section 9 hard errors on hand-built IR; the layering test.
-3. **Analysis skeleton.** `tessera_react_rules`: symbol table per component, hook forms and order,
+3. **Analysis skeleton (done).** `tessera_react_rules`: symbol table per component, hook forms and order,
    arrow roles (handler/effect/cleanup), `return` placement, effect dependency matching.
 4. **Types.** Type table (props, aliases, records), expression typing, boolean conditions, event
    payload types, `ref` targets, `key` placement, list depth.
