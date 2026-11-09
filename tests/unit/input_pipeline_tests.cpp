@@ -322,33 +322,33 @@ bool interaction_states(Scene& scene) {
         return false;
     }
 
-    // Window blur input resets capture, hover, and active but not scene focus.
+    // Window blur input resets every capture plus hover/active, but not scene focus.
     pump.queue().push(pointer(InputEventType::PointerMove, 20, 20));
     pump.queue().push(pointer(InputEventType::PointerDown, 20, 20));
+    InputEvent second_down = pointer(InputEventType::PointerDown, 120, 120);
+    second_down.pointer_id = 2;
+    pump.queue().push(second_down);
     pump.pump(scene.root, loop);
+    if (!expect(pump.router().captured(0) == scene.child, "pump captures primary pointer") ||
+        !expect(pump.router().captured(2) == scene.other, "pump captures second pointer")) {
+        return false;
+    }
     InputEvent blur;
     blur.type = InputEventType::Blur;
     pump.queue().push(blur);
     pump.pump(scene.root, loop);
-    if (!expect(pump.router().captured() == nullptr, "pump blur clears capture") ||
+    if (!expect(pump.router().captured(0) == nullptr, "pump blur clears primary capture") ||
+        !expect(pump.router().captured(2) == nullptr, "pump blur clears second capture") ||
         !expect(pump.router().hovered() == nullptr, "pump blur clears hover") ||
         !expect(pump.router().active() == nullptr, "pump blur clears active") ||
-        !expect(pump.router().focus_manager().focused() == scene.child,
+        !expect(pump.router().focus_manager().focused() == scene.other,
                 "pump blur keeps scene focus")) {
         return false;
     }
 
-    // Focus input resets the same interaction state.
-    pump.queue().push(pointer(InputEventType::PointerMove, 20, 20));
-    pump.queue().push(pointer(InputEventType::PointerDown, 20, 20));
-    pump.pump(scene.root, loop);
-    InputEvent focus;
-    focus.type = InputEventType::Focus;
-    pump.queue().push(focus);
-    pump.pump(scene.root, loop);
     pump.reset();
     return expect(pump.router().hovered() == nullptr && pump.router().active() == nullptr,
-                  "pump focus input and reset clear interaction state");
+                  "pump reset clears interaction state");
 }
 
 bool pump_drain(Scene& scene) {

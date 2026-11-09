@@ -2,6 +2,7 @@
 
 #include "tessera/ui/scene/input_dispatch.hpp"
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -85,6 +86,12 @@ InputEvent pointer(InputEventType type, float x, float y) {
 InputEvent lifecycle(InputEventType type) {
     InputEvent event;
     event.type = type;
+    return event;
+}
+
+InputEvent pointer_for(InputEventType type, float x, float y, std::uint32_t pointer_id) {
+    InputEvent event = pointer(type, x, y);
+    event.pointer_id = pointer_id;
     return event;
 }
 
@@ -218,6 +225,143 @@ bool interaction_state(Recorder& root, Recorder& child, InputRouter& router) {
            expect(!has_state(child.pseudo_state(), PseudoState::Active), "reset clears active bit");
 }
 
+// Per-pointer capture: two independent pointers, interleaving, hand-off, removal and overflow.
+bool per_pointer_capture() {
+    Recorder root(10);
+    root.set_bounds({0, 0, 200, 200});
+    auto left_ptr = std::make_unique<Recorder>(11);
+    left_ptr->set_bounds({10, 10, 50, 50});
+    auto right_ptr = std::make_unique<Recorder>(12);
+    right_ptr->set_bounds({100, 100, 50, 50});
+    Recorder& left = static_cast<Recorder&>(root.add_child(std::move(left_ptr)));
+    Recorder& right = static_cast<Recorder&>(root.add_child(std::move(right_ptr)));
+
+    InputRouter router;
+
+    // First press becomes the primary pointer and implicitly captures its target.
+    const auto down_left =
+        router.dispatch(root, pointer_for(InputEventType::PointerDown, 20, 20, 1));
+    if (!expect(down_left.target == &left, "pointer 1 presses left") ||
+        !expect(router.captured(1) == &left, "pointer 1 implicitly captures left") ||
+        !expect(router.captured() == &left, "primary capture view is pointer 1") ||
+        !expect(router.primary_pointer_id() == 1, "first press becomes primary") ||
+        !expect(router.active() == &left, "primary press activates left")) {
+        return false;
+    }
+
+    // A second pointer gets an independent capture and does not steal primary or active.
+    const auto down_right =
+        router.dispatch(root, pointer_for(InputEventType::PointerDown, 120, 120, 2));
+    if (!expect(down_right.target == &right, "pointer 2 presses right") ||
+        !expect(router.captured(2) == &right, "pointer 2 captures right") ||
+        !expect(router.captured(1) == &left, "pointer 2 keeps pointer 1 capture") ||
+        !expect(router.primary_pointer_id() == 1, "second pointer is not primary") ||
+        !expect(router.active() == &left, "second pointer does not steal active")) {
+        return false;
+    }
+
+    // Interleaved moves route to each capture target; only the primary pointer drives hover.
+    left.log.clear();
+    right.log.clear();
+    const auto move_one =
+        router.dispatch(root, pointer_for(InputEventType::PointerMove, 150, 150, 1));
+    const auto move_two =
+        router.dispatch(root, pointer_for(InputEventType::PointerMove, 20, 20, 2));
+    if (!expect(move_one.target == &left, "pointer 1 move stays captured") ||
+        !expect(move_two.target == &right, "pointer 2 move stays captured") ||
+        !expect(router.hovered() == &root, "primary move sets hover from hit test") ||
+        !expect(left.log.size() == 1 && right.log.size() == 1, "both captures receive moves")) {
+        return false;
+    }
+
+    // Releasing one pointer leaves the other capture and hands primary to the survivor.
+    const auto up_one = router.dispatch(root, pointer_for(InputEventType::PointerUp, 150, 150, 1));
+    if (!expect(up_one.target == &left, "pointer 1 up uses its capture") ||
+        !expect(router.captured(1) == nullptr, "pointer 1 up releases its capture") ||
+        !expect(router.captured(2) == &right, "pointer 2 capture survives") ||
+        !expect(router.active() == nullptr, "primary up clears active") ||
+        !expect(router.primary_pointer_id() == 2, "surviving pointer becomes primary")) {
+        return false;
+    }
+
+    // A capture target removed from the scene is pruned, never dereferenced.
+    auto removed = root.remove_child(right);
+    if (!expect(removed != nullptr, "right removed from scene")) {
+        return false;
+    }
+    const auto orphan_move =
+        router.dispatch(root, pointer_for(InputEventType::PointerMove, 150, 150, 2));
+    if (!expect(orphan_move.target == &root, "orphan capture falls back to hit target") ||
+        !expect(router.captured(2) == nullptr, "orphan capture pruned")) {
+        return false;
+    }
+    removed.reset(); // destroy the detached subtree; later events must not touch it
+    const auto orphan_up =
+        router.dispatch(root, pointer_for(InputEventType::PointerUp, 150, 150, 2));
+    if (!expect(orphan_up.target == &root, "orphan up uses hit target") ||
+        !expect(router.captured(2) == nullptr, "orphan up leaves no capture")) {
+        return false;
+    }
+
+    // Only the primary pointer drives hover: a stray pointer id does not set it.
+    router.reset();
+    const auto stray = router.dispatch(root, pointer_for(InputEventType::PointerMove, 20, 20, 5));
+    if (!expect(stray.target == &left, "non-primary move still dispatches") ||
+        !expect(router.hovered() == nullptr, "non-primary move does not hover")) {
+        return false;
+    }
+
+    // Explicit capture APIs route a pointer without a press; releasing one keeps the others.
+    router.reset();
+    if (!expect(router.set_pointer_capture(&left, 7), "explicit capture accepted") ||
+        !expect(router.set_pointer_capture(&root, 8), "second explicit capture accepted") ||
+        !expect(router.captured(7) == &left && router.captured(8) == &root,
+                "explicit captures resolve") ||
+        !expect(router.primary_pointer_id() == 0, "explicit capture does not set primary")) {
+        return false;
+    }
+    router.release_pointer_capture(7);
+    if (!expect(router.captured(7) == nullptr, "explicit release drops one capture") ||
+        !expect(router.captured(8) == &root, "explicit release keeps the other")) {
+        return false;
+    }
+
+    // The bounded map rejects extra pointers without leaking a capture for them.
+    router.reset();
+    for (std::uint32_t i = 0; i < InputRouter::kMaxPointerCaptures; ++i) {
+        if (!expect(router.set_pointer_capture(&root, 20 + i), "bounded capture accepts")) {
+            return false;
+        }
+    }
+    if (!expect(!router.set_pointer_capture(&root, 99), "bounded capture rejects overflow") ||
+        !expect(router.captured(99) == nullptr, "overflow pointer has no capture")) {
+        return false;
+    }
+    router.release_pointer_capture(20);
+    if (!expect(router.set_pointer_capture(&root, 99), "released slot is reusable") ||
+        !expect(router.captured(99) == &root, "reused slot resolves")) {
+        return false;
+    }
+
+    // PointerCancel ends only the cancelled pointer; a window blur clears every pointer.
+    router.reset();
+    router.dispatch(root, pointer_for(InputEventType::PointerDown, 20, 20, 3));
+    router.dispatch(root, pointer_for(InputEventType::PointerDown, 150, 150, 4));
+    router.dispatch(root, pointer_for(InputEventType::PointerCancel, 20, 20, 3));
+    if (!expect(router.captured(3) == nullptr, "cancel one releases that pointer") ||
+        !expect(router.captured(4) == &root, "cancel one keeps the other pointer") ||
+        !expect(router.primary_pointer_id() == 4, "cancel of primary hands off") ||
+        !expect(router.active() == nullptr, "cancel of primary clears active")) {
+        return false;
+    }
+    const auto blur = router.dispatch(root, lifecycle(InputEventType::Blur));
+    return expect(!blur.dispatched, "blur not dispatched") &&
+           expect(router.captured(4) == nullptr, "blur clears every capture") &&
+           expect(router.primary_pointer_id() == 0, "blur resets primary pointer") &&
+           expect(router.hovered() == nullptr && router.active() == nullptr,
+                  "blur clears hover and active");
+}
+
 } // namespace
 
 int main() {
@@ -324,6 +468,10 @@ int main() {
 
     if (!interaction_state(root, child_ref, router)) {
         return 10;
+    }
+
+    if (!per_pointer_capture()) {
+        return 11;
     }
 
     std::cout << "input_router: ok\n";

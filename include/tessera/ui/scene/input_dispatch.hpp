@@ -7,6 +7,10 @@
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+
 namespace tessera::ui {
 
 struct InputDispatchResult {
@@ -24,28 +28,67 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 
 // Routes normalized input to the scene graph and owns the scene's interaction state.
 //
-// Single-pointer interaction state:
-// - `hovered()` is the deepest hit target of the last `PointerMove` and carries
+// Pointer capture (bounded, allocation-free):
+// - Pointers are identified by `InputEvent::pointer_id`. `PointerDown` implicitly captures the hit
+//   target for that pointer; `set_pointer_capture`/`release_pointer_capture` expose the same state
+//   to custom elements and tests. The map holds at most `kMaxPointerCaptures` pointers; a press
+//   past that bound is still dispatched but is not captured.
+// - Captures store `{pointer_id, NodeId}` and are resolved under the last dispatched scene root on
+//   every use, so a captured subtree removed from (or destroyed with) the scene drops its capture
+//   instead of leaving a dangling pointer behind.
+// - `PointerMove`/`PointerUp`/`PointerCancel` route to that pointer's capture target, else to the
+//   hit target. Releasing one pointer never affects another. `PointerCancel` releases only that
+//   pointer; a window `Focus`/`Blur` input event clears every capture.
+//
+// Hover/active (primary pointer only):
+// - The primary pointer is the pointer that went down while no other pointer was captured; it is
+//   pointer 0 before the first press. When it goes up or is cancelled, the oldest remaining
+//   capture (insertion order) becomes primary, or pointer 0 when none remain. Only the primary
+//   pointer drives `Hover`/`Active`.
+// - `hovered()` is the deepest hit target of the primary pointer's last `PointerMove` and carries
 //   `PseudoState::Hover`. The previous hover target loses the bit on the next move, including a
 //   move that hits nothing (pointer left the scene). Hover is derived from hit testing even while
-//   a pointer is captured, but it is only updated by moves, not by down/up.
-// - `active()` is the `PointerDown` hit target and carries `PseudoState::Active` until
-//   `PointerUp`, `PointerCancel`, or a window `Focus`/`Blur` input event.
-// - A window `Focus`/`Blur` input event drops capture, hover, and active: the pointer can no
-//   longer be considered over the scene. Scene focus is owned by `FocusManager` and is not
-//   changed by those input events.
-// - Ancestor hover is not maintained; see docs/design/input.md section 7 for the rule and why.
+//   the pointer is captured.
+// - `active()` is the primary pointer's `PointerDown` hit target and carries `PseudoState::Active`
+//   until that pointer goes up or is cancelled (or `Focus`/`Blur`/`reset`).
+// - A window `Focus`/`Blur` input event drops all captures, hover, and active: the pointer can no
+//   longer be considered over the scene. Scene focus is owned by `FocusManager` and is not changed
+//   by those input events.
+// - Hover/active targets are also validated by `NodeId` before their bit is cleared, so a removed
+//   or destroyed target is never dereferenced. Only the deepest target is hovered; see
+//   docs/design/input.md section 7 for the ancestor-chain rule and why it is deferred.
 //
 // Pseudo-state changes go through `Node::set_pseudo_state`, which marks `Dirty::Style` so
-// `:hover`/`:active` rules re-resolve. `hovered()`, `active()`, and `captured()` are raw scene
-// pointers: reset or destroy the router before destroying a subtree that holds any of them.
+// `:hover`/`:active` rules re-resolve. `hovered()` and `active()` are raw scene pointers: reset or
+// destroy the router before destroying a subtree that currently carries one of those states.
 class InputRouter {
 public:
+    // Upper bound on simultaneously captured pointers. Implicit capture on a press beyond the
+    // bound is skipped; explicit `set_pointer_capture` reports it in its return value.
+    static constexpr std::size_t kMaxPointerCaptures = 8;
+
     InputDispatchResult dispatch(Node& root, const InputEvent& input);
     void reset();
 
+    // Captures `node` for `pointer_id`, replacing an existing entry. Returns false when `node` is
+    // null or when a new entry is needed and the bounded map is full. Explicit capture neither
+    // changes the primary pointer nor dispatches anything; the capture ends on that pointer's
+    // `PointerUp`/`PointerCancel`, `release_pointer_capture`, or a window `Focus`/`Blur` reset.
+    bool set_pointer_capture(Node* node, std::uint32_t pointer_id);
+    // Drops the entry for `pointer_id` without touching any other pointer. Does not change the
+    // primary pointer; primary hand-off happens only on `PointerUp`/`PointerCancel`.
+    void release_pointer_capture(std::uint32_t pointer_id);
+
+    // Capture target for `pointer_id`, resolved under the last dispatched scene root. Null when
+    // the pointer is not captured, its entry was released, or the captured node was removed from
+    // the scene.
+    [[nodiscard]] Node* captured(std::uint32_t pointer_id) const;
+    // Single-pointer view used before per-pointer capture: the primary pointer's capture target.
     [[nodiscard]] Node* captured() const {
-        return captured_;
+        return captured(primary_pointer_id_);
+    }
+    [[nodiscard]] std::uint32_t primary_pointer_id() const {
+        return primary_pointer_id_;
     }
     [[nodiscard]] Node* hovered() const {
         return hovered_;
@@ -62,12 +105,33 @@ public:
     }
 
 private:
-    void set_hover(Node* target);
-    void set_active(Node* target);
+    struct CaptureEntry {
+        std::uint32_t pointer_id = 0;
+        NodeId node_id = 0;
+        Node* node = nullptr;
+    };
 
-    Node* captured_ = nullptr;
+    void set_hover(Node* target);
+    void clear_hover();
+    void set_active(Node* target);
+    void clear_active();
+    // Resolves a stored entry under `root_`; returns null when the node left the scene. Never
+    // dereferences `entry.node` unless it is found under the root.
+    [[nodiscard]] Node* resolve(const CaptureEntry& entry) const;
+    // Resolves (and prunes a stale entry for) one pointer's capture target.
+    Node* take_capture_target(std::uint32_t pointer_id);
+    void remove_capture(std::uint32_t pointer_id);
+    void clear_captures();
+    void promote_primary_after(std::uint32_t pointer_id);
+
+    Node* root_ = nullptr;
     Node* hovered_ = nullptr;
+    NodeId hovered_id_ = 0;
     Node* active_ = nullptr;
+    NodeId active_id_ = 0;
+    std::uint32_t primary_pointer_id_ = 0;
+    std::array<CaptureEntry, kMaxPointerCaptures> captures_{};
+    std::size_t capture_count_ = 0;
     FocusManager focus_manager_;
 };
 
