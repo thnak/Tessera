@@ -456,6 +456,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--dependencies", default=str(DEFAULT_DEPENDENCIES))
     parser.add_argument("--json", action="store_true", dest="as_json")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify pins (the default behaviour; the flag exists for CI symmetry)",
+    )
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()

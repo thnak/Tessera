@@ -40,7 +40,7 @@ class PinGateTests(unittest.TestCase):
         )
 
     def test_clean_tree_passes(self) -> None:
-        result = self.run_case("clean")
+        result = self.run_case("clean", "--check")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("alpha kind=url-sha256", result.stdout)
         self.assertIn("delta kind=git-commit", result.stdout)
