@@ -38,6 +38,19 @@ add_executable(text_render_tests
 target_link_libraries(text_render_tests PRIVATE tessera_text_render tessera_rhi_null)
 add_test(NAME text_render COMMAND text_render_tests "${TESSERA_FONT_FIXTURE}")
 
+# Path raster cache -> batched2d textured draw. The null-device section runs everywhere; the
+# Vulkan readback cases are compiled in only when the Vulkan backend is part of the build.
+add_executable(path_texture_draw_tests
+    batched2d/path_texture_draw_tests.cpp)
+target_link_libraries(path_texture_draw_tests PRIVATE
+    tessera_gpu tessera_path tessera_rhi_null)
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(path_texture_draw_tests PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(path_texture_draw_tests PRIVATE TESSERA_TEST_HAS_VULKAN)
+endif()
+add_test(NAME path_texture_draw COMMAND path_texture_draw_tests)
+set_tests_properties(path_texture_draw PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
 if (TARGET batched2d_poc)
     add_test(
         NAME batched2d_vulkan_smoke
@@ -167,6 +180,27 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME vulkan_device_loss COMMAND vulkan_device_loss_tests)
     # Any "[vulkan] ..." line is a validation warning/error and fails the test.
     set_tests_properties(vulkan_device_loss PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    add_executable(vulkan_device_recovery_loop_tests
+        vulkan/vulkan_device_recovery_loop_tests.cpp)
+    target_link_libraries(vulkan_device_recovery_loop_tests PRIVATE
+        tessera_gpu tessera_rhi_vulkan tessera_runtime)
+    target_include_directories(vulkan_device_recovery_loop_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/src
+        ${PROJECT_SOURCE_DIR}/third_party/volk
+        ${PROJECT_SOURCE_DIR}/third_party/vma)
+    target_compile_definitions(vulkan_device_recovery_loop_tests PRIVATE VK_NO_PROTOTYPES)
+    if (WIN32)
+        target_compile_definitions(vulkan_device_recovery_loop_tests PRIVATE
+            VK_USE_PLATFORM_WIN32_KHR)
+    elseif (TESSERA_X11_FOUND)
+        target_compile_definitions(vulkan_device_recovery_loop_tests PRIVATE
+            VK_USE_PLATFORM_XLIB_KHR)
+        target_link_libraries(vulkan_device_recovery_loop_tests PRIVATE X11::X11)
+    endif()
+    add_test(NAME vulkan_device_recovery_loop COMMAND vulkan_device_recovery_loop_tests)
+    set_tests_properties(vulkan_device_recovery_loop PROPERTIES
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(vulkan_texture_churn_tests
         vulkan/vulkan_texture_churn_tests.cpp)

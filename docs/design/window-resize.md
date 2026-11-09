@@ -313,17 +313,44 @@ Observed state (the only values UI/runtime code sees):
   backend seam on the loss path and no wait becomes unbounded (ADR-021).
 - A lost frame is dropped, not retried inside the OS callback or the present call.
 
-Frame-boundary orchestration:
+Runtime orchestration (implemented): `runtime::DeviceRecoveryController`
+([`device_recovery.hpp`](../../include/tessera/runtime/device_recovery.hpp)) is polled once per
+`RuntimeLoop::tick()` when attached via `RuntimeLoopConfig::device_recovery` /
+`RuntimeLoop::set_device_recovery`. States are explicit and drive the loop:
+
+| State | Meaning | Loop behaviour |
+|---|---|---|
+| `Ready` | device healthy | normal render/pacing |
+| `WaitingForCaller` | lost, and `recover()` refused with `ResourcesOutstanding` | frames stopped; one cheap probe per tick; caller destroys lost-generation RHI objects |
+| `Recovering` | the tick's single bounded `recover()` call is in flight | never observed across ticks |
+| `Failed` | the one-shot recovery failed (or `NotSupported`) | frames stopped; no further attempts until the device is observed `Ready` and then `Lost` again |
+
+Loop contract:
+
+- While the controller requires recovery, `RuntimeTick::device_blocked` is set,
+  `should_render` is false (no present), and `RuntimeTick::idle` is true so the caller idles on the
+  existing bounded pacer/platform wait (`runtime::wait_for_next_frame`) instead of spinning ticks.
+  The loop never blocks inside `tick()`; the controller makes at most one recovery attempt per
+  tick and reports outcomes as values.
+- On the tick a recovery succeeds, `RuntimeTick::device_recovered` is set, `device_generation`
+  bumps, and `full_frame` is true. The caller recreates the swapchain and every RHI object before
+  the next render; the next tick is the one-shot full-frame repaint (`full_frame` true once more,
+  damage/redraw state is invalid), then normal on-demand pacing resumes.
+- A failed recovery sets `device_failed` and the controller stays `Failed`; another attempt only
+  happens after the device is observed `Ready` again and lost anew (the backend's one-shot policy).
+- Callers that do not attach a controller keep the previous behaviour; device loss is then their
+  responsibility.
+
+Frame-boundary steps for the caller:
 
 1. Stop submitting and presenting; never call a GPU wait from a message callback. Every existing
    wait stays bounded.
 2. Destroy the swapchain and every RHI object from the lost generation. Destructors are
    generation-guarded, but `recover()` refuses (`ResourcesOutstanding`) until they are gone.
-3. Call `Device::recover()` once on a later tick/frame boundary. It returns a value: success means
-   the device is `Ready` again and resources plus the swapchain must be recreated; failure means
-   stay `Lost` (do not spin - the one-shot policy needs a new loss for another attempt).
-4. Recreate resources -> swapchain -> pipelines/targets -> resume the loop, and mark the scene/root
-   dirty so the first recovered frame is a full repaint.
+3. Let the controller's tick drive `Device::recover()` (one bounded call per tick); do not call it
+   in a loop or from the OS callback.
+4. On `device_recovered`, recreate resources -> swapchain -> pipelines/targets from
+   `device_generation`, then render the flagged full frame and resume the loop.
 
 Per-platform UX policy (error surface while `Lost`, retry cadence, telemetry, whether to block the
 shell) stays an application/runtime policy decision. Out of scope for D7: multi-device and

@@ -11,6 +11,15 @@ RuntimeLoop::RuntimeLoop(Clock& clock, RuntimeLoopConfig config)
       fixed_step_(config.fixed_step) {}
 
 RuntimeTick RuntimeLoop::tick() {
+    // D7: poll the device-loss controller once per tick. It makes at most one bounded recovery
+    // attempt and reports outcomes as values; the loop itself never blocks here.
+    DeviceRecoveryUpdate recovery;
+    const bool has_recovery = config_.device_recovery != nullptr;
+    if (has_recovery) {
+        recovery = config_.device_recovery->tick();
+    }
+    const bool blocked = has_recovery && config_.device_recovery->recovery_required();
+
     const double now = clock_->now_seconds();
     const double delta = started_ ? now - last_time_ : 0.0;
     started_ = true;
@@ -22,17 +31,50 @@ RuntimeTick RuntimeLoop::tick() {
     }
 
     const FixedStepResult step = fixed_step_.advance(delta);
-    const bool render = should_render();
+
+    if (recovery.full_frame_required) {
+        // The device generation changed: damage/redraw state is invalid, so the next painted frame
+        // must be full. This is a one-shot request (it does not latch scene dirty state).
+        frame_requested_ = true;
+        full_frame_pending_ = true;
+    }
+
+    bool render = should_render();
+    if (recovery.recovered) {
+        // Give the caller the recovery tick to recreate the swapchain and RHI resources from the
+        // new generation; the next tick paints the full frame.
+        render = false;
+    }
+    if (blocked) {
+        // No presents while lost/recovering. Drop the queued request so callers idle on the
+        // bounded platform/pacer wait instead of spinning ticks.
+        render = false;
+        frame_requested_ = false;
+    }
+    const bool full_frame = full_frame_pending_;
     if (render) {
         frame_requested_ = false;
+        full_frame_pending_ = false;
     }
 
     const bool pending = config_.completion_queue != nullptr && !config_.completion_queue->empty();
-    if (pending) {
+    if (pending && !blocked) {
         frame_requested_ = true;
     }
 
-    return RuntimeTick{step.steps, step.alpha, render, step.dropped_backlog, completions, pending};
+    return RuntimeTick{step.steps,
+                       step.alpha,
+                       render,
+                       step.dropped_backlog,
+                       completions,
+                       pending,
+                       blocked,
+                       recovery.state,
+                       recovery.recovered,
+                       recovery.failed,
+                       recovery.generation,
+                       !render && !recovery.recovered,
+                       full_frame};
 }
 
 void RuntimeLoop::request_frame() {
@@ -54,6 +96,7 @@ void RuntimeLoop::reset() {
     continuous_ = false;
     render_dirty_ = false;
     frame_requested_ = false;
+    full_frame_pending_ = false;
 }
 
 void RuntimeLoop::set_render_on_demand(bool enabled) {
@@ -70,6 +113,10 @@ void RuntimeLoop::set_completion_queue(CompletionQueue* queue) {
 
 void RuntimeLoop::set_completion_budget(std::size_t budget) {
     config_.completion_budget = budget;
+}
+
+void RuntimeLoop::set_device_recovery(DeviceRecoveryController* controller) {
+    config_.device_recovery = controller;
 }
 
 bool RuntimeLoop::should_render() const {

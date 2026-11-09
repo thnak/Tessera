@@ -176,16 +176,30 @@ Loss is recoverable backend state, not an exception or a silent success:
   generation are generation-guarded: a late destructor abandons its handles instead of calling the
   dead device (safe, no double destroy); a real loss's VMA allocator state is abandoned with the
   device rather than touched.
+- **Runtime integration.** `runtime::DeviceRecoveryController`
+  ([`device_recovery.hpp`](../../../include/tessera/runtime/device_recovery.hpp)) is attached to
+  `RuntimeLoop` (`RuntimeLoopConfig::device_recovery` / `set_device_recovery`) and polled once per
+  tick. It runs the explicit `Ready`/`WaitingForCaller`/`Recovering`/`Failed` state machine, makes
+  at most one bounded `recover()` call per tick, stops presents/renders while blocked (`idle` set so
+  the caller uses the bounded pacer/event wait instead of spinning), and bumps
+  `RuntimeTick::device_generation` on success; the following tick is a flagged one-shot full-frame
+  repaint. The frame/lifecycle contract is in
+  [`window-resize.md` §7](../window-resize.md#7-device-loss-d7).
+- **Programmer-error guard.** Calling `create_buffer`/`create_texture`/`create_pipeline`/
+  `create_render_target`/`create_command_list` on a `Lost` device throws `std::runtime_error`
+  (existing backend error style) instead of returning a value. That guard is not part of the
+  recoverable-loss path: loss detection, swapchain acquire/present, command waits, and
+  `recover()` itself never throw.
 - **Test seam.** `TESSERA_VULKAN_TEST_HOOKS` (CMake option, defaults to `TESSERA_BUILD_TESTS`)
   exposes internal fault injection on the Vulkan device: report loss from the next submit/fence
   wait/acquire/present, simulate a loss while keeping the real device alive, or fail the next
-  recovery. Tests in `tests/gpu/vulkan/vulkan_device_loss_tests.cpp` and the Win32 swapchain test
-  exercise detection, invalidation, one-shot recovery, rendering after recreation, and the failure
-  path without a GPU reset; validation layers stay enabled on that path.
+  recovery. Tests in `tests/gpu/vulkan/vulkan_device_loss_tests.cpp`,
+  `vulkan_device_recovery_loop_tests.cpp`, and the Win32 swapchain test exercise detection,
+  invalidation, one-shot recovery, rendering after recreation, and the failure path without a GPU
+  reset; validation layers stay enabled on that path.
 - **Remaining.** Real GPU-reset behaviour across drivers/vendors, per-platform UX policy (error
   surface, retry cadence, telemetry), multi-device/multi-swapchain orchestration, surface
-  recreation policy, loss detection from allocation failures, and wiring recovery into the
-  `RuntimeLoop` as a time-budgeted task on a later tick.
+  recreation policy, and loss detection from allocation failures.
 - Out-of-memory: evict caches/targets, retry once, then report.
 - Backend unavailable: fall back to software/null only where semantics allow (goldens/tests);
   production does not silently render with a different backend.

@@ -302,6 +302,13 @@ target_link_libraries(runtime_loop_async_tests PRIVATE tessera_runtime)
 
 add_test(NAME runtime_loop_async COMMAND runtime_loop_async_tests)
 
+add_executable(runtime_device_recovery_tests
+    runtime_device_recovery_tests.cpp)
+
+target_link_libraries(runtime_device_recovery_tests PRIVATE tessera_runtime)
+
+add_test(NAME runtime_device_recovery COMMAND runtime_device_recovery_tests)
+
 add_executable(diagnostics_tests
     diagnostics_tests.cpp)
 
@@ -1037,3 +1044,10 @@ add_executable(io_executor_tests
 target_link_libraries(io_executor_tests PRIVATE tessera_runtime)
 
 add_test(NAME io_executor COMMAND io_executor_tests)
+
+add_executable(path_texture_cache_tests
+    path_texture_cache_tests.cpp)
+
+target_link_libraries(path_texture_cache_tests PRIVATE tessera_path)
+
+add_test(NAME path_texture_cache COMMAND path_texture_cache_tests)
