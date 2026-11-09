@@ -3,6 +3,7 @@
 #pragma once
 
 #include "codegen_internal.hpp"
+#include "emit_controlled.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -23,6 +24,9 @@ enum class TextValueType { Bool, Int, Float, String };
                                         unsigned& ordinal, std::vector<DynamicText>& entries,
                                         std::string& error);
 
+// True when `expr` has a printable text form (interpolation or scalar formatting).
+[[nodiscard]] bool printable_text_expression(const ir::Expr& expr, const ir::Component& component);
+
 // A static text payload: a string literal or an all-text template folded by codegen.
 [[nodiscard]] std::optional<std::string> static_text_value(const ir::Expr* expr);
 
@@ -42,6 +46,7 @@ void emit_format_helpers(CppWriter& writer);
 [[nodiscard]] bool emit_apply_state(CppWriter& writer, const ir::Component& component,
                                     const std::vector<DynamicText>& text_entries,
                                     const std::vector<DynamicMetadata>& metadata_entries,
+                                    const std::vector<ControlledInput>& controlled_inputs,
                                     std::string& error);
 
 } // namespace tessera::compiler::codegen::internal

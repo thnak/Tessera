@@ -241,7 +241,15 @@ string and one `PaintData` copy. Templates with substitutions can appear directl
 conditional (`{count === 0 ? "Counter" : `Count: ${count}`}`), which emits branching hash/append
 statements rather than a temporary string. Formatting: `true`/`false`, decimal integers, shortest
 round-trip doubles via `std::to_chars`, strings verbatim; text is a paint payload, never a layout
-input. Dynamic element metadata (`id`, `className`, `role`, `aria-*`) is interpolated the same way:
+input. Controlled `TextInput`/`TextArea` fields are generated too: the component owns an
+`EditController`, a `TextInputRuntime` and a `TextChangeBinding` per field; `build()` attaches the
+runtime, binds the six source input events plus the typed `TextChange` binding, and the seeded
+`value`/`defaultValue` is painted (literal inline, interpolation through `apply_state`). An inline
+`onChange={setName}` setter becomes `state_name_ = std::string(e.value); apply_state();`; a
+controlled `onChange` that does not bind a `TextChangeEvent` payload is rejected loudly. Whenever
+the controlled value changes, `apply_state()` updates `PaintData` and syncs the editor buffer only
+when its text differs (external state edits; a typing commit already matches the buffer). Dynamic
+element metadata (`id`, `className`, `role`, `aria-*`) is interpolated the same way:
 the generated component owns the current string (node metadata stays a borrowed view), hash-compares
 it, and only on change moves the old buffer out, assigns the new value, calls the node setter
 (`set_element_id`/`set_class_name`/`set_role`/`set_aria`) and, for `id`/`className`, explicitly marks
@@ -250,10 +258,9 @@ it, and only on change moves the old buffer out, assigns the new value, calls th
 intrinsic props and inline style remain gaps.
 
 **Remaining missing runtime API / gaps:** inline style attachment/computed-style feed; a per-value
-animation controller for `useAnimatedValue` hand-off; controlled `TextInput` `value`/`onChange`
-wiring (the generated binding receives the generic `Event`; the `value` prop is not fed back);
-dynamic `automationId` (lowering requires a string literal today) and dynamic non-metadata intrinsic
-props; sample `automationId` emission (numeric `automationId` is emitted when the IR has it).
+animation controller for `useAnimatedValue` hand-off; dynamic `automationId` (lowering requires a
+string literal today) and dynamic non-metadata intrinsic props; sample `automationId` emission
+(numeric `automationId` is emitted when the IR has it).
 
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →

@@ -100,6 +100,11 @@ The output directory is build output: keep it out of version control. Commit onl
 sources and the developer files that the team owns (the sample's seed lives at
 `tests/golden/codegen/demo/Demo.cpp` and the build regenerates over it).
 
+A controlled `TextInput`/`TextArea` owns its generated `EditController`/`TextInputRuntime`; bind
+input events through the scene (do not call a controller directly) so committed edits emit
+`TextChange` and the generated `onChange` setter updates state and repaints. A `value` prop must
+produce a printable text value; an `onChange` binding must take a `TextChangeEvent` payload.
+
 Generated components expose three lifecycle entry points: `build(parent)` attaches the tree,
 `apply_state()` recomputes interpolated text (paint-only dirty marks), and `update()` calls
 `update_effects()` then `apply_state()`. Generated setters and event-binding developer regions only

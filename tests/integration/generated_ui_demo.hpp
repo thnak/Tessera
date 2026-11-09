@@ -455,13 +455,13 @@ inline bool rect_inside(const Rect& inner, const Rect& outer) {
            inner.y + inner.height <= outer.y + outer.height + 0.5f;
 }
 
-// Publishes the controller edit state into the input node: the full text (the controlled-value
-// write the compiler does not emit yet) and the caret/selection decoration (the edit controller is
-// the owner of selection; the paint pass owns glyph geometry).
+// Decoration-only demo helper: the painted text now comes from generated code (controlled value ->
+// apply_state -> PaintData), so this copies the node's current PaintData and only sets the
+// caret/selection decoration from the generated editor buffer. The controller owns selection
+// state; the paint pass owns glyph geometry.
 inline void publish_editor_state(Node& input, const tessera::ui::text::EditBuffer& buffer) {
-    tessera::ui::PaintData data;
+    tessera::ui::PaintData data = input.paint_data().value_or(tessera::ui::PaintData{});
     data.kind = tessera::ui::PaintKind::Text;
-    data.text = std::string(buffer.text());
     tessera::ui::TextDecoration decoration;
     decoration.caret_byte_offset = buffer.caret();
     decoration.selection_begin = buffer.selection_start();
@@ -471,11 +471,10 @@ inline void publish_editor_state(Node& input, const tessera::ui::text::EditBuffe
     input.set_paint_data(std::move(data));
 }
 
-inline void publish_caret_only(Node& input, const tessera::ui::text::EditBuffer& buffer,
+inline void publish_caret_only(Node& input, const tessera::ui::text::EditBuffer&,
                                std::size_t caret_byte_offset) {
-    tessera::ui::PaintData data;
+    tessera::ui::PaintData data = input.paint_data().value_or(tessera::ui::PaintData{});
     data.kind = tessera::ui::PaintKind::Text;
-    data.text = std::string(buffer.text());
     tessera::ui::TextDecoration decoration;
     decoration.caret_byte_offset = caret_byte_offset;
     decoration.caret_visible = true;

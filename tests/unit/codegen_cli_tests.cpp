@@ -128,9 +128,13 @@ int main(int argc, char** argv) {
     check(fs::exists(out / "Demo.hpp"), "the first run writes the header");
     check(first_cpp == committed_seed,
           "regeneration reproduces the committed developer file byte-for-byte");
-    check(region_body(first_cpp, "bind::on_name").find("state_name_ = std::string(") !=
+    check(region_body(first_cpp, "bind::sync").find("state_count_ < 0") != std::string::npos,
+          "the sync developer body is preserved");
+    check(region_body(first_cpp, "bind::sync_cleanup").find("Hand-written C++") !=
               std::string::npos,
-          "the on_name developer body is preserved");
+          "the cleanup developer body is preserved");
+    check(region_body(first_cpp, "bind::on_name").empty(),
+          "a removed binding drops its developer region");
     check(region_body(first_cpp, "bind::sync").find("state_count_ < 0") != std::string::npos,
           "the sync developer body is preserved");
 

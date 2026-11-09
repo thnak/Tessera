@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
+#include "tessera/ui/text/text_input_runtime.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <cstdint>
@@ -20,6 +21,8 @@ namespace demo {
     struct Sample {
       // useState `count`.
       int state_count_ = 0;
+      // useState `name`.
+      std::string state_name_ = "";
       // useRef `box` (assigned in build() to its target node).
       tessera::ui::Node* ref_box_ = nullptr;
       // useAnimatedValue `opacity` (a plain field until the animation controller API exists).
@@ -29,6 +32,11 @@ namespace demo {
       std::string text_node_3_value_;
       std::uint64_t text_node_3_hash_ = 0;
       bool text_node_3_set_ = false;
+      // Interpolated text for the node with pre-order index 5 (PaintData only; never a layout input).
+      tessera::ui::Node* text_node_5_ = nullptr;
+      std::string text_node_5_value_;
+      std::uint64_t text_node_5_hash_ = 0;
+      bool text_node_5_set_ = false;
       // Interpolated `id` metadata; the component owns the string, the node borrows it.
       tessera::ui::Node* meta_1_id_node_ = nullptr;
       std::string meta_1_id_value_;
@@ -49,6 +57,17 @@ namespace demo {
       std::string meta_1_aria_aria_label_value_;
       std::uint64_t meta_1_aria_aria_label_hash_ = 0;
       bool meta_1_aria_aria_label_set_ = false;
+      // Controlled text field: value -> PaintData, committed edits -> onChange.
+      tessera::ui::text::EditController input_5_editor_;
+      tessera::ui::text::TextInputRuntime input_5_runtime_{input_5_editor_};
+      tessera::ui::TextChangeBinding input_5_change_binding_;
+      
+      // The generated editor of the Nth controlled field (decoration/tests).
+      [[nodiscard]] std::size_t text_input_count() const {
+        return 1u;
+      }
+      [[nodiscard]] tessera::ui::text::EditController& text_input_editor(std::size_t index);
+      [[nodiscard]] std::size_t text_input_change_events(std::size_t index) const;
       // useEffect `effect::sync` state (deps hash, run counter, active flag).
       tessera::ui::EffectState effect_sync_state_;
       // prop `title`.
@@ -66,6 +85,7 @@ namespace demo {
       // Host entry after event dispatch: update_effects() then apply_state().
       void update();
       void handler_1(const tessera::ui::ClickEvent& event);
+      void handler_2(const tessera::ui::TextChangeEvent& e);
       void on_click(const tessera::ui::ClickEvent& event);
       void sync();
       void sync_cleanup();

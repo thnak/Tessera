@@ -3,6 +3,7 @@
 // Per-component header emission (struct fields and method declarations).
 
 #include "codegen_internal.hpp"
+#include "emit_controlled.hpp"
 #include "emit_events.hpp"
 #include "interpolation.hpp"
 
@@ -25,6 +26,7 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
                            const std::vector<const ir::Binding*>& bindings,
                            const std::vector<DynamicText>& dynamic_text,
                            const std::vector<DynamicMetadata>& dynamic_metadata,
+                           const std::vector<ControlledInput>& controlled_inputs,
                            GeneratedFile& file, std::string& error) {
     CppWriter writer;
     writer.line("// SPDX-License-Identifier: MIT");
@@ -34,6 +36,9 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
     writer.line("");
     writer.line("#include \"tessera/ui/scene/component_lifecycle.hpp\"");
     writer.line("#include \"tessera/ui/scene/event_payloads.hpp\"");
+    if (!controlled_inputs.empty()) {
+        writer.line("#include \"tessera/ui/text/text_input_runtime.hpp\"");
+    }
     writer.line("#include \"tessera/ui/scene/node.hpp\"");
     writer.line("");
     writer.line("#include <cstdint>");
@@ -97,6 +102,7 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
         writer.line("std::uint64_t " + base + "_hash_ = 0;");
         writer.line("bool " + base + "_set_ = false;");
     }
+    emit_controlled_fields(writer, controlled_inputs);
     for (const ir::Effect& effect : component.effects) {
         writer.line("// useEffect `" + effect.id +
                     "` state (deps hash, run counter, active flag).");

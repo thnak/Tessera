@@ -8,10 +8,6 @@ export function Demo(): Node {
   const box = useRef<View>(null);
   const fade = useAnimatedValue(1.0);
 
-  // Note: bind::on_name
-  const onName = (): void => {
-    setName("edited");
-  };
 
   // Note: bind::sync
   useEffect(() => {
@@ -26,7 +22,7 @@ export function Demo(): Node {
       <Text>Count: {count}</Text>
       <Text>Name: {name}</Text>
       <Button onClick={() => setCount(count + 1)}>Add</Button>
-      <TextInput value={name} onChange={onName} />
+      <TextInput value={name} onChange={(e) => setName(e.value)} />
     </View>
   );
 }

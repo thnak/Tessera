@@ -3,6 +3,7 @@
 // Text interpolation and the generated apply_state()/update() path
 // (docs/design/compiler.md section 11).
 
+#include "emit_controlled.hpp"
 #include "emit_events.hpp"
 #include "interpolation.hpp"
 
@@ -237,6 +238,10 @@ bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component
 
 } // namespace
 
+bool printable_text_expression(const ir::Expr& expr, const ir::Component& component) {
+    return infer_type(expr, component).has_value();
+}
+
 std::optional<std::string> static_text_value(const ir::Expr* expr) {
     if (expr == nullptr) {
         return std::nullopt;
@@ -327,11 +332,22 @@ bool collect_dynamic_metadata(const ir::Node& node, const ir::Component& compone
 bool collect_dynamic_text(const ir::Node& node, const ir::Component& component, unsigned& ordinal,
                           std::vector<DynamicText>& entries, std::string& error) {
     ++ordinal;
-    if (node.text && !static_text_value(node.text.get())) {
-        if (!infer_type(*node.text, component)) {
+    const ir::Expr* text_expr = node.text.get();
+    if (text_expr == nullptr &&
+        (node.kind == ir::NodeKind::TextInput || node.kind == ir::NodeKind::TextArea)) {
+        const auto value = node.props.find("value");
+        const auto default_value = node.props.find("defaultValue");
+        if (value != node.props.end()) {
+            text_expr = value->second.get();
+        } else if (default_value != node.props.end()) {
+            text_expr = default_value->second.get();
+        }
+    }
+    if (text_expr != nullptr && !static_text_value(text_expr)) {
+        if (!infer_type(*text_expr, component)) {
             return fail(error, "text of `" + node.id + "` has no printable C++ type");
         }
-        entries.push_back(DynamicText{ordinal, node.text.get()});
+        entries.push_back(DynamicText{ordinal, text_expr});
     }
     for (const ir::Node& child : node.children) {
         if (!collect_dynamic_text(child, component, ordinal, entries, error)) {
@@ -386,7 +402,8 @@ void emit_format_helpers(CppWriter& writer) {
 
 bool emit_apply_state(CppWriter& writer, const ir::Component& component,
                       const std::vector<DynamicText>& text_entries,
-                      const std::vector<DynamicMetadata>& metadata_entries, std::string& error) {
+                      const std::vector<DynamicMetadata>& metadata_entries,
+                      const std::vector<ControlledInput>& controlled_inputs, std::string& error) {
     writer.open("void " + component.name + "::apply_state()");
     for (const DynamicText& entry : text_entries) {
         const std::string suffix = std::to_string(entry.ordinal);
@@ -457,6 +474,7 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         --writer.indent;
         writer.line("}");
     }
+    emit_controlled_apply(writer, controlled_inputs);
     writer.close("");
     writer.line("");
     return true;

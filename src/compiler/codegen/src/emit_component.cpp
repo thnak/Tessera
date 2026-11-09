@@ -10,6 +10,7 @@
 // two-space indent; LF only. Nothing depends on clang-format or the wall clock.
 
 #include "codegen_internal.hpp"
+#include "emit_controlled.hpp"
 #include "emit_events.hpp"
 #include "interpolation.hpp"
 
@@ -101,7 +102,8 @@ std::optional<std::uint64_t> parse_automation_id(std::string_view text) {
 bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& component,
                const std::vector<EventAdapter>& adapters,
                const std::vector<DynamicText>& dynamic_text,
-               const std::vector<DynamicMetadata>& dynamic_metadata, unsigned& next_id,
+               const std::vector<DynamicMetadata>& dynamic_metadata,
+               const std::vector<ControlledInput>& controlled_inputs, unsigned& next_id,
                unsigned& next_var, std::string& variable, std::string& error) {
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
@@ -229,8 +231,19 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
             return fail(error, name + ": a dynamic aria value has no printable type");
         }
     }
+    const ControlledInput* controlled_input = nullptr;
+    for (const ControlledInput& input : controlled_inputs) {
+        if (input.ordinal == node_ordinal) {
+            controlled_input = &input;
+            break;
+        }
+    }
     for (const auto& [jsx_name, target] : node.events) {
         (void)target;
+        if (controlled_input != nullptr && jsx_name == "onChange") {
+            // Wired through TextChangeBinding below, not the generic scene-event adapter.
+            continue;
+        }
         const EventAdapter* adapter = nullptr;
         for (const EventAdapter& candidate : adapters) {
             if (candidate.ordinal == node_ordinal && candidate.jsx_name == jsx_name) {
@@ -243,6 +256,9 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
         }
         writer.line(variable + "->bind_event(" + adapter->event_type + ", &" + adapter->function +
                     ", this);");
+    }
+    if (controlled_input != nullptr) {
+        emit_controlled_wiring(writer, variable, *controlled_input);
     }
     for (const ir::Ref& ref : component.refs) {
         if (ref.target == node.id) {
@@ -267,21 +283,29 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
         writer.line(variable + "->set_scrollable_y(" +
                     (axis == "y" || axis == "both" ? "true" : "false") + ");");
     }
-    if (const std::optional<std::string> paint_text = static_text_value(node.text.get())) {
+    const ir::Expr* paint_expr = node.text.get();
+    if (paint_expr == nullptr && controlled_input != nullptr) {
+        paint_expr = controlled_input->value;
+    }
+    if (const std::optional<std::string> paint_text = static_text_value(paint_expr)) {
         // D9 paint payload: text is visual only (layout/wrap stay paint-side).
         const std::string paint = "paint_" + variable;
         writer.line("tessera::ui::PaintData " + paint + ";");
         writer.line(paint + ".text = " + literal_text(ir::LiteralValue{std::string(*paint_text)}) +
                     ";");
         writer.line(variable + "->set_paint_data(std::move(" + paint + "));");
+        if (controlled_input != nullptr) {
+            writer.line("this->" + controlled_input->editor_member + ".set_text(" +
+                        literal_text(ir::LiteralValue{std::string(*paint_text)}) + ");");
+        }
     } else if (dynamic) {
         const std::string suffix = std::to_string(node_ordinal);
         writer.line("this->text_node_" + suffix + "_ = " + variable + ".get();");
     }
     for (const ir::Node& child : node.children) {
         std::string child_variable;
-        if (!emit_node(writer, child, component, adapters, dynamic_text, dynamic_metadata, next_id,
-                       next_var, child_variable, error)) {
+        if (!emit_node(writer, child, component, adapters, dynamic_text, dynamic_metadata,
+                       controlled_inputs, next_id, next_var, child_variable, error)) {
             return false;
         }
         writer.line(variable + "->add_child(std::move(" + child_variable + "));");
@@ -315,7 +339,8 @@ bool emit_stub_body(CppWriter& writer, const ir::Binding& binding,
 bool emit_source(const ir::Component& component, std::string_view ns,
                  const std::vector<const ir::Binding*>& bindings,
                  const std::vector<DynamicText>& dynamic_text,
-                 const std::vector<DynamicMetadata>& dynamic_metadata, GeneratedFile& file,
+                 const std::vector<DynamicMetadata>& dynamic_metadata,
+                 const std::vector<ControlledInput>& controlled_inputs, GeneratedFile& file,
                  std::string& error) {
     CppWriter writer;
     writer.line("// SPDX-License-Identifier: MIT");
@@ -344,16 +369,18 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     }
     unsigned ordinal = 0;
     std::vector<EventAdapter> adapters;
-    if (!collect_event_adapters(component.root, component, bindings, ordinal, adapters, error)) {
+    if (!collect_event_adapters(component.root, component, bindings, controlled_inputs, ordinal,
+                                adapters, error)) {
         return false;
     }
     emit_event_adapters(writer, component.name, adapters);
+    emit_controlled_adapters(writer, component.name, controlled_inputs);
     writer.open("void " + component.name + "::build(tessera::ui::Node& parent)");
     unsigned next_id = 1;
     unsigned next_var = 1;
     std::string root_variable;
     if (!emit_node(writer, component.root, component, adapters, dynamic_text, dynamic_metadata,
-                   next_id, next_var, root_variable, error)) {
+                   controlled_inputs, next_id, next_var, root_variable, error)) {
         return false;
     }
     writer.line("parent.add_child(std::move(" + root_variable + "));");
@@ -363,7 +390,8 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.close("");
     writer.line("");
     if (!dynamic_text.empty() || !dynamic_metadata.empty()) {
-        if (!emit_apply_state(writer, component, dynamic_text, dynamic_metadata, error)) {
+        if (!emit_apply_state(writer, component, dynamic_text, dynamic_metadata, controlled_inputs,
+                              error)) {
             return false;
         }
     } else {
@@ -374,6 +402,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     if (!emit_lifecycle(component, bindings, writer, error)) {
         return false;
     }
+    emit_controlled_accessors(writer, component, controlled_inputs);
     for (const ir::Handler& handler : component.handlers) {
         bool typed = false;
         std::string param_name;
@@ -387,7 +416,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
         writer.line("(void)" + param_name + ";");
         std::string action_error;
         const std::optional<std::string> body =
-            emit_actions(handler.actions, component, action_error);
+            emit_actions(handler.actions, component, handler.params, action_error);
         if (!body) {
             return fail(error, action_error);
         }
@@ -472,14 +501,20 @@ bool emit_component(const ir::Component& component, std::string_view module_name
     if (!collect_dynamic_metadata(component.root, component, ordinal, dynamic_metadata, error)) {
         return false;
     }
+    ordinal = 0;
+    std::vector<ControlledInput> controlled_inputs;
+    if (!collect_controlled_inputs(component.root, component, owned, ordinal, controlled_inputs,
+                                   error)) {
+        return false;
+    }
     GeneratedFile header;
     if (!emit_component_header(component, module_namespace, owned, dynamic_text, dynamic_metadata,
-                               header, error)) {
+                               controlled_inputs, header, error)) {
         return false;
     }
     GeneratedFile source;
-    if (!emit_source(component, module_namespace, owned, dynamic_text, dynamic_metadata, source,
-                     error)) {
+    if (!emit_source(component, module_namespace, owned, dynamic_text, dynamic_metadata,
+                     controlled_inputs, source, error)) {
         return false;
     }
     files.push_back(std::move(header));

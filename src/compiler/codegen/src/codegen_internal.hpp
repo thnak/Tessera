@@ -10,6 +10,7 @@
 #include "tessera/compiler/ir/node.hpp"
 
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -48,6 +49,7 @@ struct ExprEmission {
 // Emits the body of an inline handler or preview: one line per action.
 [[nodiscard]] std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                                                       const ir::Component& component,
+                                                      std::span<const ir::Param> params,
                                                       std::string& error);
 
 // One interpolated text node: ordinal matches the generated node_N variables.
@@ -60,6 +62,8 @@ struct DynamicText {
 // The generated component owns the current string (node metadata stays a borrowed view) and only
 // re-applies it when the hash changes; id/className mark Dirty::Style through the node setters.
 enum class MetadataField { ElementId, ClassName, Role, Aria };
+
+struct ControlledInput;
 
 struct DynamicMetadata {
     unsigned ordinal = 0;
@@ -74,6 +78,7 @@ struct DynamicMetadata {
                                          const std::vector<const ir::Binding*>& bindings,
                                          const std::vector<DynamicText>& dynamic_text,
                                          const std::vector<DynamicMetadata>& dynamic_metadata,
+                                         const std::vector<ControlledInput>& controlled_inputs,
                                          GeneratedFile& file, std::string& error);
 
 // Emits the effect deps-hash helpers and mount/update_effects/unmount (emit_lifecycle.cpp).

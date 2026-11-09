@@ -4,6 +4,7 @@
 
 #include "emit_events.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <optional>
@@ -148,10 +149,19 @@ std::optional<std::string> payload_signature(const std::vector<ir::Param>& param
 }
 
 bool collect_event_adapters(const ir::Node& node, const ir::Component& component,
-                            const std::vector<const ir::Binding*>& bindings, unsigned& ordinal,
-                            std::vector<EventAdapter>& adapters, std::string& error) {
+                            const std::vector<const ir::Binding*>& bindings,
+                            const std::vector<ControlledInput>& controlled_inputs,
+                            unsigned& ordinal, std::vector<EventAdapter>& adapters,
+                            std::string& error) {
     ++ordinal;
+    const auto controlled =
+        std::any_of(controlled_inputs.begin(), controlled_inputs.end(),
+                    [&](const ControlledInput& input) { return input.ordinal == ordinal; });
     for (const auto& [jsx_name, target] : node.events) {
+        if (controlled && jsx_name == "onChange") {
+            // Bound through TextChangeBinding by emit_controlled_wiring, not the generic adapter.
+            continue;
+        }
         const EventTypeMapping* mapping = find_event_type(jsx_name);
         if (mapping == nullptr) {
             return fail(error, "event `" + jsx_name + "` has no scene EventType in this slice");
@@ -197,7 +207,8 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
         adapters.push_back(std::move(adapter));
     }
     for (const ir::Node& child : node.children) {
-        if (!collect_event_adapters(child, component, bindings, ordinal, adapters, error)) {
+        if (!collect_event_adapters(child, component, bindings, controlled_inputs, ordinal,
+                                    adapters, error)) {
             return false;
         }
     }

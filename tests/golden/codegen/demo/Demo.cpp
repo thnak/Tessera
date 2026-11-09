@@ -47,9 +47,12 @@ namespace demo {
         auto* component = static_cast<Demo*>(context);
         component->handler_1(event);
       }
-      void event_adapter_5_onChange(void* context, const tessera::ui::Event& event) {
+    }
+    
+    namespace {
+      void text_change_adapter_5(void* context, const tessera::ui::TextChangeEvent& event) {
         auto* component = static_cast<Demo*>(context);
-        component->on_name(event);
+        component->handler_2(event);
       }
     }
     
@@ -75,11 +78,16 @@ namespace demo {
       node_4->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_4_onClick, this);
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
-      // node::5 events={onChange:bind::on_name}
+      // node::5 events={onChange:handler::2}
       auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5u));
       node_5->set_element_kind("TextInput");
-      node_5->bind_event(tessera::ui::EventType::EditText, &event_adapter_5_onChange, this);
+      this->input_5_runtime_.attach(node_5.get());
+      tessera::ui::text::bind_text_input_events(*node_5, this->input_5_runtime_);
+      this->input_5_change_binding_.handler = &text_change_adapter_5;
+      this->input_5_change_binding_.context = this;
+      tessera::ui::bind_text_change(*node_5, this->input_5_change_binding_);
       node_5->set_focusable(true);
+      this->text_node_5_ = node_5.get();
       node_1->add_child(std::move(node_5));
       parent.add_child(std::move(node_1));
       apply_state();
@@ -113,6 +121,21 @@ namespace demo {
           tessera::ui::PaintData paint_3;
           paint_3.text = text_node_3_value_;
           text_node_3_->set_paint_data(std::move(paint_3));
+      }
+      std::uint64_t hash_5 = tessera::ui::kEffectHashSeed;
+      hash_5 = tessera::ui::effect_hash(hash_5, std::string_view(state_name_));
+      if (!text_node_5_set_ || hash_5 != text_node_5_hash_) {
+          text_node_5_hash_ = hash_5;
+          text_node_5_set_ = true;
+          std::string next_5;
+          next_5 += format_value(state_name_);
+          text_node_5_value_ = std::move(next_5);
+          tessera::ui::PaintData paint_5;
+          paint_5.text = text_node_5_value_;
+          text_node_5_->set_paint_data(std::move(paint_5));
+      }
+      if (input_5_editor_.buffer().text() != text_node_5_value_) {
+          input_5_editor_.set_text(text_node_5_value_);
       }
     }
     
@@ -153,16 +176,31 @@ namespace demo {
       }
     }
     
+    tessera::ui::text::EditController& Demo::text_input_editor(std::size_t index) {
+      switch (index) {
+        case 0u:
+          return input_5_editor_;
+      }
+      return input_5_editor_;
+    }
+    
+    std::size_t Demo::text_input_change_events(std::size_t index) const {
+      switch (index) {
+        case 0u:
+          return input_5_runtime_.change_events();
+      }
+      return input_5_runtime_.change_events();
+    }
+    
     void Demo::handler_1(const tessera::ui::Event& event) {
       (void)event;
       state_count_ = (state_count_ + 1);
       apply_state();
     }
     
-    void Demo::on_name(const tessera::ui::Event& event) {
-      // [DEVELOPER_LOGIC_START: bind::on_name]
-        state_name_ = std::string(event.text.data(), event.text_size);
-      // [DEVELOPER_LOGIC_END: bind::on_name]
+    void Demo::handler_2(const tessera::ui::TextChangeEvent& e) {
+      (void)e;
+      state_name_ = std::string(e.value);
       apply_state();
     }
     

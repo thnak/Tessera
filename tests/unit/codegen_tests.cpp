@@ -87,6 +87,7 @@ ir::IrModule make_sample_module() {
     sample.source = span(0, 100, 1, 1);
     sample.props.push_back({"title", "string", nullptr});
     sample.state.push_back({"state::count", "count", "int", integer(0)});
+    sample.state.push_back({"state::name", "name", "string", ir::make_literal(std::string(""))});
     sample.refs.push_back({"ref::box", "box", "node::2"});
     sample.animated_values.push_back({"anim::opacity", "opacity", "float", ir::make_literal(1.0)});
 
@@ -100,6 +101,17 @@ ir::IrModule make_sample_module() {
     set.value = integer(1);
     handler.actions.push_back(std::move(set));
     sample.handlers.push_back(std::move(handler));
+
+    ir::Handler change;
+    change.id = "handler::2";
+    change.source = span(25, 10, 3, 3);
+    change.params.push_back({"e", "TextChangeEvent"});
+    ir::Action set_name;
+    set_name.kind = ir::ActionKind::Set;
+    set_name.target = "state::name";
+    set_name.value = ir::make_ref("e.value");
+    change.actions.push_back(std::move(set_name));
+    sample.handlers.push_back(std::move(change));
 
     sample.effects.push_back(
         {"effect::sync", {"state::count"}, "bind::sync", "bind::sync_cleanup", span(30, 8, 3, 3)});
@@ -144,6 +156,12 @@ ir::IrModule make_sample_module() {
     ir::Node handler_button = leaf(ir::NodeKind::Button, "node::4", "4");
     handler_button.events.emplace("onClick", "handler::1");
     root.children.push_back(std::move(handler_button));
+
+    // Controlled text field: value from state, onChange is an inline setter copying the payload.
+    ir::Node input = leaf(ir::NodeKind::TextInput, "node::5", "5");
+    input.props.emplace("value", ir::make_ref("state::name"));
+    input.events.emplace("onChange", "handler::2");
+    root.children.push_back(std::move(input));
     sample.root = std::move(root);
     module.components.push_back(std::move(sample));
 
@@ -292,6 +310,19 @@ void test_generated_shape() {
           "sync region");
     check(source.find("// [DEVELOPER_LOGIC_START: bind::sync_cleanup]") != std::string::npos,
           "cleanup region");
+    check(
+        source.find("void text_change_adapter_5(void* context, const tessera::ui::TextChangeEvent& "
+                    "event)") != std::string::npos,
+        "onChange uses the typed TextChange adapter");
+    check(source.find("this->input_5_runtime_.attach(node_5.get());") != std::string::npos,
+          "controlled field attaches its text input runtime");
+    check(source.find("tessera::ui::bind_text_change(*node_5, this->input_5_change_binding_);") !=
+              std::string::npos,
+          "onChange binds through TextChangeBinding");
+    check(source.find("state_name_ = std::string(e.value);") != std::string::npos,
+          "inline setter copies the payload value");
+    check(source.find("input_5_editor_.set_text(text_node_5_value_);") != std::string::npos,
+          "apply_state syncs the controlled editor buffer");
     check(source.find("this->ref_box_ = node_2.get();") != std::string::npos,
           "useRef is assigned its target node");
     check(source.find("std::uint64_t dep_hash_0(const Sample& component)") != std::string::npos,

@@ -291,14 +291,30 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
 }
 
 std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
-                                        const ir::Component& component, std::string& error) {
+                                        const ir::Component& component,
+                                        std::span<const ir::Param> params, std::string& error) {
     std::string body;
     for (const ir::Action& action : actions) {
         if (!action.value) {
             error = "an action has no value expression";
             return std::nullopt;
         }
-        ExprEmission value = emit_expr(*action.value, component);
+        ExprEmission value;
+        const ir::Expr& value_expr = *action.value;
+        const std::size_t dot = value_expr.id.find('.');
+        if (value_expr.kind == ir::ExprKind::Ref && dot != std::string::npos) {
+            const std::string_view base = std::string_view(value_expr.id).substr(0, dot);
+            const std::string_view field = std::string_view(value_expr.id).substr(dot + 1);
+            for (const ir::Param& param : params) {
+                if (field == "value" && param.name == base && param.type == "TextChangeEvent") {
+                    value.text = "std::string(" + std::string(base) + ".value)";
+                    break;
+                }
+            }
+        }
+        if (value.text.empty()) {
+            value = emit_expr(*action.value, component);
+        }
         if (!value.error.empty()) {
             error = value.error;
             return std::nullopt;

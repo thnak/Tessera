@@ -3,6 +3,7 @@
 #pragma once
 
 #include "codegen_internal.hpp"
+#include "emit_controlled.hpp"
 
 #include <cstddef>
 #include <string>
@@ -49,6 +50,7 @@ struct EventAdapter {
 // JSX event name or an unresolved handler/binding target.
 [[nodiscard]] bool collect_event_adapters(const ir::Node& node, const ir::Component& component,
                                           const std::vector<const ir::Binding*>& bindings,
+                                          const std::vector<ControlledInput>& controlled_inputs,
                                           unsigned& ordinal, std::vector<EventAdapter>& adapters,
                                           std::string& error);
 

@@ -6,6 +6,7 @@
 #include "Sample.hpp"
 #include "tessera/ui/scene/node.hpp"
 
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -53,7 +54,7 @@ int main() {
     check(!view.focusable(), "a View is not focusable by default");
     check(!view.paint_data().has_value(), "a View has no text payload");
 
-    check(view.children().size() == 2, "the View carries both event-bound buttons");
+    check(view.children().size() == 3, "the View carries both buttons and the input");
     ui::Node& button = *view.children()[0];
     check_eq(button.element_kind(), "Button", "button element kind");
     check(button.focusable(), "generated Button is focusable");
@@ -84,7 +85,7 @@ int main() {
 
     // Synthetic dispatch: the generated adapter runs at the Target phase and the setter updates the
     // state cell (the interactive end-to-end proof).
-    check(view.children().size() == 2, "the View carries both event-bound buttons");
+    check(view.children().size() == 3, "the View carries both buttons and the input");
     ui::Event click;
     click.type = ui::EventType::PointerUp;
     click.x = 12.0f;
@@ -112,6 +113,36 @@ int main() {
         check_eq(label.paint_data()->text, "Count: 1",
                  "the setter refreshed the interpolated text");
     }
+
+    // Controlled TextInput: generated source-event bindings drive the runtime, the committed
+    // TextChange event runs the generated setter, and apply_state paints the value.
+    check(view.children().size() == 3, "the View carries the controlled TextInput");
+    ui::Node& input = *view.children()[2];
+    check_eq(input.element_kind(), "TextInput", "controlled field kind");
+    check(input.has_event_binding(ui::EventType::TextChange),
+          "onChange is bound through the typed TextChange adapter");
+    check(sample.text_input_count() == 1, "one generated editor accessor");
+    check_eq(sample.text_input_editor(0).buffer().text(), "", "the editor starts empty");
+    input.set_pseudo_state(ui::style::PseudoState::Focus);
+    input.clear_dirty(ui::Dirty::All);
+    for (const char character : std::string("Ada")) {
+        ui::Event text;
+        text.type = ui::EventType::Text;
+        text.text_codepoint = static_cast<std::uint32_t>(character);
+        ui::dispatch_event_to(input, text);
+    }
+    check_eq(sample.state_name_, "Ada", "the generated setter copied the committed text");
+    check_eq(sample.text_input_editor(0).buffer().text(), "Ada",
+             "the generated runtime owns the edit buffer");
+    if (input.paint_data()) {
+        check_eq(input.paint_data()->text, "Ada", "apply_state painted the controlled value");
+    }
+    check(input.dirty() == (ui::Dirty::Paint | ui::Dirty::Render),
+          "the controlled value marks Paint|Render only");
+    check(!ui::has_flag(input.dirty(), ui::Dirty::Layout), "controlled text never marks Layout");
+    input.clear_dirty(ui::Dirty::All);
+    sample.apply_state();
+    check(input.dirty() == ui::Dirty::Clean, "an unchanged controlled value marks nothing");
 
     // update() runs the changed effect; the text hash is unchanged, so it marks no new dirty bits.
     sample.update();

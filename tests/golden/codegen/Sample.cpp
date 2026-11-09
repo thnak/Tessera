@@ -53,6 +53,13 @@ namespace demo {
       }
     }
     
+    namespace {
+      void text_change_adapter_5(void* context, const tessera::ui::TextChangeEvent& event) {
+        auto* component = static_cast<Sample*>(context);
+        component->handler_2(event);
+      }
+    }
+    
     void Sample::build(tessera::ui::Node& parent) {
       // node::1 style.width="10px"
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
@@ -80,6 +87,17 @@ namespace demo {
       node_4->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_4_onClick, this);
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
+      // node::5 events={onChange:handler::2}
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull));
+      node_5->set_element_kind("TextInput");
+      this->input_5_runtime_.attach(node_5.get());
+      tessera::ui::text::bind_text_input_events(*node_5, this->input_5_runtime_);
+      this->input_5_change_binding_.handler = &text_change_adapter_5;
+      this->input_5_change_binding_.context = this;
+      tessera::ui::bind_text_change(*node_5, this->input_5_change_binding_);
+      node_5->set_focusable(true);
+      this->text_node_5_ = node_5.get();
+      node_1->add_child(std::move(node_5));
       parent.add_child(std::move(node_1));
       apply_state();
     }
@@ -98,6 +116,18 @@ namespace demo {
           tessera::ui::PaintData paint_3;
           paint_3.text = text_node_3_value_;
           text_node_3_->set_paint_data(std::move(paint_3));
+      }
+      std::uint64_t hash_5 = tessera::ui::kEffectHashSeed;
+      hash_5 = tessera::ui::effect_hash(hash_5, std::string_view(state_name_));
+      if (!text_node_5_set_ || hash_5 != text_node_5_hash_) {
+          text_node_5_hash_ = hash_5;
+          text_node_5_set_ = true;
+          std::string next_5;
+          next_5 += format_value(state_name_);
+          text_node_5_value_ = std::move(next_5);
+          tessera::ui::PaintData paint_5;
+          paint_5.text = text_node_5_value_;
+          text_node_5_->set_paint_data(std::move(paint_5));
       }
       std::uint64_t meta_1_id_hash = tessera::ui::kEffectHashSeed;
       meta_1_id_hash = tessera::ui::effect_hash(meta_1_id_hash, std::string_view("root-"));
@@ -167,6 +197,9 @@ namespace demo {
             meta_1_aria_aria_label_node_->set_aria("aria-label", meta_1_aria_aria_label_value_);
         }
       }
+      if (input_5_editor_.buffer().text() != text_node_5_value_) {
+          input_5_editor_.set_text(text_node_5_value_);
+      }
     }
     
     namespace {
@@ -206,9 +239,31 @@ namespace demo {
       }
     }
     
+    tessera::ui::text::EditController& Sample::text_input_editor(std::size_t index) {
+      switch (index) {
+        case 0u:
+          return input_5_editor_;
+      }
+      return input_5_editor_;
+    }
+    
+    std::size_t Sample::text_input_change_events(std::size_t index) const {
+      switch (index) {
+        case 0u:
+          return input_5_runtime_.change_events();
+      }
+      return input_5_runtime_.change_events();
+    }
+    
     void Sample::handler_1(const tessera::ui::ClickEvent& event) {
       (void)event;
       state_count_ = 1;
+      apply_state();
+    }
+    
+    void Sample::handler_2(const tessera::ui::TextChangeEvent& e) {
+      (void)e;
+      state_name_ = std::string(e.value);
       apply_state();
     }
     

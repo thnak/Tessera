@@ -62,70 +62,73 @@ bool expect(bool condition, const char* message) {
 // Shift-selection, select-all and delete-selection, and returns with the editable frame:
 // "Ada Lovelace" with "Lovelace" selected (caret at the end of the selection).
 
-bool feed_text(EditController& editor, std::string_view text) {
+// Feeds normalized input events through the scene router so the generated source-event bindings and
+// typed TextChange adapter drive the edit controller (no direct controller calls).
+bool feed_text(InputRouter& router, Node& root, std::string_view text) {
     for (const char character : text) {
-        Event event;
-        event.type = EventType::Text;
+        InputEvent event;
+        event.type = InputEventType::Text;
         event.text_codepoint = static_cast<std::uint32_t>(static_cast<unsigned char>(character));
-        if (!editor.handle_event(event)) {
+        if (!router.dispatch(root, event).dispatched) {
             return false;
         }
     }
     return true;
 }
 
-bool feed_key(EditController& editor, std::uint32_t key, Modifier modifiers = Modifier::None) {
-    Event event;
-    event.type = EventType::KeyDown;
+bool feed_key(InputRouter& router, Node& root, std::uint32_t key,
+              Modifier modifiers = Modifier::None) {
+    InputEvent event;
+    event.type = InputEventType::KeyDown;
     event.key = key;
     event.modifiers = modifiers;
-    return editor.handle_event(event);
+    return router.dispatch(root, event).dispatched;
 }
 
-bool run_field_script(EditController& editor) {
+bool run_field_script(InputRouter& router, Node& root, EditController& editor) {
     using namespace tessera::ui::key;
     // Type, then exercise Home/End/arrows.
-    if (!feed_text(editor, "Ada") || editor.buffer().text() != "Ada" ||
+    if (!feed_text(router, root, "Ada") || editor.buffer().text() != "Ada" ||
         editor.buffer().caret() != 3) {
         return false;
     }
-    if (!feed_key(editor, kHome) || editor.buffer().caret() != 0) {
+    if (!feed_key(router, root, kHome) || editor.buffer().caret() != 0) {
         return false;
     }
-    if (!feed_key(editor, kEnd) || editor.buffer().caret() != 3) {
+    if (!feed_key(router, root, kEnd) || editor.buffer().caret() != 3) {
         return false;
     }
-    if (!feed_key(editor, kArrowLeft) || editor.buffer().caret() != 2) {
+    if (!feed_key(router, root, kArrowLeft) || editor.buffer().caret() != 2) {
         return false;
     }
     // Shift+Left twice: half-open selection [0, 2) = "Ad", caret at 0 (lean left).
-    if (!feed_key(editor, kArrowLeft, Modifier::Shift) ||
-        !feed_key(editor, kArrowLeft, Modifier::Shift) || editor.buffer().caret() != 0 ||
+    if (!feed_key(router, root, kArrowLeft, Modifier::Shift) ||
+        !feed_key(router, root, kArrowLeft, Modifier::Shift) || editor.buffer().caret() != 0 ||
         editor.buffer().selection_start() != 0 || editor.buffer().selection_end() != 2) {
         return false;
     }
     // Select-all then delete the selection: the buffer empties and the caret collapses to 0.
-    if (!feed_key(editor, 'A', Modifier::Control) || !editor.buffer().has_selection()) {
+    if (!feed_key(router, root, 'A', Modifier::Control) || !editor.buffer().has_selection()) {
         return false;
     }
-    if (!feed_key(editor, kBackspace) || !editor.buffer().text().empty() ||
+    if (!feed_key(router, root, kBackspace) || !editor.buffer().text().empty() ||
         editor.buffer().has_selection() || editor.buffer().caret() != 0) {
         return false;
     }
     // Editable frame: type a full value, put the caret after "Ada ", then Shift+End to select
     // "Lovelace" with the caret at the right edge.
-    if (!feed_text(editor, "Ada Lovelace") || editor.buffer().text() != "Ada Lovelace") {
+    if (!feed_text(router, root, "Ada Lovelace") || editor.buffer().text() != "Ada Lovelace") {
         return false;
     }
-    if (!feed_key(editor, kHome) || editor.buffer().caret() != 0) {
+    if (!feed_key(router, root, kHome) || editor.buffer().caret() != 0) {
         return false;
     }
     for (int step = 0; step < 4; ++step) {
-        if (!feed_key(editor, kArrowRight)) {
+        if (!feed_key(router, root, kArrowRight)) {
             return false;
         }
     }
-    if (editor.buffer().caret() != 4 || !feed_key(editor, kEnd, Modifier::Shift)) {
+    if (editor.buffer().caret() != 4 || !feed_key(router, root, kEnd, Modifier::Shift)) {
         return false;
     }
     return editor.buffer().caret() == 12 && editor.buffer().selection_start() == 4 &&
@@ -287,29 +290,43 @@ int main(int argc, char** argv) {
     }
     const InputEvent typed = edit_text_event("Ada");
     const auto typed_result = router.dispatch(*fixture.root, typed);
+    EditController& generated_editor = fixture.demo.text_input_editor(0);
     if (!expect(typed_result.dispatched, "EditText routed to the focused TextInput") ||
         !expect(route_is_w3c(*fixture.root, EventType::EditText),
                 "EditText route is W3C capture/target/bubble") ||
+        !expect(route_is_w3c(*fixture.root, EventType::TextChange),
+                "the runtime TextChange dispatch is W3C capture/target/bubble") ||
         !expect(fixture.demo.state_name_ == "Ada",
-                "generated on_name handler copied the committed text into state") ||
+                "generated onChange copied the committed text into state") ||
+        !expect(generated_editor.buffer().text() == "Ada",
+                "the generated TextInputRuntime owns the edit buffer") ||
+        !expect(text_input->paint_data().has_value() && text_input->paint_data()->text == "Ada",
+                "apply_state painted the controlled value through generated code only") ||
         !expect(name->paint_data().has_value() && name->paint_data()->text == "Name: Ada",
-                "the developer region's state change interpolated Name: Ada") ||
+                "the state change interpolated Name: Ada") ||
         !expect(has_flag(name->dirty(), Dirty::Paint),
-                "typing marks the interpolated Name text Paint")) {
+                "typing marks the interpolated Name text Paint") ||
+        !expect(fixture.demo.text_input_change_events(0) == 1,
+                "exactly one TextChange event per committed edit")) {
         return 10;
     }
 
-    // The same committed text through the edit controller's buffer (the owner a future controlled
-    // TextInput would bind to; there is no generated value/onChange wiring yet - documented gap).
-    EditController committed;
-    Event commit;
-    commit.type = EventType::EditText;
-    std::copy_n(typed.text.begin(), typed.text_size, commit.text.begin());
-    commit.text_size = typed.text_size;
-    if (!expect(committed.handle_event(commit), "edit controller consumed the commit") ||
-        !expect(committed.buffer().text() == "Ada", "edit buffer holds the typed value") ||
-        !expect(committed.buffer().text() == fixture.demo.state_name_,
-                "buffer and generated state agree for the same input")) {
+    // Preedit (CompositionUpdate) must not emit a change event, and a non-mutating auto-repeat
+    // key must not either; the generated text stays as committed.
+    InputEvent preedit;
+    preedit.type = InputEventType::CompositionUpdate;
+    preedit.text[0] = 'x';
+    preedit.text_size = 1;
+    router.dispatch(*fixture.root, preedit);
+    InputEvent repeat;
+    repeat.type = InputEventType::KeyDown;
+    repeat.key = tessera::ui::key::kArrowLeft;
+    repeat.repeat = true;
+    router.dispatch(*fixture.root, repeat);
+    if (!expect(fixture.demo.text_input_change_events(0) == 1,
+                "preedit and non-mutating auto-repeat emit no TextChange") ||
+        !expect(text_input->paint_data().value_or(tessera::ui::PaintData{}).text == "Ada",
+                "preedit/auto-repeat do not change the painted text")) {
         return 11;
     }
     const std::vector<std::uint8_t> typed_render =
@@ -319,11 +336,16 @@ int main(int argc, char** argv) {
     }
 
     // --- 4. Editable field: edit model -> PaintData decoration -> pixels ------------------------
-    EditController field;
-    if (!expect(run_field_script(field), "field edit script reached the editable frame") ||
+    EditController& field = generated_editor;
+    field.set_text("");
+    if (!expect(run_field_script(router, *fixture.root, field),
+                "field edit script reached the editable frame") ||
         !expect(field.buffer().text() == "Ada Lovelace", "field text") ||
         !expect(field.buffer().caret() == 12, "caret after the selection") ||
-        !expect(field.buffer().selection_start() == 4, "selection starts after Ada ")) {
+        !expect(field.buffer().selection_start() == 4, "selection starts after Ada ") ||
+        !expect(text_input->paint_data().has_value() &&
+                    text_input->paint_data()->text == "Ada Lovelace",
+                "every committed edit repainted the generated controlled text")) {
         return 12;
     }
     publish_editor_state(*text_input, field.buffer());
@@ -377,15 +399,16 @@ int main(int argc, char** argv) {
 
     // Delete-selection collapses the caret and removes the highlight: the script leaves
     // "Lovelace" selected, so Backspace removes it and leaves "Ada " with the caret after it.
-    EditController collapsed = field;
-    if (!expect(collapsed.buffer().has_selection(), "the field has a selection to delete") ||
-        !feed_key(collapsed, tessera::ui::key::kBackspace) ||
-        !expect(collapsed.buffer().text() == "Ada ", "delete removed the selected text") ||
-        !expect(!collapsed.buffer().has_selection() && collapsed.buffer().caret() == 4,
-                "delete collapsed the caret to the end of the remaining text")) {
+    if (!expect(field.buffer().has_selection(), "the field has a selection to delete") ||
+        !feed_key(router, *fixture.root, tessera::ui::key::kBackspace) ||
+        !expect(field.buffer().text() == "Ada ", "delete removed the selected text") ||
+        !expect(!field.buffer().has_selection() && field.buffer().caret() == 4,
+                "delete collapsed the caret to the end of the remaining text") ||
+        !expect(text_input->paint_data().has_value() && text_input->paint_data()->text == "Ada ",
+                "delete repainted the generated controlled text")) {
         return 15;
     }
-    publish_editor_state(*text_input, collapsed.buffer());
+    publish_editor_state(*text_input, field.buffer());
     const DecorationRects collapsed_rects =
         decoration_rects(*fixture.root, fixture.styles, paint_context);
     if (!expect(collapsed_rects.selection.empty(),
@@ -395,7 +418,12 @@ int main(int argc, char** argv) {
                 "the collapsed caret is inside the content box")) {
         return 15;
     }
-    // Restore the editable frame for the golden.
+    // Restore the editable frame through the generated path, then decorate only.
+    field.set_text("");
+    if (!expect(run_field_script(router, *fixture.root, field),
+                "restored edit script reached the editable frame")) {
+        return 15;
+    }
     publish_editor_state(*text_input, field.buffer());
 
     if (write_mode) {
@@ -427,8 +455,10 @@ int main(int argc, char** argv) {
     replay_router.focus_manager().request_focus(replay_input);
     // Replay the generated onChange commit too, so the interpolated Name text matches.
     replay_router.dispatch(*replay.root, typed);
-    EditController replay_field;
-    if (!expect(run_field_script(replay_field), "replayed edit script") ||
+    EditController& replay_field = replay.demo.text_input_editor(0);
+    replay_field.set_text("");
+    if (!expect(run_field_script(replay_router, *replay.root, replay_field),
+                "replayed edit script") ||
         !expect(replay_field.buffer().text() == field_text, "replayed buffer text")) {
         return 18;
     }
