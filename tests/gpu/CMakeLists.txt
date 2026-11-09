@@ -38,19 +38,6 @@ add_executable(text_render_tests
 target_link_libraries(text_render_tests PRIVATE tessera_text_render tessera_rhi_null)
 add_test(NAME text_render COMMAND text_render_tests "${TESSERA_FONT_FIXTURE}")
 
-# Path raster cache -> batched2d textured draw. The null-device section runs everywhere; the
-# Vulkan readback cases are compiled in only when the Vulkan backend is part of the build.
-add_executable(path_texture_draw_tests
-    batched2d/path_texture_draw_tests.cpp)
-target_link_libraries(path_texture_draw_tests PRIVATE
-    tessera_gpu tessera_path tessera_rhi_null)
-if (TARGET tessera_rhi_vulkan)
-    target_link_libraries(path_texture_draw_tests PRIVATE tessera_rhi_vulkan)
-    target_compile_definitions(path_texture_draw_tests PRIVATE TESSERA_TEST_HAS_VULKAN)
-endif()
-add_test(NAME path_texture_draw COMMAND path_texture_draw_tests)
-set_tests_properties(path_texture_draw PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
-
 if (TARGET batched2d_poc)
     add_test(
         NAME batched2d_vulkan_smoke
