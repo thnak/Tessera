@@ -48,6 +48,17 @@ std::optional<std::string> ComponentNames::resolve(std::string_view source_name)
             return std::string(source_name);
         }
     }
+    // A field of a local (a handler parameter): `e.value` keeps the dotted id, as a loop item does
+    // (decision 8). The IR validator resolves `e` against the action locals.
+    const std::size_t dot = source_name.find('.');
+    if (dot != std::string_view::npos) {
+        const std::string_view base = source_name.substr(0, dot);
+        for (const std::string& local : locals_) {
+            if (local == base) {
+                return std::string(source_name);
+            }
+        }
+    }
     for (const Entry& entry : entries_) {
         if (entry.name == source_name) {
             return entry.id;

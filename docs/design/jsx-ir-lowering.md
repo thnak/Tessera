@@ -1,9 +1,9 @@
 # Lowering the JSX AST to IR (slice 5 design)
 
 Status: slices 1 to 3 are implemented (IR model and writer, IR validator, analysis skeleton; see
-"Slice 3 status" below), slice 5 (expression lowering) and slice 6 (hooks and bindings) are
-implemented as well — see their status sections. `src/compiler/codegen/` is still an empty folder.
-The input is the parser of
+"Slice 3 status" below), slice 5 (expression lowering), slice 6 (hooks and bindings), slice 7 (JSX
+nodes) and slice 12 (the shared schema table) are implemented as well — see their status sections.
+`src/compiler/codegen/` is still an empty folder. The input is the parser of
 [`jsx-frontend.md`](jsx-frontend.md); the output is the IR of [`ir-v1.md`](../specs/ir-v1.md)
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md)). The accepted source forms are in
 [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) (the "subset spec"); this note links to its
@@ -280,6 +280,70 @@ Tests are `lowering_hooks` (every hook and binding form, spans, lookups, action 
 `lowering_hooks_reject` (each rejection, first-error-only, no partial IR, precondition checks) and
 `lowering_hooks_determinism` (twice and on eight threads), plus the updated `lowering_layering`.
 
+### Slice 7 status (JSX nodes)
+
+`tessera_lowering` also links `tessera_schema` (slice 12); the configure check and
+`lowering_layering` were updated with it. The public API is `tessera/compiler/lowering/
+node_lowering.hpp`:
+
+```cpp
+struct LoweredComponent {
+    ir::Component component;            // hooks (slice 6) + the lowered root node
+    std::vector<ir::Binding> bindings;  // module-level, sorted by id (slice 6)
+};
+using NodeLoweringErrors = std::vector<jsx::Diagnostic>;
+using LoweredComponentResult = std::expected<LoweredComponent, NodeLoweringErrors>;
+LoweredComponentResult lower_component(const HookLoweringContext& context);
+```
+
+`lower_component` runs `lower_hooks` and then lowers `component.returned`. `component.id` is
+`comp::<Name>`; `componentId` and every node `uiId` stay empty for slice 10 (`automationId` is
+filled from its attribute when present). Node ids are `node::N` in source pre-order from 1
+(decision 2), including synthetic `Text` children and an `ErrorBoundary` fallback (attributes are
+visited before children, so the fallback subtree comes first). Handler records written directly in
+JSX continue the `handler::N` numbering of the declared handlers (declarations precede the tree),
+and `Ref::target` is filled from each `ref` attribute. A failing component yields one
+`TESSERA_IR_*` diagnostic and no component data at all.
+
+The intrinsic vocabulary comes from `tessera_schema`, not from a second hard-coded table:
+`schema::find_element(tag)` gives the IR kind, the props (with `onlyOn`/`notOn`), the events (with
+their payload record) and the children rule; `schema::find_alias(tag)` is used only to report a
+lowercase HTML alias clearly. New diagnostic code: `TESSERA_IR_UNKNOWN_PROP` for a prop, event or
+style property that is not in the schema (or is restricted to another element).
+
+What the slice lowers:
+
+| Source | IR |
+|---|---|
+| Intrinsic element (`View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `ErrorBoundary`; `VirtualList`/`VirtualGrid` are slice 8) | `Node` with `kind` from the schema, `source` = element span, `id` = `node::N` |
+| `a="x"` / `a={expr}` / `flag` | literal / lowered `Expr` / literal `true`; a later attribute or spread entry wins (spec 10.2); the schema `literal` value class rejects a non-literal |
+| `{...obj}` object-literal spread | each key lowers as if written in place; spreading the props parameter needs the props type (slice 4/9) |
+| `className` | `props.className` (string or expression) |
+| `style={{...}}` | `style` map: camelCase keys become kebab-case, a number becomes `"<n>px"` for the `length` kind and stays unitless for `number`; unknown names are `TESSERA_IR_UNKNOWN_PROP`; the property kinds come from `tessera_schema`'s style table |
+| `id`, `role`, `aria-*` | `props.<name>` (hyphens kept); `automationId` becomes the node field, string literal only |
+| `key` | the node `key` Expression (placement is checked in slice 8) |
+| `ref={r}` | `r` must be a `useRef` of the component; the matching `refs[]` entry's `target` becomes this node id; `Spacer`/`ErrorBoundary` reject it (schema `refType`) |
+| `onX={declaredHandler}` | the `bind::` or `handler::` id from slice 6 |
+| `onX={setX}` (9.1) | a new `handler::N` with one `set` action; its parameter is the event payload record and the value is that record's `primary` member (`e.value`) or the whole payload |
+| `onX={(...) => ...}` (9.2) | a new `handler::N` from `lower_handler_actions`; 0 or 1 parameter, typed by the event payload record; more than one parameter is rejected |
+| Children text runs (elements-basic §0) | `View` runs become synthetic `Text` children; `Text` has one run in `text` (`<Text />` is `""`); a text-only `Button` run becomes `props.label`, a `Button` with an element child gets synthetic `Text` runs instead; `true`/`false`/`null`/comments render nothing and do not break a run; a run is a literal string or a `template` |
+| Fragment child | spliced into the parent in place; a fragment as the component root is rejected (spec 10.1) |
+| `Scroll` children | elements only (text is rejected); leaves reject children; `ErrorBoundary` needs exactly one element child and rejects fragment children |
+| `fallback={<X />}` | the one element-valued attribute: lowers to `Node::fallback` (element value only, not a fragment) |
+
+Not in slice 7: component references (`Component` nodes, slice 9); conditional rendering and loops
+(`&&`, `?:`, `.map`, virtualized templates, `key` placement, slice 8); the type table and expression
+typing (slice 4), so required props, prop/event type mismatches and the schema constraints are not
+evaluated here; custom elements (slice 11); lowercase HTML alias resolution and attribute rewrites
+(slice 13, and the parser rejects lowercase tags until then); `environment`/library hooks (slice
+11); `props[]` (props parameter and defaults, slice 4/9); `componentId`/`uiId` (slice 10).
+`tessera_lowering`'s own component expression lowering and the schema tables are reused, not
+duplicated.
+
+Tests are `lowering_nodes` (one fixture per construct in the table above), `lowering_nodes_reject`
+(every rejection and slice boundary, first-error-only, no partial component) and
+`lowering_nodes_determinism` (twice and on eight threads), plus the updated `lowering_layering`.
+
 ## 4. Spans and diagnostics
 
 - The AST keeps `Span` (byte offset and length). Lowering needs the file's `SourceMap` and the
@@ -397,13 +461,13 @@ Each slice is behavior, tests and docs, committed on its own.
    top-level constants; no components yet.
 6. **Lowering of hooks and bindings (done).** state, refs, animated values, effects, cleanup,
    bindings and their spans.
-7. **Lowering of nodes.** Intrinsic kinds, attributes, text, children, fragments, events, `style`,
-   `className`, `ref` targets.
+7. **Lowering of nodes (done).** Intrinsic kinds, attributes, text, children, fragments, events,
+   `style`, `className`, `ref` targets.
 8. **Conditionals and loops.**
 9. **Components across files.** Imports, references, cycles, prop checks; `LoweringOptions`.
 10. **Identity.** `uiId`, `componentId`, automation manifest, collision errors (after decision 1).
 11. **Library and custom elements.** Hook manifest reader, `environment`, `ui/elements.json`.
-12. **Schema table.** `tessera_schema` (`src/schema/`): the `constexpr` intrinsic, alias and style
+12. **Schema table (done).** `tessera_schema` (`src/schema/`): the `constexpr` intrinsic, alias and style
     tables, the dump tool (JSON and `.d.ts`) and its golden
     ([`machine-readable.md`](../specs/jsx-intrinsics-v1/machine-readable.md)). Slice 4 (types) needs
     the intrinsic part of it, so it comes before slice 4 or is built with it.
