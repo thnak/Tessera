@@ -434,6 +434,15 @@ public:
     CommandResources acquire_command_resources();
     void release_command_resources(const CommandResources& resources, bool in_flight);
 
+    // Records `record` into its own command buffer and queues it without waiting. `staging`, if
+    // any, is kept alive until the GPU has finished with it.
+    void submit_upload(const std::function<void(VkCommandBuffer)>& record,
+                       std::unique_ptr<rhi::Buffer> staging);
+
+    // Runs `destroy` once every upload submitted so far has finished (immediately if none is
+    // pending). Textures use this so an image is never destroyed under an in-flight copy.
+    void retire_after_uploads(std::function<void()> destroy);
+
 private:
     void reap_command_resources();
     void destroy_command_resources();
@@ -444,8 +453,24 @@ private:
     void create_allocator();
     void create_descriptor_layout();
     void create_descriptor_pool();
-    void submit_one_shot(const std::function<void(VkCommandBuffer)>& record);
+    void reap_uploads();
+    void drain_uploads();
     void destroy();
+
+    // An upload submitted without waiting. The staging buffer and command resources stay alive
+    // until the fence signals; `serial` orders it against deferred destruction.
+    struct PendingUpload {
+        CommandResources commands;
+        std::unique_ptr<rhi::Buffer> staging;
+        std::uint64_t serial = 0;
+    };
+    struct RetiredResource {
+        std::function<void()> destroy;
+        std::uint64_t serial = 0;
+    };
+    std::vector<PendingUpload> pending_uploads_;
+    std::vector<RetiredResource> retired_;
+    std::uint64_t upload_serial_ = 0;
 
     rhi::DeviceDesc desc_;
     VkInstance instance_ = VK_NULL_HANDLE;

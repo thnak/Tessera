@@ -47,18 +47,31 @@ void VulkanBuffer::read(void* data, std::size_t size, std::size_t offset) const 
 }
 
 VulkanTexture::~VulkanTexture() {
-    // Return the set so texture churn (atlas growth, resize) cannot exhaust the fixed-size pool.
-    if (descriptor_set_ != VK_NULL_HANDLE && descriptor_pool_ != VK_NULL_HANDLE) {
-        vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set_);
-    }
-    if (sampler_ != VK_NULL_HANDLE) {
-        vkDestroySampler(device_, sampler_, nullptr);
-    }
-    if (view_ != VK_NULL_HANDLE) {
-        vkDestroyImageView(device_, view_, nullptr);
-    }
-    if (image_ != VK_NULL_HANDLE) {
-        vmaDestroyImage(allocator_, image_, allocation_);
+    const auto destroy = [device = device_, allocator = allocator_, image = image_, view = view_,
+                          sampler = sampler_, allocation = allocation_, pool = descriptor_pool_,
+                          set = descriptor_set_] {
+        // Return the set so texture churn (atlas growth, resize) cannot exhaust the fixed-size
+        // pool.
+        if (set != VK_NULL_HANDLE && pool != VK_NULL_HANDLE) {
+            vkFreeDescriptorSets(device, pool, 1, &set);
+        }
+        if (sampler != VK_NULL_HANDLE) {
+            vkDestroySampler(device, sampler, nullptr);
+        }
+        if (view != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, view, nullptr);
+        }
+        if (image != VK_NULL_HANDLE) {
+            vmaDestroyImage(allocator, image, allocation);
+        }
+    };
+
+    // Uploads are queued without waiting, so one may still be copying into this image. The
+    // device destroys the handles once every upload submitted so far has finished.
+    if (owner_ != nullptr) {
+        owner_->retire_after_uploads(destroy);
+    } else {
+        destroy();
     }
 }
 

@@ -348,51 +348,11 @@ void VulkanDevice::create_descriptor_pool() {
              "vkCreateDescriptorPool");
 }
 
-void VulkanDevice::submit_one_shot(const std::function<void(VkCommandBuffer)>& record) {
-    VkCommandPoolCreateInfo pool_info{};
-    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-    pool_info.queueFamilyIndex = queue_family_;
-    VkCommandPool pool = VK_NULL_HANDLE;
-    check_vk(vkCreateCommandPool(device_, &pool_info, nullptr, &pool),
-             "vkCreateCommandPool(one-shot)");
-
-    VkCommandBufferAllocateInfo allocate_info{};
-    allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocate_info.commandPool = pool;
-    allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocate_info.commandBufferCount = 1;
-    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-    check_vk(vkAllocateCommandBuffers(device_, &allocate_info, &command_buffer),
-             "vkAllocateCommandBuffers(one-shot)");
-
-    VkCommandBufferBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    check_vk(vkBeginCommandBuffer(command_buffer, &begin_info), "vkBeginCommandBuffer(one-shot)");
-
-    record(command_buffer);
-
-    check_vk(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer(one-shot)");
-
-    VkSubmitInfo submit_info{};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
-
-    VkFenceCreateInfo fence_info{};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    VkFence fence = VK_NULL_HANDLE;
-    check_vk(vkCreateFence(device_, &fence_info, nullptr, &fence), "vkCreateFence(one-shot)");
-    check_vk(vkQueueSubmit(queue_, 1, &submit_info, fence), "vkQueueSubmit(one-shot)");
-    check_vk(vkWaitForFences(device_, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences(one-shot)");
-    vkDestroyFence(device_, fence, nullptr);
-    vkDestroyCommandPool(device_, pool, nullptr);
-}
-
 void VulkanDevice::destroy() {
     if (device_ != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device_);
+        // Frees staging buffers and runs deferred destruction while the allocator still exists.
+        drain_uploads();
         destroy_command_resources();
     }
     if (descriptor_pool_ != VK_NULL_HANDLE) {

@@ -109,6 +109,12 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(vulkan_texture_churn_tests PRIVATE tessera_rhi_vulkan)
     add_test(NAME vulkan_texture_churn COMMAND vulkan_texture_churn_tests)
 
+    add_executable(vulkan_async_upload_tests
+        vulkan/vulkan_async_upload_tests.cpp)
+    target_link_libraries(vulkan_async_upload_tests PRIVATE tessera_rhi_vulkan)
+    add_test(NAME vulkan_async_upload COMMAND vulkan_async_upload_tests)
+    set_tests_properties(vulkan_async_upload PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(vulkan_async_submit_tests
         vulkan/vulkan_async_submit_tests.cpp)
     target_link_libraries(vulkan_async_submit_tests PRIVATE tessera_rhi_vulkan)

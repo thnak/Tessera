@@ -11,6 +11,8 @@ constexpr std::size_t kMaxFreeCommandResources = 8;
 } // namespace
 
 CommandResources VulkanDevice::acquire_command_resources() {
+    // Finished uploads hand their command resources back, so reap them first.
+    reap_uploads();
     reap_command_resources();
 
     if (!free_commands_.empty()) {

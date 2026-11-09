@@ -2,6 +2,8 @@
 
 #include "vulkan_internal.hpp"
 
+#include <utility>
+
 namespace tessera::rendering::vulkan {
 
 std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDesc& desc) {
@@ -88,37 +90,42 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
             throw std::runtime_error("create_texture: staging buffer allocation failed");
         }
 
-        submit_one_shot([&](VkCommandBuffer command_buffer) {
-            record_image_transition(command_buffer, image, VK_IMAGE_LAYOUT_UNDEFINED,
-                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
-                                    VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                    VK_PIPELINE_STAGE_TRANSFER_BIT);
+        // Queued without waiting; the device keeps the staging buffer until the copy finishes.
+        submit_upload(
+            [&](VkCommandBuffer command_buffer) {
+                record_image_transition(
+                    command_buffer, image, VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-            VkBufferImageCopy copy{};
-            copy.bufferOffset = 0;
-            copy.bufferRowLength = static_cast<std::uint32_t>(row_pitch / (bpp == 0 ? 1 : bpp));
-            copy.bufferImageHeight = 0;
-            copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            copy.imageSubresource.mipLevel = 0;
-            copy.imageSubresource.baseArrayLayer = 0;
-            copy.imageSubresource.layerCount = 1;
-            copy.imageExtent = {desc.extent.width, desc.extent.height, 1};
-            vkCmdCopyBufferToImage(command_buffer, staging_buffer->handle(), image,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+                VkBufferImageCopy copy{};
+                copy.bufferOffset = 0;
+                copy.bufferRowLength = static_cast<std::uint32_t>(row_pitch / (bpp == 0 ? 1 : bpp));
+                copy.bufferImageHeight = 0;
+                copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                copy.imageSubresource.mipLevel = 0;
+                copy.imageSubresource.baseArrayLayer = 0;
+                copy.imageSubresource.layerCount = 1;
+                copy.imageExtent = {desc.extent.width, desc.extent.height, 1};
+                vkCmdCopyBufferToImage(command_buffer, staging_buffer->handle(), image,
+                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
-            record_image_transition(command_buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                    VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-        });
+                record_image_transition(command_buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+            },
+            std::move(staging));
     } else {
-        submit_one_shot([&](VkCommandBuffer command_buffer) {
-            record_image_transition(command_buffer, image, VK_IMAGE_LAYOUT_UNDEFINED,
-                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0,
-                                    VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-        });
+        submit_upload(
+            [&](VkCommandBuffer command_buffer) {
+                record_image_transition(
+                    command_buffer, image, VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, VK_ACCESS_SHADER_READ_BIT,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+            },
+            nullptr);
     }
 
     return std::make_unique<VulkanTexture>(device_, allocator_, image, view, sampler, allocation,
@@ -151,31 +158,33 @@ void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std:
         throw std::runtime_error("texture upload: staging buffer allocation failed");
     }
 
-    submit_one_shot([&](VkCommandBuffer command_buffer) {
-        record_image_transition(command_buffer, texture.image(),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_SHADER_READ_BIT,
-                                VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                VK_PIPELINE_STAGE_TRANSFER_BIT);
+    submit_upload(
+        [&](VkCommandBuffer command_buffer) {
+            record_image_transition(
+                command_buffer, texture.image(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_SHADER_READ_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-        VkBufferImageCopy copy{};
-        copy.bufferOffset = 0;
-        copy.bufferRowLength = 0;
-        copy.bufferImageHeight = 0;
-        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copy.imageSubresource.mipLevel = 0;
-        copy.imageSubresource.baseArrayLayer = 0;
-        copy.imageSubresource.layerCount = 1;
-        copy.imageExtent = {extent.width, extent.height, 1};
-        vkCmdCopyBufferToImage(command_buffer, staging_buffer->handle(), texture.image(),
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+            VkBufferImageCopy copy{};
+            copy.bufferOffset = 0;
+            copy.bufferRowLength = 0;
+            copy.bufferImageHeight = 0;
+            copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.imageSubresource.mipLevel = 0;
+            copy.imageSubresource.baseArrayLayer = 0;
+            copy.imageSubresource.layerCount = 1;
+            copy.imageExtent = {extent.width, extent.height, 1};
+            vkCmdCopyBufferToImage(command_buffer, staging_buffer->handle(), texture.image(),
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
-        record_image_transition(
-            command_buffer, texture.image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-    });
+            record_image_transition(
+                command_buffer, texture.image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        },
+        std::move(staging));
 }
 
 } // namespace tessera::rendering::vulkan
