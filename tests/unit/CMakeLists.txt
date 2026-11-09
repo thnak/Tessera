@@ -826,6 +826,20 @@ target_link_libraries(text_layout_tests PRIVATE tessera_text)
 
 add_test(NAME text_layout COMMAND text_layout_tests)
 
+add_executable(text_edit_tests
+    text_edit_tests.cpp)
+
+target_link_libraries(text_edit_tests PRIVATE tessera_text)
+
+add_test(NAME text_edit COMMAND text_edit_tests)
+
+add_executable(text_edit_controller_tests
+    text_edit_controller_tests.cpp)
+
+target_link_libraries(text_edit_controller_tests PRIVATE tessera_text_edit)
+
+add_test(NAME text_edit_controller COMMAND text_edit_controller_tests)
+
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)
 

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_text STATIC
+    edit_buffer.cpp
+    edit_grapheme.cpp
     font_face.cpp
     font_metrics.cpp
     freetype_metrics.cpp
@@ -19,3 +21,15 @@ target_link_libraries(tessera_text PUBLIC tessera_style PRIVATE tessera_freetype
 target_compile_features(tessera_text PUBLIC cxx_std_23)
 
 add_subdirectory(render)
+
+# Editing core on top of the text layer: the UTF-8 edit buffer plus the scene-event controller.
+# Kept separate from tessera_text so the shaping/text layer stays free of scene dependencies.
+add_library(tessera_text_edit STATIC
+    edit_controller.cpp)
+
+target_include_directories(tessera_text_edit PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_link_libraries(tessera_text_edit PUBLIC tessera_text tessera_scene)
+
+target_compile_features(tessera_text_edit PUBLIC cxx_std_23)
