@@ -101,6 +101,18 @@ struct TextDecoration {
     std::size_t selection_end = 0;
     bool caret_visible = true;
     float blink_phase = 1.0f;
+    // IME preedit (paint-pass.md section 10.2, text-editing-v1 section 12). While composing, the
+    // preedit bytes are NOT part of `PaintData::text`: `preedit_begin`/`preedit_end` are the
+    // half-open buffer bytes the composition will replace (equal offsets = insertion point) and
+    // `preedit_text` holds the uncommitted UTF-8 bytes to render at that point. Paint has no timers
+    // and never reads the edit controller; `composition_active` gates the descriptor and
+    // `preedit_underline` draws the underline under the preedit run (or under the replaced range
+    // when `preedit_text` is empty, i.e. the composition is already in the painted text).
+    bool composition_active = false;
+    std::size_t preedit_begin = 0;
+    std::size_t preedit_end = 0;
+    bool preedit_underline = true;
+    std::string preedit_text;
 
     [[nodiscard]] bool has_selection() const {
         return selection_begin != selection_end;

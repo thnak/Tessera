@@ -529,5 +529,35 @@ byte-identical; a node with decoration emits per-line glyph runs (even NoWrap) s
 geometry matches the emitted lines. Tests: `paint_text_decoration` (offset mapping
 start/middle/end, multi-line and newline mapping, collapsed selection, z-order, width/colour/
 opacity, clip and damage replay, blink, empty text), the `paint_text_gpu` decoration readback, and
-the CPU text scene/golden (selection + caret). Deferrals: blinking timers, IME preedit underline,
-selection handles, bidi/RTL carets, `::selection` style, sub-pixel caret positioning.
+the CPU text scene/golden (selection + caret). Deferrals: blinking timers, selection handles,
+bidi/RTL carets, `::selection` style, sub-pixel caret positioning.
+
+### 10.2.1 IME preedit (task-72)
+
+`TextDecoration` also carries the active composition descriptor: `composition_active`, half-open
+`preedit_begin`/`preedit_end` buffer bytes (equal offsets = insertion at that point),
+`preedit_underline`, and the bounded uncommitted `preedit_text` string. While composing, the
+preedit is **not** part of `PaintData::text`: the text is the committed content and the descriptor
+describes what the IME is about to commit, so paint never reads the edit controller. The owner
+copies `EditController::preedit_range()` (the `CompositionStart`/`Update` state: `begin`/`end` are
+`composition_start`/`composition_end`, `text` is the preedit bytes) into the descriptor; commit
+(`EditText`) or cancel (`CompositionEnd` without commit) deactivates it.
+
+- **Underline:** when `preedit_text` is empty (the composition is already in the painted text) the
+  replaced range is underlined with the same byte -> line mapping the selection fill uses; otherwise
+  the preedit run at the composition anchor is underlined. Thickness is 1 px at device scale 1 and
+  2 px at scale >= 2; the colour is the resolved text colour (node opacity already folded).
+- **Preedit run:** when `preedit_text` is non-empty, paint emits one `draw_text` run at the anchor
+  using the measured prefix advance, the line's baseline, and the committed text style/colour. An
+  empty committed text synthesizes one line box from the metrics source, so the preedit is visible
+  before the first commit; other empty-text nodes remain no-ops.
+- **Z-order:** selection fill, glyph runs, preedit run, preedit underline, caret. Everything is an
+  ordinary `PaintSink` call, so node/scroll clips and damage-region replay clip it and node opacity
+  folds into the run/underline alpha. No new layout path and no sink hook.
+
+Tests: `paint_text_preedit` (descriptor lifecycle through the controller, underline range only,
+1/2 px thickness, empty-buffer preedit run, commit/cancel removal, z-order, damage replay, opacity,
+determinism). No new PNG golden was added: the RecordingSink op record is byte-exact, while the CPU
+text path needs a real-font fixture for pixels (the existing `paint_text_gpu` readback covers the
+decorated GPU path). Deferrals: candidate-window positioning, per-composition styling (squiggly or
+coloured underline), bidi preedit, selection inside the preedit range, GPU readback of the preedit.

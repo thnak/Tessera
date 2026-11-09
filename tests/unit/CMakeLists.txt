@@ -1110,6 +1110,13 @@ target_link_libraries(paint_text_decoration_tests PRIVATE
     tessera_paint tessera_frame tessera_runtime)
 
 add_test(NAME paint_text_decoration COMMAND paint_text_decoration_tests)
+add_executable(paint_text_preedit_tests
+    paint_text_preedit_tests.cpp)
+
+target_link_libraries(paint_text_preedit_tests PRIVATE
+    tessera_paint tessera_text_edit)
+
+add_test(NAME paint_text_preedit COMMAND paint_text_preedit_tests)
 
 add_executable(input_pipeline_tests
     input_pipeline_tests.cpp)

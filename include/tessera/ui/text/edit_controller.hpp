@@ -69,6 +69,24 @@ public:
     [[nodiscard]] EditOffset composition_end() const {
         return composition_end_;
     }
+    // The current IME composition for decoration emission (additive; task-72). `begin`/`end` are
+    // the half-open buffer bytes the composition replaces (equal offsets = insertion at `begin`),
+    // `text` is the uncommitted preedit bytes (borrowed until the next command) and `active` is
+    // true between `CompositionStart` and the commit/cancel. Paint consumes this through
+    // `TextDecoration::composition_active/preedit_*`; the commit path is unchanged (one
+    // `TextChange` per committed edit).
+    struct PreeditRange {
+        EditOffset begin = 0;
+        EditOffset end = 0;
+        std::string_view text;
+        bool active = false;
+    };
+    [[nodiscard]] PreeditRange preedit_range() const {
+        if (!composing_) {
+            return PreeditRange{buffer_.caret(), buffer_.caret(), {}, false};
+        }
+        return PreeditRange{composition_start_, composition_end_, preedit_, true};
+    }
 
     // Set the controlled value from app state (normalizes/truncates like EditBuffer::set_text);
     // cancels an active composition first.

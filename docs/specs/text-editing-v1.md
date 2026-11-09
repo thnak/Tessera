@@ -504,8 +504,22 @@ restore the full UTF-8 text plus the exact caret and selection bytes.
   starts its own step), selection-only undo steps, IME-composition-aware granularity (a commit is
   one step), per-field history sharing/merge across fields, and platform blink/history preferences.
 
-Deferred: composition/preedit rendering (blink landed, task-67), undo/redo grouping/caps (landed,
-task-69), clipboard
+IME preedit rendering (implemented, task-72): while composing,
+`EditController::preedit_range()` exposes the active composition - half-open buffer `begin`/`end`
+(equal offsets = insertion at the caret) and the uncommitted preedit bytes. The preedit is **not**
+written into `EditBuffer`/`PaintData::text`; the owner copies the range/bytes into
+`PaintData::TextDecoration` (`composition_active`, `preedit_begin`/`preedit_end`, `preedit_text`,
+`preedit_underline`) each frame. It appears on `CompositionStart`/`CompositionUpdate` and
+disappears on commit (`EditText` replaces the range and emits exactly one committed edit /
+`TextChange`) or cancel (`CompositionEnd` without commit restores the pre-edit state and emits
+none). Paint draws the preedit run at the anchor (synthesizing a line box when the buffer is empty)
+and underlines the run or replaced range (1 px at scale 1, 2 px at scale >= 2, text colour), above
+the selection and below the caret; clips/damage/opacity fold exactly as for committed runs - see
+[`paint-pass.md`](../design/paint-pass.md) section 10.2.1. Deferrals: candidate-window positioning,
+per-composition styling, bidi preedit, selection inside preedit, GPU readback golden.
+
+Deferred: candidate-window positioning and per-composition styling (IME preedit rendering landed,
+task-72), undo/redo grouping/caps (landed, task-69), clipboard
 (copy/cut/paste and secure redaction), editable-node scene model (`TextInputKind`, value/selection
 props and generated events), bidi caret affinity and visual line movement (up/down), grapheme
 `maxLength` whole-reject, dead-key composition beyond the platform path, caret rect/candidate-window

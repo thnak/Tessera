@@ -135,7 +135,17 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
         local_layout.lines.resize(data.max_lines);
     }
     if (local_layout.lines.empty()) {
-        return;
+        // An active IME preedit must render even when the committed text is empty (there is no
+        // glyph run to borrow a line box from): synthesize the same line box the text layout would
+        // produce, using the metrics source (paint still does not shape or lay out the preedit).
+        if (!data.decoration || !data.decoration->composition_active) {
+            return;
+        }
+        const text::FontMetrics fallback = metrics_source->metrics(text_style);
+        text::TextLine line;
+        line.height = fallback.ascent + fallback.descent + fallback.line_gap;
+        line.baseline = fallback.ascent;
+        local_layout.lines.push_back(line);
     }
 
     struct LineGeometry {
@@ -204,6 +214,75 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
         }
     }
 
+    // IME preedit: underline the composition range and, when the preedit is not part of the painted
+    // text, draw the uncommitted run at the composition anchor. Z-order: after the glyph runs (so
+    // above the selection), before the caret. The run uses the committed text's color (node opacity
+    // already folded); the underline is the text color, 1 px at device scale 1 and 2 px at >= 2.
+    // The byte range -> line-box mapping is the same one the selection/caret use.
+    if (decoration.composition_active) {
+        const std::size_t begin = std::min(decoration.preedit_begin, text.size());
+        const std::size_t end = std::min(decoration.preedit_end, text.size());
+        const std::size_t range_begin = std::min(begin, end);
+        const std::size_t range_end = std::max(begin, end);
+        const float thickness = context.device_scale >= 2.0f ? 2.0f : 1.0f;
+
+        const LineGeometry* anchor = &lines.back();
+        for (const LineGeometry& geometry : lines) {
+            if (range_begin >= geometry.line.begin && range_begin <= geometry.line.end) {
+                anchor = &geometry;
+                break;
+            }
+        }
+        const std::size_t clamped = std::min(range_begin, anchor->line.end);
+        const float prefix = metrics_source->advance(
+            std::string_view(text).substr(anchor->line.begin, clamped - anchor->line.begin),
+            text_style);
+        const float x = std::round(anchor->x + prefix);
+        const float top = std::round(anchor->top);
+
+        if (!decoration.preedit_text.empty()) {
+            TextDraw run;
+            run.rect = {x, top,
+                        std::round(metrics_source->advance(decoration.preedit_text, text_style)),
+                        anchor->line.height};
+            run.text = decoration.preedit_text;
+            run.font_size = text_style.font_size;
+            run.font_weight = text_style.font_weight;
+            run.color = color;
+            run.baseline = std::round(anchor->top + anchor->line.baseline);
+            sink.draw_text(run);
+            ++stats.texts;
+            if (decoration.preedit_underline) {
+                sink.fill_rect({x, std::round(anchor->top + anchor->line.height - thickness),
+                                run.rect.width, thickness},
+                               color);
+            }
+        } else if (decoration.preedit_underline) {
+            // The composition is already in the painted text: underline only the replaced range.
+            for (const LineGeometry& geometry : lines) {
+                const text::TextLine& line = geometry.line;
+                const std::size_t start = std::max(range_begin, line.begin);
+                const std::size_t stop = std::min(range_end, line.end);
+                if (stop <= start) {
+                    continue;
+                }
+                const bool whole_line = range_begin <= line.begin && range_end >= line.end;
+                const float start_width = metrics_source->advance(
+                    std::string_view(text).substr(line.begin, start - line.begin), text_style);
+                float stop_width =
+                    whole_line ? line.width
+                               : metrics_source->advance(
+                                     std::string_view(text).substr(line.begin, stop - line.begin),
+                                     text_style);
+                stop_width = std::max(stop_width, start_width);
+                sink.fill_rect({std::round(geometry.x + start_width),
+                                std::round(geometry.top + line.height - thickness),
+                                std::round(stop_width - start_width), thickness},
+                               color);
+            }
+        }
+    }
+
     const bool caret_visible = decoration.caret_visible && decoration.blink_phase >= 0.5f;
     if (caret_visible) {
         const std::size_t caret = std::min(decoration.caret_byte_offset, text.size());
@@ -228,7 +307,11 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
 void paint_text_lines(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
                       PaintSink& sink, PaintStats& stats, const PaintContext& context) {
     const auto& data = node.paint_data();
-    if (!data || data->kind != PaintKind::Text || data->text.empty()) {
+    if (!data || data->kind != PaintKind::Text) {
+        return;
+    }
+    // Empty text normally paints nothing, but an active IME preedit still renders at the caret.
+    if (data->text.empty() && !(data->decoration && data->decoration->composition_active)) {
         return;
     }
     if (rect.width <= 0.0f || rect.height <= 0.0f) {
