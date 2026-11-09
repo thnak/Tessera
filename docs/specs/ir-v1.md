@@ -91,8 +91,8 @@ Reference ids are `state::<name>`, `prop::<name>`, `ref::<name>`, `anim::<name>`
 field of a record-typed value is a dotted id (`item.id`, `prop::row.label`); a loop item and index are
 named as written in the source.
 
-V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`. No
-arbitrary objects/functions in state. Nullable types use `optional<T>`.
+V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`, `children`
+(section 3.4; props only). No arbitrary objects/functions in state. Nullable types use `optional<T>`.
 
 ## 2.1 Handlers
 
@@ -142,7 +142,7 @@ it is an IR record of its own, referenced from `events`:
 | `id` | string | yes | Debug key, unique within the component |
 | `uiId` | string | yes | uint64 decimal string; stable automation/trace identity |
 | `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
-| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement`, `Component` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement`, `Component`, `Slot` |
 | `component` | string | for `Component` | Id of the referenced component (section 3.4) |
 | `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
 | `source` | SourceSpan | yes | Span of the node's JSX element (section 8) |
@@ -155,7 +155,7 @@ it is an IR record of its own, referenced from `events`:
 | `condition` | Expr/null | no | Static conditional; V1 bool expression |
 | `loop` | Loop/null | no | Static list loop; this node is the repeated template (section 5) |
 
-Node kinds are closed in V1; the list above, with `Component` (section 3.4), is the complete list.
+Node kinds are closed in V1; the list above, with `Component` and `Slot` (section 3.4), is the complete list.
 A reference to a project or library component is a `Component` node; there is no dynamic
 component type. `CustomElement` is an intrinsic native-render node, not a dynamic
 component type; see [`custom-elements-v1.md`](custom-elements-v1.md).
@@ -250,10 +250,19 @@ A component instance is identified at design time by `(componentId, instanceKey)
   root, so each instance keeps its own state, effects and refs.
 - `props` holds one entry per prop given in the source, as a literal or an Expression; `events`
   holds callback props. Both are validated against the referenced component's props (section 9).
-- A `Component` node may carry `key`, `condition` and `loop` like any other node. `children` is
-  empty in V1.
-- This is the only addition to the node kinds in v1; it is additive, so `irVersion` stays `1`
-  (section 12).
+- A `Component` node may carry `key`, `condition` and `loop` like any other node.
+- **Children (static slot).** A component declares `{ "name": "children", "type": "children" }` in
+  `props`. Only then may a `Component` node of it have a non-empty `children`; those nodes are the
+  slot content. The slot content belongs to the caller: it is part of the caller's tree, takes its
+  `node::` ids in the caller's pre-order, and reads the caller's state, props and loop variables,
+  never the callee's. A callee places the content with a `Slot` node (`{ "kind": "Slot", "id":
+  "node::7" }`), a leaf with no props, style or events that is replaced by the instance's children
+  at that position. A `Component` node without children renders nothing at the `Slot`.
+- A component has at most one `children` prop and at most one `Slot`, and a `Slot` is not inside a
+  `loop` template of the callee or inside another component's slot content. A `Slot` in a
+  component without a `children` prop is an error.
+- `Component` and `Slot` are the only additions to the node kinds in v1; both are additive, so
+  `irVersion` stays `1` (section 12).
 
 ## 4. Expressions
 
@@ -439,6 +448,9 @@ Hard errors:
 - unresolved or duplicate `handler::` id, an `events` value that is neither a `bind::` nor a
   `handler::` id, a `Component` node with an unresolved `component`, an unknown prop, or a prop or
   event the referenced component does not declare
+- a `Component` node with `children` whose component has no `children` prop; a `Slot` outside a
+  component with a `children` prop, a second `Slot`, a `Slot` with props, style, events or children,
+  or a `Slot` inside a `loop` template
 - non-deterministic ordering/ids
 
 Warnings:

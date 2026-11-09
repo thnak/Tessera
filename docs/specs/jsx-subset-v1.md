@@ -181,6 +181,11 @@ ParamType  = IDENT ":" TypeExpr ;
   `+ - *` and unary `-` on two `int` give `int`, otherwise `float`. `/` always gives `float`. `%` on two
   `int` gives `int`, otherwise `float`. Integer width, overflow, division by zero and number
   formatting are defined by [`ir-v1.md`](ir-v1.md) section 4.1, not here.
+- **`Children`.** The type of the prop named `children` (`type CardProps = { children: Children }`),
+  imported from `"tessera"`. It is the only type of `children`, is never optional, and has no value
+  expression: `{children}` is accepted only as a child of an element, once per component, not in a
+  loop, and lowers to the IR `Slot` node ([`ir-v1.md`](ir-v1.md) section 3.4). A `Children` value
+  cannot be stored, compared, passed to another prop or used in text.
 - A union is accepted only as `T | null` or as a union of string literals (an enum).
 - Type aliases are non-recursive and may refer only to earlier or later aliases without cycles.
 - Built-in generic names accepted: `Ref<T>` is not written by developers; refs use the element type
@@ -516,6 +521,10 @@ Child       = JsxElement | JsxText | "{" ChildExpr "}" ;
 - **Conditional**: `{cond && <X />}` lowers to the node's `condition`; `{cond ? <X /> : <Y />}` lowers
   to two nodes with complementary conditions; `{cond ? <X /> : null}` is allowed. The condition is a
   pure boolean expression. A condition that is not boolean is `TESSERA_JSX_TYPE_MISMATCH`.
+- **Children of a user component.** `<Card>...</Card>` is accepted when `Card` declares
+  `children: Children`; the children follow this section and are lowered into the `Component`
+  node's `children`. Children on a component without the prop are `TESSERA_JSX_CHILDREN_NOT_ALLOWED`;
+  `children=` as an attribute is `TESSERA_JSX_SUBSET_UNKNOWN_PROP`.
 - A string or number directly in a position that does not accept text (for example as a child of
   `Scroll` when the element only accepts nodes) is an error from the element specification.
 
@@ -649,6 +658,7 @@ and no silent skipping.
 | `const f = () => ...` without `bind::` whose body is not made of setter calls only (section 9.2) | `TESSERA_REACT_BIND_MISSING` | Add `// Note: bind::<id>` before it, or reduce the body to setter calls |
 | Member access on a value of unknown record type | `TESSERA_JSX_SUBSET_MEMBER` | Declare a type for the value |
 | Unknown attribute or event name on an intrinsic | `TESSERA_JSX_SUBSET_UNKNOWN_PROP` | See the element's spec (section 11) |
+| Children on a leaf intrinsic or on a component without a `children: Children` prop | `TESSERA_JSX_CHILDREN_NOT_ALLOWED` | Remove them, or declare the prop (sections 5, 10.4) |
 | Operand or argument type mismatch | `TESSERA_JSX_TYPE_MISMATCH` | Convert explicitly or fix the type |
 | Exceeding a parser limit | `TESSERA_JSX_LIMIT_*` | Split the file or simplify the expression (section 15) |
 

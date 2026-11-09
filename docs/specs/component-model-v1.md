@@ -64,7 +64,9 @@ Rules:
 ## 3. Props and children
 
 - Props are read-only; changing a prop triggers an update, not a state mutation.
-- `children`/slots are explicit props; the compiler lowers them to child nodes.
+- `children` is an explicit prop of type `Children`; the caller's child nodes become the `Component`
+  node's `children` and the callee places them with `{children}` (a `Slot` node, [`ir-v1.md`](ir-v1.md)
+  section 3.4).
 - `key` is required for dynamic lists and stable across reorder.
 - Spread props are allowed only when statically analyzable.
 - Unknown props are compile errors for intrinsics; custom components validate their prop types.
