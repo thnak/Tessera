@@ -501,9 +501,12 @@ id-resolvable node is cleared.
 
 ## 14. Open questions
 
-- Gesture recognizers/arena (the system that decides which recognizer wins a pointer sequence) live in `ui/input`; system edge/back gestures are HAL policy.
-  Remaining: exact claim/reject API and custom element consumption (see
-  [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
+- Gesture recognizers/arena (the system that decides which recognizer wins a pointer sequence) are
+  implemented as a pure, scene-independent state machine in `include/tessera/ui/gesture.hpp`
+  (bounded per-pointer slots, claim/reject protocol, tap/double-tap/long-press/drag/swipe/pinch/
+  rotate recognizers); see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)
+  section 5.1. Remaining: scene and scroll claiming integration, custom-element consumption,
+  wheel/edge-swipe recognizers, and platform edge/back gesture policy in the HAL.
 - Accessibility actions (invoke, set value) mapped into the same event flow (see [`accessibility.md`](accessibility.md)).
 - Gamepad and stylus pressure/tilt.
 - IME candidate-window styling and positioning across platforms.
