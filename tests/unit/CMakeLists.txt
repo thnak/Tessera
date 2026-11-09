@@ -878,6 +878,13 @@ target_link_libraries(text_undo_tests PRIVATE tessera_text_edit)
 
 add_test(NAME text_undo COMMAND text_undo_tests)
 
+add_executable(text_edit_clipboard_tests
+    text_edit_clipboard_tests.cpp)
+
+target_link_libraries(text_edit_clipboard_tests PRIVATE tessera_text_edit tessera_hal_clipboard)
+
+add_test(NAME text_edit_clipboard COMMAND text_edit_clipboard_tests)
+
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)
 

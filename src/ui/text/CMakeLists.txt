@@ -36,6 +36,6 @@ add_library(tessera_text_edit STATIC
 target_include_directories(tessera_text_edit PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_text_edit PUBLIC tessera_text tessera_scene)
+target_link_libraries(tessera_text_edit PUBLIC tessera_text tessera_scene tessera_hal_clipboard)
 
 target_compile_features(tessera_text_edit PUBLIC cxx_std_23)

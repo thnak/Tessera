@@ -1,6 +1,7 @@
 # HAL and platform layer
 
-Status: the B2 timer seam is implemented in `src/hal/timer/` (`tessera_hal_timer`); the rest of
+Status: the B2 timer and clipboard seams are implemented (`tessera_hal_timer`,
+`tessera_hal_clipboard`); the rest of
 `src/hal/` and `src/platform/` is design for Big Step B3 (window/swapchain path; see
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision record:
 [ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (window resize and lifecycle; OS
@@ -76,6 +77,27 @@ event, or `WaitOutcome::Deadline` otherwise (a past deadline returns immediately
 integration should idle between ticks by computing the next `FramePacer` deadline and calling
 `wait_for_events_until(window, deadline)`; `RuntimeLoop::tick()` behavior is unchanged until that
 runtime slice lands.
+
+### 1.3 Clipboard seam (implemented)
+
+`include/tessera/hal/clipboard.hpp` (`tessera_hal_clipboard`) is the only clipboard surface UI code
+sees; editable text never calls an OS API directly:
+
+- `Clipboard::read_text()` / `write_text(std::string_view)` are UTF-8-only and return
+  `std::expected` values. Both directions are bounded by `kMaxClipboardBytes` (64 KiB): a larger
+  write fails with `TooLarge`, a larger native read fails with `TooLarge` rather than truncating.
+  An empty clipboard reads as an empty string.
+- Failure values: `Unsupported` (no backend for this platform/session), `Busy` (contention beyond
+  the retry budget), `TooLarge`, `Failed`. Failures never throw and never block indefinitely.
+- Backends: `MemoryClipboard` (deterministic tests / headless), `UnsupportedClipboard` (reports
+  `Unsupported` for both operations), and `create_native_clipboard()`. Win32 implements
+  `CF_UNICODETEXT` with bounded UTF-16 <-> UTF-8 conversion and a bounded `OpenClipboard` retry:
+  at most 4 attempts with 1 ms between them (<= 3 ms), then `Busy` - the UI thread never spins.
+  Linux/X11 (selection protocol), macOS (`NSPasteboard`) and Android (ClipboardManager bridge)
+  currently report `Unsupported`; their slices are deferred.
+- The edit controller consumes only this seam (`EditController::set_clipboard` wires the Ctrl+C/X/V
+  chords; the copy/cut/paste commands take a `Clipboard&`), so tests and headless hosts inject the
+  in-memory backend.
 
 ## 2. Core types
 
@@ -187,6 +209,7 @@ platform callback -> record raw event (no user code)
 | Power/thermal | power GUIDs, `WM_POWERBROADCAST` | logind/UPower | logind | `PowerManager` | `NSProcessInfo` |
 | Fold/posture | no standard hinge API | no standard | compositor-specific | Jetpack WindowManager | no mainstream foldable |
 | IME | `WM_IME_*` | XIM/IC | `zwp_text_input_v3` | `InputConnection` | `NSTextInputClient` |
+| Clipboard (UTF-8 text) | Win32 `CF_UNICODETEXT` | unsupported stub (selection deferred) | unsupported stub | deferred | deferred |
 
 No capability may be assumed. Missing data uses a documented fallback (60 Hz, scale 1.0, no
 VRR, no HDR) and records the assumption in metrics.
@@ -244,6 +267,10 @@ See [`window-resize.md`](window-resize.md) for the state machine and
 ## 10. Current status
 
 - `src/hal/timer/` is implemented (`tessera_hal_timer`): monotonic clock + bounded idle wait.
+- `src/hal/clipboard/` is implemented (`tessera_hal_clipboard`): UTF-8 text seam bounded at 64 KiB
+  with `MemoryClipboard`/`UnsupportedClipboard` backends and the Win32 `CF_UNICODETEXT` backend
+  (bounded retry; Linux/X11, macOS and Android report `Unsupported` this slice). It is registered
+  from `src/hal/window/CMakeLists.txt` until the root CMakeLists lists the directory directly.
 - `src/hal/window/` provides `tessera_hal_window` and `hal::create_window`. The Win32
   implementation lives in `src/platform/windows/window.cpp`; the X11 implementation lives in
   `src/platform/linux/window.cpp` and is selected when CMake finds Xlib. Other platforms, and

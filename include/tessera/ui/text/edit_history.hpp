@@ -34,6 +34,7 @@ enum class EditCommitKind : std::uint8_t {
     Newline,
     Paste,
     Composition,
+    Clipboard, // cut/paste: one step, never merged with typing or other edits
     Other,
 };
 

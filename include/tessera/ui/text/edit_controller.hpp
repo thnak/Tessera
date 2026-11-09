@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/hal/clipboard.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/text/edit_buffer.hpp"
 #include "tessera/ui/text/edit_history.hpp"
@@ -143,6 +144,24 @@ public:
     [[nodiscard]] std::uint64_t activity_count() const {
         return activity_count_;
     }
+    // Clipboard (docs/specs/text-editing-v1.md section 12): the controller never touches the OS.
+    // Callers pass a `hal::Clipboard` seam; `set_clipboard` only wires the key chords to one
+    // backend. Read-only allows copy (the clipboard is a read of the buffer), blocks cut/paste.
+    // Exactly one undo step is recorded per cut/paste (kind Clipboard, never coalesced); copy never
+    // changes the buffer or the history. `copy`/`cut` no-op without a selection; `paste` no-ops for
+    // an empty clipboard or an Unsupported backend, and truncates at the buffer cap.
+    struct ClipboardResult {
+        bool changed = false; // clipboard written (copy/cut) or buffer changed (cut/paste)
+        std::size_t bytes = 0;
+        bool truncated = false;
+        hal::ClipboardError error = hal::ClipboardError::None;
+    };
+    void set_clipboard(hal::Clipboard* clipboard) {
+        clipboard_ = clipboard;
+    }
+    [[nodiscard]] ClipboardResult copy(hal::Clipboard& clipboard) const;
+    ClipboardResult cut(hal::Clipboard& clipboard);
+    ClipboardResult paste(hal::Clipboard& clipboard);
     // Blink policy helper: the caret blinks only in a focused, editable field with a collapsed
     // selection (platform-typical: a non-collapsed selection hides the caret). Feed the result to
     // CaretBlink::set_active(); read-only and unfocused fields keep the caret hidden.
@@ -160,6 +179,7 @@ private:
 
     EditBuffer buffer_;
     EditHistory history_;
+    hal::Clipboard* clipboard_ = nullptr;
     std::string preedit_;
     EditOffset composition_start_ = 0;
     EditOffset composition_end_ = 0;

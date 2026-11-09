@@ -518,9 +518,25 @@ the selection and below the caret; clips/damage/opacity fold exactly as for comm
 [`paint-pass.md`](../design/paint-pass.md) section 10.2.1. Deferrals: candidate-window positioning,
 per-composition styling, bidi preedit, selection inside preedit, GPU readback golden.
 
+Clipboard (implemented, task-75): `EditController` exposes `copy`/`cut`/`paste` taking a
+`hal::Clipboard&` (the seam in [`hal.md`](../design/hal.md) section 1.3; `set_clipboard` only wires
+the chords). Semantics: `copy` writes the selected UTF-8 text and changes neither the buffer nor the
+history (no-op without a selection); `cut` writes the selection and then deletes it as **one** undo
+step (kind `Clipboard`, never coalesced with typing; a failed clipboard write leaves the buffer
+untouched); `paste` replaces the selection with the clipboard text as **one** undo step, normalizes
+CRLF/CR through the buffer's existing newline rules, and truncates at the buffer byte cap with
+`truncated` reported; an empty clipboard or `Unsupported` backend is a clean no-op. Read-only allows
+copy and blocks cut/paste. Chords: Ctrl+C/X/V are consumed (`handled`) only when the operation
+actually changed the clipboard or the buffer, so an empty selection/clipboard leaves them to the
+app; `prevent_default`/`handled` and Alt/Meta combinations are respected; macOS Cmd+C/X/V is
+expected to be normalized by the platform layer to the same Control chord (this layer sees the
+normalized modifiers). Windows real-clipboard behaviour is verified manually (headless CI has no
+clipboard owner); the seam is tested with the in-memory and unsupported backends.
+
 Deferred: candidate-window positioning and per-composition styling (IME preedit rendering landed,
 task-72), undo/redo grouping/caps (landed, task-69), clipboard
-(copy/cut/paste and secure redaction), editable-node scene model (`TextInputKind`, value/selection
+(copy/cut/paste landed, task-75; secure-field redaction deferred), rich text/HTML/images and
+clipboard change notifications, X11 selection clipboard, editable-node scene model (`TextInputKind`, value/selection
 props and generated events), bidi caret affinity and visual line movement (up/down), grapheme
 `maxLength` whole-reject, dead-key composition beyond the platform path, caret rect/candidate-window
 positioning, selection handles/touch gestures, and accessibility snapshot wiring for value/

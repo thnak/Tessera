@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: MIT
 
+# The clipboard HAL target lives in src/hal/clipboard; it is registered here until the root
+# CMakeLists (Lead-owned) lists that directory directly. Moving the add_subdirectory line later is a
+# no-op for the target itself.
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/hal/clipboard ${CMAKE_BINARY_DIR}/src/hal/clipboard)
+
 add_library(tessera_hal_window STATIC)
 
 # Private shared implementation header (normalized event ring).

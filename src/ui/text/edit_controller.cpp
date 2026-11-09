@@ -205,6 +205,64 @@ bool EditController::handle_event(Event& event) {
     }
 }
 
+EditController::ClipboardResult EditController::copy(hal::Clipboard& clipboard) const {
+    ClipboardResult result;
+    if (!buffer_.has_selection()) {
+        return result; // nothing selected: copy is a no-op and the chord stays unconsumed
+    }
+    const std::string selected(buffer_.selected_text());
+    const auto wrote = clipboard.write_text(selected);
+    if (!wrote.has_value()) {
+        result.error = wrote.error();
+        return result;
+    }
+    result.changed = true;
+    result.bytes = selected.size();
+    return result;
+}
+
+EditController::ClipboardResult EditController::cut(hal::Clipboard& clipboard) {
+    ClipboardResult result;
+    if (read_only_ || composing_ || !buffer_.has_selection()) {
+        return result;
+    }
+    result = copy(clipboard);
+    if (!result.changed) {
+        return result;
+    }
+    const EditSnapshot before = snapshot();
+    const EditOffset start = buffer_.selection_start();
+    const EditOffset end = buffer_.selection_end();
+    record_mutation(before, buffer_.replace_range(start, end, {}), EditCommitKind::Clipboard);
+    result.changed = true;
+    return result;
+}
+
+EditController::ClipboardResult EditController::paste(hal::Clipboard& clipboard) {
+    ClipboardResult result;
+    if (read_only_ || composing_) {
+        return result;
+    }
+    const auto read = clipboard.read_text();
+    if (!read.has_value()) {
+        result.error = read.error();
+        return result;
+    }
+    if (read->empty()) {
+        return result; // empty clipboard: no edit, no history step, chord unconsumed
+    }
+    const EditSnapshot before = snapshot();
+    result.bytes = read->size();
+    const EditResult edit = buffer_.insert(*read);
+    if (edit.changed) {
+        history_.record_commit(before, EditCommitKind::Clipboard);
+    }
+    result.changed = edit.changed;
+    result.truncated = edit.truncated;
+    accept(edit, true);
+    return result;
+}
+
 bool EditController::handle_key(Event& event) {
     const std::uint32_t key = event.key;
     const bool control = has_modifier(event.modifiers, Modifier::Control);
@@ -213,6 +271,27 @@ bool EditController::handle_key(Event& event) {
     const bool meta = has_modifier(event.modifiers, Modifier::Meta);
 
     if (control && !alt && !meta) {
+        // Clipboard chords: consume only when the operation actually changed something (clipboard
+        // written or buffer edited), so an empty selection/clipboard leaves the chord to the app.
+        const auto run_chord = [&](hal::Clipboard& clipboard) {
+            if (key == 'C') {
+                return copy(clipboard).changed;
+            }
+            if (key == 'X') {
+                return cut(clipboard).changed;
+            }
+            if (key == 'V') {
+                return paste(clipboard).changed;
+            }
+            return false;
+        };
+        if ((key == 'C' || key == 'X' || key == 'V') && clipboard_ != nullptr) {
+            if (run_chord(*clipboard_)) {
+                event.handled = true;
+                return true;
+            }
+            return false;
+        }
         if (key == 'Z') {
             if (shift ? redo() : undo()) {
                 event.handled = true;
