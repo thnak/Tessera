@@ -4,8 +4,10 @@
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/ui/text/font_face.hpp"
+#include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
+#include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_renderer.hpp"
 
 #include <cstdint>
@@ -51,6 +53,32 @@ public:
             renderer_.draw(renderer, run, x, baseline, pixel_size, color);
             baseline += line_height;
         }
+    }
+
+    // Draws a wrapped paragraph: line boxes come from the shared text layout, each line is shaped
+    // and drawn through the same TextRenderer path. Returns the number of lines drawn.
+    std::size_t draw_wrapped(rendering::gpu::Batched2DRenderer& renderer, std::string_view text,
+                             float x, float first_baseline, float max_width,
+                             std::uint16_t pixel_size, rendering::rhi::Color color) {
+        ui::text::TextStyle style;
+        style.font_size = static_cast<float>(pixel_size);
+        ui::text::TextConstraints constraints;
+        constraints.wrap = true;
+        constraints.max_width = max_width;
+        const ui::text::TextLayout layout = ui::text::layout_text(
+            text, style, ui::text::StubFontMetricsProvider{}.metrics(style), constraints);
+        float baseline = first_baseline;
+        std::size_t drawn = 0;
+        for (const ui::text::TextLine& line : layout.lines) {
+            if (line.end > line.begin) {
+                const std::string_view slice = text.substr(line.begin, line.end - line.begin);
+                const ui::text::ShapedRun run = shaper_.shape(slice, style);
+                renderer_.draw(renderer, run, x, baseline, pixel_size, color);
+                ++drawn;
+            }
+            baseline += line.height;
+        }
+        return drawn;
     }
 
     [[nodiscard]] const ui::text::GlyphAtlas& atlas() const {

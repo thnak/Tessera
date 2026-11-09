@@ -232,6 +232,26 @@ if (TARGET tessera_rhi_vulkan)
     set_tests_properties(vulkan_device_recovery_loop PROPERTIES
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    add_executable(present_hardening_tests
+        vulkan/present_hardening_tests.cpp)
+    target_link_libraries(present_hardening_tests PRIVATE
+        tessera_gpu tessera_text_render tessera_rhi_vulkan tessera_runtime)
+    target_include_directories(present_hardening_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/src
+        ${PROJECT_SOURCE_DIR}/third_party/volk
+        ${PROJECT_SOURCE_DIR}/third_party/vma)
+    target_compile_definitions(present_hardening_tests PRIVATE VK_NO_PROTOTYPES)
+    if (WIN32)
+        target_compile_definitions(present_hardening_tests PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+    elseif (TESSERA_X11_FOUND)
+        target_compile_definitions(present_hardening_tests PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+        target_link_libraries(present_hardening_tests PRIVATE X11::X11)
+    endif()
+    add_test(NAME present_hardening
+        COMMAND present_hardening_tests "${TESSERA_FONT_FIXTURE}")
+    set_tests_properties(present_hardening PROPERTIES
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(vulkan_texture_churn_tests
         vulkan/vulkan_texture_churn_tests.cpp)
     target_link_libraries(vulkan_texture_churn_tests PRIVATE tessera_rhi_vulkan)

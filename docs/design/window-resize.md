@@ -356,3 +356,31 @@ Per-platform UX policy (error surface while `Lost`, retry cadence, telemetry, wh
 shell) stays an application/runtime policy decision. Out of scope for D7: multi-device and
 multi-swapchain orchestration, surface recreation policy, allocation-failure handling, and real
 GPU-reset coverage across drivers/vendors (the fault-injection tests cover the state machine).
+
+### 7.1 Present-path hardening demo and smoke (task-50)
+
+`batched2d_poc --windowed` has two opt-in hardening modes:
+
+- `--msaa 4 --font <fixture>`: swapchain images are always 1-sample, so the POC renders the scene
+  (rounded clip + rounded rect + wrapped paragraph + rotated quad) into an **offscreen 4x target**
+  whose pass resolves to its 1-sample image, then bridges that resolved image into the present image
+  through a CPU readback -> 1x texture -> fullscreen textured quad. The bridge exists because the RHI
+  has no image-to-image copy yet (`CommandList` only copies a target to a buffer); it is a demo
+  workaround, not the intended production path. Readback bytes are in the target's encoded space, so
+  on an sRGB swapchain the extra sample->encode->decode step is a documented visual approximation;
+  the path is validation-clean. A future RHI `blit`/resolve-to-image would remove the CPU bridge.
+- `--simulate-loss --font <fixture>` (requires a `TESSERA_VULKAN_TEST_HOOKS` build): after three
+  rendered frames the POC injects a simulated device loss, destroys every RHI object (swapchain,
+  pipelines, targets, textures, text atlas textures), lets `runtime::DeviceRecoveryController` drive
+  recovery through the normal `RuntimeLoop` tick, recreates resources on `device_recovered`, and
+  renders three more frames. It prints `frames_before/after`, `blocked_ticks`, the recovery tick and
+  generation, and fails if no frame renders after recovery.
+
+Measured locally (AMD RX 5300M, validation on): `--msaa 4` = 3/3 frames presented; combined
+`--msaa 4 --simulate-loss` = 3 frames before + loss injected + recovered at tick 4 (generation 1) +
+3 frames after, 0 blocked ticks, no validation messages.
+
+`tests/gpu/vulkan/present_hardening_tests.cpp` is the CI smoke: 3 non-MSAA frames of the same scene
+must be byte-identical (and a repeat run matches), a 4x frame renders through its resolved image when
+supported, and a simulated loss recovered by the controller must render the pre-loss pixels again.
+It skips cleanly without Vulkan, test hooks, or the fixture font, and fails on any `[vulkan]` line.

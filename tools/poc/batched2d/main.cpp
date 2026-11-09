@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#if defined(_WIN32)
+// The Vulkan test-hook headers pull in Windows headers; keep min/max out of std::min/std::max.
+#define NOMINMAX
+#endif
+
 #include "cpu_paint_sink.hpp"
 #include "damage_cli.hpp"
 #include "tessera/diagnostics/metrics.hpp"
@@ -13,6 +18,7 @@
 #include "tessera/rendering/software/cpu_canvas.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
+#include "tessera/runtime/device_recovery.hpp"
 #include "tessera/runtime/frame_pacer.hpp"
 #include "tessera/runtime/frame_wait.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
@@ -25,6 +31,9 @@
 #include "tessera/ui/text/glyph_raster.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 #include "text_demo.hpp"
+#if defined(TESSERA_VULKAN_TEST_HOOKS)
+#include "vulkan_internal.hpp"
+#endif
 
 #include <algorithm>
 #include <array>
@@ -57,6 +66,8 @@ struct Options {
     bool overlay = false;
     bool shapes = false;
     bool cpu_text = false;
+    bool simulate_loss = false;
+    std::uint32_t msaa = 1;
     bool windowed = false;
     bool on_demand = false;
     double run_seconds = 0.5;
@@ -78,7 +89,7 @@ void print_usage() {
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
                  "                     [--max-mismatch ratio] [--overlay] [--shapes] "
-                 "[--cpu-text] [--report "
+                 "[--cpu-text] [--msaa N] [--simulate-loss] [--report "
                  "report.json]\n"
                  "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
                  "[--run-seconds S]]\n";
@@ -111,6 +122,10 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.shapes = true;
         } else if (arg == "--cpu-text") {
             options.cpu_text = true;
+        } else if (arg == "--msaa" && i + 1 < argc) {
+            options.msaa = static_cast<std::uint32_t>(std::stoul(argv[++i]));
+        } else if (arg == "--simulate-loss") {
+            options.simulate_loss = true;
         } else if (arg == "--windowed") {
             options.windowed = true;
         } else if (arg == "--run-seconds" && i + 1 < argc) {
@@ -1174,6 +1189,360 @@ int run_cpu(const Options& options) {
     return 0;
 }
 
+// Hardened windowed path: offscreen 4x target resolved into the present image (readback bridge,
+// because RHI has no image-to-image copy yet; swapchain images are always 1-sample), plus the D7
+// DeviceRecoveryController with a test-hook loss injection. Kept separate from the default windowed
+// loop so `--msaa`/`--simulate-loss` do not change the existing demo/tests.
+int run_windowed_hardened(const Options& options) {
+    using namespace tessera;
+    using namespace tessera::rendering;
+
+    if (options.font.empty()) {
+        std::cout
+            << "windowed-hardened: skipped (--msaa/--simulate-loss require --font <fixture>)\n";
+        return 0;
+    }
+#if !defined(TESSERA_VULKAN_TEST_HOOKS)
+    if (options.simulate_loss) {
+        std::cout
+            << "windowed-hardened: skipped (--simulate-loss requires TESSERA_VULKAN_TEST_HOOKS)\n";
+        return 0;
+    }
+#endif
+    if (options.msaa != 1 && options.msaa != 4) {
+        std::cout << "windowed-hardened: unsupported --msaa " << options.msaa
+                  << " (expected 1 or 4)\n";
+        return 2;
+    }
+
+    hal::WindowDesc window_desc;
+    window_desc.title = "Tessera windowed POC (hardened)";
+    window_desc.width = options.width;
+    window_desc.height = options.height;
+    window_desc.visible = false;
+    auto window = hal::create_window(window_desc);
+    if (window == nullptr) {
+        std::cout << "windowed-hardened: skipped (no platform window backend)\n";
+        return 0;
+    }
+    const hal::NativeWindowHandle native = window->native_handle();
+    if (native.window == nullptr) {
+        std::cout << "windowed-hardened: skipped (window has no native handle)\n";
+        return 0;
+    }
+
+    auto device =
+        vulkan::create_vulkan_device(rhi::DeviceDesc{rhi::Backend::Vulkan, options.validation, -1});
+
+    auto loaded = ui::text::FontFace::load_from_file(options.font);
+    if (!loaded) {
+        throw std::runtime_error("windowed-hardened: failed to load font: " +
+                                 loaded.error().message);
+    }
+
+    std::unique_ptr<poc::batched2d::TextDemo> text_demo;
+    std::unique_ptr<rhi::Swapchain> swapchain;
+    std::unique_ptr<rhi::Pipeline> pipeline;
+    std::unique_ptr<gpu::Batched2DRenderer> renderer;
+    std::unique_ptr<rhi::Pipeline> msaa_pipeline;
+    std::unique_ptr<gpu::Batched2DRenderer> msaa_renderer;
+    std::unique_ptr<rhi::RenderTarget> offscreen;
+    std::unique_ptr<rhi::Texture> present_texture;
+    std::unique_ptr<rhi::Texture> white;
+
+    const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
+    const auto create_resources = [&] {
+        const hal::WindowMetrics metrics = window->metrics();
+        rhi::SwapchainDesc swap_desc;
+        swap_desc.extent = {metrics.physical_width, metrics.physical_height};
+        swap_desc.image_count = 2;
+        swap_desc.vsync = true;
+        swap_desc.native_window = native.window;
+        swap_desc.native_display = native.display;
+        auto created = device->create_swapchain(swap_desc);
+        if (!created) {
+            throw std::runtime_error("windowed-hardened: create_swapchain failed");
+        }
+        swapchain = std::move(*created);
+
+        rhi::TextureDesc white_desc;
+        white_desc.extent = {1, 1};
+        white_desc.pixels = white_pixel.data();
+        white_desc.row_pitch = 4;
+        white = device->create_texture(white_desc);
+
+        auto pipeline_desc = vulkan::batched2d_pipeline_desc();
+        pipeline_desc.color_format = swapchain->format();
+        pipeline = device->create_pipeline(pipeline_desc);
+        gpu::Batched2DConfig config{4096, true, true};
+        renderer = std::make_unique<gpu::Batched2DRenderer>(*device, *pipeline, *white, config);
+        text_demo = std::make_unique<poc::batched2d::TextDemo>(*device, *loaded, options.text,
+                                                               options.text_size);
+
+        if (options.msaa > 1) {
+            rhi::RenderTargetDesc msaa_desc;
+            msaa_desc.extent = swapchain->extent();
+            msaa_desc.format = swapchain->format();
+            msaa_desc.clear_color = rhi::rgba8(11, 18, 32);
+            msaa_desc.sample_count = options.msaa;
+            offscreen = device->create_render_target(msaa_desc);
+            auto msaa_pipeline_desc =
+                vulkan::batched2d_pipeline_desc(swapchain->format(), options.msaa);
+            msaa_pipeline = device->create_pipeline(msaa_pipeline_desc);
+            gpu::Batched2DConfig msaa_config{4096, true, true, options.msaa};
+            msaa_renderer = std::make_unique<gpu::Batched2DRenderer>(*device, *msaa_pipeline,
+                                                                     *white, msaa_config);
+            rhi::TextureDesc present_desc;
+            present_desc.extent = swapchain->extent();
+            present_desc.format = swapchain->format();
+            present_desc.filter = rhi::Filter::Linear;
+            present_texture = device->create_texture(present_desc);
+        }
+    };
+
+    const auto destroy_resources = [&] {
+        text_demo.reset();
+        present_texture.reset();
+        msaa_renderer.reset();
+        msaa_pipeline.reset();
+        offscreen.reset();
+        renderer.reset();
+        pipeline.reset();
+        white.reset();
+        swapchain.reset();
+    };
+
+    const auto paint_scene = [&](gpu::Batched2DRenderer& frame_renderer, std::uint32_t width,
+                                 std::uint32_t height) {
+        const float card_width = static_cast<float>(width) * 0.52f;
+        const float card_height = static_cast<float>(height) * 0.62f;
+        const rhi::Rect card{static_cast<float>(width) * 0.06f, static_cast<float>(height) * 0.18f,
+                             card_width, card_height};
+        const gpu::clip::RoundedRect clip{card, 18.0f, 18.0f, 18.0f, 18.0f};
+        frame_renderer.push_clip(clip);
+        frame_renderer.push_rounded_rect(card, rhi::rgba8(24, 32, 48), 18.0f);
+        text_demo->begin_frame();
+        (void)text_demo->draw_wrapped(
+            frame_renderer,
+            "The quick brown fox jumps over the lazy dog near the river bank at dawn",
+            card.x + 12.0f, card.y + 28.0f, card.width - 24.0f, 15, rhi::rgba8(226, 232, 240));
+        frame_renderer.push_transform(rhi::Mat3::translation(static_cast<float>(width) * 0.76f,
+                                                             static_cast<float>(height) * 0.58f) *
+                                      rhi::Mat3::rotation(0.42f));
+        frame_renderer.push_rect({-34.0f, -34.0f, 68.0f, 68.0f}, rhi::rgba8(56, 189, 248));
+        frame_renderer.pop_transform();
+        frame_renderer.pop_clip();
+    };
+
+    struct FrameOutcome {
+        bool rendered = false;
+        bool presented = false;
+    };
+
+    const auto render_present = [&]() -> FrameOutcome {
+        FrameOutcome outcome;
+        if (!swapchain) {
+            return outcome;
+        }
+        const hal::WindowMetrics metrics = window->metrics();
+        if (metrics.physical_width != swapchain->extent().width ||
+            metrics.physical_height != swapchain->extent().height) {
+            swapchain->resize({metrics.physical_width, metrics.physical_height});
+            if (options.msaa > 1) {
+                present_texture.reset();
+                offscreen.reset();
+                rhi::RenderTargetDesc msaa_desc;
+                msaa_desc.extent = swapchain->extent();
+                msaa_desc.format = swapchain->format();
+                msaa_desc.clear_color = rhi::rgba8(11, 18, 32);
+                msaa_desc.sample_count = options.msaa;
+                offscreen = device->create_render_target(msaa_desc);
+                rhi::TextureDesc present_desc;
+                present_desc.extent = swapchain->extent();
+                present_desc.format = swapchain->format();
+                present_desc.filter = rhi::Filter::Linear;
+                present_texture = device->create_texture(present_desc);
+            }
+        }
+
+        std::optional<std::uint32_t> image;
+        for (int attempt = 0; attempt < 4 && !image; ++attempt) {
+            const auto acquired = swapchain->acquire_next_image(100);
+            if (acquired) {
+                image = *acquired;
+                break;
+            }
+            if (acquired.error() == rhi::SwapchainError::OutOfDate) {
+                swapchain->resize({metrics.physical_width, metrics.physical_height});
+                continue;
+            }
+            break;
+        }
+        if (!image) {
+            return outcome;
+        }
+        rhi::RenderTarget* target = swapchain->image_target(*image);
+        if (target == nullptr) {
+            return outcome;
+        }
+
+        rhi::RenderTargetDesc target_desc;
+        target_desc.extent = swapchain->extent();
+        target_desc.format = swapchain->format();
+        target_desc.load_op = rhi::LoadOp::Clear;
+        target_desc.clear_color = rhi::rgba8(11, 18, 32);
+
+        if (options.msaa > 1) {
+            // Offscreen 4x: resolve happens at end of its render pass; the CPU readback bridge then
+            // uploads the resolved 1-sample image and draws it into the 1-sample present image.
+            if (!offscreen || !present_texture) {
+                return outcome;
+            }
+            auto msaa_commands = device->create_command_list();
+            rhi::RenderTargetDesc msaa_desc;
+            msaa_desc.extent = swapchain->extent();
+            msaa_desc.format = swapchain->format();
+            msaa_desc.clear_color = rhi::rgba8(11, 18, 32);
+            msaa_desc.sample_count = options.msaa;
+            msaa_renderer->begin(*msaa_commands, *offscreen, msaa_desc);
+            paint_scene(*msaa_renderer, target_desc.extent.width, target_desc.extent.height);
+            msaa_renderer->end();
+            msaa_commands->submit();
+            device->wait_idle();
+
+            const std::size_t bytes = static_cast<std::size_t>(target_desc.extent.width) *
+                                      target_desc.extent.height * sizeof(std::uint32_t);
+            auto readback = device->create_buffer({bytes, rhi::BufferUsage::Readback});
+            auto copy_commands = device->create_command_list();
+            copy_commands->copy_target_to_buffer(*offscreen, *readback);
+            copy_commands->submit();
+            std::vector<std::uint8_t> pixels(bytes);
+            readback->read(pixels.data(), pixels.size());
+            present_texture->write(pixels.data(), pixels.size());
+
+            auto commands = device->create_command_list();
+            renderer->begin(*commands, *target, target_desc);
+            renderer->push_texture({0.0f, 0.0f, static_cast<float>(target_desc.extent.width),
+                                    static_cast<float>(target_desc.extent.height)},
+                                   *present_texture, {0.0f, 0.0f, 1.0f, 1.0f},
+                                   rhi::rgba8(255, 255, 255));
+            renderer->end();
+            commands->submit();
+        } else {
+            auto commands = device->create_command_list();
+            renderer->begin(*commands, *target, target_desc);
+            paint_scene(*renderer, target_desc.extent.width, target_desc.extent.height);
+            renderer->end();
+            commands->submit();
+        }
+        outcome.rendered = true;
+
+        const auto result = swapchain->present(*image);
+        outcome.presented = result.has_value() || result.error() == rhi::SwapchainError::Suboptimal;
+        return outcome;
+    };
+
+    runtime::SteadyClock clock;
+    runtime::RuntimeLoopConfig loop_config;
+    runtime::DeviceRecoveryController controller(*device);
+    loop_config.device_recovery = &controller;
+    runtime::RuntimeLoop loop(clock, loop_config);
+    loop.set_continuous(true);
+
+    std::array<hal::WindowEvent, 16> events{};
+    std::uint32_t rendered_before = 0;
+    std::uint32_t rendered_after = 0;
+    std::uint32_t presented = 0;
+    std::uint32_t blocked_ticks = 0;
+    std::uint32_t recovery_tick = 0;
+    bool loss_injected = false;
+    bool recovered = false;
+    bool closed = false;
+    create_resources();
+
+#if defined(TESSERA_VULKAN_TEST_HOOKS)
+    auto* vulkan_device = dynamic_cast<vulkan::VulkanDevice*>(device.get());
+#endif
+
+    constexpr std::uint32_t kPreLossFrames = 3;
+    constexpr std::uint32_t kMaxTicks = 5000;
+    for (std::uint32_t tick_index = 0; tick_index < kMaxTicks && !closed; ++tick_index) {
+        const std::size_t event_count = window->poll_events(events);
+        for (std::size_t i = 0; i < event_count; ++i) {
+            if (events[i].type == hal::WindowEventType::Close) {
+                closed = true;
+            }
+        }
+        if (closed) {
+            break;
+        }
+
+#if defined(TESSERA_VULKAN_TEST_HOOKS)
+        if (options.simulate_loss && !loss_injected && rendered_before >= kPreLossFrames &&
+            vulkan_device != nullptr) {
+            destroy_resources();
+            vulkan_device->simulate_device_loss_for_testing();
+            loss_injected = true;
+            std::cout << "windowed-hardened: injected device loss after " << rendered_before
+                      << " frames\n";
+        }
+#endif
+
+        const runtime::RuntimeTick tick = loop.tick();
+        if (tick.device_blocked) {
+            // The controller is WaitingForCaller: release the lost-generation objects so the next
+            // tick can attempt recovery.
+            destroy_resources();
+            ++blocked_ticks;
+            continue;
+        }
+        if (tick.device_recovered) {
+            create_resources();
+            recovered = true;
+            recovery_tick = tick_index + 1;
+            std::cout << "windowed-hardened: recovered at tick " << recovery_tick
+                      << " generation=" << tick.device_generation << "\n";
+            continue;
+        }
+        if (!tick.should_render) {
+            continue;
+        }
+        if (!swapchain) {
+            create_resources();
+        }
+        const FrameOutcome outcome = render_present();
+        if (outcome.rendered) {
+            if (loss_injected) {
+                ++rendered_after;
+            } else {
+                ++rendered_before;
+            }
+        }
+        presented += outcome.presented ? 1U : 0U;
+        if (loss_injected && !recovered) {
+            continue;
+        }
+        if (!options.simulate_loss) {
+            if (rendered_before >= options.frames) {
+                break;
+            }
+        } else if (recovered && rendered_after >= options.frames && rendered_before >= 1) {
+            break;
+        }
+    }
+
+    destroy_resources();
+    device->wait_idle();
+    const bool ok = rendered_before >= 1 && presented >= 1 &&
+                    (!options.simulate_loss ||
+                     (loss_injected && recovered && rendered_after >= options.frames));
+    std::cout << "windowed-hardened: msaa=" << options.msaa << " frames_before=" << rendered_before
+              << " frames_after=" << rendered_after << " presented=" << presented
+              << " blocked_ticks=" << blocked_ticks << " recovery_tick=" << recovery_tick
+              << " injected=" << loss_injected << " recovered=" << recovered << "\n";
+    return ok ? 0 : 1;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1191,6 +1560,9 @@ int main(int argc, char** argv) {
         }
         if (options.backend == "vulkan") {
             if (options.windowed) {
+                if (options.msaa > 1 || options.simulate_loss) {
+                    return run_windowed_hardened(options);
+                }
                 return run_windowed(options);
             }
             return run_vulkan(options);

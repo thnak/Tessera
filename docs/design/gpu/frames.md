@@ -113,6 +113,9 @@ Rules:
 - DPI/scale changes recreate targets/pipelines only where formats/sizes require it.
 - Resize does not reorder UI state or drop queued input; rendering catches up at the new size.
 - A failed acquire/present is a normal state (out-of-date) and recreates the swapchain.
+- Swapchain images are 1-sample; opt-in 4x presentation uses an offscreen 4x target + end-of-pass
+  resolve and, until the RHI grows an image-to-image copy, a CPU readback -> texture -> fullscreen
+  quad bridge (demo only; encoded-space/sRGB caveat documented in `window-resize.md` 7.1).
 
 ## 8. Failure and recovery
 
@@ -126,6 +129,9 @@ Rules:
 | Shader/pipeline failure | Fallback pipeline or error placeholder; never crash the frame loop |
 
 Recovery is explicit and observable; it never silently changes scroll/focus/selection state.
+Device loss is proven end-to-end by the windowed POC (`--simulate-loss`) and offscreen by
+`present_hardening`: frames stop, the caller releases every lost-generation RHI object, the
+controller recovers on a later tick, and rendering resumes with validation on.
 
 ## 9. Determinism and tests
 
@@ -134,6 +140,8 @@ Recovery is explicit and observable; it never silently changes scroll/focus/sele
 - Tests: slot reuse, bounded wait, upload before use, readback after copy, resize retirement,
   device-loss path, OOM eviction, pass order.
 - Golden frames use the software/lavapipe path; real GPUs are smoke/tolerance only.
+- `present_hardening` covers 3 deterministic frames with rounded clip + wrapped text + rotated quad,
+  4x resolve readback when supported, and a simulated device-loss recovery cycle under validation.
 
 ## 10. Deferred/open
 
@@ -142,3 +150,8 @@ Recovery is explicit and observable; it never silently changes scroll/focus/sele
 - Timeline-semaphore sharing across devices.
 - Variable-rate shading and foveation.
 - Multi-window/multi-swapchain frame scheduling.
+- Partial/incremental present and VRR: Win32 DXGI flip-model `Present1` dirty rects/scrolled areas
+  and Vulkan `VK_KHR_incremental_present` are presentation-engine hints that need per-frame
+  back-buffer coherence bookkeeping; X11 partial updates (`XPutImage`/`XShmPutImage`/`XCopyArea`)
+  do not reduce compositor work and XDamage only reports. Damage stays a render-side work reduction
+  (D4); VRR/partial present belongs to a later platform-capability slice.
