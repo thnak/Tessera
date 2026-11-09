@@ -840,6 +840,13 @@ target_link_libraries(text_bidi_tests PRIVATE tessera_text)
 
 add_test(NAME text_bidi COMMAND text_bidi_tests)
 
+add_executable(text_hit_test_tests
+    text_hit_test_tests.cpp)
+
+target_link_libraries(text_hit_test_tests PRIVATE tessera_text_edit)
+
+add_test(NAME text_hit_test COMMAND text_hit_test_tests)
+
 add_executable(paint_bidi_tests
     paint_bidi_tests.cpp)
 

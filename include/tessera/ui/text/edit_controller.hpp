@@ -6,6 +6,7 @@
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/text/edit_buffer.hpp"
 #include "tessera/ui/text/edit_history.hpp"
+#include "tessera/ui/text/hit_test.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -97,6 +98,12 @@ public:
     // (Backspace/Delete, arrows, Home/End, Ctrl+A, Enter in multi-line fields). Returns true when
     // the controller consumed the event (and set `event.handled`).
     bool handle_event(Event& event);
+
+    // Point-to-caret integration (task-79): place collapses the selection and sets the caret;
+    // extend keeps the anchor and moves the focus (Shift+click). Both take a `TextHit`; read-only
+    // fields allow caret/selection moves without changing text.
+    EditResult place_caret_at(TextHit hit);
+    EditResult extend_selection_to(TextHit hit);
 
     // Result of the most recent command (NoChange until the first command).
     [[nodiscard]] const EditResult& last_result() const {

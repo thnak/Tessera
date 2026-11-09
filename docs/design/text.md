@@ -248,3 +248,17 @@ visual run so a selection crossing a direction change is the union of run interv
 OFL-1.1 Hebrew fixture is `tests/fixtures/fonts/NotoSansHebrew-Regular.ttf` (not linked into the
 app). Click-to-position inside RTL/mixed runs stays a documented deferral; no CPU golden yet (the
 CPU text scene has no bidi payload).
+
+### 12.1 Point-to-caret hit testing (task-79)
+
+`hit_test_point` maps a content-box-local point to `{byte_offset, CaretAffinity}`. Lines are chosen
+by y (above/below clamp to the first/last line), then x resolves within the line's visual runs: LTR
+runs pick the nearest cluster boundary by shaped advance; RTL runs map from the run's visual right
+edge back to logical clusters; a point exactly on a run join uses the right-biased affinity (the run
+whose logical range ends there, `Upstream`). The result always snaps to a grapheme-cluster boundary
+(existing `next_cluster` rules), never a code-point interior. Ties choose `Downstream` in LTR. The
+caller subtracts any centered/end alignment before calling; the metrics advance source is a
+parameter so edit hit testing matches the painted font. `EditController::place_caret_at` collapses
+the selection and moves the caret; `extend_selection_to` keeps the anchor (Shift+click). Read-only
+fields allow caret/selection moves. Deferrals: drag selection and selection handles, word/line
+double/triple-click segmentation, vertical text, sub-pixel affinity, and selection while composing.

@@ -551,3 +551,9 @@ Bidi caret mapping (task-71): the text layer exposes per-line `TextLine::visual_
 `text::bidi_offset_x(logical offset -> visual x, right-biased run-join affinity)`; the edit
 controller's logical caret/selection values can be mapped once paint consumes visual runs. Not wired
 into the edit UI in this slice.
+
+Point-to-caret (task-79): `ui::text::hit_test_point` maps a local point to a logical caret with
+`CaretAffinity` (line clamping, bidi visual runs, grapheme snapping, right-biased run-join affinity,
+deterministic metrics-source advances). `EditController::place_caret_at` / `extend_selection_to`
+apply it (read-only allows caret/selection moves). Drag selection, handles, word/line click
+segmentation and vertical text remain deferred.

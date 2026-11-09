@@ -2,6 +2,7 @@
 
 add_library(tessera_text STATIC
     bidi.cpp
+    hit_test.cpp
     edit_buffer.cpp
     edit_grapheme.cpp
     font_face.cpp

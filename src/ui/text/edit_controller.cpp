@@ -133,6 +133,16 @@ bool EditController::accept(EditResult result, bool text_edit) {
     return true;
 }
 
+EditResult EditController::place_caret_at(TextHit hit) {
+    accept(buffer_.set_caret(hit.byte_offset), false);
+    return last_result_;
+}
+
+EditResult EditController::extend_selection_to(TextHit hit) {
+    accept(buffer_.set_selection(buffer_.anchor(), hit.byte_offset), false);
+    return last_result_;
+}
+
 bool EditController::handle_event(Event& event) {
     if (event.prevent_default || event.handled) {
         return false;
