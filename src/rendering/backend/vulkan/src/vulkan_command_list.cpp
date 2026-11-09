@@ -59,6 +59,11 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     const bool preserve = desc.load_op == rhi::LoadOp::Load;
     const bool present = vulkan_target->presentable();
     const bool multisampled = sample_count > 1;
+    // loadOp=LOAD reads the existing color attachment, so the destination access must include
+    // COLOR_ATTACHMENT_READ (otherwise validation reports a READ_AFTER_WRITE hazard).
+    const VkAccessFlags color_access =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+        (preserve ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
     record_image_transition(
         buffer_, vulkan_target->image(),
         multisampled
@@ -69,7 +74,7 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         multisampled ? (preserve ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0)
                      : (preserve && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0),
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        color_access,
         multisampled ? (preserve ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
                                  : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)
                      : (preserve ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
