@@ -175,7 +175,7 @@ bool clamping_and_dirty() {
     if (!expect(!tessera::ui::scroll_to(plain, 50.0f, 50.0f), "non-scrollable ignores requests") ||
         !expect(near(plain.scroll_x(), 0.0f) && near(plain.scroll_y(), 0.0f),
                 "non-scrollable stays") ||
-        !expect(plain.dirty() == Dirty::None, "non-scrollable marks nothing")) {
+        !expect(plain.dirty() == Dirty::Clean, "non-scrollable marks nothing")) {
         return false;
     }
 
@@ -186,7 +186,7 @@ bool clamping_and_dirty() {
     small.set_content_size(50.0f, 50.0f);
     clear_tree(small);
     if (!expect(!tessera::ui::scroll_to(small, 10.0f, 10.0f), "small content clamps to zero") ||
-        !expect(small.dirty() == Dirty::None, "clamped-to-zero marks nothing")) {
+        !expect(small.dirty() == Dirty::Clean, "clamped-to-zero marks nothing")) {
         return false;
     }
 
@@ -445,7 +445,7 @@ bool scrollable_flag_dirty() {
     // Repeating the same value is a no-op and marks nothing.
     clear_tree(node);
     node.set_scrollable_y(true);
-    return expect(node.dirty() == Dirty::None, "repeated flag set marks nothing");
+    return expect(node.dirty() == Dirty::Clean, "repeated flag set marks nothing");
 }
 
 } // namespace

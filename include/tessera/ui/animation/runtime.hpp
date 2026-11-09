@@ -45,7 +45,7 @@ struct AnimationSample {
 struct AnimationTickResult {
     std::vector<AnimationSample> samples;
     std::vector<AnimationId> finished;
-    Dirty dirty = Dirty::None;
+    Dirty dirty = Dirty::Clean;
     bool keep_awake = false;
 };
 

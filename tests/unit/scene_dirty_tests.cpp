@@ -19,7 +19,7 @@ bool expect(bool condition, const char* message) {
 }
 
 bool clean(const Node& node) {
-    return node.dirty() == Dirty::None && node.subtree_dirty() == Dirty::None;
+    return node.dirty() == Dirty::Clean && node.subtree_dirty() == Dirty::Clean;
 }
 
 } // namespace
@@ -49,8 +49,8 @@ int main() {
     if (!expect(has_flag(grandchild->dirty(), Dirty::Paint), "leaf mark") ||
         !expect(has_flag(child->subtree_dirty(), Dirty::Paint), "parent subtree mark") ||
         !expect(has_flag(root.subtree_dirty(), Dirty::Paint), "root subtree mark") ||
-        !expect(child->dirty() == Dirty::None, "parent own flags unchanged") ||
-        !expect(root.dirty() == Dirty::None, "root own flags unchanged")) {
+        !expect(child->dirty() == Dirty::Clean, "parent own flags unchanged") ||
+        !expect(root.dirty() == Dirty::Clean, "root own flags unchanged")) {
         return 3;
     }
 
@@ -63,7 +63,7 @@ int main() {
     root.mark_dirty(Dirty::Layout | Dirty::Render);
     if (!expect(has_flag(root.dirty(), Dirty::Layout), "root own layout") ||
         !expect(has_flag(root.subtree_dirty(), Dirty::Render), "root subtree render") ||
-        !expect(child->dirty() == Dirty::None, "mark root does not dirty child own flags")) {
+        !expect(child->dirty() == Dirty::Clean, "mark root does not dirty child own flags")) {
         return 5;
     }
 
@@ -75,7 +75,7 @@ int main() {
 
     root.clear_dirty(Dirty::All);
     root.set_bounds({1, 2, 3, 4});
-    if (!expect(root.dirty() == Dirty::None, "same bounds does not dirty")) {
+    if (!expect(root.dirty() == Dirty::Clean, "same bounds does not dirty")) {
         return 7;
     }
 
@@ -86,7 +86,7 @@ int main() {
 
     root.clear_dirty(Dirty::All);
     root.set_transform(tessera::rendering::rhi::Mat3::translation(4, 5));
-    if (!expect(root.dirty() == Dirty::None, "same transform does not dirty")) {
+    if (!expect(root.dirty() == Dirty::Clean, "same transform does not dirty")) {
         return 9;
     }
 
@@ -99,7 +99,7 @@ int main() {
 
     root.clear_dirty(Dirty::All);
     root.set_visible(false);
-    if (!expect(root.dirty() == Dirty::None, "same visibility does not dirty")) {
+    if (!expect(root.dirty() == Dirty::Clean, "same visibility does not dirty")) {
         return 11;
     }
 

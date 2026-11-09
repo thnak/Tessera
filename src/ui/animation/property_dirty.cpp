@@ -37,7 +37,7 @@ Dirty dirty_for_property(std::string_view property) {
 }
 
 Dirty dirty_for_declarations(const std::vector<style::Declaration>& declarations) {
-    Dirty dirty = Dirty::None;
+    Dirty dirty = Dirty::Clean;
     for (const style::Declaration& declaration : declarations) {
         dirty = dirty | dirty_for_property(declaration.property);
     }

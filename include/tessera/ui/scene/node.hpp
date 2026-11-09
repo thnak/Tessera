@@ -281,8 +281,8 @@ private:
     float scrollport_right_ = 0.0f;
     float scrollport_bottom_ = 0.0f;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
-    Dirty dirty_ = Dirty::None;
-    Dirty subtree_dirty_ = Dirty::None;
+    Dirty dirty_ = Dirty::Clean;
+    Dirty subtree_dirty_ = Dirty::Clean;
 };
 
 bool dispatch_event(Node& root, Event& event);

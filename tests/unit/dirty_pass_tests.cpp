@@ -59,7 +59,7 @@ int main() {
     }
 
     pass.clear(root, Dirty::Paint);
-    if (!expect(leaf->dirty() == Dirty::None, "clear leaf paint") ||
+    if (!expect(leaf->dirty() == Dirty::Clean, "clear leaf paint") ||
         !expect(sibling->dirty() == Dirty::Render, "clear leaves other domain") ||
         !expect(!has_any(root.subtree_dirty(), Dirty::Paint), "root paint aggregate cleared") ||
         !expect(has_any(root.subtree_dirty(), Dirty::Render), "root render aggregate remains")) {

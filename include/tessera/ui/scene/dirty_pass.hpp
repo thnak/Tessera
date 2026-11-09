@@ -12,7 +12,7 @@ namespace tessera::ui {
 
 struct DirtyNode {
     Node* node = nullptr;
-    Dirty flags = Dirty::None;
+    Dirty flags = Dirty::Clean;
 };
 
 class DirtyPass {

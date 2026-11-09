@@ -35,14 +35,6 @@
 #include "vulkan_internal.hpp"
 #endif
 
-// Xlib (pulled in by the Vulkan Xlib surface headers on Linux) defines `None` as a macro, which
-// collides with the `ui::Dirty::None` enumerator used below. This translation unit never calls
-// Xlib directly (window creation and surfaces go through the HAL/RHI wrappers), so dropping the
-// macro is safe here; renaming the enumerator repo-wide is tracked as hygiene debt.
-#ifdef None
-#undef None
-#endif
-
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -870,8 +862,8 @@ int run_windowed(const Options& options) {
                 cause_pending = true;
             }
 
-            if (first_frame || root.subtree_dirty() != ui::Dirty::None ||
-                root.dirty() != ui::Dirty::None) {
+            if (first_frame || root.subtree_dirty() != ui::Dirty::Clean ||
+                root.dirty() != ui::Dirty::Clean) {
                 demand_loop.mark_render_dirty();
             }
             const runtime::RuntimeTick tick = demand_loop.tick();

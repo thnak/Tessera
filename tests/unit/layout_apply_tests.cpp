@@ -85,9 +85,9 @@ int main() {
     label_ref.clear_dirty(Dirty::All);
     const LayoutApplyResult repeated = tessera::ui::layout::apply_layout(layout, root);
     if (!expect(repeated.applied == 3, "repeat applied") ||
-        !expect(root.dirty() == Dirty::None, "same root bounds stay clean") ||
-        !expect(panel_ref.dirty() == Dirty::None, "same child bounds stay clean") ||
-        !expect(label_ref.dirty() == Dirty::None, "same grandchild bounds stay clean")) {
+        !expect(root.dirty() == Dirty::Clean, "same root bounds stay clean") ||
+        !expect(panel_ref.dirty() == Dirty::Clean, "same child bounds stay clean") ||
+        !expect(label_ref.dirty() == Dirty::Clean, "same grandchild bounds stay clean")) {
         return 3;
     }
 

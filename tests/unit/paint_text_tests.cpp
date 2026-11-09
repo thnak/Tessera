@@ -236,7 +236,7 @@ bool test_paint_data_node_contract() {
 
     node.clear_dirty(Dirty::All);
     node.set_paint_data(data);
-    ok = expect(node.dirty() == Dirty::None, "identical paint data is a no-op") && ok;
+    ok = expect(node.dirty() == Dirty::Clean, "identical paint data is a no-op") && ok;
 
     PaintData longer;
     longer.text = std::string(3000, 'x') + "\xC3\xA9" + std::string(3000, 'y');
@@ -251,7 +251,7 @@ bool test_paint_data_node_contract() {
     ok = expect(!node.paint_data().has_value(), "paint data can be cleared") && ok;
     node.clear_dirty(Dirty::All);
     node.clear_paint_data();
-    ok = expect(node.dirty() == Dirty::None, "clearing empty paint data is a no-op") && ok;
+    ok = expect(node.dirty() == Dirty::Clean, "clearing empty paint data is a no-op") && ok;
     return ok;
 }
 

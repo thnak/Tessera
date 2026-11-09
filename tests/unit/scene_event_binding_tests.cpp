@@ -122,7 +122,7 @@ void test_binding_capacity() {
           "unbind shrinks storage");
     node.clear_event_bindings();
     check(node.event_bindings().empty(), "clearing removes every binding");
-    check(node.dirty() == ui::Dirty::None, "binding never marks a dirty domain");
+    check(node.dirty() == ui::Dirty::Clean, "binding never marks a dirty domain");
 }
 
 // A node that writes every dispatched phase into a shared log so the route can be compared.

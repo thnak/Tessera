@@ -16,14 +16,14 @@ DirtyPass::DirtyPass(std::size_t max_nodes)
 
 void DirtyPass::collect(Node& root, Dirty domain) {
     reset();
-    if (domain != Dirty::None) {
+    if (domain != Dirty::Clean) {
         visit(root, domain);
     }
 }
 
 void DirtyPass::clear(Node& root, Dirty domain) {
     reset();
-    if (domain != Dirty::None) {
+    if (domain != Dirty::Clean) {
         clear_visit(root, domain);
     }
 }

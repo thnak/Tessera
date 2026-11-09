@@ -174,7 +174,7 @@ bool insets_dirty_paint_and_render_only() {
     }
     node.clear_dirty(Dirty::All);
     node.set_scrollport_insets(2.0f, 2.0f, 2.0f, 2.0f);
-    return expect(node.dirty() == Dirty::None, "repeating the same insets marks nothing");
+    return expect(node.dirty() == Dirty::Clean, "repeating the same insets marks nothing");
 }
 
 bool paint_clip_and_clamp_agree_with_a_border() {

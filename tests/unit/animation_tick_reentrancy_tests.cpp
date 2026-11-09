@@ -97,7 +97,7 @@ int main() {
     const auto clear_result = cleared.tick(1.0);
     if (!expect(finished_has(clear_result, clear_id), "clear finished") ||
         !expect(clear_result.samples.empty(), "clear drops all samples") ||
-        !expect(clear_result.dirty == Dirty::None, "clear drops dirty") ||
+        !expect(clear_result.dirty == Dirty::Clean, "clear drops dirty") ||
         !expect(cleared.active() == 0 && cleared.settled() == 0, "clear state")) {
         return 1;
     }

@@ -211,7 +211,7 @@ void Node::set_pseudo_state(style::PseudoState state, bool enabled) {
 }
 
 void Node::mark_dirty(Dirty flags) {
-    if (flags == Dirty::None) {
+    if (flags == Dirty::Clean) {
         return;
     }
 

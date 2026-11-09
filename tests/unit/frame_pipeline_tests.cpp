@@ -149,8 +149,8 @@ struct NodeSnapshot {
     Rect bounds;
     Mat3 transform;
     bool visible = true;
-    Dirty dirty = Dirty::None;
-    Dirty subtree_dirty = Dirty::None;
+    Dirty dirty = Dirty::Clean;
+    Dirty subtree_dirty = Dirty::Clean;
     std::size_t children = 0;
 
     bool operator==(const NodeSnapshot& other) const {

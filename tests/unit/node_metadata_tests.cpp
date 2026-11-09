@@ -44,7 +44,7 @@ void test_element_kind() {
     node.set_element_kind(long_text(ui::Node::kMaxMetadataBytes + 4));
     check(node.element_kind().size() == ui::Node::kMaxMetadataBytes,
           "element kind is truncated to the byte cap");
-    check(node.dirty() == ui::Dirty::None, "element kind does not invalidate style or layout");
+    check(node.dirty() == ui::Dirty::Clean, "element kind does not invalidate style or layout");
 }
 
 void test_id_and_class_dirty() {
@@ -56,7 +56,7 @@ void test_id_and_class_dirty() {
 
     node.clear_dirty(ui::Dirty::All);
     node.set_element_id("root");
-    check(node.dirty() == ui::Dirty::None, "setting the same id is a no-op");
+    check(node.dirty() == ui::Dirty::Clean, "setting the same id is a no-op");
 
     node.set_element_id("other");
     check(ui::has_flag(node.dirty(), ui::Dirty::Style), "a new id marks Dirty::Style");
@@ -66,14 +66,14 @@ void test_id_and_class_dirty() {
           "clearing an id works and marks Dirty::Style");
     node.clear_dirty(ui::Dirty::All);
     node.clear_element_id();
-    check(node.dirty() == ui::Dirty::None, "clearing an empty id is a no-op");
+    check(node.dirty() == ui::Dirty::Clean, "clearing an empty id is a no-op");
 
     node.set_class_name("box wide");
     check_eq(node.class_name(), "box wide", "className is read back");
     check(ui::has_flag(node.dirty(), ui::Dirty::Style), "setting className marks Dirty::Style");
     node.clear_dirty(ui::Dirty::All);
     node.set_class_name("box wide");
-    check(node.dirty() == ui::Dirty::None, "setting the same className is a no-op");
+    check(node.dirty() == ui::Dirty::Clean, "setting the same className is a no-op");
     node.set_class_name(long_text(ui::Node::kMaxMetadataBytes + 4));
     check(node.class_name().size() == ui::Node::kMaxMetadataBytes,
           "className is truncated to the byte cap");
@@ -88,13 +88,13 @@ void test_automation_and_role() {
     check(node.automation_id() == 0, "automationId 0 means unset");
     node.set_automation_id(42);
     check(node.automation_id() == 42, "automationId is read back");
-    check(node.dirty() == ui::Dirty::None, "automationId does not invalidate style or layout");
+    check(node.dirty() == ui::Dirty::Clean, "automationId does not invalidate style or layout");
     node.set_automation_id(42);
     check(node.automation_id() == 42, "setting the same automationId is a no-op");
 
     node.set_role("button");
     check_eq(node.role(), "button", "role is read back");
-    check(node.dirty() == ui::Dirty::None, "role does not invalidate style or layout");
+    check(node.dirty() == ui::Dirty::Clean, "role does not invalidate style or layout");
     node.set_role(long_text(ui::Node::kMaxMetadataBytes + 4));
     check(node.role().size() == ui::Node::kMaxMetadataBytes, "role is truncated to the byte cap");
     node.clear_role();
@@ -109,7 +109,7 @@ void test_aria_pairs() {
     check(node.aria_attributes().size() == 1, "one pair is stored");
     check_eq(node.aria_attributes()[0].name, "aria-label", "aria name is stored");
     check_eq(node.aria_attributes()[0].value, "close", "aria value is stored");
-    check(node.dirty() == ui::Dirty::None, "aria metadata does not invalidate style or layout");
+    check(node.dirty() == ui::Dirty::Clean, "aria metadata does not invalidate style or layout");
 
     check(node.set_aria("aria-label", "open"), "replacing an aria value succeeds");
     check(node.aria_attributes().size() == 1, "replacing does not add a pair");
