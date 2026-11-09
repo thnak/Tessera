@@ -101,3 +101,11 @@ if (TARGET harfbuzz)
     add_library(tessera_harfbuzz INTERFACE)
     target_link_libraries(tessera_harfbuzz INTERFACE harfbuzz)
 endif()
+
+# ThorVG rasterizes vector paths behind the PathRasterizer seam (ADR-004, decision D1). It is
+# opt-in because it is the largest optional dependency; the default build is unchanged when the
+# option is OFF. Upstream is meson-only, so cmake/ThorVG.cmake builds the pinned sources.
+if (TESSERA_ENABLE_THORVG)
+    include(${PROJECT_SOURCE_DIR}/cmake/ThorVG.cmake)
+    tessera_add_thorvg()
+endif()

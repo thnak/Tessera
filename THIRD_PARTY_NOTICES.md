@@ -79,6 +79,16 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: HarfBuzz contributors
 - Upstream: https://github.com/harfbuzz/harfbuzz (10.2.0)
 
+### ThorVG
+
+- Used by: `src/rendering/path/` (PathRasterizer implementation)
+- Fetched at configure time from
+  `https://github.com/thorvg/thorvg/archive/refs/tags/v1.1.3.tar.gz` (pinned SHA-256);
+  not vendored in the tree
+- License: MIT
+- Copyright: 2020 - 2026 ThorVG Project
+- Upstream: https://github.com/thorvg/thorvg (v1.1.3)
+
 ### Noto Sans (test font)
 
 - Files: `tests/fixtures/fonts/NotoSans-Regular.ttf`, `tests/fixtures/fonts/OFL.txt`
@@ -115,7 +125,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | HarfBuzz | MIT | HarfBuzz contributors |
 | SheenBidi | Apache-2.0 | Tejus Adiga |
 | ICU | Unicode License v3 | Unicode, Inc. / ICU contributors |
-| ThorVG | MIT | ThorVG contributors |
+| ThorVG | MIT | ThorVG Project |
 | Skia (fallback) | BSD-3-Clause | Google LLC |
 | Dawn | BSD-3-Clause | Google LLC |
 | Emscripten | MIT / UIUC | Emscripten contributors |

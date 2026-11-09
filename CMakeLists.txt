@@ -40,6 +40,8 @@ endif()
 option(TESSERA_BUILD_POC "Build Phase 0 proof-of-concept tools" ON)
 option(TESSERA_BUILD_TESTS "Build unit tests" ON)
 option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)
+option(TESSERA_ENABLE_THORVG
+    "Build the ThorVG-backed vector path rasterizer (D1, ADR-004)" OFF)
 
 # X11 backs the Linux window and the Vulkan Xlib present surface. Without it (and without
 # Win32) the HAL keeps the headless stub and the Vulkan device reports NotSupported for
@@ -61,6 +63,7 @@ add_subdirectory(src/rendering/gpu)
 add_subdirectory(src/rendering/damage)
 add_subdirectory(src/rendering/golden)
 add_subdirectory(src/rendering/null)
+add_subdirectory(src/rendering/path)
 add_subdirectory(src/rendering/software)
 add_subdirectory(src/diagnostics)
 add_subdirectory(src/hal/timer)
@@ -84,6 +87,10 @@ add_subdirectory(tools/schema_dump)
 
 if (TESSERA_BUILD_POC)
     add_subdirectory(tools/poc/merger)
+endif()
+
+if (TESSERA_BUILD_POC AND TESSERA_ENABLE_THORVG)
+    add_subdirectory(tools/poc/thorvg_spike)
 endif()
 
 if (TESSERA_BUILD_VULKAN)

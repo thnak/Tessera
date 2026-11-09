@@ -41,7 +41,7 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | SPIRV-Reflect | V1 optional | Apache-2.0 | `rendering/backend/vulkan` | Shader reflection for pipeline layouts |
 | stb_image_write | PoC (proof of concept)/demo only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 (proof-of-concept stage, executables under `tools/poc/`) and batched2d demos |
 | stb_image | V1 test | Public domain / MIT | `tests/golden`, image decode | PNG/JPG decode for goldens and assets |
-| ThorVG | V1 target (owner-approved 2026-11-09; integration spike pending) | MIT | `rendering/backend` | Vector paths, SVG |
+| ThorVG | V1 hard (FetchContent v1.1.3, `TESSERA_ENABLE_THORVG` default OFF; spike Go) | MIT | `rendering/path` | Vector paths behind `rendering::PathRasterizer`: CPU raster into RGBA8, uploaded through the RHI; SVG assets later |
 | Skia Graphite | Fallback only ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md); owner chose ThorVG first) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
 | Emscripten | V1 hard for design-time | MIT / UIUC | `designer/web` | C++ → WebAssembly toolchain |
@@ -57,6 +57,17 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 VMA and volk are vendored from Vulkan SDK 1.4.357.0 (`Include/vma`, `Include/Volk`) into
 `third_party/vma` and `third_party/volk`, so Linux CI does not depend on optional SDK
 components. Their MIT headers are preserved.
+
+ThorVG rasterizes vector paths behind `rendering::PathRasterizer` (owner decision D1,
+[ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)). Upstream v1.1.3 is
+meson-only, so it is fetched at configure time from the pinned archive
+`https://github.com/thorvg/thorvg/archive/refs/tags/v1.1.3.tar.gz` (SHA-256
+`ba9957aeeadb4151d4486f11c638ae118c00210fa4906daa7b30143aa341e690`) and compiled by the local
+CMake wrapper `cmake/ThorVG.cmake`; it is not vendored. `TESSERA_ENABLE_THORVG` (default OFF)
+gates the dependency, and the default build is unchanged when it is OFF. ThorVG v1.1.3 has CPU,
+GL and WebGPU raster engines but no Vulkan engine, so V1 rasterizes on the CPU and uploads the
+buffer through the RHI. No ThorVG type appears in a public header. Measurements and the Go
+decision are in [`thorvg-spike.md`](../design/thorvg-spike.md).
 
 Frame pacing, refresh-rate/VRR (variable refresh rate) queries, and damage (screen region to repaint) use system APIs (DXGI, Vulkan present modes,
 X11 RandR/Present, Wayland `wp_presentation`). They are system components, not linked
@@ -217,9 +228,10 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
    replace with native backends if needed (no release or trigger condition is specified).
 2. **JSX parser:** resolved in [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end).
 3. **Vector paths:** resolved by the project owner (2026-11-09): ThorVG is the V1 target (MIT,
-   static), Skia Graphite is a fallback only if the integration spike fails
-   ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)). The spike measures build
-   size, startup, memory, determinism and Vulkan/WebGPU viability before the dependency is pinned.
+   static, pinned v1.1.3), Skia Graphite stays a fallback only if later integration fails
+   ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)). The P1 spike is done and
+   recommends Go: build time, static size, startup, memory, determinism and the absence of a
+   ThorVG Vulkan engine are recorded in [`thorvg-spike.md`](../design/thorvg-spike.md).
 4. **Shaders:** GLSL + WGSL in parallel vs a single-source path via Slang/naga/Tint ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)).
 5. **Image codecs:** stb only (simple) vs libpng/libjpeg-turbo/libwebp (production).
 6. **Networking:** libcurl + IXWebSocket + mbedTLS vs a smaller std-only stack.
