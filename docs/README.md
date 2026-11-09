@@ -143,6 +143,8 @@ This page is the map and reading order for the framework.
 - [`design/renderer.md`](design/renderer.md) — B1 renderer summary, batched 2D, Vulkan backend
 - [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border
   quads, source coordinates, sink seam, limits
+- [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
+  static-linking and license gates, rendering workstreams, dependency matrix
 - [`design/gpu/README.md`](design/gpu/README.md) — GPU docs index: RHI, frames/sync, resources,
   pipelines, backends, tests
 - [`design/gpu/rhi.md`](design/gpu/rhi.md) — device/resource/command contract, lifetime, errors
