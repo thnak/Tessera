@@ -57,6 +57,16 @@ public:
     FramePaint paint_frame(const Node& root, paint::StyleProvider& styles, paint::PaintSink& sink,
                            bool force = false) const;
 
+    // Damage-clipped variant: paints only the parts of the scene inside `plan`'s scissor regions.
+    // A full-redraw plan forwards to the unclipped sink, so its commands are byte-identical to the
+    // full paint above (its scissor list is ignored). An empty partial plan paints nothing, even
+    // with `force`. A partial plan clips every command per region, in region order: a command fully
+    // inside a region is unchanged, a partially covered one is trimmed to the intersection, and one
+    // outside every region is dropped, so paint order is preserved. `FramePaint::stats` are the
+    // pre-clip paint-pass counts. `force` still overrides the frame-due check for a non-empty plan.
+    FramePaint paint_frame(const Node& root, paint::StyleProvider& styles, paint::PaintSink& sink,
+                           const rendering::RedrawPlan& plan, bool force = false) const;
+
     // True when the most recent finish_frame() reported should_render and tick() has not run since.
     [[nodiscard]] bool frame_due() const {
         return frame_due_;

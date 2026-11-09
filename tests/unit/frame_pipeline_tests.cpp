@@ -4,8 +4,10 @@
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -16,6 +18,7 @@ namespace {
 
 using tessera::rendering::DamageAccumulator;
 using tessera::rendering::DamageConfig;
+using tessera::rendering::RedrawPlan;
 using tessera::rendering::rhi::Color;
 using tessera::rendering::rhi::Extent2D;
 using tessera::rendering::rhi::Mat3;
@@ -134,17 +137,11 @@ bool same_color(const Color& actual, const Color& expected) {
 }
 
 bool same_ops(const std::vector<PaintOp>& actual, const std::vector<PaintOp>& expected) {
-    if (actual.size() != expected.size()) {
-        return false;
-    }
-    for (std::size_t i = 0; i < actual.size(); ++i) {
-        if (actual[i].kind != expected[i].kind || !same_rect(actual[i].rect, expected[i].rect) ||
-            !same_color(actual[i].color, expected[i].color) ||
-            actual[i].radius != expected[i].radius) {
-            return false;
-        }
-    }
-    return true;
+    return std::equal(actual.begin(), actual.end(), expected.begin(), expected.end(),
+                      [](const PaintOp& a, const PaintOp& b) {
+                          return a.kind == b.kind && same_rect(a.rect, b.rect) &&
+                                 same_color(a.color, b.color) && a.radius == b.radius;
+                      });
 }
 
 struct NodeSnapshot {
@@ -155,6 +152,14 @@ struct NodeSnapshot {
     Dirty dirty = Dirty::None;
     Dirty subtree_dirty = Dirty::None;
     std::size_t children = 0;
+
+    bool operator==(const NodeSnapshot& other) const {
+        return id == other.id && same_rect(bounds, other.bounds) &&
+               std::equal(std::begin(transform.m), std::end(transform.m),
+                          std::begin(other.transform.m)) &&
+               visible == other.visible && dirty == other.dirty &&
+               subtree_dirty == other.subtree_dirty && children == other.children;
+    }
 };
 
 void snapshot(const Node& node, std::vector<NodeSnapshot>& out) {
@@ -163,32 +168,6 @@ void snapshot(const Node& node, std::vector<NodeSnapshot>& out) {
     for (const auto& child : node.children()) {
         snapshot(*child, out);
     }
-}
-
-bool same_transform(const Mat3& actual, const Mat3& expected) {
-    for (std::size_t i = 0; i < 9; ++i) {
-        if (actual.m[i] != expected.m[i]) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool same_snapshots(const std::vector<NodeSnapshot>& actual,
-                    const std::vector<NodeSnapshot>& expected) {
-    if (actual.size() != expected.size()) {
-        return false;
-    }
-    for (std::size_t i = 0; i < actual.size(); ++i) {
-        if (actual[i].id != expected[i].id || !same_rect(actual[i].bounds, expected[i].bounds) ||
-            !same_transform(actual[i].transform, expected[i].transform) ||
-            actual[i].visible != expected[i].visible || actual[i].dirty != expected[i].dirty ||
-            actual[i].subtree_dirty != expected[i].subtree_dirty ||
-            actual[i].children != expected[i].children) {
-            return false;
-        }
-    }
-    return true;
 }
 
 bool test_paint_frame() {
@@ -290,7 +269,7 @@ bool test_paint_frame() {
 
     std::vector<NodeSnapshot> after;
     snapshot(root, after);
-    if (!expect(same_snapshots(before, after), "paint never mutates the scene")) {
+    if (!expect(before == after, "paint never mutates the scene")) {
         return false;
     }
 
@@ -306,6 +285,61 @@ bool test_paint_frame() {
         return false;
     }
 
+    // Damage-clipped paint: the due frame's plan repaints only its scissor regions.
+    sink.ops.clear();
+    paint = pipeline.paint_frame(root, styles, sink, render.redraw_plan);
+    if (!expect(paint.painted, "partial plan paints") ||
+        !expect(sink.ops.size() == 2, "partial plan clips away everything outside its region") ||
+        !expect(same_rect(sink.ops[0].rect, {50, 50, 20, 20}),
+                "root background is clipped to the region") ||
+        !expect(same_rect(sink.ops[1].rect, {50, 50, 20, 20}),
+                "the node fully inside the region paints unchanged") ||
+        !expect(paint.stats.nodes == 3 && paint.stats.backgrounds == 3 && paint.stats.borders == 4,
+                "stats stay the pre-clip paint pass counts")) {
+        return false;
+    }
+    std::vector<NodeSnapshot> clipped_scene;
+    snapshot(root, clipped_scene);
+    if (!expect(clipped_scene == after, "clipped paint never mutates the scene")) {
+        return false;
+    }
+    // A full-redraw plan ignores its scissor list and reproduces the full paint byte for byte.
+    RedrawPlan full_plan;
+    full_plan.full_redraw = true;
+    full_plan.scissors = {{0, 0, 10, 10}};
+    sink.ops.clear();
+    paint = pipeline.paint_frame(root, styles, sink, full_plan);
+    if (!expect(paint.painted && same_ops(sink.ops, first_pass),
+                "a full-redraw plan equals the full paint")) {
+        return false;
+    }
+    sink.ops.clear();
+    paint = pipeline.paint_frame(root, styles, sink, RedrawPlan{});
+    if (!expect(!paint.painted && sink.ops.empty() && paint.stats.nodes == 0,
+                "an empty plan paints nothing") ||
+        !expect(!pipeline.paint_frame(root, styles, sink, RedrawPlan{}, true).painted,
+                "force cannot paint an empty plan")) {
+        return false;
+    }
+    // DamageTracker old/new bounds: a move damages both boxes, so the clip repaints the old region
+    // with the background and the new region with the node.
+    animations.clear();
+    clear_tree(root);
+    second.set_bounds({150, 150, 20, 20});
+    tick = pipeline.tick(root, 0.016);
+    render = pipeline.finish_frame(root);
+    sink.ops.clear();
+    paint = pipeline.paint_frame(root, styles, sink, render.redraw_plan);
+    if (!expect(render.should_render && !render.full_redraw &&
+                    render.redraw_plan.scissors.size() == 2,
+                "a move damages the previous and current bounds") ||
+        !expect(paint.painted && sink.ops.size() == 3 &&
+                    same_rect(sink.ops[0].rect, {50, 50, 20, 20}) &&
+                    same_rect(sink.ops[1].rect, {150, 150, 20, 20}) &&
+                    same_rect(sink.ops[2].rect, {150, 150, 20, 20}),
+                "old region keeps the background, the new region adds the node")) {
+        return false;
+    }
     // The explicit force flag paints an idle frame (e.g. a caller repainting after a resize)
     // without changing the frame decision or queueing damage.
     animations.clear();
@@ -320,6 +354,14 @@ bool test_paint_frame() {
         !expect(pipeline.paint_frame(root, styles, sink, true).painted,
                 "explicit force paints an idle frame") ||
         !expect(sink.ops.size() == 7, "forced paint still covers the full frame")) {
+        return false;
+    }
+    RedrawPlan forced_plan;
+    forced_plan.scissors = {{150, 150, 20, 20}};
+    sink.ops.clear();
+    paint = pipeline.paint_frame(root, styles, sink, forced_plan, true);
+    if (!expect(paint.painted && sink.ops.size() == 2,
+                "force also paints a partial plan on an idle frame")) {
         return false;
     }
 
@@ -434,27 +476,19 @@ int main() {
     }
     clear_tree(root);
 
-    bool rejected = false;
-    try {
-        FramePipeline invalid(animations, loop, tracker, damage, dirty,
-                              FramePipelineConfig{0.0f, 0.0f, {}});
-        (void)invalid;
-    } catch (const std::invalid_argument&) {
-        rejected = true;
-    }
-    if (!expect(rejected, "zero dpi rejected")) {
+    const auto rejects = [&](FramePipelineConfig config) {
+        try {
+            FramePipeline invalid(animations, loop, tracker, damage, dirty, config);
+            (void)invalid;
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    if (!expect(rejects(FramePipelineConfig{0.0f, 0.0f, {}}), "zero dpi rejected")) {
         return 7;
     }
-
-    rejected = false;
-    try {
-        FramePipeline invalid(animations, loop, tracker, damage, dirty,
-                              FramePipelineConfig{1.0f, -1.0f, {}});
-        (void)invalid;
-    } catch (const std::invalid_argument&) {
-        rejected = true;
-    }
-    if (!expect(rejected, "negative margin rejected")) {
+    if (!expect(rejects(FramePipelineConfig{1.0f, -1.0f, {}}), "negative margin rejected")) {
         return 8;
     }
 

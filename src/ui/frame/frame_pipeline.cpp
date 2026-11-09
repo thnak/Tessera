@@ -5,12 +5,16 @@
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 namespace tessera::ui::frame {
 namespace {
+
+namespace rhi = tessera::rendering::rhi;
 
 void index_nodes(Node& node, std::unordered_map<NodeId, Node*>& index) {
     index[node.id()] = &node;
@@ -31,6 +35,67 @@ rendering::RedrawPlan normalized_plan(rendering::RedrawPlan plan, rendering::rhi
     }
     return plan;
 }
+
+rhi::Rect region_rect(const rhi::Scissor& scissor) {
+    return rhi::Rect{static_cast<float>(scissor.x), static_cast<float>(scissor.y),
+                     static_cast<float>(scissor.width), static_cast<float>(scissor.height)};
+}
+
+rhi::Rect clip_rect(const rhi::Rect& rect, const rhi::Rect& region) {
+    const float x0 = std::max(rect.x, region.x);
+    const float y0 = std::max(rect.y, region.y);
+    const float x1 = std::min(rect.right(), region.right());
+    const float y1 = std::min(rect.bottom(), region.bottom());
+    if (x1 <= x0 || y1 <= y0) {
+        return rhi::Rect{};
+    }
+    return rhi::Rect{x0, y0, x1 - x0, y1 - y0};
+}
+
+bool covers(const rhi::Rect& region, const rhi::Rect& rect) {
+    return rect.x >= region.x && rect.y >= region.y && rect.right() <= region.right() &&
+           rect.bottom() <= region.bottom();
+}
+
+// Mirrors Batched2DRenderer::begin_damaged at the paint level: every command is clipped to each
+// redraw region, in region order. Regions from make_redraw_plan are disjoint (the damage
+// accumulator AABB-merges touching rects), so no pixel is emitted twice; an overlapping caller plan
+// deterministically emits the overlap once per covering region.
+class ClippedPaintSink final : public paint::PaintSink {
+public:
+    ClippedPaintSink(paint::PaintSink& target, const std::vector<rhi::Scissor>& regions)
+        : target_(&target),
+          regions_(&regions) {}
+
+    void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override {
+        for (const rhi::Scissor& scissor : *regions_) {
+            const rhi::Rect clipped = clip_rect(rect, region_rect(scissor));
+            if (clipped.width > 0.0f && clipped.height > 0.0f) {
+                target_->fill_rect(clipped, color);
+            }
+        }
+    }
+
+    void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override {
+        for (const rhi::Scissor& scissor : *regions_) {
+            const rhi::Rect region = region_rect(scissor);
+            if (covers(region, rect)) {
+                target_->fill_rounded_rect(rect, color, radius);
+                continue;
+            }
+            const rhi::Rect clipped = clip_rect(rect, region);
+            if (clipped.width > 0.0f && clipped.height > 0.0f) {
+                // A rounded rect cut by an axis-aligned region has no PaintSink representation;
+                // repaint the intersection as a plain rect so nothing inside the region is missed.
+                target_->fill_rect(clipped, color);
+            }
+        }
+    }
+
+private:
+    paint::PaintSink* target_ = nullptr;
+    const std::vector<rhi::Scissor>* regions_ = nullptr;
+};
 
 } // namespace
 
@@ -108,6 +173,27 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
         return result;
     }
     result.stats = paint::paint_scene(root, styles, sink);
+    result.painted = true;
+    return result;
+}
+
+FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& styles,
+                                      paint::PaintSink& sink, const rendering::RedrawPlan& plan,
+                                      bool force) const {
+    FramePaint result;
+    if (!frame_due_ && !force) {
+        return result;
+    }
+    if (plan.full_redraw) {
+        result.stats = paint::paint_scene(root, styles, sink);
+        result.painted = true;
+        return result;
+    }
+    if (plan.scissors.empty()) {
+        return result;
+    }
+    ClippedPaintSink clipped(sink, plan.scissors);
+    result.stats = paint::paint_scene(root, styles, clipped);
     result.painted = true;
     return result;
 }

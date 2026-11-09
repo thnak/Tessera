@@ -18,9 +18,9 @@ layout, or the redraw plan. The caller owns the compiled stylesheet and passes a
 `style::CompiledStyleSheet` plus a `style::SceneStyleTree`, and tests supply a stub provider.
 
 This is the paint stage of the stage order described in [`ui-model.md`](ui-model.md) (style -> layout
--> paint -> render). Damage/redraw (see [`dirty-rendering.md`](dirty-rendering.md)) is unchanged: the
-pass can paint a full frame, and wiring it to `RedrawPlan` scissors is a later slice.
-[`FramePipeline::paint_frame`](#8-frame-integration) is what invokes it once per due frame.
+-> paint -> render). Damage/redraw (see [`dirty-rendering.md`](dirty-rendering.md)) reaches it through
+[`FramePipeline::paint_frame`](#8-frame-integration): the full-frame overload ignores the plan and the
+damage-clipped overload clips the sink to the `RedrawPlan` scissor regions.
 
 ## 2. Why a sink seam
 
@@ -100,7 +100,8 @@ property in this slice, not a border ring.
 
 - No text, glyphs, or inline content; text has its own renderer.
 - No clipping/overflow, scroll, masks, filters, gradients, shadows, or images.
-- No damage/redraw plan or dirty-diff: every call repaints the visible subtree it is given.
+- No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
+  The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
 - No percentage/`em`/`rem`/viewport units and no non-pixel radii.
 - Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
@@ -123,11 +124,17 @@ small epsilon), and the recorder captures emission order.
 ## 8. Frame integration
 
 [`FramePipeline`](../../include/tessera/ui/frame_pipeline.hpp) owns the per-frame order and exposes
-the paint stage through one bounded call:
+the paint stage through two bounded calls:
 
 ```cpp
+// Full-frame paint: every visible box.
 FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& styles,
                                       paint::PaintSink& sink, bool force = false) const;
+
+// Damage-clipped paint: only the parts of the scene inside the plan's regions.
+FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& styles,
+                                      paint::PaintSink& sink, const rendering::RedrawPlan& plan,
+                                      bool force = false) const;
 ```
 
 `FramePaint` carries the `paint::PaintStats` and a `painted` flag, so "frame was not due" is
@@ -136,24 +143,21 @@ distinguishable from "painted an empty subtree" without inspecting the sink.
 Frame order per iteration:
 
 ```text
-tick(root, dt)          # animation samples, dirty collection, needs_style/needs_layout
+tick(root, dt)              # animation samples, dirty collection, needs_style/needs_layout
   (caller: style re-resolve / layout if the tick asked for it)
-finish_frame(root)      # damage + normalized redraw plan -> should_render
-paint_frame(root, styles, sink)   # paints only when should_render, or when force is set
+finish_frame(root)          # damage + normalized redraw plan -> should_render
+paint_frame(root, styles, sink)                     # full-frame mode
+paint_frame(root, styles, sink, render.redraw_plan) # damage-clipped mode
   (caller: submit the command list / present)
 ```
 
 Contract:
 
 - **Only due frames paint.** `finish_frame()` records `FrameRender::should_render` as the pipeline's
-  frame decision; `paint_frame()` is a no-op (`painted == false`, no stats, no sink calls) when the
+  frame decision; both overloads are a no-op (`painted == false`, no stats, no sink calls) when the
   frame is not due. `tick()` clears the decision, so a new frame cannot paint until its own
-  `finish_frame()`. The explicit `force` flag paints a full frame anyway (for example after a resize
-  or a backend reset); it does not change the frame decision.
-- **Full-frame only.** The paint pass ignores `FrameRender::redraw_plan`: even a partial redraw
-  repaints every visible box it is given. Damage-clipped painting (scissoring the sink to the plan's
-  `Scissor` regions) is a later slice. A caller that needs partial output clips at the
-  sink/renderer level; the scene and the plan stay untouched.
+  `finish_frame()`. The explicit `force` flag paints anyway (for example after a resize or a backend
+  reset); it does not change the frame decision.
 - **Read-only scene.** `paint_frame()` takes `const Node&`; it does not mark or clear dirty flags,
   does not queue damage, and does not touch `DamageTracker`/`DamageAccumulator`. Style and layout
   decisions (`FrameTick::needs_style`/`needs_layout`) keep their existing semantics.
@@ -161,8 +165,62 @@ Contract:
   exactly as for `paint_scene`; the pipeline adds no backend, GPU, or device dependency.
   `paint::SceneStyleProvider` over a compiled stylesheet and a `SceneStyleTree` is the default
   provider; tests use a recording sink and a stub provider.
+- **Stats are pre-clip.** `FramePaint::stats` are the counters `paint_scene` produced while feeding
+  the sink (nodes visited, background/border candidates). A command the clip decorator drops still
+  increments its counter; the sink is the source of truth for emitted geometry.
 - **Repeatable.** Painting twice in one due frame is allowed and deterministic: the same commands
-  and the same `PaintStats` are produced.
+  and the same `PaintStats` are produced by either overload.
+
+### 8.1 Damage-clipped painting
+
+The clipped overload wraps the caller's sink in an internal decorator that mirrors the damage
+semantics of `Batched2DRenderer::begin_damaged` at the paint level, without changing the renderer.
+Each paint command is tested against every `RedrawPlan::scissors` region, in region order:
+
+| Command vs region | Emitted |
+|---|---|
+| fully inside one region | the command unchanged |
+| partially inside | the intersection rectangle, same color (and radius inputs) |
+| outside every region | nothing |
+| `plan.full_redraw == true` | the unclipped command (the scissor list is ignored) |
+| empty partial plan | nothing, `painted == false`, zero stats, even with `force` |
+
+Region semantics:
+
+- A `rhi::Scissor` is the half-open integer rect `[x, x + width) x [y, y + height)`; it is converted
+  to a float rect before the intersection, so a command edge on a region edge is inside.
+- Paint order is preserved: commands keep their source order and, within one command, regions keep
+  the plan order. For disjoint regions the output is independent of the region order.
+- Regions from `rendering::make_redraw_plan` are pairwise disjoint: `DamageAccumulator::add`
+  AABB-merges touching rectangles, and `Batched2DRenderer::begin_damaged` requires disjoint regions.
+  A caller-supplied plan with overlapping regions emits the overlapped pixels once per covering
+  region, in region order; that is deterministic but not a valid plan for the renderer's replay.
+- A full-redraw plan is byte-identical to the full-frame overload: the decorator is bypassed
+  entirely, so commands outside the target or outside `plan.scissors` are still emitted.
+- Clipping is geometric: every emitted command covers only pixels inside a region, so a caller may
+  feed this sink directly. Passing the same plan to `begin_damaged` is redundant (the renderer
+  scissor clips again; harmless for solid rects).
+- Rounded rects: a fully contained rounded rect keeps its radius; a partially covered one is
+  repainted as the plain intersection rectangle (the `PaintSink` API cannot express a clipped SDF
+  shape, so the conservative choice repaints every pixel inside the region); a fully outside one is
+  dropped.
+
+### 8.2 Old and new bounds
+
+`DamageTracker::add_scene_damage` (task-3's frame path) records each merged Paint/Render dirty node's
+previous and current snapped bounds, so `finish_frame` emits up to two regions per moved node.
+Clipping needs no special case: in the old region the node no longer overlaps, so the repainted
+background/parent visuals erase the previous pixels, while the new region repaints the background and
+then the node at its current position. The two regions stay separate until the damage accumulator
+merges them (when the old and new boxes touch), and each is clipped independently.
+
+### 8.3 Limits of the clipped path
+
+The clip is an axis-aligned geometric intersection, not a rasterization scissor: text runs, clip
+paths, and non-axis-aligned geometry are later slices, exactly as for `paint_scene` itself.
+Rounded-rect corners at a scissor cut are approximated as described above, and the decorator adds
+one command per region a source command intersects (a full-screen background over eight damage
+regions emits eight clipped rects).
 
 The frame-pipeline tests in
 [`tests/unit/frame_pipeline_tests.cpp`](../../tests/unit/frame_pipeline_tests.cpp) cover: no paint
@@ -170,4 +228,8 @@ before a frame decision, no paint on an idle frame, an animation-dirty frame pai
 expected background/border rects in paint order, stats (`nodes`/`backgrounds`/`borders`) matching
 the painted scene, a scene snapshot (bounds, transform, visibility, dirty flags, child counts)
 unchanged across a paint, repeated paints producing identical commands, forced painting of an idle
-frame, and painting neither queueing damage nor changing the next frame decision.
+frame, painting neither queueing damage nor changing the next frame decision, and - for the clipped
+overload - a partial plan that clips away outside geometry and leaves contained commands unchanged,
+a full-redraw plan that reproduces the full paint, an empty plan (and empty plan plus force) that
+paints nothing, forced clipped painting on an idle frame, and a moved node whose old and new
+DamageTracker regions repaint the background and the node respectively.
