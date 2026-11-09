@@ -49,7 +49,7 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(codegen_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
-    add_test(NAME codegen COMMAND codegen_tests)
+    add_test(NAME codegen_generate COMMAND codegen_tests)
 
     add_executable(codegen_layering_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)

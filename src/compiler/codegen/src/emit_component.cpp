@@ -190,8 +190,8 @@ std::string node_comment(const ir::Node& node) {
     return out;
 }
 
-bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& component, unsigned& next_id, unsigned& next_var,
-               std::string& variable, std::string& error) {
+bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& component,
+               unsigned& next_id, unsigned& next_var, std::string& variable, std::string& error) {
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
     case ir::NodeKind::Component:
