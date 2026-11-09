@@ -169,3 +169,7 @@ controller recovers on a later tick, and rendering resumes with validation on.
   6,720 px of text damage at tolerance 0. Draw calls stay equal to full frames (all batches
   intersect the region); no batch-splitting change was made because it cannot reduce draws without
   per-frame vertex filtering.
+
+- POC damage probe (`--on-demand --damage-probe --validation`, task-66): prints per-frame redraw
+  regions/area/%/full/draws/batches plus idle waits/presents; present remains full-frame into the
+  swapchain, while preserved-target partial rendering is proven offscreen by `damage_present`.

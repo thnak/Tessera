@@ -425,3 +425,15 @@ batch's scissor intersects the single damage region, and the existing damaged pa
 scissored draw per (region, intersecting batch). Splitting batches per region cannot reduce draw
 calls here (it would multiply them by region count) and region-local vertex filtering would need
 per-frame vertex storage; the measured win is rasterized area, so no renderer change was made.
+
+### 8.2 POC damage probe (task-66)
+
+`batched2d_poc --backend vulkan --on-demand --damage-probe --validation` prints, for every due frame,
+`damage-probe: frame regions=N area=N pct=N full=0|1 draws=N batches=N`, and a final
+`damage-probe: summary rendered=N presented=N idle_waits=N`. Idle frames (no scene change) print no
+frame line and present nothing. Presentation stays full-frame into the swapchain (swapchain images
+are not guaranteed to preserve prior contents and an acquired image is not in `PRESENT_SRC`); the
+probe reports the redraw plan/work without performing unsafe partial present. Preserved-target
+partial rendering is exercised by `damage_present` offscreen. Measured on the local AMD at 240x160:
+initial frame full; two scripted scene changes each report 1 region / 17,280 px (20% of target);
+3 presents with 3 idle waits; output is deterministic across runs and validation-clean.
