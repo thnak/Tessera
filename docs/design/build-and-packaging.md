@@ -136,13 +136,15 @@ instead of passing or failing; it applies to Release only.
 - Reproducible builds: `scripts/check_reproducible.py --config Release` builds one target twice in
   separate build directories with the compiler cache disabled and requires byte-identical
   SHA-256 output. `cmake/reproducible.cmake` (included from `cmake/CompilerCache.cmake`) adds
-  `/Brepro` plus linker `/PATHMAP` for MSVC and `-ffile-prefix-map`/`-fdebug-prefix-map` for
-  GCC/Clang; debug information stays enabled and only absolute source/build paths and the link
-  timestamp are suppressed. Scope: same source, toolchain and OS with a different build directory.
-  Out of scope: cross-toolchain or cross-machine bit-reproducibility and CPack archive mtimes
-  (tar/zip entries carry mtimes, so archives are not byte-identical; `--mtime`/`--sort` could be
-  applied to the archive step later, and `check_package.py` validates contents rather than archive
-  bytes, so that would not break the package gate).
+  `/Brepro` plus linker `/PATHMAP` for MSVC and `-fdebug-prefix-map` for GCC/Clang; debug
+  information stays enabled and only the link timestamp and debug-info paths are suppressed.
+  `-ffile-prefix-map` is deliberately not applied because it rewrites `__FILE__`, which
+  source-relative tests use to locate committed fixtures. Scope: same source, toolchain and OS
+  with a different build directory. Out of scope: cross-toolchain or cross-machine
+  bit-reproducibility and CPack archive mtimes (tar/zip entries carry mtimes, so archives are not
+  byte-identical; `--mtime`/`--sort` could be applied to the archive step later, and
+  `check_package.py` validates contents rather than archive bytes, so that would not break the
+  package gate).
 - Avoid timestamps/absolute paths in generated code and binaries; the exceptions that cannot be avoided are not enumerated.
 - Produce an SBOM (software bill of materials; format not decided, see section 12) and a notice bundle.
 - CI artifact: version, commit, toolchain, dependency lock, test results.
