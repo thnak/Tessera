@@ -75,7 +75,7 @@ FrameTick FramePipeline::tick(Node& root, double dt) {
                 continue;
             }
             const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
-            if (dirty != Dirty::Clean) {
+            if (dirty != Dirty::None) {
                 found->second->mark_dirty(dirty);
             }
         }
