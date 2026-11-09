@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "vulkan_device_selection.hpp"
 #include "vulkan_internal.hpp"
 
 #include <cstring>
@@ -192,17 +193,30 @@ void VulkanDevice::pick_device() {
         }
         chosen = desc_.device_index;
     } else {
+        std::vector<DeviceCandidate> candidates(device_count);
         for (std::uint32_t i = 0; i < device_count; ++i) {
             VkPhysicalDeviceProperties properties{};
             vkGetPhysicalDeviceProperties(devices[i], &properties);
-            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-                chosen = static_cast<int>(i);
+            candidates[i].api_version = properties.apiVersion;
+            switch (properties.deviceType) {
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+                candidates[i].kind = DeviceKind::Discrete;
+                break;
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+                candidates[i].kind = DeviceKind::Integrated;
+                break;
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+                candidates[i].kind = DeviceKind::Virtual;
+                break;
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:
+                candidates[i].kind = DeviceKind::Cpu;
+                break;
+            default:
                 break;
             }
         }
-        if (chosen < 0) {
-            chosen = 0;
-        }
+        // With no 1.3 device this falls back to index 0 so the check below reports it clearly.
+        chosen = static_cast<int>(choose_device(candidates).value_or(0));
     }
 
     physical_device_ = devices[static_cast<std::size_t>(chosen)];
