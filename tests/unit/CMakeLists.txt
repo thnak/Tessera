@@ -892,6 +892,13 @@ target_link_libraries(text_undo_tests PRIVATE tessera_text_edit)
 
 add_test(NAME text_undo COMMAND text_undo_tests)
 
+add_executable(text_edit_clipboard_tests
+    text_edit_clipboard_tests.cpp)
+
+target_link_libraries(text_edit_clipboard_tests PRIVATE tessera_text_edit tessera_hal_clipboard)
+
+add_test(NAME text_edit_clipboard COMMAND text_edit_clipboard_tests)
+
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)
 
@@ -1131,6 +1138,20 @@ target_link_libraries(paint_text_preedit_tests PRIVATE
     tessera_paint tessera_text_edit)
 
 add_test(NAME paint_text_preedit COMMAND paint_text_preedit_tests)
+
+add_executable(forms_model_tests
+    forms_model_tests.cpp)
+
+target_link_libraries(forms_model_tests PRIVATE tessera_forms)
+
+add_test(NAME forms_model COMMAND forms_model_tests)
+
+add_executable(forms_async_tests
+    forms_async_tests.cpp)
+
+target_link_libraries(forms_async_tests PRIVATE tessera_forms tessera_runtime)
+
+add_test(NAME forms_async COMMAND forms_async_tests)
 
 add_executable(input_pipeline_tests
     input_pipeline_tests.cpp)

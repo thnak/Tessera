@@ -28,3 +28,7 @@ target_link_libraries(tessera_input_pump PUBLIC
     tessera_runtime)
 
 target_compile_features(tessera_input_pump PUBLIC cxx_std_23)
+
+# The forms model lives in src/ui/forms; registered here until the root CMakeLists (Lead-owned)
+# lists that directory directly. Relocating the line later is a no-op for the target itself.
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/ui/forms ${CMAKE_BINARY_DIR}/src/ui/forms)

@@ -1,6 +1,7 @@
 # Forms and validation v1
 
-Status: proposed (Big Steps C and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+Status: core model implemented (task-78: bounded field registry, synchronous rule matrix, async
+validator seam, submit gating; widgets/codegen/a11y wiring still proposed). Big Steps C and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
 Steps"). Decision:
 [ADR-029](../../decisions/ADR-029-interaction-completeness.md) (interaction completeness: text
 editing, scrolling, overlays, forms). Companion to
@@ -199,6 +200,49 @@ Gap IDs below (`G-10`, `G-11`) refer to the entries in
 - **G-11**: server errors map to `Issue{path,code,severity,message_key}`; reset/submit use
   epochs; autofill is a value source. Untouched fields may merge external values; touched fields
   keep user input and surface a conflict issue.
+
+## 8.1 Implemented core (task-78)
+
+`include/tessera/ui/forms/form_types.hpp` + [`form_model.hpp`](../../include/tessera/ui/forms/form_model.hpp)
+(library `tessera_forms`) implement the bounded deterministic core; widgets, generated bindings and
+accessibility wiring are not part of this slice.
+
+- **Model:** `FieldId` is stable and assigned 1..N in declaration order; `FormValue` is string
+  (bounded by `FormConfig::max_value_bytes`, default 4096), enum (`int32`) or bool; each field has
+  value/initial, dirty/touched/disabled/read-only, `ValidationState` (`Unknown/Valid/Invalid/
+  Pending`) and a bounded issue list. Caps: `max_fields = 32`, `max_rules_per_field = 8`,
+  `max_issues_per_field = 4` (stored, in rule order) with `issue_count` retaining the total,
+  `max_name_bytes = 64` (names truncate at a UTF-8 boundary), `max_value_bytes = 4096` (larger
+  values are rejected), plus code/message/pattern caps. Adding beyond a cap returns false/nullopt.
+- **Rules:** `required` (string non-empty / bool true / enum >= 0), min/max length counted in UTF-8
+  code points (strings only; other kinds get `length_expects_string`), `pattern` glob (`*` any run,
+  `?` one code point, literals otherwise; strings only), integer `numeric_range` (strictly parsed
+  string or enum; `not_numeric` otherwise), `equal_to` another field's current value (dependent
+  fields are re-evaluated once, non-transitively, so cycles cannot recurse), and a pure `custom`
+  callback returning an issue value or nullopt (a throw maps to `custom_exception`). Synchronous
+  evaluation runs on value change, touch/blur, explicit validation and submit; results are values
+  and the same input gives the same output.
+- **Async seam:** `AsyncValidateFn = std::function<runtime::Task<bool>(TaskContext, const
+  FormValue&)>` runs through a bridge coroutine on `FormConfig::completion_queue`; the form never
+  blocks. Pending is visible, completion is driven by the existing queue drain (single-thread UI
+  affinity: drain on the UI thread), stale results are discarded by the per-field value epoch, a
+  value change cancels the in-flight token, and the destructor cancels everything so no callback
+  runs after teardown. Default trigger is blur + submit; `validate_async_on_change` opts into
+  per-change scheduling (debouncing is deferred). Without a queue, async rules are ignored and the
+  synchronous result stands.
+- **Submit:** `can_submit()` is true only when every enabled field is `Valid` and touched
+  (`require_touched_for_submit`); `submit()` validates, returns `Pending` with the pending count
+  while async work is in flight, `Invalid` with the first blocking/untouched field, or `Ok`. The
+  model performs no I/O (the caller performs the request) and never partially submits. `reset()` /
+  `reset_field()` restore initial values, clear dirty/touched/issues and cancel async work; disabled
+  fields are excluded from gating.
+- **Tests:** `forms_model` (rule matrix and boundaries, policy/flags, error caps/order, field/
+  rule/config caps, submit paths, determinism) and `forms_async` (pending visibility, queue-driven
+  completion, async invalid, stale discard, cancellation, on-change policy, submit while pending,
+  no-queue fallback, destructor safety, determinism).
+- **Deferrals:** cross-field dependencies beyond `equal_to`, localized messages, accessibility
+  error wiring/announcements, server-side validation, form-level async rules, debounce/dedup,
+  conditional fields, field arrays/keyed identity and widgets/generated bindings.
 
 ## 9. Deferred/open questions
 
