@@ -211,11 +211,24 @@ generated handler/binding method; the node then receives
 scene type; `onKeyDown/onKeyUp` → `KeyDown/KeyUp`; `onFocus/onBlur` → `Focus/Blur`;
 `onChange/onSubmit` → `EditText`; any other event name is rejected with
 `TESSERA_CODEGEN_UNSUPPORTED`. Bindings are read-only and run at the Target phase after the node's
-own listener and before bubbling ([`scene-graph.md`](scene-graph.md) section 6). **Remaining missing
-runtime API:** inline style attachment/computed-style feed; ref-target assignment after node
-creation; an animated-value controller and effect lifecycle invocation (initial/unmount/deps).
+own listener and before bubbling ([`scene-graph.md`](scene-graph.md) section 6).
 
-Deferred: effect invocation, conditional/list emission, component composition and `Slot`,
+Refs and lifecycle: after the target node is created (before it is attached), `build()` assigns
+`this->ref_<name>_ = node_N.get()`, so every `useRef` points at its IR target. Each `useEffect`
+gets `tessera::ui::EffectState` (`component_lifecycle.hpp`) plus a generated `dep_hash_<i>()` FNV-1a
+over its dependency members (state/prop/animated values; no allocation). The generated
+`mount()` calls `update_effects()`, which invokes `effect_needs_run()` (false while active with the
+same deps hash) and runs the cleanup region before rerunning when the hash changed;
+`unmount()` runs cleanups in reverse declaration order and clears `active`. The effect bodies and
+cleanups are the normal `[DEVELOPER_LOGIC]` binding regions, so protected-region idempotency covers
+them. `useAnimatedValue` remains a plain field: `ui::AnimationRuntime` is target/name keyed
+(`start`/`pause_target`/`tick`) and has no per-value controller API to hand a generated field to —
+the exact gap for a later animation slice.
+
+**Remaining missing runtime API:** inline style attachment/computed-style feed, and a per-value
+animation controller for `useAnimatedValue` hand-off.
+
+Deferred: conditional/list emission, component composition and `Slot`,
 reusing computed styles, incremental regeneration/mtime, and a codegen CLI. Goldens live in
 `tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild: the
 build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).

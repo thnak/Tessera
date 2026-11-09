@@ -3,6 +3,7 @@
 // Developer code belongs only inside [DEVELOPER_LOGIC_START/END] regions.
 #pragma once
 
+#include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/node.hpp"
 
@@ -19,14 +20,21 @@ namespace demo {
     struct Sample {
       // useState `count`.
       int state_count_ = 0;
-      // useRef `box` (filled by the ref-target assignment slice).
+      // useRef `box` (assigned in build() to its target node).
       tessera::ui::Node* ref_box_ = nullptr;
       // useAnimatedValue `opacity` (a plain field until the animation controller API exists).
       double anim_opacity_ = 1.0;
+      // useEffect `effect::sync` state (deps hash, run counter, active flag).
+      tessera::ui::EffectState effect_sync_state_;
       // prop `title`.
       std::string prop_title_ = {};
       
       void build(tessera::ui::Node& parent);
+      // Lifecycle: mount() runs effects once; update_effects() re-runs changed deps;
+      // unmount() runs cleanups in reverse declaration order.
+      void mount();
+      void update_effects();
+      void unmount();
       void handler_1(const tessera::ui::ClickEvent& event);
       void on_click(const tessera::ui::ClickEvent& event);
       void sync();

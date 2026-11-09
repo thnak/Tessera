@@ -29,6 +29,7 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
     writer.line("// Developer code belongs only inside [DEVELOPER_LOGIC_START/END] regions.");
     writer.line("#pragma once");
     writer.line("");
+    writer.line("#include \"tessera/ui/scene/component_lifecycle.hpp\"");
     writer.line("#include \"tessera/ui/scene/event_payloads.hpp\"");
     writer.line("#include \"tessera/ui/scene/node.hpp\"");
     writer.line("");
@@ -58,7 +59,7 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
         writer.line(*type + " " + member_name(state.id) + " = " + initial.text + ";");
     }
     for (const ir::Ref& ref : component.refs) {
-        writer.line("// useRef `" + ref.name + "` (filled by the ref-target assignment slice).");
+        writer.line("// useRef `" + ref.name + "` (assigned in build() to its target node).");
         writer.line("tessera::ui::Node* " + member_name(ref.id) + " = nullptr;");
     }
     for (const ir::AnimatedValue& value : component.animated_values) {
@@ -74,6 +75,11 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
         writer.line("// useAnimatedValue `" + value.name +
                     "` (a plain field until the animation controller API exists).");
         writer.line(*type + " " + member_name(value.id) + " = " + initial.text + ";");
+    }
+    for (const ir::Effect& effect : component.effects) {
+        writer.line("// useEffect `" + effect.id +
+                    "` state (deps hash, run counter, active flag).");
+        writer.line("tessera::ui::EffectState " + member_name(effect.id) + "state_;");
     }
     for (const ir::Prop& prop : component.props) {
         const std::optional<std::string> type = cpp_type(prop.type);
@@ -94,6 +100,11 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
     }
     writer.line("");
     writer.line("void build(tessera::ui::Node& parent);");
+    writer.line("// Lifecycle: mount() runs effects once; update_effects() re-runs changed deps;");
+    writer.line("// unmount() runs cleanups in reverse declaration order.");
+    writer.line("void mount();");
+    writer.line("void update_effects();");
+    writer.line("void unmount();");
     for (const ir::Handler& handler : component.handlers) {
         bool typed = false;
         std::string param_name;

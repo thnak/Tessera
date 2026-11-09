@@ -237,6 +237,11 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
         writer.line(variable + "->bind_event(" + adapter->event_type + ", &" + adapter->function +
                     ", this);");
     }
+    for (const ir::Ref& ref : component.refs) {
+        if (ref.target == node.id) {
+            writer.line("this->" + member_name(ref.id) + " = " + variable + ".get();");
+        }
+    }
     if (node.kind == ir::NodeKind::Button || node.kind == ir::NodeKind::TextInput ||
         node.kind == ir::NodeKind::TextArea) {
         writer.line(variable + "->set_focusable(true);");
@@ -334,6 +339,9 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("parent.add_child(std::move(" + root_variable + "));");
     writer.close("");
     writer.line("");
+    if (!emit_lifecycle(component, bindings, writer, error)) {
+        return false;
+    }
     for (const ir::Handler& handler : component.handlers) {
         bool typed = false;
         std::string param_name;

@@ -38,14 +38,14 @@ CodegenErrors single(std::string message) {
 
 namespace internal {
 
-void CppWriter::line(std::string_view text) {
-    this->text.append(static_cast<std::size_t>(indent) * 2, ' ');
-    this->text += text;
-    this->text += '\n';
+void CppWriter::line(std::string_view line_text) {
+    text.append(static_cast<std::size_t>(indent) * 2, ' ');
+    text += line_text;
+    text += '\n';
 }
 
-void CppWriter::open(std::string_view text) {
-    std::string header(text);
+void CppWriter::open(std::string_view header_text) {
+    std::string header(header_text);
     header += " {";
     line(header);
     ++indent;
@@ -53,9 +53,9 @@ void CppWriter::open(std::string_view text) {
 
 void CppWriter::close(std::string_view suffix) {
     --indent;
-    std::string text("}");
-    text += suffix;
-    line(text);
+    std::string closing("}");
+    closing += suffix;
+    line(closing);
 }
 
 } // namespace internal

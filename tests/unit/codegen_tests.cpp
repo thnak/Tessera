@@ -210,6 +210,14 @@ void test_generated_shape() {
           "event binding region signature uses the payload record");
     check(header.find("#include \"tessera/ui/scene/event_payloads.hpp\"") != std::string::npos,
           "generated header includes the payload records");
+    check(header.find("#include \"tessera/ui/scene/component_lifecycle.hpp\"") != std::string::npos,
+          "generated header includes the lifecycle seam");
+    check(header.find("tessera::ui::EffectState effect_sync_state_;") != std::string::npos,
+          "one effect state per useEffect");
+    check(header.find("void mount();") != std::string::npos &&
+              header.find("void update_effects();") != std::string::npos &&
+              header.find("void unmount();") != std::string::npos,
+          "lifecycle methods are declared");
     check(header.find("void sync();") != std::string::npos, "effect binding region signature");
     check(source.find("namespace demo") != std::string::npos, "module namespace");
     check(source.find("auto node_1 = std::make_unique<tessera::ui::Node>(") != std::string::npos,
@@ -248,6 +256,14 @@ void test_generated_shape() {
           "sync region");
     check(source.find("// [DEVELOPER_LOGIC_START: bind::sync_cleanup]") != std::string::npos,
           "cleanup region");
+    check(source.find("this->ref_box_ = node_2.get();") != std::string::npos,
+          "useRef is assigned its target node");
+    check(source.find("std::uint64_t dep_hash_0(const Sample& component)") != std::string::npos,
+          "effect deps hash helper is generated");
+    check(source.find("tessera::ui::effect_needs_run(effect_sync_state_, dep_hash_0(*this))") !=
+              std::string::npos,
+          "effects run through the lifecycle seam");
+    check(source.find("sync_cleanup();") != std::string::npos, "effect cleanup is invoked");
     check(source.find("state_count_ = 1;") != std::string::npos, "handler setter action");
 }
 

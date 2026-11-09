@@ -36,6 +36,7 @@ namespace demo {
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
       node_2->set_element_kind("Button");
       node_2->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_2_onClick, this);
+      this->ref_box_ = node_2.get();
       node_2->set_focusable(true);
       // node::3
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
@@ -52,6 +53,37 @@ namespace demo {
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
       parent.add_child(std::move(node_1));
+    }
+    
+    namespace {
+      std::uint64_t dep_hash_0(const Sample& component) {
+        std::uint64_t hash = tessera::ui::kEffectHashSeed;
+        hash = tessera::ui::effect_hash(hash, component.state_count_);
+        return hash;
+      }
+      
+    } // namespace
+    
+    void Sample::mount() {
+      update_effects();
+    }
+    
+    void Sample::update_effects() {
+      // effect::sync (bind::sync, bind::sync_cleanup)
+      if (effect_sync_state_.active && effect_sync_state_.deps_hash != dep_hash_0(*this)) {
+        sync_cleanup();
+        tessera::ui::effect_mark_cleaned(effect_sync_state_);
+      }
+      if (tessera::ui::effect_needs_run(effect_sync_state_, dep_hash_0(*this))) {
+        sync();
+      }
+    }
+    
+    void Sample::unmount() {
+      if (effect_sync_state_.active) {
+        sync_cleanup();
+        tessera::ui::effect_mark_cleaned(effect_sync_state_);
+      }
     }
     
     void Sample::handler_1(const tessera::ui::ClickEvent& event) {

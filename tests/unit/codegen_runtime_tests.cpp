@@ -68,6 +68,18 @@ int main() {
     check(!label.focusable(), "a Text node is not focusable");
 
     check(sample.state_count_ == 0, "useState cell starts at its IR initial value");
+    check(sample.ref_box_ != nullptr, "useRef is assigned its target node");
+    if (sample.ref_box_ != nullptr) {
+        check_eq(sample.ref_box_->element_kind(), "Button", "ref target is the Button node");
+        check(sample.ref_box_->id() == 2, "ref target has the IR node id");
+    }
+
+    // Effects: mount runs once, an unchanged deps signature does not rerun.
+    sample.mount();
+    check(sample.effect_sync_state_.runs == 1 && sample.effect_sync_state_.active,
+          "mount runs the effect once");
+    sample.update_effects();
+    check(sample.effect_sync_state_.runs == 1, "unchanged deps do not rerun the effect");
 
     // Synthetic dispatch: the generated adapter runs at the Target phase and the setter updates the
     // state cell (the interactive end-to-end proof).
@@ -84,8 +96,16 @@ int main() {
     // The developer region binding is dispatched too, but its generated stub leaves state alone.
     ui::dispatch_event_to(*view.children()[0], click);
     check(sample.state_count_ == 1, "the binding region runs without changing unrelated state");
-    sample.sync();
-    sample.sync_cleanup();
+
+    // The effect dependency is the state cell: changing it reruns (cleanup then effect).
+    sample.update_effects();
+    check(sample.effect_sync_state_.runs == 2, "a changed dependency reruns the effect");
+    sample.update_effects();
+    check(sample.effect_sync_state_.runs == 2, "the new deps signature is stable");
+
+    sample.unmount();
+    check(!sample.effect_sync_state_.active, "unmount runs the cleanup and deactivates the effect");
+    check(sample.effect_sync_state_.runs == 2, "unmount does not rerun the effect");
 
     const ui::ClickEvent payload = ui::click_event(click);
     check(payload.x == 12.0f && payload.y == 8.0f, "payload record carries the pointer position");
