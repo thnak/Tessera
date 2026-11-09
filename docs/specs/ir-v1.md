@@ -78,14 +78,44 @@ read the parser AST.
 | `source` | SourceSpan | yes | For diagnostics/source maps |
 | `props` | Prop[] | no | Typed props |
 | `state` | State[] | no | `useState` |
+| `handlers` | Handler[] | no | Inline setter handlers (section 2.1) |
 | `effects` | Effect[] | no | `useEffect`. An Effect has `id`, `deps`, `handler` (binding id), `source`, and an optional `cleanup` (binding id of the cleanup handler; it runs before the effect runs again and on unmount) |
 | `refs` | Ref[] | no | `useRef` |
 | `animatedValues` | AnimatedValue[] | no | `useAnimatedValue` |
 | `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1) |
 | `root` | Node | yes | Exactly one root node |
 
+`props[].default` and `state[].initial` are Expressions (section 4). A literal is written as the bare
+JSON value (`"initial": 0`), any other expression as its object (`{ "kind": "ref", "id": "prop::start" }`).
+Reference ids are `state::<name>`, `prop::<name>`, `ref::<name>`, `anim::<name>`, `env::<name>`; a
+field of a record-typed value is a dotted id (`item.id`, `prop::row.label`); a loop item and index are
+named as written in the source.
+
 V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`. No
 arbitrary objects/functions in state. Nullable types use `optional<T>`.
+
+## 2.1 Handlers
+
+An inline setter handler ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 9.2) has no protected region, so
+it is an IR record of its own, referenced from `events`:
+
+```json
+{
+  "id": "handler::1",
+  "params": [{ "name": "e", "type": "string" }],
+  "actions": [
+    { "kind": "set", "target": "state::count", "value": { "kind": "binary", "op": "+", "left": { "kind": "ref", "id": "state::count" }, "right": { "kind": "literal", "value": 1 } } },
+    { "kind": "animSet", "target": "anim::opacity", "value": { "kind": "literal", "value": 0.5 }, "animate": false }
+  ],
+  "source": { "file": "ui/Counter.tsx", "offset": 200, "length": 40, "line": 9, "column": 5, "endLine": 9, "endColumn": 45 }
+}
+```
+
+- `id` is `handler::<N>`, numbered from 1 in source order within the component, and unique in it.
+- `actions` run in order. `set` writes a state variable through its setter; `animSet` is an
+  animated-value `.set(...)`, with `animate` defaulting to `true`. Values are pure Expressions that may
+  read `params`.
+- A handler declared once and used by several event props is one record with several references.
 
 ## 3. Node
 
@@ -112,20 +142,22 @@ arbitrary objects/functions in state. Nullable types use `optional<T>`.
 | `id` | string | yes | Debug key, unique within the component |
 | `uiId` | string | yes | uint64 decimal string; stable automation/trace identity |
 | `automationId` | string/null | no | Explicit uint64 override; must equal `uiId` |
-| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement` |
+| `kind` | string | yes | `View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`, `Scroll`, `Spacer`, `VirtualList`, `VirtualGrid`, `ErrorBoundary`, `CustomElement`, `Component` |
+| `component` | string | for `Component` | Id of the referenced component (section 3.4) |
 | `element` | string | for `CustomElement` | Static element id from `ui/elements.json` |
 | `source` | SourceSpan | yes | Span of the node's JSX element (section 8) |
-| `key` | string/int/null | no | Stable list identity |
+| `key` | string/int/null/Expr | no | Stable list identity; an Expression (section 4) on a node that carries `loop` |
 | `props` | object | no | Typed intrinsic props |
 | `style` | object | no | Style tokens; inline style |
-| `events` | object | no | Event name -> binding id |
+| `events` | object | no | Event name -> binding id (`bind::...`) or inline handler id (`handler::...`, section 2.1) |
 | `text` | Expr/null | no | Text content for `Text` |
 | `children` | Node[] | no | Paint order |
 | `condition` | Expr/null | no | Static conditional; V1 bool expression |
-| `loop` | Loop/null | no | Static list loop |
+| `loop` | Loop/null | no | Static list loop; this node is the repeated template (section 5) |
 
-Node kinds are closed in V1. A custom component reference is lowered to its root node; there
-is no dynamic component type. `CustomElement` is an intrinsic native-render node, not a dynamic
+Node kinds are closed in V1; the list above, with `Component` (section 3.4), is the complete list.
+A reference to a project or library component is a `Component` node; there is no dynamic
+component type. `CustomElement` is an intrinsic native-render node, not a dynamic
 component type; see [`custom-elements-v1.md`](custom-elements-v1.md).
 
 `VirtualList` and `VirtualGrid` are collection nodes defined in
@@ -200,6 +232,29 @@ A component instance is identified at design time by `(componentId, instanceKey)
   [`platform-shell-v1.md`](platform-shell-v1.md) section 2).
 - `Scroll` behavior/physics is defined by [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md).
 
+## 3.4 Component nodes
+
+```json
+{
+  "kind": "Component",
+  "id": "node::5",
+  "uiId": "666666666666666666",
+  "component": "comp::Row",
+  "props": { "label": { "kind": "ref", "id": "item.label" } },
+  "events": { "onPick": "handler::1" },
+  "children": []
+}
+```
+
+- `component` names another component of the project; the node is not replaced by that component's
+  root, so each instance keeps its own state, effects and refs.
+- `props` holds one entry per prop given in the source, as a literal or an Expression; `events`
+  holds callback props. Both are validated against the referenced component's props (section 9).
+- A `Component` node may carry `key`, `condition` and `loop` like any other node. `children` is
+  empty in V1.
+- This is the only addition to the node kinds in v1; it is additive, so `irVersion` stays `1`
+  (section 12).
+
 ## 4. Expressions
 
 V1 expressions are pure and statically analyzable:
@@ -257,15 +312,19 @@ Adding a function to this table is a change to this specification and to the eva
   "kind": "loop",
   "item": "item",
   "index": "index",
-  "source": { "kind": "ref", "id": "state::rows" },
-  "key": { "kind": "ref", "id": "item.id" },
-  "body": { "kind": "View", "id": "node::10", "children": [] }
+  "source": { "kind": "ref", "id": "state::rows" }
 }
 ```
 
+The `loop` is a field of the node it repeats; the key is that node's `key`:
+
+```json
+{ "kind": "View", "id": "node::10", "key": { "kind": "ref", "id": "item.id" }, "loop": { "kind": "loop", "item": "item", "index": "index", "source": { "kind": "ref", "id": "state::rows" } }, "children": [] }
+```
+
 - `source` must be a list ref or a static list literal.
-- `key` is required for dynamic lists; missing keys are a hard error.
-- Loop body is a node subtree; `item`/`index` are local refs.
+- The node's `key` is required for dynamic lists; a missing key is a hard error.
+- The node that carries `loop` and its subtree are the template; `item`/`index` are local refs.
 - No nested dynamic loops beyond depth 2 in V1.
 
 ## 5.1 ErrorBoundary
@@ -315,6 +374,15 @@ Adding a function to this table is a change to this specification and to the eva
 | `source` | SourceSpan | Annotation location |
 | `region` | string | Protected-region id (without `bind::`); a protected region is the developer-owned C++ block, see [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) |
 
+A binding for a native handler may also carry its signature and preview body
+([`jsx-subset-v1.md`](jsx-subset-v1.md) section 9.3), all optional:
+
+| Field | Type | Notes |
+|---|---|---|
+| `params` | `{ name, type }[]` | Typed parameters, in order; the C++ stub uses them |
+| `returnType` | string | IR type; absent means `void` |
+| `preview` | `{ actions, return }` | `actions` as in section 2.1; `return` is an optional Expression for a non-`void` handler. Absent when the handler has no preview body |
+
 Binding ids are stable across regeneration. Renames go through a migration; the merger never
 guesses. See [`developer-workflow.md`](../guides/developer-workflow.md).
 
@@ -343,6 +411,8 @@ style semantics. See [`stylesheet-v1.md`](stylesheet-v1.md).
 | `endLine`, `endColumn` | integer | End position (exclusive), 1-based |
 
 - A column counts Unicode code points from the start of the line (not bytes, not UTF-16 units).
+- A leading UTF-8 byte order mark counts in `offset` (offsets are file byte offsets) and is not a
+  column: the first character after it is column 1.
 - `offset` and `length` are required so that tools (the designer patch writer, [`designer-protocol-v1.md`](designer-protocol-v1.md) section 3.1) can edit text exactly. The examples of sections 2, 3 and 13 show full spans. Other examples in this document are fragments that omit `source` fields; the emitted IR contains them on every component, node, binding and effect.
 - Source spans are required on components, nodes, bindings, effects and diagnostics. A node's span covers its whole JSX element (opening tag through closing tag). A component's span covers its whole function declaration.
 - Generated C++ may carry `#line`-style source maps after V1 (open question, section 14); V1
@@ -365,6 +435,9 @@ Hard errors:
 - dynamic component types, context, suspense, custom hooks
 - missing list key or non-static loop source
 - binding annotation without a matching IR use, or vice versa
+- unresolved or duplicate `handler::` id, an `events` value that is neither a `bind::` nor a
+  `handler::` id, a `Component` node with an unresolved `component`, an unknown prop, or a prop or
+  event the referenced component does not declare
 - non-deterministic ordering/ids
 
 Warnings:

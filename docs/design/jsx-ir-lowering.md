@@ -5,7 +5,7 @@ Status: design only. No lowering code exists. `src/compiler/ir/`, `src/compiler/
 [`jsx-frontend.md`](jsx-frontend.md); the output is the IR of [`ir-v1.md`](../specs/ir-v1.md)
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md)). The accepted source forms are in
 [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) (the "subset spec"); this note links to its
-sections instead of copying them. Questions for the project owner are numbered Q1 to Q16 at the end.
+sections instead of copying them. Decisions of the project owner are numbered 1 to 16 in section 10.
 
 ## 1. Pipeline and ownership
 
@@ -23,28 +23,28 @@ parse_module -> analysis (Tier 1, new) -> lowering (Tier 2, new) -> IR -> IR val
 | AST construct | IR | Notes |
 |---|---|---|
 | Component item | `Component` | `name`, `source` = whole function span, `id` = `comp::<Name>`; `return <Root/>` is `root` |
-| Props parameter, destructured defaults | `props[]` (`name`, `type`, `default`) | `props.x` reads become `ref` to the prop (Q8) |
-| `const [x, setX] = useState<T>(e)` | `state[]` entry `state::x` | setter name is a symbol, not an IR object; `initial` is a literal or Expr (Q9) |
+| Props parameter, destructured defaults | `props[]` (`name`, `type`, `default`) | `props.x` reads become `ref` to the prop (decision 8) |
+| `const [x, setX] = useState<T>(e)` | `state[]` entry `state::x` | setter name is a symbol, not an IR object; `initial` is a literal or Expr (decision 9) |
 | `useRef<E>(null)` + `ref={r}` | `refs[]` (`ref::r`, `target` = node id) | target filled when the element is lowered |
 | `useAnimatedValue(e)` | `animatedValues[]` | |
 | `useEffect(fn, [deps])` | `effects[]` (`effect::<id>`, `deps`, `handler`, optional `cleanup`) | deps map to state/prop/animated ids |
 | Library hooks (`useTheme`, ...) | `environment[]` | needs the hook manifest reader (subset spec 7.1); rejected until then |
-| `const f = (...) => ...` with `bind::` | `Binding` kind `event`, plus a handler reference in `events` | Q4 to Q6 |
-| Inline arrow of setter calls (9.2) | handler action list | IR has no node for it today (Q5) |
-| Local `const x = PureExpr` | inlined `Expr`, or `local` ref | Q8 |
+| `const f = (...) => ...` with `bind::` | `Binding` kind `event`, plus a reference in `events` | decisions 4 to 6 |
+| Inline arrow of setter calls (9.2) | `handlers[]` record (`handler::N`) | decision 5 |
+| Local `const x = PureExpr` | inlined `Expr` (decision 8) | |
 | Top-level constant | folded to `literal` | evaluated at compile time (subset spec 4) |
 | JSX element, intrinsic tag | `Node` with `kind` from subset spec 11 | `source` = element span |
-| JSX element, project/library component | reference to another component | Q7 |
+| JSX element, project/library component | `Component` node (decision 7) | not inlined |
 | `<CustomElement element="X">` | `CustomElement` leaf | resolved against `ui/elements.json`; see [`custom-elements-v1.md`](../specs/custom-elements-v1.md) |
 | Attribute string/`{expr}` | `props` entry (literal or Expr) | `key` goes to `key`, `ref` to `refs`, `className` to `props.className` |
-| `style={{...}}` | `style` | key and value form: Q10 |
+| `style={{...}}` | `style` | key and value form: decision 10 |
 | `onX={handler}` | `events` | names checked against element specs |
 | `{...props}` / `{...{a:1}}` | expanded in attribute order | later attribute wins (subset spec 10.2) |
-| JSX text, `{expr}` text child | `Text.text` template | whitespace and entities already normalized by the parser; text in other nodes: Q11 |
+| JSX text, `{expr}` text child | `Text.text` template | whitespace and entities already normalized by the parser; text in other nodes: decision 11 |
 | `{c && <X/>}`, `{c ? <X/> : null}` | `condition` on the node | |
 | `{c ? <X/> : <Y/>}` | two nodes, `c` and `!c` | `c` is duplicated; it is pure so this is safe |
 | Fragment child | children spliced into the parent | |
-| `{list.map((r, i) => <R key=.../>)}` | node with `loop` | node/loop shape: Q12 |
+| `{list.map((r, i) => <R key=.../>)}` | node with `loop` | node/loop shape: decision 12 |
 | Expression operators | `binary`, `unary`, `conditional`, `template`, `call` | `===`/`!==` become `==`/`!=` (subset spec 8.2) |
 
 Rejected at lowering (`TESSERA_IR_*`) because they parse but have no V1 IR form: a library hook
@@ -87,7 +87,7 @@ two places; and lowering stays a tree-to-tree translation that can assert instea
   project-relative path to build the IR `SourceSpan` (`file`, `offset`, `length`, `line`, `column`,
   `endLine`, `endColumn`; [`ir-v1.md`](../specs/ir-v1.md) section 8). `SourceMap` already counts
   columns in code points and ignores a BOM for columns; confirm in a test that offsets still count
-  the BOM bytes (Q16).
+  the BOM bytes (decision 16).
 - `SourceSpan` is a plain IR struct (no parser headers); lowering converts.
 - A node's span is its JSX element span; a component's span is the function declaration span; a
   binding's span is the annotation comment span (`Statement::bind_span`); an effect's span is its
@@ -134,7 +134,7 @@ src/compiler/codegen/       (later)             depends on tessera_ir only
 - `tessera_react_rules` links the front end; `tessera_lowering` links front end, rules and `tessera_ir`.
 - `add_subdirectory` lines go next to the existing compiler entries in the top-level
   `CMakeLists.txt`. Tests register in `tests/unit/CMakeLists.txt` as `ir_*`, `rules_*`, `lowering_*`.
-- IR in memory is the contract with codegen; JSON is the snapshot format (ADR-007). A reader waits (Q15).
+- IR in memory is the contract with codegen; JSON is the snapshot format (ADR-007). A reader waits (decision 15).
 
 ## 7. Serialisation and determinism
 
@@ -146,8 +146,8 @@ src/compiler/codegen/       (later)             depends on tessera_ir only
 - Ordering follows [`ir-v1.md`](../specs/ir-v1.md) section 11: components by path then name, nodes in
   source order, bindings by id. Lowering uses ordered containers or sorts explicitly; it never
   iterates a hash map to emit output.
-- Debug ids: `node::N` is a pre-order counter per component starting at 1 (Q2). `uiId`/`componentId` are
-  computed by one function behind an interface so tests can inject a fixed salt (Q1).
+- Debug ids: `node::N` is a pre-order counter per component starting at 1 (decision 2). `uiId`/`componentId` are
+  computed by one function behind an interface so tests can inject a fixed salt (decision 1).
 
 ## 8. Testing plan
 
@@ -187,61 +187,46 @@ Each slice is behavior, tests and docs, committed on its own.
    `className`, `ref` targets.
 8. **Conditionals and loops.**
 9. **Components across files.** Imports, references, cycles, prop checks; `LoweringOptions`.
-10. **Identity.** `uiId`, `componentId`, automation manifest, collision errors (after Q1).
+10. **Identity.** `uiId`, `componentId`, automation manifest, collision errors (after decision 1).
 11. **Library and custom elements.** Hook manifest reader, `environment`, `ui/elements.json`.
 
-Slices 1 and 2 need no decision beyond Q2 and can start first. Slices 5 to 8 wait for Q4 to Q7 and
-Q12, which change IR shape.
+Slices 1 and 2 can start first.
 
-## 10. Questions for the project owner
+## 10. Decisions
 
-Each has a recommended answer. IR-shape answers need an additive edit of [`ir-v1.md`](../specs/ir-v1.md)
-(optional fields keep `irVersion` 1, section 12).
+The project owner accepted every recommended answer to the sixteen questions of the first version
+of this note. Numbers are kept; text elsewhere cites them as "decision N". IR-shape decisions
+(5, 6, 7, 9, 12, 16) are recorded in [`ir-v1.md`](../specs/ir-v1.md) as optional fields, so
+`irVersion` stays 1; the `Component` node kind is the one addition to the closed kind list.
 
-1. **ID hash and salt.** `hash64` and the source of `project_salt` are unspecified
-   ([`automation-ids-v1.md`](../specs/automation-ids-v1.md) section 2 and 9). Recommend FNV-1a 64-bit,
-   salt = `app.namespace`, tests inject a fixed salt; slice 10 only.
-2. **Debug node ids.** Recommend `node::N`, pre-order per component from 1, as the examples show.
-3. **Same component name in two files.** Ids differ by path, but `comp::<Name>` would collide;
-   recommend a duplicate name across files is an error.
-4. **Un-annotated `const f = arrow` handler.** Subset spec 9.3 defines native handlers by the
-   annotation; 9.2 defines inline handlers only inline. Recommend: an un-annotated declared arrow
-   whose body is setter calls only is a reusable inline handler; any other body is an error
-   `TESSERA_REACT_BIND_MISSING` (new code).
-5. **Where inline setter handlers live in IR.** IR has only `events: name -> binding id`. Recommend
-   an optional component `handlers[]` of `{id: "handler::N", params, actions: [set(target, value) |
-   animSet(target, value, animate)], source}`, and `events` values may be `handler::N`.
-6. **Native handler signature and preview body.** The C++ stub needs typed parameters and the
-   designer needs the preview body, but `Binding` has neither. Recommend optional `params`,
-   `returnType` and `preview` (the action list plus optional `return` Expr) on the binding.
-7. **Component references.** IR section 3 says a custom component reference "is lowered to its root
-   node", which loses per-instance state if it means inlining. Recommend a node form that references
-   the component with its prop expressions and is not inlined, e.g. kind `Component` with
-   `component` and `props`; this adds to the closed kind list.
-8. **Prop, local and loop refs.** Only `state::x` is shown. Recommend `prop::x`, `local::x`
-   (locals are inlined unless used twice; recommend always inlining), `item`/`index` names as written,
-   and dotted ids for record fields (`item.id`, `prop::row.label`).
-9. **State `initial` and prop `default`.** The spec allows pure expressions (a prop as the initial
-   value). Recommend the IR field holds an Expr, written as a bare JSON value when it is a literal.
-10. **`style` keys and values.** Subset spec 10.3 converts keys to kebab-case CSS names; the IR example
-    shows `fontSize`. Recommend kebab-case (the normative text), numbers converted to `"<n>px"` for
-    length properties using the property table of [`stylesheet-v1.md`](../specs/stylesheet-v1.md)
-    section 11, dynamic values as Expr. This needs the compiler to read that table; recommend a
-    generated header shared with the runtime registry rather than linking the UI library.
-11. **Text under `View`/`Button`.** Subset spec 10.4 is silent for non-`Text` parents. Recommend a
-    `Button` with only text children gets `props.label`; otherwise text becomes a synthetic `Text` child
-    whose span is the text run.
-12. **Loop shape.** IR section 3 puts `loop` on a node; section 5 shows a `loop` with its own `body`.
-    Recommend the node carrying `loop` is the repeated template and `loop` has no `body`; the node's
-    `key` holds the key expression.
-13. **Multi-file input.** Slice 9 needs all files of a project, but the front end is file-at-a-time.
-    Recommend `lower_project(files, options)` in `tessera_lowering`, with file reading in the caller.
-14. **`module.name`.** Recommend it comes from `LoweringOptions` (project config `app.namespace`),
-    not from a file name.
-15. **JSON reader.** Recommend writing the reader only when the Wasm evaluator or codegen needs it, with a
-    round-trip test; until then IR is consumed in memory.
-16. **Offsets with a BOM.** The IR says byte offset in the file. Recommend offsets include the BOM
-    bytes and columns exclude it (what `SourceMap` does); the spec should say so.
+1. **ID hash and salt.** FNV-1a 64-bit; `project_salt` is `app.namespace`; tests inject a fixed
+   salt. Implemented in slice 10 only.
+2. **Debug node ids.** `node::N`, a pre-order counter per component starting at 1.
+3. **Same component name in two files** is an error.
+4. **Un-annotated declared arrow.** A `const f = arrow` without `bind::` whose body is setter calls
+   only is a reusable inline handler. Any other body is `TESSERA_REACT_BIND_MISSING` (new code).
+5. **Inline setter handlers** are `handlers[]` records with `handler::N` ids; `events` may point
+   at them ([`ir-v1.md`](../specs/ir-v1.md) section 2.1).
+6. **Native handler signature and preview body** are optional `params`, `returnType` and `preview`
+   on the `Binding` ([`ir-v1.md`](../specs/ir-v1.md) section 6).
+7. **Component references** are not inlined: a `Component` node with `component` and `props`
+   ([`ir-v1.md`](../specs/ir-v1.md) section 3.4).
+8. **Refs.** `prop::x`; `local::x` is always inlined, so no `local::` ref is emitted; loop `item` and
+   `index` are named as written; record fields are dotted ids (`item.id`, `prop::row.label`).
+9. **State `initial` and prop `default`** are Expressions, written as the bare JSON value when
+   literal.
+10. **`style`.** Keys are kebab-case CSS names; numbers become `"<n>px"` for length properties,
+    using a table generated from one source shared with the runtime property registry (the compiler
+    does not link the UI library); dynamic values are Expressions.
+11. **Text under `View`/`Button`.** A `Button` whose children are only text gets `props.label`;
+    otherwise each text run becomes a synthetic `Text` child spanning the run.
+12. **Loop shape.** The node carrying `loop` is the repeated template; `loop` has no `body`; the
+    node's `key` holds the key Expression.
+13. **Multi-file input.** `lower_project(files, options)` in `tessera_lowering`; file reading stays
+    with the caller.
+14. **`module.name`** comes from `LoweringOptions` (project `app.namespace`).
+15. **JSON reader** is deferred until the Wasm evaluator or codegen needs one.
+16. **BOM.** Offsets count the BOM bytes; columns do not.
 
 ## 11. What the repo does not show
 
