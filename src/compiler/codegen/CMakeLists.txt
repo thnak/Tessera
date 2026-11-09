@@ -52,6 +52,12 @@ endif ()
 
 # Big Step C sample: seed the committed developer file (protected regions) into the build dir and
 # regenerate over it with the CLI; the merged output is what the build compiles.
+#
+# The regeneration runs the target-built `tessera_codegen_cli` ON THE HOST at build time, so it is
+# host-only: a cross-compiling build (Android/iOS) would try to execute a target binary. Generators
+# run on the host, never the target (same rule as the embedded-asset generator); mobile builds skip
+# the demo entirely and the host platforms cover it.
+if (NOT CMAKE_CROSSCOMPILING)
 set(_tessera_codegen_demo_dir ${CMAKE_CURRENT_BINARY_DIR}/samples/compiler-demo)
 set(_tessera_codegen_demo_src ${CMAKE_SOURCE_DIR}/samples/compiler-demo)
 set(_tessera_codegen_demo_seed ${CMAKE_SOURCE_DIR}/tests/golden/codegen/demo/Demo.cpp)
@@ -72,6 +78,7 @@ add_custom_command(
 add_library(tessera_compiler_demo STATIC ${_tessera_codegen_demo_dir}/Demo.cpp)
 target_include_directories(tessera_compiler_demo PRIVATE ${_tessera_codegen_demo_dir})
 target_link_libraries(tessera_compiler_demo PRIVATE tessera_scene)
+endif ()
 
 if (TESSERA_BUILD_TESTS)
     enable_testing()
@@ -121,6 +128,9 @@ if (TESSERA_BUILD_TESTS)
         COMMAND codegen_cli_tests ${_tessera_codegen_demo_src}
                 ${CMAKE_SOURCE_DIR}/tests/golden/codegen/demo $<TARGET_FILE:tessera_codegen_cli>)
 
-    add_test(NAME sample_compile
-        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target tessera_compiler_demo)
+    # The demo target only exists on host builds (see the cross-compiling guard above).
+    if (NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME sample_compile
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target tessera_compiler_demo)
+    endif ()
 endif ()
