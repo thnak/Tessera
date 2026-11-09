@@ -42,6 +42,10 @@ text::FontMetrics FontPaintTextMetrics::metrics(const text::TextStyle& style) co
     return impl_->metrics_provider.metrics(style);
 }
 
+float FontPaintTextMetrics::advance(std::string_view text, const text::TextStyle& style) const {
+    return impl_->shaper.shape(text, style).advance;
+}
+
 text::TextLayout FontPaintTextMetrics::layout(std::string_view text, const text::TextStyle& style,
                                               const text::TextConstraints& constraints) const {
     return text::layout_text_measured(text, style, metrics(style), constraints, &harfbuzz_advance,

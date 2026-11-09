@@ -1146,6 +1146,13 @@ void build_cpu_text_screen(tessera::rendering::software::CpuCanvas& canvas,
     left_data.max_lines = 5;
     left_data.text_style.font_size = 13.0f;
     left_data.text_style.color = muted;
+    // Caret + selection decoration is part of the deterministic CPU text golden.
+    tessera::ui::TextDecoration left_decoration;
+    left_decoration.caret_byte_offset = 12;
+    left_decoration.selection_begin = 0;
+    left_decoration.selection_end = 12;
+    left_decoration.blink_phase = 1.0f;
+    left_data.decoration = left_decoration;
     left_text.set_paint_data(std::move(left_data));
 
     tessera::ui::PaintData right_data;

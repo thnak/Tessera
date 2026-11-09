@@ -54,6 +54,9 @@ struct PaintStats {
 struct PaintContext {
     TextLayoutCache* text_layout_cache = nullptr;
     const PaintTextMetricsSource* text_metrics_source = nullptr;
+    // Device scale used for caret width (1 px at scale 1, 2 px at scale >= 2) and future
+    // decoration metrics. Defaults to 1 so tests/goldens are unchanged.
+    float device_scale = 1.0f;
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in

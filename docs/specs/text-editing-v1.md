@@ -373,3 +373,8 @@ props and generated events), bidi caret affinity and visual line movement (up/do
 `maxLength` whole-reject, dead-key composition beyond the platform path, caret rect/candidate-window
 positioning, selection handles/touch gestures, and accessibility snapshot wiring for value/
 selection/caret.
+
+Paint exposure (task-58): the editing layer's caret and selection byte offsets are consumed through
+`PaintData::TextDecoration`; paint resolves them through the same metrics/line-box path as wrap and
+emits selection fills behind glyphs, then the caret on top (clipped by node/scroll/damage clips,
+opacity folded). No timers or edit-buffer access live in paint. See `paint-pass.md` section 10.2.

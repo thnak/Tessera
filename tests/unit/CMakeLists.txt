@@ -1059,6 +1059,14 @@ target_link_libraries(paint_text_layout_cache_tests PRIVATE tessera_paint tesser
 
 add_test(NAME paint_text_layout_cache COMMAND paint_text_layout_cache_tests)
 
+add_executable(paint_text_decoration_tests
+    paint_text_decoration_tests.cpp)
+
+target_link_libraries(paint_text_decoration_tests PRIVATE
+    tessera_paint tessera_frame tessera_runtime)
+
+add_test(NAME paint_text_decoration COMMAND paint_text_decoration_tests)
+
 add_executable(input_pipeline_tests
     input_pipeline_tests.cpp)
 

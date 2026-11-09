@@ -113,6 +113,118 @@ PaintTextAlign computed_text_align(const style::ComputedStyle& style) {
     return PaintTextAlign::Start;
 }
 
+// Caret/selection emission. Paint only consumes byte offsets: it resolves them through the same
+// line boxes the wrap path uses. Z-order: selection fills behind the glyph runs, caret fills after
+// them. Selection is a translucent fill derived from the text color; the caret is the text color at
+// full alpha, 1 px at device scale 1 and 2 px at scale >= 2. A blink phase below 0.5 hides only the
+// caret; paint has no timers.
+void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
+                           const text::TextStyle& text_style, const rhi::Color& color,
+                           float opacity, bool wrap, PaintSink& sink, PaintStats& stats,
+                           const PaintContext& context) {
+    const std::string& text = data.text;
+    StubPaintTextMetrics stub_source;
+    const PaintTextMetricsSource* metrics_source =
+        context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
+
+    text::TextConstraints constraints;
+    constraints.wrap = wrap;
+    constraints.max_width = content.width;
+    text::TextLayout local_layout = metrics_source->layout(text, text_style, constraints);
+    if (data.max_lines > 0 && local_layout.lines.size() > data.max_lines) {
+        local_layout.lines.resize(data.max_lines);
+    }
+    if (local_layout.lines.empty()) {
+        return;
+    }
+
+    struct LineGeometry {
+        text::TextLine line;
+        float x = 0.0f;
+        float top = 0.0f;
+    };
+    std::vector<LineGeometry> lines;
+    lines.reserve(local_layout.lines.size());
+    float line_top = content.y;
+    for (const text::TextLine& line : local_layout.lines) {
+        float line_x = content.x;
+        if (data.text_align.value_or(PaintTextAlign::Start) == PaintTextAlign::Center) {
+            line_x += (content.width - line.width) * 0.5f;
+        } else if (data.text_align.value_or(PaintTextAlign::Start) == PaintTextAlign::End) {
+            line_x += content.width - line.width;
+        }
+        lines.push_back(LineGeometry{line, std::max(content.x, line_x), line_top});
+        line_top += line.height;
+    }
+
+    const TextDecoration& decoration = *data.decoration;
+    std::size_t selection_begin = std::min(decoration.selection_begin, text.size());
+    std::size_t selection_end = std::min(decoration.selection_end, text.size());
+    if (selection_begin > selection_end) {
+        std::swap(selection_begin, selection_end);
+    }
+    rhi::Color selection_color = color;
+    selection_color.a = 0.35f * opacity; // fixed documented alpha; text color supplies RGB
+    if (selection_end > selection_begin && selection_color.a > 0.0f) {
+        for (const LineGeometry& geometry : lines) {
+            const text::TextLine& line = geometry.line;
+            const std::size_t start = std::max(selection_begin, line.begin);
+            const std::size_t end = std::min(selection_end, line.end);
+            if (end <= start) {
+                continue;
+            }
+            const bool whole_line = selection_begin <= line.begin && selection_end >= line.end;
+            const float start_width = metrics_source->advance(
+                std::string_view(text).substr(line.begin, start - line.begin), text_style);
+            float end_width =
+                whole_line
+                    ? line.width
+                    : metrics_source->advance(
+                          std::string_view(text).substr(line.begin, end - line.begin), text_style);
+            end_width = std::max(end_width, start_width);
+            sink.fill_rect({std::round(geometry.x + start_width), std::round(geometry.top),
+                            std::round(end_width - start_width), line.height},
+                           selection_color);
+        }
+    }
+
+    // Glyph runs: selection above, text now (per line so the geometry matches the decoration).
+    for (const LineGeometry& geometry : lines) {
+        const text::TextLine& line = geometry.line;
+        if (line.end > line.begin) {
+            TextDraw run;
+            run.rect = {std::round(geometry.x), std::round(geometry.top), line.width, line.height};
+            run.text = std::string_view(text).substr(line.begin, line.end - line.begin);
+            run.font_size = text_style.font_size;
+            run.font_weight = text_style.font_weight;
+            run.color = color;
+            run.baseline = std::round(geometry.top + line.baseline);
+            sink.draw_text(run);
+            ++stats.texts;
+        }
+    }
+
+    const bool caret_visible = decoration.caret_visible && decoration.blink_phase >= 0.5f;
+    if (caret_visible) {
+        const std::size_t caret = std::min(decoration.caret_byte_offset, text.size());
+        const LineGeometry* caret_line = &lines.back();
+        for (const LineGeometry& geometry : lines) {
+            if (caret >= geometry.line.begin && caret <= geometry.line.end) {
+                caret_line = &geometry;
+                break;
+            }
+        }
+        const std::size_t clamped = std::min(caret, caret_line->line.end);
+        const float advance = metrics_source->advance(
+            std::string_view(text).substr(caret_line->line.begin, clamped - caret_line->line.begin),
+            text_style);
+        const float caret_width = context.device_scale >= 2.0f ? 2.0f : 1.0f;
+        sink.fill_rect({std::round(caret_line->x + advance), std::round(caret_line->top),
+                        std::max(caret_width, 1.0f), caret_line->line.height},
+                       color);
+    }
+}
+
 void paint_text_lines(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
                       PaintSink& sink, PaintStats& stats, const PaintContext& context) {
     const auto& data = node.paint_data();
@@ -154,6 +266,11 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     // `wrap` is authoritative (NoWrap is the V1 default); computed `white-space: nowrap|pre` can
     // only suppress wrapping, never opt into it.
     const bool wrap = data->wrap == PaintWrap::Wrap && !text_style.nowrap;
+    if (data->decoration) {
+        paint_text_decoration(*data, {content_x, content_y, content_width, content_height},
+                              text_style, color, opacity, wrap, sink, stats, context);
+        return;
+    }
     if (!wrap) {
         TextDraw run;
         run.rect = {content_x, content_y, content_width, content_height};

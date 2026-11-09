@@ -498,3 +498,30 @@ decode and one upload. Missing, malformed, unsupported and ThorVG-OFF cases are 
 no-ops counted in `VectorPaintStats` - paint never crashes because an asset is absent - and
 `ClippedPaintSink` replays vector draws per damage region exactly like glyphs. Full contract,
 lifetime rules and measurements: [`thorvg-spike/10-paint-integration.md`](thorvg-spike/10-paint-integration.md).
+
+### 10.2 Text decoration: caret and selection (task-58)
+
+`PaintData::decoration` is an optional `TextDecoration` (caret byte offset, half-open selection
+begin/end byte offsets, `caret_visible`, `blink_phase`). Paint consumes byte offsets only: it maps
+them through the same metrics source and line boxes as the wrap path (`PaintContext::
+text_metrics_source`, deterministic stub by default) and never reads the edit buffer. Newline bytes
+belong to the preceding line end: a caret at a newline paints at that line's end (before the break),
+a caret at the next line's first byte paints at that line's start, and a caret at text end paints
+after the last glyph; offsets past the text clamp to the end. Selection intervals intersecting a
+line paint from the measured prefix advance of the start boundary to the measured advance of the end
+boundary; fully covered lines paint their full line width (a selected newline itself has no
+rectangle).
+
+Z-order: selection fills are emitted before the glyph runs and the caret fill after them. Both are
+ordinary `PaintSink::fill_rect` calls, so node/scroll clips and damage-region replay clip them like
+any other rect, and node opacity folds into their alpha. Selection color is the resolved text color
+with alpha `0.35 * opacity`; caret color is the resolved text color at its existing alpha (node
+opacity already folded), 1 px wide at device scale 1 and 2 px at scale >= 2
+(`PaintContext::device_scale`). `caret_visible == false` or `blink_phase < 0.5` hides only the
+caret; paint has no timers and the caller drives blinking. Absent decoration keeps previous output
+byte-identical; a node with decoration emits per-line glyph runs (even NoWrap) so the decoration
+geometry matches the emitted lines. Tests: `paint_text_decoration` (offset mapping
+start/middle/end, multi-line and newline mapping, collapsed selection, z-order, width/colour/
+opacity, clip and damage replay, blink, empty text), the `paint_text_gpu` decoration readback, and
+the CPU text scene/golden (selection + caret). Deferrals: blinking timers, IME preedit underline,
+selection handles, bidi/RTL carets, `::selection` style, sub-pixel caret positioning.

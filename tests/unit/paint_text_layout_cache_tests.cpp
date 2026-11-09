@@ -82,6 +82,9 @@ public:
                                     const TextConstraints& constraints) const override {
         return StubPaintTextMetrics{}.layout(text, style, constraints);
     }
+    [[nodiscard]] float advance(std::string_view text, const TextStyle& style) const override {
+        return StubPaintTextMetrics{}.advance(text, style);
+    }
 
 private:
     std::uint32_t id_ = 0;

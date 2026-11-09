@@ -89,6 +89,25 @@ struct PaintVectorStyle {
 enum class PaintWrap { NoWrap, Wrap };
 enum class PaintTextAlign { Start, Center, End };
 
+// Caret/selection decoration for a paint text run. Paint consumes only byte offsets: it resolves
+// them to line boxes through the same metrics source/layout the wrap uses, so the paint pass needs
+// no edit-buffer knowledge. `selection_begin/end` are a half-open UTF-8 byte range (end may be less
+// than begin in the payload; paint normalizes). Newline bytes map to the end of the preceding line;
+// a caret at a line break is drawn at the line end (before the break), and a caret at the text end
+// is drawn after the last glyph. `blink_phase < 0.5` hides the caret; paint has no timers.
+struct TextDecoration {
+    std::size_t caret_byte_offset = 0;
+    std::size_t selection_begin = 0;
+    std::size_t selection_end = 0;
+    bool caret_visible = true;
+    float blink_phase = 1.0f;
+
+    [[nodiscard]] bool has_selection() const {
+        return selection_begin != selection_end;
+    }
+    bool operator==(const TextDecoration&) const = default;
+};
+
 struct PaintData {
     static constexpr std::size_t kMaxTextBytes = 4096;
     // Embedded asset names are short by construction; longer names are ignored by the paint pass
@@ -107,6 +126,9 @@ struct PaintData {
     std::uint32_t max_lines = 0;
     // nullopt uses computed `text-align` (falling back to Start); an explicit value overrides it.
     std::optional<PaintTextAlign> text_align;
+    // Optional caret/selection decoration (paint-only; the caller derives offsets from the edit
+    // model). Absent keeps the previous output byte-identical.
+    std::optional<TextDecoration> decoration;
     // Vector payload; only painted when kind == PaintKind::Vector (text fields are then ignored).
     PaintVectorStyle vector;
 

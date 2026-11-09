@@ -30,6 +30,10 @@ public:
 
     [[nodiscard]] virtual std::uint32_t id() const = 0;
     [[nodiscard]] virtual text::FontMetrics metrics(const text::TextStyle& style) const = 0;
+    // Advance of one run in the same units/rounding the line layout uses. Used to place caret and
+    // selection boundaries inside a line box (paint never shapes the full line again).
+    [[nodiscard]] virtual float advance(std::string_view text,
+                                        const text::TextStyle& style) const = 0;
     [[nodiscard]] virtual text::TextLayout
     layout(std::string_view text, const text::TextStyle& style,
            const text::TextConstraints& constraints) const = 0;
@@ -42,6 +46,12 @@ public:
     }
     [[nodiscard]] text::FontMetrics metrics(const text::TextStyle& style) const override {
         return text::StubFontMetricsProvider{}.metrics(style);
+    }
+    [[nodiscard]] float advance(std::string_view text,
+                                const text::TextStyle& style) const override {
+        text::TextConstraints no_wrap;
+        no_wrap.wrap = false;
+        return layout(text, style, no_wrap).width;
     }
     [[nodiscard]] text::TextLayout layout(std::string_view text, const text::TextStyle& style,
                                           const text::TextConstraints& constraints) const override {
@@ -64,6 +74,7 @@ public:
 
     [[nodiscard]] std::uint32_t id() const override;
     [[nodiscard]] text::FontMetrics metrics(const text::TextStyle& style) const override;
+    [[nodiscard]] float advance(std::string_view text, const text::TextStyle& style) const override;
     [[nodiscard]] text::TextLayout layout(std::string_view text, const text::TextStyle& style,
                                           const text::TextConstraints& constraints) const override;
 
