@@ -592,8 +592,15 @@ int run_windowed(const Options& options) {
     std::unique_ptr<rhi::Swapchain> swapchain = std::move(*created);
 
     auto pipeline = device->create_pipeline(vulkan::batched2d_pipeline_desc());
-    gpu::Batched2DRenderer renderer(*device, *pipeline, *white,
-                                    gpu::Batched2DConfig{4096, true, true});
+    // Two frames may be on the GPU at once: the renderer rotates its vertex buffers over the same
+    // number of slots, and the loop below only reuses a slot after that frame's list completed.
+    constexpr std::size_t kFramesInFlight = 2;
+    constexpr std::uint32_t kSlotWaitMs = 1000;
+    gpu::Batched2DConfig renderer_config{4096, true, true};
+    renderer_config.frames_in_flight = static_cast<std::uint32_t>(kFramesInFlight);
+    gpu::Batched2DRenderer renderer(*device, *pipeline, *white, renderer_config);
+    std::array<std::unique_ptr<rhi::CommandList>, kFramesInFlight> in_flight;
+    std::size_t frame_slot = 0;
 
     runtime::FramePacer pacer(runtime::FramePacerConfig{60.0});
     pacer.present(hal::steady_now_seconds());
@@ -621,6 +628,13 @@ int run_windowed(const Options& options) {
             metrics.physical_height != swapchain->extent().height) {
             swapchain->resize({metrics.physical_width, metrics.physical_height});
         }
+
+        // The frame that last used this slot must be finished before its vertex buffer is
+        // rewritten. The wait is bounded; a stuck GPU skips the frame instead of freezing the loop.
+        if (in_flight[frame_slot] && !in_flight[frame_slot]->wait(kSlotWaitMs)) {
+            continue;
+        }
+        in_flight[frame_slot].reset();
 
         std::optional<std::uint32_t> image;
         for (int attempt = 0; attempt < 4 && !image; ++attempt) {
@@ -658,7 +672,9 @@ int run_windowed(const Options& options) {
             build_screen(renderer, *checker, target_desc.extent.width, target_desc.extent.height);
         }
         renderer.end();
-        commands->submit();
+        commands->submit_async();
+        in_flight[frame_slot] = std::move(commands);
+        frame_slot = (frame_slot + 1) % kFramesInFlight;
         ++rendered;
 
         const auto result = swapchain->present(*image);
@@ -670,6 +686,8 @@ int run_windowed(const Options& options) {
         pacer.present(hal::steady_now_seconds());
     }
 
+    // Shutdown only: let queued frames finish before the swapchain and buffers are destroyed.
+    device->wait_idle();
     std::cout << "windowed: rendered=" << rendered << " presented=" << presented << "\n";
     return 0;
 }
