@@ -109,7 +109,10 @@ void Node::set_scrollable_x(bool scrollable) {
         return;
     }
     scrollable_x_ = scrollable;
-    // The new limit can move the current offset; re-clamp (marks Paint/Render if it changes).
+    // Toggling the flag changes what the pass and hit testing do with this subtree (a paint clip is
+    // emitted or dropped, and points outside the viewport start missing), so it is visible even
+    // when the re-clamped offset stays at 0.
+    mark_dirty(Dirty::Paint | Dirty::Render);
     set_scroll_offset(scroll_x_, scroll_y_);
 }
 
@@ -118,6 +121,7 @@ void Node::set_scrollable_y(bool scrollable) {
         return;
     }
     scrollable_y_ = scrollable;
+    mark_dirty(Dirty::Paint | Dirty::Render);
     set_scroll_offset(scroll_x_, scroll_y_);
 }
 

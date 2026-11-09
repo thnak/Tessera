@@ -424,6 +424,30 @@ bool scroll_into_view_and_determinism() {
                   "replay clamps deterministically");
 }
 
+bool scrollable_flag_dirty() {
+    Node node(1);
+    node.set_bounds({0, 0, 100, 100});
+    node.set_content_size(100.0f, 300.0f);
+    clear_tree(node);
+
+    if (!expect(!has_flag(node.dirty(), Dirty::Paint), "clean before the flag change")) {
+        return false;
+    }
+    node.set_scrollable_y(true);
+    if (!expect(has_flag(node.dirty(), Dirty::Paint) && has_flag(node.dirty(), Dirty::Render),
+                "becoming scrollable marks Paint and Render") ||
+        !expect(!has_flag(node.dirty(), Dirty::Layout), "becoming scrollable never marks Layout") ||
+        !expect(near(tessera::ui::max_scroll_y(node), 200.0f),
+                "the scroll limit applies after the flag change")) {
+        return false;
+    }
+
+    // Repeating the same value is a no-op and marks nothing.
+    clear_tree(node);
+    node.set_scrollable_y(true);
+    return expect(node.dirty() == Dirty::None, "repeated flag set marks nothing");
+}
+
 } // namespace
 
 int main() {
@@ -450,6 +474,9 @@ int main() {
     }
     if (!scroll_into_view_and_determinism()) {
         return 8;
+    }
+    if (!scrollable_flag_dirty()) {
+        return 9;
     }
 
     std::cout << "scroll: ok\n";

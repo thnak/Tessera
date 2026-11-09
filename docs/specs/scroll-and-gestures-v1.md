@@ -75,7 +75,9 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   A request that does not change the offset returns `false` and mutates nothing; a node with no
   scrollable axis ignores the request entirely. Changing the offset marks
   `Dirty::Paint | Dirty::Render` (never `Layout`). Viewport/content changes re-clamp the stored
-  offset so the invariant always holds.
+  offset so the invariant always holds. Toggling `scrollable_x/y` also marks
+  `Dirty::Paint | Dirty::Render`, even when the clamped offset stays at 0, because the paint clip
+  and hit-test clipping of the subtree start or stop with the flag.
 - Paint: children are offset by `-scroll` because `Node::world_transform()` places them in the
   parent's content space; a scrollable node is a clipping parent (rounded border-box clip via
   `PaintSink::push_clip`), exactly as documented in

@@ -68,10 +68,12 @@ public:
         return tab_index_;
     }
 
-    // Scroll state (additive; docs/specs/scroll-and-gestures-v1.md section 1). The viewport is the
-    // node's border box; `content_width/height` are supplied explicitly by layout or the caller.
-    // Children are positioned in content space, so painting, hit testing, and world transforms all
-    // apply -scroll to them while this node's own bounds/transform stay unchanged.
+    // Scroll state (additive; docs/specs/scroll-and-gestures-v1.md section 1). The scrollport used
+    // for clamping is the node's border box; `content_width/height` are supplied explicitly by
+    // layout or the caller. Children are positioned in content space, so painting, hit testing, and
+    // world transforms all apply -scroll to them while this node's own bounds/transform stay
+    // unchanged. Toggling a scrollable axis marks Paint|Render: the paint clip and hit-testing
+    // clipping start or stop at this node even when the clamped offset stays the same.
     void set_scrollable_x(bool scrollable);
     void set_scrollable_y(bool scrollable);
     [[nodiscard]] bool scrollable_x() const {
@@ -126,9 +128,9 @@ public:
 
     // Optional app/compiler-supplied paint payload (D9): currently a text run painted after this
     // node's background/borders and inside the active clip. Purely visual - it never affects
-    // layout, style, or hit testing. Setting/clearing it marks Paint|Render only and is a no-op when
-    // the payload is unchanged. Text longer than PaintData::kMaxTextBytes is truncated at a UTF-8
-    // code-point boundary.
+    // layout, style, or hit testing. Setting/clearing it marks Paint|Render only and is a no-op
+    // when the payload is unchanged. Text longer than PaintData::kMaxTextBytes is truncated at a
+    // UTF-8 code-point boundary.
     void set_paint_data(std::optional<PaintData> data);
     void clear_paint_data();
     [[nodiscard]] const std::optional<PaintData>& paint_data() const {
