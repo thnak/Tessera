@@ -219,7 +219,8 @@ This page is the map and reading order for the framework.
   protected regions, regeneration
 - [`guides/code-style.md`](guides/code-style.md) — style, file size, build-cache rules
 - [`guides/testing.md`](guides/testing.md) — run/add tests, sanitizers, CI, triage
-- [`guides/packaging.md`](guides/packaging.md) — release/static-link/notices/assets checklist
+- [`guides/packaging.md`](guides/packaging.md) — release checklist: gates, per-OS install/package,
+  artifact names, manual signing/notarization
 - [`guides/debugging.md`](guides/debugging.md) — validation, GPU tools, common failures
 - [`guides/tunables.md`](guides/tunables.md) — expose a few buffer/runtime knobs to users
 - [`guides/loading-matrix.md`](guides/loading-matrix.md) — choose startup/loading/auth/resource
@@ -399,7 +400,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Window resize/DPI/lifecycle | B3 implemented on Windows/X11 (resize/DPI/focus/close, swapchain retirement); Wayland and macOS pending ([ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md)) |
 | Async/await runtime | B2 partial: cancellation/executor/completion queue and lazy coroutine `Task` implemented; I/O executor pending ([ADR-021](../decisions/ADR-021-async-runtime.md)) |
 | Diagnostics/profiling | B2 partial: per-frame counters implemented; tracing/profiling/crash pending ([ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md)) |
-| Static-link + license gates | Production gates implemented: dependency/notice allowlist checker, per-OS static-link allowlist, forbidden dynamic C++ runtime rule, Release static-runtime proof, full license texts + generated bundle, deterministic SPDX 2.3 SBOM, gated distributable CPack archive, docs link/index/fence/size gate, fixtures and CI wiring ([plan](design/rendering-production-plan.md), [packaging](guides/packaging.md)) |
+| Static-link + license gates | Production gates implemented: dependency/notice allowlist checker, per-OS static-link allowlist, forbidden dynamic C++ runtime rule, Release static-runtime proof, full license texts + generated bundle, deterministic SPDX 2.3 SBOM, gated distributable CPack archive with install/package gates on Linux, Windows and macOS, docs link/index/fence/size gate, fixtures and CI wiring ([plan](design/rendering-production-plan.md), [packaging](guides/packaging.md)) |
 | OS events / foldables | B3 proposed ([ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md)) |
 | Compiler/IR/codegen | C started: IR model, JSON writer/validator, expression, hook/binding, node, conditional/loop and component/module lowering, and the shared `tessera_schema` intrinsic/style table implemented; IR coverage of the new constructs and C++ codegen pending ([design](design/jsx-ir-lowering.md)) |
 | UI virtualization (list/grid) | B2/E proposed |
