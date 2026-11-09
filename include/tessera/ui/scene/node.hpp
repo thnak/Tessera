@@ -8,9 +8,13 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
+#include <string_view>
 #include <vector>
 
 namespace tessera::ui {
@@ -137,6 +141,58 @@ public:
         return paint_data_;
     }
 
+    // Element metadata (compiler codegen, docs/design/scene-graph.md section 5). Additive and
+    // allocation-free: every string is a BORROWED view, so the caller must keep the storage alive
+    // for as long as the node can be inspected (generated code passes string literals, whose
+    // storage is static). Values are truncated to the documented byte caps rather than stored in a
+    // node-owned buffer; the Node itself never copies metadata. `id`/`className` are the selector
+    // inputs: setting or clearing them marks Dirty::Style and is a no-op when unchanged.
+    // `automationId` is the compiler's stable numeric identity (slice 10 computes the final rule);
+    // 0 means "not set".
+    struct AriaAttribute {
+        std::string_view name; // the full attribute name, for example `aria-label`
+        std::string_view value;
+
+        bool operator==(const AriaAttribute&) const = default;
+    };
+
+    static constexpr std::size_t kMaxMetadataBytes = 256;
+    static constexpr std::size_t kMaxAriaPairs = 16;
+    static constexpr std::size_t kMaxAriaNameBytes = 32;
+    static constexpr std::size_t kMaxAriaValueBytes = 128;
+
+    void set_element_kind(std::string_view kind);
+    [[nodiscard]] std::string_view element_kind() const {
+        return element_kind_;
+    }
+    void set_element_id(std::string_view id);
+    void clear_element_id();
+    [[nodiscard]] std::string_view element_id() const {
+        return element_id_;
+    }
+    void set_class_name(std::string_view class_name);
+    void clear_class_name();
+    [[nodiscard]] std::string_view class_name() const {
+        return class_name_;
+    }
+    void set_automation_id(std::uint64_t automation_id);
+    [[nodiscard]] std::uint64_t automation_id() const {
+        return automation_id_;
+    }
+    void set_role(std::string_view role);
+    void clear_role();
+    [[nodiscard]] std::string_view role() const {
+        return role_;
+    }
+    // Stores or replaces one `aria-*` pair. False when the pair cap is reached or the name is
+    // empty; the value is truncated to kMaxAriaValueBytes and the name to kMaxAriaNameBytes.
+    bool set_aria(std::string_view name, std::string_view value);
+    void clear_aria();
+    // The stored pairs in insertion order: the accessor a future accessibility bridge consumes.
+    [[nodiscard]] std::span<const AriaAttribute> aria_attributes() const {
+        return std::span<const AriaAttribute>(aria_.data(), aria_count_);
+    }
+
     virtual void on_event(Event& event);
 
 private:
@@ -151,6 +207,14 @@ private:
     bool focusable_ = false;
     int tab_index_ = 0;
     std::optional<PaintData> paint_data_;
+    // Borrowed views: the caller keeps the storage alive (codegen passes literals). No allocations.
+    std::string_view element_kind_;
+    std::string_view element_id_;
+    std::string_view class_name_;
+    std::string_view role_;
+    std::uint64_t automation_id_ = 0;
+    std::array<AriaAttribute, kMaxAriaPairs> aria_{};
+    std::size_t aria_count_ = 0;
     bool scrollable_x_ = false;
     bool scrollable_y_ = false;
     float content_width_ = 0.0f;

@@ -189,16 +189,18 @@ toFloat`. Rejected loudly with `TESSERA_CODEGEN_UNSUPPORTED`: record-field refer
 `length`/`formatNumber`, `env::` references, record-typed fields, conditional/loop nodes,
 `Component`/`CustomElement`/`VirtualList`/`VirtualGrid` nodes, and `environment` hooks.
 
-Scene APIs in use: node construction/`add_child`, `set_focusable` for `Button`/`TextInput`/
-`TextArea`, and `set_scrollable_x/y` from `Scroll.axis`. Properties with no runtime API yet are
-recorded as deterministic `// node::N kind=... id=... role=... className=... style.x=... text=...
-events=...` comments. **Missing runtime API (next codegen slice):** element kind/tag storage on
-scene nodes; `id`/`className` attachment and stylesheet re-resolution; `role`/`aria-*`
-accessibility metadata; `automationId` node field; text content and text-run attachment; inline
-style attachment/computed-style feed; C++ event payload records (`ClickEvent`, `TextChangeEvent`,
-...); event dispatch wiring from IR node events to the generated handler methods; ref-target
-assignment after node creation; an animated-value controller and effect lifecycle invocation
-(initial/unmount/deps).
+Scene APIs in use, in the documented per-node emission order: `set_element_kind`,
+`set_element_id`, `set_class_name`, `set_automation_id`, `set_role`, `set_aria` (`aria-*` in name
+order), focusability (`Button`/`TextInput`/`TextArea`), scroll flags from `Scroll.axis`, D9 text via
+`set_paint_data(PaintData{...})`, then the child subtrees and `add_child`. Element metadata is
+borrowed by the node ([`scene-graph.md`](scene-graph.md) section 5), so codegen passes string
+literals only and rejects dynamic `id`/`className`/`role`/`aria-*`/text with
+`TESSERA_CODEGEN_UNSUPPORTED`. Inline style values and event targets have no runtime API yet and
+remain deterministic `// node::N style.x=... events=...` comments. **Remaining missing runtime
+API:** inline style attachment/computed-style feed; C++ event payload records (`ClickEvent`,
+`TextChangeEvent`, ...); event dispatch wiring from IR node events to the generated handler methods;
+ref-target assignment after node creation; an animated-value controller and effect lifecycle
+invocation (initial/unmount/deps).
 
 Deferred: effect invocation, conditional/list emission, component composition and `Slot`,
 reusing computed styles, incremental regeneration/mtime, and a codegen CLI. Goldens live in

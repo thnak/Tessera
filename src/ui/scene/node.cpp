@@ -37,6 +37,12 @@ std::string truncate_utf8(std::string_view text, std::size_t max_bytes) {
     return std::string(text.substr(0, end));
 }
 
+// Element metadata is borrowed (docs/design/scene-graph.md section 5), so a cap only shortens the
+// view; it never copies or allocates.
+std::string_view bounded_view(std::string_view text, std::size_t max_bytes) {
+    return text.substr(0, std::min(text.size(), max_bytes));
+}
+
 } // namespace
 
 Node::Node(NodeId id)
@@ -293,6 +299,91 @@ Node* Node::hit_test_deep(float x, float y) {
 }
 
 void Node::on_event(Event&) {}
+
+void Node::set_element_kind(std::string_view kind) {
+    const std::string_view next = bounded_view(kind, kMaxMetadataBytes);
+    if (next == element_kind_) {
+        return;
+    }
+    element_kind_ = next;
+}
+
+void Node::set_element_id(std::string_view id) {
+    const std::string_view next = bounded_view(id, kMaxMetadataBytes);
+    if (next == element_id_) {
+        return;
+    }
+    element_id_ = next;
+    // `id` is a selector input: the stylesheet must re-resolve this node.
+    mark_dirty(Dirty::Style);
+}
+
+void Node::clear_element_id() {
+    if (element_id_.empty()) {
+        return;
+    }
+    element_id_ = {};
+    mark_dirty(Dirty::Style);
+}
+
+void Node::set_class_name(std::string_view class_name) {
+    const std::string_view next = bounded_view(class_name, kMaxMetadataBytes);
+    if (next == class_name_) {
+        return;
+    }
+    class_name_ = next;
+    mark_dirty(Dirty::Style);
+}
+
+void Node::clear_class_name() {
+    if (class_name_.empty()) {
+        return;
+    }
+    class_name_ = {};
+    mark_dirty(Dirty::Style);
+}
+
+void Node::set_automation_id(std::uint64_t automation_id) {
+    if (automation_id_ == automation_id) {
+        return;
+    }
+    automation_id_ = automation_id;
+}
+
+void Node::set_role(std::string_view role) {
+    const std::string_view next = bounded_view(role, kMaxMetadataBytes);
+    if (next == role_) {
+        return;
+    }
+    role_ = next;
+}
+
+void Node::clear_role() {
+    role_ = {};
+}
+
+bool Node::set_aria(std::string_view name, std::string_view value) {
+    const std::string_view bounded_name = bounded_view(name, kMaxAriaNameBytes);
+    if (bounded_name.empty()) {
+        return false;
+    }
+    const std::string_view bounded_value = bounded_view(value, kMaxAriaValueBytes);
+    for (std::size_t i = 0; i < aria_count_; ++i) {
+        if (aria_[i].name == bounded_name) {
+            aria_[i].value = bounded_value;
+            return true;
+        }
+    }
+    if (aria_count_ == kMaxAriaPairs) {
+        return false;
+    }
+    aria_[aria_count_++] = AriaAttribute{bounded_name, bounded_value};
+    return true;
+}
+
+void Node::clear_aria() {
+    aria_count_ = 0;
+}
 
 void Node::set_paint_data(std::optional<PaintData> data) {
     if (data) {

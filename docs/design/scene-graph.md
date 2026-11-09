@@ -88,6 +88,27 @@ does not stop propagation by itself.
 
 The dispatcher is UI-thread-only. No locking, no async delivery, and no event pooling (not implemented; no plan is written down).
 
+## 5. Element metadata
+
+`Node` stores additive, allocation-free element metadata for codegen and future selector/accessibility
+use: `set_element_kind`/`element_kind` (borrowed view, byte cap `kMaxMetadataBytes = 256`),
+`set_element_id`/`clear_element_id` and `set_class_name`/`clear_class_name` (borrowed views; setting
+or clearing marks `Dirty::Style` and is a no-op when unchanged), `set_automation_id`/`automation_id`
+(`std::uint64_t`, 0 means unset), `set_role`/`clear_role`, and `set_aria(name, value)`/
+`clear_aria`/`aria_attributes()` (fixed cap `kMaxAriaPairs = 16`; name and value caps 32/128 bytes;
+replacing an existing name updates it in place; a full cap or an empty name returns false, it never
+throws). There are no platform calls: the accessor is the seam the future accessibility bridge
+consumes.
+
+Ownership: every metadata string is a **borrowed `std::string_view`**; `Node` copies nothing, so the
+caller keeps the storage alive for as long as the node is inspected. Generated code passes string
+literals (static storage), and dynamic metadata needs a runtime interning API (not in this slice).
+Values are truncated to the documented byte caps (metadata is treated as ASCII identifiers/ARIA
+values; no UTF-8 boundary logic). `id` and `className` are the selector inputs and mark
+`Dirty::Style`; element kind, role, `aria-*` and `automationId` are metadata only and mark no dirty
+domain. Text is not a metadata field: generated text attaches the existing D9 `PaintData` through
+`set_paint_data`, and layout never reads that payload.
+
 ## Tests
 
 - `tests/unit/scene_graph_tests.cpp`: world bounds, deep hit testing, capture/target/bubble
@@ -96,6 +117,10 @@ The dispatcher is UI-thread-only. No locking, no async delivery, and no event po
   routing to the focused node, pointer-down focus, and focus cleanup on router reset.
 - `tests/unit/scene_dirty_tests.cpp`: dirty-domain marking, ancestor aggregation, clear/recompute,
   setter invalidation, add-child propagation.
+- `tests/unit/node_metadata_tests.cpp`: element kind/id/className/role/aria/automationId get/set/
+  clear, Dirty::Style no-op semantics, borrowed-view byte caps and the aria pair cap.
+- `tests/unit/codegen_runtime_tests.cpp`: builds the generated sample component and asserts the
+  attached metadata, children, focusability and D9 text (no GPU).
 - `tests/gpu/batched2d/batched2d_tests.cpp`: batch count and vertex count across texture and
   scissor changes, with the null backend.
 

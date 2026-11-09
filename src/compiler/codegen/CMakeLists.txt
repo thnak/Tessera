@@ -60,4 +60,16 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
 
     add_test(NAME codegen_layering COMMAND codegen_layering_tests)
+
+    # End-to-end proof: build the generated sample and inspect the attached metadata, children,
+    # focusability and text through the real scene API (no GPU).
+    add_executable(codegen_runtime_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_runtime_tests.cpp)
+
+    target_include_directories(codegen_runtime_tests PRIVATE ${_tessera_codegen_golden_dir})
+    target_link_libraries(codegen_runtime_tests PRIVATE
+        tessera_codegen_sample
+        tessera_scene)
+
+    add_test(NAME codegen_runtime COMMAND codegen_runtime_tests)
 endif ()

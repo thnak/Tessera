@@ -13,6 +13,7 @@
 
 #include <array>
 #include <cctype>
+#include <charconv>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -72,17 +73,14 @@ std::string params_text(const std::vector<ir::Param>& params) {
     return out;
 }
 
-// Quotes and escapes a string for the node metadata comments (single-line, deterministic).
-std::string escape_comment_string(std::string_view text) {
-    std::string out = "\"";
-    for (const char c : text) {
-        if (c == '"' || c == '\\') {
-            out += '\\';
-        }
-        out += c;
+std::string value_repr(const ir::Expr* expr) {
+    if (expr == nullptr) {
+        return "null";
     }
-    out += '"';
-    return out;
+    if (expr->kind == ir::ExprKind::Literal) {
+        return literal_text(expr->literal);
+    }
+    return "<expr>";
 }
 
 // `handler::1` -> `handler_1`: the generated member name of an IR record id.
@@ -100,37 +98,6 @@ std::string method_name(std::string_view id) {
     return out;
 }
 
-std::string value_repr(const ir::Expr* expr) {
-    if (expr == nullptr) {
-        return "null";
-    }
-    if (expr->kind == ir::ExprKind::Literal) {
-        return literal_text(expr->literal);
-    }
-    return "<expr>";
-}
-
-std::string text_repr(const ir::Expr* expr) {
-    if (expr == nullptr) {
-        return "\"none\"";
-    }
-    if (expr->kind == ir::ExprKind::Template) {
-        std::string folded;
-        for (const ir::TemplatePart& part : expr->parts) {
-            if (part.expr) {
-                folded += "${expr}";
-            } else {
-                folded += part.text;
-            }
-        }
-        return escape_comment_string(folded);
-    }
-    if (expr->kind == ir::ExprKind::Literal) {
-        return literal_text(expr->literal);
-    }
-    return "\"<expr>\"";
-}
-
 std::string node_id_text(const ir::Node& node, unsigned& next_id, std::string& error) {
     if (node.ui_id.empty()) {
         // Slice 10 computes uiId; until then the pre-order index is the deterministic placeholder.
@@ -146,32 +113,10 @@ std::string node_id_text(const ir::Node& node, unsigned& next_id, std::string& e
     return "static_cast<tessera::ui::NodeId>(" + node.ui_id + "ull)";
 }
 
-// One `// node::1 kind=View id=root role=... className=... automationId=...` metadata line. The
-// scene has no API for this metadata yet (see the design note's missing-runtime-API list), so the
-// values are recorded in the generated source until it does.
+// Remaining metadata gaps for this slice: inline style attachment and event dispatch wiring. Both
+// are recorded in a deterministic comment (docs/design/compiler.md section 11).
 std::string node_comment(const ir::Node& node) {
-    std::string out = "// " + node.id + " kind=" + std::string(ir::node_kind_name(node.kind));
-    const auto prop = [&](std::string_view name) -> const ir::Expr* {
-        const auto found = node.props.find(std::string(name));
-        return found == node.props.end() ? nullptr : found->second.get();
-    };
-    if (const ir::Expr* id = prop("id")) {
-        out += " id=" + value_repr(id);
-    }
-    if (!node.automation_id.empty()) {
-        out += " automationId=" + node.automation_id;
-    }
-    if (const ir::Expr* role = prop("role")) {
-        out += " role=" + value_repr(role);
-    }
-    if (const ir::Expr* class_name = prop("className")) {
-        out += " className=" + value_repr(class_name);
-    }
-    for (const auto& [name, value] : node.props) {
-        if (name.rfind("aria-", 0) == 0) {
-            out += " " + name + "=" + value_repr(value.get());
-        }
-    }
+    std::string out = "// " + node.id;
     for (const auto& [name, value] : node.style) {
         out += " style." + name + "=" + value_repr(value.get());
     }
@@ -184,10 +129,48 @@ std::string node_comment(const ir::Node& node) {
         }
         out += "}";
     }
-    if (node.text) {
-        out += " text=" + text_repr(node.text.get());
-    }
     return out;
+}
+
+std::optional<std::string_view> literal_string(const ir::Expr* expr) {
+    if (expr == nullptr || expr->kind != ir::ExprKind::Literal) {
+        return std::nullopt;
+    }
+    if (const auto* text = std::get_if<std::string>(&expr->literal)) {
+        return std::string_view(*text);
+    }
+    return std::nullopt;
+}
+
+// A node's paint text: a string literal, or an all-text template folded by codegen. Dynamic text
+// needs the string runtime and is rejected by the caller.
+std::optional<std::string> text_content(const ir::Expr* expr) {
+    if (const std::optional<std::string_view> literal = literal_string(expr)) {
+        return std::string(*literal);
+    }
+    if (expr == nullptr || expr->kind != ir::ExprKind::Template) {
+        return std::nullopt;
+    }
+    std::string folded;
+    for (const ir::TemplatePart& part : expr->parts) {
+        if (part.expr) {
+            return std::nullopt;
+        }
+        folded += part.text;
+    }
+    return folded;
+}
+
+std::optional<std::uint64_t> parse_automation_id(std::string_view text) {
+    if (text.empty()) {
+        return std::nullopt;
+    }
+    std::uint64_t value = 0;
+    const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (result.ec != std::errc{} || result.ptr != text.data() + text.size()) {
+        return std::nullopt;
+    }
+    return value;
 }
 
 bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& component,
@@ -234,11 +217,8 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
             return fail(error, "key: " + emission.error);
         }
     }
-    if (node.text) {
-        const ExprEmission emission = emit_expr(*node.text, component);
-        if (!emission.error.empty()) {
-            return fail(error, "text: " + emission.error);
-        }
+    if (node.text && !text_content(node.text.get())) {
+        return fail(error, "text: dynamic text needs the text runtime, deferred");
     }
     const std::string id = node_id_text(node, next_id, error);
     if (!error.empty()) {
@@ -247,6 +227,57 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
     writer.line(node_comment(node));
     variable = "node_" + std::to_string(next_var++);
     writer.line("auto " + variable + " = std::make_unique<tessera::ui::Node>(" + id + ");");
+    // Deterministic metadata order: element kind, id, className, automationId, role, aria-* (name
+    // order), focusability/scroll flags, paint text, then the child subtrees.
+    const auto prop = [&](std::string_view name) -> const ir::Expr* {
+        const auto found = node.props.find(std::string(name));
+        return found == node.props.end() ? nullptr : found->second.get();
+    };
+    writer.line(variable + "->set_element_kind(\"" + std::string(ir::node_kind_name(node.kind)) +
+                "\");");
+    if (const ir::Expr* id_prop = prop("id")) {
+        const std::optional<std::string_view> text = literal_string(id_prop);
+        if (!text) {
+            return fail(error, "id: a dynamic element id needs the string runtime, deferred");
+        }
+        writer.line(variable + "->set_element_id(" +
+                    literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+    }
+    if (const ir::Expr* class_prop = prop("className")) {
+        const std::optional<std::string_view> text = literal_string(class_prop);
+        if (!text) {
+            return fail(error, "className: a dynamic class needs the string runtime, deferred");
+        }
+        writer.line(variable + "->set_class_name(" +
+                    literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+    }
+    if (!node.automation_id.empty()) {
+        const std::optional<std::uint64_t> value = parse_automation_id(node.automation_id);
+        if (!value) {
+            return fail(error, "node `" + node.id + "` has a non-numeric automationId `" +
+                                   node.automation_id + "`");
+        }
+        writer.line(variable + "->set_automation_id(" + std::to_string(*value) + "ull);");
+    }
+    if (const ir::Expr* role_prop = prop("role")) {
+        const std::optional<std::string_view> text = literal_string(role_prop);
+        if (!text) {
+            return fail(error, "role: a dynamic role needs the string runtime, deferred");
+        }
+        writer.line(variable + "->set_role(" + literal_text(ir::LiteralValue{std::string(*text)}) +
+                    ");");
+    }
+    for (const auto& [name, value] : node.props) {
+        if (name.rfind("aria-", 0) != 0) {
+            continue;
+        }
+        const std::optional<std::string_view> text = literal_string(value.get());
+        if (!text) {
+            return fail(error, name + ": a dynamic aria value needs the string runtime, deferred");
+        }
+        writer.line(variable + "->set_aria(" + literal_text(ir::LiteralValue{std::string(name)}) +
+                    ", " + literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+    }
     if (node.kind == ir::NodeKind::Button || node.kind == ir::NodeKind::TextInput ||
         node.kind == ir::NodeKind::TextArea) {
         writer.line(variable + "->set_focusable(true);");
@@ -264,6 +295,14 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
                     (axis == "x" || axis == "both" ? "true" : "false") + ");");
         writer.line(variable + "->set_scrollable_y(" +
                     (axis == "y" || axis == "both" ? "true" : "false") + ");");
+    }
+    if (const std::optional<std::string> paint_text = text_content(node.text.get())) {
+        // D9 paint payload: text is visual only (layout/wrap stay paint-side).
+        const std::string paint = "paint_" + variable;
+        writer.line("tessera::ui::PaintData " + paint + ";");
+        writer.line(paint + ".text = " + literal_text(ir::LiteralValue{std::string(*paint_text)}) +
+                    ";");
+        writer.line(variable + "->set_paint_data(std::move(" + paint + "));");
     }
     for (const ir::Node& child : node.children) {
         std::string child_variable;
@@ -413,12 +452,12 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.open("namespace " + std::string(ns));
     writer.open("namespace gen");
     writer.line(
-        "// TODO(tessera-codegen): the runtime has no API yet for element kind, id/role/aria-*,");
+        "// TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, event");
     writer.line(
-        "// className/style attachment, text content, automation ids, event payload records or");
+        "// payload records, event dispatch wiring, ref-target assignment and animated/effect");
     writer.line(
-        "// event dispatch. Those values are recorded in the node comments below and in the");
-    writer.line("// design note's missing-runtime-API list until it lands.");
+        "// lifecycle invocation (docs/design/compiler.md section 11). Style and events are");
+    writer.line("// recorded in the node comments below until those land.");
     writer.line("");
     writer.open("void " + component.name + "::build(tessera::ui::Node& parent)");
     unsigned next_id = 1;

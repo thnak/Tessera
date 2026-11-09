@@ -109,6 +109,7 @@ ir::IrModule make_sample_module() {
     root.props.emplace("className", text("box"));
     root.props.emplace("role", text("generic"));
     root.props.emplace("aria-label", text("root"));
+    root.automation_id = "1";
     root.style.emplace("width", text("10px"));
 
     ir::Node button = leaf(ir::NodeKind::Button, "node::2", "2");
@@ -206,12 +207,20 @@ void test_generated_shape() {
     check(source.find("->set_focusable(true);") != std::string::npos, "closest existing API use");
     check(source.find("parent.add_child(std::move(node_1));") != std::string::npos,
           "root attached to the parent");
-    check(source.find("kind=View id=\"root\"") != std::string::npos,
-          "unavailable metadata is recorded in the node comment");
-    check(source.find("className=\"box\"") != std::string::npos, "className metadata");
-    check(source.find("style.width=\"10px\"") != std::string::npos, "style metadata");
-    check(source.find("text=\"Hello\"") != std::string::npos, "text metadata");
-    check(source.find("events={onClick:bind::on_click}") != std::string::npos, "event metadata");
+    check(source.find("->set_element_kind(\"View\");") != std::string::npos, "element kind");
+    check(source.find("->set_element_id(\"root\");") != std::string::npos, "element id");
+    check(source.find("->set_class_name(\"box\");") != std::string::npos, "className");
+    check(source.find("->set_automation_id(1ull);") != std::string::npos, "automation id");
+    check(source.find("->set_role(\"generic\");") != std::string::npos, "role");
+    check(source.find("->set_aria(\"aria-label\", \"root\");") != std::string::npos, "aria pair");
+    check(source.find("tessera::ui::PaintData paint_node_3;") != std::string::npos,
+          "text paint payload");
+    check(source.find("paint_node_3.text = \"Hello\";") != std::string::npos, "text content");
+    check(source.find("->set_paint_data(std::move(paint_node_3));") != std::string::npos,
+          "text attached via PaintData");
+    check(source.find("style.width=\"10px\"") != std::string::npos, "remaining style gap comment");
+    check(source.find("events={onClick:bind::on_click}") != std::string::npos,
+          "remaining event gap comment");
     check(source.find("// [DEVELOPER_LOGIC_START: bind::on_click]") != std::string::npos,
           "on_click region");
     check(source.find("// [DEVELOPER_LOGIC_START: bind::sync]") != std::string::npos,
@@ -348,6 +357,18 @@ void test_rejections() {
         module.components[0].root.element = "Waterfall3D";
         const auto result = codegen::generate(module);
         check(!result.has_value(), "a CustomElement node is deferred");
+    }
+    {
+        ir::IrModule module = make_sample_module();
+        module.components[0].root.props["className"] = ir::make_ref("state::count");
+        const auto result = codegen::generate(module);
+        check(!result.has_value(), "a dynamic className needs the string runtime");
+    }
+    {
+        ir::IrModule module = make_sample_module();
+        module.components[0].root.automation_id = "not-a-number";
+        const auto result = codegen::generate(module);
+        check(!result.has_value(), "a non-numeric automationId is rejected");
     }
 }
 

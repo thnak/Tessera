@@ -8,19 +8,30 @@
 
 namespace demo {
   namespace gen {
-    // TODO(tessera-codegen): the runtime has no API yet for element kind, id/role/aria-*,
-    // className/style attachment, text content, automation ids, event payload records or
-    // event dispatch. Those values are recorded in the node comments below and in the
-    // design note's missing-runtime-API list until it lands.
+    // TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, event
+    // payload records, event dispatch wiring, ref-target assignment and animated/effect
+    // lifecycle invocation (docs/design/compiler.md section 11). Style and events are
+    // recorded in the node comments below until those land.
     
     void Sample::build(tessera::ui::Node& parent) {
-      // node::1 kind=View id="root" role="generic" className="box" aria-label="root" style.width="10px"
+      // node::1 style.width="10px"
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
-      // node::2 kind=Button events={onClick:bind::on_click}
+      node_1->set_element_kind("View");
+      node_1->set_element_id("root");
+      node_1->set_class_name("box");
+      node_1->set_automation_id(1ull);
+      node_1->set_role("generic");
+      node_1->set_aria("aria-label", "root");
+      // node::2 events={onClick:bind::on_click}
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
+      node_2->set_element_kind("Button");
       node_2->set_focusable(true);
-      // node::3 kind=Text text="Hello"
+      // node::3
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
+      node_3->set_element_kind("Text");
+      tessera::ui::PaintData paint_node_3;
+      paint_node_3.text = "Hello";
+      node_3->set_paint_data(std::move(paint_node_3));
       node_2->add_child(std::move(node_3));
       node_1->add_child(std::move(node_2));
       parent.add_child(std::move(node_1));
