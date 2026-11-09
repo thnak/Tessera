@@ -34,9 +34,45 @@ void check_eq(std::string_view actual, std::string_view expected, std::string_vi
     }
 }
 
+// Node::insert_child is the additive scene API generated components use to place a conditional
+// branch or a keyed-list item at its deterministic source position. The contract is: clamped index
+// (out of range appends), parent pointer and ownership move like add_child, and the same dirty
+// domains (child Style|Layout|Paint|Render, parent Layout|Paint|Render).
+void test_insert_child_contract() {
+    ui::Node parent(100);
+    parent.add_child(std::make_unique<ui::Node>(101));
+    parent.add_child(std::make_unique<ui::Node>(103));
+    parent.clear_dirty(ui::Dirty::All);
+    ui::Node& middle = parent.insert_child(1, std::make_unique<ui::Node>(102));
+    check(parent.children().size() == 3, "insert_child adds a child");
+    check(parent.children()[1].get() == &middle, "insert_child uses the requested position");
+    check(parent.children()[2]->id() == 103, "the following sibling moves back");
+    check(middle.parent() == &parent, "the inserted child has its parent pointer");
+    check(middle.id() == 102, "the inserted child keeps its id");
+    check(ui::has_flag(middle.dirty(), ui::Dirty::Style) &&
+              ui::has_flag(middle.dirty(), ui::Dirty::Layout) &&
+              ui::has_flag(middle.dirty(), ui::Dirty::Paint) &&
+              ui::has_flag(middle.dirty(), ui::Dirty::Render),
+          "an inserted child is marked Style|Layout|Paint|Render");
+    check(ui::has_flag(parent.dirty(), ui::Dirty::Layout) &&
+              ui::has_flag(parent.dirty(), ui::Dirty::Paint) &&
+              ui::has_flag(parent.dirty(), ui::Dirty::Render),
+          "inserting marks the parent Layout|Paint|Render");
+    // Out-of-range indexes clamp to the end rather than being an error, so a generated update that
+    // walks slot positions never has to special-case "past the last child".
+    ui::Node& appended = parent.insert_child(99, std::make_unique<ui::Node>(104));
+    check(parent.children().size() == 4 && parent.children().back().get() == &appended,
+          "an out-of-range index appends");
+    ui::Node empty(200);
+    ui::Node& only = empty.insert_child(0, std::make_unique<ui::Node>(201));
+    check(empty.children().size() == 1 && empty.children()[0].get() == &only,
+          "inserting into an empty parent works at index 0");
+}
+
 } // namespace
 
 int main() {
+    test_insert_child_contract();
     demo::gen::Sample sample;
     ui::Node root(1000);
     sample.build(root);

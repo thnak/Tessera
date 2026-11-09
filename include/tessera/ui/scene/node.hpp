@@ -42,6 +42,11 @@ public:
         return children_;
     }
     Node& add_child(std::unique_ptr<Node> child);
+    // Inserts an owned child at `index` (clamped to the current child count, so a value at or above
+    // size() appends). The dirty marks are the same as add_child. Generated code uses this to put a
+    // conditional branch or a keyed-list item at its deterministic source position instead of
+    // rebuilding the trailing siblings.
+    Node& insert_child(std::size_t index, std::unique_ptr<Node> child);
     // Detaches and returns the owned child so callers can destroy or reattach a subtree. Returns
     // nullptr when `child` is not a direct child of this node.
     [[nodiscard]] std::unique_ptr<Node> remove_child(const Node& child);
