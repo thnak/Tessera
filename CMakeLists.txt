@@ -77,6 +77,7 @@ add_subdirectory(src/compiler/merger)
 add_subdirectory(src/compiler/analyzer)
 add_subdirectory(src/compiler/ir)
 add_subdirectory(src/compiler/rules)
+add_subdirectory(src/compiler/lowering)
 
 if (TESSERA_BUILD_POC)
     add_subdirectory(tools/poc/merger)

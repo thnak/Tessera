@@ -117,6 +117,75 @@ Not in slice 3: types and expression typing, `ref` targets, `key` placement, lis
 Questions raised by the slice are listed in the slice report; the choices made here are the
 least-committal ones.
 
+### Slice 5 status (expression lowering)
+
+`tessera_lowering` (`src/compiler/lowering/`, public headers
+`include/tessera/compiler/lowering/`, namespace `tessera::compiler::lowering`) links
+`tessera_jsx_frontend` and `tessera_ir` and nothing else. A configure check fails if that list
+changes, and `lowering_layering` checks that lowering includes only those headers while the IR
+still includes no front-end header. The API is:
+
+```cpp
+struct ExpressionLoweringContext {
+    const jsx::SourceMap& source_map;
+    std::string_view file;               // project-relative, POSIX separators
+    const NameResolver* names = nullptr; // null rejects every reference
+};
+std::expected<ir::ExprPtr, std::vector<jsx::Diagnostic>>
+lower_expression(const jsx::Expr& expr, const ExpressionLoweringContext& context);
+```
+
+`to_source_span(map, span, file)` in `lowering/source_span.hpp` implements section 4 and decision 16
+(offsets are bytes, columns are code points, a BOM counts in the offset and not in the column).
+
+What the slice lowers:
+
+| Source (`jsx::Expr`) | IR (`ir::Expr`) | Notes |
+|---|---|---|
+| `Number`, `String`, `Boolean`, `Null` | `Literal` | string text is already decoded; `null` is `ir::Null` |
+| `Identifier`, `Member` chain | `Ref` | the chain is passed verbatim to `NameResolver` |
+| `Unary` `! - +` | `Unary` | any other unary operator is rejected |
+| `Binary` | `Binary` | `===`→`==`, `!==`→`!=`; the rest of the IR set is copied |
+| `Conditional` | `Conditional` | operands are test, then, else |
+| `Template` | `Template` | text and substitution parts alternate; empty text parts are kept |
+| `Call` | `Call` | callee must be a bare name from IR section 4.2 |
+
+The reference seam is `NameResolver`
+(`include/tessera/compiler/lowering/name_resolver.hpp`): `resolve("props.title")` returns
+`"prop::title"` or `std::nullopt`, and a null resolver in the context rejects every reference. The
+decision is deliberately the least committal one: slice 3 exposes per-component symbol tables but
+no record field types, and slice 4 has not landed, so lowering does not try to infer whether
+`row.title` is `prop::row.title`, `item.title` or `state::row.title`. The analysis/type passes
+will implement the resolver in slice 9; tests supply a small map. The returned id is used
+verbatim and is checked against the component scope later by the IR validator.
+
+Numeric literal typing is silent in the spec. The slice 5 rule is: a spelling with `.` or an
+exponent is a float (`0.5`, `1e3`, `1.0`); an integer spelling that fits signed 32-bit is an int
+(`0`, `42`, `2147483647`); an integer spelling outside int32 stays a float because the IR has no
+wider int. The last case is provisional: slice 4 may reject or retype it once literal types are
+checked. A non-finite number is `TESSERA_IR_LITERAL`.
+
+Diagnostics reuse `jsx::Diagnostic` with `TESSERA_IR_*` codes: `TESSERA_IR_UNSUPPORTED` for array
+and object literals, arrows, JSX in an expression, assignment, indexing, member access on a value
+without a record type, unsupported unary/binary operators and non-allowlisted calls;
+`TESSERA_IR_UNRESOLVED` for a reference without a resolver or one the resolver rejects;
+`TESSERA_IR_MALFORMED` for a hand-built node with the wrong operand count or missing operands; and
+`TESSERA_IR_LITERAL` for a non-finite number. Lowering stops at the first error, so the result is
+either a complete expression or diagnostics with no IR at all.
+
+Not in slice 5: types and expression typing (slice 4); hooks, bindings, nodes, components,
+conditionals/loops in JSX and imports (slices 6 to 9); array and object literals in their accepted
+positions; an implementation of `NameResolver` from the analysis result; and IR expressions carry
+no source span in v1, so spans appear only on diagnostics (`to_source_span` is ready for the nodes
+and bindings of slices 6 to 8). Top-level constant folding (section 2, expression row) is **not**
+implemented: it needs the module (constant declarations, imports, their values) and the type
+table, none of which exist yet, so no folding semantics were invented here.
+
+Tests are `lowering_expression`, `lowering_reject`, `lowering_span`, `lowering_determinism`,
+`lowering_golden` and `lowering_layering`, registered in `tests/unit/CMakeLists.txt`. The golden
+`tests/golden/lowering/expressions.json` is updated deliberately with
+`lowering_golden_tests --write tests/golden/lowering/expressions.json`, never automatically.
+
 ## 4. Spans and diagnostics
 
 - The AST keeps `Span` (byte offset and length). Lowering needs the file's `SourceMap` and the
@@ -230,7 +299,7 @@ Each slice is behavior, tests and docs, committed on its own.
    arrow roles (handler/effect/cleanup), `return` placement, effect dependency matching.
 4. **Types.** Type table (props, aliases, records), expression typing, boolean conditions, event
    payload types, `ref` targets, `key` placement, list depth.
-5. **Lowering of expressions.** `Expr` -> IR `Expr` with the operator mapping and folding of
+5. **Lowering of expressions (done).** `Expr` -> IR `Expr` with the operator mapping and folding of
    top-level constants; no components yet.
 6. **Lowering of hooks and bindings.** state, refs, animated values, effects, cleanup, bindings and
    their spans.

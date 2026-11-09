@@ -1,0 +1,307 @@
+[
+  {
+    "ir": {
+      "kind": "literal",
+      "value": 0
+    },
+    "source": "0"
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": 42
+    },
+    "source": "42"
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": 2147483647
+    },
+    "source": "2147483647"
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": 2147483648.0
+    },
+    "source": "2147483648"
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": 0.5
+    },
+    "source": "0.5"
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": 1000.0
+    },
+    "source": "1e3"
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": "a\nb"
+    },
+    "source": "\"a\\nb\""
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": true
+    },
+    "source": "true"
+  },
+  {
+    "ir": {
+      "kind": "literal",
+      "value": null
+    },
+    "source": "null"
+  },
+  {
+    "ir": {
+      "id": "state::count",
+      "kind": "ref"
+    },
+    "source": "count"
+  },
+  {
+    "ir": {
+      "id": "prop::title",
+      "kind": "ref"
+    },
+    "source": "props.title"
+  },
+  {
+    "ir": {
+      "id": "item.row.id",
+      "kind": "ref"
+    },
+    "source": "item.row.id"
+  },
+  {
+    "ir": {
+      "kind": "unary",
+      "op": "!",
+      "value": {
+        "id": "state::ok",
+        "kind": "ref"
+      }
+    },
+    "source": "!ok"
+  },
+  {
+    "ir": {
+      "kind": "unary",
+      "op": "-",
+      "value": {
+        "id": "state::count",
+        "kind": "ref"
+      }
+    },
+    "source": "-count"
+  },
+  {
+    "ir": {
+      "kind": "unary",
+      "op": "+",
+      "value": {
+        "id": "state::count",
+        "kind": "ref"
+      }
+    },
+    "source": "+count"
+  },
+  {
+    "ir": {
+      "kind": "binary",
+      "left": {
+        "id": "state::a",
+        "kind": "ref"
+      },
+      "op": "+",
+      "right": {
+        "id": "state::b",
+        "kind": "ref"
+      }
+    },
+    "source": "a + b"
+  },
+  {
+    "ir": {
+      "kind": "binary",
+      "left": {
+        "id": "state::a",
+        "kind": "ref"
+      },
+      "op": "==",
+      "right": {
+        "id": "state::b",
+        "kind": "ref"
+      }
+    },
+    "source": "a === b"
+  },
+  {
+    "ir": {
+      "kind": "binary",
+      "left": {
+        "id": "state::a",
+        "kind": "ref"
+      },
+      "op": "!=",
+      "right": {
+        "id": "state::b",
+        "kind": "ref"
+      }
+    },
+    "source": "a !== b"
+  },
+  {
+    "ir": {
+      "kind": "binary",
+      "left": {
+        "kind": "binary",
+        "left": {
+          "id": "state::a",
+          "kind": "ref"
+        },
+        "op": "<",
+        "right": {
+          "id": "state::b",
+          "kind": "ref"
+        }
+      },
+      "op": "&&",
+      "right": {
+        "kind": "binary",
+        "left": {
+          "id": "state::c",
+          "kind": "ref"
+        },
+        "op": ">=",
+        "right": {
+          "id": "state::b",
+          "kind": "ref"
+        }
+      }
+    },
+    "source": "a < b && c >= b"
+  },
+  {
+    "ir": {
+      "else": {
+        "id": "state::b",
+        "kind": "ref"
+      },
+      "kind": "conditional",
+      "test": {
+        "id": "state::c",
+        "kind": "ref"
+      },
+      "then": {
+        "id": "state::a",
+        "kind": "ref"
+      }
+    },
+    "source": "c ? a : b"
+  },
+  {
+    "ir": {
+      "kind": "template",
+      "parts": [
+        "n=",
+        {
+          "id": "state::count",
+          "kind": "ref"
+        },
+        "!"
+      ]
+    },
+    "source": "`n=${count}!`"
+  },
+  {
+    "ir": {
+      "kind": "template",
+      "parts": [
+        "",
+        {
+          "id": "state::a",
+          "kind": "ref"
+        },
+        "",
+        {
+          "id": "state::b",
+          "kind": "ref"
+        },
+        ""
+      ]
+    },
+    "source": "`${a}${b}`"
+  },
+  {
+    "ir": {
+      "args": [
+        {
+          "id": "state::a",
+          "kind": "ref"
+        },
+        {
+          "id": "state::b",
+          "kind": "ref"
+        }
+      ],
+      "callee": "min",
+      "kind": "call"
+    },
+    "source": "min(a, b)"
+  },
+  {
+    "ir": {
+      "args": [
+        {
+          "args": [
+            {
+              "id": "state::a",
+              "kind": "ref"
+            },
+            {
+              "id": "state::b",
+              "kind": "ref"
+            }
+          ],
+          "callee": "min",
+          "kind": "call"
+        },
+        {
+          "kind": "literal",
+          "value": 0
+        }
+      ],
+      "callee": "max",
+      "kind": "call"
+    },
+    "source": "max(min(a, b), 0)"
+  },
+  {
+    "ir": {
+      "args": [
+        {
+          "id": "state::count",
+          "kind": "ref"
+        },
+        {
+          "kind": "literal",
+          "value": 2
+        }
+      ],
+      "callee": "formatNumber",
+      "kind": "call"
+    },
+    "source": "formatNumber(count, 2)"
+  }
+]
