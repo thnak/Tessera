@@ -110,7 +110,7 @@ int main() {
 
     tessera::rendering::rhi::DeviceDesc device_desc;
     device_desc.backend = tessera::rendering::rhi::Backend::Vulkan;
-    device_desc.validation = false;
+    device_desc.validation = true;
 
     std::unique_ptr<tessera::rendering::rhi::Device> device;
     try {
@@ -189,6 +189,55 @@ int main() {
     if (!expect(present_ok(*swapchain, acquired.value()), "present succeeds")) {
         return 8;
     }
+
+#if defined(TESSERA_VULKAN_TEST_HOOKS)
+    // D7: a lost acquire invalidates the swapchain and every RHI resource; after the one-shot
+    // device recovery the presenter recreates them and presents frames again.
+    auto* vulkan_device = dynamic_cast<tessera::rendering::vulkan::VulkanDevice*>(device.get());
+    if (!expect(vulkan_device != nullptr, "Vulkan device exposes the recovery seam")) {
+        return 14;
+    }
+    vulkan_device->inject_fault_for_testing(
+        tessera::rendering::vulkan::InjectedDeviceFault::DeviceLostOnAcquire);
+    const auto lost_acquire = swapchain->acquire_next_image(100);
+    if (!expect(!lost_acquire && lost_acquire.error() == SwapchainError::DeviceLost,
+                "lost acquire reports DeviceLost") ||
+        !expect(device->status() == tessera::rendering::rhi::DeviceStatus::Lost,
+                "device records the loss")) {
+        return 15;
+    }
+
+    // The caller releases the lost generation before recovering (the backend refuses otherwise).
+    renderer.reset();
+    white.reset();
+    pipeline.reset();
+    swapchain.reset();
+    if (!expect(device->recover().has_value(), "device recovery succeeds")) {
+        return 16;
+    }
+
+    auto recreated = device->create_swapchain(desc);
+    if (!expect(recreated.has_value(), "swapchain recreation after recovery")) {
+        return 17;
+    }
+    swapchain = std::move(*recreated);
+    native_swapchain = dynamic_cast<VulkanSwapchain*>(swapchain.get());
+    auto recovered_pipeline_desc = tessera::rendering::vulkan::batched2d_pipeline_desc();
+    recovered_pipeline_desc.color_format = swapchain->format();
+    pipeline = device->create_pipeline(recovered_pipeline_desc);
+    white = device->create_texture(white_desc);
+    renderer = std::make_unique<tessera::rendering::gpu::Batched2DRenderer>(
+        *device, *pipeline, *white, tessera::rendering::gpu::Batched2DConfig{4096, true, true});
+
+    auto recovered_image = swapchain->acquire_next_image(1000);
+    if (!expect(recovered_image.has_value(), "acquire after recovery") ||
+        !expect(tessera::test::render_swapchain_frame(*device, *renderer, *swapchain,
+                                                      recovered_image.value()),
+                "render after recovery") ||
+        !expect(present_ok(*swapchain, recovered_image.value()), "present after recovery")) {
+        return 18;
+    }
+#endif
 
     // Resize the native window, then tell the swapchain; the first acquire retires the old
     // swapchain and reports OutOfDate while adopting the pending extent.

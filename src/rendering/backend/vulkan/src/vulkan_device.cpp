@@ -29,6 +29,7 @@ VulkanDevice::~VulkanDevice() {
 }
 
 std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& desc) {
+    require_ready("create_buffer");
     VkBufferCreateInfo buffer_info{};
     buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_info.size = desc.size;
@@ -68,12 +69,14 @@ std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& 
                              &allocated),
              "vmaCreateBuffer");
 
-    return std::make_unique<VulkanBuffer>(allocator_, buffer, allocation, desc.size,
+    resource_created();
+    return std::make_unique<VulkanBuffer>(this, epoch_, allocator_, buffer, allocation, desc.size,
                                           allocated.pMappedData);
 }
 
 std::unique_ptr<rhi::RenderTarget>
 VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
+    require_ready("create_render_target");
     const VkFormat format = to_vk_format(desc.format);
 
     VkFormatProperties format_properties{};
@@ -119,20 +122,27 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
     ScopeGuard view_guard([&] { vkDestroyImageView(device_, view, nullptr); });
 
     // The target owns image and view from here; if allocating it throws, the guards release them.
-    auto target = std::make_unique<VulkanRenderTarget>(device_, allocator_, image, view, allocation,
-                                                       desc.extent, desc.format);
+    resource_created();
+    auto target = std::make_unique<VulkanRenderTarget>(this, epoch_, device_, allocator_, image,
+                                                       view, allocation, desc.extent, desc.format);
     view_guard.dismiss();
     image_guard.dismiss();
     return target;
 }
 
 std::unique_ptr<rhi::CommandList> VulkanDevice::create_command_list() {
-    return std::make_unique<VulkanCommandList>(*this, device_, queue_, acquire_command_resources());
+    require_ready("create_command_list");
+    resource_created();
+    return std::make_unique<VulkanCommandList>(*this, epoch_, device_, queue_,
+                                               acquire_command_resources());
 }
 
 std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
 VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
+    if (status_ == rhi::DeviceStatus::Lost) {
+        return std::unexpected(rhi::SwapchainError::DeviceLost);
+    }
     // A Vulkan swapchain needs a VkSurfaceKHR, which needs the platform window handles from the
     // HAL. Win32 uses native_window (HWND); X11 uses native_display (Display*) + native_window.
     if (desc.image_count < 2 || desc.extent.width == 0 || desc.extent.height == 0 ||
@@ -154,7 +164,8 @@ VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
 
-    auto created = VulkanSwapchain::create(instance_, physical_device_, device_, queue_, desc);
+    auto created =
+        VulkanSwapchain::create(instance_, physical_device_, device_, queue_, desc, this);
     if (!created) {
         return std::unexpected(created.error());
     }
@@ -167,9 +178,15 @@ VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
 }
 
 void VulkanDevice::wait_idle() {
-    if (device_ != VK_NULL_HANDLE) {
-        check_vk(vkDeviceWaitIdle(device_), "vkDeviceWaitIdle");
+    if (device_ == VK_NULL_HANDLE || status_ == rhi::DeviceStatus::Lost) {
+        return;
     }
+    const VkResult result = vkDeviceWaitIdle(device_);
+    if (result == VK_ERROR_DEVICE_LOST) {
+        mark_device_lost();
+        return;
+    }
+    check_vk(result, "vkDeviceWaitIdle");
 }
 
 std::unique_ptr<rhi::Device> create_vulkan_device(const rhi::DeviceDesc& desc) {

@@ -61,7 +61,9 @@ The B3 seams now have real Windows and Linux/X11 implementations:
   `batched2d_windowed_smoke` on Windows and under Xvfb on Linux. The loop is driven by
   `RuntimeLoop` on `runtime::SteadyClock` (continuous mode: the demo has no scene to go dirty)
   and submits each frame with `submit_async` over a two-slot ring. Still pending: Wayland,
-  device-loss recovery, a render-on-demand loop fed by a real scene, and full OS compliance
+  real-GPU-reset validation of device loss (the minimal D7 recovery path in
+  [§7](#7-device-loss-d7) and [`gpu/backends.md`](gpu/backends.md#81-device-loss-d7) is
+  implemented), a render-on-demand loop fed by a real scene, and full OS compliance
   beyond the messages handled here. The platform rules in §4 describe the target behavior.
 
 Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe the target):
@@ -282,6 +284,8 @@ swapchain-recreate delay are runtime knobs, not component code.
   tiled, DPI change, multi-monitor move.
 - Swapchain seam: null-backend descriptor validation, image rotation, out-of-date resize,
   configurable timeout, and missing/duplicate/out-of-range present rejection.
+- Device loss: injected loss from submit/fence-wait/acquire, generation invalidation, one-shot
+  recovery, rendering after recreation, and the failure path (see §7).
 - Live-resize storms: coalescing, one resize frame per tick, no unbounded queue.
 - In-flight frames: old swapchain retirement, no use-after-free, no validation errors.
 - Style/layout: viewport/media/container re-evaluation, text reflow, percentages/flex/grid.
@@ -296,3 +300,32 @@ swapchain-recreate delay are runtime knobs, not component code.
 - Safe-area APIs for Android/macOS (both backends are unscheduled; macOS per ADR-010, Android in Big Step F).
 - Whether to expose a declarative `onResize`/`ResizeObserver` API or keep it internal.
 - Fractional scaling + text rasterization on mixed-DPI multi-monitor setups.
+
+## 7. Device loss (D7)
+
+Backend detection, the recovery API, and the generation-guard rules are specified in
+[`gpu/backends.md`](gpu/backends.md#81-device-loss-d7); this section is the frame/lifecycle side.
+
+Observed state (the only values UI/runtime code sees):
+
+- `Device::status()` becomes `Lost`; swapchain acquire/present return
+  `SwapchainError::DeviceLost`; command-list waits report incomplete. No exception crosses the
+  backend seam on the loss path and no wait becomes unbounded (ADR-021).
+- A lost frame is dropped, not retried inside the OS callback or the present call.
+
+Frame-boundary orchestration:
+
+1. Stop submitting and presenting; never call a GPU wait from a message callback. Every existing
+   wait stays bounded.
+2. Destroy the swapchain and every RHI object from the lost generation. Destructors are
+   generation-guarded, but `recover()` refuses (`ResourcesOutstanding`) until they are gone.
+3. Call `Device::recover()` once on a later tick/frame boundary. It returns a value: success means
+   the device is `Ready` again and resources plus the swapchain must be recreated; failure means
+   stay `Lost` (do not spin - the one-shot policy needs a new loss for another attempt).
+4. Recreate resources -> swapchain -> pipelines/targets -> resume the loop, and mark the scene/root
+   dirty so the first recovered frame is a full repaint.
+
+Per-platform UX policy (error surface while `Lost`, retry cadence, telemetry, whether to block the
+shell) stays an application/runtime policy decision. Out of scope for D7: multi-device and
+multi-swapchain orchestration, surface recreation policy, allocation-failure handling, and real
+GPU-reset coverage across drivers/vendors (the fault-injection tests cover the state machine).

@@ -146,8 +146,46 @@ Format policy:
 
 - Backend/device selection is runtime config + HAL policy; the app does not hardcode a device.
 - Prefer a discrete/integrated device by documented policy; allow override for tests.
-- Device loss: stop submissions, preserve UI state, recreate device/resources, report; if
-  recreation fails, show an error surface rather than a crash loop.
+
+### 8.1 Device loss (D7)
+
+Loss is recoverable backend state, not an exception or a silent success:
+
+- **Detection.** The Vulkan backend records `VK_ERROR_DEVICE_LOST` from `vkQueueSubmit` (frame and
+  upload submits), `vkWaitForFences`/`vkGetFenceStatus`, `vkAcquireNextImageKHR`,
+  `vkQueuePresentKHR`, and `vkDeviceWaitIdle`. It bumps the device generation and sets
+  `Device::status() == Lost`; the detection path never throws. `Swapchain::acquire_next_image` /
+  `present` return the new `SwapchainError::DeviceLost`, a command list's `wait()`/`is_complete()`
+  report incomplete, and `submit()` returns without touching the dead device. Waits stay bounded:
+  acquire/present are clamped to 100 ms, the synchronous offscreen `submit()` is capped at 60 s, and
+  async frame submission never blocks (ADR-021).
+- **Lifecycle.** On `Lost` the caller stops submitting/presenting, releases the swapchain and every
+  RHI object created before the loss, then calls `Device::recover()` once. Recovery drops
+  backend-owned bookkeeping (command-resource pools, pending uploads, descriptor pool/layout, VMA
+  allocator), recreates the `VkDevice` + graphics queue + allocator + descriptor state, and re-picks
+  the physical device (the `VkInstance` survives). It returns
+  `std::expected<void, DeviceRecoveryError>` and never throws:
+  `NotSupported` (null/software backends), `NotLost`, `ResourcesOutstanding` (destroy the wrappers
+  first; this does not consume the attempt), `DeviceCreationFailed` (device stays `Lost`), or
+  `AlreadyAttempted` after a failed one-shot recovery (a new loss is needed).
+- **What dies vs what the backend keeps.** Every `VkDevice` child dies with the loss: buffers,
+  textures, pipelines, offscreen render targets, command lists, and the swapchain's images, views,
+  semaphores, and fences. Callers must recreate those and a new swapchain after recovery. The
+  backend keeps only device-independent state: the `VkInstance` and debug messenger, the
+  `DeviceDesc`/selection policy, and the internal generation counter. Resources from the lost
+  generation are generation-guarded: a late destructor abandons its handles instead of calling the
+  dead device (safe, no double destroy); a real loss's VMA allocator state is abandoned with the
+  device rather than touched.
+- **Test seam.** `TESSERA_VULKAN_TEST_HOOKS` (CMake option, defaults to `TESSERA_BUILD_TESTS`)
+  exposes internal fault injection on the Vulkan device: report loss from the next submit/fence
+  wait/acquire/present, simulate a loss while keeping the real device alive, or fail the next
+  recovery. Tests in `tests/gpu/vulkan/vulkan_device_loss_tests.cpp` and the Win32 swapchain test
+  exercise detection, invalidation, one-shot recovery, rendering after recreation, and the failure
+  path without a GPU reset; validation layers stay enabled on that path.
+- **Remaining.** Real GPU-reset behaviour across drivers/vendors, per-platform UX policy (error
+  surface, retry cadence, telemetry), multi-device/multi-swapchain orchestration, surface
+  recreation policy, loss detection from allocation failures, and wiring recovery into the
+  `RuntimeLoop` as a time-budgeted task on a later tick.
 - Out-of-memory: evict caches/targets, retry once, then report.
 - Backend unavailable: fall back to software/null only where semantics allow (goldens/tests);
   production does not silently render with a different backend.

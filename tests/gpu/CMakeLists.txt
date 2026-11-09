@@ -148,6 +148,26 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(vulkan_srgb_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME vulkan_srgb COMMAND vulkan_srgb_tests)
 
+    # D7: fault-injection seam + internal device header, no platform surface needed.
+    add_executable(vulkan_device_loss_tests
+        vulkan/vulkan_device_loss_tests.cpp)
+    target_link_libraries(vulkan_device_loss_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    target_include_directories(vulkan_device_loss_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/src
+        ${PROJECT_SOURCE_DIR}/third_party/volk
+        ${PROJECT_SOURCE_DIR}/third_party/vma)
+    target_compile_definitions(vulkan_device_loss_tests PRIVATE VK_NO_PROTOTYPES)
+    if (WIN32)
+        # Matches tessera_rhi_vulkan; the internal device layout depends on the WSI guards.
+        target_compile_definitions(vulkan_device_loss_tests PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+    elseif (TESSERA_X11_FOUND)
+        target_compile_definitions(vulkan_device_loss_tests PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+        target_link_libraries(vulkan_device_loss_tests PRIVATE X11::X11)
+    endif()
+    add_test(NAME vulkan_device_loss COMMAND vulkan_device_loss_tests)
+    # Any "[vulkan] ..." line is a validation warning/error and fails the test.
+    set_tests_properties(vulkan_device_loss PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(vulkan_texture_churn_tests
         vulkan/vulkan_texture_churn_tests.cpp)
     target_link_libraries(vulkan_texture_churn_tests PRIVATE tessera_rhi_vulkan)
@@ -193,6 +213,7 @@ if (WIN32 AND TARGET tessera_rhi_vulkan)
         tessera_hal_window)
 
     add_test(NAME vulkan_swapchain COMMAND vulkan_swapchain_tests)
+    set_tests_properties(vulkan_swapchain PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(vulkan_swapchain_async_tests
         vulkan/vulkan_swapchain_async_tests.cpp)

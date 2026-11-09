@@ -380,27 +380,33 @@ void VulkanDevice::create_descriptor_pool() {
 }
 
 void VulkanDevice::destroy() {
-    if (device_ != VK_NULL_HANDLE) {
-        vkDeviceWaitIdle(device_);
+    if (device_ != VK_NULL_HANDLE && status_ == rhi::DeviceStatus::Ready) {
+        (void)vkDeviceWaitIdle(device_);
         // Frees staging buffers and runs deferred destruction while the allocator still exists.
         drain_uploads();
         destroy_command_resources();
-    }
-    if (descriptor_pool_ != VK_NULL_HANDLE) {
-        vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
-        descriptor_pool_ = VK_NULL_HANDLE;
-    }
-    if (descriptor_set_layout_ != VK_NULL_HANDLE) {
-        vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
-        descriptor_set_layout_ = VK_NULL_HANDLE;
-    }
-    if (allocator_ != nullptr) {
-        vmaDestroyAllocator(allocator_);
-        allocator_ = nullptr;
-    }
-    if (device_ != VK_NULL_HANDLE) {
-        vkDestroyDevice(device_, nullptr);
-        device_ = VK_NULL_HANDLE;
+        destroy_device_objects();
+    } else {
+        // Lost device: child handles died with it, so only bookkeeping is dropped. A simulated
+        // loss keeps the old device valid, so its wrappers can still release handles normally.
+        if (simulated_loss_ && device_ != VK_NULL_HANDLE) {
+            (void)vkDeviceWaitIdle(device_);
+            drain_uploads();
+            destroy_command_resources();
+            destroy_device_objects();
+        } else {
+            pending_uploads_.clear();
+            retired_.clear();
+            free_commands_.clear();
+            inflight_commands_.clear();
+            allocator_ = nullptr;
+            if (device_ != VK_NULL_HANDLE) {
+                vkDestroyDevice(device_, nullptr);
+                device_ = VK_NULL_HANDLE;
+            }
+            physical_device_ = VK_NULL_HANDLE;
+            queue_ = VK_NULL_HANDLE;
+        }
     }
     if (debug_messenger_ != VK_NULL_HANDLE && instance_ != VK_NULL_HANDLE) {
         vkDestroyDebugUtilsMessengerEXT(instance_, debug_messenger_, nullptr);

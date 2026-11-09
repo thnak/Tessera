@@ -8,6 +8,11 @@ namespace tessera::rendering::vulkan {
 
 void VulkanDevice::submit_upload(const std::function<void(VkCommandBuffer)>& record,
                                  std::unique_ptr<rhi::Buffer> staging) {
+    if (status_ == rhi::DeviceStatus::Lost) {
+        // Nothing can be recorded on a lost device; the staging buffer is released by its
+        // generation-guarded destructor and the caller sees Lost through status().
+        return;
+    }
     reap_uploads();
 
     const CommandResources commands = acquire_command_resources();
@@ -24,7 +29,13 @@ void VulkanDevice::submit_upload(const std::function<void(VkCommandBuffer)>& rec
         submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &commands.buffer;
-        check_vk(vkQueueSubmit(queue_, 1, &submit_info, commands.fence), "vkQueueSubmit(upload)");
+        const VkResult submit_result = vkQueueSubmit(queue_, 1, &submit_info, commands.fence);
+        if (submit_result == VK_ERROR_DEVICE_LOST) {
+            mark_device_lost();
+            release_command_resources(commands, false);
+            return;
+        }
+        check_vk(submit_result, "vkQueueSubmit(upload)");
     } catch (...) {
         // Nothing was queued, so the resources are free to reuse right away.
         release_command_resources(commands, false);
@@ -46,6 +57,9 @@ void VulkanDevice::retire_after_uploads(std::function<void()> destroy) {
 }
 
 void VulkanDevice::reap_uploads() {
+    if (status_ == rhi::DeviceStatus::Lost) {
+        return;
+    }
     for (auto it = pending_uploads_.begin(); it != pending_uploads_.end();) {
         if (vkGetFenceStatus(device_, it->commands.fence) == VK_NOT_READY) {
             ++it;

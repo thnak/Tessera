@@ -8,6 +8,7 @@
 namespace tessera::rendering::vulkan {
 
 std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::PipelineDesc& desc) {
+    require_ready("create_pipeline");
     VkShaderModule vertex_module = VK_NULL_HANDLE;
     VkShaderModule fragment_module = VK_NULL_HANDLE;
 
@@ -147,7 +148,9 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
 
     // The wrapper owns the pipeline and layout from here; if allocating it throws, the guards
     // above still release them.
-    auto result = std::make_unique<VulkanPipeline>(device_, pipeline, pipeline_layout);
+    resource_created();
+    auto result =
+        std::make_unique<VulkanPipeline>(this, epoch_, device_, pipeline, pipeline_layout);
     pipeline_guard.dismiss();
     layout_guard.dismiss();
     return result;

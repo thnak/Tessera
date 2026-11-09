@@ -33,6 +33,9 @@ enum class SwapchainError {
     // The operation completed (the image was acquired or presented) but the surface no longer
     // matches the swapchain; recreate it at the next frame boundary.
     Suboptimal,
+    // The device was lost while acquiring/presenting. Stop presenting, release the swapchain and
+    // RHI resources, then call Device::recover(); the swapchain must be recreated.
+    DeviceLost,
 };
 
 // Presentation seam. Acquire/present are recoverable hot-path operations and return errors as

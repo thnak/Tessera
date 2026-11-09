@@ -2,6 +2,12 @@
 
 find_package(Vulkan REQUIRED)
 
+# D7 test seam: exposes fault-injection entry points on the internal VulkanDevice (device loss and
+# recovery failure) so the loss path is testable without a real GPU reset. Tests link this target,
+# so the definition propagates to them.
+option(TESSERA_VULKAN_TEST_HOOKS
+    "Expose Vulkan fault-injection seams for device-loss tests" ${TESSERA_BUILD_TESTS})
+
 set(TESSERA_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(TESSERA_SHADER_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${TESSERA_SHADER_GEN_DIR})
@@ -55,6 +61,7 @@ add_dependencies(tessera_vulkan tessera_vulkan_shaders)
 
 set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_device.cpp
+    src/vulkan_device_recovery.cpp
     src/vulkan_instance.cpp
     src/vulkan_resources.cpp
     src/vulkan_command_list.cpp
@@ -85,6 +92,9 @@ target_include_directories(tessera_rhi_vulkan PRIVATE
     ${PROJECT_SOURCE_DIR}/third_party/vma)
 
 target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_NO_PROTOTYPES)
+if (TESSERA_VULKAN_TEST_HOOKS)
+    target_compile_definitions(tessera_rhi_vulkan PUBLIC TESSERA_VULKAN_TEST_HOOKS)
+endif()
 if (WIN32)
     # vkCreateWin32SurfaceKHR / vkGetPhysicalDeviceWin32PresentationSupportKHR.
     target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_WIN32_KHR)

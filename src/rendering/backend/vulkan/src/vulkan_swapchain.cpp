@@ -160,12 +160,18 @@ VulkanSwapchain::~VulkanSwapchain() {
     destroy();
 }
 
+bool VulkanSwapchain::usable() const {
+    return owner_ == nullptr || owner_->usable_epoch(epoch_);
+}
+
 std::expected<std::unique_ptr<VulkanSwapchain>, rhi::SwapchainError>
 VulkanSwapchain::create(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device,
-                        VkQueue queue, const rhi::SwapchainDesc& desc) {
+                        VkQueue queue, const rhi::SwapchainDesc& desc, VulkanDevice* owner) {
     auto swapchain = std::unique_ptr<VulkanSwapchain>(
         new VulkanSwapchain(instance, physical_device, device, queue));
     swapchain->desc_ = desc;
+    swapchain->owner_ = owner;
+    swapchain->epoch_ = owner != nullptr ? owner->epoch() : 0;
 
     if (const auto surface = swapchain->create_surface(desc); !surface) {
         return std::unexpected(surface.error());
@@ -205,6 +211,9 @@ VulkanSwapchain::create_surface(const rhi::SwapchainDesc& desc) {
 
 std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool recreate,
                                                                            rhi::Extent2D extent) {
+    if (!usable()) {
+        return std::unexpected(rhi::SwapchainError::DeviceLost);
+    }
     if (recreate) {
         wait_for_present_bounded();
     }
@@ -347,8 +356,12 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
         }
         render_finished_.push_back(semaphore);
 
+        if (owner_ != nullptr) {
+            owner_->resource_created();
+        }
         image_targets_.push_back(std::make_unique<VulkanRenderTarget>(
-            device_, nullptr, images_[i], views_[i], nullptr, extent_, format_, false, true));
+            owner_, epoch_, device_, nullptr, images_[i], views_[i], nullptr, extent_, format_,
+            false, true));
         image_targets_.back()->set_render_finished_semaphore(semaphore);
     }
     pending_extent_ = chosen_extent;
@@ -359,6 +372,9 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
 }
 
 std::expected<void, rhi::SwapchainError> VulkanSwapchain::recreate_pending() {
+    if (!usable()) {
+        return std::unexpected(rhi::SwapchainError::DeviceLost);
+    }
     const rhi::Extent2D requested = resize_requested_ ? pending_extent_ : rhi::Extent2D{0, 0};
     const auto created = create_swapchain(true, requested);
     if (!created) {

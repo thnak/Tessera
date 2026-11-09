@@ -66,18 +66,34 @@ void VulkanSwapchain::wait_for_present_bounded() {
 }
 
 void VulkanSwapchain::destroy() {
-    wait_for_present_bounded();
-    destroy_swapchain_resources();
-    // Never destroy a fence that may still be owned by a pending queue operation.
-    if (acquire_fence_ != VK_NULL_HANDLE && !acquire_pending_) {
-        vkDestroyFence(device_, acquire_fence_, nullptr);
+    if (owner_ == nullptr || owner_->destroyable_epoch(epoch_)) {
+        wait_for_present_bounded();
+        destroy_swapchain_resources();
+        // Never destroy a fence that may still be owned by a pending queue operation.
+        if (acquire_fence_ != VK_NULL_HANDLE && !acquire_pending_) {
+            vkDestroyFence(device_, acquire_fence_, nullptr);
+        }
+        acquire_fence_ = VK_NULL_HANDLE;
+        if (drain_fence_ != VK_NULL_HANDLE && !drain_pending_) {
+            vkDestroyFence(device_, drain_fence_, nullptr);
+        }
+        drain_fence_ = VK_NULL_HANDLE;
+    } else {
+        // Lost device generation: the swapchain, image views, semaphores and fences died with the
+        // old VkDevice, so only the host-side bookkeeping is dropped here.
+        image_targets_.clear();
+        render_finished_.clear();
+        views_.clear();
+        images_.clear();
+        image_acquired_.clear();
+        acquire_fence_ = VK_NULL_HANDLE;
+        drain_fence_ = VK_NULL_HANDLE;
+        acquire_pending_ = false;
+        present_submitted_ = false;
+        drain_pending_ = false;
     }
-    acquire_fence_ = VK_NULL_HANDLE;
-    if (drain_fence_ != VK_NULL_HANDLE && !drain_pending_) {
-        vkDestroyFence(device_, drain_fence_, nullptr);
-    }
-    drain_fence_ = VK_NULL_HANDLE;
-    if (surface_ != VK_NULL_HANDLE) {
+    if (surface_ != VK_NULL_HANDLE && instance_ != VK_NULL_HANDLE) {
+        // The surface belongs to the instance, which survives a device loss.
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
         surface_ = VK_NULL_HANDLE;
     }
@@ -85,8 +101,14 @@ void VulkanSwapchain::destroy() {
 
 std::expected<std::uint32_t, rhi::SwapchainError>
 VulkanSwapchain::acquire_next_image(std::uint64_t timeout_ms) {
-    if (swapchain_ == VK_NULL_HANDLE) {
-        return std::unexpected(rhi::SwapchainError::NotSupported);
+    if (!usable() || swapchain_ == VK_NULL_HANDLE) {
+        return std::unexpected(usable() ? rhi::SwapchainError::NotSupported
+                                        : rhi::SwapchainError::DeviceLost);
+    }
+    if (owner_ != nullptr &&
+        owner_->consume_injected_fault(InjectedDeviceFault::DeviceLostOnAcquire)) {
+        owner_->mark_device_lost();
+        return std::unexpected(rhi::SwapchainError::DeviceLost);
     }
 
     if (out_of_date_) {
@@ -106,6 +128,12 @@ VulkanSwapchain::acquire_next_image(std::uint64_t timeout_ms) {
         }
         if (status != VK_SUCCESS) {
             acquire_pending_ = false;
+            if (status == VK_ERROR_DEVICE_LOST) {
+                if (owner_ != nullptr) {
+                    owner_->mark_device_lost();
+                }
+                return std::unexpected(rhi::SwapchainError::DeviceLost);
+            }
             return std::unexpected(rhi::SwapchainError::SurfaceLost);
         }
         (void)vkResetFences(device_, 1, &acquire_fence_);
@@ -132,6 +160,12 @@ VulkanSwapchain::acquire_next_image(std::uint64_t timeout_ms) {
         if (waited != VK_SUCCESS) {
             acquire_pending_ = true;
             pending_acquire_index_ = image;
+            if (waited == VK_ERROR_DEVICE_LOST) {
+                if (owner_ != nullptr) {
+                    owner_->mark_device_lost();
+                }
+                return std::unexpected(rhi::SwapchainError::DeviceLost);
+            }
             ++stats_.timeouts;
             return std::unexpected(rhi::SwapchainError::Timeout);
         }
@@ -161,10 +195,24 @@ VulkanSwapchain::acquire_next_image(std::uint64_t timeout_ms) {
     if (result == VK_ERROR_SURFACE_LOST_KHR) {
         return std::unexpected(rhi::SwapchainError::SurfaceLost);
     }
+    if (result == VK_ERROR_DEVICE_LOST) {
+        if (owner_ != nullptr) {
+            owner_->mark_device_lost();
+        }
+        return std::unexpected(rhi::SwapchainError::DeviceLost);
+    }
     return std::unexpected(rhi::SwapchainError::NotSupported);
 }
 
 std::expected<void, rhi::SwapchainError> VulkanSwapchain::present(std::uint32_t image) {
+    if (!usable()) {
+        return std::unexpected(rhi::SwapchainError::DeviceLost);
+    }
+    if (owner_ != nullptr &&
+        owner_->consume_injected_fault(InjectedDeviceFault::DeviceLostOnPresent)) {
+        owner_->mark_device_lost();
+        return std::unexpected(rhi::SwapchainError::DeviceLost);
+    }
     if (swapchain_ == VK_NULL_HANDLE || image >= image_acquired_.size() ||
         image_acquired_[image] == 0) {
         ++stats_.invalid_presents;

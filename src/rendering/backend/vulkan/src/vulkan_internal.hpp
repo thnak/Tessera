@@ -34,6 +34,18 @@
 
 namespace tessera::rendering::vulkan {
 
+class VulkanDevice;
+
+// Test seam (compiled in when TESSERA_VULKAN_TEST_HOOKS is defined) that reports a loss from the
+// next matching operation instead of waiting for a real GPU reset.
+enum class InjectedDeviceFault {
+    None,
+    DeviceLostOnSubmit,
+    DeviceLostOnFenceWait,
+    DeviceLostOnAcquire,
+    DeviceLostOnPresent,
+};
+
 // RHI objects are only ever created by the matching device, so passing one from another backend is
 // a contract violation, not a runtime condition. Debug builds verify the type; release builds do
 // a plain static_cast so the frame path pays for no RTTI.
@@ -146,9 +158,11 @@ inline void record_image_transition(VkCommandBuffer command_buffer, VkImage imag
 
 class VulkanBuffer final : public rhi::Buffer {
 public:
-    VulkanBuffer(VmaAllocator allocator, VkBuffer buffer, VmaAllocation allocation,
-                 std::size_t size, void* mapped)
-        : allocator_(allocator),
+    VulkanBuffer(VulkanDevice* owner, std::uint32_t epoch, VmaAllocator allocator, VkBuffer buffer,
+                 VmaAllocation allocation, std::size_t size, void* mapped)
+        : owner_(owner),
+          epoch_(epoch),
+          allocator_(allocator),
           buffer_(buffer),
           allocation_(allocation),
           size_(size),
@@ -166,6 +180,8 @@ public:
     }
 
 private:
+    VulkanDevice* owner_ = nullptr;
+    std::uint32_t epoch_ = 0;
     VmaAllocator allocator_ = nullptr;
     VkBuffer buffer_ = VK_NULL_HANDLE;
     VmaAllocation allocation_ = nullptr;
@@ -173,14 +189,12 @@ private:
     void* mapped_ = nullptr;
 };
 
-class VulkanDevice;
-
 class VulkanTexture final : public rhi::Texture {
 public:
     VulkanTexture(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
                   VkSampler sampler, VmaAllocation allocation, VkDescriptorPool descriptor_pool,
                   VkDescriptorSet descriptor_set, rhi::Extent2D extent, rhi::TextureFormat format,
-                  VulkanDevice* owner)
+                  VulkanDevice* owner, std::uint32_t epoch)
         : device_(device),
           allocator_(allocator),
           image_(image),
@@ -191,7 +205,8 @@ public:
           descriptor_set_(descriptor_set),
           extent_(extent),
           format_(format),
-          owner_(owner) {}
+          owner_(owner),
+          epoch_(epoch) {}
 
     ~VulkanTexture() override;
 
@@ -209,6 +224,9 @@ public:
     [[nodiscard]] VkDescriptorSet descriptor_set() const {
         return descriptor_set_;
     }
+    [[nodiscard]] std::uint32_t epoch() const {
+        return epoch_;
+    }
 
 private:
     VkDevice device_ = VK_NULL_HANDLE;
@@ -222,12 +240,16 @@ private:
     rhi::Extent2D extent_;
     rhi::TextureFormat format_ = rhi::TextureFormat::R8G8B8A8Unorm;
     VulkanDevice* owner_ = nullptr;
+    std::uint32_t epoch_ = 0;
 };
 
 class VulkanPipeline final : public rhi::Pipeline {
 public:
-    VulkanPipeline(VkDevice device, VkPipeline pipeline, VkPipelineLayout layout)
-        : device_(device),
+    VulkanPipeline(VulkanDevice* owner, std::uint32_t epoch, VkDevice device, VkPipeline pipeline,
+                   VkPipelineLayout layout)
+        : owner_(owner),
+          epoch_(epoch),
+          device_(device),
           pipeline_(pipeline),
           layout_(layout) {}
 
@@ -239,8 +261,13 @@ public:
     [[nodiscard]] VkPipelineLayout layout() const {
         return layout_;
     }
+    [[nodiscard]] std::uint32_t epoch() const {
+        return epoch_;
+    }
 
 private:
+    VulkanDevice* owner_ = nullptr;
+    std::uint32_t epoch_ = 0;
     VkDevice device_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     VkPipelineLayout layout_ = VK_NULL_HANDLE;
@@ -248,10 +275,13 @@ private:
 
 class VulkanRenderTarget final : public rhi::RenderTarget {
 public:
-    VulkanRenderTarget(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
+    VulkanRenderTarget(VulkanDevice* owner, std::uint32_t epoch, VkDevice device,
+                       VmaAllocator allocator, VkImage image, VkImageView view,
                        VmaAllocation allocation, rhi::Extent2D extent, rhi::TextureFormat format,
                        bool owns = true, bool presentable = false)
-        : device_(device),
+        : owner_(owner),
+          epoch_(epoch),
+          device_(device),
           allocator_(allocator),
           image_(image),
           view_(view),
@@ -297,6 +327,8 @@ public:
     }
 
 private:
+    VulkanDevice* owner_ = nullptr;
+    std::uint32_t epoch_ = 0;
     VkDevice device_ = VK_NULL_HANDLE;
     VmaAllocator allocator_ = nullptr;
     VkImage image_ = VK_NULL_HANDLE;
@@ -320,9 +352,10 @@ struct CommandResources {
 
 class VulkanCommandList final : public rhi::CommandList {
 public:
-    VulkanCommandList(VulkanDevice& owner, VkDevice device, VkQueue queue,
+    VulkanCommandList(VulkanDevice& owner, std::uint32_t epoch, VkDevice device, VkQueue queue,
                       CommandResources resources)
         : owner_(owner),
+          epoch_(epoch),
           device_(device),
           queue_(queue),
           resources_(resources),
@@ -347,7 +380,11 @@ public:
     [[nodiscard]] bool wait(std::uint64_t timeout_ms) override;
 
 private:
+    [[nodiscard]] bool usable() const;
+    void require_usable(const char* what) const;
+
     VulkanDevice& owner_;
+    std::uint32_t epoch_ = 0;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue queue_ = VK_NULL_HANDLE;
     CommandResources resources_;
@@ -361,91 +398,6 @@ private:
     mutable bool complete_ = false;
 };
 
-class VulkanDevice final : public rhi::Device {
-public:
-    explicit VulkanDevice(const rhi::DeviceDesc& desc);
-    ~VulkanDevice() override;
-
-    [[nodiscard]] rhi::Backend backend() const override {
-        return rhi::Backend::Vulkan;
-    }
-    std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override;
-    std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override;
-    std::unique_ptr<rhi::Pipeline> create_pipeline(const rhi::PipelineDesc& desc) override;
-    std::unique_ptr<rhi::RenderTarget>
-    create_render_target(const rhi::RenderTargetDesc& desc) override;
-    std::unique_ptr<rhi::CommandList> create_command_list() override;
-    std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
-    create_swapchain(const rhi::SwapchainDesc& desc) override;
-    void wait_idle() override;
-
-    // Full-image upload used by Texture::write (dynamic atlases).
-    void upload_texture(VulkanTexture& texture, const void* data, std::size_t size);
-
-    // Hands out recycled command resources (or creates new ones). release_command_resources takes
-    // them back; `in_flight` resources are reused only once their fence has signaled.
-    CommandResources acquire_command_resources();
-    void release_command_resources(const CommandResources& resources, bool in_flight);
-
-    // Records `record` into its own command buffer and queues it without waiting. `staging`, if
-    // any, is kept alive until the GPU has finished with it.
-    void submit_upload(const std::function<void(VkCommandBuffer)>& record,
-                       std::unique_ptr<rhi::Buffer> staging);
-
-    // Runs `destroy` once every upload submitted so far has finished (immediately if none is
-    // pending). Textures use this so an image is never destroyed under an in-flight copy.
-    void retire_after_uploads(std::function<void()> destroy);
-
-private:
-    void reap_command_resources();
-    void destroy_command_resources();
-    void destroy_command_resource(const CommandResources& resources);
-    void create_instance();
-    void pick_device();
-    void create_device();
-    void create_allocator();
-    void create_descriptor_layout();
-    void create_descriptor_pool();
-    void reap_uploads();
-    void drain_uploads();
-    void destroy();
-
-    // An upload submitted without waiting. The staging buffer and command resources stay alive
-    // until the fence signals; `serial` orders it against deferred destruction.
-    struct PendingUpload {
-        CommandResources commands;
-        std::unique_ptr<rhi::Buffer> staging;
-        std::uint64_t serial = 0;
-    };
-    struct RetiredResource {
-        std::function<void()> destroy;
-        std::uint64_t serial = 0;
-    };
-    std::vector<PendingUpload> pending_uploads_;
-    std::vector<RetiredResource> retired_;
-    std::uint64_t upload_serial_ = 0;
-
-    rhi::DeviceDesc desc_;
-    VkInstance instance_ = VK_NULL_HANDLE;
-    VkDebugUtilsMessengerEXT debug_messenger_ = VK_NULL_HANDLE;
-    VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
-    VkDevice device_ = VK_NULL_HANDLE;
-    VkQueue queue_ = VK_NULL_HANDLE;
-    std::uint32_t queue_family_ = 0;
-    VmaAllocator allocator_ = nullptr;
-    VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
-    VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
-    std::vector<CommandResources> free_commands_;
-    std::vector<CommandResources> inflight_commands_;
-#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
-    bool surface_extensions_enabled_ = false;
-    bool swapchain_extension_enabled_ = false;
-#endif
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-    bool win32_present_supported_ = false;
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-    bool xlib_present_supported_ = false;
-#endif
-};
-
 } // namespace tessera::rendering::vulkan
+
+#include "vulkan_device_internal.hpp"

@@ -2,16 +2,41 @@
 
 #include "vulkan_internal.hpp"
 
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+
 namespace tessera::rendering::vulkan {
+
+namespace {
+// The synchronous submit is documented as offscreen/readback only, but even that path must not wait
+// forever on a wedged device (ADR-021).
+constexpr std::uint64_t kSyncSubmitWaitMs = 60'000;
+constexpr std::uint64_t kNanosecondsPerMillisecond = 1'000'000;
+} // namespace
 
 VulkanCommandList::~VulkanCommandList() {
     // A list dropped while the GPU still runs it must not free its pool; the device keeps it in
-    // flight and recycles it once the fence signals.
+    // flight and recycles it once the fence signals. After a loss the device drops or destroys the
+    // resources itself.
     owner_.release_command_resources(resources_, submitted_ && !is_complete());
+    owner_.resource_destroyed();
+}
+
+bool VulkanCommandList::usable() const {
+    return owner_.usable_epoch(epoch_);
+}
+
+void VulkanCommandList::require_usable(const char* what) const {
+    if (!usable()) {
+        throw std::runtime_error(std::string(what) +
+                                 ": command list belongs to a lost device generation");
+    }
 }
 
 void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
                                           const rhi::RenderTargetDesc& desc) {
+    require_usable("begin_render_pass");
     const auto* vulkan_target = &vulkan_cast<const VulkanRenderTarget>(target);
 
     VkCommandBufferBeginInfo begin_info{};
@@ -64,6 +89,11 @@ void VulkanCommandList::end_render_pass() {
     if (!render_pass_active_ || current_target_ == nullptr) {
         return;
     }
+    if (!usable()) {
+        // The device was lost mid-recording; the command buffer is abandoned with the device.
+        render_pass_active_ = false;
+        return;
+    }
 
     vkCmdEndRendering(buffer_);
     const bool present = current_target_->presentable();
@@ -77,18 +107,24 @@ void VulkanCommandList::end_render_pass() {
 }
 
 void VulkanCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
+    require_usable("bind_pipeline");
     const auto& vulkan_pipeline = vulkan_cast<const VulkanPipeline>(pipeline);
+    if (vulkan_pipeline.epoch() != epoch_) {
+        throw std::runtime_error("bind_pipeline: pipeline belongs to a lost device generation");
+    }
     vkCmdBindPipeline(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_pipeline.handle());
     current_layout_ = vulkan_pipeline.layout();
 }
 
 void VulkanCommandList::bind_vertex_buffer(const rhi::Buffer& buffer) {
+    require_usable("bind_vertex_buffer");
     const VkBuffer handle = vulkan_cast<const VulkanBuffer>(buffer).handle();
     const VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(buffer_, 0, 1, &handle, &offset);
 }
 
 void VulkanCommandList::bind_texture(std::uint32_t slot, const rhi::Texture& texture) {
+    require_usable("bind_texture");
     if (current_layout_ == VK_NULL_HANDLE) {
         throw std::runtime_error("bind_texture: missing pipeline");
     }
@@ -99,6 +135,9 @@ void VulkanCommandList::bind_texture(std::uint32_t slot, const rhi::Texture& tex
 }
 
 void VulkanCommandList::set_viewport(const rhi::Viewport& viewport) {
+    if (!usable()) {
+        return;
+    }
     VkViewport vk_viewport{};
     vk_viewport.x = viewport.x;
     vk_viewport.y = viewport.y;
@@ -110,6 +149,9 @@ void VulkanCommandList::set_viewport(const rhi::Viewport& viewport) {
 }
 
 void VulkanCommandList::set_scissor(const rhi::Scissor& scissor) {
+    if (!usable()) {
+        return;
+    }
     VkRect2D vk_scissor{};
     vk_scissor.offset = {scissor.x, scissor.y};
     vk_scissor.extent = {scissor.width, scissor.height};
@@ -117,6 +159,9 @@ void VulkanCommandList::set_scissor(const rhi::Scissor& scissor) {
 }
 
 void VulkanCommandList::push_constants(const void* data, std::size_t size) {
+    if (!usable()) {
+        return;
+    }
     if (current_layout_ == VK_NULL_HANDLE) {
         throw std::runtime_error("push_constants: missing pipeline");
     }
@@ -126,11 +171,17 @@ void VulkanCommandList::push_constants(const void* data, std::size_t size) {
 }
 
 void VulkanCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_vertex) {
+    if (!usable()) {
+        return;
+    }
     vkCmdDraw(buffer_, vertex_count, 1, first_vertex, 0);
 }
 
 void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
                                               rhi::Buffer& buffer) {
+    if (!usable()) {
+        return;
+    }
     const auto* vulkan_target = &vulkan_cast<const VulkanRenderTarget>(target);
     auto* vulkan_buffer = &vulkan_cast<VulkanBuffer>(buffer);
     if (vulkan_target->presentable()) {
@@ -163,11 +214,26 @@ void VulkanCommandList::submit_async() {
     if (!recording_ || submitted_) {
         return;
     }
+    if (!usable()) {
+        submitted_ = true;
+        return;
+    }
     if (render_pass_active_) {
         throw std::runtime_error("submit: render pass is still active");
     }
+    if (owner_.consume_injected_fault(InjectedDeviceFault::DeviceLostOnSubmit)) {
+        owner_.mark_device_lost();
+        submitted_ = true;
+        return;
+    }
 
-    check_vk(vkEndCommandBuffer(buffer_), "vkEndCommandBuffer");
+    const VkResult end_result = vkEndCommandBuffer(buffer_);
+    if (end_result == VK_ERROR_DEVICE_LOST) {
+        owner_.mark_device_lost();
+        submitted_ = true;
+        return;
+    }
+    check_vk(end_result, "vkEndCommandBuffer");
 
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -186,7 +252,14 @@ void VulkanCommandList::submit_async() {
         submit_info.signalSemaphoreCount = 1;
         submit_info.pSignalSemaphores = &signal;
     }
-    check_vk(vkQueueSubmit(queue_, 1, &submit_info, resources_.fence), "vkQueueSubmit");
+    const VkResult submit_result = vkQueueSubmit(queue_, 1, &submit_info, resources_.fence);
+    if (submit_result == VK_ERROR_DEVICE_LOST) {
+        // D7: loss is state, not an exception. The caller polls Device::status() and recovers.
+        owner_.mark_device_lost();
+        submitted_ = true;
+        return;
+    }
+    check_vk(submit_result, "vkQueueSubmit");
     if (signal != VK_NULL_HANDLE) {
         current_target_->set_render_pending(true);
     }
@@ -195,41 +268,71 @@ void VulkanCommandList::submit_async() {
 }
 
 // Blocking by contract: offscreen rendering, readback and golden tests rely on the result being
-// complete on return. The UI frame path uses submit_async() instead.
+// complete on return. The UI frame path uses submit_async() instead. The wait is bounded (ADR-021):
+// a device loss returns immediately as Lost state, a wedged fence reports incomplete instead of
+// waiting forever.
 void VulkanCommandList::submit() {
     submit_async();
     if (!submitted_ || complete_) {
         return;
     }
-    check_vk(vkWaitForFences(device_, 1, &resources_.fence, VK_TRUE, UINT64_MAX),
-             "vkWaitForFences");
-    complete_ = true;
+    if (!usable()) {
+        return;
+    }
+    const std::uint64_t timeout_ns = kSyncSubmitWaitMs * kNanosecondsPerMillisecond;
+    const VkResult result = vkWaitForFences(device_, 1, &resources_.fence, VK_TRUE, timeout_ns);
+    if (result == VK_ERROR_DEVICE_LOST) {
+        owner_.mark_device_lost();
+        return;
+    }
+    if (result == VK_SUCCESS) {
+        complete_ = true;
+    }
 }
 
 bool VulkanCommandList::is_complete() const {
-    if (!submitted_) {
-        return false;
-    }
-    if (!complete_) {
-        // Anything but "still running" means the submission no longer uses the buffer; on a lost
-        // device it never will, and reporting incomplete forever would hang pollers.
-        complete_ = vkGetFenceStatus(device_, resources_.fence) != VK_NOT_READY;
-    }
-    return complete_;
-}
-
-bool VulkanCommandList::wait(std::uint64_t timeout_ms) {
-    if (!submitted_) {
+    if (!submitted_ || !usable()) {
         return false;
     }
     if (complete_) {
         return true;
     }
+    if (owner_.consume_injected_fault(InjectedDeviceFault::DeviceLostOnFenceWait)) {
+        owner_.mark_device_lost();
+        return false;
+    }
+    // Anything but "still running" means the submission no longer uses the buffer; on a lost
+    // device it never will, and reporting incomplete forever would hang pollers.
+    const VkResult status = vkGetFenceStatus(device_, resources_.fence);
+    if (status == VK_ERROR_DEVICE_LOST) {
+        owner_.mark_device_lost();
+        return false;
+    }
+    complete_ = status != VK_NOT_READY;
+    return complete_;
+}
+
+bool VulkanCommandList::wait(std::uint64_t timeout_ms) {
+    if (!submitted_ || !usable()) {
+        return false;
+    }
+    if (complete_) {
+        return true;
+    }
+    if (owner_.consume_injected_fault(InjectedDeviceFault::DeviceLostOnFenceWait)) {
+        owner_.mark_device_lost();
+        return false;
+    }
     constexpr std::uint64_t kNanosecondsPerMillisecond = 1'000'000;
     const std::uint64_t timeout_ns = timeout_ms > UINT64_MAX / kNanosecondsPerMillisecond
                                          ? UINT64_MAX
                                          : timeout_ms * kNanosecondsPerMillisecond;
-    complete_ = vkWaitForFences(device_, 1, &resources_.fence, VK_TRUE, timeout_ns) != VK_TIMEOUT;
+    const VkResult result = vkWaitForFences(device_, 1, &resources_.fence, VK_TRUE, timeout_ns);
+    if (result == VK_ERROR_DEVICE_LOST) {
+        owner_.mark_device_lost();
+        return false;
+    }
+    complete_ = result == VK_SUCCESS;
     return complete_;
 }
 

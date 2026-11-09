@@ -26,7 +26,7 @@ class VulkanSwapchain final : public rhi::Swapchain {
 public:
     static std::expected<std::unique_ptr<VulkanSwapchain>, rhi::SwapchainError>
     create(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VkQueue queue,
-           const rhi::SwapchainDesc& desc);
+           const rhi::SwapchainDesc& desc, VulkanDevice* owner);
 
     ~VulkanSwapchain() override;
 
@@ -54,6 +54,10 @@ private:
     VulkanSwapchain(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device,
                     VkQueue queue);
 
+    // True while the swapchain still belongs to the live device generation (D7). A lost generation
+    // reports DeviceLost from acquire/present and skips device-owned teardown.
+    [[nodiscard]] bool usable() const;
+
     std::expected<void, rhi::SwapchainError> create_surface(const rhi::SwapchainDesc& desc);
     std::expected<void, rhi::SwapchainError> create_swapchain(bool recreate, rhi::Extent2D extent);
     std::expected<void, rhi::SwapchainError> recreate_pending();
@@ -66,6 +70,8 @@ private:
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue queue_ = VK_NULL_HANDLE;
+    VulkanDevice* owner_ = nullptr;
+    std::uint32_t epoch_ = 0;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     VkFence acquire_fence_ = VK_NULL_HANDLE;

@@ -87,6 +87,27 @@ public:
     [[nodiscard]] virtual bool wait(std::uint64_t timeout_ms) = 0;
 };
 
+// Device health for the D7 production policy. A loss is recoverable backend state, not an
+// exception: operations that can report it (swapchain acquire/present, command `wait()`) return an
+// error/false and the caller polls `status()`. After a loss every RHI object created before it is
+// invalid and must be destroyed and recreated (the backend generation-guards destructors so a late
+// destruction is safe); the device itself can be recreated with `recover()`.
+enum class DeviceStatus { Ready, Lost };
+
+enum class DeviceRecoveryError {
+    // The backend has no recovery path (null/software backends).
+    NotSupported,
+    // `recover()` was called while the device is healthy.
+    NotLost,
+    // This loss was already recovered once and failed; a new loss is needed (one-shot policy).
+    AlreadyAttempted,
+    // RHI objects from the lost generation are still alive. Destroy them, then retry; this attempt
+    // does not consume the one-shot budget.
+    ResourcesOutstanding,
+    // Device recreation failed (driver/device unavailable). The device stays Lost.
+    DeviceCreationFailed,
+};
+
 class Device {
 public:
     virtual ~Device() = default;
@@ -104,6 +125,20 @@ public:
     create_swapchain(const SwapchainDesc& desc) = 0;
 
     virtual void wait_idle() = 0;
+
+    // Current health. Losses are detected by the backend on submit/acquire/present/fence waits and
+    // are recorded here; a caller that sees `Lost` must stop using the device and recover.
+    [[nodiscard]] virtual DeviceStatus status() const {
+        return DeviceStatus::Ready;
+    }
+
+    // Bounded, one-shot recovery of a lost device (device + backend-owned state only; caller-owned
+    // RHI objects are invalid and must be recreated by the caller). Returns a value, never throws.
+    // On success `status()` is Ready and the caller recreates its resources and swapchain. On
+    // failure the device stays Lost. Non-Vulkan backends report NotSupported.
+    [[nodiscard]] virtual std::expected<void, DeviceRecoveryError> recover() {
+        return std::unexpected(DeviceRecoveryError::NotSupported);
+    }
 };
 
 } // namespace tessera::rendering::rhi

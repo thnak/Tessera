@@ -11,6 +11,7 @@ constexpr std::size_t kMaxFreeCommandResources = 8;
 } // namespace
 
 CommandResources VulkanDevice::acquire_command_resources() {
+    require_ready("acquire_command_resources");
     // Finished uploads hand their command resources back, so reap them first.
     reap_uploads();
     reap_command_resources();
@@ -53,6 +54,14 @@ CommandResources VulkanDevice::acquire_command_resources() {
 }
 
 void VulkanDevice::release_command_resources(const CommandResources& resources, bool in_flight) {
+    if (status_ == rhi::DeviceStatus::Lost) {
+        // A real loss abandoned the device's children; a simulated loss keeps them destroyable so
+        // validation sees every object released.
+        if (simulated_loss_ && device_ != VK_NULL_HANDLE) {
+            destroy_command_resource(resources);
+        }
+        return;
+    }
     if (in_flight) {
         // The GPU may still be executing this buffer; it is recycled by reap_command_resources.
         inflight_commands_.push_back(resources);
@@ -66,6 +75,9 @@ void VulkanDevice::release_command_resources(const CommandResources& resources, 
 }
 
 void VulkanDevice::reap_command_resources() {
+    if (status_ == rhi::DeviceStatus::Lost) {
+        return;
+    }
     // Independent submissions may finish in any order, so every entry is checked.
     for (auto it = inflight_commands_.begin(); it != inflight_commands_.end();) {
         if (vkGetFenceStatus(device_, it->fence) == VK_NOT_READY) {

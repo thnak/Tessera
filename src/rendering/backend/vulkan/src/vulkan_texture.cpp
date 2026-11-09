@@ -3,11 +3,13 @@
 #include "vulkan_internal.hpp"
 #include "vulkan_scope_guard.hpp"
 
+#include <stdexcept>
 #include <utility>
 
 namespace tessera::rendering::vulkan {
 
 std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDesc& desc) {
+    require_ready("create_texture");
     const VkFormat format = to_vk_format(desc.format);
 
     VkImageCreateInfo image_info{};
@@ -85,9 +87,10 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
 
     // From here the texture owns every handle: if the upload below throws, its destructor
     // releases them (deferred past any upload already queued), so the guards step aside.
+    resource_created();
     auto texture = std::make_unique<VulkanTexture>(device_, allocator_, image, view, sampler,
                                                    allocation, descriptor_pool_, descriptor_set,
-                                                   desc.extent, desc.format, this);
+                                                   desc.extent, desc.format, this, epoch_);
     set_guard.dismiss();
     sampler_guard.dismiss();
     view_guard.dismiss();
@@ -152,6 +155,9 @@ void VulkanTexture::write(const void* data, std::size_t size) {
 }
 
 void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std::size_t size) {
+    if (!usable_epoch(texture.epoch())) {
+        throw std::runtime_error("upload_texture: texture belongs to a lost device generation");
+    }
     const rhi::Extent2D extent = texture.extent();
     const std::size_t expected =
         static_cast<std::size_t>(extent.width) * extent.height * bytes_per_pixel(texture.format());

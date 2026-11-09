@@ -99,6 +99,18 @@ int main() {
         return 9;
     }
 
+    // D7 defaults: a backend without a loss/recovery path stays Ready and reports the recovery
+    // request as NotSupported instead of pretending to recover.
+    if (device->status() != rhi::DeviceStatus::Ready) {
+        std::cerr << "null device should always be Ready\n";
+        return 10;
+    }
+    const auto recovery = device->recover();
+    if (recovery.has_value() || recovery.error() != rhi::DeviceRecoveryError::NotSupported) {
+        std::cerr << "null device recovery should report NotSupported\n";
+        return 11;
+    }
+
     std::cout << "rhi_null: ok\n";
     return 0;
 }
