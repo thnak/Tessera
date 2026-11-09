@@ -140,9 +140,11 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
 bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component& component,
                     const std::string& hash_var, const std::string& append_target,
                     std::string& error) {
-    const auto hash_line = [&](std::string_view value) {
-        writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", " +
-                    std::string(value) + ");");
+    const auto hash_literal = [&](std::string_view value) {
+        // A bare string literal would bind the hash overload for bool (pointer conversion); wrap
+        // it so the string_view overload is selected.
+        writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", std::string_view(" +
+                    std::string(value) + "));");
     };
     const auto append_line = [&](std::string_view value) {
         writer.line(append_target + " += " + std::string(value) + ";");
@@ -153,7 +155,14 @@ bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component
             return fail(error, emission.error);
         }
         if (!hash_var.empty()) {
-            hash_line(emission.text);
+            const std::optional<TextValueType> type = infer_type(value, component);
+            if (type == TextValueType::String) {
+                writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var +
+                            ", std::string_view(" + emission.text + "));");
+            } else {
+                writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", " +
+                            emission.text + ");");
+            }
         } else {
             append_line("format_value(" + emission.text + ")");
         }
@@ -165,7 +174,7 @@ bool emit_value_ops(CppWriter& writer, const ir::Expr& expr, const ir::Component
             if (!part.expr) {
                 const std::string literal = literal_text(ir::LiteralValue{part.text});
                 if (!hash_var.empty()) {
-                    hash_line(literal);
+                    hash_literal(literal);
                 } else {
                     append_line(literal);
                 }
@@ -251,6 +260,70 @@ std::optional<std::string> static_text_value(const ir::Expr* expr) {
     return folded;
 }
 
+std::string metadata_member(const DynamicMetadata& entry) {
+    std::string base = "meta_" + std::to_string(entry.ordinal) + "_";
+    switch (entry.field) {
+    case MetadataField::ElementId:
+        return base + "id";
+    case MetadataField::ClassName:
+        return base + "class";
+    case MetadataField::Role:
+        return base + "role";
+    case MetadataField::Aria: {
+        std::string name = "aria_";
+        for (const char c : entry.name) {
+            name += (c == '-' || c == ':') ? '_' : c;
+        }
+        return base + name;
+    }
+    }
+    return base;
+}
+
+bool collect_dynamic_metadata(const ir::Node& node, const ir::Component& component,
+                              unsigned& ordinal, std::vector<DynamicMetadata>& entries,
+                              std::string& error) {
+    ++ordinal;
+    const auto dynamic_value = [&](MetadataField field, const std::string& name,
+                                   const ir::Expr* value) -> bool {
+        if (value == nullptr) {
+            return true;
+        }
+        if (static_text_value(value)) {
+            return true; // literal string stays inline in build()
+        }
+        if (!infer_type(*value, component)) {
+            return fail(error,
+                        "dynamic `" + name + "` on `" + node.id + "` has no printable C++ type");
+        }
+        entries.push_back(DynamicMetadata{ordinal, field, name, value});
+        return true;
+    };
+    const auto prop = [&](std::string_view name) -> const ir::Expr* {
+        const auto found = node.props.find(std::string(name));
+        return found == node.props.end() ? nullptr : found->second.get();
+    };
+    if (!dynamic_value(MetadataField::ElementId, "id", prop("id")) ||
+        !dynamic_value(MetadataField::ClassName, "className", prop("className")) ||
+        !dynamic_value(MetadataField::Role, "role", prop("role"))) {
+        return false;
+    }
+    for (const auto& [name, value] : node.props) {
+        if (name.rfind("aria-", 0) != 0) {
+            continue;
+        }
+        if (!dynamic_value(MetadataField::Aria, name, value.get())) {
+            return false;
+        }
+    }
+    for (const ir::Node& child : node.children) {
+        if (!collect_dynamic_metadata(child, component, ordinal, entries, error)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool collect_dynamic_text(const ir::Node& node, const ir::Component& component, unsigned& ordinal,
                           std::vector<DynamicText>& entries, std::string& error) {
     ++ordinal;
@@ -312,9 +385,10 @@ void emit_format_helpers(CppWriter& writer) {
 }
 
 bool emit_apply_state(CppWriter& writer, const ir::Component& component,
-                      const std::vector<DynamicText>& entries, std::string& error) {
+                      const std::vector<DynamicText>& text_entries,
+                      const std::vector<DynamicMetadata>& metadata_entries, std::string& error) {
     writer.open("void " + component.name + "::apply_state()");
-    for (const DynamicText& entry : entries) {
+    for (const DynamicText& entry : text_entries) {
         const std::string suffix = std::to_string(entry.ordinal);
         const std::string hash = "hash_" + suffix;
         writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
@@ -336,6 +410,52 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         writer.line("text_node_" + suffix + "_->set_paint_data(std::move(paint_" + suffix + "));");
         --writer.indent;
         writer.close("");
+    }
+    for (const DynamicMetadata& entry : metadata_entries) {
+        const std::string base = metadata_member(entry);
+        const std::string hash = base + "_hash";
+        writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
+        if (!emit_value_ops(writer, *entry.value, component, hash, "", error)) {
+            return false;
+        }
+        writer.open("if (!" + base + "_set_ || " + hash + " != " + base + "_hash_)");
+        ++writer.indent;
+        writer.line(base + "_hash_ = " + hash + ";");
+        writer.line(base + "_set_ = true;");
+        writer.line("std::string next_" + base + ";");
+        if (!emit_value_ops(writer, *entry.value, component, "", "next_" + base, error)) {
+            return false;
+        }
+        writer.line("if (" + base + "_value_ != next_" + base + ") {");
+        ++writer.indent;
+        // Move the old buffer out before overwriting: the node borrows a view into `_value_`, so
+        // assigning in place would mutate the view before the setter can compare it.
+        writer.line("std::string previous_" + base + " = std::move(" + base + "_value_);");
+        writer.line(base + "_value_ = std::move(next_" + base + ");");
+        switch (entry.field) {
+        case MetadataField::ElementId:
+            writer.line(base + "_node_->set_element_id(" + base + "_value_);");
+            // The node borrows a view into `_value_`: for SSO strings an in-place update can make
+            // the setter see equal content and skip its Style mark, so mark the selector domain
+            // explicitly (idempotent when the setter already did).
+            writer.line(base + "_node_->mark_dirty(tessera::ui::Dirty::Style);");
+            break;
+        case MetadataField::ClassName:
+            writer.line(base + "_node_->set_class_name(" + base + "_value_);");
+            writer.line(base + "_node_->mark_dirty(tessera::ui::Dirty::Style);");
+            break;
+        case MetadataField::Role:
+            writer.line(base + "_node_->set_role(" + base + "_value_);");
+            break;
+        case MetadataField::Aria:
+            writer.line(base + "_node_->set_aria(" + literal_text(ir::LiteralValue{entry.name}) +
+                        ", " + base + "_value_);");
+            break;
+        }
+        --writer.indent;
+        writer.close("");
+        --writer.indent;
+        writer.line("}");
     }
     writer.close("");
     writer.line("");

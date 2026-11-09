@@ -39,16 +39,16 @@ int main() {
     sample.build(root);
 
     check(root.children().size() == 1, "the component builds exactly one root child");
-    const ui::Node& view = *root.children()[0];
+    ui::Node& view = *root.children()[0];
     check_eq(view.element_kind(), "View", "element kind metadata");
-    check_eq(view.element_id(), "root", "element id metadata");
-    check_eq(view.class_name(), "box", "className metadata");
-    check_eq(view.role(), "generic", "role metadata");
+    check_eq(view.element_id(), "root-0", "dynamic id metadata");
+    check_eq(view.class_name(), "box 0", "dynamic className metadata");
+    check_eq(view.role(), "generic", "dynamic role metadata");
     check(view.automation_id() == 1, "automationId metadata");
     check(view.aria_attributes().size() == 1, "one aria pair is attached");
     if (view.aria_attributes().size() == 1) {
         check_eq(view.aria_attributes()[0].name, "aria-label", "aria name");
-        check_eq(view.aria_attributes()[0].value, "root", "aria value");
+        check_eq(view.aria_attributes()[0].value, "label 0", "dynamic aria value");
     }
     check(!view.focusable(), "a View is not focusable by default");
     check(!view.paint_data().has_value(), "a View has no text payload");
@@ -91,11 +91,22 @@ int main() {
     click.y = 8.0f;
     click.pointer_kind = ui::PointerKind::Mouse;
     click.button = ui::PointerButton::Left;
+    view.clear_dirty(ui::Dirty::All);
     label.clear_dirty(ui::Dirty::All);
     ui::dispatch_event_to(*view.children()[1], click);
     check(sample.state_count_ == 1, "a dispatched PointerUp runs the generated setter handler");
     check(label.dirty() == (ui::Dirty::Paint | ui::Dirty::Render),
           "the setter applies interpolation and marks Paint|Render only");
+    check_eq(view.element_id(), "root-1", "the setter refreshed the dynamic id");
+    check_eq(view.class_name(), "box 1", "the setter refreshed the dynamic className");
+    check_eq(view.role(), "status", "the setter refreshed the dynamic role");
+    check(ui::has_flag(view.dirty(), ui::Dirty::Style),
+          "id/className updates mark Dirty::Style through the node setters");
+    check(!ui::has_flag(view.dirty(), ui::Dirty::Layout),
+          "metadata interpolation never invalidates layout");
+    if (view.aria_attributes().size() == 1) {
+        check_eq(view.aria_attributes()[0].value, "label 1", "the setter refreshed the aria value");
+    }
     check(!ui::has_flag(label.dirty(), ui::Dirty::Layout), "interpolation is paint-only");
     if (label.paint_data()) {
         check_eq(label.paint_data()->text, "Count: 1",

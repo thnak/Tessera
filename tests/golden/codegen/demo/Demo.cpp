@@ -87,7 +87,7 @@ namespace demo {
     
     void Demo::apply_state() {
       std::uint64_t hash_2 = tessera::ui::kEffectHashSeed;
-      hash_2 = tessera::ui::effect_hash(hash_2, "Count: ");
+      hash_2 = tessera::ui::effect_hash(hash_2, std::string_view("Count: "));
       hash_2 = tessera::ui::effect_hash(hash_2, state_count_);
       if (!text_node_2_set_ || hash_2 != text_node_2_hash_) {
           text_node_2_hash_ = hash_2;
@@ -101,8 +101,8 @@ namespace demo {
           text_node_2_->set_paint_data(std::move(paint_2));
       }
       std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
-      hash_3 = tessera::ui::effect_hash(hash_3, "Name: ");
-      hash_3 = tessera::ui::effect_hash(hash_3, state_name_);
+      hash_3 = tessera::ui::effect_hash(hash_3, std::string_view("Name: "));
+      hash_3 = tessera::ui::effect_hash(hash_3, std::string_view(state_name_));
       if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
           text_node_3_hash_ = hash_3;
           text_node_3_set_ = true;

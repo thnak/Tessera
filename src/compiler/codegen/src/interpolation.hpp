@@ -29,8 +29,19 @@ enum class TextValueType { Bool, Int, Float, String };
 // Emits the per-file `format_value` helpers into the generated .cpp (anonymous namespace).
 void emit_format_helpers(CppWriter& writer);
 
-// Emits `<Name>::apply_state()` for the collected dynamic text entries.
+// Walks the node tree in pre-order and collects interpolated element metadata values.
+[[nodiscard]] bool collect_dynamic_metadata(const ir::Node& node, const ir::Component& component,
+                                            unsigned& ordinal,
+                                            std::vector<DynamicMetadata>& entries,
+                                            std::string& error);
+
+// The generated member base for one dynamic metadata field (`meta_3_class`).
+[[nodiscard]] std::string metadata_member(const DynamicMetadata& entry);
+
+// Emits `<Name>::apply_state()` for the collected dynamic text and metadata entries.
 [[nodiscard]] bool emit_apply_state(CppWriter& writer, const ir::Component& component,
-                                    const std::vector<DynamicText>& entries, std::string& error);
+                                    const std::vector<DynamicText>& text_entries,
+                                    const std::vector<DynamicMetadata>& metadata_entries,
+                                    std::string& error);
 
 } // namespace tessera::compiler::codegen::internal

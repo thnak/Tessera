@@ -56,11 +56,24 @@ struct DynamicText {
     const ir::Expr* text = nullptr;
 };
 
+// An interpolated element metadata value (`id`, `className`, `role`, `aria-*`, `automationId`).
+// The generated component owns the current string (node metadata stays a borrowed view) and only
+// re-applies it when the hash changes; id/className mark Dirty::Style through the node setters.
+enum class MetadataField { ElementId, ClassName, Role, Aria };
+
+struct DynamicMetadata {
+    unsigned ordinal = 0;
+    MetadataField field = MetadataField::ElementId;
+    std::string name; // the aria attribute name, for MetadataField::Aria
+    const ir::Expr* value = nullptr;
+};
+
 // Emits the component header/source (emit_header.cpp / emit_component.cpp).
 [[nodiscard]] bool emit_component_header(const ir::Component& component,
                                          std::string_view module_namespace,
                                          const std::vector<const ir::Binding*>& bindings,
                                          const std::vector<DynamicText>& dynamic_text,
+                                         const std::vector<DynamicMetadata>& dynamic_metadata,
                                          GeneratedFile& file, std::string& error);
 
 // Emits the effect deps-hash helpers and mount/update_effects/unmount (emit_lifecycle.cpp).

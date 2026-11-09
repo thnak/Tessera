@@ -105,10 +105,27 @@ ir::IrModule make_sample_module() {
         {"effect::sync", {"state::count"}, "bind::sync", "bind::sync_cleanup", span(30, 8, 3, 3)});
 
     ir::Node root = leaf(ir::NodeKind::View, "node::1", "1");
-    root.props.emplace("id", text("root"));
-    root.props.emplace("className", text("box"));
-    root.props.emplace("role", text("generic"));
-    root.props.emplace("aria-label", text("root"));
+    {
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::text_part("root-"));
+        parts.push_back(ir::expr_part(ir::make_ref("state::count")));
+        root.props.emplace("id", ir::make_template(std::move(parts)));
+    }
+    {
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::text_part("box "));
+        parts.push_back(ir::expr_part(ir::make_ref("state::count")));
+        root.props.emplace("className", ir::make_template(std::move(parts)));
+    }
+    root.props.emplace("role", ir::make_conditional(
+                                   ir::make_binary("==", ir::make_ref("state::count"), integer(0)),
+                                   text("generic"), text("status")));
+    {
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::text_part("label "));
+        parts.push_back(ir::expr_part(ir::make_ref("state::count")));
+        root.props.emplace("aria-label", ir::make_template(std::move(parts)));
+    }
     root.automation_id = "1";
     root.style.emplace("width", text("10px"));
 
@@ -240,11 +257,19 @@ void test_generated_shape() {
     check(source.find("parent.add_child(std::move(node_1));") != std::string::npos,
           "root attached to the parent");
     check(source.find("->set_element_kind(\"View\");") != std::string::npos, "element kind");
-    check(source.find("->set_element_id(\"root\");") != std::string::npos, "element id");
-    check(source.find("->set_class_name(\"box\");") != std::string::npos, "className");
+    check(source.find("meta_1_id_node_ = node_1.get();") != std::string::npos,
+          "dynamic id keeps a node pointer");
+    check(source.find("meta_1_id_node_->set_element_id(meta_1_id_value_);") != std::string::npos,
+          "dynamic id applies through set_element_id (Dirty::Style)");
+    check(source.find("meta_1_class_node_->set_class_name(meta_1_class_value_);") !=
+              std::string::npos,
+          "dynamic className applies through set_class_name");
+    check(source.find("meta_1_role_node_->set_role(meta_1_role_value_);") != std::string::npos,
+          "dynamic role applies through set_role");
+    check(source.find("meta_1_aria_aria_label_node_->set_aria(\"aria-label\",") !=
+              std::string::npos,
+          "dynamic aria applies through set_aria");
     check(source.find("->set_automation_id(1ull);") != std::string::npos, "automation id");
-    check(source.find("->set_role(\"generic\");") != std::string::npos, "role");
-    check(source.find("->set_aria(\"aria-label\", \"root\");") != std::string::npos, "aria pair");
     check(source.find("this->text_node_3_ = node_3.get();") != std::string::npos,
           "interpolated text node pointer is stored");
     check(source.find("void Sample::apply_state()") != std::string::npos,
@@ -411,9 +436,9 @@ void test_rejections() {
     }
     {
         ir::IrModule module = make_sample_module();
-        module.components[0].root.props["className"] = ir::make_ref("state::count");
+        module.components[0].root.props["className"] = ir::make_ref("ref::box");
         const auto result = codegen::generate(module);
-        check(!result.has_value(), "a dynamic className needs the string runtime");
+        check(!result.has_value(), "dynamic metadata with no printable type is rejected");
     }
     {
         ir::IrModule module = make_sample_module();

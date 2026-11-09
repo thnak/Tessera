@@ -100,8 +100,9 @@ std::optional<std::uint64_t> parse_automation_id(std::string_view text) {
 
 bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& component,
                const std::vector<EventAdapter>& adapters,
-               const std::vector<DynamicText>& dynamic_text, unsigned& next_id, unsigned& next_var,
-               std::string& variable, std::string& error) {
+               const std::vector<DynamicText>& dynamic_text,
+               const std::vector<DynamicMetadata>& dynamic_metadata, unsigned& next_id,
+               unsigned& next_var, std::string& variable, std::string& error) {
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
     case ir::NodeKind::Component:
@@ -123,6 +124,11 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
     // Every expression recorded in this node must have a C++ spelling even though the scene API
     // cannot apply it yet: an unsupported expression is rejected here, never silently dropped.
     for (const auto& [name, value] : node.props) {
+        // Element metadata is emitted by the static/dynamic metadata paths below, which support
+        // text interpolation; the generic expression validation only covers other props.
+        if (name == "id" || name == "className" || name == "role" || name.rfind("aria-", 0) == 0) {
+            continue;
+        }
         if (value) {
             const ExprEmission emission = emit_expr(*value, component);
             if (!emission.error.empty()) {
@@ -162,23 +168,36 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
         const auto found = node.props.find(std::string(name));
         return found == node.props.end() ? nullptr : found->second.get();
     };
+    const auto is_dynamic = [&](MetadataField field, std::string_view name) {
+        return std::any_of(
+            dynamic_metadata.begin(), dynamic_metadata.end(), [&](const DynamicMetadata& entry) {
+                return entry.ordinal == node_ordinal && entry.field == field && entry.name == name;
+            });
+    };
     writer.line(variable + "->set_element_kind(\"" + std::string(ir::node_kind_name(node.kind)) +
                 "\");");
+    for (const DynamicMetadata& entry : dynamic_metadata) {
+        if (entry.ordinal == node_ordinal) {
+            writer.line(metadata_member(entry) + "_node_ = " + variable + ".get();");
+        }
+    }
     if (const ir::Expr* id_prop = prop("id")) {
         const std::optional<std::string_view> text = literal_string(id_prop);
-        if (!text) {
-            return fail(error, "id: a dynamic element id needs the string runtime, deferred");
+        if (text) {
+            writer.line(variable + "->set_element_id(" +
+                        literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+        } else if (!is_dynamic(MetadataField::ElementId, "id")) {
+            return fail(error, "id: a dynamic element id has no printable type");
         }
-        writer.line(variable + "->set_element_id(" +
-                    literal_text(ir::LiteralValue{std::string(*text)}) + ");");
     }
     if (const ir::Expr* class_prop = prop("className")) {
         const std::optional<std::string_view> text = literal_string(class_prop);
-        if (!text) {
-            return fail(error, "className: a dynamic class needs the string runtime, deferred");
+        if (text) {
+            writer.line(variable + "->set_class_name(" +
+                        literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+        } else if (!is_dynamic(MetadataField::ClassName, "className")) {
+            return fail(error, "className: a dynamic class has no printable type");
         }
-        writer.line(variable + "->set_class_name(" +
-                    literal_text(ir::LiteralValue{std::string(*text)}) + ");");
     }
     if (!node.automation_id.empty()) {
         const std::optional<std::uint64_t> value = parse_automation_id(node.automation_id);
@@ -190,22 +209,25 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
     }
     if (const ir::Expr* role_prop = prop("role")) {
         const std::optional<std::string_view> text = literal_string(role_prop);
-        if (!text) {
-            return fail(error, "role: a dynamic role needs the string runtime, deferred");
+        if (text) {
+            writer.line(variable + "->set_role(" +
+                        literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+        } else if (!is_dynamic(MetadataField::Role, "role")) {
+            return fail(error, "role: a dynamic role has no printable type");
         }
-        writer.line(variable + "->set_role(" + literal_text(ir::LiteralValue{std::string(*text)}) +
-                    ");");
     }
     for (const auto& [name, value] : node.props) {
         if (name.rfind("aria-", 0) != 0) {
             continue;
         }
         const std::optional<std::string_view> text = literal_string(value.get());
-        if (!text) {
-            return fail(error, name + ": a dynamic aria value needs the string runtime, deferred");
+        if (text) {
+            writer.line(variable + "->set_aria(" +
+                        literal_text(ir::LiteralValue{std::string(name)}) + ", " +
+                        literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+        } else if (!is_dynamic(MetadataField::Aria, name)) {
+            return fail(error, name + ": a dynamic aria value has no printable type");
         }
-        writer.line(variable + "->set_aria(" + literal_text(ir::LiteralValue{std::string(name)}) +
-                    ", " + literal_text(ir::LiteralValue{std::string(*text)}) + ");");
     }
     for (const auto& [jsx_name, target] : node.events) {
         (void)target;
@@ -258,8 +280,8 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
     }
     for (const ir::Node& child : node.children) {
         std::string child_variable;
-        if (!emit_node(writer, child, component, adapters, dynamic_text, next_id, next_var,
-                       child_variable, error)) {
+        if (!emit_node(writer, child, component, adapters, dynamic_text, dynamic_metadata, next_id,
+                       next_var, child_variable, error)) {
             return false;
         }
         writer.line(variable + "->add_child(std::move(" + child_variable + "));");
@@ -292,7 +314,8 @@ bool emit_stub_body(CppWriter& writer, const ir::Binding& binding,
 
 bool emit_source(const ir::Component& component, std::string_view ns,
                  const std::vector<const ir::Binding*>& bindings,
-                 const std::vector<DynamicText>& dynamic_text, GeneratedFile& file,
+                 const std::vector<DynamicText>& dynamic_text,
+                 const std::vector<DynamicMetadata>& dynamic_metadata, GeneratedFile& file,
                  std::string& error) {
     CppWriter writer;
     writer.line("// SPDX-License-Identifier: MIT");
@@ -302,7 +325,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("");
     writer.line("#include <memory>");
     writer.line("#include <utility>");
-    if (!dynamic_text.empty()) {
+    if (!dynamic_text.empty() || !dynamic_metadata.empty()) {
         writer.line("#include <charconv>");
         writer.line("#include <cstdint>");
         writer.line("#include <string>");
@@ -316,7 +339,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("// (docs/design/compiler.md section 11); style values are recorded in the node");
     writer.line("// comments below until it lands.");
     writer.line("");
-    if (!dynamic_text.empty()) {
+    if (!dynamic_text.empty() || !dynamic_metadata.empty()) {
         emit_format_helpers(writer);
     }
     unsigned ordinal = 0;
@@ -329,18 +352,18 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     unsigned next_id = 1;
     unsigned next_var = 1;
     std::string root_variable;
-    if (!emit_node(writer, component.root, component, adapters, dynamic_text, next_id, next_var,
-                   root_variable, error)) {
+    if (!emit_node(writer, component.root, component, adapters, dynamic_text, dynamic_metadata,
+                   next_id, next_var, root_variable, error)) {
         return false;
     }
     writer.line("parent.add_child(std::move(" + root_variable + "));");
-    if (!dynamic_text.empty()) {
+    if (!dynamic_text.empty() || !dynamic_metadata.empty()) {
         writer.line("apply_state();");
     }
     writer.close("");
     writer.line("");
-    if (!dynamic_text.empty()) {
-        if (!emit_apply_state(writer, component, dynamic_text, error)) {
+    if (!dynamic_text.empty() || !dynamic_metadata.empty()) {
+        if (!emit_apply_state(writer, component, dynamic_text, dynamic_metadata, error)) {
             return false;
         }
     } else {
@@ -381,7 +404,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
             }
             rest = rest.substr(newline + 1);
         }
-        if (!dynamic_text.empty()) {
+        if (!dynamic_text.empty() || !dynamic_metadata.empty()) {
             writer.line("apply_state();");
         }
         writer.close("");
@@ -412,7 +435,8 @@ bool emit_source(const ir::Component& component, std::string_view ns,
         emit_stub_body(writer, *binding, event_parameter ? param_name : std::string());
         writer.indent -= 1;
         writer.line("// [DEVELOPER_LOGIC_END: " + binding->id + "]");
-        if (!dynamic_text.empty() && event_parameter && binding->return_type.empty()) {
+        if ((!dynamic_text.empty() || !dynamic_metadata.empty()) && event_parameter &&
+            binding->return_type.empty()) {
             writer.line("apply_state();");
         }
         writer.close("");
@@ -443,12 +467,19 @@ bool emit_component(const ir::Component& component, std::string_view module_name
     if (!collect_dynamic_text(component.root, component, ordinal, dynamic_text, error)) {
         return false;
     }
+    ordinal = 0;
+    std::vector<DynamicMetadata> dynamic_metadata;
+    if (!collect_dynamic_metadata(component.root, component, ordinal, dynamic_metadata, error)) {
+        return false;
+    }
     GeneratedFile header;
-    if (!emit_component_header(component, module_namespace, owned, dynamic_text, header, error)) {
+    if (!emit_component_header(component, module_namespace, owned, dynamic_text, dynamic_metadata,
+                               header, error)) {
         return false;
     }
     GeneratedFile source;
-    if (!emit_source(component, module_namespace, owned, dynamic_text, source, error)) {
+    if (!emit_source(component, module_namespace, owned, dynamic_text, dynamic_metadata, source,
+                     error)) {
         return false;
     }
     files.push_back(std::move(header));

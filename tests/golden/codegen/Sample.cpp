@@ -57,11 +57,11 @@ namespace demo {
       // node::1 style.width="10px"
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
       node_1->set_element_kind("View");
-      node_1->set_element_id("root");
-      node_1->set_class_name("box");
+      meta_1_id_node_ = node_1.get();
+      meta_1_class_node_ = node_1.get();
+      meta_1_role_node_ = node_1.get();
+      meta_1_aria_aria_label_node_ = node_1.get();
       node_1->set_automation_id(1ull);
-      node_1->set_role("generic");
-      node_1->set_aria("aria-label", "root");
       // node::2 events={onClick:bind::on_click}
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
       node_2->set_element_kind("Button");
@@ -86,7 +86,7 @@ namespace demo {
     
     void Sample::apply_state() {
       std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
-      hash_3 = tessera::ui::effect_hash(hash_3, "Count: ");
+      hash_3 = tessera::ui::effect_hash(hash_3, std::string_view("Count: "));
       hash_3 = tessera::ui::effect_hash(hash_3, state_count_);
       if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
           text_node_3_hash_ = hash_3;
@@ -98,6 +98,74 @@ namespace demo {
           tessera::ui::PaintData paint_3;
           paint_3.text = text_node_3_value_;
           text_node_3_->set_paint_data(std::move(paint_3));
+      }
+      std::uint64_t meta_1_id_hash = tessera::ui::kEffectHashSeed;
+      meta_1_id_hash = tessera::ui::effect_hash(meta_1_id_hash, std::string_view("root-"));
+      meta_1_id_hash = tessera::ui::effect_hash(meta_1_id_hash, state_count_);
+      if (!meta_1_id_set_ || meta_1_id_hash != meta_1_id_hash_) {
+          meta_1_id_hash_ = meta_1_id_hash;
+          meta_1_id_set_ = true;
+          std::string next_meta_1_id;
+          next_meta_1_id += "root-";
+          next_meta_1_id += format_value(state_count_);
+          if (meta_1_id_value_ != next_meta_1_id) {
+            std::string previous_meta_1_id = std::move(meta_1_id_value_);
+            meta_1_id_value_ = std::move(next_meta_1_id);
+            meta_1_id_node_->set_element_id(meta_1_id_value_);
+            meta_1_id_node_->mark_dirty(tessera::ui::Dirty::Style);
+        }
+      }
+      std::uint64_t meta_1_class_hash = tessera::ui::kEffectHashSeed;
+      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("box "));
+      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, state_count_);
+      if (!meta_1_class_set_ || meta_1_class_hash != meta_1_class_hash_) {
+          meta_1_class_hash_ = meta_1_class_hash;
+          meta_1_class_set_ = true;
+          std::string next_meta_1_class;
+          next_meta_1_class += "box ";
+          next_meta_1_class += format_value(state_count_);
+          if (meta_1_class_value_ != next_meta_1_class) {
+            std::string previous_meta_1_class = std::move(meta_1_class_value_);
+            meta_1_class_value_ = std::move(next_meta_1_class);
+            meta_1_class_node_->set_class_name(meta_1_class_value_);
+            meta_1_class_node_->mark_dirty(tessera::ui::Dirty::Style);
+        }
+      }
+      std::uint64_t meta_1_role_hash = tessera::ui::kEffectHashSeed;
+      if (state_count_ == 0) {
+        meta_1_role_hash = tessera::ui::effect_hash(meta_1_role_hash, std::string_view("generic"));
+      } else {
+        meta_1_role_hash = tessera::ui::effect_hash(meta_1_role_hash, std::string_view("status"));
+      }
+      if (!meta_1_role_set_ || meta_1_role_hash != meta_1_role_hash_) {
+          meta_1_role_hash_ = meta_1_role_hash;
+          meta_1_role_set_ = true;
+          std::string next_meta_1_role;
+          if (state_count_ == 0) {
+            next_meta_1_role += format_value("generic");
+          } else {
+            next_meta_1_role += format_value("status");
+          }
+          if (meta_1_role_value_ != next_meta_1_role) {
+            std::string previous_meta_1_role = std::move(meta_1_role_value_);
+            meta_1_role_value_ = std::move(next_meta_1_role);
+            meta_1_role_node_->set_role(meta_1_role_value_);
+        }
+      }
+      std::uint64_t meta_1_aria_aria_label_hash = tessera::ui::kEffectHashSeed;
+      meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, std::string_view("label "));
+      meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, state_count_);
+      if (!meta_1_aria_aria_label_set_ || meta_1_aria_aria_label_hash != meta_1_aria_aria_label_hash_) {
+          meta_1_aria_aria_label_hash_ = meta_1_aria_aria_label_hash;
+          meta_1_aria_aria_label_set_ = true;
+          std::string next_meta_1_aria_aria_label;
+          next_meta_1_aria_aria_label += "label ";
+          next_meta_1_aria_aria_label += format_value(state_count_);
+          if (meta_1_aria_aria_label_value_ != next_meta_1_aria_aria_label) {
+            std::string previous_meta_1_aria_aria_label = std::move(meta_1_aria_aria_label_value_);
+            meta_1_aria_aria_label_value_ = std::move(next_meta_1_aria_aria_label);
+            meta_1_aria_aria_label_node_->set_aria("aria-label", meta_1_aria_aria_label_value_);
+        }
       }
     }
     

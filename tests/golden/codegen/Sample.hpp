@@ -29,6 +29,26 @@ namespace demo {
       std::string text_node_3_value_;
       std::uint64_t text_node_3_hash_ = 0;
       bool text_node_3_set_ = false;
+      // Interpolated `id` metadata; the component owns the string, the node borrows it.
+      tessera::ui::Node* meta_1_id_node_ = nullptr;
+      std::string meta_1_id_value_;
+      std::uint64_t meta_1_id_hash_ = 0;
+      bool meta_1_id_set_ = false;
+      // Interpolated `className` metadata; the component owns the string, the node borrows it.
+      tessera::ui::Node* meta_1_class_node_ = nullptr;
+      std::string meta_1_class_value_;
+      std::uint64_t meta_1_class_hash_ = 0;
+      bool meta_1_class_set_ = false;
+      // Interpolated `role` metadata; the component owns the string, the node borrows it.
+      tessera::ui::Node* meta_1_role_node_ = nullptr;
+      std::string meta_1_role_value_;
+      std::uint64_t meta_1_role_hash_ = 0;
+      bool meta_1_role_set_ = false;
+      // Interpolated `aria-label` metadata; the component owns the string, the node borrows it.
+      tessera::ui::Node* meta_1_aria_aria_label_node_ = nullptr;
+      std::string meta_1_aria_aria_label_value_;
+      std::uint64_t meta_1_aria_aria_label_hash_ = 0;
+      bool meta_1_aria_aria_label_set_ = false;
       // useEffect `effect::sync` state (deps hash, run counter, active flag).
       tessera::ui::EffectState effect_sync_state_;
       // prop `title`.
