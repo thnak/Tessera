@@ -5,6 +5,7 @@
 #include "tessera/compiler/lowering/name_resolver.hpp"
 #include "tessera/compiler/rules/component_analysis.hpp"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -34,6 +35,14 @@ public:
     // Adds a name that resolves to itself. Handler parameters are action locals, and they shadow
     // declarations of the same name.
     void add_local(std::string name);
+
+    // Scope support for the loop variables of slice 8: `local_count()` is a mark, and
+    // `truncate_locals(mark)` drops the names added since (the template of a `.map` loop sees its
+    // item and index; the code after the loop does not).
+    [[nodiscard]] std::size_t local_count() const {
+        return locals_.size();
+    }
+    void truncate_locals(std::size_t count);
 
     [[nodiscard]] std::optional<std::string> resolve(std::string_view source_name) const override;
 

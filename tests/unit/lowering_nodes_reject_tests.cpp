@@ -173,27 +173,13 @@ void test_children_rules() {
     check_eq(first_code(boundary_fragment_result), "TESSERA_IR_UNSUPPORTED", "the code");
 }
 
-void test_slice_8_and_11_boundaries() {
-    const auto conditional = parse(component("  const [flag, setFlag] = useState(true);\n",
-                                             "<View>{flag && <Text>a</Text>}</View>"));
-    const auto conditional_result = lower(*conditional);
-    check(!conditional_result.has_value(), "conditional rendering is slice 8");
-    check_eq(first_code(conditional_result), "TESSERA_IR_UNSUPPORTED", "the code");
-
-    const auto ternary = parse(component("  const [flag, setFlag] = useState(true);\n",
-                                         "<View>{flag ? <Text>a</Text> : <Text>b</Text>}</View>"));
-    const auto ternary_result = lower(*ternary);
-    check(!ternary_result.has_value(), "a ternary child is slice 8");
-    check_eq(first_code(ternary_result), "TESSERA_IR_UNSUPPORTED", "the code");
-
-    const auto loop = parse(component("", "<View>{items.map((row) => <View key=\"k\" />)}</View>"));
-    const auto loop_result = lower(*loop);
-    check(!loop_result.has_value(), "a list loop is slice 8");
-    check_eq(first_code(loop_result), "TESSERA_IR_UNSUPPORTED", "the code");
-
+void test_later_slice_boundaries() {
+    // Conditional children and `.map` loops are implemented in slice 8 (see the control tests);
+    // these two intrinsics still have no IR form.
     const auto virtual_list = parse(component("", "<VirtualList itemSize={10} />"));
     const auto virtual_list_result = lower(*virtual_list);
-    check(!virtual_list_result.has_value(), "a virtualized template is slice 8");
+    check(!virtual_list_result.has_value(),
+          "a virtualized template needs the itemTemplate field (Q9)");
     check_eq(first_code(virtual_list_result), "TESSERA_IR_UNSUPPORTED", "the code");
 
     const auto custom = parse(component("", "<CustomElement element=\"Waterfall\" />"));
@@ -236,7 +222,7 @@ int main() {
     test_spread_of_the_props_parameter();
     test_literal_only_props();
     test_children_rules();
-    test_slice_8_and_11_boundaries();
+    test_later_slice_boundaries();
     test_first_error_only_and_no_partial_component();
     test_analysis_failure_is_not_lowered();
     return finish("lowering nodes reject tests");

@@ -143,6 +143,13 @@ inline void append_node(const ir::Node& node, std::string& out) {
     if (node.key) {
         out += " key=" + expr_text(node.key.get());
     }
+    if (node.condition) {
+        out += " if=" + expr_text(node.condition.get());
+    }
+    if (node.loop) {
+        out += " loop item=" + node.loop->item + " index=" + node.loop->index +
+               " source=" + expr_text(node.loop->source.get());
+    }
     for (const auto& [name, value] : node.props) {
         out += " prop " + name + "=" + expr_text(value.get());
     }

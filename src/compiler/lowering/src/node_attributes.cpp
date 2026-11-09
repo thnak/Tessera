@@ -79,6 +79,11 @@ bool is_string_literal(const ir::Expr& expr) {
 
 bool apply_expression_attribute(NodeState& state, const ElementInfo& element, std::string_view name,
                                 const jsx::Expr& value, jsx::Span span, ir::Node& node) {
+    if (classify_control(value) != ControlKind::None) {
+        fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                  "a conditional or list loop cannot be an attribute value (slice 8)", span);
+        return false;
+    }
     const AttributeInfo info = resolve_attribute(element, name);
     switch (info.kind) {
     case AttributeInfo::Kind::Event:

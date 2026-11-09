@@ -29,6 +29,7 @@ struct NodeState {
     ComponentNames names;
     std::optional<jsx::Diagnostic> error; // the first error; later reports are ignored
     unsigned next_node_id = 1;            // `node::N`, pre-order per component (decision 2)
+    unsigned loop_depth = 0;              // enclosing `.map` loops; at most 2 (ir-v1 section 5)
 };
 
 // Reports a TESSERA_IR_* error at `span` unless one was already reported. The diagnostic keeps a
@@ -96,5 +97,20 @@ struct AttributeInfo {
 
 // The shortest text of `value` for a px value ("14", "0.5"), or null when it is not finite.
 [[nodiscard]] std::optional<std::string> px_text(double value);
+
+// Slice 8: the two control forms that a JSX child can have (docs/specs/jsx-subset-v1.md sections
+// 10.4 and 10.5). `None` means an ordinary expression or element child.
+enum class ControlKind : std::uint8_t { None, Conditional, Loop };
+[[nodiscard]] ControlKind classify_control(const jsx::Expr& expr);
+
+// Lowers one conditional or loop child into one or more sibling nodes, in source order:
+// - `c && <A/>`                 -> A with `condition` = c
+// - `c ? <A/> : <B/>`           -> A with `condition` = c, then B with `condition` = !c
+// - `c ? <A/> : null|false`     -> A with `condition` = c
+// - `c ? null|false : <B/>`     -> B with `condition` = !c
+// - `items.map(item => <A/>)`   -> A with `loop` and the `key` expression of the element.
+// Node ids are assigned in source order for every branch whether or not it is taken at run time.
+[[nodiscard]] bool lower_control_child(NodeState& state, const jsx::Expr& expr,
+                                       std::vector<ir::Node>& nodes);
 
 } // namespace tessera::compiler::lowering::internal

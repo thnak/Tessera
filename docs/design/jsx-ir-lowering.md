@@ -2,8 +2,9 @@
 
 Status: slices 1 to 3 are implemented (IR model and writer, IR validator, analysis skeleton; see
 "Slice 3 status" below), slice 5 (expression lowering), slice 6 (hooks and bindings), slice 7 (JSX
-nodes) and slice 12 (the shared schema table) are implemented as well — see their status sections.
-`src/compiler/codegen/` is still an empty folder. The input is the parser of
+nodes), slice 8 (conditionals and list loops) and slice 12 (the shared schema table) are implemented
+as well — see their status sections. `src/compiler/codegen/` is still an empty folder. The input is
+the parser of
 [`jsx-frontend.md`](jsx-frontend.md); the output is the IR of [`ir-v1.md`](../specs/ir-v1.md)
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md)). The accepted source forms are in
 [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) (the "subset spec"); this note links to its
@@ -344,6 +345,53 @@ Tests are `lowering_nodes` (one fixture per construct in the table above), `lowe
 (every rejection and slice boundary, first-error-only, no partial component) and
 `lowering_nodes_determinism` (twice and on eight threads), plus the updated `lowering_layering`.
 
+### Slice 8 status (conditionals and list loops)
+
+The public API is unchanged: conditionals and loops are child forms inside `lower_component`. A
+control child contributes sibling nodes to the parent:
+
+| Source | IR |
+|---|---|
+| `{c && <A/>}` | `A` with `condition` = c |
+| `{c ? <A/> : <B/>}` | two siblings: `A` with `condition` = c, then `B` with `condition` = `!c` (the test is lowered twice; it is pure) |
+| `{c ? <A/> : null}` / `: false` | `A` with `condition` = c |
+| `{c ? null : <B/>}` | `B` with `condition` = `!c` |
+| `{c ? "a" : "b"}` (no JSX branch) | not a control child: a normal text-run expression, so a template part with a `conditional` Expression |
+| `{list.map((item[, index]) => <T key={...}/>)}` | the template node `T` with `loop` (`item`, `index` when written, `source`) and the `key` Expression of its `key` attribute |
+
+**Ids.** `node::N` is assigned statically in source pre-order over every branch and loop template;
+a branch that is not taken at run time still gets its ids, and reconsidering the same source gives
+the same ids. Handlers in different branches or loop bodies are separate `handler::N` records and
+are never reused. Conditional and loop children compose with slice 7: attributes, style, events,
+text runs and nested conditionals inside a branch or template lower exactly as static nodes do.
+
+**Loop variables.** The callback's item (and optional index) are resolver locals for the whole
+template subtree, including `key`, attributes, text and nested control children; they shadow outer
+names (decision 8). The `.map` receiver must lower to a list `ref` (a list name); an arbitrary
+expression is `TESSERA_IR_UNSUPPORTED`. Nested loops are allowed up to depth 2 (ir-v1 section 5).
+The root element of the callback must have `key={...}`; the parser already reports
+`TESSERA_REACT_LIST_KEY`, so the lowering check is defensive.
+
+**Rejected at lowering** (first error only): a conditional whose two branches are not both
+element/null/false (`TESSERA_IR_UNSUPPORTED`), a fragment branch, `||` rendering, a conditional or
+loop in attribute position, a conditional or loop under `Text`, `ErrorBoundary` or a leaf element, a
+loop source that is not a ref, and nesting deeper than 2. **Rejected by the parser before
+lowering** (so the matching lowering checks are defensive): `async` callbacks, destructuring or
+zero/three callback parameters, a non-arrow or additional callback argument, a block or
+non-element body, a missing key, and every array method other than `.map` (`flatMap`, `filter`,
+...).
+
+Not in slice 8: `VirtualList`/`VirtualGrid` item templates (they need the `itemTemplate` IR field
+that ir-v1 does not have yet, Q9, so those elements stay rejected); component references (slice 9);
+the type table (slice 4), so conditions and keys are not type-checked and `key` placement outside a
+loop is still not validated; custom elements (slice 11); alias resolution (slice 13).
+
+Tests are `lowering_control` (one fixture per row above, ids across branches, handler numbering
+across branches, loops in conditionals and conditionals in loops, text conditionals),
+`lowering_control_reject` (each lowering-level rejection and first-error-only) and
+`lowering_control_determinism` (twice, and eight threads on a fixture with both forms);
+`lowering_nodes_reject` was updated because its slice-8 boundary cases are now implemented.
+
 ## 4. Spans and diagnostics
 
 - The AST keeps `Span` (byte offset and length). Lowering needs the file's `SourceMap` and the
@@ -463,7 +511,7 @@ Each slice is behavior, tests and docs, committed on its own.
    bindings and their spans.
 7. **Lowering of nodes (done).** Intrinsic kinds, attributes, text, children, fragments, events,
    `style`, `className`, `ref` targets.
-8. **Conditionals and loops.**
+8. **Conditionals and loops (done).**
 9. **Components across files.** Imports, references, cycles, prop checks; `LoweringOptions`.
 10. **Identity.** `uiId`, `componentId`, automation manifest, collision errors (after decision 1).
 11. **Library and custom elements.** Hook manifest reader, `environment`, `ui/elements.json`.

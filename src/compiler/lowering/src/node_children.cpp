@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Children of slice 7 (docs/specs/jsx-subset-v1.md sections 10.4 and 10.5, elements-basic.md
+// Children of slices 7 and 8 (docs/specs/jsx-subset-v1.md sections 10.4 and 10.5, elements-basic.md
 // section 0): fragments splice, text runs become the node `text`/`props.label` or synthetic `Text`
-// children, and the schema children rule of the element decides what is accepted. Conditional
-// rendering and `.map` loops are slice 8 and are reported as such.
+// children, conditional children contribute one or two conditional sibling nodes, and a `.map`
+// child contributes the loop template node. The schema children rule of the element decides what
+// is accepted.
 
 #include "node_lowering_internal.hpp"
 
@@ -17,22 +18,15 @@ namespace tessera::compiler::lowering::internal {
 namespace {
 
 struct ChildItem {
-    enum class Kind { Text, Expression, Element };
+    enum class Kind { Text, Expression, Element, Conditional, Loop };
 
     Kind kind = Kind::Text;
     const jsx::JsxNode* node = nullptr; // Text node, expression container or element
-    const jsx::Expr* expr = nullptr;    // Expression kind only
+    const jsx::Expr* expr = nullptr;    // Expression, Conditional and Loop kinds
 };
 
-bool is_conditional_or_loop(const jsx::Expr& expr) {
-    if (expr.kind == jsx::ExprKind::Conditional) {
-        return true;
-    }
-    if (expr.kind == jsx::ExprKind::Binary && (expr.text == "&&" || expr.text == "||")) {
-        return true;
-    }
-    return expr.kind == jsx::ExprKind::Call && !expr.operands.empty() && expr.operands[0] &&
-           expr.operands[0]->kind == jsx::ExprKind::Member && expr.operands[0]->text == "map";
+bool is_run_item(const ChildItem& item) {
+    return item.kind == ChildItem::Kind::Text || item.kind == ChildItem::Kind::Expression;
 }
 
 bool flatten_children(NodeState& state, const jsx::JsxNode& parent, std::vector<ChildItem>& items,
@@ -64,10 +58,14 @@ bool flatten_children(NodeState& state, const jsx::JsxNode& parent, std::vector<
             if (expr.kind == jsx::ExprKind::Boolean || expr.kind == jsx::ExprKind::Null) {
                 break; // renders nothing and does not break a run (elements-basic.md section 0)
             }
-            if (is_conditional_or_loop(expr)) {
-                fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                          "conditional rendering and list loops are slice 8", expr.span);
-                return false;
+            const ControlKind control = classify_control(expr);
+            if (control == ControlKind::Conditional) {
+                items.push_back(ChildItem{ChildItem::Kind::Conditional, child.get(), &expr});
+                break;
+            }
+            if (control == ControlKind::Loop) {
+                items.push_back(ChildItem{ChildItem::Kind::Loop, child.get(), &expr});
+                break;
             }
             if (expr.kind == jsx::ExprKind::Jsx) {
                 if (!expr.jsx) {
@@ -167,13 +165,33 @@ bool flush_run(NodeState& state, const std::vector<const ChildItem*>& run, ir::N
     return true;
 }
 
-// View and Button with element children: every run becomes one synthetic Text child in source
-// order (decision 11); element children are lowered in place.
+// Appends one element, conditional or loop item to `parent`; false on error.
+bool append_node_item(NodeState& state, const ChildItem& item, ir::Node& parent) {
+    if (item.kind == ChildItem::Kind::Element) {
+        std::optional<ir::Node> child = make_node(state, *item.node);
+        if (!child) {
+            return false;
+        }
+        parent.children.push_back(std::move(*child));
+        return true;
+    }
+    std::vector<ir::Node> produced;
+    if (!lower_control_child(state, *item.expr, produced)) {
+        return false;
+    }
+    for (ir::Node& node : produced) {
+        parent.children.push_back(std::move(node));
+    }
+    return true;
+}
+
+// View and Button with element or control children: every run becomes one synthetic Text child in
+// source order (decision 11); element and control children are lowered in place.
 bool append_runs_and_elements(NodeState& state, const std::vector<ChildItem>& items,
                               ir::Node& parent) {
     std::vector<const ChildItem*> run;
     for (const ChildItem& item : items) {
-        if (item.kind != ChildItem::Kind::Element) {
+        if (is_run_item(item)) {
             run.push_back(&item);
             continue;
         }
@@ -181,21 +199,19 @@ bool append_runs_and_elements(NodeState& state, const std::vector<ChildItem>& it
             return false;
         }
         run.clear();
-        std::optional<ir::Node> child = make_node(state, *item.node);
-        if (!child) {
+        if (!append_node_item(state, item, parent)) {
             return false;
         }
-        parent.children.push_back(std::move(*child));
     }
     return flush_run(state, run, parent);
 }
 
 bool lower_text_children(NodeState& state, const std::vector<ChildItem>& items, ir::Node& node) {
     for (const ChildItem& item : items) {
-        if (item.kind == ChildItem::Kind::Element) {
+        if (!is_run_item(item)) {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                      "`<Text>` accepts one text run; an element child is not supported (subset "
-                      "10.4)",
+                      "`<Text>` accepts one text run; an element, conditional or loop child is "
+                      "not supported (subset 10.4)",
                       item.node->span);
             return false;
         }
@@ -215,9 +231,8 @@ bool lower_text_children(NodeState& state, const std::vector<ChildItem>& items, 
 }
 
 bool lower_button_children(NodeState& state, const std::vector<ChildItem>& items, ir::Node& node) {
-    const bool has_element = std::any_of(items.begin(), items.end(), [](const ChildItem& item) {
-        return item.kind == ChildItem::Kind::Element;
-    });
+    const bool has_element = std::any_of(items.begin(), items.end(),
+                                         [](const ChildItem& item) { return !is_run_item(item); });
     if (has_element) {
         return append_runs_and_elements(state, items, node);
     }
@@ -246,9 +261,11 @@ bool lower_children(NodeState& state, const jsx::JsxNode& element, const Element
                     ir::Node& node) {
     const schema::ChildrenKind kind = info.row->children;
     if (kind == schema::ChildrenKind::Template) {
+        // The virtualized item template needs the `itemTemplate` IR field that ir-v1 does not have
+        // yet (Q9 of jsx-intrinsics-v1).
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
                   "`<" + std::string(element.tag) +
-                      ">` needs a `.map` item template, which is slice 8",
+                      ">` needs the `itemTemplate` IR field, which ir-v1 does not have yet (Q9)",
                   element.span);
         return false;
     }
@@ -276,22 +293,30 @@ bool lower_children(NodeState& state, const jsx::JsxNode& element, const Element
         return append_runs_and_elements(state, items, node);
     case schema::ChildrenKind::Nodes: {
         for (const ChildItem& item : items) {
-            if (item.kind != ChildItem::Kind::Element) {
+            if (is_run_item(item)) {
                 fail_node(state, "TESSERA_IR_UNSUPPORTED",
                           "`<" + std::string(element.tag) +
                               ">` accepts element children only; wrap text in `<Text>`",
                           item.node->span);
                 return false;
             }
-            std::optional<ir::Node> child = make_node(state, *item.node);
-            if (!child) {
+            if (!append_node_item(state, item, node)) {
                 return false;
             }
-            node.children.push_back(std::move(*child));
         }
         return true;
     }
     case schema::ChildrenKind::One: {
+        for (const ChildItem& item : items) {
+            if (item.kind == ChildItem::Kind::Conditional || item.kind == ChildItem::Kind::Loop) {
+                fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                          "`<" + std::string(element.tag) +
+                              ">` does not accept conditional or loop children "
+                              "(elements-other.md section 4)",
+                          item.node->span);
+                return false;
+            }
+        }
         if (items.size() != 1 || items.front().kind != ChildItem::Kind::Element) {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
                       "`<" + std::string(element.tag) + ">` needs exactly one element child",

@@ -7,6 +7,7 @@ add_library(tessera_lowering STATIC
     src/binding_lowering.cpp
     src/call_lowering.cpp
     src/component_names.cpp
+    src/control_lowering.cpp
     src/event_lowering.cpp
     src/expression_lowering.cpp
     src/handler_actions.cpp

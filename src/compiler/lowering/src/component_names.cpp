@@ -42,6 +42,12 @@ void ComponentNames::add_local(std::string name) {
     locals_.push_back(std::move(name));
 }
 
+void ComponentNames::truncate_locals(std::size_t count) {
+    if (count < locals_.size()) {
+        locals_.resize(count);
+    }
+}
+
 std::optional<std::string> ComponentNames::resolve(std::string_view source_name) const {
     for (const std::string& local : locals_) {
         if (local == source_name) {
