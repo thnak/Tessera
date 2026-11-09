@@ -39,9 +39,8 @@ set.
   replay, frames-in-flight slots (`include/tessera/rendering/gpu/`).
 - Null backend and CPU canvas for deterministic tests; lavapipe/CPU pixel goldens; image diff.
 - Box paint pass (style -> quads) wired into `FramePipeline::paint_frame` when a frame is due.
-- Gaps relevant here: no vector paths, no text-in-paint, no sRGB policy, no device-loss
-  recovery, no depth/index/compute in the RHI, WebGPU backend empty, present-path damage/VRR
-  absent.
+- Gaps relevant here: no vector paths, no depth/index/compute in the RHI, WebGPU backend empty,
+  present-path damage/VRR absent. (sRGB policy and paint-time text landed: D2/D9.)
 
 ## 3. Decisions
 
@@ -58,6 +57,7 @@ the release gates enforce; they can be revisited by the owner without changing t
 | D6 | **Text AA stays coverage-based** (glyph atlas, 8-bit coverage); an SDF atlas is optional P1 for scaling, not a production blocker. | No license impact. |
 | D7 | **Device loss is a production requirement**: explicit recoverable failure, no UI-thread indefinite waits; device-loss UX policy can stay minimal (recreate device once, surface error). | No license impact. |
 | D8 | **Correctness gates**: validation-layer-clean debug runs, bit-exact software goldens, damage-redraw equivalence, resize/DPI tests. | No license impact. |
+| D9 | **Text paint payload (Lead engineering default, owner-reviewable).** Scene nodes carry an optional `ui::PaintData` text payload (content + minimal font/color descriptor); visual properties keep coming from computed style. Rationale: no full text-node model in V1, layout and style stay authoritative, and the decision is reversible when rich text lands. | No license impact; keeps text drawing on the existing shaped-text/atlas path. |
 
 Open questions that stay parked (not production blockers): VRR capability APIs, HDR/linear color,
 custom-element 3D depth ordering, native Dawn feature floor, ICU data subset. Their features stay
@@ -67,12 +67,13 @@ out of the release until decided.
 
 ### P0 — production blockers
 
-1. **Paint completeness**: damage-clipped paint via `RedrawPlan` (task-4); text runs in the paint
-   pass (needs a scene paint-data decision: text content/visual props on nodes); clipping/rounded
+1. **Paint completeness — done**: damage-clipped paint via `RedrawPlan`; text runs in the paint
+   pass via the D9 `ui::PaintData` payload (`PaintSink::draw_text` -> `TextRenderer`); rounded
    clip intersection with the scissor stack.
 2. **Present correctness**: swapchain present/damage-free path on Win32/X11 already renders and
-   presents; device-loss recovery (in progress, D7), bounded acquire/present policy tests, and
-   swapchain image lifetime checks under validation.
+   presents; device-loss detection + one-shot recovery and runtime-loop orchestration landed
+   (D7), bounded acquire/present policy tests, and swapchain image lifetime checks under
+   validation.
 3. **Color policy (D2) — done**: sRGB texture/render-target/swapchain formats in the RHI, the
    plain-data swapchain preference policy (sRGB surfaces first, UNORM fallback), documented
    encoded-space blending approximation; deterministic golden paths stay UNORM so existing CPU and

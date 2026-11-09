@@ -142,7 +142,7 @@ This page is the map and reading order for the framework.
 
 - [`design/renderer.md`](design/renderer.md) — B1 renderer summary, batched 2D, Vulkan backend
 - [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border
-  quads, source coordinates, sink seam, limits
+  quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits
 - [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
   static-linking and license gates, rendering workstreams, dependency matrix
 - [`design/thorvg-spike.md`](design/thorvg-spike.md) — ThorVG P1 spike: pinned bring-up,
@@ -164,7 +164,7 @@ This page is the map and reading order for the framework.
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
-- [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas
+- [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs
 - [`design/animation.md`](design/animation.md) — transitions, keyframes, springs, fixed-step
   sampling
 - [`design/animation-runtime.md`](design/animation-runtime.md) — implemented runtime: module map,
@@ -386,7 +386,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage + analytic rounded-rect clip intersection with a scissor fast path; MSAA 4x in progress; no path AA for geometry edges |
 | Vector paths (ThorVG, D1) | P1 implemented behind `TESSERA_ENABLE_THORVG` (default OFF; meson-only upstream so a CMake wrapper compiles pinned v1.1.3 sources): `rendering::PathRasterizer` + null backend, bounded `PathTextureCache` (rasterize -> RHI texture, D7-aware), static SVG decode into path geometry, deterministic goldens; next is the scene `Path`/`Image` node and asset packaging ([spike](design/thorvg-spike.md), [plan](design/rendering-production-plan.md)) |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
-| Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due, damage-clipped via the redraw plan, `overflow`/border-radius children clipped with rounded-rect clip intersection; text runs pending ([design](design/paint-pass.md)) |
+| Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due, damage-clipped via the redraw plan, `overflow`/border-radius children clipped with rounded-rect clip intersection, text runs from `ui::PaintData` through `PaintSink::draw_text`/`TextRenderer` (D9) ([design](design/paint-pass.md)) |
 | Protected-region merger | B1 prototype |
 | JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; lowering covers expressions, hooks/bindings, nodes, conditionals/loops and components/imports; IR writer/validator coverage and C++ codegen pending ([design](design/jsx-ir-lowering.md)) |
 | Stylesheet engine | B2 implemented ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |

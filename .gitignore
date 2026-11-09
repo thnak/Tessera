@@ -69,3 +69,6 @@ desktop.ini
 .env
 .env.*
 !.env.example
+
+# Python bytecode from the stdlib-only gate scripts
+__pycache__/
