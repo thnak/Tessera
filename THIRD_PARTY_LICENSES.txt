@@ -131,7 +131,7 @@ sqlite3
 
 ThorVG
   License: MIT
-  Copyright: ThorVG contributors
+  Copyright: 2020 - 2026 ThorVG Project
 
 Tracy
   License: BSD-3-Clause
