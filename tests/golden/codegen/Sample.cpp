@@ -8,9 +8,9 @@
 
 namespace demo {
   namespace gen {
-    // TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, ref-target
-    // assignment and animated/effect lifecycle invocation (docs/design/compiler.md section
-    // 11). Inline style is recorded in the node comments below until it lands.
+    // TODO(tessera-codegen): the remaining runtime API gap is inline style attachment
+    // (docs/design/compiler.md section 11); style values are recorded in the node
+    // comments below until it lands.
     
     namespace {
       void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
