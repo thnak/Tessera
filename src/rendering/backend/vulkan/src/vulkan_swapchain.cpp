@@ -262,10 +262,14 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
     }
     const VkPresentModeKHR present_mode = choose_present_mode(present_modes, desc_.vsync);
 
+    // maxImageCount == 0 means "no upper bound". Using the requested count as the upper bound
+    // there made std::clamp's low bound exceed its high bound whenever the surface required more
+    // images than requested (lavapipe reports minImageCount 3 with an unbounded maximum), which is
+    // undefined behaviour and produced a 2-image swapchain that failed validation.
     const std::uint32_t min_images = std::max(capabilities.minImageCount, 2U);
     const std::uint32_t requested_images = std::max(desc_.image_count, 2U);
     const std::uint32_t max_images = capabilities.maxImageCount == 0
-                                         ? requested_images
+                                         ? std::numeric_limits<std::uint32_t>::max()
                                          : std::max(capabilities.maxImageCount, min_images);
     const std::uint32_t image_count = std::clamp(requested_images, min_images, max_images);
 
