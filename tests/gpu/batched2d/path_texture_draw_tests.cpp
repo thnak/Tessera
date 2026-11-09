@@ -11,6 +11,7 @@
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/path/path_texture_cache.hpp"
 #include "tessera/rendering/path/path_texture_key.hpp"
+#include "tessera/rendering/path/svg_loader.hpp"
 
 #ifdef TESSERA_TEST_HAS_VULKAN
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -24,8 +25,11 @@
 #include <cstdint>
 #include <exception>
 #include <expected>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -99,6 +103,22 @@ private:
 [[nodiscard]] path::PathTextureKey box_key(std::uint64_t id, std::uint32_t scale_milli,
                                            const path::PathShape& shape) {
     return path::make_path_texture_key(id, 1, kBox, kBox, scale_milli, shape);
+}
+
+[[nodiscard]] std::vector<std::uint8_t> read_svg_fixture() {
+    // The fixture directory is derived from this source file (CMake compiles with an absolute
+    // path), so the test needs no extra compile definition and works from any build directory and
+    // from a clean-checkout worktree.
+    const std::filesystem::path source(__FILE__);
+    const std::filesystem::path path =
+        source.parent_path().parent_path().parent_path() / "fixtures" / "svg" / "stroke_path.svg";
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        std::cerr << "path_texture_draw: cannot open " << path.string() << "\n";
+        return {};
+    }
+    return std::vector<std::uint8_t>(std::istreambuf_iterator<char>(input),
+                                     std::istreambuf_iterator<char>());
 }
 
 // Null-device cover: the cached texture reaches batched2d's textured-quad path exactly once.
@@ -287,6 +307,21 @@ bool vk_pixels_near(const std::vector<std::uint8_t>& pixels, const std::array<in
     return true;
 }
 
+[[nodiscard]] bool vk_pixel_near(const std::vector<std::uint8_t>& pixels, std::uint32_t x,
+                                 std::uint32_t y, const std::array<int, 4>& expected,
+                                 int tolerance) {
+    const std::size_t offset = (static_cast<std::size_t>(y) * kBox + x) * 4U;
+    if (offset + 3U >= pixels.size()) {
+        return false;
+    }
+    for (std::size_t channel = 0; channel < 4; ++channel) {
+        if (std::abs(static_cast<int>(pixels[offset + channel]) - expected[channel]) > tolerance) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool vulkan_draw() {
     rhi::DeviceDesc device_desc;
     device_desc.backend = rhi::Backend::Vulkan;
@@ -380,12 +415,103 @@ bool vulkan_draw() {
 
 #endif // TESSERA_TEST_HAS_VULKAN
 
+// End-to-end SVG asset path: decode -> rasterize -> cache -> textured quad. The null-device
+// assertions run in every configuration; the readback pixels run when Vulkan is part of the build.
+bool svg_end_to_end() {
+    const auto bytes = read_svg_fixture();
+    if (!expect(!bytes.empty(), "SVG fixture is readable")) {
+        return false;
+    }
+    const auto document = path::load_svg(std::span<const std::uint8_t>(bytes.data(), bytes.size()));
+    if (!path::svg_backend_available()) {
+        return expect(!document.has_value() &&
+                          document.error() == path::SvgError::backend_unavailable,
+                      "ThorVG OFF returns backend_unavailable from the SVG API (no link error)");
+    }
+    if (!expect(document.has_value(), "SVG fixture decodes")) {
+        return false;
+    }
+    if (!expect(document->width == kBox && document->height == kBox && document->shapes.size() == 1,
+                "SVG fixture decodes one 64x64 shape")) {
+        return false;
+    }
+
+    auto rasterizer = path::make_path_rasterizer(path::PathBackend::thorvg);
+    if (!expect(rasterizer != nullptr, "ThorVG rasterizer is available for the SVG path")) {
+        return false;
+    }
+    const auto& shape = document->shapes[0];
+    const auto key =
+        path::make_path_texture_key(7, 1, document->width, document->height, 1000, shape);
+
+    auto null_device = tessera::rendering::null::create_null_device(rhi::DeviceDesc{});
+    path::PathTextureCache null_cache(*null_device, *rasterizer, {});
+    const auto cached = null_cache.acquire(key, shape);
+    bool ok = expect(cached.has_value() && cached->texture != nullptr,
+                     "SVG path uploads through the texture cache");
+    if (ok) {
+        auto target = null_device->create_render_target(rhi::RenderTargetDesc{{kBox, kBox}});
+        auto white = null_device->create_texture(rhi::TextureDesc{{1, 1}});
+        auto pipeline = null_device->create_pipeline(rhi::PipelineDesc{});
+        auto commands = null_device->create_command_list();
+        ok = expect(target && white && pipeline && commands, "null device draw resources") && ok;
+        if (ok) {
+            tessera::rendering::gpu::Batched2DRenderer renderer(*null_device, *pipeline, *white);
+            const rhi::RenderTargetDesc desc{{kBox, kBox}};
+            renderer.begin(*commands, *target, desc);
+            renderer.push_texture({0.0f, 0.0f, static_cast<float>(kBox), static_cast<float>(kBox)},
+                                  *cached->texture, {0.0f, 0.0f, 1.0f, 1.0f},
+                                  rhi::rgba8(255, 255, 255));
+            renderer.end();
+            commands->submit();
+            auto* null_commands =
+                dynamic_cast<tessera::rendering::null::NullCommandList*>(commands.get());
+            ok = expect(null_commands != nullptr && null_commands->stats().draws == 1 &&
+                            null_commands->stats().vertices == 6 &&
+                            null_commands->stats().texture_binds >= 1,
+                        "SVG texture draws as one 6-vertex textured quad") &&
+                 ok;
+        }
+    }
+
+#ifdef TESSERA_TEST_HAS_VULKAN
+    rhi::DeviceDesc device_desc;
+    device_desc.backend = rhi::Backend::Vulkan;
+    std::unique_ptr<rhi::Device> device;
+    try {
+        device = tessera::rendering::vulkan::create_vulkan_device(device_desc);
+    } catch (const std::exception& error) {
+        std::cout << "path_texture_draw: SVG Vulkan readback skipped (" << error.what() << ")\n";
+        return ok;
+    }
+    path::PathTextureCache cache(*device, *rasterizer, {});
+    const auto uploaded = cache.acquire(key, shape);
+    if (!expect(uploaded.has_value(), "Vulkan: SVG path texture uploads")) {
+        return false;
+    }
+    const RenderSpec spec;
+    const auto first = render_and_readback(*device, *uploaded->texture, spec);
+    const auto second = render_and_readback(*device, *uploaded->texture, spec);
+    // stroke_path.svg: #2e8b57 triangle at fill-opacity 0.75 over an opaque black clear.
+    const std::array<int, 4> inside = {static_cast<int>(std::lround(46.0 * 191.0 / 255.0)),
+                                       static_cast<int>(std::lround(139.0 * 191.0 / 255.0)),
+                                       static_cast<int>(std::lround(87.0 * 191.0 / 255.0)), 255};
+    ok = expect(vk_pixel_near(first, 40, 20, inside, 2),
+                "Vulkan: SVG fill pixel matches the decoded fill/alpha") &&
+         expect(vk_pixel_near(first, 4, 50, {0, 0, 0, 255}, 0),
+                "Vulkan: SVG pixel outside the triangle is the clear color") &&
+         expect(first == second, "Vulkan: two SVG renders are byte-identical") && ok;
+#endif
+    return ok;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     const bool measure = argc > 1 && std::string_view(argv[1]) == "--measure";
     bool ok = true;
     ok = null_device_draw() && ok;
+    ok = svg_end_to_end() && ok;
 #ifdef TESSERA_TEST_HAS_VULKAN
     if (measure) {
         rhi::DeviceDesc device_desc;

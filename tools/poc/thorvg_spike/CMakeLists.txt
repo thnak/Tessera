@@ -21,4 +21,12 @@ if (TESSERA_BUILD_TESTS)
     add_test(
         NAME thorvg_spike_golden
         COMMAND thorvg_spike --compare ${PROJECT_SOURCE_DIR}/tests/golden/thorvg/icons.png)
+    # SVG decode -> path geometry -> rasterize -> PNG golden (deliberate update: regenerate with
+    # `thorvg_spike --svg tests/fixtures/svg/icon_shapes.svg --out tests/golden/thorvg/svg_icon.png`
+    # and eyeball the diff; the golden is deterministic, so a diff is a real behavior change).
+    add_test(
+        NAME thorvg_svg_golden
+        COMMAND thorvg_spike
+            --svg ${PROJECT_SOURCE_DIR}/tests/fixtures/svg/icon_shapes.svg
+            --compare ${PROJECT_SOURCE_DIR}/tests/golden/thorvg/svg_icon.png)
 endif()

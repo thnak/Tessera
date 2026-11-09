@@ -13,22 +13,26 @@ struct Options {
     std::string out = "thorvg_spike.png";
     std::string raw;
     std::string compare;
+    std::string svg;
     std::uint32_t width = 512;
     std::uint32_t height = 512;
     std::uint32_t tolerance = 0;
     double max_mismatch = 0.0;
+    double svg_scale = 1.0;
     bool help = false;
 };
 
 inline void print_usage() {
     std::cout
         << "usage: thorvg_spike [--backend thorvg|null] [--out path] [--raw path]\n"
-           "                     [--compare golden.png] [--width N] [--height N]\n"
-           "                     [--tolerance N] [--max-mismatch ratio]\n"
+           "                     [--compare golden.png] [--svg icon.svg [--svg-scale N]]\n"
+           "                     [--width N] [--height N] [--tolerance N]\n"
+           "                     [--max-mismatch ratio]\n"
            "\n"
            "Renders the representative icon/chart path set through the PathRasterizer seam\n"
-           "and writes a PNG. With --compare, exits non-zero when the image differs from the\n"
-           "golden beyond the tolerance.\n";
+           "and writes a PNG. With --svg, decodes a static SVG into path geometry first (the\n"
+           "raster size follows the document, scaled by --svg-scale). With --compare, exits\n"
+           "non-zero when the image differs from the golden beyond the tolerance.\n";
 }
 
 // Returns false on a malformed command line; --help sets options.help and returns true.
@@ -47,6 +51,10 @@ inline bool parse_options(int argc, char** argv, Options& options) {
             options.raw = argv[++i];
         } else if (arg == "--compare" && i + 1 < argc) {
             options.compare = argv[++i];
+        } else if (arg == "--svg" && i + 1 < argc) {
+            options.svg = argv[++i];
+        } else if (arg == "--svg-scale" && i + 1 < argc) {
+            options.svg_scale = std::stod(argv[++i]);
         } else if (arg == "--width" && i + 1 < argc) {
             options.width = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--height" && i + 1 < argc) {

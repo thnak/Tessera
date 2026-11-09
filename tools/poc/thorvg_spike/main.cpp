@@ -8,14 +8,17 @@
 #include "scene.hpp"
 #include "tessera/rendering/golden/image_diff.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
+#include "tessera/rendering/path/svg_loader.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <string>
@@ -51,6 +54,51 @@ constexpr Rgba8 kBackground{16, 22, 34, 255};
         return "backend_failure";
     }
     return "unknown";
+}
+
+[[nodiscard]] std::string_view svg_error_name(tessera::rendering::path::SvgError error) noexcept {
+    using tessera::rendering::path::SvgError;
+    switch (error) {
+    case SvgError::invalid_argument:
+        return "invalid_argument";
+    case SvgError::input_too_large:
+        return "input_too_large";
+    case SvgError::malformed:
+        return "malformed";
+    case SvgError::unsupported:
+        return "unsupported";
+    case SvgError::limit_exceeded:
+        return "limit_exceeded";
+    case SvgError::backend_unavailable:
+        return "backend_unavailable";
+    case SvgError::backend_failure:
+        return "backend_failure";
+    }
+    return "unknown";
+}
+
+[[nodiscard]] std::vector<std::uint8_t> read_file(const std::string& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        return {};
+    }
+    return std::vector<std::uint8_t>(std::istreambuf_iterator<char>(input),
+                                     std::istreambuf_iterator<char>());
+}
+
+// The seam has no transform stack; the spike scales a decoded document for 2x rasterization.
+void scale_shapes(std::vector<tessera::rendering::path::PathShape>& shapes, float scale) {
+    using tessera::rendering::path::PathSegment;
+    for (tessera::rendering::path::PathShape& shape : shapes) {
+        for (PathSegment& segment : shape.path.segments) {
+            segment.p0 = {segment.p0.x * scale, segment.p0.y * scale};
+            segment.p1 = {segment.p1.x * scale, segment.p1.y * scale};
+            segment.p2 = {segment.p2.x * scale, segment.p2.y * scale};
+        }
+        if (shape.paint.stroke.has_value()) {
+            shape.paint.stroke->width *= scale;
+        }
+    }
 }
 
 void fill_background(std::span<std::uint8_t> pixels, std::uint32_t width, std::uint32_t height,
@@ -163,14 +211,43 @@ int main(int argc, char** argv) {
     }
     const auto rasterizer_ready = std::chrono::steady_clock::now();
 
-    const auto width = options.width;
-    const auto height = options.height;
+    std::uint32_t width = options.width;
+    std::uint32_t height = options.height;
+    std::vector<tessera::rendering::path::PathShape> shapes;
+    double svg_load_ms = 0.0;
+    if (!options.svg.empty()) {
+        const auto load_start = std::chrono::steady_clock::now();
+        const auto bytes = read_file(options.svg);
+        if (bytes.empty()) {
+            std::cerr << "cannot read " << options.svg << "\n";
+            return 2;
+        }
+        auto document = tessera::rendering::path::load_svg(
+            std::span<const std::uint8_t>(bytes.data(), bytes.size()));
+        if (!document.has_value()) {
+            std::cerr << "svg load failed: " << svg_error_name(document.error()) << "\n";
+            return 3;
+        }
+        shapes = std::move(document->shapes);
+        width = document->width;
+        height = document->height;
+        if (options.svg_scale != 1.0) {
+            scale_shapes(shapes, static_cast<float>(options.svg_scale));
+            width = static_cast<std::uint32_t>(
+                std::ceil(static_cast<double>(width) * options.svg_scale));
+            height = static_cast<std::uint32_t>(
+                std::ceil(static_cast<double>(height) * options.svg_scale));
+        }
+        svg_load_ms = elapsed_ms(load_start, std::chrono::steady_clock::now());
+    } else {
+        shapes = tessera::poc::thorvg_spike::build_icon_chart_scene(static_cast<float>(width),
+                                                                    static_cast<float>(height));
+    }
+
     const auto stride_bytes = static_cast<std::uint32_t>(static_cast<std::size_t>(width) * 4U);
     std::vector<std::uint8_t> pixels(static_cast<std::size_t>(stride_bytes) * height);
     fill_background(pixels, width, height, stride_bytes, kBackground);
 
-    const auto shapes = tessera::poc::thorvg_spike::build_icon_chart_scene(
-        static_cast<float>(width), static_cast<float>(height));
     const RasterTarget target{pixels, width, height, stride_bytes};
 
     const auto render_start = std::chrono::steady_clock::now();
@@ -194,6 +271,9 @@ int main(int argc, char** argv) {
     }
     const auto process_end = std::chrono::steady_clock::now();
 
+    if (!options.svg.empty()) {
+        std::cout << "svg: " << options.svg << ", raster " << width << "x" << height << "\n";
+    }
     std::cout << "backend: " << rasterizer->backend_name() << "\n"
               << "canvas: " << width << "x" << height << ", stride " << stride_bytes << " bytes, "
               << pixels.size() << " pixel bytes\n"
@@ -201,6 +281,9 @@ int main(int argc, char** argv) {
               << "fnv1a64: 0x" << std::hex << std::setw(16) << std::setfill('0') << hash << std::dec
               << std::setfill(' ') << "\n";
 
+    if (!options.svg.empty()) {
+        std::cout << std::fixed << std::setprecision(3) << "svg_load_ms: " << svg_load_ms << "\n";
+    }
     std::cout << std::fixed << std::setprecision(3)
               << "startup_ms: " << elapsed_ms(process_start, rasterizer_ready) << "\n"
               << "first_render_ms: " << elapsed_ms(render_start, render_end) << "\n"

@@ -1,0 +1,4 @@
+<!-- SPDX-License-Identifier: MIT; hand-authored Tessera fixture: text is unsupported. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+  <text x="4" y="20">A</text>
+</svg>

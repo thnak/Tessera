@@ -1,0 +1,4 @@
+<!-- SPDX-License-Identifier: MIT; hand-authored Tessera fixture. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <path d="M8 8 L56 8 L56 56 Z" fill="#2e8b57" fill-opacity="0.75"/>
+</svg>
