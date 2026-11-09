@@ -47,7 +47,7 @@ struct SvgDocument {
 // `SvgError::backend_unavailable`; callers fall back without a special build.
 [[nodiscard]] bool svg_backend_available() noexcept;
 
-// Decodes a static SVG (the ThorVG static-icon subset, see docs/design/thorvg-spike.md) into path
+// Decodes a static SVG (the ThorVG static-icon subset, see docs/design/thorvg-spike/README.md) into path
 // geometry. Never throws across this seam: every failure is a value. The returned geometry is a
 // pure function of the bytes and the ThorVG version (deterministic; floats are copied, not
 // re-rounded). Not thread-safe: call from one thread, like the rest of the path module.

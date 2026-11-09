@@ -67,7 +67,7 @@ CMake wrapper `cmake/ThorVG.cmake`; it is not vendored. `TESSERA_ENABLE_THORVG` 
 gates the dependency, and the default build is unchanged when it is OFF. ThorVG v1.1.3 has CPU,
 GL and WebGPU raster engines but no Vulkan engine, so V1 rasterizes on the CPU and uploads the
 buffer through the RHI. No ThorVG type appears in a public header. Measurements and the Go
-decision are in [`thorvg-spike.md`](../design/thorvg-spike.md).
+decision are in [`thorvg-spike/README.md`](../design/thorvg-spike/README.md).
 
 Frame pacing, refresh-rate/VRR (variable refresh rate) queries, and damage (screen region to repaint) use system APIs (DXGI, Vulkan present modes,
 X11 RandR/Present, Wayland `wp_presentation`). They are system components, not linked
@@ -231,7 +231,7 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
    static, pinned v1.1.3), Skia Graphite stays a fallback only if later integration fails
    ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)). The P1 spike is done and
    recommends Go: build time, static size, startup, memory, determinism and the absence of a
-   ThorVG Vulkan engine are recorded in [`thorvg-spike.md`](../design/thorvg-spike.md).
+   ThorVG Vulkan engine are recorded in [`thorvg-spike/README.md`](../design/thorvg-spike/README.md).
 4. **Shaders:** GLSL + WGSL in parallel vs a single-source path via Slang/naga/Tint ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)).
 5. **Image codecs:** stb only (simple) vs libpng/libjpeg-turbo/libwebp (production).
 6. **Networking:** libcurl + IXWebSocket + mbedTLS vs a smaller std-only stack.
