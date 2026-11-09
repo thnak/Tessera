@@ -26,6 +26,7 @@ GATES = SCRIPTS_DIR / "gates.py"
 
 # Aggregator gate name -> stand-in script file name.
 GATE_FILES = {
+    "format-version": "check_format_version.py",
     "dependencies": "check_dependencies.py",
     "license-bundle": "gen_license_bundle.py",
     "sbom": "gen_sbom.py",
@@ -84,7 +85,7 @@ class AggregatorTests(unittest.TestCase):
         self.build_repo()
         result = self.run_gates()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("5 gate(s): 5 passed, 0 failed, 0 setup error(s)", result.stdout)
+        self.assertIn("6 gate(s): 6 passed, 0 failed, 0 setup error(s)", result.stdout)
         for name in GATE_FILES:
             self.assertIn(name, result.stdout)
 
@@ -94,7 +95,7 @@ class AggregatorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("docs-boom", result.stdout)
         self.assertIn("docs", result.stdout)
-        self.assertIn("4 passed, 1 failed", result.stdout)
+        self.assertIn("5 passed, 1 failed", result.stdout)
 
     def test_missing_gate_script_is_a_setup_error(self) -> None:
         self.build_repo(omit=("gen_sbom.py",))
@@ -142,7 +143,7 @@ class AggregatorTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["gate"], "aggregator")
-        self.assertEqual(len(payload["gates"]), 5)
+        self.assertEqual(len(payload["gates"]), 6)
         self.assertTrue(all(gate["status"] == "pass" for gate in payload["gates"]))
         self.assertEqual(payload["exit_code"], 0)
 
@@ -163,14 +164,14 @@ class AggregatorTests(unittest.TestCase):
         archive.write_bytes(b"not really an archive")
         result = self.run_gates("--archive", str(archive))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("6 gate(s): 6 passed", result.stdout)
+        self.assertIn("7 gate(s): 7 passed", result.stdout)
 
     def test_cp1252_console_does_not_crash(self) -> None:
         self.build_repo(message="caf\u00e9 \u00a7 unicode output")
         result = self.run_gates(env={"PYTHONIOENCODING": "cp1252"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("UnicodeEncodeError", result.stderr)
-        self.assertIn("5 gate(s): 5 passed", result.stdout)
+        self.assertIn("6 gate(s): 6 passed", result.stdout)
 
     def test_cwd_independent(self) -> None:
         self.build_repo()

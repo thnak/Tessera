@@ -10,6 +10,16 @@ if ! command -v "$clang_format" >/dev/null 2>&1; then
     exit 1
 fi
 
+# Warn (but do not fail) when the formatter differs from the pinned version; the format-version gate
+# in scripts/gates.py is the enforcement point.
+version_gate="$root/scripts/check_format_version.py"
+if command -v python3 >/dev/null 2>&1 && [[ -f "$version_gate" ]]; then
+    if ! CLANG_FORMAT="$clang_format" python3 -B "$version_gate" >/dev/null 2>&1; then
+        echo "warning: clang-format does not match tools/format-version.txt;" >&2
+        echo "         run: python3 -B scripts/check_format_version.py" >&2
+    fi
+fi
+
 check=0
 if [[ "${1:-}" == "--check" ]]; then
     check=1

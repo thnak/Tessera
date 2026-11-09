@@ -30,6 +30,24 @@ if (-not $clangFormat) {
     exit 1
 }
 
+# Warn (but do not fail) when the formatter differs from the pinned version; the format-version gate
+# in scripts/gates.py is the enforcement point.
+$python = Get-Command python -ErrorAction SilentlyContinue
+if ($python) {
+    $previousClangFormat = $env:CLANG_FORMAT
+    $env:CLANG_FORMAT = $clangFormat
+    & $python.Source -B (Join-Path $PSScriptRoot 'check_format_version.py') *> $null
+    $versionStatus = $LASTEXITCODE
+    if ($previousClangFormat) {
+        $env:CLANG_FORMAT = $previousClangFormat
+    } else {
+        Remove-Item Env:CLANG_FORMAT -ErrorAction SilentlyContinue
+    }
+    if ($versionStatus -ne 0) {
+        Write-Warning 'clang-format does not match tools/format-version.txt; run: python -B scripts/check_format_version.py'
+    }
+}
+
 $extensions = @('*.cpp', '*.hpp', '*.h', '*.cc', '*.cxx')
 $files = Get-ChildItem -Path $root -Recurse -File -Include $extensions |
     Where-Object {

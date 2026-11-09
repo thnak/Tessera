@@ -65,5 +65,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pinned clang-format
+        shell: pwsh
+        run: |
+          $version = (Get-Content tools/format-version.txt -Raw).Trim()
+          python -m venv "$env:RUNNER_TEMP\format-venv"
+          & "$env:RUNNER_TEMP\format-venv\Scripts\pip.exe" install "clang-format==$version"
+          "CLANG_FORMAT=$env:RUNNER_TEMP\format-venv\Scripts\clang-format.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Repository gates (aggregator)
         run: python -B scripts/gates.py

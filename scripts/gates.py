@@ -7,13 +7,14 @@ table (gate | status | duration). Exit codes: 0 all gates passed, 1 at least one
 2 setup failure (for example a gate script is missing or an option is invalid).
 
 Gate order:
-  1. dependencies    license allowlist, statuses, notices, duplicate rows
-  2. license-bundle  THIRD_PARTY_LICENSES.txt is up to date (adds --check)
-  3. sbom            sbom.spdx.json is up to date (adds --check)
-  4. docs            relative links/anchors, docs index, fences, sizes, ADRs
-  5. pins            reproducible dependency pins + dependencies.md rows (adds --check)
-  6. package         only with --archive PATH: validates the distributable archive
-  7. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
+  1. format-version  clang-format matches the version pinned in tools/format-version.txt
+  2. dependencies    license allowlist, statuses, notices, duplicate rows
+  3. license-bundle  THIRD_PARTY_LICENSES.txt is up to date (adds --check)
+  4. sbom            sbom.spdx.json is up to date (adds --check)
+  5. docs            relative links/anchors, docs index, fences, sizes, ADRs
+  6. pins            reproducible dependency pins + dependencies.md rows (adds --check)
+  7. package         only with --archive PATH: validates the distributable archive
+  8. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
 
 The runner is cwd-independent (children run from the repository root) and forces UTF-8 for child
 processes while making its own stdout/stderr tolerant, so it behaves the same on Windows cp1252
@@ -51,6 +52,12 @@ class Gate:
 
 
 BASE_GATES: List[Gate] = [
+    Gate(
+        "format-version",
+        "check_format_version.py",
+        (),
+        "clang-format matches the version pinned in tools/format-version.txt",
+    ),
     Gate("dependencies", "check_dependencies.py", (), "license allowlist, statuses and notices"),
     Gate("license-bundle", "gen_license_bundle.py", ("--check",), "license bundle is up to date"),
     Gate("sbom", "gen_sbom.py", ("--check",), "SPDX 2.3 SBOM is up to date"),

@@ -3,7 +3,10 @@
 This guide implements [ADR-015](../../decisions/ADR-015-code-style-build-cache.md) (code style and build cache). Project-wide rules are in [AGENTS.md](../../AGENTS.md).
 
 The goal is a boringly consistent codebase that compiles incrementally and caches well.
-Formatting and linting are enforced by tools, not by review comments.
+Formatting and linting are enforced by tools, not by review comments. The formatter version is
+pinned in [`tools/format-version.txt`](../../tools/format-version.txt) (currently `22.1.3`); CI
+installs exactly that version and the `format-version` gate
+(`python -B scripts/check_format_version.py`) fails loudly on any mismatch.
 
 ## Language baseline
 

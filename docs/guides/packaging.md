@@ -205,9 +205,11 @@ prints one summary table:
 python -B scripts/gates.py
 ```
 
-Gate order: `dependencies` (license allowlist, statuses, notices), `license-bundle`
-(`THIRD_PARTY_LICENSES.txt` is current), `sbom` (`sbom.spdx.json` is current), `docs`
-(links/anchors/index/fences/sizes/ADRs) and `pins` (reproducible fetch pins plus dependency rows).
+Gate order: `format-version` (the `clang-format` on `PATH`/`CLANG_FORMAT` matches the version
+pinned in `tools/format-version.txt`, which is also what CI installs), `dependencies` (license
+allowlist, statuses, notices), `license-bundle` (`THIRD_PARTY_LICENSES.txt` is current), `sbom`
+(`sbom.spdx.json` is current), `docs` (links/anchors/index/fences/sizes/ADRs) and `pins`
+(reproducible fetch pins plus dependency rows).
 `--archive PATH` adds `package` (validates a distributable archive) and `--fixtures` adds the slower
 gate self-tests. `--only docs,pins`, `--list`, `--json` and `--quiet` are available, and the runner
 is cwd-independent; it forces UTF-8 for child processes so it behaves the same on Windows cp1252
@@ -243,8 +245,9 @@ PATH` reruns only the gate steps). Expected duration is roughly 1-2 minutes on L
 and does not replace, `gates.py` (current-tree checks including docs) and the per-OS CI
 build/package jobs; it runs in the Linux `release-rehearsal` CI job.
 
-1. **Repository gates** — `python -B scripts/gates.py` (dependencies, license bundle, SBOM, docs,
-   pins). Proves the tree is internally consistent; add `--archive` once step 5 produced an archive.
+1. **Repository gates** — `python -B scripts/gates.py` (format-version, dependencies, license
+   bundle, SBOM, docs, pins). Proves the tree is internally consistent; add `--archive` once step 5
+   produced an archive.
 2. **Release build and static-runtime proof** — configure with `TESSERA_STATIC_RUNTIME=ON` and
    `BUILD_SHARED_LIBS=OFF` (both default), build the shipped target set, then run
    `python -B scripts/check_static_runtime.py --config Release --target <target>`. Proves the
