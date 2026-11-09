@@ -26,11 +26,19 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
       pipeline_(&pipeline),
       white_texture_(&white_texture),
       config_(config),
-      capacity_(std::max(config.initial_vertex_capacity, 64u)),
       current_texture_(&white_texture) {
-    vertex_buffer_ = device_->create_buffer(
-        {static_cast<std::size_t>(capacity_) * kVertex2DStride, rhi::BufferUsage::Vertex});
-    vertices_.reserve(capacity_);
+    static_assert(sizeof(Vertex2D) == kVertex2DStride, "vertex stride must match the layout");
+
+    const std::uint32_t capacity = std::max(config.initial_vertex_capacity, 64u);
+    slots_.resize(std::max(config.frames_in_flight, 1u));
+    for (FrameSlot& slot : slots_) {
+        slot.capacity = capacity;
+        slot.buffers.push_back(device_->create_buffer(
+            {static_cast<std::size_t>(capacity) * kVertex2DStride, rhi::BufferUsage::Vertex}));
+    }
+    // The first frame advances to slot 0.
+    slot_index_ = static_cast<std::uint32_t>(slots_.size()) - 1;
+    vertices_.reserve(capacity);
     batches_.reserve(64);
     damage_regions_.reserve(8);
 }
@@ -62,6 +70,7 @@ void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::Ren
 void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
                                     const rhi::RenderTargetDesc& desc,
                                     const std::vector<rhi::Scissor>* damage_regions) {
+    select_next_slot();
     commands_ = &commands;
     extent_ = desc.extent;
     base_scissor_ = rhi::Scissor{0, 0, static_cast<std::uint32_t>(desc.extent.width),
@@ -174,15 +183,24 @@ void Batched2DRenderer::flush() {
     }
 
     flush_batch();
-    vertex_buffer_->write(vertices_.data(), vertices_.size() * sizeof(Vertex2D));
-    commands_->bind_vertex_buffer(*vertex_buffer_);
+
+    // Append after whatever earlier flushes of this frame wrote: their draws are recorded but
+    // not executed yet, so overwriting offset 0 would change what they draw.
+    const auto count = static_cast<std::uint32_t>(vertices_.size());
+    ensure_buffer_space(count);
+    rhi::Buffer& buffer = current_buffer();
+    const std::uint32_t base = buffer_used_;
+    buffer.write(vertices_.data(), static_cast<std::size_t>(count) * kVertex2DStride,
+                 static_cast<std::size_t>(base) * kVertex2DStride);
+    buffer_used_ += count;
+    commands_->bind_vertex_buffer(buffer);
 
     std::uint32_t emitted_draws = 0;
     if (damage_regions_.empty()) {
         for (const Batch& batch : batches_) {
             commands_->set_scissor(batch.scissor);
             commands_->bind_texture(0, *batch.texture);
-            commands_->draw(batch.vertex_count, batch.first_vertex);
+            commands_->draw(batch.vertex_count, base + batch.first_vertex);
             ++emitted_draws;
         }
     } else {
@@ -200,7 +218,7 @@ void Batched2DRenderer::flush() {
                     texture_bound = true;
                 }
                 commands_->set_scissor(clipped);
-                commands_->draw(batch.vertex_count, batch.first_vertex);
+                commands_->draw(batch.vertex_count, base + batch.first_vertex);
                 ++emitted_draws;
             }
         }
@@ -212,20 +230,37 @@ void Batched2DRenderer::flush() {
     current_batch_ = Batch{scissor_, current_texture_, 0, 0};
 }
 
-void Batched2DRenderer::ensure_capacity(std::size_t additional_vertices) {
-    if (vertices_.size() + additional_vertices <= capacity_) {
+void Batched2DRenderer::select_next_slot() {
+    slot_index_ = (slot_index_ + 1) % static_cast<std::uint32_t>(slots_.size());
+    FrameSlot& slot = slots_[slot_index_];
+    // Reusing a slot means the frame that last used it is complete (see frames_in_flight), so
+    // buffers added for growth can go; the largest one is kept.
+    if (slot.buffers.size() > 1) {
+        slot.buffers.erase(slot.buffers.begin(), slot.buffers.end() - 1);
+    }
+    buffer_used_ = 0;
+}
+
+void Batched2DRenderer::ensure_buffer_space(std::size_t vertices) {
+    FrameSlot& slot = slots_[slot_index_];
+    if (buffer_used_ + vertices <= slot.capacity) {
         return;
     }
 
-    std::uint32_t new_capacity = capacity_ * 2;
-    while (new_capacity < vertices_.size() + additional_vertices) {
+    // Draws already recorded this frame reference the current buffer, so it cannot be replaced
+    // or destroyed; the rest of the frame continues in a larger buffer.
+    std::uint32_t new_capacity = slot.capacity * 2;
+    while (new_capacity < vertices) {
         new_capacity *= 2;
     }
+    slot.buffers.push_back(device_->create_buffer(
+        {static_cast<std::size_t>(new_capacity) * kVertex2DStride, rhi::BufferUsage::Vertex}));
+    slot.capacity = new_capacity;
+    buffer_used_ = 0;
+}
 
-    vertex_buffer_ = device_->create_buffer(
-        {static_cast<std::size_t>(new_capacity) * kVertex2DStride, rhi::BufferUsage::Vertex});
-    capacity_ = new_capacity;
-    vertices_.reserve(capacity_);
+rhi::Buffer& Batched2DRenderer::current_buffer() {
+    return *slots_[slot_index_].buffers.back();
 }
 
 void Batched2DRenderer::flush_batch() {
@@ -250,8 +285,6 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         current_texture_ = texture;
         current_batch_.texture = texture;
     }
-
-    ensure_capacity(6);
 
     const float x0 = rect.x;
     const float y0 = rect.y;

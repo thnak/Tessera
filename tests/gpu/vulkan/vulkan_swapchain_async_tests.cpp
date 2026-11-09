@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 //
-// Frame loop with asynchronous submission: each frame is queued with submit_async() and presented
-// immediately, without waiting for the GPU. Present must therefore wait for rendering through the
-// swapchain image's semaphore. Synchronization validation reports a present that races the
-// render as "[vulkan] ... hazard", which fails this test in ctest.
+// Frame loop with asynchronous submission and two frames in flight: each frame is queued with
+// submit_async() and presented immediately, without waiting for the GPU, and the loop only waits
+// for the frame two iterations back (the one whose vertex buffer slot is about to be reused).
+// Present must wait for rendering through the swapchain image's semaphore. Synchronization
+// validation reports a present that races the render as "[vulkan] ... hazard", which fails this
+// test in ctest.
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -18,6 +20,7 @@
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <iostream>
@@ -32,7 +35,9 @@ using tessera::rendering::rhi::SwapchainDesc;
 using tessera::rendering::rhi::SwapchainError;
 
 constexpr int kFrames = 12;
+constexpr std::size_t kFramesInFlight = 2;
 constexpr std::uint64_t kAcquireTimeoutMs = 1000;
+constexpr std::uint64_t kFrameWaitMs = 5000;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -104,16 +109,32 @@ int main() {
     white_desc.row_pitch = 4;
     auto white = device->create_texture(white_desc);
     auto pipeline = device->create_pipeline(tessera::rendering::vulkan::batched2d_pipeline_desc());
+    tessera::rendering::gpu::Batched2DConfig renderer_config;
+    renderer_config.golden_mode = true;
+    renderer_config.frames_in_flight = kFramesInFlight;
     auto renderer = std::make_unique<tessera::rendering::gpu::Batched2DRenderer>(
-        *device, *pipeline, *white, tessera::rendering::gpu::Batched2DConfig{4096, true, true});
+        *device, *pipeline, *white, renderer_config);
+
+    // The list of the frame that last used each vertex-buffer slot.
+    std::array<std::unique_ptr<tessera::rendering::rhi::CommandList>, kFramesInFlight> in_flight;
 
     for (int frame = 0; frame < kFrames; ++frame) {
+        auto& slot = in_flight[static_cast<std::size_t>(frame) % kFramesInFlight];
+
+        // Beginning this frame reuses the slot's vertex buffer: its previous frame must be done.
+        if (slot != nullptr) {
+            if (!expect(slot->wait(kFrameWaitMs), "frame two iterations back completes")) {
+                return 7;
+            }
+            slot.reset();
+        }
+
         const auto acquired = swapchain->acquire_next_image(kAcquireTimeoutMs);
         if (!expect(acquired.has_value(), "acquire succeeds")) {
             return 4;
         }
         if (!expect(tessera::test::render_swapchain_frame(*device, *renderer, *swapchain,
-                                                          acquired.value(), true),
+                                                          acquired.value(), true, &slot),
                     "render to swapchain image")) {
             return 5;
         }
@@ -124,12 +145,11 @@ int main() {
                     "present succeeds")) {
             return 6;
         }
-
-        // The renderer's vertex buffer is reused by the next frame, so wait for this frame's GPU
-        // work here (a real loop would rotate per-frame buffers instead).
-        device->wait_idle();
     }
 
+    // Drain before tearing down the resources the last frames still reference.
+    device->wait_idle();
+    in_flight = {};
     renderer.reset();
     white.reset();
     pipeline.reset();
