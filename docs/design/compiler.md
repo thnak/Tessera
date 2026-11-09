@@ -266,20 +266,61 @@ idempotent runs, mtime no-op, region preservation and outside-region repair.
 `tests/integration/generated_ui_tests.cpp` instantiates the generated `demo::gen::Demo`, builds it
 into a scene, lays it out with Yoga, paints with `paint_scene` through the deterministic CPU canvas
 (`CpuPaintSink`), dispatches synthetic pointer/text input, and compares committed CPU goldens
-(`tests/golden/baseline/generated_ui/{before,after}.png`, tolerance 0). It asserts the generated
-`Button` `PointerUp` binding increments `state_count_`, the W3C capture/target/bubble route, the
-`Paint|Render` dirty domains (never `Layout`) for the repaint, and byte-identical repeat renders.
-Run it with `ctest -R generated_ui`; regenerate the goldens with
+(`tests/golden/baseline/generated_ui/{before,after,editing}.png`, tolerance 0). It asserts the
+generated `Button` `PointerUp` binding increments `state_count_`, the W3C capture/target/bubble
+route, the `Paint|Render` dirty domains (never `Layout`) for the repaint, and byte-identical repeat
+renders. Run it with `ctest -R generated_ui`; regenerate the goldens with
 `generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui`. The demo is registered
 from `tests/unit/CMakeLists.txt` because the root CMakeLists (Lead-owned) does not add
-`tests/integration` yet. The demo now drives the repaint through the generated `apply_state()`/`update()` path (no manual
-interpolation): the click sets `Count: 1`, the committed EditText sets `Name: Ada`, and
-`update()` runs the generated effect; the demo asserts Paint|Render-only dirty domains and keeps
-the W3C route/state/damage/determinism checks. Remaining demo-documented gaps: (a) no controlled
-`value`/`onChange` wiring for `TextInput` — bindings receive the generic `Event` and there is no
-value-to-text feed, so typing is asserted through the generated `EditText` handler and the
-edit-controller buffer; (b) the sample emits no `automationId`, so nodes are resolved by element
-kind; (c) inline style attachment is still missing, so the demo supplies the style-sheet values.
+`tests/integration` yet. The demo drives the repaint through the generated `apply_state()`/`update()`
+path (no manual interpolation): the click sets `Count: 1`, the committed EditText sets
+`Name: Ada`, and `update()` runs the generated effect.
+The editable-field frame is the text-editing integration: the demo focuses the generated
+`TextInput`, runs a scripted edit sequence through `tessera_text_edit` (typing, Home/End/arrows,
+Shift-selection, select-all, delete-selection), and publishes the controller's caret and half-open
+selection byte range into `PaintData::decoration` (the text value itself is also published by the
+demo - see the gap below). Paint consumes only byte offsets and resolves them into line-box
+rectangles; the demo asserts the caret/selection rects are inside the input's content box, that the
+caret sits at the right edge of the selection, that a later caret is to the right of an earlier one,
+and that deleting the selection removes the highlight and collapses the caret. All frames are
+painted with `FontPaintTextMetrics` (real face metrics + HarfBuzz advances) so decoration geometry
+matches the CPU glyph renderer; the `editing.png` golden covers text + selection highlight + caret.
+
+**Controlled text input contract (next compiler slice):** the generated `TextInput` still has no
+controlled `value`/`onChange` wiring. Current behaviour, asserted by the demo: the generated
+binding fires on `EventType::EditText` with the generic `tessera::ui::Event`; the `on_name`
+developer region copies `event.text` into `state_name_`; `apply_state()` then refreshes the separate
+`Name: {name}` Text node. The TextInput node's own painted text does not change unless the demo
+publishes the edit buffer. To close it, codegen must emit:
+
+- **Event record** `TextChangeEvent` (already defined in
+  `include/tessera/ui/scene/event_payloads.hpp`; IR/schema record of the same name, primary member
+  `value`): `value`/`target_value` are the new full UTF-8 text (borrowed for the dispatch),
+  `selection_start`/`selection_end` are the selection range. Units must be fixed to **half-open
+  UTF-8 byte offsets** (the units `PaintData::TextDecoration` consumes); the schema
+  `TextSelection` row currently says grapheme offsets and must be aligned in the same slice.
+- **Generated member** `void on_change(const tessera::ui::TextChangeEvent& event)` with a payload
+  adapter bound to `EventType::EditText` (and to the runtime edit-controller commit for key edits),
+  replacing the current generic-`Event` binding for `onChange`. Inline `onChange={setName}` lowers to
+  a setter handler that assigns `state_name_` from `event.value` and calls `apply_state()`.
+- **Timing**: fire once per committed edit - an EditText commit, a key-driven edit
+  (Backspace/Delete/paste) or a composition commit - and never for preedit
+  `CompositionUpdate`s or per-repeat keystrokes (the schema's `onChange` row already says "not while
+  composing; the commit fires once").
+- **Value feed**: lowering seeds `PaintData::text` from the `value`/`defaultValue` prop;
+  `apply_state()` writes `state_<name>_` back into the TextInput's `PaintData::text` (controlled
+  value), marking `Paint|Render` and never `Layout` for same-box text. The caret/selection stay
+  runtime edit-controller state and are published as `PaintData::decoration`, not generated state.
+- **Runtime plumbing still missing**: emitting `TextChangeEvent` for key-driven edits (the scene
+  already routes `EditText` to the focused node and `text_change_event(event)` builds the payload),
+  and the generated payload adapter. When that lands the demo drops `publish_editor_state` and
+  asserts the painted field follows `onChange` + `apply_state()` with no demo glue.
+
+Remaining demo-documented gaps: the sample emits no `automationId`, so nodes are resolved by
+element kind; inline style attachment is still missing, so the demo supplies the style-sheet
+values; paint emits no caret for an empty text run (empty text paints no decoration), so an empty
+focused field has no visible caret until the paint pass grows an empty-run caret.
+
 
 Deferred: conditional/list emission, component composition and `Slot`, reusing computed styles,
 multi-file watch mode, cross-module incremental generation, and single-node incremental

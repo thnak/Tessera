@@ -24,8 +24,12 @@ truncation, UTF-16 code-unit offsets, focused-node-only delivery, Win32 `WM_IME_
 see [`input.md`](../design/input.md) sections 2.1 and 8). The editing core is implemented in
 `include/tessera/ui/text/edit_buffer.hpp` and `edit_controller.hpp` (UTF-8 buffer, caret/selection,
 grapheme/word/line commands, bounded length, IME composition commit/cancel; see section 12).
-Editable-node scene integration, caret/selection rendering, undo/redo, clipboard, bidi visual
-movement, candidate-window positioning, and IME producers beyond Win32 remain future work.
+Editable-node scene integration, undo/redo, clipboard, bidi visual movement, candidate-window
+positioning, and IME producers beyond Win32 remain future work. The editable field path is
+demonstrated headlessly in `tests/integration/generated_ui_tests.cpp`: the edit controller's caret
+and half-open selection are published as `PaintData::decoration` (UTF-8 byte offsets) and painted
+as caret/selection pixels; the `editing.png` CPU golden covers it. The controlled `value`/`onChange`
+contract codegen must emit is recorded in [`compiler.md`](../design/compiler.md) section 11.
 
 ## 1. Scope
 
@@ -366,6 +370,18 @@ variation-selector clusters, flag pairs, CRLF normalization, invalid UTF-8, sele
 word/line movement, selection collapse/extension, clamping, bounded-length truncation, reserve,
 composition commit/cancel/invalid preedit, key commands, read-only, suppress-by-`prevent_default`,
 controlled sync, determinism, and a scripted sequence with an exact final text/caret.
+
+Demo integration (editable field, implemented): the headless generated-UI demo
+(`tests/integration/generated_ui_tests.cpp`) drives a scripted sequence through `EditController`
+(type, Home/End/arrows, Shift-selection, select-all, delete-selection) and publishes the buffer as
+`PaintData::text` plus `PaintData::decoration` (`caret_byte_offset`, half-open selection bytes,
+`caret_visible`; blink is a paint input, there is no timer). Paint resolves the byte offsets to
+line-box rectangles through the configured metrics source; the demo uses the real-face source
+(`FontPaintTextMetrics`) so caret/selection geometry matches the shaped glyphs, and asserts the
+rects stay inside the field's content box, the caret sits at the right edge of a half-open
+selection, and deleting the selection collapses it. Current paint limitation found here: an empty
+text run paints no decoration, so an empty focused field has no visible caret until the paint pass
+grows an empty-run caret.
 
 Deferred: caret/selection/composition rendering and blink, undo/redo (grouping/caps), clipboard
 (copy/cut/paste and secure redaction), editable-node scene model (`TextInputKind`, value/selection

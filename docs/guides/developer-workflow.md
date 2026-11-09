@@ -113,7 +113,7 @@ afterwards.
 `tests/integration/generated_ui_tests.cpp` runs the generated sample UI for real, without a GPU or
 window: it instantiates `demo::gen::Demo`, calls the generated `build()` into a scene, lays the tree
 out with Yoga (`LayoutEngine` + `apply_layout`), paints it through `paint_scene` and the
-deterministic CPU canvas, dispatches synthetic pointer/text input, and compares two committed CPU
+deterministic CPU canvas, dispatches synthetic pointer/text input, and compares three committed CPU
 goldens at tolerance 0.
 
 ```bash
@@ -126,13 +126,22 @@ ctest -R generated_ui --output-on-failure
 ```
 
 What it proves today: the generated `Button` `PointerUp` binding increments the component's state
-cell, the event route is the standard W3C capture/target/bubble order, the repaint after the state
-change marks `Paint|Render` (never `Layout`), two runs are byte-identical, and the two goldens
-(`before.png`, `after.png`) match exactly. What it also documents as codegen gaps: state
-interpolation into node content and a re-render/diff step (the demo writes the counter into the
-`Text` node's `PaintData` itself), controlled `value`/`onChange` wiring for `TextInput` (typing is
-asserted through the generated `EditText` handler and the edit-controller buffer, not painted
-text), and `automationId` emission (the demo resolves nodes by element kind).
+cell and the generated `apply_state()`/`update()` path repaints it (`Count: 1`) marking
+`Paint|Render` but never `Layout`; the event route is the standard W3C capture/target/bubble order;
+two runs are byte-identical; and the generated `TextInput` is editable end to end through
+`tessera_text_edit` - the scripted typing/caret/selection sequence is published as
+`PaintData::decoration`, and the `editing.png` golden shows the text, the selection highlight and
+the caret (the demo asserts the caret/selection rects stay inside the content box, the caret sits at
+the right edge of a half-open selection, and deleting the selection collapses it). Goldens:
+`before.png`, `after.png`, `editing.png`; every frame paints with `FontPaintTextMetrics` so
+decoration geometry matches the glyph renderer.
+
+What it also documents as codegen gaps: controlled `value`/`onChange` wiring for `TextInput` (the
+demo publishes the edit buffer itself; the generated binding still takes the generic `Event`) and
+`automationId` emission (the demo resolves nodes by element kind). The precise controlled-input
+contract the compiler must emit (event record fields/units, generated member signature, per-edit vs
+commit timing, `PaintData`/state mapping) is in
+[`compiler.md` §11](../design/compiler.md#11-c-codegen-first-slice-implemented).
 
 ## 5. Binding manifest
 

@@ -18,7 +18,9 @@
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/text/edit_buffer.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 #include "tessera/ui/text/text_shaper.hpp"
@@ -27,6 +29,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -93,6 +96,12 @@ public:
         } else if (kind == "TextInput") {
             style.set("width", "180px");
             style.set("height", "28px");
+            style.set("padding-left", "4px");
+            style.set("padding-right", "4px");
+            style.set("padding-top", "4px");
+            style.set("padding-bottom", "4px");
+            style.set("font-size", "14px");
+            style.set("color", "#e2e8f0");
             style.set("background-color", "#0f172a");
         }
         return style;
@@ -165,7 +174,7 @@ public:
         const tessera::ui::text::ShapedRun shaped = shaper_->shape(run.text, style);
         const float size = std::clamp(run.font_size, 1.0f, 4096.0f);
         const auto pixel_size = static_cast<std::uint16_t>(std::lround(size));
-        const float baseline = run.rect.y + shaped.ascent;
+        const float baseline = run.baseline.value_or(run.rect.y + shaped.ascent);
         float pen_x = run.rect.x;
         for (const tessera::ui::text::Glyph& glyph : shaped.glyphs) {
             const tessera::ui::text::GlyphBitmap bitmap =
@@ -303,10 +312,11 @@ inline std::uint64_t fnv1a(std::span<const std::uint8_t> pixels) {
 }
 
 inline std::vector<std::uint8_t> render(Node& root, StyleProvider& styles, CpuCanvas& canvas,
-                                        GlyphRasterizer& rasterizer, TextShaper& shaper) {
+                                        GlyphRasterizer& rasterizer, TextShaper& shaper,
+                                        const tessera::ui::paint::PaintContext& context = {}) {
     canvas.clear(tessera::rendering::rhi::rgba8(11, 18, 32));
     DemoCpuSink sink(canvas, rasterizer, shaper);
-    paint_scene(root, styles, sink);
+    paint_scene(root, styles, sink, context);
     const std::span<const std::uint8_t> pixels = canvas.pixels();
     return std::vector<std::uint8_t>(pixels.begin(), pixels.end());
 }
@@ -345,4 +355,131 @@ inline InputEvent edit_text_event(std::string_view text) {
     return event;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Decoration assertions: the demo writes the controller's edit state into the input's PaintData
+// (text + caret/selection byte offsets); the paint pass resolves those offsets into line-box
+// rectangles. A recording sink captures the emitted fills so the demo can assert the caret and
+// selection rectangles without knowing how glyphs are positioned.
+// ---------------------------------------------------------------------------------------------
+
+// DemoSettings gives the TextInput 4 px padding on every side (longhand properties: the layout and
+// paint passes read the longhands, not the shorthand).
+inline constexpr float kInputPadding = 4.0f;
+// Computed `color` of the TextInput: #e2e8f0, the only fill colour in the scene with these
+// channels.
+inline constexpr float kInputTextR = 226.0f / 255.0f;
+inline constexpr float kInputTextG = 232.0f / 255.0f;
+inline constexpr float kInputTextB = 240.0f / 255.0f;
+
+inline bool same_channel(float lhs, float rhs) {
+    return std::fabs(lhs - rhs) <= 0.01f;
+}
+
+inline bool is_input_text_color(const tessera::rendering::rhi::Color& color) {
+    return same_channel(color.r, kInputTextR) && same_channel(color.g, kInputTextG) &&
+           same_channel(color.b, kInputTextB);
+}
+
+class RecordingSink final : public PaintSink {
+public:
+    struct Fill {
+        Rect rect;
+        tessera::rendering::rhi::Color color;
+    };
+    struct TextRun {
+        Rect rect;
+        std::string text;
+        std::optional<float> baseline;
+    };
+
+    void fill_rect(const Rect& rect, const tessera::rendering::rhi::Color& color) override {
+        fills.push_back({rect, color});
+    }
+    void fill_rounded_rect(const Rect& rect, const tessera::rendering::rhi::Color& color,
+                           float /*radius*/) override {
+        fills.push_back({rect, color});
+    }
+    void push_clip(const tessera::ui::paint::RoundedClip& clip) override {
+        clip_stack.push_back(clip.rect);
+    }
+    void pop_clip() override {
+        if (!clip_stack.empty()) {
+            clip_stack.pop_back();
+        }
+    }
+    void draw_text(const tessera::ui::paint::TextDraw& run) override {
+        texts.push_back({run.rect, std::string(run.text), run.baseline});
+    }
+
+    std::vector<Fill> fills;
+    std::vector<TextRun> texts;
+    std::vector<Rect> clip_stack;
+};
+
+struct DecorationRects {
+    std::vector<Rect> selection;
+    std::vector<Rect> carets;
+};
+
+inline DecorationRects decoration_rects(Node& root, StyleProvider& styles,
+                                        const tessera::ui::paint::PaintContext& context) {
+    RecordingSink sink;
+    paint_scene(root, styles, sink, context);
+    DecorationRects result;
+    for (const RecordingSink::Fill& fill : sink.fills) {
+        if (!is_input_text_color(fill.color)) {
+            continue;
+        }
+        // The caret is the text colour at full alpha and one pixel wide (device scale 1); the
+        // selection is the same colour at the documented 0.35 alpha.
+        if (fill.color.a >= 0.9f && fill.rect.width <= 2.0f) {
+            result.carets.push_back(fill.rect);
+        } else if (fill.color.a > 0.05f && fill.color.a < 0.6f) {
+            result.selection.push_back(fill.rect);
+        }
+    }
+    return result;
+}
+
+// The TextInput content box (border box inset by the 4 px padding).
+inline Rect text_content_box(const Node& input) {
+    const Rect box = input.world_bounds();
+    return Rect{box.x + kInputPadding, box.y + kInputPadding,
+                std::max(0.0f, box.width - 2.0f * kInputPadding),
+                std::max(0.0f, box.height - 2.0f * kInputPadding)};
+}
+
+inline bool rect_inside(const Rect& inner, const Rect& outer) {
+    return inner.x >= outer.x - 0.5f && inner.y >= outer.y - 0.5f &&
+           inner.x + inner.width <= outer.x + outer.width + 0.5f &&
+           inner.y + inner.height <= outer.y + outer.height + 0.5f;
+}
+
+// Publishes the controller edit state into the input node: the full text (the controlled-value
+// write the compiler does not emit yet) and the caret/selection decoration (the edit controller is
+// the owner of selection; the paint pass owns glyph geometry).
+inline void publish_editor_state(Node& input, const tessera::ui::text::EditBuffer& buffer) {
+    tessera::ui::PaintData data;
+    data.kind = tessera::ui::PaintKind::Text;
+    data.text = std::string(buffer.text());
+    tessera::ui::TextDecoration decoration;
+    decoration.caret_byte_offset = buffer.caret();
+    decoration.selection_begin = buffer.selection_start();
+    decoration.selection_end = buffer.selection_end();
+    decoration.caret_visible = true;
+    data.decoration = decoration;
+    input.set_paint_data(std::move(data));
+}
+
+inline void publish_caret_only(Node& input, const tessera::ui::text::EditBuffer& buffer,
+                               std::size_t caret_byte_offset) {
+    tessera::ui::PaintData data;
+    data.kind = tessera::ui::PaintKind::Text;
+    data.text = std::string(buffer.text());
+    tessera::ui::TextDecoration decoration;
+    decoration.caret_byte_offset = caret_byte_offset;
+    decoration.caret_visible = true;
+    data.decoration = decoration;
+    input.set_paint_data(std::move(data));
+}
 } // namespace generated_ui_demo

@@ -2,19 +2,25 @@
 //
 // Headless integration demo: the compiler-generated `Demo` component is instantiated and built into
 // a scene, laid out by Yoga, painted through the deterministic CPU canvas, driven by synthetic
-// input, and repainted. This is the "generated UI is interactive" acceptance (task-56).
+// input, and repainted. This is the "generated UI is interactive" acceptance (task-56) plus the
+// editable-text-field extension (task-59): the generated TextInput is focused, a scripted edit
+// sequence runs through the real `tessera_text_edit` controller, and the controller's caret and
+// half-open selection byte range are published as `PaintData::decoration` so the paint pass
+// resolves them into line-box pixels.
 //
 // The generated code supplies the component struct (state cells/effects), the node tree, the
 // Button's `PointerUp` binding (`handler_1` increments `state_count_`), the TextInput's `EditText`
 // binding (`on_name` copies the committed text into `state_name_`) and the interpolated Text
-// children (`Count: {count}`, `Name: {name}`) that the generated setters/regions refresh through
-// `apply_state()`; `update()` runs the changed effect. Controlled TextInput value/onChange wiring
-// remains a documented codegen gap.
+// children that `apply_state()` refreshes; `update()` runs the changed effect. Controlled
+// TextInput value/onChange wiring remains a documented codegen gap (docs/design/compiler.md §11):
+// the demo publishes the edit buffer into the node itself instead.
 //
 // Usage: generated_ui_tests [--write] <font.ttf> <baseline_dir>
 
 #include "generated_ui_demo.hpp"
+#include "tessera/ui/key_code.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/text/edit_controller.hpp"
@@ -34,7 +40,11 @@ using tessera::rendering::DamageConfig;
 using tessera::rendering::rhi::Extent2D;
 using tessera::ui::DirtyPass;
 using tessera::ui::has_flag;
+using tessera::ui::InputEventType;
 using tessera::ui::InputRouter;
+using tessera::ui::Modifier;
+using tessera::ui::paint::FontPaintTextMetrics;
+using tessera::ui::paint::PaintContext;
 using tessera::ui::text::EditController;
 
 bool expect(bool condition, const char* message) {
@@ -42,6 +52,84 @@ bool expect(bool condition, const char* message) {
         std::fprintf(stderr, "generated_ui: %s\n", message);
     }
     return condition;
+}
+
+// --- Editable text field script ----------------------------------------------------------------
+//
+// The edit controller is the owner of text/caret/selection; the demo publishes its state into the
+// generated TextInput node as PaintData text + decoration (the controlled-value gap: the generated
+// component never feeds the painted field value itself yet). The script covers typing, caret moves,
+// Shift-selection, select-all and delete-selection, and returns with the editable frame:
+// "Ada Lovelace" with "Lovelace" selected (caret at the end of the selection).
+
+bool feed_text(EditController& editor, std::string_view text) {
+    for (const char character : text) {
+        Event event;
+        event.type = EventType::Text;
+        event.text_codepoint = static_cast<std::uint32_t>(static_cast<unsigned char>(character));
+        if (!editor.handle_event(event)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool feed_key(EditController& editor, std::uint32_t key, Modifier modifiers = Modifier::None) {
+    Event event;
+    event.type = EventType::KeyDown;
+    event.key = key;
+    event.modifiers = modifiers;
+    return editor.handle_event(event);
+}
+
+bool run_field_script(EditController& editor) {
+    using namespace tessera::ui::key;
+    // Type, then exercise Home/End/arrows.
+    if (!feed_text(editor, "Ada") || editor.buffer().text() != "Ada" ||
+        editor.buffer().caret() != 3) {
+        return false;
+    }
+    if (!feed_key(editor, kHome) || editor.buffer().caret() != 0) {
+        return false;
+    }
+    if (!feed_key(editor, kEnd) || editor.buffer().caret() != 3) {
+        return false;
+    }
+    if (!feed_key(editor, kArrowLeft) || editor.buffer().caret() != 2) {
+        return false;
+    }
+    // Shift+Left twice: half-open selection [0, 2) = "Ad", caret at 0 (lean left).
+    if (!feed_key(editor, kArrowLeft, Modifier::Shift) ||
+        !feed_key(editor, kArrowLeft, Modifier::Shift) || editor.buffer().caret() != 0 ||
+        editor.buffer().selection_start() != 0 || editor.buffer().selection_end() != 2) {
+        return false;
+    }
+    // Select-all then delete the selection: the buffer empties and the caret collapses to 0.
+    if (!feed_key(editor, 'A', Modifier::Control) || !editor.buffer().has_selection()) {
+        return false;
+    }
+    if (!feed_key(editor, kBackspace) || !editor.buffer().text().empty() ||
+        editor.buffer().has_selection() || editor.buffer().caret() != 0) {
+        return false;
+    }
+    // Editable frame: type a full value, put the caret after "Ada ", then Shift+End to select
+    // "Lovelace" with the caret at the right edge.
+    if (!feed_text(editor, "Ada Lovelace") || editor.buffer().text() != "Ada Lovelace") {
+        return false;
+    }
+    if (!feed_key(editor, kHome) || editor.buffer().caret() != 0) {
+        return false;
+    }
+    for (int step = 0; step < 4; ++step) {
+        if (!feed_key(editor, kArrowRight)) {
+            return false;
+        }
+    }
+    if (editor.buffer().caret() != 4 || !feed_key(editor, kEnd, Modifier::Shift)) {
+        return false;
+    }
+    return editor.buffer().caret() == 12 && editor.buffer().selection_start() == 4 &&
+           editor.buffer().selection_end() == 12;
 }
 
 } // namespace
@@ -69,6 +157,11 @@ int main(int argc, char** argv) {
     const tessera::ui::text::FontFace face = *loaded;
     GlyphRasterizer rasterizer(face);
     HarfBuzzShaper shaper(face);
+    // Paint with the real-face metrics source so caret/selection advances match the glyphs the CPU
+    // sink shapes, instead of the deterministic stub metrics the paint pass defaults to.
+    FontPaintTextMetrics metrics(face, 1);
+    PaintContext paint_context;
+    paint_context.text_metrics_source = &metrics;
 
     // --- 1. Generated tree + Yoga layout + CPU paint -------------------------------------------
     Fixture fixture;
@@ -88,10 +181,8 @@ int main(int argc, char** argv) {
         return 3;
     }
     Node* const name = card->children()[1].get();
-    if (!expect(name->element_kind() == "Text", "the second Text is the Name interpolation")) {
-        return 3;
-    }
-    if (!expect(counter->paint_data().has_value() && counter->paint_data()->text == "Count: 0",
+    if (!expect(name->element_kind() == "Text", "the second Text is the Name interpolation") ||
+        !expect(counter->paint_data().has_value() && counter->paint_data()->text == "Count: 0",
                 "the generated build interpolated Count: 0")) {
         return 3;
     }
@@ -107,10 +198,10 @@ int main(int argc, char** argv) {
 
     CpuCanvas canvas(kWidth, kHeight);
     const std::vector<std::uint8_t> before =
-        render(*fixture.root, fixture.styles, canvas, rasterizer, shaper);
+        render(*fixture.root, fixture.styles, canvas, rasterizer, shaper, paint_context);
     const auto before_hash = fnv1a(before);
-    if (!expect(fnv1a(render(*fixture.root, fixture.styles, canvas, rasterizer, shaper)) ==
-                    before_hash,
+    if (!expect(fnv1a(render(*fixture.root, fixture.styles, canvas, rasterizer, shaper,
+                             paint_context)) == before_hash,
                 "two renders of the before frame are byte-identical")) {
         return 4;
     }
@@ -172,11 +263,11 @@ int main(int argc, char** argv) {
     }
 
     const std::vector<std::uint8_t> after =
-        render(*fixture.root, fixture.styles, canvas, rasterizer, shaper);
+        render(*fixture.root, fixture.styles, canvas, rasterizer, shaper, paint_context);
     const auto after_hash = fnv1a(after);
     if (!expect(after != before, "the repaint differs after the state change") ||
-        !expect(fnv1a(render(*fixture.root, fixture.styles, canvas, rasterizer, shaper)) ==
-                    after_hash,
+        !expect(fnv1a(render(*fixture.root, fixture.styles, canvas, rasterizer, shaper,
+                             paint_context)) == after_hash,
                 "two renders of the after frame are byte-identical")) {
         return 8;
     }
@@ -210,26 +301,120 @@ int main(int argc, char** argv) {
 
     // The same committed text through the edit controller's buffer (the owner a future controlled
     // TextInput would bind to; there is no generated value/onChange wiring yet - documented gap).
-    EditController editor;
+    EditController committed;
     Event commit;
     commit.type = EventType::EditText;
     std::copy_n(typed.text.begin(), typed.text_size, commit.text.begin());
     commit.text_size = typed.text_size;
-    if (!expect(editor.handle_event(commit), "edit controller consumed the commit") ||
-        !expect(editor.buffer().text() == "Ada", "edit buffer holds the typed value") ||
-        !expect(editor.buffer().text() == fixture.demo.state_name_,
+    if (!expect(committed.handle_event(commit), "edit controller consumed the commit") ||
+        !expect(committed.buffer().text() == "Ada", "edit buffer holds the typed value") ||
+        !expect(committed.buffer().text() == fixture.demo.state_name_,
                 "buffer and generated state agree for the same input")) {
         return 11;
     }
     const std::vector<std::uint8_t> typed_render =
-        render(*fixture.root, fixture.styles, canvas, rasterizer, shaper);
+        render(*fixture.root, fixture.styles, canvas, rasterizer, shaper, paint_context);
     if (!expect(typed_render != after, "typing repaints through generated interpolation")) {
         return 11;
     }
 
-    // --- 4. Determinism: rebuild the whole generated UI and reproduce the frames ----------------
+    // --- 4. Editable field: edit model -> PaintData decoration -> pixels ------------------------
+    EditController field;
+    if (!expect(run_field_script(field), "field edit script reached the editable frame") ||
+        !expect(field.buffer().text() == "Ada Lovelace", "field text") ||
+        !expect(field.buffer().caret() == 12, "caret after the selection") ||
+        !expect(field.buffer().selection_start() == 4, "selection starts after Ada ")) {
+        return 12;
+    }
+    publish_editor_state(*text_input, field.buffer());
+    if (!expect(has_flag(text_input->dirty(), Dirty::Paint) &&
+                    has_flag(text_input->dirty(), Dirty::Render),
+                "publishing the edit state marks Paint and Render") ||
+        !expect(!has_flag(text_input->dirty(), Dirty::Layout),
+                "publishing text/decoration does not mark Layout")) {
+        return 12;
+    }
+
+    const std::vector<std::uint8_t> editing =
+        render(*fixture.root, fixture.styles, canvas, rasterizer, shaper, paint_context);
+    const auto editing_hash = fnv1a(editing);
+    if (!expect(editing != after, "the editing frame differs from the after frame")) {
+        return 13;
+    }
+
+    const DecorationRects rects = decoration_rects(*fixture.root, fixture.styles, paint_context);
+    const auto content = text_content_box(*text_input);
+    if (!expect(rects.carets.size() == 1, "one caret rect emitted") ||
+        !expect(rects.selection.size() == 1, "one selection rect emitted") ||
+        !expect(rect_inside(rects.carets[0], content),
+                "the caret rect is inside the input content box") ||
+        !expect(rect_inside(rects.selection[0], content),
+                "the selection rect is inside the input content box") ||
+        !expect(rects.selection[0].width > 0.0f, "the selection highlight has width")) {
+        return 13;
+    }
+    if (!expect(rects.carets[0].x == rects.selection[0].x + rects.selection[0].width,
+                "the caret sits at the right edge of the selection (half-open range)")) {
+        return 13;
+    }
+
+    // Typing moves the caret: the caret at byte 0 is left of the caret after the whole text.
+    const std::string field_text(field.buffer().text());
+    publish_caret_only(*text_input, field.buffer(), 0);
+    const DecorationRects at_start = decoration_rects(*fixture.root, fixture.styles, paint_context);
+    publish_caret_only(*text_input, field.buffer(), field_text.size());
+    const DecorationRects at_end = decoration_rects(*fixture.root, fixture.styles, paint_context);
+    if (!expect(at_start.carets.size() == 1 && at_end.carets.size() == 1,
+                "caret-only decoration emits one caret each") ||
+        !expect(at_start.selection.empty() && at_end.selection.empty(),
+                "no selection fill when the selection is collapsed") ||
+        !expect(at_start.carets[0].x < at_end.carets[0].x,
+                "a later caret is to the right of an earlier one") ||
+        !expect(rect_inside(at_start.carets[0], content), "start caret inside the content box") ||
+        !expect(rect_inside(at_end.carets[0], content), "end caret inside the content box")) {
+        return 14;
+    }
+
+    // Delete-selection collapses the caret and removes the highlight: the script leaves
+    // "Lovelace" selected, so Backspace removes it and leaves "Ada " with the caret after it.
+    EditController collapsed = field;
+    if (!expect(collapsed.buffer().has_selection(), "the field has a selection to delete") ||
+        !feed_key(collapsed, tessera::ui::key::kBackspace) ||
+        !expect(collapsed.buffer().text() == "Ada ", "delete removed the selected text") ||
+        !expect(!collapsed.buffer().has_selection() && collapsed.buffer().caret() == 4,
+                "delete collapsed the caret to the end of the remaining text")) {
+        return 15;
+    }
+    publish_editor_state(*text_input, collapsed.buffer());
+    const DecorationRects collapsed_rects =
+        decoration_rects(*fixture.root, fixture.styles, paint_context);
+    if (!expect(collapsed_rects.selection.empty(),
+                "deleting the selection removes the highlight") ||
+        !expect(collapsed_rects.carets.size() == 1 &&
+                    rect_inside(collapsed_rects.carets[0], content),
+                "the collapsed caret is inside the content box")) {
+        return 15;
+    }
+    // Restore the editable frame for the golden.
+    publish_editor_state(*text_input, field.buffer());
+
+    if (write_mode) {
+        if (!expect(save_png(baseline_dir + "/editing.png", editing), "write editing golden")) {
+            return 16;
+        }
+    } else if (!compare_png(baseline_dir + "/editing.png", editing, "editing")) {
+        return 16;
+    }
+    if (!expect(fnv1a(render(*fixture.root, fixture.styles, canvas, rasterizer, shaper,
+                             paint_context)) == editing_hash,
+                "two renders of the editing frame are byte-identical")) {
+        return 17;
+    }
+
+    // --- 5. Determinism: rebuild the whole generated UI and reproduce the frames ----------------
     Fixture replay;
     Node* replay_button = replay.find(*replay.root, "Button");
+    Node* replay_input = replay.find(*replay.root, "TextInput");
     InputRouter replay_router;
     const auto replay_click = [&](InputEventType type) {
         const auto bounds = replay_button->world_bounds();
@@ -238,16 +423,27 @@ int main(int argc, char** argv) {
     };
     replay_click(InputEventType::PointerDown);
     replay_click(InputEventType::PointerUp);
+    replay.demo.update();
+    replay_router.focus_manager().request_focus(replay_input);
+    // Replay the generated onChange commit too, so the interpolated Name text matches.
+    replay_router.dispatch(*replay.root, typed);
+    EditController replay_field;
+    if (!expect(run_field_script(replay_field), "replayed edit script") ||
+        !expect(replay_field.buffer().text() == field_text, "replayed buffer text")) {
+        return 18;
+    }
+    publish_editor_state(*replay_input, replay_field.buffer());
     CpuCanvas replay_canvas(kWidth, kHeight);
-    const std::vector<std::uint8_t> replay_after =
-        render(*replay.root, replay.styles, replay_canvas, rasterizer, shaper);
-    if (!expect(replay_after == after, "a rebuilt generated UI reproduces the after frame") ||
+    const std::vector<std::uint8_t> replay_editing =
+        render(*replay.root, replay.styles, replay_canvas, rasterizer, shaper, paint_context);
+    if (!expect(replay_editing == editing, "a rebuilt generated UI reproduces the editing frame") ||
         !expect(replay.demo.state_count_ == 1, "replayed click state")) {
-        return 12;
+        return 18;
     }
 
-    std::printf("generated_ui: ok before=%016llx after=%016llx\n",
+    std::printf("generated_ui: ok before=%016llx after=%016llx editing=%016llx\n",
                 static_cast<unsigned long long>(before_hash),
-                static_cast<unsigned long long>(after_hash));
+                static_cast<unsigned long long>(after_hash),
+                static_cast<unsigned long long>(editing_hash));
     return 0;
 }
