@@ -68,15 +68,37 @@ subtrees; do not use them as a catch-all to hide bugs. See
 
 ## 4. Regeneration
 
+The first implemented generator is the codegen CLI (Big Step C):
+
 ```bash
-tessera generate            # incremental
-tessera generate --force    # regenerate everything
-tessera generate --check    # fail if generated output differs from the tree
+# Regenerate into the build output directory, merging every existing developer region.
+tessera_codegen --out build/generated --namespace demo ui/Screen.tsx
+
+# Add --verbose to report each file as written or unchanged.
+tessera_codegen --verbose --out build/generated --namespace demo ui/Screen.tsx
+
+# CI gate: fail when the output directory is stale; writes nothing.
+tessera_codegen --check --out build/generated --namespace demo ui/Screen.tsx
+
+# See tools/codegen and samples/compiler-demo (Demo.tsx + the committed developer seed).
 ```
 
-The generator hashes the component source, the config sections that affect that component (exact list not specified here or in [`project-config-v1.md`](../specs/project-config-v1.md)), the generator/compiler version, and
-formatter config. Unchanged inputs are skipped. The report lists `generated`, `skipped`,
-`merged`, and `warnings`.
+The CLI reads one or more `.tsx` files and runs the real front end (lexer/parser → Tier-1
+analysis → lowering → IR validation → codegen) in one process; diagnostics are first-error-only
+and carry `file:line:column`. Exit codes are **0** ok, **1** diagnostics or drift, **2**
+usage/setup.
+
+Regeneration is incremental per file: the freshly generated text is merged with the file already
+in the output directory (`merge(generated, existing)`), and the file is rewritten only when the
+merged bytes differ. A second run with unchanged inputs is a byte- and mtime-no-op, so build
+systems do not rebuild. Files outside `--out` are never touched, and generated names are validated
+(`component-name.hpp`/`.cpp`; no path separators). Files with regions that vanished produce merger
+warnings; outside-region edits are drift for `--check` and are overwritten by `--write` (the rule
+below).
+
+The output directory is build output: keep it out of version control. Commit only the `.tsx`
+sources and the developer files that the team owns (the sample's `samples/compiler-demo/Demo.cpp`
+is the committed developer seed that the build regenerates over).
 
 ## 5. Binding manifest
 

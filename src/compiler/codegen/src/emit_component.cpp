@@ -316,11 +316,10 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("");
     writer.open("namespace " + std::string(ns));
     writer.open("namespace gen");
-    writer.line("// TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, "
-                "ref-target");
     writer.line(
-        "// assignment and animated/effect lifecycle invocation (docs/design/compiler.md section");
-    writer.line("// 11). Inline style is recorded in the node comments below until it lands.");
+        "// TODO(tessera-codegen): the remaining runtime API gap is inline style attachment");
+    writer.line("// (docs/design/compiler.md section 11); style values are recorded in the node");
+    writer.line("// comments below until it lands.");
     writer.line("");
     unsigned ordinal = 0;
     std::vector<EventAdapter> adapters;

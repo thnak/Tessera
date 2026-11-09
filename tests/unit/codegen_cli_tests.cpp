@@ -1,0 +1,176 @@
+// SPDX-License-Identifier: MIT
+
+// Codegen CLI and incremental regeneration (Big Step C): run the real executable twice over the
+// committed sample screen, assert the second run is a byte/mtime no-op, developer regions are
+// preserved, --check reports drift, outside-region edits are overwritten, and exit codes are the
+// documented 0/1/2.
+
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace {
+
+namespace fs = std::filesystem;
+
+int failures = 0;
+
+void check(bool condition, std::string_view message) {
+    if (!condition) {
+        std::cerr << "FAIL: " << message << "\n";
+        ++failures;
+    }
+}
+
+std::string read_file(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    std::ostringstream text;
+    text << in.rdbuf();
+    return text.str();
+}
+
+void write_file(const fs::path& path, const std::string& text) {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out << text;
+}
+
+std::string quoted(const fs::path& path) {
+    return "\"" + path.string() + "\"";
+}
+
+int run_cli(const fs::path& cli, const std::string& arguments, const fs::path& log_dir) {
+    const fs::path log = log_dir / "cli.log";
+#ifdef _WIN32
+    // cmd strips a leading quote from the whole /c command, so invoke through `call`.
+    const std::string prefix = "call ";
+#else
+    const std::string prefix;
+#endif
+    const std::string command =
+        prefix + quoted(cli) + " " + arguments + " > " + quoted(log) + " 2>&1";
+    return std::system(command.c_str());
+}
+
+std::string region_body(const std::string& text, std::string_view region_id) {
+    const std::string start = "// [DEVELOPER_LOGIC_START: " + std::string(region_id) + "]";
+    const std::string end = "// [DEVELOPER_LOGIC_END: " + std::string(region_id) + "]";
+    const std::size_t begin = text.find(start);
+    if (begin == std::string::npos) {
+        return {};
+    }
+    const std::size_t body = begin + start.size();
+    const std::size_t finish = text.find(end, body);
+    if (finish == std::string::npos) {
+        return {};
+    }
+    return text.substr(body, finish - body);
+}
+
+std::string codegen_arguments(const fs::path& out, const fs::path& sample_dir) {
+    return "--out " + quoted(out) + " --namespace demo " + quoted(sample_dir / "Demo.tsx");
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    if (argc != 4) {
+        std::cerr << "usage: codegen_cli_tests SAMPLE_DIR SEED_DIR CLI\n";
+        return 2;
+    }
+    const fs::path sample_dir(argv[1]);
+    const fs::path seed_dir(argv[2]);
+    const fs::path cli = fs::path(argv[3]).make_preferred();
+    const fs::path work = fs::temp_directory_path() / "tessera-codegen-cli-test";
+    const fs::path log_dir = work / "logs";
+    std::error_code error;
+    fs::remove_all(work, error);
+    fs::create_directories(log_dir);
+    const fs::path out = work / "out";
+    fs::create_directories(out);
+    fs::create_directories(work / "outside");
+
+    const std::string committed_seed = read_file(seed_dir / "Demo.cpp");
+    check(!committed_seed.empty(), "the committed developer seed is readable");
+    write_file(out / "Demo.cpp", committed_seed);
+
+    // First run: writes the regenerated files, preserving every developer region.
+    check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
+          "the first --write exits 0");
+    const std::string first_cpp = read_file(out / "Demo.cpp");
+    check(fs::exists(out / "Demo.hpp"), "the first run writes the header");
+    check(first_cpp == committed_seed,
+          "regeneration reproduces the committed developer file byte-for-byte");
+    check(region_body(first_cpp, "bind::on_name").find("state_name_ = std::string(") !=
+              std::string::npos,
+          "the on_name developer body is preserved");
+    check(region_body(first_cpp, "bind::sync").find("state_count_ < 0") != std::string::npos,
+          "the sync developer body is preserved");
+
+    const auto first_time = fs::last_write_time(out / "Demo.cpp");
+    check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
+          "the second --write exits 0");
+    check(read_file(out / "Demo.cpp") == first_cpp, "the second run is byte-identical");
+    check(fs::last_write_time(out / "Demo.cpp") == first_time,
+          "the second run leaves mtime untouched (no-op regeneration)");
+    check(run_cli(cli, "--verbose --write " + codegen_arguments(out, sample_dir), log_dir) == 0,
+          "a verbose no-op run exits 0");
+    check(read_file(log_dir / "cli.log").find("unchanged") != std::string::npos,
+          "the verbose no-op run reports the file as unchanged");
+
+    // A clean tree passes --check.
+    check(run_cli(cli, "--check " + codegen_arguments(out, sample_dir), log_dir) == 0,
+          "--check is 0 when the output is current");
+
+    // An outside-region edit is drift for --check and is overwritten by --write.
+    std::string edited = first_cpp;
+    edited += "\n// outside-region manual edit\n";
+    write_file(out / "Demo.cpp", edited);
+    check(run_cli(cli, "--check " + codegen_arguments(out, sample_dir), log_dir) == 1,
+          "--check reports drift outside protected regions");
+    check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
+          "--write repairs the drift");
+    const std::string repaired = read_file(out / "Demo.cpp");
+    check(repaired.find("outside-region manual edit") == std::string::npos,
+          "outside-region edits are overwritten");
+    check(region_body(repaired, "bind::sync").find("state_count_ < 0") != std::string::npos,
+          "the developer region survives the outside-region repair");
+
+    // Nothing outside the output directory is touched.
+    write_file(work / "outside" / "sentinel.txt", "keep");
+    check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
+          "another run exits 0");
+    check(read_file(work / "outside" / "sentinel.txt") == "keep",
+          "files outside the output directory are untouched");
+
+    // Diagnostics: a broken tsx exits 1 with a file:line diagnostic.
+    const fs::path broken = work / "broken.tsx";
+    write_file(broken, "export function Broken() {\n  return <View>;\n}\n");
+    check(run_cli(cli, "--write --out " + quoted(work / "broken-out") + " " + quoted(broken),
+                  log_dir) == 1,
+          "a parse error exits 1");
+    const std::string diagnostic = read_file(log_dir / "cli.log");
+    check(diagnostic.find("broken.tsx:") != std::string::npos,
+          "the diagnostic carries the file and line");
+    check(!fs::exists(work / "broken-out" / "Broken.cpp"),
+          "a diagnostic produces no partial output");
+
+    // Usage errors exit 2.
+    check(run_cli(cli, "", log_dir) == 2, "no arguments exits 2");
+    check(run_cli(cli, "--out " + quoted(work / "no-input-out"), log_dir) == 2,
+          "a missing input exits 2");
+    check(run_cli(cli, "--help", log_dir) == 0, "--help exits 0");
+
+    fs::remove_all(work, error);
+    if (failures != 0) {
+        std::cerr << failures << " check(s) failed\n";
+        return 1;
+    }
+    std::cout << "codegen cli tests passed\n";
+    return 0;
+}

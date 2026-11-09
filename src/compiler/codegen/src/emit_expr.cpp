@@ -169,7 +169,7 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component) {
                         "` needs the type table (slice 4); unsupported in this codegen slice");
         }
         const std::size_t split = expr.id.find("::");
-        if (split == std::string::npos || !member_prefix(expr.id.substr(0, split))) {
+        if (split == std::string::npos || !member_prefix(expr.id.substr(0, split + 2))) {
             return fail("unsupported reference `" + expr.id + "`");
         }
         return ExprEmission{member_name(expr.id), {}};

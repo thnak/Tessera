@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+
+# Big Step C sample: `Demo.tsx` is the source; the committed developer seed with protected regions
+# lives in tests/golden/codegen/demo/Demo.cpp (format-check excluded, generated text + hand edits).
+# The CLI writes the merged Demo.hpp/Demo.cpp into the build directory, never here.
+*.hpp
+*.cpp

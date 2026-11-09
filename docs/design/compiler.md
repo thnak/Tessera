@@ -228,8 +228,21 @@ the exact gap for a later animation slice.
 **Remaining missing runtime API:** inline style attachment/computed-style feed, and a per-value
 animation controller for `useAnimatedValue` hand-off.
 
-Deferred: conditional/list emission, component composition and `Slot`,
-reusing computed styles, incremental regeneration/mtime, and a codegen CLI. Goldens live in
+Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
+plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
+IR validation → codegen, first-error-only with `file:line:column`, exit 0/1/2. Every generated file
+is merged with the existing file (`merge(generated, existing)`) and rewritten only when the merged
+bytes differ, so a no-op run leaves bytes and mtime untouched; `--check` reports drift (including
+outside-region edits) and writes nothing. Slice 10 identity diagnostics (`componentId`/`uiId`/
+`automationId` missing) are the only IR diagnostics the CLI filters, because lowering does not
+produce them yet. `samples/compiler-demo/` proves the flow end to end: `Demo.tsx` +
+committed developer seed `tests/golden/codegen/demo/Demo.cpp` with hand-written region bodies, regenerated into the build
+dir and compiled as `tessera_compiler_demo` under warnings-as-errors; `codegen_cli_tests` asserts
+idempotent runs, mtime no-op, region preservation and outside-region repair.
+
+Deferred: conditional/list emission, component composition and `Slot`, reusing computed styles,
+multi-file watch mode, cross-module incremental generation, and single-node incremental
+regeneration. Goldens live in
 `tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild: the
 build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).
 
