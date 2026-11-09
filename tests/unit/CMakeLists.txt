@@ -437,6 +437,13 @@ target_link_libraries(damage_tests PRIVATE tessera_damage)
 
 add_test(NAME damage COMMAND damage_tests)
 
+add_executable(damage_clear_tests
+    damage_clear_tests.cpp)
+
+target_link_libraries(damage_clear_tests PRIVATE tessera_damage)
+
+add_test(NAME damage_clear COMMAND damage_clear_tests)
+
 add_executable(redraw_plan_tests
     redraw_plan_tests.cpp)
 

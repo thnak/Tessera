@@ -228,6 +228,28 @@ the full-redraw entry point and its command stream is unchanged.
 
 Swapchain dirty rects and incremental present remain B3.
 
+### 6.5 Accumulator clear and full-redraw latch
+
+`DamageAccumulator` has exactly one piece of state that can force a full redraw without being
+derived from the current rectangles: `full_redraw_`, the fallback latch set when the configured
+rect cap (`DamageConfig::max_rects`) is exceeded. `clear()` resets both the damage rectangles and
+that latch; configuration (`target`, `max_rects`) and allocated capacity persist, so a cleared
+accumulator is semantically identical to a freshly constructed one with the same configuration.
+
+The other full-redraw decision is not state at all: `should_full_redraw()` recomputes the area and
+scissor-count policy from the plan's current regions on every call, and the caller (frame pipeline)
+copies the policy result into a `RedrawPlan` value. Nothing in the plan or the policy survives a
+`clear()`.
+
+Invariant (regression-tested by `tests/unit/damage_clear_tests.cpp`): after `clear()`, an empty
+accumulation yields an empty plan (no render pass, no presents) and a small accumulation yields a
+partial plan at exactly the same thresholds as a fresh accumulator; a whole-screen change that made
+the previous plan full through the policy - or a cap-latched full redraw - cannot leak into the next
+frame. This is what makes the power contract ("static UI produces zero presents/submissions after
+settling") hold for the damaged path. `DirtyPass::overflowed_` is per-collection state and resets
+on every `collect()`; the only intentional cross-frame latch is the frame lane's
+`FramePipeline::frame_due_`, which `tick()` resets.
+
 ## 7. GPU resources and synchronization
 
 - `gpuFramesInFlight` frame slots; each slot owns vertex/index/uniform arenas.
