@@ -44,7 +44,7 @@ DamagePassResult DamageTracker::add_scene_damage(const DirtyPass& dirty,
             continue;
         }
 
-        const rendering::rhi::Rect current = entry.node->world_bounds();
+        const rendering::rhi::Rect current = node_damage_rect(*entry.node);
         const auto found = index_.find(entry.node->id());
         if (found != index_.end()) {
             const rendering::rhi::Rect previous = found->second->bounds;

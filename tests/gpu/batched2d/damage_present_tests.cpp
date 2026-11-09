@@ -13,6 +13,7 @@
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
+#include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -235,7 +236,7 @@ RunResult run_script(Device& device, const tessera::ui::text::FontFace& face) {
     frame(plan_for(), false);
 
     damage.clear();
-    damage.add({18, 78, 164, 60}); // changed text run
+    damage.add(tessera::ui::layout::node_damage_rect(*scene.text)); // tightened line-union damage
     frame(plan_for(), false);
 
     damage.clear();

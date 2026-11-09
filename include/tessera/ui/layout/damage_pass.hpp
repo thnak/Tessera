@@ -22,6 +22,12 @@ struct DamagePassResult {
 DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccumulator& damage,
                                   float dpi_scale = 1.0f, float margin = 0.0f);
 
+// Paint-side damage rect for a node. Text runs tighten vertically to the union of their emitted
+// stub-metrics line boxes plus a documented ink/padding margin; the width stays the node width
+// (alignment/padding are not known to the damage layer, so this is the conservative horizontal
+// rule). Everything else damages its world bounds. Callers snap the rect themselves.
+[[nodiscard]] rendering::rhi::Rect node_damage_rect(const Node& node);
+
 class DamageTracker {
 public:
     explicit DamageTracker(std::size_t max_entries = 4096);

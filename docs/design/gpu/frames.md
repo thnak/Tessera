@@ -66,11 +66,11 @@ The frame-slot idea is implemented by `Batched2DRenderer`, not yet by a device-l
 
 V1 uses an explicit pass list, not a general render graph:
 
-1. **Upload/copy** — staging to textures/buffers; no UI draws.
-2. **Offscreen 2D** — clear/load target; batched quads; custom elements composited or recorded.
-3. **Custom element passes** — offscreen targets (default) or inline pass (advanced).
-4. **Composite** — offscreen element targets into the frame target.
-5. **Readback/present** — copy to readback buffer (tests) or present (B3).
+1. **Upload/copy** â€” staging to textures/buffers; no UI draws.
+2. **Offscreen 2D** â€” clear/load target; batched quads; custom elements composited or recorded.
+3. **Custom element passes** â€” offscreen targets (default) or inline pass (advanced).
+4. **Composite** â€” offscreen element targets into the frame target.
+5. **Readback/present** â€” copy to readback buffer (tests) or present (B3).
 
 Rules:
 
@@ -162,3 +162,10 @@ controller recovers on a later tick, and rendering resumes with validation on.
   area; draw calls can stay the same (all batches intersect the region), so the win is raster area.
   Text/decoration/vector primitives damage their node content boxes; dirty-pass overflow
   under-damaging is tracked separately (task-65). Partial present/VRR remain deferred.
+
+- Per-line text damage (task-66): `ui::layout::node_damage_rect` tightens text damage to the vertical
+  union of emitted stub-metrics line boxes plus a 4 px ink/padding margin (full node width), with
+  content-box fallbacks for alignment/decoration/unknown metrics; `damage_present` shows 9,840 ->
+  6,720 px of text damage at tolerance 0. Draw calls stay equal to full frames (all batches
+  intersect the region); no batch-splitting change was made because it cannot reduce draws without
+  per-frame vertex filtering.

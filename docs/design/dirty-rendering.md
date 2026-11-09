@@ -129,7 +129,7 @@ values and only raise the domains that actually changed.
 - Render if `RenderDirty`, damage is non-empty, an animation is active, or continuous mode is on.
 - Render targets:
   - **Full redraw**: clear + repaint entire target. Safe default.
-  - **Damage redraw**: clear/redraw only damage rectangles (see §6).
+  - **Damage redraw**: clear/redraw only damage rectangles (see Â§6).
 - Present; clear per-frame render flags.
 - Never read back the target to decide dirty state.
 
@@ -202,7 +202,7 @@ Otherwise fall back to full redraw. This is conservative by design.
 - Offscreen/headless: always full target for deterministic goldens.
 
 The B1 offscreen renderer always full-redraws; B2 adds the offscreen scissor-based damage replay
-described in §6.4. Swapchain/OS present-path damage stays B3 (window/swapchain phase of Big
+described in Â§6.4. Swapchain/OS present-path damage stays B3 (window/swapchain phase of Big
 Step B).
 
 ### 6.4 Offscreen damage mechanics (B2)
@@ -336,7 +336,7 @@ Tests assert both visual output and work bounds.
 ## 10. Testing
 
 - **Equivalence**: dirty-only render vs full redraw must be pixel-identical in golden mode.
-- **Invalidation matrix**: every change class in §3 produces the expected dirty domains.
+- **Invalidation matrix**: every change class in Â§3 produces the expected dirty domains.
 - **Cache correctness**: class/id/state/theme/transform/clip changes invalidate the right caches.
 - **Damage**: damage rects cover all changed pixels; conservative fallback is exercised; the null
   backend proves every partial draw is scissored inside a plan region.
@@ -371,7 +371,7 @@ via the existing `RedrawPolicy` (`full_redraw_area_ratio`, `max_scissors`). The 
 redraw regions, covered area, draw calls and batches; the offscreen `damage_present` test renders a
 scripted sequence cumulatively and compares it at tolerance 0 with a full redraw through the **same
 renderer/sink** (a fresh renderer's glyph atlas packs differently, so filtered glyph edges can
-differ — that is a reference artifact, not a damage bug).
+differ â€” that is a reference artifact, not a damage bug).
 
 Measured on the local AMD GPU (240x160 target, Debug, validation on): initial frame full; moving a
 card -> 1 region / 4,608 px (12% of the target); changing a wrapped text run (with caret +
@@ -395,10 +395,33 @@ Per-primitive damage table (conservative by design; do not tighten without evide
 Conservative/known gaps: text damages the whole text node rather than the changed lines; a glyph
 whose ink overhangs its node box slightly should add a damage margin (the `unknown node` margin path
 in `add_scene_damage` is the place). Dirty-pass overflow does **not** under-damage: a truncated
-dirty list forces a full-target redraw (§6.6, task-65), so overflow frames are always safe. Do not
+dirty list forces a full-target redraw (Â§6.6, task-65), so overflow frames are always safe. Do not
 enable partial present/VRR from this: D4 keeps those deferred.
 
 Tests: `damage_min` (solid node move, exact at margin 0 and 2) and `damage_present` (scripted
 card/text/decoration/background changes, partial regions/area, whole-screen fallback, idle/no
 render, two-run determinism). `DamageAccumulator::clear()` latched-state regressions are covered by
 task-62; the present-loop test uses a fresh accumulator for the idle assertion.
+
+### 8.1 Per-line text damage and ink margin (task-66)
+
+Text nodes no longer automatically damage their whole content box. `ui::layout::node_damage_rect`
+uses the node's `PaintData` text with the same deterministic stub metrics/line layout as the paint
+fallback and returns a **vertical** union of the emitted line boxes plus `kTextDamageMargin = 4 px`;
+the width stays the node width. The 4 px margin covers glyph ink overhang (~1 px), a 2 px caret at
+device scale >= 2, and the damage layer's lack of computed padding/alignment knowledge. Old+new
+union still comes from `DamageTracker` (it stores this rect on the previous frame), so a move or a
+text change damages both old and new line unions.
+
+Conservative fallbacks: non-Start `text_align`, any decoration payload, empty/zero-font text, and a
+missing font-size override keep the full content box; real-metrics sources should likewise keep the
+box until damage can share the paint metrics source. Measured in `damage_present` (240x160): the
+text+decoration change dropped from 9,840 px to **6,720 px** of damage (26% -> 17.5% of target)
+while remaining pixel-identical to the same-sink full redraw at tolerance 0; `damage_min` pins the
+solid-node rule.
+
+Draw-call finding: partial frames still report 3 draws/3 batches, identical to the full frame. Every
+batch's scissor intersects the single damage region, and the existing damaged path already emits one
+scissored draw per (region, intersecting batch). Splitting batches per region cannot reduce draw
+calls here (it would multiply them by region count) and region-local vertex filtering would need
+per-frame vertex storage; the measured win is rasterized area, so no renderer change was made.
