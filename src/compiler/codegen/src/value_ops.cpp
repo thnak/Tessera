@@ -108,6 +108,9 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
             return std::nullopt;
         }
         return infer_type(*expr.operands[0], component, locals);
+    case ir::ExprKind::Array:
+        // A list literal has no printable text form (a list is not interpolated in v1).
+        return std::nullopt;
     }
     return std::nullopt;
 }

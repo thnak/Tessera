@@ -117,6 +117,12 @@ ExprPtr make_template(std::vector<TemplatePart> parts) {
     return expr;
 }
 
+ExprPtr make_array(std::vector<ExprPtr> elements) {
+    auto expr = make_expr(ExprKind::Array);
+    expr->operands = std::move(elements);
+    return expr;
+}
+
 TemplatePart text_part(std::string text) {
     return TemplatePart{std::move(text), nullptr};
 }

@@ -147,6 +147,14 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
             require_expr(context, scope, locals, arg.get(), where, "an argument");
         }
         break;
+    case ExprKind::Array:
+        // An array literal (section 4): one operand per element. The element expressions are
+        // validated like any other; lowering is what restricts them to literals where the subset
+        // spec does (docs/specs/jsx-subset-v1.md section 8.4).
+        for (const auto& item : expr->operands) {
+            require_expr(context, scope, locals, item.get(), where, "an array element");
+        }
+        break;
     }
 }
 

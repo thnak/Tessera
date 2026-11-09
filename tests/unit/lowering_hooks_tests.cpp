@@ -58,6 +58,37 @@ void test_state_forms() {
     check(hooks.find_setter("missing") == nullptr, "an unknown setter is not indexed");
 }
 
+void test_array_list_initials() {
+    const auto fixture =
+        parse(component("  const [names, setNames] = useState<string[]>([]);\n"
+                        "  const [ids, setIds] = useState<int[]>([1, 2, 3]);\n"
+                        "  const [flags, setFlags] = useState<boolean[]>([true, false]);\n"
+                        "  const [ratios, setRatios] = useState<float[]>([0.5, 1]);\n"));
+    const auto result = lower(*fixture);
+    check(result.has_value(), "array list initials lower: " + describe_errors(*fixture, result));
+    if (!result) {
+        return;
+    }
+    const lowering::LoweredHooks& hooks = *result;
+    check(hooks.state.size() == 4, "one state entry per list useState");
+    if (hooks.state.size() != 4) {
+        return;
+    }
+    check_eq(hooks.state[0].type, "list<string>", "`string[]` becomes `list<string>`");
+    check_eq(expr_text(hooks.state[0].initial.get()), "{\"kind\":\"array\",\"items\":[]}",
+             "an empty list initial is an empty IR array");
+    check_eq(hooks.state[1].type, "list<int>", "`int[]` becomes `list<int>`");
+    check(expr_text(hooks.state[1].initial.get()).find("\"kind\":\"array\"") != std::string::npos,
+          "a literal-filled list initial is an IR array");
+    check(expr_text(hooks.state[1].initial.get()).find("\"value\":3") != std::string::npos,
+          "the literal elements are lowered in order");
+    check_eq(hooks.state[2].type, "list<bool>", "`boolean[]` becomes `list<bool>`");
+    check_eq(hooks.state[3].type, "list<float>", "`float[]` becomes `list<float>`");
+    for (const char* setter : {"setNames", "setIds", "setFlags", "setRatios"}) {
+        check(hooks.find_setter(setter) != nullptr, std::string("setter ") + setter + " indexed");
+    }
+}
+
 void test_refs_and_animated_values() {
     const auto fixture = parse(component("  const r = useRef<View>(null);\n"
                                          "  const v = useAnimatedValue(1.0);\n"));
@@ -244,6 +275,7 @@ void test_empty_component() {
 
 int main() {
     test_state_forms();
+    test_array_list_initials();
     test_refs_and_animated_values();
     test_effects_cleanup_and_native_bindings();
     test_inline_setter_handlers();

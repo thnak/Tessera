@@ -372,8 +372,11 @@ Operator precedence and left associativity follow JavaScript for the operators l
 
 ### 8.4 Array literals
 
-Accepted only as the source of a list loop (section 10.5), as a `useState` initial value of a
-declared array type, or as an element list of a top-level constant. Elements are pure expressions.
+Accepted only as a `useState` initial value of a declared array type (`useState<string[]>([])`,
+`useState<int[]>([1, 2])`) — elements must be literals of the declared element type; a dynamic
+element, a nested array, a record element type and a scalar initial for a list type are rejected as
+`TESSERA_IR_UNSUPPORTED` (`src/compiler/lowering/src/hook_lowering.cpp`). A list-loop source and a
+top-level constant list are not accepted yet: a loop source must be a list reference.
 
 ### 8.5 Object literals
 

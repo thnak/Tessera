@@ -114,6 +114,24 @@ void test_expressions() {
     expect(
         "conditions are checked", [&](auto& m) { label_node(m).condition = ir::make_ref("zzz"); },
         kUnresolved);
+    expect(
+        "array elements are checked",
+        [&](auto& m) {
+            std::vector<ir::ExprPtr> items;
+            items.push_back(ir::make_literal(std::int64_t{1}));
+            items.push_back(ir::make_ref("state::gone"));
+            set_text(m, ir::make_array(std::move(items)));
+        },
+        kUnresolved);
+    expect(
+        "an array initial of a list state validates",
+        [&](auto& m) {
+            std::vector<ir::ExprPtr> items;
+            items.push_back(ir::make_literal(std::int64_t{1}));
+            items.push_back(ir::make_literal(std::int64_t{2}));
+            list(m).state[0].initial = ir::make_array(std::move(items));
+        },
+        "");
     expect("a null prop value", [&](auto& m) { label_node(m).props["x"] = nullptr; }, kMalformed);
     expect(
         "non-finite float literal",

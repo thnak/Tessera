@@ -330,8 +330,17 @@
         {
           "id": "state::rows",
           "initial": {
-            "id": "prop::start",
-            "kind": "ref"
+            "items": [
+              {
+                "kind": "literal",
+                "value": 1
+              },
+              {
+                "kind": "literal",
+                "value": 2
+              }
+            ],
+            "kind": "array"
           },
           "name": "rows",
           "type": "list<int>"

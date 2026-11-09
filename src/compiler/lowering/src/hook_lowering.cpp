@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 namespace tessera::compiler::lowering {
 namespace {
@@ -20,6 +21,84 @@ using internal::HookState;
 
 std::string prefixed(std::string_view prefix, const std::string& name) {
     return std::string(prefix) + name;
+}
+
+bool is_list_type(std::string_view type) {
+    return type.size() > 6 && type.rfind("list<", 0) == 0 && type.back() == '>';
+}
+
+std::string_view list_element(std::string_view type) {
+    return type.substr(5, type.size() - 6);
+}
+
+// The element types whose literals the IR can express directly (docs/specs/ir-v1.md section 4).
+// Record element types need the type table (slice 4) and are rejected for a non-empty initial.
+bool printable_element_type(std::string_view type) {
+    return type == "bool" || type == "int" || type == "float" || type == "string" ||
+           type == "color" || type == "length";
+}
+
+bool literal_matches_element(std::string_view type, const ir::Expr& value) {
+    if (value.kind != ir::ExprKind::Literal) {
+        return false;
+    }
+    if (type == "bool") {
+        return std::holds_alternative<bool>(value.literal);
+    }
+    if (type == "int") {
+        return std::holds_alternative<std::int64_t>(value.literal);
+    }
+    if (type == "float" || type == "length") {
+        return std::holds_alternative<double>(value.literal) ||
+               std::holds_alternative<std::int64_t>(value.literal);
+    }
+    if (type == "string" || type == "color") {
+        return std::holds_alternative<std::string>(value.literal);
+    }
+    return false;
+}
+
+// A list-typed `useState` initial: an array literal with literal elements (spec 8.4), or a
+// reference (a prop/list name, the only other list-valued IR expression). Anything else has no
+// list-valued IR form, so it is rejected here instead of reaching codegen.
+bool validate_list_initial(HookState& state, std::string_view type, const ir::Expr& initial,
+                           jsx::Span span) {
+    const std::string_view element = list_element(type);
+    if (initial.kind == ir::ExprKind::Ref) {
+        return true;
+    }
+    if (initial.kind != ir::ExprKind::Array) {
+        internal::fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                            "a `list<" + std::string(element) +
+                                ">` state initial must be an array literal or a list reference",
+                            span, "write `useState<" + std::string(element) + "[]>([])`");
+        return false;
+    }
+    if (!initial.operands.empty() && !printable_element_type(element)) {
+        internal::fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                            "the element type `" + std::string(element) +
+                                "` of a filled array initial needs the type table (slice 4)",
+                            span, "use an empty `[]` initial or a primitive element type");
+        return false;
+    }
+    for (const ir::ExprPtr& item : initial.operands) {
+        if (!item) {
+            internal::fail_hook(state, "TESSERA_IR_MALFORMED",
+                                "an array initial has a missing element", span);
+            return false;
+        }
+        if (!literal_matches_element(element, *item)) {
+            internal::fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                                "array initial elements must be "
+                                "`" +
+                                    std::string(element) +
+                                    "` literals; a dynamic element needs a list-valued IR "
+                                    "expression (slice 4)",
+                                span, "use `[]` or a list of literals");
+            return false;
+        }
+    }
+    return true;
 }
 
 void lower_state(HookState& state, std::size_t index, LoweredHooks& out,
@@ -52,16 +131,24 @@ void lower_state(HookState& state, std::size_t index, LoweredHooks& out,
         const std::optional<std::string> inferred =
             internal::initial_literal_type(*call.operands[1]);
         if (!inferred) {
-            internal::fail_hook(state, "TESSERA_IR_UNSUPPORTED",
-                                "`useState` needs a type argument when the initial value is not a "
-                                "string, boolean or number literal",
-                                statement.span, "write `useState<T>(init)`");
+            const bool array_initial = call.operands[1]->kind == jsx::ExprKind::Array;
+            internal::fail_hook(
+                state, "TESSERA_IR_UNSUPPORTED",
+                array_initial ? "an array initial needs the element type; write "
+                                "`useState<T[]>(init)`"
+                              : "`useState` needs a type argument when the initial value is "
+                                "not a string, boolean or number literal",
+                statement.span,
+                array_initial ? "write `useState<string[]>([])`" : "write `useState<T>(init)`");
             return;
         }
         type = *inferred;
     }
     ir::ExprPtr initial = internal::lower_component_expression(state, *call.operands[1], names);
     if (!initial) {
+        return;
+    }
+    if (is_list_type(type) && !validate_list_initial(state, type, *initial, statement.span)) {
         return;
     }
     out.state.push_back(ir::State{prefixed("state::", statement.names[0]), statement.names[0], type,

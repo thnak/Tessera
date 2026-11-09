@@ -93,7 +93,11 @@ ir::IrModule make_rich_module() {
     list.source = span(0, 500, 1, 1, 30, 2);
     list.props.push_back({"start", "int", integer(1)});
     list.props.push_back({"title", "string", nullptr});
-    list.state.push_back({"state::rows", "rows", "list<int>", ir::make_ref("prop::start")});
+    std::vector<ir::ExprPtr> rows_initial;
+    rows_initial.push_back(integer(1));
+    rows_initial.push_back(integer(2));
+    list.state.push_back(
+        {"state::rows", "rows", "list<int>", ir::make_array(std::move(rows_initial))});
     list.state.push_back({"state::n", "n", "float", ir::make_literal(1.0)});
     list.handlers.push_back(make_handler());
     list.effects.push_back({"effect::sync",

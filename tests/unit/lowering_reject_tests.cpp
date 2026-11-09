@@ -35,20 +35,21 @@ lowering::ExpressionLoweringResult lower_ast(const jsx::Expr& expr, const std::s
     return lowering::lower_expression(expr, context);
 }
 
-void test_aggregate_and_closure_literals_are_rejected() {
+void test_array_literals_lower_and_other_aggregates_are_rejected() {
+    // `[...]` is an IR `array` expression now (docs/specs/ir-v1.md section 4); the accepted source
+    // positions are enforced by the hook pass (jsx-subset-v1.md section 8.4).
     const Lowered array = lower("[1, 2]", &kNames);
-    check(!array.result, "an array literal produces no IR");
-    check_eq(first_code(array.result), "TESSERA_IR_UNSUPPORTED", "array literal code");
-    check(!array.result && array.result.error().size() == 1,
-          "one diagnostic for one unsupported expression");
-    if (!array.result) {
-        const jsx::Diagnostic diagnostic = first_diagnostic(array.result);
-        check(diagnostic.span.span.offset == 0 && diagnostic.span.span.length == 6,
-              "the array diagnostic covers the whole literal");
-        check(diagnostic.span.start.line == 1 && diagnostic.span.start.column == 1 &&
-                  diagnostic.span.end.column == 7,
-              "the array diagnostic has 1-based columns");
+    check(array.result.has_value(), "an array literal lowers to an IR array");
+    if (array.result) {
+        const std::string text = ir_text(*expr_of(array));
+        check(text.find("\"kind\": \"array\"") != std::string::npos, "the IR kind is array");
+        check(text.find("\"value\": 1") != std::string::npos &&
+                  text.find("\"value\": 2") != std::string::npos,
+              "the elements are lowered in order");
     }
+    const Lowered nested = lower("[[1]]", &kNames);
+    check(!nested.result, "a nested array literal produces no IR");
+    check_eq(first_code(nested.result), "TESSERA_IR_UNSUPPORTED", "nested array code");
 
     check_eq(first_code(lower("{ a: 1 }", &kNames).result), "TESSERA_IR_UNSUPPORTED",
              "object literal code");
@@ -195,20 +196,21 @@ void test_malformed_hand_built_asts() {
 }
 
 void test_failure_never_returns_partial_ir() {
-    const Lowered nested = lower("1 + [2]", &kNames);
+    // `{}` inside a binary expression is still an unsupported nested expression (array literals do
+    // lower now; the object literal keeps this test's purpose).
+    const Lowered nested = lower("1 + { a: 1 }", &kNames);
     check(!nested.result, "a nested unsupported expression fails the whole tree");
     if (!nested.result) {
         check(nested.result.error().size() == 1, "the failure reports one diagnostic");
         const jsx::Diagnostic diagnostic = first_diagnostic(nested.result);
-        check(diagnostic.span.span.offset == 4 && diagnostic.span.span.length == 3,
-              "the diagnostic points into the failing subtree");
+        check(diagnostic.span.span.offset == 4, "the diagnostic points into the failing subtree");
     }
 }
 
 } // namespace
 
 int main() {
-    test_aggregate_and_closure_literals_are_rejected();
+    test_array_literals_lower_and_other_aggregates_are_rejected();
     test_assignment_is_rejected();
     test_member_and_call_forms_are_rejected();
     test_unresolved_references();

@@ -46,6 +46,21 @@ std::string flat(std::string text) {
     return out;
 }
 
+void test_array_expression() {
+    std::vector<ir::ExprPtr> elements;
+    elements.push_back(ir::make_literal(std::string("alpha")));
+    elements.push_back(ir::make_literal(std::string("beta")));
+    check_eq(flat(expr_text(ir::make_array(std::move(elements)).get())),
+             "{\"items\": [{\"kind\": \"literal\",\"value\": \"alpha\"},"
+             "{\"kind\": \"literal\",\"value\": \"beta\"}],\"kind\": \"array\"}",
+             "an array writes its elements as `items` in source order");
+    check_eq(flat(expr_text(ir::make_array({}).get())), "{\"items\": [],\"kind\": \"array\"}",
+             "an empty array is written as an empty items list");
+    // A value position writes a non-literal expression as its object (an array is not a literal).
+    check_eq(flat(value_text(ir::make_array({}).get())), "{\"items\": [],\"kind\": \"array\"}",
+             "an array in a value position keeps its object form");
+}
+
 void test_expression_forms() {
     check_eq(flat(expr_text(ir::make_literal(std::int64_t{42}).get())),
              "{\"kind\": \"literal\",\"value\": 42}", "int literal");
@@ -233,6 +248,7 @@ int main(int argc, char** argv) {
         return finish("ir json golden update");
     }
     test_expression_forms();
+    test_array_expression();
     test_value_position_is_bare_for_literals_only();
     test_malformed_ir_is_written_with_gaps();
     test_empty_optional_fields_are_omitted();

@@ -22,6 +22,12 @@ bool fail(std::string& error, std::string message) {
     return false;
 }
 
+// An IR array initial only has a C++ form as a braced list for a `std::vector<T>` (list-typed)
+// field; guarding here keeps a malformed IR from emitting initializer text that cannot compile.
+bool is_list_cpp_type(std::string_view cpp) {
+    return cpp.rfind("std::vector<", 0) == 0;
+}
+
 } // namespace
 bool emit_component_header(const ir::Component& component, std::string_view ns,
                            const std::vector<const ir::Binding*>& bindings,
@@ -68,11 +74,17 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
         }
         std::string initial = "{}";
         if (prop.default_value) {
-            ExprEmission value = emit_expr(*prop.default_value, component);
+            if (prop.default_value->kind == ir::ExprKind::Array && !is_list_cpp_type(*type)) {
+                return fail(error, "prop `" + prop.name +
+                                       "` has an array default but its type is not a list");
+            }
+            ExprEmission value = emit_initializer_expr(*prop.default_value, component);
             if (!value.error.empty()) {
                 return fail(error, value.error);
             }
-            initial = "{" + value.text + "}";
+            // An array default already carries its braces; a scalar default is brace-initialized.
+            initial = prop.default_value->kind == ir::ExprKind::Array ? value.text
+                                                                      : "{" + value.text + "}";
         }
         writer.line("// prop `" + prop.name + "`.");
         writer.line(*type + " " + member_name("prop::" + prop.name) + " = " + initial + ";");
@@ -83,8 +95,13 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
             return fail(error, "state `" + state.name + "` has a type with no C++ form (`" +
                                    state.type + "`)");
         }
-        ExprEmission initial =
-            state.initial ? emit_expr(*state.initial, component) : ExprEmission{"{}", {}};
+        if (state.initial && state.initial->kind == ir::ExprKind::Array &&
+            !is_list_cpp_type(*type)) {
+            return fail(error, "state `" + state.name + "` has an array initial but its type `" +
+                                   state.type + "` is not a list");
+        }
+        ExprEmission initial = state.initial ? emit_initializer_expr(*state.initial, component)
+                                             : ExprEmission{"{}", {}};
         if (!initial.error.empty()) {
             return fail(error, initial.error);
         }
@@ -100,8 +117,8 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
         if (!type) {
             return fail(error, "animated value `" + value.name + "` has a type with no C++ form");
         }
-        ExprEmission initial =
-            value.initial ? emit_expr(*value.initial, component) : ExprEmission{"{}", {}};
+        ExprEmission initial = value.initial ? emit_initializer_expr(*value.initial, component)
+                                             : ExprEmission{"{}", {}};
         if (!initial.error.empty()) {
             return fail(error, initial.error);
         }

@@ -82,6 +82,15 @@ JsonValue expr_to_json(const Expr* expr) {
         json.set("args", std::move(args));
         break;
     }
+    case ExprKind::Array: {
+        json.set("kind", JsonValue::string("array"));
+        JsonValue items = JsonValue::array();
+        for (const auto& item : expr->operands) {
+            items.push(expr_to_json(item.get()));
+        }
+        json.set("items", std::move(items));
+        break;
+    }
     }
     return json;
 }

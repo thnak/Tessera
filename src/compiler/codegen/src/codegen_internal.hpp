@@ -62,6 +62,12 @@ struct ExprEmission {
 [[nodiscard]] ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
                                      const LocalBindings& locals = {});
 
+// Emits an initializer expression: a state/prop/animated initial value position, where an IR array
+// literal becomes a braced C++ list (`std::vector<std::string> items_ = {"a", "b"};`). Everywhere
+// else `emit_expr` rejects an array literal loudly.
+[[nodiscard]] ExprEmission emit_initializer_expr(const ir::Expr& expr,
+                                                 const ir::Component& component);
+
 // Emits the body of an inline handler or preview: one line per action.
 [[nodiscard]] std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                                                       const ir::Component& component,

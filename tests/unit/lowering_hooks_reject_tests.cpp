@@ -44,17 +44,51 @@ void test_state_type_needs_the_type_table() {
     check_eq(first_code(null_result), "TESSERA_IR_UNSUPPORTED", "the code");
 }
 
-void test_array_literal_initial_is_rejected_for_now() {
-    // Spec 8.4 accepts an array literal as a useState initial value; dropping it into IR needs the
-    // array-expression form that slice 5 does not lower yet.
-    const auto fixture = parse(component("  const [rows, setRows] = useState<Row[]>([]);\n"));
-    const auto result = lower(*fixture);
-    check(!result.has_value(), "an array literal initial has no IR expression");
-    if (!result.has_value() && !result.error().empty()) {
-        check_eq(std::string(result.error()[0].code), "TESSERA_IR_UNSUPPORTED", "the code");
-        check_eq(std::string(fixture->map.slice(result.error()[0].span.span)), "[]",
-                 "the array span is reported");
-    }
+void test_array_list_initial_rejections() {
+    // `useState<T[]>(...)` accepts an array literal with literal elements and a list reference
+    // (spec 8.4); every other list-valued initial has no IR form and is rejected loudly.
+    const auto no_type = parse(component("  const [rows, setRows] = useState([]);\n"));
+    const auto no_type_result = lower(*no_type);
+    check(!no_type_result.has_value(), "an array initial without an element type is rejected");
+    check_eq(first_code(no_type_result), "TESSERA_IR_UNSUPPORTED", "the code names the slice");
+
+    const auto dynamic_element =
+        parse(component("  const [name, setName] = useState(\"a\");\n"
+                        "  const [rows, setRows] = useState<string[]>([name]);\n"));
+    const auto dynamic_result = lower(*dynamic_element);
+    check(!dynamic_result.has_value(), "a non-literal array element is rejected");
+    check_eq(first_code(dynamic_result), "TESSERA_IR_UNSUPPORTED", "the code");
+
+    const auto wrong_element =
+        parse(component("  const [rows, setRows] = useState<string[]>([1]);\n"));
+    const auto wrong_result = lower(*wrong_element);
+    check(!wrong_result.has_value(), "an element literal of the wrong type is rejected");
+    check_eq(first_code(wrong_result), "TESSERA_IR_UNSUPPORTED", "the code");
+
+    const auto nested = parse(component("  const [rows, setRows] = useState<int[]>([[1]]);\n"));
+    const auto nested_result = lower(*nested);
+    check(!nested_result.has_value(), "a nested array literal is rejected");
+    check_eq(first_code(nested_result), "TESSERA_IR_UNSUPPORTED", "the code");
+
+    const auto record_element =
+        parse(component("  const [rows, setRows] = useState<Row[]>([1]);\n"));
+    const auto record_result = lower(*record_element);
+    check(!record_result.has_value(), "a filled record element type is rejected");
+    check_eq(first_code(record_result), "TESSERA_IR_UNSUPPORTED", "the code");
+
+    const auto non_array_initial = parse(component(
+        "  const [rows, setRows] = useState<Row[]>(props.rows);\n", "<View/>", "props: P"));
+    const auto non_array_result = lower(*non_array_initial);
+    check(non_array_result.has_value(),
+          "a list reference is still a valid list initial (the other IR list expression)");
+
+    const auto count_initial =
+        parse(component("  const [count, setCount] = useState(0);\n"
+                        "  const [rows, setRows] = useState<Row[]>(count);\n"));
+    const auto count_result = lower(*count_initial);
+    check(
+        count_result.has_value(),
+        "a reference initial is accepted without type-checking it (expression typing is slice 4)");
 }
 
 void test_declared_handler_parameters_need_annotations() {
@@ -160,7 +194,7 @@ void test_mismatched_analysis_is_rejected() {
 int main() {
     test_effect_needs_a_binding();
     test_state_type_needs_the_type_table();
-    test_array_literal_initial_is_rejected_for_now();
+    test_array_list_initial_rejections();
     test_declared_handler_parameters_need_annotations();
     test_event_arrow_body_rule();
     test_animated_set_options_are_bounded();

@@ -305,8 +305,35 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         text += ")";
         return ExprEmission{std::move(text), {}};
     }
+    case ir::ExprKind::Array:
+        // An array literal is only a state/prop initial value (docs/specs/ir-v1.md section 4); the
+        // initializer position has its own emitter so a braced list never leaks into an expression.
+        return fail("an array literal has no C++ spelling in an expression position; it is only a "
+                    "state or prop initial value");
     }
     return fail("unsupported expression kind");
+}
+
+ExprEmission emit_initializer_expr(const ir::Expr& expr, const ir::Component& component) {
+    if (expr.kind != ir::ExprKind::Array) {
+        return emit_expr(expr, component);
+    }
+    std::string text = "{";
+    for (std::size_t i = 0; i < expr.operands.size(); ++i) {
+        if (!expr.operands[i]) {
+            return fail("an array initial has a missing element");
+        }
+        const ExprEmission element = emit_expr(*expr.operands[i], component);
+        if (!element.error.empty()) {
+            return element;
+        }
+        if (i != 0) {
+            text += ", ";
+        }
+        text += element.text;
+    }
+    text += "}";
+    return ExprEmission{std::move(text), {}};
 }
 
 std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,

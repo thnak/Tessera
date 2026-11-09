@@ -164,12 +164,33 @@ ir::ExprPtr lower_expr(LoweringState& state, const jsx::Expr& expr) {
         return lower_template(state, expr);
     case jsx::ExprKind::Call:
         return lower_call(state, expr);
-    case jsx::ExprKind::Array:
-        fail(state, kUnsupported,
-             "an array literal is not an IR expression; V1 accepts one only as a list source or "
-             "an initial value (jsx-subset-v1.md sections 8.4 and 10.5)",
-             expr.span);
-        return nullptr;
+    case jsx::ExprKind::Array: {
+        // `[...]` is an IR `array` expression (docs/specs/ir-v1.md section 4). The subset spec
+        // (8.4) only allows it as a `useState` initial of a declared `T[]` type, a list-loop source
+        // or a top-level constant; lowering an array literal here keeps the IR faithful, and the
+        // use sites enforce their own rules (the hook pass requires literal elements).
+        std::vector<ir::ExprPtr> elements;
+        elements.reserve(expr.operands.size());
+        for (const jsx::ExprPtr& element : expr.operands) {
+            if (!element) {
+                fail(state, kMalformed, "an array literal has a missing element", expr.span);
+                return nullptr;
+            }
+            if (element->kind == jsx::ExprKind::Array) {
+                fail(
+                    state, kUnsupported,
+                    "a nested array literal has no IR form; `list<list<T>>` is not supported in v1",
+                    element->span);
+                return nullptr;
+            }
+            ir::ExprPtr lowered = lower_expr(state, *element);
+            if (!lowered) {
+                return nullptr;
+            }
+            elements.push_back(std::move(lowered));
+        }
+        return ir::make_array(std::move(elements));
+    }
     case jsx::ExprKind::Object:
         fail(state, kUnsupported,
              "an object literal is not an IR expression; V1 accepts one only as a `style` or "

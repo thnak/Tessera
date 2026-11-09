@@ -291,6 +291,36 @@ void test_generated_shape() {
           "item content is hash-compared");
 }
 
+void test_array_initial_reaches_list_path() {
+    // End to end through the IR contract: a front end that lowers `useState<string[]>(["alpha",
+    // "beta"])` produces an `array` initial (docs/specs/ir-v1.md section 4), which codegen must
+    // emit as a braced list initializer while keeping the generated list update path.
+    ir::IrModule module = make_dynamic_module();
+    std::vector<ir::ExprPtr> items;
+    items.push_back(ir::make_literal(std::string("alpha")));
+    items.push_back(ir::make_literal(std::string("beta")));
+    module.components[0].state[1].initial = ir::make_array(std::move(items));
+    const auto result = codegen::generate(module);
+    check(result.has_value(), "an array list initial generates");
+    if (!result) {
+        std::cerr << "  error: " << first_error(result) << "\n";
+        return;
+    }
+    const std::string& header = (*result)[0].text;
+    check(header.find("std::vector<std::string> state_items_ = {\"alpha\", \"beta\"};") !=
+              std::string::npos,
+          "the array initial becomes a braced C++ list initializer");
+    check(header.find("void apply_list_5(") != std::string::npos,
+          "the list state stays on the generated list path");
+    // An array initial on a non-list field would emit text that cannot compile: reject it loudly.
+    ir::IrModule scalar = make_dynamic_module();
+    scalar.components[0].state[0].initial = ir::make_array(std::vector<ir::ExprPtr>{});
+    const auto scalar_result = codegen::generate(scalar);
+    check(!scalar_result.has_value() &&
+              first_error(scalar_result).rfind("TESSERA_CODEGEN_", 0) == 0,
+          "an array initial on a scalar state is rejected");
+}
+
 void test_goldens(bool update) {
     const auto result = codegen::generate(make_dynamic_module());
     check(result.has_value(), "the dynamic golden sample generates");
@@ -461,6 +491,7 @@ int main(int argc, char** argv) {
     }
     test_fixture_is_valid();
     test_generated_shape();
+    test_array_initial_reaches_list_path();
     test_goldens(false);
     test_determinism();
     test_rejections();

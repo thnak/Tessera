@@ -277,6 +277,7 @@ V1 expressions are pure and statically analyzable:
 | `conditional` | `{ "kind": "conditional", "test": Expr, "then": Expr, "else": Expr }` | no side effects |
 | `template` | `{ "kind": "template", "parts": [string|Expr] }` | string interpolation |
 | `call` | `{ "kind": "call", "callee": "formatNumber", "args": [Expr] }` | allowlisted pure functions only (section 4.2) |
+| `array` | `{ "kind": "array", "items": [Expr] }` | list literal; a value position only (state/prop initial). Lowering accepts literal elements only, per jsx-subset-v1 section 8.4 |
 
 Rejected: member access on arbitrary objects, array indexing except list items, assignments,
 function expressions, `await`, `yield`, `new`, dynamic imports, and any call with side effects.

@@ -183,7 +183,7 @@ without a record type, unsupported unary/binary operators and non-allowlisted ca
 at the first error, so the result is either a complete expression or diagnostics with no IR at all.
 
 Not in slice 5: types and expression typing (slice 4); hooks, bindings, nodes, components,
-conditionals/loops and imports (slices 6 to 9); array and object literals in accepted positions;
+conditionals/loops and imports (slices 6 to 9); object literals and list-value typing;
 `NameResolver`; IR expression spans (diagnostics only). Top-level constant folding is **not**
 implemented: it needs the module (constants, imports) and the type table, which do not exist yet.
 
@@ -271,8 +271,8 @@ not needed by slice 7).
 
 Not in slice 6: JSX nodes, props, events on elements, `ref` targets, style and children (slice 7);
 conditionals/loops (slice 8); components and `LoweringOptions` (slice 9); the type table and
-expression typing (slice 4); `environment`/library hooks (slice 11); local inlining, array-literal
-initials and `preview` bodies; `uiId`/`componentId` (slice 10).
+expression typing (slice 4); `environment`/library hooks (slice 11); local inlining, dynamic
+list initials and `preview` bodies; `uiId`/`componentId` (slice 10). Literal array initials are lowered (`useState<T[]>([])`; docs/specs/jsx-subset-v1.md 8.4).
 
 Tests are `lowering_hooks` (every hook and binding form, spans, lookups, action lowering),
 `lowering_hooks_reject` (each rejection, first-error-only, no partial IR, precondition checks) and

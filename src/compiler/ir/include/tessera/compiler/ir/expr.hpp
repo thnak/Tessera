@@ -11,7 +11,7 @@
 namespace tessera::compiler::ir {
 
 // docs/specs/ir-v1.md section 4.
-enum class ExprKind { Literal, Ref, Binary, Unary, Conditional, Template, Call };
+enum class ExprKind { Literal, Ref, Binary, Unary, Conditional, Template, Call, Array };
 
 struct Null {};
 // A literal is null, bool, int, float or string. Int and float stay distinct so the writer can
@@ -45,6 +45,10 @@ ExprPtr make_unary(std::string op, ExprPtr value);
 ExprPtr make_conditional(ExprPtr test, ExprPtr then_value, ExprPtr else_value);
 ExprPtr make_call(std::string callee, std::vector<ExprPtr> args);
 ExprPtr make_template(std::vector<TemplatePart> parts);
+// Array (list) literal: one operand per element (docs/specs/ir-v1.md section 4). Lowering accepts
+// literal elements only, and only where the subset spec allows an array literal (a `useState`
+// initial of a declared `T[]` type, a list-loop source or a top-level constant).
+ExprPtr make_array(std::vector<ExprPtr> elements);
 
 TemplatePart text_part(std::string text);
 TemplatePart expr_part(ExprPtr expr);

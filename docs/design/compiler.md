@@ -184,7 +184,10 @@ Expressions: literals (string escaping, float shortest round-trip), `state::`/`p
 `anim::` references as generated fields, `! - +` unary, `== != < <= > >= + - * / && ||` binary (`/`
 emits an explicit double cast because IR division is float), `?:`, text templates whose parts are
 all text (folded to one string literal), and calls to `min max clamp abs floor ceil round toInt
-toFloat`. Rejected loudly with `TESSERA_CODEGEN_UNSUPPORTED`: record-field references (`prop::row.x`,
+toFloat`. An IR `array` expression is initializer-only: a state/prop initial with literal elements
+is emitted as a braced C++ list (`std::vector<std::string> items_ = {"a", "b"};`), and in any other
+expression position it is rejected loudly. Rejected loudly with `TESSERA_CODEGEN_UNSUPPORTED`:
+record-field references (`prop::row.x`,
 `event.value`), `%` (int vs float remainder needs slice 4), text templates with substitutions,
 `length`/`formatNumber`, `env::` references, record-typed fields,
 `Component`/`CustomElement`/`VirtualList`/`VirtualGrid` nodes, and `environment` hooks.
