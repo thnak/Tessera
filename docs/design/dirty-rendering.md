@@ -49,7 +49,10 @@ See [`virtualization-v1.md`](../specs/virtualization-v1.md) for the collection m
 | `ResourceDirty` | texture/font/atlas/GPU buffer content change | resource uploader (CPU-to-GPU copy step) | upload recorded |
 | `GpuDirty` | buffer/image contents changed on CPU | command recording | commands submitted |
 
-Each node stores a bitset. A node may be dirty in several domains at once.
+Each node stores a bitset. A node may be dirty in several domains at once. The zero value is
+`Dirty::Clean` (not `None`): bitmask enumerators must avoid X11 macro names such as `None`,
+`Status`, `Bool`, `Success`, `True`, `False` and `Expose`, because a translation unit that includes
+Xlib would rewrite them before the compiler sees the declaration.
 
 ### 2.1 Granularity
 
@@ -327,3 +330,46 @@ Tests assert both visual output and work bounds.
 - Multi-threaded paint/draw-list building.
 - Occlusion/culling integration with the scene graph ([`scene-graph.md`](scene-graph.md)).
 - Exact cache budget defaults for desktop vs embedded (see [`buffer-config-v1.md`](../specs/buffer-config-v1.md) for the buffer budget schema).
+
+## 8. Render-side damage in the present loop (D4)
+
+Damage is **render-work reduction**, not partial OS presentation: the present path still presents the
+full surface, but a due frame with a small damage plan is recorded through
+`Batched2DRenderer::begin_damaged` (scissor regions) into a preserved render target
+(`LoadOp::Load`) instead of a full clear+redraw. A whole-screen/large plan falls back to full redraw
+via the existing `RedrawPolicy` (`full_redraw_area_ratio`, `max_scissors`). The POC prints per-frame
+redraw regions, covered area, draw calls and batches; the offscreen `damage_present` test renders a
+scripted sequence cumulatively and compares it at tolerance 0 with a full redraw through the **same
+renderer/sink** (a fresh renderer's glyph atlas packs differently, so filtered glyph edges can
+differ — that is a reference artifact, not a damage bug).
+
+Measured on the local AMD GPU (240x160 target, Debug, validation on): initial frame full; moving a
+card -> 1 region / 4,608 px (12% of the target); changing a wrapped text run (with caret +
+selection decoration) -> 1 region / 9,840 px (26%); toggling a background -> 1 region / 1,156 px (3%);
+all three frames pixel-identical to the same-sink full redraw; a whole-screen change reports
+`full_redraw` and matches; empty damage renders nothing. Draw calls for the partial frames are the
+same 3 batches (every batch intersects the damage rect); the win is rasterized area, not draw count,
+and this is documented rather than over-claimed.
+
+Per-primitive damage table (conservative by design; do not tighten without evidence):
+
+| Primitive | Damage rect |
+|---|---|
+| Solid/rounded rect, background/border | node border box; on a move, old **and** new bounds (DamageTracker keeps prior bounds) |
+| Text run (wrap/no-wrap, max_lines) | text node content box (paint only emits inside it); per-line tightening is deferred |
+| Caret/selection decoration | within the text content box (line boxes + 1-2 px caret); no extra margin needed in the tested cases |
+| Vector/SVG asset | node content box used for raster placement |
+| Clip/rounded clip | parent clip box (children damage from their own bounds; clip is not an extra damage source) |
+| Opacity/transform | no extra damage; transform uses the node's world AABB |
+
+Conservative/known gaps: text damages the whole text node rather than the changed lines; a glyph
+whose ink overhangs its node box slightly should add a damage margin (the `unknown node` margin path
+in `add_scene_damage` is the place); and **dirty-pass overflow currently under-damages** (truncated
+dirty list is not forced to full-target damage — task-65, owned by ui-input; do not build on the
+assumption that overflow yields full damage). Do not enable partial present/VRR from this: D4 keeps
+those deferred.
+
+Tests: `damage_min` (solid node move, exact at margin 0 and 2) and `damage_present` (scripted
+card/text/decoration/background changes, partial regions/area, whole-screen fallback, idle/no
+render, two-run determinism). `DamageAccumulator::clear()` latched-state regressions are covered by
+task-62; the present-loop test uses a fresh accumulator for the idle assertion.

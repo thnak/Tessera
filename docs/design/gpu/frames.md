@@ -155,3 +155,10 @@ controller recovers on a later tick, and rendering resumes with validation on.
   back-buffer coherence bookkeeping; X11 partial updates (`XPutImage`/`XShmPutImage`/`XCopyArea`)
   do not reduce compositor work and XDamage only reports. Damage stays a render-side work reduction
   (D4); VRR/partial present belongs to a later platform-capability slice.
+
+- Render-side damage (D4, task-61): due frames with a small `RedrawPlan` are recorded through
+  `begin_damaged` into a preserved target and presented full-frame; large/whole-screen plans fall
+  back to full redraw. Offscreen `damage_present` proves pixel-identical output and reduced covered
+  area; draw calls can stay the same (all batches intersect the region), so the win is raster area.
+  Text/decoration/vector primitives damage their node content boxes; dirty-pass overflow
+  under-damaging is tracked separately (task-65). Partial present/VRR remain deferred.
