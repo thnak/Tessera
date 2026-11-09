@@ -74,8 +74,8 @@ resolve_vector_raster(const VectorDraw& draw, std::uint32_t document_width,
     request.dest = draw.rect;
     request.raster_width = raster_width;
     request.raster_height = raster_height;
-    request.scale_milli =
-        static_cast<std::uint32_t>(std::clamp<double>(std::llround(milli), 1.0, 16000.0));
+    request.scale_milli = static_cast<std::uint32_t>(
+        std::clamp<double>(static_cast<double>(std::llround(milli)), 1.0, 16000.0));
     return request;
 }
 
