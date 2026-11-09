@@ -223,6 +223,26 @@ package contents, reproducible build) run in the platform build jobs on Linux an
 Run the steps below from a clean checkout of the release commit on each OS; do not publish until all
 three platforms are green. Steps 1-2 run everywhere; step 5 produces one artifact per OS.
 
+### Clean-room rehearsal
+
+Before the numbered steps, run the clean-room rehearsal, which builds from the exact commit in a
+detached temporary worktree, so a build input that exists only in a dirty working tree fails
+instead of leaking into a release:
+
+```bash
+python -B scripts/release_rehearsal.py --target merger_tests
+```
+
+It resolves `git rev-parse HEAD`, configures Release with `TESSERA_STATIC_RUNTIME=ON` and
+`TESSERA_PACKAGE_EXECUTABLES=<target>`, builds the target set, creates the TGZ/ZIP archive, and runs
+in order `check_package.py`, the `cmake --install` license/SBOM layout check, `check_static_link.py`,
+`gen_sbom.py --check`, `gen_license_bundle.py --check` and `check_dependencies.py`, then prints one
+summary table and removes its worktree (`--keep` keeps it for inspection; `--skip-build --artifact
+PATH` reruns only the gate steps). Expected duration is roughly 1-2 minutes on Linux CI and up to
+~5 minutes for a first Windows run (network FetchContent plus the MSVC environment). It complements,
+and does not replace, `gates.py` (current-tree checks including docs) and the per-OS CI
+build/package jobs; it runs in the Linux `release-rehearsal` CI job.
+
 1. **Repository gates** — `python -B scripts/gates.py` (dependencies, license bundle, SBOM, docs,
    pins). Proves the tree is internally consistent; add `--archive` once step 5 produced an archive.
 2. **Release build and static-runtime proof** — configure with `TESSERA_STATIC_RUNTIME=ON` and
