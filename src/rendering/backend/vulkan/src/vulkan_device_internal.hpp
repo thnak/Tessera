@@ -168,7 +168,7 @@ private:
     bool recovery_attempted_ = false;
     bool simulated_loss_ = false;
 #if defined(TESSERA_VULKAN_TEST_HOOKS)
-    InjectedDeviceFault injected_fault_ = InjectedDeviceFault::None;
+    InjectedDeviceFault injected_fault_ = InjectedDeviceFault::NoFault;
     bool fail_recovery_for_testing_ = false;
 #endif
 };

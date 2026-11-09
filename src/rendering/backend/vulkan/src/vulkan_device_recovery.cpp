@@ -34,7 +34,7 @@ void VulkanDevice::simulate_device_loss_for_testing() {
 bool VulkanDevice::consume_injected_fault(InjectedDeviceFault fault) {
 #if defined(TESSERA_VULKAN_TEST_HOOKS)
     if (injected_fault_ == fault) {
-        injected_fault_ = InjectedDeviceFault::None;
+        injected_fault_ = InjectedDeviceFault::NoFault;
         // The injected loss only fakes the driver error; the real VkDevice is still alive, so
         // recovery teardown may destroy its children normally (validation stays clean).
         simulated_loss_ = true;

@@ -37,9 +37,11 @@ namespace tessera::rendering::vulkan {
 class VulkanDevice;
 
 // Test seam (compiled in when TESSERA_VULKAN_TEST_HOOKS is defined) that reports a loss from the
-// next matching operation instead of waiting for a real GPU reset.
+// next matching operation instead of waiting for a real GPU reset. The "no fault" enumerator is
+// `NoFault`, not `None`: X11's X.h defines `None` as a macro, so `None` would break this header on
+// every Linux Xlib build.
 enum class InjectedDeviceFault {
-    None,
+    NoFault,
     DeviceLostOnSubmit,
     DeviceLostOnFenceWait,
     DeviceLostOnAcquire,
