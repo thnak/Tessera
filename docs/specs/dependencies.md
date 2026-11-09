@@ -176,8 +176,6 @@ no linked dependency. Diagnostics backends are optional build flags and stay beh
 | doctest | Candidate alternative | MIT | `tests/unit` | Lighter unit tests |
 | GoogleTest | Candidate alternative | BSD-3-Clause | `tests/unit` | Unit tests |
 | Google Benchmark | V1 optional | Apache-2.0 | `tests/benchmarks` | Microbenchmarks |
-| stb_image | V1 test | Public domain / MIT | `tests/golden` | PNG decode and diff |
-| Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan |
 | libFuzzer | V1 optional | Apache-2.0 (LLVM) | `tests/fuzz` | Fuzzing |
 | GitHub Actions | V1 CI | — | `.github/` | CI |
 

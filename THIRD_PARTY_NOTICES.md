@@ -142,6 +142,11 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | simdjson | Apache-2.0 | their respective authors |
 | libFuzzer | Apache-2.0 with LLVM exception | LLVM Project |
 | Noto Sans / Inter | SIL Open Font License 1.1 | their respective authors |
+| libunibreak | zlib | Wu Yongwei and libunibreak contributors |
+| lunasvg | MIT | lunasvg contributors |
+| miniaudio | Public domain / MIT-0 | David Reid (mackron) |
+| Breakpad | BSD-3-Clause | Google LLC / Breakpad authors |
+| rpmalloc | MIT / Public domain | Mattias Jansson |
 
 ## Build-time tools (not linked or shipped)
 
