@@ -1,0 +1,2678 @@
+{
+  "aliases": [
+    {
+      "status": "mapped",
+      "tag": "div",
+      "target": "View"
+    },
+    {
+      "status": "mapped",
+      "tag": "section",
+      "target": "View"
+    },
+    {
+      "status": "mapped",
+      "tag": "article",
+      "target": "View"
+    },
+    {
+      "status": "mapped",
+      "tag": "main",
+      "target": "View"
+    },
+    {
+      "status": "mapped",
+      "tag": "header",
+      "target": "View"
+    },
+    {
+      "status": "mapped",
+      "tag": "footer",
+      "target": "View"
+    },
+    {
+      "note": "landmark roles are not in the accessibility role list, so none is injected",
+      "status": "mapped",
+      "tag": "nav",
+      "target": "View"
+    },
+    {
+      "note": "landmark roles are not in the accessibility role list, so none is injected",
+      "status": "mapped",
+      "tag": "aside",
+      "target": "View"
+    },
+    {
+      "status": "mapped",
+      "tag": "figure",
+      "target": "View"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "list"
+        }
+      ],
+      "note": "no list markers and no numbering",
+      "status": "mapped",
+      "tag": "ul",
+      "target": "View"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "list"
+        }
+      ],
+      "note": "no list markers and no numbering",
+      "status": "mapped",
+      "tag": "ol",
+      "target": "View"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "listitem"
+        }
+      ],
+      "status": "mapped",
+      "tag": "li",
+      "target": "View"
+    },
+    {
+      "status": "mapped",
+      "tag": "span",
+      "target": "Text"
+    },
+    {
+      "status": "mapped",
+      "tag": "p",
+      "target": "Text"
+    },
+    {
+      "note": "does not focus its control; `htmlFor` is rejected [Q11]",
+      "status": "mapped",
+      "tag": "label",
+      "target": "Text"
+    },
+    {
+      "status": "mapped",
+      "tag": "figcaption",
+      "target": "Text"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "heading"
+        }
+      ],
+      "note": "the level is not exposed in V1",
+      "status": "mapped",
+      "tag": "h1",
+      "target": "Text"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "heading"
+        }
+      ],
+      "note": "the level is not exposed in V1",
+      "status": "mapped",
+      "tag": "h2",
+      "target": "Text"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "heading"
+        }
+      ],
+      "note": "the level is not exposed in V1",
+      "status": "mapped",
+      "tag": "h3",
+      "target": "Text"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "heading"
+        }
+      ],
+      "note": "the level is not exposed in V1",
+      "status": "mapped",
+      "tag": "h4",
+      "target": "Text"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "heading"
+        }
+      ],
+      "note": "the level is not exposed in V1",
+      "status": "mapped",
+      "tag": "h5",
+      "target": "Text"
+    },
+    {
+      "inject": [
+        {
+          "name": "role",
+          "value": "heading"
+        }
+      ],
+      "note": "the level is not exposed in V1",
+      "status": "mapped",
+      "tag": "h6",
+      "target": "Text"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "reject",
+          "name": "href",
+          "suggestion": "no `href` in V1; use `onClick`"
+        },
+        {
+          "kind": "reject",
+          "name": "target",
+          "suggestion": "no `href` in V1; use `onClick`"
+        },
+        {
+          "kind": "reject",
+          "name": "rel",
+          "suggestion": "no `href` in V1; use `onClick`"
+        },
+        {
+          "kind": "reject",
+          "name": "download",
+          "suggestion": "no `href` in V1; use `onClick`"
+        }
+      ],
+      "inject": [
+        {
+          "name": "role",
+          "value": "link"
+        }
+      ],
+      "note": "`href`, `target`, `rel` and `download` are rejected; use `onClick` [Q11]",
+      "status": "partial",
+      "tag": "a",
+      "target": "Text"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "valueMap",
+          "name": "type",
+          "note": "must be a string literal",
+          "suggestion": "V1 has no form element; use `onClick`",
+          "values": [
+            {
+              "value": "button"
+            },
+            {
+              "rejected": true,
+              "suggestion": "V1 has no form element; use `onClick`",
+              "value": "submit"
+            },
+            {
+              "rejected": true,
+              "suggestion": "V1 has no form element; use `onClick`",
+              "value": "reset"
+            }
+          ]
+        }
+      ],
+      "note": "`type=\"button\"` is accepted and dropped; submit/reset are rejected",
+      "status": "mapped",
+      "tag": "button",
+      "target": "Button"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "rename",
+          "name": "autoComplete",
+          "note": "tokens email/username/current-password/new-password/one-time-code/name/tel/street-address/postal-code pass; `off` is dropped; any other token is HTML_ATTR [Q19]",
+          "rename": "autofill"
+        },
+        {
+          "kind": "reject",
+          "name": "checked",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "defaultChecked",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "name",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "required",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "pattern",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "min",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "max",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "step",
+          "suggestion": "form and validation belong to library `Form`/`Field`"
+        },
+        {
+          "kind": "reject",
+          "name": "minLength",
+          "suggestion": "use `maxLength`; minimum length is a form rule"
+        },
+        {
+          "kind": "reject",
+          "name": "multiple",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "accept",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "list",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "form",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "size",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "autoFocus",
+          "suggestion": "not in V1"
+        },
+        {
+          "kind": "reject",
+          "name": "spellCheck",
+          "suggestion": "not in V1"
+        },
+        {
+          "kind": "reject",
+          "name": "autoCapitalize",
+          "suggestion": "not in V1"
+        },
+        {
+          "kind": "reject",
+          "name": "autoCorrect",
+          "suggestion": "not in V1"
+        }
+      ],
+      "note": "`type` must be a string literal and is removed; [Q19] `autoComplete` tokens",
+      "status": "mapped",
+      "tag": "input",
+      "target": "TextInput",
+      "typeMap": {
+        "email": {
+          "inputMode": "email"
+        },
+        "number": {
+          "inputMode": "numeric"
+        },
+        "password": {
+          "secure": "true"
+        },
+        "search": {
+          "inputMode": "search"
+        },
+        "tel": {
+          "inputMode": "tel"
+        },
+        "url": {
+          "inputMode": "url"
+        }
+      },
+      "typeMapClosed": true
+    },
+    {
+      "attrs": [
+        {
+          "kind": "valueMap",
+          "name": "wrap",
+          "suggestion": "HTML hard wrapping has no V1 equivalent",
+          "values": [
+            {
+              "replacement": "word",
+              "value": "soft"
+            },
+            {
+              "replacement": "none",
+              "value": "off"
+            },
+            {
+              "rejected": true,
+              "suggestion": "HTML hard wrapping has no V1 equivalent",
+              "value": "hard"
+            }
+          ]
+        },
+        {
+          "kind": "reject",
+          "name": "cols",
+          "suggestion": "set a width in `style`"
+        }
+      ],
+      "status": "mapped",
+      "tag": "textarea",
+      "target": "TextArea"
+    },
+    {
+      "attrs": [
+        {
+          "kind": "toStyle",
+          "name": "width",
+          "note": "a number or numeric string is dp; with `style.width` it is TESSERA_JSX_PROP_CONFLICT",
+          "rename": "width"
+        },
+        {
+          "kind": "toStyle",
+          "name": "height",
+          "note": "a number or numeric string is dp; with `style.height` it is TESSERA_JSX_PROP_CONFLICT",
+          "rename": "height"
+        },
+        {
+          "kind": "reject",
+          "name": "srcSet",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "sizes",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "loading",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "decoding",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "crossOrigin",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "onLoad",
+          "suggestion": "no V1 meaning"
+        },
+        {
+          "kind": "reject",
+          "name": "onError",
+          "suggestion": "no V1 meaning; use ErrorBoundary"
+        }
+      ],
+      "status": "mapped",
+      "tag": "img",
+      "target": "Image"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "strong"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "em"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "b"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "i"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "u"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "s"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "small"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "mark"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "code"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "kbd"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "sub"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "sup"
+    },
+    {
+      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
+      "status": "unsupported",
+      "tag": "abbr"
+    },
+    {
+      "alternative": "End the `Text` and start a new one in a column `View`, or put a line break in a string expression",
+      "status": "unsupported",
+      "tag": "br"
+    },
+    {
+      "alternative": "A `View` with a border style",
+      "status": "unsupported",
+      "tag": "hr"
+    },
+    {
+      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
+      "status": "unsupported",
+      "tag": "pre"
+    },
+    {
+      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
+      "status": "unsupported",
+      "tag": "blockquote"
+    },
+    {
+      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
+      "status": "unsupported",
+      "tag": "q"
+    },
+    {
+      "alternative": "`Text` with `className` (`white-space: pre` for `pre`)",
+      "status": "unsupported",
+      "tag": "cite"
+    },
+    {
+      "alternative": "No `form` in V1: `TextInput` `onSubmit` plus `Button` `onClick`; library `Form`/`Field` after V1",
+      "status": "unsupported",
+      "tag": "form"
+    },
+    {
+      "alternative": "Library `Select` (after V1)",
+      "status": "unsupported",
+      "tag": "select"
+    },
+    {
+      "alternative": "Library `Select` (after V1)",
+      "status": "unsupported",
+      "tag": "option"
+    },
+    {
+      "alternative": "Library `Select` (after V1)",
+      "status": "unsupported",
+      "tag": "optgroup"
+    },
+    {
+      "alternative": "Library `Select` (after V1)",
+      "status": "unsupported",
+      "tag": "datalist"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "table"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "thead"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "tbody"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "tfoot"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "tr"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "td"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "th"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "caption"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "colgroup"
+    },
+    {
+      "alternative": "`View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data",
+      "status": "unsupported",
+      "tag": "col"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "svg"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "g"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "circle"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "rect"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "line"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "polyline"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "polygon"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "ellipse"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "text"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "defs"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "use"
+    },
+    {
+      "alternative": "`Path` with `d` and `viewBox`",
+      "status": "unsupported",
+      "tag": "path"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "canvas"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "video"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "audio"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "iframe"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "embed"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "object"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "picture"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "source"
+    },
+    {
+      "alternative": "`CustomElement`",
+      "status": "unsupported",
+      "tag": "track"
+    },
+    {
+      "alternative": "Overlay service and library components",
+      "status": "unsupported",
+      "tag": "dialog"
+    },
+    {
+      "alternative": "Overlay service and library components",
+      "status": "unsupported",
+      "tag": "details"
+    },
+    {
+      "alternative": "Overlay service and library components",
+      "status": "unsupported",
+      "tag": "summary"
+    },
+    {
+      "alternative": "Overlay service and library components",
+      "status": "unsupported",
+      "tag": "menu"
+    },
+    {
+      "alternative": "Overlay service and library components",
+      "status": "unsupported",
+      "tag": "popover"
+    },
+    {
+      "alternative": "Library `Progress` (after V1)",
+      "status": "unsupported",
+      "tag": "progress"
+    },
+    {
+      "alternative": "Library `Progress` (after V1)",
+      "status": "unsupported",
+      "tag": "meter"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "html"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "head"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "body"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "title"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "meta"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "link"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "script"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "style"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "base"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "noscript"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "template"
+    },
+    {
+      "alternative": "None: the app shell, `tessera.json` and `import \"./file.css\"` replace them",
+      "status": "unsupported",
+      "tag": "slot"
+    }
+  ],
+  "common": [
+    {
+      "lowersTo": "key",
+      "name": "key",
+      "note": "required on the root element of a `.map` callback; elsewhere rejected; not bool or float",
+      "type": "string | int",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "refs",
+      "name": "ref",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "T must equal the element type; callback and object refs are rejected",
+      "type": "name of a useRef<T>",
+      "value": "name"
+    },
+    {
+      "lowersTo": "props.className",
+      "name": "className",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "space-separated class names",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "style",
+      "name": "style",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "keys are literal camelCase; values are literals or expressions",
+      "type": "object literal",
+      "value": "literal"
+    },
+    {
+      "lowersTo": "props.id",
+      "name": "id",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "selector target only; not a label target and not an automation id",
+      "type": "string",
+      "value": "literal"
+    },
+    {
+      "lowersTo": "props.role",
+      "name": "role",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "one of the role tokens; an explicit role replaces the implied role",
+      "type": "enum literal",
+      "value": "literal"
+    },
+    {
+      "lowersTo": "props.aria-label",
+      "name": "aria-label",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "accessible name; overrides a derived name",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-hidden",
+      "name": "aria-hidden",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "leaves the node and its subtree out of the accessibility tree",
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-disabled",
+      "name": "aria-disabled",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-selected",
+      "name": "aria-selected",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-expanded",
+      "name": "aria-expanded",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-busy",
+      "name": "aria-busy",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-invalid",
+      "name": "aria-invalid",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-readonly",
+      "name": "aria-readonly",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "default": "false",
+      "lowersTo": "props.aria-required",
+      "name": "aria-required",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "type": "bool",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-checked",
+      "name": "aria-checked",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "checked/mixed state",
+      "type": "\"true\" | \"false\" | \"mixed\"",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "automationId",
+      "name": "automationId",
+      "note": "must equal the computed uiId (ir-v1 section 3.1)",
+      "type": "string literal, decimal uint64",
+      "value": "literal"
+    }
+  ],
+  "domTypes": [
+    {
+      "name": "HTMLDivElement",
+      "target": "View"
+    },
+    {
+      "name": "HTMLElement",
+      "target": "View"
+    },
+    {
+      "name": "HTMLUListElement",
+      "target": "View"
+    },
+    {
+      "name": "HTMLOListElement",
+      "target": "View"
+    },
+    {
+      "name": "HTMLLIElement",
+      "target": "View"
+    },
+    {
+      "name": "HTMLButtonElement",
+      "target": "Button"
+    },
+    {
+      "name": "HTMLSpanElement",
+      "target": "Text"
+    },
+    {
+      "name": "HTMLParagraphElement",
+      "target": "Text"
+    },
+    {
+      "name": "HTMLHeadingElement",
+      "target": "Text"
+    },
+    {
+      "name": "HTMLLabelElement",
+      "target": "Text"
+    },
+    {
+      "name": "HTMLAnchorElement",
+      "target": "Text"
+    },
+    {
+      "name": "HTMLInputElement",
+      "target": "TextInput"
+    },
+    {
+      "name": "HTMLImageElement",
+      "target": "Image"
+    },
+    {
+      "name": "HTMLTextAreaElement",
+      "target": "TextArea"
+    }
+  ],
+  "elements": [
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "text+nodes",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_A11Y_NO_ROLE",
+          "kind": "custom",
+          "note": "warning: an interactive node has no role and no accessible name"
+        }
+      ],
+      "events": [
+        {
+          "name": "onClick",
+          "payload": "ClickEvent"
+        },
+        {
+          "name": "onPointerDown",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerUp",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerMove",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerEnter",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerLeave",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerCancel",
+          "payload": "PointerEvent"
+        }
+      ],
+      "impliedRole": "generic",
+      "irKind": "View",
+      "note": "container; children are laid out by the style engine",
+      "props": [],
+      "refType": "View",
+      "tag": "View"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "text",
+      "constraints": [],
+      "events": [
+        {
+          "name": "onClick",
+          "payload": "ClickEvent"
+        },
+        {
+          "name": "onPointerDown",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerUp",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerMove",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerEnter",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerLeave",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerCancel",
+          "payload": "PointerEvent"
+        }
+      ],
+      "impliedRole": "text",
+      "irKind": "Text",
+      "note": "one text run; an element child is rejected",
+      "props": [],
+      "refType": "Text",
+      "tag": "Text"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "text+nodes",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_BUTTON_CONTENT_CONFLICT",
+          "kind": "contentOneOf",
+          "note": "a visible label comes from `label` or the children, never both",
+          "orChildren": true,
+          "props": [
+            "label"
+          ]
+        },
+        {
+          "code": "TESSERA_JSX_BUTTON_EMPTY",
+          "kind": "custom",
+          "note": "no label, no children and no aria-label gives an empty button",
+          "orChildren": true,
+          "props": [
+            "label",
+            "aria-label"
+          ]
+        },
+        {
+          "code": "TESSERA_JSX_BUTTON_NO_NAME",
+          "kind": "custom",
+          "note": "warning: the derived name is empty; add aria-label"
+        }
+      ],
+      "events": [
+        {
+          "name": "onClick",
+          "payload": "ClickEvent"
+        },
+        {
+          "name": "onPointerDown",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerUp",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerMove",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerEnter",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerLeave",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerCancel",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onKeyDown",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onKeyUp",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onFocus",
+          "payload": "FocusEvent"
+        },
+        {
+          "name": "onBlur",
+          "payload": "FocusEvent"
+        }
+      ],
+      "impliedRole": "button",
+      "irKind": "Button",
+      "note": "text-only children become props.label; with an element child each run is a synthetic Text",
+      "props": [
+        {
+          "lowersTo": "props.label",
+          "name": "label",
+          "note": "one-of content with the children; not a translation key",
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.disabled",
+          "name": "disabled",
+          "note": "no focus and no click/pointer/key events",
+          "type": "bool",
+          "value": "expr"
+        }
+      ],
+      "refType": "Button",
+      "tag": "Button"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "none",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_INPUT_VALUE_BOTH",
+          "kind": "exclusive",
+          "note": "a field is controlled or uncontrolled, never both",
+          "props": [
+            "value",
+            "defaultValue"
+          ]
+        },
+        {
+          "code": "TESSERA_JSX_INPUT_NOCHANGE",
+          "kind": "warnIfMissing",
+          "note": "`value` without onChange/readOnly/disabled is a warning, not an error [Q4]",
+          "props": [
+            "value",
+            "onChange",
+            "readOnly",
+            "disabled"
+          ]
+        },
+        {
+          "code": "TESSERA_JSX_CHILDREN_NOT_ALLOWED",
+          "kind": "custom",
+          "note": "children of any kind are an error; use defaultValue"
+        },
+        {
+          "code": "TESSERA_JSX_TYPE_MISMATCH",
+          "kind": "custom",
+          "note": "value/defaultValue must be a string; a template literal converts"
+        }
+      ],
+      "events": [
+        {
+          "name": "onChange",
+          "note": "not while composing; the commit fires once",
+          "payload": "TextChangeEvent"
+        },
+        {
+          "name": "onSubmit",
+          "note": "TextInput: Enter; TextArea trigger [Q5]",
+          "payload": "TextSubmitEvent"
+        },
+        {
+          "name": "onFocus",
+          "payload": "FocusEvent"
+        },
+        {
+          "name": "onBlur",
+          "payload": "FocusEvent"
+        },
+        {
+          "name": "onKeyDown",
+          "note": "before the default editing command",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onKeyUp",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onSelectionChange",
+          "payload": "TextSelection"
+        },
+        {
+          "name": "onCompositionStart",
+          "payload": "CompositionEvent"
+        },
+        {
+          "name": "onCompositionUpdate",
+          "payload": "CompositionEvent"
+        },
+        {
+          "name": "onCompositionEnd",
+          "payload": "CompositionEvent"
+        }
+      ],
+      "impliedRole": "textbox",
+      "irKind": "TextInput",
+      "note": "leaf; children are rejected",
+      "props": [
+        {
+          "lowersTo": "props.value",
+          "name": "value",
+          "note": "controlled value; the source of truth is app state",
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.defaultValue",
+          "name": "defaultValue",
+          "note": "uncontrolled initial value; read at mount only",
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.placeholder",
+          "name": "placeholder",
+          "note": "never a value, never a label",
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.readOnly",
+          "name": "readOnly",
+          "note": "focus, select and copy only",
+          "type": "bool",
+          "value": "expr"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.disabled",
+          "name": "disabled",
+          "note": "no focus and no events",
+          "type": "bool",
+          "value": "expr"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.secure",
+          "name": "secure",
+          "note": "password semantics and redaction",
+          "onlyOn": [
+            "TextInput"
+          ],
+          "type": "bool",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.maxLength",
+          "name": "maxLength",
+          "note": "counts graphemes; a negative literal is an error",
+          "type": "int",
+          "value": "expr"
+        },
+        {
+          "default": "text",
+          "lowersTo": "props.inputMode",
+          "name": "inputMode",
+          "type": "\"text\" | \"numeric\" | \"email\" | \"url\" | \"search\" | \"tel\"",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.autofill",
+          "name": "autofill",
+          "note": "platform hint; the vocabulary is [Q19], alias tokens in html-aliases.md 3.2",
+          "type": "enum",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.selection",
+          "name": "selection",
+          "note": "controlled selection",
+          "type": "TextSelection",
+          "value": "expr"
+        },
+        {
+          "default": "caret",
+          "lowersTo": "props.scrollPolicy",
+          "name": "scrollPolicy",
+          "type": "\"caret\" | \"none\" | \"always\"",
+          "value": "literal"
+        },
+        {
+          "default": "2",
+          "lowersTo": "props.rows",
+          "name": "rows",
+          "note": "visible lines, at least 1",
+          "onlyOn": [
+            "TextArea"
+          ],
+          "type": "int",
+          "value": "expr"
+        },
+        {
+          "default": "word",
+          "lowersTo": "props.wrap",
+          "name": "wrap",
+          "onlyOn": [
+            "TextArea"
+          ],
+          "type": "\"word\" | \"none\"",
+          "value": "literal"
+        }
+      ],
+      "refType": "TextInput",
+      "tag": "TextInput"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "none",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_INPUT_VALUE_BOTH",
+          "kind": "exclusive",
+          "note": "a field is controlled or uncontrolled, never both",
+          "props": [
+            "value",
+            "defaultValue"
+          ]
+        },
+        {
+          "code": "TESSERA_JSX_INPUT_NOCHANGE",
+          "kind": "warnIfMissing",
+          "note": "`value` without onChange/readOnly/disabled is a warning, not an error [Q4]",
+          "props": [
+            "value",
+            "onChange",
+            "readOnly",
+            "disabled"
+          ]
+        },
+        {
+          "code": "TESSERA_JSX_CHILDREN_NOT_ALLOWED",
+          "kind": "custom",
+          "note": "children of any kind are an error; use defaultValue"
+        },
+        {
+          "code": "TESSERA_JSX_TYPE_MISMATCH",
+          "kind": "custom",
+          "note": "value/defaultValue must be a string; a template literal converts"
+        }
+      ],
+      "events": [
+        {
+          "name": "onChange",
+          "note": "not while composing; the commit fires once",
+          "payload": "TextChangeEvent"
+        },
+        {
+          "name": "onSubmit",
+          "note": "TextInput: Enter; TextArea trigger [Q5]",
+          "payload": "TextSubmitEvent"
+        },
+        {
+          "name": "onFocus",
+          "payload": "FocusEvent"
+        },
+        {
+          "name": "onBlur",
+          "payload": "FocusEvent"
+        },
+        {
+          "name": "onKeyDown",
+          "note": "before the default editing command",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onKeyUp",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onSelectionChange",
+          "payload": "TextSelection"
+        },
+        {
+          "name": "onCompositionStart",
+          "payload": "CompositionEvent"
+        },
+        {
+          "name": "onCompositionUpdate",
+          "payload": "CompositionEvent"
+        },
+        {
+          "name": "onCompositionEnd",
+          "payload": "CompositionEvent"
+        }
+      ],
+      "impliedRole": "textbox",
+      "irKind": "TextArea",
+      "note": "multi-line; rows and wrap exist, secure does not",
+      "props": [
+        {
+          "lowersTo": "props.value",
+          "name": "value",
+          "note": "controlled value; the source of truth is app state",
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.defaultValue",
+          "name": "defaultValue",
+          "note": "uncontrolled initial value; read at mount only",
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.placeholder",
+          "name": "placeholder",
+          "note": "never a value, never a label",
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.readOnly",
+          "name": "readOnly",
+          "note": "focus, select and copy only",
+          "type": "bool",
+          "value": "expr"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.disabled",
+          "name": "disabled",
+          "note": "no focus and no events",
+          "type": "bool",
+          "value": "expr"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.secure",
+          "name": "secure",
+          "note": "password semantics and redaction",
+          "onlyOn": [
+            "TextInput"
+          ],
+          "type": "bool",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.maxLength",
+          "name": "maxLength",
+          "note": "counts graphemes; a negative literal is an error",
+          "type": "int",
+          "value": "expr"
+        },
+        {
+          "default": "text",
+          "lowersTo": "props.inputMode",
+          "name": "inputMode",
+          "type": "\"text\" | \"numeric\" | \"email\" | \"url\" | \"search\" | \"tel\"",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.autofill",
+          "name": "autofill",
+          "note": "platform hint; the vocabulary is [Q19], alias tokens in html-aliases.md 3.2",
+          "type": "enum",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.selection",
+          "name": "selection",
+          "note": "controlled selection",
+          "type": "TextSelection",
+          "value": "expr"
+        },
+        {
+          "default": "caret",
+          "lowersTo": "props.scrollPolicy",
+          "name": "scrollPolicy",
+          "type": "\"caret\" | \"none\" | \"always\"",
+          "value": "literal"
+        },
+        {
+          "default": "2",
+          "lowersTo": "props.rows",
+          "name": "rows",
+          "note": "visible lines, at least 1",
+          "onlyOn": [
+            "TextArea"
+          ],
+          "type": "int",
+          "value": "expr"
+        },
+        {
+          "default": "word",
+          "lowersTo": "props.wrap",
+          "name": "wrap",
+          "onlyOn": [
+            "TextArea"
+          ],
+          "type": "\"word\" | \"none\"",
+          "value": "literal"
+        }
+      ],
+      "refType": "TextArea",
+      "tag": "TextArea"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "none",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_IMAGE_SRC",
+          "kind": "custom",
+          "note": "the src file must exist, be PNG/JPEG/WebP and within the resource limits"
+        },
+        {
+          "code": "TESSERA_JSX_IMAGE_ALT",
+          "kind": "custom",
+          "note": "alt is required"
+        },
+        {
+          "code": "TESSERA_JSX_IMAGE_FORMAT",
+          "kind": "custom"
+        },
+        {
+          "code": "TESSERA_JSX_IMAGE_SIZE",
+          "kind": "custom"
+        }
+      ],
+      "events": [],
+      "impliedRole": "img",
+      "irKind": "Image",
+      "note": "alt=\"\" makes it decorative",
+      "props": [
+        {
+          "lowersTo": "props.src",
+          "name": "src",
+          "note": "project-relative literal path; the file must exist and be PNG/JPEG/WebP",
+          "required": true,
+          "type": "string",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.alt",
+          "name": "alt",
+          "note": "required even though it is an expression; empty means decorative",
+          "required": true,
+          "type": "string",
+          "value": "expr"
+        },
+        {
+          "default": "contain",
+          "lowersTo": "props.fit",
+          "name": "fit",
+          "type": "\"contain\" | \"cover\" | \"fill\" | \"none\"",
+          "value": "literal"
+        }
+      ],
+      "refType": "Image",
+      "tag": "Image"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "none",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_PATH_DATA",
+          "kind": "custom",
+          "note": "d must parse as SVG path data"
+        }
+      ],
+      "events": [],
+      "impliedRole": "img",
+      "irKind": "Path",
+      "note": "role img only when label is present; otherwise decorative",
+      "props": [
+        {
+          "lowersTo": "props.d",
+          "name": "d",
+          "note": "SVG path data; parsed by the analysis pass",
+          "required": true,
+          "type": "string",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.viewBox",
+          "name": "viewBox",
+          "note": "four numbers; width and height greater than 0",
+          "required": true,
+          "type": "string",
+          "value": "literal"
+        },
+        {
+          "default": "none",
+          "lowersTo": "props.fill",
+          "name": "fill",
+          "type": "color | var(--name) | \"none\"",
+          "value": "literal"
+        },
+        {
+          "default": "none",
+          "lowersTo": "props.stroke",
+          "name": "stroke",
+          "type": "color | var(--name) | \"none\"",
+          "value": "literal"
+        },
+        {
+          "default": "1",
+          "lowersTo": "props.strokeWidth",
+          "name": "strokeWidth",
+          "note": "viewBox units; ignored when stroke is none",
+          "type": "number",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.label",
+          "name": "label",
+          "note": "accessible name; without it the path is decorative",
+          "type": "string",
+          "value": "expr"
+        }
+      ],
+      "refType": "Path",
+      "tag": "Path"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "nodes",
+      "constraints": [],
+      "events": [
+        {
+          "name": "onScroll",
+          "payload": "ScrollEvent"
+        },
+        {
+          "name": "onPointerDown",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerUp",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerMove",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerEnter",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerLeave",
+          "payload": "PointerEvent"
+        },
+        {
+          "name": "onPointerCancel",
+          "payload": "PointerEvent"
+        }
+      ],
+      "impliedRole": "scroll view",
+      "irKind": "Scroll",
+      "note": "the only built-in scroll container",
+      "props": [
+        {
+          "default": "y",
+          "lowersTo": "props.axis",
+          "name": "axis",
+          "note": "scroll axes [Q10]",
+          "type": "\"y\" | \"x\" | \"both\"",
+          "value": "literal"
+        }
+      ],
+      "refType": "Scroll",
+      "tag": "Scroll"
+    },
+    {
+      "acceptsClassName": false,
+      "acceptsStyle": false,
+      "children": "none",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_SPACER_EMPTY",
+          "kind": "oneOf",
+          "note": "a Spacer needs exactly one of size and grow",
+          "props": [
+            "size",
+            "grow"
+          ]
+        }
+      ],
+      "events": [],
+      "impliedRole": "presentation",
+      "irKind": "Spacer",
+      "note": "always decorative; no className or style",
+      "props": [
+        {
+          "lowersTo": "props.size",
+          "name": "size",
+          "note": "fixed main-axis size; one of size or grow",
+          "type": "length",
+          "value": "literal"
+        },
+        {
+          "default": "0",
+          "lowersTo": "props.grow",
+          "name": "grow",
+          "note": "share of the free main-axis space; 0 or greater",
+          "type": "number",
+          "value": "literal"
+        }
+      ],
+      "tag": "Spacer"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "template",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_PROP_ONE_OF",
+          "kind": "oneOf",
+          "note": "exactly one of itemSize and estimateSize",
+          "props": [
+            "itemSize",
+            "estimateSize"
+          ]
+        }
+      ],
+      "events": [
+        {
+          "name": "onEndReached",
+          "note": "throttled; no payload; runs on the UI thread"
+        },
+        {
+          "name": "onScroll",
+          "payload": "ScrollEvent"
+        }
+      ],
+      "impliedRole": "list",
+      "irKind": "VirtualList",
+      "note": "exactly one `.map` template child",
+      "props": [
+        {
+          "lowersTo": "props.itemSize",
+          "name": "itemSize",
+          "note": "fixed main-axis size; O(1) range",
+          "onlyOn": [
+            "VirtualList"
+          ],
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.estimateSize",
+          "name": "estimateSize",
+          "note": "variable size; the default estimate is unspecified",
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "default": "ui.virtualListOverscanPx (200)",
+          "lowersTo": "props.overscan",
+          "name": "overscan",
+          "note": "dp realized beyond the viewport",
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "default": "0",
+          "lowersTo": "props.gap",
+          "name": "gap",
+          "note": "between items and between grid rows and columns",
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "default": "vertical",
+          "lowersTo": "props.orientation",
+          "name": "orientation",
+          "type": "\"vertical\" | \"horizontal\"",
+          "value": "literal"
+        }
+      ],
+      "refType": "VirtualList",
+      "tag": "VirtualList"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "template",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_PROP_ONE_OF",
+          "kind": "oneOf",
+          "note": "exactly one of rowHeight and estimateSize",
+          "props": [
+            "rowHeight",
+            "estimateSize"
+          ]
+        },
+        {
+          "code": "TESSERA_JSX_PROP_ONE_OF",
+          "kind": "oneOf",
+          "note": "exactly one of columns and columnWidth",
+          "props": [
+            "columns",
+            "columnWidth"
+          ]
+        }
+      ],
+      "events": [
+        {
+          "name": "onEndReached",
+          "note": "throttled; no payload; runs on the UI thread"
+        },
+        {
+          "name": "onScroll",
+          "payload": "ScrollEvent"
+        }
+      ],
+      "impliedRole": "list",
+      "irKind": "VirtualGrid",
+      "note": "exactly one `.map` template child",
+      "props": [
+        {
+          "lowersTo": "props.estimateSize",
+          "name": "estimateSize",
+          "note": "variable size; the default estimate is unspecified",
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.rowHeight",
+          "name": "rowHeight",
+          "note": "fixed row height",
+          "onlyOn": [
+            "VirtualGrid"
+          ],
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.columns",
+          "name": "columns",
+          "note": "fixed column count, at least 1",
+          "onlyOn": [
+            "VirtualGrid"
+          ],
+          "type": "int",
+          "value": "expr"
+        },
+        {
+          "lowersTo": "props.columnWidth",
+          "name": "columnWidth",
+          "note": "fixed column width",
+          "onlyOn": [
+            "VirtualGrid"
+          ],
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "default": "ui.virtualListOverscanPx (200)",
+          "lowersTo": "props.overscan",
+          "name": "overscan",
+          "note": "dp realized beyond the viewport",
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "default": "0",
+          "lowersTo": "props.gap",
+          "name": "gap",
+          "note": "between items and between grid rows and columns",
+          "type": "length",
+          "value": "expr"
+        },
+        {
+          "default": "vertical",
+          "lowersTo": "props.orientation",
+          "name": "orientation",
+          "type": "\"vertical\" | \"horizontal\"",
+          "value": "literal"
+        }
+      ],
+      "refType": "VirtualGrid",
+      "tag": "VirtualGrid"
+    },
+    {
+      "acceptsClassName": false,
+      "acceptsStyle": false,
+      "children": "one",
+      "constraints": [
+        {
+          "code": "TESSERA_JSX_CHILDREN_COUNT",
+          "kind": "custom",
+          "note": "exactly one element child; wrap siblings in a View"
+        }
+      ],
+      "events": [
+        {
+          "name": "onError",
+          "payload": "ErrorInfo"
+        }
+      ],
+      "irKind": "ErrorBoundary",
+      "note": "not painted, no layout effect",
+      "props": [
+        {
+          "lowersTo": "node.fallback",
+          "name": "fallback",
+          "note": "intrinsic or component element; not conditional, loop, fragment or text",
+          "required": true,
+          "type": "one element",
+          "value": "element"
+        },
+        {
+          "lowersTo": "props.resetKey",
+          "name": "resetKey",
+          "note": "any change resets the boundary",
+          "type": "string | int | bool",
+          "value": "expr"
+        },
+        {
+          "default": "0",
+          "lowersTo": "props.maxAutoRetries",
+          "name": "maxAutoRetries",
+          "note": "at least 0; bounded and logged",
+          "type": "int",
+          "value": "literal"
+        },
+        {
+          "default": "true",
+          "lowersTo": "props.catchEvents",
+          "name": "catchEvents",
+          "type": "bool",
+          "value": "literal"
+        }
+      ],
+      "tag": "ErrorBoundary"
+    },
+    {
+      "acceptsClassName": true,
+      "acceptsStyle": true,
+      "children": "none",
+      "constraints": [],
+      "events": [
+        {
+          "name": "onPointer",
+          "note": "manifest input `pointer`; payload from the manifest"
+        },
+        {
+          "name": "onKey",
+          "note": "manifest input `key`; payload from the manifest"
+        },
+        {
+          "name": "onWheel",
+          "note": "manifest input `wheel`; payload from the manifest"
+        },
+        {
+          "name": "onText",
+          "note": "manifest input `text`; payload from the manifest"
+        },
+        {
+          "name": "onGamepad",
+          "note": "manifest input `gamepad`; payload from the manifest"
+        }
+      ],
+      "irKind": "CustomElement",
+      "note": "manifest ui/elements.json supplies props, events and semantics",
+      "props": [
+        {
+          "lowersTo": "node.element",
+          "name": "element",
+          "note": "an id of ui/elements.json; no expression",
+          "required": true,
+          "type": "string",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.<key>",
+          "name": "props",
+          "note": "keys are literal manifest props, values are expressions",
+          "type": "object literal",
+          "value": "literal"
+        }
+      ],
+      "refType": "CustomElement",
+      "tag": "CustomElement"
+    }
+  ],
+  "roleTokens": [
+    "generic",
+    "presentation",
+    "none",
+    "button",
+    "link",
+    "heading",
+    "img",
+    "textbox",
+    "checkbox",
+    "radio",
+    "switch",
+    "slider",
+    "progressbar",
+    "list",
+    "listitem",
+    "tab",
+    "tabpanel",
+    "dialog",
+    "menu",
+    "menuitem",
+    "tooltip",
+    "alert"
+  ],
+  "schemaVersion": 1,
+  "style": [
+    {
+      "kind": "keyword",
+      "name": "display"
+    },
+    {
+      "kind": "keyword",
+      "name": "position"
+    },
+    {
+      "kind": "keyword",
+      "name": "box-sizing"
+    },
+    {
+      "kind": "length",
+      "name": "width"
+    },
+    {
+      "kind": "length",
+      "name": "height"
+    },
+    {
+      "kind": "length",
+      "name": "min-width"
+    },
+    {
+      "kind": "length",
+      "name": "min-height"
+    },
+    {
+      "kind": "length",
+      "name": "max-width"
+    },
+    {
+      "kind": "length",
+      "name": "max-height"
+    },
+    {
+      "kind": "length",
+      "name": "top"
+    },
+    {
+      "kind": "length",
+      "name": "right"
+    },
+    {
+      "kind": "length",
+      "name": "bottom"
+    },
+    {
+      "kind": "length",
+      "name": "left"
+    },
+    {
+      "kind": "length",
+      "name": "margin-top"
+    },
+    {
+      "kind": "length",
+      "name": "margin-right"
+    },
+    {
+      "kind": "length",
+      "name": "margin-bottom"
+    },
+    {
+      "kind": "length",
+      "name": "margin-left"
+    },
+    {
+      "kind": "length",
+      "name": "padding-top"
+    },
+    {
+      "kind": "length",
+      "name": "padding-right"
+    },
+    {
+      "kind": "length",
+      "name": "padding-bottom"
+    },
+    {
+      "kind": "length",
+      "name": "padding-left"
+    },
+    {
+      "kind": "length",
+      "name": "border-top-width"
+    },
+    {
+      "kind": "length",
+      "name": "border-right-width"
+    },
+    {
+      "kind": "length",
+      "name": "border-bottom-width"
+    },
+    {
+      "kind": "length",
+      "name": "border-left-width"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-top-style"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-right-style"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-bottom-style"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-left-style"
+    },
+    {
+      "kind": "color",
+      "name": "border-top-color"
+    },
+    {
+      "kind": "color",
+      "name": "border-right-color"
+    },
+    {
+      "kind": "color",
+      "name": "border-bottom-color"
+    },
+    {
+      "kind": "color",
+      "name": "border-left-color"
+    },
+    {
+      "kind": "length",
+      "name": "border-top-left-radius"
+    },
+    {
+      "kind": "length",
+      "name": "border-top-right-radius"
+    },
+    {
+      "kind": "length",
+      "name": "border-bottom-right-radius"
+    },
+    {
+      "kind": "length",
+      "name": "border-bottom-left-radius"
+    },
+    {
+      "kind": "color",
+      "name": "color"
+    },
+    {
+      "kind": "color",
+      "name": "background-color"
+    },
+    {
+      "kind": "number",
+      "name": "opacity"
+    },
+    {
+      "kind": "list",
+      "name": "font-family",
+      "note": "comma-separated family list"
+    },
+    {
+      "kind": "length",
+      "name": "font-size"
+    },
+    {
+      "kind": "keyword",
+      "name": "font-style"
+    },
+    {
+      "kind": "number",
+      "name": "font-weight",
+      "note": "a number stays unitless"
+    },
+    {
+      "kind": "number",
+      "name": "line-height",
+      "note": "a bare number is a unitless multiplier"
+    },
+    {
+      "kind": "length",
+      "name": "letter-spacing"
+    },
+    {
+      "kind": "length",
+      "name": "word-spacing"
+    },
+    {
+      "kind": "keyword",
+      "name": "text-align"
+    },
+    {
+      "kind": "keyword",
+      "name": "text-transform"
+    },
+    {
+      "kind": "keyword",
+      "name": "white-space"
+    },
+    {
+      "kind": "keyword",
+      "name": "visibility"
+    },
+    {
+      "kind": "keyword",
+      "name": "cursor"
+    },
+    {
+      "kind": "keyword",
+      "name": "direction"
+    },
+    {
+      "kind": "keyword",
+      "name": "writing-mode"
+    },
+    {
+      "kind": "keyword",
+      "name": "flex-direction"
+    },
+    {
+      "kind": "keyword",
+      "name": "flex-wrap"
+    },
+    {
+      "kind": "number",
+      "name": "flex-grow"
+    },
+    {
+      "kind": "number",
+      "name": "flex-shrink"
+    },
+    {
+      "kind": "length",
+      "name": "flex-basis"
+    },
+    {
+      "kind": "keyword",
+      "name": "align-items"
+    },
+    {
+      "kind": "keyword",
+      "name": "align-self"
+    },
+    {
+      "kind": "keyword",
+      "name": "align-content"
+    },
+    {
+      "kind": "keyword",
+      "name": "justify-content"
+    },
+    {
+      "kind": "keyword",
+      "name": "justify-items"
+    },
+    {
+      "kind": "length",
+      "name": "row-gap"
+    },
+    {
+      "kind": "length",
+      "name": "column-gap"
+    },
+    {
+      "kind": "keyword",
+      "name": "overflow-x"
+    },
+    {
+      "kind": "keyword",
+      "name": "overflow-y"
+    },
+    {
+      "kind": "number",
+      "name": "order"
+    },
+    {
+      "kind": "number",
+      "name": "z-index"
+    }
+  ],
+  "types": [
+    {
+      "fields": [
+        {
+          "name": "x",
+          "type": "float"
+        },
+        {
+          "name": "y",
+          "type": "float"
+        },
+        {
+          "name": "pointerId",
+          "type": "int"
+        },
+        {
+          "name": "pointerType",
+          "type": "\"mouse\" | \"touch\" | \"pen\""
+        },
+        {
+          "name": "button",
+          "type": "int"
+        },
+        {
+          "name": "shift",
+          "type": "bool"
+        },
+        {
+          "name": "ctrl",
+          "type": "bool"
+        },
+        {
+          "name": "alt",
+          "type": "bool"
+        },
+        {
+          "name": "meta",
+          "type": "bool"
+        }
+      ],
+      "name": "PointerEvent",
+      "note": "Node-local logical pixels; button 0 left, 1 middle, 2 right."
+    },
+    {
+      "fields": [
+        {
+          "name": "x",
+          "type": "float"
+        },
+        {
+          "name": "y",
+          "type": "float"
+        },
+        {
+          "name": "pointerId",
+          "type": "int"
+        },
+        {
+          "name": "pointerType",
+          "type": "\"mouse\" | \"touch\" | \"pen\" | \"keyboard\" | \"assistive\""
+        },
+        {
+          "name": "button",
+          "type": "int"
+        },
+        {
+          "name": "shift",
+          "type": "bool"
+        },
+        {
+          "name": "ctrl",
+          "type": "bool"
+        },
+        {
+          "name": "alt",
+          "type": "bool"
+        },
+        {
+          "name": "meta",
+          "type": "bool"
+        }
+      ],
+      "name": "ClickEvent",
+      "note": "Fields of PointerEvent; keyboard/assistive clicks use the node center and button 0."
+    },
+    {
+      "fields": [
+        {
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "name": "code",
+          "type": "string"
+        },
+        {
+          "name": "repeat",
+          "type": "bool"
+        },
+        {
+          "name": "shift",
+          "type": "bool"
+        },
+        {
+          "name": "ctrl",
+          "type": "bool"
+        },
+        {
+          "name": "alt",
+          "type": "bool"
+        },
+        {
+          "name": "meta",
+          "type": "bool"
+        }
+      ],
+      "name": "KeyEvent",
+      "note": "W3C key value in `key`, physical code in `code`."
+    },
+    {
+      "fields": [],
+      "name": "FocusEvent",
+      "note": "No fields."
+    },
+    {
+      "fields": [
+        {
+          "name": "value",
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "type": "TextTarget"
+        }
+      ],
+      "name": "TextChangeEvent",
+      "note": "`value` and `target.value` are equal; `value` is the Tessera form.",
+      "primary": "value"
+    },
+    {
+      "fields": [
+        {
+          "name": "value",
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "type": "TextTarget"
+        }
+      ],
+      "name": "TextSubmitEvent",
+      "note": "TextInput Enter; TextArea trigger [Q5].",
+      "primary": "value"
+    },
+    {
+      "fields": [
+        {
+          "name": "value",
+          "type": "string"
+        }
+      ],
+      "name": "TextTarget",
+      "note": "The React-style `target.value` of a text event."
+    },
+    {
+      "fields": [
+        {
+          "name": "anchor",
+          "type": "int"
+        },
+        {
+          "name": "focus",
+          "type": "int"
+        }
+      ],
+      "name": "TextSelection",
+      "note": "Grapheme offsets; caret affinity is not exposed."
+    },
+    {
+      "fields": [
+        {
+          "name": "text",
+          "type": "string"
+        },
+        {
+          "name": "start",
+          "type": "int"
+        },
+        {
+          "name": "end",
+          "type": "int"
+        }
+      ],
+      "name": "CompositionEvent",
+      "note": "IME composition updates."
+    },
+    {
+      "fields": [
+        {
+          "name": "offsetX",
+          "type": "float"
+        },
+        {
+          "name": "offsetY",
+          "type": "float"
+        },
+        {
+          "name": "viewportWidth",
+          "type": "float"
+        },
+        {
+          "name": "viewportHeight",
+          "type": "float"
+        },
+        {
+          "name": "contentWidth",
+          "type": "float"
+        },
+        {
+          "name": "contentHeight",
+          "type": "float"
+        }
+      ],
+      "name": "ScrollEvent",
+      "note": "All sizes in dp."
+    },
+    {
+      "fields": [
+        {
+          "name": "code",
+          "type": "string"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "name": "ErrorInfo",
+      "note": "The safe subset of the runtime Error record."
+    }
+  ]
+}

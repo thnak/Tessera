@@ -33,9 +33,10 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/compiler/analyzer/` | own JSX/TSX front end + React-like rules | implemented (C) |
 | `src/compiler/rules/` | framework/binding rules | implemented (C; analysis skeleton) |
 | `src/compiler/ir/` | neutral IR (intermediate representation) + serialization | implemented (C; model, JSON writer, validator) |
-| `src/compiler/lowering/` | AST -> IR expression lowering | implemented (C, expressions only) |
+| `src/compiler/lowering/` | AST -> IR lowering (expressions, hooks and bindings) | implemented (C, slices 5 and 6) |
 | `src/compiler/codegen/` | IR -> C++ | planned (C) |
 | `src/compiler/merger/` | protected-region merge | implemented (B1) |
+| `src/schema/` | shared machine-readable intrinsic/style schema (`tessera_schema`), consumed by the compiler, designer and runtime; leaf library | implemented (C, slice 12) |
 | `src/runtime/` | fixed-step accumulator, clock, `RuntimeLoop`, frame pacer, async primitives, diagnostics counters | B2 core |
 | `src/services/` | i18n (internationalization), navigation, state restore, storage, networking, notifications, shell | planned (F) |
 | `src/data/` | async resource cache, mutations, offline queue | planned (F) |

@@ -893,6 +893,33 @@ target_link_libraries(input_pipeline_tests PRIVATE tessera_input_pump)
 
 add_test(NAME input_pipeline COMMAND input_pipeline_tests)
 
+add_executable(schema_tests
+    schema_tests.cpp)
+
+target_link_libraries(schema_tests PRIVATE tessera_schema)
+
+add_test(NAME schema_table COMMAND schema_tests)
+
+add_executable(schema_layering_tests
+    schema_layering_tests.cpp)
+
+target_link_libraries(schema_layering_tests PRIVATE tessera_schema)
+
+target_compile_definitions(schema_layering_tests PRIVATE
+    TESSERA_SCHEMA_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/schema")
+
+add_test(NAME schema_layering COMMAND schema_layering_tests)
+
+add_executable(schema_golden_tests
+    schema_golden_tests.cpp)
+
+target_link_libraries(schema_golden_tests PRIVATE tessera_schema_dump_core)
+
+target_compile_definitions(schema_golden_tests PRIVATE
+    TESSERA_SCHEMA_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/schema")
+
+add_test(NAME schema_golden COMMAND schema_golden_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(
