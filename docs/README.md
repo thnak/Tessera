@@ -179,6 +179,8 @@ This page is the map and reading order for the framework.
 - [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,
   crash, capture
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
+- [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
+  modes, diagnostics, spec gaps decided
 - [`design/designer.md`](design/designer.md) — Wasm/WebGPU preview, IPC (inter-process communication), hot reload
 - [`design/threading-and-memory.md`](design/threading-and-memory.md) — threads, ownership,
   allocators, GPU memory, shutdown
@@ -372,6 +374,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Anti-aliasing | B1 partial: SDF rounded rects only |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
 | Protected-region merger | B1 prototype |
+| JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer implemented; parsers, Tier 1 rules, IR pending ([design](design/jsx-frontend.md)) |
 | Stylesheet engine | B2 implemented ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |
 | Yoga layout / text / glyph atlas | B2 partial: Yoga layout + text-measurement stub implemented; real shaping/font loading/glyph atlas planned |
 | Input handler | B2 implemented: normalized queue + pointer dispatch/capture ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |

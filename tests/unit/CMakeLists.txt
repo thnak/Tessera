@@ -7,6 +7,13 @@ target_link_libraries(merger_tests PRIVATE tessera_merger)
 
 add_test(NAME merger_unit COMMAND merger_tests)
 
+add_executable(jsx_lexer_tests
+    jsx_lexer_tests.cpp)
+
+target_link_libraries(jsx_lexer_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_lexer COMMAND jsx_lexer_tests)
+
 add_executable(scene_graph_tests
     scene_graph_tests.cpp)
 
