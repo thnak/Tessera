@@ -25,6 +25,7 @@ add_subdirectory(render)
 # Editing core on top of the text layer: the UTF-8 edit buffer plus the scene-event controller.
 # Kept separate from tessera_text so the shaping/text layer stays free of scene dependencies.
 add_library(tessera_text_edit STATIC
+    caret_blink.cpp
     edit_controller.cpp
     text_input_runtime.cpp)
 

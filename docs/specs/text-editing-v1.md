@@ -429,7 +429,45 @@ if (runtime.handle_event(event)) {   // forward the node's on_event input
 - **Bounded:** the runtime allocates nothing per event; the change event only copies the bounded
   inline 256-byte view, and the full value stays a borrowed view into the controller buffer.
 
-Deferred: caret/selection/composition rendering and blink, undo/redo (grouping/caps), clipboard
+Caret blink (implemented, task-67): `CaretBlink`
+([`caret_blink.hpp`](../../include/tessera/ui/text/caret_blink.hpp), library `tessera_text_edit`)
+is the deterministic blink scheduler. Paint keeps no clock; the fixed-step owner advances the blink
+and publishes the result into the paint decoration:
+
+```cpp
+CaretBlink blink;                                   // 500/500 ms defaults, configurable
+publish_caret_visibility(*paint_data.decoration, blink);  // caret_visible + blink_phase
+```
+
+- **Phases:** visible for `visible_seconds` then hidden for `hidden_seconds`, repeating. The visible
+  window is half-open `[0, visible_seconds)` and the hidden window is
+  `[visible_seconds, visible_seconds + hidden_seconds)`: a tick at exactly the visible boundary is
+  hidden, and a tick at exactly the period boundary is visible again. `tick(now_seconds)` takes a
+  monotonic time source (a backwards timestamp is clamped, never replayed) and a tick that jumps
+  several phases flips at most once - callers that need every transition tick at least once per
+  phase.
+- **Reset on activity:** typing, a caret move or a selection change calls `reset(now)`, which shows
+  the caret immediately (when the field is active) and restarts the cycle. The owner detects
+  activity by comparing `EditController::activity_count()`, which counts every command that changed
+  the text, selection or caret.
+- **Hide rules:** a non-collapsed selection hides the caret (platform-typical for Windows, macOS and
+  Linux editors), as do an unfocused field and a read-only field.
+  `EditController::caret_blink_active(focused)` computes `focused && !read_only &&
+  !has_selection`; the owner feeds it to `CaretBlink::set_active(active, now)`, which hides or shows
+  the caret immediately on a context change.
+- **Repaint policy:** `tick()`, `reset()` and `set_active()` return true **only** when the effective
+  visibility changed, so there are exactly two transitions per period and no repaint churn while
+  hidden. Those flags are the only reason to repaint for the caret;
+  `next_transition_seconds()` exposes the next exact boundary for on-demand frame scheduling.
+- **Publishing and paint:** `publish_caret_visibility(decoration, blink)` writes
+  `PaintData::TextDecoration::caret_visible` and `blink_phase` consistently with the paint rule
+  (`caret_visible && blink_phase >= 0.5f`), so paint reads one coherent snapshot and stays
+  timer-free.
+- **Damage:** only the caret's visibility changes, never the text layout. The current damage pass
+  damages the whole text node, which is conservative for a caret-only change; tighter caret-rect
+  damage needs a paint-side caret rect and is deferred.
+
+Deferred: composition/preedit rendering (blink landed, task-67), undo/redo (grouping/caps), clipboard
 (copy/cut/paste and secure redaction), editable-node scene model (`TextInputKind`, value/selection
 props and generated events), bidi caret affinity and visual line movement (up/down), grapheme
 `maxLength` whole-reject, dead-key composition beyond the platform path, caret rect/candidate-window

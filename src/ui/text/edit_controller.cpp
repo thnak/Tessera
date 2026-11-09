@@ -61,6 +61,9 @@ bool EditController::commit_text(std::string_view text) {
 bool EditController::accept(EditResult result, bool text_edit) {
     last_result_ = result;
     changed_ = changed_ || result.changed;
+    if (result.changed) {
+        ++activity_count_;
+    }
     if (text_edit && result.changed) {
         ++committed_edits_;
     }

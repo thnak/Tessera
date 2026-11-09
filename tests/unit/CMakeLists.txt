@@ -852,6 +852,12 @@ add_executable(text_input_runtime_tests
 target_link_libraries(text_input_runtime_tests PRIVATE tessera_text_edit)
 
 add_test(NAME text_input_runtime COMMAND text_input_runtime_tests)
+add_executable(caret_blink_tests
+    caret_blink_tests.cpp)
+
+target_link_libraries(caret_blink_tests PRIVATE tessera_text_edit)
+
+add_test(NAME caret_blink COMMAND caret_blink_tests)
 
 add_executable(layout_apply_tests
     layout_apply_tests.cpp)

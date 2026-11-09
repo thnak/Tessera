@@ -89,6 +89,18 @@ public:
     [[nodiscard]] std::uint64_t committed_edit_count() const {
         return committed_edits_;
     }
+    // Number of commands that changed the text, the selection or the caret since construction. The
+    // caret blink owner compares this with its last seen value and calls CaretBlink::reset() on
+    // typing/caret moves/selection changes (docs/specs/text-editing-v1.md section 12).
+    [[nodiscard]] std::uint64_t activity_count() const {
+        return activity_count_;
+    }
+    // Blink policy helper: the caret blinks only in a focused, editable field with a collapsed
+    // selection (platform-typical: a non-collapsed selection hides the caret). Feed the result to
+    // CaretBlink::set_active(); read-only and unfocused fields keep the caret hidden.
+    [[nodiscard]] bool caret_blink_active(bool focused) const {
+        return focused && !read_only_ && !buffer_.has_selection();
+    }
 
 private:
     bool handle_key(const Event& event);
@@ -105,6 +117,7 @@ private:
     EditResult last_result_;
     bool changed_ = false;
     std::uint64_t committed_edits_ = 0;
+    std::uint64_t activity_count_ = 0;
 };
 
 } // namespace tessera::ui::text
