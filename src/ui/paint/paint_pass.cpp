@@ -3,6 +3,7 @@
 #include "paint_properties.hpp"
 #include "paint_vector.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/text/bidi.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -118,6 +119,66 @@ PaintTextAlign computed_text_align(const style::ComputedStyle& style) {
 // them. Selection is a translucent fill derived from the text color; the caret is the text color at
 // full alpha, 1 px at device scale 1 and 2 px at scale >= 2. A blink phase below 0.5 hides only the
 // caret; paint has no timers.
+// Advance callback for bidi caret mapping: the metrics source used for this paint.
+float bidi_advance(std::string_view text, const text::TextStyle& style, void* user) {
+    return static_cast<const PaintTextMetricsSource*>(user)->advance(text, style);
+}
+
+// Visual x of a logical byte offset relative to the line start. Uses the bidi run order/affinity
+// when the line has visual runs; pure LTR lines keep the plain measured prefix.
+float line_offset_x(std::string_view text, const text::TextLine& line, std::size_t offset,
+                    const text::TextStyle& style, const PaintTextMetricsSource& source) {
+    if (line.visual_runs.empty()) {
+        const std::size_t clamped = std::min(std::max(offset, line.begin), line.end);
+        return source.advance(text.substr(line.begin, clamped - line.begin), style);
+    }
+    return text::bidi_offset_x(text, line, offset, style, &bidi_advance,
+                               const_cast<PaintTextMetricsSource*>(&source));
+}
+
+// Emits one line's glyph runs left-to-right in visual order. A line with no visual runs emits the
+// same single TextDraw as before bidi integration (LTR byte-identical); bidi lines emit one draw
+// per visual run at its measured x, with RTL runs still shaped as an RTL slice.
+void emit_line_runs(const text::TextLine& line, std::string_view text,
+                    const text::TextStyle& text_style, const PaintTextMetricsSource& source,
+                    float line_x, float line_top, const rhi::Color& color, PaintSink& sink,
+                    PaintStats& stats) {
+    if (line.end <= line.begin) {
+        return;
+    }
+    if (line.visual_runs.empty()) {
+        TextDraw run;
+        run.rect = {std::round(line_x), std::round(line_top), line.width, line.height};
+        run.text = text.substr(line.begin, line.end - line.begin);
+        run.font_size = text_style.font_size;
+        run.font_weight = text_style.font_weight;
+        run.color = color;
+        run.baseline = std::round(line_top + line.baseline);
+        sink.draw_text(run);
+        ++stats.texts;
+        return;
+    }
+    float x = line_x;
+    for (const text::BidiVisualRun& visual_run : line.visual_runs) {
+        if (visual_run.end <= visual_run.begin) {
+            continue;
+        }
+        const std::string_view slice =
+            text.substr(visual_run.begin, visual_run.end - visual_run.begin);
+        const float width = source.advance(slice, text_style);
+        TextDraw run;
+        run.rect = {std::round(x), std::round(line_top), width, line.height};
+        run.text = slice;
+        run.font_size = text_style.font_size;
+        run.font_weight = text_style.font_weight;
+        run.color = color;
+        run.baseline = std::round(line_top + line.baseline);
+        sink.draw_text(run);
+        ++stats.texts;
+        x += width;
+    }
+}
+
 void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
                            const text::TextStyle& text_style, const rhi::Color& color,
                            float opacity, bool wrap, PaintSink& sink, PaintStats& stats,
@@ -178,40 +239,56 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
     if (selection_end > selection_begin && selection_color.a > 0.0f) {
         for (const LineGeometry& geometry : lines) {
             const text::TextLine& line = geometry.line;
-            const std::size_t start = std::max(selection_begin, line.begin);
-            const std::size_t end = std::min(selection_end, line.end);
-            if (end <= start) {
+            if (line.visual_runs.empty()) {
+                const std::size_t start = std::max(selection_begin, line.begin);
+                const std::size_t end = std::min(selection_end, line.end);
+                if (end <= start) {
+                    continue;
+                }
+                const float start_x = line_offset_x(text, line, start, text_style, *metrics_source);
+                const float end_x = line_offset_x(text, line, end, text_style, *metrics_source);
+                sink.fill_rect({std::round(geometry.x + std::min(start_x, end_x)),
+                                std::round(geometry.top), std::round(std::abs(end_x - start_x)),
+                                line.height},
+                               selection_color);
                 continue;
             }
-            const bool whole_line = selection_begin <= line.begin && selection_end >= line.end;
-            const float start_width = metrics_source->advance(
-                std::string_view(text).substr(line.begin, start - line.begin), text_style);
-            float end_width =
-                whole_line
-                    ? line.width
-                    : metrics_source->advance(
-                          std::string_view(text).substr(line.begin, end - line.begin), text_style);
-            end_width = std::max(end_width, start_width);
-            sink.fill_rect({std::round(geometry.x + start_width), std::round(geometry.top),
-                            std::round(end_width - start_width), line.height},
-                           selection_color);
+            // One rectangle per visual run: a selection spanning a direction change is the union of
+            // the run-local visual intervals. Selection mapping uses run-local affinity (RTL run
+            // logical start is its visual right edge), unlike the caret's global join affinity.
+            float run_x = geometry.x;
+            for (const text::BidiVisualRun& visual_run : line.visual_runs) {
+                const std::string_view run_text = std::string_view(text).substr(
+                    visual_run.begin, visual_run.end - visual_run.begin);
+                const float run_width = metrics_source->advance(run_text, text_style);
+                const std::size_t start = std::max(selection_begin, visual_run.begin);
+                const std::size_t end = std::min(selection_end, visual_run.end);
+                if (end > start) {
+                    const float start_prefix = metrics_source->advance(
+                        std::string_view(text).substr(visual_run.begin, start - visual_run.begin),
+                        text_style);
+                    const float end_prefix = metrics_source->advance(
+                        std::string_view(text).substr(visual_run.begin, end - visual_run.begin),
+                        text_style);
+                    float x0 = run_x + start_prefix;
+                    float x1 = run_x + end_prefix;
+                    if ((visual_run.level & 1U) != 0U) {
+                        x0 = run_x + run_width - start_prefix;
+                        x1 = run_x + run_width - end_prefix;
+                    }
+                    sink.fill_rect({std::round(std::min(x0, x1)), std::round(geometry.top),
+                                    std::round(std::abs(x1 - x0)), line.height},
+                                   selection_color);
+                }
+                run_x += run_width;
+            }
         }
     }
 
     // Glyph runs: selection above, text now (per line so the geometry matches the decoration).
     for (const LineGeometry& geometry : lines) {
-        const text::TextLine& line = geometry.line;
-        if (line.end > line.begin) {
-            TextDraw run;
-            run.rect = {std::round(geometry.x), std::round(geometry.top), line.width, line.height};
-            run.text = std::string_view(text).substr(line.begin, line.end - line.begin);
-            run.font_size = text_style.font_size;
-            run.font_weight = text_style.font_weight;
-            run.color = color;
-            run.baseline = std::round(geometry.top + line.baseline);
-            sink.draw_text(run);
-            ++stats.texts;
-        }
+        emit_line_runs(geometry.line, text, text_style, *metrics_source, geometry.x, geometry.top,
+                       color, sink, stats);
     }
 
     // IME preedit: underline the composition range and, when the preedit is not part of the painted
@@ -234,9 +311,8 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
             }
         }
         const std::size_t clamped = std::min(range_begin, anchor->line.end);
-        const float prefix = metrics_source->advance(
-            std::string_view(text).substr(anchor->line.begin, clamped - anchor->line.begin),
-            text_style);
+        const float prefix =
+            line_offset_x(text, anchor->line, clamped, text_style, *metrics_source);
         const float x = std::round(anchor->x + prefix);
         const float top = std::round(anchor->top);
 
@@ -266,18 +342,15 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
                 if (stop <= start) {
                     continue;
                 }
-                const bool whole_line = range_begin <= line.begin && range_end >= line.end;
-                const float start_width = metrics_source->advance(
-                    std::string_view(text).substr(line.begin, start - line.begin), text_style);
-                float stop_width =
-                    whole_line ? line.width
-                               : metrics_source->advance(
-                                     std::string_view(text).substr(line.begin, stop - line.begin),
-                                     text_style);
-                stop_width = std::max(stop_width, start_width);
-                sink.fill_rect({std::round(geometry.x + start_width),
+                const float start_width =
+                    line_offset_x(text, line, start, text_style, *metrics_source);
+                const float stop_width =
+                    line_offset_x(text, line, stop, text_style, *metrics_source);
+                const float left = std::min(start_width, stop_width);
+                const float right = std::max(start_width, stop_width);
+                sink.fill_rect({std::round(geometry.x + left),
                                 std::round(geometry.top + line.height - thickness),
-                                std::round(stop_width - start_width), thickness},
+                                std::round(right - left), thickness},
                                color);
             }
         }
@@ -294,9 +367,8 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
             }
         }
         const std::size_t clamped = std::min(caret, caret_line->line.end);
-        const float advance = metrics_source->advance(
-            std::string_view(text).substr(caret_line->line.begin, clamped - caret_line->line.begin),
-            text_style);
+        const float advance =
+            line_offset_x(text, caret_line->line, clamped, text_style, *metrics_source);
         const float caret_width = context.device_scale >= 2.0f ? 2.0f : 1.0f;
         sink.fill_rect({std::round(caret_line->x + advance), std::round(caret_line->top),
                         std::max(caret_width, 1.0f), caret_line->line.height},
@@ -349,12 +421,38 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     // `wrap` is authoritative (NoWrap is the V1 default); computed `white-space: nowrap|pre` can
     // only suppress wrapping, never opt into it.
     const bool wrap = data->wrap == PaintWrap::Wrap && !text_style.nowrap;
+    StubPaintTextMetrics stub_source;
+    const PaintTextMetricsSource* metrics_source =
+        context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
     if (data->decoration) {
         paint_text_decoration(*data, {content_x, content_y, content_width, content_height},
                               text_style, color, opacity, wrap, sink, stats, context);
         return;
     }
     if (!wrap) {
+        // Pure LTR no-wrap keeps the exact pre-bidi single draw. Bidi text needs the line's visual
+        // runs, so lay it out and emit one draw per run (same shaping advances).
+        text::TextConstraints no_wrap_constraints;
+        no_wrap_constraints.wrap = false;
+        no_wrap_constraints.max_width = content_width;
+        text::TextLayout no_wrap_layout =
+            metrics_source->layout(data->text, text_style, no_wrap_constraints);
+        if (data->max_lines > 0 && no_wrap_layout.lines.size() > data->max_lines) {
+            no_wrap_layout.lines.resize(data->max_lines);
+        }
+        if (!no_wrap_layout.lines.empty() && !no_wrap_layout.lines.front().visual_runs.empty()) {
+            const text::TextLine& line = no_wrap_layout.lines.front();
+            float line_x = content_x;
+            const PaintTextAlign align = data->text_align.value_or(computed_text_align(style));
+            if (align == PaintTextAlign::Center) {
+                line_x += (content_width - line.width) * 0.5f;
+            } else if (align == PaintTextAlign::End) {
+                line_x += content_width - line.width;
+            }
+            emit_line_runs(line, data->text, text_style, *metrics_source,
+                           std::max(content_x, line_x), content_y, color, sink, stats);
+            return;
+        }
         TextDraw run;
         run.rect = {content_x, content_y, content_width, content_height};
         run.text = data->text;
@@ -369,13 +467,6 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     text::TextConstraints constraints;
     constraints.wrap = true;
     constraints.max_width = content_width;
-
-    // The metrics source decides how wrap widths are measured: the deterministic stub keeps the
-    // existing goldens byte-identical, a real-face source uses the same advances the glyph
-    // renderer draws. Its id is part of the cache key, so the two can never mix.
-    StubPaintTextMetrics stub_source;
-    const PaintTextMetricsSource* metrics_source =
-        context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
 
     // Caller-owned cache: a hit returns stable line boxes without recomputing or allocating; a
     // miss computes exactly what the uncached path would and stores the (already max_lines
@@ -396,26 +487,14 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     const PaintTextAlign align = data->text_align.value_or(computed_text_align(style));
     float line_top = content_y;
     for (const text::TextLine& line : layout->lines) {
-        if (line.end > line.begin) {
-            float line_x = content_x;
-            if (align == PaintTextAlign::Center) {
-                line_x += (content_width - line.width) * 0.5f;
-            } else if (align == PaintTextAlign::End) {
-                line_x += content_width - line.width;
-            }
-            line_x = std::max(content_x, line_x);
-
-            TextDraw run;
-            // Integer snapping happens at paint time only (layout widths/offsets stay fractional).
-            run.rect = {std::round(line_x), std::round(line_top), line.width, line.height};
-            run.text = std::string_view(data->text).substr(line.begin, line.end - line.begin);
-            run.font_size = text_style.font_size;
-            run.font_weight = text_style.font_weight;
-            run.color = color;
-            run.baseline = std::round(line_top + line.baseline);
-            sink.draw_text(run);
-            ++stats.texts;
+        float line_x = content_x;
+        if (align == PaintTextAlign::Center) {
+            line_x += (content_width - line.width) * 0.5f;
+        } else if (align == PaintTextAlign::End) {
+            line_x += content_width - line.width;
         }
+        emit_line_runs(line, data->text, text_style, *metrics_source, std::max(content_x, line_x),
+                       line_top, color, sink, stats);
         line_top += line.height;
     }
 }

@@ -561,3 +561,16 @@ determinism). No new PNG golden was added: the RecordingSink op record is byte-e
 text path needs a real-font fixture for pixels (the existing `paint_text_gpu` readback covers the
 decorated GPU path). Deferrals: candidate-window positioning, per-composition styling (squiggly or
 coloured underline), bidi preedit, selection inside the preedit range, GPU readback of the preedit.
+
+### 10.3 Bidirectional visual-run emission (task-74)
+
+Text paint consumes `TextLine::visual_runs`. A line with empty runs keeps the pre-bidi emission
+exactly (one `TextDraw`, `line.width`, snapped rect), so pure LTR is byte-identical. A bidi line
+emits one `TextDraw` per run in visual order: x advances by each run's measured shaped advance, and
+an RTL slice is shaped as RTL (its glyph advances already run left-to-right). Caret and selection
+map logical offsets through `bidi_offset_x` (right-biased join affinity: a join belongs to the run
+whose logical range ends there; an odd run's logical start is its visual right edge). Selection
+paints one rectangle per visual run with run-local affinity, so a selection crossing a direction
+change is the union of run intervals. Click-to-position inside RTL/mixed runs and a CPU bidi golden
+remain deferrals (the CPU text scene has no bidi payload yet). The test-only OFL-1.1 fixture is
+`tests/fixtures/fonts/NotoSansHebrew-Regular.ttf`; `paint_bidi_gpu` validates its pixels and repeat.

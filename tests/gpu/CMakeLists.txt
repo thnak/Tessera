@@ -33,6 +33,10 @@ set(TESSERA_FONT_FIXTURE
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSans-Regular.ttf")
 get_filename_component(TESSERA_FONT_FIXTURE "${TESSERA_FONT_FIXTURE}" REALPATH)
 
+set(TESSERA_BIDI_FONT_FIXTURE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
+get_filename_component(TESSERA_BIDI_FONT_FIXTURE "${TESSERA_BIDI_FONT_FIXTURE}" REALPATH)
+
 add_executable(text_render_tests
     text/text_render_tests.cpp)
 target_link_libraries(text_render_tests PRIVATE tessera_text_render tessera_rhi_null)
@@ -182,6 +186,14 @@ if (TARGET tessera_rhi_vulkan)
         tessera_paint tessera_text_render tessera_gpu tessera_rhi_vulkan)
     add_test(NAME paint_text_gpu COMMAND paint_text_gpu_tests "${TESSERA_FONT_FIXTURE}")
     set_tests_properties(paint_text_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    add_executable(paint_bidi_gpu_tests
+        text/paint_bidi_tests.cpp)
+    target_link_libraries(paint_bidi_gpu_tests PRIVATE
+        tessera_paint tessera_text_render tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME paint_bidi_gpu
+        COMMAND paint_bidi_gpu_tests "${TESSERA_BIDI_FONT_FIXTURE}")
+    set_tests_properties(paint_bidi_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(damage_present_tests
         batched2d/damage_present_tests.cpp)

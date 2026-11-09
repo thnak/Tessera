@@ -240,3 +240,11 @@ the offset belongs to the run whose logical range ends there; RTL runs map from 
 Paint consumption of the visual runs and wiring the edit controller's caret to it is the next
 additive slice. The deterministic fixture font has no Hebrew/Arabic glyphs, so bidi tests are
 structural-only for now; pixel proof needs an approved bidi-capable OFL test font (deferred).
+
+Bidi paint (task-74): paint now consumes `TextLine::visual_runs` and emits each line's runs in visual
+order using the shaped advances; a line with empty runs is byte-identical to the pre-bidi emission.
+Caret/selection use `bidi_offset_x` (right-biased join affinity); selection paints one rect per
+visual run so a selection crossing a direction change is the union of run intervals. The test-only
+OFL-1.1 Hebrew fixture is `tests/fixtures/fonts/NotoSansHebrew-Regular.ttf` (not linked into the
+app). Click-to-position inside RTL/mixed runs stays a documented deferral; no CPU golden yet (the
+CPU text scene has no bidi payload).
