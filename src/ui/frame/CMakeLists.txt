@@ -9,6 +9,7 @@ target_include_directories(tessera_frame PUBLIC
 target_link_libraries(tessera_frame PUBLIC
     tessera_animation_loop
     tessera_layout
+    tessera_paint
     tessera_scene
     tessera_damage)
 

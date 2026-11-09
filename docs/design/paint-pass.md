@@ -20,6 +20,7 @@ layout, or the redraw plan. The caller owns the compiled stylesheet and passes a
 This is the paint stage of the stage order described in [`ui-model.md`](ui-model.md) (style -> layout
 -> paint -> render). Damage/redraw (see [`dirty-rendering.md`](dirty-rendering.md)) is unchanged: the
 pass can paint a full frame, and wiring it to `RedrawPlan` scissors is a later slice.
+[`FramePipeline::paint_frame`](#8-frame-integration) is what invokes it once per due frame.
 
 ## 2. Why a sink seam
 
@@ -118,3 +119,55 @@ paint never submits the command list (the caller does).
 
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
+
+## 8. Frame integration
+
+[`FramePipeline`](../../include/tessera/ui/frame_pipeline.hpp) owns the per-frame order and exposes
+the paint stage through one bounded call:
+
+```cpp
+FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& styles,
+                                      paint::PaintSink& sink, bool force = false) const;
+```
+
+`FramePaint` carries the `paint::PaintStats` and a `painted` flag, so "frame was not due" is
+distinguishable from "painted an empty subtree" without inspecting the sink.
+
+Frame order per iteration:
+
+```text
+tick(root, dt)          # animation samples, dirty collection, needs_style/needs_layout
+  (caller: style re-resolve / layout if the tick asked for it)
+finish_frame(root)      # damage + normalized redraw plan -> should_render
+paint_frame(root, styles, sink)   # paints only when should_render, or when force is set
+  (caller: submit the command list / present)
+```
+
+Contract:
+
+- **Only due frames paint.** `finish_frame()` records `FrameRender::should_render` as the pipeline's
+  frame decision; `paint_frame()` is a no-op (`painted == false`, no stats, no sink calls) when the
+  frame is not due. `tick()` clears the decision, so a new frame cannot paint until its own
+  `finish_frame()`. The explicit `force` flag paints a full frame anyway (for example after a resize
+  or a backend reset); it does not change the frame decision.
+- **Full-frame only.** The paint pass ignores `FrameRender::redraw_plan`: even a partial redraw
+  repaints every visible box it is given. Damage-clipped painting (scissoring the sink to the plan's
+  `Scissor` regions) is a later slice. A caller that needs partial output clips at the
+  sink/renderer level; the scene and the plan stay untouched.
+- **Read-only scene.** `paint_frame()` takes `const Node&`; it does not mark or clear dirty flags,
+  does not queue damage, and does not touch `DamageTracker`/`DamageAccumulator`. Style and layout
+  decisions (`FrameTick::needs_style`/`needs_layout`) keep their existing semantics.
+- **Caller owns the inputs.** The stylesheet/style provider and the sink are supplied by the caller,
+  exactly as for `paint_scene`; the pipeline adds no backend, GPU, or device dependency.
+  `paint::SceneStyleProvider` over a compiled stylesheet and a `SceneStyleTree` is the default
+  provider; tests use a recording sink and a stub provider.
+- **Repeatable.** Painting twice in one due frame is allowed and deterministic: the same commands
+  and the same `PaintStats` are produced.
+
+The frame-pipeline tests in
+[`tests/unit/frame_pipeline_tests.cpp`](../../tests/unit/frame_pipeline_tests.cpp) cover: no paint
+before a frame decision, no paint on an idle frame, an animation-dirty frame painting once with the
+expected background/border rects in paint order, stats (`nodes`/`backgrounds`/`borders`) matching
+the painted scene, a scene snapshot (bounds, transform, visibility, dirty flags, child counts)
+unchanged across a paint, repeated paints producing identical commands, forced painting of an idle
+frame, and painting neither queueing damage nor changing the next frame decision.

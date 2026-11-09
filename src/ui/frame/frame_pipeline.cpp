@@ -3,6 +3,7 @@
 #include "tessera/ui/animation/loop_bridge.hpp"
 #include "tessera/ui/animation/property_dirty.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
+#include "tessera/ui/paint/paint_pass.hpp"
 
 #include <cmath>
 #include <stdexcept>
@@ -53,6 +54,9 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
 
 FrameTick FramePipeline::tick(Node& root, double dt) {
     damage_->clear();
+    // A new frame invalidates the previous frame's render decision; only finish_frame() can make a
+    // frame due again.
+    frame_due_ = false;
 
     FrameTick result;
     result.animation = animation::tick_animations(*animations_, *loop_, dt);
@@ -93,6 +97,18 @@ FrameRender FramePipeline::finish_frame(Node& root) {
                                          config_.redraw_policy);
     result.full_redraw = result.redraw_plan.full_redraw;
     result.should_render = !result.redraw_plan.scissors.empty();
+    frame_due_ = result.should_render;
+    return result;
+}
+
+FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& styles,
+                                      paint::PaintSink& sink, bool force) const {
+    FramePaint result;
+    if (!frame_due_ && !force) {
+        return result;
+    }
+    result.stats = paint::paint_scene(root, styles, sink);
+    result.painted = true;
     return result;
 }
 

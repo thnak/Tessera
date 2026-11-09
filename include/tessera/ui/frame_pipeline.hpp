@@ -6,6 +6,7 @@
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/ui/animation/runtime.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
+#include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 
 namespace tessera::runtime {
@@ -33,6 +34,11 @@ struct FrameRender {
     bool should_render = false;
 };
 
+struct FramePaint {
+    paint::PaintStats stats;
+    bool painted = false;
+};
+
 class FramePipeline {
 public:
     FramePipeline(animation::AnimationRuntime& animations, runtime::RuntimeLoop& loop,
@@ -42,6 +48,20 @@ public:
     FrameTick tick(Node& root, double dt);
     FrameRender finish_frame(Node& root);
 
+    // Paints the whole scene into `sink` only when the most recent finish_frame() decided the frame
+    // is due (`FrameRender::should_render`), or when `force` is set. tick() clears the decision, so
+    // paint after finish_frame(). The paint is full-frame: the redraw plan's damage scissors are
+    // not applied yet (damage-clipped painting is a later slice). The scene is read-only here:
+    // dirty flags, damage, and redraw planning are untouched, and painting twice in one frame is
+    // allowed and deterministic.
+    FramePaint paint_frame(const Node& root, paint::StyleProvider& styles, paint::PaintSink& sink,
+                           bool force = false) const;
+
+    // True when the most recent finish_frame() reported should_render and tick() has not run since.
+    [[nodiscard]] bool frame_due() const {
+        return frame_due_;
+    }
+
 private:
     animation::AnimationRuntime* animations_ = nullptr;
     runtime::RuntimeLoop* loop_ = nullptr;
@@ -49,6 +69,7 @@ private:
     rendering::DamageAccumulator* damage_ = nullptr;
     DirtyPass* dirty_ = nullptr;
     FramePipelineConfig config_;
+    bool frame_due_ = false;
 };
 
 } // namespace tessera::ui::frame
