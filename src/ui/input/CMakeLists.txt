@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_input STATIC
-    input_queue.cpp)
+    input_queue.cpp
+    gesture_arena.cpp
+    gesture_recognizers.cpp
+    gesture_swipe.cpp
+    gesture_pinch_rotate.cpp)
 
 target_include_directories(tessera_input PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

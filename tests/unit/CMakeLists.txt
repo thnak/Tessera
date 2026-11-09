@@ -920,6 +920,20 @@ target_compile_definitions(schema_golden_tests PRIVATE
 
 add_test(NAME schema_golden COMMAND schema_golden_tests)
 
+add_executable(gesture_arena_tests
+    gesture_arena_tests.cpp)
+
+target_link_libraries(gesture_arena_tests PRIVATE tessera_input)
+
+add_test(NAME gesture_arena COMMAND gesture_arena_tests)
+
+add_executable(gesture_recognizer_tests
+    gesture_recognizer_tests.cpp)
+
+target_link_libraries(gesture_recognizer_tests PRIVATE tessera_input)
+
+add_test(NAME gesture_recognizers COMMAND gesture_recognizer_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(

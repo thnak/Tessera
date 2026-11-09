@@ -383,9 +383,9 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | RHI + Vulkan batched 2D | B1 implemented; swapchain/present seam B3 |
 | Anti-aliasing | B1 partial: SDF rounded rects + grayscale text coverage; no MSAA/path AA |
 | [Scene graph](reference/glossary.md) + events | B1 implemented |
-| Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due; text, clip and damage-clipped paint pending ([design](design/paint-pass.md)) |
+| Box paint pass | B2 implemented: computed-style backgrounds/borders -> batched 2D, wired into `FramePipeline::paint_frame` when a frame is due, damage-clipped via the redraw plan; text runs and rounded/squircle clip intersection pending ([design](design/paint-pass.md)) |
 | Protected-region merger | B1 prototype |
-| JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; expression lowering implemented, node/hook/component lowering pending ([design](design/jsx-ir-lowering.md)) |
+| JSX/TSX front end ([ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | C started: lexer, JSX/expression/type/module parser with per-item recovery, native handlers, `bind::` pairing and syntactic Tier 1 rules implemented; expression and hook/binding lowering implemented, node/component lowering pending ([design](design/jsx-ir-lowering.md)) |
 | Stylesheet engine | B2 implemented ([ADR-016](../decisions/ADR-016-stylesheet-engine.md)) |
 | Yoga layout / text / glyph atlas | B2 implemented: Yoga adapter, FreeType/HarfBuzz shaping, glyph atlas and text batching; bidi/ICU segmentation pending |
 | Input handler | B2 implemented: normalized queue/coalescing, per-pointer capture, focus/keyboard, wheel/text routing, Tab traversal, hover/active and `:focus-visible` pseudo-states, per-tick `InputPump`; Linux translation, IME, gestures and multi-touch pending ([ADR-017](../decisions/ADR-017-input-and-fixed-step-runtime.md)) |
@@ -395,8 +395,9 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Window resize/DPI/lifecycle | B3 implemented on Windows/X11 (resize/DPI/focus/close, swapchain retirement); Wayland and macOS pending ([ADR-020](../decisions/ADR-020-window-resize-and-lifecycle.md)) |
 | Async/await runtime | B2 partial: cancellation/executor/completion queue and lazy coroutine `Task` implemented; I/O executor pending ([ADR-021](../decisions/ADR-021-async-runtime.md)) |
 | Diagnostics/profiling | B2 partial: per-frame counters implemented; tracing/profiling/crash pending ([ADR-022](../decisions/ADR-022-diagnostics-and-profiling.md)) |
+| Static-link + license gates | Production gates implemented: dependency/notice allowlist checker, per-OS static-link allowlist, forbidden dynamic C++ runtime rule, Release static-runtime proof, fixtures and CI wiring ([plan](design/rendering-production-plan.md)) |
 | OS events / foldables | B3 proposed ([ADR-023](../decisions/ADR-023-os-event-normalization-and-foldables.md)) |
-| Compiler/IR/codegen | C started: IR model, JSON writer/validator and expression lowering implemented; node/hook/component lowering and C++ codegen pending ([design](design/jsx-ir-lowering.md)) |
+| Compiler/IR/codegen | C started: IR model, JSON writer/validator, expression and hook/binding lowering, and the shared `tessera_schema` intrinsic/style table implemented; node/component lowering and C++ codegen pending ([design](design/jsx-ir-lowering.md)) |
 | UI virtualization (list/grid) | B2/E proposed |
 | Mobile integration (Android first) | design only |
 | Memory model / bridge policy | proposed / [ADR-024](../decisions/ADR-024-native-first-boundaries.md) accepted |

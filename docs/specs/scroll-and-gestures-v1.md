@@ -144,6 +144,40 @@ Rules:
 - Gesture handlers run on the UI thread, at tick boundaries; no layout/render/block.
 - Reduced motion/disability alternatives: keyboard/accessibility actions for scroll/drag.
 
+### 5.1 Implemented arena slice
+
+`include/tessera/ui/gesture.hpp` + `src/ui/input/gesture_*.cpp` implement the recognition model and
+arena as a pure, scene-independent state machine (no scroll integration, no platform translation):
+
+- Model: `GestureKind { Tap, DoubleTap, LongPress, Drag, Swipe, Pinch, Rotate }`,
+  `GesturePhase { Began, Changed, Ended, Canceled }`, `GestureEvent`, and `GestureConfig`.
+- `GestureArena` consumes normalized `InputEvent`s plus `tick(timestamp_s)` for time-driven
+  recognizers. It keeps up to 8 recognizers and 4 per-pointer slots in fixed arrays, emits through
+  a bounded 32-event sink, and never allocates, reads the wall clock, or uses RTTI. Per-pointer
+  state is keyed by `pointer_id` only; a second pointer joins while `simultaneous` is true
+  (otherwise a pointer down during an active press is ignored).
+- Protocol: recognizers are polled in registration order and return Ignore/Claim/Reject. The first
+  claim wins its pointer; a two-pointer recognizer wins every active pointer. Losers receive
+  `on_claim_lost(pointer_id)` to drop per-pointer state without emitting events, and only the
+  winner receives subsequent move/up. `PointerCancel` is first-class: a winner that emitted `Began`
+  emits `Canceled`; a press canceled before any gesture began emits no gesture event. Window
+  `Focus`/`Blur` input cancels every active pointer.
+- Built-in recognizers: `TapRecognizer` (tap slop, double-tap window), `LongPressRecognizer`
+  (timestamp-driven via tick or observed elapsed time), `DragRecognizer` (threshold, `Began` only
+  once), `SwipeRecognizer` (distance plus a deterministic event-time velocity window, direction is
+  the sign of the final `dx`/`dy`), and `PinchRotateRecognizer` (two pointer ids, scale/rotation,
+  emits Pinch and Rotate event streams).
+- Defaults: `tap_slop = 8` logical px, `long_press_ms = 500`, `drag_threshold = 8` logical px,
+  `double_tap_ms = 300`, `simultaneous = true`. Gesture `dx`/`dy` are the total displacement from
+  the press point.
+- Determinism: the same event script produces an identical `GestureEvent` log
+  (`tests/unit/gesture_arena_tests.cpp`, `tests/unit/gesture_recognizer_tests.cpp`).
+
+Not implemented in this slice: scene/router integration and capture handoff, scroll claiming or
+offset policy, tap-slop in device pixels (DPI scaling), platform velocity/tilt/orientation, wheel
+and edge-swipe recognizers, OS/system edge gestures, gesture-driven accessibility alternatives, and
+any per-frame wiring (callers own `process`/`tick` scheduling).
+
 ## 6. Sticky, anchoring, and focus
 
 - Sticky headers are constrained to their scroll container and resolved after offset changes.
