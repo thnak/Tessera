@@ -53,6 +53,9 @@ if (WIN32 AND TARGET batched2d_poc AND TARGET tessera_rhi_vulkan)
     add_test(
         NAME batched2d_windowed_smoke
         COMMAND batched2d_poc --backend vulkan --windowed --frames 3 --width 256 --height 256)
+    # A run that renders nothing still exits 0, so require the three frames (or an explicit skip).
+    set_tests_properties(batched2d_windowed_smoke PROPERTIES
+        PASS_REGULAR_EXPRESSION "rendered=3 |skipped")
 endif()
 
 if (TARGET batched2d_poc)
@@ -107,7 +110,8 @@ if (UNIX AND TARGET batched2d_poc)
             NAME batched2d_windowed_smoke
             COMMAND batched2d_poc --backend vulkan --windowed --frames 3 --width 256 --height 256)
         set_tests_properties(batched2d_windowed_smoke PROPERTIES
-            ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
+            ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}"
+            PASS_REGULAR_EXPRESSION "rendered=3 |skipped")
     endif()
 endif()
 

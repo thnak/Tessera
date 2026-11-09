@@ -14,6 +14,8 @@
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "tessera/runtime/frame_pacer.hpp"
 #include "tessera/runtime/frame_wait.hpp"
+#include "tessera/runtime/runtime_loop.hpp"
+#include "tessera/runtime/steady_clock.hpp"
 #include "text_demo.hpp"
 
 #include <array>
@@ -606,6 +608,13 @@ int run_windowed(const Options& options) {
 
     runtime::FramePacer pacer(runtime::FramePacerConfig{60.0});
     pacer.present(hal::steady_now_seconds());
+    // The loop owns "should this iteration render" and the fixed-step update count. The demo has
+    // no scene to go dirty, so it runs continuously; an app would leave render-on-demand on and
+    // call mark_render_dirty()/request_frame() from input, animation and async completions.
+    runtime::SteadyClock clock;
+    runtime::RuntimeLoop loop(clock);
+    loop.set_continuous(true);
+    std::uint64_t fixed_steps = 0;
 
     std::array<hal::WindowEvent, 16> events{};
     std::uint32_t rendered = 0;
@@ -624,6 +633,12 @@ int run_windowed(const Options& options) {
 
         (void)runtime::wait_for_next_frame(*window, pacer);
         window->poll_events(events);
+
+        const runtime::RuntimeTick tick = loop.tick();
+        fixed_steps += tick.steps;
+        if (!tick.should_render) {
+            continue;
+        }
 
         const hal::WindowMetrics metrics = window->metrics();
         if (metrics.physical_width != swapchain->extent().width ||
@@ -690,7 +705,8 @@ int run_windowed(const Options& options) {
 
     // Shutdown only: let queued frames finish before the swapchain and buffers are destroyed.
     device->wait_idle();
-    std::cout << "windowed: rendered=" << rendered << " presented=" << presented << "\n";
+    std::cout << "windowed: rendered=" << rendered << " presented=" << presented
+              << " steps=" << fixed_steps << "\n";
     return 0;
 }
 

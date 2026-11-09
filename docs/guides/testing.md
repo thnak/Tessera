@@ -192,7 +192,8 @@ Implemented for the batched2d proof:
   --max-mismatch 0`).
 - `batched2d_windowed_smoke` creates a hidden platform window, a Vulkan swapchain, renders the
   dashboard into acquired images, presents three frames, and uses `wait_for_next_frame` for
-  pacing. It runs under Xvfb on Linux and on Windows; it skips cleanly when no window backend or
+  pacing while `RuntimeLoop` decides whether each iteration renders. The test requires the
+  output line `rendered=3`, so a run that renders nothing fails instead of passing silently. It runs under Xvfb on Linux and on Windows; it skips cleanly when no window backend or
   presentation surface exists.
 - `batched2d_cpu_golden` exercises `batched2d_poc --backend cpu`: a CPU canvas fills
   axis-aligned solid rectangles into a separate dashboard baseline
