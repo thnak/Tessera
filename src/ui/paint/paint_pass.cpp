@@ -62,44 +62,9 @@ void paint_background(const style::ComputedStyle& style, const rhi::Rect& rect, 
     ++stats.backgrounds;
 }
 
-struct BorderWidths {
-    float top = 0.0f;
-    float right = 0.0f;
-    float bottom = 0.0f;
-    float left = 0.0f;
-};
-
-// The four painted border widths, clamped against each other so the edge strips stay disjoint.
-BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& rect) {
-    BorderWidths widths;
-    widths.top = detail::border_width(style, "border-top-width", "border-top-style");
-    widths.right = detail::border_width(style, "border-right-width", "border-right-style");
-    widths.bottom = detail::border_width(style, "border-bottom-width", "border-bottom-style");
-    widths.left = detail::border_width(style, "border-left-width", "border-left-style");
-
-    widths.top = std::min(widths.top, rect.height);
-    widths.bottom = std::min(widths.bottom, rect.height - widths.top);
-    widths.left = std::min(widths.left, rect.width);
-    widths.right = std::min(widths.right, rect.width - widths.left);
-    return widths;
-}
-
-// The padding box: the border box inset by the painted border widths. CSS clips a container's
-// children at this edge, so they cannot paint over its border. Empty when the insets consume the
-// box (the caller then skips the clip instead of pushing a degenerate one).
-std::optional<rhi::Rect> padding_box(const style::ComputedStyle& style, const rhi::Rect& rect) {
-    const BorderWidths widths = border_widths(style, rect);
-    const float width = rect.width - widths.left - widths.right;
-    const float height = rect.height - widths.top - widths.bottom;
-    if (width <= 0.0f || height <= 0.0f) {
-        return std::nullopt;
-    }
-    return rhi::Rect{rect.x + widths.left, rect.y + widths.top, width, height};
-}
-
 void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, float opacity,
                    const rhi::Color& current, PaintSink& sink, PaintStats& stats) {
-    const BorderWidths widths = border_widths(style, rect);
+    const detail::BorderWidths widths = detail::border_widths(style, rect);
     const float top = widths.top;
     const float right = widths.right;
     const float bottom = widths.bottom;
@@ -265,7 +230,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         (detail::clips_children(style) || scroll_clips) && rect.width > 0.0f && rect.height > 0.0f;
     bool pushed_clip = false;
     if (clip_children) {
-        if (const std::optional<rhi::Rect> clip_rect = padding_box(style, rect)) {
+        if (const std::optional<rhi::Rect> clip_rect = detail::padding_box(style, rect)) {
             sink.push_clip(detail::corner_clip(style, *clip_rect));
             ++stats.clips;
             pushed_clip = true;

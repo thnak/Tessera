@@ -130,6 +130,30 @@ float border_width(const style::ComputedStyle& style, const char* width_property
     return width.value_or(0.0f);
 }
 
+BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& rect) {
+    BorderWidths widths;
+    widths.top = border_width(style, "border-top-width", "border-top-style");
+    widths.right = border_width(style, "border-right-width", "border-right-style");
+    widths.bottom = border_width(style, "border-bottom-width", "border-bottom-style");
+    widths.left = border_width(style, "border-left-width", "border-left-style");
+
+    widths.top = std::min(widths.top, rect.height);
+    widths.bottom = std::min(widths.bottom, rect.height - widths.top);
+    widths.left = std::min(widths.left, rect.width);
+    widths.right = std::min(widths.right, rect.width - widths.left);
+    return widths;
+}
+
+std::optional<rhi::Rect> padding_box(const style::ComputedStyle& style, const rhi::Rect& rect) {
+    const BorderWidths widths = border_widths(style, rect);
+    const float width = rect.width - widths.left - widths.right;
+    const float height = rect.height - widths.top - widths.bottom;
+    if (width <= 0.0f || height <= 0.0f) {
+        return std::nullopt;
+    }
+    return rhi::Rect{rect.x + widths.left, rect.y + widths.top, width, height};
+}
+
 std::optional<float> uniform_radius(const style::ComputedStyle& style) {
     static constexpr const char* kRadiusProperties[4] = {
         "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius",

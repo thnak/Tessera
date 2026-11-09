@@ -32,6 +32,21 @@ rhi::Color current_color(const style::ComputedStyle& style);
 float border_width(const style::ComputedStyle& style, const char* width_property,
                    const char* style_property);
 
+// The four painted border widths for `rect`, clamped against each other so opposing edge strips
+// never overlap. A side is 0 unless its style paints it.
+struct BorderWidths {
+    float top = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
+    float left = 0.0f;
+};
+BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& rect);
+
+// The padding box (the CSS child clip region): the border box inset by border_widths(style, rect),
+// so children cannot paint over the border. Empty when the insets consume the box, so callers skip
+// the clip instead of pushing a degenerate one.
+std::optional<rhi::Rect> padding_box(const style::ComputedStyle& style, const rhi::Rect& rect);
+
 // The shared corner radius when all four radii are equal, else nullopt. Missing radii count as 0.
 std::optional<float> uniform_radius(const style::ComputedStyle& style);
 
