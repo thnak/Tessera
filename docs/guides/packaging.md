@@ -115,9 +115,16 @@ cmake -S . -B build/package \
   -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_TESTS=ON \
   -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
 cmake --build build/package --config Release --target tessera-package-stage
+export SOURCE_DATE_EPOCH=315532800 TZ=UTC
 cpack --config build/package/CPackConfig.cmake -G TGZ -B build/package/out
 python -B scripts/check_package.py --archive build/package/out/tessera-*.tar.gz
 ```
+
+`SOURCE_DATE_EPOCH` (1980-01-01 UTC by default, the ZIP/DOS minimum) fixes archive entry mtimes and
+`TZ=UTC` fixes ZIP DOS timestamps, so two builds of the same staged content produce the same
+archive bytes; CI package steps set both and the reproducible proof asserts byte equality. `python -B scripts/check_reproducible.py
+--package` builds twice and requires byte-identical TGZ/ZIP archives, while `check_package.py`
+continues to enforce the archive *content*.
 
 The archive (TGZ, plus ZIP on Windows) contains one top-level
 `tessera-<version>-<os>-<arch>/` directory with exactly the built executables, `LICENSE`,
@@ -256,8 +263,9 @@ build/package jobs; it runs in the Linux `release-rehearsal` CI job.
    must contain `share/tessera/licenses/{LICENSE,THIRD_PARTY_NOTICES.md,THIRD_PARTY_LICENSES.txt,
    sbom.spdx.json}`. Proves the installer ships the compliance files even outside the archive.
 4. **Reproducible proof** — `python -B scripts/check_reproducible.py --config Release --target
-   <target>`. Proves two clean builds of the same commit in different build directories are
-   byte-identical (Linux/Windows CI; macOS when its toolchain supports the same flags).
+   <target> --package`. Builds twice and requires both the executable and the CPack archive
+   (`SOURCE_DATE_EPOCH=315532800`, `TZ=UTC`) to be byte-identical (Linux/Windows CI; macOS when its
+   toolchain supports the same flags).
 5. **Distributable archive** — configure with `-DTESSERA_PACKAGE_EXECUTABLES=<targets>`, build
    `tessera-package-stage`, run `cpack --config <build>/CPackConfig.cmake -G <TGZ|ZIP> -B <out>`,
    then `python -B scripts/check_package.py --archive <artifact>`. Proves the archive contains

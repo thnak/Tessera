@@ -27,6 +27,9 @@ jobs:
         run: cmake --build --preset vs2026-release
 
       - name: Package build (CPack ZIP)
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+          TZ: UTC
         run: |
           cmake --build --preset vs2026-release --target tessera-package-stage
           cpack --config build/vs2026/CPackConfig.cmake -G ZIP -C Release -B build/vs2026/package

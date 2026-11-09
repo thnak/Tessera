@@ -32,6 +32,9 @@ jobs:
         run: cmake --build build/macos --parallel
 
       - name: Package build (CPack TGZ)
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+          TZ: UTC
         run: |
           cmake --build build/macos --target tessera-package-stage
           cpack --config build/macos/CPackConfig.cmake -G TGZ -B build/macos/package

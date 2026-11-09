@@ -8,6 +8,10 @@ byte-identical (same SHA-256). On a mismatch it reports the first differing offs
 size of differing regions, and a heuristic cause: PE/COFF timestamp, embedded absolute path, or
 section/layout ordering.
 
+``--package`` compares the CPack archives produced by the two builds instead of the raw
+executables; cpack runs with a fixed ``SOURCE_DATE_EPOCH`` and ``TZ=UTC`` so archive entry
+mtimes cannot leak build time into the bytes.
+
 ``--compare A B`` skips the build and compares two existing artifacts, which is what the fixture
 tests use. A build run needs cmake (and the platform compiler); on Windows the MSVC environment is
 bootstrapped through ``vcvars64.bat`` when needed.
@@ -20,6 +24,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import struct
 import subprocess
@@ -32,6 +37,9 @@ REPO_ROOT = SCRIPTS_DIR.parent
 DEFAULT_BUILD_ROOT = REPO_ROOT / "build" / "reproducible"
 DEFAULT_TARGET = "merger_tests"
 DEFAULT_CONFIG = "Release"
+# Fixed archive timestamps: 1980-01-01T00:00:00Z is the minimum ZIP DOS timestamp.
+DEFAULT_ARCHIVE_EPOCH = "315532800"
+DEFAULT_ARCHIVE_TZ = "UTC"
 
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -41,6 +49,12 @@ import check_static_runtime as static_runtime  # noqa: E402  (reuses vcvars + ar
 CONFIGURE_TIMEOUT = 900
 BUILD_TIMEOUT = 1800
 COMPARE_CONTEXT = 48
+_JSON_MODE = False
+
+
+def info(message: str) -> None:
+    # With --json, stdout must stay machine-readable; progress goes to stderr.
+    print(message, file=sys.stderr if _JSON_MODE else sys.stdout)
 
 
 class ReproError(Exception):
@@ -238,14 +252,21 @@ def run_command(
     label: str,
     timeout: int,
     vcvars: Optional[Path],
+    env: Optional[Dict[str, str]] = None,
 ) -> None:
-    print("{}: {}".format(label, " ".join(command)))
+    info("{}: {}".format(label, " ".join(command)))
     try:
-        if vcvars is not None:
+        if vcvars is not None and env is None:
             result = static_runtime.run_in_vcvars(command, vcvars, timeout)
         else:
             result = subprocess.run(
-                list(command), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
+                list(command),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                env=env,
             )
     except FileNotFoundError:
         raise ReproError("{} not found; install it or pass --cmake PATH".format(command[0]))
@@ -263,20 +284,21 @@ def run_command(
             )
         raise ReproError("{} failed (exit {})".format(label, result.returncode))
     if output:
-        print(output)
+        info(output)
 
 
 def build_once(
     args: argparse.Namespace,
     build_dir: Path,
     vcvars: Optional[Path],
+    repo_root: Path,
 ) -> Path:
     if build_dir.exists():
         shutil.rmtree(build_dir)
     configure = [
         args.cmake,
         "-S",
-        str(REPO_ROOT),
+        str(repo_root),
         "-B",
         str(build_dir),
         "-DCMAKE_BUILD_TYPE={}".format(args.config),
@@ -287,6 +309,8 @@ def build_once(
         "-DTESSERA_USE_COMPILER_CACHE=OFF",
         "-DTESSERA_WARNINGS_AS_ERRORS=ON",
     ]
+    if args.package:
+        configure.append("-DTESSERA_PACKAGE_EXECUTABLES={}".format(args.target))
     if args.generator:
         configure.extend(["-G", args.generator])
     run_command(configure, "configure", CONFIGURE_TIMEOUT, vcvars)
@@ -305,6 +329,22 @@ def build_once(
         BUILD_TIMEOUT,
         vcvars,
     )
+    if args.package:
+        run_command(
+            [
+                args.cmake,
+                "--build",
+                str(build_dir),
+                "--config",
+                args.config,
+                "--target",
+                "tessera-package-stage",
+                "--parallel",
+            ],
+            "package-stage",
+            BUILD_TIMEOUT,
+            vcvars,
+        )
     artifact = static_runtime.find_artifact(build_dir, args.target, args.config)
     if artifact is None or not artifact.is_file():
         raise ReproError(
@@ -315,11 +355,40 @@ def build_once(
     return artifact
 
 
-def print_result(result: Dict[str, object], target: str, config: str) -> None:
+def package_once(
+    args: argparse.Namespace, build_dir: Path, archive_env: Dict[str, str]
+) -> Path:
+    archive_dir = build_dir / "package-out"
+    if archive_dir.exists():
+        shutil.rmtree(archive_dir)
+    generator = "ZIP" if os.name == "nt" else "TGZ"
+    cpack = [args.cpack, "--config", str(build_dir / "CPackConfig.cmake"), "-G", generator]
+    cpack.extend(["-C", args.config, "-B", str(archive_dir)])
+    # Batch wrappers (used by tests and some Windows installs) need cmd; a real cpack is an exe.
+    if os.name == "nt" and Path(args.cpack).suffix.lower() in (".bat", ".cmd"):
+        cpack = ["cmd", "/c", subprocess.list2cmdline(cpack)]
+    run_command(cpack, "cpack", BUILD_TIMEOUT, None, env=archive_env)
+    matches = sorted(
+        path
+        for pattern in ("tessera-*.zip", "tessera-*.tar.gz")
+        for path in archive_dir.glob(pattern)
+    )
+    if not matches:
+        raise ReproError("cpack did not produce a tessera archive under {}".format(archive_dir))
+    return matches[0]
+
+
+def print_result(
+    result: Dict[str, object], target: str, config: str, package_mode: bool = False
+) -> None:
     artifact_a = result["artifact_a"]
     artifact_b = result["artifact_b"]
     assert isinstance(artifact_a, dict) and isinstance(artifact_b, dict)
-    print("Reproducible build: {} ({})".format(target, config))
+    print(
+        "Reproducible {}: {} ({})".format(
+            "package archive" if package_mode else "build", target, config
+        )
+    )
     print(
         "  A: {} ({} bytes, sha256 {})".format(
             artifact_a["path"], artifact_a["size"], artifact_a["sha256"]
@@ -350,7 +419,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--target", default=DEFAULT_TARGET)
     parser.add_argument("--build-root", default=str(DEFAULT_BUILD_ROOT))
     parser.add_argument("--cmake", default="cmake")
+    parser.add_argument("--cpack", default="cpack")
+    parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--generator", default=None)
+    parser.add_argument(
+        "--package",
+        action="store_true",
+        help="compare the CPack archives from the two builds instead of the executables",
+    )
+    parser.add_argument(
+        "--source-date-epoch",
+        default=DEFAULT_ARCHIVE_EPOCH,
+        help="fixed archive timestamp for --package (default: {})".format(DEFAULT_ARCHIVE_EPOCH),
+    )
+    parser.add_argument(
+        "--archive-timezone",
+        default=DEFAULT_ARCHIVE_TZ,
+        help="fixed timezone for ZIP DOS timestamps with --package (default: {})".format(
+            DEFAULT_ARCHIVE_TZ
+        ),
+    )
     parser.add_argument(
         "--compare",
         nargs=2,
@@ -361,6 +449,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--keep", action="store_true", help="keep both build directories")
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args(argv)
+    global _JSON_MODE
+    _JSON_MODE = bool(args.as_json)
 
     try:
         if args.compare:
@@ -368,16 +458,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             result = compare_artifacts(path_a, path_b)
             target = "{} vs {}".format(path_a.name, path_b.name)
         else:
+            repo_root = Path(args.repo_root).resolve()
             build_root = Path(args.build_root).resolve()
             build_a = build_root / "a"
             build_b = build_root / "b"
             vcvars = static_runtime.vcvars_environment()
             if vcvars is not None:
-                print("vcvars: {}".format(vcvars))
-            artifact_a = build_once(args, build_a, vcvars)
-            artifact_b = build_once(args, build_b, vcvars)
+                info("vcvars: {}".format(vcvars))
+            artifact_a = build_once(args, build_a, vcvars, repo_root)
+            artifact_b = build_once(args, build_b, vcvars, repo_root)
+            if args.package:
+                archive_env = dict(os.environ)
+                archive_env.setdefault("SOURCE_DATE_EPOCH", args.source_date_epoch)
+                archive_env.setdefault("TZ", args.archive_timezone)
+                info(
+                    "archive timestamp: SOURCE_DATE_EPOCH={} TZ={}".format(
+                        archive_env["SOURCE_DATE_EPOCH"], archive_env["TZ"]
+                    )
+                )
+                artifact_a = package_once(args, build_a, archive_env)
+                artifact_b = package_once(args, build_b, archive_env)
+                target = "package " + args.target
+            else:
+                target = args.target
             result = compare_artifacts(artifact_a, artifact_b)
-            target = args.target
             if not args.keep:
                 shutil.rmtree(build_root, ignore_errors=True)
     except ReproError as error:
@@ -386,10 +490,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.as_json:
         payload = dict(result)
-        payload.update({"ok": bool(result["identical"]), "gate": "reproducible", "target": target})
+        payload.update(
+            {
+                "ok": bool(result["identical"]),
+                "gate": "reproducible-package" if args.package else "reproducible",
+                "target": target,
+                "mode": "package" if args.package else "binary",
+            }
+        )
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
-        print_result(result, target, args.config)
+        print_result(result, target, args.config, package_mode=args.package)
     return 0 if result["identical"] else 1
 
 

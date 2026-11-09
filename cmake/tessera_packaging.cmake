@@ -161,7 +161,10 @@ if(TESSERA_PACKAGE_EXECUTABLES)
         DEPENDS ${TESSERA_PACKAGE_EXECUTABLES}
         VERBATIM)
 
-    set(CPACK_GENERATOR "TGZ")
+    # Reproducible archives: CPack/libarchive take entry mtimes from SOURCE_DATE_EPOCH and ZIP DOS
+# timestamps from the writer's timezone. CI exports SOURCE_DATE_EPOCH=315532800 and TZ=UTC before
+# cpack; `scripts/check_reproducible.py --package` builds twice and requires byte-identical archives.
+set(CPACK_GENERATOR "TGZ")
     if(WIN32)
         list(APPEND CPACK_GENERATOR "ZIP")
     endif()
