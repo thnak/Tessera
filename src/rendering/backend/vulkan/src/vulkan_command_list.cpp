@@ -62,8 +62,7 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     // loadOp=LOAD reads the existing color attachment, so the destination access must include
     // COLOR_ATTACHMENT_READ (otherwise validation reports a READ_AFTER_WRITE hazard).
     const VkAccessFlags color_access =
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-        (preserve ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | (preserve ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
     record_image_transition(
         buffer_, vulkan_target->image(),
         multisampled
