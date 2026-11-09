@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 // Layering rule of docs/design/jsx-ir-lowering.md section 6: lowering is the only layer that
-// includes both the JSX AST and the IR; the IR never includes the front end, and the lowering
-// target links exactly those two libraries.
+// includes the JSX AST, the analysis result and the IR; the IR includes neither the front end nor
+// the analysis, and the lowering target links exactly those three libraries (section 6,
+// "tessera_lowering links front end, rules and tessera_ir"). Slice 6 added the analysis include on
+// purpose: lowering takes `(Module, AnalyzedModule)` (section 3).
 
 #include "lowering_test_util.hpp"
 
@@ -65,6 +67,7 @@ int main() {
 
     int files = 0;
     bool saw_jsx = false;
+    bool saw_rules = false;
     bool saw_ir = false;
     for (const auto& entry : fs::recursive_directory_iterator(lowering)) {
         const auto extension = entry.path().extension();
@@ -76,23 +79,28 @@ int main() {
         for (const std::string& include : project_includes(entry.path())) {
             const bool own = starts_with(include, "tessera/compiler/lowering/");
             const bool jsx = starts_with(include, "tessera/compiler/jsx/");
+            // Section 6 of the design notes: lowering links the analysis pass too.
+            const bool rules = starts_with(include, "tessera/compiler/rules/");
             const bool ir = starts_with(include, "tessera/compiler/ir/");
-            check(own || jsx || ir || include.find('/') == std::string::npos,
-                  "lowering includes only the AST, the IR or its own headers: " + include);
+            check(own || jsx || rules || ir || include.find('/') == std::string::npos,
+                  "lowering includes only the AST, the analysis, the IR or its own headers: " +
+                      include);
             saw_jsx = saw_jsx || jsx;
+            saw_rules = saw_rules || rules;
             saw_ir = saw_ir || ir;
         }
     }
     check(files > 0, "the scan found lowering source files");
     check(saw_jsx, "lowering reads the JSX AST");
+    check(saw_rules, "lowering reads the analysis result");
     check(saw_ir, "lowering builds the IR");
 
     const std::string cmake = read_file((lowering / "CMakeLists.txt").string());
     check(cmake.find("target_link_libraries(tessera_lowering PUBLIC tessera_jsx_frontend "
-                     "tessera_ir)") != std::string::npos,
-          "tessera_lowering links exactly the front end and the IR");
+                     "tessera_ir tessera_react_rules)") != std::string::npos,
+          "tessera_lowering links exactly the front end, the IR and the analysis");
 
-    // The other direction: nothing under src/compiler/ir includes the front end.
+    // The other direction: nothing under src/compiler/ir includes the front end or the analysis.
     for (const auto& entry : fs::recursive_directory_iterator(root / "ir")) {
         const auto extension = entry.path().extension();
         if (!entry.is_regular_file() ||
@@ -102,6 +110,8 @@ int main() {
         for (const std::string& include : project_includes(entry.path())) {
             check(!starts_with(include, "tessera/compiler/jsx/"),
                   "the IR never includes the front end: " + include);
+            check(!starts_with(include, "tessera/compiler/rules/"),
+                  "the IR never includes the analysis: " + include);
         }
     }
 

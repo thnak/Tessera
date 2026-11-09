@@ -1,8 +1,9 @@
 # Lowering the JSX AST to IR (slice 5 design)
 
-Status: slices 1 to 3 are implemented (IR model and writer, IR validator, analysis skeleton, see
-"Slice 3 status" below). No lowering code exists and `src/compiler/codegen/` is an empty folder. The
-input is the parser of
+Status: slices 1 to 3 are implemented (IR model and writer, IR validator, analysis skeleton; see
+"Slice 3 status" below), slice 5 (expression lowering) and slice 6 (hooks and bindings) are
+implemented as well — see their status sections. `src/compiler/codegen/` is still an empty folder.
+The input is the parser of
 [`jsx-frontend.md`](jsx-frontend.md); the output is the IR of [`ir-v1.md`](../specs/ir-v1.md)
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md)). The accepted source forms are in
 [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) (the "subset spec"); this note links to its
@@ -193,6 +194,92 @@ Tests are `lowering_expression`, `lowering_reject`, `lowering_span`, `lowering_d
 `tests/golden/lowering/expressions.json` is updated deliberately with
 `lowering_golden_tests --write tests/golden/lowering/expressions.json`, never automatically.
 
+### Slice 6 status (hooks and bindings)
+
+`tessera_lowering` now links `tessera_react_rules` as well (section 3: lowering takes
+`(Module, AnalyzedModule)`), and its configure check and `lowering_layering` were updated together.
+The public API is one header, `tessera/compiler/lowering/hook_lowering.hpp`:
+
+```cpp
+struct HookLoweringContext {
+    const jsx::ModuleItem& component;              // the component item, not yet a root node
+    const rules::ComponentAnalysis& analysis;      // the analysis of that same item
+    const jsx::SourceMap& source_map;
+    std::string_view file;                         // project-relative, POSIX separators
+};
+enum class HandlerRefKind { Binding, InlineHandler };
+struct HandlerRef { HandlerRefKind kind; std::string id; };
+struct LoweredHooks {
+    std::string component_id;                      // comp::<Name>
+    std::vector<ir::State> state;
+    std::vector<ir::Handler> handlers;             // inline setter handlers, handler::N
+    std::vector<ir::Effect> effects;
+    std::vector<ir::Ref> refs;                     // target stays empty (slice 7 fills it)
+    std::vector<ir::AnimatedValue> animated_values;
+    std::vector<ir::Binding> bindings;             // event/effect/_cleanup, sorted by id
+    // Slice 7 seams: indexes by source name and the handler numbering.
+    ref_index, animated_index, setter_index, handler_index; next_handler_number;
+    find_ref, find_animated, find_setter, find_handler, set_ref_target, add_handler;
+};
+HookLoweringResult lower_hooks(const HookLoweringContext&);         // expected<LoweredHooks, ...>
+HandlerActionsResult lower_handler_actions(const jsx::Expr& arrow, const HookLoweringContext&);
+```
+
+`component_names.hpp` implements slice 5's `NameResolver` from the analysis symbol table: a
+destructured prop, state, ref and animated value resolve to their `prop::`/`state::`/`ref::`/`anim::`
+id, and `props.x` of a non-destructured parameter resolves to `prop::x` (decision 8). Locals stay
+unresolved (decision 8 inlines them, later), as do setters and handler names (function values); a
+handler parameter added with `add_local` resolves to itself as an action local. Hook initial
+values and action arguments go through `lower_expression`, so slice 5 is not duplicated.
+
+What the slice lowers, per analysed statement in source order:
+
+| Source form | IR |
+|---|---|
+| `const [x, setX] = useState<T>(init)` | `state[]` entry `state::x`; `initial` is the lowered expression; the setter goes into `setter_index` (a setter creates no binding) |
+| `const r = useRef<E>(null)` | `refs[]` entry `ref::r`, `target` empty |
+| `const v = useAnimatedValue(init)` | `animatedValues[]` entry `anim::v`, IR type `float` |
+| `// Note: bind::id` + `useEffect(fn, [deps])` | `effects[]` entry `effect::id` with mapped deps, `handler` = `bind::id`, optional `cleanup` = `bind::id_cleanup`; two `Bindings` of kind `effect` |
+| `// Note: bind::id` + `const f = (...) => ...` | one `Binding` of kind `event`: `region` = `id`, `params`/`returnType` from the written annotations (`void` is absent) |
+| `const f = (..) => { setX(...); v.set(...); }` (decision 4/5) | one `Handler` `handler::N`, actions `set`/`animSet`, numbered from 1 in source order |
+
+`bindings` is sorted by id (section 5); every other list is in source order. Effect, binding and
+cleanup spans are the `useEffect` statement, the annotation comment and the cleanup arrow. Slice 7
+consumes the result: `ref={r}` uses `find_ref` + `set_ref_target` after the node id is assigned,
+`onX={f}` uses `find_handler`, and an event arrow or setter reference uses
+`lower_handler_actions` + `add_handler` (and `find_setter` for the setter target).
+
+Types are the deliberate boundary. A written type is copied syntactically (`int`, `float`,
+`string`, `boolean` -> `bool`, `T[]` -> `list<T>`, `T | null` -> `optional<T>`, any other name
+verbatim as a record type name, which the validator accepts until the type table exists). A
+`useState` without `<T>` infers only the literal types of slice 5 (`int`/`float`/`string`/`bool`);
+`null`, a prop initial or any other expression, and inline object/function/generic type arguments
+are `TESSERA_IR_UNSUPPORTED` with the suggestion to write `<T>` (slice 4 supplies the type table and
+expression typing). Declared handler parameters need a written annotation for the same reason.
+`useAnimatedValue` is `float` per [`ir-v1.md`](../specs/ir-v1.md) section 2; coercing `1` to `1.0`
+is expression typing (slice 4).
+
+Diagnostics reuse `jsx::Diagnostic` and the first-error rule of section 4. Codes: the existing
+`TESSERA_IR_UNSUPPORTED`, `TESSERA_IR_UNRESOLVED` and `TESSERA_IR_MALFORMED`, plus one new
+`TESSERA_IR_BINDING` for a `useEffect` without a `bind::` annotation. The decision to require an
+annotation: `ir-v1.md` section 2 makes an effect's `handler` a binding id, and every effect body is
+developer C++ in a protected region; the only stable region id is the one the developer writes
+(section 5 forbids position-derived ids). An unannotated effect therefore has no V1 IR form and is
+rejected rather than given a generated id. The effect id is `effect::<bind id>` because source has
+no other stable name for it (the example in `ir-v1.md` section 2 shows unrelated effect/handler
+ids, which cannot be derived from source). Native handler `params` and `returnType` are lowered;
+the optional `preview` of decision 6 is **not** (it needs the analyzer's preview-body rules and is
+not needed by slice 7).
+
+Not in slice 6: JSX nodes, props, events on elements, `ref` targets, style and children (slice 7);
+conditionals/loops (slice 8); imports, components and `LoweringOptions` (slice 9); the type table
+and expression typing (slice 4); `environment`/library hooks (slice 11); local inlining, array
+literals as initial values and `preview` bodies (later slices); `uiId`/`componentId` (slice 10).
+
+Tests are `lowering_hooks` (every hook and binding form, spans, lookups, action lowering),
+`lowering_hooks_reject` (each rejection, first-error-only, no partial IR, precondition checks) and
+`lowering_hooks_determinism` (twice and on eight threads), plus the updated `lowering_layering`.
+
 ## 4. Spans and diagnostics
 
 - The AST keeps `Span` (byte offset and length). Lowering needs the file's `SourceMap` and the
@@ -308,8 +395,8 @@ Each slice is behavior, tests and docs, committed on its own.
    payload types, `ref` targets, `key` placement, list depth.
 5. **Lowering of expressions (done).** `Expr` -> IR `Expr` with the operator mapping and folding of
    top-level constants; no components yet.
-6. **Lowering of hooks and bindings.** state, refs, animated values, effects, cleanup, bindings and
-   their spans.
+6. **Lowering of hooks and bindings (done).** state, refs, animated values, effects, cleanup,
+   bindings and their spans.
 7. **Lowering of nodes.** Intrinsic kinds, attributes, text, children, fragments, events, `style`,
    `className`, `ref` targets.
 8. **Conditionals and loops.**

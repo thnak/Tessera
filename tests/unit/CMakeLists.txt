@@ -854,6 +854,29 @@ target_compile_definitions(lowering_layering_tests PRIVATE
 
 add_test(NAME lowering_layering COMMAND lowering_layering_tests)
 
+add_executable(lowering_hooks_tests
+    lowering_hooks_tests.cpp)
+
+target_link_libraries(lowering_hooks_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_hooks COMMAND lowering_hooks_tests)
+
+add_executable(lowering_hooks_reject_tests
+    lowering_hooks_reject_tests.cpp)
+
+target_link_libraries(lowering_hooks_reject_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_hooks_reject COMMAND lowering_hooks_reject_tests)
+
+add_executable(lowering_hooks_determinism_tests
+    lowering_hooks_determinism_tests.cpp)
+
+target_link_libraries(lowering_hooks_determinism_tests PRIVATE
+    tessera_lowering
+    Threads::Threads)
+
+add_test(NAME lowering_hooks_determinism COMMAND lowering_hooks_determinism_tests)
+
 add_executable(paint_pass_tests
     paint_pass_tests.cpp)
 
