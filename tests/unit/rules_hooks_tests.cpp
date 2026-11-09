@@ -58,6 +58,13 @@ void test_hook_in_a_condition_is_rejected() {
              "TESSERA_REACT_HOOK_ORDER | 2:21 | useRef<View>(null) | hook `useRef` is called "
              "inside a condition; hooks are only allowed at the top level of the component body\n",
              "the right operand of && is a condition");
+
+    const auto either = analyze(component("  const r = flag || useRef<View>(null);\n"));
+    check(either->analyzed.diagnostics.size() == 1 &&
+              either->analyzed.diagnostics[0].code == "TESSERA_REACT_HOOK_ORDER" &&
+              either->analyzed.diagnostics[0].message.find("inside a condition") !=
+                  std::string::npos,
+          "the right operand of || is a condition");
 }
 
 void test_hook_in_a_function_is_rejected() {
@@ -101,6 +108,13 @@ void test_use_before_declaration_is_rejected() {
              "declares it\n",
              "a local reads state declared by a later hook");
 
+    const auto twice = analyze(component("  const a = count + count;\n"
+                                         "  const [count, setCount] = useState<int>(0);\n"));
+    check_eq(describe_all(*twice),
+             "TESSERA_REACT_HOOK_ORDER | 2:13 | count | `count` is used before the hook that "
+             "declares it\n",
+             "one report per name and statement");
+
     const auto effect_first = analyze(component("  useEffect(() => { setCount(1); }, []);\n"
                                                 "  const [count, setCount] = useState<int>(0);\n"));
     check_eq(describe_all(*effect_first),
@@ -129,6 +143,12 @@ void test_unknown_hooks_are_rejected() {
              "TESSERA_REACT_UNSUPPORTED_API | 2:13 | useMemo | `useMemo` is not supported in "
              "V1\n",
              "React APIs that the subset names are unsupported, not unknown");
+    for (const char* name : {"useCallback", "useReducer", "useContext"}) {
+        const auto other = analyze(component(std::string("  const m = ") + name + "(1);\n"));
+        check(other->analyzed.diagnostics.size() == 1 &&
+                  other->analyzed.diagnostics[0].code == "TESSERA_REACT_UNSUPPORTED_API",
+              std::string(name) + " is unsupported");
+    }
 }
 
 void test_malformed_hook_forms_are_rejected() {
@@ -165,6 +185,18 @@ void test_malformed_hook_forms_are_rejected() {
     check(effect_const->analyzed.diagnostics.size() == 1 &&
               effect_const->analyzed.diagnostics[0].code == "TESSERA_REACT_HOOK_FORM",
           "the value of useEffect is not used");
+    const auto extra_arg = analyze(component("  useEffect(() => { go(); }, [], 1);\n"));
+    check(extra_arg->analyzed.diagnostics.size() == 1 &&
+              extra_arg->analyzed.diagnostics[0].code == "TESSERA_REACT_HOOK_FORM",
+          "useEffect takes at most two arguments");
+    const auto no_args = analyze(component("  useEffect();\n"));
+    check(no_args->analyzed.diagnostics.size() == 1 &&
+              no_args->analyzed.diagnostics[0].code == "TESSERA_REACT_HOOK_FORM",
+          "useEffect takes a callback");
+    const auto with_param = analyze(component("  useEffect((a) => { go(); }, []);\n"));
+    check(with_param->analyzed.diagnostics.size() == 1 &&
+              with_param->analyzed.diagnostics[0].code == "TESSERA_REACT_HOOK_FORM",
+          "the effect callback takes no parameters");
 }
 
 void test_an_error_flags_only_its_component() {
