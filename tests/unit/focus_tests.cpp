@@ -25,6 +25,7 @@ using tessera::ui::InputRouter;
 using tessera::ui::Modifier;
 using tessera::ui::Node;
 using tessera::ui::NodeId;
+using tessera::ui::PointerKind;
 using tessera::ui::key::kTab;
 using tessera::ui::style::has_state;
 using tessera::ui::style::PseudoState;
@@ -384,6 +385,32 @@ int main() {
     if (!expect(first.pseudo_state() == PseudoState::None, "clear_focus clears both bits") ||
         !expect(has_flag(first.dirty(), Dirty::Style), "clear_focus marks Style dirty")) {
         return 21;
+    }
+
+    // A touch press is pointer modality: it focuses and activates but keeps :focus-visible clear
+    // and never creates hover. Release the earlier mouse press first so the touch is primary.
+    router.dispatch(root, pointer(InputEventType::PointerUp, 120, 20));
+    InputEvent touch_down = pointer(InputEventType::PointerDown, 20, 20);
+    touch_down.pointer_id = 3;
+    touch_down.pointer_kind = PointerKind::Touch;
+    const auto touch_result = router.dispatch(root, touch_down);
+    if (!expect(touch_result.dispatched && touch_result.target == &first,
+                "touch press targets first") ||
+        !expect(router.focus_manager().focused() == &first, "touch press focuses first") ||
+        !expect(has_state(first.pseudo_state(), PseudoState::Focus), "touch focus sets :focus") ||
+        !expect(!has_state(first.pseudo_state(), PseudoState::FocusVisible),
+                "touch focus keeps :focus-visible clear") ||
+        !expect(has_state(first.pseudo_state(), PseudoState::Active), "touch press activates") ||
+        !expect(router.hovered() == nullptr, "touch press does not hover")) {
+        return 22;
+    }
+    InputEvent touch_up = pointer(InputEventType::PointerUp, 20, 20);
+    touch_up.pointer_id = 3;
+    touch_up.pointer_kind = PointerKind::Touch;
+    router.dispatch(root, touch_up);
+    if (!expect(router.active() == nullptr, "touch up clears active") ||
+        !expect(router.hovered() == nullptr, "touch up leaves no hover")) {
+        return 23;
     }
 
     std::cout << "focus: ok\n";

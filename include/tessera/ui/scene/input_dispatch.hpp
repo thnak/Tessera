@@ -58,6 +58,15 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 //   or destroyed target is never dereferenced. Only the deepest target is hovered; see
 //   docs/design/input.md section 7 for the ancestor-chain rule and why it is deferred.
 //
+// Pointer kinds:
+// - `InputEvent::pointer_kind` is forwarded to the scene event. Mouse and pen drive hover (when
+//   they are the primary pointer); touch never does, because a contact has no pre-contact hover
+//   position. A touch/pen `PointerDown` still becomes `active` and is captured like a mouse
+//   press, and touch/pen focus remains pointer modality, so `:focus-visible` stays clear.
+// - Capture stays keyed by `pointer_id` only. Ids are document-scoped across kinds: a producer
+//   must not reuse an id for two live pointers, and the sampler never coalesces moves of
+//   different kinds even if an id is reused.
+//
 // Focus modality (`:focus-visible`):
 // - Pointer-driven focus clears `PseudoState::FocusVisible` on the newly focused node; the
 //   Tab/Shift+Tab default action sets it. The `FocusManager` clears the bit on every

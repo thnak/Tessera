@@ -13,16 +13,20 @@ Wheel and text routing, window focus/blur handling, the Tab/Shift+Tab default fo
 `prevent_default`, and the scene-event pointer payload are implemented in
 `src/ui/scene/input_dispatch.cpp` and `include/tessera/ui/scene/event.hpp`. Bounded per-pointer
 capture with explicit capture APIs, primary-pointer hover/active tracking, the window-focus
-interaction reset, and the `:focus-visible` pointer-versus-keyboard heuristic are implemented in
-`src/ui/scene/input_dispatch.cpp`, `src/ui/scene/focus.cpp`, and
-`include/tessera/ui/scene/focus.hpp` (sections 5-7). The per-tick input pump
+interaction reset, the `:focus-visible` pointer-versus-keyboard heuristic, and the
+mouse/touch/pen pointer-kind model (hover is mouse/pen only, touch events only activate) are
+implemented in
+`src/ui/scene/input_dispatch.cpp`, `src/ui/scene/focus.cpp`,
+`include/tessera/ui/scene/focus.hpp`, and `include/tessera/ui/input.hpp` (sections 4-7). The
+per-tick input pump
 (queue -> sampler -> router -> `RuntimeLoop::request_frame`) is
 `include/tessera/ui/input_pump.hpp` and `src/ui/input/input_pump.cpp`. Windows platform translation
 (pointer, wheel, key and character messages into `InputEvent`, see section 2.1) is implemented in
 `src/platform/windows/win32_input.cpp`. Linux/X11 and other platform translation,
 platform-specific `:focus-visible` refinements (see section 6), window-blur focus retention policy
 (blur already cancels captures, hover, and active), ancestor hover chains and hover recomputation on
-scene changes, platform touch/pen and gesture translation, IME composition, gestures, and
+scene changes, platform touch/pen translation (the normalized `pointer_kind` model is implemented;
+no platform emits `Touch`/`Pen` yet) and gesture translation, IME composition, gestures, and
 deterministic recording remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
@@ -51,9 +55,9 @@ single-consumer queue; V1 = first release (scope rule in
 
 | Source | Examples | Normalized into |
 |---|---|---|
-| Pointer | mouse move/down/up, pen | `PointerEvent` |
+| Pointer | mouse move/down/up, pen | `PointerEvent` (`pointer_kind` Mouse/Pen) |
 | Wheel | scroll, trackpad | `WheelEvent` |
-| Touch | down/move/up/cancel, multi-touch | `PointerEvent` with pointer id |
+| Touch | down/move/up/cancel, multi-touch | `PointerEvent` with pointer id, `pointer_kind` Touch |
 | Keyboard | key down/up, repeat, dead keys | `KeyEvent` |
 | Text | committed characters | `TextEvent` |
 | IME | composition start/update/end | `CompositionEvent` |
@@ -79,7 +83,8 @@ window's thread, so the queue's single producer is the UI thread.
 
 - **Pointer:** `WM_MOUSEMOVE`, the left/right/middle/X1/X2 buttons. Coordinates are logical pixels
   (physical client position divided by the window's DPI scale), `dx`/`dy` are the change from the
-  previous pointer event, pressure is 0.5 while any button is down. A press captures the mouse
+  previous pointer event, pressure is 0.5 while any button is down, and `pointer_kind` stays the
+  default `Mouse`. A press captures the mouse
   (`SetCapture`) so the move and release arrive outside the window; losing the capture, focus
   or modal mode emits `PointerCancel` and clears the pressed buttons. A release without a seen
   press is ignored. Shift and Control come from the message, Alt and Meta from the keyboard state.
@@ -99,11 +104,14 @@ window's thread, so the queue's single producer is the UI thread.
   pointer or key event.
 - **Not yet:** touch and pen (`WM_POINTER*`), IME composition, dead keys, per-key `code`
   (physical position), and pointer enter/leave (hover is derived from moves, see section 7).
+  Touch/pen translation must set `InputEvent::pointer_kind` (`Touch`/`Pen`) and a distinct
+  `pointer_id` per contact; the current translator emits only `PointerKind::Mouse`.
 
 ## 3. Event model
 
 ```cpp
 enum class PointerButton { Left, Right, Middle, Back, Forward, Other };
+enum class PointerKind { Mouse, Touch, Pen }; // device kind; defaults to Mouse
 enum class KeyCode { /* logical, layout-independent */ };
 enum class Modifier { Shift, Control, Alt, Meta, CapsLock, NumLock };
 
@@ -112,6 +120,7 @@ struct InputEvent {
     double timestamp_s;      // simulated clock in deterministic mode
     std::uint32_t device_id;
     std::uint32_t pointer_id;
+    PointerKind pointer_kind;
     float x, y;              // logical pixels, top-left origin
     float dx, dy;
     float pressure;
@@ -128,11 +137,11 @@ Logical coordinates are in the window's logical pixel space. DPI scaling happens
 platform layer, once. Golden mode uses a fixed scale.
 
 The scene-level `ui::Event` (`include/tessera/ui/scene/event.hpp`) adds `Wheel` and `Text` to the
-event types and carries the payload of the normalized event: `button`, `pointer_id`, `pressure`,
-`scroll_x`/`scroll_y` (web sign), `timestamp_s`, `is_primary`, and `prevent_default`. `handled`
-stays advisory; `prevent_default` is read by the dispatcher after propagation and currently
-suppresses only the Tab focus default action. Pointer and wheel fields are zero for key, text, and
-focus events.
+event types and carries the payload of the normalized event: `button`, `pointer_id`,
+`pointer_kind`, `pressure`, `scroll_x`/`scroll_y` (web sign), `timestamp_s`, `is_primary`, and
+`prevent_default`. `handled` stays advisory; `prevent_default` is read by the dispatcher after
+propagation and currently suppresses only the Tab focus default action. Pointer and wheel fields
+are zero (mouse kind) for key, text, and focus events.
 
 ## 4. Queue and sampling
 
@@ -150,6 +159,8 @@ Rules:
 
 - Input is sampled **once per simulation tick**, never per render frame.
 - Move events between ticks are coalesced to the latest position plus accumulated delta.
+  Coalescing is keyed by `(pointer_id, pointer_kind)`: moves of different device kinds are never
+  merged even if a producer reuses an id, so the router always sees the kind the input came from.
 - Down/up/key/text/composition events are never dropped; they are ordered by source timestamp.
 - The queue is bounded; overflow sets an overflow flag and reports a diagnostic.
 - The UI thread drains the queue before `update`; the renderer never reads live devices.
@@ -326,6 +337,32 @@ Capture rules (implemented):
   event falls back to hit testing, so a stale capture cannot be dereferenced.
 - The single-pointer `captured()` view returns the primary pointer's capture target.
 
+Pointer kinds (implemented):
+
+- `InputEvent::pointer_kind` (`Mouse`/`Touch`/`Pen`, default `Mouse`) is mirrored on
+  `scene::Event` so handlers can branch without changing the payload contract; the default keeps
+  every pre-kind producer and test byte-identical in behavior.
+- Hover is generated by mouse and pen only; a touch contact never hovers, because a contact has no
+  pre-contact position to hover with. Pen is included because pens report hover positions while
+  out of contact. Touch/pen events never modify hover state, so a hover set by an earlier
+  mouse/pen move remains until the next mouse/pen move (it is not touch residue).
+- A touch/pen `PointerDown` still becomes `Active` and is captured exactly like a mouse press; its
+  `PointerUp`/`PointerCancel` clears `Active` and never leaves `Hover` on the press target (no
+  touch/pen path sets hover, so a previous mouse hover target is left untouched).
+- Because hover follows the primary pointer, a pen that has not pressed yet hovers only when its
+  `pointer_id` is the primary pointer (pointer 0 before the first press); platform translation must
+  map a primary pen hover to that id. Secondary mouse/pen moves and any touch contact never move
+  hover.
+- Touch/pen focus is pointer modality for the `:focus-visible` heuristic (section 6): the ring
+  stays clear after a touch/pen press focuses a node.
+- Capture remains keyed by `pointer_id` only. Ids are document-scoped across kinds: producers must
+  not reuse an id for two live pointers, so a mouse and a touch pointer keep separate ids; events
+  for one id from different kinds would share the capture entry. The sampler never coalesces moves
+  of different kinds even if an id is reused.
+- Platform sources still need to set the field where touch/pen input is translated: the Windows
+  translator currently emits `Mouse` for mouse messages only, and Linux/X11, Windows `WM_POINTER*`,
+  and Wayland touch/pen translation are deferred (section 2.1).
+
 Hover/active (implemented, primary pointer only):
 
 - The primary pointer is the pointer that went down while no other pointer was captured; it is
@@ -337,8 +374,8 @@ Hover/active (implemented, primary pointer only):
   the bit on the next move; a move that hits nothing (the pointer left the scene) clears it. Hover
   is hit-tested at the cursor even while the primary pointer is captured, so a drag moves the hover
   target instead of freezing it on the capture target. Only `PointerMove` updates hover: a
-  synthetic `PointerDown` with no preceding move activates but does not hover, and moves from
-  non-primary pointers are ignored for hover.
+  synthetic `PointerDown` with no preceding move activates but does not hover, moves from
+  non-primary pointers are ignored for hover, and touch moves never hover at all.
 - Only the deepest hit target carries `Hover`; ancestors are not hovered. Ancestor `:hover` chains
   are deferred together with scene-change recomputation: a chain must be recomputed when the tree,
   bounds, or visibility change, and the input layer has no change notification yet. Maintaining it
@@ -434,10 +471,17 @@ id-resolvable node is cleared.
   focus/blur cleanup, `Style` dirty marking, and stateless `dispatch_input` not owning state
   (`tests/unit/input_router_tests.cpp`, `tests/unit/input_dispatch_tests.cpp`); the same flow
   through `InputPump` (`tests/unit/input_pipeline_tests.cpp`).
+- Pointer kinds: mouse hover/active unchanged; a touch press activates, captures and focuses but
+  never hovers; touch up/cancel leaves no hover or active residue; a secondary touch pointer never
+  steals hover or active; pen hover is allowed and pen pressure/kind are forwarded; `pointer_kind`
+  reaches scene handlers; capture is isolated across pointer ids; touch focus keeps
+  `:focus-visible` clear; and the sampler never coalesces moves of different kinds
+  (`tests/unit/input_dispatch_tests.cpp`, `tests/unit/input_tests.cpp`,
+  `tests/unit/focus_tests.cpp`).
 - Keyboard repeat, shortcuts, IME composition (only committed `Text` routing exists).
 - Deterministic replay: identical event script -> identical state and pixels (not implemented).
 - Queue overflow and window blur/cancel behavior.
-- Scene payload mapping: button, pointer id, pressure, wheel deltas, timestamp
+- Scene payload mapping: button, pointer id, pointer kind, pressure, wheel deltas, timestamp
   (`tests/unit/input_pipeline_tests.cpp`).
 - Wheel hit-testing/bubbling, text delivered to focus only, Focus/Blur input cancelling capture and
   clearing hover/active.

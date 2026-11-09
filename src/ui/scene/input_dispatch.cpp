@@ -55,6 +55,7 @@ void fill_pointer_fields(Event& event, const InputEvent& input) {
     event.y = input.y;
     event.button = input.button;
     event.pointer_id = input.pointer_id;
+    event.pointer_kind = input.pointer_kind;
     event.pressure = input.pressure;
     event.timestamp_s = input.timestamp_s;
     event.is_primary = input.is_primary;
@@ -249,14 +250,15 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
 
     if (input.type == InputEventType::PointerMove) {
         const bool primary = input.pointer_id == primary_pointer_id_;
+        // Touch contacts never hover (there is no pre-contact position); mouse and pen do when
+        // they are the primary pointer. Hover is hit-tested even while captured.
+        const bool hovers = input.pointer_kind != PointerKind::Touch;
         Node* target = take_capture_target(input.pointer_id);
         Node* hit = nullptr;
-        // Only the primary pointer updates hover; hit testing is still needed when a secondary
-        // pointer is not captured.
         if (primary || target == nullptr) {
             hit = root.hit_test_deep(input.x, input.y);
         }
-        if (primary) {
+        if (primary && hovers) {
             set_hover(hit);
         }
         if (target == nullptr) {

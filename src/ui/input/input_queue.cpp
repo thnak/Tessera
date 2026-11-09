@@ -9,8 +9,12 @@ namespace tessera::ui {
 namespace {
 
 bool same_pointer_move(const InputEvent& previous, const InputEvent& next) {
+    // Coalescing is per pointer id and per device kind: events of different kinds are never merged
+    // even when a producer reuses an id, so a mouse move cannot absorb a touch contact (or the
+    // other way round) and lose the kind that the router branches on.
     return previous.type == InputEventType::PointerMove &&
-           next.type == InputEventType::PointerMove && previous.pointer_id == next.pointer_id;
+           next.type == InputEventType::PointerMove && previous.pointer_id == next.pointer_id &&
+           previous.pointer_kind == next.pointer_kind;
 }
 
 } // namespace

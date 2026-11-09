@@ -25,7 +25,8 @@ enum class EventPhase { Capture, Target, Bubble };
 // A scene-level event. `handled` and `prevent_default` are advisory flags: `handled` records that
 // a handler consumed the event, `prevent_default` asks the dispatcher to skip its default action
 // (V1: Tab focus traversal). Pointer fields are meaningful for pointer and wheel events; wheel
-// deltas use the web sign (positive scroll_y scrolls content down).
+// deltas use the web sign (positive scroll_y scrolls content down). `pointer_kind` mirrors the
+// normalized device kind and defaults to mouse, so handlers that do not care see the old behavior.
 struct Event {
     EventType type = EventType::PointerDown;
     float x = 0;
@@ -39,6 +40,7 @@ struct Event {
     bool repeat = false;
     PointerButton button = PointerButton::None;
     std::uint32_t pointer_id = 0;
+    PointerKind pointer_kind = PointerKind::Mouse;
     float scroll_x = 0;
     float scroll_y = 0;
     float pressure = 0;

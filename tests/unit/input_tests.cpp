@@ -14,6 +14,7 @@ using tessera::ui::InputQueue;
 using tessera::ui::InputSampler;
 using tessera::ui::Modifier;
 using tessera::ui::PointerButton;
+using tessera::ui::PointerKind;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -95,6 +96,33 @@ int main() {
         !expect(events[4].type == InputEventType::PointerMove, "move after down preserved") ||
         !expect(events[4].dx == 2 && events[4].dy == 2, "move after down not merged")) {
         return 5;
+    }
+
+    // Moves of different pointer kinds are never coalesced, even for the same pointer id.
+    InputEvent mouse_move = move_event(7, 1, 1, 1, 0, 10.0);
+    mouse_move.pointer_kind = PointerKind::Mouse;
+    InputEvent touch_move = move_event(7, 2, 2, 1, 1, 11.0);
+    touch_move.pointer_kind = PointerKind::Touch;
+    InputEvent touch_move_2 = move_event(7, 3, 3, 1, 1, 12.0);
+    touch_move_2.pointer_kind = PointerKind::Touch;
+    InputEvent pen_move = move_event(8, 4, 4, 0, 0, 13.0);
+    pen_move.pointer_kind = PointerKind::Pen;
+
+    raw.push(mouse_move);
+    raw.push(touch_move);
+    raw.push(touch_move_2);
+    raw.push(pen_move);
+    sampler.sample(raw);
+
+    const auto& mixed = sampler.events();
+    if (!expect(mixed.size() == 3, "different kinds stay separate") ||
+        !expect(mixed[0].pointer_kind == PointerKind::Mouse, "mouse kind preserved") ||
+        !expect(mixed[0].x == 1 && mixed[0].y == 1, "unmerged mouse move") ||
+        !expect(mixed[1].pointer_kind == PointerKind::Touch, "touch kind preserved") ||
+        !expect(mixed[1].x == 3 && mixed[1].y == 3, "same-kind touch moves coalesce") ||
+        !expect(mixed[1].dx == 2 && mixed[1].dy == 2, "coalesced touch delta") ||
+        !expect(mixed[2].pointer_kind == PointerKind::Pen, "pen kind preserved")) {
+        return 10;
     }
 
     if (!expect(has_modifier(down.modifiers, Modifier::Shift), "shift modifier") ||

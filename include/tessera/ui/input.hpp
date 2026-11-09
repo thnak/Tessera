@@ -35,6 +35,14 @@ enum class PointerButton : std::uint8_t {
     Other,
 };
 
+// Physical device kind of a pointer event. Mouse and pen can hover; touch cannot. The default is
+// `Mouse`, so normalized producers that do not know the device keep the pre-kind behavior.
+enum class PointerKind : std::uint8_t {
+    Mouse,
+    Touch,
+    Pen,
+};
+
 using KeyCode = std::uint32_t;
 
 enum class Modifier : std::uint8_t {
@@ -64,6 +72,7 @@ struct InputEvent {
     double timestamp_s = 0.0;
     std::uint32_t device_id = 0;
     std::uint32_t pointer_id = 0;
+    PointerKind pointer_kind = PointerKind::Mouse;
     float x = 0.0f;
     float y = 0.0f;
     float dx = 0.0f;
