@@ -97,8 +97,18 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         paint_borders(style, rect, opacity, current, sink, stats);
     }
 
+    // `overflow` clipping applies to the children (the element's own background/border are painted
+    // above). The clip is the border box because the paint model has no padding-box yet.
+    const bool clips = detail::clips_children(style) && rect.width > 0.0f && rect.height > 0.0f;
+    if (clips) {
+        sink.push_clip(detail::corner_clip(style, rect));
+        ++stats.clips;
+    }
     for (const auto& child : node.children()) {
         paint_node(*child, styles, sink, stats);
+    }
+    if (clips) {
+        sink.pop_clip();
     }
 }
 

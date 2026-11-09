@@ -9,10 +9,17 @@ layout(location = 5) flat in float v_mode;
 
 layout(set = 0, binding = 0) uniform sampler2D u_texture;
 
+struct ClipUniform {
+    vec4 rect;  // xy = origin, zw = size in target pixels
+    vec4 radii; // top-left, top-right, bottom-right, bottom-left
+};
+
+// Must match Batched2DPushConstants (112 bytes: 2 floats + 1 float + 1 uint + 3 * 32-byte clips).
 layout(push_constant) uniform PushConstants {
     vec2 viewport;
     float aa_radius;
-    float pad;
+    uint clip_count;
+    ClipUniform clips[3];
 } pc;
 
 layout(location = 0) out vec4 out_color;
@@ -22,7 +29,47 @@ float sd_round_box(vec2 p, vec2 b, float r) {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2(0.0))) - r;
 }
 
+// Hard-edged per-corner rounded-rect clip test (no clip AA in this slice; see antialiasing.md).
+bool inside_clip(vec2 p, ClipUniform clip) {
+    vec2 origin = clip.rect.xy;
+    vec2 size = clip.rect.zw;
+    if (p.x < origin.x || p.y < origin.y || p.x > origin.x + size.x ||
+        p.y > origin.y + size.y) {
+        return false;
+    }
+    vec2 q = p - origin;
+    if (q.x < clip.radii.x && q.y < clip.radii.x) {
+        vec2 d = vec2(q.x - clip.radii.x, q.y - clip.radii.x);
+        return dot(d, d) <= clip.radii.x * clip.radii.x;
+    }
+    if (q.x > size.x - clip.radii.y && q.y < clip.radii.y) {
+        vec2 d = vec2(q.x - (size.x - clip.radii.y), q.y - clip.radii.y);
+        return dot(d, d) <= clip.radii.y * clip.radii.y;
+    }
+    if (q.x > size.x - clip.radii.z && q.y > size.y - clip.radii.z) {
+        vec2 d = vec2(q.x - (size.x - clip.radii.z), q.y - (size.y - clip.radii.z));
+        return dot(d, d) <= clip.radii.z * clip.radii.z;
+    }
+    if (q.x < clip.radii.w && q.y > size.y - clip.radii.w) {
+        vec2 d = vec2(q.x - clip.radii.w, q.y - (size.y - clip.radii.w));
+        return dot(d, d) <= clip.radii.w * clip.radii.w;
+    }
+    return true;
+}
+
 void main() {
+    // Rounded clips are applied as a coverage mask: outside any clip alpha becomes 0 and the
+    // alpha-blend leaves the destination untouched. This deliberately avoids `discard`, so the
+    // shader does not require shaderDemoteToHelperInvocation (same policy as the SDF AA path).
+    float clip_alpha = 1.0;
+    if (pc.clip_count > 0u) {
+        for (uint index = 0u; index < pc.clip_count; ++index) {
+            if (!inside_clip(gl_FragCoord.xy, pc.clips[index])) {
+                clip_alpha = 0.0;
+            }
+        }
+    }
+
     vec4 color = v_color;
 
     if (v_mode > 0.5 && v_mode < 1.5) {
@@ -38,5 +85,6 @@ void main() {
         color *= texture(u_texture, v_uv);
     }
 
+    color.a *= clip_alpha;
     out_color = color;
 }

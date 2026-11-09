@@ -19,6 +19,8 @@ public:
 
     void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override;
     void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override;
+    void push_clip(const RoundedClip& clip) override;
+    void pop_clip() override;
 
 private:
     rendering::gpu::Batched2DRenderer* renderer_ = nullptr;

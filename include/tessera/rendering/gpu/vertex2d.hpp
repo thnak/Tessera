@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/gpu/clip.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 
 #include <cstddef>
@@ -38,13 +39,30 @@ inline constexpr rhi::VertexAttribute kVertex2DAttributes[] = {
 inline constexpr std::uint32_t kVertex2DAttributeCount = 7;
 inline constexpr std::uint32_t kVertex2DStride = sizeof(Vertex2D);
 
+// Push-constant block shared by the batched2d vertex and fragment stages. `clips` carries the
+// folded rounded clips for the current batch: the fragment shader discards outside each one. The
+// block stays inside Vulkan's 128-byte minimum push-constant budget (16 + 3 * 32 = 112 bytes).
 struct Batched2DPushConstants {
     float viewport_width = 0;
     float viewport_height = 0;
     float aa_radius = 1.0f;
-    float pad = 0;
+    std::uint32_t clip_count = 0;
+
+    struct ClipUniform {
+        float x = 0;
+        float y = 0;
+        float width = 0;
+        float height = 0;
+        float top_left = 0;
+        float top_right = 0;
+        float bottom_right = 0;
+        float bottom_left = 0;
+    };
+
+    ClipUniform clips[clip::kMaxShaderClips]{};
 };
 
-static_assert(sizeof(Batched2DPushConstants) == 16);
+static_assert(sizeof(Batched2DPushConstants) == 112,
+              "push constants must fit the 128-byte Vulkan minimum");
 
 } // namespace tessera::rendering::gpu

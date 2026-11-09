@@ -18,6 +18,10 @@ std::uint32_t pack_color(rhi::Color color) {
            (channel(color.a) << 24);
 }
 
+bool same_scissor(const rhi::Scissor& a, const rhi::Scissor& b) {
+    return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
+}
+
 } // namespace
 
 Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipeline,
@@ -41,6 +45,7 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
     vertices_.reserve(capacity);
     batches_.reserve(64);
     damage_regions_.reserve(8);
+    clip_states_.reserve(16);
 }
 
 Batched2DRenderer::~Batched2DRenderer() = default;
@@ -81,12 +86,17 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     if (damage_regions != nullptr) {
         damage_regions_ = *damage_regions;
     }
+    clip_stack_.clear();
+    clip_folded_.clear();
+    clip_scissor_stack_.clear();
+    clip_states_.clear();
+    rebuild_clip_state();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
     vertices_.clear();
     batches_.clear();
     current_texture_ = white_texture_;
-    current_batch_ = Batch{scissor_, current_texture_, 0, 0};
+    current_batch_ = Batch{scissor_, current_texture_, current_clip_state_, 0, 0};
     draw_calls_ = 0;
     emitted_vertices_ = 0;
     in_frame_ = true;
@@ -96,7 +106,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     commands_->set_viewport(
         rhi::Viewport{0, 0, static_cast<float>(extent_.width), static_cast<float>(extent_.height)});
     commands_->set_scissor(scissor_);
-    update_push_constants();
+    update_push_constants(current_clip_state_);
 }
 
 void Batched2DRenderer::end() {
@@ -117,31 +127,75 @@ void Batched2DRenderer::set_viewport(rhi::Extent2D extent) {
     extent_ = extent;
     commands_->set_viewport(
         rhi::Viewport{0, 0, static_cast<float>(extent_.width), static_cast<float>(extent_.height)});
-    update_push_constants();
+    update_push_constants(current_clip_state_);
 }
 
 void Batched2DRenderer::set_scissor(const rhi::Scissor& scissor) {
-    flush_batch();
+    if (!same_scissor(scissor_, scissor) || !same_scissor(current_batch_.scissor, scissor)) {
+        flush_batch();
+    }
     scissor_ = scissor;
     current_batch_.scissor = scissor_;
 }
 
 void Batched2DRenderer::push_scissor(const rhi::Scissor& scissor) {
-    flush_batch();
     scissor_stack_.push_back(scissor_);
-    scissor_ = rhi::intersect(scissor_, scissor);
+    const rhi::Scissor next = rhi::intersect(scissor_, scissor);
+    if (!same_scissor(next, current_batch_.scissor)) {
+        flush_batch();
+    }
+    scissor_ = next;
     current_batch_.scissor = scissor_;
 }
 
 void Batched2DRenderer::pop_scissor() {
-    flush_batch();
+    const rhi::Scissor next = scissor_stack_.empty() ? base_scissor_ : scissor_stack_.back();
     if (!scissor_stack_.empty()) {
-        scissor_ = scissor_stack_.back();
         scissor_stack_.pop_back();
-    } else {
-        scissor_ = base_scissor_;
     }
+    if (!same_scissor(next, current_batch_.scissor)) {
+        flush_batch();
+    }
+    scissor_ = next;
     current_batch_.scissor = scissor_;
+}
+
+void Batched2DRenderer::push_clip(const clip::RoundedRect& input) {
+    if (!in_frame_) {
+        return;
+    }
+    const clip::RoundedRect clamped = clip::clamp_radii(input);
+    clip_scissor_stack_.push_back(scissor_);
+    if (clip_stack_.size() < clip::kMaxClipDepth) {
+        clip_stack_.push_back(clamped);
+        clip_folded_.push_back(false);
+    } else {
+        // Documented nesting bound: deeper clips are folded into the innermost active clip
+        // (conservative intersection) instead of growing the stack.
+        clip_stack_.back() = clip::intersect_clips(clip_stack_.back(), clamped);
+        clip_folded_.push_back(true);
+    }
+    rebuild_clip_state();
+    apply_clip_state(current_clip_state_,
+                     rhi::intersect(scissor_, clip::enclosing_scissor(clamped)));
+}
+
+void Batched2DRenderer::pop_clip() {
+    if (!in_frame_ || clip_folded_.empty()) {
+        return;
+    }
+    const bool folded = clip_folded_.back();
+    clip_folded_.pop_back();
+    if (!folded && !clip_stack_.empty()) {
+        clip_stack_.pop_back();
+    }
+    const rhi::Scissor restored =
+        clip_scissor_stack_.empty() ? base_scissor_ : clip_scissor_stack_.back();
+    if (!clip_scissor_stack_.empty()) {
+        clip_scissor_stack_.pop_back();
+    }
+    rebuild_clip_state();
+    apply_clip_state(current_clip_state_, restored);
 }
 
 void Batched2DRenderer::set_transform(const rhi::Mat3& transform) {
@@ -199,6 +253,7 @@ void Batched2DRenderer::flush() {
     if (damage_regions_.empty()) {
         for (const Batch& batch : batches_) {
             commands_->set_scissor(batch.scissor);
+            update_push_constants(batch.clip_state);
             commands_->bind_texture(0, *batch.texture);
             commands_->draw(batch.vertex_count, base + batch.first_vertex);
             ++emitted_draws;
@@ -207,15 +262,16 @@ void Batched2DRenderer::flush() {
         // Replay each batch once per damage region. Regions are disjoint, so a pixel is
         // never blended twice even when several regions intersect the same batch.
         for (const Batch& batch : batches_) {
-            bool texture_bound = false;
+            bool state_bound = false;
             for (const rhi::Scissor& region : damage_regions_) {
                 const rhi::Scissor clipped = rhi::intersect(batch.scissor, region);
                 if (clipped.width == 0 || clipped.height == 0) {
                     continue;
                 }
-                if (!texture_bound) {
+                if (!state_bound) {
+                    update_push_constants(batch.clip_state);
                     commands_->bind_texture(0, *batch.texture);
-                    texture_bound = true;
+                    state_bound = true;
                 }
                 commands_->set_scissor(clipped);
                 commands_->draw(batch.vertex_count, base + batch.first_vertex);
@@ -227,7 +283,7 @@ void Batched2DRenderer::flush() {
     draw_calls_ += emitted_draws;
     vertices_.clear();
     batches_.clear();
-    current_batch_ = Batch{scissor_, current_texture_, 0, 0};
+    current_batch_ = Batch{scissor_, current_texture_, current_clip_state_, 0, 0};
 }
 
 void Batched2DRenderer::select_next_slot() {
@@ -273,6 +329,7 @@ void Batched2DRenderer::flush_batch() {
     current_batch_.vertex_count = 0;
     current_batch_.scissor = scissor_;
     current_batch_.texture = current_texture_;
+    current_batch_.clip_state = current_clip_state_;
 }
 
 void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color,
@@ -331,11 +388,76 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
     emitted_vertices_ += 6;
 }
 
-void Batched2DRenderer::update_push_constants() {
+bool Batched2DRenderer::same_clip_state(const ClipState& a, const ClipState& b) {
+    if (a.count != b.count) {
+        return false;
+    }
+    for (std::uint32_t i = 0; i < a.count; ++i) {
+        if (!(a.clips[i] == b.clips[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::uint32_t Batched2DRenderer::intern_clip_state(const ClipState& state) {
+    for (std::uint32_t i = 0; i < clip_states_.size(); ++i) {
+        if (same_clip_state(clip_states_[i], state)) {
+            return i;
+        }
+    }
+    clip_states_.push_back(state);
+    return static_cast<std::uint32_t>(clip_states_.size() - 1);
+}
+
+void Batched2DRenderer::rebuild_clip_state() {
+    ClipState folded;
+    for (const clip::RoundedRect& active : clip_stack_) {
+        if (folded.count < clip::kMaxShaderClips) {
+            folded.clips[folded.count++] = active;
+        } else {
+            // Deeper clips fold into the innermost shader slot conservatively; the CPU-side scissor
+            // still reflects every clip rect, so the result never paints outside any active clip.
+            folded.clips[clip::kMaxShaderClips - 1] =
+                clip::intersect_clips(folded.clips[clip::kMaxShaderClips - 1], active);
+        }
+    }
+    current_clip_state_ = intern_clip_state(folded);
+}
+
+void Batched2DRenderer::apply_clip_state(std::uint32_t state_index, const rhi::Scissor& scissor) {
+    const bool state_changed = state_index != current_batch_.clip_state;
+    const bool scissor_changed = !same_scissor(scissor, current_batch_.scissor);
+    if (state_changed || scissor_changed) {
+        // Batching split rule: a draw batch covers one (texture, scissor, folded-clip-uniform)
+        // tuple. Clip push/pop only costs a split when the folded uniform set or scissor changes.
+        flush_batch();
+    }
+    scissor_ = scissor;
+    current_clip_state_ = state_index;
+    current_batch_.scissor = scissor;
+    current_batch_.clip_state = state_index;
+}
+
+void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
     Batched2DPushConstants push;
     push.viewport_width = static_cast<float>(extent_.width);
     push.viewport_height = static_cast<float>(extent_.height);
     push.aa_radius = (config_.enable_aa && !config_.golden_mode) ? 1.0f : 0.0f;
+    const ClipState& state = clip_states_[state_index];
+    push.clip_count = state.count;
+    for (std::uint32_t i = 0; i < state.count; ++i) {
+        const clip::RoundedRect& source = state.clips[i];
+        Batched2DPushConstants::ClipUniform& target = push.clips[i];
+        target.x = source.rect.x;
+        target.y = source.rect.y;
+        target.width = source.rect.width;
+        target.height = source.rect.height;
+        target.top_left = source.top_left;
+        target.top_right = source.top_right;
+        target.bottom_right = source.bottom_right;
+        target.bottom_left = source.bottom_left;
+    }
     commands_->push_constants(&push, sizeof(push));
 }
 

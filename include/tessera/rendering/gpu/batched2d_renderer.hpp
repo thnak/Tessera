@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "tessera/rendering/gpu/clip.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -49,6 +51,17 @@ public:
     void push_scissor(const rhi::Scissor& scissor);
     void pop_scissor();
 
+    // Rounded-rect clip stack. The scissor is still intersected with each clip rect (fast path),
+    // and the up-to-`clip::kMaxShaderClips` active clips are folded into push-constant uniforms for
+    // the analytic fragment test. Rect-only clips keep the scissor-only path. Deeper nesting (up to
+    // `clip::kMaxClipDepth`) is folded conservatively into the innermost shader slot; push/pop must
+    // pair (mixing with push_scissor is allowed but each pop matches its own push).
+    void push_clip(const clip::RoundedRect& clip);
+    void pop_clip();
+    [[nodiscard]] std::uint32_t clip_depth() const {
+        return static_cast<std::uint32_t>(clip_stack_.size());
+    }
+
     void set_transform(const rhi::Mat3& transform);
     void push_transform(const rhi::Mat3& transform);
     void pop_transform();
@@ -72,9 +85,17 @@ public:
     }
 
 private:
+    // Folded clip uniforms for one batch. `count` clips are live in `clips`; state 0 is always the
+    // empty clip set, so a batch only splits when the uniform set (or texture/scissor) changes.
+    struct ClipState {
+        std::uint32_t count = 0;
+        std::array<clip::RoundedRect, clip::kMaxShaderClips> clips{};
+    };
+
     struct Batch {
         rhi::Scissor scissor;
         rhi::Texture* texture = nullptr;
+        std::uint32_t clip_state = 0;
         std::uint32_t first_vertex = 0;
         std::uint32_t vertex_count = 0;
     };
@@ -88,7 +109,11 @@ private:
     void flush_batch();
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
                    float mode, rhi::Texture* texture);
-    void update_push_constants();
+    void update_push_constants(std::uint32_t state_index);
+    void rebuild_clip_state();
+    void apply_clip_state(std::uint32_t state_index, const rhi::Scissor& scissor);
+    [[nodiscard]] std::uint32_t intern_clip_state(const ClipState& state);
+    static bool same_clip_state(const ClipState& a, const ClipState& b);
 
     rhi::Device* device_ = nullptr;
     rhi::Pipeline* pipeline_ = nullptr;
@@ -101,6 +126,14 @@ private:
     rhi::Scissor scissor_;
     std::vector<rhi::Scissor> scissor_stack_;
     std::vector<rhi::Scissor> damage_regions_;
+
+    // Rounded clips: the caller-visible stack, its folded shader state, and the interned states of
+    // the current frame. Clip states are interned so a batch only stores an index.
+    std::vector<clip::RoundedRect> clip_stack_;
+    std::vector<bool> clip_folded_;
+    std::vector<rhi::Scissor> clip_scissor_stack_;
+    std::vector<ClipState> clip_states_;
+    std::uint32_t current_clip_state_ = 0;
 
     rhi::Mat3 transform_;
     std::vector<rhi::Mat3> transform_stack_;

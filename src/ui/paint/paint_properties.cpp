@@ -151,4 +151,38 @@ std::optional<float> uniform_radius(const style::ComputedStyle& style) {
     return radii[0];
 }
 
+bool clips_children(const style::ComputedStyle& style) {
+    static constexpr const char* kOverflowProperties[2] = {"overflow-x", "overflow-y"};
+    for (const char* property : kOverflowProperties) {
+        const std::string* text = raw(style, property);
+        if (text == nullptr) {
+            continue;
+        }
+        const std::string keyword = lower(trim(*text));
+        if (!keyword.empty() && keyword != "visible") {
+            // hidden/clip/scroll/auto all clip: the paint pass has no scrolling, so the visible
+            // child region is the border box for every non-visible overflow value.
+            return true;
+        }
+    }
+    return false;
+}
+
+RoundedClip corner_clip(const style::ComputedStyle& style, const rhi::Rect& rect) {
+    static constexpr const char* kRadiusProperties[4] = {
+        "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius",
+        "border-bottom-left-radius"};
+    RoundedClip clip;
+    clip.rect = rect;
+    float* destinations[4] = {&clip.top_left, &clip.top_right, &clip.bottom_right,
+                              &clip.bottom_left};
+    const float limit = std::min(rect.width, rect.height) * 0.5f;
+    for (int index = 0; index < 4; ++index) {
+        const std::optional<float> parsed = length_value(style, kRadiusProperties[index]);
+        const float radius = parsed.value_or(0.0f);
+        *destinations[index] = std::clamp(radius, 0.0f, std::max(limit, 0.0f));
+    }
+    return clip;
+}
+
 } // namespace tessera::ui::paint::detail

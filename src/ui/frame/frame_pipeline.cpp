@@ -92,6 +92,15 @@ public:
         }
     }
 
+    // Clips are orthogonal to damage: forward them unchanged so the target sink applies the same
+    // rounded-clip stack the full paint would have used.
+    void push_clip(const paint::RoundedClip& clip) override {
+        target_->push_clip(clip);
+    }
+    void pop_clip() override {
+        target_->pop_clip();
+    }
+
 private:
     paint::PaintSink* target_ = nullptr;
     const std::vector<rhi::Scissor>* regions_ = nullptr;

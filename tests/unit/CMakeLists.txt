@@ -320,6 +320,13 @@ target_link_libraries(runtime_device_recovery_tests PRIVATE tessera_runtime)
 
 add_test(NAME runtime_device_recovery COMMAND runtime_device_recovery_tests)
 
+add_executable(clip_math_tests
+    clip_math_tests.cpp)
+
+target_link_libraries(clip_math_tests PRIVATE tessera_rhi)
+
+add_test(NAME clip_math COMMAND clip_math_tests)
+
 add_executable(diagnostics_tests
     diagnostics_tests.cpp)
 
@@ -976,6 +983,13 @@ target_link_libraries(paint_pass_tests PRIVATE
     tessera_rhi_null)
 
 add_test(NAME paint_pass COMMAND paint_pass_tests)
+
+add_executable(paint_clip_tests
+    paint_clip_tests.cpp)
+
+target_link_libraries(paint_clip_tests PRIVATE tessera_paint)
+
+add_test(NAME paint_clip COMMAND paint_clip_tests)
 
 add_executable(input_pipeline_tests
     input_pipeline_tests.cpp)

@@ -8,10 +8,17 @@ layout(location = 4) in vec2 in_half_size;
 layout(location = 5) in float in_radius;
 layout(location = 6) in float in_mode;
 
+struct ClipUniform {
+    vec4 rect;  // xy = origin, zw = size in target pixels
+    vec4 radii; // top-left, top-right, bottom-right, bottom-left
+};
+
+// Must match Batched2DPushConstants (112 bytes: 2 floats + 1 float + 1 uint + 3 * 32-byte clips).
 layout(push_constant) uniform PushConstants {
     vec2 viewport;
     float aa_radius;
-    float pad;
+    uint clip_count;
+    ClipUniform clips[3];
 } pc;
 
 layout(location = 0) out vec2 v_uv;

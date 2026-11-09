@@ -21,6 +21,11 @@ color.a *= alpha;
   This avoids requiring `shaderDemoteToHelperInvocation`.
 - AA is applied to SDF rounded rects (including borders built from them). It is not a
   post-process or a multisample pass.
+- **Rounded clips are hard-edged.** The batched2d fragment stage multiplies alpha to 0 outside each
+  rounded clip (also without `discard`), so the clip boundary itself has no coverage AA: at 1× DPI a
+  rounded clip corner and its straight edges are aliased until MSAA lands. The clip test uses the
+  same pixel-center rule as rasterization, so it is deterministic in golden mode and never writes
+  outside the clip. MSAA (which would smooth both geometry and clip edges) remains unimplemented.
 
 ## 2. What is not covered
 
@@ -31,6 +36,7 @@ color.a *= alpha;
 | Text/glyphs | Text stack/atlas is B2 ([`text.md`](text.md)); expected FreeType/atlas AA + subpixel policy |
 | Vector paths/strokes | [ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) (ThorVG/Skia); no path rasterizer yet |
 | Lines/circles/arbitrary shapes | Only rounded-box SDF; no general SDF |
+| Rounded clip edges | Hard pixel-center coverage mask (no clip AA); uses alpha 0, not `discard` |
 | MSAA | No multisample pipeline/sample count |
 | FXAA/TAA/post-process | Not implemented |
 | Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | AA radius is fixed in local units (1.0); scaled/rotated quads may get a different screen-space width |

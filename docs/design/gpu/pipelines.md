@@ -74,6 +74,11 @@ Custom elements:
 - Bindings match the manifest (group/binding/type/name); reflection is authoritative.
 - Push constants are Vulkan-only in B1; WebGPU uses a uniform buffer with the same logical fields.
 - Push-constant size is fixed at pipeline creation; writes must match or fail validation.
+- B1 batched 2D push constants (`Batched2DPushConstants`, 112 bytes, inside Vulkan's 128-byte
+  minimum): `vec2 viewport`, `float aa_radius`, `uint clip_count`, then up to three
+  `{vec4 rect; vec4 radii}` rounded-clip uniforms. The vertex and fragment stages declare the same
+  block; the block is pushed per draw batch (the renderer splits a batch only when the texture,
+  scissor, or folded clip uniform set changes).
 - Descriptor sets are frame-slot safe; never mutate a set while a frame using it is in flight.
 - Bindless/array descriptors are deferred.
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
 #include <optional>
@@ -33,5 +34,13 @@ float border_width(const style::ComputedStyle& style, const char* width_property
 
 // The shared corner radius when all four radii are equal, else nullopt. Missing radii count as 0.
 std::optional<float> uniform_radius(const style::ComputedStyle& style);
+
+// True when the element clips its children: `overflow-x` or `overflow-y` is any value other than
+// `visible` (hidden/clip/scroll/auto). The paint pass uses one clip rect for both axes.
+bool clips_children(const style::ComputedStyle& style);
+
+// Overflow clip for `rect` (the parent's border box) from the four `border-*-radius` properties,
+// per-corner and clamped to half the smaller side. A zero-radius result is a rectangular clip.
+RoundedClip corner_clip(const style::ComputedStyle& style, const rhi::Rect& rect);
 
 } // namespace tessera::ui::paint::detail

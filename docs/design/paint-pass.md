@@ -99,7 +99,8 @@ property in this slice, not a border ring.
 ## 6. Deliberate limits
 
 - No text, glyphs, or inline content; text has its own renderer.
-- No clipping/overflow, scroll, masks, filters, gradients, shadows, or images.
+- Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no scroll, `clip-path`,
+  masks, filters, gradients, shadows, or images.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
   The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
@@ -120,6 +121,10 @@ paint never submits the command list (the caller does).
 
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
+
+Overflow clips (§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
+paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
+visible` emitting no clip, and nested clips.
 
 ## 8. Frame integration
 
@@ -233,3 +238,40 @@ overload - a partial plan that clips away outside geometry and leaves contained 
 a full-redraw plan that reproduces the full paint, an empty plan (and empty plan plus force) that
 paints nothing, forced clipped painting on an idle frame, and a moved node whose old and new
 DamageTracker regions repaint the background and the node respectively.
+
+## 9. Rounded overflow clips
+
+`paint_scene` clips a parent's children when its computed `overflow-x`/`overflow-y` is anything but
+`visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the pass has no scrolling). The clip is
+emitted around the children, after the parent's own background/borders, through
+`PaintSink::push_clip`/`pop_clip`:
+
+- `RoundedClip { rect, top_left, top_right, bottom_right, bottom_left }`: `rect` is the parent's
+  border box in absolute coordinates and each radius is already clamped to
+  `min(width, height) / 2`. All-zero radii mean a rectangular clip (the renderer keeps the scissor
+  fast path); any non-zero radius switches that draw batch to the analytic fragment test.
+- The clip is the border box, not the CSS padding box. Padding-box clipping, `clip-path`, masks and
+  scroll are out of scope.
+- `PaintSink` keeps default no-op clip hooks so existing recording sinks are unaffected;
+  `Batched2DSink` forwards to `Batched2DRenderer::push_clip`/`pop_clip`. The damage-clipped paint
+  decorator in the frame pipeline forwards clip pushes/pops unchanged, so clipping and damage
+  clipping compose.
+- Style seam: this needed no stylesheet change. `StyleProvider` already returns the full
+  `ComputedStyle`, which carries `overflow-x`/`overflow-y` and the four `border-*-radius` longhands.
+- Clip math lives in `rendering::gpu::clip` (`clip.hpp`). Nesting rule: the intersection rect, and
+  each corner keeps the largest radius of a clip whose two edges coincide with that intersection
+  corner; corners created by a straight cut become square. The rule is exact for containment and
+  conservative elsewhere - it may sharpen a cut corner but never paints outside any active clip.
+  Depth is bounded at 8; the shader receives at most 3 folded clips and deeper clips are folded
+  into the innermost slot with the same intersection rule.
+- No clip-edge AA: the mask is a hard pixel-center test (see [`antialiasing.md`](antialiasing.md)),
+  so rounded clip corners and edges alias at 1x until MSAA.
+- Tests: `paint_pass` (emission order/rect/radii/rectangular/nested), `clip_math` (pure clamping,
+  nesting, containment, degenerate radii), `batched2d` (null-backend batch-split rule), and
+  `rounded_clip` (real-Vulkan readback: pixels outside a rounded parent corner stay background).
+- Goldens: **no re-baseline and no new image golden in this slice.** The CPU/lavapipe golden scenes
+  contain no overflow-clipping rounded container (the POC dashboard is built with direct renderer
+  calls and scissor clips; the CPU canvas is rectangle-only), so existing golden bytes are
+  unchanged (`batched2d_cpu_golden` stays byte-exact). A dedicated lavapipe rounded-clip golden is
+  deferred until such a scene enters the corpus and the baseline can be produced on the software
+  path (never from a real GPU).

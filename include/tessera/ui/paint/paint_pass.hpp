@@ -38,6 +38,7 @@ struct PaintStats {
     std::size_t backgrounds = 0;     // background quads emitted
     std::size_t borders = 0;         // border edge quads emitted
     std::size_t hidden_subtrees = 0; // invisible roots skipped (their subtrees are not visited)
+    std::size_t clips = 0;           // overflow clips pushed (rounded or rectangular)
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in
