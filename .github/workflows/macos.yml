@@ -33,5 +33,10 @@ jobs:
       - name: ccache statistics
         run: ccache --show-stats
 
+      - name: Static-link allowlist (ADR-012, macOS)
+        run: >
+          python3 -B scripts/check_static_link.py --os macos
+          --binary build/macos/tests/unit/merger_tests
+
       - name: Tests
         run: ctest --test-dir build/macos --output-on-failure

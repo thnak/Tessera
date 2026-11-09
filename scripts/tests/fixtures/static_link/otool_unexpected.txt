@@ -1,0 +1,4 @@
+build/macos/tests/unit/merger_tests:
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1345.100.2)
+	/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1300.24.0)
+	/opt/homebrew/opt/libpng/lib/libpng16.16.dylib (compatibility version 16.0.0, current version 16.44.0)

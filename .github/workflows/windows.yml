@@ -25,5 +25,10 @@ jobs:
       - name: Build
         run: cmake --build --preset vs2026-release
 
+      - name: Static-link allowlist (ADR-012, Windows)
+        run: >
+          python -B scripts/check_static_link.py --os windows
+          --binary build/vs2026/tests/unit/Release/merger_tests.exe
+
       - name: Tests
         run: ctest --preset vs2026-release --output-on-failure

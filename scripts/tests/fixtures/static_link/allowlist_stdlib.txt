@@ -1,0 +1,5 @@
+# Allowlist override that tries to allow the dynamic C++ runtime; the forbidden-runtime rule
+# must still fail the gate (ADR-012 cannot be weakened by an allowlist).
+libc.so.*
+libstdc++.so.*
+libgcc_s.so.*

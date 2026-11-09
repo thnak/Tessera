@@ -1,0 +1,5 @@
+# Allowlist override used to prove --allowlist replaces the built-in patterns.
+libc.so.*
+libpng16.so.*
+linux-vdso.so.*
+ld-linux*.so.*

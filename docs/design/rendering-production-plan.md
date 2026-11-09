@@ -155,6 +155,24 @@ Gate 1-2 are automated by `scripts/check_static_link.*` and `scripts/check_depen
 (CI: Linux ldd, Windows dumpbin, macOS otool) plus the existing Android/iOS builds that use a
 static C++ runtime. Gates 3-7 are checked by the CI test suite and review.
 
+### Running the gates locally
+
+The gates run as CI steps on every PR and can be run from the repository root with a plain
+Python 3 interpreter. Both scripts are standard-library only, deterministic and use no network:
+
+```bash
+python scripts/check_dependencies.py
+python scripts/check_static_link.py --binary build/ci/tools/poc/vulkan_offscreen/vulkan_offscreen_poc
+python -B -m unittest discover -s scripts/tests -p "test_*.py" -v
+```
+
+`check_static_link.py` selects `ldd`, `otool -L` or `dumpbin /dependents` for the current OS and
+fails on any dynamic dependency outside the per-OS allowlist and on a dynamically linked
+`libstdc++`, `libgcc_s`, `VCRUNTIME*` or `MSVCP*`. Pass `--os` (or `--from-output FILE`) to check
+captured output for another platform and `--allowlist FILE` to replace the built-in pattern list.
+The fixture self-tests feed both gates synthetic tables and `ldd`/`otool`/`dumpbin` output, so
+they run on every OS; either gate accepts `--json` for a machine-readable report.
+
 ## 7. Risks
 
 - **ThorVG Vulkan/WebGPU maturity** is unproven; the spike must be able to fail and fall back

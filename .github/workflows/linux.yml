@@ -55,6 +55,12 @@ jobs:
             exit 1
           fi
 
+      - name: Static-link allowlist (ADR-012, Linux)
+        run: |
+          python3 -B scripts/check_static_link.py --os linux \
+            --binary build/ci/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \
+            --binary build/ci/tools/poc/batched2d/batched2d_poc
+
       - name: Tests (null + lavapipe + validation)
         run: |
           Xvfb :99 -screen 0 1280x1024x24 -ac &
@@ -72,3 +78,16 @@ jobs:
           name: offscreen-png
           path: offscreen.png
           retention-days: 14
+
+  release-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate self-tests (fixtures)
+        run: python3 -B -m unittest discover -s scripts/tests -p "test_*.py" -v
+
+      - name: Dependency and license gate (ADR-013)
+        run: python3 -B scripts/check_dependencies.py
