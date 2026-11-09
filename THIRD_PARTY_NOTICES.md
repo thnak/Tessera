@@ -91,7 +91,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 
 ### Noto Sans (test font)
 
-- Files: `tests/fixtures/fonts/NotoSans-Regular.ttf`, `tests/fixtures/fonts/OFL.txt`
+- Files: `tests/fixtures/fonts/NotoSans-Regular.ttf`, `tests/fixtures/fonts/NotoSansHebrew-Regular.ttf`, `tests/fixtures/fonts/OFL.txt`
 - Used by: deterministic unit and golden tests
 - License: SIL Open Font License 1.1 (OFL-1.1)
 - Copyright: The Noto Project Authors

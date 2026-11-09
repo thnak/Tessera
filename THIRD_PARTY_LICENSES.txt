@@ -14,7 +14,7 @@ remains the full component map.
 Where the dependency map lists a dual license, the bundle ships the elected permissive
 option (miniaudio: MIT-0, rpmalloc: MIT); libjpeg-turbo ships BSD-3-Clause and IJG.
 
-Components (37)
+Components (38)
 ----------------
 
 AndroidX WindowManager (androidx.window:window)
@@ -128,6 +128,10 @@ SPIRV-Reflect
 sqlite3
   License: Public domain
   Copyright: SQLite authors
+
+stb_image
+  License: MIT
+  Copyright: Sean Barrett and contributors
 
 ThorVG
   License: MIT

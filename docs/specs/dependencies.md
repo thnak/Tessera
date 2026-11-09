@@ -40,7 +40,7 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | volk | V1 hard (vendored) | MIT | `rendering/backend/vulkan` | Vulkan function loading; `third_party/volk` |
 | SPIRV-Reflect | V1 optional | Apache-2.0 | `rendering/backend/vulkan` | Shader reflection for pipeline layouts |
 | stb_image_write | PoC (proof of concept)/demo only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 (proof-of-concept stage, executables under `tools/poc/`) and batched2d demos |
-| stb_image | V1 test | Public domain / MIT | `tests/golden`, image decode | PNG/JPG decode for goldens and assets |
+| stb_image | V1 hard (vendored, `third_party/stb`) | Public domain / MIT | `rendering/image` | PNG/JPEG decode for embedded image assets (RGBA8, production-linked); `third_party/stb/stb_image.h` |
 | ThorVG | V1 hard (FetchContent v1.1.3, `TESSERA_ENABLE_THORVG` default OFF; spike Go) | MIT | `rendering/path` | Vector paths behind `rendering::PathRasterizer`: CPU raster into RGBA8, uploaded through the RHI; SVG assets later |
 | Skia Graphite | Fallback only ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md); owner chose ThorVG first) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
@@ -369,7 +369,7 @@ renderer -> [lavapipe | CPU rasterizer] -> RGBA buffer
 
 - **lavapipe** is a software Vulkan ICD used by CI; never shipped to users.
 - **stb_image_write** is the Phase 0 PNG writer; production may use a dedicated encoder.
-- **stb_image** decodes PNGs for golden comparison.
+- **stb_image** decodes PNGs/JPEGs for golden comparison and, production-linked, for embedded image assets (`rendering/image`); the header is vendored in `third_party/stb`.
 - **Catch2** drives unit tests; **Google Benchmark** drives microbenchmarks. Neither is
   shipped.
 
