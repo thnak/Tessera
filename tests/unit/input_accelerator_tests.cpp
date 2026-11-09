@@ -60,6 +60,10 @@ struct OrderLog {
     std::vector<std::string> entries;
 };
 
+void record_accelerator(void* user, const InputEvent&) {
+    static_cast<OrderLog*>(user)->entries.push_back("accelerator");
+}
+
 struct RemoveContext {
     KeyBindingRegistry* registry = nullptr;
     BindingId self = kInvalidBindingId;
@@ -418,7 +422,7 @@ bool router_accelerators() {
 }
 
 bool determinism_and_passthrough() {
-    const auto run = [](bool with_bindings, std::vector<std::string>& route) {
+    const auto run = [](bool with_bindings, bool matched, std::vector<std::string>& route) {
         Recorder root(1);
         root.set_bounds({0, 0, 200, 200});
         auto child_ptr = std::make_unique<Recorder>(2);
@@ -431,8 +435,7 @@ bool determinism_and_passthrough() {
         child.log = &log;
         InputRouter router;
         if (with_bindings) {
-            Counter counter;
-            router.accelerators().add(chord('J', Modifier::Control), &count, &counter);
+            router.accelerators().add(chord('J', Modifier::Control), &record_accelerator, &log);
         }
         router.focus_manager().request_focus(&child);
         const InputEventType down = InputEventType::KeyDown;
@@ -440,17 +443,24 @@ bool determinism_and_passthrough() {
         router.dispatch(root, key_event(down, 'A', Modifier::None));
         router.dispatch(root, key_event(up, 'A', Modifier::None));
         router.dispatch(root, key_event(down, 'B', Modifier::Shift));
-        router.dispatch(root, key_event(down, 'J', Modifier::Alt));
+        router.dispatch(root, key_event(down, 'J', matched ? Modifier::Control : Modifier::Alt));
         route = log.entries;
     };
 
     std::vector<std::string> plain_route;
     std::vector<std::string> bound_route;
-    run(false, plain_route);
-    run(true, bound_route);
+    std::vector<std::string> first_run;
+    std::vector<std::string> second_run;
+    run(false, false, plain_route);
+    run(true, false, bound_route);
+    run(true, true, first_run);
+    run(true, true, second_run);
     return expect(plain_route == bound_route,
                   "no matching binding keeps the route log byte-identical") &&
-           expect(!plain_route.empty(), "route log recorded");
+           expect(!plain_route.empty(), "route log recorded") &&
+           expect(!first_run.empty(), "matching accelerator produced entries") &&
+           expect(first_run == second_run,
+                  "same script produces the same callback and route order");
 }
 
 } // namespace
