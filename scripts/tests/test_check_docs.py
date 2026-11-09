@@ -38,7 +38,7 @@ class DocsGateTests(unittest.TestCase):
         return subprocess.run(
             [sys.executable, "-B", str(CHECK), "--repo-root", str(self.root), *extra],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             cwd=str(cwd or self.root),
         )
 

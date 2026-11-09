@@ -213,7 +213,7 @@ def visual_studio_installs() -> List[Path]:
             result = subprocess.run(
                 [str(vswhere), "-all", "-products", "*", "-property", "installationPath"],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
                 timeout=60,
             )
         except (OSError, subprocess.SubprocessError):
@@ -264,7 +264,7 @@ def run_dumpbin(binary: str, dumpbin: Path) -> subprocess.CompletedProcess:
     vcvars = find_vcvars64(dumpbin)
     if vcvars is None:
         return subprocess.run(
-            [str(dumpbin), "/dependents", binary], capture_output=True, text=True, timeout=300
+            [str(dumpbin), "/dependents", binary], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300
         )
     # The MSVC tools need the developer environment (dumpbin loads link.exe support DLLs). A
     # temporary batch file avoids cmd.exe quoting issues for paths containing spaces.
@@ -278,7 +278,7 @@ def run_dumpbin(binary: str, dumpbin: Path) -> subprocess.CompletedProcess:
         handle.write("exit /b %ERRORLEVEL%\n")
         handle.close()
         return subprocess.run(
-            ["cmd", "/d", "/c", handle.name], capture_output=True, text=True, timeout=300
+            ["cmd", "/d", "/c", handle.name], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300
         )
     finally:
         try:
@@ -291,7 +291,7 @@ def run_tool(os_name: str, binary: str, dumpbin: Optional[str]) -> Tuple[str, st
     tool = TOOLS[os_name]
     try:
         if tool == "ldd":
-            result = subprocess.run(["ldd", binary], capture_output=True, text=True, timeout=300)
+            result = subprocess.run(["ldd", binary], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
             output = result.stdout + result.stderr
             lowered = output.lower()
             if result.returncode != 0 and not (
@@ -305,7 +305,7 @@ def run_tool(os_name: str, binary: str, dumpbin: Optional[str]) -> Tuple[str, st
             return tool, output
         if tool == "otool":
             result = subprocess.run(
-                ["otool", "-L", binary], capture_output=True, text=True, timeout=300
+                ["otool", "-L", binary], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300
             )
             output = result.stdout + result.stderr
             if result.returncode != 0:

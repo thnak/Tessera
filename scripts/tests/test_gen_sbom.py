@@ -55,7 +55,7 @@ class SbomGateTests(unittest.TestCase):
                 *extra,
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             cwd=str(cwd or self.dir),
         )
 
@@ -226,7 +226,7 @@ class SbomGateTests(unittest.TestCase):
                 "--check",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             cwd=str(self.dir),
         )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)

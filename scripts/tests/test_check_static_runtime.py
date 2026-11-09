@@ -28,7 +28,7 @@ def run_proof(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-B", str(PROOF), *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         cwd=str(REPO_ROOT),
     )
 

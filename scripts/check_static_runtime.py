@@ -92,7 +92,7 @@ def run_in_vcvars(command: Sequence[str], vcvars: Path, timeout: int) -> subproc
         handle.write("exit /b %ERRORLEVEL%\n")
         handle.close()
         return subprocess.run(
-            ["cmd", "/d", "/c", handle.name], capture_output=True, text=True, timeout=timeout
+            ["cmd", "/d", "/c", handle.name], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
         )
     finally:
         try:
@@ -113,7 +113,7 @@ def run_command(
             result = run_in_vcvars(command, vcvars, timeout)
         else:
             result = subprocess.run(
-                list(command), capture_output=True, text=True, timeout=timeout
+                list(command), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
             )
     except FileNotFoundError:
         fail_setup("{} not found; install CMake or pass --cmake PATH".format(command[0]))
@@ -207,7 +207,7 @@ def gate_command(args: argparse.Namespace, artifact: Optional[Path], from_output
 def run_gate(command: Sequence[str]) -> int:
     try:
         result = subprocess.run(
-            list(command), capture_output=True, text=True, timeout=GATE_TIMEOUT
+            list(command), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=GATE_TIMEOUT
         )
     except FileNotFoundError:
         fail_setup("Python interpreter for the static-link gate is not available")

@@ -35,3 +35,13 @@ jobs:
 
       - name: Tests
         run: ctest --preset vs2026-release --output-on-failure
+
+  release-gates:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Repository gates (aggregator)
+        run: python -B scripts/gates.py

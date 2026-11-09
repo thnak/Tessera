@@ -195,3 +195,25 @@ Still open (no decision yet):
 
 - SBOM format/tooling.
 - Fully static Linux (musl) support.
+
+## 13. Run the gates locally
+
+`scripts/gates.py` runs the fast repository gates in a fixed order, streams each gate's output and
+prints one summary table:
+
+```bash
+python -B scripts/gates.py
+```
+
+Gate order: `dependencies` (license allowlist, statuses, notices), `license-bundle`
+(`THIRD_PARTY_LICENSES.txt` is current), `sbom` (`sbom.spdx.json` is current), `docs`
+(links/anchors/index/fences/sizes/ADRs) and `pins` (reproducible fetch pins plus dependency rows).
+`--archive PATH` adds `package` (validates a distributable archive) and `--fixtures` adds the slower
+gate self-tests. `--only docs,pins`, `--list`, `--json` and `--quiet` are available, and the runner
+is cwd-independent; it forces UTF-8 for child processes so it behaves the same on Windows cp1252
+consoles as on Linux/macOS.
+
+OS matrix: the same `gates.py` runs in the `release-gates` job on Linux, Windows and macOS CI. The
+gate self-test suite (`--fixtures`) stays on Linux, where it is cheap; the Windows/macOS jobs run
+only the aggregator so they stay around a minute. The release-only checks (static runtime,
+package contents, reproducible build) run in the platform build jobs on Linux and Windows.

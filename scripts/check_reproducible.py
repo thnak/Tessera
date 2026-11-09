@@ -245,7 +245,7 @@ def run_command(
             result = static_runtime.run_in_vcvars(command, vcvars, timeout)
         else:
             result = subprocess.run(
-                list(command), capture_output=True, text=True, timeout=timeout
+                list(command), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
             )
     except FileNotFoundError:
         raise ReproError("{} not found; install it or pass --cmake PATH".format(command[0]))

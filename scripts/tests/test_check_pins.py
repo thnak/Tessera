@@ -35,7 +35,7 @@ class PinGateTests(unittest.TestCase):
                 *extra,
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             cwd=str(REPO_ROOT),
         )
 
@@ -105,7 +105,7 @@ class PinGateTests(unittest.TestCase):
                 str(FIXTURES / "does-not-exist.md"),
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             cwd=str(REPO_ROOT),
         )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)

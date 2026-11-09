@@ -89,20 +89,8 @@ jobs:
       - name: Gate self-tests (fixtures)
         run: python3 -B -m unittest discover -s scripts/tests -p "test_*.py" -v
 
-      - name: Dependency and license gate (ADR-013)
-        run: python3 -B scripts/check_dependencies.py
-
-      - name: License bundle check (ADR-013)
-        run: python3 -B scripts/gen_license_bundle.py --check
-
-      - name: SBOM check (SPDX 2.3)
-        run: python3 -B scripts/gen_sbom.py --check
-
-      - name: Docs link/index/fence/size gate
-        run: python3 -B scripts/check_docs.py
-
-      - name: Dependency pin check (reproducible fetches)
-        run: python3 -B scripts/check_pins.py --check
+      - name: Repository gates (aggregator)
+        run: python3 -B scripts/gates.py
 
   static-runtime-proof:
     runs-on: ubuntu-latest
