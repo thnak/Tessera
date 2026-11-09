@@ -8,8 +8,12 @@ target_include_directories(tessera_hal_window PRIVATE
 
 if (WIN32)
     target_sources(tessera_hal_window PRIVATE
-        ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp)
-    target_link_libraries(tessera_hal_window PUBLIC user32)
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp)
+    target_include_directories(tessera_hal_window PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/windows)
+    # Input is translated straight into the application's ui::InputQueue.
+    target_link_libraries(tessera_hal_window PUBLIC user32 PRIVATE tessera_input)
 elseif (TESSERA_X11_FOUND)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp)

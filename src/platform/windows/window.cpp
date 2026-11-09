@@ -15,6 +15,7 @@
 
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
+#include "win32_input.hpp"
 #include "window_event_queue.hpp"
 
 #include <algorithm>
@@ -105,6 +106,9 @@ public:
     void hide() override;
     void request_redraw() override;
     void close() override;
+    void set_input_queue(ui::InputQueue* queue) override {
+        input_.set_queue(queue);
+    }
 
 private:
     static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
@@ -121,6 +125,7 @@ private:
     bool wait_timer_failed_ = false;
     DWORD owner_thread_ = GetCurrentThreadId();
     EventQueue events_;
+    Win32InputTranslator input_;
     bool focused_ = false;
     bool minimized_ = false;
     bool initializing_ = true;
@@ -285,7 +290,7 @@ void Win32Window::pump_messages() {
 }
 
 bool Win32Window::has_pending_events() const {
-    return events_.count() > 0 || (close_requested_ && !close_delivered_);
+    return events_.count() > 0 || (close_requested_ && !close_delivered_) || input_.pending();
 }
 
 std::size_t Win32Window::poll_events(std::span<WindowEvent> events) {
@@ -390,6 +395,10 @@ void Win32Window::close() {
 }
 
 LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    LRESULT input_result = 0;
+    if (!initializing_ && input_.handle(window, message, wparam, lparam, input_result)) {
+        return input_result;
+    }
     switch (message) {
     case WM_SIZE: {
         if (wparam == SIZE_MINIMIZED) {

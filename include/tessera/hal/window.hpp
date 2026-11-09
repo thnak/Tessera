@@ -8,6 +8,10 @@
 #include <span>
 #include <string>
 
+namespace tessera::ui {
+class InputQueue;
+}
+
 namespace tessera::hal {
 
 // Logical-pixel insets owned by the platform (safe area, system bars, notch, IME).
@@ -82,6 +86,16 @@ public:
     // Must be called on the thread that created the window. The default implementation is a
     // bounded idle sleep that reports no event, for platforms without an event source.
     virtual bool wait_for_events(double timeout_seconds);
+
+    // Routes translated pointer, wheel, key and text input into `queue` as ui::InputEvent, in
+    // logical pixels with the web sign for wheel deltas (see ui/key_code.hpp for key codes). The
+    // queue is not owned: it must outlive the window or be reset with nullptr first. Events are
+    // produced on the window's thread while it pumps messages, and a wait wakes while the queue
+    // holds unconsumed input. Without a queue input is dropped; the default does nothing, for
+    // platforms that do not translate input yet.
+    virtual void set_input_queue(ui::InputQueue* queue) {
+        (void)queue;
+    }
 
     virtual void show() = 0;
     virtual void hide() = 0;

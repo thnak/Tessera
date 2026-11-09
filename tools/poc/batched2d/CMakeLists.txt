@@ -8,6 +8,7 @@ target_link_libraries(batched2d_poc PRIVATE
     tessera_hal_window
     tessera_runtime
     tessera_frame
+    tessera_input
     tessera_rhi_vulkan
     tessera_rhi_null
     tessera_software

@@ -17,9 +17,11 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
+#include "tessera/ui/input.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "text_demo.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <fstream>
@@ -48,6 +50,7 @@ struct Options {
     bool shapes = false;
     bool windowed = false;
     bool on_demand = false;
+    double run_seconds = 0.5;
     std::uint32_t frames = 3;
     std::string font;
     std::string text = "Tessera";
@@ -67,7 +70,8 @@ void print_usage() {
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
                  "                     [--max-mismatch ratio] [--overlay] [--shapes] [--report "
                  "report.json]\n"
-                 "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand]\n";
+                 "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
+                 "[--run-seconds S]]\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -97,6 +101,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.shapes = true;
         } else if (arg == "--windowed") {
             options.windowed = true;
+        } else if (arg == "--run-seconds" && i + 1 < argc) {
+            options.run_seconds = std::stod(argv[++i]);
         } else if (arg == "--on-demand") {
             options.windowed = true;
             options.on_demand = true;
@@ -726,9 +732,20 @@ int run_windowed(const Options& options) {
         ui::DirtyPass dirty_pass;
         ui::frame::FramePipeline pipeline(animations, demand_loop, tracker, damage, dirty_pass);
 
-        // Scripted scene changes stand in for input until the HAL translates it: each one dirties
-        // a node, so the loop must render exactly once for it and then go idle again.
-        constexpr double kRunSeconds = 0.5;
+        // Real pointer input arrives through this queue: the window translates OS messages into
+        // ui::InputEvent. A press recolors the card and a move drags the square, so each input
+        // that changes the scene dirties a node and earns exactly one frame.
+        ui::InputQueue input_queue(256);
+        window->set_input_queue(&input_queue);
+        std::uint32_t input_seen = 0;
+        bool input_pending = false;
+        double first_input_time = 0.0;
+        std::vector<double> input_latency_ms;
+        bool card_alt = false;
+
+        // Scripted scene changes keep the smoke test deterministic without real input: each one
+        // dirties a node, so the loop must render exactly once for it and then go idle again.
+        const double run_seconds = options.run_seconds;
         constexpr std::array<double, 2> kScripted = {0.15, 0.30};
         const double start = hal::steady_now_seconds();
         std::size_t next_script = 0;
@@ -744,7 +761,7 @@ int run_windowed(const Options& options) {
 
         while (!closed) {
             const double now = hal::steady_now_seconds();
-            if (now - start >= kRunSeconds) {
+            if (now - start >= run_seconds) {
                 break;
             }
 
@@ -783,6 +800,31 @@ int run_windowed(const Options& options) {
                 break;
             }
 
+            ui::InputEvent input;
+            while (input_queue.pop(input)) {
+                ++input_seen;
+                bool changed = false;
+                if (input.type == ui::InputEventType::PointerDown) {
+                    card_alt = !card_alt;
+                    items[1].color = card_alt ? rhi::rgba8(251, 146, 60) : rhi::rgba8(56, 189, 248);
+                    items[1].node->mark_dirty(ui::Dirty::Paint);
+                    changed = true;
+                } else if (input.type == ui::InputEventType::PointerMove) {
+                    items[2].node->set_bounds({input.x - 36.0f, input.y - 36.0f, 72.0f, 72.0f});
+                    items[2].node->mark_dirty(ui::Dirty::Layout | ui::Dirty::Paint);
+                    changed = true;
+                }
+                if (changed) {
+                    cause_pending = true;
+                    if (!input_pending) {
+                        // Latency runs from the first unrendered input to its frame being
+                        // presented.
+                        input_pending = true;
+                        first_input_time = input.timestamp_s;
+                    }
+                }
+            }
+
             while (next_script < kScripted.size() && now - start >= kScripted[next_script]) {
                 items[1].color =
                     next_script % 2 == 0 ? rhi::rgba8(251, 146, 60) : rhi::rgba8(56, 189, 248);
@@ -804,7 +846,7 @@ int run_windowed(const Options& options) {
                 ++idle_waits;
                 const double next_wake = next_script < kScripted.size()
                                              ? start + kScripted[next_script]
-                                             : start + kRunSeconds;
+                                             : start + run_seconds;
                 (void)hal::wait_for_events_until(*window, next_wake);
                 continue;
             }
@@ -834,6 +876,10 @@ int run_windowed(const Options& options) {
             }
             ++rendered;
             presented += outcome.presented ? 1U : 0U;
+            if (input_pending) {
+                input_latency_ms.push_back((hal::steady_now_seconds() - first_input_time) * 1000.0);
+                input_pending = false;
+            }
             if (!cause_pending) {
                 ++unjustified;
             }
@@ -844,11 +890,24 @@ int run_windowed(const Options& options) {
             demand_loop.clear_render_dirty();
         }
 
+        window->set_input_queue(nullptr); // the queue is local; the window outlives it
         device->wait_idle();
         std::cout << "on-demand: rendered=" << rendered << " presented=" << presented
                   << " scripted=" << scripted_fired << " events=" << events_seen
                   << " idle_waits=" << idle_waits << " unjustified=" << unjustified
                   << " missed=" << scripted_unrendered << "\n";
+        if (input_seen > 0) {
+            double total = 0.0;
+            double worst = 0.0;
+            for (const double value : input_latency_ms) {
+                total += value;
+                worst = std::max(worst, value);
+            }
+            std::cout << "on-demand input: events=" << input_seen
+                      << " frames=" << input_latency_ms.size() << " latency_avg_ms="
+                      << (input_latency_ms.empty() ? 0.0 : total / input_latency_ms.size())
+                      << " latency_max_ms=" << worst << "\n";
+        }
         // Every frame needs a cause (startup, a window event or a scene change), every scripted
         // change must reach a frame, and the loop must have idled in between.
         const bool ok = unjustified == 0 && scripted_unrendered == 0 && idle_waits > 0 &&

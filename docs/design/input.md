@@ -9,8 +9,10 @@ implemented in `include/tessera/ui/scene/focus.hpp` and `src/ui/scene/focus.cpp`
 `:focus` pseudo-state bridge to selector matching/computed style is implemented in
 `include/tessera/ui/style/scene_style.hpp` and `src/ui/style/scene_style.cpp`. Tab-index ordering,
 `:focus` style re-evaluation, and modal focus trapping/restoration are part of that implementation.
-Platform translation, hover/active pseudo-state dispatch, `:focus-visible` heuristics, window-blur
-retention, and text/IME remain design-only.
+Windows platform translation (pointer, wheel, key and character messages into `InputEvent`, see
+section 2.1) is implemented in `src/platform/windows/win32_input.cpp`. Linux/X11 and other platform
+translation, hover/active pseudo-state dispatch, `:focus-visible` heuristics, window-blur
+retention, and IME composition remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
@@ -57,6 +59,35 @@ Platform backends (`hal/input`) translate OS messages:
 - macOS: deferred ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via MoltenVK).
 
 No platform-specific type may leak into `ui/`.
+
+### 2.1 Windows translation (implemented)
+
+`hal::Window::set_input_queue(ui::InputQueue*)` routes translated input into the application's
+queue (not owned; reset it with `nullptr` before destroying it). `Win32InputTranslator` runs on the
+window's thread, so the queue's single producer is the UI thread.
+
+- **Pointer:** `WM_MOUSEMOVE`, the left/right/middle/X1/X2 buttons. Coordinates are logical pixels
+  (physical client position divided by the window's DPI scale), `dx`/`dy` are the change from the
+  previous pointer event, pressure is 0.5 while any button is down. A press captures the mouse
+  (`SetCapture`) so the move and release arrive outside the window; losing the capture, focus
+  or modal mode emits `PointerCancel` and clears the pressed buttons. A release without a seen
+  press is ignored. Shift and Control come from the message, Alt and Meta from the keyboard state.
+- **Wheel:** vertical and horizontal, in notches (120 units) with the web sign: positive `dy`
+  scrolls content down, positive `dx` scrolls right. The message's screen coordinates are
+  converted to client logical pixels.
+- **Keys:** `KeyDown`/`KeyUp` with a logical code from `include/tessera/ui/key_code.hpp`
+  (upper-case ASCII for letters and digits, `0x100`+ for non-printable keys). Auto-repeat sets
+  `repeat` on key down. System keys (Alt combinations, F10) are recorded and still reach the
+  default window procedure.
+- **Text:** `WM_CHAR` becomes `Text` with the code point; surrogate pairs are combined, an orphan
+  half is dropped, and control characters (including Backspace, Enter and Tab) are left to key
+  events.
+- **Focus:** `WM_SETFOCUS`/`WM_KILLFOCUS` also emit `Focus`/`Blur` input events.
+- **Waking:** `wait_for_events` returns `true` while the queue holds unconsumed input, because
+  input never becomes a `WindowEvent`; this is what lets a render-on-demand loop sleep until a
+  pointer or key event.
+- **Not yet:** touch and pen (`WM_POINTER*`), IME composition, dead keys, per-key `code`
+  (physical position), pointer leave/enter, and `:hover`/`:active` dispatch.
 
 ## 3. Event model
 

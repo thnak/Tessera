@@ -56,7 +56,9 @@ here; `src/hal/` never depends on `src/runtime/`.
 `hal::Window::wait_for_events(timeout_seconds)` idles on the owning thread while pumping OS
 messages and returns `true` when at least one normalized `WindowEvent` is queued (or a close or
 coalesced redraw wake is pending), `false` on timeout. Negative or non-finite timeouts are clamped
-to zero and every wait is bounded. The Win32 implementation (`src/platform/windows/window.cpp`)
+to zero and every wait is bounded. On Windows the wait also returns `true` while the application's
+input queue (`set_input_queue`, see [`input.md`](input.md) section 2.1) holds unconsumed input.
+The Win32 implementation (`src/platform/windows/window.cpp`)
 waits with `MsgWaitForMultipleObjectsEx` (`QS_ALLINPUT`, bounded millisecond timeout) and then
 drains with `PeekMessage`/`DispatchMessage`, preserving queue order and resize coalescing. The
 Linux implementation (`src/platform/linux/window.cpp`) `poll()`s the Xlib connection fd with a

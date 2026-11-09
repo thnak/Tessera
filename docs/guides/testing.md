@@ -112,6 +112,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
 | `batched2d_windowed_smoke` | window + swapchain render/present + pacer wait for 3 frames |
+| `window_win32_input` | Win32 mouse, wheel, key and character translation into `InputEvent` (Windows only) |
 | `batched2d_on_demand` | scene-driven render-on-demand: renders only for startup and scene changes, idles between |
 | `batched2d_cpu_golden` | CPU-canvas solid-rect baseline, bit-exact (all platforms) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |

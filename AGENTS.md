@@ -492,8 +492,9 @@ lavapipe). Next slices, in order:
    device-loss recovery, and driving the render-on-demand loop (`--on-demand`, scripted changes) with
    real platform input are next
    (`docs/design/window-resize.md` §0 lists the X11 limits).
-3. Platform input translation and remaining focus polish (`focus-visible`, hover/active, IME;
-   tab order, `:focus`, and modal trapping landed).
+3. Platform input translation beyond Windows pointer/wheel/key/text (Linux/X11 next; touch, IME,
+   hover/active) and remaining focus polish (`focus-visible`; tab order, `:focus`, and modal
+   trapping landed).
 4. Golden-image equivalence for damage redraw (the scissor path landed).
 5. Incremental relayout: `LayoutScheduler` skips clean frames and patches independent subtrees;
    general Yoga partial reflow remains.

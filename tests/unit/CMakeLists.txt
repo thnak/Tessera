@@ -165,6 +165,13 @@ if (WIN32)
 
     add_test(NAME window_win32 COMMAND window_win32_tests)
 
+    add_executable(window_win32_input_tests
+        window_win32_input_tests.cpp)
+
+    target_link_libraries(window_win32_input_tests PRIVATE tessera_hal_window tessera_input)
+
+    add_test(NAME window_win32_input COMMAND window_win32_input_tests)
+
     add_executable(window_wait_tests
         window_wait_tests.cpp)
 
