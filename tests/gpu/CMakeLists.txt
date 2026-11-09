@@ -179,6 +179,13 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME paint_text_gpu COMMAND paint_text_gpu_tests "${TESSERA_FONT_FIXTURE}")
     set_tests_properties(paint_text_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    add_executable(damage_min_tests
+        batched2d/damage_min_tests.cpp)
+    target_link_libraries(damage_min_tests PRIVATE
+        tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME damage_min COMMAND damage_min_tests)
+    set_tests_properties(damage_min PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(vulkan_surface_format_tests
         vulkan/vulkan_surface_format_tests.cpp)
     target_include_directories(vulkan_surface_format_tests PRIVATE
