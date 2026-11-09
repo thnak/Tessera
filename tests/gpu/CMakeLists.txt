@@ -123,6 +123,11 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(vulkan_texture_churn_tests PRIVATE tessera_rhi_vulkan)
     add_test(NAME vulkan_texture_churn COMMAND vulkan_texture_churn_tests)
 
+    add_executable(vulkan_create_failure_tests
+        vulkan/vulkan_create_failure_tests.cpp)
+    target_link_libraries(vulkan_create_failure_tests PRIVATE tessera_rhi_vulkan)
+    add_test(NAME vulkan_create_failure COMMAND vulkan_create_failure_tests)
+
     add_executable(vulkan_async_upload_tests
         vulkan/vulkan_async_upload_tests.cpp)
     target_link_libraries(vulkan_async_upload_tests PRIVATE tessera_rhi_vulkan)

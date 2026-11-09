@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "vulkan_internal.hpp"
+#include "vulkan_scope_guard.hpp"
 
 #include <utility>
 
@@ -30,6 +31,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     check_vk(
         vmaCreateImage(allocator_, &image_info, &allocation_info, &image, &allocation, nullptr),
         "vmaCreateImage(texture)");
+    ScopeGuard image_guard([&] { vmaDestroyImage(allocator_, image, allocation); });
 
     VkImageViewCreateInfo view_info{};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -41,6 +43,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     view_info.subresourceRange.layerCount = 1;
     VkImageView view = VK_NULL_HANDLE;
     check_vk(vkCreateImageView(device_, &view_info, nullptr, &view), "vkCreateImageView");
+    ScopeGuard view_guard([&] { vkDestroyImageView(device_, view, nullptr); });
 
     VkSamplerCreateInfo sampler_info{};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -53,6 +56,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     sampler_info.maxLod = 0;
     VkSampler sampler = VK_NULL_HANDLE;
     check_vk(vkCreateSampler(device_, &sampler_info, nullptr, &sampler), "vkCreateSampler");
+    ScopeGuard sampler_guard([&] { vkDestroySampler(device_, sampler, nullptr); });
 
     VkDescriptorSetAllocateInfo descriptor_allocate{};
     descriptor_allocate.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -62,6 +66,8 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     check_vk(vkAllocateDescriptorSets(device_, &descriptor_allocate, &descriptor_set),
              "vkAllocateDescriptorSets");
+    ScopeGuard set_guard(
+        [&] { vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set); });
 
     VkDescriptorImageInfo image_descriptor{};
     image_descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -76,6 +82,16 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.pImageInfo = &image_descriptor;
     vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+
+    // From here the texture owns every handle: if the upload below throws, its destructor
+    // releases them (deferred past any upload already queued), so the guards step aside.
+    auto texture = std::make_unique<VulkanTexture>(device_, allocator_, image, view, sampler,
+                                                   allocation, descriptor_pool_, descriptor_set,
+                                                   desc.extent, desc.format, this);
+    set_guard.dismiss();
+    sampler_guard.dismiss();
+    view_guard.dismiss();
+    image_guard.dismiss();
 
     const std::size_t bpp = bytes_per_pixel(desc.format);
     const std::size_t row_pitch =
@@ -125,9 +141,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
             nullptr);
     }
 
-    return std::make_unique<VulkanTexture>(device_, allocator_, image, view, sampler, allocation,
-                                           descriptor_pool_, descriptor_set, desc.extent,
-                                           desc.format, this);
+    return texture;
 }
 
 void VulkanTexture::write(const void* data, std::size_t size) {

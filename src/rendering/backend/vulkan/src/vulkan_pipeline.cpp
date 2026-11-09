@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "vulkan_internal.hpp"
+#include "vulkan_scope_guard.hpp"
 
 #include <vector>
 
@@ -16,11 +17,14 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
     shader_info.pCode = desc.vertex_spirv;
     check_vk(vkCreateShaderModule(device_, &shader_info, nullptr, &vertex_module),
              "vkCreateShaderModule(vertex)");
+    // Modules are only needed while the pipeline is created, so they are destroyed on every exit.
+    ScopeGuard vertex_guard([&] { vkDestroyShaderModule(device_, vertex_module, nullptr); });
 
     shader_info.codeSize = desc.fragment_spirv_size;
     shader_info.pCode = desc.fragment_spirv;
     check_vk(vkCreateShaderModule(device_, &shader_info, nullptr, &fragment_module),
              "vkCreateShaderModule(fragment)");
+    ScopeGuard fragment_guard([&] { vkDestroyShaderModule(device_, fragment_module, nullptr); });
 
     VkPipelineShaderStageCreateInfo stages[2]{};
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -47,6 +51,7 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
     VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
     check_vk(vkCreatePipelineLayout(device_, &layout_info, nullptr, &pipeline_layout),
              "vkCreatePipelineLayout");
+    ScopeGuard layout_guard([&] { vkDestroyPipelineLayout(device_, pipeline_layout, nullptr); });
 
     VkVertexInputBindingDescription binding{};
     binding.binding = 0;
@@ -138,11 +143,14 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
     check_vk(
         vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline),
         "vkCreateGraphicsPipelines");
+    ScopeGuard pipeline_guard([&] { vkDestroyPipeline(device_, pipeline, nullptr); });
 
-    vkDestroyShaderModule(device_, vertex_module, nullptr);
-    vkDestroyShaderModule(device_, fragment_module, nullptr);
-
-    return std::make_unique<VulkanPipeline>(device_, pipeline, pipeline_layout);
+    // The wrapper owns the pipeline and layout from here; if allocating it throws, the guards
+    // above still release them.
+    auto result = std::make_unique<VulkanPipeline>(device_, pipeline, pipeline_layout);
+    pipeline_guard.dismiss();
+    layout_guard.dismiss();
+    return result;
 }
 
 } // namespace tessera::rendering::vulkan

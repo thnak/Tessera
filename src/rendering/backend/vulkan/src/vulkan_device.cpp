@@ -2,6 +2,7 @@
 
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "vulkan_internal.hpp"
+#include "vulkan_scope_guard.hpp"
 #include "vulkan_swapchain.hpp"
 
 #include <utility>
@@ -103,6 +104,7 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
     check_vk(
         vmaCreateImage(allocator_, &image_info, &allocation_info, &image, &allocation, nullptr),
         "vmaCreateImage(render target)");
+    ScopeGuard image_guard([&] { vmaDestroyImage(allocator_, image, allocation); });
 
     VkImageViewCreateInfo view_info{};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -114,9 +116,14 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
     view_info.subresourceRange.layerCount = 1;
     VkImageView view = VK_NULL_HANDLE;
     check_vk(vkCreateImageView(device_, &view_info, nullptr, &view), "vkCreateImageView");
+    ScopeGuard view_guard([&] { vkDestroyImageView(device_, view, nullptr); });
 
-    return std::make_unique<VulkanRenderTarget>(device_, allocator_, image, view, allocation,
-                                                desc.extent, desc.format);
+    // The target owns image and view from here; if allocating it throws, the guards release them.
+    auto target = std::make_unique<VulkanRenderTarget>(device_, allocator_, image, view, allocation,
+                                                       desc.extent, desc.format);
+    view_guard.dismiss();
+    image_guard.dismiss();
+    return target;
 }
 
 std::unique_ptr<rhi::CommandList> VulkanDevice::create_command_list() {
