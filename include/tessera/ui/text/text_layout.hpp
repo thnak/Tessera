@@ -30,4 +30,15 @@ struct TextLayout {
 TextLayout layout_text(std::string_view text, const TextStyle& style, const FontMetrics& metrics,
                        const TextConstraints& constraints);
 
+// Advance of one shaped run in pixels. The callback is the metrics seam for measured wrapping: the
+// real-face path passes a HarfBuzz advance, the deterministic stub path uses layout_text directly.
+using TextAdvanceMeasure = float (*)(std::string_view text, const TextStyle& style, void* user);
+
+// Same greedy line-box algorithm as layout_text, but line widths come from `measure` instead of the
+// fixed stub advance. Used by the paint wrap when a real font metrics source is supplied; the
+// deterministic stub path keeps calling layout_text so goldens stay byte-identical.
+TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
+                                const FontMetrics& metrics, const TextConstraints& constraints,
+                                TextAdvanceMeasure measure, void* user);
+
 } // namespace tessera::ui::text

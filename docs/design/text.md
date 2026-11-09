@@ -218,3 +218,14 @@ for font/metrics changes, and a disable-for-tests mode. Debug benchmark for the 
 paragraph (45 lines): fresh layout ~96.8 us, miss+insert ~98.1 us, cache hit ~0.75 us. Glyph-run
 caching, shaping caches, incremental layout, and sharing the cache with the layout engine remain
 deferred. See `paint-pass.md` section 10.1.1.
+
+Paint metric sources (task-53): `PaintContext::text_metrics_source` selects how wrapped paint text
+is measured. Null (default) uses `StubPaintTextMetrics` (deterministic stub metrics + the existing
+`layout_text` path, so CPU/GPU goldens stay byte-identical); `FontPaintTextMetrics(face, id)` uses
+FreeType metrics and the same HarfBuzz advances the glyph renderer draws, via
+`text::layout_text_measured`. The source id is part of `TextLayoutCache` so stub and real entries
+never mix; paint emits the source line boxes verbatim (slices, widths, heights, baselines, snapping
+only at paint time), so real-font lines no longer overflow the content box. Debug measurements
+(200-word/300 px): stub ~200.8 us, real ~13.2 ms per layout (per-word HarfBuzz in Debug), real cache
+hit ~1.0 us; faster real measuring is deferred, as are bidi/ICU breaking, hyphenation, subpixel
+positioning, emoji/fallback and a shaping cache.

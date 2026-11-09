@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: MIT
+
+#pragma once
+
+#include "tessera/ui/text/font_face.hpp"
+#include "tessera/ui/text/font_metrics.hpp"
+#include "tessera/ui/text/text_layout.hpp"
+#include "tessera/ui/text/text_measure.hpp"
+
+#include <cstdint>
+#include <memory>
+#include <string_view>
+
+namespace tessera::ui::paint {
+
+// Metrics-source id used by the deterministic stub source (the default). It is part of the paint
+// text-layout cache key, so stub and real-font line boxes can never mix.
+inline constexpr std::uint32_t kStubTextMetricsId = 0;
+
+// The seam between paint's wrapping and the text stack. `layout` returns the line boxes (byte
+// ranges, widths, heights, baselines) for a wrapped run; the paint pass emits those boxes verbatim.
+//
+// The default is `StubPaintTextMetrics`: deterministic stub metrics and the fixed-advance
+// `text::layout_text` path, which keeps existing CPU goldens and tests byte-identical. A real-face
+// source (`FontPaintTextMetrics`) uses FreeType metrics and HarfBuzz shaping advances, so wrapped
+// lines match what the glyph renderer draws.
+class PaintTextMetricsSource {
+public:
+    virtual ~PaintTextMetricsSource() = default;
+
+    [[nodiscard]] virtual std::uint32_t id() const = 0;
+    [[nodiscard]] virtual text::FontMetrics metrics(const text::TextStyle& style) const = 0;
+    [[nodiscard]] virtual text::TextLayout layout(std::string_view text,
+                                                  const text::TextStyle& style,
+                                                  const text::TextConstraints& constraints) const = 0;
+};
+
+class StubPaintTextMetrics final : public PaintTextMetricsSource {
+public:
+    [[nodiscard]] std::uint32_t id() const override {
+        return kStubTextMetricsId;
+    }
+    [[nodiscard]] text::FontMetrics metrics(const text::TextStyle& style) const override {
+        return text::StubFontMetricsProvider{}.metrics(style);
+    }
+    [[nodiscard]] text::TextLayout layout(std::string_view text, const text::TextStyle& style,
+                                          const text::TextConstraints& constraints) const override {
+        return text::layout_text(text, style, metrics(style), constraints);
+    }
+};
+
+// Real-font source: FreeType line metrics from the loaded face plus HarfBuzz shaping advances for
+// the line boxes. `id` must be stable per face/generation and distinct from other sources; the
+// caller owns the source and invalidates the cache when the face changes.
+class FontPaintTextMetrics final : public PaintTextMetricsSource {
+public:
+    FontPaintTextMetrics(text::FontFace face, std::uint32_t id);
+    ~FontPaintTextMetrics() override;
+
+    FontPaintTextMetrics(const FontPaintTextMetrics&) = delete;
+    FontPaintTextMetrics& operator=(const FontPaintTextMetrics&) = delete;
+    FontPaintTextMetrics(FontPaintTextMetrics&&) noexcept;
+    FontPaintTextMetrics& operator=(FontPaintTextMetrics&&) noexcept;
+
+    [[nodiscard]] std::uint32_t id() const override;
+    [[nodiscard]] text::FontMetrics metrics(const text::TextStyle& style) const override;
+    [[nodiscard]] text::TextLayout layout(std::string_view text, const text::TextStyle& style,
+                                          const text::TextConstraints& constraints) const override;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
+} // namespace tessera::ui::paint

@@ -25,10 +25,10 @@ std::size_t TextLayoutCache::entry_bytes(const Key& key, const text::TextLayout&
 }
 
 text::TextLayout TextLayoutCache::build(std::string_view text, const text::TextStyle& style,
-                                        const text::FontMetrics& metrics,
                                         const text::TextConstraints& constraints,
+                                        const PaintTextMetricsSource& source,
                                         std::uint32_t max_lines) {
-    text::TextLayout layout = text::layout_text(text, style, metrics, constraints);
+    text::TextLayout layout = source.layout(text, style, constraints);
     if (max_lines > 0 && layout.lines.size() > max_lines) {
         layout.lines.resize(max_lines);
     }
@@ -36,9 +36,8 @@ text::TextLayout TextLayoutCache::build(std::string_view text, const text::TextS
 }
 
 const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::TextStyle& style,
-                                             const text::FontMetrics& metrics,
                                              const text::TextConstraints& constraints,
-                                             std::uint32_t metrics_source_id,
+                                             const PaintTextMetricsSource& source,
                                              std::uint32_t max_lines) {
     const bool wrap = constraints.wrap && !style.nowrap && std::isfinite(constraints.max_width);
     const KeyView view{text,
@@ -50,11 +49,11 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
                        style.italic,
                        wrap,
                        max_lines,
-                       metrics_source_id};
+                       source.id()};
 
     if (!enabled()) {
         ++counters_.misses;
-        scratch_ = build(text, style, metrics, constraints, max_lines);
+        scratch_ = build(text, style, constraints, source, max_lines);
         return scratch_;
     }
 
@@ -67,7 +66,7 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
     }
 
     ++counters_.misses;
-    text::TextLayout layout = build(text, style, metrics, constraints, max_lines);
+    text::TextLayout layout = build(text, style, constraints, source, max_lines);
     Key key{std::string(text),     view.width,       view.font_size,
             view.letter_spacing,   view.line_height, view.font_weight,
             view.italic,           view.wrap,        view.max_lines,

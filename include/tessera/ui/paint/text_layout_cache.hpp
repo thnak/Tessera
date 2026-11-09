@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 
@@ -14,11 +15,6 @@
 #include <string_view>
 
 namespace tessera::ui::paint {
-
-// Metric-source identifier: 0 is the deterministic stub metrics provider the paint pass uses today.
-// Callers that measure with a real font face must use a stable, distinct id (and invalidate the
-// cache when the face/generation changes).
-inline constexpr std::uint32_t kStubTextMetricsId = 0;
 
 struct TextLayoutCacheConfig {
     // Both budgets are enforced; the newest entry is always kept when it fits. Entries are evicted
@@ -54,11 +50,11 @@ public:
     TextLayoutCache& operator=(const TextLayoutCache&) = delete;
 
     // Returns the line boxes for the request, computing and caching them on a miss. `max_lines ==
-    // 0` means unlimited and is part of the key; the cached value is already truncated.
+    // 0` means unlimited and is part of the key; the cached value is already truncated. The metrics
+    // source id is part of the key, so stub and real-font entries never mix.
     const text::TextLayout& get(std::string_view text, const text::TextStyle& style,
-                                const text::FontMetrics& metrics,
                                 const text::TextConstraints& constraints,
-                                std::uint32_t metrics_source_id, std::uint32_t max_lines);
+                                const PaintTextMetricsSource& source, std::uint32_t max_lines);
 
     // Drops every entry (font/metrics generation change).
     void invalidate();
@@ -168,8 +164,8 @@ private:
     void evict_one();
     void insert(Key key, text::TextLayout layout);
     [[nodiscard]] static text::TextLayout build(std::string_view text, const text::TextStyle& style,
-                                                const text::FontMetrics& metrics,
                                                 const text::TextConstraints& constraints,
+                                                const PaintTextMetricsSource& source,
                                                 std::uint32_t max_lines);
 
     TextLayoutCacheConfig config_;

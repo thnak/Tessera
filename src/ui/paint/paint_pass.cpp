@@ -165,10 +165,16 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         return;
     }
 
-    const text::FontMetrics metrics = text::StubFontMetricsProvider{}.metrics(text_style);
     text::TextConstraints constraints;
     constraints.wrap = true;
     constraints.max_width = content_width;
+
+    // The metrics source decides how wrap widths are measured: the deterministic stub keeps the
+    // existing goldens byte-identical, a real-face source uses the same advances the glyph
+    // renderer draws. Its id is part of the cache key, so the two can never mix.
+    StubPaintTextMetrics stub_source;
+    const PaintTextMetricsSource* metrics_source =
+        context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
 
     // Caller-owned cache: a hit returns stable line boxes without recomputing or allocating; a
     // miss computes exactly what the uncached path would and stores the (already max_lines
@@ -176,10 +182,10 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     text::TextLayout local_layout;
     const text::TextLayout* layout = nullptr;
     if (context.text_layout_cache != nullptr && context.text_layout_cache->enabled()) {
-        layout = &context.text_layout_cache->get(data->text, text_style, metrics, constraints,
-                                                 context.text_metrics_source_id, data->max_lines);
+        layout = &context.text_layout_cache->get(data->text, text_style, constraints,
+                                                 *metrics_source, data->max_lines);
     } else {
-        local_layout = text::layout_text(data->text, text_style, metrics, constraints);
+        local_layout = metrics_source->layout(data->text, text_style, constraints);
         if (data->max_lines > 0 && local_layout.lines.size() > data->max_lines) {
             local_layout.lines.resize(data->max_lines);
         }

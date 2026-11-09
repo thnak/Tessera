@@ -282,4 +282,113 @@ TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& st
                        static_cast<int>(layout.lines.size())};
 }
 
+TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
+                                const FontMetrics& metrics, const TextConstraints& constraints,
+                                TextAdvanceMeasure measure, void* user) {
+    TextLayout result;
+    if (text.empty() || measure == nullptr) {
+        return result;
+    }
+
+    const float line_height = style.line_height > 0.0f
+                                  ? style.line_height
+                                  : metrics.ascent + metrics.descent + metrics.line_gap;
+    const auto measure_text = [&](std::string_view run) {
+        return std::max(0.0f, measure(run, style, user));
+    };
+    const float space_advance = measure_text(" ");
+
+    auto add_line = [&](float width, std::size_t begin, std::size_t end) {
+        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end});
+        result.width = std::max(result.width, width);
+    };
+
+    if (!constraints.wrap || style.nowrap || !std::isfinite(constraints.max_width)) {
+        add_line(measure_text(text), 0, text.size());
+        result.height = line_height;
+        result.baseline = metrics.ascent;
+        return result;
+    }
+
+    const float max_width = std::max(0.1f, constraints.max_width);
+    std::size_t start = 0;
+    while (start <= text.size()) {
+        const std::size_t newline = text.find('\n', start);
+        const std::size_t end = newline == std::string_view::npos ? text.size() : newline;
+
+        float current = 0.0f;
+        bool has_line = false;
+        std::size_t line_begin = 0;
+        std::size_t line_end = 0;
+        for (const WordRange& word : split_word_ranges(text, start, end)) {
+            const std::string_view word_text = text.substr(word.begin, word.end - word.begin);
+            const float word_width = measure_text(word_text);
+            if (word_width > max_width) {
+                if (has_line) {
+                    add_line(current, line_begin, line_end);
+                    current = 0.0f;
+                    has_line = false;
+                }
+                // Split an over-wide word at the largest measured code-point prefix that fits.
+                std::size_t chunk_begin = word.begin;
+                while (chunk_begin < word.end) {
+                    const std::string_view remaining = text.substr(chunk_begin, word.end - chunk_begin);
+                    const std::size_t codepoints = codepoint_count(remaining);
+                    std::size_t best = 1;
+                    std::size_t low = 1;
+                    std::size_t high = codepoints;
+                    while (low <= high) {
+                        const std::size_t middle = low + (high - low) / 2;
+                        const float width =
+                            measure_text(remaining.substr(0, byte_offset(remaining, middle)));
+                        if (width <= max_width) {
+                            best = middle;
+                            low = middle + 1;
+                        } else if (middle == 1) {
+                            break;
+                        } else {
+                            high = middle - 1;
+                        }
+                    }
+                    const std::size_t chunk_end = chunk_begin + byte_offset(remaining, best);
+                    add_line(measure_text(remaining.substr(0, chunk_end - chunk_begin)),
+                             chunk_begin, chunk_end);
+                    chunk_begin = chunk_end;
+                }
+                continue;
+            }
+
+            if (!has_line) {
+                current = word_width;
+                line_begin = word.begin;
+                line_end = word.end;
+                has_line = true;
+            } else if (current + space_advance + word_width <= max_width) {
+                current += space_advance + word_width;
+                line_end = word.end;
+            } else {
+                add_line(current, line_begin, line_end);
+                current = word_width;
+                line_begin = word.begin;
+                line_end = word.end;
+                has_line = true;
+            }
+        }
+        if (has_line) {
+            add_line(current, line_begin, line_end);
+        }
+        if (newline == std::string_view::npos) {
+            break;
+        }
+        start = newline + 1;
+    }
+
+    if (result.lines.empty()) {
+        add_line(0.0f, 0, text.size());
+    }
+    result.height = static_cast<float>(result.lines.size()) * line_height;
+    result.baseline = metrics.ascent;
+    return result;
+}
+
 } // namespace tessera::ui::text

@@ -46,12 +46,13 @@ struct PaintStats {
 
 // Optional per-paint context. The cache is caller-owned (paint frame/sink) and deliberately not a
 // global singleton: pass the same instance across frames to reuse wrapped line boxes. Null means
-// every paint recomputes text layout (the uncached path). `text_metrics_source_id` identifies the
-// metrics provider used for the layout (0 = the deterministic stub metrics paint uses today); a
-// caller switching font faces must invalidate the cache.
+// every paint recomputes text layout (the uncached path). `text_metrics_source` selects the wrap
+// measurement source: null = the deterministic stub (existing goldens/tests byte-identical), or a
+// caller-owned `PaintTextMetricsSource` (for example `FontPaintTextMetrics` for real FreeType
+// metrics + HarfBuzz advances). Its id is part of the cache key, so sources never mix.
 struct PaintContext {
     TextLayoutCache* text_layout_cache = nullptr;
-    std::uint32_t text_metrics_source_id = kStubTextMetricsId;
+    const PaintTextMetricsSource* text_metrics_source = nullptr;
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in

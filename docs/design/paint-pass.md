@@ -117,13 +117,13 @@ property in this slice, not a border ring.
 ## 6. Deliberate limits
 
 - No text, glyphs, or inline content in the box pass; text runs are painted from
-  optional `ui::PaintData` payloads (§10).
-- Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
+  optional `ui::PaintData` payloads (Â§10).
+- Overflow clipping is rounded-rect only ([Â§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
   filters, gradients, shadows, or images.
-- Scroll containers clip and offset children ([§3.1](#31-scroll-containers)); scroll physics,
+- Scroll containers clip and offset children ([Â§3.1](#31-scroll-containers)); scroll physics,
   inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
-  The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
+  The frame pipeline clips around it with a sink decorator ([Â§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
 - No percentage/`em`/`rem`/viewport units and no non-pixel radii.
 - Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
@@ -143,7 +143,7 @@ paint never submits the command list (the caller does).
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
 
-Overflow clips (§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
+Overflow clips (Â§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
 paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
 visible` emitting no clip, nested clips, and the padding-box rect (border box inset by the painted
 border widths). Scroll containers are covered in
@@ -269,7 +269,7 @@ DamageTracker regions repaint the background and the node respectively.
 
 `paint_scene` clips a parent's children when its computed `overflow-x`/`overflow-y` is anything but
 `visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the paint pass itself only clips;
-scrolling is scene state applied by the world transform, see [§3.1](#31-scroll-containers)). The clip
+scrolling is scene state applied by the world transform, see [Â§3.1](#31-scroll-containers)). The clip
 is
 emitted around the children, after the parent's own background/borders, through
 `PaintSink::push_clip`/`pop_clip`:
@@ -427,9 +427,39 @@ measurement.
 
 Deferrals: glyph-run caching (shaped runs/atlas entries), a shaping cache, incremental layout of an
 edited paragraph, sharing the cache with the layout engine (which measures with its own
-`TextMeasurer`), and real-font metrics inside the paint wrap (paint still uses deterministic stub
-metrics while glyph rendering uses HarfBuzz, so wrapped lines may not exactly fill the content box).
+`TextMeasurer`), and a shaping/advance memoization cache for the real-metrics path.
 
+### 10.1.2 Metrics sources: stub vs real font (task-53)
+
+Paint wrapping measures through a documented `PaintTextMetricsSource`
+(`include/tessera/ui/paint/paint_text_metrics.hpp`): `id()`, `metrics(style)`, and
+`layout(text, style, constraints) -> TextLayout`. `PaintContext::text_metrics_source == nullptr`
+selects `StubPaintTextMetrics` (id 0), which keeps today's deterministic stub metrics and
+`text::layout_text` path, so existing CPU/GPU goldens and every paint/text test are byte-identical.
+A caller that has a real face constructs `FontPaintTextMetrics(face, id)`: line metrics come from
+`FreeTypeFontMetricsProvider` and wrap widths from the same HarfBuzz shaping advances the glyph
+renderer uses (via `text::layout_text_measured`, the shared greedy line-box algorithm with a
+measured-advance callback). The source id is part of the `TextLayoutCache` key, so stub and
+real-font line boxes can never mix; switching faces means `invalidate()` plus a new stable id.
+
+With real metrics, a line is never wider than the content box except when a single UTF-8 code point
+is wider than the box (the break keeps at least one code point per line). Under-fill is bounded by
+the last word that did not fit plus the measured inter-word advance. Alignment uses the measured
+line width; paint-time x/baseline integer snapping is unchanged (layout values stay fractional).
+Paint emits the source's line boxes verbatim: same byte ranges, widths/heights and baselines, with
+line tops accumulated from the source heights and rounded only for emission. The GPU test asserts
+paint lines equal `FontPaintTextMetrics::layout` for the same text/width/style, checks center
+alignment inside the content box, and reads back wrapped real-font lines.
+
+Measurements (Debug, local dev machine, `paint_text_gpu_tests --bench`, 200-word paragraph at
+300 px wrap): stub layout ~200.8 us, real-metrics layout ~13.2 ms (real is slower because every
+candidate word is shaped by HarfBuzz in Debug; cache hit with the real source id ~1.0 us). The
+cache removes the steady-state cost; faster real-metric measuring (per-word shaping memoization,
+incremental reflow) is deferred.
+
+Deferrals for this seam: rich shaping features (contextual/ligature-aware line breaking beyond the
+greedy word path), bidi/SheenBidi and ICU line breaking, hyphenation, subpixel glyph positioning,
+emoji/color-font fallback and font-stack selection, and a shaping cache/memoized advances.
 Batching: one `draw_text` per line; `Batched2DSink` shapes each line with the caller's `TextShaper`
 and pushes atlas quads through `Batched2DRenderer`. Consecutive lines that use the same atlas page
 stay in the same renderer batch; a page/clip change flushes as before (see section 10). The sink
@@ -443,7 +473,5 @@ byte-identical repeat, sRGB target). No new image golden: the CPU canvas cannot 
 wrapped-text pixels remain covered by the deterministic GPU readback test (GPU-only, documented).
 
 Deferrals: bidi/SheenBidi, ICU line breaking, hyphenation, rich text/inline images, ellipsis and
-overflow markers, text selection/editing, real-font metrics inside the paint wrap (paint uses
-deterministic stub metrics while glyph rendering uses HarfBuzz, so wrapped lines may not exactly
-fill the content box), vertical content-box clipping (use an `overflow` clip), and percentage
-padding.
+overflow markers, text selection/editing, vertical content-box clipping (use an `overflow`
+clip), and percentage padding.

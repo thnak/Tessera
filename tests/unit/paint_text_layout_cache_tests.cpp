@@ -5,6 +5,7 @@
 // pass integration, and a `--bench` measurement for a 200-word paragraph at a 300 px wrap width.
 
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
 
 #include <array>
@@ -24,6 +25,8 @@ namespace {
 using tessera::ui::Node;
 using tessera::ui::NodeId;
 using tessera::ui::paint::kStubTextMetricsId;
+using tessera::ui::paint::PaintTextMetricsSource;
+using tessera::ui::paint::StubPaintTextMetrics;
 using tessera::ui::paint::paint_scene;
 using tessera::ui::paint::PaintContext;
 using tessera::ui::paint::PaintSink;
@@ -62,14 +65,40 @@ FontMetrics stub_metrics(const TextStyle& style) {
     return StubFontMetricsProvider{}.metrics(style);
 }
 
+// Test-only metrics source with a distinct id. Its line boxes are the stub layout so a changed id
+// alone misses the cache without changing the expected geometry.
+class FixedMetrics final : public PaintTextMetricsSource {
+public:
+    explicit FixedMetrics(std::uint32_t source_id)
+        : id_(source_id) {}
+
+    [[nodiscard]] std::uint32_t id() const override {
+        return id_;
+    }
+    [[nodiscard]] FontMetrics metrics(const TextStyle& style) const override {
+        return StubFontMetricsProvider{}.metrics(style);
+    }
+    [[nodiscard]] TextLayout layout(std::string_view text, const TextStyle& style,
+                                    const TextConstraints& constraints) const override {
+        return StubPaintTextMetrics{}.layout(text, style, constraints);
+    }
+
+private:
+    std::uint32_t id_ = 0;
+};
+
 const TextLayout& get(TextLayoutCache& cache, const Request& request) {
     TextStyle style = request.style;
     style.nowrap = !request.wrap;
     TextConstraints constraints;
     constraints.wrap = request.wrap;
     constraints.max_width = request.width;
-    return cache.get(request.text, style, stub_metrics(style), constraints, request.metrics_id,
-                     request.max_lines);
+    StubPaintTextMetrics stub;
+    FixedMetrics fake(request.metrics_id);
+    const PaintTextMetricsSource& source =
+        request.metrics_id == kStubTextMetricsId ? static_cast<const PaintTextMetricsSource&>(stub)
+                                                 : static_cast<const PaintTextMetricsSource&>(fake);
+    return cache.get(request.text, style, constraints, source, request.max_lines);
 }
 
 TextLayout fresh(const Request& request) {
@@ -404,18 +433,18 @@ void benchmark() {
     for (int iteration = 0; iteration < kIterations; ++iteration) {
         cache.invalidate();
         const auto started = std::chrono::steady_clock::now();
-        (void)cache.get(text, style, metrics, constraints, kStubTextMetricsId, 0);
+        (void)cache.get(text, style, constraints, StubPaintTextMetrics{}, 0);
         const auto elapsed = std::chrono::steady_clock::now() - started;
         miss_us += static_cast<double>(
                        std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()) /
                    1000.0;
     }
 
-    (void)cache.get(text, style, metrics, constraints, kStubTextMetricsId, 0);
+    (void)cache.get(text, style, constraints, StubPaintTextMetrics{}, 0);
     double hit_us = 0.0;
     for (int iteration = 0; iteration < kIterations; ++iteration) {
         const auto started = std::chrono::steady_clock::now();
-        (void)cache.get(text, style, metrics, constraints, kStubTextMetricsId, 0);
+        (void)cache.get(text, style, constraints, StubPaintTextMetrics{}, 0);
         const auto elapsed = std::chrono::steady_clock::now() - started;
         hit_us += static_cast<double>(
                       std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()) /
