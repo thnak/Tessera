@@ -38,6 +38,7 @@ constexpr int kFrames = 12;
 constexpr std::size_t kFramesInFlight = 2;
 constexpr std::uint64_t kAcquireTimeoutMs = 1000;
 constexpr std::uint64_t kFrameWaitMs = 5000;
+constexpr int kMaxRetries = 20;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -122,6 +123,7 @@ int main() {
     // The list of the frame that last used each vertex-buffer slot.
     std::array<std::unique_ptr<tessera::rendering::rhi::CommandList>, kFramesInFlight> in_flight;
 
+    int acquire_timeouts = 0;
     for (int frame = 0; frame < kFrames; ++frame) {
         auto& slot = in_flight[static_cast<std::size_t>(frame) % kFramesInFlight];
 
@@ -133,8 +135,20 @@ int main() {
             slot.reset();
         }
 
-        const auto acquired = swapchain->acquire_next_image(kAcquireTimeoutMs);
-        if (!expect(acquired.has_value(), "acquire succeeds")) {
+        // Acquire waits a bounded time (ADR-021), so a slow presentation engine legitimately
+        // answers Timeout; the real loop retries or skips the frame, and so does this one. The
+        // first frame that has to wait for an image to come back (frame 3 with three images) took
+        // more than the bound on an AMD iGPU, so the retry count is reported.
+        auto acquired = swapchain->acquire_next_image(kAcquireTimeoutMs);
+        for (int attempt = 0; !acquired.has_value() &&
+                              acquired.error() == SwapchainError::Timeout && attempt < kMaxRetries;
+             ++attempt) {
+            ++acquire_timeouts;
+            acquired = swapchain->acquire_next_image(kAcquireTimeoutMs);
+        }
+        if (!acquired.has_value()) {
+            std::cerr << "vulkan_swapchain_async: acquire failed at frame " << frame
+                      << " with error " << static_cast<int>(acquired.error()) << '\n';
             return 4;
         }
         if (!expect(tessera::test::render_swapchain_frame(*device, *renderer, *swapchain,
@@ -161,6 +175,7 @@ int main() {
     device.reset();
     window.reset();
 
-    std::cout << "vulkan_swapchain_async: ok (" << kFrames << " frames)\n";
+    std::cout << "vulkan_swapchain_async: ok (" << kFrames << " frames, " << acquire_timeouts
+              << " acquire timeouts)\n";
     return 0;
 }
