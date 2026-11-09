@@ -114,6 +114,9 @@ void test_rejected_operators_are_lexed_for_the_parser() {
              "maximal munch operators");
     check(lexed.diagnostics.empty(), "operators are the parser's to reject, not the lexer's");
 
+    check_eq(lex("a & b | c ^ ~d").dump(), "id:a p:& id:b p:| id:c p:^ p:~ id:d ",
+             "single-character bitwise operators");
+
     const auto conditional = lex("a?.5:1");
     check_eq(conditional.dump(), "id:a p:? p:. num:5 p:: num:1 ", "?.5 stays a conditional");
 }

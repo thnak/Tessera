@@ -6,6 +6,12 @@ add_library(tessera_jsx_frontend STATIC
     src/diagnostic.cpp
     src/lexer.cpp
     src/lexer_literals.cpp
+    src/jsx_text.cpp
+    src/parser.cpp
+    src/parser_expr.cpp
+    src/parser_jsx.cpp
+    src/parser_primary.cpp
+    src/ast_dump.cpp
     src/source_map.cpp
     src/utf8.cpp)
 

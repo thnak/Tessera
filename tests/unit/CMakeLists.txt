@@ -14,6 +14,27 @@ target_link_libraries(jsx_lexer_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_lexer COMMAND jsx_lexer_tests)
 
+add_executable(jsx_expression_tests
+    jsx_expression_tests.cpp)
+
+target_link_libraries(jsx_expression_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_expression COMMAND jsx_expression_tests)
+
+add_executable(jsx_parser_tests
+    jsx_parser_tests.cpp)
+
+target_link_libraries(jsx_parser_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_parser COMMAND jsx_parser_tests)
+
+add_executable(jsx_adversarial_tests
+    jsx_adversarial_tests.cpp)
+
+target_link_libraries(jsx_adversarial_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_adversarial COMMAND jsx_adversarial_tests)
+
 add_executable(scene_graph_tests
     scene_graph_tests.cpp)
 

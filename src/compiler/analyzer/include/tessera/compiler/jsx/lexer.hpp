@@ -46,6 +46,10 @@ public:
     [[nodiscard]] const std::vector<Comment>& comments() const {
         return comments_;
     }
+    // True once the lexer gave up (file size or token limit); it has already reported why.
+    [[nodiscard]] bool stopped() const {
+        return stopped_;
+    }
     [[nodiscard]] std::vector<Comment> take_comments() {
         return std::move(comments_);
     }
