@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "hover_dispatch.hpp"
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
@@ -128,21 +129,24 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
 
     InputDispatchResult result;
     if (input.type == InputEventType::PointerCancel) {
-        // A cancelled sequence only ends that pointer; hover tracks the pointer position and is
-        // left alone until the next move. Scene focus is not touched.
+        // A cancelled sequence ends that pointer. A cancelled mouse/pen primary also leaves the
+        // hover chain (out/leave fire); touch never owns hover, so a touch cancel leaves it alone.
         if (input.pointer_id == primary_pointer_id_) {
             clear_active();
+            if (input.pointer_kind != PointerKind::Touch) {
+                clear_hover(true, input);
+            }
         }
         remove_capture(input.pointer_id);
         promote_primary_after(input.pointer_id);
         return result;
     }
     if (input.type == InputEventType::Blur || input.type == InputEventType::Focus) {
-        // Window focus changes cancel every in-flight press and drop hover/active: no pointer can
-        // be considered over the scene any more. Scene Focus/Blur are owned by FocusManager and
-        // are not synthesized here.
+        // Window focus changes cancel every in-flight press and drop the hover chain (out/leave
+        // fire) plus active: no pointer can be considered over the scene any more. Scene
+        // Focus/Blur are owned by FocusManager and are not synthesized here.
         clear_captures();
-        clear_hover();
+        clear_hover(true, input);
         clear_active();
         primary_pointer_id_ = 0;
         return result;
@@ -252,19 +256,18 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     if (input.type == InputEventType::PointerMove) {
         const bool primary = input.pointer_id == primary_pointer_id_;
         // Touch contacts never hover (there is no pre-contact position); mouse and pen do when
-        // they are the primary pointer. Hover is hit-tested even while captured.
+        // they are the primary pointer. A captured pointer freezes hover: moves are dispatched to
+        // the capture target but do not change the hover chain or fire enter/leave.
         const bool hovers = input.pointer_kind != PointerKind::Touch;
-        Node* target = take_capture_target(input.pointer_id);
+        Node* capture_target = take_capture_target(input.pointer_id);
         Node* hit = nullptr;
-        if (primary || target == nullptr) {
+        if (primary || capture_target == nullptr) {
             hit = root.hit_test_deep(input.x, input.y);
         }
-        if (primary && hovers) {
-            set_hover(hit);
+        if (primary && hovers && capture_target == nullptr) {
+            set_hover(hit, input);
         }
-        if (target == nullptr) {
-            target = hit;
-        }
+        Node* target = capture_target != nullptr ? capture_target : hit;
         if (target == nullptr) {
             return result;
         }
@@ -381,29 +384,49 @@ void InputRouter::promote_primary_after(std::uint32_t pointer_id) {
     primary_pointer_id_ = capture_count_ > 0 ? captures_[0].pointer_id : 0;
 }
 
-void InputRouter::set_hover(Node* target) {
+void InputRouter::set_hover(Node* target, const InputEvent& input) {
     if (target == hovered_ && (target == nullptr || target->id() == hovered_id_)) {
         return;
     }
-    clear_hover();
-    if (target == nullptr) {
-        return;
+    // Resolve the previous target before clearing so a removed node is never dereferenced; only a
+    // still-attached node is cleared and receives out/leave.
+    Node* previous = nullptr;
+    if (hovered_ != nullptr && root_ != nullptr) {
+        Node* const found = find_node_in(*root_, hovered_id_);
+        if (found == hovered_) {
+            previous = hovered_;
+        }
     }
     hovered_ = target;
-    hovered_id_ = target->id();
-    target->set_pseudo_state(style::PseudoState::Hover, true);
+    hovered_id_ = target != nullptr ? target->id() : 0;
+    if (previous != nullptr) {
+        previous->set_pseudo_state(style::PseudoState::Hover, false);
+    }
+    if (target != nullptr) {
+        target->set_pseudo_state(style::PseudoState::Hover, true);
+    }
+    dispatch_hover_transition(previous, target, input);
 }
 
-void InputRouter::clear_hover() {
-    if (hovered_ != nullptr) {
-        // Resolve before clearing so a target removed from the scene is never dereferenced.
-        Node* live = root_ != nullptr ? find_node_in(*root_, hovered_id_) : nullptr;
-        if (live == hovered_) {
-            live->set_pseudo_state(style::PseudoState::Hover, false);
+void InputRouter::clear_hover(bool emit_events, const InputEvent& input) {
+    if (hovered_ == nullptr) {
+        return;
+    }
+    Node* previous = nullptr;
+    if (root_ != nullptr) {
+        Node* const found = find_node_in(*root_, hovered_id_);
+        if (found == hovered_) {
+            previous = hovered_;
         }
     }
     hovered_ = nullptr;
     hovered_id_ = 0;
+    if (previous != nullptr) {
+        previous->set_pseudo_state(style::PseudoState::Hover, false);
+        if (emit_events) {
+            dispatch_hover_transition(previous, nullptr, input);
+        }
+    }
 }
 
 void InputRouter::set_active(Node* target) {
@@ -432,7 +455,8 @@ void InputRouter::clear_active() {
 
 void InputRouter::reset() {
     clear_captures();
-    clear_hover();
+    // Reset drops state without synthesizing boundary events; there is no input being dispatched.
+    clear_hover(false, InputEvent{});
     clear_active();
     primary_pointer_id_ = 0;
     root_ = nullptr;

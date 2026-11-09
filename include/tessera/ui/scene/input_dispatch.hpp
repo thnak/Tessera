@@ -50,13 +50,20 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 //   pointer drives `Hover`/`Active`.
 // - `hovered()` is the deepest hit target of the primary pointer's last `PointerMove` and carries
 //   `PseudoState::Hover`. The previous hover target loses the bit on the next move, including a
-//   move that hits nothing (pointer left the scene). Hover is derived from hit testing even while
-//   the pointer is captured.
+//   move that hits nothing (pointer left the scene). A hover change also fires the W3C boundary
+//   events: `PointerOut` on the old target (bubbling to the common ancestor exclusive),
+//   `PointerLeave` per old-chain node below it, then `PointerOver`/`PointerEnter` mirrored for the
+//   new chain. `PointerEnter`/`PointerLeave` do not bubble and fire outermost->innermost /
+//   innermost->outermost respectively. Touch never fires them.
+// - A captured pointer freezes the hover chain for that pointer: its moves still dispatch to the
+//   capture target but do not change `hovered()`, the `Hover` bits, or fire boundary events until
+//   the capture is released and the pointer moves again.
 // - `active()` is the primary pointer's `PointerDown` hit target and carries `PseudoState::Active`
 //   until that pointer goes up or is cancelled (or `Focus`/`Blur`/`reset`).
-// - A window `Focus`/`Blur` input event drops all captures, hover, and active: the pointer can no
-//   longer be considered over the scene. Scene focus is owned by `FocusManager` and is not changed
-//   by those input events.
+// - A window `Focus`/`Blur` input event drops all captures, the hover chain (firing out/leave), and
+//   active: the pointer can no longer be considered over the scene. A primary mouse/pen
+//   `PointerCancel` also leaves the hover chain the same way; a touch cancel never owns hover.
+//   Scene focus is owned by `FocusManager` and is not changed by those input events.
 // - Hover/active targets are also validated by `NodeId` before their bit is cleared, so a removed
 //   or destroyed target is never dereferenced. Only the deepest target is hovered; see
 //   docs/design/input.md section 7 for the ancestor-chain rule and why it is deferred.
@@ -130,8 +137,8 @@ private:
         Node* node = nullptr;
     };
 
-    void set_hover(Node* target);
-    void clear_hover();
+    void set_hover(Node* target, const InputEvent& input);
+    void clear_hover(bool emit_events, const InputEvent& input);
     void set_active(Node* target);
     void clear_active();
     // Resolves a stored entry under `root_`; returns null when the node left the scene. Never

@@ -121,8 +121,8 @@ window's thread, so the queue's single producer is the UI thread.
 - **Waking:** `wait_for_events` returns `true` while the queue holds unconsumed input, because
   input never becomes a `WindowEvent`; this is what lets a render-on-demand loop sleep until a
   pointer or key event.
-- **Not yet:** IME composition, dead keys, per-key `code` (physical position), pointer enter/leave
-  (hover is derived from moves, see section 7), and pen barrel/tilt/orientation beyond pressure.
+- **Not yet:** IME composition, dead keys, per-key `code` (physical position), OS-level pointer
+  capture, and pen barrel/tilt/orientation beyond pressure.
 
 ## 3. Event model
 
@@ -154,9 +154,12 @@ Logical coordinates are in the window's logical pixel space. DPI scaling happens
 platform layer, once. Golden mode uses a fixed scale.
 
 The scene-level `ui::Event` (`include/tessera/ui/scene/event.hpp`) adds `Wheel` and `Text` to the
-event types and carries the payload of the normalized event: `button`, `pointer_id`,
+event types plus the hover-boundary types `PointerOver`, `PointerOut`, `PointerEnter`, and
+`PointerLeave`, and carries the payload of the normalized event: `button`, `pointer_id`,
 `pointer_kind`, `pressure`, `scroll_x`/`scroll_y` (web sign), `timestamp_s`, `is_primary`, and
-`prevent_default`. `handled` stays advisory; `prevent_default` is read by the dispatcher after
+`prevent_default`. `PointerOver`/`PointerOut` bubble (like `mouseover`/`mouseout`), while
+`PointerEnter`/`PointerLeave` do not bubble and fire once per node on the entered/left chain
+(section 7). `handled` stays advisory; `prevent_default` is read by the dispatcher after
 propagation and currently suppresses only the Tab focus default action. Pointer and wheel fields
 are zero (mouse kind) for key, text, and focus events.
 
@@ -401,11 +404,25 @@ Hover/active (implemented, primary pointer only):
   `Hover`/`Active`; secondary presses keep their own capture but do not steal hover or active.
 - `:hover`: `InputRouter::hovered()` is the deepest hit target of the primary pointer's last
   `PointerMove`. A new hover target gains `PseudoState::Hover` and the previous hover target loses
-  the bit on the next move; a move that hits nothing (the pointer left the scene) clears it. Hover
-  is hit-tested at the cursor even while the primary pointer is captured, so a drag moves the hover
-  target instead of freezing it on the capture target. Only `PointerMove` updates hover: a
-  synthetic `PointerDown` with no preceding move activates but does not hover, moves from
-  non-primary pointers are ignored for hover, and touch moves never hover at all.
+  the bit on the next move; a move that hits nothing (the pointer left the scene) clears it. A
+  captured pointer freezes the hover chain (see the boundary-event rule below). Only `PointerMove`
+  updates hover: a synthetic `PointerDown` with no preceding move activates but does not hover,
+  moves from non-primary pointers are ignored for hover, and touch moves never hover at all.
+- Hover boundary events (implemented): a hover-target change fires the W3C pointer family.
+  `PointerOut` is dispatched at the old target and bubbles through its ancestors down to
+  (excluding) the deepest common ancestor of the old and new chains; `PointerLeave` then fires once
+  on each old-chain node strictly below that ancestor, innermost to outermost. `PointerOver` and
+  `PointerEnter` mirror this for the new chain, with `PointerEnter` firing outermost to innermost.
+  Enter/leave do not bubble; over/out bubble. The events carry the current pointer payload
+  (id/kind/position/pressure/timestamp). A null side (entering or leaving the scene) makes the
+  common ancestor empty, so leaving fires out/leave on the whole old chain including the root and
+  entering fires over/enter from the root down.
+- Capture freezes boundary events: while a pointer is captured its moves still dispatch to the
+  capture target, but they do not update `hovered()`, the `Hover` bits, or fire
+  over/out/enter/leave. The chain resumes on the first move after the capture is released. A window
+  `Blur`, a primary mouse/pen `PointerCancel`, and `InputRouter::reset()` (silently) clear the
+  chain; cancel/blur fire out/leave so no stale enter state remains. Touch never fires boundary
+  events.
 - Only the deepest hit target carries `Hover`; ancestors are not hovered. Ancestor `:hover` chains
   are deferred together with scene-change recomputation: a chain must be recomputed when the tree,
   bounds, or visibility change, and the input layer has no change notification yet. Maintaining it
@@ -418,9 +435,10 @@ Hover/active (implemented, primary pointer only):
 - `:focus` is independent of pointer state; `FocusManager` owns the `PseudoState::Focus` bit and
   clears/sets it around `Blur`/`Focus` dispatch. Pointer-down focus behavior is unchanged: every
   `PointerDown` (primary or secondary) follows the same focus rules as before.
-- Window `Focus`/`Blur` input events reset interaction state: all captures, hover, and active are
-  cleared because no pointer can be considered over the scene. Scene focus is retained (see
-  section 6); `FocusManager` remains the owner of scene-level Focus/Blur events.
+- Window `Focus`/`Blur` input events reset interaction state: all captures, the hover chain
+  (firing out/leave), and active are cleared because no pointer can be considered over the scene.
+  Scene focus is retained (see section 6); `FocusManager` remains the owner of scene-level
+  Focus/Blur events.
 - `:disabled`/`:checked` come from node state, not pointer state.
 - State changes go through `Node::set_pseudo_state`, which marks `Dirty::Style`; the style resolver
   then raises layout/paint/render dirty domains only if the matched rules change those groups. A
@@ -432,11 +450,12 @@ Hover/active (implemented, primary pointer only):
   `hovered()` and `active()` remain raw scene pointers for observation, so reset or destroy the
   router before destroying the scene root.
 
-Not implemented: ancestor hover chains and recomputation on scene changes, pointer enter/leave
-synthesis, platform touch/pen translation and gesture recognizers, and interaction state derived
-from scene mutations not driven by input (for example a hovered node becoming invisible keeps its
-bit until the next move). A detached-but-not-destroyed node keeps its hover/active bits; only an
-id-resolvable node is cleared.
+Not implemented: ancestor `:hover` bits and hover recomputation on scene changes (boundary events
+fire on the chain, but the pseudo-state bit remains deepest-target only), OS-level pointer capture,
+accessibility announcements for pointer boundaries, platform touch/pen translation and gesture
+recognizers, and interaction state derived from scene mutations not driven by input (for example a
+hovered node becoming invisible keeps its bit until the next move). A detached-but-not-destroyed
+node keeps its hover/active bits; only an id-resolvable node is cleared.
 
 ## 8. Text input and IME
 
@@ -496,6 +515,12 @@ id-resolvable node is cleared.
   modality, programmatic `request_focus` clears unless `set_focus_visible(true)` follows, router
   reuse across scene roots, and computed-style re-evaluation (`tests/unit/focus_tests.cpp`,
   `tests/unit/focus_policy_tests.cpp`, `tests/unit/focus_style_tests.cpp`).
+- Hover boundary events: enter from empty (over bubbles, enter outermost first), same-parent move
+  (out/leave old then over/enter new), ancestor move (only the child leaves), moving back down (only
+  the child enters), leaving the scene (out through the chain then leave innermost first), exact
+  `Target`/`Bubble` phase ordering, no events for touch, capture freezing the chain until release,
+  cancel and blur cleanup, and `:hover`/`Style` dirty consistency
+  (`tests/unit/input_dispatch_tests.cpp`).
 - Hover/active state changes and style invalidation: hover enter, move to another target, and
   leave (previous hover cleared), hidden targets skipped, active down/up, cancel and window
   focus/blur cleanup, `Style` dirty marking, and stateless `dispatch_input` not owning state

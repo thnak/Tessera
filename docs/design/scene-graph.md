@@ -70,8 +70,10 @@ layout/paint/render dirty only when the matched computed groups actually change.
 ## Events
 
 Event types in V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables)):
-`PointerDown`, `PointerUp`, `PointerMove`, `KeyDown`, `KeyUp`, `Focus`, `Blur`. Focus and keyboard
-routing are described in [`input.md`](input.md).
+`PointerDown`, `PointerUp`, `PointerMove`, `PointerOver`, `PointerOut`, `PointerEnter`,
+`PointerLeave`, `KeyDown`, `KeyUp`, `Focus`, `Blur`. `PointerOver`/`PointerOut` bubble; the
+non-bubbling `PointerEnter`/`PointerLeave` pair fires once per node on the entered/left chain.
+Focus, keyboard, and hover-boundary routing are described in [`input.md`](input.md).
 
 Dispatch is W3C-style (the DOM event model of the World Wide Web Consortium):
 

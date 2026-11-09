@@ -48,6 +48,14 @@ const char* type_name(EventType type) {
         return "focus";
     case EventType::Blur:
         return "blur";
+    case EventType::PointerOver:
+        return "over";
+    case EventType::PointerOut:
+        return "out";
+    case EventType::PointerEnter:
+        return "enter";
+    case EventType::PointerLeave:
+        return "leave";
     }
     return "unknown";
 }
@@ -178,15 +186,15 @@ bool interaction_state(Recorder& root, Recorder& child, InputRouter& router) {
         return false;
     }
 
-    // Cancel ends the press but leaves hover alone (the pointer did not move).
+    // Cancel ends the press and leaves the hover chain (out/leave fire for a mouse/pen pointer).
     router.dispatch(root, pointer(InputEventType::PointerDown, 20, 20));
     const auto cancelled = router.dispatch(root, pointer(InputEventType::PointerCancel, 20, 20));
     if (!expect(!cancelled.dispatched, "cancel not dispatched") ||
         !expect(router.active() == nullptr, "cancel clears active target") ||
         !expect(!has_state(child.pseudo_state(), PseudoState::Active),
                 "cancel clears active bit") ||
-        !expect(router.hovered() == &child, "cancel keeps hover target") ||
-        !expect(has_state(child.pseudo_state(), PseudoState::Hover), "cancel keeps hover bit")) {
+        !expect(router.hovered() == nullptr, "cancel clears hover target") ||
+        !expect(!has_state(child.pseudo_state(), PseudoState::Hover), "cancel clears hover bit")) {
         return false;
     }
 
@@ -260,7 +268,7 @@ bool per_pointer_capture() {
         return false;
     }
 
-    // Interleaved moves route to each capture target; only the primary pointer drives hover.
+    // Interleaved moves route to each capture target; capture freezes the hover chain.
     left.log.clear();
     right.log.clear();
     const auto move_one =
@@ -269,7 +277,7 @@ bool per_pointer_capture() {
         router.dispatch(root, pointer_for(InputEventType::PointerMove, 20, 20, 2));
     if (!expect(move_one.target == &left, "pointer 1 move stays captured") ||
         !expect(move_two.target == &right, "pointer 2 move stays captured") ||
-        !expect(router.hovered() == &root, "primary move sets hover from hit test") ||
+        !expect(router.hovered() == nullptr, "capture suppresses hover changes") ||
         !expect(left.log.size() == 1 && right.log.size() == 1, "both captures receive moves")) {
         return false;
     }
@@ -419,7 +427,9 @@ int main() {
     const auto after_up = router.dispatch(root, pointer(InputEventType::PointerMove, 150, 150));
     if (!expect(after_up.dispatched, "after up dispatched") ||
         !expect(after_up.target == &root, "after up hits root") ||
-        !expect(root.log.size() == 1 && root.log[0] == "1:move:target", "after up root target")) {
+        !expect(root.log.size() == 3 && root.log[0] == "1:over:target" &&
+                    root.log[1] == "1:enter:target" && root.log[2] == "1:move:target",
+                "after up enters and targets root")) {
         return 4;
     }
 

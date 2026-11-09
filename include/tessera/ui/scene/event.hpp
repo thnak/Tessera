@@ -17,7 +17,15 @@ enum class EventType {
     KeyDown,
     KeyUp,
     Focus,
-    Blur
+    Blur,
+    // Boundary events fired when the hover target changes. `PointerOver`/`PointerOut` bubble from
+    // their target down to (excluding) the deepest common ancestor of the old/new chains;
+    // `PointerEnter`/`PointerLeave` do not bubble and fire once per node strictly below that
+    // ancestor. Touch never produces them and pointer capture suppresses them (see input.md §7).
+    PointerOver,
+    PointerOut,
+    PointerEnter,
+    PointerLeave
 };
 
 enum class EventPhase { Capture, Target, Bubble };

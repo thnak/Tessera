@@ -57,6 +57,14 @@ const char* type_name(EventType type) {
         return "focus";
     case EventType::Blur:
         return "blur";
+    case EventType::PointerOver:
+        return "over";
+    case EventType::PointerOut:
+        return "out";
+    case EventType::PointerEnter:
+        return "enter";
+    case EventType::PointerLeave:
+        return "leave";
     }
     return "unknown";
 }
