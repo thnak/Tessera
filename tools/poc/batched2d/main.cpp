@@ -591,7 +591,9 @@ int run_windowed(const Options& options) {
     }
     std::unique_ptr<rhi::Swapchain> swapchain = std::move(*created);
 
-    auto pipeline = device->create_pipeline(vulkan::batched2d_pipeline_desc());
+    auto pipeline_desc = vulkan::batched2d_pipeline_desc();
+    pipeline_desc.color_format = swapchain->format(); // follow the surface format the driver chose
+    auto pipeline = device->create_pipeline(pipeline_desc);
     // Two frames may be on the GPU at once: the renderer rotates its vertex buffers over the same
     // number of slots, and the loop below only reuses a slot after that frame's list completed.
     constexpr std::size_t kFramesInFlight = 2;

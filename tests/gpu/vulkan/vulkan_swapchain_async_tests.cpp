@@ -108,7 +108,11 @@ int main() {
     white_desc.pixels = white_pixel.data();
     white_desc.row_pitch = 4;
     auto white = device->create_texture(white_desc);
-    auto pipeline = device->create_pipeline(tessera::rendering::vulkan::batched2d_pipeline_desc());
+    // The pipeline renders into swapchain images, so it must use the surface format the driver
+    // chose.
+    auto pipeline_desc = tessera::rendering::vulkan::batched2d_pipeline_desc();
+    pipeline_desc.color_format = swapchain->format();
+    auto pipeline = device->create_pipeline(pipeline_desc);
     tessera::rendering::gpu::Batched2DConfig renderer_config;
     renderer_config.golden_mode = true;
     renderer_config.frames_in_flight = kFramesInFlight;
