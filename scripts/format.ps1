@@ -3,8 +3,11 @@ param([switch]$Check)
 
 $root = Split-Path -Parent $PSScriptRoot
 
-$clangFormat = $null
-$cmd = Get-Command clang-format -ErrorAction SilentlyContinue
+$clangFormat = $env:CLANG_FORMAT
+$cmd = $null
+if (-not $clangFormat) {
+    $cmd = Get-Command clang-format -ErrorAction SilentlyContinue
+}
 if ($cmd) {
     $clangFormat = $cmd.Source
 }

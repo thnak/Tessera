@@ -108,6 +108,11 @@ if (TESSERA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/unit)
     add_subdirectory(tests/gpu)
+    # Integration tests live in their own directory; the parent list stays valid when the folder is
+    # empty (a fresh checkout during a lane handoff) so configure never fails on a missing dir.
+    if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/CMakeLists.txt)
+        add_subdirectory(tests/integration)
+    endif()
 endif()
 
 # Ship the project license, third-party notices and the generated license bundle with an install.
