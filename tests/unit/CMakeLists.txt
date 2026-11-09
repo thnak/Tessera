@@ -233,6 +233,13 @@ target_link_libraries(node_metadata_tests PRIVATE tessera_scene)
 
 add_test(NAME node_metadata COMMAND node_metadata_tests)
 
+add_executable(scene_event_binding_tests
+    scene_event_binding_tests.cpp)
+
+target_link_libraries(scene_event_binding_tests PRIVATE tessera_scene)
+
+add_test(NAME scene_event_binding COMMAND scene_event_binding_tests)
+
 add_executable(dirty_pass_tests
     dirty_pass_tests.cpp)
 

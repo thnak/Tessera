@@ -218,6 +218,33 @@ public:
         return std::span<const AriaAttribute>(aria_.data(), aria_count_);
     }
 
+    // Generated event bindings (docs/design/scene-graph.md section 6). Storage is bounded and
+    // allocation-free: at most kMaxEventBindings per node, invoked at the Target phase after the
+    // node's own on_event listeners and before bubbling. A binding receives a read-only const
+    // Event&, so it cannot consume the event; binding or unbinding marks no dirty domain.
+    using BoundEventHandler = void (*)(void* context, const Event& event);
+
+    struct EventBinding {
+        EventType type = EventType::PointerDown;
+        BoundEventHandler handler = nullptr;
+        void* context = nullptr;
+    };
+
+    static constexpr std::size_t kMaxEventBindings = 8;
+
+    // False when `handler` is null or the node already has kMaxEventBindings bindings.
+    bool bind_event(EventType type, BoundEventHandler handler, void* context = nullptr);
+    // Removes the first binding for `type`; false when none was installed.
+    bool unbind_event(EventType type);
+    void clear_event_bindings();
+    [[nodiscard]] bool has_event_binding(EventType type) const;
+    [[nodiscard]] std::span<const EventBinding> event_bindings() const {
+        return std::span<const EventBinding>(event_bindings_.data(), event_binding_count_);
+    }
+    // Invokes every binding registered for `event.type` in registration order. Called by
+    // dispatch_event_to; returns the number of bindings invoked.
+    std::size_t run_event_bindings(const Event& event) const;
+
     virtual void on_event(Event& event);
 
 private:
@@ -241,6 +268,8 @@ private:
     std::uint64_t automation_id_ = 0;
     std::array<AriaAttribute, kMaxAriaPairs> aria_{};
     std::size_t aria_count_ = 0;
+    std::array<EventBinding, kMaxEventBindings> event_bindings_{};
+    std::size_t event_binding_count_ = 0;
     bool scrollable_x_ = false;
     bool scrollable_y_ = false;
     float content_width_ = 0.0f;

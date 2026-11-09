@@ -53,7 +53,7 @@ int main() {
     check(!view.focusable(), "a View is not focusable by default");
     check(!view.paint_data().has_value(), "a View has no text payload");
 
-    check(view.children().size() == 1, "the View carries the Button child");
+    check(view.children().size() == 2, "the View carries both event-bound buttons");
     const ui::Node& button = *view.children()[0];
     check_eq(button.element_kind(), "Button", "button element kind");
     check(button.focusable(), "generated Button is focusable");
@@ -68,11 +68,28 @@ int main() {
     check(!label.focusable(), "a Text node is not focusable");
 
     check(sample.state_count_ == 0, "useState cell starts at its IR initial value");
-    sample.handler_1(ui::Event{});
-    check(sample.state_count_ == 1, "the generated inline handler sets the state cell");
-    sample.on_click(ui::Event{});
+
+    // Synthetic dispatch: the generated adapter runs at the Target phase and the setter updates the
+    // state cell (the interactive end-to-end proof).
+    check(view.children().size() == 2, "the View carries both event-bound buttons");
+    ui::Event click;
+    click.type = ui::EventType::PointerUp;
+    click.x = 12.0f;
+    click.y = 8.0f;
+    click.pointer_kind = ui::PointerKind::Mouse;
+    click.button = ui::PointerButton::Left;
+    ui::dispatch_event_to(*view.children()[1], click);
+    check(sample.state_count_ == 1, "a dispatched PointerUp runs the generated setter handler");
+
+    // The developer region binding is dispatched too, but its generated stub leaves state alone.
+    ui::dispatch_event_to(*view.children()[0], click);
+    check(sample.state_count_ == 1, "the binding region runs without changing unrelated state");
     sample.sync();
     sample.sync_cleanup();
+
+    const ui::ClickEvent payload = ui::click_event(click);
+    check(payload.x == 12.0f && payload.y == 8.0f, "payload record carries the pointer position");
+    check(payload.button == ui::PointerButton::Left, "payload record carries the button");
 
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";

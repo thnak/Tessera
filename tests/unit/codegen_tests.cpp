@@ -119,6 +119,11 @@ ir::IrModule make_sample_module() {
     label.text = text("Hello");
     button.children.push_back(std::move(label));
     root.children.push_back(std::move(button));
+
+    // A second Button exercises a declared handler record (typed payload adapter).
+    ir::Node handler_button = leaf(ir::NodeKind::Button, "node::4", "4");
+    handler_button.events.emplace("onClick", "handler::1");
+    root.children.push_back(std::move(handler_button));
     sample.root = std::move(root);
     module.components.push_back(std::move(sample));
 
@@ -135,6 +140,9 @@ ir::IrModule make_sample_module() {
         binding.kind = kind;
         binding.source = span(40, 10, 4, 3);
         binding.region = region;
+        if (kind == ir::BindingKind::Event) {
+            binding.params.push_back({"event", "ClickEvent"});
+        }
         module.bindings.push_back(std::move(binding));
     }
     return module;
@@ -196,15 +204,28 @@ void test_generated_shape() {
     check(header.find("std::string prop_title_ = {};") != std::string::npos, "prop field");
     check(header.find("void build(tessera::ui::Node& parent);") != std::string::npos,
           "build declaration");
-    check(header.find("void handler_1(const tessera::ui::Event& event);") != std::string::npos,
-          "handler record signature");
-    check(header.find("void on_click(const tessera::ui::Event& event);") != std::string::npos,
-          "event binding region signature");
+    check(header.find("void handler_1(const tessera::ui::ClickEvent& event);") != std::string::npos,
+          "handler record signature uses the payload record");
+    check(header.find("void on_click(const tessera::ui::ClickEvent& event);") != std::string::npos,
+          "event binding region signature uses the payload record");
+    check(header.find("#include \"tessera/ui/scene/event_payloads.hpp\"") != std::string::npos,
+          "generated header includes the payload records");
     check(header.find("void sync();") != std::string::npos, "effect binding region signature");
     check(source.find("namespace demo") != std::string::npos, "module namespace");
     check(source.find("auto node_1 = std::make_unique<tessera::ui::Node>(") != std::string::npos,
           "node creation");
     check(source.find("->set_focusable(true);") != std::string::npos, "closest existing API use");
+    check(source.find("event_adapter_2_onClick") != std::string::npos &&
+              source.find("event_adapter_4_onClick") != std::string::npos,
+          "one adapter per event-bound node");
+    check(source.find("component->on_click(tessera::ui::click_event(event));") != std::string::npos,
+          "binding adapter converts the scene event to its payload record");
+    check(source.find("component->handler_1(tessera::ui::click_event(event));") !=
+              std::string::npos,
+          "handler adapter converts the scene event to its payload record");
+    check(source.find("->bind_event(tessera::ui::EventType::PointerUp, "
+                      "&event_adapter_2_onClick, this);") != std::string::npos,
+          "generated binding attaches with the mapped EventType");
     check(source.find("parent.add_child(std::move(node_1));") != std::string::npos,
           "root attached to the parent");
     check(source.find("->set_element_kind(\"View\");") != std::string::npos, "element kind");

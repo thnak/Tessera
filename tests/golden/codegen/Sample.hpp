@@ -3,6 +3,7 @@
 // Developer code belongs only inside [DEVELOPER_LOGIC_START/END] regions.
 #pragma once
 
+#include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <cstdint>
@@ -26,8 +27,8 @@ namespace demo {
       std::string prop_title_ = {};
       
       void build(tessera::ui::Node& parent);
-      void handler_1(const tessera::ui::Event& event);
-      void on_click(const tessera::ui::Event& event);
+      void handler_1(const tessera::ui::ClickEvent& event);
+      void on_click(const tessera::ui::ClickEvent& event);
       void sync();
       void sync_cleanup();
     };

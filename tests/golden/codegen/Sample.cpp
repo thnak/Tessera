@@ -8,10 +8,20 @@
 
 namespace demo {
   namespace gen {
-    // TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, event
-    // payload records, event dispatch wiring, ref-target assignment and animated/effect
-    // lifecycle invocation (docs/design/compiler.md section 11). Style and events are
-    // recorded in the node comments below until those land.
+    // TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, ref-target
+    // assignment and animated/effect lifecycle invocation (docs/design/compiler.md section
+    // 11). Inline style is recorded in the node comments below until it lands.
+    
+    namespace {
+      void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
+        auto* component = static_cast<Sample*>(context);
+        component->on_click(tessera::ui::click_event(event));
+      }
+      void event_adapter_4_onClick(void* context, const tessera::ui::Event& event) {
+        auto* component = static_cast<Sample*>(context);
+        component->handler_1(tessera::ui::click_event(event));
+      }
+    }
     
     void Sample::build(tessera::ui::Node& parent) {
       // node::1 style.width="10px"
@@ -25,6 +35,7 @@ namespace demo {
       // node::2 events={onClick:bind::on_click}
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
       node_2->set_element_kind("Button");
+      node_2->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_2_onClick, this);
       node_2->set_focusable(true);
       // node::3
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
@@ -34,15 +45,21 @@ namespace demo {
       node_3->set_paint_data(std::move(paint_node_3));
       node_2->add_child(std::move(node_3));
       node_1->add_child(std::move(node_2));
+      // node::4 events={onClick:handler::1}
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull));
+      node_4->set_element_kind("Button");
+      node_4->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_4_onClick, this);
+      node_4->set_focusable(true);
+      node_1->add_child(std::move(node_4));
       parent.add_child(std::move(node_1));
     }
     
-    void Sample::handler_1(const tessera::ui::Event& event) {
+    void Sample::handler_1(const tessera::ui::ClickEvent& event) {
       (void)event;
       state_count_ = 1;
     }
     
-    void Sample::on_click(const tessera::ui::Event& event) {
+    void Sample::on_click(const tessera::ui::ClickEvent& event) {
       // [DEVELOPER_LOGIC_START: bind::on_click]
         // TODO(tessera-codegen): implement the developer body for bind::on_click.
         (void)event;

@@ -50,6 +50,12 @@ struct ExprEmission {
                                                       const ir::Component& component,
                                                       std::string& error);
 
+// Emits the component header/source (emit_header.cpp / emit_component.cpp).
+[[nodiscard]] bool emit_component_header(const ir::Component& component,
+                                         std::string_view module_namespace,
+                                         const std::vector<const ir::Binding*>& bindings,
+                                         GeneratedFile& file, std::string& error);
+
 // Appends `<Component>.hpp` and `<Component>.cpp` to `files`, or sets `error` and returns false.
 [[nodiscard]] bool emit_component(const ir::Component& component, std::string_view module_namespace,
                                   const std::vector<ir::Binding>& bindings,

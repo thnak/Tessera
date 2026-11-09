@@ -24,6 +24,7 @@ bool same_transform(const rhi::Mat3& lhs, const rhi::Mat3& rhs) {
     }
     return true;
 }
+
 // One scrollport inset: negative, NaN, and infinite values sanitize to 0 and the inset never takes
 // more than the box extent left for it.
 float clamp_inset(float value, float extent) {
@@ -152,6 +153,7 @@ void Node::set_content_size(float width, float height) {
     // Clamping only; a content-size change is not itself a layout request.
     set_scroll_offset(scroll_x_, scroll_y_);
 }
+
 void Node::clamp_scrollport_insets() {
     scrollport_left_ = clamp_inset(scrollport_left_, bounds_.width);
     scrollport_top_ = clamp_inset(scrollport_top_, bounds_.height);
@@ -426,6 +428,54 @@ bool Node::set_aria(std::string_view name, std::string_view value) {
 
 void Node::clear_aria() {
     aria_count_ = 0;
+}
+
+bool Node::bind_event(EventType type, BoundEventHandler handler, void* context) {
+    if (handler == nullptr || event_binding_count_ == kMaxEventBindings) {
+        return false;
+    }
+    event_bindings_[event_binding_count_++] = EventBinding{type, handler, context};
+    return true;
+}
+
+bool Node::unbind_event(EventType type) {
+    for (std::size_t i = 0; i < event_binding_count_; ++i) {
+        if (event_bindings_[i].type != type) {
+            continue;
+        }
+        for (std::size_t j = i; j + 1 < event_binding_count_; ++j) {
+            event_bindings_[j] = event_bindings_[j + 1];
+        }
+        --event_binding_count_;
+        event_bindings_[event_binding_count_] = EventBinding{};
+        return true;
+    }
+    return false;
+}
+
+void Node::clear_event_bindings() {
+    event_binding_count_ = 0;
+}
+
+bool Node::has_event_binding(EventType type) const {
+    for (std::size_t i = 0; i < event_binding_count_; ++i) {
+        if (event_bindings_[i].type == type) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::size_t Node::run_event_bindings(const Event& event) const {
+    std::size_t invoked = 0;
+    for (std::size_t i = 0; i < event_binding_count_; ++i) {
+        const EventBinding& binding = event_bindings_[i];
+        if (binding.type == event.type) {
+            binding.handler(binding.context, event);
+            ++invoked;
+        }
+    }
+    return invoked;
 }
 
 void Node::set_paint_data(std::optional<PaintData> data) {

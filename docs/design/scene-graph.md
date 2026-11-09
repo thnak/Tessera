@@ -109,6 +109,29 @@ values; no UTF-8 boundary logic). `id` and `className` are the selector inputs a
 domain. Text is not a metadata field: generated text attaches the existing D9 `PaintData` through
 `set_paint_data`, and layout never reads that payload.
 
+## 6. Event payloads and generated bindings
+
+Generated components attach handlers to scene nodes instead of subclassing them. Payload record
+types live in `include/tessera/ui/scene/event_payloads.hpp` and are trivially copyable, RTTI-free
+and allocation-free; string fields are borrowed views into the dispatcher's `Event` and are only
+valid during dispatch. Mapping (schema/IR name → C++ type): `PointerEvent` → `PointerEventInfo`,
+`ClickEvent` → `ClickEvent`, `KeyEvent` → `KeyEventInfo`, `FocusEvent` → `FocusEventInfo`,
+`TextChangeEvent` → `TextChangeEvent` (`TextSubmitEvent` is the same record),
+`TextSelection` → `TextSelection`, `CompositionEvent` → `CompositionEvent`,
+`ScrollEvent` → `ScrollEventInfo`, `ErrorInfo` → `ErrorInfo`. Fields come from the payload record
+definitions; fields the scene `Event` does not carry yet are zero/empty (`KeyEventInfo::code`,
+`ScrollEventInfo` viewport/content sizes, `ErrorInfo`) and `KeyEventInfo::key` is the code point in
+this slice.
+
+`Node::bind_event(EventType, handler, context)` stores at most `kMaxEventBindings = 8`
+`{EventType, function pointer, void* context}` tuples per node with no per-event allocation; a
+ninth binding returns `false`. `unbind_event` removes the first binding for a type and
+`clear_event_bindings` removes all; binding and unbinding mark no dirty domain. `on_event` user
+listeners run first at the Target phase, then `run_event_bindings` invokes every binding registered
+for `event.type` in registration order, then bubbling continues. A binding receives a read-only
+`const Event&`, so it cannot consume the event or change `handled`/`prevent_default`; the route log
+is identical when no binding is installed.
+
 ## Tests
 
 - `tests/unit/scene_graph_tests.cpp`: world bounds, deep hit testing, capture/target/bubble
@@ -120,7 +143,10 @@ domain. Text is not a metadata field: generated text attaches the existing D9 `P
 - `tests/unit/node_metadata_tests.cpp`: element kind/id/className/role/aria/automationId get/set/
   clear, Dirty::Style no-op semantics, borrowed-view byte caps and the aria pair cap.
 - `tests/unit/codegen_runtime_tests.cpp`: builds the generated sample component and asserts the
-  attached metadata, children, focusability and D9 text (no GPU).
+  attached metadata, children, focusability, D9 text and a synthetic dispatched event running the
+  generated setter (no GPU).
+- `tests/unit/scene_event_binding_tests.cpp`: payload field mapping, the per-node binding cap,
+  Target-phase ordering, read-only bindings and route-log equality without bindings.
 - `tests/gpu/batched2d/batched2d_tests.cpp`: batch count and vertex count across texture and
   scissor changes, with the null backend.
 

@@ -5,7 +5,9 @@
 add_library(tessera_codegen STATIC
     src/codegen.cpp
     src/emit_component.cpp
-    src/emit_expr.cpp)
+    src/emit_events.cpp
+    src/emit_expr.cpp
+    src/emit_header.cpp)
 
 target_include_directories(tessera_codegen
     PUBLIC

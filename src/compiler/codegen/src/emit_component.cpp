@@ -10,6 +10,7 @@
 // two-space indent; LF only. Nothing depends on clang-format or the wall clock.
 
 #include "codegen_internal.hpp"
+#include "emit_events.hpp"
 
 #include <array>
 #include <cctype>
@@ -24,53 +25,9 @@
 namespace tessera::compiler::codegen::internal {
 namespace {
 
-constexpr std::string_view kUnsupported = "TESSERA_CODEGEN_UNSUPPORTED: ";
-constexpr std::string_view kEventType = "const tessera::ui::Event&";
-
-constexpr std::string_view kPayloadRecords[] = {
-    "PointerEvent",     "ClickEvent",      "KeyEvent",   "FocusEvent",
-    "TextChangeEvent",  "TextSubmitEvent", "TextTarget", "TextSelection",
-    "CompositionEvent", "ScrollEvent",     "ErrorInfo",
-};
-
-bool is_payload_record(std::string_view type) {
-    for (const std::string_view record : kPayloadRecords) {
-        if (record == type) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool fail(std::string& error, std::string message) {
-    error = std::string(kUnsupported) + std::move(message);
+    error = "TESSERA_CODEGEN_UNSUPPORTED: " + std::move(message);
     return false;
-}
-
-// A binding's developer function; a payload record parameter maps to the closest existing runtime
-// event type (`tessera::ui::Event`), which is the missing-API seam documented in the design note.
-std::string handler_type(std::string_view type) {
-    if (is_payload_record(type)) {
-        return std::string(kEventType);
-    }
-    const std::optional<std::string> mapped = cpp_type(type);
-    return mapped ? *mapped : std::string();
-}
-
-std::string params_text(const std::vector<ir::Param>& params) {
-    if (params.empty()) {
-        return std::string(kEventType) + " event";
-    }
-    std::string out;
-    for (const ir::Param& param : params) {
-        const std::string type = handler_type(param.type);
-        if (!out.empty()) {
-            out += ", ";
-        }
-        out += type.empty() ? std::string("const tessera::ui::Event&") : type;
-        out += " " + param.name;
-    }
-    return out;
 }
 
 std::string value_repr(const ir::Expr* expr) {
@@ -81,21 +38,6 @@ std::string value_repr(const ir::Expr* expr) {
         return literal_text(expr->literal);
     }
     return "<expr>";
-}
-
-// `handler::1` -> `handler_1`: the generated member name of an IR record id.
-std::string method_name(std::string_view id) {
-    std::string out;
-    for (const char c : id) {
-        if (c == ':') {
-            if (out.empty() || out.back() != '_') {
-                out += '_';
-            }
-            continue;
-        }
-        out += c;
-    }
-    return out;
 }
 
 std::string node_id_text(const ir::Node& node, unsigned& next_id, std::string& error) {
@@ -174,7 +116,8 @@ std::optional<std::uint64_t> parse_automation_id(std::string_view text) {
 }
 
 bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& component,
-               unsigned& next_id, unsigned& next_var, std::string& variable, std::string& error) {
+               const std::vector<EventAdapter>& adapters, unsigned& next_id, unsigned& next_var,
+               std::string& variable, std::string& error) {
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
     case ir::NodeKind::Component:
@@ -225,10 +168,11 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
         return false;
     }
     writer.line(node_comment(node));
+    const unsigned node_ordinal = next_var;
     variable = "node_" + std::to_string(next_var++);
     writer.line("auto " + variable + " = std::make_unique<tessera::ui::Node>(" + id + ");");
     // Deterministic metadata order: element kind, id, className, automationId, role, aria-* (name
-    // order), focusability/scroll flags, paint text, then the child subtrees.
+    // order), event bindings, focusability/scroll flags, paint text, then the child subtrees.
     const auto prop = [&](std::string_view name) -> const ir::Expr* {
         const auto found = node.props.find(std::string(name));
         return found == node.props.end() ? nullptr : found->second.get();
@@ -278,6 +222,21 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
         writer.line(variable + "->set_aria(" + literal_text(ir::LiteralValue{std::string(name)}) +
                     ", " + literal_text(ir::LiteralValue{std::string(*text)}) + ");");
     }
+    for (const auto& [jsx_name, target] : node.events) {
+        (void)target;
+        const EventAdapter* adapter = nullptr;
+        for (const EventAdapter& candidate : adapters) {
+            if (candidate.ordinal == node_ordinal && candidate.jsx_name == jsx_name) {
+                adapter = &candidate;
+                break;
+            }
+        }
+        if (adapter == nullptr) {
+            return fail(error, "event `" + jsx_name + "` has no adapter");
+        }
+        writer.line(variable + "->bind_event(" + adapter->event_type + ", &" + adapter->function +
+                    ", this);");
+    }
     if (node.kind == ir::NodeKind::Button || node.kind == ir::NodeKind::TextInput ||
         node.kind == ir::NodeKind::TextArea) {
         writer.line(variable + "->set_focusable(true);");
@@ -306,7 +265,8 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
     }
     for (const ir::Node& child : node.children) {
         std::string child_variable;
-        if (!emit_node(writer, child, component, next_id, next_var, child_variable, error)) {
+        if (!emit_node(writer, child, component, adapters, next_id, next_var, child_variable,
+                       error)) {
             return false;
         }
         writer.line(variable + "->add_child(std::move(" + child_variable + "));");
@@ -325,111 +285,11 @@ std::vector<const ir::Binding*> component_bindings(const ir::Component& componen
     return result;
 }
 
-bool emit_header(const ir::Component& component, std::string_view ns,
-                 const std::vector<const ir::Binding*>& bindings, GeneratedFile& file,
-                 std::string& error) {
-    CppWriter writer;
-    writer.line("// SPDX-License-Identifier: MIT");
-    writer.line("// Generated by Tessera codegen from the IR; see docs/design/codegen.md.");
-    writer.line("// Developer code belongs only inside [DEVELOPER_LOGIC_START/END] regions.");
-    writer.line("#pragma once");
-    writer.line("");
-    writer.line("#include \"tessera/ui/scene/node.hpp\"");
-    writer.line("");
-    writer.line("#include <cstdint>");
-    writer.line("#include <memory>");
-    writer.line("#include <optional>");
-    writer.line("#include <string>");
-    writer.line("#include <string_view>");
-    writer.line("#include <vector>");
-    writer.line("");
-    writer.open("namespace " + std::string(ns));
-    writer.open("namespace gen");
-    writer.line("// " + component.id + " (" + component.name + ").");
-    writer.open("struct " + component.name);
-    for (const ir::State& state : component.state) {
-        const std::optional<std::string> type = cpp_type(state.type);
-        if (!type) {
-            return fail(error, "state `" + state.name + "` has a type with no C++ form (`" +
-                                   state.type + "`)");
-        }
-        ExprEmission initial =
-            state.initial ? emit_expr(*state.initial, component) : ExprEmission{"{}", {}};
-        if (!initial.error.empty()) {
-            return fail(error, initial.error);
-        }
-        writer.line("// useState `" + state.name + "`.");
-        writer.line(*type + " " + member_name(state.id) + " = " + initial.text + ";");
-    }
-    for (const ir::Ref& ref : component.refs) {
-        writer.line("// useRef `" + ref.name + "` (filled by the ref-target assignment slice).");
-        writer.line("tessera::ui::Node* " + member_name(ref.id) + " = nullptr;");
-    }
-    for (const ir::AnimatedValue& value : component.animated_values) {
-        const std::optional<std::string> type = cpp_type(value.type);
-        if (!type) {
-            return fail(error, "animated value `" + value.name + "` has a type with no C++ form");
-        }
-        ExprEmission initial =
-            value.initial ? emit_expr(*value.initial, component) : ExprEmission{"{}", {}};
-        if (!initial.error.empty()) {
-            return fail(error, initial.error);
-        }
-        writer.line("// useAnimatedValue `" + value.name +
-                    "` (a plain field until the animation controller API exists).");
-        writer.line(*type + " " + member_name(value.id) + " = " + initial.text + ";");
-    }
-    for (const ir::Prop& prop : component.props) {
-        const std::optional<std::string> type = cpp_type(prop.type);
-        if (!type) {
-            return fail(error, "prop `" + prop.name + "` has a type with no C++ form (`" +
-                                   prop.type + "`)");
-        }
-        std::string initial = "{}";
-        if (prop.default_value) {
-            ExprEmission value = emit_expr(*prop.default_value, component);
-            if (!value.error.empty()) {
-                return fail(error, value.error);
-            }
-            initial = "{" + value.text + "}";
-        }
-        writer.line("// prop `" + prop.name + "`.");
-        writer.line(*type + " " + member_name("prop::" + prop.name) + " = " + initial + ";");
-    }
-    writer.line("");
-    writer.line("void build(tessera::ui::Node& parent);");
-    for (const ir::Handler& handler : component.handlers) {
-        writer.line("void " + method_name(handler.id) + "(" + std::string(kEventType) + " event);");
-    }
-    for (const ir::Binding* binding : bindings) {
-        if (binding->kind == ir::BindingKind::Event) {
-            writer.line("void " + binding->region + "(" + params_text(binding->params) + ");");
-            continue;
-        }
-        std::string return_type;
-        if (!binding->return_type.empty()) {
-            return_type = handler_type(binding->return_type);
-            if (return_type.empty()) {
-                return fail(error, "binding `" + binding->id +
-                                       "` has an unsupported return type `" + binding->return_type +
-                                       "`");
-            }
-        }
-        writer.line(std::string(return_type.empty() ? "void" : return_type) + " " +
-                    binding->region + "();");
-    }
-    writer.close(";");
-    writer.close("");
-    writer.close("");
-    file.path = component.name + ".hpp";
-    file.text = std::move(writer.text);
-    return true;
-}
-
-bool emit_stub_body(CppWriter& writer, const ir::Binding& binding, bool event_parameter) {
+bool emit_stub_body(CppWriter& writer, const ir::Binding& binding,
+                    std::string_view event_parameter) {
     writer.line("// TODO(tessera-codegen): implement the developer body for " + binding.id + ".");
-    if (event_parameter) {
-        writer.line("(void)event;");
+    if (!event_parameter.empty()) {
+        writer.line("(void)" + std::string(event_parameter) + ";");
     }
     if (!binding.return_type.empty()) {
         writer.line("return {};");
@@ -451,29 +311,40 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("");
     writer.open("namespace " + std::string(ns));
     writer.open("namespace gen");
+    writer.line("// TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, "
+                "ref-target");
     writer.line(
-        "// TODO(tessera-codegen): remaining runtime API gaps are inline style attachment, event");
-    writer.line(
-        "// payload records, event dispatch wiring, ref-target assignment and animated/effect");
-    writer.line(
-        "// lifecycle invocation (docs/design/compiler.md section 11). Style and events are");
-    writer.line("// recorded in the node comments below until those land.");
+        "// assignment and animated/effect lifecycle invocation (docs/design/compiler.md section");
+    writer.line("// 11). Inline style is recorded in the node comments below until it lands.");
     writer.line("");
+    unsigned ordinal = 0;
+    std::vector<EventAdapter> adapters;
+    if (!collect_event_adapters(component.root, component, bindings, ordinal, adapters, error)) {
+        return false;
+    }
+    emit_event_adapters(writer, component.name, adapters);
     writer.open("void " + component.name + "::build(tessera::ui::Node& parent)");
     unsigned next_id = 1;
     unsigned next_var = 1;
     std::string root_variable;
-    if (!emit_node(writer, component.root, component, next_id, next_var, root_variable, error)) {
+    if (!emit_node(writer, component.root, component, adapters, next_id, next_var, root_variable,
+                   error)) {
         return false;
     }
     writer.line("parent.add_child(std::move(" + root_variable + "));");
     writer.close("");
     writer.line("");
     for (const ir::Handler& handler : component.handlers) {
+        bool typed = false;
+        std::string param_name;
+        const std::optional<std::string> signature =
+            payload_signature(handler.params, typed, param_name);
+        if (!signature) {
+            return fail(error, "handler `" + handler.id + "` has an unsupported payload record");
+        }
         const std::string name = method_name(handler.id);
-        writer.open("void " + component.name + "::" + name + "(" + std::string(kEventType) +
-                    " event)");
-        writer.line("(void)event;");
+        writer.open("void " + component.name + "::" + name + "(" + *signature + ")");
+        writer.line("(void)" + param_name + ";");
         std::string action_error;
         const std::optional<std::string> body =
             emit_actions(handler.actions, component, action_error);
@@ -499,9 +370,16 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     for (const ir::Binding* binding : bindings) {
         const bool event_parameter = binding->kind == ir::BindingKind::Event;
         std::string signature;
+        std::string param_name;
         if (event_parameter) {
-            signature = "void " + component.name + "::" + binding->region + "(" +
-                        params_text(binding->params) + ")";
+            bool typed = false;
+            const std::optional<std::string> payload =
+                payload_signature(binding->params, typed, param_name);
+            if (!payload) {
+                return fail(error,
+                            "binding `" + binding->id + "` has an unsupported payload record");
+            }
+            signature = "void " + component.name + "::" + binding->region + "(" + *payload + ")";
         } else if (!binding->return_type.empty()) {
             const std::string type = handler_type(binding->return_type);
             signature = type + " " + component.name + "::" + binding->region + "()";
@@ -511,7 +389,7 @@ bool emit_source(const ir::Component& component, std::string_view ns,
         writer.open(signature);
         writer.line("// [DEVELOPER_LOGIC_START: " + binding->id + "]");
         writer.indent += 1;
-        emit_stub_body(writer, *binding, event_parameter);
+        emit_stub_body(writer, *binding, event_parameter ? param_name : std::string());
         writer.indent -= 1;
         writer.line("// [DEVELOPER_LOGIC_END: " + binding->id + "]");
         writer.close("");
@@ -538,7 +416,7 @@ bool emit_component(const ir::Component& component, std::string_view module_name
     }
     const std::vector<const ir::Binding*> owned = component_bindings(component, bindings);
     GeneratedFile header;
-    if (!emit_header(component, module_namespace, owned, header, error)) {
+    if (!emit_component_header(component, module_namespace, owned, header, error)) {
         return false;
     }
     GeneratedFile source;

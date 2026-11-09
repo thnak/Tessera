@@ -27,6 +27,12 @@ bool dispatch_event_to(Node& target, Event& event) {
     if (event.stopped) {
         return true;
     }
+    // Generated bindings run after the node's own listeners and before bubbling. They receive a
+    // read-only copy, so they cannot consume the event (docs/design/scene-graph.md section 6).
+    target.run_event_bindings(event);
+    if (event.stopped) {
+        return true;
+    }
 
     event.phase = EventPhase::Bubble;
     for (std::size_t i = path.size(); i-- > 1;) {
