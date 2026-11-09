@@ -63,7 +63,9 @@ bool emit_build_item(CppWriter& writer, const ir::Component& component, const Dy
     if (!emit_node(writer, *list.node, state, root, error)) {
         return false;
     }
-    writer.line("return std::move(" + root + ");");
+    // No std::move: the returned unique_ptr is a local, and GCC's -Wpessimizing-move (CI builds
+    // with -Werror) rejects a move that prevents copy elision.
+    writer.line("return " + root + ";");
     writer.close("");
     writer.line("");
     return true;

@@ -257,7 +257,7 @@ namespace dynamic {
       auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + tessera_index * kItemIdStride));
       node_5->set_element_kind("Text");
       tessera_out.texts[0] = node_5.get();
-      return std::move(node_5);
+      return node_5;
     }
     
     void Dynamic::apply_item_5(std::size_t tessera_slot, const std::string& item, std::size_t tessera_index) {
