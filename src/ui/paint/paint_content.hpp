@@ -13,8 +13,8 @@ namespace tessera::ui::paint::detail {
 
 // The node's padded content box (border box inset by padding-*), the rect a content payload is
 // painted into. Empty when the insets consume the box.
-[[nodiscard]] inline std::optional<rhi::Rect>
-content_box(const style::ComputedStyle& style, const rhi::Rect& border_box) {
+[[nodiscard]] inline std::optional<rhi::Rect> content_box(const style::ComputedStyle& style,
+                                                          const rhi::Rect& border_box) {
     if (border_box.width <= 0.0f || border_box.height <= 0.0f) {
         return std::nullopt;
     }
