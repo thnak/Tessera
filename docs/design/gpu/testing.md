@@ -1,8 +1,9 @@
 # GPU testing
 
-Status: B1 GPU tests exist (`rhi_null`, `batched2d`, Vulkan smoke); B2 goldens/contract suite
-proposed. Overall test strategy: [`../testing.md`](../testing.md); golden format:
-[`../../specs/golden-tests-v1.md`](../../specs/golden-tests-v1.md).
+Status: B1 GPU tests exist (`rhi_null`, `batched2d`, Vulkan smoke); B2 goldens and the contract
+suite are partially implemented (lavapipe and CPU goldens, damage equivalence, frames in flight,
+Vulkan swapchain/async tests under `tests/gpu/`). Overall test strategy: [`../testing.md`](../testing.md);
+golden format: [`../../specs/golden-tests-v1.md`](../../specs/golden-tests-v1.md).
 
 ## 1. Goals
 

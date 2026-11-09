@@ -1,8 +1,9 @@
 # GPU rendering docs
 
-Status: started. B1 (offscreen Vulkan + null backend) is implemented; B2/B3 contracts are
-proposed. This folder is the detailed GPU/RHI design set; [`../renderer.md`](../renderer.md)
-remains the B1 summary and acceptance record.
+Status: started. B1 (offscreen Vulkan + null backend) is implemented; B2 dirty/golden and B3
+swapchain/present work is partially implemented (see [`../../README.md#8-status`](../../README.md#8-status));
+the contracts below remain the target. This folder is the detailed GPU/RHI design set;
+[`../renderer.md`](../renderer.md) remains the B1 summary and acceptance record.
 
 ## 1. Scope
 

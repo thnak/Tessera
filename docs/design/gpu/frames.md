@@ -1,6 +1,8 @@
 # Frame execution and synchronization
 
-Status: B1 synchronous path implemented; B2 multi-frame path proposed. Frame pacing policy is in
+Status: B1 synchronous path implemented; `Batched2DRenderer` frame-slot (`frames_in_flight`)
+support and the two-frame swapchain submit ring are implemented; a device-level frame object with
+timeline semaphores is still proposed. Frame pacing policy is in
 [`../game-loop.md`](../game-loop.md); dirty work in [`../dirty-rendering.md`](../dirty-rendering.md);
 resize in [`../window-resize.md`](../window-resize.md).
 

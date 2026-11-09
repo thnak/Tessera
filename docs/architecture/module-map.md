@@ -1,9 +1,11 @@
 # Module map
 
 Status: reflects the repository at [Big Step B1](../../AGENTS.md#big-steps-group-work-dont-micro-step)
-(renderer core) plus the implemented B2 runtime slices: stylesheet engine, Yoga layout,
-text-measurement stub, normalized input, fixed-step loop, dirty rendering/damage, diagnostics
-counters, async primitives, the animation runtime, and the window/swapchain seams. Remaining
+(renderer core) plus the implemented B2 runtime slices and the started Big Step C: stylesheet
+engine, Yoga layout, the real text stack (FreeType/HarfBuzz/glyph atlas), normalized input with
+the per-tick pump, fixed-step loop, dirty rendering/damage, box paint pass, diagnostics counters,
+async primitives, the animation runtime, the window/swapchain seams, and the JSX/TSX front end,
+analysis skeleton, IR and expression lowering. Remaining
 B2/B3 work and empty directories are marked **planned**; a planned directory is a seam, not an
 implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step) (renderer core, runtime slice, window/swapchain/OS); C, D, and F are Big Steps C (compiler vertical slice), D (design-time preview), and F (production breadth); a letter in parentheses, such as "(D)", is the Big Step in which the directory is planned.
 
@@ -23,16 +25,17 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
 | `src/rendering/null/` | deterministic no-GPU backend + swapchain | B1; swapchain seam B3 |
-| `src/rendering/backend/vulkan/` | Vulkan 1.3 backend (volk + VMA (Vulkan Memory Allocator)) | B1 offscreen |
+| `src/rendering/backend/vulkan/` | Vulkan 1.3 backend (volk + VMA (Vulkan Memory Allocator)) | B1 offscreen; B3 swapchain/present |
 | `src/rendering/backend/webgpu/` | WebGPU/Dawn backend | planned (D) |
 | `src/rendering/software/` | deterministic CPU canvas (solid axis-aligned rects) for golden references | implemented (B2) |
 | `src/rendering/resources/` | textures, samplers, uploads, caches | planned |
-| `src/rendering/scheduler/` | frame scheduling, fences, presentation | planned (B3) |
-| `src/compiler/analyzer/` | own JSX/TSX front end + React-like rules | planned (C) |
-| `src/compiler/rules/` | framework/binding rules | planned (C) |
-| `src/compiler/ir/` | neutral IR (intermediate representation) + serialization | planned (C) |
+| `src/rendering/scheduler/` | frame scheduling, fences, presentation | planned (frame slots live in `Batched2DRenderer`; present in the Vulkan backend) |
+| `src/compiler/analyzer/` | own JSX/TSX front end + React-like rules | implemented (C) |
+| `src/compiler/rules/` | framework/binding rules | implemented (C; analysis skeleton) |
+| `src/compiler/ir/` | neutral IR (intermediate representation) + serialization | implemented (C; model, JSON writer, validator) |
+| `src/compiler/lowering/` | AST -> IR expression lowering | implemented (C, expressions only) |
 | `src/compiler/codegen/` | IR -> C++ | planned (C) |
-| `src/compiler/merger/` | protected-region merge | B1 |
+| `src/compiler/merger/` | protected-region merge | implemented (B1) |
 | `src/runtime/` | fixed-step accumulator, clock, `RuntimeLoop`, frame pacer, async primitives, diagnostics counters | B2 core |
 | `src/services/` | i18n (internationalization), navigation, state restore, storage, networking, notifications, shell | planned (F) |
 | `src/data/` | async resource cache, mutations, offline queue | planned (F) |

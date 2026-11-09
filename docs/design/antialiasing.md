@@ -1,7 +1,7 @@
 # Anti-aliasing
 
-Status: B1 (renderer-core phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) has **partial** AA (anti-aliasing). It is analytic SDF (signed distance field) AA for rounded rectangles only; there is no
-MSAA (multisample AA)/FXAA (fast approximate AA)/TAA (temporal AA), no text AA yet, and no vector-path AA yet.
+Status: B1 (renderer-core phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) has **partial** AA (anti-aliasing). It is analytic SDF (signed distance field) AA for rounded rectangles; text uses grayscale coverage from the glyph atlas. There is no
+MSAA (multisample AA)/FXAA (fast approximate AA)/TAA (temporal AA) and no vector-path AA yet.
 
 ## 1. What exists today
 

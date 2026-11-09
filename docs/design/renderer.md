@@ -1,7 +1,6 @@
 # Renderer and RHI design (Big Step B1)
 
-Status: B1 (renderer core, first phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) implemented. B2 (runtime slice) adds Yoga layout (Flexbox engine, see [glossary](../reference/glossary.md)), text shaping/glyph atlas, dirty rendering, and
-pixel goldens, and frame pacing/dynamic refresh. B3 (window/swapchain/OS compliance) adds the window/swapchain path (swapchain = the images presented to a window).
+Status: B1 (renderer core, first phase of [Big Step B](../../AGENTS.md#big-steps-group-work-dont-micro-step)) implemented; this file remains the B1 acceptance record. Later slices have landed: B2 Yoga layout, text shaping/glyph atlas, dirty rendering and pixel goldens, and B3 window/swapchain on Windows/X11. The current state is the status table in [`docs/README.md`](../README.md#8-status); the detailed GPU contract is [`gpu/README.md`](gpu/README.md).
 
 Detailed GPU contract: [`gpu/README.md`](gpu/README.md) (RHI, frames/sync, resources, pipelines,
 backends, GPU tests). This file remains the B1 summary/acceptance record.
@@ -143,18 +142,21 @@ the damaged entry point. With no `--damage` flag the output is unchanged.
 
 Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 
-`--golden` disables AA. A pixel golden pipeline on lavapipe/software (lavapipe = Mesa software Vulkan driver; [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests) is B2 work (AGENTS.md, Big Step B2).
+`--golden` disables AA. The pixel golden pipeline runs on lavapipe/software (lavapipe = Mesa software Vulkan driver; [ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md), deterministic headless golden tests) and on the CPU canvas; see `tests/gpu/CMakeLists.txt`.
 
-## B2 / known limits
+## Known limits
 
-- B1 is offscreen only; no window or swapchain.
-- B1 full-redraws; B2 adds the offscreen `begin_damaged` scissor replay. Swapchain/present-path
-  damage and dirty caches/layers remain B3/later work.
-- One frame in flight (frames in flight = frames submitted to the GPU but not yet finished); no timeline semaphores (Vulkan synchronization primitive) or multi-frame pipelining yet (listed under B2 in AGENTS.md).
-- No FPS cap, vsync/VRR (variable refresh rate), or dynamic refresh yet; frame pacing is B2 (AGENTS.md), and presenting to a window is B3.
-- No Yoga layout; scene nodes use explicit bounds.
-- No text shaping or glyph atlas.
+- B1 was offscreen only; the B3 window/swapchain path now exists for Win32 and X11
+  (`docs/design/window-resize.md` §0).
+- B1 full-redraws; the offscreen `begin_damaged` scissor replay is implemented. Swapchain/present-path
+  damage and dirty caches/layers remain later work.
+- `Batched2DRenderer` supports `frames_in_flight > 1` and the swapchain path submits over a two-slot
+  ring; there is no timeline-semaphore frame object yet.
+- `FramePacer` and vsync/present-mode selection exist; dynamic refresh/VRR and present-path damage
+  are pending.
+- Yoga layout, FreeType/HarfBuzz shaping and the glyph atlas are implemented in B2.
 - No vector path rasterizer ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buy vector-path rasterization).
 - No sRGB/color-management policy: not scheduled; no decision yet (see [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
 - No bindless/descriptor indexing (Vulkan features letting shaders index many textures from one set); one descriptor set per texture.
-- Pixel goldens from lavapipe/software are not wired yet.
+- Goldens from lavapipe/software are wired (dashboard, overlay, text, shapes) plus a CPU solid-rect
+  reference.
