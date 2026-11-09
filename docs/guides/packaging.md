@@ -276,9 +276,10 @@ build/package jobs; it runs in the Linux `release-rehearsal` CI job.
 4. **Reproducible proof** — `python -B scripts/check_reproducible.py --config Release --target
    <target> --package`. Builds twice and requires both the executable and the CPack archive
    (`SOURCE_DATE_EPOCH=315532800`, `TZ=UTC`) to be byte-identical (Linux/Windows CI; macOS when its
-   toolchain supports the same flags). The gate pins the same package commit and checks it out in a
-   detached worktree for both builds, so a moving HEAD or a dirty working tree cannot skew the
-   comparison.
+   toolchain supports the same flags). `--commit` defaults to `git rev-parse HEAD`; that exact
+   commit is checked out in a detached worktree for both builds and written to
+   `PACKAGE-INFO.txt`/`RELEASE-NOTES.txt`, so the metadata cannot drift from the built sources and
+   a moving HEAD or dirty working tree cannot skew the comparison.
 5. **Distributable archive** — configure with `-DTESSERA_PACKAGE_EXECUTABLES=<targets>`, build
    `tessera-package-stage`, run `cpack --config <build>/CPackConfig.cmake -G <TGZ|ZIP> -B <out>`,
    then `python -B scripts/check_package.py --archive <artifact>`. Proves the archive contains
