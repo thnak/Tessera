@@ -217,7 +217,8 @@ Rejections are compile errors with source spans; no silent fallback.
 ## 12. Open questions
 
 - Exact effect dependency analysis vs explicit user-provided arrays.
-- Whether `useMemo`/`useCallback` are ever allowed (currently no).
+- `useMemo`/`useCallback`: decided, only the safe forms lower as plain locals/handlers; see
+  [`react-compat.md`](jsx-intrinsics-v1/react-compat.md) section 4.2.
 - Context-free dependency injection for services.
 - Async effects/loading states without suspense.
 - Error-boundary retry/reset and event-handler catch policy; see

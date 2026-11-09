@@ -1,7 +1,7 @@
 # Machine-readable form of the intrinsic table
 
-Part of [`jsx-intrinsics-v1`](README.md). This page is a proposal for owner approval [Q22]; no loader
-or generator is written yet. It decides the form of the data, not its code.
+Part of [`jsx-intrinsics-v1`](README.md). Option C below is decided by the owner [Q22]; no loader or
+generator is written yet. This page decides the form of the data, not its code.
 
 ## 1. Requirements
 

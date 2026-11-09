@@ -99,7 +99,7 @@ All state is per call.
 |---|---|---|
 | Hook not at the top level of the body (condition, `&&`/`\|\|` right side, function, JSX, hook argument) | `TESSERA_REACT_HOOK_ORDER` | one report per call |
 | Hook declared after a statement that reads what it declares | `TESSERA_REACT_HOOK_ORDER` | the fixed-order rule (reading of "fixed order" is a slice question) |
-| `use*` call that is not a core hook | `TESSERA_REACT_UNKNOWN_HOOK` | `useMemo`, `useCallback`, `useReducer`, `useContext` give `TESSERA_REACT_UNSUPPORTED_API` |
+| `use*` call that is not a core hook | `TESSERA_REACT_UNKNOWN_HOOK` | `useReducer`, `useContext` and unsafe forms of `useMemo`/`useCallback` give `TESSERA_REACT_UNSUPPORTED_API`; the safe forms lower as locals/handlers (slice 13) |
 | Hook not in its section 7 form | `TESSERA_REACT_HOOK_FORM` (new) | `useState` pair, `useRef` initial `null`, single-name `useAnimatedValue`, `useEffect` arrow plus array |
 | `return` in an effect body other than the final cleanup arrow | `TESSERA_REACT_EFFECT_RETURN` | cleanup arrows (including their own bodies) are checked too |
 | Dependencies not exact | `TESSERA_REACT_EFFECT_DEPS` | missing, extra, duplicate, non-name, non-array, no array, not a prop/state/animated value |
@@ -240,6 +240,14 @@ Each slice is behavior, tests and docs, committed on its own.
 9. **Components across files.** Imports, references, cycles, prop checks; `LoweringOptions`.
 10. **Identity.** `uiId`, `componentId`, automation manifest, collision errors (after decision 1).
 11. **Library and custom elements.** Hook manifest reader, `environment`, `ui/elements.json`.
+12. **Schema table.** `tessera_schema` (`src/schema/`): the `constexpr` intrinsic, alias and style
+    tables, the dump tool (JSON and `.d.ts`) and its golden
+    ([`machine-readable.md`](../specs/jsx-intrinsics-v1/machine-readable.md)). Slice 4 (types) needs
+    the intrinsic part of it, so it comes before slice 4 or is built with it.
+13. **Lowercase alias and `react` import.** Analysis-side alias resolution and attribute rewrites,
+    parser change, `from "react"` hooks alias, `useMemo`/`useCallback` safe-form lowering
+    ([ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md);
+    [`react-compat.md`](../specs/jsx-intrinsics-v1/react-compat.md) sections 4.2 and 5). Needs slice 12.
 
 Slices 1 and 2 can start first.
 

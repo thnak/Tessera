@@ -169,6 +169,6 @@ other prop, constraint and event is shared. Both accept `placeholder`, `maxLengt
 <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} rows={6} readOnly={locked} />
 ```
 
-Not supported because no pure conversion exists in the allowlist (ir-v1 section 4.2): numeric state
-fed from an input (`setAge(parseInt(e.target.value))`); keep the string and compute with it where it
-is displayed [Q26].
+Not supported until the allowlist (ir-v1 section 4.2) gains the decided total functions
+`parseIntOr(s, fallback)` and `parseFloatOr(s, fallback)` [Q26]: numeric state fed from an input
+(`setAge(parseInt(e.target.value))`). Until then keep the string.

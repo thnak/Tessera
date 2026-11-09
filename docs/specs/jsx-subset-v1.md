@@ -136,7 +136,8 @@ Rules:
 - **Imports**: named imports only. No default imports, no namespace imports (`* as x`), no
   re-exports, no dynamic `import()`, no `require`.
   - `from "tessera"` imports built-in components and hooks (for example `useState`, `View`,
-    `CustomElement`).
+    `CustomElement`). `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
+    of `"tessera"` (other names and `import React` are errors; [`jsx-intrinsics-v1`](jsx-intrinsics-v1/react-compat.md) Q15).
   - `from "./X"` or `from "../X"` imports a component, type or constant exported by another source
     file of the project (extension omitted). Absolute paths and bare package names other than
     `"tessera"` are errors.
@@ -383,8 +384,9 @@ A handler is a function value given to an event prop, to `useEffect`, or to a ca
 
 ### 9.1 Setter reference
 
-The name of a state setter: `onChange={setEmail}`. The event payload is passed to the setter and its
-type must match the state type.
+The name of a state setter: `onChange={setEmail}`. The setter receives the event's primary value (the
+`value` of a text event, otherwise the whole payload) and its type must match the state type
+([`jsx-intrinsics-v1`](jsx-intrinsics-v1/common-and-events.md) section 3).
 
 ### 9.2 Inline setter handler
 
@@ -441,8 +443,9 @@ const submit = (values: FormValues): void => {
 Event names and payload types are those listed in [`component-model-v1.md`](component-model-v1.md)
 section 4 and in the element specs ([`text-editing-v1.md`](text-editing-v1.md),
 [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md)). The typed event objects are declared by the
-framework typings generated for `"tessera"` (section 16.2). An event prop given a function with a
-different parameter type is `TESSERA_JSX_TYPE_MISMATCH`.
+framework typings generated for `"tessera"` (section 16.2). The payload records and which member is
+primary are defined in [`jsx-intrinsics-v1`](jsx-intrinsics-v1/common-and-events.md) section 2. An
+event prop given a function with a different parameter type is `TESSERA_JSX_TYPE_MISMATCH`.
 
 ## 10. JSX
 
@@ -618,7 +621,7 @@ and no silent skipping.
 | `import()`, `require`, default import/export, `import * as` | `TESSERA_JSX_SUBSET_IMPORT` | Use named imports |
 | Custom hooks | `TESSERA_REACT_CUSTOM_HOOK` | Inline the hook or write a native handler |
 | Context, `createContext`, `useContext`, suspense, portals | `TESSERA_REACT_UNSUPPORTED_API` | Use services and overlays ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) |
-| `useMemo`, `useCallback`, `useReducer`, `memo`, `forwardRef` | `TESSERA_REACT_UNSUPPORTED_API` | Compute in a `const`; state updates are batched already |
+| `useReducer`, `memo`, `forwardRef`; `useMemo`/`useCallback` outside the safe forms | `TESSERA_REACT_UNSUPPORTED_API` | Compute in a `const`. `useMemo(() => pure expr, deps)` and `useCallback(setter-call arrow, deps)` lower as plain locals/handlers (Q16, `jsx-intrinsics-v1/react-compat.md` 4.2) |
 | Lowercase tags with no alias mapping | `TESSERA_JSX_SUBSET_HTML_TAG` | See the alternative in `jsx-intrinsics-v1/html-aliases.md` |
 | Dynamic component type, member tags, namespace tags | `TESSERA_JSX_SUBSET_DYNAMIC_TAG` | Use a fixed tag |
 | `==`, `!=` | `TESSERA_JSX_SUBSET_LOOSE_EQUALITY` | Use `===`, `!==` |
