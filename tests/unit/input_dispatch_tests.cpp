@@ -33,6 +33,10 @@ const char* type_name(EventType type) {
         return "up";
     case EventType::PointerMove:
         return "move";
+    case EventType::Wheel:
+        return "wheel";
+    case EventType::Text:
+        return "text";
     case EventType::KeyDown:
         return "keydown";
     case EventType::KeyUp:

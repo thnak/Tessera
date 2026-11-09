@@ -112,7 +112,12 @@ class InputSampler {
 public:
     explicit InputSampler(std::size_t max_events = 1024);
 
+    // Drains the whole queue into one tick's batch.
     void sample(InputQueue& queue);
+    // Drains at most `max_events`, leaving the rest queued for the next tick. Adjacent moves of
+    // one pointer still coalesce; moves split across ticks do not.
+    void sample(InputQueue& queue, std::size_t max_events);
+
     [[nodiscard]] const std::vector<InputEvent>& events() const {
         return events_;
     }

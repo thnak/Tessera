@@ -13,6 +13,11 @@ struct InputDispatchResult {
     bool dispatched = false;
     EventType type = EventType::PointerMove;
     Node* target = nullptr;
+    // True when a handler set `prevent_default` and the dispatcher therefore skipped its default
+    // action (currently only Tab focus traversal).
+    bool default_prevented = false;
+    // True when the default action actually moved focus (Tab/Shift+Tab).
+    bool focus_moved = false;
 };
 
 InputDispatchResult dispatch_input(Node& root, const InputEvent& input);

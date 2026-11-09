@@ -2,6 +2,7 @@
 
 #include "tessera/ui/input.hpp"
 
+#include <limits>
 #include <stdexcept>
 
 namespace tessera::ui {
@@ -62,10 +63,19 @@ InputSampler::InputSampler(std::size_t max_events) {
 }
 
 void InputSampler::sample(InputQueue& queue) {
+    sample(queue, std::numeric_limits<std::size_t>::max());
+}
+
+void InputSampler::sample(InputQueue& queue, std::size_t max_events) {
     events_.clear();
+    if (max_events == 0) {
+        return;
+    }
 
     InputEvent event;
-    while (queue.pop(event)) {
+    std::size_t popped = 0;
+    while (popped < max_events && queue.pop(event)) {
+        ++popped;
         if (!events_.empty() && same_pointer_move(events_.back(), event)) {
             InputEvent& previous = events_.back();
             previous.timestamp_s = event.timestamp_s;
