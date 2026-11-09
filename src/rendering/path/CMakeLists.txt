@@ -2,6 +2,7 @@
 
 add_library(tessera_path STATIC
     path_rasterizer.cpp
+    path_scale.cpp
     path_texture_cache.cpp
     path_texture_key.cpp
     svg_document_cache.cpp

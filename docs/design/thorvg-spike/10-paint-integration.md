@@ -96,15 +96,15 @@ Vulkan 1.0, `Radeon RX 5300M`, Debug build, 160×160 target, nodes sharing one a
   comes back). Per-frame cost is dominated by the batched flush at these sizes, not the lookup
   (binary search, no allocation).
 
-## CPU golden investigation (outcome)
+## CPU golden (follow-up slice, implemented)
 
-The document cache and ThorVG rasterization are CPU-side and deterministic, and the raster path
-already has checked-in goldens (`tests/golden/thorvg/`, `thorvg_svg_golden`). The *paint composition*
-adds textured quads and blending, which the existing CPU canvas backend cannot express (it only
-fills solid rects), so a CPU golden of the composed node is not possible today without a software
-textured-quad rasterizer. The GPU test therefore asserts pixel values and byte-identical repeats
-instead of a golden; a lavapipe golden can be added when CI's Linux golden harness covers the paint
-pass (deferred, see below).
+The document cache and ThorVG rasterization are CPU-side and deterministic, but the *paint
+composition* adds textured quads and blending that the original CPU canvas could not express. The
+follow-up slice added exactly one bounded capability — a deterministic RGBA8 textured-quad blit in
+`CpuCanvas` — plus a shared size/scale helper used by both the GPU and CPU sinks. The composed scene
+now has a bit-exact CPU baseline (`batched2d_cpu_vector_golden`, tolerance 0) that runs on every
+platform, and Linux CI enables ThorVG so it actually executes. Contract, scene and measurements:
+[CPU vector paint golden](11-cpu-vector-golden.md).
 
 ## Tests
 

@@ -8,6 +8,7 @@
 // different bytes fails this test.
 
 #include "path_texture_cache_test_fakes.hpp"
+#include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/path/path_texture_cache.hpp"
 #include "tessera/rendering/path/path_texture_key.hpp"
 
@@ -371,6 +372,41 @@ bool thorvg_content_equality() {
     return expect(same, "ThorVG cached texture bytes equal a direct rasterizer run");
 }
 
+bool scale_path_shapes_rule() {
+    using namespace tessera::rendering;
+    path::PathShape shape = triangle_path();
+    shape.paint.stroke = path::StrokeStyle{path::Rgba8{9, 9, 9, 255}, 2.0f, path::LineCap::round,
+                                           path::LineJoin::miter, 4.0f};
+    const auto scaled = path::scale_path_shapes(std::span<const path::PathShape>(&shape, 1), 2.0f);
+    bool ok = expect(scaled.size() == 1, "scaled copy is produced for scale != 1");
+    if (scaled.size() == 1) {
+        ok = expect(scaled[0].path.segments.size() == shape.path.segments.size(),
+                    "segment count is preserved") &&
+             ok;
+        for (std::size_t index = 0; index < shape.path.segments.size() && ok; ++index) {
+            const auto& source = shape.path.segments[index];
+            const auto& target = scaled[0].path.segments[index];
+            ok =
+                expect(target.kind == source.kind && target.p0.x == source.p0.x * 2.0f &&
+                           target.p0.y == source.p0.y * 2.0f && target.p1.x == source.p1.x * 2.0f &&
+                           target.p1.y == source.p1.y * 2.0f && target.p2.x == source.p2.x * 2.0f &&
+                           target.p2.y == source.p2.y * 2.0f,
+                       "segment points scale with the raster") &&
+                ok;
+        }
+        ok = expect(scaled[0].paint.stroke.has_value() && scaled[0].paint.stroke->width == 4.0f,
+                    "stroke width scales with the geometry") &&
+             ok;
+    }
+    ok = expect(path::scale_path_shapes(std::span<const path::PathShape>(&shape, 1), 1.0f).empty(),
+                "scale 1 returns an empty vector so callers keep the original span") &&
+         ok;
+    ok = expect(path::scale_path_shapes(std::span<const path::PathShape>(&shape, 1), 0.0f).empty(),
+                "non-positive scale is rejected as an empty result") &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -386,6 +422,7 @@ int main() {
     ok = failure_values() && ok;
     ok = null_backend_and_availability() && ok;
     ok = thorvg_content_equality() && ok;
+    ok = scale_path_shapes_rule() && ok;
 
     if (!ok) {
         std::cerr << "path_texture_cache: FAILED\n";

@@ -39,7 +39,7 @@ jobs:
           name: linux
 
       - name: Configure
-        run: cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON
+        run: cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON -DTESSERA_ENABLE_THORVG=ON
 
       - name: Build
         run: cmake --build --preset ci

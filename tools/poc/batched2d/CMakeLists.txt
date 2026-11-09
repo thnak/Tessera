@@ -15,9 +15,18 @@ target_link_libraries(batched2d_poc PRIVATE
     tessera_text_render
     tessera_diagnostics
     tessera_golden
-    tessera_stb)
+    tessera_stb
+    tessera_path
+    tessera_asset_svg)
 
 target_compile_features(batched2d_poc PRIVATE cxx_std_23)
+
+# The CPU vector golden paints embedded assets; the manifest is generated on the build host by the
+# CMake embed script (works in cross builds too).
+include(${PROJECT_SOURCE_DIR}/cmake/TesseraAssets.cmake)
+tessera_embed_assets(batched2d_poc
+    MANIFEST ${PROJECT_SOURCE_DIR}/tests/fixtures/assets/icons.manifest
+    NAMESPACE tessera::poc::batched2d::fixtures)
 
 # `--simulate-loss` needs the Vulkan test hook (same guard the backend/tests use). The include
 # directories/definitions mirror the internal-hook test targets; without hooks the flag is skipped.

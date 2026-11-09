@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/rendering/path/path_model.hpp"
+#include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/path/path_texture_cache.hpp"
 
 #include <algorithm>
@@ -132,24 +133,12 @@ struct PathTextureCache::Impl {
         const std::uint64_t entry_bytes = row_bytes * extent.height;
 
         // Geometry and stroke scale together, so drawing the larger texture down into the logical
-        // box restores the authored stroke width. A whole document is scaled as a unit.
+        // box restores the authored stroke width. A whole document is scaled as a unit; the rule is
+        // shared with CPU-side sinks through path_scale.hpp.
         const float scale = static_cast<float>(key.scale_milli) / 1000.0f;
-        std::vector<PathShape> scaled_storage;
-        std::span<const PathShape> to_rasterize = shapes;
-        if (scale != 1.0f) {
-            scaled_storage.assign(shapes.begin(), shapes.end());
-            for (PathShape& scaled : scaled_storage) {
-                for (PathSegment& segment : scaled.path.segments) {
-                    segment.p0 = {segment.p0.x * scale, segment.p0.y * scale};
-                    segment.p1 = {segment.p1.x * scale, segment.p1.y * scale};
-                    segment.p2 = {segment.p2.x * scale, segment.p2.y * scale};
-                }
-                if (scaled.paint.stroke.has_value()) {
-                    scaled.paint.stroke->width *= scale;
-                }
-            }
-            to_rasterize = std::span<const PathShape>(scaled_storage);
-        }
+        const std::vector<PathShape> scaled_storage = scale_path_shapes(shapes, scale);
+        const std::span<const PathShape> to_rasterize =
+            scaled_storage.empty() ? shapes : std::span<const PathShape>(scaled_storage);
 
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(entry_bytes), 0);
         RasterTarget target{std::span<std::uint8_t>(pixels.data(), pixels.size()), extent.width,

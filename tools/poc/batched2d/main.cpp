@@ -5,7 +5,9 @@
 #define NOMINMAX
 #endif
 
+#include "batched2d_poc_assets.hpp"
 #include "cpu_paint_sink.hpp"
+#include "cpu_vector_scene.hpp"
 #include "damage_cli.hpp"
 #include "tessera/diagnostics/metrics.hpp"
 #include "tessera/diagnostics/overlay.hpp"
@@ -14,6 +16,8 @@
 #include "tessera/rendering/golden/image_diff.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/null/null_device.hpp"
+#include "tessera/rendering/path/path_rasterizer.hpp"
+#include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -23,9 +27,12 @@
 #include "tessera/runtime/frame_wait.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
+#include "tessera/ui/assets/asset_bundle.hpp"
+#include "tessera/ui/assets/asset_svg.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/paint/vector_raster.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/text/font_face.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
@@ -40,6 +47,7 @@
 #include <chrono>
 #include <cstdint>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -66,6 +74,7 @@ struct Options {
     bool overlay = false;
     bool shapes = false;
     bool cpu_text = false;
+    bool cpu_vector = false;
     bool simulate_loss = false;
     std::uint32_t msaa = 1;
     bool windowed = false;
@@ -89,7 +98,7 @@ void print_usage() {
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
                  "                     [--max-mismatch ratio] [--overlay] [--shapes] "
-                 "[--cpu-text] [--msaa N] [--simulate-loss] [--report "
+                 "[--cpu-text] [--cpu-vector] [--msaa N] [--simulate-loss] [--report "
                  "report.json]\n"
                  "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
                  "[--run-seconds S]]\n";
@@ -122,6 +131,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.shapes = true;
         } else if (arg == "--cpu-text") {
             options.cpu_text = true;
+        } else if (arg == "--cpu-vector") {
+            options.cpu_vector = true;
         } else if (arg == "--msaa" && i + 1 < argc) {
             options.msaa = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--simulate-loss") {
@@ -1078,7 +1089,7 @@ void build_cpu_text_screen(tessera::rendering::software::CpuCanvas& canvas,
     tessera::ui::text::FontFace face = std::move(*loaded);
     tessera::ui::text::GlyphRasterizer rasterizer(face);
     tessera::ui::text::HarfBuzzShaper shaper(face);
-    tessera::poc::batched2d::CpuPaintSink sink(canvas, rasterizer, shaper);
+    tessera::poc::batched2d::CpuPaintSink sink(canvas, &rasterizer, &shaper);
 
     const auto background = rgba8(11, 18, 32);
     const auto green = rgba8(74, 222, 128);
@@ -1159,8 +1170,15 @@ int run_cpu(const Options& options) {
     using namespace tessera::rendering;
 
     software::CpuCanvas canvas(options.width, options.height);
-    const bool text_scene = options.cpu_text;
-    if (text_scene) {
+    if (options.cpu_vector) {
+        const auto result = tessera::poc::batched2d::build_cpu_vector_screen(
+            canvas, tessera::poc::batched2d::fixtures::bundle());
+        if (!result.built) {
+            return 0; // clean skip when the SVG/CPU rasterizer backend is absent
+        }
+        std::cout << std::fixed << std::setprecision(3) << "cpu-vector: draws=" << result.draws
+                  << " raster_ms=" << result.raster_ms << " blit_ms=" << result.blit_ms << "\n";
+    } else if (options.cpu_text) {
         const auto started = std::chrono::steady_clock::now();
         build_cpu_text_screen(canvas, options);
         const auto elapsed = std::chrono::steady_clock::now() - started;

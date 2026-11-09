@@ -129,6 +129,79 @@ bool test_guard_conditions() {
                   "short or empty coverage does not write");
 }
 
+bool test_texture_nearest_sampling() {
+    // 2x2 source (red, green / blue, white) blitted to 4x4: each source pixel is a 2x2 block.
+    const std::vector<std::uint8_t> rgba = {
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+    };
+    CpuCanvas canvas = black_canvas(4, 4);
+    canvas.blit_texture(0, 0, 4, 4, rgba, 2, 2, rgba8(255, 255, 255, 255));
+    return expect(pixel(canvas, 0, 0) == std::array<std::uint8_t, 4>{255, 0, 0, 255},
+                  "nearest sampling maps the top-left source pixel") &&
+           expect(pixel(canvas, 1, 1) == std::array<std::uint8_t, 4>{255, 0, 0, 255},
+                  "the top-left block is 2x2") &&
+           expect(pixel(canvas, 3, 0) == std::array<std::uint8_t, 4>{0, 255, 0, 255},
+                  "the top-right block samples the right source column") &&
+           expect(pixel(canvas, 0, 3) == std::array<std::uint8_t, 4>{0, 0, 255, 255},
+                  "the bottom-left block samples the bottom source row") &&
+           expect(pixel(canvas, 3, 3) == std::array<std::uint8_t, 4>{255, 255, 255, 255},
+                  "the bottom-right block samples the last source pixel");
+}
+
+bool test_texture_tint_and_alpha() {
+    const std::vector<std::uint8_t> white = {255, 255, 255, 255};
+    CpuCanvas tinted = black_canvas(1, 1);
+    tinted.blit_texture(0, 0, 1, 1, white, 1, 1, rgba8(128, 64, 0, 255));
+    const bool tint_ok = pixel(tinted, 0, 0) == std::array<std::uint8_t, 4>{128, 64, 0, 255};
+
+    CpuCanvas translucent = black_canvas(1, 1);
+    translucent.blit_texture(0, 0, 1, 1, white, 1, 1, rgba8(255, 255, 255, 128));
+    const bool alpha_ok =
+        pixel(translucent, 0, 0) == std::array<std::uint8_t, 4>{128, 128, 128, 255};
+
+    const std::vector<std::uint8_t> half = {255, 0, 0, 128};
+    CpuCanvas alpha_scaled = black_canvas(1, 1);
+    alpha_scaled.blit_texture(0, 0, 1, 1, half, 1, 1, rgba8(255, 255, 255, 128));
+    const bool half_ok = pixel(alpha_scaled, 0, 0) == std::array<std::uint8_t, 4>{64, 0, 0, 255};
+    return expect(tint_ok, "tint multiplies every sampled channel") &&
+           expect(alpha_ok, "tint alpha blends source-over with integer rounding") &&
+           expect(half_ok, "source alpha and tint alpha compose");
+}
+
+bool test_texture_clip_and_off_canvas() {
+    const std::vector<std::uint8_t> rgba = {
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+    };
+    CpuCanvas canvas = black_canvas(4, 4);
+    const Rect clip{2, 2, 1, 1};
+    canvas.blit_texture(1, 1, 2, 2, rgba, 2, 2, rgba8(255, 255, 255, 255), &clip);
+    const bool clip_ok = pixel(canvas, 2, 2) == std::array<std::uint8_t, 4>{255, 255, 255, 255} &&
+                         pixel(canvas, 1, 1) == std::array<std::uint8_t, 4>{0, 0, 0, 255};
+
+    CpuCanvas off = black_canvas(2, 2);
+    off.blit_texture(-1, -1, 2, 2, rgba, 2, 2, rgba8(255, 255, 255, 255));
+    return expect(clip_ok, "clip keeps only the intersecting destination pixels") &&
+           expect(pixel(off, 0, 0) == std::array<std::uint8_t, 4>{255, 255, 255, 255},
+                  "negative origin samples the correct source pixel") &&
+           expect(pixel(off, 1, 1) == std::array<std::uint8_t, 4>{0, 0, 0, 255},
+                  "negative origin does not write the opposite corner");
+}
+
+bool test_texture_guards() {
+    CpuCanvas canvas = black_canvas(2, 2);
+    const std::vector<std::uint8_t> white = {255, 255, 255, 255};
+    canvas.blit_texture(0, 0, 1, 1, white, 1, 1, rgba8(255, 255, 255, 0));
+    const bool transparent_noop = pixel(canvas, 0, 0) == std::array<std::uint8_t, 4>{0, 0, 0, 255};
+    const std::vector<std::uint8_t> short_rgba = {255, 255, 255};
+    canvas.blit_texture(0, 0, 2, 2, short_rgba, 1, 1, rgba8(255, 255, 255, 255));
+    const bool short_ok = pixel(canvas, 0, 0) == std::array<std::uint8_t, 4>{0, 0, 0, 255};
+    canvas.blit_texture(0, 0, 0, 0, white, 1, 1, rgba8(255, 255, 255, 255));
+    return expect(transparent_noop, "zero tint alpha is a no-op") &&
+           expect(short_ok, "a short source buffer does not write") &&
+           expect(pixel(canvas, 0, 0) == std::array<std::uint8_t, 4>{0, 0, 0, 255},
+                  "degenerate destination extents do not write");
+}
+
 } // namespace
 
 int main() {
@@ -141,6 +214,10 @@ int main() {
     ok = test_clip_rect() && ok;
     ok = test_off_canvas_blit() && ok;
     ok = test_guard_conditions() && ok;
+    ok = test_texture_nearest_sampling() && ok;
+    ok = test_texture_tint_and_alpha() && ok;
+    ok = test_texture_clip_and_off_canvas() && ok;
+    ok = test_texture_guards() && ok;
     if (!ok) {
         std::cerr << "cpu_canvas: failed\n";
         return 1;

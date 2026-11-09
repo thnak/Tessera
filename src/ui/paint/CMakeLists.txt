@@ -26,6 +26,8 @@ target_compile_features(tessera_paint PUBLIC cxx_std_23)
 if (TESSERA_BUILD_TESTS)
     enable_testing()
 
+    include(${PROJECT_SOURCE_DIR}/cmake/TesseraAssets.cmake)
+
     add_executable(paint_vector_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/paint_vector_tests.cpp)
     target_link_libraries(paint_vector_tests PRIVATE
@@ -33,11 +35,35 @@ if (TESSERA_BUILD_TESTS)
         tessera_rhi_null)
     add_test(NAME paint_vector COMMAND paint_vector_tests)
 
+    # Vulkan-free CPU vector golden: embedded SVG assets -> CPU raster -> textured-quad blit,
+    # compared against the committed baseline at tolerance 0. Runs on every platform whose build
+    # has ThorVG; with ThorVG OFF the scene prints the documented skip line and CTest skips it.
+    add_executable(cpu_vector_golden_tests
+        ${PROJECT_SOURCE_DIR}/tests/gpu/cpu_vector_golden_tests.cpp)
+    target_include_directories(cpu_vector_golden_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    tessera_embed_assets(cpu_vector_golden_tests
+        MANIFEST ${PROJECT_SOURCE_DIR}/tests/fixtures/assets/icons.manifest
+        NAMESPACE tessera::poc::batched2d::fixtures)
+    target_link_libraries(cpu_vector_golden_tests PRIVATE
+        tessera_paint
+        tessera_software
+        tessera_path
+        tessera_asset_svg
+        tessera_golden
+        tessera_stb)
+    add_test(NAME batched2d_cpu_vector_golden
+        COMMAND cpu_vector_golden_tests
+            ${PROJECT_SOURCE_DIR}/tests/golden/baseline/batched2d/dashboard_vector_cpu.png)
+    if (NOT TESSERA_ENABLE_THORVG)
+        set_tests_properties(batched2d_cpu_vector_golden PROPERTIES
+            SKIP_REGULAR_EXPRESSION "cpu-vector-golden: skipped")
+    endif()
+
     # GPU readback test (embedded asset painted on scene nodes). Registered from this subdirectory
     # for the same shared-registry reason; tessera_rhi_vulkan is defined later in the root but CMake
     # resolves target names at generate time.
     if (TESSERA_BUILD_VULKAN)
-        include(${PROJECT_SOURCE_DIR}/cmake/TesseraAssets.cmake)
         add_executable(paint_vector_gpu_tests
             ${PROJECT_SOURCE_DIR}/tests/gpu/text/paint_vector_tests.cpp)
         tessera_embed_assets(paint_vector_gpu_tests

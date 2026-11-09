@@ -116,6 +116,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_on_demand` | scene-driven render-on-demand: renders only for startup and scene changes, idles between |
 | `batched2d_cpu_golden` | CPU-canvas solid-rect baseline, bit-exact (all platforms) |
 | `batched2d_cpu_text_golden` | CPU-canvas text baseline (single-line + wrapped PaintData), bit-exact (all platforms) |
+| `batched2d_cpu_vector_golden` | CPU-canvas vector-asset baseline (SVG → CPU raster → textured-quad blit), bit-exact (all platforms; skips when ThorVG is OFF) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -209,6 +210,21 @@ Implemented for the batched2d proof:
   --text "Tessera CPU text" --text-size 20 --width 320 --height 160 --out
   tests/golden/baseline/batched2d/dashboard_text_cpu.png`, inspect the PNG, then commit it with
   the behavior/test change. Two CPU runs must be byte-identical before the baseline is accepted.
+- `batched2d_cpu_vector_golden` is a Vulkan-free executable (`tests/gpu/cpu_vector_golden_tests.cpp`,
+  registered from `src/ui/paint/CMakeLists.txt`) that renders the same scene as
+  `batched2d_poc --backend cpu --cpu-vector --width 320 --height 160`: embedded SVG assets painted
+  through `PaintKind::Vector` are decoded, CPU-rasterized and composited
+  by `CpuCanvas::blit_texture` (one textured quad per asset, tint + clip, documented integer
+  nearest-sample/source-over math). The scene covers two nodes sharing one icon, a tinted/translucent
+  node, a node clipped by an `overflow: hidden` parent, and a missing asset that must stay
+  background. It compares `tests/golden/baseline/batched2d/dashboard_vector_cpu.png` bit-exactly
+  (`--tolerance 0 --max-mismatch 0`). The test is registered always but skips cleanly with
+  `SKIP_REGULAR_EXPRESSION` when the build has ThorVG OFF; Linux CI configures with
+  `-DTESSERA_ENABLE_THORVG=ON` so it runs. Regenerate deliberately (never from CI):
+  `batched2d_poc --backend cpu --cpu-vector --width 320 --height 160 --out
+  tests/golden/baseline/batched2d/dashboard_vector_cpu.png`, inspect the PNG, confirm two runs are
+  byte-identical, then commit it with the behavior/test change. Contract and measurements:
+  [design/thorvg-spike/11-cpu-vector-golden.md](../design/thorvg-spike/11-cpu-vector-golden.md).
 - `batched2d_windowed_smoke` creates a hidden platform window, a Vulkan swapchain, renders the
   dashboard into acquired images, presents three frames, and uses `wait_for_next_frame` for
   pacing while `RuntimeLoop` decides whether each iteration renders. The test requires the

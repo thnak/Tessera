@@ -18,6 +18,7 @@
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/clipped_paint_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/paint/vector_raster.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <array>
@@ -540,6 +541,55 @@ bool sink_scale_contract() {
     return ok;
 }
 
+bool raster_request_contract() {
+    VectorDraw draw;
+    draw.asset = "icons/a.svg";
+    draw.rect = Rect{0.0f, 0.0f, 32.0f, 32.0f};
+    const auto derived = tessera::ui::paint::resolve_vector_raster(draw, 64, 64, 2.0f);
+    bool ok = expect(derived.has_value(), "a valid draw resolves to a raster request") &&
+              expect(derived->raster_width == 64 && derived->raster_height == 64,
+                     "derived extents are content box x device scale") &&
+              expect(derived->scale_milli == 1000, "scale_milli is raster size over document size");
+
+    VectorDraw explicit_width = draw;
+    explicit_width.raster_width = 128;
+    const auto explicit_request =
+        tessera::ui::paint::resolve_vector_raster(explicit_width, 64, 64, 1.0f);
+    ok = expect(explicit_request.has_value() && explicit_request->raster_height == 128,
+                "the missing axis is derived through the document aspect") &&
+         expect(explicit_request->scale_milli == 2000,
+                "an explicit raster size wins over the device scale") &&
+         ok;
+
+    VectorDraw aspect_draw = draw;
+    aspect_draw.raster_width = 128;
+    const auto aspect_request =
+        tessera::ui::paint::resolve_vector_raster(aspect_draw, 64, 32, 1.0f);
+    ok = expect(aspect_request.has_value() && aspect_request->raster_height == 64,
+                "an explicit width derives height from a non-square document") &&
+         ok;
+
+    VectorDraw scale_hint = draw;
+    scale_hint.scale = 3.0f;
+    const auto scale_request = tessera::ui::paint::resolve_vector_raster(scale_hint, 64, 64, 1.0f);
+    ok = expect(scale_request.has_value() && scale_request->raster_width == 96,
+                "an explicit scale hint replaces the device scale") &&
+         ok;
+
+    VectorDraw degenerate = draw;
+    degenerate.rect.width = 0.0f;
+    ok = expect(!tessera::ui::paint::resolve_vector_raster(degenerate, 64, 64, 1.0f).has_value(),
+                "a degenerate rect resolves to nullopt") &&
+         ok;
+    ok = expect(!tessera::ui::paint::resolve_vector_raster(draw, 0, 64, 1.0f).has_value(),
+                "a zero-width document resolves to nullopt") &&
+         ok;
+    ok = expect(!tessera::ui::paint::resolve_vector_raster(draw, 64, 64, 0.0f).has_value(),
+                "an invalid device scale resolves to nullopt") &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -551,6 +601,7 @@ int main() {
     ok = sink_missing_resources_is_noop() && ok;
     ok = sink_failure_values_are_noops() && ok;
     ok = sink_scale_contract() && ok;
+    ok = raster_request_contract() && ok;
     if (!ok) {
         std::cerr << "paint_vector: FAILED\n";
         return 1;

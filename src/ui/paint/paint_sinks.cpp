@@ -7,6 +7,7 @@
 #include "tessera/rendering/path/svg_texture.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
+#include "tessera/ui/paint/vector_raster.hpp"
 #include "tessera/ui/text/text_renderer.hpp"
 #include "tessera/ui/text/text_shaper.hpp"
 
@@ -21,30 +22,10 @@ namespace {
 
 constexpr float kMinPixelSize = 1.0f;
 constexpr float kMaxPixelSize = 4096.0f;
-constexpr float kMinVectorScale = 0.01f;
-constexpr float kMaxVectorScale = 64.0f;
-constexpr std::uint32_t kMaxRasterExtent = 16384;
-
 // The SVG decode API takes std::uint8_t spans; the bundle stores std::byte. char-like types may
 // alias any object, so this is a view cast, not a copy.
 [[nodiscard]] std::span<const std::uint8_t> as_u8(std::span<const std::byte> bytes) noexcept {
     return {reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()};
-}
-
-[[nodiscard]] std::uint32_t clamp_raster_extent(double value) {
-    if (!(value > 0.0)) {
-        return 1;
-    }
-    const auto rounded = static_cast<std::uint32_t>(std::llround(value));
-    return std::clamp<std::uint32_t>(rounded, 1, kMaxRasterExtent);
-}
-
-[[nodiscard]] std::uint32_t scale_milli_from(double raster_px, double document_px) {
-    if (!(document_px > 0.0)) {
-        return 1000;
-    }
-    const double milli = 1000.0 * raster_px / document_px;
-    return static_cast<std::uint32_t>(std::clamp<double>(std::llround(milli), 1.0, 16000.0));
 }
 
 } // namespace
@@ -125,11 +106,6 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
         return;
     }
 
-    const float requested_scale = draw.scale > 0.0f ? draw.scale : vector_.device_scale;
-    if (!(requested_scale > 0.0f) || !std::isfinite(requested_scale)) {
-        return;
-    }
-    const float scale = std::clamp(requested_scale, kMinVectorScale, kMaxVectorScale);
     rhi::Color tint = draw.tint;
     tint.a = std::clamp(tint.a, 0.0f, 1.0f);
     if (tint.a <= 0.0f) {
@@ -156,30 +132,20 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
     }
 
     const auto& decoded = **document;
-    const double document_width = std::max(1.0, static_cast<double>(decoded.width));
-    const double document_height = std::max(1.0, static_cast<double>(decoded.height));
-    std::uint32_t raster_width = draw.raster_width;
-    std::uint32_t raster_height = draw.raster_height;
-    if (raster_width == 0U && raster_height == 0U) {
-        raster_width = clamp_raster_extent(static_cast<double>(draw.rect.width) * scale);
-        raster_height = clamp_raster_extent(static_cast<double>(draw.rect.height) * scale);
-    } else if (raster_width == 0U) {
-        raster_width = clamp_raster_extent(static_cast<double>(raster_height) * document_width /
-                                           document_height);
-    } else if (raster_height == 0U) {
-        raster_height = clamp_raster_extent(static_cast<double>(raster_width) * document_height /
-                                            document_width);
+    // One size/scale rule for GPU and CPU sinks (vector_raster.hpp): derived or explicit
+    // device-pixel raster extents plus the uniform scale_milli. Nullopt means a degenerate request
+    // -> no-op.
+    const auto request =
+        resolve_vector_raster(draw, decoded.width, decoded.height, vector_.device_scale);
+    if (!request.has_value()) {
+        return;
     }
-    raster_width = std::clamp<std::uint32_t>(raster_width, 1, kMaxRasterExtent);
-    raster_height = std::clamp<std::uint32_t>(raster_height, 1, kMaxRasterExtent);
 
-    // One texture per (document content, raster scale). The scale is uniform and derived from the
-    // document width; an explicit raster size that ignores the document aspect stretches the
-    // texture when drawn into `rect` (documented).
+    // One texture per (document content, raster scale).
     const rendering::path::SvgDocumentKey document_key =
         rendering::path::make_svg_document_key(as_u8(asset->bytes));
     const rendering::path::SvgTextureKey texture_key = rendering::path::make_svg_texture_key(
-        document_key.content_hash, 0, decoded, scale_milli_from(raster_width, document_width));
+        document_key.content_hash, 0, decoded, request->scale_milli);
     const auto texture =
         rendering::path::acquire_svg_texture(*vector_.textures, texture_key, decoded);
     if (!texture.has_value()) {

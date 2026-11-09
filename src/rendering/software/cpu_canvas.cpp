@@ -128,6 +128,81 @@ void CpuCanvas::blend_coverage(std::int32_t x, std::int32_t y, std::uint32_t wid
     }
 }
 
+void CpuCanvas::blit_texture(std::int32_t x, std::int32_t y, std::uint32_t width,
+                             std::uint32_t height, std::span<const std::uint8_t> rgba,
+                             std::uint32_t texture_width, std::uint32_t texture_height,
+                             rhi::Color tint, const rhi::Rect* clip) {
+    if (width == 0U || height == 0U || texture_width == 0U || texture_height == 0U ||
+        rgba.size() < static_cast<std::size_t>(texture_width) * texture_height * 4) {
+        return;
+    }
+    const std::uint32_t tint_r = to_channel(tint.r);
+    const std::uint32_t tint_g = to_channel(tint.g);
+    const std::uint32_t tint_b = to_channel(tint.b);
+    const std::uint32_t tint_alpha = to_channel(tint.a);
+    if (tint_alpha == 0U) {
+        return;
+    }
+
+    // Pixel-center clipping matches fill_rect/blend_coverage.
+    std::int64_t clip_x0 = 0;
+    std::int64_t clip_y0 = 0;
+    std::int64_t clip_x1 = static_cast<std::int64_t>(width_);
+    std::int64_t clip_y1 = static_cast<std::int64_t>(height_);
+    if (clip != nullptr && clip->width > 0.0f && clip->height > 0.0f) {
+        clip_x0 = static_cast<std::int64_t>(std::ceil(clip->x - 0.5f));
+        clip_y0 = static_cast<std::int64_t>(std::ceil(clip->y - 0.5f));
+        clip_x1 = static_cast<std::int64_t>(std::ceil(clip->x + clip->width - 0.5f));
+        clip_y1 = static_cast<std::int64_t>(std::ceil(clip->y + clip->height - 0.5f));
+        clip_x0 = std::max<std::int64_t>(clip_x0, 0);
+        clip_y0 = std::max<std::int64_t>(clip_y0, 0);
+        clip_x1 = std::min<std::int64_t>(clip_x1, static_cast<std::int64_t>(width_));
+        clip_y1 = std::min<std::int64_t>(clip_y1, static_cast<std::int64_t>(height_));
+    }
+    if (clip_x0 >= clip_x1 || clip_y0 >= clip_y1) {
+        return;
+    }
+
+    for (std::int64_t py = std::max<std::int64_t>(y, clip_y0);
+         py < std::min<std::int64_t>(static_cast<std::int64_t>(y) + height, clip_y1); ++py) {
+        const std::uint32_t destination_row = static_cast<std::uint32_t>(py - y);
+        // Nearest sample row through the pixel center; integer math keeps the mapping exact.
+        const std::uint64_t numerator_y = (2ULL * destination_row + 1ULL) * texture_height;
+        const std::uint32_t source_row = std::min<std::uint32_t>(
+            static_cast<std::uint32_t>(numerator_y / (2ULL * height)), texture_height - 1U);
+        for (std::int64_t px = std::max<std::int64_t>(x, clip_x0);
+             px < std::min<std::int64_t>(static_cast<std::int64_t>(x) + width, clip_x1); ++px) {
+            const std::uint32_t destination_column = static_cast<std::uint32_t>(px - x);
+            const std::uint64_t numerator_x = (2ULL * destination_column + 1ULL) * texture_width;
+            const std::uint32_t source_column = std::min<std::uint32_t>(
+                static_cast<std::uint32_t>(numerator_x / (2ULL * width)), texture_width - 1U);
+            const std::size_t source_index =
+                (static_cast<std::size_t>(source_row) * texture_width + source_column) * 4;
+            const std::uint32_t sampled_alpha = rgba[source_index + 3];
+            const std::uint32_t pixel_alpha = (sampled_alpha * tint_alpha + 127) / 255;
+            if (pixel_alpha == 0U) {
+                continue;
+            }
+            const std::uint32_t source_r = (rgba[source_index] * tint_r + 127) / 255;
+            const std::uint32_t source_g = (rgba[source_index + 1] * tint_g + 127) / 255;
+            const std::uint32_t source_b = (rgba[source_index + 2] * tint_b + 127) / 255;
+            const std::size_t index =
+                (static_cast<std::size_t>(py) * width_ + static_cast<std::size_t>(px)) * 4;
+            if (pixel_alpha == 255U) {
+                pixels_[index] = static_cast<std::uint8_t>(source_r);
+                pixels_[index + 1] = static_cast<std::uint8_t>(source_g);
+                pixels_[index + 2] = static_cast<std::uint8_t>(source_b);
+            } else {
+                pixels_[index] = blend_channel(source_r, pixels_[index], pixel_alpha);
+                pixels_[index + 1] = blend_channel(source_g, pixels_[index + 1], pixel_alpha);
+                pixels_[index + 2] = blend_channel(source_b, pixels_[index + 2], pixel_alpha);
+            }
+            // The canvas is opaque; texture alpha only modulates the composite above.
+            pixels_[index + 3] = 255;
+        }
+    }
+}
+
 void CpuCanvas::blend(std::uint32_t x, std::uint32_t y, rhi::Color color) {
     const std::size_t index = (static_cast<std::size_t>(y) * width_ + x) * 4;
     const float alpha = color.a;
