@@ -4,7 +4,7 @@
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
-#include "vulkan_internal.hpp"
+#include "vulkan_swapchain.hpp"
 
 #include <X11/Xlib.h>
 #include <array>

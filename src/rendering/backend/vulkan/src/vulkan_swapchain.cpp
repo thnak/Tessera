@@ -7,7 +7,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include "vulkan_internal.hpp"
+#include "vulkan_swapchain.hpp"
 
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 
@@ -306,9 +306,20 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
     extent_ = chosen_extent;
     image_targets_.clear();
     image_targets_.reserve(images_.size());
+    render_finished_.reserve(images_.size());
     for (std::size_t i = 0; i < images_.size(); ++i) {
+        VkSemaphoreCreateInfo semaphore_info{};
+        semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        VkSemaphore semaphore = VK_NULL_HANDLE;
+        if (vkCreateSemaphore(device_, &semaphore_info, nullptr, &semaphore) != VK_SUCCESS) {
+            destroy_swapchain_resources();
+            return std::unexpected(rhi::SwapchainError::NotSupported);
+        }
+        render_finished_.push_back(semaphore);
+
         image_targets_.push_back(std::make_unique<VulkanRenderTarget>(
             device_, nullptr, images_[i], views_[i], nullptr, extent_, format_, false, true));
+        image_targets_.back()->set_render_finished_semaphore(semaphore);
     }
     pending_extent_ = chosen_extent;
     resize_requested_ = false;
@@ -340,6 +351,11 @@ void VulkanSwapchain::ensure_acquire_fence() {
 
 void VulkanSwapchain::destroy_swapchain_resources() {
     image_targets_.clear();
+    // Callers drain the queue first, so no submission still signals or waits on these.
+    for (const VkSemaphore semaphore : render_finished_) {
+        vkDestroySemaphore(device_, semaphore, nullptr);
+    }
+    render_finished_.clear();
     for (const VkImageView view : views_) {
         vkDestroyImageView(device_, view, nullptr);
     }

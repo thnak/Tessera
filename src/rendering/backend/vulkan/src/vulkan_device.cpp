@@ -2,6 +2,7 @@
 
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "vulkan_internal.hpp"
+#include "vulkan_swapchain.hpp"
 
 #include <utility>
 

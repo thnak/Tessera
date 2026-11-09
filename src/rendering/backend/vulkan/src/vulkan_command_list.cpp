@@ -186,7 +186,23 @@ void VulkanCommandList::submit_async() {
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &buffer_;
+
+    // Rendering to a swapchain image signals that image's semaphore so present can wait for the
+    // GPU instead of the CPU. A second render to the same image before present must not signal
+    // again (a binary semaphore cannot be signaled twice without a wait in between).
+    VkSemaphore signal = VK_NULL_HANDLE;
+    if (current_target_ != nullptr && current_target_->presentable() &&
+        !current_target_->render_pending()) {
+        signal = current_target_->render_finished_semaphore();
+    }
+    if (signal != VK_NULL_HANDLE) {
+        submit_info.signalSemaphoreCount = 1;
+        submit_info.pSignalSemaphores = &signal;
+    }
     check_vk(vkQueueSubmit(queue_, 1, &submit_info, resources_.fence), "vkQueueSubmit");
+    if (signal != VK_NULL_HANDLE) {
+        current_target_->set_render_pending(true);
+    }
 
     submitted_ = true;
 }

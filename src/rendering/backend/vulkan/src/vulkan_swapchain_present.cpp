@@ -7,7 +7,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include "vulkan_internal.hpp"
+#include "vulkan_swapchain.hpp"
 
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 
@@ -177,7 +177,17 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::present(std::uint32_t 
     present_info.pSwapchains = &swapchain_;
     present_info.pImageIndices = &image;
 
+    // Wait for the GPU to finish rendering this image (signaled by the render submission), not
+    // the CPU. An image presented without being rendered has nothing to wait for.
+    const VulkanRenderTarget& target = *image_targets_[image];
+    VkSemaphore wait_semaphore = target.render_finished_semaphore();
+    if (target.render_pending() && wait_semaphore != VK_NULL_HANDLE) {
+        present_info.waitSemaphoreCount = 1;
+        present_info.pWaitSemaphores = &wait_semaphore;
+    }
+
     const VkResult result = vkQueuePresentKHR(queue_, &present_info);
+    target.set_render_pending(false);
     image_acquired_[image] = 0;
     ++stats_.presents;
     present_submitted_ = true;

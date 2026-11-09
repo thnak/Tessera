@@ -1,0 +1,142 @@
+// SPDX-License-Identifier: MIT
+//
+// Frame loop with asynchronous submission: each frame is queued with submit_async() and presented
+// immediately, without waiting for the GPU. Present must therefore wait for rendering through the
+// swapchain image's semaphore. Synchronization validation reports a present that races the
+// render as "[vulkan] ... hazard", which fails this test in ctest.
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#include "swapchain_render.hpp"
+#include "tessera/hal/window.hpp"
+#include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
+#include "tessera/rendering/vulkan/vulkan_device.hpp"
+
+#include <array>
+#include <cstdint>
+#include <exception>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <utility>
+#include <windows.h>
+
+namespace {
+
+using tessera::rendering::rhi::SwapchainDesc;
+using tessera::rendering::rhi::SwapchainError;
+
+constexpr int kFrames = 12;
+constexpr std::uint64_t kAcquireTimeoutMs = 1000;
+
+bool expect(bool condition, const char* message) {
+    if (!condition) {
+        std::cerr << "vulkan_swapchain_async: " << message << "\n";
+    }
+    return condition;
+}
+
+HWND find_window(const std::string& title) {
+    return FindWindowA(nullptr, title.c_str());
+}
+
+} // namespace
+
+int main() {
+    const std::string title =
+        "Tessera async swapchain test " + std::to_string(GetCurrentProcessId());
+
+    tessera::hal::WindowDesc window_desc;
+    window_desc.title = title;
+    window_desc.width = 320;
+    window_desc.height = 200;
+    window_desc.visible = false;
+
+    auto window = tessera::hal::create_window(window_desc);
+    if (!expect(window != nullptr, "create_window returns a window")) {
+        return 1;
+    }
+    const HWND hwnd = find_window(title);
+    if (!expect(hwnd != nullptr, "native window exists")) {
+        return 2;
+    }
+
+    tessera::rendering::rhi::DeviceDesc device_desc;
+    device_desc.backend = tessera::rendering::rhi::Backend::Vulkan;
+    device_desc.validation = true;
+
+    std::unique_ptr<tessera::rendering::rhi::Device> device;
+    try {
+        device = tessera::rendering::vulkan::create_vulkan_device(device_desc);
+    } catch (const std::exception& error) {
+        std::cout << "vulkan_swapchain_async: skipped (Vulkan device unavailable: " << error.what()
+                  << ")\n";
+        return 0;
+    }
+
+    const tessera::hal::WindowMetrics metrics = window->metrics();
+    SwapchainDesc desc;
+    desc.extent = {metrics.physical_width, metrics.physical_height};
+    desc.image_count = 3;
+    desc.vsync = true;
+    desc.native_window = hwnd;
+
+    auto created = device->create_swapchain(desc);
+    if (!created) {
+        if (created.error() == SwapchainError::NotSupported) {
+            std::cout << "vulkan_swapchain_async: skipped (presentation surface unavailable)\n";
+            return 0;
+        }
+        std::cerr << "vulkan_swapchain_async: create_swapchain failed\n";
+        return 3;
+    }
+    std::unique_ptr<tessera::rendering::rhi::Swapchain> swapchain = std::move(*created);
+
+    const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
+    tessera::rendering::rhi::TextureDesc white_desc;
+    white_desc.extent = {1, 1};
+    white_desc.pixels = white_pixel.data();
+    white_desc.row_pitch = 4;
+    auto white = device->create_texture(white_desc);
+    auto pipeline = device->create_pipeline(tessera::rendering::vulkan::batched2d_pipeline_desc());
+    auto renderer = std::make_unique<tessera::rendering::gpu::Batched2DRenderer>(
+        *device, *pipeline, *white, tessera::rendering::gpu::Batched2DConfig{4096, true, true});
+
+    for (int frame = 0; frame < kFrames; ++frame) {
+        const auto acquired = swapchain->acquire_next_image(kAcquireTimeoutMs);
+        if (!expect(acquired.has_value(), "acquire succeeds")) {
+            return 4;
+        }
+        if (!expect(tessera::test::render_swapchain_frame(*device, *renderer, *swapchain,
+                                                          acquired.value(), true),
+                    "render to swapchain image")) {
+            return 5;
+        }
+
+        // Present right behind the async submit, before the GPU is known to be done.
+        const auto presented = swapchain->present(acquired.value());
+        if (!expect(presented.has_value() || presented.error() == SwapchainError::Suboptimal,
+                    "present succeeds")) {
+            return 6;
+        }
+
+        // The renderer's vertex buffer is reused by the next frame, so wait for this frame's GPU
+        // work here (a real loop would rotate per-frame buffers instead).
+        device->wait_idle();
+    }
+
+    renderer.reset();
+    white.reset();
+    pipeline.reset();
+    swapchain.reset();
+    device.reset();
+    window.reset();
+
+    std::cout << "vulkan_swapchain_async: ok (" << kFrames << " frames)\n";
+    return 0;
+}

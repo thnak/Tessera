@@ -13,6 +13,8 @@
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -94,21 +96,38 @@ bool check_sync_still_blocks(Device& device) {
 // layer reports that (the test is registered to fail on any "[vulkan]" output); the final
 // readback also proves the queue executed every list in order.
 bool check_drop_in_flight_and_reuse(Device& device) {
-    // Shared by every iteration and kept alive until the queue drains, as the contract requires.
-    auto readback = device.create_buffer({kSize * kSize * 4, BufferUsage::Readback});
-    auto target = device.create_render_target(target_desc(0.0f));
+    // Each in-flight frame owns its target and readback buffer, as a real frame loop does; they
+    // stay alive until the queue drains, as the async contract requires. Sharing them between
+    // submissions would be a genuine hazard (synchronization validation reports it).
+    struct Frame {
+        std::unique_ptr<RenderTarget> target;
+        std::unique_ptr<Buffer> readback;
+    };
+    std::vector<Frame> frames;
+    frames.reserve(kChurnIterations);
 
     for (int i = 0; i < kChurnIterations; ++i) {
         const RenderTargetDesc desc = target_desc((i % 2 == 0) ? 1.0f : 0.0f);
+        Frame frame;
+        frame.target = device.create_render_target(desc);
+        frame.readback = device.create_buffer({kSize * kSize * 4, BufferUsage::Readback});
+
         auto commands = device.create_command_list();
-        record_clear_and_copy(*commands, *target, desc, *readback);
+        record_clear_and_copy(*commands, *frame.target, desc, *frame.readback);
         commands->submit_async();
         // `commands` is destroyed here without waiting: the device keeps it in flight.
+        frames.push_back(std::move(frame));
     }
     device.wait_idle();
 
-    // Iteration kChurnIterations - 1 is odd, so the last clear was black.
-    return expect(first_red(*readback) == 0, "last dropped list produced its result");
+    for (int i = 0; i < kChurnIterations; ++i) {
+        const std::uint8_t expected_red = (i % 2 == 0) ? 255 : 0;
+        if (!expect(first_red(*frames[static_cast<std::size_t>(i)].readback) == expected_red,
+                    "every dropped list produced its own result")) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace

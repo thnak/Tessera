@@ -138,6 +138,15 @@ if (WIN32 AND TARGET tessera_rhi_vulkan)
         tessera_hal_window)
 
     add_test(NAME vulkan_swapchain COMMAND vulkan_swapchain_tests)
+
+    add_executable(vulkan_swapchain_async_tests
+        vulkan/vulkan_swapchain_async_tests.cpp)
+    target_link_libraries(vulkan_swapchain_async_tests PRIVATE
+        tessera_gpu
+        tessera_rhi_vulkan
+        tessera_hal_window)
+    add_test(NAME vulkan_swapchain_async COMMAND vulkan_swapchain_async_tests)
+    set_tests_properties(vulkan_swapchain_async PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 endif()
 
 if (TESSERA_X11_FOUND AND TARGET tessera_rhi_vulkan AND TARGET tessera_hal_window)

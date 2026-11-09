@@ -24,13 +24,15 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverityFlagBit
     return VK_FALSE;
 }
 
-bool has_instance_extension(const char* name) {
+// `layer` selects extensions provided by an instance layer (e.g. VK_EXT_validation_features comes
+// from the validation layer, not the loader); nullptr queries the loader and drivers.
+bool has_instance_extension(const char* name, const char* layer = nullptr) {
     std::uint32_t count = 0;
-    if (vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr) != VK_SUCCESS) {
+    if (vkEnumerateInstanceExtensionProperties(layer, &count, nullptr) != VK_SUCCESS) {
         return false;
     }
     std::vector<VkExtensionProperties> properties(count);
-    if (vkEnumerateInstanceExtensionProperties(nullptr, &count, properties.data()) != VK_SUCCESS) {
+    if (vkEnumerateInstanceExtensionProperties(layer, &count, properties.data()) != VK_SUCCESS) {
         return false;
     }
     for (const VkExtensionProperties& property : properties) {
@@ -120,15 +122,30 @@ void VulkanDevice::create_instance() {
     if (desc_.validation && !validation_available) {
         std::cerr << "[vulkan] warning: validation layer not available\n";
     }
+    // Synchronization validation catches missing semaphores/barriers that core validation cannot
+    // (for example presenting an image before the GPU finished rendering it).
+    constexpr const char* kValidationLayer = "VK_LAYER_KHRONOS_validation";
+    const VkValidationFeatureEnableEXT enabled_features[] = {
+        VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT};
+    VkValidationFeaturesEXT validation_features{};
+    validation_features.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+    validation_features.enabledValidationFeatureCount = 1;
+    validation_features.pEnabledValidationFeatures = enabled_features;
+    bool sync_validation = false;
     if (validation_enabled) {
-        layers.push_back("VK_LAYER_KHRONOS_validation");
+        layers.push_back(kValidationLayer);
         if (has_instance_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+        if (has_instance_extension(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME, kValidationLayer)) {
+            extensions.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
+            sync_validation = true;
         }
     }
 
     VkInstanceCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    create_info.pNext = sync_validation ? &validation_features : nullptr;
     create_info.pApplicationInfo = &app_info;
     create_info.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
     create_info.ppEnabledExtensionNames = extensions.empty() ? nullptr : extensions.data();
