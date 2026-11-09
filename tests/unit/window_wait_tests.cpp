@@ -11,6 +11,7 @@
 #include "tessera/hal/window.hpp"
 #include "tessera/hal/window_wait.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -90,6 +91,27 @@ int main() {
     if (!expect(past == WaitOutcome::Deadline, "past deadline returns Deadline") ||
         !expect(elapsed < 0.5, "past deadline returns immediately")) {
         return 4;
+    }
+
+    // 2b. A frame-sized wait must land near its deadline. With the default 15.6 ms system tick a
+    // 16.7 ms wait without the high-resolution timer sleeps about 31 ms, which halves a 60 fps
+    // loop. This only fails while the system tick is coarse: another process holding
+    // timeBeginPeriod(1) hides the problem, so it is a bound, not proof the timer is used. The
+    // median of several waits keeps one scheduler hiccup from failing the test.
+    constexpr double kFrameWait = 1.0 / 60.0;
+    constexpr int kFrameWaitSamples = 15;
+    std::array<double, kFrameWaitSamples> frame_waits{};
+    for (double& sample : frame_waits) {
+        start = tessera::hal::steady_now_seconds();
+        (void)window->wait_for_events(kFrameWait);
+        sample = tessera::hal::steady_now_seconds() - start;
+    }
+    std::sort(frame_waits.begin(), frame_waits.end());
+    const double median_wait = frame_waits[kFrameWaitSamples / 2];
+    if (!expect(median_wait >= kFrameWait * 0.9, "frame-sized wait does not return early") ||
+        !expect(median_wait < 0.024, "frame-sized wait lands near its deadline")) {
+        std::cerr << "window_wait: median frame-sized wait " << median_wait * 1000.0 << " ms\n";
+        return 12;
     }
 
     // 3. A posted WM_CLOSE wakes a blocked wait and is delivered as a normalized Close event.

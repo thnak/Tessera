@@ -35,6 +35,9 @@ using detail::EventQueue;
 
 constexpr wchar_t kWindowClassName[] = L"Tessera.Hal.Window";
 constexpr UINT kDefaultDpi = 96;
+// CREATE_WAITABLE_TIMER_HIGH_RESOLUTION is missing from older SDK headers.
+constexpr DWORD kHighResolutionTimer = 0x00000002;
+constexpr DWORD kTimerBoundPaddingMs = 20;
 
 std::wstring widen(std::string_view text) {
     if (text.empty()) {
@@ -110,8 +113,12 @@ private:
     void request_close();
     void pump_messages();
     [[nodiscard]] bool has_pending_events() const;
+    // Lazily created on the owning thread; null when the OS has no high-resolution timers.
+    [[nodiscard]] HANDLE wait_timer();
 
     HWND hwnd_ = nullptr;
+    HANDLE wait_timer_ = nullptr;
+    bool wait_timer_failed_ = false;
     DWORD owner_thread_ = GetCurrentThreadId();
     EventQueue events_;
     bool focused_ = false;
@@ -205,6 +212,10 @@ bool Win32Window::create(const WindowDesc& desc) {
 }
 
 Win32Window::~Win32Window() {
+    if (wait_timer_ != nullptr) {
+        CloseHandle(wait_timer_);
+        wait_timer_ = nullptr;
+    }
     if (hwnd_ == nullptr) {
         return;
     }
@@ -287,6 +298,18 @@ std::size_t Win32Window::poll_events(std::span<WindowEvent> events) {
     return copied;
 }
 
+HANDLE Win32Window::wait_timer() {
+    if (wait_timer_ == nullptr && !wait_timer_failed_) {
+        // The default sleep granularity is the 15.6 ms system tick, which turns a 16.7 ms frame
+        // deadline into a ~31 ms wait. A high-resolution timer (Windows 10 1803+) wakes within
+        // about a millisecond without changing the global timer resolution.
+        wait_timer_ =
+            CreateWaitableTimerExW(nullptr, nullptr, kHighResolutionTimer, TIMER_ALL_ACCESS);
+        wait_timer_failed_ = wait_timer_ == nullptr;
+    }
+    return wait_timer_;
+}
+
 bool Win32Window::wait_for_events(double timeout_seconds) {
     // Message pumping and the event queue belong to the creating thread; a foreign-thread wait
     // cannot observe them safely.
@@ -312,17 +335,30 @@ bool Win32Window::wait_for_events(double timeout_seconds) {
             std::min(std::ceil(remaining * 1000.0),
                      static_cast<double>(std::numeric_limits<DWORD>::max() - 1));
         const DWORD wait_ms = static_cast<DWORD>(wait_milliseconds);
-        const DWORD result = MsgWaitForMultipleObjectsEx(0, nullptr, wait_ms, QS_ALLINPUT, 0);
+
+        // Park on the high-resolution timer plus the message queue. The millisecond timeout stays
+        // as a bound in case the timer never fires (it is padded so the timer normally wins).
+        HANDLE timer = wait_timer();
+        bool timer_armed = false;
+        if (timer != nullptr) {
+            LARGE_INTEGER due{};
+            due.QuadPart = -std::max<LONGLONG>(1, static_cast<LONGLONG>(remaining * 1.0e7));
+            timer_armed = SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE) != FALSE;
+        }
+        const DWORD result =
+            timer_armed ? MsgWaitForMultipleObjectsEx(1, &timer, wait_ms + kTimerBoundPaddingMs,
+                                                      QS_ALLINPUT, 0)
+                        : MsgWaitForMultipleObjectsEx(0, nullptr, wait_ms, QS_ALLINPUT, 0);
         if (result == WAIT_FAILED) {
             // A broken message queue must not spin; idle out the remaining budget once.
             wait_until_seconds(deadline);
             return has_pending_events();
         }
-        if (result == WAIT_TIMEOUT) {
+        if (result == WAIT_TIMEOUT || (timer_armed && result == WAIT_OBJECT_0)) {
             pump_messages();
             return has_pending_events();
         }
-        // WAIT_OBJECT_0: input is available; loop to drain and re-check for events.
+        // Otherwise input is available; loop to drain and re-check for events.
     }
 }
 

@@ -75,6 +75,25 @@ int main() {
         return 8;
     }
 
+    // A frame that finishes a little after its deadline must not stretch the period: with the
+    // work taking 4 ms, deadlines stay on the 1/60 grid instead of drifting to 1/60 + 4 ms.
+    pacer.reset();
+    pacer.present(0.0);
+    double deadline = 1.0 / 60.0;
+    for (int frame = 1; frame <= 5; ++frame) {
+        decision = pacer.ready(deadline);
+        if (!expect(decision.render_now, "frame renders at its deadline")) {
+            return 11;
+        }
+        pacer.present(deadline + 0.004);
+        deadline += 1.0 / 60.0;
+        decision = pacer.ready(deadline - 0.001);
+        if (!expect(!decision.render_now && near(decision.wait_seconds, 0.001),
+                    "slightly late frame keeps the cadence")) {
+            return 12;
+        }
+    }
+
     pacer.reset();
     if (!expect(!pacer.started(), "reset clears start state")) {
         return 9;

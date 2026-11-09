@@ -153,6 +153,11 @@ A wake source must be edge-triggered; the loop must not poll devices or the file
 - If `vsync` is on and `N < refresh`, the pacer uses a **refresh divisor** when possible
   (for example 144 Hz display, `maxFps=72` -> present every second refresh).
 - If `N` is not a divisor, the pacer uses a deadline schedule and accepts occasional jitter.
+  The schedule keeps its cadence when a frame finishes a little after its deadline (the next
+  deadline is one interval after the old one); it only resyncs to `now` after a whole interval
+  was missed. Resyncing on any lateness made every period `interval + render time`, so a 60 fps
+  cap ran at about 50 fps. On Windows the bounded wait uses a high-resolution waitable timer, so
+  a frame-sized wait does not round up to the 15.6 ms system tick.
 - `maxFps` must not be implemented with a busy-wait. Use the platform waitable timer /
   `vkWaitForPresentKHR` / display-link callback / `sleep_until` with a margin.
 

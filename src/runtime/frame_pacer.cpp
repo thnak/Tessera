@@ -2,7 +2,6 @@
 
 #include "tessera/runtime/frame_pacer.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -57,7 +56,12 @@ void FramePacer::present(double now_seconds) {
         return;
     }
 
-    next_deadline_ = std::max(next_deadline_ + interval_seconds_, now_seconds + interval_seconds_);
+    // Keep the cadence when this frame only ran a little past its deadline: the next deadline is
+    // one interval after the old one, so render time does not stretch every period. Resync to
+    // `now` only once a whole interval was missed, otherwise the pacer would burst to catch up.
+    const double on_schedule = next_deadline_ + interval_seconds_;
+    next_deadline_ =
+        now_seconds + kEpsilon >= on_schedule ? now_seconds + interval_seconds_ : on_schedule;
 }
 
 void FramePacer::reset() {
