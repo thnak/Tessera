@@ -2,11 +2,13 @@
 
 #pragma once
 
+#include "tessera/rendering/image/image_decode_cache.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/path/path_scale.hpp"
 #include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 #include "tessera/ui/assets/asset_bundle.hpp"
+#include "tessera/ui/assets/asset_image.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/vector_raster.hpp"
@@ -37,15 +39,27 @@ struct CpuVectorConfig {
     float device_scale = 1.0f;
 };
 
+// Raster-image resources for the CPU sink. The decoded cache is borrowed and must outlive the sink.
+// The CPU reference path blits the authored decode straight into the content box with nearest
+// sampling (no intermediate resample), which equals the GPU result when the derived raster extent
+// equals the content box (the deterministic golden case).
+struct CpuImageConfig {
+    const ui::assets::AssetBundle* bundle = nullptr;
+    rendering::image::ImageDecodeCache* decoded = nullptr;
+    float device_scale = 1.0f;
+};
+
 class CpuPaintSink final : public ui::paint::PaintSink {
 public:
     CpuPaintSink(rendering::software::CpuCanvas& canvas,
                  ui::text::GlyphRasterizer* rasterizer = nullptr,
-                 ui::text::TextShaper* shaper = nullptr, CpuVectorConfig vector = {})
+                 ui::text::TextShaper* shaper = nullptr, CpuVectorConfig vector = {},
+                 CpuImageConfig image = {})
         : canvas_(&canvas),
           rasterizer_(rasterizer),
           shaper_(shaper),
           vector_(vector),
+          image_(image),
           clip_{0.0f, 0.0f, static_cast<float>(canvas.width()),
                 static_cast<float>(canvas.height())} {}
 
@@ -161,6 +175,38 @@ public:
         ++vector_draws_;
     }
 
+    // CPU raster-image paint: decode the embedded PNG/JPEG -> blit the authored RGBA8 pixels into
+    // the integer content box with tint and the active clip. Missing/corrupt assets are no-ops,
+    // matching the GPU sink's contract.
+    void draw_image(const ui::paint::ImageDraw& draw) override {
+        if (image_.bundle == nullptr || image_.decoded == nullptr || draw.asset.empty()) {
+            return;
+        }
+        const auto decoded =
+            ui::assets::load_asset_image(*image_.bundle, draw.asset, *image_.decoded);
+        if (!decoded.has_value()) {
+            return;
+        }
+        const auto request = ui::paint::resolve_image_raster(
+            draw, (*decoded)->width, (*decoded)->height, image_.device_scale);
+        if (!request.has_value()) {
+            return;
+        }
+        const auto round_edge = [](float value) {
+            return static_cast<std::int32_t>(std::lround(value));
+        };
+        const std::int32_t left = round_edge(draw.rect.x);
+        const std::int32_t top = round_edge(draw.rect.y);
+        const std::int32_t right = round_edge(draw.rect.x + draw.rect.width);
+        const std::int32_t bottom = round_edge(draw.rect.y + draw.rect.height);
+        if (right <= left || bottom <= top) {
+            return;
+        }
+        canvas_->blit_texture(left, top, static_cast<std::uint32_t>(right - left),
+                              static_cast<std::uint32_t>(bottom - top), (*decoded)->rgba,
+                              (*decoded)->width, (*decoded)->height, draw.tint, &clip_);
+    }
+
 private:
     static rendering::rhi::Rect intersect(const rendering::rhi::Rect& lhs,
                                           const rendering::rhi::Rect& rhs) {
@@ -178,6 +224,7 @@ private:
     ui::text::GlyphRasterizer* rasterizer_ = nullptr;
     ui::text::TextShaper* shaper_ = nullptr;
     CpuVectorConfig vector_;
+    CpuImageConfig image_;
     rendering::rhi::Rect clip_;
     std::vector<rendering::rhi::Rect> stack_;
     std::chrono::steady_clock::duration raster_time_{};

@@ -17,7 +17,9 @@ target_link_libraries(batched2d_poc PRIVATE
     tessera_golden
     tessera_stb
     tessera_path
-    tessera_asset_svg)
+    tessera_image
+    tessera_asset_svg
+    tessera_asset_image)
 
 target_compile_features(batched2d_poc PRIVATE cxx_std_23)
 
@@ -27,6 +29,10 @@ include(${PROJECT_SOURCE_DIR}/cmake/TesseraAssets.cmake)
 tessera_embed_assets(batched2d_poc
     MANIFEST ${PROJECT_SOURCE_DIR}/tests/fixtures/assets/icons.manifest
     NAMESPACE tessera::poc::batched2d::fixtures)
+tessera_embed_assets(batched2d_poc
+    MANIFEST ${PROJECT_SOURCE_DIR}/tests/fixtures/assets/images.manifest
+    NAMESPACE tessera::poc::batched2d::image_fixtures
+    STEM batched2d_poc_image)
 
 # `--simulate-loss` needs the Vulkan test hook (same guard the backend/tests use). The include
 # directories/definitions mirror the internal-hook test targets; without hooks the flag is skipped.

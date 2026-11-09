@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Hand-authored raster-image fixtures for the image-asset tests (generated from this repo's MIT
+# code; no third-party artwork). Format: <normalized asset name> = <path relative to this manifest>
+images/checker.png = checker.png
+images/stripe.jpg = stripe.jpg

@@ -43,6 +43,7 @@ struct PaintStats {
     std::size_t clips = 0;           // overflow clips pushed (rounded or rectangular)
     std::size_t texts = 0;           // text runs emitted (non-empty PaintData)
     std::size_t vectors = 0;         // embedded-vector draws emitted (PaintKind::Vector)
+    std::size_t images = 0;          // raster-image draws emitted (PaintKind::Image)
 };
 
 // Optional per-paint context. The cache is caller-owned (paint frame/sink) and deliberately not a
@@ -72,7 +73,7 @@ struct PaintContext {
 // Limits (deliberate, one slice): no gradients, shadows, or layers, no percentage/em lengths, and
 // no per-node compositing. Opacity multiplies the alpha of every color the node emits; it does not
 // isolate a group. Content runs come from PaintData: text (section 10 of the paint-pass note) or a
-// single embedded vector asset (section 11), one active kind per node.
+// single embedded vector asset (section 11) or raster image (section 12), one active kind per node.
 //
 // Paint order per node: background, then the top, right, bottom, and left border edges. A uniform
 // non-zero corner radius paints the background as one rounded rect; borders stay plain edge rects,

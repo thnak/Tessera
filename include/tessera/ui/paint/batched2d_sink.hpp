@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/rendering/image/image_decode_cache.hpp"
+#include "tessera/rendering/image/image_texture_cache.hpp"
 #include "tessera/rendering/path/path_texture_cache.hpp"
 #include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/ui/assets/asset_bundle.hpp"
@@ -43,6 +45,28 @@ struct VectorPaintConfig {
     rendering::rhi::TextureFormat texture_format = rendering::rhi::TextureFormat::R8G8B8A8Unorm;
 };
 
+// Raster-image resources for Batched2DSink (D12). Borrowed pointers, same lifetime rules as
+// VectorPaintConfig: the composition root owns the bundle and both caches. `texture_format` must
+// also be set on the cache config and must match the destination color space (authored sRGB images:
+// UNORM for UNORM targets, sRGB for sRGB targets so sampling/target encoding round-trips).
+struct ImagePaintConfig {
+    const ui::assets::AssetBundle* bundle = nullptr;
+    rendering::image::ImageDecodeCache* decoded = nullptr;
+    rendering::image::ImageTextureCache* textures = nullptr;
+    float device_scale = 1.0f;
+    rendering::image::ImageLimits limits{};
+    rendering::rhi::TextureFormat texture_format = rendering::rhi::TextureFormat::R8G8B8A8Unorm;
+};
+
+// Counting outcomes for raster-image draws. Missing/corrupt assets are documented no-ops.
+struct ImagePaintStats {
+    std::uint64_t draws = 0;
+    std::uint64_t missing_assets = 0;
+    std::uint64_t corrupted_assets = 0;
+    std::uint64_t missing_resources = 0;
+    std::uint64_t texture_failures = 0;
+};
+
 // Counting outcomes for tests/diagnostics. A vector draw either draws one textured quad or is a
 // silent no-op (missing asset, unsupported/malformed asset, backend unavailable, or no resources).
 struct VectorPaintStats {
@@ -69,7 +93,8 @@ class Batched2DSink final : public PaintSink {
 public:
     explicit Batched2DSink(rendering::gpu::Batched2DRenderer& renderer,
                            text::TextRenderer* text_renderer = nullptr,
-                           text::TextShaper* shaper = nullptr, VectorPaintConfig vector = {});
+                           text::TextShaper* shaper = nullptr, VectorPaintConfig vector = {},
+                           ImagePaintConfig image = {});
 
     void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override;
     void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override;
@@ -77,6 +102,7 @@ public:
     void pop_clip() override;
     void draw_text(const TextDraw& run) override;
     void draw_vector(const VectorDraw& draw) override;
+    void draw_image(const ImageDraw& draw) override;
 
     // Forwards to TextRenderer::begin_frame. Call once per painted frame before any draw_text so
     // atlas pages are not evicted while still referenced by this frame.
@@ -85,6 +111,9 @@ public:
     [[nodiscard]] const VectorPaintStats& vector_stats() const {
         return vector_stats_;
     }
+    [[nodiscard]] const ImagePaintStats& image_stats() const {
+        return image_stats_;
+    }
 
 private:
     rendering::gpu::Batched2DRenderer* renderer_ = nullptr;
@@ -92,6 +121,8 @@ private:
     text::TextShaper* shaper_ = nullptr;
     VectorPaintConfig vector_;
     VectorPaintStats vector_stats_;
+    ImagePaintConfig image_;
+    ImagePaintStats image_stats_;
 };
 
 } // namespace tessera::ui::paint

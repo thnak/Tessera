@@ -92,6 +92,10 @@ public:
         replay([this, &draw] { target_->draw_vector(draw); }, draw.rect);
     }
 
+    void draw_image(const ImageDraw& draw) override {
+        replay([this, &draw] { target_->draw_image(draw); }, draw.rect);
+    }
+
 private:
     template<typename Draw> void replay(Draw&& draw, const rhi::Rect& bounds) {
         for (const rhi::Scissor& scissor : *regions_) {

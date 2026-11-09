@@ -117,6 +117,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_cpu_golden` | CPU-canvas solid-rect baseline, bit-exact (all platforms) |
 | `batched2d_cpu_text_golden` | CPU-canvas text baseline (single-line + wrapped PaintData), bit-exact (all platforms) |
 | `batched2d_cpu_vector_golden` | CPU-canvas vector-asset baseline (SVG → CPU raster → textured-quad blit), bit-exact (all platforms; skips when ThorVG is OFF) |
+| `batched2d_cpu_image_golden` | CPU-canvas raster-image baseline (PNG → decode cache → textured-quad blit), bit-exact (all platforms) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -225,6 +226,18 @@ Implemented for the batched2d proof:
   tests/golden/baseline/batched2d/dashboard_vector_cpu.png`, inspect the PNG, confirm two runs are
   byte-identical, then commit it with the behavior/test change. Contract and measurements:
   [design/thorvg-spike/11-cpu-vector-golden.md](../design/thorvg-spike/11-cpu-vector-golden.md).
+- `batched2d_cpu_image_golden` is a Vulkan-free executable
+  (`tests/gpu/cpu_image_golden_tests.cpp`, registered from `src/ui/paint/CMakeLists.txt`) that
+  renders the shared raster-image scene (two nodes sharing one embedded PNG, a tinted/translucent
+  node, a node clipped by an `overflow: hidden` parent, a missing asset that must stay background),
+  asserts a byte-identical repeat and one decode for all nodes, and compares
+  `tests/golden/baseline/batched2d/dashboard_image_cpu.png` bit-exactly (`--tolerance 0`). PNG only:
+  JPEG decode uses floating point whose last bits may differ across compilers, so JPEG is covered by
+  unit decode tests and the Vulkan readback test instead. Regenerate deliberately:
+  `batched2d_poc --backend cpu --cpu-image --width 320 --height 160 --out
+  tests/golden/baseline/batched2d/dashboard_image_cpu.png`, inspect the PNG, confirm two runs are
+  byte-identical, then commit it with the behavior/test change. Contract and measurements:
+  [design/thorvg-spike/12-image-assets.md](../design/thorvg-spike/12-image-assets.md).
 - `batched2d_windowed_smoke` creates a hidden platform window, a Vulkan swapchain, renders the
   dashboard into acquired images, presents three frames, and uses `wait_for_next_frame` for
   pacing while `RuntimeLoop` decides whether each iteration renders. The test requires the

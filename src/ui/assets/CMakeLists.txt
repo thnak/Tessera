@@ -22,6 +22,20 @@ target_link_libraries(tessera_asset_svg PUBLIC
     tessera_assets
     tessera_path)
 
+# Embedded raster-image loading (PNG/JPEG via stb_image) composed with the bundle, mirroring
+# tessera_asset_svg; the decode cache and texture cache live under rendering/image.
+add_library(tessera_asset_image STATIC
+    asset_image.cpp)
+
+target_include_directories(tessera_asset_image PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_asset_image PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_asset_image PUBLIC
+    tessera_assets
+    tessera_image)
+
 include(${PROJECT_SOURCE_DIR}/cmake/TesseraAssets.cmake)
 
 # Asset tests are registered from this subdirectory so the lane does not edit the shared
@@ -30,6 +44,13 @@ if (TESSERA_BUILD_TESTS)
     enable_testing()
 
     set(TESSERA_ASSET_FIXTURE_DIR "${PROJECT_SOURCE_DIR}/tests/fixtures/assets")
+
+    add_executable(asset_image_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/asset_image_tests.cpp)
+    target_link_libraries(asset_image_tests PRIVATE tessera_asset_image)
+    target_compile_definitions(asset_image_tests PRIVATE
+        TESSERA_IMAGE_FIXTURE_DIR="${TESSERA_ASSET_FIXTURE_DIR}")
+    add_test(NAME asset_image COMMAND asset_image_tests)
 
     add_executable(asset_bundle_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/asset_bundle_tests.cpp)

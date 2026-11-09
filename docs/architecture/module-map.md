@@ -203,7 +203,7 @@ merger prototype.
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |
-| `tessera_stb` | static | stb image write |
+| `tessera_stb` | static | stb image decode/write |
 | `vulkan_offscreen_poc` | exe | offscreen Vulkan proof |
 | `batched2d_poc` | exe | batched 2D demo (Vulkan/null) |
 | `merger_poc` | exe | merger CLI (command-line interface) |

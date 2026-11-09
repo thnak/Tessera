@@ -18,7 +18,7 @@
 include_guard(GLOBAL)
 
 function(tessera_embed_assets target)
-    cmake_parse_arguments(ARG "" "MANIFEST;NAMESPACE" "" ${ARGN})
+    cmake_parse_arguments(ARG "" "MANIFEST;NAMESPACE;STEM" "" ${ARGN})
     if (NOT TARGET ${target})
         message(FATAL_ERROR "tessera_embed_assets: target '${target}' does not exist")
     endif()
@@ -62,9 +62,13 @@ function(tessera_embed_assets target)
         set(_namespace "tessera::ui::assets::${target}")
     endif()
 
-    set(_output_dir "${CMAKE_CURRENT_BINARY_DIR}/tessera_assets_${target}")
-    set(_header "${_output_dir}/${target}_assets.hpp")
-    set(_source "${_output_dir}/${target}_assets.cpp")
+    set(_stem "${target}")
+    if (ARG_STEM)
+        set(_stem "${ARG_STEM}")
+    endif()
+    set(_output_dir "${CMAKE_CURRENT_BINARY_DIR}/tessera_assets_${_stem}")
+    set(_header "${_output_dir}/${_stem}_assets.hpp")
+    set(_source "${_output_dir}/${_stem}_assets.cpp")
 
     # The generation logic is a CMake script, not a target-built executable: asset embedding must
     # work in cross-compiling builds (Android/iOS), where a target binary cannot run on the host.

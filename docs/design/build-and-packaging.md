@@ -38,7 +38,7 @@ ctest --preset vs2026-release
 | `tessera_merger` | static | protected-region merger |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend |
-| `tessera_stb` | static | stb image write |
+| `tessera_stb` | static | stb image decode/write |
 | demos/tests | exe | PoC/tests |
 
 Runtime libraries are static; OS/GPU system components remain dynamic ([ADR-012](../../decisions/ADR-012-static-linking.md)).

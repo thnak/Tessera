@@ -56,6 +56,18 @@ struct VectorDraw {
     rhi::Color tint{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
+// One resolved raster-image draw emitted by the paint pass (D12). Fields mirror VectorDraw: `rect` is
+// the node's padded content box in absolute device pixels, `asset` is a borrowed embedded-asset name,
+// raster size/scale select the upload extent (0 = content box x sink device scale), and `tint`
+// already includes node and payload opacity.
+struct ImageDraw {
+    rhi::Rect rect;
+    std::string_view asset;
+    std::uint32_t raster_width = 0;
+    std::uint32_t raster_height = 0;
+    float scale = 0.0f;
+    rhi::Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+};
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no
 // draw list and no backend state: a recording sink is enough to test it, and Batched2DSink
 // forwards the same commands to rendering::gpu::Batched2DRenderer.
@@ -81,6 +93,10 @@ public:
     // background/borders, inside the node's own overflow/scroll clip, before its children, and only
     // for PaintKind::Vector payloads. Sinks without a vector backend silently skip the draw.
     virtual void draw_vector(const VectorDraw& /*draw*/) {}
+
+    // Optional raster-image hook (default no-op), same placement/precedence rules as draw_vector but
+    // for PaintKind::Image payloads. Missing/corrupt assets are silent no-ops in real sinks.
+    virtual void draw_image(const ImageDraw& /*draw*/) {}
 };
 
 } // namespace tessera::ui::paint

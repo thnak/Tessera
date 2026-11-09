@@ -40,8 +40,36 @@ struct PaintTextStyle {
     }
 };
 
-enum class PaintKind { Text, Vector };
+enum class PaintKind { Text, Vector, Image };
 
+// PaintData image options (embedded PNG/JPEG asset). Mirrors PaintVectorStyle: the payload carries
+// the borrowed asset name, optional device-pixel raster size, scale hint, tint and opacity, and the
+// active PaintKind selects it (text/vector/image are mutually exclusive per node).
+struct PaintImageStyle {
+    std::string_view asset;
+    std::uint32_t raster_width = 0;
+    std::uint32_t raster_height = 0;
+    float scale = 0.0f;
+    std::optional<rendering::rhi::Color> tint;
+    float opacity = 1.0f;
+
+    bool operator==(const PaintImageStyle& other) const {
+        if (asset != other.asset || raster_width != other.raster_width ||
+            raster_height != other.raster_height || scale != other.scale ||
+            opacity != other.opacity) {
+            return false;
+        }
+        if (tint.has_value() != other.tint.has_value()) {
+            return false;
+        }
+        if (!tint) {
+            return true;
+        }
+        const rendering::rhi::Color& a = *tint;
+        const rendering::rhi::Color& b = *other.tint;
+        return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+    }
+};
 // PaintData vector options (embedded SVG asset). The asset name is a BORROWED view, consistent with
 // the node metadata rule (generated code passes string literals, whose storage is static); the
 // paint pass hands it straight to the sink for the duration of the paint call.
@@ -141,12 +169,17 @@ struct PaintData {
     // Optional caret/selection decoration (paint-only; the caller derives offsets from the edit
     // model). Absent keeps the previous output byte-identical.
     std::optional<TextDecoration> decoration;
-    // Vector payload; only painted when kind == PaintKind::Vector (text fields are then ignored).
+    // Vector payload; only painted when kind == PaintKind::Vector.
     PaintVectorStyle vector;
+    // Image payload; only painted when kind == PaintKind::Image.
+    PaintImageStyle image;
 
     [[nodiscard]] bool empty() const {
         if (kind == PaintKind::Vector) {
             return vector.asset.empty() || vector.asset.size() > kMaxAssetBytes;
+        }
+        if (kind == PaintKind::Image) {
+            return image.asset.empty() || image.asset.size() > kMaxAssetBytes;
         }
         return text.empty();
     }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "paint_image.hpp"
 #include "paint_properties.hpp"
 #include "paint_vector.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
@@ -558,6 +559,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // active payload; the other is ignored.
     paint_text_lines(node, style, rect, sink, stats, context);
     detail::paint_vector_content(node, style, rect, sink, stats);
+    detail::paint_image_content(node, style, rect, sink, stats);
     for (const auto& child : node.children()) {
         paint_node(*child, styles, sink, stats, context);
     }

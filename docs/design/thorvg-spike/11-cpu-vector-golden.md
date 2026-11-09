@@ -42,13 +42,15 @@ drift.
 
 `batched2d_poc --backend cpu --cpu-vector --width 320 --height 160` builds a deterministic scene
 through the normal paint pass: header/accent bars, two nodes sharing `icons/icon_shapes.svg`, a
-`stroke_path.svg` node, a tinted + 50%-opacity node, a node inside an `overflow: hidden` parent
-(vector larger than the clip, so clipping is visible in the golden), and a missing asset node that
-must stay background. It prints paint stats plus `raster_ms`/`blit_ms` and the successful draw
+`stroke_path.svg` node, a tinted + 50%-opacity node, an overflowing child *of* an `overflow:
+hidden` parent (the child vector is larger than the clip, so the cut is covered by the golden), and a
+missing asset node that must stay background. The baseline was regenerated in the raster-image slice
+after the overflowing child was correctly attached to the clipping parent (it had been a root sibling,
+so the clip was not actually exercised before). It prints paint stats plus `raster_ms`/`blit_ms` and the successful draw
 count.
 
 Baseline: `tests/golden/baseline/batched2d/dashboard_vector_cpu.png`
-(SHA-256 `e4a0bdac3e6fbba83db22c102674dd1aa7ad370266ad86d82194eb59b5b671d3`), compared by CTest
+(SHA-256 `5397b4cecee21e19d1f69e5e507e0554641a2480872681dd4e8a3122b4a9b6bd`), compared by CTest
 `batched2d_cpu_vector_golden` at `--tolerance 0 --max-mismatch 0`. Two runs are byte-identical (and
 the PNG is deterministic: the CPU canvas has no wall-clock or GPU input).
 

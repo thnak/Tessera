@@ -9,6 +9,7 @@
 #pragma once
 
 #include "cpu_paint_sink.hpp"
+#include "cpu_scene_styles.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 #include "tessera/ui/assets/asset_bundle.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
@@ -33,33 +34,6 @@ struct CpuVectorSceneResult {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
 };
-
-namespace detail {
-
-class CpuVectorStyles final : public ui::paint::StyleProvider {
-public:
-    void set(ui::NodeId id, ui::style::ComputedStyle style) {
-        styles_[id] = std::move(style);
-    }
-    [[nodiscard]] ui::style::ComputedStyle compute(const ui::Node& node) override {
-        const auto found = styles_.find(node.id());
-        return found == styles_.end() ? ui::style::ComputedStyle{} : found->second;
-    }
-
-private:
-    std::map<ui::NodeId, ui::style::ComputedStyle> styles_;
-};
-
-[[nodiscard]] inline ui::style::ComputedStyle
-cpu_style(std::initializer_list<std::pair<const char*, const char*>> values) {
-    ui::style::ComputedStyle style;
-    for (const auto& [property, value] : values) {
-        style.set(property, value);
-    }
-    return style;
-}
-
-} // namespace detail
 
 // Paints the scene into `canvas` (which the caller clears when it wants the documented background;
 // the function clears it itself with #0B1220). `bundle` must outlive the call. Returns
@@ -128,26 +102,26 @@ build_cpu_vector_screen(rendering::software::CpuCanvas& canvas,
         missing.set_paint_data(std::move(data));
     }
 
-    detail::CpuVectorStyles styles;
-    styles.set(1, detail::cpu_style({{"background-color", "#0B1220"}}));
-    styles.set(2, detail::cpu_style({{"background-color", "#0F172A"}}));
-    styles.set(3, detail::cpu_style({{"background-color", "#38BDF8"}}));
+    CpuSceneStyles styles;
+    styles.set(1, cpu_style({{"background-color", "#0B1220"}}));
+    styles.set(2, cpu_style({{"background-color", "#0F172A"}}));
+    styles.set(3, cpu_style({{"background-color", "#38BDF8"}}));
 
     // Clipped parent: the child vector starts at the parent's origin and is larger than the clip.
     ui::Node& clipped_parent = root.add_child(std::make_unique<ui::Node>(9));
     clipped_parent.set_bounds({176, 48, 64, 64});
-    styles.set(9, detail::cpu_style({{"background-color", "#1E293B"},
-                                     {"overflow-x", "hidden"},
-                                     {"overflow-y", "hidden"}}));
-    ui::Node& overflowing = root.add_child(std::make_unique<ui::Node>(10));
-    overflowing.set_bounds({176, 48, 96, 96});
+    styles.set(9, cpu_style({{"background-color", "#1E293B"},
+                             {"overflow-x", "hidden"},
+                             {"overflow-y", "hidden"}}));
+    ui::Node& overflowing = clipped_parent.add_child(std::make_unique<ui::Node>(10));
+    overflowing.set_bounds({0, 0, 96, 96});
     {
         ui::PaintData data;
         data.kind = ui::PaintKind::Vector;
         data.vector.asset = "icons/icon_shapes.svg";
         overflowing.set_paint_data(std::move(data));
     }
-    styles.set(10, detail::cpu_style({}));
+    styles.set(10, cpu_style({}));
 
     canvas.clear(background);
     (void)ui::paint::paint_scene(root, styles, sink);

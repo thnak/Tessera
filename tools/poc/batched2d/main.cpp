@@ -6,6 +6,8 @@
 #endif
 
 #include "batched2d_poc_assets.hpp"
+#include "batched2d_poc_image_assets.hpp"
+#include "cpu_image_scene.hpp"
 #include "cpu_paint_sink.hpp"
 #include "cpu_vector_scene.hpp"
 #include "damage_cli.hpp"
@@ -75,6 +77,7 @@ struct Options {
     bool shapes = false;
     bool cpu_text = false;
     bool cpu_vector = false;
+    bool cpu_image = false;
     bool simulate_loss = false;
     bool damage_probe = false;
     std::uint32_t msaa = 1;
@@ -99,7 +102,7 @@ void print_usage() {
                  "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
                  "                     [--max-mismatch ratio] [--overlay] [--shapes] "
-                 "[--cpu-text] [--cpu-vector] [--msaa N] [--simulate-loss] [--report "
+                 "[--cpu-text] [--cpu-vector] [--cpu-image] [--msaa N] [--simulate-loss] [--report "
                  "report.json]\n"
                  "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
                  "[--run-seconds S]]\n";
@@ -134,6 +137,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.cpu_text = true;
         } else if (arg == "--cpu-vector") {
             options.cpu_vector = true;
+        } else if (arg == "--cpu-image") {
+            options.cpu_image = true;
         } else if (arg == "--msaa" && i + 1 < argc) {
             options.msaa = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--simulate-loss") {
@@ -1213,7 +1218,14 @@ int run_cpu(const Options& options) {
     using namespace tessera::rendering;
 
     software::CpuCanvas canvas(options.width, options.height);
-    if (options.cpu_vector) {
+    if (options.cpu_image) {
+        tessera::rendering::image::ImageDecodeCache decoded;
+        const auto result = tessera::poc::batched2d::build_cpu_image_screen(
+            canvas, tessera::poc::batched2d::image_fixtures::bundle(), decoded);
+        const auto decode_stats = decoded.stats();
+        std::cout << "cpu-image: draws=" << result.draws << " decodes=" << decode_stats.decodes
+                  << " misses=" << decode_stats.misses << "\n";
+    } else if (options.cpu_vector) {
         const auto result = tessera::poc::batched2d::build_cpu_vector_screen(
             canvas, tessera::poc::batched2d::fixtures::bundle());
         if (!result.built) {

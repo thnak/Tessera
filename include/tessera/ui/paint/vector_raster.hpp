@@ -11,72 +11,89 @@
 
 namespace tessera::ui::paint {
 
-// Resolved raster request for one VectorDraw: the destination content box plus the pixel extents a
-// sink must rasterize the document at, and the uniform scale that maps document units to those
-// pixels. GPU and CPU sinks both go through this helper so their size/scale rule cannot drift.
-struct VectorRasterRequest {
+// Resolved raster request for one content draw (vector asset or raster image): the destination
+// content box plus the pixel extents a sink must rasterize/upload at, and the uniform scale that
+// maps intrinsic content units to those pixels. GPU and CPU sinks both go through this helper so
+// the size/scale rule cannot drift between content kinds.
+struct ContentRasterRequest {
     rhi::Rect dest;                 // absolute destination content box (device pixels)
     std::uint32_t raster_width = 0; // raster extent in device pixels
     std::uint32_t raster_height = 0;
-    std::uint32_t scale_milli = 1000; // raster pixels per document logical unit (document width)
+    std::uint32_t scale_milli = 1000; // raster pixels per intrinsic content unit (content width)
 };
 
-constexpr std::uint32_t kMaxVectorRasterExtent = 16384;
-constexpr float kMinVectorScale = 0.01f;
-constexpr float kMaxVectorScale = 64.0f;
+using VectorRasterRequest = ContentRasterRequest;
 
-// D10 size rule, in one place:
+constexpr std::uint32_t kMaxContentRasterExtent = 16384;
+constexpr float kMinContentScale = 0.01f;
+constexpr float kMaxContentScale = 64.0f;
+
+// D10/D12 size rule, in one place:
 // - `scale` (or the sink device scale when `scale` is 0) is clamped to [0.01, 64];
 // - both raster extents 0: content box size x scale;
-// - one extent 0: derived from the other through the document aspect;
+// - one extent 0: derived from the other through the intrinsic content aspect;
 // - explicit extents win, clamped to [1, 16384];
-// - `scale_milli` is uniform from the raster width over the document width, clamped to
-//   [1, 16000] so an explicit size that ignores the document aspect stretches the texture.
-// Returns nullopt for a degenerate rect/scale/document; callers treat that as a no-op.
-[[nodiscard]] inline std::optional<VectorRasterRequest>
-resolve_vector_raster(const VectorDraw& draw, std::uint32_t document_width,
-                      std::uint32_t document_height, float device_scale) noexcept {
-    if (!(draw.rect.width > 0.0f) || !(draw.rect.height > 0.0f) || document_width == 0U ||
-        document_height == 0U) {
+// - `scale_milli` is uniform from the raster width over the intrinsic width, clamped to
+//   [1, 16000] so an explicit size that ignores the content aspect stretches the texture.
+// Returns nullopt for a degenerate rect/scale/content; callers treat that as a no-op.
+[[nodiscard]] inline std::optional<ContentRasterRequest>
+resolve_content_raster(const rhi::Rect& dest, std::uint32_t raster_width,
+                       std::uint32_t raster_height, float scale, std::uint32_t intrinsic_width,
+                       std::uint32_t intrinsic_height, float device_scale) noexcept {
+    if (!(dest.width > 0.0f) || !(dest.height > 0.0f) || intrinsic_width == 0U ||
+        intrinsic_height == 0U) {
         return std::nullopt;
     }
-    const float requested_scale = draw.scale > 0.0f ? draw.scale : device_scale;
+    const float requested_scale = scale > 0.0f ? scale : device_scale;
     if (!(requested_scale > 0.0f) || !std::isfinite(requested_scale)) {
         return std::nullopt;
     }
-    const float scale = std::clamp(requested_scale, kMinVectorScale, kMaxVectorScale);
+    const float clamped_scale = std::clamp(requested_scale, kMinContentScale, kMaxContentScale);
     const auto clamp_extent = [](double value) {
         if (!(value > 0.0)) {
             return 1U;
         }
         return std::clamp<std::uint32_t>(static_cast<std::uint32_t>(std::llround(value)), 1U,
-                                         kMaxVectorRasterExtent);
+                                         kMaxContentRasterExtent);
     };
 
-    const double document_ratio =
-        static_cast<double>(document_height) / static_cast<double>(document_width);
-    std::uint32_t raster_width = draw.raster_width;
-    std::uint32_t raster_height = draw.raster_height;
-    if (raster_width == 0U && raster_height == 0U) {
-        raster_width = clamp_extent(static_cast<double>(draw.rect.width) * scale);
-        raster_height = clamp_extent(static_cast<double>(draw.rect.height) * scale);
-    } else if (raster_width == 0U) {
-        raster_width = clamp_extent(static_cast<double>(raster_height) / document_ratio);
-    } else if (raster_height == 0U) {
-        raster_height = clamp_extent(static_cast<double>(raster_width) * document_ratio);
+    const double content_ratio =
+        static_cast<double>(intrinsic_height) / static_cast<double>(intrinsic_width);
+    std::uint32_t width = raster_width;
+    std::uint32_t height = raster_height;
+    if (width == 0U && height == 0U) {
+        width = clamp_extent(static_cast<double>(dest.width) * clamped_scale);
+        height = clamp_extent(static_cast<double>(dest.height) * clamped_scale);
+    } else if (width == 0U) {
+        width = clamp_extent(static_cast<double>(height) / content_ratio);
+    } else if (height == 0U) {
+        height = clamp_extent(static_cast<double>(width) * content_ratio);
     }
-    raster_width = std::clamp<std::uint32_t>(raster_width, 1, kMaxVectorRasterExtent);
-    raster_height = std::clamp<std::uint32_t>(raster_height, 1, kMaxVectorRasterExtent);
+    width = std::clamp<std::uint32_t>(width, 1, kMaxContentRasterExtent);
+    height = std::clamp<std::uint32_t>(height, 1, kMaxContentRasterExtent);
 
-    const double milli =
-        1000.0 * static_cast<double>(raster_width) / static_cast<double>(document_width);
-    VectorRasterRequest request;
-    request.dest = draw.rect;
-    request.raster_width = raster_width;
-    request.raster_height = raster_height;
-    request.scale_milli = static_cast<std::uint32_t>(
-        std::clamp<double>(static_cast<double>(std::llround(milli)), 1.0, 16000.0));
+    const double milli = 1000.0 * static_cast<double>(width) / static_cast<double>(intrinsic_width);
+    ContentRasterRequest request;
+    request.dest = dest;
+    request.raster_width = width;
+    request.raster_height = height;
+    request.scale_milli =
+        static_cast<std::uint32_t>(std::clamp<double>(std::llround(milli), 1.0, 16000.0));
     return request;
+}
+
+[[nodiscard]] inline std::optional<ContentRasterRequest>
+resolve_vector_raster(const VectorDraw& draw, std::uint32_t document_width,
+                      std::uint32_t document_height, float device_scale) noexcept {
+    return resolve_content_raster(draw.rect, draw.raster_width, draw.raster_height, draw.scale,
+                                  document_width, document_height, device_scale);
+}
+
+[[nodiscard]] inline std::optional<ContentRasterRequest>
+resolve_image_raster(const ImageDraw& draw, std::uint32_t image_width, std::uint32_t image_height,
+                     float device_scale) noexcept {
+    return resolve_content_raster(draw.rect, draw.raster_width, draw.raster_height, draw.scale,
+                                  image_width, image_height, device_scale);
 }
 
 } // namespace tessera::ui::paint

@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: MIT
+
+#include "tessera/rendering/image/image_loader.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cstring>
+#include <limits>
+
+#include <stb_image.h>
+
+namespace tessera::rendering::image {
+namespace {
+
+constexpr std::array<std::uint8_t, 8> kPngSignature = {0x89, 0x50, 0x4E, 0x47,
+                                                       0x0D, 0x0A, 0x1A, 0x0A};
+
+[[nodiscard]] bool is_jpeg(std::span<const std::uint8_t> bytes) noexcept {
+    return bytes.size() >= 3U && bytes[0] == 0xFFU && bytes[1] == 0xD8U && bytes[2] == 0xFFU;
+}
+
+} // namespace
+
+std::string_view format_name(ImageFormat format) noexcept {
+    switch (format) {
+    case ImageFormat::png:
+        return "png";
+    case ImageFormat::jpeg:
+        return "jpeg";
+    case ImageFormat::unknown:
+        break;
+    }
+    return "unknown";
+}
+
+ImageFormat detect_format(std::span<const std::uint8_t> bytes) noexcept {
+    if (bytes.size() >= kPngSignature.size() &&
+        std::memcmp(bytes.data(), kPngSignature.data(), kPngSignature.size()) == 0) {
+        return ImageFormat::png;
+    }
+    if (is_jpeg(bytes)) {
+        return ImageFormat::jpeg;
+    }
+    return ImageFormat::unknown;
+}
+
+std::expected<DecodedImage, ImageError> decode_image(std::span<const std::uint8_t> bytes,
+                                                     ImageLimits limits) {
+    if (bytes.empty() || limits.max_input_bytes == 0U || limits.max_width == 0U ||
+        limits.max_height == 0U || limits.max_pixels == 0U) {
+        return std::unexpected(ImageError::invalid_argument);
+    }
+    if (bytes.size() > limits.max_input_bytes) {
+        return std::unexpected(ImageError::input_too_large);
+    }
+    const ImageFormat format = detect_format(bytes);
+    if (format == ImageFormat::unknown) {
+        return std::unexpected(ImageError::unsupported_format);
+    }
+
+    int encoded_width = 0;
+    int encoded_height = 0;
+    int encoded_channels = 0;
+    // stb reads the header only; this bounds the allocation before the full decode.
+    if (stbi_info_from_memory(bytes.data(), static_cast<int>(bytes.size()), &encoded_width,
+                              &encoded_height, &encoded_channels) == 0 ||
+        encoded_width <= 0 || encoded_height <= 0) {
+        return std::unexpected(ImageError::malformed);
+    }
+    if (static_cast<std::uint32_t>(encoded_width) > limits.max_width ||
+        static_cast<std::uint32_t>(encoded_height) > limits.max_height) {
+        return std::unexpected(ImageError::limit_exceeded);
+    }
+    const std::uint64_t pixel_count =
+        static_cast<std::uint64_t>(encoded_width) * static_cast<std::uint64_t>(encoded_height);
+    if (pixel_count > limits.max_pixels) {
+        return std::unexpected(ImageError::limit_exceeded);
+    }
+    // This slice decodes 8-bit inputs only; 16-bit PNGs are rejected rather than silently narrowed.
+    if (stbi_is_16_bit_from_memory(bytes.data(), static_cast<int>(bytes.size())) == 1) {
+        return std::unexpected(ImageError::unsupported_format);
+    }
+
+    int decoded_width = 0;
+    int decoded_height = 0;
+    int decoded_channels = 0;
+    stbi_uc* decoded = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()),
+                                             &decoded_width, &decoded_height, &decoded_channels, 4);
+    if (decoded == nullptr || decoded_width <= 0 || decoded_height <= 0) {
+        return std::unexpected(ImageError::malformed);
+    }
+    const std::uint64_t decoded_pixels =
+        static_cast<std::uint64_t>(decoded_width) * static_cast<std::uint64_t>(decoded_height);
+    if (static_cast<std::uint32_t>(decoded_width) > limits.max_width ||
+        static_cast<std::uint32_t>(decoded_height) > limits.max_height ||
+        decoded_pixels > limits.max_pixels) {
+        stbi_image_free(decoded);
+        return std::unexpected(ImageError::limit_exceeded);
+    }
+
+    DecodedImage image;
+    image.width = static_cast<std::uint32_t>(decoded_width);
+    image.height = static_cast<std::uint32_t>(decoded_height);
+    image.format = format;
+    image.rgba.resize(static_cast<std::size_t>(decoded_pixels) * 4U);
+    std::memcpy(image.rgba.data(), decoded, image.rgba.size());
+    stbi_image_free(decoded);
+    return image;
+}
+
+} // namespace tessera::rendering::image
