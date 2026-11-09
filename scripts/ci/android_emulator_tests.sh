@@ -15,6 +15,6 @@ for binary in build/android-tests/tests/unit/*_tests build/android-tests/tests/g
 done
 adb shell chmod +x "$test_dir/*_tests"
 
-# Font tests need a fixture path that does not exist in the device sandbox; the host platforms
-# cover them.
-adb shell 'cd /data/local/tmp/tessera && fail=0; for t in *_tests; do case "$t" in font_face_tests|freetype_metrics_tests|glyph_raster_tests|glyph_atlas_tests|harfbuzz_shaper_tests|text_render_tests) continue;; esac; echo "== $t"; ./$t || fail=1; done; exit $fail'
+# Font tests need a fixture path, and the IR golden and layering tests read repository files.
+# None of these exist in the device sandbox; the host platforms cover them.
+adb shell 'cd /data/local/tmp/tessera && fail=0; for t in *_tests; do case "$t" in font_face_tests|freetype_metrics_tests|glyph_raster_tests|glyph_atlas_tests|harfbuzz_shaper_tests|text_render_tests|ir_json_tests|ir_layering_tests) continue;; esac; echo "== $t"; ./$t || fail=1; done; exit $fail'
