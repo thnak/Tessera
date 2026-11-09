@@ -134,12 +134,36 @@ contain `const` declarations and expression statements before the one `return`.
   types, function types. `>>` closing nested arguments is split. `number`, `any`, `unknown`,
   `never`, `object`, `Function`, intersections, tuples and `typeof` are rejected.
 
-Tests (all deterministic, no clock or random ids): `jsx_lexer`, `jsx_type`, `jsx_module`,
+Tests (all deterministic, no clock or random ids): `jsx_lexer`, `jsx_type`, `jsx_module`, `jsx_concurrent`,
 `jsx_expression`, `jsx_parser`,
 and `jsx_adversarial` (deep nesting of every construct, size/token/diagnostic limits, unterminated
 constructs, invalid UTF-8, NUL, every prefix and one-byte mutation of a sample, fixed-seed random
 bytes; each must yield a tree or an error). Fuzzing against a corpus with a real fuzzer and the
 diagnostics goldens of spec section 17 are still to do.
+
+## Concurrency
+
+Contract: every `parse_*` call builds its own `Parser` (source map, lexer, diagnostic sink,
+limits copy) and returns trees that own their data, so independent calls may run on different
+threads at once. Parallelism is per file, for example one task per source file in a project build
+or per open file in the designer. There is no intra-file parallelism and the parser creates no
+threads.
+
+- **Source lifetime.** `Comment::text` (and the `Token::text` the lexer sees) are `string_view`s
+  into the caller's source. The source buffer must stay alive and unmodified while the result is
+  used; several threads may read one shared buffer. Trees and diagnostics copy their text and
+  `Diagnostic::code` points at string literals, so those do not depend on the source.
+- **No shared mutable state.** The library has no non-const static, `thread_local`, global or
+  lazily built table: the keyword, punctuator, assignment and tag-alias tables are `constexpr`.
+  Number parsing uses `std::from_chars` and the HTML-tag suggestion is ASCII-only, so no output
+  depends on the process locale.
+- **How this is backed.** Reading the code for shared state (`static`, `thread_local`,
+  namespace-scope variables, locale functions) and the `jsx_concurrent` test: a fixed set of
+  good, bad and adversarial inputs is parsed sequentially, then on 8 threads (some sharing one
+  buffer, some with private copies, several rounds, joined before comparing), and every parallel
+  result must equal the sequential fingerprint (tree dump, diagnostics, comment count). That shows
+  determinism under concurrency. It is not a proof of freedom from data races: no ThreadSanitizer
+  run exists, since clang's TSan is not available on the Windows development machine.
 
 ## Decisions taken where the spec was silent
 
@@ -169,3 +193,4 @@ These are interpretations, listed so the owner can overrule them.
     spec table does not list.
 13. Typed arrow parameters (native handlers, spec 9.3) are not parsed yet, so a component that
     declares one is invalid until slice 4.
+14. A missing `;` is an error, so the item containing it is invalid; the next item is unaffected.

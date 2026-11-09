@@ -5,8 +5,6 @@
 #include "jsx_text.hpp"
 #include "parser_internal.hpp"
 
-#include <cctype>
-
 namespace tessera::compiler::jsx {
 namespace {
 
@@ -28,7 +26,10 @@ std::string suggest_intrinsic(const std::string& tag) {
         }
     }
     std::string capitalized = tag;
-    capitalized[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(capitalized[0])));
+    // ASCII only: std::toupper would make the output depend on the process locale.
+    if (capitalized[0] >= 'a' && capitalized[0] <= 'z') {
+        capitalized[0] = static_cast<char>(capitalized[0] - 'a' + 'A');
+    }
     return "tags start with an uppercase letter, for example `<" + capitalized + ">`";
 }
 
