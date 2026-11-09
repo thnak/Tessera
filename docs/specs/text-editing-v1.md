@@ -463,9 +463,10 @@ publish_caret_visibility(*paint_data.decoration, blink);  // caret_visible + bli
   `PaintData::TextDecoration::caret_visible` and `blink_phase` consistently with the paint rule
   (`caret_visible && blink_phase >= 0.5f`), so paint reads one coherent snapshot and stays
   timer-free.
-- **Damage:** only the caret's visibility changes, never the text layout. The current damage pass
-  damages the whole text node, which is conservative for a caret-only change; tighter caret-rect
-  damage needs a paint-side caret rect and is deferred.
+- **Damage:** only the caret's visibility changes, never the text layout. For a decorated field the
+  damage pass keeps the whole text node (it skips its line-box tightening when a caret/selection
+  decoration is present), which is conservative for a caret-only change; tighter caret-rect damage
+  needs a paint-side caret rect and is deferred.
 
 Deferred: composition/preedit rendering (blink landed, task-67), undo/redo (grouping/caps), clipboard
 (copy/cut/paste and secure redaction), editable-node scene model (`TextInputKind`, value/selection

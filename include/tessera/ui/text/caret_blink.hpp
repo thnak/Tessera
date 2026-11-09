@@ -88,9 +88,11 @@ private:
 // (`decoration.caret_visible && decoration.blink_phase >= 0.5f`), so paint reads one coherent
 // snapshot and never keeps its own clock.
 //
-// Damage note: only the caret's visibility changes, never the text layout. The current damage pass
-// damages the whole text node, which is conservative for a caret-only change; a tighter caret-rect
-// damage would need a paint-side caret rect, which is deferred (paint owns the decoration).
+// Damage note: only the caret's visibility changes, never the text layout. For a decorated field
+// the damage pass keeps the whole text node (it skips its line-box tightening when a
+// caret/selection decoration is present), which is conservative for a caret-only change; a tighter
+// caret-rect damage would need a paint-side caret rect, which is deferred (paint owns the
+// decoration).
 inline void publish_caret_visibility(TextDecoration& decoration, const CaretBlink& blink) {
     const bool visible = blink.caret_visible();
     decoration.caret_visible = visible;
