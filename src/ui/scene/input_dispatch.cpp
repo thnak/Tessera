@@ -99,6 +99,7 @@ InputDispatchResult dispatch_to_target(Node& target, Event& event) {
     InputDispatchResult result;
     result.type = event.type;
     result.target = &target;
+    result.target_id = target.id();
     result.dispatched = dispatch_event_to(target, event);
     return result;
 }

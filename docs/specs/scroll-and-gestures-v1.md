@@ -173,10 +173,47 @@ arena as a pure, scene-independent state machine (no scroll integration, no plat
 - Determinism: the same event script produces an identical `GestureEvent` log
   (`tests/unit/gesture_arena_tests.cpp`, `tests/unit/gesture_recognizer_tests.cpp`).
 
-Not implemented in this slice: scene/router integration and capture handoff, scroll claiming or
-offset policy, tap-slop in device pixels (DPI scaling), platform velocity/tilt/orientation, wheel
-and edge-swipe recognizers, OS/system edge gestures, gesture-driven accessibility alternatives, and
-any per-frame wiring (callers own `process`/`tick` scheduling).
+Pipeline integration (implemented in `InputPump`; additive, v1 has no gesture claims that suppress
+pointer events):
+
+- Opt-in: `InputPump::enable_gestures(config)` owns one `GestureArena` and registers the built-in
+  recognizers in the v1 priority order `LongPress, Tap/DoubleTap, PinchRotate, Swipe, Drag` (a
+  two-pointer recognizer handles a lone pointer as Ignore; a fast swipe beats a plain drag). A
+  second call only updates the config.
+- Feed order: the pump feeds the arena exactly once per dispatched `InputEvent`, in queue order,
+  immediately after the router ran for that event. The sampler's adjacent-move coalescing happens
+  before feeding, so the arena sees the same coalesced moves the router sees. Pointer dispatch,
+  capture, and focus are byte-identical with or without a gesture sink installed; gestures are
+  recorded, never consumed, in v1 (scroll claiming is a later slice).
+- Target: `GestureEvent::target_id` is the opaque `NodeId` of the deepest hit node under the
+  pointer at `PointerDown` (0 = none, never a raw pointer). The arena stores it in the pointer slot
+  and stamps it on every gesture event for that pointer, including `Canceled`. Two-pointer
+  gestures report the first pointer's target. Later hits, relayouts, and node removal do not
+  rewrite it; a removed node keeps reporting the stored id and the consumer decides how to resolve
+  it.
+- Time: `InputPump::tick(timestamp_s)` is called from the application/frame path once per tick with
+  the sampled loop time; it drives time-based recognizers such as long press and never reads the
+  wall clock.
+- Delivery: the caller installs `InputPump::GestureCallback` (a plain function pointer plus opaque
+  user data; no `std::function` allocation). It is invoked synchronously on the pumping thread for
+  every event produced by a `pump`/`tick` call, in emission order. The arena's fixed 32-event sink
+  bounds one call; extra events beyond that bound are dropped and no per-event allocation occurs.
+- Ordering: events are delivered in the order they were emitted; one pointer's sequence is never
+  reordered relative to another's, and two-pointer events carry both ids
+  (`pointer_id`, `secondary_pointer_id`). `Focus`/`Blur` input cancels every active gesture pointer,
+  and `InputPump::reset()` drops gesture state without emitting events.
+- Determinism: the same queued event script produces an identical gesture log through the pump and
+  when the same events plus target ids are fed to a bare arena
+  (`tests/unit/gesture_pipeline_tests.cpp`).
+
+Not implemented in this slice: scene gesture handlers/capture handoff, scroll claiming or offset
+policy, gesture-driven suppression of pointer events, target re-resolution on hover or move,
+per-pointer recognizer instances for two simultaneous single-pointer gestures (the built-in
+single-pointer recognizers track the first active pointer; a host may install its own recognizers
+through `gesture_arena()`), tap-slop in device pixels (DPI scaling), platform
+velocity/tilt/orientation, wheel and edge-swipe recognizers, OS/system edge gestures, gesture-driven
+accessibility alternatives, and built-in frame-loop wiring (the application calls `tick` with the
+sampled loop time).
 
 ## 6. Sticky, anchoring, and focus
 

@@ -195,6 +195,18 @@ returned and accumulated in `total()`. Events beyond the budget stay queued for 
 moves split across ticks do not coalesce. The pump never blocks and allocates nothing after
 construction.
 
+Optional gesture pipeline (implemented, additive): `enable_gestures(config)` registers the built-in
+gesture recognizers on an owned `GestureArena`, and every pumped event is then fed to the arena
+exactly once, in queue order, right after the router dispatched it. Pointer dispatch, capture, and
+focus are unchanged; a gesture claim never suppresses a pointer event in v1 (scroll claiming is a
+later slice). `InputDispatchResult::target_id` carries the stable `NodeId` of the routed target, and
+`GestureEvent::target_id` reports the deepest hit node at `PointerDown` (never a raw pointer; it
+survives relayout/removal). `InputPump::tick(timestamp_s)` drives time-based recognizers from the
+frame path with sampled loop time (no wall clock). Gesture events go to a caller-installed bounded
+`InputPump::GestureCallback` (function pointer + user data, called synchronously on the pumping
+thread); the arena's fixed 32-event sink bounds one pump/tick call. See
+[`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md) section 5.1.
+
 ## 5. Hit testing and propagation
 
 1. Convert logical coordinates to scene/world coordinates.
@@ -504,6 +516,11 @@ id-resolvable node is cleared.
 - Wheel hit-testing/bubbling, text delivered to focus only, Focus/Blur input cancelling capture and
   clearing hover/active.
 - Tab/Shift+Tab default focus movement and `prevent_default` suppression.
+- Gesture pipeline: tap/double-tap/long-press (sampled tick time)/drag/swipe end-to-end from raw
+  events, stable target id across relayout and node removal, identical W3C route log with and
+  without a gesture sink installed, pointer cancel and window blur cleanup, two-pointer target
+  rules, deterministic replay, and pipeline-vs-direct-arena agreement
+  (`tests/unit/gesture_pipeline_tests.cpp`).
 - Windows translation: mouse/wheel/key/text through the real window, plus pure pointer/touch
   mapping tests (type->kind with unknown->Mouse, primary flag, pressure clamp, pointer-id
   preservation, `WM_TOUCH` fallback ids/flags, no touch hover)

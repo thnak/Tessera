@@ -3,6 +3,8 @@
 #pragma once
 
 #include "tessera/runtime/runtime_loop.hpp"
+#include "tessera/ui/gesture.hpp"
+#include "tessera/ui/gesture_recognizers.hpp"
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 
@@ -35,8 +37,22 @@ struct InputPumpStats {
 // No blocking, no I/O, and no allocation once the queue and sampler are warm (both preallocate in
 // the constructor). Handlers run synchronously on the calling (UI) thread. The pump owns the
 // queue the platform writes into; hand it to hal::Window::set_input_queue().
+//
+// Optional gesture pipeline (opt-in, additive): `enable_gestures` registers the built-in
+// recognizers on an owned `GestureArena`, and every pumped input event is then fed to the arena
+// exactly once, in queue order, after the router dispatched it. Pointer events keep dispatching
+// exactly as before; gesture claims never suppress pointer events in v1. Each arena event is
+// delivered synchronously to the installed bounded callback, which is invoked only from `pump`
+// and `tick` (never during construction or from another thread). The arena's fixed 32-event sink
+// bounds one call; extra events beyond that bound are dropped, and no per-event allocation is
+// performed. Two-pointer gestures keep per-pointer ids; events for one pointer are delivered in
+// queue order and are never reordered relative to that pointer.
 class InputPump {
 public:
+    // Gesture delivery callback: a plain function pointer plus opaque user data keeps the
+    // per-event path allocation-free (no std::function target to store).
+    using GestureCallback = void (*)(void* user, const GestureEvent& event);
+
     explicit InputPump(InputPumpConfig config = {});
 
     InputPump(const InputPump&) = delete;
@@ -57,24 +73,61 @@ public:
         return router_;
     }
 
-    // Consumes at most max_events_per_tick events, dispatches each through the router, and calls
-    // loop.request_frame() when at least one event was consumed (so idle loops wake even when the
-    // event is dropped by hit testing).
+    // Consumes at most max_events_per_tick events, dispatches each through the router (and the
+    // gesture arena when enabled), and calls loop.request_frame() when at least one event was
+    // consumed (so idle loops wake even when the event is dropped by hit testing).
     InputPumpStats pump(Node& root, runtime::RuntimeLoop& loop);
 
     [[nodiscard]] InputPumpStats total() const {
         return total_;
     }
 
-    // Drops queued events, clears the overflow flag, and resets capture/focus state.
+    // Turns on the built-in gesture pipeline with `config` (LongPress, Tap/DoubleTap, Swipe, Drag,
+    // PinchRotate registrations in that order). Idempotent: a second call only updates the config
+    // of the existing arena. Gesture targets are the NodeId of the deepest hit node at
+    // PointerDown.
+    void enable_gestures(const GestureConfig& config = {});
+    [[nodiscard]] bool gestures_enabled() const {
+        return gestures_enabled_;
+    }
+    // Installs the callback that receives every gesture event produced by a pump()/tick() call.
+    // `nullptr` clears it. The callback runs synchronously on the pumping thread.
+    void set_gesture_callback(GestureCallback callback, void* user = nullptr);
+    [[nodiscard]] GestureArena& gesture_arena() {
+        return gesture_arena_;
+    }
+    [[nodiscard]] const GestureArena& gesture_arena() const {
+        return gesture_arena_;
+    }
+
+    // Advances time-driven recognizers (for example long press) with simulated time in seconds and
+    // delivers this tick's gesture events. The application/frame path calls this once per tick
+    // with the sampled loop time; the pump never reads the wall clock. No effect when gestures are
+    // disabled. Callback delivery is bounded by GestureArena::kMaxEvents per call.
+    void tick(double timestamp_s);
+
+    // Drops queued events, clears the overflow flag, and resets capture/focus plus any in-flight
+    // gesture state (no gesture events are emitted by reset).
     void reset();
 
 private:
+    void deliver_gestures();
+
     InputPumpConfig config_;
     InputQueue queue_;
     InputSampler sampler_;
     InputRouter router_;
     InputPumpStats total_;
+
+    bool gestures_enabled_ = false;
+    GestureCallback gesture_callback_ = nullptr;
+    void* gesture_user_ = nullptr;
+    GestureArena gesture_arena_;
+    LongPressRecognizer long_press_recognizer_;
+    TapRecognizer tap_recognizer_;
+    SwipeRecognizer swipe_recognizer_;
+    DragRecognizer drag_recognizer_;
+    PinchRotateRecognizer pinch_rotate_recognizer_;
 };
 
 } // namespace tessera::ui

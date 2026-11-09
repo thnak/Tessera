@@ -17,6 +17,9 @@ struct InputDispatchResult {
     bool dispatched = false;
     EventType type = EventType::PointerMove;
     Node* target = nullptr;
+    // Stable NodeId of `target` at dispatch time (0 when nothing was dispatched). Additive: the
+    // gesture pipeline consumes this so gesture targets are ids, never raw pointers.
+    NodeId target_id = 0;
     // True when a handler set `prevent_default` and the dispatcher therefore skipped its default
     // action (currently only Tab focus traversal).
     bool default_prevented = false;

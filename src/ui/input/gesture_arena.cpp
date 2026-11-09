@@ -81,11 +81,11 @@ GestureContext GestureArena::context() {
     return GestureContext{config_, sink_};
 }
 
-void GestureArena::process(const InputEvent& event) {
+void GestureArena::process(const InputEvent& event, std::uint64_t target_id) {
     sink_.clear();
     switch (event.type) {
     case InputEventType::PointerDown:
-        handle_down(event);
+        handle_down(event, target_id);
         return;
     case InputEventType::PointerMove: {
         const std::size_t index = find_slot(event.pointer_id);
@@ -94,9 +94,10 @@ void GestureArena::process(const InputEvent& event) {
         }
         if (slots_[index].claimed) {
             slots_[index].winner->on_move(event, context());
-            return;
+        } else {
+            poll(event, &GestureRecognizer::on_move, index);
         }
-        poll(event, &GestureRecognizer::on_move, index);
+        stamp_targets();
         return;
     }
     case InputEventType::PointerUp: {
@@ -115,6 +116,7 @@ void GestureArena::process(const InputEvent& event) {
         if (slots_[index].claimed) {
             GestureRecognizer* winner = slots_[index].winner;
             winner->on_cancel(event, context());
+            stamp_targets();
             release_all_for(*winner);
         } else {
             // Nothing was public yet, but candidates may still hold per-pointer state.
@@ -132,7 +134,7 @@ void GestureArena::process(const InputEvent& event) {
     }
 }
 
-void GestureArena::handle_down(const InputEvent& event) {
+void GestureArena::handle_down(const InputEvent& event, std::uint64_t target_id) {
     // One slot per live pointer id; a duplicate down without an up is ignored.
     if (find_slot(event.pointer_id) != slots_.size()) {
         return;
@@ -148,18 +150,22 @@ void GestureArena::handle_down(const InputEvent& event) {
     }
     slots_[index] = Slot{};
     slots_[index].pointer_id = event.pointer_id;
+    slots_[index].target_id = target_id;
     slots_[index].active = true;
     poll(event, &GestureRecognizer::on_down, index);
+    stamp_targets();
 }
 
 void GestureArena::handle_up(const InputEvent& event, std::size_t slot_index) {
     if (slots_[slot_index].claimed) {
         GestureRecognizer* winner = slots_[slot_index].winner;
         winner->on_up(event, context());
+        stamp_targets();
         release_all_for(*winner);
         return;
     }
     poll(event, &GestureRecognizer::on_up, slot_index);
+    stamp_targets();
     // Polling may have produced a claim (tap/double-tap/long-press); finalize it now.
     if (slots_[slot_index].claimed) {
         release_all_for(*slots_[slot_index].winner);
@@ -176,6 +182,18 @@ void GestureArena::tick(double timestamp_s) {
         }
         poll_tick(timestamp_s, index);
     }
+    stamp_targets();
+}
+
+void GestureArena::reset() {
+    for (std::size_t index = 0; index < slots_.size(); ++index) {
+        if (!slots_[index].active) {
+            continue;
+        }
+        notify_claim_lost(index, nullptr);
+        slots_[index] = Slot{};
+    }
+    sink_.clear();
 }
 
 void GestureArena::poll(const InputEvent& event, Handler handler, std::size_t slot_index) {
@@ -259,6 +277,22 @@ void GestureArena::release_all_for(const GestureRecognizer& recognizer) {
     }
 }
 
+void GestureArena::stamp_targets() {
+    for (std::size_t i = 0; i < sink_.size(); ++i) {
+        GestureEvent& event = sink_.events_[i];
+        if (event.target_id != 0) {
+            continue;
+        }
+        std::size_t index = find_slot(event.pointer_id);
+        if (index == slots_.size() && event.secondary_pointer_id != 0) {
+            index = find_slot(event.secondary_pointer_id);
+        }
+        if (index != slots_.size()) {
+            event.target_id = slots_[index].target_id;
+        }
+    }
+}
+
 void GestureArena::cancel_all(double timestamp_s) {
     std::array<const GestureRecognizer*, kMaxPointers> canceled{};
     std::size_t canceled_count = 0;
@@ -266,28 +300,30 @@ void GestureArena::cancel_all(double timestamp_s) {
         if (!slots_[index].active) {
             continue;
         }
-        if (slots_[index].claimed && slots_[index].winner != nullptr) {
-            GestureRecognizer* winner = slots_[index].winner;
-            bool seen = false;
-            for (std::size_t i = 0; i < canceled_count; ++i) {
-                if (canceled[i] == winner) {
-                    seen = true;
-                    break;
-                }
-            }
-            if (!seen) {
-                InputEvent event;
-                event.type = InputEventType::PointerCancel;
-                event.pointer_id = slots_[index].pointer_id;
-                event.timestamp_s = timestamp_s;
-                winner->on_cancel(event, context());
-                canceled[canceled_count++] = winner;
-            }
-        } else {
+        if (!slots_[index].claimed || slots_[index].winner == nullptr) {
             notify_claim_lost(index, nullptr);
+            continue;
         }
-        slots_[index] = Slot{};
+        GestureRecognizer* winner = slots_[index].winner;
+        bool seen = false;
+        for (std::size_t i = 0; i < canceled_count; ++i) {
+            if (canceled[i] == winner) {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen) {
+            InputEvent event;
+            event.type = InputEventType::PointerCancel;
+            event.pointer_id = slots_[index].pointer_id;
+            event.timestamp_s = timestamp_s;
+            winner->on_cancel(event, context());
+            canceled[canceled_count++] = winner;
+        }
     }
+    // Stamp before the slots are cleared so Canceled events still carry their target id.
+    stamp_targets();
+    slots_ = {};
 }
 
 } // namespace tessera::ui

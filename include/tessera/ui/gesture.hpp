@@ -53,6 +53,10 @@ struct GestureEvent {
     std::uint32_t pointer_id = 0;
     // Second pointer for two-pointer gestures (Pinch/Rotate); 0 for single-pointer gestures.
     std::uint32_t secondary_pointer_id = 0;
+    // Opaque NodeId of the deepest hit target under the pointer at PointerDown (0 = none). The
+    // arena never dereferences it; the consumer resolves it against the scene if it still wants
+    // to. For two-pointer gestures this is the first pointer's target.
+    std::uint64_t target_id = 0;
     float x = 0.0f;
     float y = 0.0f;
     float dx = 0.0f;
@@ -77,6 +81,8 @@ public:
     }
 
 private:
+    friend class GestureArena; // stamps target ids on events emitted during one process/tick call
+
     std::array<GestureEvent, kCapacity> events_{};
     std::size_t count_ = 0;
 };
@@ -147,9 +153,15 @@ public:
 
     // Feeds one normalized input event. Only pointer events are handled explicitly; Focus/Blur
     // cancel every active pointer. The event sink is cleared first, so `events()` logs this call.
-    void process(const InputEvent& event);
+    // `target_id` is the opaque NodeId of the deepest hit target at that pointer's PointerDown
+    // (0 = none); it is stored with the pointer slot and stamped on every gesture event emitted
+    // for that pointer until the slot is released. It is ignored for non-down events.
+    void process(const InputEvent& event, std::uint64_t target_id = 0);
     // Advances time-driven recognizers with simulated time in seconds. Clears the sink first.
     void tick(double timestamp_s);
+    // Drops every pointer/claim slot (canceling via on_claim_lost, no events) and clears the sink
+    // without unregistering recognizers. Used when a pipeline is reset.
+    void reset();
 
     [[nodiscard]] std::span<const GestureEvent> events() const {
         return sink_.events();
@@ -172,6 +184,7 @@ public:
 private:
     struct Slot {
         std::uint32_t pointer_id = 0;
+        std::uint64_t target_id = 0;
         bool active = false;
         bool claimed = false;
         GestureRecognizer* winner = nullptr;
@@ -189,8 +202,11 @@ private:
     void release(std::size_t slot_index);
     void release_all_for(const GestureRecognizer& recognizer);
     void cancel_all(double timestamp_s);
-    void handle_down(const InputEvent& event);
+    void handle_down(const InputEvent& event, std::uint64_t target_id);
     void handle_up(const InputEvent& event, std::size_t slot_index);
+    // Copies the owning pointer slot's target id onto events emitted by this call that do not
+    // carry one yet.
+    void stamp_targets();
 
     GestureConfig config_{};
     std::array<GestureRecognizer*, kMaxRecognizers> recognizers_{};

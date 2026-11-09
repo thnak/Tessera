@@ -938,6 +938,13 @@ target_link_libraries(gesture_recognizer_tests PRIVATE tessera_input)
 
 add_test(NAME gesture_recognizers COMMAND gesture_recognizer_tests)
 
+add_executable(gesture_pipeline_tests
+    gesture_pipeline_tests.cpp)
+
+target_link_libraries(gesture_pipeline_tests PRIVATE tessera_input_pump)
+
+add_test(NAME gesture_pipeline COMMAND gesture_pipeline_tests)
+
 if (TARGET merger_poc)
     add_test(NAME merger_cli_help COMMAND merger_poc --help)
     add_test(
