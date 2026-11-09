@@ -181,6 +181,19 @@ void NullCommandList::submit() {
     submitted_ = true;
 }
 
+// The null backend has no GPU, so asynchronous submission completes immediately.
+void NullCommandList::submit_async() {
+    submitted_ = true;
+}
+
+bool NullCommandList::is_complete() const {
+    return submitted_;
+}
+
+bool NullCommandList::wait(std::uint64_t) {
+    return submitted_;
+}
+
 std::unique_ptr<rhi::Device> create_null_device(const rhi::DeviceDesc&) {
     return std::make_unique<NullDevice>();
 }

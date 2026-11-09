@@ -108,6 +108,13 @@ if (TARGET tessera_rhi_vulkan)
         vulkan/vulkan_texture_churn_tests.cpp)
     target_link_libraries(vulkan_texture_churn_tests PRIVATE tessera_rhi_vulkan)
     add_test(NAME vulkan_texture_churn COMMAND vulkan_texture_churn_tests)
+
+    add_executable(vulkan_async_submit_tests
+        vulkan/vulkan_async_submit_tests.cpp)
+    target_link_libraries(vulkan_async_submit_tests PRIVATE tessera_rhi_vulkan)
+    add_test(NAME vulkan_async_submit COMMAND vulkan_async_submit_tests)
+    # The device prints validation warnings/errors as "[vulkan] ..."; any of them is a failure.
+    set_tests_properties(vulkan_async_submit PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 endif()
 
 if (WIN32 AND TARGET tessera_rhi_vulkan)

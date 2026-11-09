@@ -44,6 +44,9 @@ public:
     void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) override;
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override;
     void submit() override;
+    void submit_async() override;
+    [[nodiscard]] bool is_complete() const override;
+    [[nodiscard]] bool wait(std::uint64_t timeout_ms) override;
 
     [[nodiscard]] const NullCommandStats& stats() const {
         return stats_;

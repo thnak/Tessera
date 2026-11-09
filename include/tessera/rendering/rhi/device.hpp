@@ -65,7 +65,23 @@ public:
     virtual void push_constants(const void* data, std::size_t size) = 0;
     virtual void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) = 0;
     virtual void copy_target_to_buffer(const RenderTarget& target, Buffer& buffer) = 0;
+
+    // Synchronous submit: returns once the GPU has finished. For offscreen rendering, readback
+    // and tests only; frame code on the UI thread uses submit_async().
     virtual void submit() = 0;
+
+    // Queues the list and returns without waiting. The caller must keep every resource the list
+    // references (buffers, textures, pipelines, targets) alive until is_complete() or wait()
+    // reports completion. Destroying the list earlier is safe: the device recycles its command
+    // resources only after the GPU is done with them.
+    virtual void submit_async() = 0;
+
+    // Non-blocking poll. False until the list has been submitted and the GPU has finished it.
+    [[nodiscard]] virtual bool is_complete() const = 0;
+
+    // Waits at most `timeout_ms` for completion; returns whether the list is complete. A zero
+    // timeout polls.
+    [[nodiscard]] virtual bool wait(std::uint64_t timeout_ms) = 0;
 };
 
 class Device {

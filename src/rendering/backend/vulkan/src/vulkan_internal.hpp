@@ -274,13 +274,23 @@ private:
     bool presentable_ = false;
 };
 
+// Command pool, buffer and completion fence for one submission. The device recycles these instead
+// of creating and destroying them for every frame.
+struct CommandResources {
+    VkCommandPool pool = VK_NULL_HANDLE;
+    VkCommandBuffer buffer = VK_NULL_HANDLE;
+    VkFence fence = VK_NULL_HANDLE;
+};
+
 class VulkanCommandList final : public rhi::CommandList {
 public:
-    VulkanCommandList(VkDevice device, VkQueue queue, VkCommandPool pool, VkCommandBuffer buffer)
-        : device_(device),
+    VulkanCommandList(VulkanDevice& owner, VkDevice device, VkQueue queue,
+                      CommandResources resources)
+        : owner_(owner),
+          device_(device),
           queue_(queue),
-          pool_(pool),
-          buffer_(buffer) {}
+          resources_(resources),
+          buffer_(resources.buffer) {}
 
     ~VulkanCommandList() override;
 
@@ -296,17 +306,23 @@ public:
     void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) override;
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override;
     void submit() override;
+    void submit_async() override;
+    [[nodiscard]] bool is_complete() const override;
+    [[nodiscard]] bool wait(std::uint64_t timeout_ms) override;
 
 private:
+    VulkanDevice& owner_;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue queue_ = VK_NULL_HANDLE;
-    VkCommandPool pool_ = VK_NULL_HANDLE;
+    CommandResources resources_;
     VkCommandBuffer buffer_ = VK_NULL_HANDLE;
     VkPipelineLayout current_layout_ = VK_NULL_HANDLE;
     const VulkanRenderTarget* current_target_ = nullptr;
     bool recording_ = false;
     bool render_pass_active_ = false;
     bool submitted_ = false;
+    // Cached completion so a finished list stops querying the fence.
+    mutable bool complete_ = false;
 };
 
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
@@ -413,7 +429,15 @@ public:
     // Full-image upload used by Texture::write (dynamic atlases).
     void upload_texture(VulkanTexture& texture, const void* data, std::size_t size);
 
+    // Hands out recycled command resources (or creates new ones). release_command_resources takes
+    // them back; `in_flight` resources are reused only once their fence has signaled.
+    CommandResources acquire_command_resources();
+    void release_command_resources(const CommandResources& resources, bool in_flight);
+
 private:
+    void reap_command_resources();
+    void destroy_command_resources();
+    void destroy_command_resource(const CommandResources& resources);
     void create_instance();
     void pick_device();
     void create_device();
@@ -433,6 +457,8 @@ private:
     VmaAllocator allocator_ = nullptr;
     VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
     VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
+    std::vector<CommandResources> free_commands_;
+    std::vector<CommandResources> inflight_commands_;
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
     bool surface_extensions_enabled_ = false;
     bool swapchain_extension_enabled_ = false;

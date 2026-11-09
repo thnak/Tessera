@@ -393,6 +393,7 @@ void VulkanDevice::submit_one_shot(const std::function<void(VkCommandBuffer)>& r
 void VulkanDevice::destroy() {
     if (device_ != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device_);
+        destroy_command_resources();
     }
     if (descriptor_pool_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);

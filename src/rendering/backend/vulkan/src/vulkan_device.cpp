@@ -119,23 +119,7 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
 }
 
 std::unique_ptr<rhi::CommandList> VulkanDevice::create_command_list() {
-    VkCommandPoolCreateInfo pool_info{};
-    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-    pool_info.queueFamilyIndex = queue_family_;
-    VkCommandPool pool = VK_NULL_HANDLE;
-    check_vk(vkCreateCommandPool(device_, &pool_info, nullptr, &pool), "vkCreateCommandPool");
-
-    VkCommandBufferAllocateInfo allocate_info{};
-    allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocate_info.commandPool = pool;
-    allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocate_info.commandBufferCount = 1;
-    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-    check_vk(vkAllocateCommandBuffers(device_, &allocate_info, &command_buffer),
-             "vkAllocateCommandBuffers");
-
-    return std::make_unique<VulkanCommandList>(device_, queue_, pool, command_buffer);
+    return std::make_unique<VulkanCommandList>(*this, device_, queue_, acquire_command_resources());
 }
 
 std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>

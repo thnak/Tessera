@@ -5,9 +5,9 @@
 namespace tessera::rendering::vulkan {
 
 VulkanCommandList::~VulkanCommandList() {
-    if (pool_ != VK_NULL_HANDLE) {
-        vkDestroyCommandPool(device_, pool_, nullptr);
-    }
+    // A list dropped while the GPU still runs it must not free its pool; the device keeps it in
+    // flight and recycles it once the fence signals.
+    owner_.release_command_resources(resources_, submitted_ && !is_complete());
 }
 
 void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
@@ -172,7 +172,7 @@ void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
                            vulkan_buffer->handle(), 1, &copy);
 }
 
-void VulkanCommandList::submit() {
+void VulkanCommandList::submit_async() {
     if (!recording_ || submitted_) {
         return;
     }
@@ -186,16 +186,48 @@ void VulkanCommandList::submit() {
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &buffer_;
-
-    VkFenceCreateInfo fence_info{};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    VkFence fence = VK_NULL_HANDLE;
-    check_vk(vkCreateFence(device_, &fence_info, nullptr, &fence), "vkCreateFence");
-    check_vk(vkQueueSubmit(queue_, 1, &submit_info, fence), "vkQueueSubmit");
-    check_vk(vkWaitForFences(device_, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences");
-    vkDestroyFence(device_, fence, nullptr);
+    check_vk(vkQueueSubmit(queue_, 1, &submit_info, resources_.fence), "vkQueueSubmit");
 
     submitted_ = true;
+}
+
+// Blocking by contract: offscreen rendering, readback and golden tests rely on the result being
+// complete on return. The UI frame path uses submit_async() instead.
+void VulkanCommandList::submit() {
+    submit_async();
+    if (!submitted_ || complete_) {
+        return;
+    }
+    check_vk(vkWaitForFences(device_, 1, &resources_.fence, VK_TRUE, UINT64_MAX),
+             "vkWaitForFences");
+    complete_ = true;
+}
+
+bool VulkanCommandList::is_complete() const {
+    if (!submitted_) {
+        return false;
+    }
+    if (!complete_) {
+        // Anything but "still running" means the submission no longer uses the buffer; on a lost
+        // device it never will, and reporting incomplete forever would hang pollers.
+        complete_ = vkGetFenceStatus(device_, resources_.fence) != VK_NOT_READY;
+    }
+    return complete_;
+}
+
+bool VulkanCommandList::wait(std::uint64_t timeout_ms) {
+    if (!submitted_) {
+        return false;
+    }
+    if (complete_) {
+        return true;
+    }
+    constexpr std::uint64_t kNanosecondsPerMillisecond = 1'000'000;
+    const std::uint64_t timeout_ns = timeout_ms > UINT64_MAX / kNanosecondsPerMillisecond
+                                         ? UINT64_MAX
+                                         : timeout_ms * kNanosecondsPerMillisecond;
+    complete_ = vkWaitForFences(device_, 1, &resources_.fence, VK_TRUE, timeout_ns) != VK_TIMEOUT;
+    return complete_;
 }
 
 } // namespace tessera::rendering::vulkan
