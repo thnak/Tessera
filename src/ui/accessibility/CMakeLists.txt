@@ -5,6 +5,7 @@
 # No platform API is called here; bridges consume the snapshot later.
 
 add_library(tessera_accessibility STATIC
+    a11y_roles.cpp
     a11y_tree.cpp)
 
 target_include_directories(tessera_accessibility PUBLIC

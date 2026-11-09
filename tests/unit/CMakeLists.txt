@@ -1106,7 +1106,9 @@ add_test(NAME scroll_insets COMMAND scroll_insets_tests)
 # target can link tessera_accessibility instead.
 add_executable(a11y_tree_tests
     a11y_tree_tests.cpp
-    ${PROJECT_SOURCE_DIR}/src/ui/accessibility/a11y_tree.cpp)
+    a11y_semantics_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/ui/accessibility/a11y_tree.cpp
+    ${PROJECT_SOURCE_DIR}/src/ui/accessibility/a11y_roles.cpp)
 
 target_link_libraries(a11y_tree_tests PRIVATE tessera_scene tessera_style tessera_schema)
 

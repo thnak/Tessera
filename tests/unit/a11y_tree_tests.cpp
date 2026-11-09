@@ -1,101 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
-// Accessibility semantics snapshot: role/name precedence, hidden/ignored rules, focus uniqueness,
-// actions per role, pre-order/children indexing, capacity caps, determinism, and a combined
-// scroll + focus + metadata scene.
+// Accessibility semantics snapshot: role/name precedence and the hidden/ignored rules.
 
-#include "tessera/ui/accessibility/a11y_tree.hpp"
-#include "tessera/ui/scene/node.hpp"
-#include "tessera/ui/scene/scroll.hpp"
+#include "a11y_test_helpers.hpp"
 
-#include <iostream>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
-namespace {
-
-using tessera::rendering::rhi::Rect;
-using tessera::ui::Node;
-using tessera::ui::NodeId;
-using tessera::ui::a11y::A11yIndex;
-using tessera::ui::a11y::A11yNode;
-using tessera::ui::a11y::A11ySnapshot;
-using tessera::ui::a11y::Action;
-using tessera::ui::a11y::BuildOptions;
-using tessera::ui::a11y::BuildStats;
-using tessera::ui::a11y::kInvalidIndex;
-using tessera::ui::a11y::kMaxChildren;
-using tessera::ui::a11y::name_of;
-using tessera::ui::a11y::Role;
-using tessera::ui::a11y::role_from_string;
-using tessera::ui::a11y::State;
-using tessera::ui::a11y::StyleProvider;
-using tessera::ui::a11y::value_of;
-using tessera::ui::style::ComputedStyle;
-using tessera::ui::style::PseudoState;
-
-bool expect(bool condition, const char* message) {
-    if (!condition) {
-        std::cerr << "a11y_tree: " << message << "\n";
-    }
-    return condition;
-}
-
-ComputedStyle styled(std::initializer_list<std::pair<const char*, const char*>> values) {
-    ComputedStyle style;
-    for (const auto& [property, value] : values) {
-        style.set(property, value);
-    }
-    return style;
-}
-
-class StubStyles final : public StyleProvider {
-public:
-    void set(NodeId id, ComputedStyle style) {
-        styles_[id] = std::move(style);
-    }
-
-    [[nodiscard]] ComputedStyle compute(const Node& node) override {
-        const auto found = styles_.find(node.id());
-        return found == styles_.end() ? ComputedStyle{} : found->second;
-    }
-
-private:
-    std::map<NodeId, ComputedStyle> styles_;
-};
-
-Node& child(Node& parent, NodeId id) {
-    auto owner = std::make_unique<Node>(id);
-    // A non-zero default size keeps the zero-size skip rule out of tests that only care about
-    // semantics; tests override it explicitly when they exercise that rule.
-    owner->set_bounds({0.0f, 0.0f, 10.0f, 10.0f});
-    return parent.add_child(std::move(owner));
-}
-
-tessera::ui::PaintData text_payload(const char* text) {
-    tessera::ui::PaintData data;
-    data.kind = tessera::ui::PaintKind::Text;
-    data.text = text;
-    return data;
-}
-
-bool same_node(const A11yNode& lhs, const A11yNode& rhs) {
-    return lhs.id == rhs.id && lhs.automation_id == rhs.automation_id && lhs.role == rhs.role &&
-           lhs.states == rhs.states && lhs.actions == rhs.actions && name_of(lhs) == name_of(rhs) &&
-           value_of(lhs) == value_of(rhs) && lhs.bounds.x == rhs.bounds.x &&
-           lhs.bounds.y == rhs.bounds.y && lhs.bounds.width == rhs.bounds.width &&
-           lhs.bounds.height == rhs.bounds.height && lhs.children == rhs.children &&
-           lhs.child_count == rhs.child_count && lhs.children_truncated == rhs.children_truncated;
-}
-
-BuildStats build(Node& root, StubStyles& styles, A11ySnapshot& snapshot,
-                 const BuildOptions& options = {}) {
-    return tessera::ui::a11y::build_a11y_tree(root, styles, snapshot, options);
-}
-
+namespace a11y_test {
 bool role_precedence() {
     Node root(1);
     root.set_bounds({0, 0, 100, 100});
@@ -251,275 +160,37 @@ bool scroll_clipped_out() {
            expect(snapshot.nodes[3].bounds.height == 40.0f,
                   "partially visible node keeps its full bounds");
 }
-
-bool focused_uniqueness() {
-    Node root(1);
-    root.set_bounds({0, 0, 100, 100});
-    Node& first = child(root, 2);
-    first.set_focusable(true);
-    Node& second = child(root, 3);
-    second.set_focusable(true);
-    Node& third = child(root, 4);
-    third.set_focusable(true);
-
-    StubStyles styles;
-    A11ySnapshot snapshot;
-    BuildOptions options;
-    options.focused_id = second.id();
-    build(root, styles, snapshot, options);
-    std::size_t focused = 0;
-    for (const A11yNode& node : snapshot.nodes) {
-        if (tessera::ui::a11y::has_state(node.states, State::Focused)) {
-            ++focused;
-        }
-    }
-    if (!expect(focused == 1, "exactly one focused node") ||
-        !expect(tessera::ui::a11y::has_state(snapshot.nodes[2].states, State::Focused),
-                "the requested node is focused")) {
-        return false;
-    }
-
-    // A hidden focus target produces no focused flag at all (never a ghost focus).
-    second.set_visible(false);
-    build(root, styles, snapshot, options);
-    for (const A11yNode& node : snapshot.nodes) {
-        if (!expect(!tessera::ui::a11y::has_state(node.states, State::Focused),
-                    "hidden focus target is not exposed")) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool actions_and_states() {
-    Node root(1);
-    root.set_bounds({0, 0, 200, 200});
-    Node& button = child(root, 2);
-    button.set_element_kind("Button");
-    button.set_focusable(true);
-    button.set_bounds({0, 0, 20, 20});
-
-    Node& field = child(root, 3);
-    field.set_element_kind("TextInput");
-    field.set_focusable(true);
-    field.set_paint_data(text_payload("abc"));
-    field.set_bounds({0, 30, 20, 20});
-
-    Node& scroll = child(root, 4);
-    scroll.set_element_kind("Scroll");
-    scroll.set_bounds({0, 60, 50, 50});
-    scroll.set_scrollable_x(true);
-    scroll.set_content_size(100.0f, 50.0f);
-
-    Node& disabled = child(root, 5);
-    disabled.set_element_kind("Button");
-    disabled.set_focusable(true);
-    disabled.set_pseudo_state(PseudoState::Disabled);
-    disabled.set_bounds({0, 120, 20, 20});
-
-    Node& decorated = child(root, 6);
-    decorated.set_element_kind("Button");
-    decorated.set_aria("aria-selected", "true");
-    decorated.set_aria("aria-checked", "mixed");
-    decorated.set_aria("aria-expanded", "true");
-    decorated.set_bounds({0, 150, 20, 20});
-
-    StubStyles styles;
-    A11ySnapshot snapshot;
-    build(root, styles, snapshot);
-
-    const A11yNode& button_node = snapshot.nodes[1];
-    const A11yNode& field_node = snapshot.nodes[2];
-    const A11yNode& scroll_node = snapshot.nodes[3];
-    const A11yNode& disabled_node = snapshot.nodes[4];
-    const A11yNode& decorated_node = snapshot.nodes[5];
-    return expect(tessera::ui::a11y::has_action(button_node.actions, Action::Press) &&
-                      tessera::ui::a11y::has_action(button_node.actions, Action::Focus),
-                  "button exposes press and focus") &&
-           expect(tessera::ui::a11y::has_action(field_node.actions, Action::SetValue),
-                  "text field exposes set value") &&
-           expect(tessera::ui::a11y::has_action(scroll_node.actions, Action::Scroll),
-                  "scroll container exposes scroll") &&
-           expect(disabled_node.actions == Action::None, "disabled node exposes no actions") &&
-           expect(tessera::ui::a11y::has_state(disabled_node.states, State::Disabled),
-                  "disabled state") &&
-           expect(tessera::ui::a11y::has_state(decorated_node.states, State::Selected) &&
-                      tessera::ui::a11y::has_state(decorated_node.states, State::Checked) &&
-                      tessera::ui::a11y::has_state(decorated_node.states, State::Expanded),
-                  "aria states");
-}
-
-bool preorder_and_children() {
-    Node root(1);
-    root.set_bounds({0, 0, 200, 200});
-    Node& a = child(root, 2);
-    Node& b = child(root, 3);
-    Node& c = child(root, 4);
-    child(a, 5);
-    child(b, 6);
-    child(c, 7);
-
-    StubStyles styles;
-    A11ySnapshot snapshot;
-    build(root, styles, snapshot);
-    if (!expect(snapshot.nodes.size() == 7, "seven nodes") ||
-        !expect(snapshot.nodes[0].id == 1, "root first") ||
-        !expect(snapshot.nodes[1].id == 2, "pre-order child a") ||
-        !expect(snapshot.nodes[2].id == 5, "pre-order grandchild a1") ||
-        !expect(snapshot.nodes[3].id == 3, "pre-order child b") ||
-        !expect(snapshot.nodes[4].id == 6, "pre-order grandchild b1") ||
-        !expect(snapshot.nodes[5].id == 4, "pre-order child c")) {
-        return false;
-    }
-    if (!expect(snapshot.nodes[0].child_count == 3, "root has three children") ||
-        !expect(snapshot.nodes[0].children[0] == 1 && snapshot.nodes[0].children[1] == 3 &&
-                    snapshot.nodes[0].children[2] == 5,
-                "root children indices") ||
-        !expect(snapshot.nodes[1].child_count == 1 && snapshot.nodes[1].children[0] == 2,
-                "child a links its grandchild")) {
-        return false;
-    }
-    const A11yIndex found = tessera::ui::a11y::find_by_node_id(snapshot, 5);
-    return expect(found == 2, "find_by_node_id") &&
-           expect(tessera::ui::a11y::find_by_node_id(snapshot, 99) == kInvalidIndex,
-                  "unknown node id");
-}
-
-bool capacity_and_truncated_children() {
-    Node root(1);
-    root.set_bounds({0, 0, 200, 200});
-    for (NodeId id = 2; id <= 4; ++id) {
-        child(root, id);
-    }
-
-    StubStyles styles;
-    A11ySnapshot snapshot;
-    BuildOptions options;
-    options.max_nodes = 2;
-    const BuildStats stats = build(root, styles, snapshot, options);
-    if (!expect(snapshot.nodes.size() == 2, "snapshot stops at the cap") ||
-        !expect(stats.truncated, "truncated flag") ||
-        !expect(stats.dropped_nodes >= 1, "dropped nodes counted") ||
-        !expect(stats.emitted == 2, "emitted count")) {
-        return false;
-    }
-
-    Node wide(10);
-    wide.set_bounds({0, 0, 200, 200});
-    for (NodeId id = 11; id <= 11 + kMaxChildren; ++id) {
-        child(wide, id);
-    }
-    A11ySnapshot wide_snapshot;
-    const BuildStats wide_stats = build(wide, styles, wide_snapshot);
-    return expect(wide_snapshot.nodes[0].child_count == kMaxChildren, "children capped") &&
-           expect(wide_snapshot.nodes[0].children_truncated, "child truncation flagged") &&
-           expect(wide_stats.truncated_children == 1, "child truncation counted");
-}
-
-bool determinism_and_automation_ids() {
-    Node root(1);
-    root.set_bounds({0, 0, 100, 100});
-    Node& a = child(root, 2);
-    a.set_element_kind("Button");
-    a.set_automation_id(42);
-    a.set_aria("aria-label", "Play");
-    a.set_bounds({0, 0, 10, 10});
-    Node& b = child(root, 3);
-    b.set_element_id("target");
-    b.set_bounds({0, 20, 10, 10});
-
-    StubStyles styles;
-    A11ySnapshot first;
-    A11ySnapshot second;
-    build(root, styles, first);
-    build(root, styles, second);
-    if (!expect(first.nodes.size() == second.nodes.size(), "same build size")) {
-        return false;
-    }
-    for (std::size_t index = 0; index < first.nodes.size(); ++index) {
-        if (!expect(same_node(first.nodes[index], second.nodes[index]), "builds are identical")) {
-            return false;
-        }
-    }
-    return expect(tessera::ui::a11y::find_by_automation_id(first, 42) == 1,
-                  "find_by_automation_id") &&
-           expect(tessera::ui::a11y::find_by_automation_id(first, 0) == kInvalidIndex,
-                  "automation id 0 is invalid");
-}
-
-bool combined_scroll_focus_metadata() {
-    Node root(1);
-    root.set_bounds({0, 0, 200, 200});
-    Node& container = child(root, 2);
-    container.set_bounds({0, 0, 100, 100});
-    container.set_scrollable_y(true);
-    container.set_content_size(100.0f, 300.0f);
-    container.set_element_kind("Scroll");
-    container.set_automation_id(7);
-
-    Node& target = child(container, 3);
-    target.set_bounds({0, 150, 20, 20});
-    target.set_element_kind("Button");
-    target.set_focusable(true);
-    target.set_automation_id(8);
-    target.set_paint_data(text_payload("Confirm"));
-
-    tessera::ui::scroll_to(container, 0.0f, 70.0f);
-
-    StubStyles styles;
-    A11ySnapshot snapshot;
-    BuildOptions options;
-    options.focused_id = target.id();
-    const BuildStats stats = build(root, styles, snapshot, options);
-    if (!expect(stats.emitted == 3, "combined scene emits three nodes") ||
-        !expect(snapshot.nodes[0].role == Role::Generic, "root role")) {
-        return false;
-    }
-    const A11yNode& scroll_node = snapshot.nodes[1];
-    const A11yNode& button_node = snapshot.nodes[2];
-    return expect(scroll_node.role == Role::ScrollView, "scroll role") &&
-           expect(scroll_node.automation_id == 7, "scroll automation id") &&
-           expect(tessera::ui::a11y::has_action(scroll_node.actions, Action::Scroll),
-                  "scroll action") &&
-           expect(button_node.role == Role::Button, "button role") &&
-           expect(name_of(button_node) == "Confirm", "paint text becomes the name") &&
-           expect(tessera::ui::a11y::has_state(button_node.states, State::Focused),
-                  "focused flag") &&
-           expect(button_node.bounds.y == 80.0f, "bounds include the scroll offset") &&
-           expect(scroll_node.child_count == 1 && scroll_node.children[0] == 2, "child link");
-}
-
-} // namespace
+} // namespace a11y_test
 
 int main() {
-    if (!role_precedence()) {
+    if (!a11y_test::role_precedence()) {
         return 1;
     }
-    if (!name_precedence()) {
+    if (!a11y_test::name_precedence()) {
         return 2;
     }
-    if (!hidden_rules()) {
+    if (!a11y_test::hidden_rules()) {
         return 3;
     }
-    if (!scroll_clipped_out()) {
+    if (!a11y_test::scroll_clipped_out()) {
         return 4;
     }
-    if (!focused_uniqueness()) {
+    if (!a11y_test::focused_uniqueness()) {
         return 5;
     }
-    if (!actions_and_states()) {
+    if (!a11y_test::actions_and_states()) {
         return 6;
     }
-    if (!preorder_and_children()) {
+    if (!a11y_test::preorder_and_children()) {
         return 7;
     }
-    if (!capacity_and_truncated_children()) {
+    if (!a11y_test::capacity_and_truncated_children()) {
         return 8;
     }
-    if (!determinism_and_automation_ids()) {
+    if (!a11y_test::determinism_and_automation_ids()) {
         return 9;
     }
-    if (!combined_scroll_focus_metadata()) {
+    if (!a11y_test::combined_scroll_focus_metadata()) {
         return 10;
     }
 
