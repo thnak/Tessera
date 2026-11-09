@@ -9,10 +9,10 @@
 # Opt-in packaging (TESSERA_PACKAGE_EXECUTABLES not empty):
 #   Adds a CPack TGZ archive (plus ZIP on Windows) named
 #   tessera-<version>-<os>-<arch> whose top-level directory contains exactly the explicit
-#   executable set, the four compliance files and PACKAGE-INFO.txt. CPack packages a staged
-#   directory (not the install tree), so unrelated install rules (fetched dependency headers,
-#   install-tree copies) cannot leak into the archive. The CPack config is only generated when the
-#   option is set, so a plain configure has no packaging side effects.
+#   executable set, the four compliance files, PACKAGE-INFO.txt, RELEASE-NOTES.txt and a sorted
+#   SHA256SUMS. CPack packages a staged directory (not the install tree), so unrelated install rules
+#   (fetched dependency headers, install-tree copies) cannot leak into the archive. The CPack config
+#   is only generated when the option is set, so a plain configure has no packaging side effects.
 #
 # The include line is owned by the root CMakeLists.txt owner and is already wired at the end of
 # the root CMakeLists.txt:
@@ -132,10 +132,18 @@ if(TESSERA_PACKAGE_EXECUTABLES)
 
     set(_tessera_package_stage "${CMAKE_CURRENT_BINARY_DIR}/tessera-package-root")
     set(_tessera_package_info "${CMAKE_CURRENT_BINARY_DIR}/tessera-package-info/PACKAGE-INFO.txt")
+    set(_tessera_package_release_notes
+        "${CMAKE_CURRENT_BINARY_DIR}/tessera-package-info/RELEASE-NOTES.txt")
     configure_file(
         "${CMAKE_CURRENT_LIST_DIR}/package-info.txt.in"
         "${_tessera_package_info}"
-        @ONLY)
+        @ONLY
+        NEWLINE_STYLE LF)
+    configure_file(
+        "${CMAKE_CURRENT_LIST_DIR}/release-notes.txt.in"
+        "${_tessera_package_release_notes}"
+        @ONLY
+        NEWLINE_STYLE LF)
 
     # Stage exactly the files that ship: executable(s), the four compliance files and INFO. CPack
     # packages this directory instead of the install tree, so fetched dependency headers/libraries
@@ -156,15 +164,17 @@ if(TESSERA_PACKAGE_EXECUTABLES)
             "-DEXECUTABLE_FILES=${_tessera_package_executable_genexes}"
             "-DLICENSE_FILES=${_tessera_package_license_paths}"
             "-DINFO_FILE=${_tessera_package_info}"
+            "-DRELEASE_NOTES_FILE=${_tessera_package_release_notes}"
             "-DSTAGE_DIR=${_tessera_package_stage}"
             -P "${CMAKE_CURRENT_LIST_DIR}/stage-package.cmake"
         DEPENDS ${TESSERA_PACKAGE_EXECUTABLES}
         VERBATIM)
 
     # Reproducible archives: CPack/libarchive take entry mtimes from SOURCE_DATE_EPOCH and ZIP DOS
-# timestamps from the writer's timezone. CI exports SOURCE_DATE_EPOCH=315532800 and TZ=UTC before
-# cpack; `scripts/check_reproducible.py --package` builds twice and requires byte-identical archives.
-set(CPACK_GENERATOR "TGZ")
+    # timestamps from the writer's timezone. CI exports SOURCE_DATE_EPOCH=315532800 and TZ=UTC
+    # before cpack; `scripts/check_reproducible.py --package` builds twice and requires
+    # byte-identical archives.
+    set(CPACK_GENERATOR "TGZ")
     if(WIN32)
         list(APPEND CPACK_GENERATOR "ZIP")
     endif()

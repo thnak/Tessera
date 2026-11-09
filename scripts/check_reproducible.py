@@ -28,6 +28,7 @@ import os
 import shutil
 import struct
 import subprocess
+import tempfile
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -287,11 +288,73 @@ def run_command(
         info(output)
 
 
+def source_commit(repo_root: Path) -> Optional[str]:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--short=12", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def prepare_clean_source(repo_root: Path, commit: Optional[str]) -> tuple:
+    """Check out the pinned commit in a detached worktree; fall back for non-git fixtures."""
+    if not commit:
+        return repo_root, None
+    temporary = Path(tempfile.mkdtemp(prefix="tessera-repro-source-"))
+    worktree = temporary / "worktree"
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "add", "--detach", str(worktree), commit],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        shutil.rmtree(temporary, ignore_errors=True)
+        info("warning: cannot create a clean source worktree ({}); using the caller tree".format(error))
+        return repo_root, None
+    if result.returncode != 0:
+        shutil.rmtree(temporary, ignore_errors=True)
+        info(
+            "warning: cannot create a clean source worktree at {}; using the caller tree".format(
+                commit
+            )
+        )
+        return repo_root, None
+    return worktree, temporary
+
+
+def remove_clean_source(repo_root: Path, worktree: Optional[Path], temporary: Optional[Path]) -> None:
+    if worktree is None or temporary is None:
+        return
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "remove", "--force", str(worktree)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
+
+
 def build_once(
     args: argparse.Namespace,
     build_dir: Path,
     vcvars: Optional[Path],
     repo_root: Path,
+    commit: Optional[str] = None,
 ) -> Path:
     if build_dir.exists():
         shutil.rmtree(build_dir)
@@ -311,6 +374,8 @@ def build_once(
     ]
     if args.package:
         configure.append("-DTESSERA_PACKAGE_EXECUTABLES={}".format(args.target))
+        if commit:
+            configure.append("-DTESSERA_PACKAGE_COMMIT={}".format(commit))
     if args.generator:
         configure.extend(["-G", args.generator])
     run_command(configure, "configure", CONFIGURE_TIMEOUT, vcvars)
@@ -428,6 +493,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="compare the CPack archives from the two builds instead of the executables",
     )
     parser.add_argument(
+        "--commit",
+        default=None,
+        help="package commit id pinned into both builds with --package (default: git HEAD)",
+    )
+    parser.add_argument(
         "--source-date-epoch",
         default=DEFAULT_ARCHIVE_EPOCH,
         help="fixed archive timestamp for --package (default: {})".format(DEFAULT_ARCHIVE_EPOCH),
@@ -465,8 +535,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             vcvars = static_runtime.vcvars_environment()
             if vcvars is not None:
                 info("vcvars: {}".format(vcvars))
-            artifact_a = build_once(args, build_a, vcvars, repo_root)
-            artifact_b = build_once(args, build_b, vcvars, repo_root)
+            commit = (args.commit or source_commit(repo_root)) if args.package else None
+            if args.package and not commit:
+                raise ReproError(
+                    "cannot resolve the git HEAD commit for a reproducible package build"
+                )
+            if commit:
+                info("source commit: {}".format(commit))
+            source_root, source_temporary = (
+                prepare_clean_source(repo_root, commit) if args.package else (repo_root, None)
+            )
+            if source_temporary is not None:
+                info("source worktree: {}".format(source_root))
+            try:
+                artifact_a = build_once(args, build_a, vcvars, source_root, commit)
+                artifact_b = build_once(args, build_b, vcvars, source_root, commit)
+            finally:
+                remove_clean_source(repo_root, source_root if source_temporary else None, source_temporary)
             if args.package:
                 archive_env = dict(os.environ)
                 archive_env.setdefault("SOURCE_DATE_EPOCH", args.source_date_epoch)

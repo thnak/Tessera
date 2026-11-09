@@ -10,6 +10,7 @@ production-linked license coverage logic the real packages use.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import subprocess
@@ -58,6 +59,40 @@ MINIMAL_SBOM = {
 }
 
 
+def release_notes_text(info_text: str) -> str:
+    values = {}
+    for line in info_text.splitlines():
+        if ":" in line:
+            key, _, value = line.partition(":")
+            values[key.strip()] = value.strip()
+    return (
+        "Tessera release archive\n"
+        "Version: {Version}\n"
+        "Commit: {Commit}\n"
+        "Platform: {Platform}\n"
+        "StaticRuntime: {StaticRuntime}\n"
+        "Executables: {Executables}\n"
+        "\n"
+        "Contents:\n"
+        "- the executables listed above\n"
+        "- LICENSE, THIRD_PARTY_NOTICES.md, THIRD_PARTY_LICENSES.txt and sbom.spdx.json\n"
+        "- PACKAGE-INFO.txt, RELEASE-NOTES.txt and SHA256SUMS\n"
+        "\n"
+        "Verify (Linux/macOS):  sha256sum -c SHA256SUMS\n"
+        "Verify (Windows):      certutil -hashfile <file> SHA256\n"
+        "Verify (PowerShell):   Get-FileHash -Algorithm SHA256 <file>\n"
+    ).format(**values)
+
+
+def sha256sums_text(files: Dict[str, bytes]) -> str:
+    lines = [
+        "{}  {}".format(hashlib.sha256(files[name]).hexdigest(), name)
+        for name in sorted(files)
+        if name != "SHA256SUMS"
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def license_bundle_text() -> str:
     return bundle.render_bundle(
         DEPENDENCIES.read_text(encoding="utf-8"),
@@ -101,11 +136,14 @@ class PackageGateTests(unittest.TestCase):
         sbom: Optional[object] = None,
         sbom_raw: Optional[bytes] = None,
         bundle_text: Optional[str] = None,
+        release_notes: Optional[str] = None,
+        sha256sums: Optional[str] = None,
         executable: str = "app",
         top_dir: str = TOP_DIR,
         archive_format: str = "tar",
         filename: str = "package.tar.gz",
     ) -> Path:
+        info_text = info or package_info()
         files: Dict[str, bytes] = {
             "LICENSE": b"MIT fixture license\n",
             "THIRD_PARTY_NOTICES.md": b"# Notices (fixture)\n",
@@ -115,13 +153,19 @@ class PackageGateTests(unittest.TestCase):
                 if sbom_raw is not None
                 else json.dumps(sbom if sbom is not None else MINIMAL_SBOM).encode("utf-8")
             ),
-            "PACKAGE-INFO.txt": (info or package_info()).encode("utf-8"),
+            "PACKAGE-INFO.txt": info_text.encode("utf-8"),
+            "RELEASE-NOTES.txt": (release_notes or release_notes_text(info_text)).encode("utf-8"),
             executable: b"",
         }
+        omit = tuple(omit)
         for name in omit:
             files.pop(name, None)
         for name, content in (extra_files or {}).items():
             files[name] = content
+        if sha256sums is not None:
+            files["SHA256SUMS"] = sha256sums.encode("utf-8")
+        elif "SHA256SUMS" not in omit:
+            files["SHA256SUMS"] = sha256sums_text(files).encode("utf-8")
         path = self.dir / filename
         if archive_format == "zip":
             with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -250,6 +294,103 @@ class PackageGateTests(unittest.TestCase):
         self.assertEqual(payload["gate"], "package")
         self.assertEqual(payload["sbom_packages"], 1)
         self.assertEqual(payload["package"]["static_runtime"], "ON")
+
+    def test_missing_sha256sums_is_an_error(self) -> None:
+        archive = self.build_archive(omit=("SHA256SUMS",))
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("missing required file 'SHA256SUMS'", result.stdout)
+
+    def test_missing_release_notes_is_an_error(self) -> None:
+        archive = self.build_archive(omit=("RELEASE-NOTES.txt",))
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("missing required file 'RELEASE-NOTES.txt'", result.stdout)
+
+    def test_sha256sums_hash_mismatch_is_an_error(self) -> None:
+        sums = "0" * 64 + "  LICENSE\n"
+        archive = self.build_archive(sha256sums=sums)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("SHA256SUMS: hash mismatch for 'LICENSE'", result.stdout)
+
+    def test_sha256sums_unsorted_is_an_error(self) -> None:
+        base = self.build_archive()
+        with tarfile.open(base) as archive:
+            names = [m.name for m in archive.getmembers()]
+        # Rebuild with a deliberately reversed checksum list.
+        sums = "\n".join(
+            "{}  {}".format(hashlib.sha256(name.encode()).hexdigest(), name.rsplit("/", 1)[-1])
+            for name in reversed(sorted(names))
+        ) + "\n"
+        archive = self.build_archive(sha256sums=sums)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("SHA256SUMS: entries are not sorted", result.stdout)
+
+    def test_sha256sums_missing_entry_is_an_error(self) -> None:
+        files = {"LICENSE": b"MIT fixture license\n", "app": b""}
+        sums = sha256sums_text(files)
+        archive = self.build_archive(sha256sums=sums)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("SHA256SUMS: missing entry for", result.stdout)
+
+    def test_sha256sums_extra_entry_is_an_error(self) -> None:
+        base = self.build_archive()
+        with tarfile.open(base) as archive:
+            current = archive.extractfile(TOP_DIR + "/SHA256SUMS").read().decode("utf-8")
+        sums = current + "{}  ghost.txt\n".format("1" * 64)
+        archive = self.build_archive(sha256sums=sums)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("SHA256SUMS: entry for unknown file 'ghost.txt'", result.stdout)
+
+    def test_sha256sums_self_entry_is_an_error(self) -> None:
+        base = self.build_archive()
+        with tarfile.open(base) as archive:
+            current = archive.extractfile(TOP_DIR + "/SHA256SUMS").read().decode("utf-8")
+        sums = current + "{}  SHA256SUMS\n".format("2" * 64)
+        archive = self.build_archive(sha256sums=sums)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("SHA256SUMS: must not list itself", result.stdout)
+
+    def test_release_notes_missing_field_is_an_error(self) -> None:
+        notes = release_notes_text(package_info()).replace("Version: 0.0.1\n", "")
+        archive = self.build_archive(release_notes=notes)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("RELEASE-NOTES.txt: missing required 'Version:' line", result.stdout)
+
+    def test_release_notes_version_mismatch_is_an_error(self) -> None:
+        notes = release_notes_text(package_info(version="9.9.9"))
+        archive = self.build_archive(release_notes=notes)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("RELEASE-NOTES.txt: 'Version' does not match PACKAGE-INFO.txt", result.stdout)
+
+    def test_release_notes_missing_verification_is_an_error(self) -> None:
+        notes = release_notes_text(package_info())
+        for command in ("sha256sum -c SHA256SUMS", "certutil", "Get-FileHash"):
+            notes = notes.replace(command, "removed")
+        archive = self.build_archive(release_notes=notes)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("RELEASE-NOTES.txt: missing verification command", result.stdout)
+
+    def test_sha256sums_must_use_lf(self) -> None:
+        archive = self.build_archive(sha256sums="0" * 64 + "  LICENSE\r\n")
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("SHA256SUMS: must use LF line endings", result.stdout)
+
+    def test_release_notes_must_use_lf(self) -> None:
+        notes = release_notes_text(package_info()).replace("\n", "\r\n")
+        archive = self.build_archive(release_notes=notes)
+        result = self.run_check(archive)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("RELEASE-NOTES.txt: must use LF line endings", result.stdout)
 
     def test_json_report_for_failure(self) -> None:
         archive = self.build_archive(omit=("sbom.spdx.json",))

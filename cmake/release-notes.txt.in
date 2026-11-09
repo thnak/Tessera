@@ -1,0 +1,15 @@
+Tessera release archive
+Version: @PROJECT_VERSION@
+Commit: @_tessera_package_commit@
+Platform: @_tessera_package_platform@
+StaticRuntime: @_tessera_package_static_runtime@
+Executables: @_tessera_package_executable_list@
+
+Contents:
+- the executables listed above
+- LICENSE, THIRD_PARTY_NOTICES.md, THIRD_PARTY_LICENSES.txt and sbom.spdx.json
+- PACKAGE-INFO.txt (package metadata), RELEASE-NOTES.txt (this file) and SHA256SUMS
+
+Verify (Linux/macOS):  sha256sum -c SHA256SUMS
+Verify (Windows):      certutil -hashfile <file> SHA256
+Verify (PowerShell):   Get-FileHash -Algorithm SHA256 <file>

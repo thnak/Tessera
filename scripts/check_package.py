@@ -22,6 +22,7 @@ Stdlib only, deterministic sorted output. Exit codes: 0 pass, 1 validation failu
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -46,10 +47,14 @@ REQUIRED_FILES = (
     "THIRD_PARTY_LICENSES.txt",
     "sbom.spdx.json",
     "PACKAGE-INFO.txt",
+    "RELEASE-NOTES.txt",
+    "SHA256SUMS",
 )
 INFO_REQUIRED_KEYS = ("Version", "Commit", "Platform", "StaticRuntime", "Executables")
+VERIFY_COMMANDS = ("sha256sum -c SHA256SUMS", "certutil", "Get-FileHash")
 
 TOP_DIR_RE = re.compile(r"^tessera-[0-9A-Za-z][0-9A-Za-z._-]*$")
+SHA_LINE_RE = re.compile(r"^([0-9a-f]{64})  (.+)$")
 ABSOLUTE_BUILD_PATH_RE = re.compile(
     r"(?i)(?:[A-Za-z]:[\\/]|\\\\|/(?:home|users|tmp|var|build|builds|mnt|opt|workspace|root)/)"
 )
@@ -167,6 +172,82 @@ def parse_info(text: str) -> Tuple[Dict[str, str], List[str]]:
             .format(info["StaticRuntime"])
         )
     return info, errors
+
+
+def validate_release_notes(
+    text: str, package_info: Dict[str, str], errors: List[str]
+) -> None:
+    notes: Dict[str, str] = {}
+    for line in text.splitlines():
+        if ":" not in line or line.lstrip().startswith("-"):
+            continue
+        key, _, value = line.partition(":")
+        notes[key.strip()] = value.strip()
+    for key in INFO_REQUIRED_KEYS:
+        if not notes.get(key):
+            errors.append("RELEASE-NOTES.txt: missing required '{}:' line".format(key))
+        elif package_info.get(key) and notes[key] != package_info[key]:
+            errors.append(
+                "RELEASE-NOTES.txt: '{}' does not match PACKAGE-INFO.txt".format(key)
+            )
+    for command in VERIFY_COMMANDS:
+        if command not in text:
+            errors.append(
+                "RELEASE-NOTES.txt: missing verification command {!r}".format(command)
+            )
+    for line in text.splitlines():
+        if ABSOLUTE_BUILD_PATH_RE.search(line):
+            errors.append(
+                "RELEASE-NOTES.txt: absolute build path leaked: '{}'".format(line.strip())
+            )
+        if TIMESTAMP_RE.search(line):
+            errors.append(
+                "RELEASE-NOTES.txt: build timestamp leaked: '{}'".format(line.strip())
+            )
+
+
+def validate_sha256sums(
+    files: Dict[str, bytes], inner: Dict[str, str], errors: List[str]
+) -> int:
+    data = files[inner["SHA256SUMS"]]
+    if b"\r" in data:
+        errors.append("SHA256SUMS: must use LF line endings")
+    text = data.decode("utf-8", errors="replace")
+    entries: List[Tuple[str, str]] = []
+    for index, line in enumerate(text.splitlines(), start=1):
+        if not line:
+            continue
+        match = SHA_LINE_RE.match(line)
+        if not match:
+            errors.append(
+                "SHA256SUMS:{}: expected '<sha256>  <file>' with two spaces".format(index)
+            )
+            continue
+        digest, name = match.groups()
+        if name == "SHA256SUMS":
+            errors.append("SHA256SUMS: must not list itself")
+            continue
+        if name != name.rsplit("/", 1)[-1] or name in ("", ".", ".."):
+            errors.append("SHA256SUMS:{}: unsafe or nested path '{}'".format(index, name))
+            continue
+        entries.append((name, digest))
+    names = [name for name, _ in entries]
+    if names != sorted(names):
+        errors.append("SHA256SUMS: entries are not sorted by file name")
+    if len(set(names)) != len(names):
+        errors.append("SHA256SUMS: duplicate file entries")
+    expected = set(inner) - {"SHA256SUMS"}
+    for name in sorted(expected - set(names)):
+        errors.append("SHA256SUMS: missing entry for '{}'".format(name))
+    for name in sorted(set(names) - expected):
+        errors.append("SHA256SUMS: entry for unknown file '{}'".format(name))
+    for name, digest in entries:
+        if name not in inner:
+            continue
+        actual = hashlib.sha256(files[inner[name]]).hexdigest()
+        if actual != digest:
+            errors.append("SHA256SUMS: hash mismatch for '{}'".format(name))
+    return len(entries)
 
 
 def executable_names(info: Dict[str, str]) -> List[str]:
@@ -360,6 +441,16 @@ def check_package(archive_path: Path, dependencies_path: Path) -> Tuple[Dict[str
             errors.append("THIRD_PARTY_LICENSES.txt: {}".format(error))
     if "LICENSE" in inner and not files[inner["LICENSE"]].strip():
         errors.append("archive: LICENSE is empty")
+    if "RELEASE-NOTES.txt" in inner:
+        release_notes_data = files[inner["RELEASE-NOTES.txt"]]
+        if b"\r" in release_notes_data:
+            errors.append("RELEASE-NOTES.txt: must use LF line endings")
+        validate_release_notes(
+            release_notes_data.decode("utf-8", errors="replace"), package_info, errors
+        )
+    checksum_entries = 0
+    if "SHA256SUMS" in inner:
+        checksum_entries = validate_sha256sums(files, inner, errors)
 
     package_count = 0
     if "sbom.spdx.json" in inner:
@@ -376,6 +467,7 @@ def check_package(archive_path: Path, dependencies_path: Path) -> Tuple[Dict[str
             "executables": executable_names(package_info),
         },
         "sbom_packages": package_count,
+        "checksum_entries": checksum_entries,
     }
     errors.sort()
     return summary, errors

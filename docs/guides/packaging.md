@@ -128,12 +128,23 @@ continues to enforce the archive *content*.
 
 The archive (TGZ, plus ZIP on Windows) contains one top-level
 `tessera-<version>-<os>-<arch>/` directory with exactly the built executables, `LICENSE`,
-`THIRD_PARTY_NOTICES.md`, `THIRD_PARTY_LICENSES.txt`, `sbom.spdx.json` and `PACKAGE-INFO.txt`
-(version, commit, platform, static-runtime statement). CPack packages a staged directory rather
-than the install tree, so fetched dependency headers/libraries cannot leak in. `check_package.py`
-verifies the layout and executable set, that the SBOM parses as SPDX-2.3, that the license bundle
-covers every production-linked license, that the static runtime is ON, and that `PACKAGE-INFO.txt`
+`THIRD_PARTY_NOTICES.md`, `THIRD_PARTY_LICENSES.txt`, `sbom.spdx.json`, `PACKAGE-INFO.txt`,
+`RELEASE-NOTES.txt` and `SHA256SUMS`. `PACKAGE-INFO.txt` and `RELEASE-NOTES.txt` record the
+version, commit, platform and static-runtime statement; `SHA256SUMS` lists every shipped file except
+itself (sorted `sha256  file` lines, LF). CPack packages a staged directory rather than the install
+tree, so fetched dependency headers/libraries cannot leak in. `check_package.py` verifies the
+layout and executable set, that the SBOM parses as SPDX-2.3, that the license bundle covers every
+production-linked license, that the static runtime is ON, that the checksums match every file, that
+`RELEASE-NOTES.txt` repeats the metadata and verification commands, and that `PACKAGE-INFO.txt`
 leaks no build paths or timestamps; `--json` gives a machine-readable report.
+
+Verify a downloaded archive (one command per OS, run inside the unpacked directory):
+
+```bash
+sha256sum -c SHA256SUMS                                  # Linux/macOS
+certutil -hashfile <file> SHA256                         # Windows (cmd)
+Get-FileHash -Algorithm SHA256 <file>                    # Windows (PowerShell)
+```
 
 What it proves: the shipped artifact links the static C/C++ runtime and carries complete
 license/SBOM material next to the binaries. What it does not prove: installer signing, per-OS
@@ -265,12 +276,17 @@ build/package jobs; it runs in the Linux `release-rehearsal` CI job.
 4. **Reproducible proof** — `python -B scripts/check_reproducible.py --config Release --target
    <target> --package`. Builds twice and requires both the executable and the CPack archive
    (`SOURCE_DATE_EPOCH=315532800`, `TZ=UTC`) to be byte-identical (Linux/Windows CI; macOS when its
-   toolchain supports the same flags).
+   toolchain supports the same flags). The gate pins the same package commit and checks it out in a
+   detached worktree for both builds, so a moving HEAD or a dirty working tree cannot skew the
+   comparison.
 5. **Distributable archive** — configure with `-DTESSERA_PACKAGE_EXECUTABLES=<targets>`, build
    `tessera-package-stage`, run `cpack --config <build>/CPackConfig.cmake -G <TGZ|ZIP> -B <out>`,
    then `python -B scripts/check_package.py --archive <artifact>`. Proves the archive contains
-   exactly the shipped executables plus the compliance files and a valid SPDX-2.3 SBOM, with no
-   build-path or timestamp leaks. Artifact names:
+   exactly the shipped executables plus the compliance files, a valid SPDX-2.3 SBOM, a sorted
+   `SHA256SUMS` covering every file, and a `RELEASE-NOTES.txt` with the metadata and verification
+   commands, with no build-path or timestamp leaks. Users verify with `sha256sum -c SHA256SUMS`
+   (Linux/macOS), `certutil -hashfile <file> SHA256` or `Get-FileHash -Algorithm SHA256 <file>`
+   (Windows). Artifact names:
    - Linux: `tessera-<version>-linux-x86_64.tar.gz`
    - Windows: `tessera-<version>-windows-x86_64.zip` (a `.tar.gz` is generated as well)
    - macOS: `tessera-<version>-macos-arm64.tar.gz` on Apple Silicon (the `macos-latest` runner;
