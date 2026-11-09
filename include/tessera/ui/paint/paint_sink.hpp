@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 
+#include <optional>
 #include <string_view>
 
 namespace tessera::ui::paint {
@@ -18,6 +19,9 @@ struct TextDraw {
     float font_size = 16.0f;
     int font_weight = 400;
     rhi::Color color{0.0f, 0.0f, 0.0f, 1.0f};
+    // Absolute baseline for a line box computed by the paint pass. nullopt keeps the single-line
+    // behavior (the sink top-aligns the shaped run inside `rect` using its own ascent).
+    std::optional<float> baseline;
 };
 
 // Clip emitted by the paint pass for a parent with `overflow` clipping. `rect` is the parent's

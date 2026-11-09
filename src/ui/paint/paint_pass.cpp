@@ -2,10 +2,17 @@
 
 #include "paint_properties.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/text/font_metrics.hpp"
+#include "tessera/ui/text/text_layout.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <optional>
+#include <string>
+#include <string_view>
 
 namespace tessera::ui::paint {
 namespace {
@@ -82,9 +89,36 @@ void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, flo
 
 // Paints an optional PaintData text run (D9) after the node's background/borders and inside the
 // active clip. Precedence: PaintData override > computed style > backend default; node opacity
-// multiplies the effective color alpha.
-void paint_text(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
-                PaintSink& sink, PaintStats& stats) {
+// multiplies the effective color alpha. NoWrap (default) emits one run; Wrap uses the shared
+// text-line-box layout (`text::layout_text`) with the content box width and emits one run per line.
+PaintTextAlign computed_text_align(const style::ComputedStyle& style) {
+    const std::string* value = style.find("text-align");
+    if (value == nullptr) {
+        return PaintTextAlign::Start;
+    }
+    std::string token(*value);
+    std::size_t first = 0;
+    while (first < token.size() && std::isspace(static_cast<unsigned char>(token[first])) != 0) {
+        ++first;
+    }
+    std::size_t last = token.size();
+    while (last > first && std::isspace(static_cast<unsigned char>(token[last - 1])) != 0) {
+        --last;
+    }
+    token = token.substr(first, last - first);
+    std::transform(token.begin(), token.end(), token.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (token == "center") {
+        return PaintTextAlign::Center;
+    }
+    if (token == "end" || token == "right") {
+        return PaintTextAlign::End;
+    }
+    return PaintTextAlign::Start;
+}
+
+void paint_text_lines(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
+                      PaintSink& sink, PaintStats& stats) {
     const auto& data = node.paint_data();
     if (!data || data->kind != PaintKind::Text || data->text.empty()) {
         return;
@@ -97,20 +131,81 @@ void paint_text(const Node& node, const style::ComputedStyle& style, const rhi::
         return;
     }
 
-    TextDraw run;
-    run.rect = rect;
-    run.text = data->text;
-    run.font_size = data->text_style.font_size > 0.0f ? data->text_style.font_size
-                                                      : detail::font_size_value(style);
-    run.font_weight = data->text_style.font_weight > 0 ? data->text_style.font_weight
-                                                       : detail::font_weight_value(style);
-    run.color = data->text_style.color.value_or(detail::current_color(style));
-    run.color.a *= opacity;
-    if (run.font_size <= 0.0f || run.color.a <= 0.0f) {
+    text::TextStyle text_style = text::text_style_from(style);
+    if (data->text_style.font_size > 0.0f) {
+        text_style.font_size = data->text_style.font_size;
+    }
+    if (data->text_style.font_weight > 0) {
+        text_style.font_weight = data->text_style.font_weight;
+    }
+
+    const float padding_left = detail::length_value(style, "padding-left").value_or(0.0f);
+    const float padding_right = detail::length_value(style, "padding-right").value_or(0.0f);
+    const float padding_top = detail::length_value(style, "padding-top").value_or(0.0f);
+    const float padding_bottom = detail::length_value(style, "padding-bottom").value_or(0.0f);
+    const float content_width = std::max(0.0f, rect.width - padding_left - padding_right);
+    const float content_height = std::max(0.0f, rect.height - padding_top - padding_bottom);
+    const float content_x = rect.x + padding_left;
+    const float content_y = rect.y + padding_top;
+
+    rhi::Color color = data->text_style.color.value_or(detail::current_color(style));
+    color.a *= opacity;
+    if (content_width <= 0.0f || content_height <= 0.0f || color.a <= 0.0f ||
+        text_style.font_size <= 0.0f) {
         return;
     }
-    sink.draw_text(run);
-    ++stats.texts;
+
+    // `wrap` is authoritative (NoWrap is the V1 default); computed `white-space: nowrap|pre` can
+    // only suppress wrapping, never opt into it.
+    const bool wrap = data->wrap == PaintWrap::Wrap && !text_style.nowrap;
+    if (!wrap) {
+        TextDraw run;
+        run.rect = {content_x, content_y, content_width, content_height};
+        run.text = data->text;
+        run.font_size = text_style.font_size;
+        run.font_weight = text_style.font_weight;
+        run.color = color;
+        sink.draw_text(run);
+        ++stats.texts;
+        return;
+    }
+
+    const text::FontMetrics metrics = text::StubFontMetricsProvider{}.metrics(text_style);
+    text::TextConstraints constraints;
+    constraints.wrap = true;
+    constraints.max_width = content_width;
+    const text::TextLayout layout = text::layout_text(data->text, text_style, metrics, constraints);
+    std::size_t line_count = layout.lines.size();
+    if (data->max_lines > 0) {
+        line_count = std::min(line_count, static_cast<std::size_t>(data->max_lines));
+    }
+
+    const PaintTextAlign align = data->text_align.value_or(computed_text_align(style));
+    float line_top = content_y;
+    for (std::size_t index = 0; index < line_count; ++index) {
+        const text::TextLine& line = layout.lines[index];
+        if (line.end > line.begin) {
+            float line_x = content_x;
+            if (align == PaintTextAlign::Center) {
+                line_x += (content_width - line.width) * 0.5f;
+            } else if (align == PaintTextAlign::End) {
+                line_x += content_width - line.width;
+            }
+            line_x = std::max(content_x, line_x);
+
+            TextDraw run;
+            // Integer snapping happens at paint time only (layout widths/offsets stay fractional).
+            run.rect = {std::round(line_x), std::round(line_top), line.width, line.height};
+            run.text = std::string_view(data->text).substr(line.begin, line.end - line.begin);
+            run.font_size = text_style.font_size;
+            run.font_weight = text_style.font_weight;
+            run.color = color;
+            run.baseline = std::round(line_top + line.baseline);
+            sink.draw_text(run);
+            ++stats.texts;
+        }
+        line_top += line.height;
+    }
 }
 
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats) {
@@ -142,8 +237,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         ++stats.clips;
     }
     // Text runs are content: paint them after the element's own background/borders and inside its
-    // own overflow clip, before the children (paint order).
-    paint_text(node, style, rect, sink, stats);
+    // own overflow/scroll clip, before the children (paint order).
+    paint_text_lines(node, style, rect, sink, stats);
     for (const auto& child : node.children()) {
         paint_node(*child, styles, sink, stats);
     }

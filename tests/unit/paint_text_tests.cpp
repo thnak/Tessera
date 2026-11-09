@@ -54,6 +54,12 @@ bool expect(bool condition, const char* message) {
     return condition;
 }
 
+PaintData text_run(std::string text) {
+    PaintData data;
+    data.text = std::move(text);
+    return data;
+}
+
 ComputedStyle styled(std::initializer_list<std::pair<const char*, const char*>> values) {
     ComputedStyle style;
     for (const auto& [property, value] : values) {
@@ -133,7 +139,7 @@ bool test_emit_order_and_style() {
                           {"font-size", "20px"},
                           {"font-weight", "700"},
                           {"color", "blue"}}));
-    root.set_paint_data(PaintData{PaintKind::Text, "Hello", {}});
+    root.set_paint_data(text_run("Hello"));
 
     RecordingSink sink;
     const PaintStats stats = paint_scene(root, styles, sink);
@@ -189,7 +195,7 @@ bool test_empty_and_missing_text() {
     PaintStats stats = paint_scene(root, styles, sink);
     bool ok = expect(stats.texts == 0 && sink.texts.empty(), "no PaintData paints no text");
 
-    root.set_paint_data(PaintData{PaintKind::Text, "", {}});
+    root.set_paint_data(text_run(""));
     stats = paint_scene(root, styles, sink);
     ok = expect(stats.texts == 0 && sink.texts.empty(), "empty text paints nothing") && ok;
     return ok && expect(sink.fills == 2, "background still paints for both runs");
@@ -201,7 +207,7 @@ bool test_child_text_under_parent_clip() {
     auto child_owner = std::make_unique<Node>(2);
     child_owner->set_bounds({10, 10, 60, 20});
     Node& child = root.add_child(std::move(child_owner));
-    child.set_paint_data(PaintData{PaintKind::Text, "child", {}});
+    child.set_paint_data(text_run("child"));
 
     StubStyles styles;
     styles.set(1, styled({{"overflow-x", "hidden"}, {"overflow-y", "hidden"}}));
@@ -252,7 +258,7 @@ bool test_paint_data_node_contract() {
 bool test_damage_clipped_text() {
     Node root(1);
     root.set_bounds({0, 0, 100, 40});
-    root.set_paint_data(PaintData{PaintKind::Text, "damage", {}});
+    root.set_paint_data(text_run("damage"));
     StubStyles styles;
     styles.set(1, styled({{"background-color", "black"}, {"color", "white"}}));
     root.clear_dirty(Dirty::All);

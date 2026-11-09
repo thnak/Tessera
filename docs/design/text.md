@@ -190,3 +190,11 @@ emits `PaintSink::draw_text`, and `Batched2DSink` shapes through `TextShaper` an
 the node border box, and never affects layout; `paint-pass.md` section 10 has the payload/precedence
 contract. Goldens: paint-text image goldens are GPU-only for now because the CPU canvas has no text
 rasterizer.
+
+Paint-time multi-line/wrapped text (task-39): `PaintData` adds `wrap` (NoWrap default | Wrap),
+`max_lines` (0 = unlimited) and `text_align`; the paint pass reuses `text::layout_text` line boxes
+(now with per-line byte ranges) with the content-box width and computed font-size/line-height, and
+emits one `PaintSink::draw_text` per line with an absolute baseline. No layout pass is required and
+PaintData never affects layout. `max_lines` truncates deterministically without ellipsis; bidi,
+hyphenation, rich text, and selection remain deferred. See `paint-pass.md` section 10.1 for the
+contract, batching notes, and Debug measurements of a 200-word paragraph.

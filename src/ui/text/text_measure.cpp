@@ -106,21 +106,27 @@ std::size_t byte_offset(std::string_view text, std::size_t codepoints) {
     return offset;
 }
 
-std::vector<std::string_view> split_words(std::string_view text) {
-    std::vector<std::string_view> words;
-    std::size_t start = std::string_view::npos;
-    for (std::size_t i = 0; i < text.size(); ++i) {
+struct WordRange {
+    std::size_t begin = 0;
+    std::size_t end = 0;
+};
+
+std::vector<WordRange> split_word_ranges(std::string_view text, std::size_t begin,
+                                         std::size_t end) {
+    std::vector<WordRange> words;
+    std::size_t word_begin = std::string_view::npos;
+    for (std::size_t i = begin; i < end; ++i) {
         if (std::isspace(static_cast<unsigned char>(text[i])) != 0) {
-            if (start != std::string_view::npos) {
-                words.push_back(text.substr(start, i - start));
-                start = std::string_view::npos;
+            if (word_begin != std::string_view::npos) {
+                words.push_back(WordRange{word_begin, i});
+                word_begin = std::string_view::npos;
             }
-        } else if (start == std::string_view::npos) {
-            start = i;
+        } else if (word_begin == std::string_view::npos) {
+            word_begin = i;
         }
     }
-    if (start != std::string_view::npos) {
-        words.push_back(text.substr(start));
+    if (word_begin != std::string_view::npos) {
+        words.push_back(WordRange{word_begin, end});
     }
     return words;
 }
@@ -186,13 +192,13 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
                                   ? style.line_height
                                   : metrics.ascent + metrics.descent + metrics.line_gap;
 
-    auto add_line = [&](float width) {
-        result.lines.push_back(TextLine{width, line_height, metrics.ascent});
+    auto add_line = [&](float width, std::size_t begin, std::size_t end) {
+        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end});
         result.width = std::max(result.width, width);
     };
 
     if (!constraints.wrap || style.nowrap || !std::isfinite(constraints.max_width)) {
-        add_line(static_cast<float>(codepoint_count(text)) * advance);
+        add_line(static_cast<float>(codepoint_count(text)) * advance, 0, text.size());
         result.height = line_height;
         result.baseline = metrics.ascent;
         return result;
@@ -203,42 +209,52 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
     while (start <= text.size()) {
         const std::size_t newline = text.find('\n', start);
         const std::size_t end = newline == std::string_view::npos ? text.size() : newline;
-        const std::string_view paragraph = text.substr(start, end - start);
 
         float current = 0.0f;
         bool has_line = false;
-        for (const std::string_view word : split_words(paragraph)) {
-            const float word_width = static_cast<float>(codepoint_count(word)) * advance;
+        std::size_t line_begin = 0;
+        std::size_t line_end = 0;
+        for (const WordRange& word : split_word_ranges(text, start, end)) {
+            const std::string_view word_text = text.substr(word.begin, word.end - word.begin);
+            const float word_width = static_cast<float>(codepoint_count(word_text)) * advance;
             if (word_width > max_width) {
                 if (has_line) {
-                    add_line(current);
+                    add_line(current, line_begin, line_end);
                     current = 0.0f;
                     has_line = false;
                 }
-                std::string_view remaining = word;
+                std::string_view remaining = word_text;
+                std::size_t chunk_begin = word.begin;
                 while (!remaining.empty()) {
                     const std::size_t max_codepoints =
                         std::max<std::size_t>(1, static_cast<std::size_t>(max_width / advance));
                     const std::size_t take = std::min(max_codepoints, codepoint_count(remaining));
-                    add_line(static_cast<float>(take) * advance);
-                    remaining.remove_prefix(byte_offset(remaining, take));
+                    const std::size_t chunk_end = chunk_begin + byte_offset(remaining, take);
+                    add_line(static_cast<float>(take) * advance, chunk_begin, chunk_end);
+                    remaining.remove_prefix(chunk_end - chunk_begin);
+                    chunk_begin = chunk_end;
                 }
                 continue;
             }
 
             if (!has_line) {
                 current = word_width;
+                line_begin = word.begin;
+                line_end = word.end;
                 has_line = true;
             } else if (current + advance + word_width <= max_width) {
                 current += advance + word_width;
+                line_end = word.end;
             } else {
-                add_line(current);
+                add_line(current, line_begin, line_end);
                 current = word_width;
+                line_begin = word.begin;
+                line_end = word.end;
                 has_line = true;
             }
         }
         if (has_line) {
-            add_line(current);
+            add_line(current, line_begin, line_end);
         }
         if (newline == std::string_view::npos) {
             break;
@@ -247,7 +263,7 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
     }
 
     if (result.lines.empty()) {
-        add_line(0.0f);
+        add_line(0.0f, 0, text.size());
     }
     result.height = static_cast<float>(result.lines.size()) * line_height;
     result.baseline = metrics.ascent;

@@ -66,8 +66,9 @@ void Batched2DSink::draw_text(const TextDraw& run) {
 
     const float size = std::clamp(run.font_size, kMinPixelSize, kMaxPixelSize);
     const auto pixel_size = static_cast<std::uint16_t>(std::lround(size));
-    // Top-align the run in the node box; the shaper supplies the pixel ascent.
-    const float baseline = run.rect.y + shaped.ascent;
+    // Wrapped lines carry an absolute baseline from the shared line-box layout; single-line runs
+    // keep the previous top-aligned behavior.
+    const float baseline = run.baseline.value_or(run.rect.y + shaped.ascent);
     // TextRenderer pushes textured quads through the same renderer: a texture change flushes the
     // current rect batch, and the active scissor/rounded-clip state applies to the glyphs.
     text_renderer_->draw(*renderer_, shaped, run.rect.x, baseline, pixel_size, run.color);

@@ -54,7 +54,7 @@ using tessera::ui::text::GlyphRasterizer;
 using tessera::ui::text::HarfBuzzShaper;
 using tessera::ui::text::TextRenderer;
 
-constexpr Extent2D kExtent{128, 64};
+constexpr Extent2D kExtent{160, 160};
 constexpr std::uint32_t kTextRectX = 8;
 constexpr std::uint32_t kTextRectY = 8;
 constexpr std::uint32_t kTextRectW = 112;
@@ -116,6 +116,21 @@ std::size_t count_non_background(const std::vector<std::uint8_t>& pixels) {
     for (std::size_t i = 0; i + 3 < pixels.size(); i += 4) {
         if (pixels[i] != 0 || pixels[i + 1] != 0 || pixels[i + 2] != 0) {
             ++count;
+        }
+    }
+    return count;
+}
+
+std::size_t count_non_background_region(const std::vector<std::uint8_t>& pixels, std::uint32_t x0,
+                                        std::uint32_t y0, std::uint32_t x1, std::uint32_t y1) {
+    std::size_t count = 0;
+    for (std::uint32_t y = y0; y < y1; ++y) {
+        for (std::uint32_t x = x0; x < x1; ++x) {
+            const std::size_t index =
+                (static_cast<std::size_t>(y) * kExtent.width + x) * sizeof(std::uint32_t);
+            if (pixels[index] != 0 || pixels[index + 1] != 0 || pixels[index + 2] != 0) {
+                ++count;
+            }
         }
     }
     return count;
@@ -198,12 +213,29 @@ int main(int argc, char** argv) {
     data.text_style.font_size = 24.0f;
     root.set_paint_data(std::move(data));
 
+    Node wrapped_root(2);
+    wrapped_root.set_bounds({8, 8, 96, 120});
+    PaintData wrapped_data;
+    wrapped_data.text = "The quick brown fox jumps over the lazy dog near the river bank at dawn";
+    wrapped_data.wrap = tessera::ui::PaintWrap::Wrap;
+    wrapped_data.text_style.font_size = 16.0f;
+    wrapped_root.set_paint_data(std::move(wrapped_data));
+    styles.set(2, styled({{"background-color", "black"},
+                          {"color", "white"},
+                          {"font-size", "16px"},
+                          {"padding-left", "4px"},
+                          {"padding-right", "4px"},
+                          {"padding-top", "4px"},
+                          {"padding-bottom", "4px"},
+                          {"overflow-x", "hidden"},
+                          {"overflow-y", "hidden"}}));
+
     const auto render_frame = [&](Batched2DRenderer& frame_renderer, Batched2DSink& frame_sink,
-                                  RenderTarget& target, const RenderTargetDesc& desc) {
+                                  Node& scene, RenderTarget& target, const RenderTargetDesc& desc) {
         auto commands = device->create_command_list();
         frame_renderer.begin(*commands, target, desc);
         frame_sink.begin_text_frame();
-        paint_scene(root, styles, frame_sink);
+        paint_scene(scene, styles, frame_sink);
         frame_renderer.end();
         commands->submit();
         device->wait_idle();
@@ -212,21 +244,48 @@ int main(int argc, char** argv) {
 
     const RenderTargetDesc desc1 = target_desc(TextureFormat::R8G8B8A8Unorm);
     auto target1 = device->create_render_target(desc1);
-    const std::vector<std::uint8_t> first = render_frame(renderer, sink, *target1, desc1);
+    const std::vector<std::uint8_t> first = render_frame(renderer, sink, root, *target1, desc1);
     const std::size_t coverage = count_non_background(first);
     bool ok = expect(coverage > 0, "text paints pixels inside its rect") &&
               expect(count_far_right_non_background(first) == 0,
                      "pixels outside the text rect stay background");
 
-    const std::vector<std::uint8_t> repeat = render_frame(renderer, sink, *target1, desc1);
+    const std::vector<std::uint8_t> repeat = render_frame(renderer, sink, root, *target1, desc1);
     ok = expect(first == repeat, "paint-text render is byte-identical on repeat") && ok;
 
     // sRGB target path: same paint path, colors encoded by the target format.
     const RenderTargetDesc desc_srgb = target_desc(TextureFormat::R8G8B8A8Srgb);
     auto target_srgb = device->create_render_target(desc_srgb);
     const std::vector<std::uint8_t> srgb =
-        render_frame(renderer_srgb, sink_srgb, *target_srgb, desc_srgb);
+        render_frame(renderer_srgb, sink_srgb, root, *target_srgb, desc_srgb);
     ok = expect(count_non_background(srgb) > 0, "text paints on an sRGB target") && ok;
+
+    // Wrapped paragraph: multiple line bands inside the padded content box, background outside it,
+    // deterministic repeat, and the same path on an sRGB target.
+    const std::vector<std::uint8_t> wrapped =
+        render_frame(renderer, sink, wrapped_root, *target1, desc1);
+    const std::size_t first_band = count_non_background_region(wrapped, 12, 12, 100, 32);
+    const std::size_t second_band = count_non_background_region(wrapped, 12, 32, 100, 52);
+    const std::size_t third_band = count_non_background_region(wrapped, 12, 52, 100, 72);
+    ok = expect(first_band > 0 && second_band > 0 && third_band > 0,
+                "wrapped paragraph paints several line bands") &&
+         ok;
+    ok = expect(count_far_right_non_background(wrapped) == 0,
+                "wrapped text stays inside its content box") &&
+         ok;
+    ok = expect(count_non_background_region(wrapped, 0, 140, kExtent.width, kExtent.height) == 0,
+                "wrapped text stays above the node bottom") &&
+         ok;
+
+    const std::vector<std::uint8_t> wrapped_repeat =
+        render_frame(renderer, sink, wrapped_root, *target1, desc1);
+    ok = expect(wrapped == wrapped_repeat, "wrapped paragraph is byte-identical on repeat") && ok;
+
+    const std::vector<std::uint8_t> wrapped_srgb =
+        render_frame(renderer_srgb, sink_srgb, wrapped_root, *target_srgb, desc_srgb);
+    ok = expect(count_non_background(wrapped_srgb) > 0,
+                "wrapped paragraph paints on an sRGB target") &&
+         ok;
 
     if (!ok) {
         std::cerr << "paint_text_gpu: failed\n";

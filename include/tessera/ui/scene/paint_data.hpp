@@ -40,6 +40,13 @@ struct PaintTextStyle {
 
 enum class PaintKind { Text };
 
+// PaintData text options. Precedence is documented in docs/design/paint-pass.md section 10:
+// `wrap` is authoritative for the paint pass (computed `white-space: nowrap|pre` can only suppress
+// wrapping, never enable it); nullopt `text_align` falls back to computed `text-align`, then Start;
+// `max_lines == 0` means unlimited.
+enum class PaintWrap { NoWrap, Wrap };
+enum class PaintTextAlign { Start, Center, End };
+
 struct PaintData {
     static constexpr std::size_t kMaxTextBytes = 4096;
 
@@ -47,6 +54,14 @@ struct PaintData {
     // UTF-8 text. Empty text paints nothing (the node's background/borders still paint).
     std::string text;
     PaintTextStyle text_style;
+    // Wrap opt-in: NoWrap keeps the single-line behavior (V1 default). Wrap uses the content box
+    // (border box minus padding) as the wrap width through the shared text-line-box layout.
+    PaintWrap wrap = PaintWrap::NoWrap;
+    // Maximum emitted lines; 0 means unlimited. Truncation is deterministic (whole computed lines,
+    // no ellipsis).
+    std::uint32_t max_lines = 0;
+    // nullopt uses computed `text-align` (falling back to Start); an explicit value overrides it.
+    std::optional<PaintTextAlign> text_align;
 
     [[nodiscard]] bool empty() const {
         return text.empty();

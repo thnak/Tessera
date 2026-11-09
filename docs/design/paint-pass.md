@@ -114,13 +114,13 @@ property in this slice, not a border ring.
 ## 6. Deliberate limits
 
 - No text, glyphs, or inline content in the box pass; text runs are painted from
-  optional `ui::PaintData` payloads (§10).
-- Overflow clipping is rounded-rect only ([Â§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
+  optional `ui::PaintData` payloads (Â§10).
+- Overflow clipping is rounded-rect only ([Ã‚Â§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
   filters, gradients, shadows, or images.
-- Scroll containers clip and offset children ([Â§3.1](#31-scroll-containers)); scroll physics,
+- Scroll containers clip and offset children ([Ã‚Â§3.1](#31-scroll-containers)); scroll physics,
   inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
-  The frame pipeline clips around it with a sink decorator ([Â§8.1](#81-damage-clipped-painting)).
+  The frame pipeline clips around it with a sink decorator ([Ã‚Â§8.1](#81-damage-clipped-painting)).
 - No layer isolation or group opacity; `opacity` is per emitted color.
 - No percentage/`em`/`rem`/viewport units and no non-pixel radii.
 - Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
@@ -140,7 +140,7 @@ paint never submits the command list (the caller does).
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
 
-Overflow clips (Â§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
+Overflow clips (Ã‚Â§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
 paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
 visible` emitting no clip, and nested clips. Scroll containers are covered in
 [`tests/unit/scroll_tests.cpp`](../../tests/unit/scroll_tests.cpp) (`scroll_core`): child rects
@@ -264,7 +264,7 @@ DamageTracker regions repaint the background and the node respectively.
 
 `paint_scene` clips a parent's children when its computed `overflow-x`/`overflow-y` is anything but
 `visible` (`hidden`, `clip`, `scroll`, and `auto` all clip: the paint pass itself only clips;
-scrolling is scene state applied by the world transform, see [Â§3.1](#31-scroll-containers)). The clip
+scrolling is scene state applied by the world transform, see [Ã‚Â§3.1](#31-scroll-containers)). The clip
 is
 emitted around the children, after the parent's own background/borders, through
 `PaintSink::push_clip`/`pop_clip`:
@@ -343,3 +343,65 @@ Limits/deferred: single-line text only (no wrapping, line breaking, bidi, or ICU
 inline images; no text selection/editing; no per-glyph damage caching; font stack/fallback and
 shaping options stay caller-owned; text does not affect layout (it paints in the node's existing
 box); paint-text goldens are deferred until the CPU/software path rasterizes text deterministically.
+
+### 10.1 Multi-line and wrapped text (task-39)
+
+`PaintData` options: `wrap` (`PaintWrap::NoWrap` default = the V1 single-line behavior |
+`PaintWrap::Wrap`), `max_lines` (0 = unlimited) and `text_align` (`nullopt` = use computed
+`text-align`, falling back to Start; an explicit Start/Center/End overrides it). Precedence:
+`wrap` is authoritative for paint text and computed `white-space: nowrap|pre` can only suppress
+wrapping (never opt in); `max_lines` is PaintData-only; the resolved `text-align` applies to each
+wrapped line inside the content box.
+
+Layout reuse: wrapped lines come from the existing shared `text::layout_text` line-box path (same
+greedy word wrapping used by measurement) - no new text engine, no ICU/bidi. Paint text uses the
+deterministic `TextStyle` from computed style (`font-size`, `line-height`, `letter-spacing`,
+`font-weight`, `font-style`, `white-space`) plus the PaintData font-size/font-weight overrides,
+then `StubFontMetricsProvider` metrics; `TextLine` now also exposes the byte range of each line.
+Paint stays pure: no scene/layout pass runs and PaintData never influences layout boxes.
+
+Dimensions: the wrap width is the content box - border box minus `padding-left/right` (px only in
+V1; percentage padding is treated as 0 and documented as a limitation). `line-height` comes from
+computed style (px/number/%; `normal` uses ascent+descent+line-gap), and each line top advances by
+its line-box height. NoWrap emits one `draw_text` with the content-box rect and the whole text;
+Wrap emits one `draw_text` per line with `TextDraw::baseline` set to the absolute line baseline.
+Line x positions follow Start/Center/End alignment (clamped to the content-box left edge). Line x
+and baseline are rounded to whole pixels at paint time only; layout widths/offsets stay fractional
+and no node bounds are modified.
+
+Truncation: `max_lines = N` emits the first N computed whole lines (no partial words, no ellipsis
+in V1); the result is deterministic for the same text+width+style. Hard newlines split paragraphs;
+runs of whitespace collapse to one inter-word advance for wrapping while a line's byte range keeps
+the original inner separators; words wider than the content box are split by UTF-8 code point.
+
+Damage replay: the frame pipeline's damage decorator replays every emitted line under its square
+damage clip (one clip push/pop per line per intersecting region); lines outside the plan are not
+repainted, and a line keeps its origin relative to the full paint.
+
+Caching/determinism: no paint text-layout cache is added. Line boxes are recomputed per paint and
+are a pure function of text + content width + style, so repeated runs produce identical line boxes
+and pixels (GPU test asserts byte-identical repeat). A bounded keyed cache can be added later without
+changing the sink contract.
+
+Batching: one `draw_text` per line; `Batched2DSink` shapes each line with the caller's `TextShaper`
+and pushes atlas quads through `Batched2DRenderer`. Consecutive lines that use the same atlas page
+stay in the same renderer batch; a page/clip change flushes as before (see section 10). The server
+does not re-wrap: line breaks are fixed by the paint pass.
+
+Measurements (Debug, local dev machine, clang 22, `paint_text_wrap_tests --bench`): a 200-word
+paragraph at a 300 px wrap width lays out to 45 lines in ~105 us per `layout_text` call
+(200 iterations averaged; measurement flushes are excluded). This is the per-paint cost for a
+paragraph of that size; no cache is used.
+
+Tests: `paint_text_wrap` (NoWrap vs Wrap, padding-box width, multi-line order/offsets/baselines,
+`max_lines` truncation, alignment + computed fallback, `white-space: nowrap` suppression, damage
+replay of multiple lines, env-free `--bench` measurement) and the extended `paint_text_gpu`
+(wrapped fixture paragraph: several line bands inside the padded content box, background outside,
+byte-identical repeat, sRGB target). No new image golden: the CPU canvas cannot rasterize text, so
+wrapped-text pixels remain covered by the deterministic GPU readback test (GPU-only, documented).
+
+Deferrals: bidi/SheenBidi, ICU line breaking, hyphenation, rich text/inline images, ellipsis and
+overflow markers, text selection/editing, a paint text-layout cache, real-font metrics inside the
+paint wrap (paint uses deterministic stub metrics while glyph rendering uses HarfBuzz, so wrapped
+lines may not exactly fill the content box), vertical content-box clipping (use an `overflow` clip),
+and percentage padding.
