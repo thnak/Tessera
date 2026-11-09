@@ -16,6 +16,8 @@
 #include "tessera/runtime/frame_wait.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
+#include "tessera/ui/frame_pipeline.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "text_demo.hpp"
 
 #include <array>
@@ -45,6 +47,7 @@ struct Options {
     bool overlay = false;
     bool shapes = false;
     bool windowed = false;
+    bool on_demand = false;
     std::uint32_t frames = 3;
     std::string font;
     std::string text = "Tessera";
@@ -64,7 +67,7 @@ void print_usage() {
                  "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
                  "                     [--max-mismatch ratio] [--overlay] [--shapes] [--report "
                  "report.json]\n"
-                 "                     [--diff diff.png]\n";
+                 "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand]\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -94,6 +97,9 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.shapes = true;
         } else if (arg == "--windowed") {
             options.windowed = true;
+        } else if (arg == "--on-demand") {
+            options.windowed = true;
+            options.on_demand = true;
         } else if (arg == "--frames" && i + 1 < argc) {
             options.frames = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--font" && i + 1 < argc) {
@@ -608,17 +614,253 @@ int run_windowed(const Options& options) {
 
     runtime::FramePacer pacer(runtime::FramePacerConfig{60.0});
     pacer.present(hal::steady_now_seconds());
-    // The loop owns "should this iteration render" and the fixed-step update count. The demo has
-    // no scene to go dirty, so it runs continuously; an app would leave render-on-demand on and
-    // call mark_render_dirty()/request_frame() from input, animation and async completions.
     runtime::SteadyClock clock;
     runtime::RuntimeLoop loop(clock);
-    loop.set_continuous(true);
-    std::uint64_t fixed_steps = 0;
+
+    struct FrameOutcome {
+        bool rendered = false;
+        bool presented = false;
+    };
+    // Records one frame into the next swapchain image, queues it asynchronously and presents.
+    // `paint` fills the renderer. Returns what actually happened so callers count real frames.
+    auto render_present = [&](auto&& paint) -> FrameOutcome {
+        FrameOutcome outcome;
+        const hal::WindowMetrics metrics = window->metrics();
+        if (metrics.physical_width != swapchain->extent().width ||
+            metrics.physical_height != swapchain->extent().height) {
+            swapchain->resize({metrics.physical_width, metrics.physical_height});
+        }
+
+        // The frame that last used this slot must be finished before its vertex buffer is
+        // rewritten. The wait is bounded; a stuck GPU skips the frame instead of freezing the loop.
+        if (in_flight[frame_slot] && !in_flight[frame_slot]->wait(kSlotWaitMs)) {
+            return outcome;
+        }
+        in_flight[frame_slot].reset();
+
+        std::optional<std::uint32_t> image;
+        for (int attempt = 0; attempt < 4 && !image; ++attempt) {
+            const auto acquired = swapchain->acquire_next_image(100);
+            if (acquired) {
+                image = *acquired;
+                break;
+            }
+            if (acquired.error() == rhi::SwapchainError::OutOfDate) {
+                swapchain->resize({metrics.physical_width, metrics.physical_height});
+                continue;
+            }
+            break;
+        }
+        if (!image) {
+            return outcome;
+        }
+
+        auto* target = swapchain->image_target(*image);
+        if (target == nullptr) {
+            return outcome;
+        }
+
+        rhi::RenderTargetDesc target_desc;
+        target_desc.extent = swapchain->extent();
+        target_desc.format = swapchain->format();
+        target_desc.load_op = rhi::LoadOp::Clear;
+        target_desc.clear_color = rhi::rgba8(11, 18, 32);
+
+        auto commands = device->create_command_list();
+        renderer.begin(*commands, *target, target_desc);
+        paint(target_desc.extent.width, target_desc.extent.height);
+        renderer.end();
+        commands->submit_async();
+        in_flight[frame_slot] = std::move(commands);
+        frame_slot = (frame_slot + 1) % kFramesInFlight;
+        outcome.rendered = true;
+
+        const auto result = swapchain->present(*image);
+        if (result || result.error() == rhi::SwapchainError::Suboptimal) {
+            outcome.presented = true;
+        } else if (result.error() == rhi::SwapchainError::OutOfDate) {
+            swapchain->resize({metrics.physical_width, metrics.physical_height});
+        }
+        pacer.present(hal::steady_now_seconds());
+        return outcome;
+    };
 
     std::array<hal::WindowEvent, 16> events{};
     std::uint32_t rendered = 0;
     std::uint32_t presented = 0;
+
+    if (options.on_demand) {
+        // Scene-driven loop: a Node tree is the source of truth, FramePipeline turns dirty flags
+        // into damage, and RuntimeLoop (render-on-demand) decides whether a frame is needed. With
+        // nothing dirty the loop parks on the window wait and presents nothing. Swapchain images
+        // are not preserved between frames, so every rendered frame is a full redraw; the damage
+        // plan only decides whether to render at all.
+        struct Item {
+            ui::Node* node = nullptr;
+            rhi::Color color{};
+        };
+        ui::Node root(1);
+        std::array<Item, 3> items;
+        const auto layout_scene = [&](float width, float height) {
+            root.set_bounds({0, 0, width, height});
+            items[0].node->set_bounds({0, 0, width, 48});
+            items[1].node->set_bounds({24, 72, width * 0.5f, height * 0.4f});
+            items[2].node->set_bounds({width - 96, height - 96, 72, 72});
+        };
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            auto node = std::make_unique<ui::Node>(static_cast<ui::NodeId>(2 + i));
+            items[i].node = &root.add_child(std::move(node));
+        }
+        items[0].color = rhi::rgba8(30, 41, 59);
+        items[1].color = rhi::rgba8(56, 189, 248);
+        items[2].color = rhi::rgba8(74, 222, 128);
+        layout_scene(static_cast<float>(swapchain->extent().width),
+                     static_cast<float>(swapchain->extent().height));
+
+        runtime::RuntimeLoopConfig loop_config;
+        loop_config.render_on_demand = true;
+        runtime::RuntimeLoop demand_loop(clock, loop_config);
+        ui::animation::AnimationRuntime animations;
+        rendering::DamageAccumulator damage(rendering::DamageConfig{swapchain->extent(), 8});
+        ui::layout::DamageTracker tracker;
+        ui::DirtyPass dirty_pass;
+        ui::frame::FramePipeline pipeline(animations, demand_loop, tracker, damage, dirty_pass);
+
+        // Scripted scene changes stand in for input until the HAL translates it: each one dirties
+        // a node, so the loop must render exactly once for it and then go idle again.
+        constexpr double kRunSeconds = 0.5;
+        constexpr std::array<double, 2> kScripted = {0.15, 0.30};
+        const double start = hal::steady_now_seconds();
+        std::size_t next_script = 0;
+        bool first_frame = true;
+        bool cause_pending = true; // the first frame is caused by startup
+        std::uint32_t scripted_unrendered = 0;
+        std::uint32_t scripted_fired = 0;
+        std::uint32_t unjustified = 0;
+        std::uint32_t idle_waits = 0;
+        std::uint32_t events_seen = 0;
+        double last_tick = start;
+        bool closed = false;
+
+        while (!closed) {
+            const double now = hal::steady_now_seconds();
+            if (now - start >= kRunSeconds) {
+                break;
+            }
+
+            const std::size_t event_count = window->poll_events(events);
+            for (std::size_t i = 0; i < event_count; ++i) {
+                ++events_seen;
+                cause_pending = true;
+                switch (events[i].type) {
+                case hal::WindowEventType::Close:
+                    closed = true;
+                    break;
+                case hal::WindowEventType::Resize:
+                case hal::WindowEventType::DpiChange: {
+                    const hal::WindowMetrics metrics = window->metrics();
+                    layout_scene(static_cast<float>(metrics.physical_width),
+                                 static_cast<float>(metrics.physical_height));
+                    damage = rendering::DamageAccumulator(rendering::DamageConfig{
+                        rhi::Extent2D{metrics.physical_width, metrics.physical_height}, 8});
+                    for (const Item& item : items) {
+                        item.node->mark_dirty(ui::Dirty::Layout | ui::Dirty::Paint);
+                    }
+                    break;
+                }
+                case hal::WindowEventType::Focus:
+                case hal::WindowEventType::Blur:
+                    items[2].color = events[i].type == hal::WindowEventType::Focus
+                                         ? rhi::rgba8(74, 222, 128)
+                                         : rhi::rgba8(100, 116, 139);
+                    items[2].node->mark_dirty(ui::Dirty::Paint);
+                    break;
+                default:
+                    break;
+                }
+            }
+            if (closed) {
+                break;
+            }
+
+            while (next_script < kScripted.size() && now - start >= kScripted[next_script]) {
+                items[1].color =
+                    next_script % 2 == 0 ? rhi::rgba8(251, 146, 60) : rhi::rgba8(56, 189, 248);
+                items[1].node->mark_dirty(ui::Dirty::Paint);
+                ++next_script;
+                ++scripted_fired;
+                ++scripted_unrendered;
+                cause_pending = true;
+            }
+
+            if (first_frame || root.subtree_dirty() != ui::Dirty::None ||
+                root.dirty() != ui::Dirty::None) {
+                demand_loop.mark_render_dirty();
+            }
+            const runtime::RuntimeTick tick = demand_loop.tick();
+            if (!tick.should_render) {
+                // Idle: park until the next scripted change or the end of the run. Window events
+                // wake the wait early. No frame is recorded and nothing is presented.
+                ++idle_waits;
+                const double next_wake = next_script < kScripted.size()
+                                             ? start + kScripted[next_script]
+                                             : start + kRunSeconds;
+                (void)hal::wait_for_events_until(*window, next_wake);
+                continue;
+            }
+
+            const runtime::PaceDecision pace = pacer.ready(now);
+            if (!pace.render_now) {
+                (void)hal::wait_for_events_until(*window, now + pace.wait_seconds);
+                continue;
+            }
+
+            (void)pipeline.tick(root, now - last_tick);
+            last_tick = now;
+            const ui::frame::FrameRender plan = pipeline.finish_frame(root);
+            if (!first_frame && !plan.should_render) {
+                dirty_pass.clear(root, ui::Dirty::All);
+                demand_loop.clear_render_dirty();
+                continue;
+            }
+
+            const FrameOutcome outcome = render_present([&](std::uint32_t, std::uint32_t) {
+                for (const Item& item : items) {
+                    renderer.push_rect(item.node->world_bounds(), item.color);
+                }
+            });
+            if (!outcome.rendered) {
+                continue;
+            }
+            ++rendered;
+            presented += outcome.presented ? 1U : 0U;
+            if (!cause_pending) {
+                ++unjustified;
+            }
+            cause_pending = false;
+            first_frame = false;
+            scripted_unrendered = 0;
+            dirty_pass.clear(root, ui::Dirty::All);
+            demand_loop.clear_render_dirty();
+        }
+
+        device->wait_idle();
+        std::cout << "on-demand: rendered=" << rendered << " presented=" << presented
+                  << " scripted=" << scripted_fired << " events=" << events_seen
+                  << " idle_waits=" << idle_waits << " unjustified=" << unjustified
+                  << " missed=" << scripted_unrendered << "\n";
+        // Every frame needs a cause (startup, a window event or a scene change), every scripted
+        // change must reach a frame, and the loop must have idled in between.
+        const bool ok = unjustified == 0 && scripted_unrendered == 0 && idle_waits > 0 &&
+                        rendered >= 1 + scripted_fired;
+        return ok ? 0 : 1;
+    }
+
+    // The loop owns "should this iteration render" and the fixed-step update count. This demo has
+    // no scene to go dirty, so it runs continuously; --on-demand is the scene-driven variant.
+    loop.set_continuous(true);
+    std::uint64_t fixed_steps = 0;
+
     bool closed = false;
     for (std::uint32_t frame = 0; frame < options.frames && !closed; ++frame) {
         const std::size_t event_count = window->poll_events(events);
@@ -640,67 +882,15 @@ int run_windowed(const Options& options) {
             continue;
         }
 
-        const hal::WindowMetrics metrics = window->metrics();
-        if (metrics.physical_width != swapchain->extent().width ||
-            metrics.physical_height != swapchain->extent().height) {
-            swapchain->resize({metrics.physical_width, metrics.physical_height});
-        }
-
-        // The frame that last used this slot must be finished before its vertex buffer is
-        // rewritten. The wait is bounded; a stuck GPU skips the frame instead of freezing the loop.
-        if (in_flight[frame_slot] && !in_flight[frame_slot]->wait(kSlotWaitMs)) {
-            continue;
-        }
-        in_flight[frame_slot].reset();
-
-        std::optional<std::uint32_t> image;
-        for (int attempt = 0; attempt < 4 && !image; ++attempt) {
-            const auto acquired = swapchain->acquire_next_image(100);
-            if (acquired) {
-                image = *acquired;
-                break;
+        const FrameOutcome outcome = render_present([&](std::uint32_t width, std::uint32_t height) {
+            if (options.shapes) {
+                build_shapes(renderer, *checker, width, height);
+            } else {
+                build_screen(renderer, *checker, width, height);
             }
-            if (acquired.error() == rhi::SwapchainError::OutOfDate) {
-                swapchain->resize({metrics.physical_width, metrics.physical_height});
-                continue;
-            }
-            break;
-        }
-        if (!image) {
-            continue;
-        }
-
-        auto* target = swapchain->image_target(*image);
-        if (target == nullptr) {
-            continue;
-        }
-
-        rhi::RenderTargetDesc target_desc;
-        target_desc.extent = swapchain->extent();
-        target_desc.format = swapchain->format();
-        target_desc.load_op = rhi::LoadOp::Clear;
-        target_desc.clear_color = rhi::rgba8(11, 18, 32);
-
-        auto commands = device->create_command_list();
-        renderer.begin(*commands, *target, target_desc);
-        if (options.shapes) {
-            build_shapes(renderer, *checker, target_desc.extent.width, target_desc.extent.height);
-        } else {
-            build_screen(renderer, *checker, target_desc.extent.width, target_desc.extent.height);
-        }
-        renderer.end();
-        commands->submit_async();
-        in_flight[frame_slot] = std::move(commands);
-        frame_slot = (frame_slot + 1) % kFramesInFlight;
-        ++rendered;
-
-        const auto result = swapchain->present(*image);
-        if (result || result.error() == rhi::SwapchainError::Suboptimal) {
-            ++presented;
-        } else if (result.error() == rhi::SwapchainError::OutOfDate) {
-            swapchain->resize({metrics.physical_width, metrics.physical_height});
-        }
-        pacer.present(hal::steady_now_seconds());
+        });
+        rendered += outcome.rendered ? 1U : 0U;
+        presented += outcome.presented ? 1U : 0U;
     }
 
     // Shutdown only: let queued frames finish before the swapchain and buffers are destroyed.

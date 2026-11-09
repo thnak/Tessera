@@ -56,6 +56,14 @@ if (WIN32 AND TARGET batched2d_poc AND TARGET tessera_rhi_vulkan)
     # A run that renders nothing still exits 0, so require the three frames (or an explicit skip).
     set_tests_properties(batched2d_windowed_smoke PROPERTIES
         PASS_REGULAR_EXPRESSION "rendered=3 |skipped")
+    # Scene-driven render-on-demand: only startup and the two scripted scene changes may render,
+    # and the loop must idle between them. PASS_REGULAR_EXPRESSION ignores the exit code, so the
+    # expression carries the whole check.
+    add_test(
+        NAME batched2d_on_demand
+        COMMAND batched2d_poc --backend vulkan --on-demand --width 320 --height 240)
+    set_tests_properties(batched2d_on_demand PROPERTIES
+        PASS_REGULAR_EXPRESSION "on-demand: rendered=([3-9]|[1-9][0-9]+) presented=[0-9]+ scripted=2 events=[0-9]+ idle_waits=[1-9][0-9]* unjustified=0 missed=0|skipped")
 endif()
 
 if (TARGET batched2d_poc)
@@ -112,6 +120,12 @@ if (UNIX AND TARGET batched2d_poc)
         set_tests_properties(batched2d_windowed_smoke PROPERTIES
             ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}"
             PASS_REGULAR_EXPRESSION "rendered=3 |skipped")
+        add_test(
+            NAME batched2d_on_demand
+            COMMAND batched2d_poc --backend vulkan --on-demand --width 320 --height 240)
+        set_tests_properties(batched2d_on_demand PROPERTIES
+            ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}"
+            PASS_REGULAR_EXPRESSION "on-demand: rendered=([3-9]|[1-9][0-9]+) presented=[0-9]+ scripted=2 events=[0-9]+ idle_waits=[1-9][0-9]* unjustified=0 missed=0|skipped")
     endif()
 endif()
 

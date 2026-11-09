@@ -112,6 +112,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
 | `batched2d_windowed_smoke` | window + swapchain render/present + pacer wait for 3 frames |
+| `batched2d_on_demand` | scene-driven render-on-demand: renders only for startup and scene changes, idles between |
 | `batched2d_cpu_golden` | CPU-canvas solid-rect baseline, bit-exact (all platforms) |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
@@ -195,6 +196,12 @@ Implemented for the batched2d proof:
   pacing while `RuntimeLoop` decides whether each iteration renders. The test requires the
   output line `rendered=3`, so a run that renders nothing fails instead of passing silently. It runs under Xvfb on Linux and on Windows; it skips cleanly when no window backend or
   presentation surface exists.
+- `batched2d_on_demand` runs `batched2d_poc --on-demand`: a `Node` scene driven through
+  `FramePipeline` and a render-on-demand `RuntimeLoop`. Scripted scene changes stand in for input;
+  the run must render the startup frame and one frame per change (`rendered>=3`), render nothing
+  without a cause (`unjustified=0`), lose no change (`missed=0`) and park on the window wait in
+  between (`idle_waits>=1`). `PASS_REGULAR_EXPRESSION` ignores the exit code, so the expression
+  carries the whole check.
 - `batched2d_cpu_golden` exercises `batched2d_poc --backend cpu`: a CPU canvas fills
   axis-aligned solid rectangles into a separate dashboard baseline
   (`dashboard_cpu.png`), bit-exactly. The CPU canvas intentionally has no AA, paths, text,

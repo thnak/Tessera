@@ -489,7 +489,8 @@ lavapipe). Next slices, in order:
    landed; swapchain image render targets, Win32/X11 render+present, and the windowed POC
    pacing demo are wired; the windowed POC and both swapchain smoke tests submit asynchronously
    with two frames in flight, and the POC is driven by `RuntimeLoop` + `SteadyClock`. Wayland,
-   device-loss recovery, and a scene-driven (render-on-demand) loop are next
+   device-loss recovery, and driving the render-on-demand loop (`--on-demand`, scripted changes) with
+   real platform input are next
    (`docs/design/window-resize.md` §0 lists the X11 limits).
 3. Platform input translation and remaining focus polish (`focus-visible`, hover/active, IME;
    tab order, `:focus`, and modal trapping landed).
