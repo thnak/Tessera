@@ -93,8 +93,10 @@ out of the release until decided.
    behind `TESSERA_ENABLE_THORVG` (default OFF), `PathRasterizer` seam and a null backend landed.
    Next: RHI texture upload, `Path` node, SVG asset path.
 2. **MSAA 4x** for non-SDF geometry, resolve into the 2D target; golden updates deliberate.
-3. **Present-path damage and frame pacing polish** (D4): damage stays render-side; VRR and partial/
-   incremental present wait for a platform-capability slice.
+3. **Present-path damage and frame pacing polish** (D4): damage stays render-side and is proven by
+   the offscreen present-loop tests (`damage_min`, `damage_present`): small changes use 1 region and
+   ~3-26% of the target, output matches a same-sink full redraw at tolerance 0, whole-screen changes
+   fall back to full redraw, and idle frames render nothing. Partial present/VRR remain deferred.
 4. **Text scaling**: SDF atlas or multi-size atlas (D6); line breaking/bidi once ICU/SheenBidi land.
 
 ### P2 — post-V1
