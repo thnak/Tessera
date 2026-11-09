@@ -56,7 +56,7 @@ if (TESSERA_BUILD_TESTS)
     add_test(
         NAME asset_generator
         COMMAND ${CMAKE_COMMAND}
-            -DGENERATOR=$<TARGET_FILE:tessera_asset_gen>
+            -DEMBED_SCRIPT=${PROJECT_SOURCE_DIR}/cmake/embed_assets.cmake
             -DMANIFEST=${TESSERA_ASSET_FIXTURE_DIR}/icons.manifest
             -DDUPLICATE_MANIFEST=${TESSERA_ASSET_FIXTURE_DIR}/duplicate.manifest
             -DINVALID_MANIFEST=${TESSERA_ASSET_FIXTURE_DIR}/invalid_name.manifest

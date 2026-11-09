@@ -1,9 +1,9 @@
 # Embedded asset bundles
 
-Status: implemented (`src/ui/assets/`, `tools/assets/`, `tessera_embed_assets`). SVG assets ship
-inside the statically linked binary so the runtime never needs a filesystem or a resource path,
-which is the [static-linking requirement](../../../decisions/ADR-012-static-linking.md). The bundle
-feeds the existing decode/cache pipeline from
+Status: implemented (`src/ui/assets/`, `cmake/embed_assets.cmake`, `tessera_embed_assets`). SVG
+assets ship inside the statically linked binary so the runtime never needs a filesystem or a resource
+path, which is the [static-linking requirement](../../../decisions/ADR-012-static-linking.md). The
+bundle feeds the existing decode/cache pipeline from
 [SVG decode](07-svg-decode.md) and
 [document cache](08-document-cache.md); it adds no new renderer path.
 
@@ -62,27 +62,38 @@ meta/readme.txt = readme.txt
   `.json`, `.png`, `.jpg/.jpeg`, `.webp`; everything else is `application/octet-stream`).
 - Files are embedded exactly as bytes; no compression, no text normalization.
 
-## Generator
+## Generator (CMake script, runs on the host)
 
-`tessera_asset_gen` (build-time tool, `tools/assets/`) writes a header and a source:
+Asset generation is a **CMake script**, [`cmake/embed_assets.cmake`](../../../cmake/embed_assets.cmake),
+executed through `${CMAKE_COMMAND} -P` by the CMake helper. It is not a target-built executable:
+in a cross-compiling build (Android NDK, iOS SDK) a target binary cannot run on the build host
+("Exec format error"/"not found"), so **generators must run on the host, never execute target
+binaries**. CMake is always available and host-independent; `file(READ ... HEX)` plus a small
+string formatter produces the arrays, and the output is written with `configure_file(... NEWLINE_STYLE
+UNIX)` so Windows hosts also emit LF.
 
 ```text
-tessera_asset_gen --manifest icons.manifest --namespace tessera::ui::assets::app \
-                  --header <build>/app_assets.hpp --source <build>/app_assets.cpp
+cmake -DMANIFEST=icons.manifest -DNAMESPACE=tessera::ui::assets::app \
+      -DHEADER=<build>/app_assets.hpp -DSOURCE=<build>/app_assets.cpp \
+      -P cmake/embed_assets.cmake
 ```
 
 - Output is deterministic: entries are sorted by normalized name, the data blob is the
   concatenation in that same order, hex bytes are lowercase and fixed-width, lines use LF, and the
   file embeds only the manifest **basename** (no timestamps, no absolute paths, no locale-dependent
   formatting). Two runs from different working directories are byte-identical (CTest
-  `asset_generator`).
+  `asset_generator`), and the CMake-script output is byte-identical to the previous C++ generator
+  except for the two provenance-comment lines (the checked-in golden was regenerated for that).
 - The header exposes `kAssetCount`, `kAssetBytes` and `bundle()` in the requested namespace; the
   source defines a `constexpr unsigned char` data array and the `AssetEntry` table in read-only
   memory.
+- Duplicate normalized names, invalid names and missing files fail the script loudly (non-zero
+  `cmake -P` exit, so the custom command fails).
+- The manifest is re-parsed by the CMake helper at configure time to record every asset file as a
+  build dependency; touching an asset re-runs the script.
 - The agent-facing golden is `tests/golden/assets/assets.hpp` + `assets.cpp` (generated from
   `tests/fixtures/assets/icons.manifest` with namespace `tessera::ui::assets::golden`); regenerate it
-  deliberately via `asset_gen_test.cmake -DWRITE_GOLDEN=ON` (command in the test and documented in
-  the task report).
+  deliberately via `asset_gen_test.cmake -DWRITE_GOLDEN=ON` (command in the test).
 
 ## CMake helper
 
@@ -94,12 +105,12 @@ tessera_embed_assets(my_app
 ```
 
 - Adds the generated source to `my_app`, puts the generated header on its private include path and
-  wires the generator, the manifest and every manifest file as build dependencies (a missing asset
-  file is a configure error; touching an asset regenerates the bundle).
-- The helper requires the `tessera_asset_gen` target (`add_subdirectory(tools/assets)`), so a
-  zero-asset manifest still compiles and links (`asset_zero_bundle` test).
-- No extra root CMake lines are needed for a consumer beyond the two `add_subdirectory` lines this
-  slice adds for `tools/assets` and `src/ui/assets`.
+  wires the embed script, the manifest and every manifest file as build dependencies (a missing
+  asset file is a configure error; touching an asset regenerates the bundle).
+- No generator target is required, so **native and cross-compiling builds use the same mechanism**;
+  a zero-asset manifest still compiles and links (`asset_zero_bundle` test).
+- No extra root CMake lines are needed for a consumer beyond the one `add_subdirectory(src/ui/assets)`
+  line this slice adds.
 
 ## Memory cost
 
@@ -108,7 +119,7 @@ file):
 
 | Measurement | Value |
 |---|---|
-| Embedded payload (`kAssetBytes`) | 544 B |
+| Embedded payload (`kAssetBytes`) | 542 B |
 | Generated header / source on disk (build time only, not shipped) | 644 B / 4,268 B |
 | Runtime per-entry overhead (`AssetEntry`: 2 `string_view` + offset/size) | ~40 B per asset |
 
@@ -127,7 +138,8 @@ fixtures.
 - `asset_zero_bundle`: a manifest with no assets compiles, links and reports `not_found` for every
   name.
 - `asset_generator` (CMake script): byte-identical output across two runs from different working
-  directories, checked-in golden comparison, duplicate-name rejection, invalid-name rejection.
+  directories, checked-in golden comparison, duplicate-name rejection, invalid-name rejection (the
+  same host-side mechanism cross-compiling builds use, so this test covers it).
 
 ## Deferrals
 

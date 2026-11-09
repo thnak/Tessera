@@ -12,21 +12,15 @@
 #
 # Asset paths are resolved relative to the manifest file. The generated files are deterministic
 # (sorted, LF, no timestamps or absolute paths); re-running the same manifest produces identical
-# bytes. `tessera_asset_gen` must be part of the build (tools/assets).
+# bytes. Generation runs as a CMake script (`cmake/embed_assets.cmake`) on the BUILD HOST, so it
+# works in cross-compiling builds (Android/iOS) where a target binary cannot be executed.
 
 include_guard(GLOBAL)
-
-find_program(TESSERA_CMAKE_COMMAND NAMES cmake REQUIRED)
 
 function(tessera_embed_assets target)
     cmake_parse_arguments(ARG "" "MANIFEST;NAMESPACE" "" ${ARGN})
     if (NOT TARGET ${target})
         message(FATAL_ERROR "tessera_embed_assets: target '${target}' does not exist")
-    endif()
-    if (NOT TARGET tessera_asset_gen)
-        message(FATAL_ERROR
-            "tessera_embed_assets: the tessera_asset_gen build tool is missing "
-            "(add_subdirectory(tools/assets) in the root CMakeLists.txt)")
     endif()
     if (NOT ARG_MANIFEST)
         message(FATAL_ERROR "tessera_embed_assets(${target}): MANIFEST is required")
@@ -72,14 +66,20 @@ function(tessera_embed_assets target)
     set(_header "${_output_dir}/${target}_assets.hpp")
     set(_source "${_output_dir}/${target}_assets.cpp")
 
+    # The generation logic is a CMake script, not a target-built executable: asset embedding must
+    # work in cross-compiling builds (Android/iOS), where a target binary cannot run on the host.
+    # ${CMAKE_COMMAND} always exists and runs on the build host.
+    set(_embed_script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/embed_assets.cmake")
+
     add_custom_command(
         OUTPUT "${_header}" "${_source}"
-        COMMAND $<TARGET_FILE:tessera_asset_gen>
-            --manifest "${_manifest}"
-            --namespace "${_namespace}"
-            --header "${_header}"
-            --source "${_source}"
-        DEPENDS tessera_asset_gen "${_manifest}" ${_asset_files}
+        COMMAND ${CMAKE_COMMAND}
+            "-DMANIFEST=${_manifest}"
+            "-DNAMESPACE=${_namespace}"
+            "-DHEADER=${_header}"
+            "-DSOURCE=${_source}"
+            -P "${_embed_script}"
+        DEPENDS "${_embed_script}" "${_manifest}" ${_asset_files}
         COMMENT "Embedding ${target} assets"
         VERBATIM)
 

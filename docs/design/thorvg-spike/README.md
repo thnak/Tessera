@@ -18,7 +18,7 @@ plan is [`../rendering-production-plan.md`](../rendering-production-plan.md).
 - [Texture cache and upload path](06-texture-cache.md) — PathTextureCache: key contract, LRU bounds, D7 device-loss handling and D2 format rule.
 - [SVG decode into path geometry](07-svg-decode.md) — load_svg / SvgDocument: supported subset, reject-vs-ignore rule, bounds and goldens.
 - [Decoded-document cache and document textures](08-document-cache.md) — SvgDocumentCache and acquire_svg_texture: content key, dual budgets, batching rule.
-- [Embedded asset bundles](09-assets.md) — AssetBundle, tessera_asset_gen/`tessera_embed_assets`, manifest names and memory cost.
+- [Embedded asset bundles](09-assets.md) — AssetBundle, the host-side `cmake/embed_assets.cmake` script + `tessera_embed_assets`, manifest names and memory cost.
 
 ## Related
 
