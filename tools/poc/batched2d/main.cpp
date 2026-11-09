@@ -76,6 +76,7 @@ struct Options {
     bool cpu_text = false;
     bool cpu_vector = false;
     bool simulate_loss = false;
+    bool damage_probe = false;
     std::uint32_t msaa = 1;
     bool windowed = false;
     bool on_demand = false;
@@ -137,6 +138,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.msaa = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--simulate-loss") {
             options.simulate_loss = true;
+        } else if (arg == "--damage-probe") {
+            options.damage_probe = true;
         } else if (arg == "--windowed") {
             options.windowed = true;
         } else if (arg == "--run-seconds" && i + 1 < argc) {
@@ -667,7 +670,8 @@ int run_windowed(const Options& options) {
     };
     // Records one frame into the next swapchain image, queues it asynchronously and presents.
     // `paint` fills the renderer. Returns what actually happened so callers count real frames.
-    auto render_present = [&](auto&& paint) -> FrameOutcome {
+    auto render_present = [&](auto&& paint,
+                              const RedrawPlan* damage_plan = nullptr) -> FrameOutcome {
         FrameOutcome outcome;
         const hal::WindowMetrics metrics = window->metrics();
         if (metrics.physical_width != swapchain->extent().width ||
@@ -711,9 +715,35 @@ int run_windowed(const Options& options) {
         target_desc.clear_color = rhi::rgba8(11, 18, 32);
 
         auto commands = device->create_command_list();
-        renderer.begin(*commands, *target, target_desc);
+        const bool damaged =
+            damage_plan != nullptr && !damage_plan->full_redraw && !damage_plan->scissors.empty();
+        if (damaged) {
+            // Swapchain images are not guaranteed to preserve the previous frame, so this probe is
+            // structural (render-work reduction) while correctness is proven offscreen by
+            // damage_present. Load keeps prior contents where the driver preserves them.
+            target_desc.load_op = rhi::LoadOp::Load;
+            renderer.begin_damaged(*commands, *target, target_desc, *damage_plan);
+        } else {
+            renderer.begin(*commands, *target, target_desc);
+        }
         paint(target_desc.extent.width, target_desc.extent.height);
         renderer.end();
+        if (options.damage_probe) {
+            std::uint64_t area = 0;
+            const std::size_t regions = damage_plan ? damage_plan->scissors.size() : 0;
+            if (damage_plan != nullptr) {
+                for (const rhi::Scissor& scissor : damage_plan->scissors) {
+                    area += static_cast<std::uint64_t>(scissor.width) * scissor.height;
+                }
+            }
+            const double total = static_cast<double>(target_desc.extent.width) *
+                                 static_cast<double>(target_desc.extent.height);
+            std::cout << "damage-probe: frame regions=" << regions << " area=" << area
+                      << " pct=" << (total > 0.0 ? 100.0 * static_cast<double>(area) / total : 0.0)
+                      << " full=" << (damage_plan != nullptr ? damage_plan->full_redraw : true)
+                      << " draws=" << renderer.draw_calls()
+                      << " batches=" << renderer.pending_batches() << "\n";
+        }
         commands->submit_async();
         in_flight[frame_slot] = std::move(commands);
         frame_slot = (frame_slot + 1) % kFramesInFlight;
@@ -904,11 +934,13 @@ int run_windowed(const Options& options) {
                 continue;
             }
 
-            const FrameOutcome outcome = render_present([&](std::uint32_t, std::uint32_t) {
-                for (const Item& item : items) {
-                    renderer.push_rect(item.node->world_bounds(), item.color);
-                }
-            });
+            const FrameOutcome outcome = render_present(
+                [&](std::uint32_t, std::uint32_t) {
+                    for (const Item& item : items) {
+                        renderer.push_rect(item.node->world_bounds(), item.color);
+                    }
+                },
+                plan.full_redraw ? nullptr : &plan.redraw_plan);
             if (!outcome.rendered) {
                 continue;
             }
@@ -930,6 +962,10 @@ int run_windowed(const Options& options) {
 
         window->set_input_queue(nullptr); // the queue is local; the window outlives it
         device->wait_idle();
+        if (options.damage_probe) {
+            std::cout << "damage-probe: summary rendered=" << rendered << " presented=" << presented
+                      << " idle_waits=" << idle_waits << "\n";
+        }
         std::cout << "on-demand: rendered=" << rendered << " presented=" << presented
                   << " scripted=" << scripted_fired << " events=" << events_seen
                   << " idle_waits=" << idle_waits << " unjustified=" << unjustified
