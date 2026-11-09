@@ -7,16 +7,17 @@
 - `NodeId id` — runtime instance (uint64)
 - `UiId ui_id` — build-time stable automation/trace id (uint64)
 - `ComponentId component_id` — owning component (uint64)
-- local `rhi::Rect bounds`
-- local-to-parent `rhi::Mat3 transform`
+- parent-relative `rhi::Rect bounds` (layout writes the box offset here)
+- box-local `rhi::Mat3 transform` (animation/rotation, applied around the box origin)
 - children in **paint order** (the last child is topmost)
 - `bool visible`
 - virtual `on_event(Event&)`
 
 Derived values:
 
-- `world_transform()` = `parent.world_transform() * transform`
-- `world_bounds()` = axis-aligned bounding box of the four transformed corners
+- `world_transform()` = `parent.world_transform() * translate(bounds.x, bounds.y) * transform`
+- `world_bounds()` = axis-aligned bounding box of the transformed box-local rect
+  `(0, 0, bounds.width, bounds.height)`
 
 There is no implicit clipping in the scene graph. Clipping is a paint concern handled by the
 batched 2D renderer's ([`renderer.md`](renderer.md)) scissor stack (axis-aligned GPU clip rectangles).
@@ -57,8 +58,8 @@ layout/paint/render dirty only when the matched computed groups actually change.
 
 ## Hit testing
 
-- `hit_test(x, y)` inverts the world transform, maps the point into local space, and tests
-  `bounds.contains(local_x, local_y)`.
+- `hit_test(x, y)` inverts the world transform, maps the point into box-local space, and tests the
+  rect `(0, 0, bounds.width, bounds.height)` (the bounds origin is part of the world transform).
 - Singular transforms return no hit.
 - `hit_test_deep(x, y)`:
   1. return null if the node is invisible;

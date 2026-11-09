@@ -64,16 +64,16 @@ int main() {
     auto& button = static_cast<Recorder&>(panel.add_child(std::move(button_ptr)));
 
     const tessera::rendering::rhi::Rect world = button.world_bounds();
-    if (!check(world.x == 35 && world.y == 35 && world.width == 100 && world.height == 50,
+    if (!check(world.x == 45 && world.y == 45 && world.width == 100 && world.height == 50,
                "world bounds")) {
         return 1;
     }
 
-    if (!check(root.hit_test_deep(40, 40) == &button, "deep hit test")) {
+    if (!check(root.hit_test_deep(50, 50) == &button, "deep hit test")) {
         return 2;
     }
 
-    Event event{EventType::PointerDown, 40, 40};
+    Event event{EventType::PointerDown, 50, 50};
     if (!check(tessera::ui::dispatch_event(root, event), "event dispatch")) {
         return 3;
     }
@@ -91,7 +91,7 @@ int main() {
     panel.log.clear();
     button.log.clear();
     button.stop_at_this_node = true;
-    Event stopped{EventType::PointerDown, 40, 40};
+    Event stopped{EventType::PointerDown, 50, 50};
     tessera::ui::dispatch_event(root, stopped);
     const std::vector<std::string> stopped_root = {"1:capture"};
     const std::vector<std::string> stopped_panel = {"2:capture"};
@@ -106,7 +106,7 @@ int main() {
     root.log.clear();
     panel.log.clear();
     button.log.clear();
-    if (!check(root.hit_test_deep(40, 40) == &root, "invisible subtree is skipped")) {
+    if (!check(root.hit_test_deep(50, 50) == &root, "invisible subtree is skipped")) {
         return 6;
     }
 

@@ -43,10 +43,9 @@ struct PaintStats {
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in
 // pre-order (parent before children, children in paint order). Does not mutate the scene.
 //
-// Coordinates: a node's bounds() are parent-relative, so the pass adds the bounds origin of every
-// ancestor to world_bounds(). That is exact for identity and translation-only transforms;
-// rotation/scale are approximated by the world_bounds() AABB plus those origins. Per-node
-// transforms are not composed further, and there is no clip/overflow.
+// Coordinates: bounds() are parent-relative and Node::world_bounds() composes their origins and
+// transforms into absolute coordinates, so the pass paints that rect. Rotation/scale are
+// approximated by the world_bounds() AABB. There is no clip/overflow.
 //
 // Limits (deliberate, one slice): no text, no clipping, no damage/redraw plan, no gradients,
 // shadows, or layers, no percentage/em lengths, and no per-node compositing. Opacity multiplies

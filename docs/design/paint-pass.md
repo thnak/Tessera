@@ -38,17 +38,18 @@ the paint API never pulls in a backend header.
 
 ## 3. Coordinates
 
-`Node::bounds()` is parent-relative ([`node.hpp`](../../include/tessera/ui/scene/node.hpp)). The pass
-therefore paints at `world_bounds()` plus the `bounds()` origin of every ancestor:
+`Node::bounds()` is parent-relative ([`node.hpp`](../../include/tessera/ui/scene/node.hpp)) and
+`Node::world_bounds()` composes the box origins of the ancestor chain and the node transforms into
+absolute coordinates, so the pass paints that rect directly:
 
 ```text
-paint_rect(node) = world_bounds(node) + sum(bounds(ancestor).xy for ancestor in parents)
+paint_rect(node) = world_bounds(node)
 ```
 
-- Identity and translation-only transforms are exact.
-- `world_bounds()` is the axis-aligned box of the four transformed corners; rotation/scale are
-  approximated by that AABB plus the ancestor origins. Composing per-node transform order is out of
-  scope for this slice.
+- The scene contract is the one `apply_layout` produces: layout stores parent-relative bounds on
+  each node and leaves transforms identity; `world_bounds()` resolves the chain.
+- `world_bounds()` is the axis-aligned box of the transformed box-local rect; rotation/scale are
+  approximated by that AABB.
 - There is no clipping: children paint over their parent's box, as in the scene graph's paint order.
 
 ## 4. Property mapping

@@ -61,6 +61,18 @@ int main() {
         return 1;
     }
 
+    // Parent-relative bounds must still compose into absolute world geometry (the contract that
+    // damage and paint consume).
+    const auto panel_world = panel_ref.world_bounds();
+    const auto label_world = label_ref.world_bounds();
+    if (!expect(near(panel_world.x, 10.0f) && near(panel_world.y, 20.0f), "panel world origin") ||
+        !expect(near(label_world.x, 15.0f) && near(label_world.y, 27.0f),
+                "grandchild world origin") ||
+        !expect(root.hit_test_deep(20.0f, 30.0f) == &label_ref, "nested hit after layout") ||
+        !expect(root.hit_test_deep(20.0f, 20.0f) == &panel_ref, "parent hit after layout")) {
+        return 6;
+    }
+
     if (!expect(any_paint_dirty(panel_ref), "child paint dirty") ||
         !expect(any_paint_dirty(label_ref), "grandchild paint dirty") ||
         !expect(tessera::ui::has_any(root.subtree_dirty(), Dirty::Paint | Dirty::Render),

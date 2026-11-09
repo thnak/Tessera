@@ -116,6 +116,27 @@ int main() {
         return 4;
     }
 
+    // Parent-relative bounds must produce absolute damage through the ancestor chain.
+    Node nested_root(70);
+    auto nested_panel = std::make_unique<Node>(71);
+    nested_panel->set_bounds({10, 20, 60, 60});
+    Node& nested_panel_ref = nested_root.add_child(std::move(nested_panel));
+    auto nested_label = std::make_unique<Node>(72);
+    nested_label->set_bounds({5, 7, 20, 10});
+    Node& nested_label_ref = nested_panel_ref.add_child(std::move(nested_label));
+    clear_tree(nested_root);
+    nested_label_ref.mark_dirty(Dirty::Paint);
+
+    DirtyPass nested_dirty;
+    nested_dirty.collect(nested_root, Dirty::Paint | Dirty::Render);
+    DamageAccumulator nested_damage(DamageConfig{Extent2D{100, 100}, 4});
+    const DamagePassResult nested_result = add_scene_damage(nested_dirty, nested_damage, 1.0f);
+    if (!expect(nested_result.nodes == 1, "nested dirty node") ||
+        !expect(nested_damage.rects().size() == 1, "nested damage count") ||
+        !expect(rect_is(nested_damage.rects()[0], 15, 27, 20, 10), "nested absolute damage")) {
+        return 7;
+    }
+
     Node cap_root(40);
     auto first = std::make_unique<Node>(41);
     first->set_bounds({0, 0, 5, 5});

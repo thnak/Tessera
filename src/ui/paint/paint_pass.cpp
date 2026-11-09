@@ -10,15 +10,10 @@
 namespace tessera::ui::paint {
 namespace {
 
-// Bounds are parent-relative; world_bounds() composes transforms but not ancestor origins, so the
-// pass adds them here. Exact for identity/translation-only transforms; see paint_pass.hpp.
+// Bounds are parent-relative; Node::world_bounds() composes them into absolute coordinates, so the
+// pass paints that rect directly (see paint_pass.hpp).
 rhi::Rect paint_rect(const Node& node) {
-    rhi::Rect rect = node.world_bounds();
-    for (const Node* ancestor = node.parent(); ancestor != nullptr; ancestor = ancestor->parent()) {
-        rect.x += ancestor->bounds().x;
-        rect.y += ancestor->bounds().y;
-    }
-    return rect;
+    return node.world_bounds();
 }
 
 float clamp_radius(float radius, const rhi::Rect& rect) {

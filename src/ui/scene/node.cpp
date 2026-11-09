@@ -140,16 +140,20 @@ void Node::refresh_subtree_dirty() {
 }
 
 rhi::Mat3 Node::world_transform() const {
+    // bounds are parent-relative (layout writes them that way), so the box origin is part of the
+    // local-to-parent transform; transform_ then acts around that box origin (animation/rotation).
+    const rhi::Mat3 local = rhi::Mat3::translation(bounds_.x, bounds_.y) * transform_;
     if (parent_ != nullptr) {
-        return parent_->world_transform() * transform_;
+        return parent_->world_transform() * local;
     }
-    return transform_;
+    return local;
 }
 
 rhi::Rect Node::world_bounds() const {
     const rhi::Mat3 world = world_transform();
-    const float xs[4] = {bounds_.x, bounds_.right(), bounds_.right(), bounds_.x};
-    const float ys[4] = {bounds_.y, bounds_.y, bounds_.bottom(), bounds_.bottom()};
+    // The transform already carries the box origin, so the local rect starts at (0, 0).
+    const float xs[4] = {0.0f, bounds_.width, bounds_.width, 0.0f};
+    const float ys[4] = {0.0f, 0.0f, bounds_.height, bounds_.height};
 
     float min_x = std::numeric_limits<float>::max();
     float min_y = std::numeric_limits<float>::max();
@@ -182,7 +186,8 @@ bool Node::hit_test(float x, float y) const {
     float local_x = 0;
     float local_y = 0;
     inverse.transform_point(x, y, local_x, local_y);
-    return bounds_.contains(local_x, local_y);
+    // Box-local space starts at the origin; bounds_.x/.y only position the box in its parent.
+    return rhi::Rect{0.0f, 0.0f, bounds_.width, bounds_.height}.contains(local_x, local_y);
 }
 
 Node* Node::hit_test_deep(float x, float y) {

@@ -74,8 +74,8 @@ JSX, execute JavaScript, or depend on the compiler at runtime.
 `tessera::ui::Node` is a retained node:
 
 - stable `NodeId`
-- local `Rect bounds`
-- local-to-parent `Mat3 transform`
+- parent-relative `Rect bounds` (layout writes the box offset here)
+- box-local `Mat3 transform` (animation/rotation, applied around the box origin)
 - children in paint order (last child is topmost)
 - `visible`
 - style/dirty state (Big Step B2)
@@ -85,13 +85,14 @@ JSX, execute JavaScript, or depend on the compiler at runtime.
 Derived values:
 
 ```text
-world_transform = parent.world_transform * transform
-world_bounds    = AABB of the four transformed corners
+world_transform = parent.world_transform * translate(bounds.x, bounds.y) * transform
+world_bounds    = AABB of the transformed box-local rect (0, 0, bounds.width, bounds.height)
 ```
 
 There is no implicit clipping in the scene graph; clipping is a paint concern (scissor stack).
-Hit testing inverts the world transform and tests local bounds. Deep hit testing visits
-children topmost-first, then the node itself.
+Hit testing inverts the world transform, maps the point into box-local space, and tests
+`(0, 0, bounds.width, bounds.height)`. Deep hit testing visits children topmost-first, then the
+node itself.
 
 ## 5. Identity and reconciliation
 
