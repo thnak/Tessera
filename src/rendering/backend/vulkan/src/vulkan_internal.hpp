@@ -57,6 +57,10 @@ inline VkFormat to_vk_format(rhi::TextureFormat format) {
         return VK_FORMAT_R8_UNORM;
     case rhi::TextureFormat::B8G8R8A8Unorm:
         return VK_FORMAT_B8G8R8A8_UNORM;
+    case rhi::TextureFormat::R8G8B8A8Srgb:
+        return VK_FORMAT_R8G8B8A8_SRGB;
+    case rhi::TextureFormat::B8G8R8A8Srgb:
+        return VK_FORMAT_B8G8R8A8_SRGB;
     }
     return VK_FORMAT_UNDEFINED;
 }
@@ -84,6 +88,10 @@ inline std::size_t bytes_per_pixel(rhi::TextureFormat format) {
     case rhi::TextureFormat::R8Unorm:
         return 1;
     case rhi::TextureFormat::B8G8R8A8Unorm:
+        return 4;
+    case rhi::TextureFormat::R8G8B8A8Srgb:
+        return 4;
+    case rhi::TextureFormat::B8G8R8A8Srgb:
         return 4;
     }
     return 0;

@@ -164,7 +164,23 @@ inline bool Mat3::try_inverse(Mat3& out) const {
 
 enum class Backend { Null, Vulkan, WebGpu };
 
-enum class TextureFormat { R8G8B8A8Unorm, R8Unorm, B8G8R8A8Unorm };
+// Color-renderable 8-bit formats. The `*Srgb` variants have the same byte layout as their UNORM
+// siblings but store/return sRGB-encoded values: attachment writes are encoded from linear light
+// and texture samples are decoded to linear. Production presentation prefers an sRGB surface format
+// (D2); offscreen golden/deterministic targets stay UNORM unless a caller asks for sRGB.
+enum class TextureFormat {
+    R8G8B8A8Unorm,
+    R8Unorm,
+    B8G8R8A8Unorm,
+    R8G8B8A8Srgb,
+    B8G8R8A8Srgb,
+};
+
+// True for the sRGB-encoded variants (same layout as their UNORM sibling, different transfer
+// function).
+[[nodiscard]] constexpr bool is_srgb(TextureFormat format) {
+    return format == TextureFormat::R8G8B8A8Srgb || format == TextureFormat::B8G8R8A8Srgb;
+}
 
 enum class BufferUsage { Vertex, Index, Uniform, Staging, Readback };
 

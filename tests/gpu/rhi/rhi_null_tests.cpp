@@ -64,6 +64,41 @@ int main() {
         return 7;
     }
 
+    // D2 color policy: the null backend accepts both 8-bit sRGB formats (same 4-byte layout as
+    // their UNORM siblings) for textures, targets, and pipelines. It records commands only, so it
+    // does not emulate the encode itself.
+    const rhi::TextureFormat srgb_formats[] = {rhi::TextureFormat::R8G8B8A8Srgb,
+                                               rhi::TextureFormat::B8G8R8A8Srgb};
+    for (const rhi::TextureFormat format : srgb_formats) {
+        const std::uint8_t pixel[4] = {10, 20, 30, 40};
+        rhi::TextureDesc texture_desc;
+        texture_desc.extent = {1, 1};
+        texture_desc.format = format;
+        texture_desc.pixels = pixel;
+        const auto srgb_texture = device->create_texture(texture_desc);
+
+        rhi::RenderTargetDesc target_desc;
+        target_desc.extent = {4, 4};
+        target_desc.format = format;
+        const auto srgb_target = device->create_render_target(target_desc);
+
+        rhi::PipelineDesc pipeline_desc;
+        pipeline_desc.color_format = format;
+        const auto srgb_pipeline = device->create_pipeline(pipeline_desc);
+
+        if (srgb_texture->format() != format || srgb_target->format() != format ||
+            srgb_pipeline == nullptr || !rhi::is_srgb(format)) {
+            std::cerr << "sRGB format not accepted by the null backend\n";
+            return 8;
+        }
+    }
+    if (rhi::is_srgb(rhi::TextureFormat::R8G8B8A8Unorm) ||
+        rhi::is_srgb(rhi::TextureFormat::R8Unorm) ||
+        rhi::is_srgb(rhi::TextureFormat::B8G8R8A8Unorm)) {
+        std::cerr << "is_srgb reports a UNORM format as sRGB\n";
+        return 9;
+    }
+
     std::cout << "rhi_null: ok\n";
     return 0;
 }

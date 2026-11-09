@@ -7,12 +7,12 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#include "vulkan_surface_format.hpp"
 #include "vulkan_swapchain.hpp"
 
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
 #include <limits>
 #include <vector>
@@ -38,42 +38,72 @@ rhi::Extent2D choose_extent(const VkSurfaceCapabilitiesKHR& capabilities, rhi::E
     return extent;
 }
 
-bool choose_surface_format(const std::vector<VkSurfaceFormatKHR>& formats,
+SurfaceFormat to_surface_format(VkFormat format) {
+    switch (format) {
+    case VK_FORMAT_UNDEFINED:
+        return SurfaceFormat::Undefined;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+        return SurfaceFormat::R8G8B8A8Unorm;
+    case VK_FORMAT_B8G8R8A8_UNORM:
+        return SurfaceFormat::B8G8R8A8Unorm;
+    case VK_FORMAT_R8G8B8A8_SRGB:
+        return SurfaceFormat::R8G8B8A8Srgb;
+    case VK_FORMAT_B8G8R8A8_SRGB:
+        return SurfaceFormat::B8G8R8A8Srgb;
+    default:
+        return SurfaceFormat::Other;
+    }
+}
+
+VkFormat to_vk_surface_format(SurfaceFormat format) {
+    switch (format) {
+    case SurfaceFormat::R8G8B8A8Srgb:
+        return VK_FORMAT_R8G8B8A8_SRGB;
+    case SurfaceFormat::B8G8R8A8Srgb:
+        return VK_FORMAT_B8G8R8A8_SRGB;
+    case SurfaceFormat::B8G8R8A8Unorm:
+        return VK_FORMAT_B8G8R8A8_UNORM;
+    case SurfaceFormat::R8G8B8A8Unorm:
+    case SurfaceFormat::Undefined:
+    case SurfaceFormat::Other:
+        break;
+    }
+    return VK_FORMAT_R8G8B8A8_UNORM;
+}
+
+SurfaceColorSpace to_color_space(VkColorSpaceKHR color_space) {
+    return color_space == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR ? SurfaceColorSpace::SrgbNonlinear
+                                                            : SurfaceColorSpace::Other;
+}
+
+// Applies the D2 preference policy to the driver's surface formats (see vulkan_surface_format.hpp).
+bool select_surface_format(const std::vector<VkSurfaceFormatKHR>& formats,
                            VkSurfaceFormatKHR& surface_format, rhi::TextureFormat& rhi_format) {
-    constexpr std::array<VkFormat, 2> kPreferred{VK_FORMAT_R8G8B8A8_UNORM,
-                                                 VK_FORMAT_B8G8R8A8_UNORM};
-    for (const VkFormat format : kPreferred) {
-        for (const VkSurfaceFormatKHR& candidate : formats) {
-            if (candidate.format == format &&
-                candidate.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-                surface_format = candidate;
-                rhi_format = format == VK_FORMAT_R8G8B8A8_UNORM ? rhi::TextureFormat::R8G8B8A8Unorm
-                                                                : rhi::TextureFormat::B8G8R8A8Unorm;
-                return true;
-            }
-        }
+    std::vector<SurfaceFormatCandidate> candidates;
+    candidates.reserve(formats.size());
+    for (const VkSurfaceFormatKHR& format : formats) {
+        candidates.push_back(SurfaceFormatCandidate{to_surface_format(format.format),
+                                                    to_color_space(format.colorSpace)});
     }
 
-    // Fall back to a preferred format in a non-SRGB color space rather than failing the surface.
-    for (const VkFormat format : kPreferred) {
-        for (const VkSurfaceFormatKHR& candidate : formats) {
-            if (candidate.format == format) {
-                surface_format = candidate;
-                rhi_format = format == VK_FORMAT_R8G8B8A8_UNORM ? rhi::TextureFormat::R8G8B8A8Unorm
-                                                                : rhi::TextureFormat::B8G8R8A8Unorm;
-                return true;
-            }
-        }
+    const auto chosen = choose_surface_format(candidates);
+    if (!chosen) {
+        return false;
     }
-
-    // Some drivers expose a single VK_FORMAT_UNDEFINED entry meaning "any format works".
-    if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED) {
-        surface_format.format = VK_FORMAT_R8G8B8A8_UNORM;
-        surface_format.colorSpace = formats[0].colorSpace;
-        rhi_format = rhi::TextureFormat::R8G8B8A8Unorm;
+    surface_format = formats[*chosen];
+    const SurfaceFormatCandidate& candidate = candidates[*chosen];
+    if (candidate.format == SurfaceFormat::Undefined) {
+        // The driver exposes a single "any format" entry. D2 chooses sRGB for an sRGB color space
+        // and the historical UNORM format otherwise.
+        const bool srgb = candidate.color_space == SurfaceColorSpace::SrgbNonlinear;
+        const SurfaceFormat fallback =
+            srgb ? SurfaceFormat::R8G8B8A8Srgb : SurfaceFormat::R8G8B8A8Unorm;
+        surface_format.format = to_vk_surface_format(fallback);
+        rhi_format = to_rhi_format(fallback);
         return true;
     }
-    return false;
+    rhi_format = to_rhi_format(candidate.format);
+    return true;
 }
 
 VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes, bool vsync) {
@@ -206,7 +236,7 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
     }
     VkSurfaceFormatKHR surface_format{};
     rhi::TextureFormat rhi_format = rhi::TextureFormat::R8G8B8A8Unorm;
-    if (!choose_surface_format(formats, surface_format, rhi_format)) {
+    if (!select_surface_format(formats, surface_format, rhi_format)) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
 

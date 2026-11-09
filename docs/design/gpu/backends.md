@@ -36,7 +36,8 @@ Every backend must provide:
 Optional capabilities are queried, not assumed:
 
 - depth/stencil, multiple render targets, compute, timestamp queries, indirect draws
-- texture formats beyond `R8G8B8A8_UNORM`/`R8_UNORM`
+- texture formats beyond the 8-bit set (`R8G8B8A8`/`B8G8R8A8` UNORM and their sRGB siblings,
+  `R8_UNORM`)
 - bindless/descriptor indexing, multi-draw, geometry shaders
 
 A missing optional capability uses the documented fallback or fails at creation.
@@ -63,6 +64,44 @@ A missing optional capability uses the documented fallback or fails at creation.
 - B2 adds timeline semaphores, device loss, and persistent pipeline cache. Binary fences and
   per-image semaphores are what exist today.
 
+### Color formats and sRGB (D2)
+
+The RHI exposes one 8-bit color family: `R8G8B8A8Unorm`, `B8G8R8A8Unorm`, and their
+`R8G8B8A8Srgb`/`B8G8R8A8Srgb` siblings (plus `R8Unorm` for coverage/masks). The sRGB variants map to
+`VK_FORMAT_*_SRGB` for textures, render targets, pipeline color formats, and swapchain images;
+`is_srgb()` in `rhi/types.hpp` identifies them. Their byte layout is identical to the UNORM
+siblings, so a readback of an sRGB target returns sRGB-encoded 8-bit channels in the format's byte
+order (`RGBA` or `BGRA`).
+
+Format policy:
+
+- **Offscreen/golden path stays UNORM.** A `RenderTargetDesc`/`TextureDesc` defaults to
+  `R8G8B8A8Unorm`; the deterministic offscreen renderer and `--golden` keep that default, so the
+  lavapipe/CPU golden bytes and the windowed smoke baselines are unchanged. A caller opts into sRGB
+  explicitly by setting `format`.
+- **Swapchain prefers sRGB.** Surface format selection (`src/rendering/backend/vulkan/src/
+  vulkan_surface_format.hpp`, unit-tested with plain data) picks, in order:
+  1. `R8G8B8A8Srgb`, then `B8G8R8A8Srgb`, advertised with `VK_COLOR_SPACE_SRGB_NONLINEAR_KHR`;
+  2. `R8G8B8A8Unorm`, then `B8G8R8A8Unorm`, with an sRGB non-linear color space (the pre-D2
+     behavior);
+  3. any of those four formats with any color space, so an unusual color-space pairing still gets a
+     swapchain;
+  4. a lone `VK_FORMAT_UNDEFINED` entry ("any format"): `R8G8B8A8Srgb` for an sRGB color space,
+     `R8G8B8A8Unorm` otherwise.
+  The chosen format is exposed through `Swapchain::format()`; presenters that build a pipeline must
+  set `PipelineDesc::color_format` from it (`batched2d_pipeline_desc()` returns UNORM by default, so
+  callers overwrite the field with `swapchain->format()`/`target->format()`).
+- **Approximation.** Rendering into an `*Srgb` target encodes the fragment output from linear light
+  to sRGB on write (and hardware sampling decodes sRGB textures); the shader/vertex colors are the
+  authored 8-bit values passed through as normalized floats without a color-space conversion, so an
+  sRGB target is not byte-identical to the UNORM path. Blending also follows the hardware's color
+  space rules rather than the encoded values an author might expect. V1 accepts this documented
+  approximation; linear-light rendering, HDR output, and per-surface color management stay out of
+  scope.
+- **Capability checks.** `create_render_target` validates color-attachment/transfer support via
+  `vkGetPhysicalDeviceFormatProperties` and throws for an unsupported format; tests skip such a
+  device cleanly rather than requiring sRGB everywhere.
+
 ## 4. WebGPU/Dawn
 
 - Wasm/browser and designer path; native WebGPU may be used for tests if available.
@@ -77,6 +116,8 @@ A missing optional capability uses the documented fallback or fails at creation.
 
 - Records command stats and validates order; no image output.
 - Used for fast unit/integration tests on any machine.
+- Accepts every 8-bit color format the Vulkan backend accepts, including the sRGB variants, and
+  records the declared format on textures/targets; it does not emulate the sRGB encode.
 - Must implement the same capability queries (with declared limits) so tests catch backend
   assumptions.
 - No hidden permissive behavior: invalid sequences fail like a validating backend.
@@ -93,6 +134,8 @@ A missing optional capability uses the documented fallback or fails at creation.
 
 - Same logical resources/bindings/vertex layouts across backends.
 - Same blend/color/clip-space conventions; Y-flip is backend-specific and documented.
+- Same color-format policy: offscreen defaults to UNORM, presentation prefers sRGB, and a pipeline's
+  color format always matches its target.
 - Same shader manifest; shared shaders stay inside the WebGPU floor.
 - Same golden corpus/structural reports where the path is deterministic.
 - Same fallback behavior for missing optional features.
@@ -126,3 +169,5 @@ A missing optional capability uses the documented fallback or fails at creation.
 - WebGPU native vs browser parity.
 - Video decode/external textures.
 - Ray tracing/mesh shaders (not V1).
+- Linear-light rendering, HDR/wide-gamut output, and per-surface color management (D2 keeps V1 to
+  8-bit sRGB-encoded formats and documents the resulting blend/encode approximation).

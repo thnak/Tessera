@@ -27,6 +27,7 @@ namespace {
 using tessera::rendering::rhi::Swapchain;
 using tessera::rendering::rhi::SwapchainDesc;
 using tessera::rendering::rhi::SwapchainError;
+using tessera::rendering::rhi::TextureFormat;
 using tessera::rendering::vulkan::VulkanSwapchain;
 
 bool expect(bool condition, const char* message) {
@@ -34,6 +35,22 @@ bool expect(bool condition, const char* message) {
         std::cerr << "vulkan_swapchain: " << message << "\n";
     }
     return condition;
+}
+
+const char* format_name(TextureFormat format) {
+    switch (format) {
+    case TextureFormat::R8G8B8A8Unorm:
+        return "R8G8B8A8Unorm";
+    case TextureFormat::R8Unorm:
+        return "R8Unorm";
+    case TextureFormat::B8G8R8A8Unorm:
+        return "B8G8R8A8Unorm";
+    case TextureFormat::R8G8B8A8Srgb:
+        return "R8G8B8A8Srgb";
+    case TextureFormat::B8G8R8A8Srgb:
+        return "B8G8R8A8Srgb";
+    }
+    return "unknown";
 }
 
 void pump_messages() {
@@ -132,6 +149,19 @@ int main() {
         return 5;
     }
 
+    // D2: the surface picks an sRGB format when the platform offers one, otherwise it keeps the
+    // historical UNORM selection. The preference order itself is unit-tested with plain data
+    // (vulkan_surface_format); this checks the real driver result is one of the supported formats.
+    const TextureFormat chosen_format = swapchain->format();
+    if (!expect(chosen_format == TextureFormat::R8G8B8A8Unorm ||
+                    chosen_format == TextureFormat::B8G8R8A8Unorm ||
+                    chosen_format == TextureFormat::R8G8B8A8Srgb ||
+                    chosen_format == TextureFormat::B8G8R8A8Srgb,
+                "swapchain chooses a supported surface format")) {
+        return 5;
+    }
+    const bool srgb_swapchain = tessera::rendering::rhi::is_srgb(chosen_format);
+
     const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
     tessera::rendering::rhi::TextureDesc white_desc;
     white_desc.extent = {1, 1};
@@ -212,6 +242,7 @@ int main() {
     window.reset();
 
     std::cout << "vulkan_swapchain: ok (" << swapchains_created << " swapchains, " << presents
-              << " presents)\n";
+              << " presents, format=" << format_name(chosen_format)
+              << (srgb_swapchain ? " (sRGB)" : " (UNORM fallback)") << ")\n";
     return 0;
 }
