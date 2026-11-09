@@ -57,6 +57,10 @@ public:
     // it (the event is then marked `handled`). A committed mutation emits one `TextChange` event
     // before returning.
     bool handle_event(Event& event);
+    // Const overload for node event bindings (which receive `const Event&`): works on a copy, so
+    // the source event's `handled` flag stays advisory. Generated code that does not override
+    // `Node::on_event` uses `bind_text_input_events` below instead of this call directly.
+    bool handle_event(const Event& event);
 
     // Number of `TextChange` events emitted since construction (diagnostics/tests).
     [[nodiscard]] std::size_t change_events() const {
@@ -77,5 +81,32 @@ private:
     std::size_t change_events_ = 0;
     bool last_change_handled_ = false;
 };
+
+// Trampoline for a node event binding: forwards the bound scene event to the runtime. Declared
+// outside the class so generated code can register it without a lambda.
+inline void text_input_event_trampoline(void* context, const Event& event) {
+    static_cast<TextInputRuntime*>(context)->handle_event(event);
+}
+
+// Binds the six source event types a text field consumes (`Text`, `EditText`, the composition
+// family and `KeyDown`) to `runtime` on `node`. This is the wiring path for generated components,
+// which build plain `Node` trees and register event bindings instead of overriding
+// `Node::on_event`. It consumes six of the node's eight binding slots; bind the `TextChange`
+// handler separately (one more slot, seven total). Returns false when a binding is rejected (null
+// node/handler or the slot budget is exhausted).
+template<typename NodeT> bool bind_text_input_events(NodeT& node, TextInputRuntime& runtime) {
+    constexpr EventType kTypes[] = {EventType::Text,
+                                    EventType::EditText,
+                                    EventType::CompositionStart,
+                                    EventType::CompositionUpdate,
+                                    EventType::CompositionEnd,
+                                    EventType::KeyDown};
+    for (const EventType type : kTypes) {
+        if (!node.bind_event(type, &text_input_event_trampoline, &runtime)) {
+            return false;
+        }
+    }
+    return true;
+}
 
 } // namespace tessera::ui::text

@@ -344,6 +344,43 @@ bool borrowed_full_value() {
     return true;
 }
 
+bool forwarded_through_node_bindings() {
+    // Generated components do not override Node::on_event: they register event bindings instead.
+    // bind_text_input_events installs the six source-event forwarders for the runtime.
+    Fixture fixture;
+    if (!expect(tessera::ui::text::bind_text_input_events(*fixture.input, fixture.runtime),
+                "source events bound to the runtime")) {
+        return false;
+    }
+    Event insert = text_event('A');
+    if (!expect(tessera::ui::dispatch_event_to(*fixture.input, insert),
+                "Text dispatched through the scene path") ||
+        !expect(fixture.runtime.change_events() == 1, "forwarded insertion emitted one change") ||
+        !expect(fixture.sink.value == "A", "forwarded value")) {
+        return false;
+    }
+    Event suppressed = text_event('B');
+    suppressed.prevent_default = true;
+    tessera::ui::dispatch_event_to(*fixture.input, suppressed);
+    if (!expect(fixture.runtime.change_events() == 1,
+                "prevent_default still suppresses forwarding")) {
+        return false;
+    }
+    Event start = payload_event(EventType::CompositionStart, {});
+    Event update = payload_event(EventType::CompositionUpdate, "にほ");
+    Event commit = payload_event(EventType::EditText, "日");
+    tessera::ui::dispatch_event_to(*fixture.input, start);
+    tessera::ui::dispatch_event_to(*fixture.input, update);
+    if (!expect(fixture.runtime.change_events() == 1, "forwarded preedit stays silent")) {
+        return false;
+    }
+    tessera::ui::dispatch_event_to(*fixture.input, commit);
+    return expect(fixture.runtime.change_events() == 2, "forwarded commit emitted one change") &&
+           expect(fixture.sink.value == "A日", "forwarded commit value") &&
+           expect(fixture.sink.selection_start == 4 && fixture.sink.selection_end == 4,
+                  "forwarded selection byte offsets");
+}
+
 bool determinism() {
     const auto run = [](Fixture& fixture) {
         for (const char character : std::string_view("hello")) {
@@ -397,6 +434,9 @@ int main() {
     }
     if (!determinism()) {
         return 9;
+    }
+    if (!forwarded_through_node_bindings()) {
+        return 10;
     }
 
     std::cout << "text_input_runtime: ok\n";

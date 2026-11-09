@@ -41,6 +41,11 @@ TextInputRuntime::TextInputRuntime(EditController& controller)
     : controller_(&controller),
       seen_committed_edits_(controller.committed_edit_count()) {}
 
+bool TextInputRuntime::handle_event(const Event& event) {
+    Event copy = event;
+    return handle_event(copy);
+}
+
 void TextInputRuntime::attach(Node* node) {
     target_ = node;
     // Attaching must not replay edits that happened before the bind: start from the current count.
