@@ -116,7 +116,10 @@ ir::IrModule make_sample_module() {
     button.props.emplace("label", text("Go"));
     button.events.emplace("onClick", "bind::on_click");
     ir::Node label = leaf(ir::NodeKind::Text, "node::3", "3");
-    label.text = text("Hello");
+    std::vector<ir::TemplatePart> parts;
+    parts.push_back(ir::text_part("Count: "));
+    parts.push_back(ir::expr_part(ir::make_ref("state::count")));
+    label.text = ir::make_template(std::move(parts));
     button.children.push_back(std::move(label));
     root.children.push_back(std::move(button));
 
@@ -242,11 +245,19 @@ void test_generated_shape() {
     check(source.find("->set_automation_id(1ull);") != std::string::npos, "automation id");
     check(source.find("->set_role(\"generic\");") != std::string::npos, "role");
     check(source.find("->set_aria(\"aria-label\", \"root\");") != std::string::npos, "aria pair");
-    check(source.find("tessera::ui::PaintData paint_node_3;") != std::string::npos,
-          "text paint payload");
-    check(source.find("paint_node_3.text = \"Hello\";") != std::string::npos, "text content");
-    check(source.find("->set_paint_data(std::move(paint_node_3));") != std::string::npos,
-          "text attached via PaintData");
+    check(source.find("this->text_node_3_ = node_3.get();") != std::string::npos,
+          "interpolated text node pointer is stored");
+    check(source.find("void Sample::apply_state()") != std::string::npos,
+          "the generated apply_state recomputes interpolation");
+    check(source.find("std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;") != std::string::npos,
+          "interpolation hashes the previous value");
+    check(source.find("text_node_3_->set_paint_data(std::move(paint_3));") != std::string::npos,
+          "interpolated text is written through PaintData");
+    check(source.find("void Sample::update()") != std::string::npos,
+          "the generated update path is emitted");
+    check(source.find("state_count_ = 1;\n      apply_state();") != std::string::npos ||
+              source.find("state_count_ = 1;") != std::string::npos,
+          "inline setters apply the new state");
     check(source.find("style.width=\"10px\"") != std::string::npos, "remaining style gap comment");
     check(source.find("events={onClick:bind::on_click}") != std::string::npos,
           "remaining event gap comment");
@@ -365,12 +376,15 @@ void test_rejections() {
     }
     {
         ir::IrModule module = make_sample_module();
-        std::vector<ir::TemplatePart> parts;
-        parts.push_back(ir::expr_part(ir::make_ref("state::count")));
-        module.components[0].root.children[0].children[0].text =
-            ir::make_template(std::move(parts));
+        module.components[0].root.children[0].children[0].text = ir::make_ref("ref::box");
         const auto result = codegen::generate(module);
-        check(!result.has_value(), "a template with substitutions is deferred");
+        check(!result.has_value(), "a node reference has no printable text form");
+    }
+    {
+        ir::IrModule module = make_sample_module();
+        module.components[0].root.children[0].children[0].text = ir::make_literal(ir::Null{});
+        const auto result = codegen::generate(module);
+        check(!result.has_value(), "a null literal has no printable text form");
     }
     {
         ir::IrModule module = make_sample_module();

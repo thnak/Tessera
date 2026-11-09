@@ -11,7 +11,9 @@
 
 #include "codegen_internal.hpp"
 #include "emit_events.hpp"
+#include "interpolation.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <charconv>
@@ -84,25 +86,6 @@ std::optional<std::string_view> literal_string(const ir::Expr* expr) {
     return std::nullopt;
 }
 
-// A node's paint text: a string literal, or an all-text template folded by codegen. Dynamic text
-// needs the string runtime and is rejected by the caller.
-std::optional<std::string> text_content(const ir::Expr* expr) {
-    if (const std::optional<std::string_view> literal = literal_string(expr)) {
-        return std::string(*literal);
-    }
-    if (expr == nullptr || expr->kind != ir::ExprKind::Template) {
-        return std::nullopt;
-    }
-    std::string folded;
-    for (const ir::TemplatePart& part : expr->parts) {
-        if (part.expr) {
-            return std::nullopt;
-        }
-        folded += part.text;
-    }
-    return folded;
-}
-
 std::optional<std::uint64_t> parse_automation_id(std::string_view text) {
     if (text.empty()) {
         return std::nullopt;
@@ -116,7 +99,8 @@ std::optional<std::uint64_t> parse_automation_id(std::string_view text) {
 }
 
 bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& component,
-               const std::vector<EventAdapter>& adapters, unsigned& next_id, unsigned& next_var,
+               const std::vector<EventAdapter>& adapters,
+               const std::vector<DynamicText>& dynamic_text, unsigned& next_id, unsigned& next_var,
                std::string& variable, std::string& error) {
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
@@ -160,15 +144,16 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
             return fail(error, "key: " + emission.error);
         }
     }
-    if (node.text && !text_content(node.text.get())) {
-        return fail(error, "text: dynamic text needs the text runtime, deferred");
-    }
+
     const std::string id = node_id_text(node, next_id, error);
     if (!error.empty()) {
         return false;
     }
     writer.line(node_comment(node));
     const unsigned node_ordinal = next_var;
+    const bool dynamic =
+        std::any_of(dynamic_text.begin(), dynamic_text.end(),
+                    [&](const DynamicText& entry) { return entry.ordinal == node_ordinal; });
     variable = "node_" + std::to_string(next_var++);
     writer.line("auto " + variable + " = std::make_unique<tessera::ui::Node>(" + id + ");");
     // Deterministic metadata order: element kind, id, className, automationId, role, aria-* (name
@@ -260,18 +245,21 @@ bool emit_node(CppWriter& writer, const ir::Node& node, const ir::Component& com
         writer.line(variable + "->set_scrollable_y(" +
                     (axis == "y" || axis == "both" ? "true" : "false") + ");");
     }
-    if (const std::optional<std::string> paint_text = text_content(node.text.get())) {
+    if (const std::optional<std::string> paint_text = static_text_value(node.text.get())) {
         // D9 paint payload: text is visual only (layout/wrap stay paint-side).
         const std::string paint = "paint_" + variable;
         writer.line("tessera::ui::PaintData " + paint + ";");
         writer.line(paint + ".text = " + literal_text(ir::LiteralValue{std::string(*paint_text)}) +
                     ";");
         writer.line(variable + "->set_paint_data(std::move(" + paint + "));");
+    } else if (dynamic) {
+        const std::string suffix = std::to_string(node_ordinal);
+        writer.line("this->text_node_" + suffix + "_ = " + variable + ".get();");
     }
     for (const ir::Node& child : node.children) {
         std::string child_variable;
-        if (!emit_node(writer, child, component, adapters, next_id, next_var, child_variable,
-                       error)) {
+        if (!emit_node(writer, child, component, adapters, dynamic_text, next_id, next_var,
+                       child_variable, error)) {
             return false;
         }
         writer.line(variable + "->add_child(std::move(" + child_variable + "));");
@@ -303,7 +291,8 @@ bool emit_stub_body(CppWriter& writer, const ir::Binding& binding,
 }
 
 bool emit_source(const ir::Component& component, std::string_view ns,
-                 const std::vector<const ir::Binding*>& bindings, GeneratedFile& file,
+                 const std::vector<const ir::Binding*>& bindings,
+                 const std::vector<DynamicText>& dynamic_text, GeneratedFile& file,
                  std::string& error) {
     CppWriter writer;
     writer.line("// SPDX-License-Identifier: MIT");
@@ -313,6 +302,12 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("");
     writer.line("#include <memory>");
     writer.line("#include <utility>");
+    if (!dynamic_text.empty()) {
+        writer.line("#include <charconv>");
+        writer.line("#include <cstdint>");
+        writer.line("#include <string>");
+        writer.line("#include <string_view>");
+    }
     writer.line("");
     writer.open("namespace " + std::string(ns));
     writer.open("namespace gen");
@@ -321,6 +316,9 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("// (docs/design/compiler.md section 11); style values are recorded in the node");
     writer.line("// comments below until it lands.");
     writer.line("");
+    if (!dynamic_text.empty()) {
+        emit_format_helpers(writer);
+    }
     unsigned ordinal = 0;
     std::vector<EventAdapter> adapters;
     if (!collect_event_adapters(component.root, component, bindings, ordinal, adapters, error)) {
@@ -331,13 +329,25 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     unsigned next_id = 1;
     unsigned next_var = 1;
     std::string root_variable;
-    if (!emit_node(writer, component.root, component, adapters, next_id, next_var, root_variable,
-                   error)) {
+    if (!emit_node(writer, component.root, component, adapters, dynamic_text, next_id, next_var,
+                   root_variable, error)) {
         return false;
     }
     writer.line("parent.add_child(std::move(" + root_variable + "));");
+    if (!dynamic_text.empty()) {
+        writer.line("apply_state();");
+    }
     writer.close("");
     writer.line("");
+    if (!dynamic_text.empty()) {
+        if (!emit_apply_state(writer, component, dynamic_text, error)) {
+            return false;
+        }
+    } else {
+        writer.open("void " + component.name + "::apply_state()");
+        writer.close("");
+        writer.line("");
+    }
     if (!emit_lifecycle(component, bindings, writer, error)) {
         return false;
     }
@@ -371,6 +381,9 @@ bool emit_source(const ir::Component& component, std::string_view ns,
             }
             rest = rest.substr(newline + 1);
         }
+        if (!dynamic_text.empty()) {
+            writer.line("state_dirty_ = true;");
+        }
         writer.close("");
         writer.line("");
     }
@@ -399,6 +412,9 @@ bool emit_source(const ir::Component& component, std::string_view ns,
         emit_stub_body(writer, *binding, event_parameter ? param_name : std::string());
         writer.indent -= 1;
         writer.line("// [DEVELOPER_LOGIC_END: " + binding->id + "]");
+        if (!dynamic_text.empty() && event_parameter && binding->return_type.empty()) {
+            writer.line("state_dirty_ = true;");
+        }
         writer.close("");
         writer.line("");
     }
@@ -422,12 +438,17 @@ bool emit_component(const ir::Component& component, std::string_view module_name
                                "` uses library hooks (`environment`), which are a later slice");
     }
     const std::vector<const ir::Binding*> owned = component_bindings(component, bindings);
+    unsigned ordinal = 0;
+    std::vector<DynamicText> dynamic_text;
+    if (!collect_dynamic_text(component.root, component, ordinal, dynamic_text, error)) {
+        return false;
+    }
     GeneratedFile header;
-    if (!emit_component_header(component, module_namespace, owned, header, error)) {
+    if (!emit_component_header(component, module_namespace, owned, dynamic_text, header, error)) {
         return false;
     }
     GeneratedFile source;
-    if (!emit_source(component, module_namespace, owned, source, error)) {
+    if (!emit_source(component, module_namespace, owned, dynamic_text, source, error)) {
         return false;
     }
     files.push_back(std::move(header));

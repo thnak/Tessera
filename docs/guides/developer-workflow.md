@@ -97,8 +97,16 @@ warnings; outside-region edits are drift for `--check` and are overwritten by `-
 below).
 
 The output directory is build output: keep it out of version control. Commit only the `.tsx`
-sources and the developer files that the team owns (the sample's `samples/compiler-demo/Demo.cpp`
-is the committed developer seed that the build regenerates over).
+sources and the developer files that the team owns (the sample's seed lives at
+`tests/golden/codegen/demo/Demo.cpp` and the build regenerates over it).
+
+Generated components expose three lifecycle entry points: `build(parent)` attaches the tree,
+`apply_state()` recomputes interpolated text (paint-only dirty marks), and `update()` calls
+`update_effects()` then `apply_state()`. Generated setters and event-binding developer regions only
+raise the component's `state_dirty_` flag; **call `update()` after dispatching events** so effects
+run and interpolated text is written (the next frame is stale until you do). Developer effect
+regions run inside `update_effects()`; mutate state cells there and `update()` refreshes the text
+afterwards.
 
 ### 4.1 Generated-UI headless demo
 

@@ -24,6 +24,13 @@ namespace demo {
       tessera::ui::Node* ref_box_ = nullptr;
       // useAnimatedValue `opacity` (a plain field until the animation controller API exists).
       double anim_opacity_ = 1.0;
+      // Set by generated setters/event regions; update() applies the new state.
+      bool state_dirty_ = false;
+      // Interpolated text for the node with pre-order index 3 (PaintData only; never a layout input).
+      tessera::ui::Node* text_node_3_ = nullptr;
+      std::string text_node_3_value_;
+      std::uint64_t text_node_3_hash_ = 0;
+      bool text_node_3_set_ = false;
       // useEffect `effect::sync` state (deps hash, run counter, active flag).
       tessera::ui::EffectState effect_sync_state_;
       // prop `title`.
@@ -35,6 +42,11 @@ namespace demo {
       void mount();
       void update_effects();
       void unmount();
+      
+      // Recompute interpolated values; marks Paint|Render only when a value changed.
+      void apply_state();
+      // Host entry after event dispatch: update_effects() then apply_state().
+      void update();
       void handler_1(const tessera::ui::ClickEvent& event);
       void on_click(const tessera::ui::ClickEvent& event);
       void sync();

@@ -54,16 +54,17 @@ int main() {
     check(!view.paint_data().has_value(), "a View has no text payload");
 
     check(view.children().size() == 2, "the View carries both event-bound buttons");
-    const ui::Node& button = *view.children()[0];
+    ui::Node& button = *view.children()[0];
     check_eq(button.element_kind(), "Button", "button element kind");
     check(button.focusable(), "generated Button is focusable");
     check(button.children().size() == 1, "the Button carries the Text child");
 
-    const ui::Node& label = *button.children()[0];
+    ui::Node& label = *button.children()[0];
     check_eq(label.element_kind(), "Text", "text element kind");
     check(label.paint_data().has_value(), "generated Text attaches a PaintData payload");
     if (label.paint_data()) {
-        check_eq(label.paint_data()->text, "Hello", "text content is attached through PaintData");
+        check_eq(label.paint_data()->text, "Count: 0",
+                 "interpolated text is attached through PaintData");
     }
     check(!label.focusable(), "a Text node is not focusable");
 
@@ -90,18 +91,36 @@ int main() {
     click.y = 8.0f;
     click.pointer_kind = ui::PointerKind::Mouse;
     click.button = ui::PointerButton::Left;
+    label.clear_dirty(ui::Dirty::All);
     ui::dispatch_event_to(*view.children()[1], click);
     check(sample.state_count_ == 1, "a dispatched PointerUp runs the generated setter handler");
+    check(label.dirty() == ui::Dirty::Clean,
+          "the setter marks only the component dirty, not the node");
+    check(sample.state_dirty_, "the generated setter raises the component dirty flag");
+    if (label.paint_data()) {
+        check_eq(label.paint_data()->text, "Count: 0", "text is not rebuilt before update()");
+    }
 
-    // The developer region binding is dispatched too, but its generated stub leaves state alone.
+    // The host-driven update applies the new state, runs changed effects, and marks Paint|Render.
+    sample.update();
+    check(!sample.state_dirty_, "update() clears the component dirty flag");
+    check(label.dirty() == (ui::Dirty::Paint | ui::Dirty::Render),
+          "update() applies interpolation and marks Paint|Render only");
+    check(!ui::has_flag(label.dirty(), ui::Dirty::Layout), "interpolation is paint-only");
+    if (label.paint_data()) {
+        check_eq(label.paint_data()->text, "Count: 1", "update() refreshed the interpolated text");
+    }
+    check(sample.effect_sync_state_.runs == 2,
+          "update() runs the effect for the changed dependency");
+
+    label.clear_dirty(ui::Dirty::All);
+    sample.update();
+    check(label.dirty() == ui::Dirty::Clean, "an unchanged update marks no dirty domain");
+    check(sample.effect_sync_state_.runs == 2, "the new deps signature is stable");
+
+    // The developer region binding is dispatched too, but its stub leaves state alone.
     ui::dispatch_event_to(*view.children()[0], click);
     check(sample.state_count_ == 1, "the binding region runs without changing unrelated state");
-
-    // The effect dependency is the state cell: changing it reruns (cleanup then effect).
-    sample.update_effects();
-    check(sample.effect_sync_state_.runs == 2, "a changed dependency reruns the effect");
-    sample.update_effects();
-    check(sample.effect_sync_state_.runs == 2, "the new deps signature is stable");
 
     sample.unmount();
     check(!sample.effect_sync_state_.active, "unmount runs the cleanup and deactivates the effect");

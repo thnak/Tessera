@@ -21,7 +21,8 @@ bool fail(std::string& error, std::string message) {
 
 } // namespace
 bool emit_component_header(const ir::Component& component, std::string_view ns,
-                           const std::vector<const ir::Binding*>& bindings, GeneratedFile& file,
+                           const std::vector<const ir::Binding*>& bindings,
+                           const std::vector<DynamicText>& dynamic_text, GeneratedFile& file,
                            std::string& error) {
     CppWriter writer;
     writer.line("// SPDX-License-Identifier: MIT");
@@ -76,6 +77,19 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
                     "` (a plain field until the animation controller API exists).");
         writer.line(*type + " " + member_name(value.id) + " = " + initial.text + ";");
     }
+    if (!dynamic_text.empty()) {
+        writer.line("// Set by generated setters/event regions; update() applies the new state.");
+        writer.line("bool state_dirty_ = false;");
+    }
+    for (const DynamicText& entry : dynamic_text) {
+        const std::string suffix = std::to_string(entry.ordinal);
+        writer.line("// Interpolated text for the node with pre-order index " + suffix +
+                    " (PaintData only; never a layout input).");
+        writer.line("tessera::ui::Node* text_node_" + suffix + "_ = nullptr;");
+        writer.line("std::string text_node_" + suffix + "_value_;");
+        writer.line("std::uint64_t text_node_" + suffix + "_hash_ = 0;");
+        writer.line("bool text_node_" + suffix + "_set_ = false;");
+    }
     for (const ir::Effect& effect : component.effects) {
         writer.line("// useEffect `" + effect.id +
                     "` state (deps hash, run counter, active flag).");
@@ -105,6 +119,11 @@ bool emit_component_header(const ir::Component& component, std::string_view ns,
     writer.line("void mount();");
     writer.line("void update_effects();");
     writer.line("void unmount();");
+    writer.line("");
+    writer.line("// Recompute interpolated values; marks Paint|Render only when a value changed.");
+    writer.line("void apply_state();");
+    writer.line("// Host entry after event dispatch: update_effects() then apply_state().");
+    writer.line("void update();");
     for (const ir::Handler& handler : component.handlers) {
         bool typed = false;
         std::string param_name;

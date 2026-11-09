@@ -23,7 +23,7 @@ export function Demo(): Node {
 
   return (
     <View ref={box} className="card" style={{ opacity: fade }}>
-      <Text>Counter</Text>
+      <Text>{count === 0 ? "Counter" : `Count: ${count}`}</Text>
       <Button onClick={() => setCount(count + 1)}>Add</Button>
       <TextInput value={name} onChange={onName} />
     </View>

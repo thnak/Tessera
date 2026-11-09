@@ -8,7 +8,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(TESSERA_CLI_TESTS_NO_SUBPROCESS)
 #include <sys/wait.h>
 #endif
 #include <filesystem>
@@ -19,6 +19,19 @@
 #include <string_view>
 #include <vector>
 
+// iOS and some sandboxed Apple targets do not expose `system()`; the desktop CLIs are the only
+// place the real executable is run, so those targets skip with a printed reason instead of failing
+// to build. CMake sets TESSERA_NO_SUBPROCESS for iOS/tvOS/watchOS; the TargetConditionals check is
+// the fallback for direct Xcode builds.
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#if defined(TESSERA_NO_SUBPROCESS) ||                                                              \
+    (defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+#define TESSERA_CLI_TESTS_NO_SUBPROCESS 1
+#endif
+
+#if !defined(TESSERA_CLI_TESTS_NO_SUBPROCESS)
 namespace {
 
 namespace fs = std::filesystem;
@@ -183,3 +196,13 @@ int main(int argc, char** argv) {
     std::cout << "codegen cli tests passed\n";
     return 0;
 }
+
+#else // TESSERA_CLI_TESTS_NO_SUBPROCESS
+
+int main() {
+    std::cout
+        << "codegen cli tests skipped: subprocess execution is unavailable on this platform\n";
+    return 0;
+}
+
+#endif // TESSERA_CLI_TESTS_NO_SUBPROCESS

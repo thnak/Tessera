@@ -8,7 +8,8 @@ add_library(tessera_codegen STATIC
     src/emit_events.cpp
     src/emit_expr.cpp
     src/emit_header.cpp
-    src/emit_lifecycle.cpp)
+    src/emit_lifecycle.cpp
+    src/interpolation.cpp)
 
 target_include_directories(tessera_codegen
     PUBLIC
@@ -123,6 +124,11 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)
 
     target_link_libraries(codegen_cli_tests PRIVATE tessera_codegen)
+
+    # iOS/tvOS/watchOS do not expose system(); the CLI tests skip there (printed reason).
+    if (CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        target_compile_definitions(codegen_cli_tests PRIVATE TESSERA_NO_SUBPROCESS=1)
+    endif ()
 
     add_test(NAME codegen_cli
         COMMAND codegen_cli_tests ${_tessera_codegen_demo_src}

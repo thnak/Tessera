@@ -5,12 +5,42 @@
 
 #include <memory>
 #include <utility>
+#include <charconv>
+#include <cstdint>
+#include <string>
+#include <string_view>
 
 namespace demo {
   namespace gen {
     // TODO(tessera-codegen): the remaining runtime API gap is inline style attachment
     // (docs/design/compiler.md section 11); style values are recorded in the node
     // comments below until it lands.
+    
+    namespace {
+      [[maybe_unused]] std::string format_value(bool value) {
+        return value ? "true" : "false";
+      }
+      [[maybe_unused]] std::string format_value(int value) {
+        return std::to_string(value);
+      }
+      [[maybe_unused]] std::string format_value(std::int64_t value) {
+        return std::to_string(value);
+      }
+      [[maybe_unused]] std::string format_value(double value) {
+        char buffer[32];
+        const auto result = std::to_chars(buffer, buffer + sizeof buffer, value);
+        return std::string(buffer, result.ptr);
+      }
+      [[maybe_unused]] std::string format_value(std::string_view value) {
+        return std::string(value);
+      }
+      [[maybe_unused]] std::string format_value(const std::string& value) {
+        return value;
+      }
+      [[maybe_unused]] std::string format_value(const char* value) {
+        return std::string(value);
+      }
+    }
     
     namespace {
       void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
@@ -41,9 +71,7 @@ namespace demo {
       // node::3
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
       node_3->set_element_kind("Text");
-      tessera::ui::PaintData paint_node_3;
-      paint_node_3.text = "Hello";
-      node_3->set_paint_data(std::move(paint_node_3));
+      this->text_node_3_ = node_3.get();
       node_2->add_child(std::move(node_3));
       node_1->add_child(std::move(node_2));
       // node::4 events={onClick:handler::1}
@@ -53,6 +81,24 @@ namespace demo {
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
       parent.add_child(std::move(node_1));
+      apply_state();
+    }
+    
+    void Sample::apply_state() {
+      std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
+      hash_3 = tessera::ui::effect_hash(hash_3, "Count: ");
+      hash_3 = tessera::ui::effect_hash(hash_3, state_count_);
+      if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
+          text_node_3_hash_ = hash_3;
+          text_node_3_set_ = true;
+          std::string next_3;
+          next_3 += "Count: ";
+          next_3 += format_value(state_count_);
+          text_node_3_value_ = std::move(next_3);
+          tessera::ui::PaintData paint_3;
+          paint_3.text = text_node_3_value_;
+          text_node_3_->set_paint_data(std::move(paint_3));
+      }
     }
     
     namespace {
@@ -79,6 +125,12 @@ namespace demo {
       }
     }
     
+    void Sample::update() {
+      update_effects();
+      apply_state();
+      state_dirty_ = false;
+    }
+    
     void Sample::unmount() {
       if (effect_sync_state_.active) {
         sync_cleanup();
@@ -89,6 +141,7 @@ namespace demo {
     void Sample::handler_1(const tessera::ui::ClickEvent& event) {
       (void)event;
       state_count_ = 1;
+      state_dirty_ = true;
     }
     
     void Sample::on_click(const tessera::ui::ClickEvent& event) {
@@ -96,6 +149,7 @@ namespace demo {
         // TODO(tessera-codegen): implement the developer body for bind::on_click.
         (void)event;
       // [DEVELOPER_LOGIC_END: bind::on_click]
+      state_dirty_ = true;
     }
     
     void Sample::sync() {

@@ -109,6 +109,12 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
         writer.line("");
         writer.line("void " + component.name + "::unmount() {}");
         writer.line("");
+        writer.open("void " + component.name + "::update()");
+        writer.line("update_effects();");
+        writer.line("apply_state();");
+        writer.line("state_dirty_ = false;");
+        writer.close("");
+        writer.line("");
         return true;
     }
 
@@ -160,6 +166,13 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
         --writer.indent;
         writer.line("}");
     }
+    writer.close("");
+    writer.line("");
+
+    writer.open("void " + component.name + "::update()");
+    writer.line("update_effects();");
+    writer.line("apply_state();");
+    writer.line("state_dirty_ = false;");
     writer.close("");
     writer.line("");
 

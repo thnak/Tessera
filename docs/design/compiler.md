@@ -225,9 +225,30 @@ them. `useAnimatedValue` remains a plain field: `ui::AnimationRuntime` is target
 (`start`/`pause_target`/`tick`) and has no per-value controller API to hand a generated field to —
 the exact gap for a later animation slice.
 
-**Remaining missing runtime API:** inline style attachment/computed-style feed, and a per-value
-animation controller for `useAnimatedValue` hand-off. The generated-UI demo below adds the codegen
-gap list: state interpolation/regeneration, controlled input wiring, and `automationId` emission.
+Interpolation and update path: text expressions (templates with substitutions, plain references,
+conditionals and numeric/binary/call expressions with a printable C++ type) are emitted as a
+generated `apply_state()`: it hashes each interpolated value with the shared FNV-1a helpers and only
+when a hash differs rebuilds the string, stores it in `text_node_N_value_`, and calls
+`set_paint_data(PaintData{...})` — so the node marks `Paint|Render` only, never `Layout`. `build()`
+stores each interpolated node's pointer and ends with `apply_state()`. Generated setters and event
+binding developer regions raise a component-level `state_dirty_` flag instead of touching the node
+directly; `update()` = `update_effects(); apply_state(); state_dirty_ = false;` is the host entry
+after event dispatch. Tradeoff (documented): setters stay cheap and synchronous-total (no effects
+inside a setter), the host must call `update()` after dispatch (React-like scheduling), and the
+current headless demo keeps its existing CPU goldens because a click alone marks no node dirty until
+`update()`. Unchanged values allocate nothing (hash path only); a changed value builds one bounded
+string and one `PaintData` copy. Templates with substitutions can appear directly or inside a text
+conditional (`{count === 0 ? "Counter" : `Count: ${count}`}`), which emits branching hash/append
+statements rather than a temporary string. Formatting: `true`/`false`, decimal integers, shortest
+round-trip doubles via `std::to_chars`, strings verbatim; text is a paint payload, never a layout
+input. Dynamic attributes/metadata (`id`/`className`/`role`/`aria-*`/`automationId`) and other
+intrinsic props still have no owned dynamic setter and are rejected/ignored as documented.
+
+**Remaining missing runtime API / gaps:** inline style attachment/computed-style feed; a per-value
+animation controller for `useAnimatedValue` hand-off; controlled `TextInput` `value`/`onChange`
+wiring (the generated binding receives the generic `Event`; the `value` prop is not fed back);
+dynamic attribute/metadata interpolation (only literal metadata is emitted today); sample
+`automationId` emission (numeric `automationId` is emitted when the IR has it).
 
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
@@ -251,13 +272,13 @@ into a scene, lays it out with Yoga, paints with `paint_scene` through the deter
 Run it with `ctest -R generated_ui`; regenerate the goldens with
 `generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui`. The demo is registered
 from `tests/unit/CMakeLists.txt` because the root CMakeLists (Lead-owned) does not add
-`tests/integration` yet. Codegen gaps the demo documents: (a) no state interpolation into node
-content and no re-render/diff step, so a click updates state but not pixels until the caller writes
-the state into `PaintData` (the demo performs that step explicitly); (b) no controlled
+`tests/integration` yet. The demo currently performs the text interpolation step itself; the generated `apply_state()` and
+`update()` entry points now provide it, so the integration demo can drop that manual step in a
+follow-up owned by the ui-input lane. Remaining demo-documented gaps: (a) no controlled
 `value`/`onChange` wiring for `TextInput` — bindings receive the generic `Event` and there is no
 value-to-text feed, so typing is asserted through the generated `EditText` handler and the
-edit-controller buffer; (c) the sample emits no `automationId`, so nodes are resolved by element
-kind; (d) inline style attachment is still missing, so the demo supplies the style-sheet values.
+edit-controller buffer; (b) the sample emits no `automationId`, so nodes are resolved by element
+kind; (c) inline style attachment is still missing, so the demo supplies the style-sheet values.
 
 Deferred: conditional/list emission, component composition and `Slot`, reusing computed styles,
 multi-file watch mode, cross-module incremental generation, and single-node incremental
