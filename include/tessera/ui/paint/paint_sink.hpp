@@ -3,7 +3,10 @@
 #pragma once
 
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
+#include <array>
+#include <cstddef>
 #include <optional>
 #include <string_view>
 
@@ -38,7 +41,59 @@ struct RoundedClip {
     }
 };
 
-// One resolved vector-asset draw emitted by the paint pass. Coordinates are absolute device pixels:
+// One resolved linear-gradient fill. Stops are already clamped/sorted by the paint pass and each
+// color's alpha already includes node opacity. `clip` is the node's border-rounded box (the
+// gradient is painted at the background position); sinks that cannot express rounded clipping may
+// use its rect bounds (the CPU sink documents that approximation).
+struct GradientDraw {
+    rhi::Rect rect;
+    RoundedClip clip;
+    float angle_degrees = 180.0f;
+    std::array<LinearGradientStop, 8> stops{};
+    std::size_t stop_count = 0;
+};
+
+// Encoded-space (sRGB byte) linear interpolation over sorted stops. t is clamped to [0,1]; at a
+// duplicate offset the last stop of the duplicate group wins. Sinks share this so CPU/GPU ramp
+// values agree.
+[[nodiscard]] inline rhi::Color sample_linear_gradient(const GradientDraw& draw, float t) {
+    if (draw.stop_count == 0) {
+        return rhi::Color{0.0f, 0.0f, 0.0f, 0.0f};
+    }
+    if (draw.stop_count == 1) {
+        return draw.stops[0].color;
+    }
+    t = std::clamp(t, 0.0f, 1.0f);
+    // At a duplicate offset the later stop wins: prefer the last exact match before interpolating.
+    for (std::size_t index = 0; index < draw.stop_count; ++index) {
+        if (t == draw.stops[index].offset) {
+            std::size_t last = index;
+            while (last + 1 < draw.stop_count && draw.stops[last + 1].offset == t) {
+                ++last;
+            }
+            return draw.stops[last].color;
+        }
+    }
+    if (t <= draw.stops[0].offset) {
+        return draw.stops[0].color;
+    }
+    for (std::size_t index = 1; index < draw.stop_count; ++index) {
+        if (t <= draw.stops[index].offset) {
+            const LinearGradientStop& a = draw.stops[index - 1];
+            const LinearGradientStop& b = draw.stops[index];
+            const float span = b.offset - a.offset;
+            const float local = span > 0.0f ? (t - a.offset) / span : 1.0f;
+            rhi::Color result;
+            result.r = a.color.r + (b.color.r - a.color.r) * local;
+            result.g = a.color.g + (b.color.g - a.color.g) * local;
+            result.b = a.color.b + (b.color.b - a.color.b) * local;
+            result.a = a.color.a + (b.color.a - a.color.a) * local;
+            return result;
+        }
+    }
+    return draw.stops[draw.stop_count - 1].color;
+}
+
 // `rect` is the node's content box (border box inset by padding) and the whole document is mapped
 // into it. `asset` is a borrowed embedded-asset name (valid for the duration of draw_vector).
 //
@@ -68,6 +123,7 @@ struct ImageDraw {
     float scale = 0.0f;
     rhi::Color tint{1.0f, 1.0f, 1.0f, 1.0f};
 };
+
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no
 // draw list and no backend state: a recording sink is enough to test it, and Batched2DSink
 // forwards the same commands to rendering::gpu::Batched2DRenderer.
@@ -78,6 +134,10 @@ public:
     virtual void fill_rect(const rhi::Rect& rect, const rhi::Color& color) = 0;
     virtual void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color,
                                    float radius) = 0;
+
+    // Optional linear-gradient hook (default no-op so existing sinks keep compiling). Emitted after
+    // the background fill and before borders/content, so it paints where the background would be.
+    virtual void fill_linear_gradient(const GradientDraw& /*draw*/) {}
 
     // Optional rounded-clip hooks (default no-ops so sinks that do not render clipping keep
     // working). paint_scene pushes one clip per overflow-clipping parent around its children and
