@@ -115,9 +115,10 @@ done
 
 adb_run shell chmod +x "$test_dir/*_tests"
 
-# Font tests need a fixture path; the IR golden and the IR and rules layering tests read repo files.
-# None of these exist in the device sandbox; the host platforms cover them.
-if ! timeout "$TEST_TIMEOUT" adb shell 'cd /data/local/tmp/tessera && fail=0; for t in *_tests; do case "$t" in font_face_tests|freetype_metrics_tests|glyph_raster_tests|glyph_atlas_tests|harfbuzz_shaper_tests|text_render_tests|ir_json_tests|ir_layering_tests|rules_layering_tests) continue;; esac; echo "== $t"; ./$t || fail=1; done; exit $fail'; then
+# Host-only tests: font fixtures, repo-file/golden readers (IR, lowering, schema, rules layering) and
+# GPU fixture comparisons need files that only exist in the checkout; the device sandbox has none of
+# them and the host platforms cover these cases.
+if ! timeout "$TEST_TIMEOUT" adb shell 'cd /data/local/tmp/tessera && fail=0; for t in *_tests; do case "$t" in font_face_tests|freetype_metrics_tests|glyph_raster_tests|glyph_atlas_tests|harfbuzz_shaper_tests|text_render_tests|ir_json_tests|ir_layering_tests|rules_layering_tests|lowering_golden_tests|lowering_layering_tests|schema_golden_tests|schema_layering_tests|path_texture_draw_tests) continue;; esac; echo "== $t"; ./$t; code=$?; if [ $code -ne 0 ]; then echo "FAILED $t exit=$code"; fail=1; fi; done; exit $fail'; then
     dump_diagnostics
     exit 1
 fi
