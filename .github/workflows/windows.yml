@@ -30,5 +30,8 @@ jobs:
           python -B scripts/check_static_link.py --os windows
           --binary build/vs2026/tests/unit/Release/merger_tests.exe
 
+      - name: Release static-runtime proof (ADR-012)
+        run: python -B scripts/check_static_runtime.py --config Release --target merger_tests
+
       - name: Tests
         run: ctest --preset vs2026-release --output-on-failure

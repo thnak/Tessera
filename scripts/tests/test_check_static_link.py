@@ -143,6 +143,18 @@ class StaticLinkGateTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
 
+    def test_unavailable_tool_is_a_setup_error(self) -> None:
+        result = run_gate(
+            "--os",
+            "windows",
+            "--binary",
+            str(CHECK),
+            "--dumpbin",
+            str(FIXTURES / "does-not-exist-dumpbin.exe"),
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("dumpbin", (result.stdout + result.stderr).lower())
+
 
 if __name__ == "__main__":
     unittest.main()

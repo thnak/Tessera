@@ -168,6 +168,7 @@ Python 3 interpreter. Both scripts are standard-library only, deterministic and 
 ```bash
 python scripts/check_dependencies.py
 python scripts/check_static_link.py --binary build/ci/tools/poc/vulkan_offscreen/vulkan_offscreen_poc
+python scripts/check_static_runtime.py --config Release
 python -B -m unittest discover -s scripts/tests -p "test_*.py" -v
 ```
 
@@ -175,6 +176,9 @@ python -B -m unittest discover -s scripts/tests -p "test_*.py" -v
 fails on any dynamic dependency outside the per-OS allowlist and on a dynamically linked
 `libstdc++`, `libgcc_s`, `VCRUNTIME*` or `MSVCP*`. Pass `--os` (or `--from-output FILE`) to check
 captured output for another platform and `--allowlist FILE` to replace the built-in pattern list.
+`check_static_runtime.py` proves the requirement on a fresh Release artifact: it configures a
+throwaway build with `TESSERA_STATIC_RUNTIME=ON` and `TESSERA_BUILD_VULKAN=OFF`, builds one small
+target and runs the static-link gate on it (Debug is reported as `SKIPPED`, never passed).
 The fixture self-tests feed both gates synthetic tables and `ldd`/`otool`/`dumpbin` output, so
 they run on every OS; either gate accepts `--json` for a machine-readable report.
 

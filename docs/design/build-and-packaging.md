@@ -55,6 +55,34 @@ Runtime libraries are static; OS/GPU system components remain dynamic ([ADR-012]
 - ICU (International Components for Unicode) data is embedded (`--with-data-packaging=static` or `udata_setCommonData`).
 - CI checks the link graph (`ldd`/`dumpbin`/`otool`) for unexpected third-party dynamic libs.
 
+### Static runtime proof
+
+ADR-012 is proven with a real Release build, not only by inspecting whatever artifact already
+exists:
+
+```bash
+python scripts/check_static_runtime.py --config Release
+```
+
+The script configures the throwaway directory `build/static-runtime-proof` with
+`TESSERA_STATIC_RUNTIME=ON`, `CMAKE_BUILD_TYPE=Release` and `TESSERA_BUILD_VULKAN=OFF`, builds the
+small `merger_tests` target, and runs `scripts/check_static_link.py` on the executable (same
+per-OS allowlist and forbidden-runtime rule as CI). On Windows it bootstraps the MSVC environment
+through `vcvars64.bat` when `cl`/`nmake` are not on `PATH`. Exit codes: 0 pass (or Debug
+SKIPPED), 1 static-link violation, 2 tool/setup failure. A thin
+`scripts/check_static_runtime.ps1` wrapper forwards the same arguments.
+
+What it proves: the Release artifact imports no dynamic MSVC runtime (`VCRUNTIME*`, `MSVCP*`,
+`ucrtbase.dll`/`api-ms-win-crt-*`), no dynamic `libstdc++`/`libgcc_s`, and no third-party dynamic
+library outside the per-OS allowlist — the flags above reach a linked framework executable.
+
+What it does not prove: that every shipped target uses the same flags (one representative target
+is checked), that the Vulkan loader/ICDs, glibc, X11/Wayland, Win32 or macOS frameworks are static
+(they stay dynamic by design), or that static third-party archives are license-clean — that is
+`scripts/check_dependencies.py`, which checks notices/licenses rather than link flags. Debug
+builds use the debug C/C++ runtime (`/MTd`/`MDd`), so the script reports `SKIPPED` for Debug
+instead of passing or failing; it applies to Release only.
+
 ## 4. Shaders
 
 - GLSL -> SPIR-V at build time via `glslc --target-env=vulkan1.3 -mfmt=c` (generated header).

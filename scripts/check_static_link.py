@@ -130,6 +130,12 @@ class BinaryReport:
         }
 
 
+def setup_error(message: str) -> "NoReturn":
+    """Report a tool/setup failure and exit with the documented setup exit code (2)."""
+    print("error: {}".format(message), file=sys.stderr)
+    raise SystemExit(2)
+
+
 def detect_platform() -> str:
     if sys.platform.startswith("linux"):
         return "linux"
@@ -137,9 +143,7 @@ def detect_platform() -> str:
         return "macos"
     if sys.platform == "win32":
         return "windows"
-    raise SystemExit(
-        "error: unsupported platform {!r}; pass --os linux|macos|windows".format(sys.platform)
-    )
+    setup_error("unsupported platform {!r}; pass --os linux|macos|windows".format(sys.platform))
 
 
 def parse_ldd(output: str) -> ParsedDependencies:
@@ -293,8 +297,8 @@ def run_tool(os_name: str, binary: str, dumpbin: Optional[str]) -> Tuple[str, st
             if result.returncode != 0 and not (
                 "statically linked" in lowered or "not a dynamic executable" in lowered
             ):
-                raise SystemExit(
-                    "error: ldd failed on {} (exit {}): {}".format(
+                setup_error(
+                    "ldd failed on {} (exit {}): {}".format(
                         binary, result.returncode, output.strip()
                     )
                 )
@@ -305,8 +309,8 @@ def run_tool(os_name: str, binary: str, dumpbin: Optional[str]) -> Tuple[str, st
             )
             output = result.stdout + result.stderr
             if result.returncode != 0:
-                raise SystemExit(
-                    "error: otool failed on {} (exit {}): {}".format(
+                setup_error(
+                    "otool failed on {} (exit {}): {}".format(
                         binary, result.returncode, output.strip()
                     )
                 )
@@ -320,16 +324,16 @@ def run_tool(os_name: str, binary: str, dumpbin: Optional[str]) -> Tuple[str, st
         result = run_dumpbin(binary, resolved)
         output = result.stdout + result.stderr
         if result.returncode != 0 or "Dump of file" not in output:
-            raise SystemExit(
-                "error: dumpbin failed on {} (exit {}): {}".format(
+            setup_error(
+                "dumpbin failed on {} (exit {}): {}".format(
                     binary, result.returncode, output.strip()
                 )
             )
         return tool, output
     except FileNotFoundError as error:
-        raise SystemExit("error: {} not available: {}".format(tool, error))
+        setup_error("{} not available: {}".format(tool, error))
     except subprocess.SubprocessError as error:
-        raise SystemExit("error: {} failed on {}: {}".format(tool, binary, error))
+        setup_error("{} failed on {}: {}".format(tool, binary, error))
 
 
 def load_allowlist(path: Path) -> Tuple[str, ...]:

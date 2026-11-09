@@ -91,3 +91,13 @@ jobs:
 
       - name: Dependency and license gate (ADR-013)
         run: python3 -B scripts/check_dependencies.py
+
+  static-runtime-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release static-runtime proof (ADR-012)
+        run: python3 -B scripts/check_static_runtime.py --config Release --target merger_tests
