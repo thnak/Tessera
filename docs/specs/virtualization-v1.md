@@ -163,6 +163,16 @@ in O(n). Capacity is a constructor argument and a hard cap, not a growth policy.
   [`buffer-config-v1.md`](buffer-config-v1.md)).
 - Keyed identity is preserved for focus/selection/scroll anchoring even when the node is recycled.
 
+Implementation: `virtualization::NodeRecycler` in
+[`node_recycler.hpp`](../../include/tessera/ui/virtual/node_recycler.hpp) owns at most
+`ui.virtualListPoolCap` node slots plus a FIFO free ring allocated once in the constructor.
+`acquire` clears the node before handing it out ("clean on acquire"); `release`/`reclaim` assert in
+debug that the node no longer carries item state (`node_carries_item_state`), then sanitize
+defensively so release builds keep the same guarantee. `detach`/`reclaim` transfer ownership to and
+from the scene, and a generation counter rejects stale leases instead of recycling a node that now
+belongs to another item. Once every slot is in use, `acquire` returns `std::nullopt` and changes
+nothing: the cap is a refusal, not a growth policy, and the realized window truncates.
+
 ## 6. Scroll anchoring and updates
 
 - Maintain an **anchor**: `(item_key, offset_within_item)` near the viewport start.
@@ -307,15 +317,19 @@ Tests:
   index-at-offset lookup, and the section 6 re-anchor math
   (`include/tessera/ui/virtual/`, `src/ui/virtual/`); bounded keyed item state store with
   deterministic LRU eviction (recycled nodes hold no state); the read-only `VirtualDataSource`
-  adapter contract with a clean-node `build` and optional `release`; and the fixed-capacity
-  `KeyIndex` key -> index resolver (capacity overflow and duplicate keys invalidate the mapping).
+  adapter contract with a clean-node `build` and optional `release`; the fixed-capacity
+  `KeyIndex` key -> index resolver (capacity overflow and duplicate keys invalidate the mapping);
+  and the bounded `NodeRecycler` (cap refusal, clean-on-acquire, debug no-item-state assertion,
+  FIFO reuse, `detach`/`reclaim` scene hand-off, stale-lease rejection).
 - Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
   refine suffix shift, insert/remove, capacity), `virtual_geometry_scan` (brute-force linear
   oracle for offsets and windows), `virtual_anchor` (re-anchor after measure, clamp),
   `virtual_state` (state across recycle, eviction rule), `virtual_allocations` (no heap
   allocation on the scroll/refine/state path), `virtual_data_source` (read-only surface, measure
   determinism, build/release contract), `virtual_key_index` (stable keys across insert/remove,
-  duplicate/capacity errors, deterministic collision handling).
+  duplicate/capacity errors, deterministic collision handling), `virtual_pool` (cap enforcement
+  without mutation, clean-on-acquire/no-state-leak, FIFO order, lease validation, allocation-free
+  pooled acquire/release).
 - Design/spec only still: the collection/node recycler and data-source build/release, grid rows,
   sticky headers, focus/selection/accessibility integration, async prefetch, IR/codegen emission
   for `VirtualList`/`VirtualGrid`, and dirty/render integration.

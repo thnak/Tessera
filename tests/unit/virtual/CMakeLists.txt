@@ -51,3 +51,10 @@ add_executable(virtual_key_index_tests
 target_link_libraries(virtual_key_index_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_key_index COMMAND virtual_key_index_tests)
+
+add_executable(virtual_pool_tests
+    virtual_pool_tests.cpp)
+
+target_link_libraries(virtual_pool_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_pool COMMAND virtual_pool_tests)
