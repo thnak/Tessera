@@ -18,6 +18,7 @@ struct ValidationContext {
     const IrModule& module;
     std::vector<IrDiagnostic> diagnostics;
     std::unordered_set<std::string> component_ids;
+    std::unordered_map<std::string, const Component*> components; // id -> record
     std::unordered_map<std::string, const Binding*> bindings;
     std::unordered_set<std::string> used_bindings; // `bind::` ids referenced by some use
     std::unordered_set<std::string> ui_ids;        // project-wide
@@ -33,6 +34,8 @@ struct ComponentScope {
     std::unordered_set<std::string> ids;   // state::, ref::, anim::, env:: ids
     std::unordered_set<std::string> handlers;
     std::unordered_set<std::string> node_ids;
+    // Section 3.4: the component declares the `children` prop, so it may place a `Slot`.
+    bool declares_children = false;
 };
 
 // Local names in scope (loop item and index, handler parameters).

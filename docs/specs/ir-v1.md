@@ -288,12 +288,25 @@ A component instance is identified at design time by `(componentId, instanceKey)
   `props`. Only then may a `Component` node of it have a non-empty `children`; those nodes are the
   slot content. The slot content belongs to the caller: it is part of the caller's tree, takes its
   `node::` ids in the caller's pre-order, and reads the caller's state, props and loop variables,
-  never the callee's. A callee places the content with a `Slot` node (`{ "kind": "Slot", "id":
-  "node::7" }`), a leaf with no props, style or events that is replaced by the instance's children
-  at that position. A `Component` node without children renders nothing at the `Slot`.
+  never the callee's. A callee places the content with a `Slot` node, a leaf with no props, style or
+  events that is replaced by the instance's children at that position:
+
+  ```json
+  {
+    "kind": "Slot",
+    "id": "node::7",
+    "uiId": "777777777777777777",
+    "source": { "file": "ui/Card.tsx", "offset": 42, "length": 10, "line": 3, "column": 5, "endLine": 3, "endColumn": 15 }
+  }
+  ```
+
+  A `Component` node without children renders nothing at the `Slot`. The declaration is checked:
+  a `Component` node with children whose target does not declare the prop is `TESSERA_IR_SLOT`, and
+  a `Slot` in a component without the prop is `TESSERA_IR_SLOT` too.
 - A component has at most one `children` prop and at most one `Slot`, and a `Slot` is not inside a
   `loop` template of the callee or inside another component's slot content. A `Slot` in a
-  component without a `children` prop is an error.
+  component without a `children` prop is an error. The reference graph is acyclic: a component
+  that reaches itself through `Component` nodes is `TESSERA_IR_CYCLE`.
 - `Component` and `Slot` are the only additions to the node kinds in v1; both are additive, so
   `irVersion` stays `1` (section 12).
 
@@ -491,8 +504,10 @@ Hard errors:
   `handler::` id, a `Component` node with an unresolved `component`, an unknown prop, or a prop or
   event the referenced component does not declare
 - a `Component` node with `children` whose component has no `children` prop; a `Slot` outside a
-  component with a `children` prop, a second `Slot`, a `Slot` with props, style, events or children,
-  or a `Slot` inside a `loop` template
+  component with a `children` prop, a second `Slot`, a `Slot` with props, style, events, key,
+  condition, loop or children, a `Slot` as the component root, or a `Slot` inside a `loop` template
+  or inside another component's slot content
+- a component reference cycle (a component whose tree reaches itself), `TESSERA_IR_CYCLE`
 - non-deterministic ordering/ids
 
 Warnings:
@@ -512,12 +527,13 @@ canonical text, not a re-parsed model.
 |---|---|---|
 | `condition` | expression object | boolean-valued shape (`TESSERA_IR_CONDITION`) |
 | loop `item`/`index`/`source`/`key` | `loop` object; `index` when present | distinct local names, source ref, key required, depth 2 |
-| `Component` reference | `component`, props, events, slot `children` | target resolves, no `style`, children allowed |
+| `Component` reference | `component`, props, events, slot `children` | target resolves, no `style`, children only when the target declares the `children` prop, no reference cycle (`TESSERA_IR_CYCLE`) |
+| `Slot` | `kind` only (a bare position marker) | at most one per component, only with the `children` prop, no payload, not the root, not in a loop template or slot content (`TESSERA_IR_SLOT`) |
 | text, style/className, events, `fallback` | `text`/`style`/`props`/`events`, fallback node | `text` only on `Text`; event ids resolve to event bindings; fallback static |
 
-Deliberately not covered: the `Slot` kind (section 3.4) has no model/writer/validator form until
-lowering emits it (slice 4 children typing); intrinsic prop/event schemas (the IR is a leaf and does
-not link `tessera_schema`); component prop and `children` types.
+Deliberately not covered: intrinsic prop/event schemas (the IR is a leaf and does not link
+`tessera_schema`), the `Children` type of a prop other than the `children` declaration (the type
+table that resolves prop types is a later slice), and a re-parsed reader (section 9.1 note above).
 
 ## 10. Codegen mapping
 

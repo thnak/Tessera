@@ -83,7 +83,15 @@ void test_node_shapes() {
         kMalformed);
     expect(
         "component node pointing at its own component",
-        [](auto& m) { row_node(m).component = "comp::List"; }, "");
+        [](auto& m) { row_node(m).component = "comp::List"; }, "TESSERA_IR_SLOT;TESSERA_IR_CYCLE;");
+    expect(
+        "component reference cycle across two components",
+        [](auto& m) {
+            ir::Node reference = leaf(ir::NodeKind::Component, "node::92", "92");
+            reference.component = "comp::List";
+            m.components[1].root.children.push_back(std::move(reference));
+        },
+        "TESSERA_IR_CYCLE;");
 }
 
 void test_error_boundary() {
@@ -226,6 +234,57 @@ void test_virtual_collection() {
         kMissing);
 }
 
+void test_slots() {
+    // Section 3.4: the `children` prop declares the slot; `Row` in the fixture declares it.
+    const auto row_root = [](ir::IrModule& m) -> ir::Node& { return m.components[1].root; };
+    expect(
+        "component children without a `children` prop",
+        [&](auto& m) {
+            m.components[1].props.pop_back();
+            m.components[1].root.children.clear();
+        },
+        "TESSERA_IR_SLOT;");
+    expect(
+        "the `children` prop must have the children type",
+        [&](auto& m) { m.components[1].props.back().type = "string"; },
+        "TESSERA_IR_SLOT;TESSERA_IR_SLOT;TESSERA_IR_SLOT;");
+    expect(
+        "a second Slot",
+        [&](auto& m) {
+            row_root(m).children.push_back(leaf(ir::NodeKind::Slot, "node::90", "90"));
+        },
+        "TESSERA_IR_SLOT;");
+    expect(
+        "a Slot with props",
+        [&](auto& m) { row_root(m).children[0].props.emplace("x", ir::make_literal(1)); },
+        "TESSERA_IR_SLOT;");
+    expect(
+        "a Slot as the component root",
+        [&](auto& m) { m.components[1].root = leaf(ir::NodeKind::Slot, "node::2", "11"); },
+        "TESSERA_IR_SLOT;");
+    expect(
+        "a Slot inside another component's slot content",
+        [&](auto& m) {
+            m.components[0].props.push_back({"children", "children", nullptr});
+            ir::Node& content_root = row_node(m);
+            content_root.loop.reset();
+            content_root.key.reset();
+            content_root.condition.reset();
+            content_root.props.clear();
+            content_root.children.push_back(leaf(ir::NodeKind::Slot, "node::91", "91"));
+        },
+        "TESSERA_IR_SLOT;");
+    expect(
+        "a Slot inside a loop template",
+        [&](auto& m) {
+            m.components[1].state.push_back(
+                {"state::rows", "rows", "list<int>", ir::make_array({})});
+            row_root(m).loop = ir::Loop{"item", "", ir::make_ref("state::rows")};
+            row_root(m).key = ir::make_literal(std::string("k"));
+        },
+        "TESSERA_IR_SLOT;");
+}
+
 void test_spans_and_order() {
     const std::string bad_span = "TESSERA_IR_SPAN;";
     expect("component without a file", [](auto& m) { list(m).source.file.clear(); }, bad_span);
@@ -289,6 +348,7 @@ int main() {
     test_node_shapes();
     test_error_boundary();
     test_loops();
+    test_slots();
     test_virtual_collection();
     test_spans_and_order();
     return finish("ir validate shape tests");

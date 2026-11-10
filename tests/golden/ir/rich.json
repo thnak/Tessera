@@ -164,7 +164,7 @@
             "children": [
               {
                 "id": "node::6",
-                "kind": "Text",
+                "kind": "Slot",
                 "source": {
                   "column": 20,
                   "endColumn": 32,
@@ -173,10 +173,6 @@
                   "length": 12,
                   "line": 17,
                   "offset": 240
-                },
-                "text": {
-                  "kind": "literal",
-                  "value": "slot"
                 },
                 "uiId": "6"
               }

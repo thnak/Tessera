@@ -46,6 +46,20 @@ void ComponentChecker::check_declarations() {
         if (!prop_names.insert(prop.name).second) {
             context.report("TESSERA_IR_DUPLICATE_ID", "duplicate prop `" + prop.name + "`", where);
         }
+        // Section 3.4: `children` is the one prop with the `children` slot type, and the type is
+        // valid only for that prop. A default value has no meaning for a slot.
+        const bool children_prop = prop.name == "children";
+        if (children_prop && prop.type != "children") {
+            context.report("TESSERA_IR_SLOT",
+                           "the `children` prop declares the slot, so its type is `children`",
+                           where);
+        } else if (!children_prop && prop.type == "children") {
+            context.report("TESSERA_IR_SLOT", "only the `children` prop has type `children`",
+                           where);
+        }
+        if (children_prop && prop.default_value) {
+            context.report("TESSERA_IR_SLOT", "the `children` prop has no default value", where);
+        }
         validate_type(context, prop.type, where);
         validate_expr(context, scope, {}, prop.default_value.get(), where);
     }
@@ -158,6 +172,9 @@ ComponentScope make_scope(const Component& component) {
     scope.component = &component;
     for (const auto& prop : component.props) {
         scope.props.insert(prop.name);
+        if (prop.name == "children" && prop.type == "children") {
+            scope.declares_children = true;
+        }
     }
     for (const auto& state : component.state) {
         scope.ids.insert(state.id);
@@ -183,6 +200,9 @@ void validate_component(ValidationContext& context, const Component& component) 
     // Props are visible to everything, including defaults of later props and state initials.
     for (const auto& prop : component.props) {
         checker.scope.props.insert(prop.name);
+        if (prop.name == "children" && prop.type == "children") {
+            checker.scope.declares_children = true;
+        }
     }
     if (component.name.empty()) {
         context.report("TESSERA_IR_MALFORMED", "a component has no name", component.source);

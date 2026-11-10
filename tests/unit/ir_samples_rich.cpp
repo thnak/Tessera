@@ -54,8 +54,8 @@ ir::Node make_root() {
     row.events.emplace("onPick", "handler::1");
     row.condition = ir::make_unary("!", ir::make_ref("prop::title"));
     row.loop = ir::Loop{"item", "index", ir::make_ref("state::rows")};
-    ir::Node slot = node_of(ir::NodeKind::Text, "node::6", "6", span(240, 12, 17, 20, 17, 32));
-    slot.text = text("slot");
+    // Section 3.4: the caller's slot content, written as a `Slot` node.
+    ir::Node slot = node_of(ir::NodeKind::Slot, "node::6", "6", span(240, 12, 17, 20, 17, 32));
     row.children.push_back(std::move(slot));
     root.children.push_back(std::move(row));
 

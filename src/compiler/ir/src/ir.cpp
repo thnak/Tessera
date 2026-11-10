@@ -37,6 +37,8 @@ std::string_view node_kind_name(NodeKind kind) {
         return "CustomElement";
     case NodeKind::Component:
         return "Component";
+    case NodeKind::Slot:
+        return "Slot";
     }
     return "";
 }

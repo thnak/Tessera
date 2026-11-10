@@ -323,6 +323,7 @@ void test_writer_covers_slice_constructs() {
     check(has("\"component\": \"comp::Row\"") && has("\"kind\": \"Component\""),
           "component reference");
     check(has("\"children\": ["), "children are written (including the Component slot child)");
+    check(has("\"kind\": \"Slot\""), "the static children slot is written as a Slot node");
     check(has("\"fallback\": {"), "ErrorBoundary fallback");
     check(has("\"text\": {"), "Text content is an expression object");
     check(has("\"style\": {") && has("\"className\": \"root\""), "style and className props");

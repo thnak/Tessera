@@ -41,14 +41,26 @@ bool valid_local_name(std::string_view name) {
 struct NodeWalker {
     ValidationContext& context;
     ComponentScope& scope;
+    unsigned slot_count = 0; // section 3.4: at most one Slot per component
 
-    void walk(const Node& node, const LocalNames& outer, int loop_depth);
+    void walk(const Node& node, const LocalNames& outer, int loop_depth, bool in_slot_content,
+              bool is_root);
     void check_identity(const Node& node);
     void check_shape(const Node& node);
     void check_events(const Node& node);
     void check_condition(const Node& node);
     void check_loop(const Node& node, const LocalNames& outer, int loop_depth);
+    void check_slot(const Node& node, int loop_depth, bool in_slot_content, bool is_root);
 };
+
+bool declares_children(const Component& component) {
+    for (const auto& prop : component.props) {
+        if (prop.name == "children" && prop.type == "children") {
+            return true;
+        }
+    }
+    return false;
+}
 
 void NodeWalker::check_identity(const Node& node) {
     if (node.id.empty()) {
@@ -83,6 +95,31 @@ void NodeWalker::check_shape(const Node& node) {
     if (component && context.component_ids.count(node.component) == 0) {
         context.report("TESSERA_IR_UNRESOLVED", "unresolved component `" + node.component + "`",
                        node.source);
+    }
+    if (component && !node.children.empty()) {
+        // Section 3.4: only a component that declares the `children` slot prop accepts slot
+        // content.
+        const auto target = context.components.find(node.component);
+        if (target != context.components.end() && !declares_children(*target->second)) {
+            context.report("TESSERA_IR_SLOT",
+                           "a Component node has slot children, but `" + node.component +
+                               "` does not declare a `children` prop",
+                           node.source);
+        }
+    }
+    if (node.kind == NodeKind::Slot) {
+        // Section 3.4: a Slot is a bare position marker; the caller's nodes fill it at run time.
+        const bool has_payload = !node.props.empty() || !node.style.empty() ||
+                                 !node.events.empty() || node.text || node.key || node.condition ||
+                                 node.loop || node.fallback || node.item_template ||
+                                 !node.children.empty() || !node.element.empty() ||
+                                 !node.component.empty() || !node.automation_id.empty();
+        if (has_payload) {
+            context.report("TESSERA_IR_SLOT",
+                           "a Slot is a leaf with no props, style, events, key, condition, loop or "
+                           "children",
+                           node.source);
+        }
     }
     if (!component && !node.component.empty()) {
         context.report("TESSERA_IR_MALFORMED", "only a Component node has `component`",
@@ -220,10 +257,36 @@ void NodeWalker::check_condition(const Node& node) {
     }
 }
 
-void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth) {
+// Section 3.4: one Slot, only in a component that declares the `children` prop, never as the root
+// and never inside a loop template or another component's slot content.
+void NodeWalker::check_slot(const Node& node, int loop_depth, bool in_slot_content, bool is_root) {
+    if (!scope.declares_children) {
+        context.report("TESSERA_IR_SLOT",
+                       "a Slot needs the component's `children` prop (section 3.4)", node.source);
+    }
+    if (is_root) {
+        context.report("TESSERA_IR_SLOT", "a Slot cannot be the component root", node.source);
+    }
+    if (++slot_count > 1) {
+        context.report("TESSERA_IR_SLOT", "a component has at most one Slot", node.source);
+    }
+    if (loop_depth > 0) {
+        context.report("TESSERA_IR_SLOT", "a Slot is not inside a loop template", node.source);
+    }
+    if (in_slot_content) {
+        context.report("TESSERA_IR_SLOT", "a Slot is not inside another component's slot content",
+                       node.source);
+    }
+}
+
+void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth,
+                      bool in_slot_content, bool is_root) {
     check_identity(node);
     check_shape(node);
     check_events(node);
+    if (node.kind == NodeKind::Slot) {
+        check_slot(node, loop_depth, in_slot_content, is_root);
+    }
 
     LocalNames locals = outer;
     if (node.loop) {
@@ -249,14 +312,16 @@ void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth)
     validate_expr(context, scope, locals, node.text.get(), node.source);
     check_condition(node);
     validate_expr(context, scope, locals, node.condition.get(), node.source);
+    // The children of a Component node are the caller's slot content (section 3.4).
+    const bool children_in_slot = in_slot_content || node.kind == NodeKind::Component;
     for (const auto& child : node.children) {
-        walk(child, locals, loop_depth);
+        walk(child, locals, loop_depth, children_in_slot, false);
     }
     if (node.fallback) {
-        walk(*node.fallback, locals, loop_depth);
+        walk(*node.fallback, locals, loop_depth, in_slot_content, false);
     }
     if (node.item_template) {
-        walk(*node.item_template, locals, loop_depth);
+        walk(*node.item_template, locals, loop_depth, in_slot_content, false);
     }
 }
 
@@ -264,7 +329,7 @@ void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth)
 
 void validate_node_tree(ValidationContext& context, ComponentScope& scope, const Node& root) {
     NodeWalker walker{context, scope};
-    walker.walk(root, {}, 0);
+    walker.walk(root, {}, 0, false, true);
 }
 
 } // namespace tessera::compiler::ir

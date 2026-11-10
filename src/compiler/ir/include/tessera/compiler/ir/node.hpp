@@ -30,6 +30,7 @@ enum class NodeKind {
     ErrorBoundary,
     CustomElement,
     Component,
+    Slot, // a component's `{children}` position (section 3.4); replaced by the instance's children
 };
 
 std::string_view node_kind_name(NodeKind kind);

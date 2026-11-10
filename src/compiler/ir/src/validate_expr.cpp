@@ -20,8 +20,8 @@ constexpr std::string_view kUnaryOps[] = {"!", "-", "+"};
 constexpr std::string_view kFunctions[] = {"min",     "max",    "clamp",       "abs",
                                            "floor",   "ceil",   "round",       "toInt",
                                            "toFloat", "length", "formatNumber"};
-constexpr std::string_view kPrimitiveTypes[] = {"bool",  "int",    "float",   "string",
-                                                "color", "length", "node_ref"};
+constexpr std::string_view kPrimitiveTypes[] = {"bool",  "int",    "float",    "string",
+                                                "color", "length", "node_ref", "children"};
 
 template<std::size_t N> bool contains(const std::string_view (&list)[N], std::string_view value) {
     return std::find(std::begin(list), std::end(list), value) != std::end(list);
