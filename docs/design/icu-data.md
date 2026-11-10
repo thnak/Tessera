@@ -282,7 +282,9 @@ the section 5 risk: `udat_open` returning `U_ZERO_ERROR` with root data can no l
   trimmed locale, checks repeat-call determinism, and asserts that **no ICU dynamic library is
   loaded in the process** (`GetModuleHandleW` / `/proc/self/maps`), the ADR-012 property that the
   prebuilt import libraries could not provide.
-- `text_breaks_parity`: the matrix above plus determinism and code-point-boundary checks.
+- `text_breaks_parity`: the matrix above plus determinism, code-point-boundary checks, and the two
+  prose corpora the existing wrap/paint fixtures pin (`one two three … ten`), including the
+  post-space opportunity UAX #14 must offer for every interior whitespace run.
 - `locale_resolver`: manifest membership/sorting, exact/fallback/missing resolutions and their
   diagnostics, normalization, and RTL/LTR direction for kept and trimmed locales.
 - The release gate `scripts/check_static_link.py` (`dumpbin /dependents`, `ldd`, `otool -L`)

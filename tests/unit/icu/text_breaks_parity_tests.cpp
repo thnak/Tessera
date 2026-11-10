@@ -103,7 +103,9 @@ bool contains_all(const BreakBoundaries& superset, const BreakBoundaries& subset
 }
 
 // Pure-ASCII prose where the two engines must agree: the builtin word rule already matches UAX #29
-// for letters, digits, underscores, and whitespace runs.
+// for letters, digits, underscores, and whitespace runs. The last two strings are the corpora the
+// existing wrap/paint fixtures use (tests/unit/paint_text_wrap_tests.cpp), so the parity matrix is
+// checked against the text the current wrap output is pinned on.
 constexpr std::string_view kAsciiCorpus[] = {
     "",
     "a",
@@ -115,6 +117,8 @@ constexpr std::string_view kAsciiCorpus[] = {
     "snake_case name",
     "tab\tseparated\twords",
     "123 456",
+    "one two three four five six seven eight",
+    "one two three four five six seven eight nine ten",
 };
 
 void check_ascii_parity() {
@@ -182,6 +186,24 @@ void check_line_opportunities() {
                    std::string(text) + "': builtin " + show(builtin) + " icu " + show(icu));
         expect(on_codepoints(text, builtin), "builtin line offsets land on code points");
         expect(on_codepoints(text, icu), "icu line offsets land on code points");
+    }
+
+    // The greedy wrap breaks after a space; UAX #14 must offer that opportunity for every interior
+    // whitespace run of the fixture prose, or a wrapped line would silently overflow. Leading and
+    // trailing whitespace produce no opportunity (the wrap never breaks there either).
+    for (const std::string_view text : kAsciiCorpus) {
+        const BreakBoundaries icu = line_boundaries(text);
+        for (std::size_t index = 1; index + 1 < text.size(); ++index) {
+            if (text[index] != ' ' || text[index + 1] == ' ') {
+                continue;
+            }
+            bool found = false;
+            for (const std::size_t offset : icu.offsets) {
+                found = found || offset == index + 1;
+            }
+            expect(found, std::string("icu offers the post-space break at ") +
+                              std::to_string(index + 1) + " in '" + std::string(text) + "'");
+        }
     }
 
     // CJK: both engines break between ideographs, which is what keeps a CJK paragraph inside its
