@@ -410,7 +410,10 @@ verbatim: no second tree, no scene pointers across the boundary. Everything live
 | Mapping | `uia_mapping.*` | UIA property/pattern/control-type ids repeated as plain integers (the Windows probe static_asserts them against `UIAutomationClient.h`); `control_type_for(Role)` and `patterns_for(A11yNode)`. Switch maps to CheckBox (UIA has no switch), alert to Text, containers to Pane. Patterns: Invoke from `Action::Press`, Value from `Action::SetValue`, SelectionItem for selectable roles or `State::Selected`, Selection for List/Menu. |
 | Handoff | `uia_handoff.*` | Single-producer/single-consumer one-slot handoff. `publish` replaces an unconsumed snapshot and increments `dropped` (drop-oldest, newest tree wins); `take` copies into the consumer's reused buffer. The slot keeps its reserved capacity, so the UI-thread path allocates nothing after the first snapshot. |
 | Provider | `uia_provider.*` | Bridge-thread projection of one node (`UiaElementInfo`: control type, patterns, bounded name/value/description, automation id, bounds, enabled/focused/selected), a precomputed parent table, `element`/`child_count`/`child_at`/`focused`/`hit_test`, and a bounded (32) coalescing action ring with a `SetValue` text payload. Every query asserts bridge-thread ownership. |
-| Bridge | `uia_bridge.*`, `uia_bridge_jobs.*` | Owns the one bridge thread, the apartment, the handoff, and a bounded (8) client-job ring. Phases `Idle -> Starting -> Running -> Failed/Stopped`; `start` never blocks on COM initialization, `stop` signals and joins with a liveness bound, restart re-initializes the same apartment. Jobs run inline when the caller is already the bridge thread. |
+| Bridge | `uia_bridge.*`, `uia_bridge_jobs.*` | Owns the one bridge thread, the apartment, the handoff, and a bounded (8) client-job ring. Phases `Idle -> Starting -> Running -> Failed/Stopped`; `start` never blocks on COM initialization, `stop` signals and joins with a liveness bound, restart re-initializes the same apartment. Jobs run inline when the caller is already the bridge thread; `post` enqueues work without waiting. The newest published tree is adopted immediately before each job runs, and `set_hooks` installs the bridge-thread lifecycle hooks the host uses to own the root provider. |
+| Host | `uia_host.*`, `uia_platform*.cpp` | `UiaHost` is the window/host owner: it creates the root provider on the bridge thread (the start hook) and releases it before the apartment shuts down (the stop hook), publishes only dirty snapshots, derives and queues events, drains actions at a tick boundary, and answers `WM_GETOBJECT` from one atomic pointer. `UiaPlatform` is the platform seam: the Windows implementation owns the COM root and the bounded per-node provider cache; every other platform returns nullptr, so `start` reports `UnsupportedPlatform` and the app runs with accessibility off. |
+| Events | `uia_events.*` | Bounded (64) coalescing queue plus the pre-order tree diff that derives one root `ChildrenInvalidated`, per-node child-list changes (`Reordered` when only the order moved), name/value/help-text/enabled/selected/bounds property changes, and one focus event. Windows raises a batch with `UiaRaiseStructureChangedEvent`, `UiaRaiseAutomationPropertyChangedEvent` and `UiaRaiseAutomationEvent` (focus) from the cached providers on the bridge thread. |
+| Window seam | `include/tessera/hal/window.hpp`, `src/hal/window/window_accessibility_win.hpp`, `src/platform/windows/window_accessibility.cpp` | `hal::Window::set_accessibility_root` installs a non-blocking answer callback. The Win32 window procedure answers `WM_GETOBJECT` with `UiaReturnRawElementProvider(hwnd, wParam, lParam, root)` and falls back to `DefWindowProc` when no root is published (starting, failed, stopped, or a non-UIA object id), so UIA keeps the default MSAA bridge instead of seeing an empty provider. |
 | Apartment | `uia_apartment*.cpp` | Windows: `CoInitializeEx(nullptr, COINIT_MULTITHREADED)` + `CoUninitialize` + a bounded `PeekMessage`/`DispatchMessage` pump; `RPC_E_CHANGED_MODE` is `ApartmentUnavailable`. Every other platform: an apartment whose `init` returns `UnsupportedPlatform`, so accessibility disables instead of failing the app. |
 | COM adapter | `uia_com*.cpp`, `uia_com_provider.hpp` | `IRawElementProviderSimple`, `IRawElementProviderFragment` (+Root for index 0), `IInvokeProvider`, `IValueProvider`, `ISelectionItemProvider`. Properties: Name, ControlType, IsEnabled, BoundingRectangle (`VT_ARRAY | VT_R8`), HasKeyboardFocus, IsOffscreen, AutomationId, HelpText, FrameworkId, ValueValue, ValueIsReadOnly, SelectionItemIsSelected; unsupported ids are `VT_EMPTY` + `S_OK`. Runtime id is `(UiaAppendRuntimeId, index + 1)`. `get_ProviderOptions` reports `ServerSideProvider | UseComThreading`. |
 
@@ -418,8 +421,8 @@ Threading is the whole point of the slice:
 
 - The UI thread only calls `publish` (bounded handoff) and `take_actions` (bounded ring drain). It
   never calls UIA, never touches COM, and never waits on the bridge thread.
-- The bridge thread initializes the MTA apartment, adopts the newest snapshot at the head of each
-  client batch, runs at most `max_jobs_per_iteration` (4) jobs, then pumps messages once. An idle
+- The bridge thread initializes the MTA apartment, adopts the newest snapshot immediately before
+  each job runs, runs at most `max_jobs_per_iteration` (4) jobs, then pumps messages once. An idle
   bridge does no snapshot work at all: publication does not wake it, so a static window produces no
   accessibility CPU beyond the bounded idle wait (16 ms default).
 - Every COM method marshals onto the bridge thread through `UiaBridge::run_on_bridge`, which runs
@@ -433,9 +436,33 @@ Threading is the whole point of the slice:
 - No exception crosses the thread or COM boundary: allocation failures are `OutOfMemory`, and a
   host callback that throws is reported as `Internal` (spec section 10, ADR-025).
 
-Caps: 256 snapshot nodes, 32 queued actions, 8 queued client jobs, 4 jobs per iteration, 5 s per-call
-liveness bound, 2 s stop liveness bound, 16 ms idle wait. The COM object's reference count is atomic;
-the host owns every provider it creates and must release it before destroying the bridge.
+Host wiring (`WM_GETOBJECT`):
+
+- `UiaHost::start()` only spawns the bridge. The bridge thread initializes the apartment and then
+  runs the start hook, which creates the root provider (`A11yIndex 0`) and publishes its raw pointer
+  in an atomic. Until that pointer exists (idle, starting, failed, stopped, or a build without a UIA
+  platform seam) the window falls back to `DefWindowProc`; the UI thread must never wait for COM or
+  call UIA, and the answer path is one atomic load.
+- `hal::Window::set_accessibility_root` is the seam the window procedure calls. The Win32 window
+  answers `WM_GETOBJECT` with `UiaReturnRawElementProvider(hwnd, wParam, lParam, root)` only for the
+  UIA root object id (`UiaRootObjectId`, -25); `OBJID_CLIENT` and child ids keep the platform
+  default. `stop()` clears the pointer before the stop hook releases the provider, so a shutdown
+  race sees "not ready" rather than a dangling object.
+- `UiaHost::mark_dirty()` is called from the semantics/layout/focus change paths and `tick()` is the
+  UI-thread boundary: it builds a snapshot only when dirty, publishes it, then drains at most
+  `max_actions_per_tick` (8) validated actions in arrival order. A static window (not dirty, no
+  queued actions) does no build, no publish, no bridge wake, and no UIA call. A throwing snapshot
+  source keeps the previous tree published (and the host dirty) and is reported as a value; a
+  throwing action ends that tick's batch and is counted as failed, never retried.
+- One tick posts at most one event-flush job (`UiaBridge::post`, never a wait). A full job ring
+  defers the flush to a later tick and the coalesced events stay queued; the queue is bounded (64)
+  and drops the oldest on overflow with a counter.
+
+Caps: 256 snapshot nodes, 32 queued actions, 8 queued client jobs, 64 queued events, 8 actions per
+tick, 4 jobs per iteration, 5 s per-call liveness bound, 2 s stop liveness bound, 16 ms idle wait.
+The COM object's reference count is atomic; the host owns every provider it creates (the Windows
+platform caches one per snapshot index and releases the cache with the root before destroying the
+bridge).
 
 Tests (`tests/unit/a11y/`, names start with `a11y`): `a11y_uia_mapping` (role/control-type/pattern
 tables, run on every platform), `a11y_uia_handoff` (drop-oldest counter, newest-tree-wins, buffer
@@ -443,16 +470,26 @@ reuse), `a11y_uia_bridge` (publication only on client calls, overflow, thread ow
 coalescing and the QueueFull bound), `a11y_uia_bridge_lifecycle` (start/stop/restart ordering,
 init failure as a value, bounded client wait while the pump is blocked, pending snapshot across a
 restart), `a11y_uia_provider` (projection, parent/child, focus/hit-test, action validation),
-`a11y_uia_compile_check` (Windows: SDK headers, id static_asserts, `uiautomationcore`/`ole32` link),
-and `a11y_uia_com` / `a11y_uia_com_nav` (Windows: the real provider vtable, properties, patterns,
+`a11y_uia_events` (coalescing/dedup, drop-oldest, the deterministic tree diff),
+`a11y_uia_host_getobject` (root handshake on the bridge thread, not-ready fallback, shutdown order,
+failed init, restart), `a11y_uia_host_tick` (a static tick publishes nothing, dirty-only publish,
+tick-boundary action drain and its budget), `a11y_uia_host_events` (one raise batch per flush on the
+bridge thread, unchanged trees raise nothing), `a11y_uia_compile_check` (Windows: SDK headers, id
+static_asserts, `uiautomationcore`/`ole32` link), `a11y_uia_window_getobject` (Windows: the real
+window procedure routes `WM_GETOBJECT` through the handshake and falls back after uninstall), and
+`a11y_uia_com` / `a11y_uia_com_nav` (Windows: the real provider vtable, properties, patterns,
 navigation, shutdown behavior; no UIA client).
 
 Known limits of this slice:
 
-- The HAL host still has to answer `WM_GETOBJECT` with `UiaReturnRawElementProvider` for a root
-  provider and publish dirty snapshots; `get_HostRawElementProvider` returns null until then.
-- No UIA events (`StructureChanged`, `PropertyChanged`, `AutomationFocusChanged`) are raised; the
-  AT-SPI2 side owns the event model, and a UIA event slice will reuse `atspi_events.hpp`'s shapes.
+- `get_HostRawElementProvider` still returns null: the bridge has no window handle, so the root must
+  eventually receive an opaque native handle (or `UiaHostProviderFromHwnd`) through the platform
+  seam.
+- `UiaRaiseAutomationPropertyChangedEvent` is raised with empty `VARIANT` old/new values; clients
+  re-query the property. Focus events are only raised when the host marks the snapshot dirty for the
+  focus change (the event is derived from the snapshot diff, not from the input path directly).
+- The tree diff keys nodes by `NodeId` and is linear per node over the bounded snapshot (worst case
+  quadratic at 256 nodes) on a dirty publish only.
 - `ISelectionProvider` (list-wide selection) and `ITextProvider` ranges are not advertised;
   `AddToSelection`/`RemoveFromSelection` return `UIA_E_NOTSUPPORTED` because multi-select is not in
   the semantics model.

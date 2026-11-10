@@ -86,6 +86,27 @@ over the section 1 semantics snapshot; unsupported properties answer `VT_EMPTY`,
 value-shaped property results. See
 [`accessibility-v1.md`](../specs/accessibility-v1.md#122-implemented-subset-windows-uia-provider-on-an-mta-bridge-thread).
 
+The host side is wired end to end:
+
+- **Root handshake.** `UiaHost` creates the root provider on the bridge thread through the
+  `UiaBridge` start hook, publishes its raw pointer in an atomic, and the Win32 window proc answers
+  `WM_GETOBJECT` with `UiaReturnRawElementProvider` only for `UiaRootObjectId`. The window thread
+  never waits for COM: a not-ready bridge (starting, failed, stopped, no platform seam) answers
+  `false` and the window keeps `DefWindowProc`'s default MSAA bridge.
+- **Dirty cadence.** `mark_dirty()` is set from the semantics/layout/focus changes; `tick()` builds
+  and publishes a snapshot only when dirty, so a static window does no build, no publish, and no
+  bridge wake. Actions queued by the provider are drained in the same tick, bounded per tick.
+- **Events.** A dirty publish is diffed against the last tree: one root `ChildrenInvalidated`, one
+  event per parent whose child list changed (`Reordered` when only the order moved), property
+  changes for name/value/help text/enabled/selected/bounds, and one focus event when the focused
+  node moves. Events go through a bounded coalescing queue (per node+property with value dedup, one
+  pending focus event, drop-oldest on overflow) and are raised on the bridge thread by a single
+  posted flush job, never from the window thread.
+
+The remaining Windows gaps are `get_HostRawElementProvider` (no window handle reaches the bridge
+yet), event payload variants (clients re-query), and `ITextProvider`/list-wide `ISelectionProvider`;
+they are tracked in the spec's known-limits list.
+
 ## 4. Focus and keyboard
 
 - Focus order follows the scene/semantics tree by default; explicit `tabindex`-like ordering
@@ -138,18 +159,20 @@ value-shaped property results. See
 - Semantics updates are coalesced at frame/tick boundaries.
 - Platform calls are batched; never block the UI thread on an accessibility service.
 - The tree is snapshot-based; platform bridges do not hold scene pointers.
-- The UIA provider adopts the newest snapshot only when a client call arrives, so an idle bridge does
-  no snapshot work and a static window produces no accessibility wakeups; the handoff keeps one
-  reserved buffer on each side.
+- The UIA provider adopts the newest snapshot only when a bridge job runs, so an idle bridge does
+  no snapshot work and a static window produces no accessibility wakeups; a dirty tick builds once
+  and the handoff keeps one reserved buffer on each side. Event raising is one posted job per tick
+  at most, and the event queue is bounded.
 - Disabled accessibility adds no measurable per-frame cost.
 
 ## 9. Open questions
 
 - How much semantics is inferred vs explicitly authored.
 - AT-SPI over D-Bus without linking LGPL libraries: exact service/protocol subset.
-- UIA hosting specifics: `WM_GETOBJECT`/`UiaReturnRawElementProvider` wiring, UIA event raising,
-  and text/selection pattern depth (provider threading is decided: one MTA bridge thread, spec
-  section 12.2).
+- UIA hosting specifics are decided and implemented for the root path
+  (`WM_GETOBJECT`/`UiaReturnRawElementProvider`, dirty snapshot publishing, structure/property/focus
+  events); still open are `get_HostRawElementProvider` (passing a window handle to the bridge), event
+  payload variants, and text/selection pattern depth (spec section 12.2).
 - Screen-reader behavior for virtualized lists/charts; see
   [`virtualization-v1.md`](../specs/virtualization-v1.md).
 - Accessibility for custom-drawn text/paths.
