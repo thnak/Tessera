@@ -10,6 +10,10 @@
 # harness binary, tests, and any in-process embedding can share the same bytes.
 add_library(tessera_harness STATIC
     in_process_transport.cpp
+    json_parse.cpp
+    json_string.cpp
+    json_value.cpp
+    json_write.cpp
     line_framing.cpp
     utf8.cpp)
 
