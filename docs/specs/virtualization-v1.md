@@ -52,6 +52,11 @@ VirtualCollection
 
 The collection owns no per-item state for unrealized items. Item state that must survive
 scrolling belongs to the data source or an explicit keyed store, not to recycled nodes.
+Implemented store: `virtualization::ItemStateStore` in
+[`item_state_store.hpp`](../../include/tessera/ui/virtual/item_state_store.hpp) — fixed capacity,
+deterministic LRU eviction, no wall clock, no allocation after construction. The data source stays
+read-only, `build` never reads recycled state, and state for a key outlives the node that showed
+it.
 
 ## 3. Data source
 
@@ -106,9 +111,20 @@ O(1) range calculation; no per-item measurement.
 - Measure lazily and cache `(key, constraints) -> size`.
 - Range = binary search for `scroll - overscan` and `scroll + viewport + overscan`.
 - Inserts/removes update the prefix index incrementally.
-- Estimate unknown sizes with a default (the IR prop `estimateSize`, section 10; the default value
-  and the estimation strategy are not specified, see section 13); refine on measure.
+- Estimate unknown sizes with a default: **32 px main-axis size**. The default is the
+  `estimateSize` prop in the section 10 IR example and the constant `kItemEstimateMain` in
+  [`item_geometry.hpp`](../../include/tessera/ui/virtual/item_geometry.hpp). There is no
+  per-item guess and no growth heuristic, so offsets and totals stay deterministic.
+- A real measure replaces the estimate in the prefix sums (`ItemGeometry::refine_measure`):
+  only the suffix after the measured key shifts, measured items keep their size and offset, and
+  the total extent changes by the delta. The estimate may be restored for an offscreen item
+  (`reset_measure`), which shifts the same suffix back.
 - Re-measure invalidates only affected suffix/window, not the whole list.
+
+Implementation: `include/tessera/ui/virtual/` + `src/ui/virtual/` (`tessera_virtual`). The
+geometry is a fixed-capacity Fenwick tree: `item_offset`, `total_extent`, `index_at_offset` and
+`visible_range` are O(log n) and allocation-free; `insert`/`remove` rewrite the shifted suffix
+in O(n). Capacity is a constructor argument and a hard cap, not a growth policy.
 
 ### Grid
 
@@ -141,7 +157,10 @@ O(1) range calculation; no per-item measurement.
 - On insert/remove before the anchor, adjust `scroll_offset` so the anchor stays visually
   stable.
 - On item measurement changes, preserve the anchor unless the anchor item itself changed size;
-  then clamp to the nearest valid position.
+  then clamp to the nearest valid position. Concretely: an item measured before the anchor shifts
+  `scroll_offset` by the same delta, a measured anchor item keeps the offset, an item after the
+  anchor changes nothing, and the result is clamped to `[0, total_extent - viewport_extent]`
+  (`virtualization::reanchor_scroll`).
 - On data replacement, match by key; missing anchor -> nearest surviving key.
 - `scroll_to_key(key, align)` realizes the target, measures if needed, scrolls, then focuses if
   requested.
@@ -254,10 +273,14 @@ Tests:
 
 ## 13. Open questions
 
-- Variable-size estimation strategy and correction when estimates are wrong.
+- Variable-size estimation strategy and correction when estimates are wrong. **Decided:** a
+  constant 32 px main-axis estimate, replaced by a real measure; only the suffix shifts and the
+  anchor re-anchors (sections 4 and 6). No correction heuristic runs on top of a real measure.
 - Grid span/masonry and variable column widths.
 - Nested virtualization (virtual list inside a virtual row).
-- Whether item state should live in a keyed store or in the data source.
+- Whether item state should live in a keyed store or in the data source. **Decided:** an explicit
+  keyed store owned by the component (section 2); the data source stays read-only and recycled
+  nodes hold no item state.
 - Recycling vs rebuild for complex/custom item trees.
 - IR representation: decided in [`ir-v1.md`](ir-v1.md) (`VirtualList`/`VirtualGrid` node kinds, closed in V1); not an open question.
 - Sticky headers/sections with variable heights.
@@ -267,7 +290,17 @@ Tests:
 
 ## 14. Status
 
-- Design/spec only; no implementation yet.
+- Implemented (B2 slice, `tessera_virtual`): main-axis prefix-sum geometry with 32 px estimates,
+  estimate-to-measure refinement that shifts only the suffix, visible-range/total-extent/
+  index-at-offset lookup, and the section 6 re-anchor math
+  (`include/tessera/ui/virtual/`, `src/ui/virtual/`); bounded keyed item state store with
+  deterministic LRU eviction (recycled nodes hold no state).
+- Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
+  refine suffix shift, insert/remove, capacity), `virtual_anchor` (re-anchor after measure,
+  clamp), `virtual_state` (state across recycle, eviction rule).
+- Design/spec only still: the collection/node recycler and data-source build/release, grid rows,
+  sticky headers, focus/selection/accessibility integration, async prefetch, IR/codegen emission
+  for `VirtualList`/`VirtualGrid`, and dirty/render integration.
 - Depends on: IR/component model ([`ir-v1.md`](ir-v1.md),
   [`component-model-v1.md`](component-model-v1.md)), Yoga layout/measure
   ([`layout.md`](../design/layout.md)), input/focus ([`input.md`](../design/input.md)),
