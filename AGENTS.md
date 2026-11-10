@@ -565,10 +565,20 @@ static dependency: `third_party/icu` pins icu4c 76.1 and builds static `tessera_
 `tessera_icu_i18n`, `reduced_data.cmake` trims the data to 22 locale bundles (17,293,904 B) and
 emits `locales.json` + `icu_locale_manifest.h`, `ui/text/icu_runtime.*` installs the blob with
 `udata_setCommonData` (an in-process test proves no shared ICU is loaded), `ui/text/text_breaks.*`
-exposes one UAX #29/#14 break API with the builtin rules kept as the ICU-free backend, and
-`ui/text/locale_resolver.*` validates locales against the manifest with `icu.locale.fallback` /
+exposes one UAX #29/#14 break API with the builtin rules kept as the ICU-free backend, and the
+greedy wrap now consumes it: `layout_text`/`layout_text_measured` delegate to
+`layout_text_with_breaks` (`src/ui/text/text_wrap.*`), which places one UAX #14 segment per line unit,
+trims both segment edges (leading spaces never start a line), and keeps the blank-paragraph rule, the
+over-wide-run split (binary search for the measured prefix, then the last legal break) and the
+nowrap path; `text_measure.cpp` lost its duplicated wrap. Fixture deltas are deliberate and pinned
+(interior space runs advance their real width; a line fills to a hyphen; em-dash BA class differs
+between the builtin and ICU engines and both are recorded). The off-by-default switch is still
+`TESSERA_ICU_REDUCED_DATA`; the condition the earlier note set is met, so the CI flip is queued as a
+dedicated `icu-text` job (provision pinned icupkg/genccode + the full data blob, ON configure,
+filtered ctest) while every default lane stays OFF - linking the 17.3 MB blob into every
+`tessera_text` consumer grows that test binary from 0.84 MB to 19.7 MB, so it should not ride every
+job. `ui/text/locale_resolver.*` validates locales against the manifest with `icu.locale.fallback` /
 `icu.locale.missing` diagnostics; tests `icu_locale_pack`, `text_breaks_parity`, `locale_resolver`.
-`TESSERA_ICU_REDUCED_DATA` stays OFF in CI until the whole greedy wrap consumes UAX #14.
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
