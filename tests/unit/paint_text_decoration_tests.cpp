@@ -444,6 +444,22 @@ bool test_empty_text() {
 
 } // namespace
 
+bool test_computed_text_align() {
+    Node node(1);
+    node.set_bounds({10, 20, 200, 40});
+    StubStyles styles;
+    styles.set(1, styled({{"font-size", "16px"}, {"color", "white"}, {"text-align", "right"}}));
+    PaintData data = text_payload("abcde");
+    data.decoration = decoration(5);
+    node.set_paint_data(std::move(data));
+    RecordingSink sink;
+    paint_scene(node, styles, sink);
+    const Event* text = sink.first(EventKind::Text);
+    // 5 code points x 8 px = 40 px; right alignment puts the run at 10 + (200 - 40).
+    return expect(text != nullptr && text->rect.x == 170.0f,
+                  "an editable text node honors computed text-align");
+}
+
 int main() {
     bool ok = true;
     ok = test_no_wrap_caret_positions() && ok;
@@ -455,6 +471,7 @@ int main() {
     ok = test_clip_interaction() && ok;
     ok = test_damage_replay() && ok;
     ok = test_empty_text() && ok;
+    ok = test_computed_text_align() && ok;
     if (!ok) {
         std::cerr << "paint_text_decoration: failed\n";
         return 1;

@@ -119,8 +119,8 @@ void emit_line_runs(const text::TextLine& line, std::string_view text,
 
 void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
                            const text::TextStyle& text_style, const rhi::Color& color,
-                           float opacity, bool wrap, PaintSink& sink, PaintStats& stats,
-                           const PaintContext& context) {
+                           float opacity, bool wrap, PaintTextAlign align, PaintSink& sink,
+                           PaintStats& stats, const PaintContext& context) {
     const std::string& text = data.text;
     StubPaintTextMetrics stub_source;
     const PaintTextMetricsSource* metrics_source =
@@ -157,9 +157,9 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
     float line_top = content.y;
     for (const text::TextLine& line : local_layout.lines) {
         float line_x = content.x;
-        if (data.text_align.value_or(PaintTextAlign::Start) == PaintTextAlign::Center) {
+        if (align == PaintTextAlign::Center) {
             line_x += (content.width - line.width) * 0.5f;
-        } else if (data.text_align.value_or(PaintTextAlign::Start) == PaintTextAlign::End) {
+        } else if (align == PaintTextAlign::End) {
             line_x += content.width - line.width;
         }
         lines.push_back(LineGeometry{line, std::max(content.x, line_x), line_top});
@@ -366,7 +366,9 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
     if (data->decoration) {
         paint_text_decoration(*data, {content_x, content_y, content_width, content_height},
-                              text_style, color, opacity, wrap, sink, stats, context);
+                              text_style, color, opacity, wrap,
+                              data->text_align.value_or(computed_text_align(style)), sink, stats,
+                              context);
         return;
     }
     if (!wrap) {
