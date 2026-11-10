@@ -179,6 +179,9 @@ std::expected<Manifest, ValidationError> parse_manifest(std::string_view json_te
         if (!entry) {
             return std::unexpected(entry.error());
         }
+        if (auto rules = apply_shader_rules(*entry, path); !rules) {
+            return std::unexpected(rules.error());
+        }
         for (const ShaderEntry& existing : manifest.shaders) {
             if (existing.name == entry->entry.name) {
                 return fail(ValidationErrorCode::DuplicateShaderName, member_path(path, "name"),

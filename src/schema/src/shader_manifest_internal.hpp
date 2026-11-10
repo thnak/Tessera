@@ -94,4 +94,9 @@ struct ParsedShaderEntry {
 [[nodiscard]] std::expected<ParsedShaderEntry, ValidationError>
 parse_shader_entry(const JsonValue& value, std::string_view path);
 
+// Section 4 compatibility rules and the section 3.1 interface checks. Runs after the entry shape
+// is parsed; `path` points at the shader object.
+[[nodiscard]] std::expected<void, ValidationError> apply_shader_rules(ParsedShaderEntry& parsed,
+                                                                      std::string_view path);
+
 } // namespace tessera::schema::internal

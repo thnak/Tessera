@@ -17,6 +17,7 @@ add_library(tessera_schema STATIC
     src/shader_manifest_io.cpp
     src/shader_manifest_names.cpp
     src/shader_manifest_read.cpp
+    src/shader_manifest_rules.cpp
     src/style.cpp
     src/types.cpp)
 
