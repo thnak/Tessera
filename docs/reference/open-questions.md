@@ -32,7 +32,7 @@ Questions flagged as unblocking the next implementation round: **19** (marked `*
 - **design/compiler.md#5** — V1 keeps exact, explicit dependency arrays and rejects missing or extra deps; no inferred-dependency analysis. _resolved; component-model-v1.md section 2; jsx-ir-lowering.md effect-deps row._
 - **design/compiler.md#6** — Fail fast: the CLI stops at the first error (exit 1) and emits no partial C++; tolerant recovery exists only in the designer. _resolved; jsx-subset-v1.md sections 14 and 15; compiler.md sections 2 and 10._
 - **design/compiler.md#7** — No migration tool in V1: renaming a bind:: id is a manual reviewed edit plus a full regeneration; the merger warns on orphaned regions. _resolved; ADR-008; compiler.md section 8 merger rules._
-**[`docs/specs/jsx-subset-v1.md`](../specs/jsx-subset-v1.md#18-open-questions-no-decision-yet)**
+**[`docs/specs/jsx-subset-v1.md`](../specs/jsx-subset-v1-jsx.md#18-open-questions-no-decision-yet)**
 
 - **specs/jsx-subset-v1.md#1** — No open question: every listed topic is already decided, so this round changes nothing here. _resolved; jsx-subset-v1.md section 18 states Still open: None; manifest format in section 7.1._
 **[`docs/specs/ir-v1.md`](../specs/ir-v1.md#14-open-questions)**

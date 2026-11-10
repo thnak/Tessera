@@ -100,7 +100,9 @@ This page is the map and reading order for the framework.
 - [`specs/designer-protocol-v1.md`](specs/designer-protocol-v1.md) — host/viewer messages of the
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
-  handlers, hooks, rejected constructs, diagnostics, error-tolerant parsing
+  handlers, hooks (sections 0-9)
+- [`specs/jsx-subset-v1-jsx.md`](specs/jsx-subset-v1-jsx.md) — part 2 of the JSX/TSX subset: JSX,
+  intrinsic elements, rejected constructs, diagnostics, error-tolerant parsing, limits (sections 10-18)
 - [`specs/jsx-intrinsics-v1/`](specs/jsx-intrinsics-v1/README.md) — intrinsic element table: children,
   props, events and payloads, refs, IR lowering, lowercase HTML aliases, React compatibility,
   machine-readable form (folder with index)

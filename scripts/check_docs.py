@@ -58,7 +58,6 @@ INDEX_ALLOW_LIST: Dict[str, str] = {
 # Documents that predate the 600-line hard limit. docs/README.md section 0 says an existing
 # oversized document is split when it is next edited; these are reported as warnings until then.
 SIZE_ALLOW_LIST: Dict[str, str] = {
-    "docs/specs/jsx-subset-v1.md": "789 lines when the gate landed; split when next edited",
 }
 
 # Broken links that are expected while an in-flight lane's doc lands. Entries are warnings, not
