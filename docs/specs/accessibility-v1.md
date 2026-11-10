@@ -329,3 +329,43 @@ events/notifications/live regions, semantics diffing and dirty flags, ignored-wr
 tri-state checked, virtualized item realization, hidden-but-laid-out entries, text selection/
 caret/IME semantics, relations (`describedby`, reverse `labelledby`), localization, and
 screen-reader testing.
+
+## 12.1 Implemented subset: in-tree AT-SPI2 D-Bus wire client
+
+The Linux bridge speaks the AT-SPI2 D-Bus protocol directly - no libatspi, no glib, no new
+third-party dependency ([ADR-012](../../decisions/ADR-012-static-linking.md)) - in
+`include/tessera/ui/accessibility/` + `src/ui/accessibility/` (same `tessera_accessibility`
+target). Everything is deterministic and testable without a bus daemon.
+
+| Layer | Files | Contract |
+|---|---|---|
+| Address | `dbus_address.*` | Parses the `;`-separated D-Bus address list, decodes `%XX`, expands `unix:runtime=yes`, and resolves only `unix:path=`/`unix:abstract=`. Other transports (`tcp:`, `unixexec:`, `launchd:`, `autolaunch:`) return `UnsupportedTransport`, so accessibility disables instead of guessing. Input is capped at 1 KiB and endpoints at 107 bytes (`sun_path`). |
+| Transport | `dbus_transport.*`, `dbus_unix_transport.cpp` | `Transport` seam (`connect`/`read_some`/`write_all`/`close`). `LoopbackTransport` is the deterministic in-process pair every test uses; `create_unix_socket_transport()` returns the POSIX `SOCK_STREAM` implementation on Linux and `nullptr` elsewhere. Reads are bounded by a `poll` timeout, never by a spin. |
+| Codec | `dbus_wire.hpp`, `dbus_wire.cpp`, `dbus_reader.cpp`, `dbus_message.cpp` | Full alignment table, signature validation, `MessageWriter`/`MessageReader`, and `parse_message`. Every value is written/read at its D-Bus alignment and bounds-checked against the enclosing container; an array's declared length must match its elements. Caps: 512 bytes of text, 4 KiB of header fields, 256 KiB of body, 16 nested containers. Errors are `WireError` values. |
+| Auth | `dbus_auth.*` | SASL `EXTERNAL`: NUL + `AUTH EXTERNAL <hex uid>`, then `OK`/`REJECTED`/`ERROR`/`DATA` handling, optional `NEGOTIATE_UNIX_FD` (a refusal falls back to a plain connection), then `BEGIN`. Partial lines are buffered; lines are capped at 4 KiB. |
+| Mapping | `atspi_mapping.*` | Role id/name table (`AtspiRole`), the two-word `AtspiState` set, interface list, action names, text content, `AtspiValue`, component layer, and `/org/a11y/atspi/accessible/<index>` paths. |
+| Dispatch | `atspi_bridge.*`, `atspi_methods.cpp` | Answers `Accessible` (`GetName`, `GetDescription`, `GetRole`, `GetRoleName`, `GetState`, `GetInterfaces`, `GetChildCount`, `GetChildren`, `GetChildAtIndex`, `GetParent`, `GetIndexInParent`, `GetApplication`, `GetAttributes`, `GetRelationSet`, `GetAccessibleId`, `Contains`), `Application` (`GetLocale`, `GetApplicationBusAddress`, `GetName`, `GetVersion`, `GetToolkitName`, `GetId`), `Action` (`GetActionCount`, `GetActions`, `GetActionName`, `GetActionDescription`, `GetKeyBinding`, `DoAction`), `Component` (`GetExtents`, `GetPosition`, `GetSize`, `GetLayer`, `GetMDIZOrder`, `GetAlpha`, `GrabFocus`, `Contains`), `Text` (`GetCharacterCount`, `GetText`, `GetTextAtOffset`, `GetCaretOffset`, `SetCaretOffset`, `GetSelectionCount`, `GetSelection`), and `Value` (`GetCurrentValue`, `SetCurrentValue`, `GetMinimumValue`, `GetMaximumValue`, `GetMinimumIncrement`). Unknown object/method/arguments return `UnknownObject`/`UnknownMethod`/`InvalidArgs`. |
+| Events | `atspi_events.*` | Bounded (64) coalescing queue keyed by `(kind, node, detail)`; state/property/bounds/visible-data factories; one `org.a11y.atspi.Event.Object` signal (`siiva{sv}`) per delivered event. |
+
+Threading ([ADR-021](../../decisions/ADR-021-async-runtime.md)): the UI thread only calls `publish`
+(bounded snapshot copy) and `post_event`/`take_actions` (bounded ring); the bridge thread owns
+`dispatch`/`emit_events` and the transport. Accessibility actions never run on the bridge thread:
+`DoAction`, `GrabFocus`, and `SetCurrentValue` validate the request and append an `ActionRequest`
+(the queue coalesces identical node/action pairs) for the UI thread to execute at a tick boundary.
+
+Known limits of this slice, with the deferred integration:
+
+- The connect/auth/`Hello`/registry handshake (`org.a11y.Bus.GetAddress`, `Registry.RegisterEvent`)
+  is not wired yet: the bridge starts at the dispatcher, so a caller that owns a connected
+  `Transport` drives it. That handshake is the next slice.
+- `org.freedesktop.DBus.Properties` (`Get`/`GetAll`) is not served; ATs use the equivalent methods.
+- Text offsets are UTF-8 byte offsets with one run for the whole text (no line/word boundaries).
+- `Value` reports the snapshot's textual value against a fixed 0..100 range with a 1 increment,
+  because the snapshot does not carry ARIA `valuemin`/`valuemax` yet.
+- `GetApplicationBusAddress` returns the configured string; the caller fills it from the registry.
+
+Tests (`tests/unit/a11y/`, names start with `a11y`): `a11y_dbus_address`, `a11y_dbus_transport`,
+`a11y_dbus_wire` (golden bytes for header framing, a `(so)` reply, and a `siiva{sv}` signal),
+`a11y_dbus_wire_bounds` (truncation, alignment, caps, nesting, writer overflow), `a11y_dbus_auth`,
+`a11y_atspi_mapping`, `a11y_atspi_events`, `a11y_atspi_bridge`, and `a11y_atspi_bridge_events`.
+

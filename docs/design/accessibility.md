@@ -57,6 +57,12 @@ Bridges are optional at runtime: if the platform service is unavailable, the app
 accessibility is disabled with a diagnostic. Mobile-specific semantics/IME/declarations are in
 [`mobile-integration.md`](mobile-integration.md).
 
+The Linux bridge is an in-tree AT-SPI2 protocol client (no libatspi/glib), split into address
+parsing, a `Transport` seam (POSIX socket on Linux, deterministic loopback in tests), the D-Bus wire
+codec, SASL `EXTERNAL`, the interface dispatcher, and a bounded coalescing event queue; see
+[`accessibility-v1.md`](../specs/accessibility-v1.md#121-implemented-subset-in-tree-at-spi2-d-bus-wire-client).
+Snapshots, events, and queued actions are the only things that cross the bridge thread boundary.
+
 ## 4. Focus and keyboard
 
 - Focus order follows the scene/semantics tree by default; explicit `tabindex`-like ordering
