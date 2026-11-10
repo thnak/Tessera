@@ -510,7 +510,14 @@ now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Tran
 loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface
 mapping, and Accessible/Application/Action/Component/Text/Value dispatch with a bounded action
 queue plus a bounded coalescing event queue (spec §12.1); tests `a11y_*`. Next: the `AtspiSession`
-connect/auth/Hello/registry handshake and its pumped worker thread. `tessera_schema` now loads and
+connect/auth/Hello/registry handshake and its pumped worker thread: `AtspiSession` owns the two
+D-Bus connections (session connect/auth/`Hello` -> `org.a11y.Bus.GetAddress` -> accessibility
+connect/auth/`Hello` -> `Registry.RegisterEvent` for state/property/bounds changes), with typed
+`SessionError` values, a bounded `pump` on one joined worker thread, and read-only `Properties`
+Get/GetAll; tests `a11y_atspi_session`, `a11y_atspi_session_pump`, `a11y_atspi_properties`. Next:
+wire the session into the Linux host (dirty-driven snapshot publishing, actions drained at a tick
+boundary, `Disabled`/`Timeout` -> accessibility off with a structured diagnostic), then
+`PropertiesChanged` and reconnect/backoff. `tessera_schema` now loads and
 validates shader manifests (`include/tessera/schema/manifest.hpp`): the strict §1–§3 shape with
 closed key sets, the §4 rules including the V1 compute rejection (`ComputeStageUnsupported`),
 `std::expected<Manifest, ValidationError>` with stable codes and JSON paths, and the §9 caps; tests

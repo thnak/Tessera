@@ -172,6 +172,9 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `a11y_atspi_events` | bounded coalescing event queue keyed by (kind, node, detail) |
 | `a11y_atspi_bridge` | Accessible/Application/Component dispatch and error replies |
 | `a11y_atspi_bridge_events` | Action/Text/Value dispatch, deferred action requests, one signal per event |
+| `a11y_atspi_session` | handshake byte replay: SASL, Hello, GetAddress, a11y bus, RegisterEvent, serial dispatch |
+| `a11y_atspi_session_pump` | worker start/stop join, restart, zero-budget timeout, close before/after Ready, determinism |
+| `a11y_atspi_properties` | read-only `Properties` Get/GetAll typing/order, InvalidArgs/UnknownMethod, malformed body |
 
 ## 2.1 GPU tests
 
