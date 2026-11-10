@@ -134,6 +134,8 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `boundary_retry` | 250/500/1000/2000/4000 ms schedule, five-retry cap, `TESSERA_BOUNDARY_LOOP` |
 | `boundary_nested` | nested boundaries and root routing |
 | `boundary_guard` | sync catch point, no silent catch, fallback failure contained |
+| `codegen_composition` | component composition: host node, `build(parent, slot)` overload, goldens `Card`/`CardPage` |
+| `codegen_composition_runtime` | generated component tree: slot order, empty slot, child-first unmount |
 
 ## 2.1 GPU tests
 

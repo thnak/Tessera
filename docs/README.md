@@ -193,6 +193,8 @@ This page is the map and reading order for the framework.
 - [`design/async.md`](design/async.md) — C++20 coroutines, executors, cancellation, no blocking
 - [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,
   crash, capture
+- [`design/error-boundaries.md`](design/error-boundaries.md) — routing classes, RTTI-free catch
+  order, retry state machine, cleanup seam, not-caught list, test map
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
 - [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
   modes, diagnostics, spec gaps decided
