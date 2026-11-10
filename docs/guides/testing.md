@@ -139,6 +139,13 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `scale_quantize` | render-scale ladder quantization (nearest, ties up, clamped) over the DPI table |
 | `scale_state` | per-window render scale: recompute only on DPI/monitor change, revision on step change |
 | `scale_atlas` | one glyph atlas per ladder step, no cross-scale reuse, per-step invalidation |
+| `harness_framing` | JSON-lines framing: CRLF/EOF, 1 MiB cap, over-long streaming, UTF-8 rejections |
+| `harness_transport` | `LineTransport` WouldBlock/Closed/drain rules and the in-process pair |
+| `harness_json` | strict minimal JSON: duplicate keys, control chars, surrogates, depth, int64 range |
+| `harness_protocol` | versioned envelope, correlation ids, error codes and recovery |
+| `harness_command` | snapshot/click/setValue/focus/scroll/trace/audit command decode rules |
+| `harness_command_result` | result shapes per command, mismatch rejection, round-trips |
+| `harness_golden` | byte-pinned request/response lines, repeat determinism, 256-node payload |
 
 ## 2.1 GPU tests
 

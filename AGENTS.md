@@ -493,7 +493,12 @@ ladder (`quantize_render_scale`: 1.0/1.25/1.5/2.0, nearest with ties up, clamped
 `ui/text/scale_glyph_atlas.hpp` keeps one glyph atlas per ladder step with per-step invalidation;
 tests `automation_*`, `virtual_*`, `boundary_*`, `scale_*`. Next: wire `ScaleGlyphAtlas` into
 `TextRenderer` (draw selects `atlas_for(render_scale_)`, page textures keyed by ladder index, and
-a ladder change invalidates the previous step).
+a ladder change invalidates the previous step). `tessera_harness`
+(`include/tessera/harness/`, `src/harness/`) holds the V1 headless-automation protocol codec:
+strict JSON-lines framing (1 MiB cap, CRLF/EOF, per-line UTF-8), `LineTransport` with an in-process
+pair, the versioned request/response envelope with stable error codes, the snapshot/action/trace/
+audit command and result models, and canonical JSON; tests `harness_*`. Next: the stdio adapter,
+the session/executor loop, and the `tessera test`/`tessera headless` CLIs.
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
