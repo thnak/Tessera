@@ -130,27 +130,28 @@ TextDirection bidi_paragraph_direction(std::string_view utf8) {
     return result;
 }
 
-void bidi_apply_visual_runs(std::string_view utf8, TextDirection paragraph_direction,
-                            std::vector<TextLine>& lines) {
-    for (TextLine& line : lines) {
-        line.visual_runs.clear();
-    }
-    if (lines.empty()) {
-        return;
-    }
-    Algorithm resolved(utf8, paragraph_direction);
+namespace {
+
+// Resolves the visual runs of every line that lies inside one paragraph. `base` is the byte offset
+// of the paragraph in the full text; lines and runs keep full-text offsets, SheenBidi sees only the
+// paragraph (it would otherwise stop at the first separator and ignore the rest).
+void apply_paragraph_runs(std::string_view paragraph, std::size_t base,
+                          TextDirection fallback_direction, std::vector<TextLine>& lines,
+                          std::size_t first_line, std::size_t last_line) {
+    Algorithm resolved(paragraph, fallback_direction);
     if (resolved.paragraph == nullptr) {
         return;
     }
-    for (TextLine& line : lines) {
-        const std::size_t begin_unit = static_cast<std::size_t>(
+    const auto unit_for = [&](std::size_t byte) {
+        return static_cast<std::size_t>(
             std::distance(resolved.text.unit_to_byte.begin(),
                           std::lower_bound(resolved.text.unit_to_byte.begin(),
-                                           resolved.text.unit_to_byte.end(), line.begin)));
-        const std::size_t end_unit = static_cast<std::size_t>(
-            std::distance(resolved.text.unit_to_byte.begin(),
-                          std::lower_bound(resolved.text.unit_to_byte.begin(),
-                                           resolved.text.unit_to_byte.end(), line.end)));
+                                           resolved.text.unit_to_byte.end(), byte)));
+    };
+    for (std::size_t line_index = first_line; line_index < last_line; ++line_index) {
+        TextLine& line = lines[line_index];
+        const std::size_t begin_unit = unit_for(line.begin - base);
+        const std::size_t end_unit = unit_for(line.end - base);
         if (begin_unit >= end_unit || begin_unit >= resolved.text.units.size()) {
             continue;
         }
@@ -165,9 +166,9 @@ void bidi_apply_visual_runs(std::string_view utf8, TextDirection paragraph_direc
         bool needs_visual_order = false;
         std::size_t previous_begin = 0;
         for (SBUInteger index = 0; index < run_count; ++index) {
-            const std::size_t run_begin = resolved.byte_offset(runs[index].offset);
+            const std::size_t run_begin = base + resolved.byte_offset(runs[index].offset);
             const std::size_t run_end =
-                resolved.byte_offset(runs[index].offset + runs[index].length);
+                base + resolved.byte_offset(runs[index].offset + runs[index].length);
             line.visual_runs.push_back(BidiVisualRun{run_begin, run_end, runs[index].level});
             if ((runs[index].level & 1U) != 0U || run_begin < previous_begin) {
                 needs_visual_order = true;
@@ -178,6 +179,40 @@ void bidi_apply_visual_runs(std::string_view utf8, TextDirection paragraph_direc
         if (!needs_visual_order) {
             line.visual_runs.clear();
         }
+    }
+}
+
+} // namespace
+
+void bidi_apply_visual_runs(std::string_view utf8, TextDirection paragraph_direction,
+                            std::vector<TextLine>& lines) {
+    for (TextLine& line : lines) {
+        line.visual_runs.clear();
+    }
+    if (lines.empty()) {
+        return;
+    }
+    // Each newline-separated paragraph is resolved on its own, so a Hebrew line after a Latin one
+    // gets its own direction and runs. Lines are in text order, so one forward cursor assigns them.
+    std::size_t line_cursor = 0;
+    std::size_t paragraph_begin = 0;
+    while (paragraph_begin <= utf8.size() && line_cursor < lines.size()) {
+        const std::size_t newline = utf8.find('\n', paragraph_begin);
+        const std::size_t paragraph_end = newline == std::string_view::npos ? utf8.size() : newline;
+        const std::size_t first_line = line_cursor;
+        while (line_cursor < lines.size() && lines[line_cursor].begin <= paragraph_end &&
+               lines[line_cursor].end <= paragraph_end) {
+            ++line_cursor;
+        }
+        if (line_cursor > first_line) {
+            apply_paragraph_runs(utf8.substr(paragraph_begin, paragraph_end - paragraph_begin),
+                                 paragraph_begin, paragraph_direction, lines, first_line,
+                                 line_cursor);
+        }
+        if (newline == std::string_view::npos) {
+            break;
+        }
+        paragraph_begin = newline + 1;
     }
 }
 

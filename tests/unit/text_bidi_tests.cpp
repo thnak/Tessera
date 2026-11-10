@@ -212,6 +212,23 @@ bool test_lines_across_direction_changes() {
     return ok;
 }
 
+bool test_each_paragraph_resolved_separately() {
+    // A Latin paragraph followed by a Hebrew one: the second line must get its own RTL run
+    // (previously only the first paragraph was resolved and the Hebrew line stayed plain LTR).
+    const std::string text = "abc\n\xD7\x90\xD7\x91\xD7\x92";
+    const TextLayout wrapped = layout(text);
+    if (!expect(wrapped.lines.size() == 2, "two paragraphs make two lines")) {
+        return false;
+    }
+    const TextLine& hebrew = wrapped.lines[1];
+    return expect(wrapped.lines[0].visual_runs.empty(), "the Latin paragraph stays plain LTR") &&
+           expect(runs_cover_line(hebrew), "the Hebrew paragraph gets runs covering its line") &&
+           expect((hebrew.visual_runs.front().level & 1U) != 0U,
+                  "the Hebrew paragraph run is right-to-left") &&
+           expect(hebrew.visual_runs.front().begin == 4,
+                  "run offsets are full-text offsets, not paragraph-relative");
+}
+
 } // namespace
 
 int main() {
@@ -221,6 +238,7 @@ int main() {
     ok = test_pure_rtl_and_numbers() && ok;
     ok = test_mixed_direction_and_join_affinity() && ok;
     ok = test_lines_across_direction_changes() && ok;
+    ok = test_each_paragraph_resolved_separately() && ok;
     if (!ok) {
         std::cerr << "text_bidi: failed\n";
         return 1;
