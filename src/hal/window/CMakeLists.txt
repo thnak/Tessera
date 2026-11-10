@@ -14,6 +14,7 @@ target_include_directories(tessera_hal_window PRIVATE
 if (WIN32)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_accessibility.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_ime_translation.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input_ime.cpp
@@ -21,8 +22,10 @@ if (WIN32)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/windows)
     # Input is translated straight into the application's ui::InputQueue. imm32 provides the IME
-    # composition-string queries.
-    target_link_libraries(tessera_hal_window PUBLIC user32 PRIVATE tessera_input imm32)
+    # composition-string queries; uiautomationcore answers WM_GETOBJECT with the accessibility
+    # bridge's root provider (UiaReturnRawElementProvider).
+    target_link_libraries(tessera_hal_window PUBLIC user32 PRIVATE tessera_input imm32
+        uiautomationcore)
 elseif (TESSERA_X11_FOUND)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp)

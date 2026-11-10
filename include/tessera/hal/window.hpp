@@ -58,6 +58,18 @@ struct WindowEvent {
     WindowMetrics metrics;
 };
 
+// Answers one WM_GETOBJECT (or the platform equivalent) for the window. `object_id` is the OS
+// object id; `raw_provider` receives the opaque raw UI Automation root provider the platform hands
+// to its OS call (UiaReturnRawElementProvider on Windows). The callback runs on the window's thread
+// inside message dispatch and must never block or call UIA: it only reads a pointer another thread
+// published. Returning false means "no root ready yet", and the platform falls back to its default
+// handling (DefWindowProc, the MSAA default bridge) so a starting or failed accessibility bridge
+// never stalls or breaks the window.
+struct AccessibilityRoot {
+    void* context = nullptr;
+    bool (*answer)(void* context, std::intptr_t object_id, void*& raw_provider) = nullptr;
+};
+
 // Client-area size is logical pixels; the platform converts it to physical pixels with the
 // per-monitor DPI scale. A zero width or height is invalid.
 struct WindowDesc {
@@ -95,6 +107,13 @@ public:
     // platforms that do not translate input yet.
     virtual void set_input_queue(ui::InputQueue* queue) {
         (void)queue;
+    }
+
+    // Installs the UIA root handshake (see AccessibilityRoot). Must be called on the window's
+    // thread; a null `answer` uninstalls it. Platforms without a UIA host ignore the hook. The
+    // context must outlive the window or be uninstalled before it is destroyed.
+    virtual void set_accessibility_root(AccessibilityRoot root) {
+        (void)root;
     }
 
     virtual void show() = 0;

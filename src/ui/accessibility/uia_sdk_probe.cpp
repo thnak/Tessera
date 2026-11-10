@@ -6,6 +6,7 @@
 #error "uia_sdk_probe.cpp is Windows-only and must stay behind a WIN32 CMake guard"
 #endif
 
+#include "tessera/ui/accessibility/uia_host.hpp"
 #include "tessera/ui/accessibility/uia_mapping.hpp"
 
 // The UIA provider interfaces and ids are the one place this layer touches the Windows SDK, and
@@ -39,6 +40,10 @@ static_assert(kUiaSelectionPatternId == UIA_SelectionPatternId);
 static_assert(kUiaValuePatternId == UIA_ValuePatternId);
 static_assert(kUiaSelectionItemPatternId == UIA_SelectionItemPatternId);
 
+// The WM_GETOBJECT object id the host answers; the host wiring header repeats it so it stays
+// SDK-free.
+static_assert(kUiaRootObjectId == static_cast<std::intptr_t>(UiaRootObjectId));
+
 // Control types the role table can return.
 static_assert(static_cast<std::int32_t>(UiaControlType::Button) == UIA_ButtonControlTypeId);
 static_assert(static_cast<std::int32_t>(UiaControlType::CheckBox) == UIA_CheckBoxControlTypeId);
@@ -71,6 +76,8 @@ bool uia_sdk_probe() noexcept {
     const HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     const bool apartment_ok = SUCCEEDED(init) || init == RPC_E_CHANGED_MODE;
     (void)UiaClientsAreListening();
+    // Link coverage for the window's WM_GETOBJECT answer; the probe never calls it.
+    [[maybe_unused]] auto return_raw = &UiaReturnRawElementProvider;
     if (SUCCEEDED(init)) {
         CoUninitialize();
     }

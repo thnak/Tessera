@@ -16,6 +16,7 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "win32_input.hpp"
+#include "window_accessibility_win.hpp"
 #include "window_event_queue.hpp"
 
 #include <algorithm>
@@ -109,6 +110,9 @@ public:
     void set_input_queue(ui::InputQueue* queue) override {
         input_.set_queue(queue);
     }
+    void set_accessibility_root(AccessibilityRoot root) override {
+        accessibility_root_ = root;
+    }
 
 private:
     static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
@@ -126,6 +130,7 @@ private:
     DWORD owner_thread_ = GetCurrentThreadId();
     EventQueue events_;
     Win32InputTranslator input_;
+    AccessibilityRoot accessibility_root_{};
     bool focused_ = false;
     bool minimized_ = false;
     bool initializing_ = true;
@@ -442,6 +447,19 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
         // Graceful shutdown is a normalized event; the owner destroys the window.
         request_close();
         return 0;
+    case WM_GETOBJECT: {
+        // UI Automation asks for the root provider. The answer is a pointer the bridge thread
+        // published before it became visible; the window thread never waits on COM. When no root
+        // is ready (starting, failed, stopped, or a non-UIA object id) DefWindowProc keeps the
+        // default MSAA bridge instead of answering with an empty provider.
+        const auto answered = detail::answer_accessibility_get_object(
+            window, static_cast<std::uintptr_t>(wparam), static_cast<std::intptr_t>(lparam),
+            accessibility_root_);
+        if (answered.has_value()) {
+            return static_cast<LRESULT>(*answered);
+        }
+        return DefWindowProcW(window, message, wparam, lparam);
+    }
     case WM_SHOWWINDOW:
         if (wparam == FALSE) {
             focused_ = false;
@@ -450,6 +468,8 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
         }
         return 0;
     case WM_NCDESTROY:
+        // The hook must not survive the window: its context may already be gone.
+        accessibility_root_ = {};
         hwnd_ = nullptr;
         SetWindowLongPtrW(window, GWLP_USERDATA, 0);
         return DefWindowProcW(window, message, wparam, lparam);

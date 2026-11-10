@@ -123,6 +123,15 @@ target_link_libraries(a11y_uia_provider_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_uia_provider COMMAND a11y_uia_provider_tests)
 
+# Host wiring: the WM_GETOBJECT handshake runs against a fake COM apartment and a fake UIA platform
+# seam, so it is deterministic on every platform and needs no desktop session.
+add_executable(a11y_uia_host_getobject_tests
+    a11y_uia_host_getobject_tests.cpp)
+
+target_link_libraries(a11y_uia_host_getobject_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_host_getobject COMMAND a11y_uia_host_getobject_tests)
+
 # The Windows UI Automation provider is the only platform-specific code in this directory. The
 # probe test proves the SDK headers and the uiautomationcore/ole32 link work from the static
 # accessibility library; the COM test drives the real provider vtable without a UIA client. Both are
@@ -137,6 +146,16 @@ if (WIN32)
         PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/accessibility)
 
     add_test(NAME a11y_uia_compile_check COMMAND a11y_uia_compile_check_tests)
+
+    # The real Win32 window: WM_GETOBJECT reaches the accessibility handshake and falls back to
+    # DefWindowProc when nothing answers.
+    add_executable(a11y_uia_window_getobject_tests
+        a11y_uia_window_getobject_tests.cpp)
+
+    target_link_libraries(a11y_uia_window_getobject_tests PRIVATE tessera_accessibility
+        tessera_hal_window)
+
+    add_test(NAME a11y_uia_window_getobject COMMAND a11y_uia_window_getobject_tests)
 
     add_executable(a11y_uia_com_tests
         a11y_uia_com_tests.cpp)

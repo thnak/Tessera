@@ -72,6 +72,14 @@ void UiaBridge::publish(const A11ySnapshot& snapshot) {
     handoff_.publish(snapshot);
 }
 
+void UiaBridge::set_hooks(UiaBridgeHooks hooks) {
+    std::lock_guard lock(mutex_);
+    if (thread_.joinable() && !worker_done_) {
+        return; // a running bridge keeps the hooks it started with
+    }
+    hooks_ = std::move(hooks);
+}
+
 SnapshotHandoffStats UiaBridge::handoff_stats() const {
     return handoff_.stats();
 }
@@ -165,6 +173,25 @@ void UiaBridge::run_loop() {
         finish_worker(init.error());
         return;
     }
+    {
+        // Copy the hooks once: the host creates the UIA root provider here, on the thread that
+        // owns the apartment, so the UI thread never waits for COM to come up.
+        UiaBridgeHooks hooks;
+        {
+            std::lock_guard lock(mutex_);
+            hooks = hooks_;
+        }
+        if (hooks.on_start) {
+            try {
+                hooks.on_start(provider_);
+            } catch (...) {
+                // Boundary: a failing host hook is a value, and the apartment must still balance.
+                apartment_->shutdown();
+                finish_worker(UiaError::Internal);
+                return;
+            }
+        }
+    }
     phase_.store(UiaBridgePhase::Running, std::memory_order_release);
     cv_.notify_all();
 
@@ -188,6 +215,22 @@ void UiaBridge::run_loop() {
             run_jobs();
         }
         apartment_->pump();
+    }
+    {
+        // Release the root provider while the apartment is still initialized; the host has
+        // already stopped answering WM_GETOBJECT by the time this runs.
+        UiaBridgeHooks hooks;
+        {
+            std::lock_guard lock(mutex_);
+            hooks = hooks_;
+        }
+        if (hooks.on_stop) {
+            try {
+                hooks.on_stop(provider_);
+            } catch (...) {
+                // Shutdown must continue regardless of a host hook failure.
+            }
+        }
     }
     apartment_->shutdown();
     finish_worker(UiaError::None);

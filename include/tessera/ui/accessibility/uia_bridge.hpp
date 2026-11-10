@@ -47,6 +47,17 @@ struct UiaBridgeConfig {
     std::size_t max_queued_jobs = 8;
 };
 
+// Lifecycle hooks that run on the bridge thread, so the host can create the UIA root provider
+// after the COM apartment exists and release it while the apartment is still alive. `on_start`
+// runs once after `init` succeeds and before `phase()` turns Running; a throwing or failing hook
+// fails the bridge with `Internal` and no root is published. `on_stop` runs once after the loop
+// exits and before `apartment->shutdown()`; it must not block. Both must be set before `start()`
+// and must not call back into `UiaBridge::stop`.
+struct UiaBridgeHooks {
+    std::function<void(UiaProvider&)> on_start;
+    std::function<void(UiaProvider&)> on_stop;
+};
+
 enum class UiaBridgePhase : std::uint8_t {
     Idle,     // constructed, never started
     Starting, // worker spawned, apartment not initialized yet
@@ -80,6 +91,10 @@ public:
     [[nodiscard]] UiaError error() const;
     [[nodiscard]] std::thread::id bridge_thread() const;
     [[nodiscard]] const UiaBridgeConfig& config() const;
+
+    // Bridge-thread lifecycle hooks (see UiaBridgeHooks). Set them before `start()`; calling
+    // again while the worker is alive is ignored so a running bridge never swaps hooks.
+    void set_hooks(UiaBridgeHooks hooks);
 
     // UI thread: publish the latest snapshot. Drop-oldest with a counter; never blocks on the
     // bridge. The snapshot is adopted on the next client call or `step`.
@@ -120,6 +135,7 @@ private:
     std::unique_ptr<UiaApartment> apartment_;
     UiaProvider provider_;
     SnapshotHandoff handoff_;
+    UiaBridgeHooks hooks_;
     // Reused fetch buffer: `take` copies into it and `set_snapshot` swaps its capacity back, so a
     // steady-state drain does not allocate.
     A11ySnapshot fetch_;
