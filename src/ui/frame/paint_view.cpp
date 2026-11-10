@@ -2,22 +2,23 @@
 
 #include "tessera/ui/frame_interpolation.hpp"
 
-#include <cstdio>
+#include <charconv>
 #include <string>
 
 namespace tessera::ui::frame {
 namespace {
 
 // 9 significant digits round-trip a float, so a value that was parsed from a declaration reaches
-// the paint pass (which re-parses it) without a visible step. Deterministic: no locale, no
-// scientific notation surprises within the CSS numeric range.
+// the paint pass (which re-parses it) without a visible step. to_chars is locale-independent and
+// deterministic, unlike printf, so a process locale change cannot turn a decimal point into a comma
+// (which the CSS number parser would reject) between frames.
 std::string format_scalar(float value) {
     char buffer[32] = {};
-    const int written = std::snprintf(buffer, sizeof(buffer), "%.9g", static_cast<double>(value));
-    if (written <= 0) {
+    const std::to_chars_result result = std::to_chars(buffer, buffer + sizeof(buffer), value);
+    if (result.ec != std::errc{}) {
         return "0";
     }
-    return std::string(buffer, static_cast<std::size_t>(written));
+    return std::string(buffer, result.ptr);
 }
 
 constexpr const char* kBorderColorProperties[4] = {"border-top-color", "border-right-color",
