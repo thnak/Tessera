@@ -21,7 +21,8 @@ VirtualRange::VirtualRange(Config config, VirtualDataSource& source, ui::Node& c
     : config_(config),
       source_(&source),
       container_(&container),
-      geometry_(ItemGeometry::Config{config.capacity, config.estimate_main, config.gap}),
+      geometry_(ItemGeometry::Config{
+          .capacity = config.capacity, .estimate_main = config.estimate_main, .gap = config.gap}),
       keys_(config.capacity),
       recycler_(config.pool_cap),
       realized_(recycler_.capacity()) {
