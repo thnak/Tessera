@@ -516,8 +516,12 @@ pass `RuntimeTick::alpha` from the runtime driver and decide the alpha wake thre
 (`include/tessera/harness/`, `src/harness/`) holds the V1 headless-automation protocol codec:
 strict JSON-lines framing (1 MiB cap, CRLF/EOF, per-line UTF-8), `LineTransport` with an in-process
 pair, the versioned request/response envelope with stable error codes, the snapshot/action/trace/
-audit command and result models, and canonical JSON; tests `harness_*`. Next: the stdio adapter,
-the session/executor loop, and the `tessera test`/`tessera headless` CLIs. `tessera_accessibility`
+audit command and result models, and canonical JSON; tests `harness_*`. The stdio adapter, bounded
+session executor, host handler seam and CLI skeleton are in (`stdio_transport.hpp`, `session.hpp`,
+`handler.hpp`, `tessera test`/`tessera headless` behind EXCLUDE_FROM_ALL; tests `harness_stdio_transport`,
+`harness_handler`, `harness_session`, `harness_session_stream`, `harness_cli`); next: the script
+runner, the fake HAL, and AutomationHost wiring to the real snapshot/input path (plus promoting the
+CLI and passing the RuntimeLoop tick budget into `SessionExecutor::pump`). `tessera_accessibility`
 now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Transport` seam with a
 loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface
 mapping, and Accessible/Application/Action/Component/Text/Value dispatch with a bounded action
@@ -529,11 +533,21 @@ connect/auth/`Hello` -> `Registry.RegisterEvent` for state/property/bounds chang
 Get/GetAll; tests `a11y_atspi_session`, `a11y_atspi_session_pump`, `a11y_atspi_properties`. Next:
 wire the session into the Linux host (dirty-driven snapshot publishing, actions drained at a tick
 boundary, `Disabled`/`Timeout` -> accessibility off with a structured diagnostic), then
-`PropertiesChanged` and reconnect/backoff. `tessera_schema` now loads and
+`PropertiesChanged` and reconnect/backoff. Windows UIA is `src/ui/accessibility/uia_*`: one MTA
+bridge thread (`COINIT_MULTITHREADED`, bounded pump, `RPC_E_CHANGED_MODE` ->
+`ApartmentUnavailable`), an allocation-free single-slot `SnapshotHandoff` (drop-oldest with a
+counter), `UiaBridge` phases/job ring/16 ms idle wait/5 s liveness/ordered join+restart, and the
+provider surface (IRawElementProviderSimple/Fragment/FragmentRoot + Invoke/Value/SelectionItem/
+Selection) marshaled per call, with the COM adapter behind `if(WIN32)` (spec §12.2; tests
+`a11y_uia_*`). Next: `WM_GETOBJECT` host wiring and UIA StructureChanged/PropertyChanged events. `tessera_schema` now loads and
 validates shader manifests (`include/tessera/schema/manifest.hpp`): the strict §1–§3 shape with
 closed key sets, the §4 rules including the V1 compute rejection (`ComputeStageUnsupported`),
 `std::expected<Manifest, ValidationError>` with stable codes and JSON paths, and the §9 caps; tests
-`manifest_*`. Next: call it from the shader build step before `glslc`.
+`manifest_*`. Next: call it from the shader build step before `glslc`. The front end enforces its
+five `jsx::Limits` (file size 1 MiB, 200k tokens, depth 128, 100 diagnostics, 64 components) with
+stable `TESSERA_JSX_LIMIT_*` codes, `excerpt()` 32-byte / sink 256-byte text caps so hostile input
+cannot bloat a report, and a deterministic stress corpus (`compiler_limits`); the four downstream
+budgets are documented in docs/design/security.md §3.1/§3.2 for the codegen lane.
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes

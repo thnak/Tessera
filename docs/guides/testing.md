@@ -165,6 +165,20 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `harness_command` | snapshot/click/setValue/focus/scroll/trace/audit command decode rules |
 | `harness_command_result` | result shapes per command, mismatch rejection, round-trips |
 | `harness_golden` | byte-pinned request/response lines, repeat determinism, 256-node payload |
+| `harness_stdio_transport` | readiness-probed stdio reads, WouldBlock vs EOF tail, bounded write queue, framing rejections keep stream position |
+| `harness_handler` | host seam dispatch for every v1 command, artifact paths/caps, relative-path validation |
+| `harness_session` | bounded session executor: FIFO ordering, back-pressure, per-pump budgets, timeout, ordered shutdown |
+| `harness_session_stream` | full round trip including focus and scroll over a stream pair |
+| `harness_cli` | CLI skeleton: `--help`/`--version`, not-implemented exits, mode/flag validation |
+| `a11y_uia_mapping` | UIA control types/patterns/automation ids from the semantics tree |
+| `a11y_uia_handoff` | single-slot snapshot handoff: overwrite-with-count, reserved buffers, no allocation |
+| `a11y_uia_bridge` | MTA bridge: publication, action ring overflow, thread ownership |
+| `a11y_uia_bridge_lifecycle` | init/start/stop ordering, init failure as a value, bounded wait with a blocked pump, restart |
+| `a11y_uia_provider` | provider projection from the bridge thread: tree, bounds, actions |
+| `a11y_uia_com` | Windows-only: real COM provider vtable properties/patterns (Windows only) |
+| `a11y_uia_com_nav` | Windows-only: navigation/hit-test/focus/shutdown on the COM provider (Windows only) |
+| `a11y_uia_compile_check` | Windows-only: ids static_asserted against the SDK headers and the static link resolves (Windows only) |
+| `compiler_limits` | deterministic resource-limit stress corpus: file/token/depth/diagnostic/component bounds, excerpt caps, determinism |
 | `manifest_parse` | shader manifest shape load: valid per kind, model fields, defaults |
 | `manifest_limits` | 1 MiB / depth / count caps enforced before decode |
 | `manifest_keys` | closed key sets, required keys, wrong types, duplicate keys, trailing content |
