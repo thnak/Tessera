@@ -134,6 +134,20 @@ int main() {
                "framing resumes after the discarded line");
     }
 
+    // A streaming rejection keeps its place in the stream: the over-long line is reported before
+    // a well-formed line that arrived after it, even when both were appended in one call.
+    {
+        constexpr std::size_t kCap = 4;
+        LineFramer framer(kCap);
+        framer.append("123456\nok\n");
+        std::string line;
+        FrameError error;
+        expect(framer.next(line, error) == LineFramer::Status::Rejected, "first line rejected");
+        expect(error.code == FrameErrorCode::LineTooLong, "streaming rejection code");
+        expect(framer.next(line, error) == LineFramer::Status::Line && line == "ok",
+               "later line did not overtake the rejection");
+    }
+
     // An over-long line is rejected as soon as the cap is crossed, so a peer that never sends a
     // terminator cannot grow the buffer past the cap + terminator slack.
     {

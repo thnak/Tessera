@@ -23,6 +23,7 @@ enum class TransportErrorCode {
     InvalidUtf8,        // payload is not well-formed UTF-8
     EmptyLine,          // an empty line is not a frame
     EmbeddedTerminator, // payload carries a CR or LF, which would smuggle a second frame
+    QueueFull,          // accepted output is capped; retry after flush() drains some of it
     IoError,            // the underlying stream failed
 };
 
@@ -48,7 +49,15 @@ public:
 
     // Writes one frame payload; the implementation owns the terminator. A payload that already
     // contains CR/LF, exceeds the cap, is empty, or is not UTF-8 is rejected instead of written.
+    // Transports with an internal buffer may accept a frame before the peer reads it; flush()
+    // pushes buffered bytes without waiting, and a full buffer reports QueueFull.
     [[nodiscard]] virtual std::expected<void, TransportError> write_line(std::string_view line) = 0;
+
+    // Pushes buffered output without waiting. The default is a no-op because a transport that
+    // delivers synchronously (the in-process pair) has nothing to flush.
+    [[nodiscard]] virtual std::expected<void, TransportError> flush() {
+        return {};
+    }
 
     [[nodiscard]] virtual std::size_t max_line_bytes() const noexcept = 0;
     [[nodiscard]] virtual bool closed() const noexcept = 0;

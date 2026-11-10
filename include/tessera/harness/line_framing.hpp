@@ -85,6 +85,10 @@ private:
     std::size_t scan_ = 0;       // buffer_ prefix already proven free of a terminator
     std::size_t max_line_bytes_;
     std::optional<FrameError> rejection_;
+    // Buffer offset where the rejected line began. Complete lines before this offset are still
+    // owed to the caller and must be delivered before the rejection; lines at or after it follow
+    // the rejected line and must not overtake it.
+    std::size_t rejection_at_ = 0;
     bool discarding_ = false; // inside an over-long line: ignore bytes until the LF
     bool finished_ = false;
     bool drained_ = false;

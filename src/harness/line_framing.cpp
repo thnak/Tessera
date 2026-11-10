@@ -62,6 +62,16 @@ void LineFramer::finish() noexcept {
 LineFramer::Status LineFramer::next(std::string& line, FrameError& error) {
     const std::size_t terminator = buffer_.find(kLineFeed, scan_);
     if (terminator != std::string::npos) {
+        // A streaming rejection belongs at its own position in the byte stream: complete lines
+        // that were buffered before it are delivered first, and a line that starts at or after it
+        // may not overtake it.
+        if (rejection_.has_value() && terminator >= rejection_at_) {
+            error = *rejection_;
+            rejection_.reset();
+            rejection_at_ = 0;
+            scan_ = 0;
+            return Status::Rejected;
+        }
         std::size_t payload_size = terminator;
         if (payload_size > 0 && buffer_[payload_size - 1] == kCarriageReturn) {
             --payload_size;
@@ -70,6 +80,7 @@ LineFramer::Status LineFramer::next(std::string& line, FrameError& error) {
         const std::size_t consumed = terminator + 1;
         buffer_.erase(0, consumed);
         line_start_ = line_start_ >= consumed ? line_start_ - consumed : 0;
+        rejection_at_ = rejection_at_ >= consumed ? rejection_at_ - consumed : 0;
         scan_ = 0;
         return classify(std::move(payload), line, error);
     }
@@ -78,6 +89,7 @@ LineFramer::Status LineFramer::next(std::string& line, FrameError& error) {
     if (rejection_.has_value()) {
         error = *rejection_;
         rejection_.reset();
+        rejection_at_ = 0;
         return Status::Rejected;
     }
     if (!finished_) {
@@ -117,6 +129,7 @@ LineFramer::Status LineFramer::classify(std::string&& payload, std::string& line
 
 void LineFramer::reject(FrameErrorCode code, std::size_t offset) noexcept {
     rejection_ = FrameError{code, offset};
+    rejection_at_ = line_start_;
 }
 
 } // namespace tessera::harness

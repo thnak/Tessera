@@ -50,3 +50,10 @@ add_executable(harness_golden_tests
 target_link_libraries(harness_golden_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_golden COMMAND harness_golden_tests)
+
+add_executable(harness_stdio_transport_tests
+    stdio_transport_tests.cpp)
+
+target_link_libraries(harness_stdio_transport_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_stdio_transport COMMAND harness_stdio_transport_tests)
