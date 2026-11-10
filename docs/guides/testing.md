@@ -154,6 +154,11 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `harness_command` | snapshot/click/setValue/focus/scroll/trace/audit command decode rules |
 | `harness_command_result` | result shapes per command, mismatch rejection, round-trips |
 | `harness_golden` | byte-pinned request/response lines, repeat determinism, 256-node payload |
+| `manifest_parse` | shader manifest shape load: valid per kind, model fields, defaults |
+| `manifest_limits` | 1 MiB / depth / count caps enforced before decode |
+| `manifest_keys` | closed key sets, required keys, wrong types, duplicate keys, trailing content |
+| `manifest_stages` | stage/entry rules, compute rejection, unknown/duplicate stage, version mismatch |
+| `manifest_errors` | stable error tokens/paths/offsets, repeated-parse determinism, loader failures |
 | `a11y_dbus_address` | session-bus address parse: percent decoding, unix path/abstract, unsupported transports |
 | `a11y_dbus_transport` | `Transport` seam + loopback pair rules (no sleeping, bounded buffers) |
 | `a11y_dbus_wire` | wire codec golden bytes: alignment table, signatures, header fields, BE input |

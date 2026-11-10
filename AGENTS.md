@@ -506,7 +506,11 @@ now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Tran
 loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface
 mapping, and Accessible/Application/Action/Component/Text/Value dispatch with a bounded action
 queue plus a bounded coalescing event queue (spec §12.1); tests `a11y_*`. Next: the `AtspiSession`
-connect/auth/Hello/registry handshake and its pumped worker thread.
+connect/auth/Hello/registry handshake and its pumped worker thread. `tessera_schema` now loads and
+validates shader manifests (`include/tessera/schema/manifest.hpp`): the strict §1–§3 shape with
+closed key sets, the §4 rules including the V1 compute rejection (`ComputeStageUnsupported`),
+`std::expected<Manifest, ValidationError>` with stable codes and JSON paths, and the §9 caps; tests
+`manifest_*`. Next: call it from the shader build step before `glslc`.
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
