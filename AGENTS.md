@@ -579,6 +579,16 @@ filtered ctest) while every default lane stays OFF - linking the 17.3 MB blob in
 `tessera_text` consumer grows that test binary from 0.84 MB to 19.7 MB, so it should not ride every
 job. `ui/text/locale_resolver.*` validates locales against the manifest with `icu.locale.fallback` /
 `icu.locale.missing` diagnostics; tests `icu_locale_pack`, `text_breaks_parity`, `locale_resolver`.
+CSS `white-space` modes ride the same segment wrap: `TextStyle::white_space`
+(`WhiteSpace{ Normal, NoWrap, PreWrap, BreakSpaces }` in `ui/text/text_measure.hpp`) collapses
+interior runs to one advance under `Normal` (the default; pivot fixtures re-baselined and pinned in
+text.md §6.1), keeps the pinned literal single-line path for `NoWrap`, preserves runs for `PreWrap`
+and makes every preserved space its own line unit under `BreakSpaces`; the mode is carried into the
+paint predicate and both layout/measure cache keys, and per-mode line boxes are byte-identical
+across the builtin and ICU backends. Known limitation: a `TextLine` is still a source range, so under
+`Normal` the measured width is collapsed while the painted slice still spans the source bytes - the
+next text slice is a paint-time collapse/transform stage (which also carries `nowrap` collapsing and
+`pre-line` newlines), then `text-overflow: ellipsis`.
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
