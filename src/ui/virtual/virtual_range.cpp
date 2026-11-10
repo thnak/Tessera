@@ -4,6 +4,7 @@
 #include "tessera/ui/virtual/virtual_range.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <limits>
 
 namespace tessera::ui::virtualization {
@@ -215,6 +216,9 @@ VirtualRange::Refinement VirtualRange::refine_and_reanchor(std::size_t index,
 void VirtualRange::release_at(std::size_t position, bool notify_source) noexcept {
     RealizedItem item = realized_[position];
     std::unique_ptr<ui::Node> owned = container_->remove_child(*item.lease.node);
+#ifndef NDEBUG
+    assert(owned != nullptr && "virtualization: realized item is not a child of the container");
+#endif
     if (owned) {
         if (notify_source) {
             source_->release(item.index, *owned);
