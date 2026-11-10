@@ -45,9 +45,8 @@ const JsonValue* find_member(const JsonValue& object, std::string_view key) {
     if (members == nullptr) {
         return nullptr;
     }
-    const auto found =
-        std::find_if(members->begin(), members->end(),
-                     [&](const JsonValue::Member& member) { return member.first == key; });
+    const auto found = std::ranges::find_if(
+        *members, [&](const JsonValue::Member& member) { return member.first == key; });
     return found == members->end() ? nullptr : &found->second;
 }
 
@@ -59,7 +58,7 @@ std::expected<void, ValidationError> check_keys(const JsonValue& object,
         return fail(ValidationErrorCode::WrongType, std::string(path), "expected an object");
     }
     for (const auto& member : *members) {
-        if (std::find(allowed.begin(), allowed.end(), member.first) == allowed.end()) {
+        if (std::ranges::find(allowed, member.first) == allowed.end()) {
             return fail(ValidationErrorCode::UnknownKey, member_path(path, member.first),
                         "unknown key for this object");
         }
@@ -153,7 +152,7 @@ std::expected<Manifest, ValidationError> parse_manifest(std::string_view json_te
     if (!version) {
         return fail(ValidationErrorCode::WrongType, "$.manifestVersion", "expected an integer");
     }
-    if (*version != static_cast<std::int64_t>(kManifestVersion)) {
+    if (std::cmp_not_equal(*version, kManifestVersion)) {
         return fail(ValidationErrorCode::UnsupportedVersion, "$.manifestVersion",
                     "only manifest version 1 is supported");
     }

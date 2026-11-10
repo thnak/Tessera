@@ -17,7 +17,7 @@ namespace tessera::schema::internal {
 namespace {
 
 bool has_stage(const ShaderEntry& entry, ShaderStage stage) {
-    return std::find(entry.stages.begin(), entry.stages.end(), stage) != entry.stages.end();
+    return std::ranges::find(entry.stages, stage) != entry.stages.end();
 }
 
 std::expected<void, ValidationError> check_duplicate_stages(const ShaderEntry& entry,
@@ -169,11 +169,10 @@ bool matches_transition_interface(const ShaderEntry& entry) {
         return false;
     }
     for (const ExpectedBinding& expected : kExpected) {
-        const auto found = std::find_if(
-            entry.bindings.begin(), entry.bindings.end(), [&](const ShaderBinding& binding) {
-                return binding.group == expected.group && binding.binding == expected.binding &&
-                       binding.type == expected.type && binding.name == expected.name;
-            });
+        const auto found = std::ranges::find_if(entry.bindings, [&](const ShaderBinding& binding) {
+            return binding.group == expected.group && binding.binding == expected.binding &&
+                   binding.type == expected.type && binding.name == expected.name;
+        });
         if (found == entry.bindings.end()) {
             return false;
         }
@@ -198,9 +197,8 @@ std::expected<void, ValidationError> check_view_transition_interface(const Shade
                     member_path(member_path(path, "sources"), "webgpu"),
                     "an effect requires WebGPU sources");
     }
-    const bool has_golden =
-        std::any_of(entry.tests.begin(), entry.tests.end(),
-                    [](const ShaderTest& test) { return !test.golden.empty(); });
+    const bool has_golden = std::ranges::any_of(
+        entry.tests, [](const ShaderTest& test) { return !test.golden.empty(); });
     if (!has_golden) {
         return fail(ValidationErrorCode::ViewTransitionInterface, member_path(path, "tests"),
                     "an effect requires at least one golden test");

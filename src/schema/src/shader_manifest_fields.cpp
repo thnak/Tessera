@@ -6,6 +6,7 @@
 
 #include "shader_manifest_internal.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -18,12 +19,8 @@ namespace {
 constexpr std::string_view kVertexFormats[] = {"float", "float2", "float3", "float4", "ubyte4norm"};
 
 bool is_vertex_format(std::string_view token) {
-    for (std::string_view format : kVertexFormats) {
-        if (format == token) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(kVertexFormats,
+                               [&](std::string_view format) { return format == token; });
 }
 
 std::optional<ShaderBindingType> binding_from_token(std::string_view token) {
@@ -213,7 +210,7 @@ bool is_project_relative_path(std::string_view text) {
     if (text.empty() || text.front() == '/' || text.front() == '\\') {
         return false;
     }
-    return text.find(':') == std::string_view::npos && text.find("..") == std::string_view::npos;
+    return !text.contains(':') && !text.contains("..");
 }
 
 std::expected<void, ValidationError> parse_tests_impl(const JsonValue& value, std::string_view path,

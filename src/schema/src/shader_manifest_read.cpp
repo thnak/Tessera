@@ -58,7 +58,7 @@ integer_value(const JsonValue& value, std::string_view path, std::uint32_t max_v
     if (*integer < 0) {
         return fail(ValidationErrorCode::OutOfRange, std::string(path), "must not be negative");
     }
-    if (static_cast<std::uint64_t>(*integer) > max_value) {
+    if (std::cmp_greater(*integer, max_value)) {
         return fail(ValidationErrorCode::OutOfRange, std::string(path), "value is above the limit");
     }
     return static_cast<std::uint32_t>(*integer);

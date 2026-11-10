@@ -73,7 +73,7 @@ public:
     }
 
 private:
-    std::unexpected<JsonParseError> fail(JsonErrorCode code, std::size_t offset) const {
+    static std::unexpected<JsonParseError> fail(JsonErrorCode code, std::size_t offset) {
         return std::unexpected(JsonParseError{code, offset});
     }
 

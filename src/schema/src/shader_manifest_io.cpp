@@ -8,6 +8,7 @@
 #include <fstream>
 #include <ios>
 #include <string>
+#include <utility>
 
 namespace tessera::schema {
 
@@ -22,7 +23,7 @@ std::expected<Manifest, ValidationError> load_manifest_file(std::string_view pat
         return internal::fail(ValidationErrorCode::FileUnreadable, "$",
                               "cannot determine the manifest size");
     }
-    if (end > static_cast<std::streamoff>(kMaxManifestBytes)) {
+    if (std::cmp_greater(end, kMaxManifestBytes)) {
         return internal::fail(ValidationErrorCode::FileTooLarge, "$",
                               "manifest exceeds the byte limit");
     }
