@@ -111,6 +111,32 @@ public:
     }
     bool clear_selection() noexcept;
 
+    // Selection change journal for semantics/announcement consumers
+    // (`docs/specs/virtualization-v1.md` section 7). `selection_revision` moves forward on every
+    // membership change; `last_selection_change` names the most recent one and is `valid == false`
+    // after a clear, so a consumer can react to "something changed" without copying the set.
+    struct SelectionChange {
+        VirtualItemId key{};
+        bool selected = false;
+        bool valid = false;
+    };
+
+    [[nodiscard]] std::uint64_t selection_revision() const noexcept {
+        return selection_revision_;
+    }
+    [[nodiscard]] SelectionChange last_selection_change() const noexcept {
+        return last_selection_change_;
+    }
+    // Visits every selected key in entry order without allocating; the visitor may not mutate the
+    // store. Used to project the selection into data order.
+    template<typename Visitor> void for_each_selected(Visitor&& visitor) const noexcept {
+        for (std::size_t slot = 0; slot < size_; ++slot) {
+            if (entries_[slot].state.selected) {
+                visitor(entries_[slot].key);
+            }
+        }
+    }
+
     // Copies up to `out.size()` selected keys in entry order and returns the number written. The
     // caller maps keys onto data indices; `VirtualRange::selected_items` does that and returns data
     // order. Allocation-free so the selection can be queried on the hot path.
@@ -155,6 +181,10 @@ private:
     void bucket_insert(std::size_t bucket, std::size_t slot) noexcept;
     void bucket_remove(std::size_t bucket) noexcept;
     void erase_slot(std::size_t slot) noexcept;
+    void note_selection_change(VirtualItemId key, bool selected) noexcept {
+        ++selection_revision_;
+        last_selection_change_ = SelectionChange{key, selected, true};
+    }
     // Slot for the least recently used entry that may be evicted, or kNoSlot when all are pinned.
     [[nodiscard]] std::size_t lru_victim() const noexcept;
     // Stores `key` in a free-or-evicted slot; kNoSlot (and a refusal) when nothing is evictable.
@@ -164,6 +194,8 @@ private:
     std::size_t size_ = 0;
     std::size_t selected_count_ = 0;
     std::uint64_t clock_ = 0;
+    std::uint64_t selection_revision_ = 0;
+    SelectionChange last_selection_change_{};
     VirtualItemId focused_key_{};
     bool has_focus_ = false;
     std::vector<Entry> entries_;

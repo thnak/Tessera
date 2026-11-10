@@ -99,6 +99,7 @@ bool ItemStateStore::set_selected(VirtualItemId key, bool selected) noexcept {
         }
         entries_[slot].state.selected = false;
         --selected_count_;
+        note_selection_change(key, false);
         return true;
     }
     if (slot == kNoSlot) {
@@ -110,6 +111,7 @@ bool ItemStateStore::set_selected(VirtualItemId key, bool selected) noexcept {
     if (!entries_[slot].state.selected) {
         entries_[slot].state.selected = true;
         ++selected_count_;
+        note_selection_change(key, true);
     }
     entries_[slot].stamp = ++clock_;
     return true;
@@ -132,10 +134,17 @@ bool ItemStateStore::clear_selection() noexcept {
     if (selected_count_ == 0) {
         return false;
     }
+    VirtualItemId last{};
     for (std::size_t slot = 0; slot < size_; ++slot) {
-        entries_[slot].state.selected = false;
+        if (entries_[slot].state.selected) {
+            last = entries_[slot].key;
+            entries_[slot].state.selected = false;
+        }
     }
     selected_count_ = 0;
+    // A clear names no single key; the journal keeps the last cleared key but `valid` stays true so
+    // a consumer can still describe the change. `clear()` (a full store reset) marks it invalid.
+    note_selection_change(last, false);
     return true;
 }
 
@@ -160,6 +169,12 @@ bool ItemStateStore::erase(VirtualItemId key) noexcept {
 
 void ItemStateStore::clear() noexcept {
     std::fill(buckets_.begin(), buckets_.end(), kEmptyBucket);
+    if (selected_count_ > 0) {
+        // A reset drops the whole selection; the journal invalidates the change so a semantics
+        // consumer does not announce a key the store no longer has.
+        ++selection_revision_;
+        last_selection_change_ = SelectionChange{};
+    }
     size_ = 0;
     selected_count_ = 0;
     has_focus_ = false;
@@ -217,14 +232,17 @@ void ItemStateStore::bucket_remove(std::size_t bucket) noexcept {
 }
 
 void ItemStateStore::erase_slot(std::size_t slot) noexcept {
-    const std::size_t bucket = find_bucket(entries_[slot].key);
+    const VirtualItemId erased_key = entries_[slot].key;
+    const bool was_selected = entries_[slot].state.selected;
+    const std::size_t bucket = find_bucket(erased_key);
     if (bucket != kNoSlot) {
         bucket_remove(bucket);
     }
-    if (entries_[slot].state.selected) {
+    if (was_selected) {
         --selected_count_;
+        note_selection_change(erased_key, false);
     }
-    if (has_focus_ && entries_[slot].key == focused_key_) {
+    if (has_focus_ && erased_key == focused_key_) {
         has_focus_ = false;
         focused_key_ = VirtualItemId{};
     }

@@ -107,3 +107,17 @@ add_executable(virtual_grid_rows_tests
 target_link_libraries(virtual_grid_rows_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_grid_rows COMMAND virtual_grid_rows_tests)
+
+add_executable(virtual_collection_semantics_tests
+    virtual_collection_semantics_tests.cpp)
+
+target_link_libraries(virtual_collection_semantics_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_collection_semantics COMMAND virtual_collection_semantics_tests)
+
+add_executable(virtual_announce_tests
+    virtual_announce_tests.cpp)
+
+target_link_libraries(virtual_announce_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_announce COMMAND virtual_announce_tests)

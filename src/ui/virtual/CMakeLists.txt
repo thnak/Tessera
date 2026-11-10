@@ -4,6 +4,7 @@
 # targets here so parallel slices never edit the root subdirectory list at the same time.
 
 add_library(tessera_virtual STATIC
+    collection_semantics.cpp
     grid_rows.cpp
     item_geometry.cpp
     key_index.cpp
