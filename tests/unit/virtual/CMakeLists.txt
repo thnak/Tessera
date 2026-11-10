@@ -37,3 +37,17 @@ add_executable(virtual_state_tests
 target_link_libraries(virtual_state_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_state COMMAND virtual_state_tests)
+
+add_executable(virtual_data_source_tests
+    virtual_data_source_tests.cpp)
+
+target_link_libraries(virtual_data_source_tests PRIVATE tessera_virtual tessera_scene)
+
+add_test(NAME virtual_data_source COMMAND virtual_data_source_tests)
+
+add_executable(virtual_key_index_tests
+    virtual_key_index_tests.cpp)
+
+target_link_libraries(virtual_key_index_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_key_index COMMAND virtual_key_index_tests)

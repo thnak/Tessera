@@ -5,6 +5,7 @@
 
 add_library(tessera_virtual STATIC
     item_geometry.cpp
+    key_index.cpp
     scroll_anchor.cpp
     item_state_store.cpp)
 

@@ -93,6 +93,18 @@ Rules:
 - Unknown/duplicate keys are errors.
 - Async data loading is allowed; the collection shows a deterministic placeholder until ready.
 
+Implementation: `virtualization::VirtualDataSource` in
+[`virtual_data_source.hpp`](../../include/tessera/ui/virtual/virtual_data_source.hpp) keeps
+`item_count`/`item_key`/`measure` const (the collection never mutates the source) and resolves
+`build` into a caller-owned node that the recycler has just cleared, instead of returning a fresh
+`unique_ptr<Node>` as in the illustration above. Filling a pooled node is what makes recycling
+avoid one allocation per realized item; the source still writes every field it depends on and
+never reads the previous item's state. `virtualization::KeyIndex`
+([`key_index.hpp`](../../include/tessera/ui/virtual/key_index.hpp)) snapshots the keys into a
+fixed-capacity dense array plus an open-addressed bucket table, so key -> index is O(1) and
+allocation-free after construction; a capacity overflow or duplicate key invalidates the whole
+mapping instead of serving a partial one.
+
 ## 4. Layout and windowing
 
 ### Fixed size
@@ -294,12 +306,16 @@ Tests:
   estimate-to-measure refinement that shifts only the suffix, visible-range/total-extent/
   index-at-offset lookup, and the section 6 re-anchor math
   (`include/tessera/ui/virtual/`, `src/ui/virtual/`); bounded keyed item state store with
-  deterministic LRU eviction (recycled nodes hold no state).
+  deterministic LRU eviction (recycled nodes hold no state); the read-only `VirtualDataSource`
+  adapter contract with a clean-node `build` and optional `release`; and the fixed-capacity
+  `KeyIndex` key -> index resolver (capacity overflow and duplicate keys invalidate the mapping).
 - Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
   refine suffix shift, insert/remove, capacity), `virtual_geometry_scan` (brute-force linear
   oracle for offsets and windows), `virtual_anchor` (re-anchor after measure, clamp),
   `virtual_state` (state across recycle, eviction rule), `virtual_allocations` (no heap
-  allocation on the scroll/refine/state path).
+  allocation on the scroll/refine/state path), `virtual_data_source` (read-only surface, measure
+  determinism, build/release contract), `virtual_key_index` (stable keys across insert/remove,
+  duplicate/capacity errors, deterministic collision handling).
 - Design/spec only still: the collection/node recycler and data-source build/release, grid rows,
   sticky headers, focus/selection/accessibility integration, async prefetch, IR/codegen emission
   for `VirtualList`/`VirtualGrid`, and dirty/render integration.
