@@ -422,7 +422,7 @@ void test_conditional_inside_scroll() {
 void test_virtual_collection_events() {
     const auto fixture =
         parse(component("  const [count, setCount] = useState<int>(0);\n",
-                        "<VirtualList itemSize={32} onScroll={(e) => setCount(1)} "
+                        "<VirtualList itemSize={32} onScroll={(e: ScrollEvent) => setCount(1)} "
                         "onEndReached={() => setCount(2)}>{props.rows.map((row) => "
                         "<Text key={row.id}>{row.label}</Text>)}</VirtualList>",
                         "props: P"));
