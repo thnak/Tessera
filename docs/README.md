@@ -69,6 +69,7 @@ This page is the map and reading order for the framework.
 - [`specs/os-events-v1.md`](specs/os-events-v1.md) — normalized OS events, display
   capabilities, mobile/foldables
 - [`specs/ir-v1.md`](specs/ir-v1.md) — compiler IR schema, expressions, bindings, validation
+- [`specs/ir-v1-example.md`](specs/ir-v1-example.md) — the worked Counter `ir.json` example
 - [`specs/component-model-v1.md`](specs/component-model-v1.md) — JSX/hooks subset, lifecycle,
   reconciliation, generated C++
 - [`specs/virtualization-v1.md`](specs/virtualization-v1.md) — virtualized lists/grids,
