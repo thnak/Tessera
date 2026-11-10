@@ -39,6 +39,9 @@ set(TESSERA_A11Y_SOURCES
 if (WIN32)
     list(APPEND TESSERA_A11Y_SOURCES
         uia_apartment_win.cpp
+        uia_com.cpp
+        uia_com_fragment.cpp
+        uia_com_patterns.cpp
         uia_sdk_probe.cpp)
 else()
     list(APPEND TESSERA_A11Y_SOURCES
@@ -64,3 +67,6 @@ if (WIN32)
 endif()
 
 target_compile_features(tessera_accessibility PUBLIC cxx_std_23)
+
+
+

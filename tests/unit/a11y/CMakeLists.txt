@@ -116,10 +116,18 @@ target_link_libraries(a11y_uia_bridge_lifecycle_tests PRIVATE tessera_accessibil
 
 add_test(NAME a11y_uia_bridge_lifecycle COMMAND a11y_uia_bridge_lifecycle_tests)
 
+add_executable(a11y_uia_provider_tests
+    a11y_uia_provider_tests.cpp)
+
+target_link_libraries(a11y_uia_provider_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_provider COMMAND a11y_uia_provider_tests)
+
 # The Windows UI Automation provider is the only platform-specific code in this directory. The
 # probe test proves the SDK headers and the uiautomationcore/ole32 link work from the static
-# accessibility library; it is absent everywhere else, where the same public headers must still
-# compile (that is what `a11y_uia_mapping` checks on Linux/macOS).
+# accessibility library; the COM test drives the real provider vtable without a UIA client. Both are
+# absent everywhere else, where the same public headers must still compile (that is what
+# `a11y_uia_mapping` and `a11y_uia_provider` check on Linux/macOS).
 if (WIN32)
     add_executable(a11y_uia_compile_check_tests
         a11y_uia_compile_check_tests.cpp)
@@ -129,4 +137,22 @@ if (WIN32)
         PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/accessibility)
 
     add_test(NAME a11y_uia_compile_check COMMAND a11y_uia_compile_check_tests)
+
+    add_executable(a11y_uia_com_tests
+        a11y_uia_com_tests.cpp)
+
+    target_link_libraries(a11y_uia_com_tests PRIVATE tessera_accessibility)
+    target_include_directories(a11y_uia_com_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/accessibility)
+
+    add_test(NAME a11y_uia_com COMMAND a11y_uia_com_tests)
+
+    add_executable(a11y_uia_com_nav_tests
+        a11y_uia_com_nav_tests.cpp)
+
+    target_link_libraries(a11y_uia_com_nav_tests PRIVATE tessera_accessibility)
+    target_include_directories(a11y_uia_com_nav_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/accessibility)
+
+    add_test(NAME a11y_uia_com_nav COMMAND a11y_uia_com_nav_tests)
 endif()
