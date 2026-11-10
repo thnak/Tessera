@@ -121,6 +121,19 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
+| `automation_sha256` | FIPS 180-4 SHA-256 known-answer vectors (empty, `abc`, 448/896-bit, 1e6×`a`, binary) |
+| `automation_hash_id` | salted `hash64` UiIds, explicit `automationId` override, duplicate and collision diagnostics |
+| `automation_snapshot` | preorder snapshot order, hidden/offscreen omission, `includeHidden`, `(uiId, itemKey)` lookup |
+| `automation_snapshot_json` | canonical one-line JSON, decimal `uiId`s above 2^53, escaping, byte-identical reruns |
+| `virtual_geometry` | 32 px estimates, Fenwick prefix sums, refine-on-measure suffix shift, visible range |
+| `virtual_geometry_scan` | brute-force window oracle across gaps, fractional offsets, zero-size and tall rows |
+| `virtual_anchor` | section 6 re-anchor on `(item_key, offset)` after a mid-list measure |
+| `virtual_state` | keyed item state across recycle, eviction rule, no recycled-state leak |
+| `virtual_allocations` | allocation-free hot path after warm-up (global `new` counter) |
+| `boundary_model` | nearest-catcher routing, fallback, reset, async values, cleanup seam |
+| `boundary_retry` | 250/500/1000/2000/4000 ms schedule, five-retry cap, `TESSERA_BOUNDARY_LOOP` |
+| `boundary_nested` | nested boundaries and root routing |
+| `boundary_guard` | sync catch point, no silent catch, fallback failure contained |
 
 ## 2.1 GPU tests
 
@@ -148,6 +161,11 @@ add_test(NAME my_component COMMAND my_component_tests)
 
 4. Keep tests deterministic: no wall clock, network, system fonts, or random ids.
 5. Run `ctest -R my_component --output-on-failure`.
+
+A subsystem may keep its registration in `tests/unit/<area>/CMakeLists.txt` (with one
+`add_subdirectory(<area>)` in `tests/unit/CMakeLists.txt`) when several slices are developed at the
+same time: the root list stays the single index while each slice owns its own file. Existing areas:
+`automation/`, `virtual/`, `boundary/`, `a11y/`, `harness/`, `manifest/`, `scale/`.
 
 ## 3.0 Headless agent tests
 

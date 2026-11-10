@@ -478,7 +478,17 @@ RAII tracing spans with Chrome Trace JSON (`diagnostics/trace.hpp`), and an over
 (`diagnostics/overlay.hpp`). The lavapipe golden harness compares
 `tests/golden/baseline/batched2d/dashboard.png` bit-exactly through
 `rendering/golden/image_diff.hpp` and `batched2d_poc --compare` (`batched2d_golden`, Linux with
-lavapipe). Next slices, in order:
+lavapipe). The open-questions register's runtime slices now have their first implementations:
+`tessera_automation` (`include/tessera/ui/automation/`, `src/ui/automation/`) provides in-tree
+SHA-256, salted hash64 UiIds keyed by the tessera.json namespace with explicit-`automationId`,
+duplicate and collision diagnostics, and the preorder snapshot builder plus canonical JSON
+serializer; `tessera_virtual` (`include/tessera/ui/virtual/`, `src/ui/virtual/`) provides a
+fixed-capacity Fenwick prefix sum of 32 px main-axis estimates, refine-on-measure suffix shifts,
+the section 6 re-anchor math, and a bounded keyed `ItemStateStore`; `tessera_boundary`
+(`include/tessera/ui/boundary/`) provides `BoundaryTable` routing, the single sync catch point
+`run_guarded`, and the decided retry policy (250 ms doubling to a 4 s cap, five retries,
+`TESSERA_BOUNDARY_LOOP`). Tests: `automation_*`, `virtual_*`, `boundary_*`.
+Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
    bit-exactly (text with tolerance), and a CPU canvas (`--backend cpu`) covers solid-rect
