@@ -87,3 +87,25 @@ add_executable(a11y_atspi_session_pump_tests
 target_link_libraries(a11y_atspi_session_pump_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_atspi_session_pump COMMAND a11y_atspi_session_pump_tests)
+
+add_executable(a11y_uia_mapping_tests
+    a11y_uia_mapping_tests.cpp)
+
+target_link_libraries(a11y_uia_mapping_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_mapping COMMAND a11y_uia_mapping_tests)
+
+# The Windows UI Automation provider is the only platform-specific code in this directory. The
+# probe test proves the SDK headers and the uiautomationcore/ole32 link work from the static
+# accessibility library; it is absent everywhere else, where the same public headers must still
+# compile (that is what `a11y_uia_mapping` checks on Linux/macOS).
+if (WIN32)
+    add_executable(a11y_uia_compile_check_tests
+        a11y_uia_compile_check_tests.cpp)
+
+    target_link_libraries(a11y_uia_compile_check_tests PRIVATE tessera_accessibility)
+    target_include_directories(a11y_uia_compile_check_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/accessibility)
+
+    add_test(NAME a11y_uia_compile_check COMMAND a11y_uia_compile_check_tests)
+endif()

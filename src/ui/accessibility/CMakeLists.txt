@@ -7,7 +7,7 @@
 
 find_package(Threads REQUIRED)
 
-add_library(tessera_accessibility STATIC
+set(TESSERA_A11Y_SOURCES
     a11y_roles.cpp
     a11y_tree.cpp
     dbus_address.cpp
@@ -25,7 +25,18 @@ add_library(tessera_accessibility STATIC
     atspi_session.cpp
     atspi_session_handshake.cpp
     atspi_session_pump.cpp
-    atspi_session_status.cpp)
+    atspi_session_status.cpp
+    uia_mapping.cpp)
+
+# The Windows UI Automation bridge is the only code in this layer that touches a platform SDK. It
+# is compiled on Windows only; every other platform builds the same public headers plus the
+# platform-neutral bridge, so a Linux/macOS/Android/iOS configure never includes a Windows header.
+if (WIN32)
+    list(APPEND TESSERA_A11Y_SOURCES
+        uia_sdk_probe.cpp)
+endif()
+
+add_library(tessera_accessibility STATIC ${TESSERA_A11Y_SOURCES})
 
 target_include_directories(tessera_accessibility PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -35,5 +46,12 @@ target_link_libraries(tessera_accessibility PUBLIC
     tessera_style
     tessera_schema
     Threads::Threads)
+
+# Static libraries do not link, but CMake carries PRIVATE link dependencies to the executables that
+# consume them, so a Windows app that uses the UIA provider links the system automation/COM
+# libraries without repeating them (system components stay dynamic, ADR-012).
+if (WIN32)
+    target_link_libraries(tessera_accessibility PRIVATE uiautomationcore ole32)
+endif()
 
 target_compile_features(tessera_accessibility PUBLIC cxx_std_23)
