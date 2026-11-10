@@ -152,6 +152,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `codegen_composition_runtime` | generated component tree: slot order, empty slot, child-first unmount |
 | `codegen_virtual` | VirtualList/VirtualGrid emission: geometry constants, window table, 12 rejects, byte determinism |
 | `codegen_virtual_runtime` | scripted scroll through `ItemGeometry`: realized range, keyed reuse, Clean/Paint domains, 32-item clamp |
+| `codegen_virtual_scroll` | generated `scroll_virtual_<n>`: overscanned range parity, suffix-only measure shift + in-place re-anchor, `onEndReached` edge/throttle (200 px), grid rows, 4096-item cap refusal |
 | `forms_lowering` | Field resolves to an ordinary `Component` from a `"tessera"` import: prop-record matrix, Children slot, project-wins, determinism |
 | `forms_codegen` | prop/callback emission through `apply_props()`, typed unknown/mis-bound/wrong-type rejections, no-rule-constant audit, goldens |
 | `forms_codegen_runtime` | compiled two-Field form: dispatch to the caller's Button, host update repaints Field 1 only, callback bound on the validating Field |

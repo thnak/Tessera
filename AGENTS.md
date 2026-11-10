@@ -608,9 +608,19 @@ is generated), resolves Field value/error by `name`, binds `TextChange` into the
 submit/validate with first-invalid focus through a host `FocusManager`, surfaces errors only after
 touch/validate/submit, and hash-guards `apply_props()` for scalar and list props; Field props that
 the controller owns are rejected loudly inside a Form. Goldens `Field`/`Form`/`FieldPage`/`FormPage`;
-tests `forms_lowering`/`forms_codegen`/`forms_form_codegen`/`forms_codegen_runtime`. Next compiler
-slice: virtual collection events (`onScroll`/`onEndReached`) plus generated scroll wiring and
-measurement feedback through `ItemGeometry::refine_measure` (`docs/design/compiler.md`).
+tests `forms_lowering`/`forms_codegen`/`forms_form_codegen`/`forms_codegen_runtime`. Virtual
+collection events landed too: `onScroll` (typed `ScrollEvent`) and `onEndReached` (no payload) are
+accepted on VirtualList/VirtualGrid with loud rejects otherwise, and codegen emits
+`scroll_virtual_<n>(float& scroll_offset, float viewport_extent)` which owns an `ItemGeometry`
+seeded from the emitted constants (4096-item cap), refines it from realized item bounds via
+`refine_measure`, re-anchors the caller's offset in place with `reanchor_scroll`, applies the
+overscanned window through `apply_virtual_<n>`, then dispatches `onScroll` and `onEndReached`;
+`onEndReached` is edge-triggered with a distance-based 200 px re-entry throttle (deterministic, no
+wall clock) and generated state. Collection events are dispatched by that generated host entry point
+rather than a scene binding - there is still no `EventType::Scroll`, which is the deferred scene-side
+step. Test `codegen_virtual_scroll`; docs in compiler.md §11 and virtualization-v1.md §10/§14. Next
+compiler slice: dynamic virtual geometry (state/prop-driven `itemSize`/`estimateSize`/`gap`/
+`rowHeight` with a re-seed path and documented re-anchor on geometry change) (`docs/design/compiler.md`).
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
