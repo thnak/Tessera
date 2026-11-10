@@ -487,7 +487,11 @@ fixed-capacity Fenwick prefix sum of 32 px main-axis estimates, refine-on-measur
 the section 6 re-anchor math, and a bounded keyed `ItemStateStore`, plus the read-only
 `VirtualDataSource` with its fixed-capacity `KeyIndex`, the bounded `NodeRecycler` keyed to
 `ui.virtualListPoolCap` (clean-on-acquire, stale-lease rejection) and `VirtualRange`
-visible-range/re-anchor integration with a 10k-item allocation-free churn test; `tessera_boundary`
+visible-range/re-anchor integration with a 10k-item allocation-free churn test, keyed focus/selection
+in `ItemStateStore` (focused and selected entries pinned against LRU eviction, refusals counted),
+`VirtualRange` `focus_item`/`step_focus` with exactly one realized `PseudoState::Focus` node and
+`selected_items()` in data order, `scroll_to_index` Start/Center/Nearest (pure query, clamped to
+`[0, total - viewport]`), and `VirtualGridRows` row-granular grid geometry; `tessera_boundary`
 (`include/tessera/ui/boundary/`) provides `BoundaryTable` routing, the single sync catch point
 `run_guarded`, and the decided retry policy (250 ms doubling to a 4 s cap, five retries,
 `TESSERA_BOUNDARY_LOOP`). `tessera_scale` (`include/tessera/ui/scale/`) holds the render-scale

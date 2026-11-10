@@ -136,6 +136,10 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `virtual_range` | visible-range release/build over the overscan window with re-anchor relative to the first visible item |
 | `virtual_range_measure` | async measure refinement through `VirtualRange` with suffix shift and re-anchor |
 | `virtual_churn` | 10k items, 1500 scroll steps: zero allocations after warm-up, cap/in-use invariants, determinism |
+| `virtual_focus` | keyed focus/selection in the state store, one realized `PseudoState::Focus`, pinned entries |
+| `virtual_scroll_index` | `scroll_to_index` Start/Center/Nearest clamps, pure query identity, re-anchor interaction |
+| `virtual_focus_churn` | 10k-item focus/step/selection script: allocation parity, cap high-water mark, repeat determinism |
+| `virtual_grid_rows` | row-granular grid geometry: row-major mapping, row extent, visible rows/items |
 | `boundary_model` | nearest-catcher routing, fallback, reset, async values, cleanup seam |
 | `boundary_retry` | 250/500/1000/2000/4000 ms schedule, five-retry cap, `TESSERA_BOUNDARY_LOOP` |
 | `boundary_nested` | nested boundaries and root routing |
