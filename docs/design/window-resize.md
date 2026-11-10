@@ -192,6 +192,41 @@ swapchain-recreate delay are runtime knobs, not component code.
 - Reduced motion (`prefers-reduced-motion`) suppresses non-essential resize animation.
 - Animation must not drive the window size (no layout feedback loops); layout is authoritative.
 
+### 2.3 Render scale and text rasterization
+
+Text rasterizes at the window's device scale, so a DPI change re-rasterizes glyphs and never
+reuses bitmaps produced for another scale.
+
+- **Quantization.** `WindowMetrics::dpi_scale` snaps onto the decided ladder
+  `1.0 / 1.25 / 1.5 / 2.0` ([`ui/scale/render_scale.hpp`](../../include/tessera/ui/scale/render_scale.hpp)):
+  nearest step, ties rounded up, clamped to `[1.0, 2.0]`. `dpi / 96` is the device scale, so
+  96/120/144/192 dpi are exactly 1.0/1.25/1.5/2.0, while 108, 132 and 168 dpi are exact ties that
+  round up to 1.25, 1.5 and 2.0. The ladder is not a uniform lattice above 1.5: there is no 1.75
+  step, so 1.75 rounds up to 2.0. A non-finite or non-positive scale is rejected by the checked
+  helpers (`InvalidDeviceScale`) and mapped to the ladder floor by the total one.
+- **State.** One [`WindowRenderScale`](../../include/tessera/ui/scale/window_render_scale.hpp) per
+  window is derived from `WindowMetrics` and recomputed only when the reported `dpi_scale` changes
+  or the platform reports a monitor change (`notify_display_change`, because `WindowMetrics`
+  carries no display id). A repeated snapshot is a flag return - no quantization and no revision
+  bump - so the runtime may observe on every tick. `revision` advances only when the quantized step
+  changes, so 1.20 -> 1.24 does not invalidate raster work, and a rejected snapshot leaves the
+  live state untouched.
+- **Atlases.** [`ScaleGlyphAtlas`](../../include/tessera/ui/text/scale_glyph_atlas.hpp) keeps one
+  `GlyphAtlas` per ladder step, so an atlas built for 1.25 never serves 2.0. A DPI change releases
+  the previous step only; other steps stay warm and are reused when the window moves back. Page
+  LRU and page generations stay per atlas, so eviction on one step cannot invalidate another.
+- **Bound.** The set holds at most `kRenderScaleStepCount` (4) atlases; a request for an
+  in-between or out-of-range scale quantizes onto an existing slot instead of creating one. With
+  the default 512x512 RGBA pages and four pages per atlas the ladder costs at most 16 MiB, and a
+  monitor change never allocates a fifth atlas.
+- **Goldens.** Golden mode pins the scale explicitly ([ADR-009](../../decisions/ADR-009-deterministic-headless-golden-tests.md)),
+  so the same scene at the same ladder step produces the same glyph placement. The DPI/scale AA
+  matrix is in [`antialiasing.md`](antialiasing.md) §7.
+
+`renderScale` in [`runtime-config-v1.md`](../specs/runtime-config-v1.md) §5.7 is a different knob:
+the adaptive resolution multiplier owned by adaptive quality. Text rasterization keys on the
+monitor-derived ladder step above, not on `renderScale`.
+
 ## 3. Declarative style and layout semantics
 
 - **Viewport units** (`vw/vh/vmin/vmax`) resolve against the current logical viewport.
@@ -289,6 +324,10 @@ swapchain-recreate delay are runtime knobs, not component code.
 - Live-resize storms: coalescing, one resize frame per tick, no unbounded queue.
 - In-flight frames: old swapchain retirement, no use-after-free, no validation errors.
 - Style/layout: viewport/media/container re-evaluation, text reflow, percentages/flex/grid.
+- Render scale: the 96/120/144/192 dpi table plus in-between and tie scales, per-window state
+  transitions (repeat snapshots, same-step DPI changes, invalid metrics, monitor changes), and
+  per-scale atlas keying, invalidation and re-rasterization (`tests/unit/scale/`, ctest names
+  `scale_quantize`, `scale_state`, `scale_atlas`).
 - Animation: retarget (not restart), reduced motion, no layout feedback loop.
 - Platform integration: Windows modal resize, X11 sync counter, Wayland configure/ack.
 - Determinism: same synthetic sequence -> same layout/style dump and pixels.
@@ -299,7 +338,11 @@ swapchain-recreate delay are runtime knobs, not component code.
 - Exact swapchain-recreate delay heuristic for slow GPUs.
 - Safe-area APIs for Android/macOS (both backends are unscheduled; macOS per ADR-010, Android in Big Step F).
 - Whether to expose a declarative `onResize`/`ResizeObserver` API or keep it internal.
-- Fractional scaling + text rasterization on mixed-DPI multi-monitor setups.
+- ~~Fractional scaling + text rasterization on mixed-DPI multi-monitor setups.~~ Decided: the
+  device scale quantizes onto the 1.0/1.25/1.5/2.0 ladder (nearest, ties up, clamped) and each
+  ladder step owns one glyph atlas that is released when the window leaves that step (§2.3). One
+  render scale per window; per-monitor scale stays out of V1
+  ([`performance.md`](performance.md) §10).
 
 ## 7. Device loss (D7)
 

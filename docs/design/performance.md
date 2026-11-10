@@ -137,6 +137,11 @@ Actions, in order:
 4. pause non-essential animations
 5. report a quality downgrade in metrics
 
+Step 2 moves the adaptive `renderScale`; the monitor-derived device scale is a separate value that
+quantizes onto a fixed ladder and keys text/glyph rasterization ([`window-resize.md`](window-resize.md)
+§2.3). Adaptive quality never changes the device scale, so a quality adjustment does not
+re-rasterize glyphs or resize the text atlas.
+
 Never:
 
 - skip correctness/dirty invalidation
@@ -178,6 +183,9 @@ All adaptive changes must be reversible and visible in diagnostics.
 
 - Per-platform or battery-state overrides of `backgroundMaxFps` (the default is `0` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).
 - Thermal/power-source signals and whether to use them at all (no decision yet; HAL `PowerState` in [`hal.md`](hal.md) exposes them).
-- Per-monitor render scale and mixed-DPI multi-window.
+- ~~Per-monitor render scale and mixed-DPI multi-window.~~ Decided: one render scale per window in
+  V1, derived from that window's `WindowMetrics` and recomputed only on a DPI or monitor change
+  ([`window-resize.md`](window-resize.md) §2.3). Per-monitor scale is deferred until multi-window
+  or per-display rendering is scheduled or a mixed-DPI app needs it.
 - How much adaptive quality is acceptable without visual regression.
 - Benchmark harness and baseline budgets per scene class.
