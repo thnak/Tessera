@@ -1,0 +1,51 @@
+# Tessera diagnostic registry golden: one line per analyzer code with a fixture, in
+# lexicographic order. Format: code<TAB>fixture<TAB>message.
+# Compared byte for byte by tests/unit/jsx_diagnostics_registry_tests.cpp. Adding or
+# renaming a code requires updating this golden, diagnostic_registry.hpp and the
+# fixture (or skip entry) in jsx_diagnostics_cases.hpp; `--update` rewrites this file.
+TESSERA_JSX_LEX_INVALID_CHARACTER	lex-invalid-character	unexpected character `@`
+TESSERA_JSX_LEX_INVALID_ESCAPE	lex-invalid-escape	invalid escape sequence `\q`
+TESSERA_JSX_LEX_INVALID_NUMBER	lex-invalid-number	unsupported number literal `0x1F`
+TESSERA_JSX_LEX_INVALID_TEXT_CHARACTER	lex-invalid-text-character	`}` is not allowed in JSX text
+TESSERA_JSX_LEX_INVALID_UTF8	lex-invalid-utf8	invalid UTF-8 byte sequence
+TESSERA_JSX_LEX_LONE_CR	lex-lone-cr	a lone CR is not a line break
+TESSERA_JSX_LEX_UNTERMINATED_COMMENT	lex-unterminated-comment	unterminated block comment
+TESSERA_JSX_LEX_UNTERMINATED_STRING	lex-unterminated-string	unterminated string literal
+TESSERA_JSX_LEX_UNTERMINATED_TEMPLATE	lex-unterminated-template	unterminated template literal
+TESSERA_JSX_LIMIT_COMPONENTS	limit-components	file has more than 64 components
+TESSERA_JSX_LIMIT_DEPTH	limit-depth	nesting is deeper than 128 levels
+TESSERA_JSX_LIMIT_DIAGNOSTICS	limit-diagnostics	too many diagnostics; further diagnostics are not reported
+TESSERA_JSX_LIMIT_FILE_SIZE	limit-file-size	file is 17 bytes; the limit is 16
+TESSERA_JSX_LIMIT_TOKENS	limit-tokens	file has more than 3 tokens
+TESSERA_JSX_PARSE_EMPTY_EXPRESSION	parse-empty-expression	the attribute expression is empty
+TESSERA_JSX_PARSE_MISMATCHED_TAG	parse-mismatched-tag	closing tag `</B>` does not match `<A>`
+TESSERA_JSX_PARSE_MISSING_RETURN	parse-missing-return	component `A` must end with `return <element>;`
+TESSERA_JSX_PARSE_MISSING_SEMICOLON	parse-missing-semicolon	missing `;`
+TESSERA_JSX_PARSE_UNCLOSED_ELEMENT	parse-unclosed-element	element `<A>` is not closed: expected `</A>`
+TESSERA_JSX_PARSE_UNEXPECTED_TOKEN	parse-unexpected-token	unexpected end of input, expected an expression
+TESSERA_JSX_PARSE_UNKNOWN_ENTITY	parse-unknown-entity	unknown entity `&bogus;`
+TESSERA_JSX_SUBSET_ARRAY_METHOD	subset-array-method	array method `.filter` is not supported; only `.map` is
+TESSERA_JSX_SUBSET_ASYNC	subset-async	`await` is not supported
+TESSERA_JSX_SUBSET_CALL	subset-call	`.map` callback body must be a single JSX element, not a block or another value
+TESSERA_JSX_SUBSET_CLASS	subset-class	`new` is not supported
+TESSERA_JSX_SUBSET_COMPONENT_NAME	subset-component-name	component name `a` must start with an uppercase letter
+TESSERA_JSX_SUBSET_DOM	subset-dom	`dangerouslySetInnerHTML` is not supported
+TESSERA_JSX_SUBSET_DYNAMIC_TAG	subset-dynamic-tag	member and namespace tags (`<A.B>`) are not supported
+TESSERA_JSX_SUBSET_FUNCTION_VALUE	subset-function-value	`function` is not supported
+TESSERA_JSX_SUBSET_HTML_TAG	subset-html-tag	HTML tag `<div>` is not supported
+TESSERA_JSX_SUBSET_IMPORT	subset-import	`export default` is not supported
+TESSERA_JSX_SUBSET_LITERAL	subset-literal	computed object keys are not supported
+TESSERA_JSX_SUBSET_LOOSE_EQUALITY	subset-loose-equality	loose equality is not supported
+TESSERA_JSX_SUBSET_MEMBER	subset-member	indexing is not supported
+TESSERA_JSX_SUBSET_MUTATION	subset-mutation	assignment `=` is not supported
+TESSERA_JSX_SUBSET_OPERATOR	subset-operator	`??` is not supported
+TESSERA_JSX_SUBSET_SPREAD	subset-spread	spread is only allowed for the props parameter or an object literal
+TESSERA_JSX_SUBSET_STATEMENT	subset-statement	`if` is not supported
+TESSERA_JSX_SUBSET_STYLE_DYNAMIC	subset-style-dynamic	`style` must be an inline object literal
+TESSERA_JSX_SUBSET_TYPES	subset-types	type `any` is not supported
+TESSERA_JSX_SUBSET_UNKNOWN_PROP	subset-unknown-prop	attribute `data-x` is not an identifier
+TESSERA_JSX_TYPE_NUMBER	type-number	bare `number` is not a Tessera type
+TESSERA_REACT_BIND_ID	react-bind-id	malformed bind id `Foo`
+TESSERA_REACT_BIND_POSITION	react-bind-position	`bind::` annotations go before a handler declaration or a `useEffect` statement inside a component
+TESSERA_REACT_CUSTOM_HOOK	react-custom-hook	custom hook `useThing` is not supported
+TESSERA_REACT_LIST_KEY	react-list-key	the element returned by `.map` needs a `key` attribute

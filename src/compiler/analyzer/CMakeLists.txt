@@ -50,6 +50,7 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/unit/jsx_diagnostics_registry_tests.cpp)
     target_link_libraries(jsx_diagnostics_registry_tests PRIVATE tessera_jsx_frontend)
     target_compile_definitions(jsx_diagnostics_registry_tests PRIVATE
-        TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+        TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler"
+        TESSERA_JSX_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/jsx")
     add_test(NAME jsx_diagnostics_registry COMMAND jsx_diagnostics_registry_tests)
 endif()

@@ -36,6 +36,10 @@
 #error "TESSERA_COMPILER_SOURCE_DIR must be defined by the build"
 #endif
 
+#ifndef TESSERA_JSX_GOLDEN_DIR
+#error "TESSERA_JSX_GOLDEN_DIR must be defined by the build"
+#endif
+
 namespace {
 
 using namespace jsx_test;
@@ -97,7 +101,7 @@ std::vector<Diagnostic> run_case(const jsx_registry::Case& test) {
 
 // Checks one fixture and records its message for the golden. `where` names the fixture in every
 // failure so a broken case is findable without the line number of the log.
-std::string check_case(const jsx_registry::Case& test) {
+void check_case(const jsx_registry::Case& test, std::map<std::string, std::string>& messages) {
     const std::string where =
         "fixture `" + std::string(test.name) + "` (" + std::string(test.code) + ")";
     const std::vector<Diagnostic> diagnostics = run_case(test);
@@ -116,7 +120,7 @@ std::string check_case(const jsx_registry::Case& test) {
     }
     check(matches == 1, "the code is reported exactly once: " + where);
     if (found == nullptr) {
-        return {};
+        return;
     }
 
     const ResolvedSpan& span = found->span;
@@ -143,7 +147,7 @@ std::string check_case(const jsx_registry::Case& test) {
                                std::to_string(span.start.column) + ": error[" +
                                std::string(test.code) + "]: ";
     check(format_diagnostic(*found).starts_with(prefix), "formatted prefix: " + where);
-    return message;
+    messages[std::string(test.code)] = message;
 }
 
 void collect_quoted_codes(std::string_view text, std::set<std::string>& out) {
@@ -303,9 +307,66 @@ void test_sink_text_cap() {
     check(diagnostic.message.ends_with("..."), "the capped message is marked");
 }
 
+// The committed golden: code, fixture id and message per covered code, in lexicographic order.
+// It is the reviewable record of every message, so a reworded message shows up as a diff even
+// when all the fixture assertions still pass.
+std::string build_golden(const std::map<std::string, std::string>& messages) {
+    std::string out;
+    out += "# Tessera diagnostic registry golden: one line per analyzer code with a fixture, in\n";
+    out += "# lexicographic order. Format: code<TAB>fixture<TAB>message.\n";
+    out += "# Compared byte for byte by tests/unit/jsx_diagnostics_registry_tests.cpp. Adding or\n";
+    out += "# renaming a code requires updating this golden, diagnostic_registry.hpp and the\n";
+    out +=
+        "# fixture (or skip entry) in jsx_diagnostics_cases.hpp; `--update` rewrites this file.\n";
+    std::vector<const jsx_registry::Case*> sorted;
+    sorted.reserve(jsx_registry::kCases.size());
+    for (const auto& test : jsx_registry::kCases) {
+        sorted.push_back(&test);
+    }
+    std::sort(sorted.begin(), sorted.end(),
+              [](const auto* left, const auto* right) { return left->code < right->code; });
+    for (const auto* test : sorted) {
+        out += std::string(test->code) + '\t' + std::string(test->name) + '\t';
+        const auto message = messages.find(std::string(test->code));
+        out += message == messages.end() ? "<missing>" : message->second;
+        out += '\n';
+    }
+    return out;
+}
+
+void compare_golden(const std::string& actual, bool update) {
+    const std::string path = std::string(TESSERA_JSX_GOLDEN_DIR) + "/diagnostics-registry.txt";
+    if (update) {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        out << actual;
+        std::cout << "rewrote " << path << "\n";
+        return;
+    }
+    std::ifstream in(path, std::ios::binary);
+    std::ostringstream text;
+    text << in.rdbuf();
+    const std::string golden = text.str();
+    if (!in && golden.empty()) {
+        report_failure("the diagnostic registry golden is not readable: " + path);
+        return;
+    }
+    if (golden == actual) {
+        return;
+    }
+    ++failures;
+    std::cerr << "FAIL: the diagnostic registry golden is out of date\n"
+              << "  path: " << path << "\n"
+              << "  adding or renaming a code requires updating this golden\n"
+              << "  --- committed golden ---\n"
+              << golden << "  --- registry and fixtures ---\n"
+              << actual;
+}
+
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const bool update = argc > 1 && std::string_view(argv[1]) == "--update";
+    std::map<std::string, std::string> messages;
     std::set<std::string> covered;
     std::set<std::string> names;
     for (const auto& test : jsx_registry::kCases) {
@@ -317,12 +378,13 @@ int main() {
             std::cerr << "FAIL: duplicate fixture id `" << test.name << "`\n";
             ++failures;
         }
-        check_case(test);
+        check_case(test, messages);
     }
     const std::set<std::string> emitted = emitted_codes();
     check_registry(emitted, covered);
     test_excerpt_cap();
     test_sink_text_cap();
+    compare_golden(build_golden(messages), update);
     std::cout << kDiagnosticCodeRegistry.size() << " registry codes, "
               << jsx_registry::kCases.size() << " fixtures, " << jsx_registry::kSkips.size()
               << " skips, " << emitted.size() << " emitted codes\n";
