@@ -2,6 +2,7 @@
 
 add_library(tessera_scene STATIC
     node.cpp
+    node_metadata.cpp
     event.cpp
     dirty_pass.cpp
     focus.cpp

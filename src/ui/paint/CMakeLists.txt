@@ -5,6 +5,7 @@ add_library(tessera_paint STATIC
     paint_image.cpp
     paint_properties.cpp
     paint_sinks.cpp
+    paint_text.cpp
     paint_text_metrics.cpp
     paint_vector.cpp
     text_layout_cache.cpp)
