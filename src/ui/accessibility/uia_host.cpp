@@ -6,6 +6,9 @@
 
 #include "tessera/ui/accessibility/uia_host.hpp"
 
+#include <algorithm>
+#include <array>
+#include <span>
 #include <utility>
 
 namespace tessera::ui::a11y {
@@ -58,6 +61,67 @@ bool UiaHost::answer_get_object(std::intptr_t object_id, void*& raw_provider) co
     }
     raw_provider = root;
     return true;
+}
+
+void UiaHost::mark_dirty() {
+    dirty_.store(true, std::memory_order_release);
+}
+
+bool UiaHost::dirty() const {
+    return dirty_.load(std::memory_order_acquire);
+}
+
+UiaHostTickStats UiaHost::tick(const SnapshotSource& source, const ActionHandler& handler) {
+    UiaHostTickStats stats;
+    if (dirty_.load(std::memory_order_acquire)) {
+        // Build on the UI thread; the bridge only ever sees the immutable copy. A throwing source
+        // keeps the previous tree published (and the host dirty) instead of shipping a half-built
+        // snapshot, and the failure is reported as a value.
+        bool built = true;
+        try {
+            if (source) {
+                source(next_);
+            } else {
+                next_.clear();
+            }
+        } catch (...) {
+            // Boundary: host callbacks are untrusted UI code; never unwind into the runtime loop.
+            built = false;
+        }
+        if (built) {
+            bridge_.publish(next_);
+            // Retain the published tree for the next diff, reusing the buffers both ways.
+            previous_.nodes.swap(next_.nodes);
+            dirty_.store(false, std::memory_order_release);
+            stats.published = true;
+        } else {
+            stats.build_failed = true;
+            next_.clear();
+        }
+    }
+
+    if (handler) {
+        // Tick-boundary drain: a bounded batch per tick, oldest first. The action ring stays
+        // bounded by the provider, so a client that spams still cannot starve the frame.
+        const std::size_t budget = std::min(config_.max_actions_per_tick, kMaxPendingUiaActions);
+        std::array<UiaActionRequest, kMaxPendingUiaActions> batch{};
+        const std::size_t taken = bridge_.take_actions(std::span(batch.data(), budget));
+        for (std::size_t index = 0; index < taken; ++index) {
+            try {
+                handler(batch[index]);
+            } catch (...) {
+                // Boundary: an accessibility action runs host code; a throw ends this tick's
+                // batch. The failed action is dropped (never retried) and reported as a value.
+                stats.actions_applied = index;
+                stats.actions_failed = 1;
+                stats.actions_deferred = bridge_.queued_actions();
+                return stats;
+            }
+        }
+        stats.actions_applied = taken;
+    }
+    stats.actions_deferred = bridge_.queued_actions();
+    return stats;
 }
 
 UiaBridge& UiaHost::bridge() {

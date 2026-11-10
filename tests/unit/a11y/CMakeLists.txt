@@ -132,6 +132,14 @@ target_link_libraries(a11y_uia_host_getobject_tests PRIVATE tessera_accessibilit
 
 add_test(NAME a11y_uia_host_getobject COMMAND a11y_uia_host_getobject_tests)
 
+# Dirty-driven publication and the tick-boundary action drain.
+add_executable(a11y_uia_host_tick_tests
+    a11y_uia_host_tick_tests.cpp)
+
+target_link_libraries(a11y_uia_host_tick_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_host_tick COMMAND a11y_uia_host_tick_tests)
+
 # The Windows UI Automation provider is the only platform-specific code in this directory. The
 # probe test proves the SDK headers and the uiautomationcore/ole32 link work from the static
 # accessibility library; the COM test drives the real provider vtable without a UIA client. Both are

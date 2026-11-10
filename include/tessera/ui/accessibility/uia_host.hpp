@@ -5,8 +5,10 @@
 #include "tessera/ui/accessibility/uia_bridge.hpp"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <memory>
 
 namespace tessera::ui::a11y {
@@ -39,6 +41,19 @@ public:
 
 struct UiaHostConfig {
     UiaBridgeConfig bridge;
+    // Actions one tick may execute. The rest stay queued (bounded by the provider ring) for the
+    // next tick, so a spamming client cannot stretch a frame.
+    std::size_t max_actions_per_tick = 8;
+};
+
+// What one tick did. A static window (not dirty, no queued actions) reports zeroes and does no
+// snapshot build, no publish, no bridge wake, and no UIA call.
+struct UiaHostTickStats {
+    bool published = false;           // a dirty snapshot was built and published
+    bool build_failed = false;        // the source threw; the previous tree is still served
+    std::size_t actions_applied = 0;  // actions executed in this tick
+    std::size_t actions_failed = 0;   // the handler threw (that action is dropped, not retried)
+    std::size_t actions_deferred = 0; // actions still queued for a later tick
 };
 
 // The window/host owner of the UIA bridge: the piece that connects a Win32 window's WM_GETOBJECT to
@@ -54,6 +69,13 @@ struct UiaHostConfig {
 // dispatches WM_GETOBJECT); the hooks run on the bridge thread. Nothing here waits for the bridge.
 class UiaHost {
 public:
+    // UI thread: builds the semantics snapshot into a caller-owned buffer. Called only when the
+    // host is dirty, so a static window never builds a tree.
+    using SnapshotSource = std::function<void(A11ySnapshot&)>;
+    // UI thread, tick boundary: executes one validated accessibility action. Never called on the
+    // bridge thread and never re-entrant with a UIA client call.
+    using ActionHandler = std::function<void(const UiaActionRequest&)>;
+
     // `apartment` overrides the platform seam (tests inject a fake COM apartment); `platform`
     // overrides the UIA root seam (tests inject a fake root/raiser).
     explicit UiaHost(UiaHostConfig config = {}, std::unique_ptr<UiaApartment> apartment = {},
@@ -77,6 +99,17 @@ public:
     // means the caller must fall back to the platform default.
     [[nodiscard]] bool answer_get_object(std::intptr_t object_id, void*& raw_provider) const;
 
+    // UI thread: marks the semantics snapshot dirty. Call it from the style/layout/focus/text
+    // change paths, not per frame; repeated calls before a tick are free.
+    void mark_dirty();
+    [[nodiscard]] bool dirty() const;
+
+    // UI thread, tick boundary: publishes a snapshot only when dirty, then drains and applies
+    // queued accessibility actions in arrival order. A null source publishes an empty tree; a null
+    // handler leaves actions queued instead of discarding them. Never blocks the tick.
+    [[nodiscard]] UiaHostTickStats tick(const SnapshotSource& source,
+                                        const ActionHandler& handler = {});
+
     [[nodiscard]] UiaBridge& bridge();
     [[nodiscard]] const UiaBridge& bridge() const;
     [[nodiscard]] UiaError error() const;
@@ -90,6 +123,10 @@ private:
     UiaBridge bridge_;
     // Published by the bridge thread once the root exists and cleared before it is released.
     std::atomic<void*> root_{nullptr};
+    std::atomic<bool> dirty_{false};
+    // Reused build/retain buffers so a steady-state publish allocates nothing after the first.
+    A11ySnapshot next_;
+    A11ySnapshot previous_;
 };
 
 } // namespace tessera::ui::a11y

@@ -88,6 +88,10 @@ std::size_t UiaBridge::take_actions(std::span<UiaActionRequest> out) {
     return provider_.take_actions(out);
 }
 
+std::size_t UiaBridge::queued_actions() const {
+    return provider_.queued_actions();
+}
+
 UiaProvider& UiaBridge::provider() {
     return provider_;
 }

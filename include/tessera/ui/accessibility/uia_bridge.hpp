@@ -102,6 +102,8 @@ public:
     [[nodiscard]] SnapshotHandoffStats handoff_stats() const;
     // UI thread: drain actions queued by the provider, to execute at a tick boundary.
     [[nodiscard]] std::size_t take_actions(std::span<UiaActionRequest> out);
+    // UI thread: actions waiting for a tick-boundary drain (`take_actions` is the drain).
+    [[nodiscard]] std::size_t queued_actions() const;
 
     // Bridge thread: the provider over the current snapshot.
     [[nodiscard]] UiaProvider& provider();

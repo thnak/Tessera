@@ -18,7 +18,6 @@ using tessera::ui::a11y::kUiaRootObjectId;
 using tessera::ui::a11y::UiaError;
 using tessera::ui::a11y::UiaHost;
 using tessera::ui::a11y::UiaHostConfig;
-
 bool expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "a11y uia host: " << message << "\n";
@@ -48,12 +47,8 @@ std::unique_ptr<Harness> make_harness(void* root = reinterpret_cast<void*>(0x123
     harness->apartment = apartment.get();
     auto platform = std::make_unique<FakePlatform>(harness->log, root);
     harness->platform = platform.get();
-    UiaHostConfig config;
-    // A long idle wait keeps the worker asleep unless a `step` barrier wakes it, so the assertions
-    // never depend on thread scheduling.
-    config.bridge.idle_wait_ms = 1000;
-    config.bridge.shutdown_wait_ms = 5000;
-    harness->host = std::make_unique<UiaHost>(config, std::move(apartment), std::move(platform));
+    harness->host =
+        std::make_unique<UiaHost>(test_config(), std::move(apartment), std::move(platform));
     return harness;
 }
 

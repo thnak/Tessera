@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <expected>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -142,6 +143,37 @@ inline std::int64_t index_of(const std::vector<std::string>& entries, std::strin
         }
     }
     return -1;
+}
+
+// A long idle wait keeps the worker asleep unless a `step` barrier wakes it, so host assertions
+// never depend on thread scheduling.
+inline tessera::ui::a11y::UiaHostConfig test_config() {
+    tessera::ui::a11y::UiaHostConfig config;
+    config.bridge.idle_wait_ms = 1000;
+    config.bridge.shutdown_wait_ms = 5000;
+    return config;
+}
+
+// Owns the fakes and the host. Declaration order matters: the host is destroyed first, so the
+// bridge is joined before the fake apartment/platform it points at are destroyed.
+struct HostHarness {
+    Log log;
+    LoggingApartment* apartment = nullptr;
+    FakePlatform* platform = nullptr;
+    std::unique_ptr<tessera::ui::a11y::UiaHost> host;
+};
+
+inline std::unique_ptr<HostHarness>
+make_host(tessera::ui::a11y::UiaHostConfig config = test_config(),
+          void* root = reinterpret_cast<void*>(0x1234)) {
+    auto harness = std::make_unique<HostHarness>();
+    auto apartment = std::make_unique<LoggingApartment>(harness->log);
+    harness->apartment = apartment.get();
+    auto platform = std::make_unique<FakePlatform>(harness->log, root);
+    harness->platform = platform.get();
+    harness->host = std::make_unique<tessera::ui::a11y::UiaHost>(config, std::move(apartment),
+                                                                 std::move(platform));
+    return harness;
 }
 
 } // namespace a11y_uia_host_test
