@@ -64,3 +64,10 @@ add_executable(harness_handler_tests
 target_link_libraries(harness_handler_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_handler COMMAND harness_handler_tests)
+
+add_executable(harness_session_tests
+    session_tests.cpp)
+
+target_link_libraries(harness_session_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_session COMMAND harness_session_tests)
