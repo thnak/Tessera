@@ -339,7 +339,22 @@ Rules:
 - The data source is the template's `loop.source` (a list state/ref); item access uses the loop's `item`/`index` locals ([`ir-v1.md`](ir-v1.md) section 3.5).
 - `key` is required; duplicate keys are errors.
 - V1 supports vertical lists, horizontal lists, and fixed/measured grids; span/masonry are not in V1 (no release specified).
-- `onEndReached` is throttled and delivered on the UI thread.
+- `onEndReached` is throttled and delivered on the UI thread. The throttle is distance-based and
+  deterministic (no wall clock): the event is edge-triggered when the realized window (viewport +
+  overscan) first reaches the last item, staying at the end does not re-fire, and a re-entry whose
+  scroll offset is within `kVirtualEndReachedThrottlePx` (200 px) of the previous fire is suppressed
+  and counted. The edge re-arms only after the window leaves the end zone.
+- `onScroll` and `onEndReached` are collection-level events. `onScroll` accepts one parameter and
+  maps it to the scene `ScrollEventInfo` payload (absolute offset plus viewport/content extents);
+  `onEndReached` accepts no parameter. Both are dispatched by the generated
+  `scroll_virtual_<n>(float& scroll_offset, float viewport_extent)` entry point (docs/design/
+  compiler.md section 11), which owns an `ItemGeometry` seeded from the emitted constants, forwards
+  realized-item measures through `refine_measure`, re-anchors the caller's offset in place with the
+  section 6 rule, and applies the overscanned window. A source past the generated geometry cap
+  (4096 items) is refused by the entry point. An `onEndReached` parameter, an `onScroll` payload
+  other than `ScrollEvent`, a multi-parameter collection handler, a collection-event binding with a
+  return value, or a collection event on a `VirtualGrid` without the fixed `columns` count is a
+  compile-time error.
 - IR v1 gains these node kinds; codegen emits a fixed container node, generated geometry constants
   (estimate/fixed size, overscan, gap; grid row height/columns), a bounded realized-window item
   table and `apply_virtual_<n>(first, last)` (ir-v1.md section 10). The host computes `[first, last)`
@@ -438,8 +453,16 @@ Tests:
   path (docs/design/compiler.md section 11). The host computes the window with `VirtualRange` /
   `ItemGeometry`, so generated code never reimplements prefix sums. Goldens
   `tests/golden/codegen/VirtualDemo.*`; tests `codegen_virtual` (shape, goldens, determinism,
-  rejections, merger idempotency) and `codegen_virtual_runtime` (a scripted scroll through the real
-  `ItemGeometry`).
+  rejections, merger idempotency), `codegen_virtual_runtime` (a scripted scroll through the real
+  `ItemGeometry`), and `codegen_virtual_scroll` (the generated scroll entry point: overscanned
+  range parity, measure refinement and re-anchor, the edge/throttle `onEndReached`, the grid row
+  window, and the geometry-cap refusal).
+- Implemented (collection events slice): `onScroll`/`onEndReached` are accepted on `VirtualList` and
+  `VirtualGrid` and dispatched by the generated `scroll_virtual_<n>` entry point, which owns the
+  collection's `ItemGeometry` seeded from the emitted constants, refines the prefix sums from the
+  realized items' measured main-axis bounds (`ItemGeometry::refine_measure`, grid rows keep their
+  maximum), re-anchors the caller's offset in place (`reanchor_scroll`), realizes the overscanned
+  window, and applies the documented distance throttle to `onEndReached`.
 - Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
   refine suffix shift, insert/remove, capacity), `virtual_geometry_scan` (brute-force linear
   oracle for offsets and windows), `virtual_anchor` (re-anchor after measure, clamp),
@@ -466,10 +489,10 @@ Tests:
   per-frame announcement, allocation parity, determinism), and `virtual_churn` (10k-item
   allocation-free churn, no node leak, deterministic step records/build/release order).
 - Design/spec only still: sticky headers, the platform accessibility bridge consuming the
-  collection semantics, async prefetch/cancellation wiring, the collection's own `onEndReached`
-  event wiring (no scene `EventType` yet; item-template events are emitted), dynamic virtual
-  geometry, and dirty/render integration beyond the realized-window path (the range reports dirty
-  through the scene-node bounds it writes).
+  collection semantics, async prefetch/cancellation wiring, a scene `Scroll` event binding for the
+  collection events (the host calls the generated `scroll_virtual_<n>` entry point today), dynamic
+  virtual geometry, and dirty/render integration beyond the realized-window path (the range reports
+  dirty through the scene-node bounds it writes).
 - Depends on: IR/component model ([`ir-v1.md`](ir-v1.md),
   [`component-model-v1.md`](component-model-v1.md)), Yoga layout/measure
   ([`layout.md`](../design/layout.md)), input/focus ([`input.md`](../design/input.md)),

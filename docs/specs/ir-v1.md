@@ -557,7 +557,7 @@ table that resolves prop types is a later slice), and a re-parsed reader (sectio
 | ErrorBoundary | boundary state + guarded child build/update/effect/event + fallback subtree |
 | Conditional | `if` around node creation/update |
 | Loop | keyed list update/rebuild |
-| `VirtualList`/`VirtualGrid` | a fixed container node with generated geometry constants (`itemSize`/`estimateSize`/`overscan`/`gap`, grid row height/columns), a bounded realized-window item table and `apply_virtual_<n>(first, last)`, which reconciles the window by key and repaints changed items; the host computes `[first, last)` with the runtime geometry (`tessera_virtual`) and owns the scroll offset |
+| `VirtualList`/`VirtualGrid` | a fixed container node with generated geometry constants (`itemSize`/`estimateSize`/`overscan`/`gap`, grid row height/columns), a bounded realized-window item table, `apply_virtual_<n>(first, last)` (keyed reconciliation and changed-item repaint), and the generated `scroll_virtual_<n>(scroll_offset, viewport_extent)` entry point, which owns the runtime geometry, refines realized-item measures, re-anchors the offset and dispatches `onScroll`/`onEndReached`; the host may still compute `[first, last)` itself and call `apply_virtual_<n>` with its own geometry |
 | Ref | `Node*` member + assignment after creation |
 | Animated value | `AnimationController`/`Tween` member |
 | Style token | property id/value or stylesheet class reference |

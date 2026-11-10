@@ -434,14 +434,51 @@ virtualization-v1.md section 4. Codegen emits:
 
 `estimateSize`/`overscan`/`gap`/`rowHeight`/`columns`/`columnWidth` are the collection's own props
 and are not scene-node metadata; the host feeds the generated constants into its geometry config and
-drives `apply_virtual_<n>` from its scroll handling. The goldens
-`tests/golden/codegen/VirtualDemo.*` are generated from hand-built IR by
-`codegen_virtual_tests --write`; the build compiles them as `tessera_codegen_virtual_sample` and
+drives `apply_virtual_<n>` from its scroll handling.
+
+**Generated scroll wiring (implemented).** Each virtual collection also emits
+`scroll_virtual_<collection>(float& scroll_offset, float viewport_extent)`, the collection-level
+scroll entry point. The component owns one `tessera::ui::virtualization::ItemGeometry` seeded from
+the emitted constants (estimate, gap, capacity `kMaxGeneratedVirtualGeometryItems = 4096`). One call
+syncs the geometry count from the loop source, reads every realized item's laid-out main-axis
+border-box extent (`Node::bounds()`) and forwards a positive measure through
+`ItemGeometry::refine_measure` (a grid maps a cell to its row and keeps the row maximum; a zero
+extent means "not laid out yet" and is ignored), re-anchors `scroll_offset` **in place** through
+`virtualization::reanchor_scroll` when the measure lands before the item at the viewport start,
+realizes the viewport window expanded by the emitted `overscan` (the applied table stays capped at
+32 items), then dispatches the collection events. `onScroll` receives the scene `ScrollEventInfo`
+payload (absolute offset plus viewport/content extents) when its handler takes a parameter and a
+default `Event` otherwise.
+
+`onEndReached` is edge-triggered and distance-throttled. It fires once when the realized window
+first reaches the last item; staying at the end does not re-fire, and the edge re-arms only after
+the window leaves the end zone. A re-entry whose offset is within `kVirtualEndReachedThrottlePx`
+(200 px) of the previous fire is suppressed and counted. The throttle is distance-based, so it needs
+no wall clock and the scripted tests are deterministic; the generated `virtual_<n>_end_armed_`,
+`_end_fire_offset_`, `_end_fires_` and `_end_throttled_` members hold the state. Order per call:
+measure/refine, re-anchor, window apply, `onScroll`, `onEndReached`.
+
+The scene has no scroll `EventType` yet, so the driver is a host entry point on the component rather
+than a scene event binding: the host owns the scroll offset (and adopts the re-anchored value from
+the updated argument) and calls the method from its scroll handling. Rejected loudly with
+`TESSERA_CODEGEN_UNSUPPORTED`: an `onScroll` payload other than the `ScrollEvent` record or a
+multi-parameter collection handler, an `onEndReached` handler/binding with a payload, a collection
+event binding with a return value, and a `VirtualGrid` that declares a collection event without the
+fixed `columns` count (its generated row mapping needs one). A data source past the geometry cap
+makes the method return false and realize nothing; `columnWidth` grids refuse it and stay
+host-driven through `apply_virtual_<n>`.
+
+The goldens `tests/golden/codegen/VirtualDemo.*` are generated from hand-built IR by
+`codegen_virtual_tests --write`; the build compiles them as `tessera_codegen_virtual_sample`.
 `codegen_virtual_runtime` scripts a scroll through the real `ItemGeometry` to assert the realized
-range, NodeId slots, keyed reuse, dirty domains and the bounded window. Deferred loudly: dynamic
-virtual geometry, the collection's own `onEndReached` (no scene `EventType` mapping yet), a virtual
-collection inside an eager list template, and interpolation/metadata forms already deferred inside
-any template (components, `TextInput`/`TextArea`, refs, dynamic metadata/style, nested loops).
+range, NodeId slots, keyed reuse, dirty domains and the bounded window, and
+`codegen_virtual_scroll` drives the generated entry point: overscanned range parity with an
+independent geometry, measure refinement changing only the suffix with the re-anchored offset,
+`onEndReached` at the boundary with its throttle, the grid row window, and the cap refusal.
+Deferred loudly: dynamic virtual geometry, a scene `Scroll` event binding for the collection events
+(the host calls the generated entry point), a time-based throttle, a virtual collection inside an
+eager list template, and interpolation/metadata forms already deferred inside any template
+(components, `TextInput`/`TextArea`, refs, dynamic metadata/style, nested loops).
 
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
@@ -514,9 +551,10 @@ focused field has no visible caret until the paint pass grows an empty-run caret
 
 Deferred: dynamic list elements and list-typed *state* initials of a project component
 (`Component::props` is populated only for the `children` slot declaration today, so a list can be
-seeded only from a literal array initial or another list reference), dynamic virtual geometry and
-the collection's own `onEndReached` (no scene `EventType` for it yet; item-template events are
-wired), a value expression on a component prop beyond one payload-record callback parameter, a
+seeded only from a literal array initial or another list reference), dynamic virtual geometry and a
+scene `Scroll` event binding for the collection events (the host calls `scroll_virtual_<n>` today;
+item-template events are wired), a value expression on a component prop beyond one payload-record
+callback parameter, a
 `style` prop or dynamic prop names on a component (component nodes carry props, not style), a
 conditional or looped component instance, reusing computed styles, multi-file watch mode,
 cross-module incremental generation, and single-node incremental regeneration. Form-binding
