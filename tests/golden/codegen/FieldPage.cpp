@@ -73,12 +73,13 @@ namespace demo {
         this->child_3_.prop_required_ = true;
       }
       std::uint64_t prop_3_validators_hash = tessera::ui::kEffectHashSeed;
-      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, static_cast<std::int64_t>(2));
-      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, std::string_view("required"));
-      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, std::string_view("minLength:3"));
+      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, static_cast<std::int64_t>(state_rules_.size()));
+      for (const auto& guard_value : state_rules_) {
+        prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, std::string_view(guard_value));
+      }
       if (prop_3_validators_hash != child_3_prop_validators_hash_) {
         child_3_prop_validators_hash_ = prop_3_validators_hash;
-        this->child_3_.prop_validators_ = {"required", "minLength:3"};
+        this->child_3_.prop_validators_ = state_rules_;
       }
       std::uint64_t prop_3_error_hash = tessera::ui::kEffectHashSeed;
       prop_3_error_hash = tessera::ui::effect_hash(prop_3_error_hash, std::string_view(""));

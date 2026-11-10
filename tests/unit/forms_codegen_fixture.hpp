@@ -91,6 +91,12 @@ inline ir::Component make_field_page() {
     page.name = "FieldPage";
     page.source = span(0, 420, 1, 1, 24);
     page.state.push_back({"state::email", "email", "string", text("")});
+    // A list-typed prop value from state: the generated apply_props() hashes it element-wise.
+    std::vector<ir::ExprPtr> rules;
+    rules.push_back(text("required"));
+    rules.push_back(text("minLength:3"));
+    page.state.push_back(
+        {"state::rules", "rules", "list<string>", ir::make_array(std::move(rules))});
 
     page.root = node_of(ir::NodeKind::View, "node::1", "401", span(10, 380, 3, 3, 30));
     page.root.props.emplace("className", text("field-page"));
@@ -105,10 +111,7 @@ inline ir::Component make_field_page() {
     field.props.emplace("label", text("Email"));
     field.props.emplace("value", ir::make_ref("state::email"));
     field.props.emplace("required", ir::make_literal(true));
-    std::vector<ir::ExprPtr> validators;
-    validators.push_back(text("required"));
-    validators.push_back(text("minLength:3"));
-    field.props.emplace("validators", ir::make_array(std::move(validators)));
+    field.props.emplace("validators", ir::make_ref("state::rules"));
     field.props.emplace("error", text(""));
     field.events.emplace("onValidate", "bind::on_validate");
     field.children.push_back(text_input("node::4", "404", span(40, 20, 6, 7, 20)));

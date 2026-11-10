@@ -22,6 +22,8 @@ namespace demo {
     struct FieldPage {
       // useState `email`.
       std::string state_email_ = "";
+      // useState `rules`.
+      std::vector<std::string> state_rules_ = {"required", "minLength:3"};
       // Component instance `comp::Field` for the node with pre-order index 3 (the instance owns its own state).
       Field child_3_;
       std::uint64_t child_3_prop_name_hash_ = 0;

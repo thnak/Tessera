@@ -135,9 +135,10 @@ void test_field_page_keeps_the_explicit_prop_path() {
           "the standalone Field is a generated struct member");
     check(source.find("this->child_3_.prop_value_ = state_email_;") != std::string::npos,
           "an explicit controlled value prop is still emitted");
-    check(source.find("this->child_3_.prop_validators_ = {\"required\", \"minLength:3\"};") !=
-              std::string::npos,
-          "a list prop still maps to the list record");
+    check(source.find("this->child_3_.prop_validators_ = state_rules_;") != std::string::npos,
+          "a list prop value from state maps to the list record");
+    check(source.find("guard_value : state_rules_") != std::string::npos,
+          "a list prop from state is hashed element-wise in apply_props()");
     check(source.find("this->child_3_.prop_onValidate_ = "
                       "[this](const tessera::ui::TextChangeEvent& event)") != std::string::npos,
           "a payload callback prop still binds its handler");
