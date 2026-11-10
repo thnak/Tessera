@@ -216,6 +216,7 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
     while (start <= text.size()) {
         const std::size_t newline = text.find('\n', start);
         const std::size_t end = newline == std::string_view::npos ? text.size() : newline;
+        const std::size_t lines_before = result.lines.size();
 
         float current = 0.0f;
         bool has_line = false;
@@ -262,6 +263,11 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
         }
         if (has_line) {
             add_line(current, line_begin, line_end);
+        }
+        if (result.lines.size() == lines_before) {
+            // A blank (or whitespace-only) paragraph still owns a line box, so a caret after Enter
+            // and a trailing newline land on their own line instead of the previous one.
+            add_line(0.0f, start, end);
         }
         if (newline == std::string_view::npos) {
             break;
@@ -322,6 +328,7 @@ TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
     while (start <= text.size()) {
         const std::size_t newline = text.find('\n', start);
         const std::size_t end = newline == std::string_view::npos ? text.size() : newline;
+        const std::size_t lines_before = result.lines.size();
 
         float current = 0.0f;
         bool has_line = false;
@@ -384,6 +391,11 @@ TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
         }
         if (has_line) {
             add_line(current, line_begin, line_end);
+        }
+        if (result.lines.size() == lines_before) {
+            // A blank (or whitespace-only) paragraph still owns a line box, so a caret after Enter
+            // and a trailing newline land on their own line instead of the previous one.
+            add_line(0.0f, start, end);
         }
         if (newline == std::string_view::npos) {
             break;

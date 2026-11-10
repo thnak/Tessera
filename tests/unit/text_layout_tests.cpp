@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <string_view>
 
 namespace {
 
@@ -35,7 +36,27 @@ const FontMetrics kMetrics{12.8f, 3.2f, 3.2f};
 
 } // namespace
 
+bool blank_lines_own_a_line_box() {
+    const TextLayout after_enter =
+        layout_text("a\n", style(), kMetrics, TextConstraints{200.0f, true});
+    if (!expect(after_enter.lines.size() == 2, "a trailing newline adds an empty last line") ||
+        !expect(after_enter.lines[1].begin == 2 && after_enter.lines[1].end == 2,
+                "the empty last line sits at the end of the text")) {
+        return false;
+    }
+    const TextLayout blank =
+        layout_text("a\n\nb", style(), kMetrics, TextConstraints{200.0f, true});
+    return expect(blank.lines.size() == 3, "a blank paragraph keeps its own line") &&
+           expect(blank.lines[1].begin == 2 && blank.lines[1].end == 2 &&
+                      near(blank.lines[1].width, 0.0f),
+                  "the blank line is empty and between the neighbours") &&
+           expect(near(blank.height, 60.0f), "the blank line contributes its height");
+}
+
 int main() {
+    if (!blank_lines_own_a_line_box()) {
+        return 10;
+    }
     const TextLayout wrapped =
         layout_text("hello world", style(), kMetrics, TextConstraints{50.0f, true});
     if (!expect(wrapped.lines.size() == 2, "wrapped line count") ||
