@@ -85,6 +85,8 @@ void AtspiBridge::handle_call(const ParsedMessage& call, std::vector<std::uint8_
         handled = handle_text(call, index, out);
     } else if (iface == kValueInterface) {
         handled = handle_value(call, index, out);
+    } else if (iface == kPropertiesInterface) {
+        handled = handle_properties(call, index, out);
     }
     if (!handled) {
         start_error(call.header, kUnknownMethod, "unsupported method");
@@ -111,6 +113,11 @@ void AtspiBridge::set_bus_name(std::string name) {
 std::string_view AtspiBridge::bus_name() const {
     std::lock_guard lock(mutex_);
     return bus_name_;
+}
+
+void AtspiBridge::set_bus_address(std::string address) {
+    std::lock_guard lock(mutex_);
+    config_.bus_address = std::move(address);
 }
 
 std::uint32_t AtspiBridge::next_serial() {

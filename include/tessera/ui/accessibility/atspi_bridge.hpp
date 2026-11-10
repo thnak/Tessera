@@ -77,6 +77,9 @@ public:
 
     void set_bus_name(std::string name);
     [[nodiscard]] std::string_view bus_name() const;
+    // The accessibility bus address the registry returned, reported by
+    // `GetApplicationBusAddress`. `AtspiSession` fills it in after `org.a11y.Bus.GetAddress`.
+    void set_bus_address(std::string address);
     [[nodiscard]] const BridgeConfig& config() const {
         return config_;
     }
@@ -97,6 +100,13 @@ private:
                           std::vector<std::uint8_t>& out);
     bool handle_text(const ParsedMessage& call, A11yIndex index, std::vector<std::uint8_t>& out);
     bool handle_value(const ParsedMessage& call, A11yIndex index, std::vector<std::uint8_t>& out);
+    // `org.freedesktop.DBus.Properties` `Get`/`GetAll` (see atspi_properties.cpp).
+    bool handle_properties(const ParsedMessage& call, A11yIndex index,
+                           std::vector<std::uint8_t>& out);
+    // Writes the variant value for one interface property; false when the interface or the property
+    // is not part of the bridge's property table.
+    bool write_property_value(MessageWriter& writer, A11yIndex index, std::string_view interface,
+                              std::string_view property);
 
     MessageWriter& start_reply(const MessageHeader& call, std::string_view signature);
     void start_error(const MessageHeader& call, std::string_view name, std::string_view text);

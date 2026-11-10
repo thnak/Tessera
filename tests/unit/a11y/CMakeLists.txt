@@ -66,3 +66,24 @@ add_executable(a11y_atspi_bridge_events_tests
 target_link_libraries(a11y_atspi_bridge_events_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_atspi_bridge_events COMMAND a11y_atspi_bridge_events_tests)
+
+add_executable(a11y_atspi_properties_tests
+    a11y_atspi_properties_tests.cpp)
+
+target_link_libraries(a11y_atspi_properties_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_atspi_properties COMMAND a11y_atspi_properties_tests)
+
+add_executable(a11y_atspi_session_tests
+    a11y_atspi_session_tests.cpp)
+
+target_link_libraries(a11y_atspi_session_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_atspi_session COMMAND a11y_atspi_session_tests)
+
+add_executable(a11y_atspi_session_pump_tests
+    a11y_atspi_session_pump_tests.cpp)
+
+target_link_libraries(a11y_atspi_session_pump_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_atspi_session_pump COMMAND a11y_atspi_session_pump_tests)

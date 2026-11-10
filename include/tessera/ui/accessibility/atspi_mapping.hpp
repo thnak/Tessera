@@ -99,6 +99,8 @@ inline constexpr std::string_view kApplicationInterface = "org.a11y.atspi.Applic
 inline constexpr std::string_view kComponentInterface = "org.a11y.atspi.Component";
 inline constexpr std::string_view kTextInterface = "org.a11y.atspi.Text";
 inline constexpr std::string_view kValueInterface = "org.a11y.atspi.Value";
+// The standard property interface; the bridge serves `Get`/`GetAll` from a fixed property table.
+inline constexpr std::string_view kPropertiesInterface = "org.freedesktop.DBus.Properties";
 
 struct InterfaceSet {
     bool accessible = true; // always, for every emitted node
