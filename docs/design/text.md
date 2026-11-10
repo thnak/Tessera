@@ -17,7 +17,10 @@ ligatures. `GlyphRasterizer` (`ui/text/glyph_raster.hpp`) renders hinted 8-bit c
 `GlyphAtlas` (`ui/text/glyph_atlas.hpp`) shelf-packs bounded RGBA8 pages with a frame-age LRU, and
 `TextRenderer` (`ui/text/text_renderer.hpp`, target `tessera_text_render`) emits glyph quads through
 `Batched2DRenderer`. Bidi run splitting, line breaking, font-stack fallback, and SDF/subpixel
-rasterization are not implemented. [ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
+rasterization are not implemented. ICU itself is not integrated: there are no ICU call sites
+(HarfBuzz is built with `HB_HAVE_ICU=OFF`) and no ICU data package; the measured reduced-data
+cost, the locale set, and the GO decision are in section 13.
+[ADR-006](../../decisions/ADR-006-text-stack.md) (text stack) selects
 FreeType + HarfBuzz + SheenBidi + ICU (licenses and module ownership in
 [`dependencies.md`](../specs/dependencies.md)). Terms: IME = input method editor; HAL = hardware/OS
 abstraction layer ([`hal.md`](hal.md)); golden = deterministic reference image; atlas = GPU texture
@@ -111,6 +114,9 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
   uploads, and per-glyph (rather than per-page) eviction.
 - Hinting/AA settings come from the pinned FreeType build; no system FreeType configuration is
   read.
+- Atlas page format is independent of the ICU data question in section 12: subsetting changes
+  only which locale bundles ship, never page packing, the RGBA8 page format, or eviction. The
+  measured data cost and GO decision are in section 13.
 
 ## 6. Line breaking and alignment
 
@@ -181,6 +187,12 @@ summary.
 - Justification/hyphenation.
 - Vertical writing modes.
 - Whether to subset ICU data for binary size ([ADR-012](../../decisions/ADR-012-static-linking.md), static linking).
+  **Resolved (task-94): subset it, and ship per-locale packs.** Measured on the pinned ICU
+  76.1 package: 30.37 MiB full, 13.63 MiB with every non-locale item kept (the Unicode
+  floor), 8.59 MiB for 21 locales once converters/transliteration/spellout/collation are
+  dropped (6.54 MiB English-only, ~103 KiB per extra locale). The option stays opt-in
+  (`TESSERA_ICU_REDUCED_DATA=OFF`) because ICU has no call sites yet. Failure modes,
+  locale set, CI cost, and the GO conditions: section 13.
 - Atlas format: R8 vs RGBA8, SDF vs raster for scaling.
 
 Paint-time text runs (D9): `ui::PaintData` (`include/tessera/ui/scene/paint_data.hpp`) lets a scene
@@ -262,3 +274,51 @@ parameter so edit hit testing matches the painted font. `EditController::place_c
 the selection and moves the caret; `extend_selection_to` keeps the anchor (Shift+click). Read-only
 fields allow caret/selection moves. Deferrals: drag selection and selection handles, word/line
 double/triple-click segmentation, vertical text, sub-pixel affinity, and selection while composing.
+
+## 13. ICU reduced static data (measured, task-94)
+
+Task-94 measured whether a reduced ICU data package is affordable and how a subset fails; it
+closes the section 12 open question. Nothing is on by default: the data step sits behind
+`TESSERA_ICU_REDUCED_DATA=OFF`, so the default build and CI are unchanged. Method, full
+per-tier numbers, the failure table, and the follow-up slice are in
+[`icu-data.md`](icu-data.md).
+
+Facts on this commit: ICU is **not vendored and not fetched** (no `FetchContent`, no
+`find_package`, no version pin), has **zero call sites** (HarfBuzz builds with
+`HB_HAVE_ICU=OFF`), and none of the three consumers named in the decision is implemented —
+segmentation/line breaking use bespoke `ui/text/edit_grapheme.*` helpers and greedy wrap,
+`services/i18n` is spec-only, and collation is optional and unused. ADR-012 rule 5 therefore has
+nothing to satisfy yet.
+
+Measured on pinned ICU 76.1 (`icudt76l.dat`, 31,851,856 B) trimmed with the pinned `icupkg`:
+
+| Tier | Items | Blob bytes | MiB | Of full | Link delta |
+|---|---|---|---|---|---|
+| Full upstream package (924 locales) | 4,136 | 31,851,856 | 30.37 | 100% | +31,839,232 |
+| Base: `root` only, all non-locale data | 269 | 13,633,072 | 13.00 | 42.8% | - |
+| Base + `en` | 279 | 13,737,088 | 13.10 | 43.1% | - |
+| Recommended (22 ids, 23 after closure) | 447 | 17,293,904 | 16.49 | 54.3% | +17,281,024 |
+| Recommended, converters dropped | 257 | 12,136,048 | 11.57 | 38.1% | - |
+| Recommended aggressive (+ translit/rbnf/coll) | 213 | 8,593,024 | 8.19 | 27.0% | +8,580,096 |
+| Base + `en`, aggressive | 82 | 6,539,328 | 6.24 | 20.5% | +6,526,464 |
+
+The bulk is not locale data: 42.8% of the package is locale-independent Unicode data (a
+13.63 MiB floor), 924 locale packs are 57% (~169 KiB each, ~103 KiB once collation is dropped),
+and 5.16 MiB of the recommended tier is legacy charset converters a UTF-8-only framework does not
+need. Build cost is negligible: +0.20 s warm configure and 1.0 s for the target; a cold lane
+configure is 45.7 s either way. The linked binary delta equals the blob.
+
+Failure modes (probe `third_party/icu/experiment/icu_subset_probe.c`, absent locale `zz_ZZ`
+versus `ja_JP`): break iteration, collation, number and date formatting all **fall back to root**
+with `U_USING_DEFAULT_WARNING`; `udat_open` returns **`U_ZERO_ERROR` while emitting root
+patterns**, so a missing pack silently renders wrong dates; Unicode core (normalization, case
+mapping, character data) always works because that data is never trimmed. A trimmed locale and a
+never-present one are the same code path for ICU, which only sees the package ToC.
+
+**GO**, with three conditions: (1) ship locale packs, not the full package — 8.59 MB for 21
+languages, 6.54 MB English-only, ~103 KiB per extra locale; (2) keep ICU opt-in until the text
+stack uses it, so CI stays unchanged; (3) ship a kept-locale manifest and make a missing locale a
+`LocaleResolver` diagnostic instead of a silent fallback. Recommended set
+(`third_party/icu/locales.txt`): `root, en, en_GB, de, fr, es, it, pt, pt_BR, nl, pl, ru, tr, ar,
+he, hi, th, vi, ja, ko, zh, zh_Hant`. CI cost: zero as landed; a release job that enables the
+step pays +0.20 s configure and +1.0 s build.
