@@ -16,3 +16,12 @@ add_executable(scale_state_tests
 target_link_libraries(scale_state_tests PRIVATE tessera_scale)
 
 add_test(NAME scale_state COMMAND scale_state_tests)
+
+# The per-scale atlas set is exercised against the committed fixture font; TESSERA_FONT_FIXTURE is
+# defined by the parent tests/unit directory and resolved to an absolute path there.
+add_executable(scale_atlas_tests
+    scale_atlas_tests.cpp)
+
+target_link_libraries(scale_atlas_tests PRIVATE tessera_text)
+
+add_test(NAME scale_atlas COMMAND scale_atlas_tests "${TESSERA_FONT_FIXTURE}")

@@ -15,6 +15,7 @@ add_library(tessera_text STATIC
     freetype_metrics.cpp
     glyph_atlas.cpp
     glyph_raster.cpp
+    scale_glyph_atlas.cpp
     harfbuzz_shaper.cpp
     text_measure.cpp
     text_measure_cache.cpp)
@@ -24,7 +25,7 @@ target_include_directories(tessera_text PUBLIC
 
 # Third-party headers stay private: public text headers must not include them.
 target_link_libraries(tessera_text
-    PUBLIC tessera_style
+    PUBLIC tessera_style tessera_scale
     PRIVATE tessera_freetype tessera_harfbuzz tessera_sheenbidi)
 
 target_compile_features(tessera_text PUBLIC cxx_std_23)
