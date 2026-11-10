@@ -261,6 +261,21 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME forms_lowering COMMAND forms_lowering_tests)
 
+    # `Field` codegen: the real built-in Field IR declaration plus a form with two instances, the prop
+    # matrix (value and callback props), the static Children slot, the golden and determinism.
+    add_executable(forms_codegen_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/forms_codegen_tests.cpp)
+
+    target_link_libraries(forms_codegen_tests PRIVATE
+        tessera_codegen
+        tessera_lowering
+        tessera_merger)
+
+    target_compile_definitions(forms_codegen_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME forms_codegen COMMAND forms_codegen_tests)
+
     add_executable(codegen_cli_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)
 

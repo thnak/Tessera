@@ -82,11 +82,27 @@ struct DynamicText {
 
 // One generated component instance: a `Component` node of the emitted component (pre-order ordinal
 // matches the generated node_N variables) and the referenced component.
+struct ComponentInstance;
+
+// One prop passed to an instance (`docs/specs/component-model-v1.md` section 3): an ordinary value
+// prop (`value`), or a record-typed callback prop resolved to a handler (`callback`).
+struct PropBinding {
+    std::string name;                // declared prop name
+    std::string type;                // declared IR type
+    const ir::Expr* value = nullptr; // value prop
+    std::string callback;            // generated callable name of a callback prop
+
+    [[nodiscard]] bool is_callback() const {
+        return value == nullptr;
+    }
+};
+
 struct ComponentInstance {
     unsigned ordinal = 0;
     std::string component_id; // IR id, `comp::<Name>`
     std::string type_name;    // generated C++ struct name (the component name)
     bool takes_children = false;
+    std::vector<PropBinding> props; // declared prop order, then callback props
 };
 
 struct NodeEmitState; // emit_node.hpp
@@ -98,6 +114,10 @@ struct NodeEmitState; // emit_node.hpp
 
 // True when the component declares the static `children` slot (ir-v1.md section 3.4).
 [[nodiscard]] bool component_takes_children(const ir::Component& component);
+
+// The module's component record for an IR component id, or nullptr when the id is unknown.
+[[nodiscard]] const ir::Component* find_module_component(const ir::IrModule& module,
+                                                         std::string_view id);
 
 // The generated struct member that owns a referenced component instance.
 [[nodiscard]] std::string instance_member(unsigned ordinal);

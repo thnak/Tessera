@@ -239,8 +239,13 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
                       const std::vector<DynamicText>& text_entries,
                       const std::vector<DynamicMetadata>& metadata_entries,
                       const std::vector<ControlledInput>& controlled_inputs,
-                      const DynamicPlan& plan, std::string& error) {
+                      const DynamicPlan& plan, bool has_props, std::string& error) {
     writer.open("void " + component.name + "::apply_state()");
+    // Props flow caller -> callee before anything the callee renders is refreshed: the host calls
+    // this component's update(), which runs apply_state() and then the child updates.
+    if (has_props) {
+        writer.line("apply_props();");
+    }
     // The child set first: a newly attached branch or list item owns nodes whose text the
     // interpolation below may then refresh in the same pass.
     for (const DynamicGroup& group : plan.groups) {

@@ -8,6 +8,7 @@
 
 #include "codegen_internal.hpp"
 #include "emit_node.hpp"
+#include "emit_props.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -63,17 +64,19 @@ bool collect_instances(const ir::IrModule& module, const ir::Component& owner, c
             return fail(error, "a conditional or looped component instance (`" + node.id +
                                    "`) is deferred; wrap the element in a container");
         }
-        if (!node.props.empty() || !node.events.empty()) {
-            return fail(error, "component props (`" + node.id +
-                                   "`) are not passed to the generated instance yet (they need the "
-                                   "component prop types)");
-        }
         const ir::Component* target = find_component(module, node.component);
         if (target == nullptr) {
             return fail(error, "the component instance `" + node.id +
                                    "` names unknown component `" + node.component + "`");
         }
         const bool takes = declares_children(*target);
+        // Props are validated against the target's declared prop records; the errors carry the
+        // prop name (docs/specs/component-model-v1.md section 3).
+        ComponentInstance entry{self, node.component, target->name, takes, {}};
+        if (!collect_instance_props(module, owner, node, *target, entry, error)) {
+            return false;
+        }
+        instances.push_back(std::move(entry));
         if (!node.children.empty() && !takes) {
             return fail(error, "the component instance `" + node.id + "` has slot children, but `" +
                                    node.component + "` does not declare a `children` prop");
@@ -84,8 +87,6 @@ bool collect_instances(const ir::IrModule& module, const ir::Component& owner, c
                                        child.id + "`) is deferred; wrap the content in an element");
             }
         }
-        instances.push_back(
-            ComponentInstance{self, node.component, target->name, declares_children(*target)});
     }
     for (const ir::Node& child : node.children) {
         if (!collect_instances(module, owner, child, in_template, ordinal, instances, error)) {
@@ -171,6 +172,10 @@ bool visit_reference(const ir::IrModule& module, std::size_t index, std::vector<
 
 } // namespace
 
+const ir::Component* find_module_component(const ir::IrModule& module, std::string_view id) {
+    return find_component(module, id);
+}
+
 bool component_takes_children(const ir::Component& component) {
     return declares_children(component);
 }
@@ -217,11 +222,6 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
     if (node.condition || node.loop) {
         return fail(error, "a conditional or looped component instance (`" + node.id +
                                "`) is deferred; wrap the element in a container");
-    }
-    if (!node.props.empty() || !node.events.empty()) {
-        return fail(error, "component props (`" + node.id +
-                               "`) are not passed to the generated instance yet (they need the "
-                               "component prop types)");
     }
     if (!node.style.empty()) {
         return fail(error, "a Component node carries props, not style (`" + node.id + "`)");

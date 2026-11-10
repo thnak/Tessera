@@ -272,7 +272,11 @@ void test_deferred_forms_are_rejected() {
     {
         ir::IrModule module = make_composition_module();
         module.components[1].root.children[0].props.emplace("title", text("x"));
-        check(!codegen::generate(module).has_value(), "component props are deferred loudly");
+        const auto result = codegen::generate(module);
+        check(!result.has_value(), "a prop the target does not declare is rejected");
+        check(!result.error().empty() &&
+                  result.error().front().find("has no prop `title`") != std::string::npos,
+              "the unknown component prop is diagnosed by name");
     }
     {
         ir::IrModule module = make_composition_module();

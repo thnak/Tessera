@@ -157,7 +157,14 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
     const auto controlled =
         std::any_of(controlled_inputs.begin(), controlled_inputs.end(),
                     [&](const ControlledInput& input) { return input.ordinal == ordinal; });
+    // A Component node's `events` are callback props (docs/specs/component-model-v1.md section 3):
+    // apply_props() binds them into the instance's generated callable, so they are not scene
+    // events.
+    const bool callback_props = node.kind == ir::NodeKind::Component;
     for (const auto& [jsx_name, target] : node.events) {
+        if (callback_props) {
+            continue;
+        }
         if (controlled && jsx_name == "onChange") {
             // Bound through TextChangeBinding by emit_controlled_wiring, not the generic adapter.
             continue;

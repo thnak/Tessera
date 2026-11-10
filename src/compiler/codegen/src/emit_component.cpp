@@ -17,6 +17,7 @@
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_node.hpp"
+#include "emit_props.hpp"
 #include "interpolation.hpp"
 
 #include <string>
@@ -79,7 +80,15 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
                  const std::vector<ComponentInstance>& instances, GeneratedFile& file,
                  std::string& error) {
     const bool has_interpolation = !dynamic_text.empty() || !dynamic_metadata.empty();
-    const bool has_update = has_interpolation || !plan.groups.empty();
+    bool has_props = false;
+    bool has_callbacks = false;
+    for (const ComponentInstance& instance : instances) {
+        has_props = has_props || !instance.props.empty();
+        for (const PropBinding& binding : instance.props) {
+            has_callbacks = has_callbacks || binding.is_callback();
+        }
+    }
+    const bool has_update = has_interpolation || !plan.groups.empty() || has_props;
     const bool takes_children = component_takes_children(component);
     const bool has_slot = tree_has_slot(component.root);
     const std::string ns = module.name;
@@ -91,8 +100,14 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     writer.line("");
     writer.line("#include <memory>");
     writer.line("#include <utility>");
-    if (takes_children) {
+    if (takes_children || has_props) {
         writer.line("#include <vector>");
+    }
+    if (has_props) {
+        writer.line("#include <string>");
+    }
+    if (has_callbacks) {
+        writer.line("#include <functional>");
     }
     if (has_interpolation || plan.has_lists) {
         writer.line("#include <charconv>");
@@ -135,6 +150,11 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (takes_children && !has_slot) {
         writer.line("(void)slot; // the component declares `children` but places no Slot");
     }
+    if (has_props) {
+        // The declared props of every owned instance are assigned before any child build() runs, so
+        // the callee's build reads its prop members (docs/specs/component-model-v1.md section 3).
+        writer.line("apply_props();");
+    }
     NodeEmitState state{component,        adapters,          dynamic_text,
                         dynamic_metadata, controlled_inputs, &plan};
     state.module = &module;
@@ -149,9 +169,12 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     }
     writer.close("");
     writer.line("");
+    if (!emit_apply_props(writer, component, instances, error)) {
+        return false;
+    }
     if (has_update) {
         if (!emit_apply_state(writer, component, dynamic_text, dynamic_metadata, controlled_inputs,
-                              plan, error)) {
+                              plan, has_props, error)) {
             return false;
         }
     } else {
