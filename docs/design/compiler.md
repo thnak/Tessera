@@ -361,10 +361,9 @@ drives `apply_virtual_<n>` from its scroll handling. The goldens
 `codegen_virtual_tests --write`; the build compiles them as `tessera_codegen_virtual_sample` and
 `codegen_virtual_runtime` scripts a scroll through the real `ItemGeometry` to assert the realized
 range, NodeId slots, keyed reuse, dirty domains and the bounded window. Deferred loudly: dynamic
-virtual geometry, an event prop other than the mapped scene events (`onEndReached` has no
-`EventType` yet), a virtual collection inside an eager list template, and interpolation/metadata
-forms already deferred inside any template (components, `TextInput`/`TextArea`, refs, dynamic
-metadata/style, nested loops).
+virtual geometry, the collection's own `onEndReached` (no scene `EventType` mapping yet), a virtual
+collection inside an eager list template, and interpolation/metadata forms already deferred inside
+any template (components, `TextInput`/`TextArea`, refs, dynamic metadata/style, nested loops).
 
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
@@ -437,12 +436,12 @@ focused field has no visible caret until the paint pass grows an empty-run caret
 
 Deferred: dynamic list elements and list-typed props (`Component::props` is populated only for the
 `children` slot declaration today, so a list can be seeded only from a literal array initial or
-another list reference), dynamic virtual geometry and unmapped per-item virtual events, passing
-props/callback props to a generated child instance, a conditional or looped component instance,
-reusing computed styles, multi-file watch mode, cross-module incremental generation, and single-node
-incremental regeneration. Goldens live in
-`tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild: the
-build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).
+another list reference), dynamic virtual geometry and the collection's own `onEndReached` (no scene
+`EventType` for it yet; item-template events are wired), passing props/callback props to a generated
+child instance, a conditional or looped component instance, reusing computed styles, multi-file
+watch mode, cross-module incremental generation, and single-node incremental regeneration. Goldens
+live in `tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild:
+the build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).
 
 ## 11. Testing
 

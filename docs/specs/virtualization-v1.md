@@ -364,9 +364,10 @@ Tests:
   `virtual_churn` (10k-item allocation-free churn, no node leak, deterministic step
   records/build/release order).
 - Design/spec only still: grid rows, sticky headers, focus/selection/accessibility integration,
-  async prefetch/cancellation wiring, per-item event props inside a generated virtual template,
-  dynamic virtual geometry, and dirty/render integration beyond the realized-window path (the range
-  reports dirty through the scene-node bounds it writes).
+  async prefetch/cancellation wiring, the collection's own `onEndReached` event wiring (no scene
+  `EventType` yet; item-template events are emitted), dynamic virtual geometry, and dirty/render
+  integration beyond the realized-window path (the range reports dirty through the scene-node
+  bounds it writes).
 - Depends on: IR/component model ([`ir-v1.md`](ir-v1.md),
   [`component-model-v1.md`](component-model-v1.md)), Yoga layout/measure
   ([`layout.md`](../design/layout.md)), input/focus ([`input.md`](../design/input.md)),
