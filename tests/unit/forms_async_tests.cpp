@@ -97,6 +97,26 @@ bool invalid_async_state() {
     return true;
 }
 
+bool rejection_survives_revalidation() {
+    CompletionQueue queue(8);
+    Form form(config_with_queue(queue));
+    const auto name = form.add_field("name", FormValue::from_string("taken"));
+    form.set_async_validator(*name, &not_taken);
+    form.touch(*name);
+    queue.run(8);
+    if (!expect(form.field(*name)->state == ValidationState::Invalid, "rejected before submit")) {
+        return false;
+    }
+    const auto result = form.submit();
+    queue.run(8);
+    return expect(result.status != tessera::ui::forms::SubmitStatus::Ok,
+                  "submit does not accept a rejected value") &&
+           expect(form.field(*name)->state == ValidationState::Invalid,
+                  "re-validation keeps the async rejection") &&
+           expect(!form.validate_all(false), "validate_all keeps the async rejection") &&
+           expect(!form.can_submit(), "rejected field still blocks submit");
+}
+
 bool stale_result_discarded() {
     CompletionQueue queue(8);
     Form form(config_with_queue(queue));
@@ -267,6 +287,9 @@ int main() {
     }
     if (!determinism()) {
         return 9;
+    }
+    if (!rejection_survives_revalidation()) {
+        return 10;
     }
 
     std::cout << "forms_async: ok\n";

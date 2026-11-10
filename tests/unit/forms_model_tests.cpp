@@ -414,6 +414,15 @@ bool determinism() {
 
 } // namespace
 
+bool negative_length_bounds_rejected() {
+    Form form;
+    const auto field = form.add_field("name", FormValue::from_string("x"));
+    return expect(!form.add_rule(*field, length_rule(RuleKind::MaxLength, -1)),
+                  "negative MaxLength bound is rejected") &&
+           expect(!form.add_rule(*field, length_rule(RuleKind::MinLength, -1)),
+                  "negative MinLength bound is rejected");
+}
+
 int main() {
     if (!rule_matrix()) {
         return 1;
@@ -432,6 +441,9 @@ int main() {
     }
     if (!determinism()) {
         return 6;
+    }
+    if (!negative_length_bounds_rejected()) {
+        return 7;
     }
 
     std::cout << "forms_model: ok\n";

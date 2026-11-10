@@ -121,8 +121,10 @@ bool Form::add_rule(FieldId id, SyncRule rule) {
     if (rule.kind == RuleKind::Custom && !rule.custom) {
         return false;
     }
-    if ((rule.kind == RuleKind::MinLength || rule.kind == RuleKind::MaxLength) &&
-        rule.minimum < 0) {
+    if (rule.kind == RuleKind::MinLength && rule.minimum < 0) {
+        return false;
+    }
+    if (rule.kind == RuleKind::MaxLength && rule.maximum < 0) {
         return false;
     }
     if (rule.kind == RuleKind::NumericRange && rule.minimum > rule.maximum) {
@@ -206,6 +208,7 @@ bool Form::touch(FieldId id) {
     const bool was_touched = field_state.touched;
     field_state.touched = true;
     meta_[id - 1].async_validated = false; // blur re-validates the current value
+    meta_[id - 1].async_rejected = false;
     recompute_sync(static_cast<std::size_t>(id - 1));
     if (meta_[id - 1].async_validator && config_.completion_queue != nullptr &&
         field_state.state != ValidationState::Invalid) {
@@ -282,6 +285,11 @@ void Form::recompute_sync(std::size_t index) {
             push_issue(rule_issue->code, rule_issue->message, IssueSeverity::Error);
         }
     }
+    // An applied async rejection stays in force until the value changes or the field is
+    // re-validated; recompute_sync clears issues, so it must put the rejection back.
+    if (meta_[index].async_validated && meta_[index].async_rejected) {
+        push_issue("async_invalid", "Invalid", IssueSeverity::Error);
+    }
     if (field_state.issue_count > 0) {
         field_state.state = ValidationState::Invalid;
         return;
@@ -304,6 +312,7 @@ void Form::schedule_async(std::size_t index) {
     meta.cancel_source = runtime::CancellationSource{};
     meta.async_in_flight = true;
     meta.async_validated = false;
+    meta.async_rejected = false;
     field_state.state = ValidationState::Pending;
     runtime::TaskContext context;
     context.queue = config_.completion_queue;
@@ -326,6 +335,7 @@ void Form::cancel_async_at(std::size_t index) {
     meta.cancel_source.cancel();
     meta.async_in_flight = false;
     meta.async_validated = false;
+    meta.async_rejected = false;
     FieldState& field_state = fields_[index];
     if (field_state.state == ValidationState::Pending) {
         field_state.state =
@@ -343,6 +353,7 @@ void Form::apply_async_result(std::size_t index, std::uint64_t epoch, bool valid
     }
     meta.async_in_flight = false;
     meta.async_validated = true;
+    meta.async_rejected = !valid;
     FieldState& field_state = fields_[index];
     if (valid) {
         field_state.state =

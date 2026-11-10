@@ -113,6 +113,7 @@ private:
         std::uint64_t epoch = 0;
         bool async_in_flight = false;
         bool async_validated = false; // the current value has an applied async result
+        bool async_rejected = false;  // that result was "invalid"; recompute_sync re-applies it
     };
 
     [[nodiscard]] bool is_enabled(const FieldState& field) const;

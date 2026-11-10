@@ -101,8 +101,8 @@ using CustomSyncRule = std::function<std::optional<RuleIssueTemplate>(const Form
 
 struct SyncRule {
     RuleKind kind = RuleKind::Required;
-    std::int64_t minimum = 0;           // MinLength/MaxLength bounds, NumericRange minimum
-    std::int64_t maximum = 0;           // NumericRange maximum
+    std::int64_t minimum = 0;           // MinLength bound, NumericRange minimum
+    std::int64_t maximum = 0;           // MaxLength bound, NumericRange maximum
     std::string pattern;                // Pattern glob (bounded by FormConfig::max_pattern_bytes)
     FieldId equal_to = kInvalidFieldId; // EqualTo target
     CustomSyncRule custom;              // Custom rule
