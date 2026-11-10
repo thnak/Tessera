@@ -180,7 +180,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `a11y_uia_com_nav` | Windows-only: navigation/hit-test/focus/shutdown on the COM provider (Windows only) |
 | `a11y_uia_compile_check` | Windows-only: ids static_asserted against the SDK headers and the static link resolves (Windows only) |
 | `compiler_limits` | deterministic resource-limit stress corpus: file/token/depth/diagnostic/component bounds, excerpt caps, determinism |
-| `jsx_diagnostics_registry` | every stable `TESSERA_JSX_*`/`TESSERA_REACT_*` code pinned by a fixture or explicit skip and frozen in `tests/golden/jsx/diagnostics-registry.txt` |
+| `jsx_diagnostics_registry` | every stable `TESSERA_JSX_*`/`TESSERA_REACT_*` code pinned by a fixture or explicit skip (59 codes / 53 fixtures / 6 skips) and frozen in `tests/golden/jsx/diagnostics-registry.txt` |
 | `jsx_diagnostics_registry` | diagnostic-code registry: one minimal fixture per analyzer code (code, byte span, line:column, bounded message), source-emission drift check, explicit skip list, byte-compared golden |
 | `icu_locale_pack` | reduced data blob installs via `udata_setCommonData`; pinned version, root bundle, no shared ICU loaded in-process |
 | `text_breaks_parity` | UAX #29 word / UAX #14 line breaks vs the builtin reduced-rules backend over the wrap fixture corpus |
