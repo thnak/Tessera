@@ -142,6 +142,8 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `boundary_guard` | sync catch point, no silent catch, fallback failure contained |
 | `codegen_composition` | component composition: host node, `build(parent, slot)` overload, goldens `Card`/`CardPage` |
 | `codegen_composition_runtime` | generated component tree: slot order, empty slot, child-first unmount |
+| `codegen_virtual` | VirtualList/VirtualGrid emission: geometry constants, window table, 12 rejects, byte determinism |
+| `codegen_virtual_runtime` | scripted scroll through `ItemGeometry`: realized range, keyed reuse, Clean/Paint domains, 32-item clamp |
 | `scale_quantize` | render-scale ladder quantization (nearest, ties up, clamped) over the DPI table |
 | `scale_state` | per-window render scale: recompute only on DPI/monitor change, revision on step change |
 | `scale_atlas` | one glyph atlas per ladder step, no cross-scale reuse, per-step invalidation |

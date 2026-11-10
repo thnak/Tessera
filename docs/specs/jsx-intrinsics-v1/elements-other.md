@@ -66,8 +66,8 @@ no function-valued prop is needed (subset section 9 forbids it):
 - Lowering: `props.data` is the receiver of `.map` (a list `ref` or static list); the callback
   element is the item template with `item` and `index` as locals; `key` is the key Expression.
   The template is stored as the node's `itemTemplate` (ir-v1 section 3.5, which now exists in the IR
-  model, writer and validator). The lowering that produces it is not implemented yet: the front end
-  still rejects `VirtualList`/`VirtualGrid` with `TESSERA_IR_UNSUPPORTED`.
+  model, writer and validator) and the lowering lands it (`TESSERA_IR_VIRTUAL` for a wrong child
+  shape, `TESSERA_IR_LIST_KEY` for a missing item key).
 - The template is static: no `condition` on it, no dynamic component type.
 
 ### 3.2 Props
@@ -75,7 +75,7 @@ no function-valued prop is needed (subset section 9 forbids it):
 | Prop | Type | Req | Default | Value | IR | On | Notes |
 |---|---|---|---|---|---|---|---|
 | `itemSize` | length | one-of size | - | E | `props.itemSize` | `VirtualList` | Fixed main-axis size; O(1) range |
-| `estimateSize` | length | one-of size | - | E | `props.estimateSize` | both | Variable size; default estimate is unspecified ([`virtualization-v1.md`](../virtualization-v1.md) section 13), so one of the two is required |
+| `estimateSize` | length | one-of size | - | E | `props.estimateSize` | both | Variable size; when neither it nor `itemSize` is written the lowering records the decided 32 px estimate ([`virtualization-v1.md`](../virtualization-v1.md) section 13) |
 | `rowHeight` | length | one-of size (grid) | - | E | `props.rowHeight` | `VirtualGrid` | Fixed row height |
 | `columns` | int | one-of cols | - | E | `props.columns` | `VirtualGrid` | Fixed column count (at least 1) |
 | `columnWidth` | length | one-of cols | - | E | `props.columnWidth` | `VirtualGrid` | Fixed column width |
