@@ -36,9 +36,62 @@ boundaries, and no arbitrary code execution from UI sources.
 - Generated C++ identifiers/strings are escaped; user text cannot inject code.
 - Binding ids (stable `bind::<id>` names linking JSX to protected C++ regions, see [glossary](../reference/glossary.md)) are validated (`[A-Za-z0-9_.:-]+`); duplicates/mismatches are errors.
 - Generated paths stay under `codegen.outDir` ([`project-config-v1.md`](../specs/project-config-v1.md)); symlinks are rejected/resolved safely.
-- Resource limits: file size, component count, nesting depth, loop depth.
+- Resource limits: enforced by the front end per section 3.1; loop depth is validated in the IR
+  ([`ir-v1.md`](../specs/ir-v1.md) section 5).
 - No network access during generation unless explicitly configured.
 - Deterministic output prevents hidden code changes.
+
+### 3.1 Enforced front-end limits
+
+The JSX/TSX front end is the first parser that sees untrusted project files. It enforces the
+limits of [`jsx-subset-v1-jsx.md`](../specs/jsx-subset-v1-jsx.md) section 15 with stable
+`TESSERA_JSX_LIMIT_*` codes; exceeding one is a diagnostic, never a crash, a hang or a stack
+overflow. The defaults live in
+`src/compiler/analyzer/include/tessera/compiler/jsx/limits.hpp` and are configurable
+([`project-config-v1.md`](../specs/project-config-v1.md) `ui.limits.*`).
+
+| Limit | Default | Code | Enforced in |
+|---|---|---|---|
+| File size | 1 MiB | `TESSERA_JSX_LIMIT_FILE_SIZE` | `Lexer` constructor, before any scan |
+| Tokens per file | 200000 | `TESSERA_JSX_LIMIT_TOKENS` | `Lexer::next`/`continue_template`; the lexer returns `Eof` forever after |
+| Nesting depth | 128 | `TESSERA_JSX_LIMIT_DEPTH` | `Parser::enter()` (recursion) and `finish_node()` (AST height of expressions, elements and types) |
+| Diagnostics per file | 100 | `TESSERA_JSX_LIMIT_DIAGNOSTICS` | `DiagnosticSink::report`; later errors are counted, not stored |
+| Components per file | 64 | `TESSERA_JSX_LIMIT_COMPONENTS` | `Parser::parse_module_root` |
+
+Two properties make those limits hold under hostile input:
+
+- **Recursion and AST height are both capped.** Depth is counted at every recursive production
+  (parentheses, calls, arrows, conditionals, templates, arrays/objects, JSX elements and
+  attributes, type generics/objects/functions, and the expressions and types of module items)
+  *and* stored as node height, so a long left-associative operator or member chain counts like
+  nesting. Deleting a tree therefore cannot overflow the stack, and the stored height is the
+  precondition the downstream stages rely on.
+- **Diagnostic text is bounded.** Messages quote input through `excerpt()` (at most 32 bytes, cut
+  at a code point boundary) and `DiagnosticSink` caps message/suggestion/related text at
+  256 bytes, so a 1 MiB line cannot produce a diagnostic that grows with the file. The report is
+  at most `max_diagnostics + 1` entries; after the cap, the file-wide UTF-8/CR pre-scan stops
+  early because further reports would be dropped.
+
+The regression net is the fixed corpus in `tests/unit/compiler_limits_tests.cpp` (deep nesting,
+10k siblings, a ~1 MiB file, pathological expression/type/module chains, invalid UTF-8, and
+every limit boundary) plus `tests/unit/jsx_adversarial_tests.cpp` (prefixes, mutations, random
+bytes). A new limit needs a case in that corpus.
+
+### 3.2 Checks the downstream stages must add
+
+The front end guarantees a bounded AST height and token count. The IR, lowering and codegen
+stages (`src/compiler/{ir,lowering,codegen}/`) must not rely on that alone: IR also arrives from
+`ir_json`, tests and future front ends. Add these checks before recursing or emitting:
+
+| Stage | Check to add |
+|---|---|
+| `ir::validate` | One iterative pre-pass with an explicit stack that computes the maximum node depth and the node count, and rejects depth > 128 (`TESSERA_IR_LIMIT_DEPTH`) or nodes > 200000 (`TESSERA_IR_LIMIT_NODES`) **before** the existing recursive walk. |
+| `ir_json` decode | Reject nesting deeper than the same depth budget while parsing, so a hostile module never materializes an over-deep tree. |
+| lowering | Recompute the height of the lowered node tree iteratively instead of trusting `Expr::height`/`JsxNode::height`: `.map` loops, `Children` slots and component composition can deepen the tree. |
+| codegen | Cap one `GeneratedFile::text` at 8 MiB and the whole file set at 64 MiB while emitting (`TESSERA_CODEGEN_LIMIT_BYTES`); reject identifiers and `bind::` ids longer than 256 bytes before they become C++ identifiers (`TESSERA_CODEGEN_LIMIT_IDENTIFIER`); keep every user string on the existing escaper path. |
+
+A limit that can only be enforced downstream must be added there with its own stable code and a
+case in that stage's tests; it must not be silently dropped.
 
 ## 4. Runtime
 
