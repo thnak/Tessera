@@ -47,6 +47,9 @@ namespace demo {
       tessera::ui::forms::SubmitResult form_controller_2_last_submit_;
       std::string form_controller_2_report_;
       tessera::ui::FocusManager* form_controller_2_focus_ = nullptr;
+      // Errors are surfaced after the first interaction or an explicit validate/submit;
+      // a pristine form does not show its Required rule (forms v1 section 2).
+      bool form_controller_2_errors_visible_ = false;
       // Field `email` (pre-order index 3).
       tessera::ui::forms::FieldId form_controller_2_id_email_ = tessera::ui::forms::kInvalidFieldId;
       tessera::ui::Node* form_controller_2_widget_email_ = nullptr;

@@ -98,7 +98,12 @@ void emit_field_refresh(CppWriter& writer, const FormBinding& form, const FormFi
     writer.line(instance + "prop_value_ = state->value.text;");
     --writer.indent;
     writer.line("}");
+    writer.line("// Surface issues only after interaction or an explicit validate/submit.");
+    writer.line("const bool show_errors = state->touched || state->dirty ||");
+    writer.line("    this->" + form.symbol + "errors_visible_;");
     writer.line("std::string first_error;");
+    writer.line("if (show_errors) {");
+    ++writer.indent;
     writer.line("for (const tessera::ui::forms::FormIssue& issue : state->issues) {");
     ++writer.indent;
     writer.line("if (issue.severity == tessera::ui::forms::IssueSeverity::Error) {");
@@ -109,16 +114,22 @@ void emit_field_refresh(CppWriter& writer, const FormBinding& form, const FormFi
     writer.line("}");
     --writer.indent;
     writer.line("}");
+    --writer.indent;
+    writer.line("}");
     writer.line("if (" + instance + "prop_error_ != first_error) {");
     ++writer.indent;
     writer.line(instance + "prop_error_ = std::move(first_error);");
     --writer.indent;
     writer.line("}");
     writer.line("std::vector<std::string> errors;");
+    writer.line("if (show_errors) {");
+    ++writer.indent;
     writer.line("errors.reserve(state->issues.size());");
     writer.line("for (const tessera::ui::forms::FormIssue& issue : state->issues) {");
     ++writer.indent;
     writer.line("errors.push_back(issue.message);");
+    --writer.indent;
+    writer.line("}");
     --writer.indent;
     writer.line("}");
     writer.line("if (" + instance + "prop_errors_ != errors) {");
@@ -158,6 +169,10 @@ void emit_form_declarations(CppWriter& writer, const FormPlan& plan) {
         writer.line("tessera::ui::forms::SubmitResult " + form.symbol + "last_submit_;");
         writer.line("std::string " + form.symbol + "report_;");
         writer.line("tessera::ui::FocusManager* " + form.symbol + "focus_ = nullptr;");
+        writer.line(
+            "// Errors are surfaced after the first interaction or an explicit validate/submit;");
+        writer.line("// a pristine form does not show its Required rule (forms v1 section 2).");
+        writer.line("bool " + form.symbol + "errors_visible_ = false;");
         for (const FormFieldBinding& field : form.fields) {
             writer.line("// Field `" + field.name + "` (pre-order index " +
                         std::to_string(field.ordinal) + ").");
@@ -340,6 +355,7 @@ bool emit_form_source(CppWriter& writer, const ir::Component& component, const F
         writer.open("bool " + component.name + "::" + form_method(form.ordinal, "validate_form") +
                     "()");
         writer.line(form_method(form.ordinal, "seed_form") + "();");
+        writer.line("this->" + form.symbol + "errors_visible_ = true;");
         writer.line("const bool valid = form_" + std::to_string(form.ordinal) +
                     "().validate_all();");
         writer.line("if (this->" + instance_member(form.ordinal) + ".prop_validate_) {");
@@ -356,6 +372,7 @@ bool emit_form_source(CppWriter& writer, const ir::Component& component, const F
         writer.open("tessera::ui::forms::SubmitResult " + component.name +
                     "::" + form_method(form.ordinal, "submit_form") + "()");
         writer.line(form_method(form.ordinal, "seed_form") + "();");
+        writer.line("this->" + form.symbol + "errors_visible_ = true;");
         writer.line("const tessera::ui::forms::SubmitResult result = form_" +
                     std::to_string(form.ordinal) + "().submit();");
         writer.line("this->" + form.symbol + "last_submit_ = result;");

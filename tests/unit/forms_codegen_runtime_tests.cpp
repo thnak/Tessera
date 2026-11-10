@@ -198,6 +198,8 @@ void test_submit_focuses_and_reports_the_first_invalid_field() {
           "the first invalid field is the email field");
     check_eq(page.form_controller_2_report_, "email", "submit reports the field by name");
     check(focus.focused() == email_widget, "submit focused the first invalid field's widget");
+    check_eq(paint_text(*field_part(root, 0, 2)), "Required",
+             "a submit surfaces the first invalid field's error");
 
     // A valid edit + touch settles the form and routes to the submitted callback.
     dispatch_text(*email_widget, "ada@example.com");

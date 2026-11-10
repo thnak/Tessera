@@ -211,20 +211,27 @@ namespace demo {
         if (this->child_3_.prop_value_ != state->value.text) {
           this->child_3_.prop_value_ = state->value.text;
         }
+        // Surface issues only after interaction or an explicit validate/submit.
+        const bool show_errors = state->touched || state->dirty ||
+            this->form_controller_2_errors_visible_;
         std::string first_error;
-        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
-          if (issue.severity == tessera::ui::forms::IssueSeverity::Error) {
-            first_error = issue.message;
-            break;
+        if (show_errors) {
+          for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+            if (issue.severity == tessera::ui::forms::IssueSeverity::Error) {
+              first_error = issue.message;
+              break;
+            }
           }
         }
         if (this->child_3_.prop_error_ != first_error) {
           this->child_3_.prop_error_ = std::move(first_error);
         }
         std::vector<std::string> errors;
-        errors.reserve(state->issues.size());
-        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
-          errors.push_back(issue.message);
+        if (show_errors) {
+          errors.reserve(state->issues.size());
+          for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+            errors.push_back(issue.message);
+          }
         }
         if (this->child_3_.prop_errors_ != errors) {
           this->child_3_.prop_errors_ = std::move(errors);
@@ -236,20 +243,27 @@ namespace demo {
         if (this->child_5_.prop_value_ != state->value.text) {
           this->child_5_.prop_value_ = state->value.text;
         }
+        // Surface issues only after interaction or an explicit validate/submit.
+        const bool show_errors = state->touched || state->dirty ||
+            this->form_controller_2_errors_visible_;
         std::string first_error;
-        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
-          if (issue.severity == tessera::ui::forms::IssueSeverity::Error) {
-            first_error = issue.message;
-            break;
+        if (show_errors) {
+          for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+            if (issue.severity == tessera::ui::forms::IssueSeverity::Error) {
+              first_error = issue.message;
+              break;
+            }
           }
         }
         if (this->child_5_.prop_error_ != first_error) {
           this->child_5_.prop_error_ = std::move(first_error);
         }
         std::vector<std::string> errors;
-        errors.reserve(state->issues.size());
-        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
-          errors.push_back(issue.message);
+        if (show_errors) {
+          errors.reserve(state->issues.size());
+          for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+            errors.push_back(issue.message);
+          }
         }
         if (this->child_5_.prop_errors_ != errors) {
           this->child_5_.prop_errors_ = std::move(errors);
@@ -259,6 +273,7 @@ namespace demo {
     
     bool FormPage::validate_form_2() {
       seed_form_2();
+      this->form_controller_2_errors_visible_ = true;
       const bool valid = form_2().validate_all();
       if (this->child_2_.prop_validate_) {
         this->child_2_.prop_validate_();
@@ -271,6 +286,7 @@ namespace demo {
     
     tessera::ui::forms::SubmitResult FormPage::submit_form_2() {
       seed_form_2();
+      this->form_controller_2_errors_visible_ = true;
       const tessera::ui::forms::SubmitResult result = form_2().submit();
       this->form_controller_2_last_submit_ = result;
       this->form_controller_2_report_.clear();

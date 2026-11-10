@@ -313,8 +313,8 @@ Diagnostics, all `TESSERA_CODEGEN_UNSUPPORTED` with the prop and component named
 event, a literal of the wrong type, `children` as a value, and a callback whose handler takes a
 different payload record. No prop path is intrinsic-specific.
 
-**Library components (implemented, `Field` first).** `import { Field } from "tessera"` adds an
-ordinary component reference and the module receives the component's IR declaration
+**Library components (implemented, `Field` and `Form`).** `import { Field, Form } from "tessera"`
+adds ordinary component references and the module receives each component's IR declaration
 (`src/compiler/lowering/src/library_components.cpp`); a project component of the same name wins.
 `Field` declares the prop records of
 [`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md) section 5.1 (including the
@@ -322,17 +322,53 @@ record-typed `onValidate`), places its own label/value/error text and its `Slot`
 the ordinary component path: the IR node kind is `Component` (asserted by `forms_lowering`), the
 generated host node records element kind `Component`, and the caller's widget rides the Children
 slot. The library evaluates no validation rule; `required`/`validators` reach it as prop data only.
-Goldens `tests/golden/codegen/{Field,FormPage}.*` come from `forms_codegen_tests --write`; the
-runtime proof `forms_codegen_runtime` builds a form with two Fields and drives a value change
-through `apply_props()`/`apply_state()` with no GPU.
+
+`Form` (section 5.2) declares `initial` (`list<string>` of `name=value` seeds), the payload-free
+callback props `validate`/`onSubmit` (IR type `callback`, generated `std::function<void()>`) and the
+static `children` slot. A non-`on` attribute whose value names a declared handler is a callback
+prop, so the documented `validate={validate}` lowers without a prop-type table. The generated
+`Form` struct stays presentational (its container `View` plus the Slot); the **binding** is emitted
+in the caller that owns the instance, because the `Field` instances are caller-owned slot content
+(`form_binding.cpp`, `emit_forms.cpp`):
+
+- one `tessera::ui::forms::FormConfig` plus a lazily emplaced
+  `std::optional<tessera::ui::forms::Form>` controller per Form instance (the library's
+  `FormController` model; a host may set the config, e.g. a `CompletionQueue`, before first use),
+  with a `SubmitResult`/report pair and a `FocusManager*`;
+- `seed_form_<n>()` reads the `initial` prop, creates every tree-declared Field even when `initial`
+  omits it, maps controller `FieldId`s to the generated Field members, and encodes
+  `required`/`minLength:N`/`maxLength:N`/`pattern:GLOB` as `SyncRule` data (`add_rule()`); the
+  library evaluates it. Dynamic `initial`/`required`/`validators`, unknown rules, duplicate field
+  names and nested Forms are rejected loudly;
+- `apply_form_fields_<n>()` resolves each Field's `value`/`error`/`errors` from the controller by
+  `name` and copies only when a string changed; an explicit `value`/`defaultValue`/`error`/`errors`
+  on a form-bound Field is a codegen error (the controller owns those props inside a Form), so
+  there is no silent precedence;
+- a form-bound Field whose slot root is a `TextInput`/`TextArea` binds a generated `TextChange`
+  adapter that invokes `onValidate` and calls the controller's `set_value()`; the widget cannot own
+  `value`/`defaultValue` or bind its own `onChange` inside a Form;
+- `submit_form_<n>()` returns the controller's `SubmitResult`: `Ok` invokes the `onSubmit` callback
+  prop, `Pending` returns without blocking (async validation stays on the controller's queue), and
+  `Invalid` reports the first invalid Field's name and focuses its widget through the
+  `FocusManager`. `validate_form_<n>()` runs `validate_all()`, invokes the `validate` callback prop
+  and refreshes the Fields. Both fail paths are deterministic and allocation-free when nothing
+  changed.
+
+`apply_props()` now guards every assignment: a printable scalar or `list<T>` value prop computes
+the same allocation-free FNV-1a hash `apply_state()` uses and only assigns/copies when it changed
+(a list from state is hashed element-wise), and a callback prop is bound once behind a flag.
+Goldens `tests/golden/codegen/{Field,Form,FieldPage,FormPage}.*` come from `forms_codegen_tests
+--write`; the runtime proof `forms_codegen_runtime` builds a form with two Fields, scripts an edit,
+submits invalid/valid/async forms and asserts focus-first-invalid with no GPU.
 
 | Component-path concern | Emitter |
 |---|---|
 | `Component` host node, slot content, instance `build()` call | `emit_composition.cpp` |
-| declared value props and callback props (`apply_props()`) | `emit_props.cpp` |
+| declared value props and callback props (`apply_props()`, hash guards) | `emit_props.cpp` |
 | instance struct member, declared prop fields, lifecycle calls | `emit_header.cpp`, `emit_lifecycle.cpp` |
 | prop interpolation inside the callee | `interpolation.cpp`, `value_ops.cpp` |
-| library component IR (`Field`) and `"tessera"` import resolution | `lowering/library_components.cpp`, `lowering/module_lowering.cpp` |
+| library component IR (`Field`, `Form`) and `"tessera"` import resolution | `lowering/library_components.cpp`, `lowering/module_lowering.cpp` |
+| form-state binding (controller, Field resolution, submit/focus) | `form_binding.cpp`, `emit_forms.cpp` |
 
 **Dynamic child sets: conditional branches and keyed lists (implemented).** Lowering emits a
 conditional child as a *sibling* node carrying `condition`, so codegen builds every branch subtree
@@ -481,13 +517,14 @@ Deferred: dynamic list elements and list-typed *state* initials of a project com
 seeded only from a literal array initial or another list reference), dynamic virtual geometry and
 the collection's own `onEndReached` (no scene `EventType` for it yet; item-template events are
 wired), a value expression on a component prop beyond one payload-record callback parameter, a
-`style` prop or dynamic prop names on a component (component nodes carry props, not style), library
-components beyond `Field` (`Form` is still a project/component-library concern), a conditional or
-looped component instance, reusing computed styles, multi-file watch mode, cross-module incremental
-generation, and single-node incremental regeneration. Goldens live in `tests/golden/codegen/`;
-update them deliberately with the owning test's `--write` (`codegen_tests --write`,
-`forms_codegen_tests --write`, ...) and rebuild: the build compiles the generated samples, so they
-are never hand-maintained.
+`style` prop or dynamic prop names on a component (component nodes carry props, not style), a
+conditional or looped component instance, reusing computed styles, multi-file watch mode,
+cross-module incremental generation, and single-node incremental regeneration. Form-binding
+deferrals are listed in [`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md)
+section 5.2 (typed generated values, dynamic/object-literal `initial`, dynamic rules, widget
+wrappers). Goldens live in `tests/golden/codegen/`; update them deliberately with the owning test's
+`--write` (`codegen_tests --write`, `forms_codegen_tests --write`, ...) and rebuild: the build
+compiles the generated samples, so they are never hand-maintained.
 
 ## 11. Testing
 

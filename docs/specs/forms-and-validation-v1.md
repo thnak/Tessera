@@ -2,7 +2,8 @@
 
 Status: core model implemented (task-78: bounded field registry, synchronous rule matrix, async
 validator seam, submit gating) and the compiler path implemented (task-90: `Field` resolves as a
-library component and its props are emitted through the ordinary component path; widgets/a11y
+library component and its props are emitted through the ordinary component path; task-103: `Form`
+resolves as the second library component and codegen emits its form-state binding; widgets/a11y
 wiring still proposed). Big Steps C and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
 Steps"). Decision:
 [ADR-029](../../decisions/ADR-029-interaction-completeness.md) (interaction completeness: text
@@ -136,6 +137,71 @@ project component (`docs/design/compiler.md` section 11). The documented prop re
   slot, determinism), `forms_codegen` (prop/callback matrix, unknown-prop and type diagnostics,
   golden, determinism, merger idempotency), `forms_codegen_runtime` (two Fields in a form, a value
   change through the generated paths, no GPU).
+
+### 5.2 Form prop records (implemented)
+
+`Form` is declared once as ordinary IR data in the same library table
+(`src/compiler/lowering/src/library_components.cpp`) and imported from `"tessera"`; a project
+component named `Form` wins, exactly like `Field`. Lowering emits a `Component` node and the caller
+keeps a `Form` instance member; no state or validation logic lives in the library component.
+
+| Prop | IR type | Default | Notes |
+|---|---|---|---|
+| `initial` | `list<string>` | `[]` | Field seeds as `name=value` pairs, in declaration order |
+| `validate` | `callback` | none | Payload-free callback prop; runs after the controller validates |
+| `onSubmit` | `callback` | none | Payload-free callback prop; runs only after a successful submit |
+| `children` | `children` | none | The static Children slot carrying the caller's Fields |
+
+- **Controller ownership.** The generated `Form` struct is presentational (a container `View` plus
+  its Slot). The *binding* lives in the component that owns the `Form` instance, because the
+  `Field` instances are caller-owned slot content and a component instance is never inlined. For
+  every `Form` instance codegen emits `<form_member>`: a
+  `tessera::ui::forms::FormConfig`, a lazily emplaced
+  `std::optional<tessera::ui::forms::Form>` controller (the `FormController` of section 8.1 is this
+  library model; codegen adds no UI type), a `SubmitStatus`/report pair, a `FocusManager*`, and the
+  per-Field `FieldId`/widget members. A host may set the config (for example
+  `completion_queue`) before the first use; `form_<ordinal>()` returns the live controller.
+- **Seeding.** `seed_form_<ordinal>()` runs once from `build()`, after `apply_props()` and before
+  any slot content is built. It reads the `initial` prop (`name=value`, split at the first `=`),
+  creates every Field declared in the tree even when `initial` omits it, and maps the controller
+  `FieldId`s back to the generated Field members. `initial` must be a literal string array; a
+  dynamic list is rejected (`TESSERA_CODEGEN_UNSUPPORTED`) because seeding is a one-time build-time
+  contract. IR v1 has no record type, so the JSX object literal `initial={{ email: "" }}` is not
+  lowered yet; `list<string>` is the canonical IR encoding of those pairs.
+- **Rules are data, never generated evaluation.** A form-bound Field's `required` must be a literal
+  bool and `validators` a literal string array. Codegen encodes `required`, `minLength:N`,
+  `maxLength:N` and `pattern:GLOB` as `tessera::ui::forms::SyncRule` records and calls
+  `add_rule()`; the forms library evaluates them. An unknown rule, a malformed bound, a dynamic
+  `required`/`validators`, or more than the model's eight rules per field is a codegen error. The
+  no-rule audit in `forms_codegen_tests` asserts that no generated translation unit contains rule
+  evaluation and that a rule string appears only as prop data (plus its value hash).
+- **Field resolution by `name`.** A `Field` inside a `Form` must have a non-empty string-literal
+  `name`, unique within the form. `value`, `defaultValue`, `error` and `errors` are resolved from
+  the controller by that name (`apply_form_fields_<ordinal>()`), so an explicit `value`/`error`
+  prop inside a Form is **rejected loudly** instead of silently losing the controller binding; the
+  documented precedence is "the controller owns these four props inside a Form". The refresh copies
+  a string only when it changed, sets `error` from the first `Error` severity issue and `errors`
+  from the stored issue list, and repaints the Field. Outside a Form, `Field` keeps the explicit
+  prop behavior of section 5.1.
+- **Edit path.** When a form-bound Field's slot root is a `TextInput`/`TextArea`, codegen binds a
+  generated `TextChange` adapter: it invokes the Field's optional `onValidate` callback prop and
+  calls `set_value()` on the controller, then refreshes the Field. The widget may not pass
+  `value`/`defaultValue` or bind its own `onChange` inside a Form (both rejected). A wrapper node
+  around the input is deferred; the direct widget is the common case.
+- **Submit/validate/focus.** The host calls `submit_form_<ordinal>()` (returns the library's
+  `SubmitResult`) and `validate_form_<ordinal>()`. Submit calls the controller's `submit()`: `Ok`
+  invokes the `onSubmit` callback prop, `Pending` returns immediately (async work stays on the
+  controller's `CompletionQueue`, never a UI-thread wait), and `Invalid` stores the first invalid
+  Field's name in the report member and focuses that Field's slot widget through the
+  `FocusManager` set with `set_form_focus()`. A successful submit clears the report. Validate runs
+  the controller's `validate_all()`, invokes the `validate` callback prop, and refreshes the
+  Fields.
+- **Tests:** `forms_lowering` (import resolution and the prop records), `forms_form_codegen`
+  (rejection matrix: controller-owned Field props, malformed/duplicate seeds, unknown or dynamic
+  rules, duplicate names, nested Form, wrong callback shape), `forms_codegen` (generated shape,
+  hash guards, golden, determinism, no-rule audit), `forms_codegen_runtime` (a scripted edit, a
+  submit that focuses/reports the first invalid Field, async `Pending` through a
+  `CompletionQueue`, no GPU); goldens `tests/golden/codegen/{Field,Form,FieldPage,FormPage}.*`.
 
 ## 6. Accessibility
 
@@ -282,15 +348,21 @@ accessibility wiring are not part of this slice.
   rule/config caps, submit paths, determinism) and `forms_async` (pending visibility, queue-driven
   completion, async invalid, stale discard, cancellation, on-change policy, submit while pending,
   no-queue fallback, destructor safety, determinism).
-- **Compiler path (task-90):** `Field` is IR data (`make_library_component`) injected when a file
-  imports it from `"tessera"`; a project component of the same name wins. Lowering emits an
-  ordinary `Component` node with the prop records of section 5.1, codegen assigns the value props
-  and binds the `onValidate` callback prop (section 5.1), and the caller's widget rides the static
-  `Children` slot. Tests: `forms_lowering`, `forms_codegen`, `forms_codegen_runtime`; goldens
-  `tests/golden/codegen/{Field,FormPage}.*`.
+- **Compiler path (task-90, task-103):** `Field` and `Form` are IR data
+  (`make_library_component`) injected when a file imports them from `"tessera"`; a project
+  component of the same name wins. Lowering emits ordinary `Component` nodes: `Field` carries the
+  prop records of section 5.1 and codegen assigns the value props and binds the `onValidate`
+  callback prop, while the caller's widget rides the static `Children` slot. `Form` carries the
+  records of section 5.2; codegen emits the controller binding described there (seed from
+  `initial`, `Field` `value`/`error`/`errors` by `name`, edit routing, submit/validate with
+  focus-first-invalid). Tests: `forms_lowering`, `forms_form_codegen`, `forms_codegen`,
+  `forms_codegen_runtime`; goldens `tests/golden/codegen/{Field,Form,FieldPage,FormPage}.*`.
 - **Deferrals:** cross-field dependencies beyond `equal_to`, localized messages, accessibility
   error wiring/announcements, server-side validation, form-level async rules, debounce/dedup,
-  conditional fields, field arrays/keyed identity and widgets/generated bindings.
+  conditional fields, field arrays/keyed identity, typed (non-string) generated field values,
+  dynamic `initial`/`required`/`validators`, an object-literal `initial` (needs object-literal
+  lowering; `list<string>` pairs are the interim encoding), widget wrappers around a Field's input,
+  and widgets/generated bindings beyond the text edit path.
 
 ## 9. Deferred/open questions
 
@@ -305,3 +377,7 @@ scope ([AGENTS.md](../../AGENTS.md#non-negotiables) rule 8, "V1 scope discipline
   path (section 5.1, Q-09).
 - Field-level vs form-level async validation scheduling: no decision yet.
 - Dynamic field arrays and keyed field identity are defined; large-array performance is open.
+- The generated form binding covers string field values only; typed (bool/enum/int) generated
+  values, dynamic `initial`/`required`/`validators`, and the JSX object-literal `initial` shorthand
+  are deferred (section 5.2). Whether a future `FormController` type should wrap the library
+  `Form` model for widget/a11y wiring is open; codegen binds the model directly today.
