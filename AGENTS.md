@@ -547,7 +547,15 @@ closed key sets, the §4 rules including the V1 compute rejection (`ComputeStage
 five `jsx::Limits` (file size 1 MiB, 200k tokens, depth 128, 100 diagnostics, 64 components) with
 stable `TESSERA_JSX_LIMIT_*` codes, `excerpt()` 32-byte / sink 256-byte text caps so hostile input
 cannot bloat a report, and a deterministic stress corpus (`compiler_limits`); the four downstream
-budgets are documented in docs/design/security.md §3.1/§3.2 for the codegen lane.
+budgets are documented in docs/design/security.md §3.1/§3.2 for the codegen lane. ICU is an opt-in
+static dependency: `third_party/icu` pins icu4c 76.1 and builds static `tessera_icu_common` +
+`tessera_icu_i18n`, `reduced_data.cmake` trims the data to 22 locale bundles (17,293,904 B) and
+emits `locales.json` + `icu_locale_manifest.h`, `ui/text/icu_runtime.*` installs the blob with
+`udata_setCommonData` (an in-process test proves no shared ICU is loaded), `ui/text/text_breaks.*`
+exposes one UAX #29/#14 break API with the builtin rules kept as the ICU-free backend, and
+`ui/text/locale_resolver.*` validates locales against the manifest with `icu.locale.fallback` /
+`icu.locale.missing` diagnostics; tests `icu_locale_pack`, `text_breaks_parity`, `locale_resolver`.
+`TESSERA_ICU_REDUCED_DATA` stays OFF in CI until the whole greedy wrap consumes UAX #14.
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes

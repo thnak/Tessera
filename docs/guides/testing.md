@@ -179,6 +179,9 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `a11y_uia_com_nav` | Windows-only: navigation/hit-test/focus/shutdown on the COM provider (Windows only) |
 | `a11y_uia_compile_check` | Windows-only: ids static_asserted against the SDK headers and the static link resolves (Windows only) |
 | `compiler_limits` | deterministic resource-limit stress corpus: file/token/depth/diagnostic/component bounds, excerpt caps, determinism |
+| `icu_locale_pack` | reduced data blob installs via `udata_setCommonData`; pinned version, root bundle, no shared ICU loaded in-process |
+| `text_breaks_parity` | UAX #29 word / UAX #14 line breaks vs the builtin reduced-rules backend over the wrap fixture corpus |
+| `locale_resolver` | manifest-validated BCP-47 negotiation, ancestor fallback, direction, `icu.locale.*` diagnostics |
 | `manifest_parse` | shader manifest shape load: valid per kind, model fields, defaults |
 | `manifest_limits` | 1 MiB / depth / count caps enforced before decode |
 | `manifest_keys` | closed key sets, required keys, wrong types, duplicate keys, trailing content |
