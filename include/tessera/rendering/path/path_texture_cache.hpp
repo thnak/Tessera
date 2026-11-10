@@ -49,8 +49,10 @@ enum class PathTextureError : std::uint8_t {
 // Contract:
 // - `acquire()` returns a cached texture on a hit (no rasterizer call, no device call, no
 //   allocation) and rasterizes + uploads once on a miss.
-// - The returned pointer is stable until that entry is evicted, `invalidate_all()` runs, or a
-//   device loss is observed. Do not hold it across those events.
+// - The returned pointer is stable until `end_frame()` runs after that entry was evicted, or until
+//   `invalidate_all()` / a device loss. Eviction parks the texture (bounded by the cache limits)
+//   so draws already recorded this frame stay valid; past the bound the oldest parked texture is
+//   destroyed early (`Stats::forced_releases`).
 // - Eviction is deterministic: least-recently-used first (a hit moves an entry to the front, a
 //   miss appends at the front), so a fixed request sequence always evicts the same entries.
 // - Device loss (D7): the cache polls `Device::status()`. On `Lost` it drops every texture through
@@ -62,14 +64,16 @@ enum class PathTextureError : std::uint8_t {
 class PathTextureCache {
 public:
     struct Stats {
-        std::uint64_t hits = 0;           // acquire() served from the cache
-        std::uint64_t misses = 0;         // acquire() with no entry (including failed uploads)
-        std::uint64_t evictions = 0;      // entries dropped to stay inside the bounds
-        std::uint64_t rasterizations = 0; // PathRasterizer calls
-        std::uint64_t uploads = 0;        // rhi::Texture creations
-        std::uint64_t invalidations = 0;  // loss/notify/invalidate_all events
+        std::uint64_t hits = 0;            // acquire() served from the cache
+        std::uint64_t misses = 0;          // acquire() with no entry (including failed uploads)
+        std::uint64_t evictions = 0;       // entries dropped to stay inside the bounds
+        std::uint64_t rasterizations = 0;  // PathRasterizer calls
+        std::uint64_t uploads = 0;         // rhi::Texture creations
+        std::uint64_t invalidations = 0;   // loss/notify/invalidate_all events
+        std::uint64_t forced_releases = 0; // parked textures destroyed early to stay bounded
         std::uint32_t entries = 0;
-        std::uint64_t bytes = 0; // sum of entry pixel bytes
+        std::uint32_t retired = 0; // evicted textures parked until end_frame()
+        std::uint64_t bytes = 0;   // sum of entry pixel bytes
     };
 
     PathTextureCache(rhi::Device& device, PathRasterizer& rasterizer,
@@ -92,6 +96,13 @@ public:
     // and D7 generation handling are identical to the single-shape form.
     [[nodiscard]] std::expected<CachedPathTexture, PathTextureError>
     acquire(const PathTextureKey& key, std::span<const PathShape> shapes);
+
+    // Frame boundary: destroys textures that were evicted while their draws could still be pending.
+    // Call after the frame's commands that used this cache's textures have been submitted and are
+    // no longer in flight. Eviction parks the texture (bounded by the cache limits) instead of
+    // destroying it, so a frame may draw more distinct keys than `max_entries` safely as long as
+    // end_frame() runs between frames.
+    void end_frame();
 
     // Drops every entry (textures are destroyed through the RHI). Call before Device::recover().
     void invalidate_all();

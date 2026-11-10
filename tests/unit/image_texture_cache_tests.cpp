@@ -176,12 +176,56 @@ bool upload_failure_and_device_loss() {
 
 } // namespace
 
+bool evicted_texture_outlives_the_frame() {
+    FakeDevice device;
+    image::ImageTextureCacheConfig config;
+    config.max_entries = 1;
+    image::ImageTextureCache cache(device, config);
+    const std::size_t baseline = FakeTexture::live_count;
+    const auto make = [](std::uint64_t hash) {
+        image::DecodedImage decoded = solid_image(4, 4, 1, 2, 3, 255);
+        decoded.content_hash = hash;
+        return decoded;
+    };
+    const image::DecodedImage a = make(0xA);
+    const image::DecodedImage b = make(0xB);
+    const image::DecodedImage c = make(0xC);
+    const auto key = [](const image::DecodedImage& image) {
+        return image::ImageTextureKey{image.content_hash, 4, 4, rhi::TextureFormat::R8G8B8A8Unorm};
+    };
+    const auto first = cache.acquire(a, key(a));
+    const auto second = cache.acquire(b, key(b)); // evicts `a` while its draw may still be pending
+    bool ok = expect(first.has_value() && second.has_value(), "both uploads succeed") &&
+              expect(cache.stats().retired == 1, "the evicted texture is parked, not destroyed") &&
+              expect(FakeTexture::live_count == baseline + 2,
+                     "the parked texture is still alive for pending draws");
+    cache.end_frame();
+    ok = expect(cache.stats().retired == 0 && FakeTexture::live_count == baseline + 1,
+                "end_frame destroys the parked texture") &&
+         ok;
+
+    // The parking lot is bounded: a frame that evicts more than the cache holds still releases the
+    // oldest parked texture early instead of growing without limit.
+    const auto third = cache.acquire(c, key(c));
+    const auto again = cache.acquire(a, key(a));
+    const auto more = cache.acquire(b, key(b));
+    ok = expect(third.has_value() && again.has_value() && more.has_value(), "uploads succeed") &&
+         expect(cache.stats().retired == 1 && cache.stats().forced_releases >= 1,
+                "the parking lot stays bounded and counts forced releases") &&
+         ok;
+    cache.invalidate_all();
+    ok = expect(FakeTexture::live_count == baseline, "invalidate_all releases parked textures") &&
+         ok;
+    return ok;
+}
+
 int main() {
     bool ok = true;
     ok = hit_and_upload_once() && ok;
     ok = resamples_to_requested_extent() && ok;
     ok = eviction_and_entry_guard() && ok;
     ok = upload_failure_and_device_loss() && ok;
+    ok = evicted_texture_outlives_the_frame() && ok;
     if (!ok) {
         std::cerr << "image_texture_cache: FAILED\n";
         return 1;

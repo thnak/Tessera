@@ -80,9 +80,13 @@ public:
 // produced. `CachedPathTexture::texture` is downcast with dynamic_cast in the tests.
 class FakeTexture final : public rhi::Texture {
 public:
+    // Live instances, so cache tests can prove when an evicted texture is actually destroyed.
+    static inline std::size_t live_count = 0;
+
     explicit FakeTexture(const rhi::TextureDesc& desc)
         : extent_(desc.extent),
           format_(desc.format) {
+        ++live_count;
         const std::size_t bytes_per_pixel = desc.format == rhi::TextureFormat::R8Unorm ? 1U : 4U;
         bytes_.assign(static_cast<std::size_t>(extent_.width) * extent_.height * bytes_per_pixel,
                       0);
@@ -98,6 +102,11 @@ public:
                         static_cast<const std::uint8_t*>(desc.pixels) + row * row_pitch,
                         static_cast<std::size_t>(extent_.width) * bytes_per_pixel);
         }
+    }
+    FakeTexture(const FakeTexture&) = delete;
+    FakeTexture& operator=(const FakeTexture&) = delete;
+    ~FakeTexture() override {
+        --live_count;
     }
 
     [[nodiscard]] rhi::Extent2D extent() const override {

@@ -100,14 +100,32 @@ struct ImageTextureCache::Impl {
         entries.clear(); // unique_ptr destruction is the only release path: RHI owns the memory
         index.clear();
         total_bytes = 0;
+        retired.clear(); // loss/invalidate: nothing recorded against these textures can still run
+        retired_bytes = 0;
+    }
+
+    // An evicted texture may still be referenced by a draw already recorded this frame, so it is
+    // parked here until end_frame() instead of being destroyed. The parking lot is bounded by the
+    // cache's own limits; past that the oldest parked texture is destroyed anyway (the pre-existing
+    // behavior), counted in forced_releases.
+    void retire(Entry& victim) {
+        retired_bytes += victim.bytes;
+        retired.push_back(Retired{std::move(victim.texture), victim.bytes});
+        while (!retired.empty() &&
+               (retired.size() > config.max_entries || retired_bytes > config.max_bytes)) {
+            retired_bytes -= retired.front().bytes;
+            retired.erase(retired.begin());
+            ++stats.forced_releases;
+        }
     }
 
     void evict_until_fits(std::uint64_t incoming_bytes) {
         while (!entries.empty() && (entries.size() >= config.max_entries ||
                                     total_bytes + incoming_bytes > config.max_bytes)) {
-            const Entry& victim = entries.back();
+            Entry& victim = entries.back();
             total_bytes -= victim.bytes;
             index.erase(victim.key);
+            retire(victim);
             entries.pop_back();
             ++stats.evictions;
         }
@@ -115,6 +133,7 @@ struct ImageTextureCache::Impl {
 
     [[nodiscard]] Stats snapshot() const {
         Stats result = stats;
+        result.retired = static_cast<std::uint32_t>(retired.size());
         result.entries = static_cast<std::uint32_t>(entries.size());
         result.bytes = total_bytes;
         return result;
@@ -122,6 +141,12 @@ struct ImageTextureCache::Impl {
 
     rhi::Device& device;
     ImageTextureCacheConfig config;
+    struct Retired {
+        std::unique_ptr<rhi::Texture> texture;
+        std::uint64_t bytes = 0;
+    };
+    std::vector<Retired> retired;
+    std::uint64_t retired_bytes = 0;
     std::list<Entry> entries;
     std::unordered_map<ImageTextureKey, std::list<Entry>::iterator, ImageTextureKeyHash> index;
     std::uint64_t total_bytes = 0;
@@ -183,6 +208,11 @@ ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key
     impl_->index[key] = impl_->entries.begin();
     impl_->total_bytes += entry_bytes;
     return CachedImageTexture{impl_->entries.front().texture.get(), impl_->entries.front().extent};
+}
+
+void ImageTextureCache::end_frame() {
+    impl_->retired.clear();
+    impl_->retired_bytes = 0;
 }
 
 void ImageTextureCache::invalidate_all() {

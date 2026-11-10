@@ -409,6 +409,36 @@ bool scale_path_shapes_rule() {
 
 } // namespace
 
+bool evicted_texture_outlives_the_frame() {
+    FakeDevice device;
+    PatternRasterizer rasterizer;
+    path::PathTextureCache cache(device, rasterizer, make_config(1, 1U << 20));
+    const auto shape = triangle_path();
+    const std::size_t baseline = tessera::test::path_texture::FakeTexture::live_count;
+
+    const auto first = cache.acquire(key_for(200, 1, 1000, shape), shape);
+    const auto second = cache.acquire(key_for(201, 1, 1000, shape), shape); // evicts the first
+    bool ok = expect(first.has_value() && second.has_value(), "both keys cache") &&
+              expect(cache.stats().retired == 1 &&
+                         tessera::test::path_texture::FakeTexture::live_count == baseline + 2,
+                     "the evicted texture stays alive until the frame ends");
+    cache.end_frame();
+    ok = expect(cache.stats().retired == 0 &&
+                    tessera::test::path_texture::FakeTexture::live_count == baseline + 1,
+                "end_frame destroys the parked texture") &&
+         ok;
+    const auto third = cache.acquire(key_for(202, 1, 1000, shape), shape);
+    const auto fourth = cache.acquire(key_for(203, 1, 1000, shape), shape);
+    ok = expect(third.has_value() && fourth.has_value() && cache.stats().retired == 1 &&
+                    cache.stats().forced_releases >= 1,
+                "the parking lot is bounded and counts forced releases") &&
+         ok;
+    cache.invalidate_all();
+    return expect(tessera::test::path_texture::FakeTexture::live_count == baseline,
+                  "invalidate_all releases parked textures") &&
+           ok;
+}
+
 int main() {
     bool ok = true;
     ok = hit_and_miss() && ok;
@@ -416,6 +446,7 @@ int main() {
     ok = key_sensitivity() && ok;
     ok = eviction_by_count() && ok;
     ok = eviction_by_bytes() && ok;
+    ok = evicted_texture_outlives_the_frame() && ok;
     ok = rejected_requests() && ok;
     ok = device_generation_invalidation() && ok;
     ok = notify_device_lost() && ok;

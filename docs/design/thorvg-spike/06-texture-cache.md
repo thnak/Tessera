@@ -20,8 +20,13 @@ textured-quad path can draw a rasterized path.
   `TESSERA_ENABLE_THORVG=OFF` because the cache takes a `PathRasterizer&` (the null backend works).
 
 `acquire(key, shape)` returns the cached texture on a hit and rasterizes + uploads once on a miss.
-The returned pointer is stable until that entry is evicted, `invalidate_all()` runs, or a device
-loss is observed; re-acquire after those events. Not thread-safe (one instance per rendering
+The returned pointer is stable until `end_frame()` runs after that entry was evicted, or until
+`invalidate_all()` / a device loss; re-acquire after those events. Eviction parks the texture
+instead of destroying it, so draws already recorded this frame stay valid; the frame owner calls
+`end_frame()` once the frame's commands are submitted (and older frames are no longer in flight).
+The parking lot is bounded by the same `max_entries`/`max_bytes`; past that the oldest parked
+texture is destroyed early and counted in `Stats::forced_releases`, which is the old behavior.
+`ImageTextureCache` follows the same rule. Not thread-safe (one instance per rendering
 thread, like the rest of the renderer).
 
 ### Key contract (exact)

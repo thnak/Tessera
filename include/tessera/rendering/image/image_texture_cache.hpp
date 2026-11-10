@@ -37,11 +37,10 @@ struct ImageTextureCacheConfig {
     rhi::AddressMode address = rhi::AddressMode::ClampToEdge;
 };
 
-// The texture pointer is valid until an acquire() evicts its entry (or invalidate_all()). Eviction
-// destroys the texture immediately, so a frame that draws more distinct (content, extent, format)
-// keys than `max_entries` can leave an earlier draw in the batch pointing at a destroyed texture.
-// Callers must keep one frame's distinct image keys within `max_entries`; deferred destruction at a
-// frame boundary is a known follow-up shared with PathTextureCache.
+// The texture pointer is valid until end_frame() after the entry is evicted (or until
+// invalidate_all()/device loss): eviction parks the texture rather than destroying it, so draws
+// already recorded this frame stay valid. The parking lot is bounded by the cache limits; past that
+// the oldest parked texture is destroyed early (Stats::forced_releases).
 struct CachedImageTexture {
     rhi::Texture* texture = nullptr;
     rhi::Extent2D extent; // uploaded raster extent (== key.width/height)
@@ -64,9 +63,11 @@ public:
         std::uint64_t hits = 0;
         std::uint64_t misses = 0;
         std::uint64_t evictions = 0;
-        std::uint64_t uploads = 0;       // rhi::Texture creations
-        std::uint64_t invalidations = 0; // loss/notify/invalidate_all events
+        std::uint64_t uploads = 0;         // rhi::Texture creations
+        std::uint64_t invalidations = 0;   // loss/notify/invalidate_all events
+        std::uint64_t forced_releases = 0; // parked textures destroyed early to stay bounded
         std::uint32_t entries = 0;
+        std::uint32_t retired = 0; // evicted textures parked until end_frame()
         std::uint64_t bytes = 0;
     };
 
@@ -80,6 +81,13 @@ public:
 
     [[nodiscard]] std::expected<CachedImageTexture, ImageTextureError>
     acquire(const DecodedImage& image, const ImageTextureKey& key);
+
+    // Frame boundary: destroys textures that were evicted while their draws could still be pending.
+    // Call after the frame's commands that used this cache's textures have been submitted and are
+    // no longer in flight. Eviction parks the texture (bounded by the cache limits) instead of
+    // destroying it, so a frame may draw more distinct keys than `max_entries` safely as long as
+    // end_frame() runs between frames.
+    void end_frame();
 
     // Drops every entry (textures are destroyed through the RHI). Call before Device::recover().
     void invalidate_all();

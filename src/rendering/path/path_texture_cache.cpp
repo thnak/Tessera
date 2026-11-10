@@ -113,14 +113,32 @@ struct PathTextureCache::Impl {
         entries.clear(); // unique_ptr destruction is the only release path: RHI owns the memory
         index.clear();
         bytes = 0;
+        retired.clear(); // loss/invalidate: nothing recorded against these textures can still run
+        retired_bytes = 0;
+    }
+
+    // An evicted texture may still be referenced by a draw already recorded this frame, so it is
+    // parked here until end_frame() instead of being destroyed. The parking lot is bounded by the
+    // cache's own limits; past that the oldest parked texture is destroyed anyway (the pre-existing
+    // behavior), counted in forced_releases.
+    void retire(Entry& victim) {
+        retired_bytes += victim.bytes;
+        retired.push_back(Retired{std::move(victim.texture), victim.bytes});
+        while (!retired.empty() &&
+               (retired.size() > config.max_entries || retired_bytes > config.max_bytes)) {
+            retired_bytes -= retired.front().bytes;
+            retired.erase(retired.begin());
+            ++stats.forced_releases;
+        }
     }
 
     void evict_until_fits(std::uint64_t incoming_bytes) {
         while (!entries.empty() && (entries.size() >= config.max_entries ||
                                     bytes + incoming_bytes > config.max_bytes)) {
-            const Entry& victim = entries.back();
+            Entry& victim = entries.back();
             bytes -= victim.bytes;
             index.erase(victim.key);
+            retire(victim);
             entries.pop_back();
             ++stats.evictions;
         }
@@ -183,6 +201,12 @@ struct PathTextureCache::Impl {
 
     // Front = most recently used; eviction always takes the back, so the order is total and
     // deterministic for a fixed request sequence.
+    struct Retired {
+        std::unique_ptr<rhi::Texture> texture;
+        std::uint64_t bytes = 0;
+    };
+    std::vector<Retired> retired;
+    std::uint64_t retired_bytes = 0;
     std::list<Entry> entries;
     std::unordered_map<PathTextureKey, std::list<Entry>::iterator, PathTextureKeyHash> index;
     std::uint64_t bytes = 0;
@@ -236,6 +260,11 @@ PathTextureCache::acquire(const PathTextureKey& key, std::span<const PathShape> 
     return impl_->rasterize_and_upload(key, shapes, rhi::Extent2D{extent_width, extent_height});
 }
 
+void PathTextureCache::end_frame() {
+    impl_->retired.clear();
+    impl_->retired_bytes = 0;
+}
+
 void PathTextureCache::invalidate_all() {
     impl_->clear_entries();
     ++impl_->stats.invalidations;
@@ -263,6 +292,7 @@ PathTextureCache::Stats PathTextureCache::stats() const {
     Stats stats = impl_->stats;
     stats.entries = static_cast<std::uint32_t>(impl_->entries.size());
     stats.bytes = impl_->bytes;
+    stats.retired = static_cast<std::uint32_t>(impl_->retired.size());
     return stats;
 }
 

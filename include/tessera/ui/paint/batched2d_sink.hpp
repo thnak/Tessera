@@ -30,8 +30,11 @@ namespace tessera::ui::paint {
 // - `documents` caches decoded SVG documents by content hash; safe to share across sinks/frames.
 // - `textures` caches uploaded document textures (one per document/size/scale). It polls the RHI
 //   device for D7 loss, so the caller must call `notify_device_lost()` before `Device::recover()`
-//   (the same rule as any PathTextureCache owner). With more than one frame in flight, size the
-//   cache so the assets of all in-flight frames stay resident (eviction destroys textures).
+//   (the same rule as any PathTextureCache owner). Eviction parks the texture until the frame
+//   owner calls `end_frame()` on the cache after the frame's commands were submitted, so a frame
+//   may draw more distinct assets than the cache holds. With more than one frame in flight, call
+//   `end_frame()` only once the older frames have finished (or size the cache to keep their assets
+//   resident); the parking lot is bounded and overflow is destroyed early.
 // - `texture_format` must match the destination color space: UNORM targets keep the raster bytes
 //   (deterministic goldens), sRGB targets need R8G8B8A8Srgb so sampling/target encoding round-trips
 //   (D2).
