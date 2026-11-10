@@ -97,6 +97,11 @@ public:
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] bool empty() const noexcept;
 
+    // Structural equality on the canonical form: numbers compare by representation, so an exact
+    // integer literal is not equal to a double literal with the same numeric value, and object
+    // member order matters (it is part of the bytes this type exists to preserve).
+    friend bool operator==(const JsonValue&, const JsonValue&) = default;
+
 private:
     JsonType type_ = JsonType::Null;
     bool boolean_ = false;

@@ -23,3 +23,10 @@ add_executable(harness_json_tests
 target_link_libraries(harness_json_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_json COMMAND harness_json_tests)
+
+add_executable(harness_protocol_tests
+    protocol_tests.cpp)
+
+target_link_libraries(harness_protocol_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_protocol COMMAND harness_protocol_tests)

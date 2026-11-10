@@ -15,6 +15,7 @@ add_library(tessera_harness STATIC
     json_value.cpp
     json_write.cpp
     line_framing.cpp
+    protocol.cpp
     utf8.cpp)
 
 target_include_directories(tessera_harness PUBLIC
