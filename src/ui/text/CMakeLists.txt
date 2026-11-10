@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: MIT
 
+# The render-scale library lives in src/ui/scale; it is registered here until the root CMakeLists
+# (Lead-owned) lists that directory directly. The text layer is its first consumer (per-scale glyph
+# atlases), and relocating the add_subdirectory line later is a no-op for the target itself.
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/ui/scale ${CMAKE_BINARY_DIR}/src/ui/scale)
+
 add_library(tessera_text STATIC
     bidi.cpp
     hit_test.cpp
