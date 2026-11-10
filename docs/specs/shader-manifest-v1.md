@@ -152,6 +152,8 @@ manifest.json
 ```
 
 - `glslc` version is pinned.
+- The manifest is validated by `tessera_schema` before `glslc` runs (section 9); a validation
+  error fails the build with a stable code and field path.
 - Every shader has at least one smoke test; shared shaders have a golden.
 - A manifest/source mismatch fails the build.
 - Shader changes require a golden update or a documented tolerance (case-file tolerance is the `compare.tolerance` field in
@@ -181,6 +183,65 @@ manifest.json
 ## 8. Open questions
 
 - Single-source (Slang/Tint/naga) migration; see [ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md).
-- Whether compute shaders are in V1 (no decision yet; `compute` is an optional stage value).
+- Compute shaders are not in V1: the `compute` stage value stays reserved and validation rejects
+  it with `compute_stage_unsupported` until a core compute consumer exists (section 9).
 - Reflection for WGSL in the browser build.
 - Shader variant matrix (quality/power modes).
+
+## 9. Validation
+
+The manifest is loaded and validated at build time by `tessera_schema`
+(`include/tessera/schema/manifest.hpp`). `parse_manifest` validates document text and
+`load_manifest_file` reads a file under the byte cap; both return
+`std::expected<Manifest, ValidationError>`. Failures are values, never exceptions, and each one
+carries:
+
+- `code`: a stable `ValidationErrorCode` (`to_string` is the diagnostic token; codes are
+  append-only);
+- `path`: the JSON field path of the offending value (`$`, `$.manifestVersion`,
+  `$.shaders[0].stages[1]`);
+- `detail`: a static description of the rule;
+- `offset`: the byte position for JSON syntax/depth errors, otherwise 0.
+
+Rules:
+
+- Every object has a closed key set (root, shader, `sources`, vertex attribute, binding,
+  push-constant block, push-constant field, test). Unknown keys, missing required keys, wrong JSON
+  types, duplicate JSON keys, trailing content, malformed escapes, invalid UTF-8, and non-finite or
+  out-of-range numbers are errors.
+- `manifestVersion` must be the integer `1`; anything else is `unsupported_version`.
+- `stages` accepts `vertex` and `fragment`. `compute` is reserved and rejected with
+  `compute_stage_unsupported` (section 8); unknown tokens and duplicate stages are errors.
+- `entry` keys must name declared stages; omitted stages default to `main`.
+- Source names are bare file names (no `/`, `\`, drive letter, or `..`); `sources.vulkan` is
+  required. Golden paths are project-relative.
+- Vertex formats are `float`, `float2`, `float3`, `float4`, `ubyte4norm`; locations are `0..31`
+  and unique; semantics are unique.
+- Binding groups are `0..3`, bindings `0..255`; `(group, binding)` pairs are unique; types are
+  `uniform_buffer`, `storage_buffer`, `sampler`, `sampled_texture`, `storage_texture`.
+- Push constants: `size` is a multiple of 4 and at most 128; field offsets are 4-byte aligned,
+  inside the block, non-overlapping, with unique names; field types are `float`, `int`, `uint`,
+  `float2`, `float3`, `float4`. A `view-transition-effect` must not declare them (section 3.1).
+- `tests` needs at least one entry and unique names; a `view-transition-effect` needs at least one
+  golden. Section 3.1 interface deviations are `view_transition_interface`.
+- A shared shader may declare Vulkan push constants: section 3 defines the WebGPU counterpart as a
+  uniform buffer, so a `pushConstants` block is not rejected merely because WGSL sources exist.
+
+Limits (the constants live in the header):
+
+| Limit | Value |
+|---|---|
+| Manifest size | 1,048,576 bytes (1 MiB) |
+| JSON nesting | 32 |
+| Shaders per manifest | 1024 |
+| Stages per shader | 3 |
+| Source files per backend | 8 |
+| Vertex attributes / bindings / push-constant fields | 32 each |
+| Tests per shader | 64 |
+| Shader name | 128 bytes |
+| Entry point / binding / test name | 64 bytes |
+| Golden path | 256 bytes |
+
+The byte cap is enforced before decoding, so an oversized file is rejected without reading it.
+The decoder is local to `tessera_schema` (the library is a leaf and links no other project
+library), and the public API carries no JSON types.

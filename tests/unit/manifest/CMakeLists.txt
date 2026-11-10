@@ -30,3 +30,10 @@ add_executable(manifest_stages_tests
 target_link_libraries(manifest_stages_tests PRIVATE tessera_schema)
 
 add_test(NAME manifest_stages COMMAND manifest_stages_tests)
+
+add_executable(manifest_errors_tests
+    manifest_errors_tests.cpp)
+
+target_link_libraries(manifest_errors_tests PRIVATE tessera_schema)
+
+add_test(NAME manifest_errors COMMAND manifest_errors_tests)
