@@ -40,13 +40,15 @@ void emit_format_helpers(CppWriter& writer);
 // The generated member base for one dynamic metadata field (`meta_3_class`).
 [[nodiscard]] std::string metadata_member(const DynamicMetadata& entry);
 
-// Emits `<Name>::apply_state()`: the instance props first, then the dynamic child-set groups, then
-// interpolated text and metadata, then the controlled-editor sync. `has_props` emits the
-// `apply_props()` call that refreshes the declared props of the owned component instances.
+// Emits `<Name>::apply_state()`: the instance props first, then the form controller's Field
+// refresh, then the dynamic child-set groups, then interpolated text and metadata, then the
+// controlled-editor sync. `has_props` emits the `apply_props()` call that refreshes the declared
+// props of the owned component instances.
 [[nodiscard]] bool emit_apply_state(CppWriter& writer, const ir::Component& component,
                                     const std::vector<DynamicText>& text_entries,
                                     const std::vector<DynamicMetadata>& metadata_entries,
                                     const std::vector<ControlledInput>& controlled_inputs,
-                                    const DynamicPlan& plan, bool has_props, std::string& error);
+                                    const DynamicPlan& plan, const FormPlan& forms, bool has_props,
+                                    std::string& error);
 
 } // namespace tessera::compiler::codegen::internal

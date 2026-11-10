@@ -21,8 +21,23 @@ namespace tessera::compiler::codegen::internal {
 [[nodiscard]] bool is_value_prop_type(std::string_view ir_type);
 
 // The generated C++ type of a callback prop: `std::function<void(const <Record>&)>` for a prop
-// whose IR type names a scene payload record. Empty when the record has no C++ mapping.
+// whose IR type names a scene payload record, and `std::function<void()>` for the payload-free
+// `callback` prop of a library component (`Form`'s `validate`/`onSubmit`). Empty when the type has
+// no C++ mapping.
 [[nodiscard]] std::string callback_prop_type(std::string_view ir_type);
+
+// How `apply_props()` guards one prop assignment: a 64-bit FNV-1a value hash for a printable scalar
+// or list-of-printable prop (the same allocation-free change detection apply_state() uses), a
+// one-shot bound flag for a callback (the lambda is built once), or no guard when the type has no
+// hashable form.
+enum class PropGuard { None, Value, Callback };
+
+[[nodiscard]] PropGuard prop_guard(std::string_view ir_type);
+
+// The generated caller-struct member that stores a prop's guard. `_hash_` is a `std::uint64_t`,
+// `_bound_` is a `bool`.
+[[nodiscard]] std::string prop_guard_member(unsigned ordinal, std::string_view name);
+[[nodiscard]] std::string prop_bound_member(unsigned ordinal, std::string_view name);
 
 // Resolves and validates the props and callback props of one instance against the target
 // component's declared prop records. Unknown prop names, a value passed for a callback prop (or a

@@ -7,7 +7,9 @@
 
 #include "emit_events.hpp"
 #include "emit_props.hpp"
+#include "value_ops.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -120,7 +122,8 @@ bool prop_value_matches(std::string_view type, const ir::Expr& expr) {
 }
 
 // Resolves the handler a callback prop names to the generated callable (`handler_1` or `on_pick`)
-// and checks that it takes exactly the prop's payload record.
+// and checks that it takes exactly the prop's payload record (or no parameter for a payload-free
+// `callback` prop).
 bool resolve_callback(const ir::IrModule& module, const ir::Component& owner, const ir::Prop& prop,
                       std::string_view target_id, std::string& callable, std::string& error) {
     std::vector<ir::Param> params;
@@ -142,6 +145,14 @@ bool resolve_callback(const ir::IrModule& module, const ir::Component& owner, co
         params = binding->params;
     } else {
         return fail(error, "callback prop `" + prop.name + "` must name a handler");
+    }
+    if (prop.type == "callback") {
+        if (!params.empty()) {
+            return fail(error, "callback prop `" + prop.name +
+                                   "` needs a handler taking no "
+                                   "parameter");
+        }
+        return true;
     }
     if (params.size() != 1 || params.front().type != prop.type) {
         return fail(error, "callback prop `" + prop.name + "` needs a handler taking one `" +
@@ -220,11 +231,38 @@ bool is_value_prop_type(std::string_view ir_type) {
 }
 
 std::string callback_prop_type(std::string_view ir_type) {
+    if (ir_type == "callback") {
+        return "std::function<void()>";
+    }
     const PayloadRecord* payload = find_payload(ir_type);
     if (payload == nullptr) {
         return {};
     }
     return "std::function<void(const tessera::ui::" + std::string(payload->cpp_type) + "&)>";
+}
+
+PropGuard prop_guard(std::string_view ir_type) {
+    if (ir_type == "callback") {
+        return PropGuard::Callback;
+    }
+    if (!is_value_prop_type(ir_type)) {
+        return PropGuard::None;
+    }
+    if (text_value_type(ir_type)) {
+        return PropGuard::Value;
+    }
+    if (!list_element(ir_type).empty() && text_value_type(list_element(ir_type))) {
+        return PropGuard::Value;
+    }
+    return PropGuard::None;
+}
+
+std::string prop_guard_member(unsigned ordinal, std::string_view name) {
+    return "child_" + std::to_string(ordinal) + "_prop_" + std::string(name) + "_hash_";
+}
+
+std::string prop_bound_member(unsigned ordinal, std::string_view name) {
+    return "child_" + std::to_string(ordinal) + "_prop_" + std::string(name) + "_bound_";
 }
 
 bool collect_instance_props(const ir::IrModule& module, const ir::Component& owner,
@@ -253,6 +291,71 @@ bool collect_instance_props(const ir::IrModule& module, const ir::Component& own
     return true;
 }
 
+namespace {
+
+// Appends one literal element to an FNV-1a prop-value hash. Only literal list elements are hashed
+// here; a non-literal element makes the whole prop fall back to an unguarded assignment.
+bool emit_literal_hash(CppWriter& writer, const std::string& hash_var, const ir::Expr& item) {
+    if (item.kind != ir::ExprKind::Literal) {
+        return false;
+    }
+    const std::string text = literal_text(item.literal);
+    if (std::holds_alternative<std::string>(item.literal)) {
+        // A bare string literal would bind the bool overload; name the string_view explicitly.
+        writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", std::string_view(" +
+                    text + "));");
+        return true;
+    }
+    writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", " + text + ");");
+    return true;
+}
+
+// Builds the allocation-free change-detection statements for one value prop. Returns false when the
+// prop (or one list element) has no printable/hashable form; the caller then assigns unguarded.
+bool build_value_guard(CppWriter& out, const PropBinding& binding, const ir::Component& owner,
+                       const std::string& hash_var, std::string& error) {
+    const std::string_view element = list_element(binding.type);
+    if (element.empty()) {
+        if (!printable_text_expression(*binding.value, owner)) {
+            return false;
+        }
+        out.line("std::uint64_t " + hash_var + " = tessera::ui::kEffectHashSeed;");
+        return emit_value_ops(out, *binding.value, owner, {}, hash_var, "", error);
+    }
+    out.line("std::uint64_t " + hash_var + " = tessera::ui::kEffectHashSeed;");
+    if (binding.value->kind == ir::ExprKind::Array) {
+        out.line(hash_var + " = tessera::ui::effect_hash(" + hash_var +
+                 ", static_cast<std::int64_t>(" + std::to_string(binding.value->operands.size()) +
+                 "));");
+        for (const ir::ExprPtr& item : binding.value->operands) {
+            if (!emit_literal_hash(out, hash_var, *item)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if (binding.value->kind != ir::ExprKind::Ref) {
+        return false;
+    }
+    const ExprEmission value = emit_expr(*binding.value, owner);
+    if (!value.error.empty()) {
+        return false;
+    }
+    out.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", static_cast<std::int64_t>(" +
+             value.text + ".size()));");
+    out.open("for (const auto& guard_value : " + value.text + ")");
+    if (element == "string" || element == "color") {
+        out.line(hash_var + " = tessera::ui::effect_hash(" + hash_var +
+                 ", std::string_view(guard_value));");
+    } else {
+        out.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", guard_value);");
+    }
+    out.close("");
+    return true;
+}
+
+} // namespace
+
 bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
                       const std::vector<ComponentInstance>& instances, std::string& error) {
     bool any = false;
@@ -273,18 +376,54 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
         for (const PropBinding& binding : instance.props) {
             const std::string member = member_prefix + member_name("prop::" + binding.name);
             if (binding.is_callback()) {
-                const PayloadRecord* payload = find_payload(binding.type);
-                writer.line(member + " = [this](const tessera::ui::" +
-                            std::string(payload->cpp_type) + "& event) {");
+                // A callback prop's lambda is built once; re-binding it on every update would
+                // allocate and replace the same callable.
+                const std::string bound = prop_bound_member(instance.ordinal, binding.name);
+                writer.line("if (!" + bound + ") {");
                 ++writer.indent;
-                writer.line("this->" + binding.callback + "(event);");
+                writer.line(bound + " = true;");
+                if (binding.type == "callback") {
+                    writer.line(member + " = [this]() {");
+                    ++writer.indent;
+                    // The declared prop has no payload; the generated handler still takes the
+                    // generic scene Event (the region body ignores it).
+                    writer.line("this->" + binding.callback + "(tessera::ui::Event{});");
+                    --writer.indent;
+                    writer.line("};");
+                } else {
+                    const PayloadRecord* payload = find_payload(binding.type);
+                    writer.line(member + " = [this](const tessera::ui::" +
+                                std::string(payload->cpp_type) + "& event) {");
+                    ++writer.indent;
+                    writer.line("this->" + binding.callback + "(event);");
+                    --writer.indent;
+                    writer.line("};");
+                }
                 --writer.indent;
-                writer.line("};");
+                writer.line("}");
                 continue;
             }
             ExprEmission value = emit_initializer_expr(*binding.value, owner);
             if (!value.error.empty()) {
                 return fail(error, value.error);
+            }
+            // Value props are hash-guarded: an unchanged value copies and allocates nothing, the
+            // same deterministic FNV-1a contract as apply_state() (docs/design/compiler.md 11).
+            CppWriter guard;
+            guard.indent = writer.indent;
+            const std::string hash_var =
+                "prop_" + std::to_string(instance.ordinal) + "_" + binding.name + "_hash";
+            if (prop_guard(binding.type) == PropGuard::Value &&
+                build_value_guard(guard, binding, owner, hash_var, error)) {
+                const std::string hash_member = prop_guard_member(instance.ordinal, binding.name);
+                writer.text += guard.text;
+                writer.line("if (" + hash_var + " != " + hash_member + ") {");
+                ++writer.indent;
+                writer.line(hash_member + " = " + hash_var + ";");
+                writer.line(member + " = " + value.text + ";");
+                --writer.indent;
+                writer.line("}");
+                continue;
             }
             writer.line(member + " = " + value.text + ";");
         }

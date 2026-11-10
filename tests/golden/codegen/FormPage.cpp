@@ -13,24 +13,45 @@ namespace demo {
   namespace gen {
     
     namespace {
-      void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
+      void form_2_field_email_changed_adapter(void* context, const tessera::ui::Event& event) {
         auto* component = static_cast<FormPage*>(context);
-        component->handler_1(event);
+        component->form_2_field_email_changed(tessera::ui::text_change_event(event));
+      }
+      
+      // Focus the first focusable node of a field's slot content (the input
+      // itself, or the first child of a wrapper); no-op without a manager.
+      void focus_generated_field(tessera::ui::FocusManager* manager, tessera::ui::Node* node) {
+        if (manager == nullptr) {
+          return;
+        }
+        while (node != nullptr && !node->focusable()) {
+          if (node->children().empty()) {
+            return;
+          }
+          node = node->children().front().get();
+        }
+        if (node != nullptr) {
+          manager->request_focus(node);
+        }
+      }
+      void form_2_field_age_changed_adapter(void* context, const tessera::ui::Event& event) {
+        auto* component = static_cast<FormPage*>(context);
+        component->form_2_field_age_changed(tessera::ui::text_change_event(event));
       }
     }
     
     void FormPage::build(tessera::ui::Node& parent) {
       apply_props();
+      seed_form_2();
+      apply_form_fields_2();
       // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(501ull));
       node_1->set_element_kind("View");
-      node_1->set_class_name("form");
-      // node::2 events={onClick:handler::1}
+      node_1->set_class_name("form-page");
+      // node::2 ("comp::Form" instance, slot children: 2)
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(502ull));
-      node_2->set_element_kind("Button");
-      node_2->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_2_onClick, this);
-      node_2->set_focusable(true);
-      node_1->add_child(std::move(node_2));
+      node_2->set_element_kind("Component");
+      std::vector<std::unique_ptr<tessera::ui::Node>> slot_2;
       // node::3 ("comp::Field" instance, slot children: 1)
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(503ull));
       node_3->set_element_kind("Component");
@@ -39,9 +60,11 @@ namespace demo {
       auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(504ull));
       node_4->set_element_kind("TextInput");
       node_4->set_focusable(true);
+      this->form_controller_2_widget_email_ = node_4.get();
+      node_4->bind_event(tessera::ui::EventType::TextChange, &form_2_field_email_changed_adapter, this);
       slot_3.push_back(std::move(node_4));
       this->child_3_.build(*node_3, std::move(slot_3));
-      node_1->add_child(std::move(node_3));
+      slot_2.push_back(std::move(node_3));
       // node::5 ("comp::Field" instance, slot children: 1)
       auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(505ull));
       node_5->set_element_kind("Component");
@@ -50,37 +73,269 @@ namespace demo {
       auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(506ull));
       node_6->set_element_kind("TextInput");
       node_6->set_focusable(true);
+      this->form_controller_2_widget_age_ = node_6.get();
+      node_6->bind_event(tessera::ui::EventType::TextChange, &form_2_field_age_changed_adapter, this);
       slot_5.push_back(std::move(node_6));
       this->child_5_.build(*node_5, std::move(slot_5));
-      node_1->add_child(std::move(node_5));
+      slot_2.push_back(std::move(node_5));
+      this->child_2_.build(*node_2, std::move(slot_2));
+      node_1->add_child(std::move(node_2));
       parent.add_child(std::move(node_1));
       apply_state();
     }
     
     void FormPage::apply_props() {
+      // comp::Form instance (pre-order index 2) props.
+      std::uint64_t prop_2_initial_hash = tessera::ui::kEffectHashSeed;
+      prop_2_initial_hash = tessera::ui::effect_hash(prop_2_initial_hash, static_cast<std::int64_t>(2));
+      prop_2_initial_hash = tessera::ui::effect_hash(prop_2_initial_hash, std::string_view("email="));
+      prop_2_initial_hash = tessera::ui::effect_hash(prop_2_initial_hash, std::string_view("age=0"));
+      if (prop_2_initial_hash != child_2_prop_initial_hash_) {
+        child_2_prop_initial_hash_ = prop_2_initial_hash;
+        this->child_2_.prop_initial_ = {"email=", "age=0"};
+      }
+      if (!child_2_prop_onSubmit_bound_) {
+        child_2_prop_onSubmit_bound_ = true;
+        this->child_2_.prop_onSubmit_ = [this]() {
+          this->on_submit(tessera::ui::Event{});
+        };
+      }
+      if (!child_2_prop_validate_bound_) {
+        child_2_prop_validate_bound_ = true;
+        this->child_2_.prop_validate_ = [this]() {
+          this->on_validate_form(tessera::ui::Event{});
+        };
+      }
       // comp::Field instance (pre-order index 3) props.
-      this->child_3_.prop_name_ = "email";
-      this->child_3_.prop_label_ = "Email";
-      this->child_3_.prop_value_ = state_email_;
-      this->child_3_.prop_required_ = true;
-      this->child_3_.prop_validators_ = {"required", "minLength:3"};
-      this->child_3_.prop_error_ = "";
-      this->child_3_.prop_onValidate_ = [this](const tessera::ui::TextChangeEvent& event) {
-        this->on_validate(event);
-      };
+      std::uint64_t prop_3_name_hash = tessera::ui::kEffectHashSeed;
+      prop_3_name_hash = tessera::ui::effect_hash(prop_3_name_hash, std::string_view("email"));
+      if (prop_3_name_hash != child_3_prop_name_hash_) {
+        child_3_prop_name_hash_ = prop_3_name_hash;
+        this->child_3_.prop_name_ = "email";
+      }
+      std::uint64_t prop_3_label_hash = tessera::ui::kEffectHashSeed;
+      prop_3_label_hash = tessera::ui::effect_hash(prop_3_label_hash, std::string_view("Email"));
+      if (prop_3_label_hash != child_3_prop_label_hash_) {
+        child_3_prop_label_hash_ = prop_3_label_hash;
+        this->child_3_.prop_label_ = "Email";
+      }
+      std::uint64_t prop_3_required_hash = tessera::ui::kEffectHashSeed;
+      prop_3_required_hash = tessera::ui::effect_hash(prop_3_required_hash, true);
+      if (prop_3_required_hash != child_3_prop_required_hash_) {
+        child_3_prop_required_hash_ = prop_3_required_hash;
+        this->child_3_.prop_required_ = true;
+      }
+      std::uint64_t prop_3_validators_hash = tessera::ui::kEffectHashSeed;
+      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, static_cast<std::int64_t>(2));
+      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, std::string_view("required"));
+      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, std::string_view("minLength:3"));
+      if (prop_3_validators_hash != child_3_prop_validators_hash_) {
+        child_3_prop_validators_hash_ = prop_3_validators_hash;
+        this->child_3_.prop_validators_ = {"required", "minLength:3"};
+      }
       // comp::Field instance (pre-order index 5) props.
-      this->child_5_.prop_name_ = "age";
-      this->child_5_.prop_label_ = "Age";
-      this->child_5_.prop_value_ = "0";
-      this->child_5_.prop_defaultValue_ = "0";
+      std::uint64_t prop_5_name_hash = tessera::ui::kEffectHashSeed;
+      prop_5_name_hash = tessera::ui::effect_hash(prop_5_name_hash, std::string_view("age"));
+      if (prop_5_name_hash != child_5_prop_name_hash_) {
+        child_5_prop_name_hash_ = prop_5_name_hash;
+        this->child_5_.prop_name_ = "age";
+      }
+      std::uint64_t prop_5_label_hash = tessera::ui::kEffectHashSeed;
+      prop_5_label_hash = tessera::ui::effect_hash(prop_5_label_hash, std::string_view("Age"));
+      if (prop_5_label_hash != child_5_prop_label_hash_) {
+        child_5_prop_label_hash_ = prop_5_label_hash;
+        this->child_5_.prop_label_ = "Age";
+      }
+    }
+    
+    tessera::ui::forms::Form& FormPage::form_2() {
+      seed_form_2();
+      return *this->form_controller_2_controller_;
+    }
+    
+    void FormPage::seed_form_2() {
+      if (this->form_controller_2_seeded_) {
+        return;
+      }
+      this->form_controller_2_seeded_ = true;
+      this->form_controller_2_controller_.emplace(this->form_controller_2_config_);
+      // `initial` seeds in declaration order; a runtime-built list is validated by
+      // the caller (codegen accepts literal `name=value` seeds only).
+      for (const std::string& seed : this->child_2_.prop_initial_) {
+        const std::size_t split = seed.find('=');
+        if (split == std::string::npos || split == 0) {
+          continue;
+        }
+        const std::string_view name = std::string_view(seed).substr(0, split);
+        const std::string_view value = std::string_view(seed).substr(split + 1);
+        const tessera::ui::forms::FieldId id =
+            this->form_controller_2_controller_->add_field(name, tessera::ui::forms::FormValue::from_string(value))
+                .value_or(tessera::ui::forms::kInvalidFieldId);
+        if (id == tessera::ui::forms::kInvalidFieldId) {
+          continue;
+        }
+        if (name == "email") {
+          form_controller_2_id_email_ = id;
+        }
+        if (name == "age") {
+          form_controller_2_id_age_ = id;
+        }
+      }
+      // A Field declared in the tree is created even when `initial` omits it.
+      if (form_controller_2_id_email_ == tessera::ui::forms::kInvalidFieldId) {
+        form_controller_2_id_email_ = this->form_controller_2_controller_->add_field("email", tessera::ui::forms::FormValue::from_string(""))
+            .value_or(tessera::ui::forms::kInvalidFieldId);
+      }
+      if (form_controller_2_id_age_ == tessera::ui::forms::kInvalidFieldId) {
+        form_controller_2_id_age_ = this->form_controller_2_controller_->add_field("age", tessera::ui::forms::FormValue::from_string(""))
+            .value_or(tessera::ui::forms::kInvalidFieldId);
+      }
+      // Rules are data: the forms library evaluates them (no rule code is generated).
+      if (form_controller_2_id_email_ != tessera::ui::forms::kInvalidFieldId) {
+        tessera::ui::forms::SyncRule rule;
+        rule.kind = tessera::ui::forms::RuleKind::Required;
+        this->form_controller_2_controller_->add_rule(form_controller_2_id_email_, rule);
+      }
+      if (form_controller_2_id_email_ != tessera::ui::forms::kInvalidFieldId) {
+        tessera::ui::forms::SyncRule rule;
+        rule.kind = tessera::ui::forms::RuleKind::MinLength;
+        rule.minimum = 3;
+        this->form_controller_2_controller_->add_rule(form_controller_2_id_email_, rule);
+      }
+    }
+    
+    void FormPage::apply_form_fields_2() {
+      // Field `email` resolves value/error/errors from the controller.
+      if (const tessera::ui::forms::FieldState* state =
+              this->form_2().field(this->form_controller_2_id_email_)) {
+        if (this->child_3_.prop_value_ != state->value.text) {
+          this->child_3_.prop_value_ = state->value.text;
+        }
+        std::string first_error;
+        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+          if (issue.severity == tessera::ui::forms::IssueSeverity::Error) {
+            first_error = issue.message;
+            break;
+          }
+        }
+        if (this->child_3_.prop_error_ != first_error) {
+          this->child_3_.prop_error_ = std::move(first_error);
+        }
+        std::vector<std::string> errors;
+        errors.reserve(state->issues.size());
+        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+          errors.push_back(issue.message);
+        }
+        if (this->child_3_.prop_errors_ != errors) {
+          this->child_3_.prop_errors_ = std::move(errors);
+        }
+      }
+      // Field `age` resolves value/error/errors from the controller.
+      if (const tessera::ui::forms::FieldState* state =
+              this->form_2().field(this->form_controller_2_id_age_)) {
+        if (this->child_5_.prop_value_ != state->value.text) {
+          this->child_5_.prop_value_ = state->value.text;
+        }
+        std::string first_error;
+        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+          if (issue.severity == tessera::ui::forms::IssueSeverity::Error) {
+            first_error = issue.message;
+            break;
+          }
+        }
+        if (this->child_5_.prop_error_ != first_error) {
+          this->child_5_.prop_error_ = std::move(first_error);
+        }
+        std::vector<std::string> errors;
+        errors.reserve(state->issues.size());
+        for (const tessera::ui::forms::FormIssue& issue : state->issues) {
+          errors.push_back(issue.message);
+        }
+        if (this->child_5_.prop_errors_ != errors) {
+          this->child_5_.prop_errors_ = std::move(errors);
+        }
+      }
+    }
+    
+    bool FormPage::validate_form_2() {
+      seed_form_2();
+      const bool valid = form_2().validate_all();
+      if (this->child_2_.prop_validate_) {
+        this->child_2_.prop_validate_();
+      }
+      apply_form_fields_2();
+      this->child_3_.apply_state();
+      this->child_5_.apply_state();
+      return valid;
+    }
+    
+    tessera::ui::forms::SubmitResult FormPage::submit_form_2() {
+      seed_form_2();
+      const tessera::ui::forms::SubmitResult result = form_2().submit();
+      this->form_controller_2_last_submit_ = result;
+      this->form_controller_2_report_.clear();
+      if (result.status == tessera::ui::forms::SubmitStatus::Ok) {
+        if (this->child_2_.prop_onSubmit_) {
+          this->child_2_.prop_onSubmit_();
+        }
+      } else if (result.status == tessera::ui::forms::SubmitStatus::Invalid) {
+        if (result.first_invalid == form_controller_2_id_email_) {
+          this->form_controller_2_report_ = "email";
+          focus_generated_field(this->form_controller_2_focus_,
+              this->form_controller_2_widget_email_);
+        } else if (result.first_invalid == form_controller_2_id_age_) {
+          this->form_controller_2_report_ = "age";
+          focus_generated_field(this->form_controller_2_focus_,
+              this->form_controller_2_widget_age_);
+        } else {
+          // No owned field to focus yet (a disabled-only form).
+          this->form_controller_2_report_.clear();
+        }
+      }
+      apply_form_fields_2();
+      this->child_3_.apply_state();
+      this->child_5_.apply_state();
+      return result;
+    }
+    
+    void FormPage::set_form_focus(tessera::ui::FocusManager* manager) {
+      this->form_controller_2_focus_ = manager;
+    }
+    
+    void FormPage::form_2_field_email_changed(const tessera::ui::TextChangeEvent& event) {
+      if (this->child_3_.prop_onValidate_) {
+        this->child_3_.prop_onValidate_(event);
+      }
+      if (form_controller_2_id_email_ != tessera::ui::forms::kInvalidFieldId) {
+        form_2().set_value(
+            form_controller_2_id_email_,
+            tessera::ui::forms::FormValue::from_string(event.value));
+      }
+      apply_form_fields_2();
+      this->child_3_.apply_state();
+    }
+    
+    void FormPage::form_2_field_age_changed(const tessera::ui::TextChangeEvent& event) {
+      if (this->child_5_.prop_onValidate_) {
+        this->child_5_.prop_onValidate_(event);
+      }
+      if (form_controller_2_id_age_ != tessera::ui::forms::kInvalidFieldId) {
+        form_2().set_value(
+            form_controller_2_id_age_,
+            tessera::ui::forms::FormValue::from_string(event.value));
+      }
+      apply_form_fields_2();
+      this->child_5_.apply_state();
     }
     
     void FormPage::apply_state() {
       apply_props();
+      apply_form_fields_2();
     }
     
     
     void FormPage::mount() {
+      child_2_.mount();
       child_3_.mount();
       child_5_.mount();
     }
@@ -91,26 +346,30 @@ namespace demo {
     void FormPage::unmount() {
       child_5_.unmount();
       child_3_.unmount();
+      child_2_.unmount();
     }
     
     void FormPage::update() {
       update_effects();
       apply_state();
+      child_2_.update();
       child_3_.update();
       child_5_.update();
     }
     
-    void FormPage::handler_1(const tessera::ui::Event& event) {
-      (void)event;
-      state_email_ = "ada@example.com";
+    void FormPage::on_submit(const tessera::ui::Event& event) {
+      // [DEVELOPER_LOGIC_START: bind::on_submit]
+        // TODO(tessera-codegen): implement the developer body for bind::on_submit.
+        (void)event;
+      // [DEVELOPER_LOGIC_END: bind::on_submit]
       apply_state();
     }
     
-    void FormPage::on_validate(const tessera::ui::TextChangeEvent& e) {
-      // [DEVELOPER_LOGIC_START: bind::on_validate]
-        // TODO(tessera-codegen): implement the developer body for bind::on_validate.
-        (void)e;
-      // [DEVELOPER_LOGIC_END: bind::on_validate]
+    void FormPage::on_validate_form(const tessera::ui::Event& event) {
+      // [DEVELOPER_LOGIC_START: bind::on_validate_form]
+        // TODO(tessera-codegen): implement the developer body for bind::on_validate_form.
+        (void)event;
+      // [DEVELOPER_LOGIC_END: bind::on_validate_form]
       apply_state();
     }
     

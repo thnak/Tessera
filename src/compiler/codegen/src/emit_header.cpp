@@ -6,7 +6,9 @@
 #include "emit_controlled.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
+#include "emit_forms.hpp"
 #include "emit_props.hpp"
+#include "form_binding.hpp"
 #include "interpolation.hpp"
 
 #include <optional>
@@ -35,8 +37,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
                            const std::vector<DynamicText>& dynamic_text,
                            const std::vector<DynamicMetadata>& dynamic_metadata,
                            const std::vector<ControlledInput>& controlled_inputs,
-                           const DynamicPlan& plan, const std::vector<ComponentInstance>& instances,
-                           GeneratedFile& file, std::string& error) {
+                           const DynamicPlan& plan, const FormPlan& forms,
+                           const std::vector<ComponentInstance>& instances, GeneratedFile& file,
+                           std::string& error) {
     const std::string ns = module.name;
     const std::vector<std::string> includes = component_includes(module, component);
     bool has_props = false;
@@ -67,6 +70,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     for (const std::string& include : includes) {
         writer.line("#include \"" + include + ".hpp\"");
     }
+    emit_form_includes(writer, forms);
     writer.line("");
     writer.line("#include <cstdint>");
     if (plan.has_lists) {
@@ -168,6 +172,17 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
                     "` for the node with pre-order index " + std::to_string(instance.ordinal) +
                     " (the instance owns its own state).");
         writer.line(instance.type_name + " " + instance_member(instance.ordinal) + ";");
+        for (const PropBinding& binding : instance.props) {
+            // apply_props() guards every assignment: a value prop stores its last FNV-1a hash and a
+            // callback prop a one-shot bound flag (docs/design/compiler.md section 11).
+            if (binding.is_callback()) {
+                writer.line("bool " + prop_bound_member(instance.ordinal, binding.name) +
+                            " = false;");
+            } else if (prop_guard(binding.type) == PropGuard::Value) {
+                writer.line("std::uint64_t " + prop_guard_member(instance.ordinal, binding.name) +
+                            " = 0;");
+            }
+        }
     }
     for (const DynamicText& entry : dynamic_text) {
         const std::string suffix = std::to_string(entry.ordinal);
@@ -195,6 +210,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     }
     writer.line("");
     emit_dynamic_fields(writer, plan);
+    emit_form_declarations(writer, forms);
     writer.line("void build(tessera::ui::Node& parent);");
     if (component_takes_children(component)) {
         writer.line(

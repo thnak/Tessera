@@ -7,6 +7,9 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "Field.hpp"
+#include "Form.hpp"
+#include "tessera/ui/forms/form_model.hpp"
+#include "tessera/ui/scene/focus.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -20,13 +23,47 @@ namespace demo {
   namespace gen {
     // comp::FormPage (FormPage).
     struct FormPage {
-      // useState `email`.
-      std::string state_email_ = "";
+      // Component instance `comp::Form` for the node with pre-order index 2 (the instance owns its own state).
+      Form child_2_;
+      std::uint64_t child_2_prop_initial_hash_ = 0;
+      bool child_2_prop_onSubmit_bound_ = false;
+      bool child_2_prop_validate_bound_ = false;
       // Component instance `comp::Field` for the node with pre-order index 3 (the instance owns its own state).
       Field child_3_;
+      std::uint64_t child_3_prop_name_hash_ = 0;
+      std::uint64_t child_3_prop_label_hash_ = 0;
+      std::uint64_t child_3_prop_required_hash_ = 0;
+      std::uint64_t child_3_prop_validators_hash_ = 0;
       // Component instance `comp::Field` for the node with pre-order index 5 (the instance owns its own state).
       Field child_5_;
+      std::uint64_t child_5_prop_name_hash_ = 0;
+      std::uint64_t child_5_prop_label_hash_ = 0;
       
+      // Form instance (pre-order index 2): the generated form-state binding (forms v1 section 5.2).
+      // The controller is built on first use so the host can set the config (queue).
+      tessera::ui::forms::FormConfig form_controller_2_config_;
+      std::optional<tessera::ui::forms::Form> form_controller_2_controller_;
+      bool form_controller_2_seeded_ = false;
+      tessera::ui::forms::SubmitResult form_controller_2_last_submit_;
+      std::string form_controller_2_report_;
+      tessera::ui::FocusManager* form_controller_2_focus_ = nullptr;
+      // Field `email` (pre-order index 3).
+      tessera::ui::forms::FieldId form_controller_2_id_email_ = tessera::ui::forms::kInvalidFieldId;
+      tessera::ui::Node* form_controller_2_widget_email_ = nullptr;
+      // Field `age` (pre-order index 5).
+      tessera::ui::forms::FieldId form_controller_2_id_age_ = tessera::ui::forms::kInvalidFieldId;
+      tessera::ui::Node* form_controller_2_widget_age_ = nullptr;
+      
+      // Form binding: seed the controller from `initial`, resolve each Field by `name`,
+      // then route validation/submit to the controller. The library evaluates the rules.
+      void set_form_focus(tessera::ui::FocusManager* manager);
+      tessera::ui::forms::Form& form_2();
+      void seed_form_2();
+      void apply_form_fields_2();
+      bool validate_form_2();
+      tessera::ui::forms::SubmitResult submit_form_2();
+      void form_2_field_email_changed(const tessera::ui::TextChangeEvent& event);
+      void form_2_field_age_changed(const tessera::ui::TextChangeEvent& event);
       void build(tessera::ui::Node& parent);
       // Lifecycle: mount() runs effects once; update_effects() re-runs changed deps;
       // unmount() runs cleanups in reverse declaration order.
@@ -40,8 +77,8 @@ namespace demo {
       void apply_props();
       // Host entry after event dispatch: update_effects() then apply_state().
       void update();
-      void handler_1(const tessera::ui::Event& event);
-      void on_validate(const tessera::ui::TextChangeEvent& e);
+      void on_submit(const tessera::ui::Event& event);
+      void on_validate_form(const tessera::ui::Event& event);
     };
   }
 }

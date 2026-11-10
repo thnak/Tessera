@@ -9,6 +9,7 @@
 #include "codegen_internal.hpp"
 #include "emit_node.hpp"
 #include "emit_props.hpp"
+#include "form_binding.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -259,10 +260,27 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
     // The caller's slot content: nodes owned by the caller, attached by the callee at its Slot.
     const std::string slot = "slot_" + std::to_string(ordinal);
     writer.line("std::vector<std::unique_ptr<tessera::ui::Node>> " + slot + ";");
+    // A Field bound to a Form controller records its first slot node for focus-first-invalid and,
+    // for a text widget, binds the generated edit adapter that routes the committed text change
+    // into the controller (form_binding.hpp).
+    const FormFieldBinding* form_field =
+        state.forms == nullptr ? nullptr : state.forms->field(ordinal);
+    bool first_child = true;
     for (const ir::Node& child : node.children) {
         std::string child_variable;
         if (!emit_node(writer, child, state, child_variable, error)) {
             return false;
+        }
+        if (form_field != nullptr && first_child) {
+            first_child = false;
+            writer.line("this->" +
+                        form_field_member(form_field->form_ordinal, form_field->symbol, "widget") +
+                        " = " + child_variable + ".get();");
+            if (form_field->text_widget) {
+                writer.line(child_variable + "->bind_event(tessera::ui::EventType::TextChange, &" +
+                            form_field_adapter(form_field->form_ordinal, form_field->symbol) +
+                            ", this);");
+            }
         }
         writer.line(slot + ".push_back(std::move(" + child_variable + "));");
     }

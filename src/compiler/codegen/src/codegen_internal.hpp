@@ -107,6 +107,10 @@ struct ComponentInstance {
 
 struct NodeEmitState; // emit_node.hpp
 
+// The generated form-state binding of one component (form_binding.hpp). The node emitter consults
+// it to store a bound Field's slot widget and to bind the generated edit event.
+struct FormPlan;
+
 // The generated `node_N` id expression for a node (the IR `uiId` when numeric, otherwise the
 // pre-order placeholder; inside a list item the template id is offset by the item index).
 [[nodiscard]] std::string node_id_text(const ir::Node& node, NodeEmitState& state,
@@ -166,7 +170,7 @@ struct DynamicMetadata {
                                          const std::vector<DynamicText>& dynamic_text,
                                          const std::vector<DynamicMetadata>& dynamic_metadata,
                                          const std::vector<ControlledInput>& controlled_inputs,
-                                         const DynamicPlan& plan,
+                                         const DynamicPlan& plan, const FormPlan& forms,
                                          const std::vector<ComponentInstance>& instances,
                                          GeneratedFile& file, std::string& error);
 

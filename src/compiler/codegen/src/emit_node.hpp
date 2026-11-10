@@ -47,6 +47,10 @@ struct NodeEmitState {
     std::string index_expr; // `tessera_id_slot` inside an item builder, empty in the static tree
     std::string text_out;   // `tessera_out.texts` inside an item builder, empty otherwise
 
+    // Generated form-state binding of this component, when it owns a library `Form` instance
+    // (form_binding.hpp). Empty outside a form component.
+    const FormPlan* forms = nullptr;
+
     // Component composition (emit_composition.cpp): the module supplies the referenced component
     // records, and `slot_variable` names the build() parameter that carries the caller's slot
     // content (empty in a component that does not declare `children`).

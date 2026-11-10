@@ -16,8 +16,10 @@
 #include "emit_controlled.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
+#include "emit_forms.hpp"
 #include "emit_node.hpp"
 #include "emit_props.hpp"
+#include "form_binding.hpp"
 #include "interpolation.hpp"
 
 #include <string>
@@ -77,8 +79,8 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
                  const std::vector<DynamicText>& dynamic_text,
                  const std::vector<DynamicMetadata>& dynamic_metadata,
                  const std::vector<ControlledInput>& controlled_inputs, const DynamicPlan& plan,
-                 const std::vector<ComponentInstance>& instances, GeneratedFile& file,
-                 std::string& error) {
+                 const FormPlan& forms, const std::vector<ComponentInstance>& instances,
+                 GeneratedFile& file, std::string& error) {
     const bool has_interpolation = !dynamic_text.empty() || !dynamic_metadata.empty();
     bool has_props = false;
     bool has_callbacks = false;
@@ -136,6 +138,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     }
     emit_event_adapters(writer, component.name, adapters);
     emit_controlled_adapters(writer, component.name, controlled_inputs);
+    emit_form_adapters(writer, component, forms);
     if (takes_children) {
         writer.open("void " + component.name + "::build(tessera::ui::Node& parent)");
         writer.line("build(parent, {});");
@@ -155,9 +158,12 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         // the callee's build reads its prop members (docs/specs/component-model-v1.md section 3).
         writer.line("apply_props();");
     }
+    // Seed the form controller and resolve the Field props before any slot content is built.
+    emit_form_build_calls(writer, forms);
     NodeEmitState state{component,        adapters,          dynamic_text,
                         dynamic_metadata, controlled_inputs, &plan};
     state.module = &module;
+    state.forms = &forms;
     state.slot_variable = takes_children ? "slot" : std::string();
     std::string root_variable;
     if (!emit_node(writer, component.root, state, root_variable, error)) {
@@ -172,9 +178,12 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (!emit_apply_props(writer, component, instances, error)) {
         return false;
     }
+    if (!emit_form_source(writer, component, forms, error)) {
+        return false;
+    }
     if (has_update) {
         if (!emit_apply_state(writer, component, dynamic_text, dynamic_metadata, controlled_inputs,
-                              plan, has_props, error)) {
+                              plan, forms, has_props, error)) {
             return false;
         }
     } else {
@@ -287,6 +296,12 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     if (!collect_dynamic_plan(component, plan, error)) {
         return false;
     }
+    // The generated form-state binding of any library `Form` this component owns
+    // (form_binding.hpp).
+    FormPlan forms;
+    if (!collect_form_plan(module, component, forms, error)) {
+        return false;
+    }
     unsigned ordinal = 0;
     std::vector<DynamicText> dynamic_text;
     if (!collect_dynamic_text(component.root, component, ordinal, dynamic_text, error)) {
@@ -305,12 +320,12 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     }
     GeneratedFile header;
     if (!emit_component_header(component, module, owned, dynamic_text, dynamic_metadata,
-                               controlled_inputs, plan, instances, header, error)) {
+                               controlled_inputs, plan, forms, instances, header, error)) {
         return false;
     }
     GeneratedFile source;
     if (!emit_source(component, module, owned, dynamic_text, dynamic_metadata, controlled_inputs,
-                     plan, instances, source, error)) {
+                     plan, forms, instances, source, error)) {
         return false;
     }
     files.push_back(std::move(header));

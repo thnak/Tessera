@@ -12,6 +12,8 @@ add_library(tessera_codegen STATIC
     src/emit_dynamic_plan.cpp
     src/emit_events.cpp
     src/emit_expr.cpp
+    src/emit_forms.cpp
+    src/form_binding.cpp
     src/emit_header.cpp
     src/emit_lifecycle.cpp
     src/emit_list.cpp
@@ -280,13 +282,17 @@ if (TESSERA_BUILD_TESTS)
     # tests/golden/codegen/Field.* and FormPage.*; the guard keeps a fresh worktree configuring
     # before the goldens exist.
     if (EXISTS ${_tessera_codegen_golden_dir}/Field.cpp AND EXISTS
+        ${_tessera_codegen_golden_dir}/Form.cpp AND EXISTS
+        ${_tessera_codegen_golden_dir}/FieldPage.cpp AND EXISTS
         ${_tessera_codegen_golden_dir}/FormPage.cpp)
         add_library(tessera_codegen_forms_sample STATIC
             ${_tessera_codegen_golden_dir}/Field.cpp
+            ${_tessera_codegen_golden_dir}/Form.cpp
+            ${_tessera_codegen_golden_dir}/FieldPage.cpp
             ${_tessera_codegen_golden_dir}/FormPage.cpp)
         target_include_directories(tessera_codegen_forms_sample
             PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(tessera_codegen_forms_sample PRIVATE tessera_scene)
+        target_link_libraries(tessera_codegen_forms_sample PRIVATE tessera_scene tessera_forms)
         target_compile_features(tessera_codegen_forms_sample PUBLIC cxx_std_23)
 
         add_executable(forms_codegen_runtime_tests
@@ -296,10 +302,26 @@ if (TESSERA_BUILD_TESTS)
             PRIVATE ${_tessera_codegen_golden_dir})
         target_link_libraries(forms_codegen_runtime_tests PRIVATE
             tessera_codegen_forms_sample
+            tessera_forms
+            tessera_runtime
             tessera_scene)
 
         add_test(NAME forms_codegen_runtime COMMAND forms_codegen_runtime_tests)
     endif ()
+
+    # `Form` binding rejection matrix: explicit controller-owned Field props, malformed seeds,
+    # duplicate names, unsupported validators and nested Forms are rejected loudly.
+    add_executable(forms_form_codegen_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/forms_form_codegen_tests.cpp)
+
+    target_link_libraries(forms_form_codegen_tests PRIVATE
+        tessera_codegen
+        tessera_lowering)
+
+    target_compile_definitions(forms_form_codegen_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME forms_form_codegen COMMAND forms_form_codegen_tests)
 
     add_executable(codegen_cli_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)
