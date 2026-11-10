@@ -31,6 +31,9 @@ constexpr std::string_view kSource =
     "          {row.children.map((child) => <Text key={child.id}>{child.label}</Text>)}\n"
     "        </View>\n"
     "      ))}\n"
+    "      <VirtualList itemSize={32} gap={4}>\n"
+    "        {props.rows.map((row) => <Text key={row.id}>{row.label}</Text>)}\n"
+    "      </VirtualList>\n"
     "    </View>\n"
     "  );\n"
     "}\n";

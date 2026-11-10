@@ -308,6 +308,57 @@ bool lower_button_children(NodeState& state, const std::vector<ChildItem>& items
     return true;
 }
 
+// ir-v1 section 3.5 (elements-other.md section 3.1): a `VirtualList`/`VirtualGrid` takes exactly
+// one child, a `.map` expression of the loop form; the callback element becomes the item template
+// with its `loop` and `key`, and the collection has no children of its own.
+bool lower_item_template(NodeState& state, const jsx::JsxNode& element, ir::Node& node) {
+    const std::string tag = element.tag;
+    std::vector<ChildItem> items;
+    if (!flatten_children(state, element, items, true)) {
+        return false;
+    }
+    if (items.empty()) {
+        fail_node(state, "TESSERA_IR_VIRTUAL",
+                  "`<" + tag + ">` needs one `.map` item template child", element.span,
+                  "write `{rows.map((row) => <Row key={row.id} />)}`");
+        return false;
+    }
+    if (items.size() > 1) {
+        fail_node(state, "TESSERA_IR_VIRTUAL",
+                  "`<" + tag + ">` takes exactly one `.map` item template child, found " +
+                      std::to_string(items.size()) + " children",
+                  items[1].node->span);
+        return false;
+    }
+    const ChildItem& item = items.front();
+    if (item.kind != ChildItem::Kind::Loop) {
+        fail_node(state, "TESSERA_IR_VIRTUAL",
+                  "the child of `<" + tag +
+                      ">` must be a `.map` list expression, not text, an element or a conditional",
+                  item.node->span);
+        return false;
+    }
+    std::vector<ir::Node> produced;
+    if (!lower_control_child(state, *item.expr, produced)) {
+        return false;
+    }
+    if (produced.size() != 1) {
+        fail_node(state, "TESSERA_IR_VIRTUAL", "an item template is exactly one node",
+                  item.node->span);
+        return false;
+    }
+    node.item_template = std::make_unique<ir::Node>(std::move(produced.front()));
+    // virtualization-v1 section 4 and the section 13 register decision: an item whose real size is
+    // not measured contributes the 32 px main-axis estimate. A collection that names neither
+    // `itemSize` nor `estimateSize` therefore records the default estimate, so the runtime and the
+    // IR snapshot agree on one deterministic number.
+    if (node.props.find("itemSize") == node.props.end() &&
+        node.props.find("estimateSize") == node.props.end()) {
+        node.props[std::string("estimateSize")] = ir::make_literal(std::int64_t{32});
+    }
+    return true;
+}
+
 } // namespace
 
 // Slice 9: the children of a component reference are the caller's static slot content. They follow
@@ -336,13 +387,7 @@ bool lower_children(NodeState& state, const jsx::JsxNode& element, const Element
                     ir::Node& node) {
     const schema::ChildrenKind kind = info.row->children;
     if (kind == schema::ChildrenKind::Template) {
-        // The IR has the `itemTemplate` field (ir-v1 section 3.5); lowering the `.map` template
-        // into it is not implemented yet.
-        fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                  "`<" + std::string(element.tag) +
-                      ">` item templates are not lowered yet (ir-v1 section 3.5)",
-                  element.span);
-        return false;
+        return lower_item_template(state, element, node);
     }
     // ErrorBoundary requires one element child and rejects fragments (elements-other.md 4).
     const bool reject_fragments = kind == schema::ChildrenKind::One;

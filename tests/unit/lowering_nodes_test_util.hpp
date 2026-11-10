@@ -167,6 +167,12 @@ inline void append_node(const ir::Node& node, std::string& out) {
         append_node(*node.fallback, out);
         out += "]";
     }
+    if (node.item_template) {
+        // ir-v1 section 3.5: a virtual collection's static item template is part of the tree.
+        out += " template[";
+        append_node(*node.item_template, out);
+        out += "]";
+    }
     for (const ir::Node& child : node.children) {
         out += " child[";
         append_node(child, out);

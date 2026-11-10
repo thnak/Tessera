@@ -209,7 +209,9 @@ bool lower_loop(NodeState& state, const jsx::Expr& expr, std::vector<ir::Node>& 
         return false;
     }
     if (!template_node->key) {
-        fail_node(state, "TESSERA_IR_UNSUPPORTED",
+        // ir-v1 section 5 and section 3.5: a list template (an eager loop or a virtual item
+        // template) without a key is TESSERA_IR_LIST_KEY.
+        fail_node(state, "TESSERA_IR_LIST_KEY",
                   "the root element of a `.map` callback needs `key={...}` (subset 10.5)",
                   body.jsx->span);
         return false;

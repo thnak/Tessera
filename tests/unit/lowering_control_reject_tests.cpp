@@ -106,6 +106,49 @@ void test_control_in_wrong_child_slots() {
     check_eq(first_code(leaf_result), "TESSERA_IR_UNSUPPORTED", "the code");
 }
 
+void test_virtual_collection_children() {
+    // ir-v1 section 3.5: a virtual collection takes exactly one `.map` item template child.
+    const auto none = parse(component("", "<VirtualList itemSize={10} />"));
+    const auto none_result = lower(*none);
+    check(!none_result.has_value(), "a virtual collection without its `.map` child is rejected");
+    check_eq(first_code(none_result), "TESSERA_IR_VIRTUAL", "the code");
+
+    const auto element = parse(component("", "<VirtualList itemSize={10}><View /></VirtualList>"));
+    const auto element_result = lower(*element);
+    check(!element_result.has_value(), "a non-`.map` element child is rejected");
+    check_eq(first_code(element_result), "TESSERA_IR_VIRTUAL", "the code");
+
+    const auto text = parse(component("", "<VirtualList itemSize={10}>hello</VirtualList>"));
+    const auto text_result = lower(*text);
+    check(!text_result.has_value(), "a text child is rejected");
+    check_eq(first_code(text_result), "TESSERA_IR_VIRTUAL", "the code");
+
+    const auto conditional =
+        parse(component("  const [flag, setFlag] = useState(true);\n",
+                        "<VirtualList itemSize={10}>{flag && <View />}</VirtualList>"));
+    const auto conditional_result = lower(*conditional);
+    check(!conditional_result.has_value(), "a conditional child is rejected");
+    check_eq(first_code(conditional_result), "TESSERA_IR_VIRTUAL", "the code");
+
+    const auto two = parse(component(
+        "",
+        "<VirtualList itemSize={10}>{props.rows.map((row) => <Text key={row.id}>{row.label}"
+        "</Text>)}{props.rows.map((row) => <Text key={row.id}>{row.label}</Text>)}</VirtualList>",
+        "props: P"));
+    const auto two_result = lower(*two);
+    check(!two_result.has_value(), "more than one child is rejected");
+    check_eq(first_code(two_result), "TESSERA_IR_VIRTUAL", "the code");
+
+    const auto fragment = parse(component(
+        "",
+        "<VirtualList itemSize={10}><>{props.rows.map((row) => <Text key={row.id}>{row.label}"
+        "</Text>)}</></VirtualList>",
+        "props: P"));
+    const auto fragment_result = lower(*fragment);
+    check(!fragment_result.has_value(), "a fragment child is rejected");
+    check_eq(first_code(fragment_result), "TESSERA_IR_UNSUPPORTED", "the fragment rule wins");
+}
+
 void test_first_error_only_and_no_partial_component() {
     const auto fixture =
         parse(component("",
@@ -128,6 +171,7 @@ int main() {
     test_conditional_forms();
     test_control_in_attribute_position();
     test_control_in_wrong_child_slots();
+    test_virtual_collection_children();
     test_first_error_only_and_no_partial_component();
     return finish("lowering control reject tests");
 }

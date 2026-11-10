@@ -174,13 +174,13 @@ void test_children_rules() {
 }
 
 void test_later_slice_boundaries() {
-    // Conditional children and `.map` loops are implemented in slice 8 (see the control tests);
-    // these two intrinsics still have no IR form.
+    // `.map` loops and virtual item templates are implemented; a bare virtual collection without
+    // its template is the remaining boundary case (ir-v1 section 3.5).
     const auto virtual_list = parse(component("", "<VirtualList itemSize={10} />"));
     const auto virtual_list_result = lower(*virtual_list);
     check(!virtual_list_result.has_value(),
-          "a virtualized template needs the itemTemplate field (Q9)");
-    check_eq(first_code(virtual_list_result), "TESSERA_IR_UNSUPPORTED", "the code");
+          "a virtualized collection needs its `.map` item template");
+    check_eq(first_code(virtual_list_result), "TESSERA_IR_VIRTUAL", "the code");
 
     const auto custom = parse(component("", "<CustomElement element=\"Waterfall\" />"));
     const auto custom_result = lower(*custom);
