@@ -1,4 +1,19 @@
 # SPDX-License-Identifier: MIT
 
 # AT-SPI2 D-Bus wire client tests; the slice registers its own executables and ctest names here so
-# no two slices edit `tests/unit/CMakeLists.txt` at the same time.
+# no two slices edit `tests/unit/CMakeLists.txt` at the same time. Every ctest name starts with
+# `a11y` so the lane can run `ctest -R a11y`, and no test needs a real bus daemon or a socket.
+
+add_executable(a11y_dbus_address_tests
+    a11y_dbus_address_tests.cpp)
+
+target_link_libraries(a11y_dbus_address_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_dbus_address COMMAND a11y_dbus_address_tests)
+
+add_executable(a11y_dbus_transport_tests
+    a11y_dbus_transport_tests.cpp)
+
+target_link_libraries(a11y_dbus_transport_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_dbus_transport COMMAND a11y_dbus_transport_tests)
