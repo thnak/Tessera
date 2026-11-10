@@ -100,3 +100,10 @@ add_executable(virtual_focus_churn_tests
 target_link_libraries(virtual_focus_churn_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_focus_churn COMMAND virtual_focus_churn_tests)
+
+add_executable(virtual_grid_rows_tests
+    virtual_grid_rows_tests.cpp)
+
+target_link_libraries(virtual_grid_rows_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_grid_rows COMMAND virtual_grid_rows_tests)

@@ -157,6 +157,17 @@ index, realized table and free ring); a data source may still allocate inside `b
 - Variable row heights use the same prefix-sum approach at row granularity.
 - Item span/masonry are not in V1 (no release specified).
 
+Implementation: `virtualization::VirtualGridRows` in
+[`grid_rows.hpp`](../../include/tessera/ui/virtual/grid_rows.hpp) keeps the fixed-column, row-major
+mapping (`row = index / columns`, `column = index % columns`, short last row) and an
+`ItemGeometry` at row granularity. A row's extent is the maximum main size of its measured items
+(rows with no measured item use the estimate), so re-measuring an item can shrink a row and only
+the rows after it shift; `Config::fixed_row_extent > 0` selects the fixed-row-height variant.
+`visible_items` maps a visible row window back to the item window, and a count shrink drops the
+removed items' measurements so growing again starts from the estimate instead of a stale height.
+Storage is allocated once in the constructor: the row window, offsets, and total are
+allocation-free, and measurements are O(columns) per item.
+
 ### Orientation and RTL
 
 - `orientation: vertical|horizontal`; scroll axis and cross axis are explicit.
@@ -380,6 +391,9 @@ Tests:
   exactly one realized node carrying `PseudoState::Focus`, `focused_node()` reports the realized
   node, `selected_items(span)` returns keys in data order, and `scroll_to_index` adds
   `Start`/`Center`/`Nearest` placement with the documented clamp and no resync.
+- Implemented (grid slice): `VirtualGridRows` maps the fixed-column, row-major grid onto an
+  `ItemGeometry` at row granularity, with max-item-height (or fixed) row extents, row/item visible
+  windows, capacity refusal, and removal-aware measurements.
 - Implemented (compiler slice): the `VirtualList`/`VirtualGrid` `.map` child lowers into the IR
   `itemTemplate` (with the collection's 32 px `estimateSize` default, ir-v1.md section 3.5), and
   codegen emits the item-template builder plus the bounded `apply_virtual_<n>(first, last)` window
@@ -405,9 +419,11 @@ Tests:
   `virtual_scroll_index` (Start/Center/Nearest placement, clamping, pure-query/no-resync, measured
   prefixes, and the re-anchor interaction with focus), `virtual_focus_churn` (10k-item
   allocation-free focus/selection/step churn, exactly one focused node, deterministic step and
-  build/release order), and `virtual_churn` (10k-item allocation-free churn, no node leak,
-  deterministic step records/build/release order).
-- Design/spec only still: grid rows, sticky headers, accessibility semantics integration, async
+  build/release order), `virtual_grid_rows` (row/column mapping, short last row, max-item row
+  extents, fixed row height, row/item windows, capacity refusal, removal-aware measurements), and
+  `virtual_churn` (10k-item allocation-free churn, no node leak, deterministic step
+  records/build/release order).
+- Design/spec only still: sticky headers, accessibility semantics integration, async
   prefetch/cancellation wiring, the collection's own `onEndReached` event wiring (no scene
   `EventType` yet; item-template events are emitted), dynamic virtual geometry, and dirty/render
   integration beyond the realized-window path (the range reports dirty through the scene-node
