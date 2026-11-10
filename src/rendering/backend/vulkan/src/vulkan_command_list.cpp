@@ -98,7 +98,10 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     attachment.imageView = vulkan_target->view();
     attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    attachment.loadOp = to_vk_load_op(desc.load_op);
+    // A Load pass on an image with no rendered content (fresh target, recreated swapchain image)
+    // would read undefined pixels; clear it instead so the result is defined.
+    attachment.loadOp =
+        (preserve && !had_content) ? VK_ATTACHMENT_LOAD_OP_CLEAR : to_vk_load_op(desc.load_op);
     // For MSAA the multisample image is discarded after the resolve; only the resolved image is
     // stored. 1x targets keep the caller's store op.
     attachment.storeOp =

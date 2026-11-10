@@ -150,42 +150,10 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
     // owns the multisample render image that is discarded after the resolve.
     ImageAllocation render_image;
     ImageAllocation resolve_image;
-    if (sample_count > 1) {
-        render_image =
-            create_image(to_vk_sample_count(sample_count), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-        resolve_image = create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                                                VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-    } else {
-        render_image = create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-    }
-
-    const auto create_view = [&](VkImage target_image) -> VkImageView {
-        VkImageViewCreateInfo view_info{};
-        view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        view_info.image = target_image;
-        view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        view_info.format = format;
-        view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        view_info.subresourceRange.levelCount = 1;
-        view_info.subresourceRange.layerCount = 1;
-        VkImageView view = VK_NULL_HANDLE;
-        check_vk(vkCreateImageView(device_, &view_info, nullptr, &view), "vkCreateImageView");
-        return view;
-    };
-    VkImageView view = create_view(render_image.image);
-    VkImageView resolve_view =
-        resolve_image.image != VK_NULL_HANDLE ? create_view(resolve_image.image) : VK_NULL_HANDLE;
-
-    // The target owns images/views from here. On failure to allocate the wrapper, release manually.
-    resource_created();
-    try {
-        auto target = std::make_unique<VulkanRenderTarget>(
-            this, epoch_, device_, allocator_, render_image.image, view, render_image.allocation,
-            desc.extent, desc.format, true, false, resolve_image.image, resolve_view,
-            resolve_image.allocation, sample_count);
-        return target;
-    } catch (...) {
+    VkImageView view = VK_NULL_HANDLE;
+    VkImageView resolve_view = VK_NULL_HANDLE;
+    // Any step below can throw (VMA out of memory, view creation); release exactly what exists.
+    const auto release_all = [&] {
         if (resolve_view != VK_NULL_HANDLE) {
             vkDestroyImageView(device_, resolve_view, nullptr);
         }
@@ -198,7 +166,51 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
         if (render_image.image != VK_NULL_HANDLE) {
             vmaDestroyImage(allocator_, render_image.image, render_image.allocation);
         }
-        resource_destroyed();
+    };
+
+    const auto create_view = [&](VkImage target_image) -> VkImageView {
+        VkImageViewCreateInfo view_info{};
+        view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        view_info.image = target_image;
+        view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        view_info.format = format;
+        view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        view_info.subresourceRange.levelCount = 1;
+        view_info.subresourceRange.layerCount = 1;
+        VkImageView created = VK_NULL_HANDLE;
+        check_vk(vkCreateImageView(device_, &view_info, nullptr, &created), "vkCreateImageView");
+        return created;
+    };
+
+    try {
+        if (sample_count > 1) {
+            render_image =
+                create_image(to_vk_sample_count(sample_count), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+            resolve_image =
+                create_image(VK_SAMPLE_COUNT_1_BIT,
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+        } else {
+            render_image = create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                                                   VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+        }
+        view = create_view(render_image.image);
+        if (resolve_image.image != VK_NULL_HANDLE) {
+            resolve_view = create_view(resolve_image.image);
+        }
+
+        // The target owns images/views from here.
+        resource_created();
+        try {
+            return std::make_unique<VulkanRenderTarget>(
+                this, epoch_, device_, allocator_, render_image.image, view,
+                render_image.allocation, desc.extent, desc.format, true, false, resolve_image.image,
+                resolve_view, resolve_image.allocation, sample_count);
+        } catch (...) {
+            resource_destroyed();
+            throw;
+        }
+    } catch (...) {
+        release_all();
         throw;
     }
 }
