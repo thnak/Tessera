@@ -150,9 +150,11 @@ the scope decision.
   returns an `InterpolationPaintView`, a read-only `paint::PaintView`. The paint pass applies it to
   a local copy of the computed style and to the matrix it paints with (`paint_pass.hpp`), so the
   scene, dirty flags, damage, layout and hit testing never see it. `paint_frame()` applies the view
-  automatically; `FramePipelineConfig::interpolation` (default `true`, like `animationInterpolation`
-  in [`runtime-config-v1.md`](../specs/runtime-config-v1.md)) switches it off, which deterministic
-  and golden runs do (ADR-018 rule 11).
+  automatically. Passing alpha is the opt-in: the two-argument `tick(root, dt)` keeps painting the
+  authoritative state, so a caller that does not drive the render rate is unaffected. On top of
+  that, `FramePipelineConfig::interpolation` (default `true`, mirroring `animationInterpolation` in
+  [`runtime-config-v1.md`](../specs/runtime-config-v1.md)) is the global switch that deterministic
+  and golden runs turn off (ADR-018 rule 11).
 - **Dirty and damaged work.** Interpolation itself is not a wake source: it applies to a frame that
   paint/render damage or an explicit frame request already made due, and changing alpha alone
   produces no presents. The sampled properties are paint/render work only — `transform`, `opacity`

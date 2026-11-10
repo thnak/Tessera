@@ -283,7 +283,8 @@ per-tick, and simulation state is never mutated by the renderer.
   paint-visible declarations of `result.animation.samples` into a `PaintSample` per target and
   rotates the previous/current pair. `alpha` is `runtime::interpolation_alpha(...)` for the render
   about to happen; it affects only paint, so dirty domains and damage are identical for every
-  alpha.
+  alpha, and the two-argument `tick(root, dt)` (no alpha) never interpolates — it paints the
+  authoritative state, which keeps callers that do not drive the render rate unchanged.
 - `interpolation_view()` blends the pair (`lerp(previous, current, alpha)`) and returns an
   `InterpolationPaintView`, a read-only `paint::PaintView` the paint pass applies to a local style
   copy and to the painted transform. `Node::bounds()/transform()`, damage and hit testing keep the

@@ -99,11 +99,16 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
 }
 
 FrameTick FramePipeline::tick(Node& root, double dt) {
-    return tick(root, dt, 0.0);
+    return tick_impl(root, dt, 0.0, false);
 }
 
 FrameTick FramePipeline::tick(Node& root, double dt, double alpha) {
+    return tick_impl(root, dt, alpha, true);
+}
+
+FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool interpolate) {
     alpha_ = std::isfinite(alpha) ? std::clamp(alpha, 0.0, 1.0) : 0.0;
+    interpolate_ = interpolate && config_.interpolation;
     damage_->clear();
     // A new frame invalidates the previous frame's render decision; only finish_frame() can make a
     // frame due again.
@@ -132,7 +137,7 @@ FrameTick FramePipeline::tick(Node& root, double dt, double alpha) {
     // never requests layout work and never moves a box.
     previous_samples_ = std::move(current_samples_);
     current_samples_.clear();
-    if (config_.interpolation) {
+    if (interpolate_) {
         for (const animation::AnimationSample& sample : result.animation.samples) {
             const auto found = index.find(sample.target);
             if (found == index.end()) {
@@ -155,7 +160,7 @@ FrameTick FramePipeline::tick(Node& root, double dt, double alpha) {
 }
 
 InterpolationPaintView FramePipeline::interpolation_view() const {
-    if (!config_.interpolation || current_samples_.empty()) {
+    if (!interpolate_ || current_samples_.empty()) {
         return {};
     }
     return InterpolationPaintView(

@@ -51,12 +51,16 @@ public:
                   layout::DamageTracker& damage_tracker, rendering::DamageAccumulator& damage,
                   DirtyPass& dirty, FramePipelineConfig config = {});
 
+    // Two-argument tick: advances the simulation and paints the authoritative state (no
+    // interpolation). Use the alpha overload below when a render falls between ticks.
     FrameTick tick(Node& root, double dt);
 
     // Alpha-aware tick. `alpha` is `runtime::interpolation_alpha` for the render about to happen:
-    // the fraction of a fixed step elapsed since this tick. It only affects paint; the tick itself
-    // (simulation, dirty domains, damage) is identical for any alpha, so a scene that is clean
-    // before the call stays clean and still idles. Out-of-range or non-finite values clamp to 0.
+    // the fraction of a fixed step elapsed since this tick. Passing it is what enables
+    // interpolation for this frame, so the two-argument overload above never changes what a caller
+    // painted before this seam existed. Alpha only affects paint; simulation, dirty domains and
+    // damage are identical for any alpha, so a scene that is clean before the call stays clean and
+    // still idles. Out-of-range or non-finite values clamp to 0.
     FrameTick tick(Node& root, double dt, double alpha);
 
     // Copies z-index, transform and box-shadow reach from computed style onto the scene (see
@@ -115,6 +119,8 @@ public:
     }
 
 private:
+    FrameTick tick_impl(Node& root, double dt, double alpha, bool interpolate);
+
     animation::AnimationRuntime* animations_ = nullptr;
     runtime::RuntimeLoop* loop_ = nullptr;
     layout::DamageTracker* damage_tracker_ = nullptr;
@@ -125,6 +131,7 @@ private:
     PaintSamples previous_samples_;
     PaintSamples current_samples_;
     double alpha_ = 0.0;
+    bool interpolate_ = false;
 };
 
 } // namespace tessera::ui::frame
