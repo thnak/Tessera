@@ -47,6 +47,22 @@ struct ListTextSite {
     const ir::Expr* text = nullptr;
 };
 
+// One collection-level event target of a virtual collection (`onScroll`, `onEndReached`). Both
+// targets are generated member functions: an inline handler's `handler_<n>` or a `bind::` region.
+struct VirtualEventTarget {
+    bool present = false;
+    std::string member;   // generated member function name
+    bool payload = false; // the target takes the scene `ScrollEventInfo` payload
+};
+
+// The collection-level events a virtual collection declares (virtualization-v1.md section 10).
+// They are driven by the generated `scroll_virtual_<n>` entry point, not by a scene `EventType`:
+// the scene has no scroll event type yet, and the collection owns the scroll offset.
+struct VirtualEventWiring {
+    VirtualEventTarget on_scroll;
+    VirtualEventTarget on_end_reached;
+};
+
 struct ListTemplate {
     unsigned ordinal = 0;           // the template node's pre-order ordinal
     unsigned subtree_end = 0;       // one past the last ordinal of the template subtree
@@ -60,6 +76,7 @@ struct ListTemplate {
     std::string element_type; // IR element type of the source list (`string`, `int`, ...)
     std::string element_cpp;  // C++ element type (`std::string`, `int`, ...)
     std::vector<ListTextSite> text_sites;
+    VirtualEventWiring events; // collection-level events (virtual collections only)
 };
 
 struct DynamicPlan {

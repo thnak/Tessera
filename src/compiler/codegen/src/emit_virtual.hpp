@@ -25,6 +25,20 @@ namespace tessera::compiler::codegen::internal {
 // Called by the plan walk so a failing component reports one deterministic error.
 [[nodiscard]] bool validate_virtual_geometry(const ir::Node& collection, std::string& error);
 
+// The collection's `orientation` prop resolved to the generated main axis (x instead of y).
+[[nodiscard]] bool virtual_is_horizontal(const ir::Node& collection);
+
+// The integer value of a literal expression, or nullopt for a dynamic/absent value.
+[[nodiscard]] std::optional<std::int64_t> virtual_integer_literal(const ir::Expr* expr);
+
+// Resolves and validates the collection-level events of every virtual collection in the plan:
+// `onScroll` maps to a handler/binding taking the scene `ScrollEvent` payload (or no parameter at
+// all) and `onEndReached` to one taking no payload. Invalid forms are TESSERA_CODEGEN_UNSUPPORTED.
+// Called once after the dynamic plan is collected; fills `ListTemplate::events`.
+[[nodiscard]] bool collect_virtual_events(const ir::Component& component,
+                                          const std::vector<const ir::Binding*>& bindings,
+                                          DynamicPlan& plan, std::string& error);
+
 // Emits the generated `static constexpr` geometry constants of one virtual collection into the
 // component struct (virtualization-v1.md section 10; the estimate default is 32 px).
 void emit_virtual_geometry_constants(CppWriter& writer, const ListTemplate& collection);
@@ -34,5 +48,13 @@ void emit_virtual_geometry_constants(CppWriter& writer, const ListTemplate& coll
 // hash-compared per-item content pass.
 [[nodiscard]] bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
                                       const ListTemplate& collection, std::string& error);
+
+// Emits `<Name>::scroll_virtual_<n>(scroll_offset, viewport_extent)`: the generated scroll entry
+// point. It owns the collection's `ItemGeometry` (seeded from the emitted constants), refines the
+// prefix sums from the realized items' measured main-axis bounds, re-anchors the caller's offset in
+// place with the section 6 rule, applies the overscanned realized window, then dispatches
+// `onScroll` and the edge-triggered, distance-throttled `onEndReached`.
+[[nodiscard]] bool emit_virtual_scroll(CppWriter& writer, const ir::Component& component,
+                                       const ListTemplate& collection, std::string& error);
 
 } // namespace tessera::compiler::codegen::internal

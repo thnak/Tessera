@@ -188,6 +188,35 @@ void test_later_slice_boundaries() {
     check_eq(first_code(custom_result), "TESSERA_IR_UNSUPPORTED", "the code");
 }
 
+void test_virtual_collection_event_rejections() {
+    // `onEndReached` has no payload in the schema (elements_virtual_data.hpp): a parameter is an
+    // error rather than a silently dropped payload.
+    const auto payload = parse(component(
+        "  const [n, setN] = useState<int>(0);\n",
+        "<VirtualList itemSize={32} onEndReached={(e) => setN(1)}>{props.rows.map((row) => "
+        "<Text key={row.id}>{row.label}</Text>)}</VirtualList>",
+        "props: P"));
+    const auto payload_result = lower(*payload);
+    check(!payload_result.has_value(), "onEndReached rejects a payload parameter");
+    check_eq(first_code(payload_result), "TESSERA_IR_UNSUPPORTED", "the code");
+
+    const auto parameters = parse(component(
+        "  const [n, setN] = useState<int>(0);\n",
+        "<VirtualList itemSize={32} onScroll={(a, b) => setN(1)}>{props.rows.map((row) => "
+        "<Text key={row.id}>{row.label}</Text>)}</VirtualList>",
+        "props: P"));
+    const auto parameters_result = lower(*parameters);
+    check(!parameters_result.has_value(), "an event handler takes at most one parameter");
+    check_eq(first_code(parameters_result), "TESSERA_IR_UNSUPPORTED", "the code");
+
+    // `onScroll` is a collection event, not a View event.
+    const auto view = parse(
+        component("  const [n, setN] = useState<int>(0);\n", "<View onScroll={(e) => setN(1)} />"));
+    const auto view_result = lower(*view);
+    check(!view_result.has_value(), "onScroll is not an event of View");
+    check_eq(first_code(view_result), "TESSERA_IR_UNKNOWN_PROP", "the code");
+}
+
 void test_first_error_only_and_no_partial_component() {
     const auto fixture = parse(component(
         "", "<View>\n  <Counter />\n  <Image src={props.a} alt=\"a\" />\n</View>", "props: P"));
@@ -223,6 +252,7 @@ int main() {
     test_literal_only_props();
     test_children_rules();
     test_later_slice_boundaries();
+    test_virtual_collection_event_rejections();
     test_first_error_only_and_no_partial_component();
     test_analysis_failure_is_not_lowered();
     return finish("lowering nodes reject tests");

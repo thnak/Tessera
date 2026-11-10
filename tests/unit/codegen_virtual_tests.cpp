@@ -52,6 +52,7 @@ void check_eq(const std::string& actual, const std::string& expected, std::strin
 using tessera::test::codegen_virtual::integer;
 using tessera::test::codegen_virtual::leaf;
 using tessera::test::codegen_virtual::make_virtual_module;
+using tessera::test::codegen_virtual::span;
 
 std::string read_file(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
@@ -167,6 +168,77 @@ void test_generated_shape() {
           "build() records the collection container");
 }
 
+// The generated scroll entry point (virtualization-v1.md sections 4, 6 and 10): the component owns
+// an ItemGeometry seeded from the emitted constants, refines it from realized item bounds, applies
+// the overscanned window and dispatches the collection events.
+void test_scroll_wiring_shape() {
+    const auto result = codegen::generate(make_virtual_module());
+    check(result.has_value(), "the scroll-wiring sample generates");
+    if (!result) {
+        std::cerr << "  error: " << first_error(result) << "\n";
+        return;
+    }
+    const std::string& header = (*result)[0].text;
+    const std::string& source = (*result)[1].text;
+    check(contains(header, "#include \"tessera/ui/virtual/item_geometry.hpp\""),
+          "the header includes the owned geometry");
+    check(contains(header, "tessera::ui::virtualization::ItemGeometry virtual_3_geometry_{{"),
+          "the collection owns a generated ItemGeometry member");
+    check(contains(header, "kMaxGeneratedVirtualGeometryItems = 4096;"),
+          "the generated geometry cap is emitted");
+    check(contains(header, "kVirtualEndReachedThrottlePx = 200.0F;"),
+          "the onEndReached throttle distance is emitted");
+    check(contains(header, "static constexpr bool virtual_3_horizontal_ = false;"),
+          "the main axis is a generated constant");
+    check(contains(header, "bool scroll_virtual_3(float& tessera_scroll, "
+                           "float tessera_viewport);"),
+          "the scroll entry point declaration");
+    check(contains(header, "bool virtual_3_end_armed_ = true;"),
+          "the edge state of onEndReached is a generated member");
+    check(contains(header, "std::uint64_t virtual_3_end_fires_ = 0;"),
+          "the fire counter of onEndReached is a generated member");
+    check(contains(header, "std::uint64_t virtual_3_end_throttled_ = 0;"),
+          "the throttle counter of onEndReached is a generated member");
+    check(contains(source, "bool VirtualDemo::scroll_virtual_3(float& tessera_scroll, "
+                           "float tessera_viewport)"),
+          "the scroll entry point is emitted");
+    check(contains(source, "tessera_item->bounds().height;"),
+          "a realized item reports its measured main-axis size through its bounds");
+    check(contains(source, "virtual_3_geometry_.refine_measure(tessera_index, "
+                           "tessera_measured);"),
+          "the measure is forwarded to ItemGeometry::refine_measure");
+    check(contains(source, "tessera::ui::virtualization::reanchor_scroll("),
+          "a measure before the anchor re-anchors through the runtime rule");
+    check(contains(source, "tessera_scroll = tessera_adjust.scroll_offset;"),
+          "the caller's scroll offset is updated in place");
+    check(contains(source, "visible_range(tessera_window_start, tessera_window_extent)"),
+          "the realized window expands the viewport by the overscan");
+    check(contains(source, "apply_virtual_3(tessera_range.first, tessera_range.last);"),
+          "the window is applied through apply_virtual_<n>");
+    check(contains(source, "tessera::ui::ScrollEventInfo tessera_scroll_info{};"),
+          "onScroll receives the scene scroll payload");
+    check(contains(source, "tessera_scroll_info.offset_y = tessera_scroll;"),
+          "the payload carries the absolute scroll offset");
+    check(contains(source,
+                   "tessera_scroll_info.content_height = virtual_3_geometry_.total_extent();"),
+          "the payload carries the geometry content extent");
+    check(contains(source, "this->on_scroll(tessera_scroll_info);"),
+          "the onScroll binding is invoked");
+    check(contains(source, "this->handler_on_end_reached(tessera_end_event);"),
+          "the onEndReached handler is invoked");
+    check(contains(source, "tessera_end_distance < kVirtualEndReachedThrottlePx)"),
+          "the distance throttle gates onEndReached");
+    check(contains(source, "apply_virtual_6(tessera_first, tessera_last);"),
+          "the grid applies a whole-row item window");
+    check(contains(source, "tessera_item_index / tessera_columns"),
+          "a grid cell measure maps to its row");
+    check(contains(source, "// [DEVELOPER_LOGIC_START: bind::on_scroll]"),
+          "the onScroll binding keeps its protected region");
+    // No scene adapter is generated for a collection-level event (there is no scroll EventType).
+    check(!contains(source, "event_adapter_3_onScroll"),
+          "collection events are not scene event adapters");
+}
+
 void test_goldens(bool update) {
     const auto result = codegen::generate(make_virtual_module());
     check(result.has_value(), "the virtual golden sample generates");
@@ -272,6 +344,60 @@ void test_rejections() {
             leaf(ir::NodeKind::TextInput, "node::30", "30"));
         expect_error(module, "a TextInput inside a virtual item template is deferred");
     }
+    // Collection-level event contracts (virtualization-v1.md section 10).
+    const auto add_handler = [](ir::IrModule& module, std::string id, std::string payload) {
+        ir::Handler handler;
+        handler.id = std::move(id);
+        if (!payload.empty()) {
+            handler.params.push_back(ir::Param{"e", std::move(payload)});
+        }
+        handler.source = span(200, 10, 12, 3);
+        const std::string name = handler.id;
+        module.components[0].handlers.push_back(std::move(handler));
+        return name;
+    };
+    {
+        ir::IrModule module = make_virtual_module();
+        const std::string handler = add_handler(module, "handler::scroll_click", "ClickEvent");
+        module.components[0].root.children[1].events["onScroll"] = handler;
+        expect_error(module, "an onScroll payload other than ScrollEvent is rejected");
+    }
+    {
+        ir::IrModule module = make_virtual_module();
+        const std::string handler = add_handler(module, "handler::end_payload", "ScrollEvent");
+        module.components[0].root.children[1].events["onEndReached"] = handler;
+        expect_error(module, "an onEndReached handler with a parameter is rejected");
+    }
+    {
+        ir::IrModule module = make_virtual_module();
+        ir::Binding end;
+        end.id = "bind::on_grid_end";
+        end.component = "comp::VirtualDemo";
+        end.kind = ir::BindingKind::Event;
+        end.region = "on_grid_end";
+        end.source = span(210, 10, 13, 3);
+        end.params.push_back({"e", "ScrollEvent"});
+        module.bindings.push_back(std::move(end));
+        module.components[0].root.children[1].events["onEndReached"] = "bind::on_grid_end";
+        expect_error(module, "an onEndReached binding with a payload is rejected");
+    }
+    {
+        ir::IrModule module = make_virtual_module();
+        for (ir::Binding& binding : module.bindings) {
+            if (binding.id == "bind::on_scroll") {
+                binding.return_type = "int";
+            }
+        }
+        expect_error(module, "an onScroll binding with a return value is rejected");
+    }
+    {
+        ir::IrModule module = make_virtual_module();
+        ir::Node& grid = module.components[0].root.children[2];
+        grid.props.erase("columns");
+        const std::string handler = add_handler(module, "handler::grid_end", "");
+        grid.events["onEndReached"] = handler;
+        expect_error(module, "a grid collection event without a column count is rejected");
+    }
 }
 
 void test_merger_idempotency() {
@@ -295,9 +421,18 @@ void test_merger_idempotency() {
     }
     std::string existing = generated;
     existing.insert(marker + kMarker.size(), "\n    // developer body next to generated windows");
+    constexpr std::string_view kScrollMarker = "// [DEVELOPER_LOGIC_START: bind::on_scroll]";
+    const std::size_t scroll_marker = existing.find(kScrollMarker);
+    check(scroll_marker != std::string::npos, "the on_scroll region exists");
+    if (scroll_marker == std::string::npos) {
+        return;
+    }
+    existing.insert(scroll_marker + kScrollMarker.size(), "\n    // developer scroll observation");
     const tessera::compiler::MergeResult first = tessera::compiler::merge(generated, existing);
     check(first.text.find("developer body next to generated windows") != std::string::npos,
           "the developer body survives the merge");
+    check(first.text.find("developer scroll observation") != std::string::npos,
+          "the onScroll developer body survives the merge");
     const tessera::compiler::MergeResult second = tessera::compiler::merge(first.text, existing);
     check_eq(second.text, first.text, "merge(merge(g, e), e) == merge(g, e) over virtual output");
 }
@@ -312,6 +447,7 @@ int main(int argc, char** argv) {
     }
     test_fixture_is_valid();
     test_generated_shape();
+    test_scroll_wiring_shape();
     test_goldens(false);
     test_determinism();
     test_rejections();

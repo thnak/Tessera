@@ -419,6 +419,52 @@ void test_conditional_inside_scroll() {
     }
 }
 
+void test_virtual_collection_events() {
+    const auto fixture =
+        parse(component("  const [count, setCount] = useState<int>(0);\n",
+                        "<VirtualList itemSize={32} onScroll={(e) => setCount(1)} "
+                        "onEndReached={() => setCount(2)}>{props.rows.map((row) => "
+                        "<Text key={row.id}>{row.label}</Text>)}</VirtualList>",
+                        "props: P"));
+    const auto result = lower(*fixture);
+    check(result.has_value(),
+          "the VirtualList collection events lower: " + describe_errors(*fixture, result));
+    if (!result) {
+        return;
+    }
+    const ir::Node& list = result->component.root;
+    check(list.events.size() == 2, "both collection-level events are recorded");
+    check(list.events.count("onScroll") == 1, "onScroll is recorded");
+    check(list.events.count("onEndReached") == 1, "onEndReached is recorded");
+    const auto handler_for = [&](std::string_view event) -> const ir::Handler* {
+        const auto found = list.events.find(std::string(event));
+        if (found == list.events.end()) {
+            return nullptr;
+        }
+        for (const ir::Handler& handler : result->component.handlers) {
+            if (handler.id == found->second) {
+                return &handler;
+            }
+        }
+        return nullptr;
+    };
+    const ir::Handler* scroll = handler_for("onScroll");
+    check(scroll != nullptr, "onScroll names a handler record");
+    if (scroll != nullptr) {
+        check(scroll->params.size() == 1, "onScroll takes one parameter");
+        if (scroll->params.size() == 1) {
+            check_eq(scroll->params[0].type, "ScrollEvent",
+                     "onScroll carries the scene ScrollEvent payload record");
+        }
+    }
+    const ir::Handler* end = handler_for("onEndReached");
+    check(end != nullptr, "onEndReached names a handler record");
+    if (end != nullptr) {
+        check(end->params.empty(), "onEndReached carries no payload");
+        check(end->actions.size() == 1, "the inline onEndReached body lowers");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -437,5 +483,6 @@ int main() {
     test_virtual_list_item_template();
     test_virtual_grid_item_template();
     test_virtual_default_estimate();
+    test_virtual_collection_events();
     return finish("lowering control tests");
 }

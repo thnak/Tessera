@@ -320,8 +320,15 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         }
         // A non-literal style value is applied by apply_state() through its dynamic entry.
     }
+    const bool collection_node =
+        node.kind == ir::NodeKind::VirtualList || node.kind == ir::NodeKind::VirtualGrid;
     for (const auto& [jsx_name, target] : node.events) {
         (void)target;
+        if (collection_node && (jsx_name == "onScroll" || jsx_name == "onEndReached")) {
+            // Collection-level events are dispatched by the generated scroll_virtual_<n> entry
+            // point (emit_virtual_scroll.cpp); they are not scene event bindings.
+            continue;
+        }
         if (controlled_input != nullptr && jsx_name == "onChange") {
             // Wired through TextChangeBinding below, not the generic scene-event adapter.
             continue;

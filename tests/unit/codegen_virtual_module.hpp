@@ -76,6 +76,10 @@ inline ir::IrModule make_virtual_module() {
     ir::Node list = leaf(ir::NodeKind::VirtualList, "node::3", "3");
     list.props.emplace("estimateSize", integer(32));
     list.props.emplace("gap", integer(4));
+    // Collection-level events (virtualization-v1.md section 10): an `onScroll` binding receives the
+    // scene ScrollEvent payload, an `onEndReached` inline handler takes none.
+    list.events.emplace("onScroll", "bind::on_scroll");
+    list.events.emplace("onEndReached", "handler::on_end_reached");
     ir::Node list_item = leaf(ir::NodeKind::View, "node::4", "4");
     list_item.key = ir::make_ref("item");
     list_item.loop = ir::Loop{"item", "", ir::make_ref("state::items")};
@@ -112,6 +116,14 @@ inline ir::IrModule make_virtual_module() {
     root.children.push_back(std::move(button));
 
     component.root = std::move(root);
+
+    // The inline `onEndReached={() => setCount(...)}` handler lowered to a zero-payload record.
+    ir::Handler on_end_reached;
+    on_end_reached.id = "handler::on_end_reached";
+    on_end_reached.source = span(120, 20, 8, 3);
+    on_end_reached.actions.push_back(
+        ir::Action{ir::ActionKind::Set, "state::count", ir::make_literal(std::int64_t{1})});
+    component.handlers.push_back(std::move(on_end_reached));
     module.components.push_back(std::move(component));
 
     ir::Binding binding;
@@ -122,6 +134,16 @@ inline ir::IrModule make_virtual_module() {
     binding.source = span(40, 10, 4, 3);
     binding.params.push_back({"event", "ClickEvent"});
     module.bindings.push_back(std::move(binding));
+
+    // The `onScroll={(e: ScrollEvent) => ...}` binding: the scene scroll payload record.
+    ir::Binding scroll;
+    scroll.id = "bind::on_scroll";
+    scroll.component = "comp::VirtualDemo";
+    scroll.kind = ir::BindingKind::Event;
+    scroll.region = "on_scroll";
+    scroll.source = span(140, 10, 9, 3);
+    scroll.params.push_back({"e", "ScrollEvent"});
+    module.bindings.push_back(std::move(scroll));
     return module;
 }
 

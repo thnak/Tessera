@@ -274,6 +274,9 @@ bool emit_list_sources(CppWriter& writer, const ir::Component& component, const 
             if (!emit_apply_virtual(writer, component, list, error)) {
                 return false;
             }
+            if (!emit_virtual_scroll(writer, component, list, error)) {
+                return false;
+            }
             continue;
         }
         if (!emit_apply_list(writer, component, list, error)) {

@@ -19,6 +19,7 @@
 #include "emit_forms.hpp"
 #include "emit_node.hpp"
 #include "emit_props.hpp"
+#include "emit_virtual.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
 
@@ -120,6 +121,9 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (plan.has_lists) {
         writer.line("#include <array>");
         writer.line("#include <cstddef>");
+    }
+    if (plan.has_virtual) {
+        writer.line("#include \"tessera/ui/virtual/scroll_anchor.hpp\"");
     }
     writer.line("");
     writer.open("namespace " + ns);
@@ -294,6 +298,11 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     // diagnostics win over the per-collector checks below.
     DynamicPlan plan;
     if (!collect_dynamic_plan(component, plan, error)) {
+        return false;
+    }
+    // The collection-level events of every virtual collection in the plan (onScroll/onEndReached):
+    // resolved here so a failing form reports one deterministic error before any file is emitted.
+    if (!collect_virtual_events(component, owned, plan, error)) {
         return false;
     }
     // The generated form-state binding of any library `Form` this component owns

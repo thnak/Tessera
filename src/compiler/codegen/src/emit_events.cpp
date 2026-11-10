@@ -161,8 +161,15 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
     // apply_props() binds them into the instance's generated callable, so they are not scene
     // events.
     const bool callback_props = node.kind == ir::NodeKind::Component;
+    const bool virtual_collection =
+        node.kind == ir::NodeKind::VirtualList || node.kind == ir::NodeKind::VirtualGrid;
     for (const auto& [jsx_name, target] : node.events) {
         if (callback_props) {
+            continue;
+        }
+        if (virtual_collection && (jsx_name == "onScroll" || jsx_name == "onEndReached")) {
+            // The collection-level events are driven by the generated scroll entry point
+            // (emit_virtual_scroll.cpp), not through a scene EventType adapter.
             continue;
         }
         if (controlled && jsx_name == "onChange") {

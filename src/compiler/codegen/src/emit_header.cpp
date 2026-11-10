@@ -67,6 +67,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("#include \"tessera/ui/text/text_input_runtime.hpp\"");
     }
     writer.line("#include \"tessera/ui/scene/node.hpp\"");
+    if (plan.has_virtual) {
+        writer.line("#include \"tessera/ui/virtual/item_geometry.hpp\"");
+    }
     for (const std::string& include : includes) {
         writer.line("#include \"" + include + ".hpp\"");
     }

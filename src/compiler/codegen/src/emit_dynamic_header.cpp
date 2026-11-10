@@ -32,6 +32,13 @@ void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan) {
         writer.line("// the host applies a visible range of at most this many items, so the");
         writer.line("// generated item table and the live node count stay bounded.");
         writer.line("inline constexpr std::size_t kMaxGeneratedVirtualItems = 32;");
+        writer.line("// Hard cap of a generated collection geometry (virtualization-v1.md section");
+        writer.line("// 10): a larger data source is refused loudly by scroll_virtual_<n>().");
+        writer.line("inline constexpr std::size_t kMaxGeneratedVirtualGeometryItems = 4096;");
+        writer.line(
+            "// `onEndReached` throttle (virtualization-v1.md section 10): a re-entry into");
+        writer.line("// the end zone within this scroll distance of the last fire is suppressed.");
+        writer.line("inline constexpr float kVirtualEndReachedThrottlePx = 200.0F;");
     }
     writer.line("");
     for (const ListTemplate& list : plan.lists) {
@@ -90,6 +97,20 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
             writer.line("std::size_t " + table + "_first_ = 0;");
             writer.line("std::uint64_t " + table + "_order_hash_ = 0;");
             writer.line("bool " + table + "_order_set_ = false;");
+            writer.line("// Geometry owned by the generated scroll handler, seeded from the");
+            writer.line("// emitted constants; its count is synced from the data source.");
+            writer.line("tessera::ui::virtualization::ItemGeometry " + table + "_geometry_{{");
+            writer.line("    kMaxGeneratedVirtualGeometryItems,");
+            writer.line("    static_cast<float>(" + table + "_estimate_size_),");
+            writer.line("    static_cast<float>(" + table + "_gap_)}};");
+            writer.line("std::size_t " + table + "_geometry_count_ = 0;");
+            if (list.events.on_end_reached.present) {
+                writer.line("// Edge/throttle state of the collection's `onEndReached`.");
+                writer.line("bool " + table + "_end_armed_ = true;");
+                writer.line("float " + table + "_end_fire_offset_ = 0.0f;");
+                writer.line("std::uint64_t " + table + "_end_fires_ = 0;");
+                writer.line("std::uint64_t " + table + "_end_throttled_ = 0;");
+            }
             continue;
         }
         writer.line("// `node::" + ordinal + "` keyed list over `" + list.element_type +
@@ -127,6 +148,12 @@ void emit_dynamic_declarations(CppWriter& writer, const DynamicPlan& plan) {
                         "key.");
             writer.line("void apply_virtual_" + ordinal_text(list.container_ordinal) +
                         "(std::size_t tessera_first, std::size_t tessera_last);");
+            writer.line("// Applies one scroll offset: refines the geometry from realized item");
+            writer.line("// measures (updating the offset in place on a re-anchor), applies the");
+            writer.line("// window, then dispatches the collection events. False when the data");
+            writer.line("// source exceeds the generated geometry cap.");
+            writer.line("bool scroll_virtual_" + ordinal_text(list.container_ordinal) +
+                        "(float& tessera_scroll, float tessera_viewport);");
             continue;
         }
         writer.line("void apply_list_" + ordinal +

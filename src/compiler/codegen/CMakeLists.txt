@@ -20,6 +20,7 @@ add_library(tessera_codegen STATIC
     src/emit_node.cpp
     src/emit_props.cpp
     src/emit_virtual.cpp
+    src/emit_virtual_scroll.cpp
     src/interpolation.cpp
     src/value_ops.cpp)
 
@@ -233,7 +234,9 @@ if (TESSERA_BUILD_TESTS)
             ${_tessera_codegen_golden_dir}/VirtualDemo.cpp)
         target_include_directories(tessera_codegen_virtual_sample
             PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(tessera_codegen_virtual_sample PRIVATE tessera_scene)
+        target_link_libraries(tessera_codegen_virtual_sample PRIVATE
+            tessera_scene
+            tessera_virtual)
         target_compile_features(tessera_codegen_virtual_sample PUBLIC cxx_std_23)
 
         add_executable(codegen_virtual_runtime_tests
@@ -247,6 +250,20 @@ if (TESSERA_BUILD_TESTS)
             tessera_virtual)
 
         add_test(NAME codegen_virtual_runtime COMMAND codegen_virtual_runtime_tests)
+
+        # The generated scroll entry point: geometry ownership, overscanned window,
+        # measurement feedback/re-anchor, and the edge/throttle `onEndReached` contract.
+        add_executable(codegen_virtual_scroll_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_scroll_tests.cpp)
+
+        target_include_directories(codegen_virtual_scroll_tests
+            PRIVATE ${_tessera_codegen_golden_dir})
+        target_link_libraries(codegen_virtual_scroll_tests PRIVATE
+            tessera_codegen_virtual_sample
+            tessera_scene
+            tessera_virtual)
+
+        add_test(NAME codegen_virtual_scroll COMMAND codegen_virtual_scroll_tests)
     endif ()
 
     # `Field` as a library component on the ordinary component path: a framework import names the

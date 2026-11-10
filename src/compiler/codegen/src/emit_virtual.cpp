@@ -95,6 +95,19 @@ LocalBindings virtual_locals(const ListTemplate& collection, std::string_view in
 
 } // namespace
 
+bool virtual_is_horizontal(const ir::Node& collection) {
+    const auto found = collection.props.find("orientation");
+    if (found == collection.props.end() || found->second == nullptr) {
+        return false;
+    }
+    const auto* text = std::get_if<std::string>(&found->second->literal);
+    return text != nullptr && *text == "horizontal";
+}
+
+std::optional<std::int64_t> virtual_integer_literal(const ir::Expr* expr) {
+    return integer_literal(expr);
+}
+
 std::string item_table_prefix(const ListTemplate& list) {
     // A virtual table is named after its collection node (the host applies a window to it); an
     // eager list table is named after its template node. Members append their own `_` suffix
@@ -175,6 +188,9 @@ void emit_virtual_geometry_constants(CppWriter& writer, const ListTemplate& coll
                 "overscan_ = " + double_text(overscan.value_or(200.0)) + ";");
     writer.line("static constexpr double " + base + "gap_ = " + double_text(gap.value_or(0.0)) +
                 ";");
+    writer.line("static constexpr bool " + base +
+                "horizontal_ = " + (virtual_is_horizontal(node) ? "true" : "false") +
+                "; // main axis is x instead of y");
     if (grid) {
         writer.line("static constexpr double " + base + "row_height_ = " +
                     double_text(row_height.value_or(0.0)) + "; // 0 means variable row height");

@@ -11,6 +11,7 @@
 #include <string_view>
 #include <array>
 #include <cstddef>
+#include "tessera/ui/virtual/scroll_anchor.hpp"
 
 namespace vlist {
   namespace gen {
@@ -65,7 +66,7 @@ namespace vlist {
       paint_node_2.text = "Header";
       node_2->set_paint_data(std::move(paint_node_2));
       node_1->add_child(std::move(node_2));
-      // node::3
+      // node::3 events={onEndReached:handler::on_end_reached,onScroll:bind::on_scroll}
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
       node_3->set_element_kind("VirtualList");
       this->virtual_3_ = node_3.get();
@@ -246,6 +247,105 @@ namespace vlist {
       }
     }
     
+    bool VirtualDemo::scroll_virtual_3(float& tessera_scroll, float tessera_viewport) {
+      // Generated scroll entry point (virtualization-v1.md section 10): the component
+      // owns the geometry, refines it from realized item measures, re-anchors the
+      // offset, applies the realized window and dispatches the collection events.
+      if (virtual_3_ == nullptr) {
+        return false;
+      }
+      if (tessera_scroll < 0.0f) {
+        tessera_scroll = 0.0f;
+      }
+      const auto& tessera_source = state_items_;
+      const std::size_t tessera_total = tessera_source.size();
+      if (tessera_total > kMaxGeneratedVirtualGeometryItems) {
+        // Loud refusal: drive apply_virtual_3() with a caller-owned geometry instead.
+        return false;
+      }
+      const std::size_t tessera_rows = tessera_total;
+      if (tessera_rows != virtual_3_geometry_count_) {
+        if (!virtual_3_geometry_.set_count(tessera_rows)) {
+          return false;
+        }
+        virtual_3_geometry_count_ = tessera_rows;
+      }
+      // Measurement feedback: a realized item reports its main-axis border-box extent
+      // through its laid-out scene bounds; an unlaid-out (zero) item reports nothing.
+      // `tessera_anchor` is the item at the viewport start: a measure before it shifts
+      // the scroll by the same delta (virtualization-v1.md section 6).
+      const std::size_t tessera_anchor =
+          virtual_3_geometry_.index_at_offset(tessera_scroll);
+      for (std::size_t tessera_slot = 0; tessera_slot < virtual_3_count_; ++tessera_slot) {
+        tessera::ui::Node* tessera_item = virtual_3_items_[tessera_slot].root;
+        if (tessera_item == nullptr) {
+          continue;
+        }
+        const float tessera_measured =
+            tessera_item->bounds().height;
+        if (!(tessera_measured > 0.0f)) {
+          continue;
+        }
+        const std::size_t tessera_item_index = virtual_3_first_ + tessera_slot;
+        if (tessera_item_index >= tessera_total) {
+          continue;
+        }
+        const std::size_t tessera_index = tessera_item_index;
+        const tessera::ui::virtualization::ItemGeometry::MeasureChange tessera_change =
+            virtual_3_geometry_.refine_measure(tessera_index, tessera_measured);
+        if (!tessera_change.changed) {
+          continue;
+        }
+        const tessera::ui::virtualization::AnchorAdjustment tessera_adjust =
+            tessera::ui::virtualization::reanchor_scroll(
+                tessera_scroll, tessera_viewport, virtual_3_geometry_.total_extent(),
+                tessera_anchor, tessera_index, tessera_change.delta);
+        tessera_scroll = tessera_adjust.scroll_offset;
+      }
+      // Realize the viewport window expanded by the overscan distance
+      // (virtualization-v1.md section 4); apply_virtual_<n>() caps the table.
+      float tessera_window_start =
+          tessera_scroll - static_cast<float>(virtual_3_overscan_);
+      if (tessera_window_start < 0.0f) {
+        tessera_window_start = 0.0f;
+      }
+      const float tessera_window_extent =
+          tessera_viewport + (tessera_scroll - tessera_window_start) +
+          static_cast<float>(virtual_3_overscan_);
+      const tessera::ui::virtualization::ItemGeometry::Range tessera_range =
+          virtual_3_geometry_.visible_range(tessera_window_start, tessera_window_extent);
+      apply_virtual_3(tessera_range.first, tessera_range.last);
+      tessera::ui::ScrollEventInfo tessera_scroll_info{};
+      tessera_scroll_info.offset_y = tessera_scroll;
+      tessera_scroll_info.viewport_height = tessera_viewport;
+      tessera_scroll_info.content_height = virtual_3_geometry_.total_extent();
+      this->on_scroll(tessera_scroll_info);
+      // `onEndReached`: one fire per end-zone entry; a re-entry within
+      // kVirtualEndReachedThrottlePx of the last fire is suppressed and counted.
+      const bool tessera_at_end = tessera_total > 0 && tessera_range.last >= tessera_total;
+      if (!tessera_at_end) {
+        virtual_3_end_armed_ = true;
+      }
+      else if (virtual_3_end_armed_) {
+        virtual_3_end_armed_ = false;
+        float tessera_end_distance = tessera_scroll - virtual_3_end_fire_offset_;
+        if (tessera_end_distance < 0.0f) {
+          tessera_end_distance = -tessera_end_distance;
+        }
+        if (virtual_3_end_fires_ > 0 &&
+            tessera_end_distance < kVirtualEndReachedThrottlePx) {
+          ++virtual_3_end_throttled_;
+        }
+        else {
+          ++virtual_3_end_fires_;
+          virtual_3_end_fire_offset_ = tessera_scroll;
+          tessera::ui::Event tessera_end_event{};
+          this->handler_on_end_reached(tessera_end_event);
+        }
+      }
+      return true;
+    }
+    
     std::unique_ptr<tessera::ui::Node> VirtualDemo::build_item_7(const std::string& cell, std::size_t tessera_index, std::size_t tessera_id_slot, Item_7& tessera_out) {
       (void)cell;
       (void)tessera_index;
@@ -385,6 +485,95 @@ namespace vlist {
       }
     }
     
+    bool VirtualDemo::scroll_virtual_6(float& tessera_scroll, float tessera_viewport) {
+      // Generated scroll entry point (virtualization-v1.md section 10): the component
+      // owns the geometry, refines it from realized item measures, re-anchors the
+      // offset, applies the realized window and dispatches the collection events.
+      if (virtual_6_ == nullptr) {
+        return false;
+      }
+      if (tessera_scroll < 0.0f) {
+        tessera_scroll = 0.0f;
+      }
+      const auto& tessera_source = state_items_;
+      const std::size_t tessera_total = tessera_source.size();
+      if (tessera_total > kMaxGeneratedVirtualGeometryItems) {
+        // Loud refusal: drive apply_virtual_6() with a caller-owned geometry instead.
+        return false;
+      }
+      const std::size_t tessera_columns = static_cast<std::size_t>(virtual_6_columns_);
+      if (tessera_columns == 0) {
+        // Column-width mode has no generated row mapping; the host drives the
+        // window with its own tessera::ui::virtualization::VirtualGridRows.
+        return false;
+      }
+      const std::size_t tessera_rows =
+          (tessera_total + tessera_columns - 1) / tessera_columns;
+      if (tessera_rows != virtual_6_geometry_count_) {
+        if (!virtual_6_geometry_.set_count(tessera_rows)) {
+          return false;
+        }
+        virtual_6_geometry_count_ = tessera_rows;
+      }
+      // Measurement feedback: a realized item reports its main-axis border-box extent
+      // through its laid-out scene bounds; an unlaid-out (zero) item reports nothing.
+      // `tessera_anchor` is the item at the viewport start: a measure before it shifts
+      // the scroll by the same delta (virtualization-v1.md section 6).
+      const std::size_t tessera_anchor =
+          virtual_6_geometry_.index_at_offset(tessera_scroll);
+      for (std::size_t tessera_slot = 0; tessera_slot < virtual_6_count_; ++tessera_slot) {
+        tessera::ui::Node* tessera_item = virtual_6_items_[tessera_slot].root;
+        if (tessera_item == nullptr) {
+          continue;
+        }
+        const float tessera_measured =
+            tessera_item->bounds().height;
+        if (!(tessera_measured > 0.0f)) {
+          continue;
+        }
+        const std::size_t tessera_item_index = virtual_6_first_ + tessera_slot;
+        if (tessera_item_index >= tessera_total) {
+          continue;
+        }
+        const std::size_t tessera_index = tessera_item_index / tessera_columns;
+        // A row extent is the maximum of its measured items: a smaller measure never
+        // shrinks the row (the grid runtime owns the same rule).
+        if (virtual_6_geometry_.is_measured(tessera_index) &&
+            virtual_6_geometry_.item_main_size(tessera_index) >= tessera_measured) {
+        continue;
+        }
+        const tessera::ui::virtualization::ItemGeometry::MeasureChange tessera_change =
+            virtual_6_geometry_.refine_measure(tessera_index, tessera_measured);
+        if (!tessera_change.changed) {
+          continue;
+        }
+        const tessera::ui::virtualization::AnchorAdjustment tessera_adjust =
+            tessera::ui::virtualization::reanchor_scroll(
+                tessera_scroll, tessera_viewport, virtual_6_geometry_.total_extent(),
+                tessera_anchor, tessera_index, tessera_change.delta);
+        tessera_scroll = tessera_adjust.scroll_offset;
+      }
+      // Realize the viewport window expanded by the overscan distance
+      // (virtualization-v1.md section 4); apply_virtual_<n>() caps the table.
+      float tessera_window_start =
+          tessera_scroll - static_cast<float>(virtual_6_overscan_);
+      if (tessera_window_start < 0.0f) {
+        tessera_window_start = 0.0f;
+      }
+      const float tessera_window_extent =
+          tessera_viewport + (tessera_scroll - tessera_window_start) +
+          static_cast<float>(virtual_6_overscan_);
+      const tessera::ui::virtualization::ItemGeometry::Range tessera_range =
+          virtual_6_geometry_.visible_range(tessera_window_start, tessera_window_extent);
+      std::size_t tessera_first = tessera_range.first * tessera_columns;
+      std::size_t tessera_last = tessera_range.last * tessera_columns;
+      if (tessera_last > tessera_total) {
+        tessera_last = tessera_total;
+      }
+      apply_virtual_6(tessera_first, tessera_last);
+      return true;
+    }
+    
     
     void VirtualDemo::mount() {}
     
@@ -397,11 +586,23 @@ namespace vlist {
       apply_state();
     }
     
+    void VirtualDemo::handler_on_end_reached(const tessera::ui::Event& event) {
+      (void)event;
+      state_count_ = 1;
+    }
+    
     void VirtualDemo::on_click(const tessera::ui::ClickEvent& event) {
       // [DEVELOPER_LOGIC_START: bind::on_click]
         // TODO(tessera-codegen): implement the developer body for bind::on_click.
         (void)event;
       // [DEVELOPER_LOGIC_END: bind::on_click]
+    }
+    
+    void VirtualDemo::on_scroll(const tessera::ui::ScrollEventInfo& e) {
+      // [DEVELOPER_LOGIC_START: bind::on_scroll]
+        // TODO(tessera-codegen): implement the developer body for bind::on_scroll.
+        (void)e;
+      // [DEVELOPER_LOGIC_END: bind::on_scroll]
     }
     
   }
