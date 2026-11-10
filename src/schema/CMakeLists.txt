@@ -7,7 +7,16 @@ add_library(tessera_schema STATIC
     src/aliases.cpp
     src/common.cpp
     src/elements.cpp
+    src/json.cpp
+    src/json_utf8.cpp
+    src/json_value.cpp
     src/lookups.cpp
+    src/shader_manifest.cpp
+    src/shader_manifest_entry.cpp
+    src/shader_manifest_fields.cpp
+    src/shader_manifest_io.cpp
+    src/shader_manifest_names.cpp
+    src/shader_manifest_read.cpp
     src/style.cpp
     src/types.cpp)
 
