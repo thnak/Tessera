@@ -9,7 +9,10 @@ add_library(tessera_accessibility STATIC
     a11y_tree.cpp
     dbus_address.cpp
     dbus_transport.cpp
-    dbus_unix_transport.cpp)
+    dbus_unix_transport.cpp
+    dbus_wire.cpp
+    dbus_reader.cpp
+    dbus_message.cpp)
 
 target_include_directories(tessera_accessibility PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

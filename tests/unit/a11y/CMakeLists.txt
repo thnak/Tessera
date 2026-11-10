@@ -17,3 +17,17 @@ add_executable(a11y_dbus_transport_tests
 target_link_libraries(a11y_dbus_transport_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_dbus_transport COMMAND a11y_dbus_transport_tests)
+
+add_executable(a11y_dbus_wire_tests
+    a11y_dbus_wire_tests.cpp)
+
+target_link_libraries(a11y_dbus_wire_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_dbus_wire COMMAND a11y_dbus_wire_tests)
+
+add_executable(a11y_dbus_wire_bounds_tests
+    a11y_dbus_wire_bounds_tests.cpp)
+
+target_link_libraries(a11y_dbus_wire_bounds_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_dbus_wire_bounds COMMAND a11y_dbus_wire_bounds_tests)
