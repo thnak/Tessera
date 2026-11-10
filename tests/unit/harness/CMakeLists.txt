@@ -57,3 +57,10 @@ add_executable(harness_stdio_transport_tests
 target_link_libraries(harness_stdio_transport_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_stdio_transport COMMAND harness_stdio_transport_tests)
+
+add_executable(harness_handler_tests
+    harness_handler_tests.cpp)
+
+target_link_libraries(harness_handler_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_handler COMMAND harness_handler_tests)

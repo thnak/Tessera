@@ -9,9 +9,11 @@
 # and the snapshot/action/trace/audit command model. It links nothing from the project so the
 # harness binary, tests, and any in-process embedding can share the same bytes.
 add_library(tessera_harness STATIC
+    artifact_sink.cpp
     command.cpp
     command_args.cpp
     command_result.cpp
+    harness_handler.cpp
     in_process_transport.cpp
     json_parse.cpp
     json_string.cpp
