@@ -30,3 +30,15 @@ target_include_directories(tessera_jsx_frontend
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_compile_features(tessera_jsx_frontend PUBLIC cxx_std_23)
+
+# The deterministic limits/stress corpus (docs/design/security.md section 3). It is registered
+# here, next to the limits it exercises, so this lane does not depend on tests/unit/CMakeLists.txt;
+# the source still lives with the other front-end tests. enable_testing() is idempotent and makes
+# CTest pick this subdirectory's test list up even though the root enables testing later.
+if (TESSERA_BUILD_TESTS)
+    enable_testing()
+    add_executable(compiler_limits_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/compiler_limits_tests.cpp)
+    target_link_libraries(compiler_limits_tests PRIVATE tessera_jsx_frontend)
+    add_test(NAME compiler_limits COMMAND compiler_limits_tests)
+endif()
