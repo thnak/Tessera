@@ -41,4 +41,15 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/unit/compiler_limits_tests.cpp)
     target_link_libraries(compiler_limits_tests PRIVATE tessera_jsx_frontend)
     add_test(NAME compiler_limits COMMAND compiler_limits_tests)
+
+    # The diagnostic-code registry golden: one fixture per stable code, the committed golden, and
+    # a source scan for codes that have no fixture or skip entry. Registered here for the same
+    # reason as the limits corpus: the lane owns its test list, the source lives with the other
+    # front-end tests.
+    add_executable(jsx_diagnostics_registry_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/jsx_diagnostics_registry_tests.cpp)
+    target_link_libraries(jsx_diagnostics_registry_tests PRIVATE tessera_jsx_frontend)
+    target_compile_definitions(jsx_diagnostics_registry_tests PRIVATE
+        TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
+    add_test(NAME jsx_diagnostics_registry COMMAND jsx_diagnostics_registry_tests)
 endif()
