@@ -17,10 +17,10 @@ using tessera::ui::scale::device_scale_for_dpi;
 using tessera::ui::scale::kReferenceDpi;
 using tessera::ui::scale::kRenderScaleLadder;
 using tessera::ui::scale::kRenderScaleStepCount;
-using tessera::ui::scale::ladder_index;
 using tessera::ui::scale::quantize_device_scale;
 using tessera::ui::scale::quantize_render_scale;
 using tessera::ui::scale::render_scale_for_dpi;
+using tessera::ui::scale::render_scale_index;
 using tessera::ui::scale::RenderScaleError;
 
 bool expect(bool condition, const char* message) {
@@ -92,7 +92,7 @@ int main() {
         return 1;
     }
     for (std::size_t i = 0; i < kRenderScaleStepCount; ++i) {
-        if (!expect(ladder_index(kRenderScaleLadder[i]) == static_cast<std::int32_t>(i),
+        if (!expect(render_scale_index(kRenderScaleLadder[i]) == static_cast<std::int32_t>(i),
                     "ladder value maps to its own index") ||
             !expect(quantize_render_scale(kRenderScaleLadder[i]) == kRenderScaleLadder[i],
                     "a ladder value is its own quantization")) {
@@ -174,10 +174,10 @@ int main() {
     }
 
     // Values that are not on the ladder are not ladder values.
-    if (!expect(ladder_index(1.75f) == -1, "1.75 is not a ladder step") ||
-        !expect(ladder_index(0.9f) == -1, "0.9 is not a ladder step") ||
-        !expect(ladder_index(2.0001f) == -1, "2.0001 is not a ladder step") ||
-        !expect(ladder_index(nan) == -1, "NaN is not a ladder step")) {
+    if (!expect(render_scale_index(1.75f) == -1, "1.75 is not a ladder step") ||
+        !expect(render_scale_index(0.9f) == -1, "0.9 is not a ladder step") ||
+        !expect(render_scale_index(2.0001f) == -1, "2.0001 is not a ladder step") ||
+        !expect(render_scale_index(nan) == -1, "NaN is not a ladder step")) {
         return 11;
     }
 
@@ -186,7 +186,7 @@ int main() {
     for (float device_scale = 0.25f; device_scale <= 3.5f; device_scale += 0.01f) {
         const float scale = quantize_render_scale(device_scale);
         if (!expect(scale >= previous, "quantization is monotonic") ||
-            !expect(ladder_index(scale) >= 0, "quantization lands on the ladder") ||
+            !expect(render_scale_index(scale) >= 0, "quantization lands on the ladder") ||
             !expect(scale >= 1.0f && scale <= 2.0f, "quantization stays in bounds")) {
             return 12;
         }

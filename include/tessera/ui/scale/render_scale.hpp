@@ -53,6 +53,6 @@ render_scale_for_dpi(std::uint32_t dpi) noexcept;
 
 // Position of an exact ladder value in kRenderScaleLadder, or -1 when `render_scale` is not a
 // ladder value (for example a caller-supplied 1.75).
-[[nodiscard]] std::int32_t ladder_index(float render_scale) noexcept;
+[[nodiscard]] std::int32_t render_scale_index(float render_scale) noexcept;
 
 } // namespace tessera::ui::scale

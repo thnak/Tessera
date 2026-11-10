@@ -60,7 +60,7 @@ std::expected<float, RenderScaleError> render_scale_for_dpi(std::uint32_t dpi) n
     return quantize_render_scale(*device_scale);
 }
 
-std::int32_t ladder_index(float render_scale) noexcept {
+std::int32_t render_scale_index(float render_scale) noexcept {
     for (std::size_t i = 0; i < kRenderScaleStepCount; ++i) {
         if (render_scale == kRenderScaleLadder[i]) {
             return static_cast<std::int32_t>(i);
