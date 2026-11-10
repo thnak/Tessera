@@ -31,20 +31,12 @@ target_compile_features(tessera_text PUBLIC cxx_std_23)
 # unchanged; when on, the text module also carries the ICU-backed segmentation and the locale
 # resolver, and the module tests self-register from tests/unit/icu.
 #
-# The canonical place for `add_subdirectory(icu)` is tests/unit/CMakeLists.txt (next to the other
-# per-lane test folders). This module is processed before the root calls enable_testing(), so the
-# block below enables testing locally to register the same folder from here; when the Lead adds the
-# canonical line, drop these four lines so the tests are not registered twice.
+# The ICU module tests are registered canonically from tests/unit/CMakeLists.txt, guarded by the
+# same option (this module is processed before the root calls enable_testing()).
 if (TESSERA_ICU_REDUCED_DATA)
     target_sources(tessera_text PRIVATE icu_runtime.cpp locale_resolver.cpp)
     target_link_libraries(tessera_text PRIVATE tessera_icu)
     target_compile_definitions(tessera_text PUBLIC TESSERA_ICU_ENABLED=1)
-
-    if (TESSERA_BUILD_TESTS AND EXISTS "${PROJECT_SOURCE_DIR}/tests/unit/icu/CMakeLists.txt")
-        enable_testing()
-        add_subdirectory("${PROJECT_SOURCE_DIR}/tests/unit/icu"
-            "${CMAKE_BINARY_DIR}/tests/unit/icu")
-    endif()
 endif()
 
 add_subdirectory(render)

@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: MIT
 
-# ICU locale-pack probes (task-101). The slice registers its own executables and ctest names here
-# so no two slices edit `tests/unit/CMakeLists.txt` at the same time; the parent is
-# `src/ui/text/CMakeLists.txt` (inside its TESSERA_ICU_REDUCED_DATA block).
+# ICU locale-pack probes (task-101). Registered from `tests/unit/CMakeLists.txt`, guarded by
+# `TESSERA_ICU_REDUCED_DATA` (CI keeps the option off, so these tests are absent by default).
 
 add_executable(icu_locale_pack_tests
     icu_locale_pack_tests.cpp)

@@ -1375,3 +1375,8 @@ add_subdirectory(a11y)
 add_subdirectory(harness)
 add_subdirectory(manifest)
 add_subdirectory(scale)
+
+# ICU-backed text tests exist only when the reduced-data option is on (CI keeps it off).
+if (TESSERA_ICU_REDUCED_DATA)
+    add_subdirectory(icu)
+endif()
