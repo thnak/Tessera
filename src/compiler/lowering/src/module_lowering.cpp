@@ -7,6 +7,7 @@
 // reading stays with the caller.
 
 #include "node_lowering_internal.hpp"
+#include "tessera/compiler/lowering/library_components.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -163,8 +164,22 @@ bool resolve_imports(ProjectState& state, std::size_t index) {
         }
         const bool relative = item.source.rfind("./", 0) == 0 || item.source.rfind("../", 0) == 0;
         if (!relative) {
-            if (item.source == "tessera" || item.source == "react") {
-                continue; // intrinsic/library names; library components are slice 11
+            if (item.source == "tessera") {
+                // A framework import may name a library component
+                // (docs/design/component-library.md): it becomes an ordinary component reference,
+                // and the module gets the component's IR declaration. Hooks, intrinsics and types
+                // keep resolving through the schema.
+                for (const jsx::ImportName& name : item.names) {
+                    const LibraryComponent* library = find_library_component(name.name);
+                    if (library != nullptr && !has_ref(entry, name.name)) {
+                        entry.component_refs.push_back(
+                            ComponentRef{name.name, std::string(library->id)});
+                    }
+                }
+                continue;
+            }
+            if (item.source == "react") {
+                continue; // React-compatible names resolve through the intrinsic schema table
             }
             fail(state, source, "TESSERA_IR_UNSUPPORTED",
                  "import `" + item.source +
@@ -236,6 +251,31 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
                 lower.bindings.push_back(std::move(binding));
             }
             lower.components.push_back(std::move(component->component));
+        }
+    }
+    // Library components are IR data, not project files: include each referenced one once. A
+    // project component of the same name wins (the local declaration is the reference target), so
+    // the built-in declaration is only added when the name is not declared anywhere.
+    std::vector<std::string> referenced_library;
+    for (const FileEntry& entry : state.files) {
+        for (const ComponentRef& reference : entry.component_refs) {
+            const LibraryComponent* library = find_library_component(reference.name);
+            if (library == nullptr || reference.id != library->id) {
+                continue;
+            }
+            if (std::find(referenced_library.begin(), referenced_library.end(), reference.name) ==
+                referenced_library.end()) {
+                referenced_library.push_back(reference.name);
+            }
+        }
+    }
+    std::sort(referenced_library.begin(), referenced_library.end());
+    for (const std::string& name : referenced_library) {
+        const bool declared =
+            std::any_of(lower.components.begin(), lower.components.end(),
+                        [&](const ir::Component& component) { return component.name == name; });
+        if (!declared) {
+            lower.components.push_back(make_library_component(*find_library_component(name)));
         }
     }
     // ir-v1 section 11: components sorted by source path, then name; bindings sorted by id.

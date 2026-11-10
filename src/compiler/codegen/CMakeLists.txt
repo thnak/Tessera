@@ -16,6 +16,7 @@ add_library(tessera_codegen STATIC
     src/emit_lifecycle.cpp
     src/emit_list.cpp
     src/emit_node.cpp
+    src/emit_props.cpp
     src/emit_virtual.cpp
     src/interpolation.cpp
     src/value_ops.cpp)
@@ -245,6 +246,20 @@ if (TESSERA_BUILD_TESTS)
 
         add_test(NAME codegen_virtual_runtime COMMAND codegen_virtual_runtime_tests)
     endif ()
+
+    # `Field` as a library component on the ordinary component path: a framework import names the
+    # built-in component, lowering emits an ordinary `Component` node with the documented prop
+    # records, and the static Children slot carries the caller's widget.
+    add_executable(forms_lowering_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/forms_lowering_tests.cpp)
+
+    target_link_libraries(forms_lowering_tests PRIVATE
+        tessera_lowering
+        tessera_jsx_frontend
+        tessera_react_rules
+        tessera_ir)
+
+    add_test(NAME forms_lowering COMMAND forms_lowering_tests)
 
     add_executable(codegen_cli_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)

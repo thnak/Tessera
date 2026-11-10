@@ -17,6 +17,7 @@ add_library(tessera_lowering STATIC
     src/hook_lookups.cpp
     src/hook_type.cpp
     src/literal_lowering.cpp
+    src/library_components.cpp
     src/module_lowering.cpp
     src/node_attributes.cpp
     src/node_children.cpp
