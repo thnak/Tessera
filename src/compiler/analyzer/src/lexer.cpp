@@ -73,6 +73,11 @@ Lexer::Lexer(std::string_view source, DiagnosticSink& sink, const Limits& limits
         pos_ = 3;
     }
     for (std::size_t i = 0; i < source_.size();) {
+        // Once the report is full every further diagnostic is dropped, so the scan can stop: a
+        // file of bad bytes must not spend its length building reports nobody keeps.
+        if (sink_->truncated()) {
+            break;
+        }
         const char c = source_[i];
         if (static_cast<unsigned char>(c) >= 0x80U) {
             const std::size_t length = utf8_sequence_length(source_, i);
@@ -270,7 +275,7 @@ Token Lexer::lex_number(std::size_t begin) {
     Token token = make_token(TokenKind::Number, begin);
     if (invalid) {
         report("TESSERA_JSX_LEX_INVALID_NUMBER",
-               "unsupported number literal `" + std::string(token.text) + "`", begin, pos_,
+               "unsupported number literal `" + excerpt(token.text) + "`", begin, pos_,
                "write a decimal number such as 42, 0.5 or 1e3");
         return token;
     }
@@ -279,7 +284,7 @@ Token Lexer::lex_number(std::size_t begin) {
     if (result.ec == std::errc::result_out_of_range) {
         token.number = 0.0;
         report("TESSERA_JSX_LEX_INVALID_NUMBER",
-               "number literal `" + std::string(token.text) + "` is out of range", begin, pos_);
+               "number literal `" + excerpt(token.text) + "` is out of range", begin, pos_);
     }
     return token;
 }

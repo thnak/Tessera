@@ -132,8 +132,8 @@ void Lexer::scan_escape(std::string& out, bool in_template) {
         pos_ += extra - 1;
     }
     report("TESSERA_JSX_LEX_INVALID_ESCAPE",
-           "invalid escape sequence `" + std::string(source_.substr(begin, pos_ - begin)) + "`",
-           begin, pos_, "supported escapes: \\\\ \\\" \\' \\n \\r \\t \\uXXXX \\u{X...}");
+           "invalid escape sequence `" + excerpt(source_.substr(begin, pos_ - begin)) + "`", begin,
+           pos_, "supported escapes: \\\\ \\\" \\' \\n \\r \\t \\uXXXX \\u{X...}");
 }
 
 Token Lexer::lex_string(std::size_t begin) {

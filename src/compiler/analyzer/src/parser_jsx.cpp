@@ -104,11 +104,11 @@ bool Parser::parse_tag_name(std::string& name, Span& span) {
 void Parser::check_tag_name(const std::string& name, Span span) {
     if (name.find_first_of(".:") != std::string::npos) {
         report("TESSERA_JSX_SUBSET_DYNAMIC_TAG",
-               "member and namespace tags (`<" + name + ">`) are not supported", span,
+               "member and namespace tags (`<" + excerpt(name) + ">`) are not supported", span,
                "use a fixed tag");
     } else if (name[0] >= 'a' && name[0] <= 'z') {
-        report("TESSERA_JSX_SUBSET_HTML_TAG", "HTML tag `<" + name + ">` is not supported", span,
-               suggest_intrinsic(name));
+        report("TESSERA_JSX_SUBSET_HTML_TAG", "HTML tag `<" + excerpt(name) + ">` is not supported",
+               span, suggest_intrinsic(excerpt(name)));
     }
 }
 
@@ -144,8 +144,8 @@ bool Parser::parse_children(JsxNode& parent, Span opening) {
             fail("TESSERA_JSX_PARSE_UNCLOSED_ELEMENT",
                  parent.kind == JsxKind::Fragment
                      ? "fragment `<>` is not closed: expected `</>`"
-                     : "element `<" + parent.tag + ">` is not closed: expected `</" + parent.tag +
-                           ">`",
+                     : "element `<" + excerpt(parent.tag) + ">` is not closed: expected `</" +
+                           excerpt(parent.tag) + ">`",
                  opening);
             return false;
         }
@@ -216,12 +216,13 @@ void Parser::add_container_child(JsxNode& parent) {
 
 bool Parser::parse_closing_tag(const JsxNode& element, Span opening, LexMode after) {
     const bool is_fragment = element.kind == JsxKind::Fragment;
-    const std::string open_name = is_fragment ? "<>" : "<" + element.tag + ">";
+    const std::string open_name = is_fragment ? "<>" : "<" + excerpt(element.tag) + ">";
     const auto mismatch = [&](const std::string& close_name, Span where) {
         sink_.report("TESSERA_JSX_PARSE_MISMATCHED_TAG", Severity::Error,
-                     "closing tag `" + close_name + "` does not match `" + open_name + "`", where,
+                     "closing tag `" + excerpt(close_name) + "` does not match `" + open_name + "`",
+                     where,
                      "close it with " +
-                         (is_fragment ? std::string("`</>`") : "`</" + element.tag + ">`"),
+                         (is_fragment ? std::string("`</>`") : "`</" + excerpt(element.tag) + ">`"),
                      RelatedSpan{map_.resolve(opening), "`" + open_name + "` is opened here"});
     };
     if (at_punct("/>")) { // `</>` lexes as `<` then `/>`

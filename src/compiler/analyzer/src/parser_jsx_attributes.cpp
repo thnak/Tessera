@@ -11,7 +11,7 @@ bool Parser::parse_attributes(JsxNode& element) {
     while (!fatal_ && !at_punct(">") && !at_punct("/>")) {
         if (cur_.kind == TokenKind::Eof) {
             fail("TESSERA_JSX_PARSE_UNCLOSED_ELEMENT",
-                 "tag `<" + element.tag + "` is not closed: expected `>` or `/>`",
+                 "tag `<" + excerpt(element.tag) + "` is not closed: expected `>` or `/>`",
                  element.tag_span);
             return false;
         }
@@ -47,8 +47,8 @@ bool Parser::parse_attribute(JsxNode& element) {
         } else if (attribute.name.find('-') != std::string::npos &&
                    attribute.name.rfind("aria-", 0) != 0) {
             report("TESSERA_JSX_SUBSET_UNKNOWN_PROP",
-                   "attribute `" + attribute.name + "` is not an identifier", attribute.name_span,
-                   "only `aria-*` names may contain `-`");
+                   "attribute `" + excerpt(attribute.name) + "` is not an identifier",
+                   attribute.name_span, "only `aria-*` names may contain `-`");
         }
         while (at_punct(":")) {
             report("TESSERA_JSX_SUBSET_UNKNOWN_PROP",

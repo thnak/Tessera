@@ -15,6 +15,18 @@ namespace tessera::compiler::jsx {
 
 enum class Severity { Error, Warning };
 
+// Upper bound on the bytes a diagnostic quotes from source text. Messages that embed input (a
+// tag name, an identifier, an escape sequence) use excerpt(), so one hostile line cannot make
+// one diagnostic grow with the file (spec section 15: bounded, never a crash or a hang).
+inline constexpr std::size_t kMaxExcerptBytes = 32;
+
+// Upper bound on the text of one diagnostic (message, suggestion, related message). The sink
+// truncates longer text, so a call site cannot reintroduce unbounded growth by accident.
+inline constexpr std::size_t kMaxDiagnosticTextBytes = 256;
+
+// `text` cut to at most kMaxExcerptBytes bytes at a code point boundary, plus "..." when cut.
+std::string excerpt(std::string_view text);
+
 // A second location that explains the first, for example the opening tag of a mismatched
 // closing tag.
 struct RelatedSpan {

@@ -10,7 +10,28 @@ std::string location_text(const Location& location) {
     return std::to_string(location.line) + ":" + std::to_string(location.column);
 }
 
+// Cuts `text` to at most `max_bytes` without splitting a UTF-8 code point, so a diagnostic is
+// still valid UTF-8 (and diffable) after truncation.
+std::string cut_utf8(std::string_view text, std::size_t max_bytes) {
+    if (text.size() <= max_bytes) {
+        return std::string(text);
+    }
+    std::size_t size = max_bytes;
+    // While the first dropped byte is a continuation byte the code point started earlier; step
+    // back to the lead byte and drop the whole code point.
+    while (size > 0 && (static_cast<unsigned char>(text[size]) & 0xC0U) == 0x80U) {
+        --size;
+    }
+    std::string out(text.substr(0, size));
+    out += "...";
+    return out;
+}
+
 } // namespace
+
+std::string excerpt(std::string_view text) {
+    return cut_utf8(text, kMaxExcerptBytes);
+}
 
 std::string format_diagnostic(const Diagnostic& diagnostic) {
     std::string out = location_text(diagnostic.span.start) + ": ";
@@ -46,6 +67,17 @@ void DiagnosticSink::report(std::string_view code, Severity severity, std::strin
                        {},
                        std::nullopt});
         return;
+    }
+    // Last line of defense for the bounded-report invariant: no call site can make the collected
+    // report grow with the input.
+    if (message.size() > kMaxDiagnosticTextBytes) {
+        message = cut_utf8(message, kMaxDiagnosticTextBytes);
+    }
+    if (suggestion.size() > kMaxDiagnosticTextBytes) {
+        suggestion = cut_utf8(suggestion, kMaxDiagnosticTextBytes);
+    }
+    if (related && related->message.size() > kMaxDiagnosticTextBytes) {
+        related->message = cut_utf8(related->message, kMaxDiagnosticTextBytes);
     }
     diagnostics_.push_back(Diagnostic{code, severity, std::move(message), map_->resolve(span),
                                       std::move(suggestion), std::move(related)});

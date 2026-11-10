@@ -17,14 +17,15 @@ bool Parser::parse_component(ModuleItem& item) {
     item.name = std::string(cur_.text);
     item.name_span = cur_.span;
     if (item.name.starts_with("use")) {
-        report("TESSERA_REACT_CUSTOM_HOOK", "custom hook `" + item.name + "` is not supported",
-               cur_.span, "inline the hook or write a native handler");
+        report("TESSERA_REACT_CUSTOM_HOOK",
+               "custom hook `" + excerpt(item.name) + "` is not supported", cur_.span,
+               "inline the hook or write a native handler");
     } else if (item.name[0] < 'A' || item.name[0] > 'Z') {
+        std::string example = excerpt(item.name);
+        example[0] = static_cast<char>(example[0] & ~0x20);
         report("TESSERA_JSX_SUBSET_COMPONENT_NAME",
-               "component name `" + item.name + "` must start with an uppercase letter", cur_.span,
-               "rename it, for example `" +
-                   std::string(1, static_cast<char>(item.name[0] & ~0x20)) + item.name.substr(1) +
-                   "`");
+               "component name `" + excerpt(item.name) + "` must start with an uppercase letter",
+               cur_.span, "rename it, for example `" + example + "`");
     }
     advance(LexMode::Code);
     if (!expect_punct("(", LexMode::Code)) {
@@ -112,7 +113,8 @@ bool Parser::parse_component_body(ModuleItem& item) {
         }
         if (at_punct("}")) {
             fail("TESSERA_JSX_PARSE_MISSING_RETURN",
-                 "component `" + item.name + "` must end with `return <element>;`", cur_.span);
+                 "component `" + excerpt(item.name) + "` must end with `return <element>;`",
+                 cur_.span);
             return false;
         }
         if (!parse_statement(item)) {

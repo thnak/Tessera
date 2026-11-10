@@ -71,8 +71,8 @@ TypePtr Parser::parse_type_primary() {
         type->text = name;
         if (name == "any" || name == "unknown" || name == "never" || name == "object" ||
             name == "Function") {
-            report("TESSERA_JSX_SUBSET_TYPES", "type `" + name + "` is not supported", name_span,
-                   "use the types of the subset specification, section 5");
+            report("TESSERA_JSX_SUBSET_TYPES", "type `" + excerpt(name) + "` is not supported",
+                   name_span, "use the types of the subset specification, section 5");
         } else if (name == "number") {
             report("TESSERA_JSX_TYPE_NUMBER", "bare `number` is not a Tessera type", name_span,
                    "write `int` or `float`");

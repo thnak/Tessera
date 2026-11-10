@@ -106,8 +106,8 @@ void Parser::check_item_comments(ModuleItem& item, bool pair_inside) {
             continue;
         }
         if (!valid_bind_id(*id)) {
-            report("TESSERA_REACT_BIND_ID", "malformed bind id `" + *id + "`", comment.span,
-                   "use `[a-z][a-z0-9_]*`");
+            report("TESSERA_REACT_BIND_ID", "malformed bind id `" + excerpt(*id) + "`",
+                   comment.span, "use `[a-z][a-z0-9_]*`");
             continue;
         }
         // Statements and comments are both in source order, so one forward scan finds the
@@ -127,21 +127,22 @@ void Parser::check_item_comments(ModuleItem& item, bool pair_inside) {
         }
         if (target == nullptr) {
             report("TESSERA_REACT_BIND_POSITION",
-                   "`bind::" + *id +
+                   "`bind::" + excerpt(*id) +
                        "` must be on the line before a handler declaration or a "
                        "`useEffect` statement",
                    comment.span, "move the comment (spec section 9.3)");
             continue;
         }
         if (!bind_ids_.insert(*id).second) {
-            report("TESSERA_REACT_BIND_ID", "duplicate bind id `" + *id + "`", comment.span,
-                   "bind ids are unique in the project");
+            report("TESSERA_REACT_BIND_ID", "duplicate bind id `" + excerpt(*id) + "`",
+                   comment.span, "bind ids are unique in the project");
             continue;
         }
         if (target->kind == StatementKind::Expression && effect_has_cleanup(*target->init) &&
             !bind_ids_.insert(*id + "_cleanup").second) {
             report("TESSERA_REACT_BIND_ID",
-                   "`bind::" + *id + "` reserves `" + *id + "_cleanup`, which is already used",
+                   "`bind::" + excerpt(*id) + "` reserves `" + excerpt(*id) +
+                       "_cleanup`, which is already used",
                    comment.span, "rename one of the ids");
             continue;
         }
