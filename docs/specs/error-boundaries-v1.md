@@ -25,7 +25,10 @@ app. Async errors are values routed to the owning boundary; they are not thrown 
 
 - errors in the boundary's own `onError` handler or fallback subtree (propagate to parent/root)
 - fatal errors: OOM (out of memory)/`bad_alloc`, stack overflow, abort, process-level failures
-- cancellation/timeout (not errors unless the caller treats them as such)
+- cancellation/timeout **as errors**: cancellation is a control outcome, not an error. A
+  cancellation value stays silent; a cancellation signal caught as an exception at a boundary is
+  surfaced once to the root handler as a non-error `TESSERA_BOUNDARY_CANCELLED` notification
+  (section 11, rule 4)
 - platform/GPU/device-loss failures (the HAL, hardware/OS abstraction layer ([`hal.md`](../design/hal.md)), and the runtime handle them)
 - exceptions thrown across C ABI (application binary interface)/JNI (Java Native Interface)/ObjC (Objective-C)/Wasm (WebAssembly) (forbidden; convert to `Error` values)
 - unhandled async exceptions on worker threads (never throw across threads; deliver `Error`)
@@ -134,7 +137,10 @@ deterministic schedule, not an adaptive one:
 | 5 | 4000 ms (cap) |
 
 - At most five automatic retries per failure episode; `maxAutoRetries` is clamped to five, so one
-  failure can run the guarded work at most six times.
+  failure can run the guarded work at most six times. The budget counts **retries, not runs**, and
+  that is the only reading that reaches the decided 4 s cap: a four-retry budget would stop at 2 s.
+  The guarded work therefore runs at most six times (the initial attempt plus five retries); this
+  is the decided behavior and is not changed by the wording of the prop or this section.
 - Backoff doubles and is capped at 4 s; the schedule is not configurable per boundary in V1.
 - Time is injected (fixed-step seconds). The policy never reads a clock and never sleeps: the caller
   passes the current fixed-step time in and receives a deadline to compare against. Tests therefore
@@ -166,6 +172,12 @@ deterministic schedule, not an adaptive one:
 - The report is delivered on the UI thread at a frame boundary.
 - If the boundary/child is gone, drop the report with a diagnostic (no stale callback).
 - Cancellation is not an error; do not show the fallback for cancellation.
+- The two cancellation paths differ (section 11, rule 4). An async cancellation **value** is silent:
+  the task owner produced that value, so there is no new event to notify. A cancellation **signal
+  caught as an exception** at a boundary notifies the root handler exactly once with
+  `TESSERA_BOUNDARY_CANCELLED` and is counted in
+  `BoundaryTable::cancellation_notifications()`. Neither path calls `onError`, changes boundary
+  state, or consumes a retry.
 - Timeout is an error only if the caller chooses to surface it.
 
 ## 7. Diagnostics and privacy
@@ -174,11 +186,18 @@ Codes:
 
 ```text
 TESSERA_BOUNDARY_CAUGHT
+TESSERA_BOUNDARY_CANCELLED
 TESSERA_BOUNDARY_FALLBACK_FAILED
 TESSERA_BOUNDARY_LOOP
 TESSERA_BOUNDARY_RESET
 TESSERA_BOUNDARY_ASYNC
 ```
+
+`TESSERA_BOUNDARY_CANCELLED` is the one non-error code: it is the notification for a cancellation
+caught as an exception (section 11, rule 4). It reaches `RootHandler::on_root_error` but never
+`onError`, and the table counts it in `BoundaryTable::cancellation_notifications()` (a monotonic
+lifetime counter, scrape-ready for `diagnostics::MetricsRegistry`) so a cancellation cannot be
+invisible. Every other code is an error report.
 
 - Record boundary/component id, error code/message, source span, retry count, generation.
 - Stack traces are debug/diagnostic only, never user-facing by default.
@@ -214,6 +233,13 @@ TESSERA_BOUNDARY_ASYNC
 - Whether `catchEvents` (default `true`, section 4) should ever be changed per build type; the default itself is decided.
 - ~~Auto-retry policy and backoff.~~ Decided: section 4.1 (250 ms doubling, 4 s cap, five retries,
   loop guard on the fixed-step clock).
+- ~~Retry budget reading.~~ Decided: "at most five retries" counts retries, not executions, so the
+  guarded work runs at most six times; that is the only reading that reaches the 4 s cap
+  (section 4.1).
+- ~~Whether a cancellation is reported.~~ Decided: a cancellation value stays silent, while a
+  cancellation signal caught as an exception notifies the root handler once as
+  `TESSERA_BOUNDARY_CANCELLED` and is counted; neither path is treated as an error
+  (section 11, rule 4).
 - Root boundary default UI and crash-report integration.
 - No-exceptions build support and codegen strategy.
 - Which errors are fatal vs recoverable per subsystem.
@@ -223,21 +249,23 @@ TESSERA_BOUNDARY_ASYNC
 ## 11. Runtime slice (implemented)
 
 `tessera_boundary` is the runtime half of this spec. It is UI-independent (no scene, no GPU) so
-codegen can guard generated entry points without pulling in the renderer.
+codegen can guard generated entry points without pulling in the renderer. Design rationale and the
+routing/test map live in [`../design/error-boundaries.md`](../design/error-boundaries.md).
 
 | Header | Owns |
 |---|---|
 | `tessera/ui/boundary/error.hpp` | `Error` value, `ErrorClass` (recoverable/cancellation/fatal/platform), `FailureSite`, marker exceptions, conversions |
-| `tessera/ui/boundary/report.hpp` | `Report`, the five diagnostic codes, `ReportSink`/onError, bounded `MemoryReportSink` |
+| `tessera/ui/boundary/report.hpp` | `Report`, the six diagnostic codes, `ReportSink`/onError, bounded `MemoryReportSink` |
 | `tessera/ui/boundary/retry_policy.hpp` | the section 4.1 retry state machine and the published schedule |
-| `tessera/ui/boundary/boundary.hpp` | `BoundaryTable` (registry, routing, fallback, reset, async report, cleanup seam `SubtreeOwner`) and `RootHandler` |
+| `tessera/ui/boundary/boundary.hpp` | `BoundaryTable` (registry, routing, fallback, reset, async report, cancellation notification counter, cleanup seam `SubtreeOwner`) and `RootHandler` |
 | `tessera/ui/boundary/guard.hpp` | the synchronous catch point `run_guarded` and `capture_current_error` for an FFI/thread edge |
 
 Rules the implementation fixes:
 
 1. **One catch, one report.** A caught failure always produces exactly one `Report`, delivered to
    the boundary's onError or to the diagnostics sink. There is no API that marks a failure handled
-   without reporting.
+   without reporting. A cancellation caught as an exception is the one non-error case: its single
+   `Report` (`TESSERA_BOUNDARY_CANCELLED`) goes to the root handler instead of onError.
 2. **Classification uses the catch chain, not RTTI.** `run_guarded` catches everything and
    `capture_current_error` rethrows inside a fixed clause order (`CancellationSignal`,
    `PlatformFailure`, `std::bad_alloc`, `std::exception`, `...`), so OOM stays fatal and no
@@ -245,8 +273,13 @@ Rules the implementation fixes:
 3. **Escalation never falls back.** Fatal/platform classes, a failure with no registered catcher,
    and an event throw from a boundary with `catchEvents = false` go to `RootHandler::on_root_error`
    with `boundary = kRootBoundary`; the component boundary keeps its state.
-4. **Cancellation is a value, not a report.** It returns `BoundaryDisposition::Cancelled` so the
-   caller can distinguish it, shows no fallback, and is not an error.
+4. **Cancellation is never an error, but never invisible.** Both paths return
+   `BoundaryDisposition::Cancelled`, show no fallback, call no `onError`, store no error, change no
+   state, and consume no retry. The async **value** path is otherwise silent (the task owner
+   produced the value). The exception **signal** path notifies `RootHandler::on_root_error` exactly
+   once with code `TESSERA_BOUNDARY_CANCELLED` and `ErrorClass::Cancellation`, and increments
+   `BoundaryTable::cancellation_notifications()` (AGENTS.md non-negotiable 16: cancellation reaches
+   the root handler).
 5. **The guard is the only throw-to-value conversion.** `run_guarded` is deliberately not
    `noexcept`; a foreign exception is converted at the bridge edge with `capture_current_error`
    instead of crossing the ABI.
@@ -260,6 +293,8 @@ Rules the implementation fixes:
 Tests (ctest names): `boundary_model` (fallback, catastrophic routing, `catchEvents`, reset,
 redaction, unmount cleanup), `boundary_retry` (exact 250/500/1000/2000/4000 ms schedule, budget cap,
 loop guard, injected clock), `boundary_nested` (nearest catch, fallback failure, async routing,
-stale drop), `boundary_guard` (catch point, unknown/OOM/platform/cancellation, FFI conversion, a
-throwing onError).
+stale drop, silent async cancellation), `boundary_guard` (catch point,
+unknown/OOM/platform/cancellation, FFI conversion, a throwing onError), `boundary_cancellation`
+(exception-path notification exactly once with the non-error class, per-catch counter, silent value
+path, no cleanup or retry, cancellation while the fallback is live, unmounted source).
 
