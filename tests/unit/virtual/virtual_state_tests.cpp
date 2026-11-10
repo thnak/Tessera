@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <span>
+#include <utility>
 
 namespace {
 
@@ -244,6 +246,166 @@ int main() {
     };
     if (!expect(run() == run(), "eviction order is deterministic")) {
         return 24;
+    }
+
+    // Keyed focus (spec section 7): one key at a time, mirrored on the entry, never evicted.
+    ItemStateStore focus_store(4);
+    if (!expect(!focus_store.has_focus(), "no focus by default") ||
+        !expect(!focus_store.clear_focus(), "clearing absent focus reports false") ||
+        !expect(!focus_store.is_focused(VirtualItemId{1}), "unknown key is not focused")) {
+        return 25;
+    }
+    if (!expect(focus_store.set_focus(VirtualItemId{2}), "focus a new key") ||
+        !expect(focus_store.has_focus() && focus_store.focused_key() == VirtualItemId{2},
+                "focused key is reported") ||
+        !expect(focus_store.is_focused(VirtualItemId{2}), "focused key matches") ||
+        !expect(focus_store.peek(VirtualItemId{2})->focused, "entry mirrors the focus") ||
+        !expect(focus_store.size() == 1, "focus inserted a stub entry")) {
+        return 26;
+    }
+    if (!expect(focus_store.set_focus(VirtualItemId{3}), "move focus") ||
+        !expect(!focus_store.is_focused(VirtualItemId{2}) &&
+                    !focus_store.peek(VirtualItemId{2})->focused,
+                "previous entry loses the focus mirror") ||
+        !expect(focus_store.is_focused(VirtualItemId{3}), "new key is focused") ||
+        !expect(focus_store.set_focus(VirtualItemId{3}), "re-focusing the same key is a no-op") ||
+        !expect(focus_store.size() == 2, "re-focusing does not insert")) {
+        return 27;
+    }
+    if (!expect(focus_store.clear_focus(), "clear focus") ||
+        !expect(!focus_store.has_focus() && !focus_store.is_focused(VirtualItemId{3}),
+                "focus cleared") ||
+        !expect(!focus_store.peek(VirtualItemId{3})->focused, "mirror cleared")) {
+        return 28;
+    }
+
+    // The focused entry is pinned: a new insert evicts the unpinned LRU entry instead of focus.
+    ItemStateStore pinned(2);
+    pinned.put(VirtualItemId{1}, ItemState{0, 11, 0.0f, 0.0f});
+    pinned.put(VirtualItemId{2}, ItemState{0, 22, 0.0f, 0.0f});
+    if (!expect(pinned.set_focus(VirtualItemId{1}), "focus key 1") ||
+        !expect(pinned.put(VirtualItemId{3}, ItemState{0, 33, 0.0f, 0.0f}), "insert key 3") ||
+        !expect(pinned.contains(VirtualItemId{1}) && pinned.is_focused(VirtualItemId{1}),
+                "focus survives eviction") ||
+        !expect(pinned.peek(VirtualItemId{1})->payload == 11, "focused state is intact") ||
+        !expect(!pinned.contains(VirtualItemId{2}), "the unpinned LRU entry was evicted")) {
+        return 29;
+    }
+    // With capacity one and a pinned entry there is nothing to evict, so the insert is refused
+    // instead of silently dropping focus.
+    ItemStateStore pinned_one(1);
+    if (!expect(pinned_one.set_focus(VirtualItemId{7}), "focus the only entry") ||
+        !expect(!pinned_one.put(VirtualItemId{8}, ItemState{}), "insert is refused") ||
+        !expect(pinned_one.stats().refusals == 1, "refusal is counted") ||
+        !expect(pinned_one.size() == 1 && pinned_one.is_focused(VirtualItemId{7}),
+                "focus and size are unchanged by the refusal") ||
+        !expect(!pinned_one.set_selected(VirtualItemId{9}, true),
+                "selection insert is refused as well") ||
+        !expect(pinned_one.clear_focus(), "focus can be released") ||
+        !expect(pinned_one.put(VirtualItemId{8}, ItemState{}), "insert succeeds after releasing") ||
+        !expect(pinned_one.size() == 1 && pinned_one.contains(VirtualItemId{8}),
+                "released entry is evicted")) {
+        return 30;
+    }
+
+    // Selection: set semantics, idempotent, bounded by capacity, pinned against eviction.
+    ItemStateStore selection(4);
+    if (!expect(!selection.is_selected(VirtualItemId{1}), "nothing is selected by default") ||
+        !expect(selection.selected_count() == 0, "empty selection count") ||
+        !expect(selection.set_selected(VirtualItemId{3}, true), "select key 3") ||
+        !expect(selection.set_selected(VirtualItemId{1}, true), "select key 1") ||
+        !expect(selection.selected_count() == 2, "two selected") ||
+        !expect(selection.set_selected(VirtualItemId{3}, true), "selecting twice is idempotent") ||
+        !expect(selection.selected_count() == 2, "idempotent select keeps the count") ||
+        !expect(selection.is_selected(VirtualItemId{3}), "selected flag mirrors") ||
+        !expect(!selection.set_selected(VirtualItemId{42}, false), "clearing absent selection") ||
+        !expect(!selection.toggle_selected(VirtualItemId{1}), "toggle turns key 1 off") ||
+        !expect(selection.selected_count() == 1, "toggle updates the count") ||
+        !expect(selection.toggle_selected(VirtualItemId{1}), "toggle turns key 1 back on") ||
+        !expect(selection.selected_count() == 2, "toggle restores the count")) {
+        return 31;
+    }
+    const auto selected_keys = [&selection]() {
+        std::array<VirtualItemId, 8> buffer{};
+        const std::size_t written = selection.copy_selected(buffer);
+        return std::pair<std::size_t, std::array<VirtualItemId, 8>>{written, buffer};
+    };
+    const auto [written, buffer] = selected_keys();
+    if (!expect(written == 2, "copy_selected writes every selected key") ||
+        !expect(buffer[0] == VirtualItemId{3} && buffer[1] == VirtualItemId{1},
+                "copy_selected follows entry order") ||
+        !expect(selection.set_selected(VirtualItemId{9}, true),
+                "selecting with spare capacity succeeds")) {
+        return 32;
+    }
+    // Two selected entries at capacity pin every slot, so a third selection is refused.
+    ItemStateStore full_selection(2);
+    full_selection.set_selected(VirtualItemId{1}, true);
+    full_selection.set_selected(VirtualItemId{2}, true);
+    if (!expect(!full_selection.set_selected(VirtualItemId{3}, true),
+                "selection is capacity-bounded") ||
+        !expect(full_selection.selected_count() == 2 &&
+                    !full_selection.is_selected(VirtualItemId{3}),
+                "refused selection changes nothing") ||
+        !expect(!full_selection.put(VirtualItemId{4}, ItemState{}),
+                "payload insert is refused while every entry is selected") ||
+        !expect(full_selection.stats().refusals == 2, "both refusals are counted") ||
+        !expect(full_selection.set_selected(VirtualItemId{2}, false), "deselect key 2") ||
+        !expect(full_selection.put(VirtualItemId{4}, ItemState{0, 44, 0.0f, 0.0f}),
+                "insert succeeds after deselecting") ||
+        !expect(full_selection.is_selected(VirtualItemId{1}) &&
+                    !full_selection.contains(VirtualItemId{2}),
+                "the deselected entry was the eviction victim") ||
+        !expect(full_selection.peek(VirtualItemId{4})->payload == 44, "inserted payload") ||
+        !expect(full_selection.clear_selection() && full_selection.selected_count() == 0,
+                "clear_selection drops every flag") ||
+        !expect(!full_selection.clear_selection(), "clearing an empty selection reports false")) {
+        return 33;
+    }
+
+    // put() copies payload/measure but never moves store-owned focus/selection; erase() keeps the
+    // focus/selection bookkeeping consistent; retain_if() prunes by key and drops focus with it.
+    ItemStateStore bookkeeping(8);
+    bookkeeping.set_focus(VirtualItemId{5});
+    bookkeeping.set_selected(VirtualItemId{6}, true);
+    if (!expect(!bookkeeping.put(VirtualItemId{5}, ItemState{1, 55, 4.0f, 8.0f}),
+                "put overwrites the focused entry") ||
+        !expect(bookkeeping.is_focused(VirtualItemId{5}), "put preserved focus") ||
+        !expect(bookkeeping.peek(VirtualItemId{5})->payload == 55, "put stored the payload") ||
+        !expect(!bookkeeping.put(VirtualItemId{6}, ItemState{2, 66, 0.0f, 0.0f}),
+                "put overwrites the selected entry") ||
+        !expect(bookkeeping.is_selected(VirtualItemId{6}) && bookkeeping.selected_count() == 1,
+                "put preserved selection") ||
+        !expect(bookkeeping.erase(VirtualItemId{6}) && bookkeeping.selected_count() == 0,
+                "erase drops the selection count") ||
+        !expect(bookkeeping.erase(VirtualItemId{5}) && !bookkeeping.has_focus(),
+                "erase drops focus") ||
+        !expect(bookkeeping.set_focus(VirtualItemId{1}) &&
+                    bookkeeping.set_selected(VirtualItemId{2}, true) &&
+                    bookkeeping.set_selected(VirtualItemId{3}, true),
+                "seed entries for pruning")) {
+        return 34;
+    }
+    bookkeeping.retain_if([](VirtualItemId key) { return key.value != 2; });
+    if (!expect(bookkeeping.has_focus() && bookkeeping.focused_key() == VirtualItemId{1},
+                "retained focus survives pruning") ||
+        !expect(bookkeeping.selected_count() == 1 && bookkeeping.is_selected(VirtualItemId{3}),
+                "retained selection survives pruning") ||
+        !expect(!bookkeeping.contains(VirtualItemId{2}), "pruned key is gone")) {
+        return 35;
+    }
+    bookkeeping.retain_if([](VirtualItemId key) { return key.value != 1; });
+    if (!expect(!bookkeeping.has_focus(), "pruning the focused key clears focus") ||
+        !expect(bookkeeping.focused_key() == VirtualItemId{}, "focused key reset")) {
+        return 36;
+    }
+    bookkeeping.clear();
+    if (!expect(!bookkeeping.has_focus() && bookkeeping.selected_count() == 0,
+                "clear resets focus and selection") ||
+        !expect(bookkeeping.set_selected(VirtualItemId{4}, true), "select after clear") ||
+        !expect(bookkeeping.selected_count() == 1 && bookkeeping.is_selected(VirtualItemId{4}),
+                "selection works after clear")) {
+        return 37;
     }
 
     return 0;

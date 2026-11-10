@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <vector>
 
 namespace tessera::ui::virtualization {
@@ -17,11 +18,18 @@ namespace tessera::ui::virtualization {
 // keyed by the stable `VirtualItemId` from the read-only data source. The store never interprets
 // the payload; the component maps its own state (selection, draft text, async status, ...) onto
 // `payload`/`revision` and keeps the last measured size in `measured_main`.
+//
+// `focused` and `selected` are store-owned mirrors of the keyed focus/selection API below (spec
+// section 7). They are not payload: `put` preserves them, and only `set_focus`/`set_selected`
+// change them, so a component can copy a whole `ItemState` out, edit it, and put it back without
+// accidentally moving focus or selection.
 struct ItemState {
     std::uint64_t revision = 0; // data revision this state was produced from
     std::uint64_t payload = 0;  // component-defined bits or handle
     float measured_main = 0.0f; // last measured main-axis size; 0 = not measured
     float measured_cross = 0.0f;
+    bool focused = false;  // this key is the store's focused key
+    bool selected = false; // this key is in the store's selection set
 };
 
 // Bounded keyed store with a deterministic LRU eviction rule.
@@ -29,12 +37,20 @@ struct ItemState {
 // Storage is allocated once in the constructor: a fixed-capacity dense entry array plus an
 // open-addressed bucket index at <= 50% load, so `find`, `peek`, `put` and `erase` never allocate.
 // Recency is a monotonic counter bumped on every successful `find`/`put` (no wall clock, no RNG).
-// When a `put` of a new key would exceed capacity, the entry with the smallest stamp is evicted;
-// overwriting an existing key never evicts. Evictions are counted in `stats()`, so a component can
-// refetch data for an evicted key. This is the documented capacity/eviction rule: capacity is a
-// constructor argument (default 256) and eviction is always LRU, never growth.
+// When an insert would exceed capacity, the entry with the smallest stamp that is neither focused
+// nor selected is evicted; overwriting an existing key never evicts and never moves focus.
+// Evictions are counted in `stats()`, so a component can refetch data for an evicted key. The
+// documented capacity/eviction rule: capacity is a constructor argument (default 256) and eviction
+// is always LRU over unpinned entries, never growth.
 //
-// Pointers returned by `find` stay valid until the next `put` of a new key (which may evict),
+// Pinning (`docs/specs/virtualization-v1.md` section 7): the focused key and every selected key are
+// never evicted, because losing them would silently move the user's focus or selection. Capacity
+// therefore bounds the selection size: `set_selected` refuses (returns false) once every entry is
+// pinned or selected, and so does an insert when no unpinned entry is left. A refusal changes
+// nothing and is counted in `stats().refusals`. In the degenerate capacity-1 case a focused entry
+// makes every other insert refuse; size the store for `selection + focus + payload` entries.
+//
+// Pointers returned by `find` stay valid until the next insert of a new key (which may evict),
 // `erase`, `clear`, or destruction; copy the value out when it must outlive the call.
 class ItemStateStore {
 public:
@@ -45,6 +61,7 @@ public:
         std::size_t misses = 0;    // find/peek lookups that did not match
         std::size_t inserts = 0;   // new keys stored (overwrites are not inserts)
         std::size_t evictions = 0; // entries dropped by the LRU rule
+        std::size_t refusals = 0;  // inserts/selection rejected because nothing was evictable
     };
 
     static constexpr std::size_t kMinCapacity = 1;
@@ -59,11 +76,58 @@ public:
     [[nodiscard]] const ItemState* peek(VirtualItemId key) const noexcept;
     [[nodiscard]] bool contains(VirtualItemId key) const noexcept;
 
-    // Inserts or overwrites. Returns true when the key was newly inserted and false on overwrite.
+    // Inserts or overwrites payload/measure state. Returns true when the key was newly inserted and
+    // false on overwrite or on a refusal (nothing evictable); see `stats().refusals`.
     bool put(VirtualItemId key, const ItemState& state) noexcept;
+
+    // Focus/selection by key (`docs/specs/virtualization-v1.md` section 7). A recycled node never
+    // carries either: the store is the single source of truth, so both survive scrolling, node
+    // recycling, and data updates that keep the key.
+    //
+    // `set_focus` inserts a stub entry when needed, clears the previous key's `focused` mirror, and
+    // pins the new entry. Returns false only when the entry cannot be created because every entry
+    // is already pinned; the focus is unchanged in that case.
+    bool set_focus(VirtualItemId key) noexcept;
+    bool clear_focus() noexcept;
+    [[nodiscard]] bool has_focus() const noexcept {
+        return has_focus_;
+    }
+    [[nodiscard]] VirtualItemId focused_key() const noexcept {
+        return focused_key_;
+    }
+    [[nodiscard]] bool is_focused(VirtualItemId key) const noexcept {
+        return has_focus_ && key == focused_key_;
+    }
+
+    // `set_selected` is idempotent and keeps the selection set bounded by capacity: a new selected
+    // key is refused (false) when no unpinned entry can be evicted. `toggle_selected` returns the
+    // resulting membership (false when the insert was refused). `clear_selection` reports whether
+    // anything was selected.
+    bool set_selected(VirtualItemId key, bool selected) noexcept;
+    bool toggle_selected(VirtualItemId key) noexcept;
+    [[nodiscard]] bool is_selected(VirtualItemId key) const noexcept;
+    [[nodiscard]] std::size_t selected_count() const noexcept {
+        return selected_count_;
+    }
+    bool clear_selection() noexcept;
+
+    // Copies up to `out.size()` selected keys in entry order and returns the number written. The
+    // caller maps keys onto data indices; `VirtualRange::selected_items` does that and returns data
+    // order. Allocation-free so the selection can be queried on the hot path.
+    [[nodiscard]] std::size_t copy_selected(std::span<VirtualItemId> out) const noexcept;
 
     bool erase(VirtualItemId key) noexcept;
     void clear() noexcept;
+
+    // Erases every entry whose key `keep(key)` returns false, allocation-free. `VirtualRange::sync`
+    // uses it to drop state (including focus/selection) for keys the data source no longer has.
+    template<typename Keep> void retain_if(Keep&& keep) noexcept {
+        for (std::size_t slot = size_; slot-- > 0;) {
+            if (!keep(entries_[slot].key)) {
+                erase_slot(slot);
+            }
+        }
+    }
 
     [[nodiscard]] std::size_t size() const noexcept {
         return size_;
@@ -91,11 +155,17 @@ private:
     void bucket_insert(std::size_t bucket, std::size_t slot) noexcept;
     void bucket_remove(std::size_t bucket) noexcept;
     void erase_slot(std::size_t slot) noexcept;
-    void evict_lru() noexcept;
+    // Slot for the least recently used entry that may be evicted, or kNoSlot when all are pinned.
+    [[nodiscard]] std::size_t lru_victim() const noexcept;
+    // Stores `key` in a free-or-evicted slot; kNoSlot (and a refusal) when nothing is evictable.
+    [[nodiscard]] std::size_t insert_slot(VirtualItemId key) noexcept;
 
     std::size_t capacity_ = 0;
     std::size_t size_ = 0;
+    std::size_t selected_count_ = 0;
     std::uint64_t clock_ = 0;
+    VirtualItemId focused_key_{};
+    bool has_focus_ = false;
     std::vector<Entry> entries_;
     std::vector<std::size_t> buckets_;
     mutable Stats stats_; // peek() is const but still records hits/misses
