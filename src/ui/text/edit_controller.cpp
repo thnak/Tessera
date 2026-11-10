@@ -29,8 +29,21 @@ void append_utf8(std::string& out, std::uint32_t cp) {
 }
 
 std::string_view event_text(const Event& event) {
-    const std::size_t size = std::min<std::size_t>(event.text_size, kMaxEditTextBytes);
+    // Clamp to the event's own storage: text_size from a directly constructed Event can exceed it.
+    const std::size_t size = std::min<std::size_t>(event.text_size, event.text.size());
     return std::string_view(event.text.data(), size);
+}
+
+// A single-line field never holds a line break: pasted or IME-committed newlines are dropped.
+std::string without_line_breaks(std::string_view text) {
+    std::string out;
+    out.reserve(text.size());
+    for (const char c : text) {
+        if (c != '\n' && c != '\r') {
+            out.push_back(c);
+        }
+    }
+    return out;
 }
 
 } // namespace
@@ -52,6 +65,11 @@ EditResult EditController::set_text(std::string_view text) {
 }
 
 bool EditController::commit_text(std::string_view text) {
+    std::string flattened;
+    if (!multiline_) {
+        flattened = without_line_breaks(text);
+        text = flattened;
+    }
     const EditSnapshot before = snapshot();
     if (composing_) {
         const EditOffset start = composition_start_;
@@ -258,12 +276,13 @@ EditController::ClipboardResult EditController::paste(hal::Clipboard& clipboard)
         result.error = read.error();
         return result;
     }
-    if (read->empty()) {
+    const std::string text = multiline_ ? *read : without_line_breaks(*read);
+    if (text.empty()) {
         return result; // empty clipboard: no edit, no history step, chord unconsumed
     }
     const EditSnapshot before = snapshot();
-    result.bytes = read->size();
-    const EditResult edit = buffer_.insert(*read);
+    result.bytes = text.size();
+    const EditResult edit = buffer_.insert(text);
     if (edit.changed) {
         history_.record_commit(before, EditCommitKind::Clipboard);
     }

@@ -203,10 +203,18 @@ bool paste_bounds_and_crlf() {
         return false;
     }
     EditController crlf;
+    crlf.set_multiline(true);
     MemoryClipboard crlf_clipboard;
     (void)crlf_clipboard.write_text("a\r\nb\rc");
     crlf.paste(crlf_clipboard);
-    return expect(crlf.buffer().text() == "a\nb\nc", "paste normalizes CRLF/CR through the buffer");
+    if (!expect(crlf.buffer().text() == "a\nb\nc",
+                "multi-line paste normalizes CRLF/CR through the buffer")) {
+        return false;
+    }
+    // A single-line field never holds a line break.
+    EditController single;
+    single.paste(crlf_clipboard);
+    return expect(single.buffer().text() == "abc", "single-line paste drops line breaks");
 }
 
 bool unsupported_clipboard_is_noop() {
