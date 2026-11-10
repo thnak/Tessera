@@ -179,6 +179,8 @@ int main() {
     check(async_sink.reports.size() == async_reports_before &&
               async_root.reports.size() == root_before,
           "async cancellation is not reported as an error");
+    check(async_table.cancellation_notifications() == 0,
+          "an async cancellation value is not a cancellation notification");
 
     // Stale generation: the child was rebuilt, so a late completion is dropped with a diagnostic.
     async_table.reset(view);

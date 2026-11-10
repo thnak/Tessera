@@ -20,9 +20,11 @@ inline constexpr std::size_t kMaxMessageBytes = 512;
 // platform failure behind a fallback.
 enum class ErrorClass : std::uint8_t {
     Recoverable,
-    Cancellation, // control outcome, not an error: no fallback, no error report
-    Fatal,        // OOM/bad_alloc, stack overflow, abort, process-level failure
-    Platform,     // HAL/GPU/device-loss failure outside the UI's control
+    // Control outcome, not an error: no fallback and no error report. An exception-path signal is
+    // still notified once to the root handler; an async value stays silent (spec section 11).
+    Cancellation,
+    Fatal,    // OOM/bad_alloc, stack overflow, abort, process-level failure
+    Platform, // HAL/GPU/device-loss failure outside the UI's control
 };
 
 [[nodiscard]] std::string_view class_name(ErrorClass kind);

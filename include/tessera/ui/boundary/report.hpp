@@ -21,9 +21,11 @@ using BoundaryId = std::uint32_t;
 inline constexpr BoundaryId kRootBoundary = 0;
 
 // Diagnostics codes of section 7. One catch produces exactly one report; `Caught` is also used for
-// a catastrophic error that the root handler received.
+// a catastrophic error that the root handler received. `Cancelled` is the one non-error code: a
+// cancellation signal caught as an exception notifies the root handler, but never onError.
 enum class BoundaryCode : std::uint8_t {
     Caught,
+    Cancelled,
     FallbackFailed,
     Loop,
     Reset,

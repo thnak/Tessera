@@ -131,14 +131,21 @@ int main() {
     check(platform.error.kind == tessera::ui::boundary::ErrorClass::Platform,
           "a platform failure keeps its class");
 
+    // Cancellation is a control outcome, not an error: no fallback, no onError, but the root
+    // handler is notified exactly once so a cancellation can never be invisible (section 11).
     const std::size_t root_before_cancel = root.reports.size();
+    const std::size_t on_error_before_cancel = on_error.reports.size();
     const CatchOutcome cancelled =
         table.catch_error(card, make_error(CancellationSignal{}), FailureSite::Effect, 0.0);
     check(cancelled.disposition == BoundaryDisposition::Cancelled,
           "cancellation is a control outcome, not a fallback");
-    check(!cancelled.reported, "cancellation is not reported as an error");
-    check(root.reports.size() == root_before_cancel,
-          "cancellation does not reach the root error handler");
+    check(!cancelled.reported && on_error.reports.size() == on_error_before_cancel,
+          "cancellation is not reported as an error");
+    check(root.reports.size() == root_before_cancel + 1 &&
+              root.last()->code == BoundaryCode::Cancelled,
+          "cancellation notifies the root handler exactly once");
+    check(table.cancellation_notifications() == 1,
+          "the cancellation notification is counted for diagnostics");
 
     // --- catchEvents gates only event-handler throws ------------------------
     RecordingSink strict_sink;

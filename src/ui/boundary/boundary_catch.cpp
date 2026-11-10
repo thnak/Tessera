@@ -23,12 +23,26 @@ CatchOutcome BoundaryTable::catch_error(BoundaryId from, Error error, FailureSit
 
     if (value.kind == ErrorClass::Cancellation) {
         // Cancellation is a control outcome, not an error (sections 1 and 6): it never shows a
-        // fallback and never produces an error report, but the value is returned so the boundary
-        // does not swallow it either.
+        // fallback, never calls onError, never touches retries, and leaves the boundary state
+        // alone. It must still never be invisible: a cancellation signal caught as an exception at
+        // the boundary produces exactly one non-error notification to the root handler, and the
+        // table counts it for diagnostics (AGENTS.md non-negotiable 16). The async value path stays
+        // silent because the task owner produced that value (section 6).
+        std::uint32_t retries = 0;
+        std::uint64_t generation = 0;
+        if (const Entry* entry = find(from); entry != nullptr) {
+            retries = entry->state.retries;
+            generation = entry->state.generation;
+        }
+        Report report = make_report(BoundaryCode::Cancelled, kRootBoundary, component_of(from),
+                                    value, site, retries, generation);
+        ++cancellation_notifications_;
+        escalate(report);
+
         CatchOutcome outcome;
         outcome.disposition = BoundaryDisposition::Cancelled;
         outcome.handled_by = from;
-        outcome.error = std::move(value);
+        outcome.error = report.error;
         return outcome;
     }
 

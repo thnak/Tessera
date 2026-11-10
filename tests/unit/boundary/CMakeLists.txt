@@ -31,3 +31,10 @@ add_executable(boundary_guard_tests
 target_link_libraries(boundary_guard_tests PRIVATE tessera_boundary)
 
 add_test(NAME boundary_guard COMMAND boundary_guard_tests)
+
+add_executable(boundary_cancellation_tests
+    boundary_cancellation_tests.cpp)
+
+target_link_libraries(boundary_cancellation_tests PRIVATE tessera_boundary)
+
+add_test(NAME boundary_cancellation COMMAND boundary_cancellation_tests)

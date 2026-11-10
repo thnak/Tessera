@@ -12,6 +12,8 @@ std::string_view code_name(BoundaryCode code) {
     switch (code) {
     case BoundaryCode::Caught:
         return "TESSERA_BOUNDARY_CAUGHT";
+    case BoundaryCode::Cancelled:
+        return "TESSERA_BOUNDARY_CANCELLED";
     case BoundaryCode::FallbackFailed:
         return "TESSERA_BOUNDARY_FALLBACK_FAILED";
     case BoundaryCode::Loop:

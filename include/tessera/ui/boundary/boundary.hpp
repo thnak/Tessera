@@ -61,8 +61,10 @@ struct CatchOutcome {
     BoundaryId handled_by = kRootBoundary; // kRootBoundary = the root handler took it
     RetryDecision retry;                   // pending auto-retry; `retry.state` says which
     Error error;                           // value copy: no exception escapes the boundary
-    bool reported = false;                 // false only for cancellation
-    bool dropped = false;                  // stale async value: diagnostics only, no callback
+    // True when an error report reached onError/diagnostics. A cancellation is not an error
+    // report: it is notified to the root handler and counted instead (section 11, rule 4).
+    bool reported = false;
+    bool dropped = false; // stale async value: diagnostics only, no callback
 };
 
 // Last catch point (section 1): catastrophic classes, fallback failures, and boundaries with
@@ -101,6 +103,13 @@ public:
     [[nodiscard]] const BoundaryConfig* config(BoundaryId id) const;
     [[nodiscard]] const BoundaryState* state(BoundaryId id) const;
 
+    // Monotonic diagnostics counter of cancellation notifications delivered to the root handler
+    // (one per exception-path cancellation, never for an async cancellation value). Cancellation
+    // is not an error, so it is counted here instead of being reported to onError.
+    [[nodiscard]] std::uint64_t cancellation_notifications() const {
+        return cancellation_notifications_;
+    }
+
     // The boundary that would catch a failure raised in `from`'s subtree: the nearest boundary in
     // the Normal phase, or kRootBoundary when there is none. Also used by the guard for tests.
     [[nodiscard]] BoundaryId catcher(BoundaryId from) const;
@@ -110,6 +119,10 @@ public:
 
     // The sync catch point's routing half: converts one failure into fallback selection or root
     // escalation, and reports exactly once. `now_seconds` is injected fixed-step time.
+    //
+    // A `Cancellation` value is the exception-path cancellation signal: no fallback, no state
+    // change, no retry, no onError, but exactly one non-error `TESSERA_BOUNDARY_CANCELLED`
+    // notification to the root handler, so a cancellation can never be invisible.
     [[nodiscard]] CatchOutcome catch_error(BoundaryId from, Error error, FailureSite site,
                                            double now_seconds);
 
@@ -166,6 +179,7 @@ private:
     ReportSink& diagnostics_;
     std::vector<Entry> entries_;
     BoundaryId next_id_ = 1;
+    std::uint64_t cancellation_notifications_ = 0;
 };
 
 } // namespace tessera::ui::boundary
