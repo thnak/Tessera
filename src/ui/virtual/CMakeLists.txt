@@ -8,7 +8,9 @@ add_library(tessera_virtual STATIC
     key_index.cpp
     node_recycler.cpp
     scroll_anchor.cpp
-    item_state_store.cpp)
+    item_state_store.cpp
+    virtual_range.cpp
+    virtual_range_query.cpp)
 
 target_include_directories(tessera_virtual PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

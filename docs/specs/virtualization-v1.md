@@ -138,6 +138,18 @@ geometry is a fixed-capacity Fenwick tree: `item_offset`, `total_extent`, `index
 `visible_range` are O(log n) and allocation-free; `insert`/`remove` rewrite the shifted suffix
 in O(n). Capacity is a constructor argument and a hard cap, not a growth policy.
 
+The collection is `virtualization::VirtualRange`
+([`virtual_range.hpp`](../../include/tessera/ui/virtual/virtual_range.hpp)).
+`update(scroll_offset, viewport_extent)` clamps the scroll, expands the viewport window by
+`ui.virtualListOverscanPx`, releases realized nodes that left the window, acquires and builds the
+entering ones, measures each newly realized item, re-anchors the scroll after any refinement that
+lands before the viewport anchor, and places the realized nodes on the main axis in viewport space
+(the range itself owns the scroll offset; the caller applies it to its scroll container).
+The pool is bounded by `ui.virtualListPoolCap`: a window wider than the pool realizes the prefix
+that fits and reports `VirtualRangeUpdate::truncated` instead of growing or evicting visible nodes.
+Once the pool is warm the whole bookkeeping path is allocation-free (fixed-capacity geometry, key
+index, realized table and free ring); a data source may still allocate inside `build`.
+
 ### Grid
 
 - V1: fixed column count or fixed column width; row-major.
@@ -320,7 +332,10 @@ Tests:
   adapter contract with a clean-node `build` and optional `release`; the fixed-capacity
   `KeyIndex` key -> index resolver (capacity overflow and duplicate keys invalidate the mapping);
   and the bounded `NodeRecycler` (cap refusal, clean-on-acquire, debug no-item-state assertion,
-  FIFO reuse, `detach`/`reclaim` scene hand-off, stale-lease rejection).
+  FIFO reuse, `detach`/`reclaim` scene hand-off, stale-lease rejection); and `VirtualRange`, the
+  visible-range integration over the geometry (overscanned window, build/release churn, measure on
+  realize, `reanchor_scroll` after a refinement before the anchor, main-axis placement, cap
+  truncation, and an allocation-free scroll path after pool warm-up).
 - Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
   refine suffix shift, insert/remove, capacity), `virtual_geometry_scan` (brute-force linear
   oracle for offsets and windows), `virtual_anchor` (re-anchor after measure, clamp),
@@ -329,10 +344,14 @@ Tests:
   determinism, build/release contract), `virtual_key_index` (stable keys across insert/remove,
   duplicate/capacity errors, deterministic collision handling), `virtual_pool` (cap enforcement
   without mutation, clean-on-acquire/no-state-leak, FIFO order, lease validation, allocation-free
-  pooled acquire/release).
-- Design/spec only still: the collection/node recycler and data-source build/release, grid rows,
-  sticky headers, focus/selection/accessibility integration, async prefetch, IR/codegen emission
-  for `VirtualList`/`VirtualGrid`, and dirty/render integration.
+  pooled acquire/release), `virtual_range` (realize/release churn, reuse, cap truncation,
+  horizontal placement, key resolution/scroll-to-key, sync invalidation, error paths),
+  `virtual_range_measure` (re-anchor before/at/after the anchor, clamp, node bounds), and
+  `virtual_churn` (10k-item allocation-free churn, no node leak, deterministic step
+  records/build/release order).
+- Design/spec only still: grid rows, sticky headers, focus/selection/accessibility integration,
+  async prefetch/cancellation wiring, IR/codegen emission for `VirtualList`/`VirtualGrid`, and
+  dirty/render integration (the range reports dirty through the scene-node bounds it writes).
 - Depends on: IR/component model ([`ir-v1.md`](ir-v1.md),
   [`component-model-v1.md`](component-model-v1.md)), Yoga layout/measure
   ([`layout.md`](../design/layout.md)), input/focus ([`input.md`](../design/input.md)),

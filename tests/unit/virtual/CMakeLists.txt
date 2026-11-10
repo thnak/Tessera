@@ -58,3 +58,24 @@ add_executable(virtual_pool_tests
 target_link_libraries(virtual_pool_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_pool COMMAND virtual_pool_tests)
+
+add_executable(virtual_range_tests
+    virtual_range_tests.cpp)
+
+target_link_libraries(virtual_range_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_range COMMAND virtual_range_tests)
+
+add_executable(virtual_range_measure_tests
+    virtual_range_measure_tests.cpp)
+
+target_link_libraries(virtual_range_measure_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_range_measure COMMAND virtual_range_measure_tests)
+
+add_executable(virtual_churn_tests
+    virtual_churn_tests.cpp)
+
+target_link_libraries(virtual_churn_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_churn COMMAND virtual_churn_tests)
