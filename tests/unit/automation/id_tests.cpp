@@ -210,23 +210,24 @@ int main() {
         return 11;
     }
 
-    // Component ids use the same rule and the same collision policy.
+    // Component ids use the same rule and the same collision policy. The duplicate and
+    // missing-name inputs are named locals because GCC 15 warns when an inline temporary vector of
+    // string-view inputs is passed straight into the assignment call.
     const std::vector<ComponentIdInput> components{{"ui/Counter.tsx", "Counter"},
                                                    {"ui/App.tsx", "App"}};
+    const std::vector<ComponentIdInput> duplicate_components{{"ui/Counter.tsx", "Counter"},
+                                                             {"ui/Counter.tsx", "Counter"}};
+    const std::vector<ComponentIdInput> unnamed_component{{"ui/App.tsx", ""}};
     const auto component_result = assign_component_ids("factory", components);
     if (!expect(component_result.has_value(), "component assignment succeeds") ||
         !expect((*component_result)[0] == 15449676450390438563ULL, "computed component id") ||
         !expect((*component_result)[0] != (*component_result)[1], "components differ") ||
-        !expect(
-            is_error(assign_component_ids(
-                         "factory", std::vector<ComponentIdInput>{{"ui/Counter.tsx", "Counter"},
-                                                                  {"ui/Counter.tsx", "Counter"}}),
-                     IdErrorCode::IdCollision, "id collision"),
-            "duplicate component diagnosed") ||
+        !expect(is_error(assign_component_ids("factory", duplicate_components),
+                         IdErrorCode::IdCollision, "id collision"),
+                "duplicate component diagnosed") ||
         !expect(is_error(assign_component_ids("", components), IdErrorCode::EmptySalt),
                 "component salt required") ||
-        !expect(is_error(assign_component_ids("factory",
-                                              std::vector<ComponentIdInput>{{"ui/App.tsx", ""}}),
+        !expect(is_error(assign_component_ids("factory", unnamed_component),
                          IdErrorCode::EmptyComponentName),
                 "component name required")) {
         return 12;
