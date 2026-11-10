@@ -539,7 +539,20 @@ bridge thread (`COINIT_MULTITHREADED`, bounded pump, `RPC_E_CHANGED_MODE` ->
 counter), `UiaBridge` phases/job ring/16 ms idle wait/5 s liveness/ordered join+restart, and the
 provider surface (IRawElementProviderSimple/Fragment/FragmentRoot + Invoke/Value/SelectionItem/
 Selection) marshaled per call, with the COM adapter behind `if(WIN32)` (spec §12.2; tests
-`a11y_uia_*`). Next: `WM_GETOBJECT` host wiring and UIA StructureChanged/PropertyChanged events. `tessera_schema` now loads and
+`a11y_uia_*`). Host wiring landed: `hal::Window::set_accessibility_root` is the seam, the Win32
+wndproc answers `WM_GETOBJECT` with `UiaReturnRawElementProvider` only for `UiaRootObjectId` and
+falls back to `DefWindowProc` for every not-ready case (one atomic load, never a COM/UIA wait on the
+window thread), `mark_dirty()` + `tick(source, handler)` publishes only when dirty (a static tick
+does zero accessibility work), drains actions at the tick boundary (≤8/tick, arrival order) and
+posts one event-flush job per tick, and events are a pre-order NodeId diff (one root
+ChildrenInvalidated, per-parent child-list changes, name/value/help-text/enabled/selected/bounds
+PropertyChanged, one focus event) coalesced in a bounded 64-entry queue with drop-oldest counting;
+the bridge adopts the pending snapshot immediately before each job. Tests `a11y_uia_events`,
+`a11y_uia_host_getobject`, `a11y_uia_host_tick`, `a11y_uia_host_events`, `a11y_uia_window_getobject`
+(Windows only). Next: pass the native handle through the platform seam so the root answers
+`get_HostRawElementProvider` with `UiaHostProviderFromHwnd`, install
+`make_window_root_provider(UiaHost&)` from the windowed POC/ApplicationHost, then event payload
+variants and a Narrator/NVDA manual smoke checklist. `tessera_schema` now loads and
 validates shader manifests (`include/tessera/schema/manifest.hpp`): the strict §1–§3 shape with
 closed key sets, the §4 rules including the V1 compute rejection (`ComputeStageUnsupported`),
 `std::expected<Manifest, ValidationError>` with stable codes and JSON paths, and the §9 caps; tests
