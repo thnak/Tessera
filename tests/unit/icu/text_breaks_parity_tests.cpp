@@ -9,7 +9,9 @@
 
 #include "edit_grapheme.hpp"
 #include "text_breaks.hpp"
+#include "text_wrap.hpp"
 
+#include <cmath>
 #include <cstddef>
 #include <iostream>
 #include <string>
@@ -22,7 +24,15 @@ using tessera::ui::text::BreakBackend;
 using tessera::ui::text::BreakBoundaries;
 using tessera::ui::text::builtin_line_boundaries;
 using tessera::ui::text::builtin_word_boundaries;
+using tessera::ui::text::FontMetrics;
+using tessera::ui::text::layout_text;
+using tessera::ui::text::layout_text_with_breaks;
 using tessera::ui::text::line_boundaries;
+using tessera::ui::text::StubFontMetricsProvider;
+using tessera::ui::text::TextConstraints;
+using tessera::ui::text::TextLayout;
+using tessera::ui::text::TextLine;
+using tessera::ui::text::TextStyle;
 using tessera::ui::text::word_boundaries;
 using tessera::ui::text::edit_detail::word_left;
 using tessera::ui::text::edit_detail::word_right;
@@ -214,6 +224,19 @@ void check_line_opportunities() {
            std::string("builtin breaks CJK per ideograph: ") + show(builtin_line_boundaries(cjk)));
     expect(same(line_boundaries(cjk), BreakBoundaries{{0, 3, 6, 9, 12}, BreakBackend::Icu}),
            std::string("icu breaks CJK per ideograph: ") + show(line_boundaries(cjk)));
+
+    // UAX #14 class BA (em dash): ICU offers the break after the dash, the builtin rules do not.
+    // This is the boundary-level reason for the wrap difference pinned in check_wrap_path_parity.
+    constexpr std::string_view em_dash = "aaaa\xE2\x80\x94"
+                                         "bbbb";
+    bool icu_breaks_after_dash = false;
+    for (const std::size_t offset : line_boundaries(em_dash).offsets) {
+        icu_breaks_after_dash = icu_breaks_after_dash || offset == 7;
+    }
+    expect(icu_breaks_after_dash, "icu breaks after an em dash");
+    expect(builtin_line_boundaries(em_dash).offsets.size() == 2,
+           std::string("builtin has no break after an em dash: ") +
+               show(builtin_line_boundaries(em_dash)));
 }
 
 void check_navigation_contract() {
@@ -230,6 +253,89 @@ void check_navigation_contract() {
     // Documented ICU difference: a CJK run moves one dictionary word at a time (你好|世界).
     expect(word_right("\xE4\xBD\xA0\xE5\xA5\xBD", 0) == 6,
            "word_right moves one CJK dictionary word with ICU");
+}
+
+TextStyle wrap_style() {
+    TextStyle style;
+    style.font_size = 16.0f;
+    style.line_height = 20.0f;
+    return style;
+}
+
+TextLayout wrap(std::string_view text, float max_width, BreakBackend backend) {
+    TextConstraints constraints;
+    constraints.wrap = true;
+    constraints.max_width = max_width;
+    return layout_text_with_breaks(text, wrap_style(), FontMetrics{12.8f, 3.2f, 3.2f}, constraints,
+                                   backend);
+}
+
+std::string show_lines(const TextLayout& layout) {
+    std::string out = "[";
+    for (const TextLine& line : layout.lines) {
+        out += "(" + std::to_string(line.begin) + "," + std::to_string(line.end) + ")@" +
+               std::to_string(static_cast<int>(line.width)) + " ";
+    }
+    out += "]";
+    return out;
+}
+
+void expect_same_wrap(std::string_view text, float max_width, const TextLayout& baseline,
+                      const TextLayout& candidate, std::string_view what) {
+    bool same = baseline.lines.size() == candidate.lines.size();
+    for (std::size_t index = 0; same && index < baseline.lines.size(); ++index) {
+        same = baseline.lines[index].begin == candidate.lines[index].begin &&
+               baseline.lines[index].end == candidate.lines[index].end &&
+               std::abs(baseline.lines[index].width - candidate.lines[index].width) <= 0.001f;
+    }
+    if (same) {
+        return;
+    }
+    std::cerr << "text_breaks_parity: " << what << " wrap mismatch on '" << text << "' at "
+              << static_cast<int>(max_width) << " px: " << show_lines(baseline) << " vs "
+              << show_lines(candidate) << "\n";
+    ++failures;
+}
+
+// The whole wrap path, not just the boundary sets: on the single-spaced corpus the two engines
+// must produce identical line boxes, so the builtin engine stays the baseline the wrap and paint
+// fixtures are pinned on, and the ICU wrap cannot drift silently.
+void check_wrap_path_parity() {
+    for (const std::string_view text : kAsciiCorpus) {
+        for (const float max_width : {40.0f, 80.0f, 120.0f}) {
+            expect_same_wrap(text, max_width, wrap(text, max_width, BreakBackend::Builtin),
+                             wrap(text, max_width, BreakBackend::Icu), "ascii");
+        }
+    }
+
+    // The public entry point is the ICU engine in this build.
+    const TextStyle style = wrap_style();
+    const FontMetrics metrics = StubFontMetricsProvider{}.metrics(style);
+    for (const std::string_view text : kAsciiCorpus) {
+        TextConstraints constraints;
+        constraints.max_width = 80.0f;
+        expect_same_wrap(text, 80.0f, layout_text(text, style, metrics, constraints),
+                         wrap(text, 80.0f, BreakBackend::Icu), "active");
+    }
+
+    // Documented wrap-path difference: UAX #14 class BA gives ICU an opportunity after an em dash
+    // that the builtin reduced rules do not have, so the builtin engine splits that run at the
+    // measured byte budget instead of at the dash.
+    constexpr std::string_view em_dash = "aaaa\xE2\x80\x94"
+                                         "bbbb";
+    const TextLayout builtin = wrap(em_dash, 56.0f, BreakBackend::Builtin);
+    const TextLayout icu = wrap(em_dash, 56.0f, BreakBackend::Icu);
+    expect(builtin.lines.size() == 2 && builtin.lines[0].begin == 0 && builtin.lines[0].end == 9 &&
+               std::abs(builtin.lines[0].width - 56.0f) <= 0.001f,
+           std::string("builtin splits the em dash run at the byte budget: ") +
+               show_lines(builtin));
+    expect(icu.lines.size() == 2 && icu.lines[0].begin == 0 && icu.lines[0].end == 7 &&
+               std::abs(icu.lines[0].width - 40.0f) <= 0.001f,
+           std::string("icu breaks after the em dash: ") + show_lines(icu));
+
+    // Two runs over the same input are byte-identical (docs/design/text.md section 6).
+    expect_same_wrap(em_dash, 56.0f, wrap(em_dash, 56.0f, BreakBackend::Icu),
+                     wrap(em_dash, 56.0f, BreakBackend::Icu), "repeat");
 }
 
 void check_determinism() {
@@ -251,6 +357,7 @@ int main() {
     check_documented_word_differences();
     check_line_opportunities();
     check_navigation_contract();
+    check_wrap_path_parity();
     check_determinism();
 
     if (failures != 0) {
