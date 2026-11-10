@@ -136,6 +136,12 @@ bool same_color(const Color& actual, const Color& expected) {
            actual.a == expected.a;
 }
 
+// Paint folds a node's opacity into every color it emits, so an expected command carries it too.
+Color with_alpha(Color color, float alpha) {
+    color.a *= alpha;
+    return color;
+}
+
 bool same_ops(const std::vector<PaintOp>& actual, const std::vector<PaintOp>& expected) {
     return std::equal(actual.begin(), actual.end(), expected.begin(), expected.end(),
                       [](const PaintOp& a, const PaintOp& b) {
@@ -262,8 +268,12 @@ bool test_paint_frame() {
                     same_color(sink.ops[5].color, tessera::rendering::rhi::rgba8(0, 0, 255)),
                 "first child paints before the second") ||
         !expect(same_rect(sink.ops[6].rect, {50, 50, 20, 20}) &&
-                    same_color(sink.ops[6].color, tessera::rendering::rhi::rgba8(0, 128, 0)),
-                "second child paints last")) {
+                    // The fade animation sampled opacity 0.5 at this tick and paint applies the
+                    // sampled value (paint-only interpolation, on by default), so the last child is
+                    // painted translucent rather than opaque.
+                    same_color(sink.ops[6].color,
+                               with_alpha(tessera::rendering::rhi::rgba8(0, 128, 0), 0.5f)),
+                "second child paints last, with the tick's sampled opacity")) {
         return false;
     }
 

@@ -49,6 +49,28 @@ struct PaintStats {
     std::size_t transforms = 0;      // nodes painted in their own transformed frame
 };
 
+// Read-only, paint-only override of a node's visual state, used by fixed-step interpolation
+// (ui/frame_interpolation.hpp). The pass applies it to its own copy of the computed style and to
+// the transform it paints with. The scene graph is never touched: Node::bounds()/transform(),
+// Node::world_bounds()/hit_test(), dirty flags, damage, and layout keep the tick geometry, so a
+// render between ticks can never move a box or make hit testing disagree with layout.
+class PaintView {
+public:
+    virtual ~PaintView() = default;
+
+    // Local transform (around the node's own box origin, the shape Node::set_transform takes) to
+    // paint with instead of Node::transform(). Nullopt paints the node's authoritative transform.
+    // Inside an overridden subtree, painted descendants compose from this matrix, so a translated
+    // node moves its children rigidly.
+    [[nodiscard]] virtual std::optional<rendering::rhi::Mat3>
+    local_transform(NodeId node) const = 0;
+
+    // Overrides the paint-visible properties of `style` that this view knows for `node`, in place.
+    // The paint pass reads colors and opacity from the result; nothing is written back to the
+    // scene.
+    virtual void overlay_style(NodeId node, style::ComputedStyle& style) const = 0;
+};
+
 // Optional per-paint context. The cache is caller-owned (paint frame/sink) and deliberately not a
 // global singleton: pass the same instance across frames to reuse wrapped line boxes. Null means
 // every paint recomputes text layout (the uncached path). `text_metrics_source` selects the wrap
@@ -61,6 +83,9 @@ struct PaintContext {
     // Device scale used for caret width (1 px at scale 1, 2 px at scale >= 2) and future
     // decoration metrics. Defaults to 1 so tests/goldens are unchanged.
     float device_scale = 1.0f;
+    // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
+    // authoritative visual state. The view never mutates the scene.
+    const PaintView* view = nullptr;
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in

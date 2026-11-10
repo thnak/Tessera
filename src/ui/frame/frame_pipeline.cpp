@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <optional>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -37,6 +39,45 @@ rendering::RedrawPlan normalized_plan(rendering::RedrawPlan plan, rendering::rhi
     return plan;
 }
 
+// The axis-aligned box a matrix maps `rect` onto (the same rule Node::world_bounds uses).
+rhi::Rect transformed_aabb(const rhi::Mat3& matrix, const rhi::Rect& rect) {
+    const float xs[4] = {rect.x, rect.right(), rect.right(), rect.x};
+    const float ys[4] = {rect.y, rect.y, rect.bottom(), rect.bottom()};
+    float min_x = std::numeric_limits<float>::max();
+    float min_y = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float max_y = std::numeric_limits<float>::lowest();
+    for (int index = 0; index < 4; ++index) {
+        float x = 0.0f;
+        float y = 0.0f;
+        matrix.transform_point(xs[index], ys[index], x, y);
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        max_x = std::max(max_x, x);
+        max_y = std::max(max_y, y);
+    }
+    return rhi::Rect{min_x, min_y, max_x - min_x, max_y - min_y};
+}
+
+// The matrix `node` paints with under `view`, composed exactly like the paint pass composes it:
+// painted_world(n) = painted_world(parent) * translation(-parent_scroll) *
+//                    translation(bounds.xy) * local(n). Kept here so damage can cover the
+//                    interpolated box; paint_pass.cpp composes the same formula incrementally.
+rhi::Mat3 painted_world(const Node& node, const paint::PaintView& view) {
+    const std::optional<rhi::Mat3> own = view.local_transform(node.id());
+    rhi::Mat3 world =
+        rhi::Mat3::translation(node.bounds().x, node.bounds().y) * own.value_or(node.transform());
+    bool overridden = own.has_value();
+    for (const Node* parent = node.parent(); parent != nullptr; parent = parent->parent()) {
+        const std::optional<rhi::Mat3> local = view.local_transform(parent->id());
+        overridden = overridden || local.has_value();
+        world = rhi::Mat3::translation(parent->bounds().x, parent->bounds().y) *
+                local.value_or(parent->transform()) *
+                rhi::Mat3::translation(-parent->scroll_x(), -parent->scroll_y()) * world;
+    }
+    return overridden ? world : node.world_transform();
+}
+
 } // namespace
 
 FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::RuntimeLoop& loop,
@@ -58,6 +99,11 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
 }
 
 FrameTick FramePipeline::tick(Node& root, double dt) {
+    return tick(root, dt, 0.0);
+}
+
+FrameTick FramePipeline::tick(Node& root, double dt, double alpha) {
+    alpha_ = std::isfinite(alpha) ? std::clamp(alpha, 0.0, 1.0) : 0.0;
     damage_->clear();
     // A new frame invalidates the previous frame's render decision; only finish_frame() can make a
     // frame due again.
@@ -66,8 +112,8 @@ FrameTick FramePipeline::tick(Node& root, double dt) {
     FrameTick result;
     result.animation = animation::tick_animations(*animations_, *loop_, dt);
 
+    std::unordered_map<NodeId, Node*> index;
     if (!result.animation.samples.empty()) {
-        std::unordered_map<NodeId, Node*> index;
         index_nodes(root, index);
         for (const animation::AnimationSample& sample : result.animation.samples) {
             const auto found = index.find(sample.target);
@@ -78,6 +124,21 @@ FrameTick FramePipeline::tick(Node& root, double dt) {
             if (dirty != Dirty::Clean) {
                 found->second->mark_dirty(dirty);
             }
+        }
+    }
+
+    // Rotate the paint-only tick samples. Only declarations paint reads are captured (transform,
+    // opacity, colors); layout and text properties stay discrete in the style/layout path, so this
+    // never requests layout work and never moves a box.
+    previous_samples_ = std::move(current_samples_);
+    current_samples_.clear();
+    if (config_.interpolation) {
+        for (const animation::AnimationSample& sample : result.animation.samples) {
+            const auto found = index.find(sample.target);
+            if (found == index.end()) {
+                continue;
+            }
+            capture_paint_sample(current_samples_, *found->second, sample.declarations);
         }
     }
 
@@ -93,6 +154,14 @@ FrameTick FramePipeline::tick(Node& root, double dt) {
     return result;
 }
 
+InterpolationPaintView FramePipeline::interpolation_view() const {
+    if (!config_.interpolation || current_samples_.empty()) {
+        return {};
+    }
+    return InterpolationPaintView(
+        interpolate_paint_samples(previous_samples_, current_samples_, alpha_));
+}
+
 paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StyleProvider& styles,
                                                       const FrameTick& tick, bool force) const {
     if (!force && !tick.needs_style && !tick.needs_layout) {
@@ -106,6 +175,44 @@ FrameRender FramePipeline::finish_frame(Node& root) {
     dirty_->collect(root, Dirty::Paint | Dirty::Render);
     result.damage = damage_tracker_->add_scene_damage(*dirty_, *damage_, config_.dpi_scale,
                                                       config_.damage_margin);
+    // Damage above is derived from the authoritative tick bounds. An interpolated frame paints
+    // between the two ticks, which can fall outside both of them (a box moving more than its own
+    // width per tick, a rotation whose intermediate AABB is wider than either endpoint). Add each
+    // transform-sampled node's painted box so a partial redraw cannot leave stale pixels behind.
+    const InterpolationPaintView view = interpolation_view();
+    if (!view.empty()) {
+        std::unordered_map<NodeId, Node*> index;
+        index_nodes(root, index);
+        for (const auto& [node_id, sample] : view.samples()) {
+            if (!sample.transform) {
+                continue;
+            }
+            const auto found = index.find(node_id);
+            if (found == index.end()) {
+                continue;
+            }
+            const Node& node = *found->second;
+            if (!node.visible()) {
+                continue;
+            }
+            const rhi::Mat3 world = painted_world(node, view);
+            rhi::Rect rect = transformed_aabb(
+                world, rhi::Rect{0.0f, 0.0f, node.bounds().width, node.bounds().height});
+            // Box-shadow reach is box-local: scale it like node_damage_rect does.
+            const Node::PaintOutsets& outsets = node.paint_outsets();
+            const float scale = std::max(
+                {std::hypot(world.m[0], world.m[3]), std::hypot(world.m[1], world.m[4]), 0.0f});
+            rect.x -= outsets.left * scale;
+            rect.y -= outsets.top * scale;
+            rect.width += (outsets.left + outsets.right) * scale;
+            rect.height += (outsets.top + outsets.bottom) * scale;
+            if (rect.width > 0.0f && rect.height > 0.0f) {
+                damage_->add(rect, config_.damage_margin);
+            }
+        }
+        result.damage.rects = damage_->rects().size();
+        result.damage.full_redraw = damage_->full_redraw();
+    }
     result.redraw_plan = normalized_plan(rendering::make_redraw_plan(*damage_), damage_->target(),
                                          config_.redraw_policy);
     // The damage pass already latches a full redraw on a dirty-pass overflow; keep the decision
@@ -131,7 +238,12 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     if (!frame_due_ && !force) {
         return result;
     }
-    result.stats = paint::paint_scene(root, styles, sink);
+    const InterpolationPaintView view = interpolation_view();
+    paint::PaintContext context;
+    if (!view.empty()) {
+        context.view = &view;
+    }
+    result.stats = paint::paint_scene(root, styles, sink, context);
     result.painted = true;
     return result;
 }
@@ -143,8 +255,13 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     if (!frame_due_ && !force) {
         return result;
     }
+    const InterpolationPaintView view = interpolation_view();
+    paint::PaintContext context;
+    if (!view.empty()) {
+        context.view = &view;
+    }
     if (plan.full_redraw) {
-        result.stats = paint::paint_scene(root, styles, sink);
+        result.stats = paint::paint_scene(root, styles, sink, context);
         result.painted = true;
         return result;
     }
@@ -152,7 +269,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
         return result;
     }
     paint::ClippedPaintSink clipped(sink, plan.scissors);
-    result.stats = paint::paint_scene(root, styles, clipped);
+    result.stats = paint::paint_scene(root, styles, clipped, context);
     result.painted = true;
     return result;
 }

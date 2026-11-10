@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/animation/animation_start.hpp"
+#include "tessera/ui/animation/property_dirty.hpp"
 #include "tessera/ui/animation/style_overlay.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
@@ -54,6 +55,33 @@ float number(const ComputedStyle& style, const char* property, bool& found) {
     const std::string* value = style.find(property);
     found = value != nullptr;
     return found ? std::stof(*value) : -1.0f;
+}
+
+// A color fade is paint-only: it must never request layout work, unlike a border width change.
+bool color_animation_is_paint_only() {
+    using tessera::ui::animation::dirty_for_property;
+
+    KeyframeBlock tint;
+    tint.name = "tint";
+    tint.steps.push_back(KeyframeStep{0.0, {Declaration{"border-top-color", "#000000", false, 0}}});
+    tint.steps.push_back(
+        KeyframeStep{100.0, {Declaration{"border-top-color", "#ffffff", false, 0}}});
+
+    AnimationRuntime runtime;
+    runtime.start(tessera::ui::animation::AnimationInput{9, tint, {}, {}, "", false});
+    const auto half = runtime.tick(0.5);
+    bool ok = expect(has_flag(half.dirty, Dirty::Paint) && has_flag(half.dirty, Dirty::Render),
+                     "border color marks paint and render");
+    ok = expect(!has_flag(half.dirty, Dirty::Layout), "border color never marks layout") && ok;
+    ok = expect(has_flag(dirty_for_property("border-top-width"), Dirty::Layout),
+                "border width still feeds layout") &&
+         ok;
+    ok = expect(!has_flag(dirty_for_property("background-color"), Dirty::Layout) &&
+                    !has_flag(dirty_for_property("color"), Dirty::Layout) &&
+                    !has_flag(dirty_for_property("border-left-color"), Dirty::Layout),
+                "color-only properties are paint-only") &&
+         ok;
+    return ok;
 }
 
 } // namespace
@@ -142,6 +170,10 @@ int main() {
                 "settled fill") ||
         !expect(*settled.find("height") == "5px", "settled height")) {
         return 9;
+    }
+
+    if (!color_animation_is_paint_only()) {
+        return 10;
     }
 
     std::cout << "animation_pipeline: ok\n";

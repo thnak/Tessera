@@ -2,7 +2,8 @@
 
 add_library(tessera_frame STATIC
     frame_pipeline.cpp
-    interpolation.cpp)
+    interpolation.cpp
+    paint_view.cpp)
 
 target_include_directories(tessera_frame PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

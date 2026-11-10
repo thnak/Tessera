@@ -51,11 +51,21 @@ rhi::Rect transformed_aabb(const rhi::Mat3& matrix, const rhi::Rect& rect) {
 // plain pass paints that rect directly (see paint_pass.hpp). Inside a transformed frame the rect is
 // the node's box relative to the frame: between a frame and its descendants only translations
 // (and scroll offsets) remain, so this is exact.
-rhi::Rect paint_rect(const Node& node, const Frame& frame) {
+//
+// `painted_world` is the matrix the node paints with and `interpolated` says whether an
+// interpolation view moved it away from Node::world_transform(). When it did not, the authoritative
+// accessors are used verbatim so a non-interpolated frame is byte-identical to before the view
+// existed.
+rhi::Rect paint_rect(const Node& node, const Frame& frame, bool interpolated,
+                     const rhi::Mat3& painted_world) {
     if (!frame.active) {
-        return node.world_bounds();
+        if (!interpolated) {
+            return node.world_bounds();
+        }
+        return transformed_aabb(painted_world,
+                                rhi::Rect{0.0f, 0.0f, node.bounds().width, node.bounds().height});
     }
-    const rhi::Mat3 relative = frame.inverse * node.world_transform();
+    const rhi::Mat3 relative = frame.inverse * painted_world;
     return transformed_aabb(relative,
                             rhi::Rect{0.0f, 0.0f, node.bounds().width, node.bounds().height});
 }
@@ -196,32 +206,58 @@ void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
     ++stats.gradients;
 }
 
+// Painted state inherited from the parent: the painted world matrix of the parent's content space
+// (scroll offset applied) and whether any ancestor already paints with an interpolation override.
+// `interpolated == false` keeps the authoritative Node::world_transform() path untouched.
+struct PaintScope {
+    rhi::Mat3 content_world;
+    bool interpolated = false;
+};
+
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
-                const PaintContext& context, Frame frame) {
+                const PaintContext& context, Frame frame, const PaintScope& scope) {
     if (!node.visible()) {
         ++stats.hidden_subtrees;
         return;
     }
 
-    const style::ComputedStyle style = styles.compute(node);
+    style::ComputedStyle style = styles.compute(node);
+    if (context.view != nullptr) {
+        // Paint-only: the override is applied to this local copy, never to the scene or the
+        // caller's style provider.
+        context.view->overlay_style(node.id(), style);
+    }
     ++stats.nodes;
+
+    // The view may replace the node's own transform; inside an overridden subtree descendants must
+    // compose from the painted ancestor matrix instead of their authoritative world_transform().
+    const std::optional<rhi::Mat3> override =
+        context.view != nullptr ? context.view->local_transform(node.id()) : std::nullopt;
+    const bool interpolated = scope.interpolated || override.has_value();
+    const rhi::Mat3 local = override.value_or(node.transform());
+    rhi::Mat3 painted_world;
+    if (interpolated) {
+        painted_world =
+            scope.content_world * rhi::Mat3::translation(node.bounds().x, node.bounds().y) * local;
+    } else {
+        painted_world = node.world_transform();
+    }
 
     // A node with its own transform opens a new local frame when the sink can apply the matrix.
     bool pushed_transform = false;
-    if (!is_identity(node.transform()) && sink.supports_transform()) {
-        const rhi::Mat3 world = node.world_transform();
+    if (!is_identity(local) && sink.supports_transform()) {
         Frame opened;
-        if (world.try_inverse(opened.inverse)) {
+        if (painted_world.try_inverse(opened.inverse)) {
             opened.active = true;
-            opened.world = world;
-            sink.push_transform(frame.active ? frame.inverse * world : world);
+            opened.world = painted_world;
+            sink.push_transform(frame.active ? frame.inverse * painted_world : painted_world);
             ++stats.transforms;
             pushed_transform = true;
             frame = opened;
         }
     }
 
-    const rhi::Rect rect = paint_rect(node, frame);
+    const rhi::Rect rect = paint_rect(node, frame, interpolated, painted_world);
     if (rect.width > 0.0f && rect.height > 0.0f) {
         const float opacity = detail::opacity_value(style);
         const rhi::Color current = detail::current_color(style);
@@ -260,8 +296,14 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     detail::paint_text_lines(node, style, rect, sink, stats, context);
     detail::paint_vector_content(node, style, rect, sink, stats);
     detail::paint_image_content(node, style, rect, sink, stats);
+    PaintScope child_scope;
+    child_scope.interpolated = interpolated;
+    if (interpolated) {
+        child_scope.content_world =
+            painted_world * rhi::Mat3::translation(-node.scroll_x(), -node.scroll_y());
+    }
     for_each_by_z(node.children(), false, [&](const Node& child) {
-        paint_node(child, styles, sink, stats, context, frame);
+        paint_node(child, styles, sink, stats, context, frame, child_scope);
         return false;
     });
     if (pushed_clip) {
@@ -286,7 +328,7 @@ style::ComputedStyle SceneStyleProvider::compute(const Node& node) {
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                        const PaintContext& context) {
     PaintStats stats;
-    paint_node(root, styles, sink, stats, context, Frame{});
+    paint_node(root, styles, sink, stats, context, Frame{}, PaintScope{});
     return stats;
 }
 

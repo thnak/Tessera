@@ -235,7 +235,7 @@ destroy the runtime from inside a callback; use `clear()` or `stop` instead.
 for the same property win. `collect_animation_declarations(result)` groups declarations by target.
 `dirty_for_declarations` maps properties to `Dirty` bits:
 
-- opacity/color-ish properties -> paint/render;
+- opacity/color-ish properties (including `border-*-color`) -> paint/render;
 - layout-affecting properties -> layout/paint/render;
 - transform-only effects -> paint/render.
 
@@ -270,3 +270,36 @@ The tick result already contains the union of dirty domains from the post-callba
 - Declarative `useAnimatedValue` code generation.
 - Runtime policy changes that retroactively clamp already-running animations.
 - Cross-target shared-element coordination.
+
+## 16. Render interpolation between ticks
+
+The animation runtime advances in fixed steps; render frames may fall between them. V1 smooths
+that with a paint-only interpolation of `transform`, `opacity` and color
+(`ui/frame_interpolation.hpp`, `ui/frame_pipeline.hpp`; the loop contract lives in
+[`game-loop.md`](game-loop.md) section 3.1.1). The runtime itself is unchanged: samples stay
+per-tick, and simulation state is never mutated by the renderer.
+
+- `FramePipeline::tick(root, dt, alpha)` runs the normal animation tick, then captures the
+  paint-visible declarations of `result.animation.samples` into a `PaintSample` per target and
+  rotates the previous/current pair. `alpha` is `runtime::interpolation_alpha(...)` for the render
+  about to happen; it affects only paint, so dirty domains and damage are identical for every
+  alpha.
+- `interpolation_view()` blends the pair (`lerp(previous, current, alpha)`) and returns an
+  `InterpolationPaintView`, a read-only `paint::PaintView` the paint pass applies to a local style
+  copy and to the painted transform. `Node::bounds()/transform()`, damage and hit testing keep the
+  tick geometry, so the runtime's overlays, dirty reporting, and `DamageTracker` need no changes.
+- Only paint-visible properties are sampled: `transform`, `opacity`, `color`, `background-color`,
+  `border-*-color`. Layout and text properties are never captured, which is why interpolation
+  cannot request layout work. Color declarations — including `border-*-color` — map to
+  `Paint | Render` in `dirty_for_declarations` (`is_layout_property` treats only border widths and
+  styles as layout).
+- While interpolation is active the frame is painted one tick "behind": alpha 0 repaints the
+  previous tick's sample (continuous with what was on screen just before the tick), alpha 1 the
+  current one. A property the current tick stops sampling is dropped rather than held, so a
+  finishing animation snaps back to the caller's computed style.
+- `finish_frame()` grows the accumulated damage by each transform-sampled node's painted box, so a
+  damage-clipped repaint covers the space between the two tick positions.
+- Tests: `fixed_step` (alpha at 0/0.5/1 and clamping), `frame_pipeline_style_sync` (sample capture,
+  value/color/transform blending, layout-not-sampled, skew hold, determinism),
+  `frame_pipeline_overflow` (scripted two-tick paint at 0/0.5/1, tick-geometry hit testing, damage
+  coverage, settled idle, disabled switch), `animation_pipeline` (color-only dirty domains).

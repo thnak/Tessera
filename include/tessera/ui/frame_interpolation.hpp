@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/style/color.hpp"
@@ -10,6 +11,7 @@
 #include <array>
 #include <map>
 #include <optional>
+#include <utility>
 #include <vector>
 
 // Paint-only interpolation between two simulation ticks (docs/design/game-loop.md section 3.1).
@@ -58,5 +60,30 @@ void capture_paint_sample(PaintSamples& samples, const Node& scene_node,
 // Colors blend in sRGB, like the animation sampler.
 [[nodiscard]] PaintSamples interpolate_paint_samples(const PaintSamples& previous,
                                                      const PaintSamples& current, double alpha);
+
+// The frame pipeline's paint seam: a read-only view over one frame's interpolated tick samples.
+// The paint pass applies it to its local style copy and to the matrix it paints with, so a frame
+// between ticks shows the blended visual state while Node::bounds()/transform(), damage and hit
+// testing keep the authoritative tick geometry. Never mutates the scene. An empty view paints the
+// authoritative state (the pass takes the untouched path), so callers can pass it unconditionally.
+class InterpolationPaintView final : public paint::PaintView {
+public:
+    InterpolationPaintView() = default;
+    explicit InterpolationPaintView(PaintSamples samples)
+        : samples_(std::move(samples)) {}
+
+    [[nodiscard]] bool empty() const {
+        return samples_.empty();
+    }
+    [[nodiscard]] const PaintSamples& samples() const {
+        return samples_;
+    }
+
+    [[nodiscard]] std::optional<rendering::rhi::Mat3> local_transform(NodeId node) const override;
+    void overlay_style(NodeId node, style::ComputedStyle& style) const override;
+
+private:
+    PaintSamples samples_;
+};
 
 } // namespace tessera::ui::frame

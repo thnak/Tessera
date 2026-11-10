@@ -116,6 +116,55 @@ stall. `maxUpdatesPerFrame` (default 5) bounds catch-up work. Both are configura
   Simulation state is never mutated by the renderer.
 - Discrete state (visibility, focus, text content) is not interpolated.
 
+#### 3.1.1 Paint-only render interpolation
+
+Implemented as a paint-only view between two simulation ticks. V1 interpolates **transform,
+opacity and color** and nothing else: layout boxes, layout-feeding scroll offsets, text advances,
+visibility, focus and text content stay discrete per tick, so a render-rate frame can never move a
+box or make hit testing disagree with layout ([ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md)
+keeps the scene bounds authoritative). The open-questions register's `design/game-loop.md#2` row is
+the scope decision.
+
+- **Alpha.** `runtime::interpolation_alpha(accumulator, fixed_dt)` (in `src/runtime/fixed_step.*`)
+  is the single definition: the fraction of one fixed step elapsed since the last tick, clamped to
+  `[0, 1]`. It is 0 when a render coincides with a tick (the accumulator was just drained), 0.5
+  mid-step, and 1 as the next tick comes due. Non-finite or non-positive input yields 0 instead of
+  extrapolating from a broken clock. `FixedStepLoop::alpha()` and `FixedStepResult::alpha` use it.
+- **Samples.** Each tick captures the paint-visible declarations of its animation samples
+  (`ui/frame_interpolation.hpp`, `PaintSamples`): `transform` (resolved to a matrix around the
+  node's box origin, using the node's current box for percentages and `transform-origin`),
+  `opacity`, `color`, `background-color` and the four `border-*-color` values. A sample containing
+  only layout/text properties produces no entry, so a `width` or `font-size` animation is provably
+  invisible to interpolation. Declarations are typed at capture time (numbers, sRGB colors,
+  matrices), not re-parsed from strings later.
+- **Blend.** For every field present on the current tick, the render paints
+  `lerp(previous, current, alpha)`: alpha 0 paints the previous tick's sample (the value on screen
+  just before the tick, so motion is continuous across the boundary), alpha 1 the current one, and
+  a node sampled for the first time keeps its current value instead of blending from nothing. A
+  property the current tick no longer samples is dropped, not held, because the caller's style
+  provider owns the reverted value. Transforms blend as translate/scale/rotate components, with
+  rotation taking the shorter arc; a matrix that has no such form (a skew, or a `matrix()` with a
+  shear) holds the current tick's value instead of wobbling through a wrong shape. Colors blend in
+  sRGB, like the animation sampler.
+- **Seam.** `FramePipeline::tick(root, dt, alpha)` stores the tick pair; `interpolation_view()`
+  returns an `InterpolationPaintView`, a read-only `paint::PaintView`. The paint pass applies it to
+  a local copy of the computed style and to the matrix it paints with (`paint_pass.hpp`), so the
+  scene, dirty flags, damage, layout and hit testing never see it. `paint_frame()` applies the view
+  automatically; `FramePipelineConfig::interpolation` (default `true`, like `animationInterpolation`
+  in [`runtime-config-v1.md`](../specs/runtime-config-v1.md)) switches it off, which deterministic
+  and golden runs do (ADR-018 rule 11).
+- **Dirty and damaged work.** Interpolation itself is not a wake source: it applies to a frame that
+  paint/render damage or an explicit frame request already made due, and changing alpha alone
+  produces no presents. The sampled properties are paint/render work only — `transform`, `opacity`
+  and every `*-color` (including `border-*-color`) map to `Paint | Render`, never `Layout` — and a
+  settled scene still idles with zero presents. Because the interpolated box can fall between the
+  two tick positions (a box moving more than its own width per tick, a rotation whose intermediate
+  AABB is wider than either endpoint), `finish_frame()` adds each transform-sampled node's painted
+  box to the damage, so a damage-clipped repaint cannot leave stale pixels.
+- **Determinism.** No wall clock, no random ids: the same tick script and the same alpha paint the
+  same commands on every platform (`frame_pipeline_style_sync` / `frame_pipeline_overflow` tests,
+  plus the sample-model tests in `tests/unit/frame_pipeline_style_sync_tests.cpp`).
+
 ### 3.2 Render-on-demand
 
 Two policies:

@@ -12,6 +12,14 @@ bool starts_with(std::string_view value, std::string_view prefix) {
 } // namespace
 
 bool is_layout_property(std::string_view property) {
+    // Border color is paint-only: only the border widths and styles feed the layout boxes. Treating
+    // it as layout would relayout the scene for a color fade (and make color interpolation request
+    // layout work, which V1 does not do).
+    if (property == "border-color" || property == "border-top-color" ||
+        property == "border-right-color" || property == "border-bottom-color" ||
+        property == "border-left-color") {
+        return false;
+    }
     if (property == "display" || property == "position" || property == "box-sizing" ||
         property == "width" || property == "height" || property == "min-width" ||
         property == "min-height" || property == "max-width" || property == "max-height" ||

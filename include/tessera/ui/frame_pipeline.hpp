@@ -5,6 +5,7 @@
 #include "tessera/rendering/damage.hpp"
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/ui/animation/runtime.hpp"
+#include "tessera/ui/frame_interpolation.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
@@ -20,6 +21,10 @@ struct FramePipelineConfig {
     float dpi_scale = 1.0f;
     float damage_margin = 0.0f;
     rendering::RedrawPolicy redraw_policy{};
+    // Paint-only interpolation between ticks (runtime-config `animationInterpolation`). On by
+    // default, like the runtime config; a render that coincides with a tick (alpha 0) paints the
+    // previous sample, and renders between ticks blend toward the current one.
+    bool interpolation = true;
 };
 
 struct FrameTick {
@@ -47,6 +52,12 @@ public:
                   DirtyPass& dirty, FramePipelineConfig config = {});
 
     FrameTick tick(Node& root, double dt);
+
+    // Alpha-aware tick. `alpha` is `runtime::interpolation_alpha` for the render about to happen:
+    // the fraction of a fixed step elapsed since this tick. It only affects paint; the tick itself
+    // (simulation, dirty domains, damage) is identical for any alpha, so a scene that is clean
+    // before the call stays clean and still idles. Out-of-range or non-finite values clamp to 0.
+    FrameTick tick(Node& root, double dt, double alpha);
 
     // Copies z-index, transform and box-shadow reach from computed style onto the scene (see
     // paint::sync_scene_style). Call it after the caller's style/layout work and before
@@ -82,6 +93,27 @@ public:
         return frame_due_;
     }
 
+    // The paint-only view for the samples of the last two ticks at the last alpha. Empty when
+    // interpolation is disabled, when the last tick sampled no paint-visible property, or when the
+    // render coincides with the first sample (nothing older to blend from). paint_frame() applies
+    // it automatically; expose it for callers that paint through `paint::paint_scene` directly.
+    [[nodiscard]] InterpolationPaintView interpolation_view() const;
+
+    void set_interpolation(bool enabled) {
+        config_.interpolation = enabled;
+        if (!enabled) {
+            previous_samples_.clear();
+            current_samples_.clear();
+        }
+    }
+    [[nodiscard]] bool interpolation() const {
+        return config_.interpolation;
+    }
+    // The clamped alpha used by the most recent tick().
+    [[nodiscard]] double interpolation_alpha() const {
+        return alpha_;
+    }
+
 private:
     animation::AnimationRuntime* animations_ = nullptr;
     runtime::RuntimeLoop* loop_ = nullptr;
@@ -90,6 +122,9 @@ private:
     DirtyPass* dirty_ = nullptr;
     FramePipelineConfig config_;
     bool frame_due_ = false;
+    PaintSamples previous_samples_;
+    PaintSamples current_samples_;
+    double alpha_ = 0.0;
 };
 
 } // namespace tessera::ui::frame
