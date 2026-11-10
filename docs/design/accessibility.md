@@ -75,6 +75,17 @@ dispatcher, and writes one batched reply per iteration, so a slow or hostile pee
 bridge allocate or spin without bound. The worker is joined by `stop()`; there is no detached task
 and no UI-thread wait.
 
+The Windows bridge is the mirror image of the Linux one: `UiaBridge` owns one dedicated MTA thread
+(`CoInitializeEx(COINIT_MULTITHREADED)`) with a bounded Win32 message pump, the UI thread only
+publishes immutable snapshots into a one-slot drop-oldest handoff and drains a bounded action ring
+at a tick boundary, and every UIA client call is marshaled back onto that thread
+(`UiaBridge::run_on_bridge`). The provider objects implement
+`IRawElementProviderSimple`/`Fragment`(+`Root`) plus the Invoke, Value, and SelectionItem patterns
+over the section 1 semantics snapshot; unsupported properties answer `VT_EMPTY`, unknown nodes
+`UIA_E_ELEMENTNOTAVAILABLE`. Nothing crosses the boundary except snapshots, queued actions, and
+value-shaped property results. See
+[`accessibility-v1.md`](../specs/accessibility-v1.md#122-implemented-subset-windows-uia-provider-on-an-mta-bridge-thread).
+
 ## 4. Focus and keyboard
 
 - Focus order follows the scene/semantics tree by default; explicit `tabindex`-like ordering
@@ -127,13 +138,18 @@ and no UI-thread wait.
 - Semantics updates are coalesced at frame/tick boundaries.
 - Platform calls are batched; never block the UI thread on an accessibility service.
 - The tree is snapshot-based; platform bridges do not hold scene pointers.
+- The UIA provider adopts the newest snapshot only when a client call arrives, so an idle bridge does
+  no snapshot work and a static window produces no accessibility wakeups; the handoff keeps one
+  reserved buffer on each side.
 - Disabled accessibility adds no measurable per-frame cost.
 
 ## 9. Open questions
 
 - How much semantics is inferred vs explicitly authored.
 - AT-SPI over D-Bus without linking LGPL libraries: exact service/protocol subset.
-- UIA provider threading and COM (Component Object Model) apartment rules.
+- UIA hosting specifics: `WM_GETOBJECT`/`UiaReturnRawElementProvider` wiring, UIA event raising,
+  and text/selection pattern depth (provider threading is decided: one MTA bridge thread, spec
+  section 12.2).
 - Screen-reader behavior for virtualized lists/charts; see
   [`virtualization-v1.md`](../specs/virtualization-v1.md).
 - Accessibility for custom-drawn text/paths.

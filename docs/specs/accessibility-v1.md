@@ -395,3 +395,67 @@ Tests (`tests/unit/a11y/`, names start with `a11y`): `a11y_dbus_address`, `a11y_
 `Ready`, determinism), and `a11y_atspi_session_pump` (worker start/stop join, restart, handshake
 timeout, peer close before and after `Ready`, worker-driven determinism).
 
+
+## 12.2 Implemented subset: Windows UIA provider on an MTA bridge thread
+
+The Windows bridge serves UI Automation (UIA) providers from one dedicated, COM-initialized bridge
+thread (docs/design/accessibility.md section 3, ADR-021). It reuses the section 12 semantics snapshot
+verbatim: no second tree, no scene pointers across the boundary. Everything lives in
+`include/tessera/ui/accessibility/uia_*.hpp` and `src/ui/accessibility/uia_*.cpp` (same
+`tessera_accessibility` target) and is deterministic to test without a UIA client.
+
+| Layer | Files | Contract |
+|---|---|---|
+| Errors | `uia_error.*` | `UiaError` values (`UnsupportedPlatform`, `ApartmentUnavailable`, `NotStarted`, `NoSnapshot`, `UnknownNode`, `PatternNotSupported`, `ElementNotEnabled`, `ThreadViolation`, `QueueFull`, `Timeout`, ...); thrown by nobody, returned everywhere. |
+| Mapping | `uia_mapping.*` | UIA property/pattern/control-type ids repeated as plain integers (the Windows probe static_asserts them against `UIAutomationClient.h`); `control_type_for(Role)` and `patterns_for(A11yNode)`. Switch maps to CheckBox (UIA has no switch), alert to Text, containers to Pane. Patterns: Invoke from `Action::Press`, Value from `Action::SetValue`, SelectionItem for selectable roles or `State::Selected`, Selection for List/Menu. |
+| Handoff | `uia_handoff.*` | Single-producer/single-consumer one-slot handoff. `publish` replaces an unconsumed snapshot and increments `dropped` (drop-oldest, newest tree wins); `take` copies into the consumer's reused buffer. The slot keeps its reserved capacity, so the UI-thread path allocates nothing after the first snapshot. |
+| Provider | `uia_provider.*` | Bridge-thread projection of one node (`UiaElementInfo`: control type, patterns, bounded name/value/description, automation id, bounds, enabled/focused/selected), a precomputed parent table, `element`/`child_count`/`child_at`/`focused`/`hit_test`, and a bounded (32) coalescing action ring with a `SetValue` text payload. Every query asserts bridge-thread ownership. |
+| Bridge | `uia_bridge.*`, `uia_bridge_jobs.*` | Owns the one bridge thread, the apartment, the handoff, and a bounded (8) client-job ring. Phases `Idle -> Starting -> Running -> Failed/Stopped`; `start` never blocks on COM initialization, `stop` signals and joins with a liveness bound, restart re-initializes the same apartment. Jobs run inline when the caller is already the bridge thread. |
+| Apartment | `uia_apartment*.cpp` | Windows: `CoInitializeEx(nullptr, COINIT_MULTITHREADED)` + `CoUninitialize` + a bounded `PeekMessage`/`DispatchMessage` pump; `RPC_E_CHANGED_MODE` is `ApartmentUnavailable`. Every other platform: an apartment whose `init` returns `UnsupportedPlatform`, so accessibility disables instead of failing the app. |
+| COM adapter | `uia_com*.cpp`, `uia_com_provider.hpp` | `IRawElementProviderSimple`, `IRawElementProviderFragment` (+Root for index 0), `IInvokeProvider`, `IValueProvider`, `ISelectionItemProvider`. Properties: Name, ControlType, IsEnabled, BoundingRectangle (`VT_ARRAY | VT_R8`), HasKeyboardFocus, IsOffscreen, AutomationId, HelpText, FrameworkId, ValueValue, ValueIsReadOnly, SelectionItemIsSelected; unsupported ids are `VT_EMPTY` + `S_OK`. Runtime id is `(UiaAppendRuntimeId, index + 1)`. `get_ProviderOptions` reports `ServerSideProvider | UseComThreading`. |
+
+Threading is the whole point of the slice:
+
+- The UI thread only calls `publish` (bounded handoff) and `take_actions` (bounded ring drain). It
+  never calls UIA, never touches COM, and never waits on the bridge thread.
+- The bridge thread initializes the MTA apartment, adopts the newest snapshot at the head of each
+  client batch, runs at most `max_jobs_per_iteration` (4) jobs, then pumps messages once. An idle
+  bridge does no snapshot work at all: publication does not wake it, so a static window produces no
+  accessibility CPU beyond the bounded idle wait (16 ms default).
+- Every COM method marshals onto the bridge thread through `UiaBridge::run_on_bridge`, which runs
+  inline when the client call already arrives on that thread. A client call from any other thread
+  waits at most 5 s (liveness bound, not a UI wait) and otherwise returns
+  `UIA_E_ELEMENTNOTAVAILABLE`.
+- Actions never run on the bridge thread: `Invoke`, `SetFocus`, `Select`, and `SetValue` validate
+  against the snapshot and append to the action ring; the host drains it at a tick boundary. After
+  `stop()` every snapshot-dependent call returns `UIA_E_ELEMENTNOTAVAILABLE` instead of reading
+  stale state; snapshot-free properties (IsOffscreen, FrameworkId) still answer.
+- No exception crosses the thread or COM boundary: allocation failures are `OutOfMemory`, and a
+  host callback that throws is reported as `Internal` (spec section 10, ADR-025).
+
+Caps: 256 snapshot nodes, 32 queued actions, 8 queued client jobs, 4 jobs per iteration, 5 s per-call
+liveness bound, 2 s stop liveness bound, 16 ms idle wait. The COM object's reference count is atomic;
+the host owns every provider it creates and must release it before destroying the bridge.
+
+Tests (`tests/unit/a11y/`, names start with `a11y`): `a11y_uia_mapping` (role/control-type/pattern
+tables, run on every platform), `a11y_uia_handoff` (drop-oldest counter, newest-tree-wins, buffer
+reuse), `a11y_uia_bridge` (publication only on client calls, overflow, thread ownership, action
+coalescing and the QueueFull bound), `a11y_uia_bridge_lifecycle` (start/stop/restart ordering,
+init failure as a value, bounded client wait while the pump is blocked, pending snapshot across a
+restart), `a11y_uia_provider` (projection, parent/child, focus/hit-test, action validation),
+`a11y_uia_compile_check` (Windows: SDK headers, id static_asserts, `uiautomationcore`/`ole32` link),
+and `a11y_uia_com` / `a11y_uia_com_nav` (Windows: the real provider vtable, properties, patterns,
+navigation, shutdown behavior; no UIA client).
+
+Known limits of this slice:
+
+- The HAL host still has to answer `WM_GETOBJECT` with `UiaReturnRawElementProvider` for a root
+  provider and publish dirty snapshots; `get_HostRawElementProvider` returns null until then.
+- No UIA events (`StructureChanged`, `PropertyChanged`, `AutomationFocusChanged`) are raised; the
+  AT-SPI2 side owns the event model, and a UIA event slice will reuse `atspi_events.hpp`'s shapes.
+- `ISelectionProvider` (list-wide selection) and `ITextProvider` ranges are not advertised;
+  `AddToSelection`/`RemoveFromSelection` return `UIA_E_NOTSUPPORTED` because multi-select is not in
+  the semantics model.
+- `ValuePattern.SetValue` text is truncated to `kMaxTextBytes` at a byte boundary, so a long
+  non-ASCII value can end in a partial UTF-8 sequence; the UI thread validates before applying it.
+- `IsOffscreen` is always false: the snapshot carries world bounds, not a viewport intersection.
