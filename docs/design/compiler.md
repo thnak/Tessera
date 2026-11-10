@@ -285,12 +285,54 @@ renders nothing at the Slot. `Slot` and `Component` nodes still take their pre-o
 Slot consumes one, nothing is created for it), so generated node ids, dynamic text and damage
 tracking stay aligned with the collectors. Deferred loudly with `TESSERA_CODEGEN_UNSUPPORTED`: a
 conditional or looped component instance (wrap it in an element), a component instance inside a list
-template, component props and callback props (they need the component prop types), and a conditional
-list node as a *direct* child of a Component node (its insertion parent would be a callee tree
-position the caller does not know). The goldens `tests/golden/codegen/{Card,CardPage}.*` are
-generated from hand-built IR by `codegen_composition_tests --write`; the build compiles them as
+template, and a conditional list node as a *direct* child of a Component node (its insertion parent
+would be a callee tree position the caller does not know). Props and callback props are passed (see
+the next paragraph). The goldens `tests/golden/codegen/{Card,CardPage}.*` are generated from
+hand-built IR by `codegen_composition_tests --write`; the build compiles them as
 `tessera_codegen_composition_sample` and `codegen_composition_runtime_tests` asserts the attached
 tree, the slot order and the lifecycle wiring.
+
+**Component props and callback props (implemented).** A `Component` node's attributes are passed to
+the declared prop records of the referenced component (`emit_props.cpp`). For every prop the target
+declares, codegen resolves the node's value (in declared order, so the generated assignments do not
+depend on attribute source order) and emits `this->child_N_.prop_<name>_ = <value>;` into a
+generated `apply_props()`; a list-typed prop takes an array literal or an expression, and only
+literals are type-checked here (expression typing is slice 4). The caller's `build()` calls
+`apply_props()` before any child `build()`, so the callee builds against its props, and
+`apply_state()` calls it again: the caller's `update()` (props, own state, then child updates)
+propagates changed caller state into the instance before the child repaints.
+
+A record-typed prop (its IR type names a scene payload record) is a callback prop, not a value: it
+is lowered into the node's `events` map (never `props`) and codegen binds
+`std::function<void(const <Record>&)>` with a lambda that calls the caller's handler or binding
+region. The referenced handler must take exactly one parameter of the declared payload record, so
+the callback carries the value. A component's `children` remain the static slot, never a prop.
+
+Diagnostics, all `TESSERA_CODEGEN_UNSUPPORTED` with the prop and component named: an unknown prop
+(`component \`X\` has no prop \`y\``), a callback prop passed as a value, a value prop bound as an
+event, a literal of the wrong type, `children` as a value, and a callback whose handler takes a
+different payload record. No prop path is intrinsic-specific.
+
+**Library components (implemented, `Field` first).** `import { Field } from "tessera"` adds an
+ordinary component reference and the module receives the component's IR declaration
+(`src/compiler/lowering/src/library_components.cpp`); a project component of the same name wins.
+`Field` declares the prop records of
+[`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md) section 5.1 (including the
+record-typed `onValidate`), places its own label/value/error text and its `Slot`, and is emitted by
+the ordinary component path: the IR node kind is `Component` (asserted by `forms_lowering`), the
+generated host node records element kind `Component`, and the caller's widget rides the Children
+slot. The library evaluates no validation rule; `required`/`validators` reach it as prop data only.
+Goldens `tests/golden/codegen/{Field,FormPage}.*` come from `forms_codegen_tests --write`; the
+runtime proof `forms_codegen_runtime` builds a form with two Fields and drives a value change
+through `apply_props()`/`apply_state()` with no GPU.
+
+| Component-path concern | Emitter |
+|---|---|
+| `Component` host node, slot content, instance `build()` call | `emit_composition.cpp` |
+| declared value props and callback props (`apply_props()`) | `emit_props.cpp` |
+| instance struct member, declared prop fields, lifecycle calls | `emit_header.cpp`, `emit_lifecycle.cpp` |
+| prop interpolation inside the callee | `interpolation.cpp`, `value_ops.cpp` |
+| library component IR (`Field`) and `"tessera"` import resolution | `lowering/library_components.cpp`, `lowering/module_lowering.cpp` |
 
 **Dynamic child sets: conditional branches and keyed lists (implemented).** Lowering emits a
 conditional child as a *sibling* node carrying `condition`, so codegen builds every branch subtree
@@ -434,14 +476,18 @@ element kind; paint emits no caret for an empty text run (empty text paints no d
 focused field has no visible caret until the paint pass grows an empty-run caret.
 
 
-Deferred: dynamic list elements and list-typed props (`Component::props` is populated only for the
-`children` slot declaration today, so a list can be seeded only from a literal array initial or
-another list reference), dynamic virtual geometry and the collection's own `onEndReached` (no scene
-`EventType` for it yet; item-template events are wired), passing props/callback props to a generated
-child instance, a conditional or looped component instance, reusing computed styles, multi-file
-watch mode, cross-module incremental generation, and single-node incremental regeneration. Goldens
-live in `tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild:
-the build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).
+Deferred: dynamic list elements and list-typed *state* initials of a project component
+(`Component::props` is populated only for the `children` slot declaration today, so a list can be
+seeded only from a literal array initial or another list reference), dynamic virtual geometry and
+the collection's own `onEndReached` (no scene `EventType` for it yet; item-template events are
+wired), a value expression on a component prop beyond one payload-record callback parameter, a
+`style` prop or dynamic prop names on a component (component nodes carry props, not style), library
+components beyond `Field` (`Form` is still a project/component-library concern), a conditional or
+looped component instance, reusing computed styles, multi-file watch mode, cross-module incremental
+generation, and single-node incremental regeneration. Goldens live in `tests/golden/codegen/`;
+update them deliberately with the owning test's `--write` (`codegen_tests --write`,
+`forms_codegen_tests --write`, ...) and rebuild: the build compiles the generated samples, so they
+are never hand-maintained.
 
 ## 11. Testing
 

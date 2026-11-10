@@ -1,7 +1,9 @@
 # Forms and validation v1
 
 Status: core model implemented (task-78: bounded field registry, synchronous rule matrix, async
-validator seam, submit gating; widgets/codegen/a11y wiring still proposed). Big Steps C and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
+validator seam, submit gating) and the compiler path implemented (task-90: `Field` resolves as a
+library component and its props are emitted through the ordinary component path; widgets/a11y
+wiring still proposed). Big Steps C and F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big
 Steps"). Decision:
 [ADR-029](../../decisions/ADR-029-interaction-completeness.md) (interaction completeness: text
 editing, scrolling, overlays, forms). Companion to
@@ -94,6 +96,46 @@ struct FormState {
 - `validate` is a static binding/pure handler, not arbitrary JS at runtime.
 - Values/errors are inspectable for tests and state restoration.
 - No context/suspense dependency; field state is explicit in generated C++.
+
+### 5.1 Field prop records (implemented)
+
+`Field` is declared once as ordinary IR data (`src/compiler/lowering/src/library_components.cpp`)
+and imported from `"tessera"`. Lowering emits a `Component` node that names `comp::Field`; there is
+no intrinsic element and no Field-specific emitter, so the usage takes the same codegen path as any
+project component (`docs/design/compiler.md` section 11). The documented prop records are:
+
+| Prop | IR type | Default | Notes |
+|---|---|---|---|
+| `name` | `string` | `""` | Stable field path inside the form |
+| `label` | `string` | `""` | Programmatic label (the library renders it) |
+| `value` | `string` | `""` | Controlled value, usually an expression over form state |
+| `defaultValue` | `string` | `""` | Uncontrolled initial value |
+| `required` | `bool` | `false` | Required marker and submit gate input |
+| `validators` | `list<string>` | `[]` | Rule ids/parameters as data; the library evaluates them |
+| `onValidate` | `TextChangeEvent` (record) | none | Callback prop: bound through the node's events, not a value |
+| `error` | `string` | `""` | Visible error message |
+| `errors` | `list<string>` | `[]` | Visible error list |
+| `children` | `children` | none | The static Children slot for the wrapped widget |
+
+- A value prop assigns the instance's generated prop member before the instance's `build()` runs;
+  `apply_props()` re-assigns them from the caller's state on every update, then the caller's
+  `update()` drives the instance's `update()`, which repaints its interpolated label/value/error.
+- A record-typed prop is a callback prop. `onValidate={handler}` is lowered into the node's
+  `events` map and codegen binds `std::function<void(const TextChangeEvent&)>`. The handler must
+  take exactly the declared payload record (one parameter), so the callback carries the field value.
+- Unknown prop names, a value passed for a callback prop (or a callback bound for a value prop), a
+  literal of the wrong type, and a handler with the wrong payload are codegen errors carrying the
+  prop name and the component, exactly like any other component prop.
+- Validation is not generated: `required`/`validators` reach `Field` only as prop data, and the
+  `FormController`/rule engine (`src/ui/forms/`) evaluates them. `forms_codegen_tests` asserts the
+  generated library translation unit contains no rule evaluation and the caller carries the rule
+  string only as a prop record.
+- Children ride the static `Children` slot (`ir-v1.md` section 3.4): one widget position, built by
+  the caller and attached by `Field` at its Slot.
+- Tests: `forms_lowering` (import resolution, `Component` IR node kind, prop-record mapping,
+  slot, determinism), `forms_codegen` (prop/callback matrix, unknown-prop and type diagnostics,
+  golden, determinism, merger idempotency), `forms_codegen_runtime` (two Fields in a form, a value
+  change through the generated paths, no GPU).
 
 ## 6. Accessibility
 
@@ -240,6 +282,12 @@ accessibility wiring are not part of this slice.
   rule/config caps, submit paths, determinism) and `forms_async` (pending visibility, queue-driven
   completion, async invalid, stale discard, cancellation, on-change policy, submit while pending,
   no-queue fallback, destructor safety, determinism).
+- **Compiler path (task-90):** `Field` is IR data (`make_library_component`) injected when a file
+  imports it from `"tessera"`; a project component of the same name wins. Lowering emits an
+  ordinary `Component` node with the prop records of section 5.1, codegen assigns the value props
+  and binds the `onValidate` callback prop (section 5.1), and the caller's widget rides the static
+  `Children` slot. Tests: `forms_lowering`, `forms_codegen`, `forms_codegen_runtime`; goldens
+  `tests/golden/codegen/{Field,FormPage}.*`.
 - **Deferrals:** cross-field dependencies beyond `equal_to`, localized messages, accessibility
   error wiring/announcements, server-side validation, form-level async rules, debounce/dedup,
   conditional fields, field arrays/keyed identity and widgets/generated bindings.
@@ -252,6 +300,8 @@ scope ([AGENTS.md](../../AGENTS.md#non-negotiables) rule 8, "V1 scope discipline
 - Multi-step/wizard forms and file fields: no decision yet.
 - Server-provided validation schemas/dynamic rules (not in V1).
 - Draft persistence conflict merge across windows: no decision yet.
-- Whether `Field` ships as a library component or an intrinsic wrapper (currently library).
+- Whether `Field` ships as a library component or an intrinsic wrapper: **resolved** - library
+  component, no intrinsic node kind; the compiler emits its props through the ordinary component
+  path (section 5.1, Q-09).
 - Field-level vs form-level async validation scheduling: no decision yet.
 - Dynamic field arrays and keyed field identity are defined; large-array performance is open.
