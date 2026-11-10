@@ -18,6 +18,7 @@
 // Usage: generated_ui_tests [--write] <font.ttf> <baseline_dir>
 
 #include "generated_ui_demo.hpp"
+#include "generated_ui_field_script.hpp"
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
@@ -54,86 +55,8 @@ bool expect(bool condition, const char* message) {
     return condition;
 }
 
-// --- Editable text field script ----------------------------------------------------------------
-//
-// The edit controller is the owner of text/caret/selection; the demo publishes its state into the
-// generated TextInput node as PaintData text + decoration (the controlled-value gap: the generated
-// component never feeds the painted field value itself yet). The script covers typing, caret moves,
-// Shift-selection, select-all and delete-selection, and returns with the editable frame:
-// "Ada Lovelace" with "Lovelace" selected (caret at the end of the selection).
-
-// Feeds normalized input events through the scene router so the generated source-event bindings and
-// typed TextChange adapter drive the edit controller (no direct controller calls).
-bool feed_text(InputRouter& router, Node& root, std::string_view text) {
-    for (const char character : text) {
-        InputEvent event;
-        event.type = InputEventType::Text;
-        event.text_codepoint = static_cast<std::uint32_t>(static_cast<unsigned char>(character));
-        if (!router.dispatch(root, event).dispatched) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool feed_key(InputRouter& router, Node& root, std::uint32_t key,
-              Modifier modifiers = Modifier::None) {
-    InputEvent event;
-    event.type = InputEventType::KeyDown;
-    event.key = key;
-    event.modifiers = modifiers;
-    return router.dispatch(root, event).dispatched;
-}
-
-bool run_field_script(InputRouter& router, Node& root, EditController& editor) {
-    using namespace tessera::ui::key;
-    // Type, then exercise Home/End/arrows.
-    if (!feed_text(router, root, "Ada") || editor.buffer().text() != "Ada" ||
-        editor.buffer().caret() != 3) {
-        return false;
-    }
-    if (!feed_key(router, root, kHome) || editor.buffer().caret() != 0) {
-        return false;
-    }
-    if (!feed_key(router, root, kEnd) || editor.buffer().caret() != 3) {
-        return false;
-    }
-    if (!feed_key(router, root, kArrowLeft) || editor.buffer().caret() != 2) {
-        return false;
-    }
-    // Shift+Left twice: half-open selection [0, 2) = "Ad", caret at 0 (lean left).
-    if (!feed_key(router, root, kArrowLeft, Modifier::Shift) ||
-        !feed_key(router, root, kArrowLeft, Modifier::Shift) || editor.buffer().caret() != 0 ||
-        editor.buffer().selection_start() != 0 || editor.buffer().selection_end() != 2) {
-        return false;
-    }
-    // Select-all then delete the selection: the buffer empties and the caret collapses to 0.
-    if (!feed_key(router, root, 'A', Modifier::Control) || !editor.buffer().has_selection()) {
-        return false;
-    }
-    if (!feed_key(router, root, kBackspace) || !editor.buffer().text().empty() ||
-        editor.buffer().has_selection() || editor.buffer().caret() != 0) {
-        return false;
-    }
-    // Editable frame: type a full value, put the caret after "Ada ", then Shift+End to select
-    // "Lovelace" with the caret at the right edge.
-    if (!feed_text(router, root, "Ada Lovelace") || editor.buffer().text() != "Ada Lovelace") {
-        return false;
-    }
-    if (!feed_key(router, root, kHome) || editor.buffer().caret() != 0) {
-        return false;
-    }
-    for (int step = 0; step < 4; ++step) {
-        if (!feed_key(router, root, kArrowRight)) {
-            return false;
-        }
-    }
-    if (editor.buffer().caret() != 4 || !feed_key(router, root, kEnd, Modifier::Shift)) {
-        return false;
-    }
-    return editor.buffer().caret() == 12 && editor.buffer().selection_start() == 4 &&
-           editor.buffer().selection_end() == 12;
-}
+using generated_ui_field_script::feed_key;
+using generated_ui_field_script::run_field_script;
 
 } // namespace
 
