@@ -500,7 +500,14 @@ ladder (`quantize_render_scale`: 1.0/1.25/1.5/2.0, nearest with ties up, clamped
 `ui/text/scale_glyph_atlas.hpp` keeps one glyph atlas per ladder step with per-step invalidation;
 tests `automation_*`, `virtual_*`, `boundary_*`, `scale_*`. Next: wire `ScaleGlyphAtlas` into
 `TextRenderer` (draw selects `atlas_for(render_scale_)`, page textures keyed by ladder index, and
-a ladder change invalidates the previous step). `tessera_harness`
+a ladder change invalidates the previous step). Paint-only tick interpolation is live:
+`runtime::interpolation_alpha` (`fixed_step.*`), the `PaintSample`/`PaintSamples` model in
+`ui/frame_interpolation.hpp` (`src/ui/frame/interpolation.cpp`), the `paint::PaintView` seam and
+`FramePipeline::tick(root, dt, alpha)` with `FramePipelineConfig::interpolation` as the explicit
+switch (`animationInterpolation` is not read by any config loader yet); interpolated nodes add their
+painted box to damage, layout/text never interpolate, and border colors are paint-only dirty. Tests
+`fixed_step`, `frame_pipeline_style_sync`, `frame_pipeline_overflow`, `animation_pipeline`. Next:
+pass `RuntimeTick::alpha` from the runtime driver and decide the alpha wake threshold. `tessera_harness`
 (`include/tessera/harness/`, `src/harness/`) holds the V1 headless-automation protocol codec:
 strict JSON-lines framing (1 MiB cap, CRLF/EOF, per-line UTF-8), `LineTransport` with an in-process
 pair, the versioned request/response envelope with stable error codes, the snapshot/action/trace/

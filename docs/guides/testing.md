@@ -140,6 +140,8 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `virtual_scroll_index` | `scroll_to_index` Start/Center/Nearest clamps, pure query identity, re-anchor interaction |
 | `virtual_focus_churn` | 10k-item focus/step/selection script: allocation parity, cap high-water mark, repeat determinism |
 | `virtual_grid_rows` | row-granular grid geometry: row-major mapping, row extent, visible rows/items |
+| `frame_pipeline_style_sync` | interpolation sample whitelist and blend at alpha 0/0.5/1 (transform shortest arc, skew hold, drops) |
+| `frame_pipeline_overflow` | scripted two-tick scene painted at alpha 0/0.5/1: damage covers the interpolated box, hit test stays at tick geometry |
 | `boundary_model` | nearest-catcher routing, fallback, reset, async values, cleanup seam |
 | `boundary_retry` | 250/500/1000/2000/4000 ms schedule, five-retry cap, `TESSERA_BOUNDARY_LOOP` |
 | `boundary_nested` | nested boundaries and root routing |
