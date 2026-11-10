@@ -104,6 +104,11 @@ public:
     void fill_linear_gradient(const GradientDraw& draw) override;
     void push_clip(const RoundedClip& clip) override;
     void pop_clip() override;
+    [[nodiscard]] bool supports_transform() const override {
+        return true;
+    }
+    void push_transform(const rhi::Mat3& transform) override;
+    void pop_transform() override;
     void draw_text(const TextDraw& run) override;
     void draw_vector(const VectorDraw& draw) override;
     void draw_image(const ImageDraw& draw) override;

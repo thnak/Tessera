@@ -9,16 +9,79 @@
 #include "tessera/ui/scene/z_order.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 
 namespace tessera::ui::paint {
 namespace {
 
-// Bounds are parent-relative; Node::world_bounds() composes them into absolute coordinates, so the
-// pass paints that rect directly (see paint_pass.hpp).
-rhi::Rect paint_rect(const Node& node) {
-    return node.world_bounds();
+// A transformed node (CSS `transform`) is painted in its own local frame when the sink can apply a
+// matrix: the sink holds `world` (the node's full world matrix) and every rect in the subtree is
+// expressed relative to it. `active` is false for plain scenes, which keep painting world bounds.
+struct Frame {
+    bool active = false;
+    rhi::Mat3 world;
+    rhi::Mat3 inverse;
+};
+
+bool is_identity(const rhi::Mat3& matrix) {
+    const rhi::Mat3 identity;
+    for (int index = 0; index < 9; ++index) {
+        if (matrix.m[index] != identity.m[index]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+rhi::Rect transformed_aabb(const rhi::Mat3& matrix, const rhi::Rect& rect) {
+    float xs[4];
+    float ys[4];
+    matrix.transform_point(rect.x, rect.y, xs[0], ys[0]);
+    matrix.transform_point(rect.right(), rect.y, xs[1], ys[1]);
+    matrix.transform_point(rect.right(), rect.bottom(), xs[2], ys[2]);
+    matrix.transform_point(rect.x, rect.bottom(), xs[3], ys[3]);
+    const auto [min_x, max_x] = std::minmax_element(xs, xs + 4);
+    const auto [min_y, max_y] = std::minmax_element(ys, ys + 4);
+    return rhi::Rect{*min_x, *min_y, *max_x - *min_x, *max_y - *min_y};
+}
+
+// Bounds are parent-relative; Node::world_bounds() composes them into absolute coordinates, so a
+// plain pass paints that rect directly (see paint_pass.hpp). Inside a transformed frame the rect is
+// the node's box relative to the frame: between a frame and its descendants only translations
+// (and scroll offsets) remain, so this is exact.
+rhi::Rect paint_rect(const Node& node, const Frame& frame) {
+    if (!frame.active) {
+        return node.world_bounds();
+    }
+    const rhi::Mat3 relative = frame.inverse * node.world_transform();
+    return transformed_aabb(relative,
+                            rhi::Rect{0.0f, 0.0f, node.bounds().width, node.bounds().height});
+}
+
+// Clips are device-space state: inside a transformed frame a local clip is mapped through the
+// frame. Scale/translate/quarter-turn frames map a rect to a rect; any other frame cannot be
+// represented by a rounded rect, so its overflow clip is dropped rather than painted wrong.
+std::optional<RoundedClip> device_clip(const RoundedClip& clip, const Frame& frame) {
+    if (!frame.active) {
+        return clip;
+    }
+    const rhi::Mat3& m = frame.world;
+    constexpr float kEpsilon = 1.0e-4f;
+    const bool axis_scale = std::abs(m.m[1]) < kEpsilon && std::abs(m.m[3]) < kEpsilon;
+    const bool quarter_turn = std::abs(m.m[0]) < kEpsilon && std::abs(m.m[4]) < kEpsilon;
+    if (!axis_scale && !quarter_turn) {
+        return std::nullopt;
+    }
+    const float scale = std::sqrt(std::abs(m.m[0] * m.m[4] - m.m[1] * m.m[3]));
+    RoundedClip mapped;
+    mapped.rect = transformed_aabb(m, clip.rect);
+    mapped.top_left = clip.top_left * scale;
+    mapped.top_right = clip.top_right * scale;
+    mapped.bottom_right = clip.bottom_right * scale;
+    mapped.bottom_left = clip.bottom_left * scale;
+    return mapped;
 }
 
 float clamp_radius(float radius, const rhi::Rect& rect) {
@@ -134,7 +197,7 @@ void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
 }
 
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
-                const PaintContext& context) {
+                const PaintContext& context, Frame frame) {
     if (!node.visible()) {
         ++stats.hidden_subtrees;
         return;
@@ -143,7 +206,22 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     const style::ComputedStyle style = styles.compute(node);
     ++stats.nodes;
 
-    const rhi::Rect rect = paint_rect(node);
+    // A node with its own transform opens a new local frame when the sink can apply the matrix.
+    bool pushed_transform = false;
+    if (!is_identity(node.transform()) && sink.supports_transform()) {
+        const rhi::Mat3 world = node.world_transform();
+        Frame opened;
+        if (world.try_inverse(opened.inverse)) {
+            opened.active = true;
+            opened.world = world;
+            sink.push_transform(frame.active ? frame.inverse * world : world);
+            ++stats.transforms;
+            pushed_transform = true;
+            frame = opened;
+        }
+    }
+
+    const rhi::Rect rect = paint_rect(node, frame);
     if (rect.width > 0.0f && rect.height > 0.0f) {
         const float opacity = detail::opacity_value(style);
         const rhi::Color current = detail::current_color(style);
@@ -169,9 +247,11 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         const std::optional<rhi::Rect> clip_rect =
             scroll_clips ? scrollport_clip(node, style, rect) : detail::padding_box(style, rect);
         if (clip_rect) {
-            sink.push_clip(detail::corner_clip(style, *clip_rect));
-            ++stats.clips;
-            pushed_clip = true;
+            if (const auto clip = device_clip(detail::corner_clip(style, *clip_rect), frame)) {
+                sink.push_clip(*clip);
+                ++stats.clips;
+                pushed_clip = true;
+            }
         }
     }
     // Text and vector runs are content: paint them after the element's own background/borders and
@@ -181,11 +261,14 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     detail::paint_vector_content(node, style, rect, sink, stats);
     detail::paint_image_content(node, style, rect, sink, stats);
     for_each_by_z(node.children(), false, [&](const Node& child) {
-        paint_node(child, styles, sink, stats, context);
+        paint_node(child, styles, sink, stats, context, frame);
         return false;
     });
     if (pushed_clip) {
         sink.pop_clip();
+    }
+    if (pushed_transform) {
+        sink.pop_transform();
     }
 }
 
@@ -203,7 +286,7 @@ style::ComputedStyle SceneStyleProvider::compute(const Node& node) {
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                        const PaintContext& context) {
     PaintStats stats;
-    paint_node(root, styles, sink, stats, context);
+    paint_node(root, styles, sink, stats, context, Frame{});
     return stats;
 }
 

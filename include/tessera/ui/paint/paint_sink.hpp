@@ -143,6 +143,18 @@ public:
     virtual void push_clip(const RoundedClip& /*clip*/) {}
     virtual void pop_clip() {}
 
+    // Optional affine-transform hooks for CSS `transform`. A sink that returns true from
+    // supports_transform() composes push_transform() onto its current matrix for every later
+    // command until the matching pop_transform(); paint_scene then paints a transformed node in
+    // its own local frame so rotation, skew and scale draw the real shape. Sinks that keep the
+    // default (false) never see these calls and get the node's axis-aligned bounding box instead.
+    // Clips and damage regions stay in device space, so damage-clipping wrappers keep the default.
+    [[nodiscard]] virtual bool supports_transform() const {
+        return false;
+    }
+    virtual void push_transform(const rhi::Mat3& /*transform*/) {}
+    virtual void pop_transform() {}
+
     // Optional text-run hook (default no-op so recording/stub sinks keep compiling). paint_scene
     // emits a node's text after its background/borders and inside the active clip.
     virtual void draw_text(const TextDraw& /*run*/) {}

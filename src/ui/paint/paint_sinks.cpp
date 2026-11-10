@@ -100,6 +100,14 @@ void Batched2DSink::pop_clip() {
     renderer_->pop_clip();
 }
 
+void Batched2DSink::push_transform(const rhi::Mat3& transform) {
+    renderer_->push_transform(transform);
+}
+
+void Batched2DSink::pop_transform() {
+    renderer_->pop_transform();
+}
+
 void Batched2DSink::begin_text_frame() {
     if (text_renderer_ != nullptr) {
         text_renderer_->begin_frame();

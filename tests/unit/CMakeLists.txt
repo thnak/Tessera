@@ -1118,6 +1118,13 @@ target_link_libraries(paint_shadow_tests PRIVATE tessera_paint)
 
 add_test(NAME paint_shadow COMMAND paint_shadow_tests)
 
+add_executable(paint_transform_tests
+    paint_transform_tests.cpp)
+
+target_link_libraries(paint_transform_tests PRIVATE tessera_paint)
+
+add_test(NAME paint_transform COMMAND paint_transform_tests)
+
 add_executable(scene_style_sync_tests
     scene_style_sync_tests.cpp)
 
