@@ -93,19 +93,23 @@ void check_decoding() {
 
     const auto set_value =
         decode_request(R"({"id":5,"cmd":"setValue","uiId":"8","value":"alice"})");
-    expect(payload<ActionCommand>(*decode_command(*set_value))->value == "alice", "setValue text");
+    const auto set_value_command = decode_command(*set_value);
+    expect(payload<ActionCommand>(*set_value_command)->value == "alice", "setValue text");
 
     // Clearing an input is a legitimate empty value.
     const auto clear = decode_request(R"({"id":6,"cmd":"setValue","uiId":"8","value":""})");
-    expect(payload<ActionCommand>(*decode_command(*clear))->value.empty(), "empty setValue");
+    const auto clear_command = decode_command(*clear);
+    expect(payload<ActionCommand>(*clear_command)->value.empty(), "empty setValue");
 
     const auto scroll = decode_request(R"({"id":7,"cmd":"scroll","uiId":"9","dx":-16,"dy":120.5})");
-    const ActionCommand* scrolled = payload<ActionCommand>(*decode_command(*scroll));
+    const auto scroll_command = decode_command(*scroll);
+    const ActionCommand* scrolled = payload<ActionCommand>(*scroll_command);
     expect(scrolled != nullptr && scrolled->kind == ActionKind::Scroll, "scroll kind");
     expect(scrolled->scroll_dx == -16.0 && scrolled->scroll_dy == 120.5, "scroll offsets");
 
     const auto trace = decode_request(R"({"id":8,"cmd":"trace","path":"out/trace.json"})");
-    expect(payload<TraceCommand>(*decode_command(*trace))->path == "out/trace.json", "trace path");
+    const auto trace_command = decode_command(*trace);
+    expect(payload<TraceCommand>(*trace_command)->path == "out/trace.json", "trace path");
 
     const auto audit = decode_request(R"({"id":9,"cmd":"audit","profile":"desktop"})");
     const auto audit_command = decode_command(*audit);
@@ -115,7 +119,8 @@ void check_decoding() {
 
     // The uint64 maximum survives because UiIds are decimal strings on the wire.
     const auto maximum = decode_request(R"({"id":10,"cmd":"click","uiId":"18446744073709551615"})");
-    expect(payload<ActionCommand>(*decode_command(*maximum))->ui_id ==
+    const auto maximum_command = decode_command(*maximum);
+    expect(payload<ActionCommand>(*maximum_command)->ui_id ==
                std::numeric_limits<std::uint64_t>::max(),
            "uint64 max uiId");
 }
