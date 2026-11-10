@@ -14,7 +14,7 @@ namespace {
         return std::string(text);
     }
     std::size_t cut = cap;
-    while (cut > 0 && (static_cast<unsigned char>(text[cut]) & 0xC0u) == 0x80u) {
+    while (cut > 0 && (static_cast<unsigned char>(text[cut]) & 0xC0U) == 0x80U) {
         --cut;
     }
     return std::string(text.substr(0, cut));
