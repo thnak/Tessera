@@ -1,8 +1,12 @@
 # Compiler: JSX/TSX -> IR -> C++
 
-Status: design for Big Step C. `src/compiler/{rules,ir,codegen}` are placeholders; the
-protected-region merger exists in B1, and the JSX/TSX lexer and module/element/expression parser are in
-`src/compiler/analyzer` ([`jsx-frontend.md`](jsx-frontend.md)).
+Status: Big Step C is under way. The JSX/TSX front end (`src/compiler/analyzer`,
+[`jsx-frontend.md`](jsx-frontend.md)), AST -> IR lowering (`src/compiler/lowering`), the IR
+(`src/compiler/ir`), the C++ code generator and `tessera_codegen` CLI with incremental regeneration
+(`src/compiler/codegen`) and the protected-region merger (`src/compiler/merger`) are implemented:
+state/effects/refs, text and metadata interpolation, inline styles, conditionals, keyed lists and
+controlled text inputs generate. Still open: component composition and `Slot`, virtualized lists,
+list-typed props (see Deferred below).
 
 The compiler is build-time only. It never ships in a production app and never executes
 arbitrary JavaScript from components.
@@ -343,12 +347,10 @@ and that deleting the selection removes the highlight and collapses the caret. A
 painted with `FontPaintTextMetrics` (real face metrics + HarfBuzz advances) so decoration geometry
 matches the CPU glyph renderer; the `editing.png` golden covers text + selection highlight + caret.
 
-**Controlled text input contract (next compiler slice):** the generated `TextInput` still has no
-controlled `value`/`onChange` wiring. Current behaviour, asserted by the demo: the generated
-binding fires on `EventType::EditText` with the generic `tessera::ui::Event`; the `on_name`
-developer region copies `event.text` into `state_name_`; `apply_state()` then refreshes the separate
-`Name: {name}` Text node. The TextInput node's own painted text does not change unless the demo
-publishes the edit buffer. To close it, codegen must emit:
+**Controlled text input contract (implemented):** the generated `TextInput`/`TextArea` have
+controlled `value`/`onChange` wiring (`emit_controlled.cpp`, `emit_events.cpp`); the summary of what
+is generated is in the controlled-field paragraph above. This section records the contract those
+emitters follow:
 
 - **Event record** `TextChangeEvent` (already defined in
   `include/tessera/ui/scene/event_payloads.hpp`; IR/schema record of the same name, primary member
@@ -368,14 +370,8 @@ publishes the edit buffer. To close it, codegen must emit:
   `apply_state()` writes `state_<name>_` back into the TextInput's `PaintData::text` (controlled
   value), marking `Paint|Render` and never `Layout` for same-box text. The caret/selection stay
   runtime edit-controller state and are published as `PaintData::decoration`, not generated state.
-- **Runtime plumbing still missing**: emitting `TextChangeEvent` for key-driven edits (the scene
-  already routes `EditText` to the focused node and `text_change_event(event)` builds the payload),
-  and the generated payload adapter. When that lands the demo drops `publish_editor_state` and
-  asserts the painted field follows `onChange` + `apply_state()` with no demo glue.
-
 Remaining demo-documented gaps: the sample emits no `automationId`, so nodes are resolved by
-element kind; inline style attachment is still missing, so the demo supplies the style-sheet
-values; paint emits no caret for an empty text run (empty text paints no decoration), so an empty
+element kind; paint emits no caret for an empty text run (empty text paints no decoration), so an empty
 focused field has no visible caret until the paint pass grows an empty-run caret.
 
 

@@ -331,6 +331,24 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | LTR; RTL via `direction` for text | full bidi layout integration |
 
+**Engine status for the Paint/Transforms rows (what the code does today):**
+
+- `z-index` orders painting (ascending) and hit testing (descending); ties keep child order;
+  `auto`/invalid is 0. Stacking is per parent (siblings only), not a global stacking context.
+- `transform` and `transform-origin` (default `50% 50%`) resolve to a node matrix
+  (`translate`, `scale`, `rotate`, `skew`, `matrix` and the axis variants, left to right as in
+  CSS); an invalid value means no transform. Hit testing and node boxes follow the matrix. The
+  individual `translate`/`rotate`/`scale` properties are not implemented yet.
+- A sink that reports `PaintSink::supports_transform()` (the Batched2D GPU sink) paints transformed
+  subtrees under the real matrix; overflow clips inside them map through scale/translate/quarter-turn
+  frames and are dropped under other rotations or skews. The CPU sink and the damage-clipping
+  wrapper paint the axis-aligned bounding box instead.
+- `box-shadow` takes up to 4 comma-separated shadows (offset, blur, spread, color). Blur is a
+  3-8 layer Gaussian-matched stack drawn beneath the node; `inset` parses but is not painted, and
+  the shadow is not cut out beneath a translucent background.
+- `FramePipeline::sync_style` (between layout and `finish_frame`) copies these values onto the
+  scene; nothing in a production loop calls it yet.
+
 Unsupported declarations (recognized CSS that V1 does not implement; distinct from the parser's
 "unknown property" report in section 5.3) are **not** silent: they produce one diagnostic per
 `(rule, property)` and are kept in the AST for forward compatibility.

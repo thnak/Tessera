@@ -180,7 +180,9 @@ Charts, live data, and animations stream vertices into a per-frame arena:
 - Accumulate axis-aligned damage rects from old/new bounds of changed nodes.
 - Union/merge nearby rects; cap the count (16 is an example; the real cap is not specified); exceeding the cap -> full redraw.
 - Clip damage to the target.
-- Expand by the blur/shadow/AA margin of the changed nodes.
+- Expand by the blur/shadow/AA margin of the changed nodes. Implemented: `Node::paint_outsets`
+  (set from `box-shadow` by `sync_scene_style`) widens a node's damage by the shadow reach, scaled
+  by the node's world scale; transformed nodes damage their world AABB.
 
 ### 6.2 When partial redraw is safe
 
