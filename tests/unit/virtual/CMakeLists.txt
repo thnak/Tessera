@@ -10,6 +10,20 @@ target_link_libraries(virtual_geometry_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_geometry COMMAND virtual_geometry_tests)
 
+add_executable(virtual_geometry_scan_tests
+    virtual_geometry_scan_tests.cpp)
+
+target_link_libraries(virtual_geometry_scan_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_geometry_scan COMMAND virtual_geometry_scan_tests)
+
+add_executable(virtual_allocation_tests
+    virtual_allocation_tests.cpp)
+
+target_link_libraries(virtual_allocation_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_allocations COMMAND virtual_allocation_tests)
+
 add_executable(virtual_anchor_tests
     virtual_anchor_tests.cpp)
 
