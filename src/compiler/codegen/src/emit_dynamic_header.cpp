@@ -88,8 +88,9 @@ void emit_dynamic_declarations(CppWriter& writer, const DynamicPlan& plan) {
     for (const ListTemplate& list : plan.lists) {
         const std::string ordinal = ordinal_text(list.ordinal);
         writer.line("std::unique_ptr<tessera::ui::Node> build_item_" + ordinal + "(const " +
-                    list.element_cpp + "& " + list.item + ", std::size_t tessera_index, std::size_t tessera_id_slot, Item_" +
-                    ordinal + "& tessera_out);");
+                    list.element_cpp + "& " + list.item +
+                    ", std::size_t tessera_index, std::size_t tessera_id_slot, Item_" + ordinal +
+                    "& tessera_out);");
         writer.line("void apply_item_" + ordinal + "(std::size_t tessera_slot, const " +
                     list.element_cpp + "& " + list.item + ", std::size_t tessera_index);");
         writer.line("void apply_list_" + ordinal +
