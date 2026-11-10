@@ -71,3 +71,10 @@ add_executable(harness_session_tests
 target_link_libraries(harness_session_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_session COMMAND harness_session_tests)
+
+add_executable(harness_cli_tests
+    cli_tests.cpp)
+
+target_link_libraries(harness_cli_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_cli COMMAND harness_cli_tests)

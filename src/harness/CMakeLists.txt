@@ -10,6 +10,7 @@
 # harness binary, tests, and any in-process embedding can share the same bytes.
 add_library(tessera_harness STATIC
     artifact_sink.cpp
+    cli.cpp
     command.cpp
     command_args.cpp
     command_result.cpp
@@ -29,3 +30,11 @@ target_include_directories(tessera_harness PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_compile_features(tessera_harness PUBLIC cxx_std_23)
+
+# CLI skeleton (`tessera test` / `tessera headless`). Kept out of the default build until the
+# script runner lands; build it with `--target tessera_harness_cli`. The Lead promotes it (and an
+# alias named `tessera`) in root CMakeLists.txt at that point.
+add_executable(tessera_harness_cli EXCLUDE_FROM_ALL
+    cli_main.cpp)
+
+target_link_libraries(tessera_harness_cli PRIVATE tessera_harness)
