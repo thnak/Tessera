@@ -3,12 +3,13 @@
 // Machine-checked diagnostic-code registry (docs/specs/jsx-subset-v1-jsx.md section 13.1).
 //
 // Three invariants keep one list honest:
-//   1. Every `TESSERA_JSX_*` / `TESSERA_REACT_*` string literal the analyzer emits is in the
-//      registry (src/compiler/analyzer/include/tessera/compiler/jsx/diagnostic_registry.hpp).
+//   1. Every `TESSERA_JSX_*` / `TESSERA_REACT_*` string literal the front end and the Tier-1 rules
+//      emit is in the registry
+//      (src/compiler/analyzer/include/tessera/compiler/jsx/diagnostic_registry.hpp).
 //   2. Every registry code either has a fixture in jsx_diagnostics_cases.hpp or an explicit skip
 //      entry with its owning stage; an uncovered code fails.
 //   3. Every fixture reports exactly its code once, at the recorded span, with a bounded
-//      one-line message. A skipped code may not be emitted by the analyzer, so moving a code into
+//      one-line message. A skipped code may not be emitted by any stage, so moving a code into
 //      this slice fails until its fixture replaces the skip.
 //
 // The fixture messages are also committed as a golden (tests/golden/jsx/diagnostics-registry.txt)
@@ -18,6 +19,8 @@
 #include "jsx_test_util.hpp"
 #include "tessera/compiler/jsx/diagnostic_registry.hpp"
 #include "tessera/compiler/jsx/lexer.hpp"
+#include "tessera/compiler/jsx/source_map.hpp"
+#include "tessera/compiler/rules/analyze.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -44,6 +47,8 @@ namespace {
 
 using namespace jsx_test;
 using namespace tessera::compiler::jsx;
+
+namespace rules = tessera::compiler::rules;
 
 struct Point {
     std::uint32_t line = 1;
@@ -72,7 +77,8 @@ Point location_of(std::string_view source, std::uint32_t offset) {
     return out;
 }
 
-std::vector<Diagnostic> run_case(const jsx_registry::Case& test) {
+// Runs one fixture through the entry point it names. `where` names the fixture in every failure.
+std::vector<Diagnostic> run_case(const jsx_registry::Case& test, const std::string& where) {
     if (test.entry == jsx_registry::Entry::kLex) {
         SourceMap map(test.source);
         DiagnosticSink sink(map, test.limits);
@@ -93,6 +99,17 @@ std::vector<Diagnostic> run_case(const jsx_registry::Case& test) {
         return parse_type(test.source, test.limits).diagnostics;
     case jsx_registry::Entry::kModule:
         return parse_module(test.source, test.limits).diagnostics;
+    case jsx_registry::Entry::kRules: {
+        // A rules fixture must be a clean module: an invalid component is skipped by the pass, so
+        // a parse error would silently turn the expected report into no report at all.
+        const ModuleParseResult parsed = parse_module(test.source, test.limits);
+        check(parsed.ok(), "rules fixture parses cleanly: " + where);
+        if (!parsed.root) {
+            return {};
+        }
+        const SourceMap map(test.source);
+        return rules::analyze_module(*parsed.root, map, test.limits).diagnostics;
+    }
     case jsx_registry::Entry::kLex:
         break;
     }
@@ -104,7 +121,7 @@ std::vector<Diagnostic> run_case(const jsx_registry::Case& test) {
 void check_case(const jsx_registry::Case& test, std::map<std::string, std::string>& messages) {
     const std::string where =
         "fixture `" + std::string(test.name) + "` (" + std::string(test.code) + ")";
-    const std::vector<Diagnostic> diagnostics = run_case(test);
+    const std::vector<Diagnostic> diagnostics = run_case(test, where);
     if (diagnostics.size() != test.report_size) {
         std::cerr << "FAIL: report size for " << where << ": expected " << test.report_size
                   << ", got " << diagnostics.size() << "\n";
@@ -170,18 +187,20 @@ void collect_quoted_codes(std::string_view text, std::set<std::string>& out) {
     }
 }
 
-// Every code the analyzer sources can report, read from the quoted literals so comments and
+// Every code a source tree can report, read from the quoted literals so comments and
 // documentation never count as an emission site. The registry header is skipped: it is the list
-// being checked, not an emitter.
+// being checked, not an emitter. The rules are scanned as well because they own the
+// `TESSERA_REACT_*` checks that are not parser-level.
 std::set<std::string> emitted_codes() {
     std::set<std::string> out;
     const std::filesystem::path root = TESSERA_COMPILER_SOURCE_DIR;
     for (const std::filesystem::path& directory :
-         {root / "analyzer" / "src", root / "analyzer" / "include"}) {
+         {root / "analyzer" / "src", root / "analyzer" / "include", root / "rules" / "src",
+          root / "rules" / "include"}) {
         std::error_code error;
         if (!std::filesystem::exists(directory, error)) {
             ++failures;
-            std::cerr << "FAIL: analyzer source directory not readable: " << directory.string()
+            std::cerr << "FAIL: front-end source directory not readable: " << directory.string()
                       << "\n";
             continue;
         }
@@ -239,14 +258,12 @@ void check_registry(const std::set<std::string>& emitted, const std::set<std::st
         }
         if (emitted.contains(std::string(skip.code))) {
             report_failure("skipped code `" + std::string(skip.code) +
-                           "` is now emitted by the analyzer; add a fixture and remove the skip");
+                           "` is now emitted by a stage; add a fixture and remove the skip");
         }
     }
     for (const auto& code : emitted) {
         if (!registry.contains(code)) {
-            report_failure("`" + code +
-                           "` is emitted by the analyzer but missing from the "
-                           "registry; " +
+            report_failure("`" + code + "` is emitted by a stage but missing from the registry; " +
                            update);
         }
         if (!covered.contains(code)) {
@@ -260,8 +277,8 @@ void check_registry(const std::set<std::string>& emitted, const std::set<std::st
         }
         if (!emitted.contains(code)) {
             report_failure("fixture code `" + code +
-                           "` is not emitted by any analyzer source; the fixture or the source "
-                           "scan is stale");
+                           "` is not emitted by any front-end or rules source; the fixture or the "
+                           "source scan is stale");
         }
     }
     for (const auto& code : registry) {

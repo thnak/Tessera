@@ -2,13 +2,14 @@
 
 #pragma once
 
-// One minimal fixture per analyzer diagnostic code: the smallest source that reports exactly the
-// code, the exact span it must report (byte offset, byte length, 1-based line), and the size of
-// the whole report. The registry test runs every fixture and then compares the committed golden
+// One minimal fixture per diagnostic code: the smallest source that reports exactly the code, the
+// exact span it must report (byte offset, byte length, 1-based line), and the size of the whole
+// report. The registry test runs every fixture and then compares the committed golden
 // tests/golden/jsx/diagnostics-registry.txt, so a message or span change is a visible diff.
 //
-// Codes the analyzer does not report yet are listed in kSkips with their owning stage, not
-// silently omitted (tests/unit/jsx_diagnostics_registry_tests.cpp fails on an uncovered code).
+// Codes neither the front end nor the rules report yet are listed in kSkips with their owning
+// stage, not silently omitted (tests/unit/jsx_diagnostics_registry_tests.cpp fails on an
+// uncovered code).
 
 #include "tessera/compiler/jsx/limits.hpp"
 
@@ -21,9 +22,11 @@
 
 namespace jsx_registry {
 
-// Which front-end entry point the fixture is fed to. kLex drives the Lexer directly, because a
-// lexer diagnostic inside a larger parse would come with the parser's follow-up error.
-enum class Entry { kLex, kExpression, kJsx, kType, kModule };
+// Which entry point the fixture is fed to. kLex drives the Lexer directly, because a lexer
+// diagnostic inside a larger parse would come with the parser's follow-up error. kExpression,
+// kJsx, kType and kModule stop after parsing; kRules then runs the Tier-1 rules pass over the
+// parsed module, so a rules code is reported by the stage that owns it.
+enum class Entry { kLex, kExpression, kJsx, kType, kModule, kRules };
 
 struct Case {
     std::string_view code;
@@ -38,7 +41,7 @@ struct Case {
 };
 
 // A code reserved for a later slice or owned by another stage. `owner` names the stage, `reason`
-// says why this slice cannot cover it.
+// says why no stage emits it yet.
 struct Skip {
     std::string_view code;
     std::string_view owner;
@@ -163,34 +166,70 @@ inline const std::vector<Case> kCases = {
             "  return <B/>;\n"
             "}\n",
             17, 18, 2),
+    fixture("TESSERA_REACT_BIND_MISSING", "react-bind-missing", Entry::kRules,
+            "function A() {\n"
+            "  const f = () => { go(); };\n"
+            "  return <View/>;\n"
+            "}\n",
+            17, 26, 2),
     fixture("TESSERA_REACT_BIND_POSITION", "react-bind-position", Entry::kModule,
             "// Note: bind::x\nfunction A() { return <A/>; }\n", 0, 16),
     fixture("TESSERA_REACT_CUSTOM_HOOK", "react-custom-hook", Entry::kModule,
             "function useThing() { return <A/>; }", 9, 8),
+    fixture("TESSERA_REACT_EFFECT_DEPS", "react-effect-deps", Entry::kRules,
+            "function A() {\n"
+            "  useEffect(() => { go(); });\n"
+            "  return <View/>;\n"
+            "}\n",
+            17, 27, 2),
+    fixture("TESSERA_REACT_EFFECT_RETURN", "react-effect-return", Entry::kRules,
+            "function A() {\n"
+            "  useEffect(() => { return 1; }, []);\n"
+            "  return <View/>;\n"
+            "}\n",
+            35, 8, 2),
+    fixture("TESSERA_REACT_HOOK_FORM", "react-hook-form", Entry::kRules,
+            "function A() {\n"
+            "  const x = useState<int>(0);\n"
+            "  return <View/>;\n"
+            "}\n",
+            17, 27, 2),
+    fixture("TESSERA_REACT_HOOK_ORDER", "react-hook-order", Entry::kRules,
+            "function A() {\n"
+            "  const a = count + 1;\n"
+            "  const [count, setCount] = useState<int>(0);\n"
+            "  return <View/>;\n"
+            "}\n",
+            27, 5, 2),
     fixture("TESSERA_REACT_LIST_KEY", "react-list-key", Entry::kExpression, "rows.map(r => <Row/>)",
             14, 6),
+    fixture("TESSERA_REACT_UNKNOWN_HOOK", "react-unknown-hook", Entry::kRules,
+            "function A() {\n"
+            "  const t = useTheme();\n"
+            "  return <View/>;\n"
+            "}\n",
+            27, 8, 2),
+    fixture("TESSERA_REACT_UNSUPPORTED_API", "react-unsupported-api", Entry::kRules,
+            "function A() {\n"
+            "  const m = useMemo(1);\n"
+            "  return <View/>;\n"
+            "}\n",
+            27, 7, 2),
 };
 
 inline const std::vector<Skip> kSkips = {
     {"TESSERA_JSX_CHILDREN_NOT_ALLOWED", "schema",
-     "the intrinsic child rule is checked against the element table in src/schema"},
+     "declared as a constraint code in src/schema, but no pass evaluates element constraints yet"},
     {"TESSERA_JSX_SUBSET_ANIMATED_READ", "analyzer (later slice)",
      "reading an animated value needs the hook/type state of the later analysis slice"},
     {"TESSERA_JSX_SUBSET_IMPORT_CYCLE", "project resolver",
      "an import cycle spans files; the single-file parser cannot decide it"},
     {"TESSERA_JSX_TYPE_MISMATCH", "type/lowering",
      "needs declared prop, state and event types; no stage emits it yet"},
-    {"TESSERA_REACT_BIND_MISSING", "rules", "reported by src/compiler/rules/arrows.cpp"},
-    {"TESSERA_REACT_EFFECT_DEPS", "rules", "reported by src/compiler/rules/effect_deps.cpp"},
-    {"TESSERA_REACT_EFFECT_RETURN", "rules", "reported by src/compiler/rules/arrows.cpp"},
-    {"TESSERA_REACT_HOOK_FORM", "rules", "reported by src/compiler/rules/hooks.cpp"},
     {"TESSERA_REACT_HOOK_NOT_ALLOWED", "hook manifest",
      "reserved: it depends on ui.hooks.allowed, so no stage emits it yet"},
-    {"TESSERA_REACT_HOOK_ORDER", "rules", "reported by src/compiler/rules/hook_placement.cpp"},
     {"TESSERA_REACT_SETTER_IN_RENDER", "analyzer (later slice)",
      "reserved: needs setter and call-site analysis; no stage emits it yet"},
-    {"TESSERA_REACT_UNKNOWN_HOOK", "rules", "reported by src/compiler/rules/hooks.cpp"},
-    {"TESSERA_REACT_UNSUPPORTED_API", "rules", "reported by src/compiler/rules/hooks.cpp"},
 };
 
 } // namespace jsx_registry

@@ -46,9 +46,15 @@ if (TESSERA_BUILD_TESTS)
     # a source scan for codes that have no fixture or skip entry. Registered here for the same
     # reason as the limits corpus: the lane owns its test list, the source lives with the other
     # front-end tests.
+    #
+    # The registry spans the front end and the Tier-1 rules (the `TESSERA_REACT_*` checks that are
+    # not parser-level), so this test links both stages. The analyzer library itself still links
+    # only the front end: the rules edge is test-only.
     add_executable(jsx_diagnostics_registry_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/jsx_diagnostics_registry_tests.cpp)
-    target_link_libraries(jsx_diagnostics_registry_tests PRIVATE tessera_jsx_frontend)
+    target_link_libraries(jsx_diagnostics_registry_tests PRIVATE
+        tessera_jsx_frontend
+        tessera_react_rules)
     target_compile_definitions(jsx_diagnostics_registry_tests PRIVATE
         TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler"
         TESSERA_JSX_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/jsx")

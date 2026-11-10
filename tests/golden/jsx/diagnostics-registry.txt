@@ -46,6 +46,13 @@ TESSERA_JSX_SUBSET_TYPES	subset-types	type `any` is not supported
 TESSERA_JSX_SUBSET_UNKNOWN_PROP	subset-unknown-prop	attribute `data-x` is not an identifier
 TESSERA_JSX_TYPE_NUMBER	type-number	bare `number` is not a Tessera type
 TESSERA_REACT_BIND_ID	react-bind-id	malformed bind id `Foo`
+TESSERA_REACT_BIND_MISSING	react-bind-missing	handler `f` has no `// Note: bind::<id>` annotation and its body is not made of setter calls only
 TESSERA_REACT_BIND_POSITION	react-bind-position	`bind::` annotations go before a handler declaration or a `useEffect` statement inside a component
 TESSERA_REACT_CUSTOM_HOOK	react-custom-hook	custom hook `useThing` is not supported
+TESSERA_REACT_EFFECT_DEPS	react-effect-deps	`useEffect` needs a dependency array (V1 dependencies are exact)
+TESSERA_REACT_EFFECT_RETURN	react-effect-return	the final `return` of an effect must return a cleanup arrow function
+TESSERA_REACT_HOOK_FORM	react-hook-form	`useState` is not written in its accepted form
+TESSERA_REACT_HOOK_ORDER	react-hook-order	`count` is used before the hook that declares it
 TESSERA_REACT_LIST_KEY	react-list-key	the element returned by `.map` needs a `key` attribute
+TESSERA_REACT_UNKNOWN_HOOK	react-unknown-hook	unknown hook `useTheme`: only useState, useEffect, useRef and useAnimatedValue are available
+TESSERA_REACT_UNSUPPORTED_API	react-unsupported-api	`useMemo` is not supported in V1

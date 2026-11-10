@@ -12,13 +12,14 @@ namespace tessera::compiler::jsx {
 // stable strings (docs/specs/jsx-subset-v1-jsx.md section 13.1): one is never reused for a
 // different meaning.
 //
-// The analyzer reports the codes that have a fixture in tests/unit/jsx_diagnostics_cases.hpp.
-// The remaining entries are owned by a later pipeline stage (rules, lowering, schema) and are
-// recorded here so the whole front end has one list instead of a copy per stage. The registry
-// test (tests/unit/jsx_diagnostics_registry_tests.cpp) fails when a code is emitted but missing
-// here, when a listed code has neither a fixture nor an explicit skip entry, or when the
-// committed golden tests/golden/jsx/diagnostics-registry.txt drifts. Adding or renaming a code
-// therefore requires updating this list, the fixture or skip entry, and the golden.
+// The front end and the Tier-1 rules report the codes that have a fixture in
+// tests/unit/jsx_diagnostics_cases.hpp. The remaining entries are owned by a later pipeline stage
+// (lowering, schema, project resolver) and are recorded here so the whole front end has one list
+// instead of a copy per stage. The registry test (tests/unit/jsx_diagnostics_registry_tests.cpp)
+// fails when a code is emitted but missing here, when a listed code has neither a fixture nor an
+// explicit skip entry, or when the committed golden tests/golden/jsx/diagnostics-registry.txt
+// drifts. Adding or renaming a code therefore requires updating this list, the fixture or skip
+// entry, and the golden.
 inline constexpr std::string_view kDiagnosticCodes[] = {
     "TESSERA_JSX_CHILDREN_NOT_ALLOWED",
     "TESSERA_JSX_LEX_INVALID_CHARACTER",
