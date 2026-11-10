@@ -72,8 +72,18 @@ void FixedStepLoop::set_time_scale(double scale) {
     config_.time_scale = scale;
 }
 
+double interpolation_alpha(double accumulated_seconds, double fixed_dt_seconds) {
+    if (!std::isfinite(accumulated_seconds) || accumulated_seconds <= 0.0) {
+        return 0.0;
+    }
+    if (!std::isfinite(fixed_dt_seconds) || fixed_dt_seconds <= 0.0) {
+        return 0.0;
+    }
+    return std::clamp(accumulated_seconds / fixed_dt_seconds, 0.0, 1.0);
+}
+
 double FixedStepLoop::alpha() const {
-    return std::clamp(accumulator_ / fixed_dt_, 0.0, 1.0);
+    return interpolation_alpha(accumulator_, fixed_dt_);
 }
 
 } // namespace tessera::runtime
