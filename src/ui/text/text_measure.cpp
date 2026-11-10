@@ -4,6 +4,7 @@
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
+#include "text_breaks.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -138,6 +139,25 @@ std::vector<WordRange> split_word_ranges(std::string_view text, std::size_t begi
     return words;
 }
 
+// Largest legal line-break opportunity at or before `fitting_bytes` inside `run` (0 when the run
+// has none). The greedy wrap only needs this for runs wider than the constraint: for a normal
+// run every space is already a wrap point, so this is where UAX #14 (hyphens, CJK, ZWSP) turns a
+// mid-word hard split into a linguistically valid break.
+std::size_t legal_chunk_end(std::string_view run, std::size_t fitting_bytes) {
+    const BreakBoundaries boundaries = line_boundaries(run);
+    std::size_t best = 0;
+    for (const EditOffset at : boundaries.offsets) {
+        if (at == 0) {
+            continue;
+        }
+        if (at > fitting_bytes) {
+            break;
+        }
+        best = at;
+    }
+    return best;
+}
+
 } // namespace
 
 TextStyle text_style_from(const style::ComputedStyle& computed) {
@@ -237,9 +257,16 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
                     const std::size_t max_codepoints =
                         std::max<std::size_t>(1, static_cast<std::size_t>(max_width / advance));
                     const std::size_t take = std::min(max_codepoints, codepoint_count(remaining));
-                    const std::size_t chunk_end = chunk_begin + byte_offset(remaining, take);
-                    add_line(static_cast<float>(take) * advance, chunk_begin, chunk_end);
-                    remaining.remove_prefix(chunk_end - chunk_begin);
+                    std::size_t chunk_bytes = byte_offset(remaining, take);
+                    if (const std::size_t legal = legal_chunk_end(remaining, chunk_bytes);
+                        legal != 0) {
+                        chunk_bytes = legal;
+                    }
+                    const std::size_t chunk_end = chunk_begin + chunk_bytes;
+                    const std::string_view chunk = remaining.substr(0, chunk_bytes);
+                    add_line(static_cast<float>(codepoint_count(chunk)) * advance, chunk_begin,
+                             chunk_end);
+                    remaining.remove_prefix(chunk_bytes);
                     chunk_begin = chunk_end;
                 }
                 continue;
@@ -365,9 +392,12 @@ TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
                             high = middle - 1;
                         }
                     }
-                    const std::size_t chunk_end = chunk_begin + byte_offset(remaining, best);
-                    add_line(measure_text(remaining.substr(0, chunk_end - chunk_begin)),
-                             chunk_begin, chunk_end);
+                    const std::size_t fitting = byte_offset(remaining, best);
+                    const std::size_t legal = legal_chunk_end(remaining, fitting);
+                    const std::size_t chunk_bytes = legal != 0 ? legal : fitting;
+                    const std::size_t chunk_end = chunk_begin + chunk_bytes;
+                    add_line(measure_text(remaining.substr(0, chunk_bytes)), chunk_begin,
+                             chunk_end);
                     chunk_begin = chunk_end;
                 }
                 continue;

@@ -134,17 +134,18 @@ if (TESSERA_ENABLE_THORVG)
     tessera_add_thorvg()
 endif()
 
-# Reduced ICU data (spike task-94, docs/design/icu-data.md). ICU itself is not built by this
-# repository yet, so the step trims a pinned upstream data package with a pinned upstream
-# `icupkg`; it is opt-in and defaults to OFF, which keeps the default build and CI unchanged.
-# The option is declared here (not in the root script) so the spike's diff stays inside
-# third_party/; move these three lines to the root options block when the ICU build lands.
+# ICU (static build with reduced data, docs/design/icu-data.md). The whole dependency - static
+# common/i18n libraries, the trimmed and linked data blob, and the locale manifest - is built by
+# third_party/icu/CMakeLists.txt and is opt-in: OFF keeps the default build, the presets, and CI
+# unchanged. Move the option block below to the root options block when ICU becomes mandatory.
 option(TESSERA_ICU_REDUCED_DATA
-    "Produce a reduced ICU data blob from the documented locale list (spike, off by default)" OFF)
+    "Build static ICU with the reduced data blob and the documented locale list" OFF)
 set(TESSERA_ICU_TOOLS_DIR "" CACHE PATH
-    "Pinned ICU bin directory containing icupkg (spike only)")
+    "Pinned ICU bin directory containing icupkg and genccode")
 set(TESSERA_ICU_FULL_DATA "" CACHE FILEPATH
-    "Full upstream ICU data package to trim, icudt<version><type>.dat (spike only)")
+    "Full upstream ICU data package to trim, icudt<version><type>.dat")
+set(TESSERA_ICU_SOURCE_DIR "" CACHE PATH
+    "Pre-fetched ICU source tree (empty fetches the pinned release archive)")
 
 if (TESSERA_ICU_REDUCED_DATA)
     add_subdirectory(icu)

@@ -37,14 +37,20 @@ namespace tessera::ui::text::edit_detail {
 // Clamps to [0, size] and snaps down to the start of the containing cluster.
 [[nodiscard]] EditOffset snap_to_cluster(std::string_view text, EditOffset offset);
 
-// Word boundaries (documented rule: ASCII alphanumerics and '_' are word code points, every
-// non-ASCII code point is a word code point). `word_left` skips non-word code points backward and
-// then word code points; `word_right` mirrors it forward.
+// Word boundaries. With the ICU slice compiled in, `word_left`/`word_right` walk UAX #29 word
+// boundaries from ui/text/text_breaks.hpp; without it they walk the documented builtin rule
+// (ASCII alphanumerics and '_' are word code points, every non-ASCII code point is a word code
+// point). `word_left` moves to the start of the previous word, `word_right` to the end of the
+// current or next word. The parity differences are enumerated in tests/unit/icu/.
 [[nodiscard]] EditOffset word_left(std::string_view text, EditOffset offset);
 [[nodiscard]] EditOffset word_right(std::string_view text, EditOffset offset);
 
-// Line boundaries at LF. `line_start` is the byte after the previous LF (0 on the first line);
-// `line_end` is the next LF (size on the last line).
+// The word-code-point rule both backends share for navigation decisions.
+[[nodiscard]] bool is_word_codepoint(std::uint32_t cp);
+
+// Paragraph boundaries at LF. `line_start` is the byte after the previous LF (0 on the first
+// line); `line_end` is the next LF (size on the last line). These stay LF-based on purpose: they
+// are paragraph/caret helpers, not UAX #14 opportunities (ui/text/text_breaks.hpp owns those).
 [[nodiscard]] EditOffset line_start(std::string_view text, EditOffset offset);
 [[nodiscard]] EditOffset line_end(std::string_view text, EditOffset offset);
 

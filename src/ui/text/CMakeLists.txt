@@ -12,6 +12,7 @@ add_library(tessera_text STATIC
     glyph_raster.cpp
     scale_glyph_atlas.cpp
     harfbuzz_shaper.cpp
+    text_breaks.cpp
     text_measure.cpp
     text_measure_cache.cpp)
 
@@ -24,6 +25,21 @@ target_link_libraries(tessera_text
     PRIVATE tessera_freetype tessera_harfbuzz tessera_sheenbidi)
 
 target_compile_features(tessera_text PUBLIC cxx_std_23)
+
+# ICU integration (docs/design/icu-data.md): static ICU plus the linked reduced data blob, and the
+# runtime that installs the blob as common data. Off by default, so the default build and CI are
+# unchanged; when on, the text module also carries the ICU-backed segmentation and the locale
+# resolver, and the module tests self-register from tests/unit/icu.
+if (TESSERA_ICU_REDUCED_DATA)
+    target_sources(tessera_text PRIVATE icu_runtime.cpp)
+    target_link_libraries(tessera_text PRIVATE tessera_icu)
+    target_compile_definitions(tessera_text PUBLIC TESSERA_ICU_ENABLED=1)
+
+    if (TESSERA_BUILD_TESTS AND EXISTS "${PROJECT_SOURCE_DIR}/tests/unit/icu/CMakeLists.txt")
+        add_subdirectory("${PROJECT_SOURCE_DIR}/tests/unit/icu"
+            "${CMAKE_BINARY_DIR}/tests/unit/icu")
+    endif()
+endif()
 
 add_subdirectory(render)
 

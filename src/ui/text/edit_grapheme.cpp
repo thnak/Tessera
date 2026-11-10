@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "edit_grapheme.hpp"
+#include "text_breaks.hpp"
 
 #include <cctype>
 
@@ -22,14 +23,6 @@ bool is_extend(std::uint32_t cp) {
 
 bool is_regional_indicator(std::uint32_t cp) {
     return cp >= 0x1F1E6 && cp <= 0x1F1FF;
-}
-
-bool is_word_codepoint(std::uint32_t cp) {
-    if (cp < 0x80) {
-        return (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') || (cp >= '0' && cp <= '9') ||
-               cp == '_';
-    }
-    return true;
 }
 
 bool is_continuation(unsigned char byte) {
@@ -239,25 +232,57 @@ EditOffset snap_to_cluster(std::string_view text, EditOffset offset) {
 }
 
 EditOffset word_left(std::string_view text, EditOffset offset) {
-    EditOffset cursor = offset;
-    while (cursor > 0 && !is_word_codepoint(codepoint_at(text, prev_codepoint(text, cursor)))) {
-        cursor = prev_codepoint(text, cursor);
+    const EditOffset limit = offset > text.size() ? text.size() : offset;
+    const BreakBoundaries boundaries = word_boundaries(text);
+    // The greatest boundary before `limit` that starts a word: the caret skips the whitespace or
+    // punctuation run and lands on the previous word, matching the pre-ICU navigation rule.
+    for (std::size_t index = boundaries.offsets.size(); index-- > 0;) {
+        const EditOffset at = boundaries.offsets[index];
+        if (at >= limit) {
+            continue;
+        }
+        if (at == 0 || is_word_codepoint(codepoint_at(text, at))) {
+            return at;
+        }
     }
-    while (cursor > 0 && is_word_codepoint(codepoint_at(text, prev_codepoint(text, cursor)))) {
-        cursor = prev_codepoint(text, cursor);
-    }
-    return cursor;
+    return 0;
 }
 
 EditOffset word_right(std::string_view text, EditOffset offset) {
-    EditOffset cursor = offset;
-    while (cursor < text.size() && !is_word_codepoint(codepoint_at(text, cursor))) {
-        cursor = next_codepoint(text, cursor);
+    if (offset >= text.size()) {
+        return text.size();
     }
-    while (cursor < text.size() && is_word_codepoint(codepoint_at(text, cursor))) {
-        cursor = next_codepoint(text, cursor);
+    const BreakBoundaries boundaries = word_boundaries(text);
+    // Inside a word the caret moves to the end of that word; otherwise it skips the non-word run
+    // and lands on the end of the next word.
+    if (is_word_codepoint(codepoint_at(text, offset))) {
+        for (const EditOffset at : boundaries.offsets) {
+            if (at > offset) {
+                return at;
+            }
+        }
+        return text.size();
     }
-    return cursor;
+    for (std::size_t index = 0; index < boundaries.offsets.size(); ++index) {
+        const EditOffset at = boundaries.offsets[index];
+        if (at < offset || at >= text.size()) {
+            continue;
+        }
+        if (!is_word_codepoint(codepoint_at(text, at))) {
+            continue;
+        }
+        return index + 1 < boundaries.offsets.size() ? boundaries.offsets[index + 1] : text.size();
+    }
+    return text.size();
+}
+
+bool is_word_codepoint(std::uint32_t cp) {
+    if (cp < 0x80) {
+        return (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') || (cp >= '0' && cp <= '9') ||
+               cp == '_';
+    }
+    // Every non-ASCII code point counts as a word code point (the documented reduced rule).
+    return true;
 }
 
 EditOffset line_start(std::string_view text, EditOffset offset) {
