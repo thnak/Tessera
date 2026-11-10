@@ -26,14 +26,23 @@ set(TESSERA_A11Y_SOURCES
     atspi_session_handshake.cpp
     atspi_session_pump.cpp
     atspi_session_status.cpp
-    uia_mapping.cpp)
+    uia_mapping.cpp
+    uia_error.cpp
+    uia_handoff.cpp
+    uia_provider.cpp
+    uia_bridge.cpp
+    uia_bridge_jobs.cpp)
 
 # The Windows UI Automation bridge is the only code in this layer that touches a platform SDK. It
-# is compiled on Windows only; every other platform builds the same public headers plus the
-# platform-neutral bridge, so a Linux/macOS/Android/iOS configure never includes a Windows header.
+# is compiled on Windows only; every other platform builds the same public headers plus a stub
+# apartment, so a Linux/macOS/Android/iOS configure never includes a Windows header.
 if (WIN32)
     list(APPEND TESSERA_A11Y_SOURCES
+        uia_apartment_win.cpp
         uia_sdk_probe.cpp)
+else()
+    list(APPEND TESSERA_A11Y_SOURCES
+        uia_apartment_stub.cpp)
 endif()
 
 add_library(tessera_accessibility STATIC ${TESSERA_A11Y_SOURCES})

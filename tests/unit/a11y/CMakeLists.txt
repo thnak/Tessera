@@ -95,6 +95,27 @@ target_link_libraries(a11y_uia_mapping_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_uia_mapping COMMAND a11y_uia_mapping_tests)
 
+add_executable(a11y_uia_handoff_tests
+    a11y_uia_handoff_tests.cpp)
+
+target_link_libraries(a11y_uia_handoff_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_handoff COMMAND a11y_uia_handoff_tests)
+
+add_executable(a11y_uia_bridge_tests
+    a11y_uia_bridge_tests.cpp)
+
+target_link_libraries(a11y_uia_bridge_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_bridge COMMAND a11y_uia_bridge_tests)
+
+add_executable(a11y_uia_bridge_lifecycle_tests
+    a11y_uia_bridge_lifecycle_tests.cpp)
+
+target_link_libraries(a11y_uia_bridge_lifecycle_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_bridge_lifecycle COMMAND a11y_uia_bridge_lifecycle_tests)
+
 # The Windows UI Automation provider is the only platform-specific code in this directory. The
 # probe test proves the SDK headers and the uiautomationcore/ole32 link work from the static
 # accessibility library; it is absent everywhere else, where the same public headers must still

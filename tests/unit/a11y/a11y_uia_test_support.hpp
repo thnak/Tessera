@@ -12,8 +12,11 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <iostream>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace a11y_uia_test {
 
@@ -57,6 +60,35 @@ make_node(tessera::ui::a11y::Role role, std::string_view name = {}, std::string_
     set_text(node.name, name);
     set_text(node.value, value);
     return node;
+}
+
+inline void link_children(tessera::ui::a11y::A11yNode& parent,
+                          std::initializer_list<tessera::ui::a11y::A11yIndex> children) {
+    std::size_t index = 0;
+    for (const tessera::ui::a11y::A11yIndex child : children) {
+        if (index >= tessera::ui::a11y::kMaxChildren) {
+            break;
+        }
+        parent.children[index++] = child;
+    }
+    parent.child_count = static_cast<std::uint16_t>(index);
+}
+
+inline tessera::ui::a11y::A11ySnapshot snapshot_of(std::vector<tessera::ui::a11y::A11yNode> nodes) {
+    tessera::ui::a11y::A11ySnapshot snapshot;
+    snapshot.nodes = std::move(nodes);
+    return snapshot;
+}
+
+// Root pane + one focusable button. The shape most provider tests need.
+inline tessera::ui::a11y::A11ySnapshot button_snapshot(std::string_view button_name = "Save") {
+    using namespace tessera::ui::a11y;
+    A11yNode root = make_node(Role::Generic, "Root");
+    A11yNode button = make_node(Role::Button, button_name);
+    button.actions = Action::Press | Action::Focus;
+    button.states = State::Focusable;
+    link_children(root, {1});
+    return snapshot_of({root, button});
 }
 
 } // namespace a11y_uia_test
