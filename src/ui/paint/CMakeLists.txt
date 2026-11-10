@@ -39,6 +39,13 @@ if (TESSERA_BUILD_TESTS)
         tessera_rhi_null)
     add_test(NAME paint_vector COMMAND paint_vector_tests)
 
+    add_executable(paint_vector_sink_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/paint_vector_sink_tests.cpp)
+    target_link_libraries(paint_vector_sink_tests PRIVATE
+        tessera_paint
+        tessera_rhi_null)
+    add_test(NAME paint_vector_sink COMMAND paint_vector_sink_tests)
+
     # Vulkan-free CPU vector golden: embedded SVG assets -> CPU raster -> textured-quad blit,
     # compared against the committed baseline at tolerance 0. Runs on every platform whose build
     # has ThorVG; with ThorVG OFF the scene prints the documented skip line and CTest skips it.

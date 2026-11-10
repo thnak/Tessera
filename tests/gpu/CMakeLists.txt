@@ -57,6 +57,16 @@ endif()
 add_test(NAME path_texture_draw COMMAND path_texture_draw_tests)
 set_tests_properties(path_texture_draw PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+# Manual measurement tool (not a CTest): path upload / cache-hit / SVG decode cost on a real device.
+if (TARGET tessera_rhi_vulkan)
+    add_executable(path_texture_measure
+        batched2d/path_texture_measure.cpp)
+    target_link_libraries(path_texture_measure PRIVATE
+        tessera_gpu tessera_path tessera_rhi_null tessera_rhi_vulkan)
+    target_compile_definitions(path_texture_measure PRIVATE
+        TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
+endif()
+
 if (TARGET batched2d_poc)
     add_test(
         NAME batched2d_vulkan_smoke

@@ -101,7 +101,7 @@ the sampled texel; the pipeline uses `SRC_ALPHA`/`ONE_MINUS_SRC_ALPHA`).
 ### Measurements
 
 Debug build, AMD Radeon RX 5300M, 512x512 raster, solid-fill rasterizer to isolate the upload path
-(`path_texture_draw_tests --measure`); a ThorVG rasterization adds the task-12 numbers on top
+(`path_texture_measure`, split out of `path_texture_draw_tests`); a ThorVG rasterization adds the task-12 numbers on top
 (1.0-1.7 ms Release for the 512x512 icon/chart scene):
 
 | Measurement | Value |
