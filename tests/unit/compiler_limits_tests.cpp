@@ -257,6 +257,21 @@ void test_invalid_utf8() {
     check(flood.diagnostics_truncated, "the flood is flagged as truncated");
 }
 
+// Diagnostic text is cut at a code point boundary, so a truncated message is still valid UTF-8.
+void test_excerpt_is_code_point_safe() {
+    check_eq(excerpt("short"), "short", "a short excerpt is unchanged");
+    check_eq(excerpt(std::string(100, 'a')), std::string(kMaxExcerptBytes, 'a') + "...",
+             "a long excerpt is cut and marked");
+    // 31 ASCII bytes then a 2-byte code point: the cut falls inside the code point and drops it.
+    const std::string split = std::string(kMaxExcerptBytes - 1, 'a') + "\xC3\xA9" + "tail";
+    const std::string cut = excerpt(split);
+    check(cut.size() == kMaxExcerptBytes + 2, "the incomplete code point is dropped, not split");
+    check(cut.ends_with("..."), "the cut is marked");
+    for (const char c : cut.substr(0, kMaxExcerptBytes - 1)) {
+        check(c == 'a', "the excerpt keeps only whole code points");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -317,5 +332,6 @@ int main() {
     });
     test_limit_boundaries();
     test_invalid_utf8();
+    test_excerpt_is_code_point_safe();
     return finish("compiler limits tests");
 }
