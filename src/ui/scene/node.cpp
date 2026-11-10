@@ -104,6 +104,20 @@ void Node::set_z_index(int z_index) {
     mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
+void Node::set_paint_outsets(const PaintOutsets& outsets) {
+    const auto sanitize = [](float value) {
+        return std::isfinite(value) && value > 0.0f ? value : 0.0f;
+    };
+    const PaintOutsets next{sanitize(outsets.left), sanitize(outsets.top), sanitize(outsets.right),
+                            sanitize(outsets.bottom)};
+    if (next.left == paint_outsets_.left && next.top == paint_outsets_.top &&
+        next.right == paint_outsets_.right && next.bottom == paint_outsets_.bottom) {
+        return;
+    }
+    paint_outsets_ = next;
+    mark_dirty(Dirty::Paint | Dirty::Render);
+}
+
 void Node::set_visible(bool visible) {
     if (visible_ == visible) {
         return;

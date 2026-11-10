@@ -68,6 +68,20 @@ public:
         return z_index_;
     }
 
+    // How far this node paints beyond its border box (CSS box-shadow reach), in box-local px.
+    // Damage uses it so a node's old and new pixels, including its shadow, are redrawn. Negative
+    // and non-finite values count as 0.
+    struct PaintOutsets {
+        float left = 0.0f;
+        float top = 0.0f;
+        float right = 0.0f;
+        float bottom = 0.0f;
+    };
+    void set_paint_outsets(const PaintOutsets& outsets);
+    [[nodiscard]] const PaintOutsets& paint_outsets() const {
+        return paint_outsets_;
+    }
+
     void set_visible(bool visible);
     [[nodiscard]] bool visible() const {
         return visible_;
@@ -294,6 +308,7 @@ private:
     bool focusable_ = false;
     int tab_index_ = 0;
     int z_index_ = 0;
+    PaintOutsets paint_outsets_;
     std::optional<PaintData> paint_data_;
     // Borrowed views: the caller keeps the storage alive (codegen passes literals). No allocations.
     std::string_view element_kind_;

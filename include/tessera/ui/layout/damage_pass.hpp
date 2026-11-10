@@ -22,7 +22,8 @@ struct DamagePassResult {
 DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccumulator& damage,
                                   float dpi_scale = 1.0f, float margin = 0.0f);
 
-// Paint-side damage rect for a node: its world bounds for every kind. Text is deliberately not
+// Paint-side damage rect for a node: its world bounds (grown by Node::paint_outsets for shadows)
+// for every kind. Text is deliberately not
 // tightened (docs/design/dirty-rendering.md 8.2). Callers snap the rect themselves.
 [[nodiscard]] rendering::rhi::Rect node_damage_rect(const Node& node);
 

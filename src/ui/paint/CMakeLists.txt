@@ -8,6 +8,7 @@ add_library(tessera_paint STATIC
     paint_sinks.cpp
     paint_text.cpp
     paint_text_metrics.cpp
+    scene_style_sync.cpp
     paint_vector.cpp
     text_layout_cache.cpp)
 
@@ -71,6 +72,20 @@ if (TESSERA_BUILD_TESTS)
         set_tests_properties(batched2d_cpu_vector_golden PROPERTIES
             SKIP_REGULAR_EXPRESSION "cpu-vector-golden: skipped")
     endif()
+
+    # Vulkan-free pixel check of box-shadow through the CPU sink (blur falloff, sharp offset).
+    add_executable(paint_shadow_cpu_tests
+        ${PROJECT_SOURCE_DIR}/tests/gpu/paint_shadow_cpu_tests.cpp)
+    target_include_directories(paint_shadow_cpu_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    target_link_libraries(paint_shadow_cpu_tests PRIVATE
+        tessera_paint
+        tessera_software
+        tessera_path
+        tessera_asset_svg
+        tessera_image
+        tessera_asset_image)
+    add_test(NAME paint_shadow_cpu COMMAND paint_shadow_cpu_tests)
 
     add_executable(paint_image_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/paint_image_tests.cpp)
