@@ -249,12 +249,13 @@ namespace dynamic {
       ++position; // a static child is attached by build()
     }
     
-    std::unique_ptr<tessera::ui::Node> Dynamic::build_item_5(const std::string& item, std::size_t tessera_index, Item_5& tessera_out) {
+    std::unique_ptr<tessera::ui::Node> Dynamic::build_item_5(const std::string& item, std::size_t tessera_index, std::size_t tessera_id_slot, Item_5& tessera_out) {
       (void)item;
       (void)tessera_index;
       (void)tessera_out;
+      tessera_out.id_slot = tessera_id_slot;
       // node::5
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + tessera_index * kItemIdStride));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + tessera_id_slot * kItemIdStride));
       node_5->set_element_kind("Text");
       tessera_out.texts[0] = node_5.get();
       return node_5;
@@ -312,6 +313,11 @@ namespace dynamic {
         std::array<std::uint64_t, kMaxGeneratedListItems> tessera_next_hashes{};
         std::array<bool, kMaxGeneratedListItems> tessera_next_set{};
         std::size_t tessera_next = 0;
+        // Id slots held by any item of the previous table; a new item takes a free one.
+        std::array<bool, 2 * kMaxGeneratedListItems> tessera_id_used{};
+        for (std::size_t tessera_slot = 0; tessera_slot < list_5_count_; ++tessera_slot) {
+          tessera_id_used[tessera_old_items[tessera_slot].id_slot] = true;
+        }
         for (const std::string& item : state_items_) {
           if (tessera_next == kMaxGeneratedListItems) {
             break;
@@ -333,7 +339,12 @@ namespace dynamic {
             parent.insert_child(insert_at + tessera_next, std::move(tessera_old_nodes[tessera_match]));
           }
           else {
-            std::unique_ptr<tessera::ui::Node> tessera_built = build_item_5(item, tessera_next, tessera_next_items[tessera_next]);
+            std::size_t tessera_id_slot = 0;
+            while (tessera_id_used[tessera_id_slot]) {
+                ++tessera_id_slot;
+            }
+            tessera_id_used[tessera_id_slot] = true;
+            std::unique_ptr<tessera::ui::Node> tessera_built = build_item_5(item, tessera_next, tessera_id_slot, tessera_next_items[tessera_next]);
             tessera_next_items[tessera_next].root = tessera_built.get();
             tessera_next_hashes[tessera_next] = 0;
             tessera_next_set[tessera_next] = false;

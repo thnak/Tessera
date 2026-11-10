@@ -46,16 +46,20 @@ bool emit_build_item(CppWriter& writer, const ir::Component& component, const Dy
     const std::string ordinal = std::to_string(list.ordinal);
     writer.open("std::unique_ptr<tessera::ui::Node> " + component.name + "::build_item_" + ordinal +
                 "(const " + list.element_cpp + "& " + list.item +
-                ", std::size_t tessera_index, Item_" + ordinal + "& tessera_out)");
+                ", std::size_t tessera_index, std::size_t tessera_id_slot, Item_" + ordinal +
+                "& tessera_out)");
     writer.line("(void)" + list.item + ";");
     writer.line("(void)tessera_index;");
     writer.line("(void)tessera_out;");
+    // The NodeId offset follows the item, not its position: a reused item keeps its ids and a new
+    // item takes a slot no live item holds, so ids stay unique across reorders and removals.
+    writer.line("tessera_out.id_slot = tessera_id_slot;");
     const LocalBindings locals = list_locals(list, "static_cast<int>(tessera_index)");
     NodeEmitState state{component,        adapters,          dynamic_text,
                         dynamic_metadata, controlled_inputs, &plan};
     state.locals = &locals;
     state.text_sites = &list.text_sites;
-    state.index_expr = "tessera_index";
+    state.index_expr = "tessera_id_slot";
     state.text_out = "tessera_out.texts";
     state.next_id = list.ordinal;
     state.next_var = list.ordinal;
@@ -162,6 +166,12 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component, const Li
     writer.line("std::array<std::uint64_t, kMaxGeneratedListItems> tessera_next_hashes{};");
     writer.line("std::array<bool, kMaxGeneratedListItems> tessera_next_set{};");
     writer.line("std::size_t tessera_next = 0;");
+    writer.line("// Id slots held by any item of the previous table; a new item takes a free one.");
+    writer.line("std::array<bool, 2 * kMaxGeneratedListItems> tessera_id_used{};");
+    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < list_" + ordinal +
+                "_count_; ++tessera_slot)");
+    writer.line("tessera_id_used[tessera_old_items[tessera_slot].id_slot] = true;");
+    writer.close("");
     writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source.text + ")");
     writer.open("if (tessera_next == kMaxGeneratedListItems)");
     writer.line("break;");
@@ -192,8 +202,13 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component, const Li
     writer.close("");
     writer.line("else {");
     ++writer.indent;
+    writer.line("std::size_t tessera_id_slot = 0;");
+    writer.line("while (tessera_id_used[tessera_id_slot]) {");
+    writer.line("    ++tessera_id_slot;");
+    writer.line("}");
+    writer.line("tessera_id_used[tessera_id_slot] = true;");
     writer.line("std::unique_ptr<tessera::ui::Node> tessera_built = build_item_" + ordinal + "(" +
-                list.item + ", tessera_next, tessera_next_items[tessera_next]);");
+                list.item + ", tessera_next, tessera_id_slot, tessera_next_items[tessera_next]);");
     writer.line("tessera_next_items[tessera_next].root = tessera_built.get();");
     writer.line("tessera_next_hashes[tessera_next] = 0;");
     writer.line("tessera_next_set[tessera_next] = false;");

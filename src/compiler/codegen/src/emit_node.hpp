@@ -44,7 +44,7 @@ struct NodeEmitState {
     // component-level dynamic-text table.
     const LocalBindings* locals = nullptr;
     const std::vector<ListTextSite>* text_sites = nullptr;
-    std::string index_expr; // `tessera_index` inside an item builder, empty in the static tree
+    std::string index_expr; // `tessera_id_slot` inside an item builder, empty in the static tree
     std::string text_out;   // `tessera_out.texts` inside an item builder, empty otherwise
 
     unsigned next_id = 1;

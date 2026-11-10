@@ -27,6 +27,7 @@ namespace dynamic {
     // Generated nodes of one `node::5` item (1 interpolated text node(s), template order).
     struct Item_5 {
       tessera::ui::Node* root = nullptr;
+      std::size_t id_slot = 0; // NodeId offset slot; stable while the item lives
       std::array<tessera::ui::Node*, 1> texts{};
     };
     
@@ -84,7 +85,7 @@ namespace dynamic {
       void update();
       // Generated dynamic child paths: deterministic child positions and bounded keyed lists.
       void apply_children_1();
-      std::unique_ptr<tessera::ui::Node> build_item_5(const std::string& item, std::size_t tessera_index, Item_5& tessera_out);
+      std::unique_ptr<tessera::ui::Node> build_item_5(const std::string& item, std::size_t tessera_index, std::size_t tessera_id_slot, Item_5& tessera_out);
       void apply_item_5(std::size_t tessera_slot, const std::string& item, std::size_t tessera_index);
       void apply_list_5(tessera::ui::Node& parent, std::size_t insert_at);
       void on_click(const tessera::ui::ClickEvent& event);

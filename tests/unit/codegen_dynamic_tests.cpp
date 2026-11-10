@@ -238,7 +238,8 @@ void test_generated_shape() {
     check(header.find("void apply_children_1();") != std::string::npos,
           "the child-set update is declared");
     check(header.find("std::unique_ptr<tessera::ui::Node> build_item_5(const std::string& item, "
-                      "std::size_t tessera_index, Item_5& tessera_out);") != std::string::npos,
+                      "std::size_t tessera_index, std::size_t tessera_id_slot, "
+                      "Item_5& tessera_out);") != std::string::npos,
           "the per-item builder signature");
     check(header.find("void apply_list_5(tessera::ui::Node& parent, std::size_t insert_at);") !=
               std::string::npos,
@@ -274,16 +275,19 @@ void test_generated_shape() {
     check(source.find("tessera_next_items[tessera_next] = tessera_old_items[tessera_match];") !=
               std::string::npos,
           "a matching key reuses the existing item node");
-    check(source.find("build_item_5(item, tessera_next, tessera_next_items[tessera_next]);") !=
-              std::string::npos,
+    check(source.find("build_item_5(item, tessera_next, tessera_id_slot, "
+                      "tessera_next_items[tessera_next]);") != std::string::npos,
           "a new key builds one item");
     check(source.find("parent.insert_child(insert_at + tessera_next,") != std::string::npos,
           "items are inserted at their deterministic position");
     check(source.find("std::unique_ptr<tessera::ui::Node> Dynamic::build_item_5(") !=
               std::string::npos,
           "the item builder is emitted");
-    check(source.find("+ tessera_index * kItemIdStride)") != std::string::npos,
-          "item node ids are offset by the item index");
+    check(source.find("+ tessera_id_slot * kItemIdStride)") != std::string::npos,
+          "item node ids are offset by the item's id slot");
+    check(source.find("tessera_id_used[tessera_old_items[tessera_slot].id_slot] = true;") !=
+              std::string::npos,
+          "a new item takes an id slot no live item holds");
     check(source.find("apply_item_5(tessera_slot, item, tessera_slot);") != std::string::npos,
           "the content pass runs per item");
     check(source.find("if (!list_5_set_[tessera_slot] || tessera_hash != "

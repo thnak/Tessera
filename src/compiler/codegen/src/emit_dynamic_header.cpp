@@ -33,6 +33,7 @@ void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan) {
         writer.line("struct Item_" + ordinal_text(list.ordinal) + " {");
         ++writer.indent;
         writer.line("tessera::ui::Node* root = nullptr;");
+        writer.line("std::size_t id_slot = 0; // NodeId offset slot; stable while the item lives");
         writer.line("std::array<tessera::ui::Node*, " + std::to_string(list.text_sites.size()) +
                     "> texts{};");
         --writer.indent;
@@ -87,7 +88,7 @@ void emit_dynamic_declarations(CppWriter& writer, const DynamicPlan& plan) {
     for (const ListTemplate& list : plan.lists) {
         const std::string ordinal = ordinal_text(list.ordinal);
         writer.line("std::unique_ptr<tessera::ui::Node> build_item_" + ordinal + "(const " +
-                    list.element_cpp + "& " + list.item + ", std::size_t tessera_index, Item_" +
+                    list.element_cpp + "& " + list.item + ", std::size_t tessera_index, std::size_t tessera_id_slot, Item_" +
                     ordinal + "& tessera_out);");
         writer.line("void apply_item_" + ordinal + "(std::size_t tessera_slot, const " +
                     list.element_cpp + "& " + list.item + ", std::size_t tessera_index);");

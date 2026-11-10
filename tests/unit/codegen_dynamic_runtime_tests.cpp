@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -197,14 +198,26 @@ int main() {
     component.apply_state();
     check(component.list_5_count_ == dynamic::gen::kMaxGeneratedListItems,
           "the item table truncates at the documented cap");
-    check(component.list_5_items_[0].root->id() == 5,
-          "the truncated prefix starts at the template id");
-    check(
-        component.list_5_items_[static_cast<std::size_t>(dynamic::gen::kMaxGeneratedListItems) - 1]
-                .root->id() == 5 + 31 * 13,
-        "the last materialized item keeps the derived id");
+    {
+        std::set<ui::NodeId> ids;
+        for (std::size_t index = 0; index < component.list_5_count_; ++index) {
+            ids.insert(component.list_5_items_[index].root->id());
+        }
+        check(ids.size() == component.list_5_count_, "every truncated item has a unique id");
+    }
     check(text_of(*component.list_5_items_[0].root) == "item0 @ 2",
           "the truncated prefix is the source prefix");
+
+    // --- 8. Ids stay unique when a reused item outlives the slot it was first built in. ---------
+    component.state_items_ = {"a", "b"};
+    component.apply_state();
+    component.state_items_ = {"b"};
+    component.apply_state();
+    component.state_items_ = {"b", "c"};
+    component.apply_state();
+    check(component.list_5_count_ == 2 &&
+              component.list_5_items_[0].root->id() != component.list_5_items_[1].root->id(),
+          "a new item never reuses the id of a surviving item");
 
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
