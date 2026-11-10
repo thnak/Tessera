@@ -93,6 +93,14 @@ FrameTick FramePipeline::tick(Node& root, double dt) {
     return result;
 }
 
+paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StyleProvider& styles,
+                                                      const FrameTick& tick, bool force) const {
+    if (!force && !tick.needs_style && !tick.needs_layout) {
+        return {};
+    }
+    return paint::sync_scene_style(root, styles);
+}
+
 FrameRender FramePipeline::finish_frame(Node& root) {
     FrameRender result;
     dirty_->collect(root, Dirty::Paint | Dirty::Render);

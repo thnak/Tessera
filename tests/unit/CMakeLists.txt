@@ -947,6 +947,13 @@ target_link_libraries(frame_pipeline_overflow_tests PRIVATE tessera_frame tesser
 
 add_test(NAME frame_pipeline_overflow COMMAND frame_pipeline_overflow_tests)
 
+add_executable(frame_pipeline_style_sync_tests
+    frame_pipeline_style_sync_tests.cpp)
+
+target_link_libraries(frame_pipeline_style_sync_tests PRIVATE tessera_frame tessera_runtime)
+
+add_test(NAME frame_pipeline_style_sync COMMAND frame_pipeline_style_sync_tests)
+
 add_executable(lowering_expression_tests
     lowering_expression_tests.cpp)
 

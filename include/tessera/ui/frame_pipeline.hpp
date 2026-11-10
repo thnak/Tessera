@@ -7,6 +7,7 @@
 #include "tessera/ui/animation/runtime.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 
 namespace tessera::runtime {
@@ -46,6 +47,15 @@ public:
                   DirtyPass& dirty, FramePipelineConfig config = {});
 
     FrameTick tick(Node& root, double dt);
+
+    // Copies z-index, transform and box-shadow reach from computed style onto the scene (see
+    // paint::sync_scene_style). Call it after the caller's style/layout work and before
+    // finish_frame(), so the paint/render dirtiness it raises reaches damage. It only runs when
+    // `tick` reported style or layout work (or `force` is set); a steady frame costs nothing and
+    // returns an all-zero result.
+    paint::SceneStyleSyncResult sync_style(Node& root, paint::StyleProvider& styles,
+                                           const FrameTick& tick, bool force = false) const;
+
     FrameRender finish_frame(Node& root);
 
     // Paints the whole scene into `sink` only when the most recent finish_frame() decided the frame
