@@ -6,6 +6,7 @@
 // deterministic repeat, and that an sRGB target renders through the same path.
 // Skips cleanly without a Vulkan device or the test font fixture.
 
+#include "paint_text_gpu_support.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
@@ -64,121 +65,21 @@ using tessera::ui::text::TextLine;
 using tessera::ui::text::TextRenderer;
 using tessera::ui::text::TextStyle;
 
-constexpr Extent2D kExtent{160, 160};
-constexpr std::uint32_t kTextRectX = 8;
-constexpr std::uint32_t kTextRectY = 8;
-constexpr std::uint32_t kTextRectW = 112;
-constexpr std::uint32_t kTextRectH = 40;
-
-bool expect(bool condition, const char* message) {
-    if (!condition) {
-        std::cerr << "paint_text_gpu: " << message << "\n";
-    }
-    return condition;
-}
-
-class StubStyles final : public StyleProvider {
-public:
-    void set(NodeId id, ComputedStyle style) {
-        styles_[id] = std::move(style);
-    }
-    ComputedStyle compute(const Node& node) override {
-        const auto found = styles_.find(node.id());
-        return found == styles_.end() ? ComputedStyle{} : found->second;
-    }
-
-private:
-    std::map<NodeId, ComputedStyle> styles_;
-};
-
-ComputedStyle styled(std::initializer_list<std::pair<const char*, const char*>> values) {
-    ComputedStyle style;
-    for (const auto& [property, value] : values) {
-        style.set(property, value);
-    }
-    return style;
-}
-
-struct RecordedLine {
-    std::string text;
-    tessera::rendering::rhi::Rect rect;
-    std::optional<float> baseline;
-};
-
-class LineRecordingSink final : public tessera::ui::paint::PaintSink {
-public:
-    void fill_rect(const tessera::rendering::rhi::Rect&,
-                   const tessera::rendering::rhi::Color&) override {}
-    void fill_rounded_rect(const tessera::rendering::rhi::Rect&,
-                           const tessera::rendering::rhi::Color&, float) override {}
-    void push_clip(const tessera::ui::paint::RoundedClip&) override {}
-    void pop_clip() override {}
-    void draw_text(const tessera::ui::paint::TextDraw& run) override {
-        lines.push_back(RecordedLine{std::string(run.text), run.rect, run.baseline});
-    }
-    std::vector<RecordedLine> lines;
-};
-
-RenderTargetDesc target_desc(TextureFormat format) {
-    RenderTargetDesc desc;
-    desc.extent = kExtent;
-    desc.format = format;
-    desc.clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
-    desc.load_op = LoadOp::Clear;
-    desc.store_op = StoreOp::Store;
-    return desc;
-}
-
-std::vector<std::uint8_t> read_target(Device& device, RenderTarget& target) {
-    const std::size_t bytes =
-        static_cast<std::size_t>(kExtent.width) * kExtent.height * sizeof(std::uint32_t);
-    auto readback = device.create_buffer({bytes, BufferUsage::Readback});
-    auto commands = device.create_command_list();
-    commands->copy_target_to_buffer(target, *readback);
-    commands->submit();
-    std::vector<std::uint8_t> pixels(bytes);
-    readback->read(pixels.data(), pixels.size());
-    return pixels;
-}
-
-std::size_t count_non_background(const std::vector<std::uint8_t>& pixels) {
-    std::size_t count = 0;
-    for (std::size_t i = 0; i + 3 < pixels.size(); i += 4) {
-        if (pixels[i] != 0 || pixels[i + 1] != 0 || pixels[i + 2] != 0) {
-            ++count;
-        }
-    }
-    return count;
-}
-
-std::size_t count_non_background_region(const std::vector<std::uint8_t>& pixels, std::uint32_t x0,
-                                        std::uint32_t y0, std::uint32_t x1, std::uint32_t y1) {
-    std::size_t count = 0;
-    for (std::uint32_t y = y0; y < y1; ++y) {
-        for (std::uint32_t x = x0; x < x1; ++x) {
-            const std::size_t index =
-                (static_cast<std::size_t>(y) * kExtent.width + x) * sizeof(std::uint32_t);
-            if (pixels[index] != 0 || pixels[index + 1] != 0 || pixels[index + 2] != 0) {
-                ++count;
-            }
-        }
-    }
-    return count;
-}
-
-std::size_t count_far_right_non_background(const std::vector<std::uint8_t>& pixels) {
-    std::size_t count = 0;
-    for (std::uint32_t y = 0; y < kExtent.height; ++y) {
-        for (std::uint32_t x = kExtent.width - 4; x < kExtent.width; ++x) {
-            const std::size_t index =
-                (static_cast<std::size_t>(y) * kExtent.width + x) * sizeof(std::uint32_t);
-            if (pixels[index] != 0 || pixels[index + 1] != 0 || pixels[index + 2] != 0) {
-                ++count;
-            }
-        }
-    }
-    return count;
-}
+using tessera::test::paint_text_gpu::count_far_right_non_background;
+using tessera::test::paint_text_gpu::count_non_background;
+using tessera::test::paint_text_gpu::count_non_background_region;
+using tessera::test::paint_text_gpu::expect;
+using tessera::test::paint_text_gpu::kExtent;
+using tessera::test::paint_text_gpu::kTextRectH;
+using tessera::test::paint_text_gpu::kTextRectW;
+using tessera::test::paint_text_gpu::kTextRectX;
+using tessera::test::paint_text_gpu::kTextRectY;
+using tessera::test::paint_text_gpu::LineRecordingSink;
+using tessera::test::paint_text_gpu::read_target;
+using tessera::test::paint_text_gpu::RecordedLine;
+using tessera::test::paint_text_gpu::StubStyles;
+using tessera::test::paint_text_gpu::styled;
+using tessera::test::paint_text_gpu::target_desc;
 
 } // namespace
 
