@@ -5,6 +5,7 @@
 #include "paint_text.hpp"
 #include "paint_vector.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/z_order.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -174,9 +175,10 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     detail::paint_text_lines(node, style, rect, sink, stats, context);
     detail::paint_vector_content(node, style, rect, sink, stats);
     detail::paint_image_content(node, style, rect, sink, stats);
-    for (const auto& child : node.children()) {
-        paint_node(*child, styles, sink, stats, context);
-    }
+    for_each_by_z(node.children(), false, [&](const Node& child) {
+        paint_node(child, styles, sink, stats, context);
+        return false;
+    });
     if (pushed_clip) {
         sink.pop_clip();
     }

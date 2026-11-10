@@ -61,6 +61,13 @@ public:
         return transform_;
     }
 
+    // Stacking order among siblings (CSS `z-index`, `auto` = 0): lower values paint first and hit
+    // last; equal values keep child order. Visual only, so it dirties paint/render, not layout.
+    void set_z_index(int z_index);
+    [[nodiscard]] int z_index() const {
+        return z_index_;
+    }
+
     void set_visible(bool visible);
     [[nodiscard]] bool visible() const {
         return visible_;
@@ -286,6 +293,7 @@ private:
     bool visible_ = true;
     bool focusable_ = false;
     int tab_index_ = 0;
+    int z_index_ = 0;
     std::optional<PaintData> paint_data_;
     // Borrowed views: the caller keeps the storage alive (codegen passes literals). No allocations.
     std::string_view element_kind_;

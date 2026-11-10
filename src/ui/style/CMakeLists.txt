@@ -13,7 +13,8 @@ add_library(tessera_style STATIC
     supports.cpp
     selector.cpp
     selector_match.cpp
-    tokenizer.cpp)
+    tokenizer.cpp
+    transform.cpp)
 
 target_include_directories(tessera_style PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

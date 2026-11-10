@@ -1096,6 +1096,20 @@ target_link_libraries(paint_pass_tests PRIVATE
 
 add_test(NAME paint_pass COMMAND paint_pass_tests)
 
+add_executable(z_order_tests
+    z_order_tests.cpp)
+
+target_link_libraries(z_order_tests PRIVATE tessera_paint)
+
+add_test(NAME z_order COMMAND z_order_tests)
+
+add_executable(transform_tests
+    transform_tests.cpp)
+
+target_link_libraries(transform_tests PRIVATE tessera_style)
+
+add_test(NAME transform COMMAND transform_tests)
+
 add_executable(paint_clip_tests
     paint_clip_tests.cpp)
 

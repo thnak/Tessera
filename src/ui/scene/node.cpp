@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/z_order.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -92,6 +93,14 @@ void Node::set_transform(const rhi::Mat3& transform) {
         return;
     }
     transform_ = transform;
+    mark_dirty(Dirty::Paint | Dirty::Render);
+}
+
+void Node::set_z_index(int z_index) {
+    if (z_index_ == z_index) {
+        return;
+    }
+    z_index_ = z_index;
     mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
@@ -328,10 +337,14 @@ Node* Node::hit_test_deep(float x, float y) {
         }
     }
 
-    for (auto it = children_.rbegin(); it != children_.rend(); ++it) {
-        if (Node* hit = (*it)->hit_test_deep(x, y)) {
-            return hit;
-        }
+    // Topmost first: highest z-index, and later siblings over earlier ones at equal z-index.
+    Node* hit = nullptr;
+    for_each_by_z(children_, true, [&](Node& child) {
+        hit = child.hit_test_deep(x, y);
+        return hit != nullptr;
+    });
+    if (hit != nullptr) {
+        return hit;
     }
 
     return hit_test(x, y) ? this : nullptr;
