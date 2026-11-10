@@ -1,6 +1,6 @@
 # Automation IDs v1: numeric UI/component identity
 
-Status: proposed (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric IDs, headless harness, Lighthouse-style audits). Companion to
+Status: in progress (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric IDs, headless harness, Lighthouse-style audits). The identity and snapshot slice is implemented as `tessera_automation` (`include/tessera/ui/automation/`, `src/ui/automation/`); manifest emission and IR/codegen wiring remain pending. Companion to
 [`scene-graph.md`](../design/scene-graph.md), [`ir-v1.md`](ir-v1.md), and
 [`headless-automation-v1.md`](headless-automation-v1.md).
 
@@ -36,7 +36,7 @@ ComponentId = hash64(project_salt + "|c|" + component_source_path + "|" + compon
 UiId       = hash64(project_salt + "|u|" + component_source_path + "|" + node_path + "|" + key)
 ```
 
-- `project_salt` comes from the app namespace/name (the exact source is an open question, section 9); changing it changes IDs.
+- `project_salt` is the `namespace` from `tessera.json` and is required (section 2.1); changing it changes IDs.
 - `node_path` is the stable structural path (source order + explicit keys), not a line number.
 - `key` is the list key/template key where applicable.
 - Explicit `automationId="123456789"` replaces the computed `UiId`: the node's `uiId` then equals
@@ -44,6 +44,24 @@ UiId       = hash64(project_salt + "|u|" + component_source_path + "|" + node_pa
 - A 64-bit collision is a **hard error**; resolve with an explicit `automationId` or rename.
   Do not rehash/renumber silently.
 - Moving/renaming a component/node changes its ID; use `automationId` for long-lived targets.
+
+### 2.1 Hash and salt (implemented)
+
+`hash64` is the first eight bytes of **SHA-256** (FIPS 180-4, implemented in-tree with NIST
+known-answer tests) over the salted UTF-8 key, read as a big-endian `uint64`. The salt is the
+`namespace` from `tessera.json` and is **required**: an empty salt is a diagnosed error, because
+IDs would then differ per checkout.
+
+`include/tessera/ui/automation/id.hpp` owns the contract:
+
+- `make_ui_id_key`/`make_component_id_key` build exactly the strings in section 2 (the trailing
+  `|` keeps an empty list key distinct from a shorter path);
+- `assign_ui_ids`/`assign_component_ids` assign ids in source order and return
+  `std::expected<..., IdError>`; an explicit `automationId` replaces the computed id and is
+  flagged as an override;
+- a duplicate explicit `automationId`, a zero explicit id, and any 64-bit collision are hard
+  errors (`IdErrorCode::DuplicateAutomationId`, `ZeroAutomationId`, `IdCollision`). Nothing is
+  silently last-wins or renumbered.
 
 Manifest (`generated/automation.manifest.json`):
 
@@ -166,6 +184,25 @@ Result<void> focus(UiId);
 - Trace spans may carry `partId`; use `uiId`/`element_id` for correlation.
 - See [`custom-elements-v1.md`](custom-elements-v1.md).
 
+### 5.2 Snapshot slice (implemented)
+
+`include/tessera/ui/automation/snapshot.hpp` and `snapshot_json.hpp` provide a plain-struct
+builder and stable serializer for the automation subset of the snapshot; they do not depend on
+the scene graph or the compiler's JSON types, so the compiler, codegen fixtures and the runtime
+feed the same tree.
+
+- Order is tree **preorder (document order)**: parent before children, children in source order.
+  `parent` is the entry index of the ancestor (`null` for a root); `depth` is the nesting level.
+- A hidden/offscreen node is omitted **with its subtree** unless the caller sets `include_hidden`,
+  which emits it with `visible=false`.
+- A list/grid item carries `(uiId, itemKey)`; a repeated `UiId` is resolved by
+  `find_by_ui_id(snapshot, ui_id, item_key)`.
+- `snapshot_to_json` writes canonical one-line JSON with a fixed field order: `snapshotVersion`,
+  `sequence`, then `nodes`. `uiId`, `componentId` and `sequence` are decimal strings (JavaScript
+  loses precision above 2^53), `parent` is a decimal index or `null`, `bounds` values are fixed
+  three-decimal numbers, strings are JSON-escaped with UTF-8 passed through, and the document
+  ends with one newline.
+
 ## 6. Tracing
 
 Every event/span may carry:
@@ -201,21 +238,40 @@ Every event/span may carry:
 
 ## 8. Tests
 
-- Deterministic manifest across repeated builds.
-- Collision detection and explicit override.
-- IR validation (missing/duplicate IDs).
-- Snapshot order/fields; list `(UiId, ItemKey)` disambiguation.
+The implemented slice runs as CTest targets `automation_sha256`, `automation_hash_id`,
+`automation_snapshot` and `automation_snapshot_json` under `tests/unit/automation/`:
+NIST SHA-256 known answers, fixed hash64 known answers, namespace sensitivity, computed-vs-explicit
+UiIds, duplicate/colliding id diagnostics, preorder/hidden policy, `(UiId, ItemKey)` lookup, and
+byte-identical canonical JSON (including uint64 values above 2^53).
+
+Still required for the full section (not produced by this slice):
+
+- Deterministic manifest (`generated/automation.manifest.json`) across repeated builds.
+- IR validation and codegen emission of `componentId`/`uiId`.
 - Query/actions through the real input path.
 - Trace correlation (IDs present, correct span names).
-- JSON encodes uint64 as strings; no precision loss.
 - Move/rename ID change is documented; `automationId` stays stable.
 
 ## 9. Open questions
 
-- Hash algorithm and project-salt source (namespace vs explicit project id).
-- Snapshot order (preorder vs NodeId) and hidden-node policy.
-- Whether `UiId` should be assigned from source keys or explicit `automationId` only.
-- Multi-window snapshot scoping.
-- Part-id stability/packing for custom elements.
-- ID stability across hot reload/incremental generation.
-- Compression/encoding for very large snapshots.
+Resolved (normative here; mirrored in [`docs/reference/open-questions.md`](../reference/open-questions.md)):
+
+- **Hash algorithm and project-salt source** — in-tree SHA-256 with NIST known-answer tests;
+  `hash64` is its first eight bytes read big-endian. The salt is the `tessera.json` `namespace`
+  and is required (sections 2, 2.1).
+- **Snapshot order and hidden-node policy** — tree preorder (document order); hidden/offscreen
+  nodes are omitted with their subtree unless `includeHidden` is set (sections 5, 5.2).
+- **Computed vs explicit-only `UiId`** — computed source-path/keys `UiId`s are the default; an
+  explicit `automationId` overrides a node's `UiId` and must be unique; explicit-only is rejected
+  (sections 2 and 3).
+- **Window scoping** — one window per snapshot, selected by an optional `windowId` that defaults
+  to the focused window; cross-window aggregation is deferred.
+- **`partId` stability/packing** — `partId` is a `uint32` assigned by the element, stable for a
+  build, emitted as its own JSON field alongside `uiId`/`elementId`; never packed into `UiId`.
+- **ID stability across hot reload** — IDs are pure functions of `(salt, source path, node path,
+  key)`, so unchanged nodes keep their IDs; changed subtrees re-ID and the manifest diff shows it.
+- **Encoding for very large snapshots** — canonical JSON with uint64 decimal strings; very large
+  trees stream NDJSON per node; zstd is opt-in only after a >16 MiB measurement.
+
+Not yet implemented by the identity/snapshot slice: manifest emission, `windowId` in the snapshot
+header, `partId` fields, NDJSON streaming, and zstd.
