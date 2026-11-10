@@ -84,6 +84,54 @@ std::expected<void, UiaError> UiaBridge::run_on_bridge(const ProviderFn& fn, int
     return submit(fn, wait_ms);
 }
 
+std::expected<void, UiaError> UiaBridge::post(ProviderFn fn) {
+    if (!fn) {
+        return {};
+    }
+    bool inline_call = false;
+    {
+        std::lock_guard lock(mutex_);
+        if (stop_requested_ || worker_done_ || !thread_.joinable()) {
+            const UiaError failure =
+                phase() == UiaBridgePhase::Failed ? error() : UiaError::NotStarted;
+            return std::unexpected(failure);
+        }
+        inline_call = bridge_thread_ == std::this_thread::get_id();
+    }
+    if (inline_call) {
+        try {
+            fn(provider_);
+        } catch (...) {
+            return std::unexpected(UiaError::Internal);
+        }
+        return {};
+    }
+
+    std::shared_ptr<Job> job;
+    try {
+        job = std::make_shared<Job>();
+        job->fn = std::move(fn);
+    } catch (...) {
+        return std::unexpected(UiaError::OutOfMemory);
+    }
+    {
+        std::lock_guard lock(mutex_);
+        if (stop_requested_ || worker_done_) {
+            const UiaError failure =
+                phase() == UiaBridgePhase::Failed ? error() : UiaError::NotStarted;
+            return std::unexpected(failure);
+        }
+        if (job_count_ >= jobs_.size()) {
+            return std::unexpected(UiaError::QueueFull);
+        }
+        job->ticket = ++next_ticket_;
+        jobs_[(job_head_ + job_count_) % jobs_.size()] = job;
+        ++job_count_;
+    }
+    cv_.notify_all();
+    return {};
+}
+
 std::expected<void, UiaError> UiaBridge::step(int wait_ms) {
     const auto result = submit(ProviderFn{}, wait_ms);
     if (!result) {
@@ -123,6 +171,10 @@ void UiaBridge::run_jobs() {
         if (!job) {
             continue;
         }
+        // Adopt immediately before the job runs, not once per loop iteration: a snapshot published
+        // while this batch is in flight must still be visible to the job (and to the events it
+        // raises), and `step` must be a real adoption barrier.
+        adopt_pending_snapshot();
         UiaError result = UiaError::None;
         try {
             if (job->fn) {

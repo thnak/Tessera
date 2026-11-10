@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/ui/accessibility/uia_bridge.hpp"
+#include "tessera/ui/accessibility/uia_events.hpp"
 
 #include <atomic>
 #include <cstddef>
@@ -10,6 +11,7 @@
 #include <expected>
 #include <functional>
 #include <memory>
+#include <span>
 
 namespace tessera::ui::a11y {
 
@@ -34,6 +36,10 @@ public:
     // Bridge thread: releases the root provider before the apartment shuts down. Must tolerate a
     // failed or absent `create_root`.
     virtual void destroy_root() = 0;
+    // Bridge thread: raises one coalesced batch of UIA events. Called only from a posted bridge
+    // job, never from the window thread. A raised error drops the batch and is reported as a value
+    // (the tree itself is already published, so clients re-query on the next structure event).
+    [[nodiscard]] virtual UiaError raise(std::span<const UiaEvent> events) = 0;
 };
 
 // Windows: a `UiaPlatform` over the UIA provider surface. Every other platform: nullptr.
@@ -51,6 +57,8 @@ struct UiaHostConfig {
 struct UiaHostTickStats {
     bool published = false;           // a dirty snapshot was built and published
     bool build_failed = false;        // the source threw; the previous tree is still served
+    std::size_t events_queued = 0;    // coalesced events this tick contributed
+    std::size_t events_pending = 0;   // events still waiting for a bridge flush
     std::size_t actions_applied = 0;  // actions executed in this tick
     std::size_t actions_failed = 0;   // the handler threw (that action is dropped, not retried)
     std::size_t actions_deferred = 0; // actions still queued for a later tick
@@ -104,7 +112,8 @@ public:
     void mark_dirty();
     [[nodiscard]] bool dirty() const;
 
-    // UI thread, tick boundary: publishes a snapshot only when dirty, then drains and applies
+    // UI thread, tick boundary: publishes a snapshot only when dirty (deriving the coalesced UIA
+    // events from the tree diff), asks the bridge thread to raise them, then drains and applies
     // queued accessibility actions in arrival order. A null source publishes an empty tree; a null
     // handler leaves actions queued instead of discarding them. Never blocks the tick.
     [[nodiscard]] UiaHostTickStats tick(const SnapshotSource& source,
@@ -114,9 +123,16 @@ public:
     [[nodiscard]] const UiaBridge& bridge() const;
     [[nodiscard]] UiaError error() const;
 
+    // Diagnostics: bridge-thread flushes that raised a batch, and flushes the platform refused.
+    [[nodiscard]] std::uint64_t raised_batches() const;
+    [[nodiscard]] std::uint64_t failed_raises() const;
+    [[nodiscard]] std::size_t pending_events() const;
+
 private:
     void on_bridge_start(UiaProvider& provider);
     void on_bridge_stop(UiaProvider& provider);
+    // Bridge thread: raise everything currently queued, then clear the flush ticket.
+    void flush_events();
 
     UiaHostConfig config_;
     std::unique_ptr<UiaPlatform> platform_;
@@ -124,6 +140,11 @@ private:
     // Published by the bridge thread once the root exists and cleared before it is released.
     std::atomic<void*> root_{nullptr};
     std::atomic<bool> dirty_{false};
+    // Exactly one flush job may be in flight; a tick never queues a second one.
+    std::atomic<bool> flush_posted_{false};
+    std::atomic<std::uint64_t> raised_batches_{0};
+    std::atomic<std::uint64_t> failed_raises_{0};
+    UiaEventQueue events_;
     // Reused build/retain buffers so a steady-state publish allocates nothing after the first.
     A11ySnapshot next_;
     A11ySnapshot previous_;

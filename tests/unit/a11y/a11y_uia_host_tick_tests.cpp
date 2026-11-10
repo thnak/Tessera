@@ -176,12 +176,15 @@ bool actions_drain_at_the_tick_boundary() {
     if (!expect(harness->host->bridge().step().has_value(), "barrier adopts the snapshot")) {
         return false;
     }
+    bool request_ok = false;
     const bool queued = harness->host->bridge()
                             .run_on_bridge([&](tessera::ui::a11y::UiaProvider& provider) {
-                                return provider.request_action(1, Action::Focus).has_value() &&
-                                       provider.request_action(2, Action::Focus).has_value();
+                                request_ok =
+                                    provider.request_action(1, Action::Focus).has_value() &&
+                                    provider.request_action(2, Action::Focus).has_value();
                             })
-                            .has_value();
+                            .has_value() &&
+                        request_ok;
     if (!expect(queued, "the bridge queued two actions")) {
         return false;
     }
@@ -258,11 +261,13 @@ bool null_handler_keeps_actions_queued() {
     if (!expect(harness->host->bridge().step().has_value(), "barrier adopts the snapshot")) {
         return false;
     }
+    bool request_ok = false;
     const bool queued = harness->host->bridge()
                             .run_on_bridge([&](tessera::ui::a11y::UiaProvider& provider) {
-                                return provider.request_action(1, Action::Focus).has_value();
+                                request_ok = provider.request_action(1, Action::Focus).has_value();
                             })
-                            .has_value();
+                            .has_value() &&
+                        request_ok;
     if (!expect(queued, "one action queued")) {
         return false;
     }
@@ -315,11 +320,13 @@ bool throwing_handler_is_reported() {
     if (!expect(harness->host->bridge().step().has_value(), "barrier adopts the snapshot")) {
         return false;
     }
+    bool request_ok = false;
     const bool queued = harness->host->bridge()
                             .run_on_bridge([&](tessera::ui::a11y::UiaProvider& provider) {
-                                return provider.request_action(1, Action::Focus).has_value();
+                                request_ok = provider.request_action(1, Action::Focus).has_value();
                             })
-                            .has_value();
+                            .has_value() &&
+                        request_ok;
     if (!expect(queued, "one action queued")) {
         return false;
     }

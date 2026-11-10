@@ -128,6 +128,13 @@ PaintData text_data(std::string text) {
     return data;
 }
 
+PaintData wrapped(std::string text) {
+    PaintData data;
+    data.text = std::move(text);
+    data.wrap = PaintWrap::Wrap;
+    return data;
+}
+
 PaintData paragraph(std::uint32_t max_lines = 0,
                     std::optional<PaintTextAlign> align = std::nullopt) {
     PaintData data;
@@ -381,6 +388,48 @@ bool test_damage_clipped_multiple_lines() {
     return ok;
 }
 
+bool test_separator_trimming_and_break_opportunities() {
+    // The wrap places UAX #14 segments: a trailing separator is trimmed (it never advances the
+    // line and never reaches the painted slice), an interior run is measured as it is, and a
+    // break after a hyphen fills the line instead of moving the whole token.
+    Node trailing(1);
+    trailing.set_bounds({0, 0, 200, 60});
+    trailing.set_paint_data(wrapped("alpha beta   "));
+    Node interior(2);
+    interior.set_bounds({0, 0, 200, 60});
+    interior.set_paint_data(wrapped("alpha  beta"));
+    Node hyphen(3);
+    hyphen.set_bounds({0, 0, 64, 60});
+    hyphen.set_paint_data(wrapped("abc def-ghi"));
+
+    StubStyles styles;
+    for (const NodeId id : {NodeId{1}, NodeId{2}, NodeId{3}}) {
+        styles.set(id, styled({{"font-size", "16px"}}));
+    }
+
+    RecordingSink trailing_sink;
+    RecordingSink interior_sink;
+    RecordingSink hyphen_sink;
+    paint_scene(trailing, styles, trailing_sink);
+    paint_scene(interior, styles, interior_sink);
+    paint_scene(hyphen, styles, hyphen_sink);
+
+    return expect(trailing_sink.texts.size() == 1, "trailing spaces add no line") &&
+           expect(trailing_sink.texts[0].text == "alpha beta",
+                  "the painted slice drops the trailing separator") &&
+           expect(trailing_sink.texts[0].rect.width == 80.0f,
+                  "the line width excludes the trailing separator") &&
+           expect(interior_sink.texts.size() == 1, "a wide interior run stays on one line") &&
+           expect(interior_sink.texts[0].text == "alpha  beta",
+                  "interior separators stay in the painted slice") &&
+           expect(interior_sink.texts[0].rect.width == 88.0f,
+                  "interior separators advance the line") &&
+           expect(hyphen_sink.texts.size() == 2, "the hyphen is a wrap point") &&
+           expect(hyphen_sink.texts[0].text == "abc def-",
+                  "the first slice fills up to the hyphen") &&
+           expect(hyphen_sink.texts[1].text == "ghi", "the remainder is its own slice");
+}
+
 void benchmark_200_words() {
     std::string text;
     for (int word = 0; word < 200; ++word) {
@@ -424,6 +473,7 @@ int main(int argc, char** argv) {
     ok = test_alignment_and_computed_fallback() && ok;
     ok = test_computed_nowrap_suppresses_wrap() && ok;
     ok = test_damage_clipped_multiple_lines() && ok;
+    ok = test_separator_trimming_and_break_opportunities() && ok;
 
     const bool benchmark = argc > 1 && std::string_view(argv[1]) == "--bench";
     if (benchmark) {

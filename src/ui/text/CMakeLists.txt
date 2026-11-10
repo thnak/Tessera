@@ -14,7 +14,8 @@ add_library(tessera_text STATIC
     harfbuzz_shaper.cpp
     text_breaks.cpp
     text_measure.cpp
-    text_measure_cache.cpp)
+    text_measure_cache.cpp
+    text_wrap.cpp)
 
 target_include_directories(tessera_text PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

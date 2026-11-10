@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/text/bidi.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
-#include "text_breaks.hpp"
+#include "text_wrap.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -13,16 +12,9 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 namespace tessera::ui::text {
 namespace {
-
-TextLayout finalize_bidi(TextLayout layout, std::string_view text) {
-    layout.direction = bidi_paragraph_direction(text);
-    bidi_apply_visual_runs(text, layout.direction, layout.lines);
-    return layout;
-}
 
 std::string lower(std::string_view value) {
     std::string result(value);
@@ -90,74 +82,6 @@ float parse_length(std::string_view value, float relative_to) {
     return parse_number(token, number) ? number : 0.0f;
 }
 
-std::size_t codepoint_count(std::string_view text) {
-    std::size_t count = 0;
-    for (const char c : text) {
-        if ((static_cast<unsigned char>(c) & 0xC0u) != 0x80u) {
-            ++count;
-        }
-    }
-    return count;
-}
-
-std::size_t byte_offset(std::string_view text, std::size_t codepoints) {
-    std::size_t count = 0;
-    std::size_t offset = 0;
-    while (offset < text.size() && count < codepoints) {
-        ++offset;
-        while (offset < text.size() &&
-               (static_cast<unsigned char>(text[offset]) & 0xC0u) == 0x80u) {
-            ++offset;
-        }
-        ++count;
-    }
-    return offset;
-}
-
-struct WordRange {
-    std::size_t begin = 0;
-    std::size_t end = 0;
-};
-
-std::vector<WordRange> split_word_ranges(std::string_view text, std::size_t begin,
-                                         std::size_t end) {
-    std::vector<WordRange> words;
-    std::size_t word_begin = std::string_view::npos;
-    for (std::size_t i = begin; i < end; ++i) {
-        if (std::isspace(static_cast<unsigned char>(text[i])) != 0) {
-            if (word_begin != std::string_view::npos) {
-                words.push_back(WordRange{word_begin, i});
-                word_begin = std::string_view::npos;
-            }
-        } else if (word_begin == std::string_view::npos) {
-            word_begin = i;
-        }
-    }
-    if (word_begin != std::string_view::npos) {
-        words.push_back(WordRange{word_begin, end});
-    }
-    return words;
-}
-
-// Largest legal line-break opportunity at or before `fitting_bytes` inside `run` (0 when the run
-// has none). The greedy wrap only needs this for runs wider than the constraint: for a normal
-// run every space is already a wrap point, so this is where UAX #14 (hyphens, CJK, ZWSP) turns a
-// mid-word hard split into a linguistically valid break.
-std::size_t legal_chunk_end(std::string_view run, std::size_t fitting_bytes) {
-    const BreakBoundaries boundaries = line_boundaries(run);
-    std::size_t best = 0;
-    for (const EditOffset at : boundaries.offsets) {
-        if (at == 0) {
-            continue;
-        }
-        if (at > fitting_bytes) {
-            break;
-        }
-        best = at;
-    }
-    return best;
-}
-
 } // namespace
 
 TextStyle text_style_from(const style::ComputedStyle& computed) {
@@ -207,107 +131,11 @@ StubTextMeasurer::StubTextMeasurer(std::shared_ptr<const FontMetricsProvider> me
                                                     : std::make_shared<StubFontMetricsProvider>()) {
 }
 
+// Line boxes come from the shared greedy wrap in text_wrap.cpp; this entry point only selects the
+// deterministic stub advance and the break engine the build carries.
 TextLayout layout_text(std::string_view text, const TextStyle& style, const FontMetrics& metrics,
                        const TextConstraints& constraints) {
-    TextLayout result;
-    if (text.empty()) {
-        return result;
-    }
-
-    const float advance = std::max(0.1f, style.font_size * 0.5f + style.letter_spacing);
-    const float line_height = style.line_height > 0.0f
-                                  ? style.line_height
-                                  : metrics.ascent + metrics.descent + metrics.line_gap;
-
-    auto add_line = [&](float width, std::size_t begin, std::size_t end) {
-        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end, {}});
-        result.width = std::max(result.width, width);
-    };
-
-    if (!constraints.wrap || style.nowrap || !std::isfinite(constraints.max_width)) {
-        add_line(static_cast<float>(codepoint_count(text)) * advance, 0, text.size());
-        result.height = line_height;
-        result.baseline = metrics.ascent;
-        return finalize_bidi(std::move(result), text);
-    }
-
-    const float max_width = std::max(advance, constraints.max_width);
-    std::size_t start = 0;
-    while (start <= text.size()) {
-        const std::size_t newline = text.find('\n', start);
-        const std::size_t end = newline == std::string_view::npos ? text.size() : newline;
-        const std::size_t lines_before = result.lines.size();
-
-        float current = 0.0f;
-        bool has_line = false;
-        std::size_t line_begin = 0;
-        std::size_t line_end = 0;
-        for (const WordRange& word : split_word_ranges(text, start, end)) {
-            const std::string_view word_text = text.substr(word.begin, word.end - word.begin);
-            const float word_width = static_cast<float>(codepoint_count(word_text)) * advance;
-            if (word_width > max_width) {
-                if (has_line) {
-                    add_line(current, line_begin, line_end);
-                    current = 0.0f;
-                    has_line = false;
-                }
-                std::string_view remaining = word_text;
-                std::size_t chunk_begin = word.begin;
-                while (!remaining.empty()) {
-                    const std::size_t max_codepoints =
-                        std::max<std::size_t>(1, static_cast<std::size_t>(max_width / advance));
-                    const std::size_t take = std::min(max_codepoints, codepoint_count(remaining));
-                    std::size_t chunk_bytes = byte_offset(remaining, take);
-                    if (const std::size_t legal = legal_chunk_end(remaining, chunk_bytes);
-                        legal != 0) {
-                        chunk_bytes = legal;
-                    }
-                    const std::size_t chunk_end = chunk_begin + chunk_bytes;
-                    const std::string_view chunk = remaining.substr(0, chunk_bytes);
-                    add_line(static_cast<float>(codepoint_count(chunk)) * advance, chunk_begin,
-                             chunk_end);
-                    remaining.remove_prefix(chunk_bytes);
-                    chunk_begin = chunk_end;
-                }
-                continue;
-            }
-
-            if (!has_line) {
-                current = word_width;
-                line_begin = word.begin;
-                line_end = word.end;
-                has_line = true;
-            } else if (current + advance + word_width <= max_width) {
-                current += advance + word_width;
-                line_end = word.end;
-            } else {
-                add_line(current, line_begin, line_end);
-                current = word_width;
-                line_begin = word.begin;
-                line_end = word.end;
-                has_line = true;
-            }
-        }
-        if (has_line) {
-            add_line(current, line_begin, line_end);
-        }
-        if (result.lines.size() == lines_before) {
-            // A blank (or whitespace-only) paragraph still owns a line box, so a caret after Enter
-            // and a trailing newline land on their own line instead of the previous one.
-            add_line(0.0f, start, end);
-        }
-        if (newline == std::string_view::npos) {
-            break;
-        }
-        start = newline + 1;
-    }
-
-    if (result.lines.empty()) {
-        add_line(0.0f, 0, text.size());
-    }
-    result.height = static_cast<float>(result.lines.size()) * line_height;
-    result.baseline = metrics.ascent;
-    return finalize_bidi(std::move(result), text);
+    return layout_text_with_breaks(text, style, metrics, constraints, active_backend());
 }
 
 TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& style,
@@ -325,120 +153,11 @@ TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& st
 TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
                                 const FontMetrics& metrics, const TextConstraints& constraints,
                                 TextAdvanceMeasure measure, void* user) {
-    TextLayout result;
     if (text.empty() || measure == nullptr) {
-        return result;
+        return {};
     }
-
-    const float line_height = style.line_height > 0.0f
-                                  ? style.line_height
-                                  : metrics.ascent + metrics.descent + metrics.line_gap;
-    const auto measure_text = [&](std::string_view run) {
-        return std::max(0.0f, measure(run, style, user));
-    };
-    const float space_advance = measure_text(" ");
-
-    auto add_line = [&](float width, std::size_t begin, std::size_t end) {
-        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end, {}});
-        result.width = std::max(result.width, width);
-    };
-
-    if (!constraints.wrap || style.nowrap || !std::isfinite(constraints.max_width)) {
-        add_line(measure_text(text), 0, text.size());
-        result.height = line_height;
-        result.baseline = metrics.ascent;
-        return finalize_bidi(std::move(result), text);
-    }
-
-    const float max_width = std::max(0.1f, constraints.max_width);
-    std::size_t start = 0;
-    while (start <= text.size()) {
-        const std::size_t newline = text.find('\n', start);
-        const std::size_t end = newline == std::string_view::npos ? text.size() : newline;
-        const std::size_t lines_before = result.lines.size();
-
-        float current = 0.0f;
-        bool has_line = false;
-        std::size_t line_begin = 0;
-        std::size_t line_end = 0;
-        for (const WordRange& word : split_word_ranges(text, start, end)) {
-            const std::string_view word_text = text.substr(word.begin, word.end - word.begin);
-            const float word_width = measure_text(word_text);
-            if (word_width > max_width) {
-                if (has_line) {
-                    add_line(current, line_begin, line_end);
-                    current = 0.0f;
-                    has_line = false;
-                }
-                // Split an over-wide word at the largest measured code-point prefix that fits.
-                std::size_t chunk_begin = word.begin;
-                while (chunk_begin < word.end) {
-                    const std::string_view remaining =
-                        text.substr(chunk_begin, word.end - chunk_begin);
-                    const std::size_t codepoints = codepoint_count(remaining);
-                    std::size_t best = 1;
-                    std::size_t low = 1;
-                    std::size_t high = codepoints;
-                    while (low <= high) {
-                        const std::size_t middle = low + (high - low) / 2;
-                        const float width =
-                            measure_text(remaining.substr(0, byte_offset(remaining, middle)));
-                        if (width <= max_width) {
-                            best = middle;
-                            low = middle + 1;
-                        } else if (middle == 1) {
-                            break;
-                        } else {
-                            high = middle - 1;
-                        }
-                    }
-                    const std::size_t fitting = byte_offset(remaining, best);
-                    const std::size_t legal = legal_chunk_end(remaining, fitting);
-                    const std::size_t chunk_bytes = legal != 0 ? legal : fitting;
-                    const std::size_t chunk_end = chunk_begin + chunk_bytes;
-                    add_line(measure_text(remaining.substr(0, chunk_bytes)), chunk_begin,
-                             chunk_end);
-                    chunk_begin = chunk_end;
-                }
-                continue;
-            }
-
-            if (!has_line) {
-                current = word_width;
-                line_begin = word.begin;
-                line_end = word.end;
-                has_line = true;
-            } else if (current + space_advance + word_width <= max_width) {
-                current += space_advance + word_width;
-                line_end = word.end;
-            } else {
-                add_line(current, line_begin, line_end);
-                current = word_width;
-                line_begin = word.begin;
-                line_end = word.end;
-                has_line = true;
-            }
-        }
-        if (has_line) {
-            add_line(current, line_begin, line_end);
-        }
-        if (result.lines.size() == lines_before) {
-            // A blank (or whitespace-only) paragraph still owns a line box, so a caret after Enter
-            // and a trailing newline land on their own line instead of the previous one.
-            add_line(0.0f, start, end);
-        }
-        if (newline == std::string_view::npos) {
-            break;
-        }
-        start = newline + 1;
-    }
-
-    if (result.lines.empty()) {
-        add_line(0.0f, 0, text.size());
-    }
-    result.height = static_cast<float>(result.lines.size()) * line_height;
-    result.baseline = metrics.ascent;
-    return finalize_bidi(std::move(result), text);
+    return layout_text_with_breaks(text, style, metrics, constraints, active_backend(), measure,
+                                   user);
 }
 
 } // namespace tessera::ui::text

@@ -37,9 +37,14 @@ struct BreakBoundaries {
 // Word break opportunities (UAX #29 word boundaries via ubrk_* when ICU is linked).
 [[nodiscard]] BreakBoundaries word_boundaries(std::string_view text);
 
-// Line break opportunities (UAX #14 via ubrk_* when ICU is linked). Used by the greedy line
-// wrap to find legal break points inside a run that is wider than the constraint.
+// Line break opportunities (UAX #14 via ubrk_* when ICU is linked). These are the segments the
+// greedy wrap places, plus the legal break points inside a run wider than the constraint.
 [[nodiscard]] BreakBoundaries line_boundaries(std::string_view text);
+
+// The same opportunities from an explicit engine. `Icu` is only available when the ICU slice is
+// linked (TESSERA_ICU_ENABLED); an ICU-free build documents the request as "use the builtin
+// rules", so the wrap parity test needs no conditional code.
+[[nodiscard]] BreakBoundaries line_boundaries(std::string_view text, BreakBackend backend);
 
 // The builtin rules, callable directly so parity tests and ICU-free builds share one path.
 [[nodiscard]] BreakBoundaries builtin_word_boundaries(std::string_view text);

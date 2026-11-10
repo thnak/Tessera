@@ -14,6 +14,7 @@
 #include <expected>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -121,8 +122,27 @@ public:
         ++destroys;
     }
 
+    [[nodiscard]] tessera::ui::a11y::UiaError
+    raise(std::span<const tessera::ui::a11y::UiaEvent> events) override {
+        log_.add("platform.raise");
+        std::lock_guard lock(mutex_);
+        raise_thread = std::this_thread::get_id();
+        batches_.push_back({std::this_thread::get_id(), {events.begin(), events.end()}});
+        return tessera::ui::a11y::UiaError::None;
+    }
+
     [[nodiscard]] std::size_t destroys_count() const {
         return destroys;
+    }
+
+    struct RaiseBatch {
+        std::thread::id thread;
+        std::vector<tessera::ui::a11y::UiaEvent> events;
+    };
+
+    [[nodiscard]] std::vector<RaiseBatch> batches() const {
+        std::lock_guard lock(mutex_);
+        return batches_;
     }
 
     std::thread::id create_thread;
@@ -133,6 +153,9 @@ private:
     Log& log_;
     void* root_;
     std::size_t destroys = 0;
+    mutable std::mutex mutex_;
+    std::vector<RaiseBatch> batches_;
+    std::thread::id raise_thread;
 };
 
 // Index of `entry` in the log, or -1 when absent. Tests use it for ordering assertions.

@@ -164,6 +164,15 @@ void UiaBridge::stop() {
     alive_.store(false, std::memory_order_release);
 }
 
+void UiaBridge::adopt_pending_snapshot() {
+    // Runs on the bridge thread only. `take` swaps the newest tree into the reused fetch buffer,
+    // leaving the provider's previous tree there for the next swap, so a steady-state adopt
+    // allocates nothing.
+    if (handoff_.take(fetch_)) {
+        provider_.set_snapshot(fetch_);
+    }
+}
+
 void UiaBridge::run_loop() {
     {
         std::lock_guard lock(mutex_);
@@ -211,11 +220,6 @@ void UiaBridge::run_loop() {
             pending_jobs = job_count_;
         }
         if (pending_jobs > 0) {
-            // Adopt the newest snapshot before serving the batch, so every call in this iteration
-            // observes one consistent tree.
-            if (handoff_.take(fetch_)) {
-                provider_.set_snapshot(fetch_);
-            }
             run_jobs();
         }
         apartment_->pump();

@@ -29,6 +29,7 @@ set(TESSERA_A11Y_SOURCES
     uia_mapping.cpp
     uia_error.cpp
     uia_handoff.cpp
+    uia_events.cpp
     uia_provider.cpp
     uia_host.cpp
     uia_bridge.cpp

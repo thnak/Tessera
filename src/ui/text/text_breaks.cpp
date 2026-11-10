@@ -159,12 +159,19 @@ BreakBoundaries word_boundaries(std::string_view text) {
 #endif
 }
 
-BreakBoundaries line_boundaries(std::string_view text) {
+BreakBoundaries line_boundaries(std::string_view text, BreakBackend backend) {
 #if defined(TESSERA_ICU_ENABLED)
-    return icu_break_iteration(text, UBRK_LINE);
+    if (backend == BreakBackend::Icu) {
+        return icu_break_iteration(text, UBRK_LINE);
+    }
 #else
-    return builtin_line_boundaries(text);
+    (void)backend; // the builtin rules are the only engine this build carries
 #endif
+    return builtin_line_boundaries(text);
+}
+
+BreakBoundaries line_boundaries(std::string_view text) {
+    return line_boundaries(text, active_backend());
 }
 
 } // namespace tessera::ui::text

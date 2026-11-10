@@ -140,6 +140,24 @@ target_link_libraries(a11y_uia_host_tick_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_uia_host_tick COMMAND a11y_uia_host_tick_tests)
 
+# Coalescing/dedup queue and the snapshot diff that derives StructureChanged/PropertyChanged/focus
+# events (platform independent).
+add_executable(a11y_uia_events_tests
+    a11y_uia_events_tests.cpp)
+
+target_link_libraries(a11y_uia_events_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_events COMMAND a11y_uia_events_tests)
+
+# Host-level event raising: the flush job runs on the bridge thread and a static tick raises
+# nothing.
+add_executable(a11y_uia_host_events_tests
+    a11y_uia_host_events_tests.cpp)
+
+target_link_libraries(a11y_uia_host_events_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_uia_host_events COMMAND a11y_uia_host_events_tests)
+
 # The Windows UI Automation provider is the only platform-specific code in this directory. The
 # probe test proves the SDK headers and the uiautomationcore/ole32 link work from the static
 # accessibility library; the COM test drives the real provider vtable without a UIA client. Both are

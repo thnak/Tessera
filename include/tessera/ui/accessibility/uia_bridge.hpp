@@ -28,7 +28,10 @@ namespace tessera::ui::a11y {
 // - The UI thread only calls `publish` (bounded snapshot handoff) and `take_actions` (bounded ring
 //   drain). It never calls UIA, never touches COM, and never waits on the bridge thread.
 // - The bridge thread owns the COM apartment and the provider; every client call is serviced
-//   there. A client call from any other thread is marshaled with `run_on_bridge` (bounded wait).
+//   there. The newest published snapshot is adopted immediately before each job runs, so a tree
+//   published while a batch is in flight is still visible to the next job (and to the events that
+//   job raises). A client call from any other thread is marshaled with `run_on_bridge` (bounded
+//   wait).
 // - Actions never run on the bridge thread; the provider only queues validated requests.
 //
 // The apartment is the platform seam: Windows initializes `COINIT_MULTITHREADED` and pumps its
@@ -104,6 +107,11 @@ public:
     [[nodiscard]] std::size_t take_actions(std::span<UiaActionRequest> out);
     // UI thread: actions waiting for a tick-boundary drain (`take_actions` is the drain).
     [[nodiscard]] std::size_t queued_actions() const;
+    // UI thread: queue bridge work without waiting for it (raising coalesced events, diagnostics).
+    // Bounded by `max_queued_jobs`: the caller gets `QueueFull` and retries at a later tick instead
+    // of blocking. A posted job runs before `stop()` returns or is dropped by it, so its captures
+    // must not outlive the bridge.
+    [[nodiscard]] std::expected<void, UiaError> post(ProviderFn fn);
 
     // Bridge thread: the provider over the current snapshot.
     [[nodiscard]] UiaProvider& provider();
@@ -129,6 +137,10 @@ private:
 
     void run_loop();
     void run_jobs();
+    // Bridge thread: swap the newest published snapshot into the provider (no-op when none is
+    // pending). Called before every job, so a job never serves a tree older than the last publish
+    // that completed before it started.
+    void adopt_pending_snapshot();
     void finish_worker(UiaError failure);
     [[nodiscard]] std::expected<void, UiaError> submit(const ProviderFn& fn, int wait_ms);
     [[nodiscard]] int idle_wait_ms() const;

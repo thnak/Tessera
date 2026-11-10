@@ -43,6 +43,8 @@ void UiaHost::stop() {
     // cleared before the pointer is released (the stop hook does that on the bridge thread).
     bridge_.stop();
     root_.store(nullptr, std::memory_order_release);
+    // A flush job that was queued when the worker stopped never ran; let the next start queue one.
+    flush_posted_.store(false, std::memory_order_release);
 }
 
 bool UiaHost::ready() const {
@@ -89,6 +91,10 @@ UiaHostTickStats UiaHost::tick(const SnapshotSource& source, const ActionHandler
             built = false;
         }
         if (built) {
+            // Diff against the last published tree while both are still intact; the events are
+            // notifications only, so the snapshot publish below is what a client actually reads.
+            const UiaEventDiff diff = queue_snapshot_diff(previous_, next_, events_);
+            stats.events_queued = diff.queued;
             bridge_.publish(next_);
             // Retain the published tree for the next diff, reusing the buffers both ways.
             previous_.nodes.swap(next_.nodes);
@@ -99,6 +105,19 @@ UiaHostTickStats UiaHost::tick(const SnapshotSource& source, const ActionHandler
             next_.clear();
         }
     }
+
+    // Raise the queued events on the bridge thread, at most one flush job in flight. A full job
+    // ring defers the flush to a later tick instead of waiting for it here.
+    if (events_.size() > 0) {
+        bool expected = false;
+        if (flush_posted_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+            const auto posted = bridge_.post([this](UiaProvider&) { flush_events(); });
+            if (!posted) {
+                flush_posted_.store(false, std::memory_order_release);
+            }
+        }
+    }
+    stats.events_pending = events_.size();
 
     if (handler) {
         // Tick-boundary drain: a bounded batch per tick, oldest first. The action ring stays
@@ -134,6 +153,40 @@ const UiaBridge& UiaHost::bridge() const {
 
 UiaError UiaHost::error() const {
     return bridge_.error();
+}
+
+std::uint64_t UiaHost::raised_batches() const {
+    return raised_batches_.load(std::memory_order_acquire);
+}
+
+std::uint64_t UiaHost::failed_raises() const {
+    return failed_raises_.load(std::memory_order_acquire);
+}
+
+std::size_t UiaHost::pending_events() const {
+    return events_.size();
+}
+
+void UiaHost::flush_events() {
+    // Bridge thread: one bounded batch per posted job, so a burst of changes cannot hold the
+    // bridge for longer than one provider call per event.
+    flush_posted_.store(false, std::memory_order_release);
+    std::array<UiaEvent, kMaxQueuedUiaEvents> batch{};
+    const std::size_t taken = events_.take(batch);
+    if (taken == 0 || platform_ == nullptr) {
+        return;
+    }
+    try {
+        const UiaError raised = platform_->raise(std::span(batch.data(), taken));
+        if (raised == UiaError::None) {
+            raised_batches_.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            failed_raises_.fetch_add(1, std::memory_order_relaxed);
+        }
+    } catch (...) {
+        // Boundary: a platform raiser must not unwind into the bridge loop.
+        failed_raises_.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 void UiaHost::on_bridge_start(UiaProvider&) {

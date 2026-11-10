@@ -116,12 +116,57 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
   read.
 - Atlas page format is independent of the ICU data question in section 12: subsetting changes
   only which locale bundles ship, never page packing, the RGBA8 page format, or eviction. The
-  measured data cost and GO decision are in section 13.
+  measured data cost and GO decision are in section 13. The UAX #14 wrap (section 6) is likewise
+  atlas-neutral: it changes line boxes only, never glyph packing, page order, or eviction.
 
 ## 6. Line breaking and alignment
 
-- ICU line breaking (or the libunibreak fallback) for Unicode line/word opportunities.
-- `white-space`: normal/nowrap/pre/pre-wrap/break-spaces (the V1 subset is not enumerated; see [`stylesheet-v1.md`](../specs/stylesheet-v1.md)).
+Implemented greedy wrap (task-106). `ui/text/text_wrap.cpp` lays out one paragraph at a time (a
+hard newline splits paragraphs) over **UAX #14 line-break segments** from `ui/text/text_breaks.*`:
+each segment is the smallest line unit, and a segment wider than the constraint is split at the
+last measured code-point prefix that fits and then at the last legal break inside that prefix
+(`line_boundaries` again: hyphen, ZWSP, CJK). One segmentation pass per paragraph feeds the whole
+wrap, so no line ever needs a second one.
+
+The break engine is the ICU data switch, not a separate option: the builtin reduced rules when
+`TESSERA_ICU_REDUCED_DATA=OFF` (the default and every CI job), ICU `ubrk_*` iterators when `ON`.
+`layout_text_with_breaks` (private `src/ui/text/text_wrap.hpp`) takes the engine explicitly, which
+is how the parity test drives both through the whole wrap path rather than only the boundary sets.
+
+Separator trimming (the CSS rule that falls out of UAX #14 LB18, "break after spaces"):
+
+- A whitespace run belongs to the segment before it, so a break always sits *after* the spaces.
+  The wrap trims both edges of every segment: a trailing space never advances a line and never
+  reaches the painted slice, and a leading space never starts one.
+- A paragraph that is only whitespace still owns a zero-width line box, so a caret after Enter and
+  a trailing newline land on their own line.
+- Interior whitespace is measured as it is: consecutive spaces inside a line advance their real
+  width. The previous word-based loop added exactly one space advance between words, which
+  silently collapsed runs.
+- `white-space: nowrap`/`pre`, `wrap = false`, and a non-finite width keep the single-line path.
+
+Fixture deltas (task-106). Every pre-existing wrap/layout fixture is unchanged: their corpora are
+single-spaced ASCII, where "one space advance" and "one-segment gap" are the same number.
+Measured: the filtered text suite (20 tests, below) is green before and after, the CPU/GPU text
+goldens keep their output, and two consecutive runs are byte-identical. The deliberately
+re-baselined cases are new fixtures pinning the new contract (stub metrics, 16 px font = 8 px per
+code point):
+
+| Fixture | Before (word loop) | After (UAX #14 segments) |
+|---|---|---|
+| `foo   bar` at 200 px | width 56 (one space counted) | width 72 (all three spaces advance) |
+| `abc def-ghi` at 64 px | lines `abc` / `def-ghi` | lines `abc def-` / `ghi` (fills to the hyphen) |
+| `hello world   ` at 200 px | width 88, trailing spaces outside the line | unchanged |
+| `   hello` at 200 px | width 40, line starts at byte 3 | unchanged |
+
+The ICU engine also breaks where the builtin reduced rules have no opportunity (UAX #14 classes
+BA/BB/…): after an em dash, `aaaa—bbbb` at 56 px splits as `[0,9)`/`[9,11)` with the builtin engine
+(measured byte budget) but `[0,7)`/`[7,11)` with ICU. `text_breaks_parity` pins that difference and
+requires identical line boxes (ranges and widths) for the shared single-spaced corpus.
+
+Remaining contract, not implemented in this slice:
+
+- `white-space`: normal/nowrap/pre/pre-wrap/break-spaces (the V1 subset is not enumerated; see [`stylesheet-v1.md`](../specs/stylesheet-v1.md)). Space collapsing at the CSS level (`normal`) is still the wrap's trimming rule, not a text transform.
 - `text-overflow: ellipsis` needs measured ellipsis width; no mid-glyph clipping.
 - `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
 - Bidi: visual order per line; alignment uses the paragraph direction.
