@@ -4,6 +4,7 @@
 // local frame (push_transform / local rects / pop_transform), nested transforms compose, scroll and
 // overflow clips map through the frame, and sinks without matrix support keep the AABB fallback.
 
+#include "tessera/ui/paint/clipped_paint_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/transform.hpp"
@@ -22,6 +23,7 @@ using tessera::rendering::rhi::Mat3;
 using tessera::rendering::rhi::Rect;
 using tessera::ui::Node;
 using tessera::ui::NodeId;
+using tessera::ui::paint::ClippedPaintSink;
 using tessera::ui::paint::paint_scene;
 using tessera::ui::paint::PaintSink;
 using tessera::ui::paint::RoundedClip;
@@ -225,6 +227,47 @@ bool clips_map_through_the_frame() {
                   "a scaled frame maps its overflow clip to device space; a rotated one drops it");
 }
 
+bool damage_clipping_keeps_the_real_transform() {
+    Node root(1);
+    root.set_bounds({0, 0, 400, 400});
+    Node& box = root.add_child(std::make_unique<Node>(2));
+    box.set_bounds({100, 100, 80, 40});
+    transform(box, "rotate(45deg)");
+    StubStyles styles;
+    styles.set(2, background("#ff0000"));
+
+    RecordingSink target(true);
+    const std::vector<tessera::rendering::rhi::Scissor> hit{{120, 100, 40, 40}};
+    ClippedPaintSink clipped(target, hit);
+    bool ok = expect(clipped.supports_transform(), "the wrapper forwards matrix support");
+    paint_scene(root, styles, clipped);
+    // push, then the fill replayed under the device-space region clip, then pop.
+    ok = expect(target.events.size() == 5 && target.events[0].kind == "push" &&
+                    target.events[1].kind == "clip" && target.events[2].kind == "fill" &&
+                    target.events[3].kind == "unclip" && target.events[4].kind == "pop",
+                "the fill is replayed under the damage region, unclipped arithmetic-free") &&
+         ok;
+    if (target.events.size() == 5) {
+        ok = expect(near(target.events[1].rect.x, 120) && near(target.events[2].rect.width, 80),
+                    "the region is device space and the fill stays frame-local") &&
+             ok;
+    }
+
+    RecordingSink far_target(true);
+    const std::vector<tessera::rendering::rhi::Scissor> miss{{0, 0, 20, 20}};
+    ClippedPaintSink far(far_target, miss);
+    paint_scene(root, styles, far);
+    for (const Event& event : far_target.events) {
+        ok = expect(event.kind != "fill", "a region away from the rotated box draws nothing") && ok;
+    }
+
+    RecordingSink plain(false);
+    ClippedPaintSink unsupported(plain, hit);
+    return expect(!unsupported.supports_transform(),
+                  "a target without matrix support keeps the AABB fallback") &&
+           ok;
+}
+
 } // namespace
 
 int main() {
@@ -233,6 +276,7 @@ int main() {
     ok = nested_transforms_compose_and_children_stay_local() && ok;
     ok = nested_transform_pushes_the_relative_matrix() && ok;
     ok = clips_map_through_the_frame() && ok;
+    ok = damage_clipping_keeps_the_real_transform() && ok;
     if (!ok) {
         std::cerr << "paint_transform: FAILED\n";
         return 1;

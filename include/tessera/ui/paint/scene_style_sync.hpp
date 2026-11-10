@@ -26,12 +26,12 @@ struct SceneStyleSyncResult {
 // whenever style or layout changed.
 //
 // Transform fidelity: hit testing and node boxes follow the full matrix. A sink that reports
-// PaintSink::supports_transform() (Batched2DSink) paints each transformed node and its subtree
-// under the real matrix, so rotation, skew, scale, glyphs, borders and radii all transform.
-// Overflow clips inside such a subtree map through scale/translate/quarter-turn frames and are
-// dropped under other rotations/skews. Sinks without matrix support (the CPU sink, the
-// damage-clipping wrapper) paint the node's axis-aligned bounding box instead: exact for translate,
-// scale and quarter turns of boxes, an approximation otherwise.
+// PaintSink::supports_transform() (Batched2DSink, and ClippedPaintSink in front of one) paints each
+// transformed node and its subtree under the real matrix, so rotation, skew, scale, glyphs, borders
+// and radii all transform. Overflow clips inside such a subtree map through scale/translate/
+// quarter-turn frames and are dropped under other rotations/skews. Sinks without matrix support
+// (the CPU sink) paint the node's axis-aligned bounding box instead: exact for translate, scale and
+// quarter turns of boxes, an approximation otherwise.
 SceneStyleSyncResult sync_scene_style(Node& root, StyleProvider& styles);
 
 } // namespace tessera::ui::paint

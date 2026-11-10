@@ -51,6 +51,10 @@ public:
           regions_(&regions) {}
 
     void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override {
+        if (transformed()) {
+            replay([this, &rect, &color] { target_->fill_rect(rect, color); }, device_bounds(rect));
+            return;
+        }
         for (const rhi::Scissor& scissor : *regions_) {
             const rhi::Rect clipped = detail::clipped_rect(rect, detail::region_rect(scissor));
             if (clipped.width > 0.0f && clipped.height > 0.0f) {
@@ -60,6 +64,12 @@ public:
     }
 
     void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override {
+        if (transformed()) {
+            replay(
+                [this, &rect, &color, radius] { target_->fill_rounded_rect(rect, color, radius); },
+                device_bounds(rect));
+            return;
+        }
         for (const rhi::Scissor& scissor : *regions_) {
             const rhi::Rect region = detail::region_rect(scissor);
             if (detail::covers(region, rect)) {
@@ -84,19 +94,62 @@ public:
         target_->pop_clip();
     }
 
+    void fill_linear_gradient(const GradientDraw& draw) override {
+        replay([this, &draw] { target_->fill_linear_gradient(draw); }, device_bounds(draw.rect));
+    }
+
     void draw_text(const TextDraw& run) override {
-        replay([this, &run] { target_->draw_text(run); }, run.rect);
+        replay([this, &run] { target_->draw_text(run); }, device_bounds(run.rect));
     }
 
     void draw_vector(const VectorDraw& draw) override {
-        replay([this, &draw] { target_->draw_vector(draw); }, draw.rect);
+        replay([this, &draw] { target_->draw_vector(draw); }, device_bounds(draw.rect));
     }
 
     void draw_image(const ImageDraw& draw) override {
-        replay([this, &draw] { target_->draw_image(draw); }, draw.rect);
+        replay([this, &draw] { target_->draw_image(draw); }, device_bounds(draw.rect));
+    }
+
+    // Matrices pass through to the target; damage regions stay in device space. Commands issued
+    // under a matrix are replayed per region under a device-space clip (like text), because their
+    // rects are frame-local and cannot be trimmed arithmetically. Clips arriving from the paint
+    // pass are already device space and are forwarded unchanged.
+    [[nodiscard]] bool supports_transform() const override {
+        return target_->supports_transform();
+    }
+    void push_transform(const rhi::Mat3& transform) override {
+        composed_.push_back(composed_.empty() ? transform : composed_.back() * transform);
+        target_->push_transform(transform);
+    }
+    void pop_transform() override {
+        if (!composed_.empty()) {
+            composed_.pop_back();
+        }
+        target_->pop_transform();
     }
 
 private:
+    [[nodiscard]] bool transformed() const {
+        return !composed_.empty();
+    }
+
+    // Device-space bounding box of a frame-local rect under the active matrix.
+    [[nodiscard]] rhi::Rect device_bounds(const rhi::Rect& rect) const {
+        if (composed_.empty()) {
+            return rect;
+        }
+        const rhi::Mat3& m = composed_.back();
+        float xs[4];
+        float ys[4];
+        m.transform_point(rect.x, rect.y, xs[0], ys[0]);
+        m.transform_point(rect.right(), rect.y, xs[1], ys[1]);
+        m.transform_point(rect.right(), rect.bottom(), xs[2], ys[2]);
+        m.transform_point(rect.x, rect.bottom(), xs[3], ys[3]);
+        const auto [min_x, max_x] = std::minmax_element(xs, xs + 4);
+        const auto [min_y, max_y] = std::minmax_element(ys, ys + 4);
+        return rhi::Rect{*min_x, *min_y, *max_x - *min_x, *max_y - *min_y};
+    }
+
     template<typename Draw> void replay(Draw&& draw, const rhi::Rect& bounds) {
         for (const rhi::Scissor& scissor : *regions_) {
             const rhi::Rect region = detail::region_rect(scissor);
@@ -114,6 +167,7 @@ private:
 
     PaintSink* target_ = nullptr;
     const std::vector<rhi::Scissor>* regions_ = nullptr;
+    std::vector<rhi::Mat3> composed_;
 };
 
 } // namespace tessera::ui::paint

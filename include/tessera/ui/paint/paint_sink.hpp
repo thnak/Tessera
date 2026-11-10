@@ -148,7 +148,8 @@ public:
     // command until the matching pop_transform(); paint_scene then paints a transformed node in
     // its own local frame so rotation, skew and scale draw the real shape. Sinks that keep the
     // default (false) never see these calls and get the node's axis-aligned bounding box instead.
-    // Clips and damage regions stay in device space, so damage-clipping wrappers keep the default.
+    // Clips and damage regions stay in device space; ClippedPaintSink forwards support from its
+    // target.
     [[nodiscard]] virtual bool supports_transform() const {
         return false;
     }

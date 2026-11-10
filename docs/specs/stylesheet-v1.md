@@ -341,8 +341,9 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
   individual `translate`/`rotate`/`scale` properties are not implemented yet.
 - A sink that reports `PaintSink::supports_transform()` (the Batched2D GPU sink) paints transformed
   subtrees under the real matrix; overflow clips inside them map through scale/translate/quarter-turn
-  frames and are dropped under other rotations or skews. The CPU sink and the damage-clipping
-  wrapper paint the axis-aligned bounding box instead.
+  frames and are dropped under other rotations or skews. The damage-clipping wrapper forwards the
+  matrix and replays commands under each device-space region. The CPU sink paints the
+  axis-aligned bounding box instead.
 - `box-shadow` takes up to 4 comma-separated shadows (offset, blur, spread, color). Blur is a
   3-8 layer Gaussian-matched stack drawn beneath the node; `inset` parses but is not painted, and
   the shadow is not cut out beneath a translucent background.
