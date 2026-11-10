@@ -487,7 +487,13 @@ fixed-capacity Fenwick prefix sum of 32 px main-axis estimates, refine-on-measur
 the section 6 re-anchor math, and a bounded keyed `ItemStateStore`; `tessera_boundary`
 (`include/tessera/ui/boundary/`) provides `BoundaryTable` routing, the single sync catch point
 `run_guarded`, and the decided retry policy (250 ms doubling to a 4 s cap, five retries,
-`TESSERA_BOUNDARY_LOOP`). Tests: `automation_*`, `virtual_*`, `boundary_*`.
+`TESSERA_BOUNDARY_LOOP`). `tessera_scale` (`include/tessera/ui/scale/`) holds the render-scale
+ladder (`quantize_render_scale`: 1.0/1.25/1.5/2.0, nearest with ties up, clamped) and
+`WindowRenderScale` (one scale per window, recomputed only on a DPI/monitor change), while
+`ui/text/scale_glyph_atlas.hpp` keeps one glyph atlas per ladder step with per-step invalidation;
+tests `automation_*`, `virtual_*`, `boundary_*`, `scale_*`. Next: wire `ScaleGlyphAtlas` into
+`TextRenderer` (draw selects `atlas_for(render_scale_)`, page textures keyed by ladder index, and
+a ladder change invalidates the previous step).
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
