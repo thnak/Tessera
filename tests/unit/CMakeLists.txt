@@ -1110,6 +1110,14 @@ target_link_libraries(transform_tests PRIVATE tessera_style)
 
 add_test(NAME transform COMMAND transform_tests)
 
+add_executable(paint_shadow_tests
+    paint_shadow_tests.cpp)
+
+target_include_directories(paint_shadow_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/paint)
+target_link_libraries(paint_shadow_tests PRIVATE tessera_paint)
+
+add_test(NAME paint_shadow COMMAND paint_shadow_tests)
+
 add_executable(paint_clip_tests
     paint_clip_tests.cpp)
 

@@ -2,6 +2,7 @@
 
 #include "paint_image.hpp"
 #include "paint_properties.hpp"
+#include "paint_shadow.hpp"
 #include "paint_text.hpp"
 #include "paint_vector.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
@@ -146,6 +147,10 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     if (rect.width > 0.0f && rect.height > 0.0f) {
         const float opacity = detail::opacity_value(style);
         const rhi::Color current = detail::current_color(style);
+        // The shadow sits beneath the node's own background, borders and content.
+        const std::optional<float> shadow_radius = detail::uniform_radius(style);
+        detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), opacity, current, sink,
+                                  stats);
         paint_background(style, rect, opacity, current, sink, stats);
         paint_linear_gradient(node, style, rect, opacity, sink, stats);
         paint_borders(style, rect, opacity, current, sink, stats);

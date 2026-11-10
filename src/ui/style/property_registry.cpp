@@ -92,6 +92,7 @@ constexpr PropertyDef kProperties[] = {
     {"z-index", "auto", false},
     {"transform", "none", false},
     {"transform-origin", "50% 50%", false},
+    {"box-shadow", "none", false},
 };
 
 bool is_custom_property(std::string_view property) {
