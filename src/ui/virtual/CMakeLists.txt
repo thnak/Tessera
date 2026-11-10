@@ -10,6 +10,7 @@ add_library(tessera_virtual STATIC
     scroll_anchor.cpp
     item_state_store.cpp
     virtual_range.cpp
+    virtual_range_focus.cpp
     virtual_range_query.cpp)
 
 target_include_directories(tessera_virtual PUBLIC

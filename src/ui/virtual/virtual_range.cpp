@@ -26,6 +26,7 @@ VirtualRange::VirtualRange(Config config, VirtualDataSource& source, ui::Node& c
           .capacity = config.capacity, .estimate_main = config.estimate_main, .gap = config.gap}),
       keys_(config.capacity),
       recycler_(config.pool_cap),
+      item_state_(config.state_capacity),
       realized_(recycler_.capacity()) {
     config_.overscan_main = std::max(config_.overscan_main, 0.0f);
     config_.cross_extent = std::max(config_.cross_extent, 0.0f);
@@ -46,11 +47,15 @@ std::expected<void, VirtualRangeError> VirtualRange::sync() {
     const std::size_t count = source_->item_count();
     if (!rebuilt) {
         (void)geometry_.set_count(0);
+        // The key mapping is invalid, so every keyed state entry is stale; dropping it also clears
+        // focus/selection instead of leaving them pointing at keys the collection cannot resolve.
+        item_state_.retain_if([this](VirtualItemId key) { return keys_.contains(key); });
         update_container_content_size();
         return std::unexpected(map_key_error(rebuilt.error().kind));
     }
     if (!geometry_.set_count(count)) {
         (void)geometry_.set_count(0);
+        item_state_.retain_if([this](VirtualItemId key) { return keys_.contains(key); });
         update_container_content_size();
         return std::unexpected(VirtualRangeError::CapacityExceeded);
     }
@@ -58,6 +63,9 @@ std::expected<void, VirtualRangeError> VirtualRange::sync() {
     // an insert would attach one item's height to its neighbour. The next update measures the
     // window afresh (spec section 4: inserts/removes update the prefix index, no full relayout).
     geometry_.clear_measurements();
+    // Keys, not indices, carry identity: focus/selection for keys the source still has survive the
+    // data change (spec section 11), and entries for vanished keys are dropped.
+    item_state_.retain_if([this](VirtualItemId key) { return keys_.contains(key); });
     update_container_content_size();
     return {};
 }
@@ -145,6 +153,7 @@ VirtualRange::update(float scroll_offset, float viewport_extent) {
 
     place_realized_nodes();
     update_container_content_size();
+    apply_focus_state();
 
     if (realized_count_ == 0) {
         result.realized = ItemGeometry::Range{0, 0};

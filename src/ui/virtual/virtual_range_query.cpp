@@ -39,6 +39,39 @@ VirtualRange::scroll_to_key(VirtualItemId key, float viewport_extent, float alig
     return ScrollTarget{*index, offset};
 }
 
+std::expected<VirtualRange::ScrollTarget, VirtualRangeError>
+VirtualRange::scroll_to_index(std::size_t index, float viewport_extent, ScrollAlignment alignment) {
+    if (index >= geometry_.item_count()) {
+        return std::unexpected(VirtualRangeError::IndexOutOfRange);
+    }
+    const float viewport = std::max(viewport_extent, 0.0f);
+    const float maximum = std::max(geometry_.total_extent() - viewport, 0.0f);
+    const float start = geometry_.item_offset(index);
+    const float extent = geometry_.item_main_size(index);
+    const float end = start + extent;
+    float offset = start;
+    switch (alignment) {
+    case ScrollAlignment::Start:
+        offset = start;
+        break;
+    case ScrollAlignment::Center:
+        offset = start - (viewport - extent) * 0.5f;
+        break;
+    case ScrollAlignment::Nearest:
+        if (start >= scroll_offset_ && end <= scroll_offset_ + viewport) {
+            offset = scroll_offset_; // already fully visible: no scroll at all
+        } else if (start < scroll_offset_ || end - start > viewport) {
+            offset = start; // above the viewport, or taller than it: top-align
+        } else {
+            offset = end - viewport; // below the viewport: bottom-align
+        }
+        break;
+    }
+    // The clamp is the documented rule: the collection never scrolls past its measured end, so a
+    // target near the tail settles one viewport short of its alignment instead of overscrolling.
+    return ScrollTarget{index, std::clamp(offset, 0.0f, maximum)};
+}
+
 std::optional<std::size_t> VirtualRange::index_of(VirtualItemId key) const noexcept {
     return keys_.find(key);
 }

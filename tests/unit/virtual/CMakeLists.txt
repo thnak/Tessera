@@ -79,3 +79,24 @@ add_executable(virtual_churn_tests
 target_link_libraries(virtual_churn_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_churn COMMAND virtual_churn_tests)
+
+add_executable(virtual_focus_tests
+    virtual_focus_tests.cpp)
+
+target_link_libraries(virtual_focus_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_focus COMMAND virtual_focus_tests)
+
+add_executable(virtual_scroll_index_tests
+    virtual_scroll_index_tests.cpp)
+
+target_link_libraries(virtual_scroll_index_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_scroll_index COMMAND virtual_scroll_index_tests)
+
+add_executable(virtual_focus_churn_tests
+    virtual_focus_churn_tests.cpp)
+
+target_link_libraries(virtual_focus_churn_tests PRIVATE tessera_virtual)
+
+add_test(NAME virtual_focus_churn COMMAND virtual_focus_churn_tests)

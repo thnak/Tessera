@@ -198,6 +198,16 @@ nothing: the cap is a refusal, not a growth policy, and the realized window trun
 - On data replacement, match by key; missing anchor -> nearest surviving key.
 - `scroll_to_key(key, align)` realizes the target, measures if needed, scrolls, then focuses if
   requested.
+- `scroll_to_index(index, alignment)` is a pure query (`Start`/`Center`/`Nearest`): it computes the
+  offset that puts the item main start at the viewport start, the item center at the viewport
+  center, or the shortest move that makes the item fully visible (`Nearest` does not move an item
+  that is already fully visible). The result is clamped to
+  `[0, total_extent - viewport_extent]`, and the query never syncs, releases, or rebuilds anything,
+  so it cannot cause a full-list resync. Offsets come from the current prefix sums (estimates for
+  unmeasured items), so the caller runs `update` with them and uses the returned offset: measuring
+  items before the viewport anchor shifts the scroll by the same delta, which can move a target
+  placed with `Nearest`; repeating the query with the settled offset is the documented second pass.
+  `focus_item`/`step_focus` (section 7) do that pass internally where the alignment matters.
 - Sticky headers: a header is pinned at the viewport edge for its section; it participates in
   hit testing and accessibility but is not counted as a regular item.
 - No full-list rebuild for a single insert/remove/move.
@@ -213,6 +223,22 @@ nothing: the cap is a refusal, not a growth policy, and the realized window trun
 - Screen-reader actions (`scroll_to_index`, `activate`) are handled by the collection.
 - Announce data updates at a bounded rate; do not announce every streaming tick.
 - Empty/loading/error states are part of the collection semantics, not a fake item.
+
+Implementation: the keyed bits live in `virtualization::ItemStateStore`
+([`item_state_store.hpp`](../../include/tessera/ui/virtual/item_state_store.hpp)):
+`set_focus`/`clear_focus` keep at most one focused key, `set_selected`/`toggle_selected` maintain
+the set, and `ItemState::focused`/`selected` mirror them on the entry (a `put` of payload/measure
+state never moves either). The focused key and every selected key are pinned against the store's
+LRU eviction, so focus and selection survive scrolling, recycling, and key-preserving data updates.
+Capacity therefore bounds the selection: a selection insert beyond it is refused and counted in
+`stats().refusals` instead of evicting a selected key, and `VirtualRange::sync` drops entries
+(and with them focus/selection) for keys the data source no longer has. `VirtualRange::focus_item`
+is the "realize + scroll + focus" path, `step_focus(Next|Previous|First|Last)` is Tab/arrow
+stepping (clamped, no wrap, and the first visible item when nothing is focused), `focused_node()`
+reports the node currently showing the focused key, and `selected_items(span)` returns the selected
+keys in data order (ascending current index). Both mirror the focused key onto exactly one realized
+node through `PseudoState::Focus`; releasing the item clears the bit with the node, and realizing it
+again restores the bit from the key.
 
 ## 8. Async, prefetch, cancellation
 
@@ -321,6 +347,10 @@ Tests:
 - Whether item state should live in a keyed store or in the data source. **Decided:** an explicit
   keyed store owned by the component (section 2); the data source stays read-only and recycled
   nodes hold no item state.
+- Selection size versus the item-state store capacity. **Decided:** focused and selected entries are
+  pinned, so selection is bounded by capacity and a selection insert beyond it is refused (never
+  silently evicted); the component sizes the store for `selection + focus + payload` entries
+  (section 7).
 - Recycling vs rebuild for complex/custom item trees.
 - IR representation: decided in [`ir-v1.md`](ir-v1.md) (`VirtualList`/`VirtualGrid` node kinds, closed in V1); not an open question.
 - Sticky headers/sections with variable heights.
@@ -342,6 +372,14 @@ Tests:
   visible-range integration over the geometry (overscanned window, build/release churn, measure on
   realize, `reanchor_scroll` after a refinement before the anchor, main-axis placement, cap
   truncation, and an allocation-free scroll path after pool warm-up).
+- Implemented (keyed focus/selection slice): the focused key and the selection set live in
+  `ItemStateStore` keyed by `VirtualItemId` and pinned against LRU eviction
+  (`set_focus`/`clear_focus`/`is_focused`, `set_selected`/`toggle_selected`/`selected_count`/
+  `copy_selected`, `retain_if` pruning on `sync`); `VirtualRange::focus_item` realizes, scrolls and
+  focuses a key, `step_focus(Next|Previous|First|Last)` is clamped Tab/arrow stepping that leaves
+  exactly one realized node carrying `PseudoState::Focus`, `focused_node()` reports the realized
+  node, `selected_items(span)` returns keys in data order, and `scroll_to_index` adds
+  `Start`/`Center`/`Nearest` placement with the documented clamp and no resync.
 - Implemented (compiler slice): the `VirtualList`/`VirtualGrid` `.map` child lowers into the IR
   `itemTemplate` (with the collection's 32 px `estimateSize` default, ir-v1.md section 3.5), and
   codegen emits the item-template builder plus the bounded `apply_virtual_<n>(first, last)` window
@@ -360,11 +398,17 @@ Tests:
   without mutation, clean-on-acquire/no-state-leak, FIFO order, lease validation, allocation-free
   pooled acquire/release), `virtual_range` (realize/release churn, reuse, cap truncation,
   horizontal placement, key resolution/scroll-to-key, sync invalidation, error paths),
-  `virtual_range_measure` (re-anchor before/at/after the anchor, clamp, node bounds), and
-  `virtual_churn` (10k-item allocation-free churn, no node leak, deterministic step
-  records/build/release order).
-- Design/spec only still: grid rows, sticky headers, focus/selection/accessibility integration,
-  async prefetch/cancellation wiring, the collection's own `onEndReached` event wiring (no scene
+  `virtual_range_measure` (re-anchor before/at/after the anchor, clamp, node bounds),
+  `virtual_focus` (focus survives scroll-out/recycle and is restored on realize, realize-on-focus,
+  Tab/arrow stepping with exactly one realized focused node, selection data order, focus/selection
+  across a key-preserving data update and a key removal, pool-truncation and zero-viewport focus),
+  `virtual_scroll_index` (Start/Center/Nearest placement, clamping, pure-query/no-resync, measured
+  prefixes, and the re-anchor interaction with focus), `virtual_focus_churn` (10k-item
+  allocation-free focus/selection/step churn, exactly one focused node, deterministic step and
+  build/release order), and `virtual_churn` (10k-item allocation-free churn, no node leak,
+  deterministic step records/build/release order).
+- Design/spec only still: grid rows, sticky headers, accessibility semantics integration, async
+  prefetch/cancellation wiring, the collection's own `onEndReached` event wiring (no scene
   `EventType` yet; item-template events are emitted), dynamic virtual geometry, and dirty/render
   integration beyond the realized-window path (the range reports dirty through the scene-node
   bounds it writes).
