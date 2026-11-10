@@ -283,12 +283,11 @@ closes the section 12 open question. Nothing is on by default: the data step sit
 per-tier numbers, the failure table, and the follow-up slice are in
 [`icu-data.md`](icu-data.md).
 
-Facts on this commit: ICU is **not vendored and not fetched** (no `FetchContent`, no
-`find_package`, no version pin), has **zero call sites** (HarfBuzz builds with
-`HB_HAVE_ICU=OFF`), and none of the three consumers named in the decision is implemented —
-segmentation/line breaking use bespoke `ui/text/edit_grapheme.*` helpers and greedy wrap,
-`services/i18n` is spec-only, and collation is optional and unused. ADR-012 rule 5 therefore has
-nothing to satisfy yet.
+Facts on the spike commit: ICU was neither vendored nor fetched (no `FetchContent`, no
+`find_package`, no version pin) and had zero call sites (HarfBuzz built with `HB_HAVE_ICU=OFF`);
+segmentation/line breaking used bespoke `ui/text/edit_grapheme.*` helpers and greedy wrap,
+`services/i18n` is spec-only, and collation is optional and unused. ADR-012 rule 5 therefore had
+nothing to satisfy then.
 
 Measured on pinned ICU 76.1 (`icudt76l.dat`, 31,851,856 B) trimmed with the pinned `icupkg`:
 
@@ -322,3 +321,23 @@ stack uses it, so CI stays unchanged; (3) ship a kept-locale manifest and make a
 (`third_party/icu/locales.txt`): `root, en, en_GB, de, fr, es, it, pt, pt_BR, nl, pl, ru, tr, ar,
 he, hi, th, vi, ja, ko, zh, zh_Hant`. CI cost: zero as landed; a release job that enables the
 step pays +0.20 s configure and +1.0 s build.
+
+### 13.1 Implementation (task-101)
+
+The follow-up slice landed; all three conditions are met and the option is still OFF:
+
+- `third_party/icu` compiles pinned ICU 76.1 into static `tessera_icu_common` / `tessera_icu_i18n`
+  archives and links the reduced blob (447 items, 22 locale bundles, 17,293,904 B) as
+  `tessera_icu_data`; `tessera_icu` is the module-facing INTERFACE target.
+- `ui/text/icu_runtime.*` installs the blob with `udata_setCommonData`, asserts the pinned
+  version, and proves the package is readable by opening the root bundle.
+- `ui/text/text_breaks.*` owns break opportunities: `ubrk_*` word (UAX #29) and line (UAX #14)
+  iterators, with the previous reduced rules kept as the ICU-free backend and the parity baseline.
+  Word navigation and the over-wide-run split of the greedy wrap go through it.
+- `ui/text/locale_resolver.*` validates a request against the generated `locales.json` manifest
+  and emits `icu.locale.fallback` / `icu.locale.missing`, so a trimmed locale can no longer format
+  root data silently.
+
+Parity matrix and every intentional difference:
+`tests/unit/icu/text_breaks_parity_tests.cpp`. Build shape, measured cost, deviations, and the
+exact option flip: [`icu-data.md`](icu-data.md) section 8.

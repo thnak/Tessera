@@ -151,7 +151,10 @@ ICU does when they are.
 ## 6. Decision and follow-up
 
 The decision (GO with locale packs, the recommended locale set, and the CI cost) is recorded in
-[`text.md`](text.md) section 13. Follow-up implementation slice:
+[`text.md`](text.md) section 13. The follow-up implementation slice that was planned here landed
+in task-101; section 8 records what shipped, the measured cost, and the one deviation from the plan
+below (the data step still trims the pinned package because `pkgdata --filter-file` needs CLDR
+source data the pinned archive does not contain).
 
 1. `third_party/CMakeLists.txt`: FetchContent ICU 76.1 (pinned archive hash) with
    `BUILD_SHARED_LIBS=OFF`, `U_STATIC_IMPLEMENTATION`, converters/transliteration/IO disabled,
@@ -179,3 +182,126 @@ The probe is spike-only: never compiled by the Tessera build, never linked into 
 links the pinned ICU 76.1 DLLs purely to observe `UErrorCode` and formatted output for a locale
 set. The section 4 commands plus the `icupkg -r` / `genccode -o` runs described in sections 2-3
 reproduce every number above.
+
+## 8. Implementation (task-101): static ICU with the reduced blob
+
+Status: landed behind the same `TESSERA_ICU_REDUCED_DATA=OFF` switch. CI and the default build are
+unchanged; a lane that flips the option gets the whole dependency.
+
+### 8.1 Build shape
+
+ICU upstream ships **no CMake build** (`icu4c/source/CMakeLists.txt` does not exist in any release,
+including 76.1 and 77.1): it is autoconf on POSIX and MSBuild on Windows. Combined with the measured
+limitation that the prebuilt Windows import libraries cannot override their data DLL (section 5),
+a static ICU can only come from compiling the pinned sources, so `third_party/icu/CMakeLists.txt`
+does exactly that, the same approach `cmake/ThorVG.cmake` uses for the other non-CMake upstream:
+
+```text
+tessera_icu_common   static, 201 TUs from source/common (U_COMMON_IMPLEMENTATION)
+tessera_icu_i18n     static, 254 TUs from source/i18n   (U_I18N_IMPLEMENTATION)
+tessera_icu_data     static, the genccode object for the trimmed package
+tessera_icu          INTERFACE: headers, U_STATIC_IMPLEMENTATION, version/data pins
+tessera_icu_manifest custom target: <build>/icu/{locales.json,icu_locale_manifest.h}
+```
+
+ICU 76 is a C++17 code base, so the third-party targets pin `CXX_STANDARD 17` and compile with
+`-w` (`/W0` on MSVC); they never inherit the project's `-Werror` policy (AGENTS.md "warnings").
+
+The sources come from the pinned `icu4c-76_1-src.tgz` (SHA-256
+`dfacb46b…30f4f3e`), fetched by `FetchContent` like FreeType/HarfBuzz/SheenBidi;
+`TESSERA_ICU_SOURCE_DIR` points at a pre-fetched tree for offline runs and is version-checked
+against the pinned `76.1.0`.
+
+### 8.2 Data step and the two names ICU requires
+
+The pinned package cannot be rebuilt with `pkgdata --filter-file`: `pkgdata` packages CLDR *source*
+data, and the release archive ships only a prebuilt `source/data/in/icudt76l.dat` — there is no
+`source/data/locales/*.txt` (2 entries match `data/locales`, both directories, zero locale files).
+Trimming the pinned package with `icupkg` is therefore retained from the spike, unchanged in cost.
+
+Two ICU invariants pull the artifact names in opposite directions, and the step satisfies both:
+
+| Invariant | Value | Consequence |
+|---|---|---|
+| `U_ICUDATA_NAME` (what `udata` looks up) | `icudt76l` | the blob file and its ToC prefix must be `icudt76l` (`icupkg` forces prefix == basename) |
+| `U_ICUDATA_ENTRY_POINT` (the linked symbol) | `icudt76_dat` | the genccode object must define `icudt76_dat` |
+
+`genccode -n icudt76 -e icudt76 -f icudt76` writes `icudt76.c` defining `icudt76_dat` from the
+blob named `icudt76l.dat`, so both hold. The CMake configure step rejects a pinned package whose
+basename disagrees with `U_ICUDATA_NAME`, and the runtime proves the install by opening the root
+bundle.
+
+The step also writes the kept-locale manifest (`locales.json`: schema id, ICU version, data name,
+blob bytes/items/SHA-256, sorted kept ids) and an equivalent compiled-in table
+(`icu_locale_manifest.h`) so `LocaleResolver` needs no file I/O at runtime. Both are deterministic:
+sorted ids, no timestamps, no host paths.
+
+### 8.3 Measured cost on this lane
+
+| Item | Value |
+|---|---|
+| Reduced blob | 17,293,904 B, 447 items, 22 locale bundles (54.3% of full) |
+| Blob SHA-256 | `534d4de0…f9262f9f` |
+| Data step (icupkg trim + manifest) | 1.0 s |
+| genccode (54 MB of C) | 1.3 s |
+| Data object compile | 15.4 s (one large TU) |
+| ICU static libraries, cold, `-j4`, Debug | 11.5 s (455 translation units) |
+
+### 8.4 Runtime, segmentation, and the manifest
+
+`ui/text/icu_runtime.*` installs the blob with `udata_setCommonData` before any data call (lazily
+from the segmentation/locale entry points, so a host does not have to order startup), asserts the
+linked library is the pinned major version, and fails loudly if ICU cannot read the root bundle.
+
+`ui/text/text_breaks.*` is the single break-opportunity API: `ubrk_*` word (UAX #29) and line
+(UAX #14) iterators over a UTF-8 `UText` (so indices are native byte offsets), with the previous
+reduced rules kept as the ICU-free backend and as the parity baseline. `word_left`/`word_right` and
+the over-wide-run split of the greedy wrap use it; inter-word wrapping is unchanged, which is why
+the existing wrap fixtures keep their output. Intentional differences (all in
+`tests/unit/icu/text_breaks_parity_tests.cpp`):
+
+| Case | Builtin reduced rule | ICU |
+|---|---|---|
+| `don't` | three segments (`don`, `'`-separator, `t`) | one word (WB6/WB7) |
+| `3.14` | split at the decimal point | one number (WB11/WB12) |
+| Han run `你好世界` | one word | dictionary segmentation `你好 | 世界` (the bundled `cjdict`) |
+| line breaks | after spaces/hyphens/CJK | full UAX #14 (superset of the builtin set) |
+| Arabic | splits at the space | identical to builtin |
+
+`ui/text/locale_resolver.*` normalizes a request (BCP-47 separators/case, script/region subtags),
+validates it against the manifest, and returns `kept`, the fallback ancestor, the base direction
+(from `uloc_getCharacterOrientation`), and a structured diagnostic:
+`icu.locale.fallback requested=de_AT resolved=de` or `icu.locale.missing requested=zz`. That closes
+the section 5 risk: `udat_open` returning `U_ZERO_ERROR` with root data can no longer pass silently.
+
+### 8.5 Tests and the static-link proof
+
+- `icu_locale_pack`: installs the blob, checks the manifest identity, opens kept and trimmed
+  locales, golden-tests `unum` (`de` `1.234.567,5`, `en` `1,234,567.5`) and `udat` short-date
+  patterns (`ja` `y/MM/dd`, `de` `dd.MM.yy`, root `y-MM-dd`), asserts `udat_open` succeeds for a
+  trimmed locale, checks repeat-call determinism, and asserts that **no ICU dynamic library is
+  loaded in the process** (`GetModuleHandleW` / `/proc/self/maps`), the ADR-012 property that the
+  prebuilt import libraries could not provide.
+- `text_breaks_parity`: the matrix above plus determinism and code-point-boundary checks.
+- `locale_resolver`: manifest membership/sorting, exact/fallback/missing resolutions and their
+  diagnostics, normalization, and RTL/LTR direction for kept and trimmed locales.
+- The release gate `scripts/check_static_link.py` (`dumpbin /dependents`, `ldd`, `otool -L`)
+  remains the authoritative link-graph check for a packaged build.
+
+### 8.6 The option flip
+
+One switch, declared in `third_party/CMakeLists.txt`:
+
+```powershell
+cmake --preset dev -B build/lane-icu-static -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_POC=OFF `
+  -DTESSERA_ICU_REDUCED_DATA=ON "-DTESSERA_ICU_TOOLS_DIR=<icu>/bin64" `
+  "-DTESSERA_ICU_FULL_DATA=<icu>/icudt76l.dat"
+```
+
+`TESSERA_ICU_TOOLS_DIR` (pinned `icupkg` + `genccode`) and `TESSERA_ICU_FULL_DATA` (the pinned
+`icudt76l.dat`) are required only when the switch is ON. `TESSERA_ICU_SOURCE_DIR` is optional
+(pre-fetched sources). Nothing else in the tree branches on the option except `src/ui/text`, which
+adds `icu_runtime.cpp`/`locale_resolver.cpp` and the ICU tests, and defines
+`TESSERA_ICU_ENABLED` for consumers. Making ICU mandatory later is: move the four option/set lines
+from `third_party/CMakeLists.txt` to the root options block and default them ON.
+

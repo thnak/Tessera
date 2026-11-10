@@ -25,3 +25,13 @@ target_include_directories(text_breaks_parity_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/ui/text)
 
 add_test(NAME text_breaks_parity COMMAND text_breaks_parity_tests)
+
+add_executable(locale_resolver_tests
+    locale_resolver_tests.cpp)
+
+target_link_libraries(locale_resolver_tests PRIVATE tessera_text)
+
+target_include_directories(locale_resolver_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/ui/text)
+
+add_test(NAME locale_resolver COMMAND locale_resolver_tests)
