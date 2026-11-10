@@ -296,8 +296,10 @@ Tests:
   (`include/tessera/ui/virtual/`, `src/ui/virtual/`); bounded keyed item state store with
   deterministic LRU eviction (recycled nodes hold no state).
 - Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
-  refine suffix shift, insert/remove, capacity), `virtual_anchor` (re-anchor after measure,
-  clamp), `virtual_state` (state across recycle, eviction rule).
+  refine suffix shift, insert/remove, capacity), `virtual_geometry_scan` (brute-force linear
+  oracle for offsets and windows), `virtual_anchor` (re-anchor after measure, clamp),
+  `virtual_state` (state across recycle, eviction rule), `virtual_allocations` (no heap
+  allocation on the scroll/refine/state path).
 - Design/spec only still: the collection/node recycler and data-source build/release, grid rows,
   sticky headers, focus/selection/accessibility integration, async prefetch, IR/codegen emission
   for `VirtualList`/`VirtualGrid`, and dirty/render integration.
