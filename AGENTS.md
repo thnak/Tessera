@@ -498,7 +498,12 @@ a ladder change invalidates the previous step). `tessera_harness`
 strict JSON-lines framing (1 MiB cap, CRLF/EOF, per-line UTF-8), `LineTransport` with an in-process
 pair, the versioned request/response envelope with stable error codes, the snapshot/action/trace/
 audit command and result models, and canonical JSON; tests `harness_*`. Next: the stdio adapter,
-the session/executor loop, and the `tessera test`/`tessera headless` CLIs.
+the session/executor loop, and the `tessera test`/`tessera headless` CLIs. `tessera_accessibility`
+now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Transport` seam with a
+loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface
+mapping, and Accessible/Application/Action/Component/Text/Value dispatch with a bounded action
+queue plus a bounded coalescing event queue (spec §12.1); tests `a11y_*`. Next: the `AtspiSession`
+connect/auth/Hello/registry handshake and its pumped worker thread.
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes

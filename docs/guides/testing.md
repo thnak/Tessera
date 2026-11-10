@@ -146,6 +146,15 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `harness_command` | snapshot/click/setValue/focus/scroll/trace/audit command decode rules |
 | `harness_command_result` | result shapes per command, mismatch rejection, round-trips |
 | `harness_golden` | byte-pinned request/response lines, repeat determinism, 256-node payload |
+| `a11y_dbus_address` | session-bus address parse: percent decoding, unix path/abstract, unsupported transports |
+| `a11y_dbus_transport` | `Transport` seam + loopback pair rules (no sleeping, bounded buffers) |
+| `a11y_dbus_wire` | wire codec golden bytes: alignment table, signatures, header fields, BE input |
+| `a11y_dbus_wire_bounds` | caps (text/field/body/nesting) and malformed/truncated message rejection |
+| `a11y_dbus_auth` | SASL EXTERNAL handshake: NUL + hex uid, OK/REJECTED/ERROR/DATA, fd-passing fallback |
+| `a11y_atspi_mapping` | AtspiRole table, 2-word state set, action names, accessible object paths |
+| `a11y_atspi_events` | bounded coalescing event queue keyed by (kind, node, detail) |
+| `a11y_atspi_bridge` | Accessible/Application/Component dispatch and error replies |
+| `a11y_atspi_bridge_events` | Action/Text/Value dispatch, deferred action requests, one signal per event |
 
 ## 2.1 GPU tests
 
