@@ -41,6 +41,32 @@ constexpr std::string_view kFormPage =
     "  );\n"
     "}\n";
 
+// `Form` as the second library component (task-103): a form-level container imported from the
+// same framework module. It carries the `initial`/`validate`/`onSubmit`/`children` records and its
+// own Slot; the Fields inside it stay ordinary component instances.
+constexpr std::string_view kFormPageWithForm =
+    "import { Field, Form, TextInput, useState } from \"tessera\";\n"
+    "function FormPage() {\n"
+    "  const [email, setEmail] = useState<string>(\"\");\n"
+    "  // Note: bind::on_validate\n"
+    "  const validate = (): void => { setEmail(\"\"); };\n"
+    "  // Note: bind::on_submit\n"
+    "  const submit = (): void => { setEmail(\"\"); };\n"
+    "  return (\n"
+    "    <View className=\"page\">\n"
+    "      <Form initial={[\"email=\", \"age=0\"]} validate={validate} onSubmit={submit}>\n"
+    "        <Field name=\"email\" label=\"Email\" required\n"
+    "          validators={[\"required\", \"minLength:3\"]}>\n"
+    "          <TextInput inputMode=\"email\" />\n"
+    "        </Field>\n"
+    "        <Field name=\"age\" label=\"Age\">\n"
+    "          <TextInput inputMode=\"numeric\" />\n"
+    "        </Field>\n"
+    "      </Form>\n"
+    "    </View>\n"
+    "  );\n"
+    "}\n";
+
 const ir::Component* component_of(const lowering::LoweredModule& module, std::string_view name) {
     for (const ir::Component& component : module.components) {
         if (component.name == name) {
@@ -237,6 +263,86 @@ void test_lowering_is_deterministic() {
              "two lowers of the same Field usage are byte-identical");
 }
 
+void test_form_resolves_to_a_component_node() {
+    const auto fixture = parse_file("ui/FormPage.tsx", std::string(kFormPageWithForm));
+    const auto result = lowering::lower_module(fixture->module_source(), "demo");
+    check(result.has_value(), "a Form usage lowers");
+    if (!result) {
+        std::cerr << "  error: " << first_message(result) << "\n";
+        return;
+    }
+    const ir::Component* page = component_of(*result, "FormPage");
+    const ir::Component* form = component_of(*result, "Form");
+    const ir::Component* field = component_of(*result, "Field");
+    check(page != nullptr, "the page component is present");
+    check(form != nullptr, "the library Form component is part of the module");
+    check(field != nullptr, "the Field import still resolves next to Form");
+    if (page == nullptr || form == nullptr || field == nullptr) {
+        return;
+    }
+    check_eq(form->id, "comp::Form", "the library Form component id");
+    check(tessera::schema::find_element("Form") == nullptr,
+          "Form is not an intrinsic element of the schema table");
+    check(page->root.children.size() == 1, "the page root carries the Form instance");
+    if (page->root.children.empty()) {
+        return;
+    }
+    const ir::Node& instance = page->root.children[0];
+    check_eq(std::string(ir::node_kind_name(instance.kind)), "Component",
+             "the Form usage is a Component IR node, not an intrinsic");
+    check_eq(instance.component, "comp::Form", "the node targets the library component");
+    check(instance.children.size() == 2, "both Fields are the Form instance's slot content");
+}
+
+void test_form_prop_records_are_mapped() {
+    const auto fixture = parse_file("ui/FormPage.tsx", std::string(kFormPageWithForm));
+    const auto result = lowering::lower_module(fixture->module_source(), "demo");
+    check(result.has_value(), "the Form fixture lowers for the prop matrix");
+    if (!result) {
+        return;
+    }
+    const ir::Component* page = component_of(*result, "FormPage");
+    const ir::Component* form = component_of(*result, "Form");
+    if (page == nullptr || form == nullptr || page->root.children.empty()) {
+        check(false, "the fixture has the page and the library Form component");
+        return;
+    }
+    const ir::Node& instance = page->root.children[0];
+    const std::string_view initial[] = {"email=", "age=0"};
+    check(is_string_list(prop_value(instance, "initial"), initial),
+          "`initial` maps to the list<string> seed record");
+    check(prop_value(instance, "validate") == nullptr, "`validate` is not a value prop");
+    check(prop_value(instance, "onSubmit") == nullptr, "`onSubmit` is not a value prop");
+    const auto validate = instance.events.find("validate");
+    check(validate != instance.events.end() && validate->second == "bind::on_validate",
+          "`validate` is a payload-free callback prop bound through the node's events");
+    const auto submit = instance.events.find("onSubmit");
+    check(submit != instance.events.end() && submit->second == "bind::on_submit",
+          "`onSubmit` is a payload-free callback prop bound through the node's events");
+
+    struct Expected {
+        const char* name;
+        const char* type;
+    };
+    const Expected expected[] = {{"initial", "list<string>"},
+                                 {"validate", "callback"},
+                                 {"onSubmit", "callback"},
+                                 {"children", "children"}};
+    for (const Expected& record : expected) {
+        const ir::Prop* prop = declared_prop(*form, record.name);
+        check(prop != nullptr, std::string("Form declares `") + record.name + "`");
+        if (prop != nullptr) {
+            check_eq(prop->type, record.type,
+                     std::string("Form prop `") + record.name + "` has its documented type");
+        }
+    }
+    bool places_slot = false;
+    for (const ir::Node& child : form->root.children) {
+        places_slot = places_slot || child.kind == ir::NodeKind::Slot;
+    }
+    check(places_slot, "the library Form places its Slot for the caller's Fields");
+}
+
 void test_a_project_component_wins_over_the_library_one() {
     const auto fixture =
         parse_file("ui/App.tsx", "import { Field } from \"tessera\";\n"
@@ -267,6 +373,8 @@ int main() {
     test_field_resolves_to_a_component_node();
     test_prop_records_are_mapped();
     test_children_ride_the_static_slot();
+    test_form_resolves_to_a_component_node();
+    test_form_prop_records_are_mapped();
     test_lowering_is_deterministic();
     test_a_project_component_wins_over_the_library_one();
     if (jsx_test::failures != 0) {

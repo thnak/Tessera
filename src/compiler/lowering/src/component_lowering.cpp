@@ -136,6 +136,15 @@ bool apply_expression(NodeState& state, std::string_view name, const jsx::Expr& 
                   span);
         return false;
     }
+    // A component reference has no intrinsic schema: `onX` names are events by convention, and any
+    // other attribute whose value names a declared handler (or is a payload-free inline arrow) is a
+    // callback prop too (docs/specs/component-model-v1.md section 3, `Form`'s `validate`). The
+    // target's declared prop record decides whether it is a callback; codegen rejects a value prop
+    // bound as an event and vice versa.
+    if (value.kind == jsx::ExprKind::Arrow || (value.kind == jsx::ExprKind::Identifier &&
+                                               state.hooks.find_handler(value.text) != nullptr)) {
+        return lower_component_event(state, name, value, span, node);
+    }
     if (!check_prop_value(state, value, span)) {
         return false;
     }
