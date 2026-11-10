@@ -1365,3 +1365,9 @@ add_executable(io_executor_tests
 target_link_libraries(io_executor_tests PRIVATE tessera_runtime)
 
 add_test(NAME io_executor COMMAND io_executor_tests)
+
+# Each subsystem below keeps its test registration in its own folder so two slices never edit this
+# list at the same time; add_subdirectory stays here so the list remains the single index.
+add_subdirectory(automation)
+add_subdirectory(virtual)
+add_subdirectory(boundary)
