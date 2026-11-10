@@ -236,7 +236,7 @@ RunResult run_script(Device& device, const tessera::ui::text::FontFace& face) {
     frame(plan_for(), false);
 
     damage.clear();
-    damage.add(tessera::ui::layout::node_damage_rect(*scene.text)); // tightened line-union damage
+    damage.add(tessera::ui::layout::node_damage_rect(*scene.text)); // whole text box
     frame(plan_for(), false);
 
     damage.clear();

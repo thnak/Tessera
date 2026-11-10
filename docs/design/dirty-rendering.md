@@ -437,3 +437,11 @@ probe reports the redraw plan/work without performing unsafe partial present. Pr
 partial rendering is exercised by `damage_present` offscreen. Measured on the local AMD at 240x160:
 initial frame full; two scripted scene changes each report 1 region / 17,280 px (20% of target);
 3 presents with 3 idle waits; output is deterministic across runs and validation-clean.
+
+### 8.2 Text damage tightening reverted (review follow-up)
+
+The 8.1 line-union rule is withdrawn: `node_damage_rect` returns the node's world bounds for every
+kind. Paint offsets glyph runs by the computed padding, wraps at the padded width and measures with
+the context metrics source, none of which the damage layer sees, so with `padding-top: 20px` or a
+real font the union could end above/inside the drawn glyph rows and leave stale pixels. Re-tighten
+only once damage shares the paint pass's content box and metrics source.
