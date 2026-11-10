@@ -48,6 +48,7 @@ add_custom_target(tessera_batched2d_shaders
 
 add_library(tessera_vulkan STATIC
     src/offscreen_renderer.cpp
+    src/offscreen_renderer_record.cpp
     ${TESSERA_VERT_SPV}
     ${TESSERA_FRAG_SPV})
 
