@@ -3,6 +3,7 @@
 add_library(tessera_style STATIC
     cascade.cpp
     color.cpp
+    color_names.cpp
     compiled_stylesheet.cpp
     keyframes.cpp
     media_query.cpp
