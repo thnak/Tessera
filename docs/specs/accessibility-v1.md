@@ -81,6 +81,19 @@ struct SemanticsNode {
 - See [`virtualization-v1.md`](virtualization-v1.md) and
   [`custom-elements-v1.md`](custom-elements-v1.md).
 
+Implemented on the collection side: `virtualization::CollectionSemantics`
+([`collection_semantics.hpp`](../../include/tessera/ui/virtual/collection_semantics.hpp), see
+[`virtualization-v1.md`](virtualization-v1.md) section 7) supplies what this section requires. It
+reports the collection's item count as the set size and each realized item's 1-based `pos_in_set`
+from the key index; it exposes the realized focused item as the active descendant, keeps it across
+realize/recycle, and pairs each realized `ItemKey` with the item node's compiler-assigned `UiId`
+(the `(UiId, ItemKey)` identity of [`automation-ids-v1.md`](automation-ids-v1.md) section 1, never
+re-hashed at runtime). Focus and selection changes produce bounded, coalesced announcements: the
+host observes once after input handling and drains one structured announcement per observed change
+(`pos_in_set`, `set_size`, realized state), so an unrealized-item focus announces exactly once with
+its position, a superseded change is dropped, and nothing is announced per frame. The semantics tree
+builder and the platform bridges do not consume it yet; that integration is the remaining work.
+
 ## 7. Platform bridges
 
 | Platform | API | Notes |

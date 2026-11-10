@@ -251,6 +251,36 @@ keys in data order (ascending current index). Both mirror the focused key onto e
 node through `PseudoState::Focus`; releasing the item clears the bit with the node, and realizing it
 again restores the bit from the key.
 
+Collection semantics: `virtualization::CollectionSemantics`
+([`collection_semantics.hpp`](../../include/tessera/ui/virtual/collection_semantics.hpp)) is the
+accessibility/automation view over one range. It reports `set_size()` (the current item count) and
+`pos_in_set(index|key)` (1-based, the item's current data index resolved through the key index, so
+positions renumber on insert/remove and a key gap is not a position gap), the realized items in
+data order with their positions, the realized focused item as the active descendant, the selection
+in data order with positions, and a bounded announcement ring. Each item's automation identity is
+`(ui_id, item_key)`: `ui_id` is the `automation_id` the compiler assigned to the realized item node
+and `item_key` is the stable data key; the pair is the identity and the collection never mints,
+renumbers, or re-hashes an id at runtime ([`automation-ids-v1.md`](automation-ids-v1.md) section 1).
+An unrealized item has no active-descendant entry and reports `ui_id == 0`; its position still
+resolves from the key index.
+
+Announcements are edge-triggered rather than per frame: the host calls `observe()` once after
+input/focus handling and drains with `take_announcement()`. A focused-key change or a selection
+membership change stages one structured announcement carrying `pos_in_set`, `set_size`, and whether
+the item was realized when the change was observed; an undrained announcement of the same kind is
+superseded in place (counted in `stats().superseded`), and the ring is bounded by
+`kMaxPendingAnnouncements`, dropping its oldest entry (counted in `stats().dropped`) instead of
+growing. `observe()` on an unchanged range stages nothing, so focus does not re-announce on every
+frame and realizing an unrealized focused item later does not announce again; a focus that moves
+away and back between observations nets out to no announcement. Clearing focus names no item and is
+counted but not announced. An unrealized-item focus (`focus_item` on a key outside the realized
+window, for example a pool-cap truncation or a zero-extent viewport) still announces exactly once
+with its position and `realized == false`. The announce path performs no heap allocation after
+construction; `format_announcement` builds deterministic developer/debug text into a caller buffer,
+while platform bridges localize from the structured fields. `ItemStateStore` keeps the
+`selection_revision`/`last_selection_change` journal that lets `observe()` detect a membership
+change without copying the selection.
+
 ## 8. Async, prefetch, cancellation
 
 - Prefetch data/measure for items just outside the overscan (bounded). Pool cap/overscan
@@ -391,6 +421,14 @@ Tests:
   exactly one realized node carrying `PseudoState::Focus`, `focused_node()` reports the realized
   node, `selected_items(span)` returns keys in data order, and `scroll_to_index` adds
   `Start`/`Center`/`Nearest` placement with the documented clamp and no resync.
+- Implemented (semantics/accessibility slice): `virtualization::CollectionSemantics` exposes the
+  set size and 1-based `pos_in_set` resolved through the key index, realized items in data order
+  with their `(UiId, ItemKey)` automation identity (read from the realized node's `automation_id`,
+  never re-hashed), the realized focused item as the active descendant, selection in data order with
+  positions, and bounded coalesced focus/selection announcements (one per observed change, none per
+  frame, superseded entries dropped in place, allocation-free after construction).
+  `ItemStateStore` gained the `selection_revision`/`last_selection_change` journal that
+  `observe()` consumes.
 - Implemented (grid slice): `VirtualGridRows` maps the fixed-column, row-major grid onto an
   `ItemGeometry` at row granularity, with max-item-height (or fixed) row extents, row/item visible
   windows, capacity refusal, and removal-aware measurements.
@@ -420,14 +458,18 @@ Tests:
   prefixes, and the re-anchor interaction with focus), `virtual_focus_churn` (10k-item
   allocation-free focus/selection/step churn, exactly one focused node, deterministic step and
   build/release order), `virtual_grid_rows` (row/column mapping, short last row, max-item row
-  extents, fixed row height, row/item windows, capacity refusal, removal-aware measurements), and
-  `virtual_churn` (10k-item allocation-free churn, no node leak, deterministic step
-  records/build/release order).
-- Design/spec only still: sticky headers, accessibility semantics integration, async
-  prefetch/cancellation wiring, the collection's own `onEndReached` event wiring (no scene
-  `EventType` yet; item-template events are emitted), dynamic virtual geometry, and dirty/render
-  integration beyond the realized-window path (the range reports dirty through the scene-node
-  bounds it writes).
+  extents, fixed row height, row/item windows, capacity refusal, removal-aware measurements),
+  `virtual_collection_semantics` (set size/`pos_in_set` matrix with key gaps and removals, realized
+  exposure and `(UiId, ItemKey)` identity, active descendant across realize/recycle, selection data
+  order, allocation parity, determinism), `virtual_announce` (one announcement per observed change,
+  supersede/drop coalescing, unrealized-item focus with its position, FIFO across kinds, no
+  per-frame announcement, allocation parity, determinism), and `virtual_churn` (10k-item
+  allocation-free churn, no node leak, deterministic step records/build/release order).
+- Design/spec only still: sticky headers, the platform accessibility bridge consuming the
+  collection semantics, async prefetch/cancellation wiring, the collection's own `onEndReached`
+  event wiring (no scene `EventType` yet; item-template events are emitted), dynamic virtual
+  geometry, and dirty/render integration beyond the realized-window path (the range reports dirty
+  through the scene-node bounds it writes).
 - Depends on: IR/component model ([`ir-v1.md`](ir-v1.md),
   [`component-model-v1.md`](component-model-v1.md)), Yoga layout/measure
   ([`layout.md`](../design/layout.md)), input/focus ([`input.md`](../design/input.md)),
