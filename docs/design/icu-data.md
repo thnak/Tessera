@@ -186,7 +186,9 @@ reproduce every number above.
 ## 8. Implementation (task-101): static ICU with the reduced blob
 
 Status: landed behind the same `TESSERA_ICU_REDUCED_DATA=OFF` switch. CI and the default build are
-unchanged; a lane that flips the option gets the whole dependency.
+unchanged; a lane that flips the option gets the whole dependency. The greedy wrap consumes UAX #14
+segments in both configurations (`text.md` section 6), so nothing in the tree needs the option to
+stay OFF any more; section 8.6 has the flip, its measured cost, and the CI fallback.
 
 ### 8.1 Build shape
 
@@ -255,10 +257,13 @@ linked library is the pinned major version, and fails loudly if ICU cannot read 
 
 `ui/text/text_breaks.*` is the single break-opportunity API: `ubrk_*` word (UAX #29) and line
 (UAX #14) iterators over a UTF-8 `UText` (so indices are native byte offsets), with the previous
-reduced rules kept as the ICU-free backend and as the parity baseline. `word_left`/`word_right` and
-the over-wide-run split of the greedy wrap use it; inter-word wrapping is unchanged, which is why
-the existing wrap fixtures keep their output. Intentional differences (all in
-`tests/unit/icu/text_breaks_parity_tests.cpp`):
+reduced rules kept as the ICU-free backend and as the parity baseline. `word_left`/`word_right`
+and the greedy wrap use it: `ui/text/text_wrap.cpp` places one UAX #14 segment per line unit
+(LB18 keeps a whitespace run with the segment before it, and the wrap trims both segment edges),
+so the whole wrap path is UAX #14, not only the over-wide-run split of the old word loop. The
+existing wrap fixtures keep their output because their corpora are single-spaced ASCII; the
+re-baselined cases and the measured fixture deltas are in `text.md` section 6. Intentional
+differences (all in `tests/unit/icu/text_breaks_parity_tests.cpp`):
 
 | Case | Builtin reduced rule | ICU |
 |---|---|---|
@@ -266,6 +271,7 @@ the existing wrap fixtures keep their output. Intentional differences (all in
 | `3.14` | split at the decimal point | one number (WB11/WB12) |
 | Han run `你好世界` | one word | dictionary segmentation `你好 | 世界` (the bundled `cjdict`) |
 | line breaks | after spaces/hyphens/CJK | full UAX #14 (superset of the builtin set) |
+| wrap of `aaaa—bbbb` at 56 px | split at the byte budget: `[0,9)` / `[9,11)` | break after the em dash: `[0,7)` / `[7,11)` |
 | Arabic | splits at the space | identical to builtin |
 
 `ui/text/locale_resolver.*` normalizes a request (BCP-47 separators/case, script/region subtags),
@@ -284,7 +290,9 @@ the section 5 risk: `udat_open` returning `U_ZERO_ERROR` with root data can no l
   prebuilt import libraries could not provide.
 - `text_breaks_parity`: the matrix above plus determinism, code-point-boundary checks, and the two
   prose corpora the existing wrap/paint fixtures pin (`one two three … ten`), including the
-  post-space opportunity UAX #14 must offer for every interior whitespace run.
+  post-space opportunity UAX #14 must offer for every interior whitespace run. The full wrap path is
+  compared engine-to-engine: identical line boxes on the shared single-spaced corpus (40/80/120 px),
+  the public `layout_text` pinned to the ICU engine, and the em dash difference above.
 - `locale_resolver`: manifest membership/sorting, exact/fallback/missing resolutions and their
   diagnostics, normalization, and RTL/LTR direction for kept and trimmed locales.
 - The release gate `scripts/check_static_link.py` (`dumpbin /dependents`, `ldd`, `otool -L`)
@@ -295,7 +303,7 @@ the section 5 risk: `udat_open` returning `U_ZERO_ERROR` with root data can no l
 One switch, declared in `third_party/CMakeLists.txt`:
 
 ```powershell
-cmake --preset dev -B build/lane-icu-static -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_POC=OFF `
+cmake --preset dev -B build/lane-wrap-icu -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_POC=OFF `
   -DTESSERA_ICU_REDUCED_DATA=ON "-DTESSERA_ICU_TOOLS_DIR=<icu>/bin64" `
   "-DTESSERA_ICU_FULL_DATA=<icu>/icudt76l.dat"
 ```
@@ -304,6 +312,52 @@ cmake --preset dev -B build/lane-icu-static -DTESSERA_BUILD_VULKAN=OFF -DTESSERA
 `icudt76l.dat`) are required only when the switch is ON. `TESSERA_ICU_SOURCE_DIR` is optional
 (pre-fetched sources). Nothing else in the tree branches on the option except `src/ui/text`, which
 adds `icu_runtime.cpp`/`locale_resolver.cpp` and the ICU tests, and defines
-`TESSERA_ICU_ENABLED` for consumers. Making ICU mandatory later is: move the four option/set lines
-from `third_party/CMakeLists.txt` to the root options block and default them ON.
+`TESSERA_ICU_ENABLED` for consumers.
+
+**Code side is ready.** With the greedy wrap on UAX #14 (`text.md` section 6) no call site is left
+behind the option: the ON configuration builds with warnings-as-errors and
+`ctest -R "text_|paint_text|paint_text_wrap|layout_|icu"` is 22/22 green (the 20 shared tests plus
+`icu_locale_pack` and `text_breaks_parity`; `locale_resolver` passes too when run by name). What
+keeps the default lanes OFF is provisioning and cache cost, not correctness.
+
+Measured cost of the ON configuration (`build/lane-wrap-icu`, clang 22 Debug, Windows, `-j8`):
+
+| Item | Value |
+|---|---|
+| Configure | 7.3 s + 1.2 s generate (OFF lane: 7.3 s + 1.0 s) |
+| Clean rebuild of the ICU slice | 23.1 s wall, sccache warm (the lane's first 54 MB `icudt76.c` compile alone was 36.1 s) |
+| Filtered text suite | 22 tests, 0.41 s (OFF lane: 20 tests, 0.39 s) |
+| Static artifacts | `tessera_icu_common` 22.3 MB, `tessera_icu_i18n` 59.8 MB, `tessera_icu_data` 17.3 MB |
+| Executable delta | `text_layout_tests.exe` 0.84 MB → 19.7 MB (the blob links into every `tessera_text` consumer) |
+
+So the flip is roughly +25 s of cold build and +18 MB per binary on this lane, with ccache
+absorbing the 455 ICU TUs after the first run. The cache burden is the real cost: the key set
+grows by those TUs plus the generated 54 MB `icudt76.c`, and the two pinned host inputs
+(`icupkg`, `genccode`) plus the 30.4 MB full `icudt76l.dat` are not in the repo, so every job that
+flips the option must provision them.
+
+CI flip lines: four lines in an existing Configure step (Linux shown; add
+`-DTESSERA_ICU_SOURCE_DIR` only when the job pre-fetches the sources), preceded by one provisioning
+step that places the pinned host tools and data at those paths:
+
+```yaml
+      - name: Configure
+        run: |
+          cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON -DTESSERA_ENABLE_THORVG=ON \
+            -DTESSERA_ICU_REDUCED_DATA=ON \
+            "-DTESSERA_ICU_TOOLS_DIR=${{ runner.temp }}/icu/bin64" \
+            "-DTESSERA_ICU_FULL_DATA=${{ runner.temp }}/icu/icudt76l.dat"
+```
+
+The filtered `ctest -R "text_|paint_text|paint_text_wrap|layout_|icu"` line already exists in the
+test step, so the ICU tests join it without a workflow edit.
+
+Fallback when enabling it on every job is too slow: keep every existing job on the builtin engine
+and add one dedicated Linux `icu-text` job that carries the provisioning, the ON configure, the
+build, and the filtered `ctest` lines above. The UAX #14 + ICU path is then proven on every push
+for one job's build cost instead of every job's, and the parity test keeps proving that the
+builtin engine the other lanes ship produces the same line boxes for the shared corpus.
+
+Making ICU mandatory later is: move the four option/set lines from `third_party/CMakeLists.txt` to
+the root options block and default them ON.
 

@@ -378,11 +378,14 @@ The follow-up slice landed; all three conditions are met and the option is still
   version, and proves the package is readable by opening the root bundle.
 - `ui/text/text_breaks.*` owns break opportunities: `ubrk_*` word (UAX #29) and line (UAX #14)
   iterators, with the previous reduced rules kept as the ICU-free backend and the parity baseline.
-  Word navigation and the over-wide-run split of the greedy wrap go through it.
+  Word navigation and the greedy wrap go through it: `ui/text/text_wrap.*` places one UAX #14
+  segment per line unit (section 6), so the whole wrap path is UAX #14, not only the over-wide-run
+  split of the old word loop.
 - `ui/text/locale_resolver.*` validates a request against the generated `locales.json` manifest
   and emits `icu.locale.fallback` / `icu.locale.missing`, so a trimmed locale can no longer format
   root data silently.
 
-Parity matrix and every intentional difference:
+Parity matrix and every intentional difference (word boundaries, line opportunities, and the full
+wrap path with the builtin engine as baseline):
 `tests/unit/icu/text_breaks_parity_tests.cpp`. Build shape, measured cost, deviations, and the
 exact option flip: [`icu-data.md`](icu-data.md) section 8.
