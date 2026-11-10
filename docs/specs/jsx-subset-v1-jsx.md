@@ -231,6 +231,20 @@ invalid escape, invalid UTF-8, lone CR) and `TESSERA_JSX_PARSE_*` (unexpected to
 mismatched tags, unclosed element). The full list is generated from the source and tracked by the
 diagnostics golden tests (section 17), not copied here.
 
+**Stability rule.** A code's spelling and meaning are fixed once it ships: it is never reused for a
+different construct, and a reworded message is a golden diff rather than a new code. Adding a code,
+renaming one, or narrowing what one means requires, in one change: the code in
+[`diagnostic_registry.hpp`](../../src/compiler/analyzer/include/tessera/compiler/jsx/diagnostic_registry.hpp)
+(sorted single list of every stable code, including those a later pipeline stage owns), a minimal
+fixture in [`jsx_diagnostics_cases.hpp`](../../tests/unit/jsx_diagnostics_cases.hpp) that reports
+the code once with its exact byte span, resolved line:column and bounded one-line message (or an
+explicit skip entry naming the stage that owns the code), and the byte-compared golden
+[`diagnostics-registry.txt`](../../tests/golden/jsx/diagnostics-registry.txt). The registry test
+(`jsx_diagnostics_registry`) scans the analyzer sources for emission sites and fails on an emitted
+code with no fixture, a fixture for a code nothing emits, a listed code with no fixture and no skip
+entry, or golden drift; its failure text says that adding or renaming a code requires updating the
+golden.
+
 ### 13.2 Spans
 
 A span records: project-relative file path with POSIX separators, byte offset and byte length in the
@@ -310,6 +324,9 @@ and hover; the front end does not read them to decide validity.
 - **Corpus**: one passing fixture for every grammar production and every accepted form in sections 4
   to 11; one rejection fixture for every row of section 12, each checked for code, span and message.
 - **Diagnostics goldens**: the full diagnostic text for each rejection fixture is stored and compared.
+  The code registry (section 13.1) additionally pins one minimal fixture per stable code — code,
+  span, line:column and bounded message — and compares `tests/golden/jsx/diagnostics-registry.txt`
+  byte for byte.
 - **Determinism**: parse twice and in different directories; AST dumps, IR and diagnostics are
   byte-identical.
 - **Fuzzing**: random and mutated inputs must never crash, hang or exceed the limits of section 15;

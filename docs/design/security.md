@@ -75,7 +75,10 @@ Two properties make those limits hold under hostile input:
 The regression net is the fixed corpus in `tests/unit/compiler_limits_tests.cpp` (deep nesting,
 10k siblings, a ~1 MiB file, pathological expression/type/module chains, invalid UTF-8, and
 every limit boundary) plus `tests/unit/jsx_adversarial_tests.cpp` (prefixes, mutations, random
-bytes). A new limit needs a case in that corpus.
+bytes). A new limit needs a case in that corpus. The bounded-text half of the invariant is pinned
+by the diagnostics registry: one fixture per stable `TESSERA_JSX_*`/`TESSERA_REACT_*` code asserts a
+one-line message inside the caps, and a byte-compared golden records it
+([`jsx-subset-v1-jsx.md`](../specs/jsx-subset-v1-jsx.md) section 13.1).
 
 ### 3.2 Checks the downstream stages must add
 
