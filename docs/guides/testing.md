@@ -155,6 +155,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `forms_lowering` | Field resolves to an ordinary `Component` from a `"tessera"` import: prop-record matrix, Children slot, project-wins, determinism |
 | `forms_codegen` | prop/callback emission through `apply_props()`, typed unknown/mis-bound/wrong-type rejections, no-rule-constant audit, goldens |
 | `forms_codegen_runtime` | compiled two-Field form: dispatch to the caller's Button, host update repaints Field 1 only, callback bound on the validating Field |
+| `forms_form_codegen` | Form rejection matrix: controller-owned Field props, widget-level value/onChange inside a Form, unknown props, hash-guard and callback-once checks |
 | `scale_quantize` | render-scale ladder quantization (nearest, ties up, clamped) over the DPI table |
 | `scale_state` | per-window render scale: recompute only on DPI/monitor change, revision on step change |
 | `scale_atlas` | one glyph atlas per ladder step, no cross-scale reuse, per-step invalidation |
