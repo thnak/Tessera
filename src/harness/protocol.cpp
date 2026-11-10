@@ -43,33 +43,11 @@ constexpr std::string_view kErrorDetailField = "detail";
     return std::to_string(id);
 }
 
-// Strict inverse of decimal(): digits only, no leading zeros (except "0"), and no overflow. This
-// keeps one id from having two spellings on the wire, which would let a response correlate with a
-// different request than the client thinks.
-[[nodiscard]] bool parse_decimal(std::string_view text, RequestId& out) {
-    if (text.empty() || (text.size() > 1 && text.front() == '0')) {
-        return false;
-    }
-    RequestId value = 0;
-    for (const char character : text) {
-        if (character < '0' || character > '9') {
-            return false;
-        }
-        const auto digit = static_cast<RequestId>(character - '0');
-        if (value > (std::numeric_limits<RequestId>::max() - digit) / 10U) {
-            return false;
-        }
-        value = value * 10U + digit;
-    }
-    out = value;
-    return true;
-}
-
 // Wire ids are decimal strings; a JSON number is accepted for hand-written clients but must be a
 // non-negative exact integer.
 [[nodiscard]] bool read_request_id(const JsonValue& value, RequestId& out) {
     if (const auto text = value.as_string(); text.has_value()) {
-        return parse_decimal(*text, out);
+        return parse_decimal_id(*text, out);
     }
     if (const auto integer = value.as_integer(); integer.has_value() && *integer >= 0) {
         out = static_cast<RequestId>(*integer);
@@ -143,6 +121,25 @@ ProtocolErrorCode protocol_error_code_from_string(std::string_view text) noexcep
         }
     }
     return ProtocolErrorCode::Internal;
+}
+
+bool parse_decimal_id(std::string_view text, std::uint64_t& out) noexcept {
+    if (text.empty() || (text.size() > 1 && text.front() == '0')) {
+        return false;
+    }
+    std::uint64_t value = 0;
+    for (const char character : text) {
+        if (character < '0' || character > '9') {
+            return false;
+        }
+        const auto digit = static_cast<std::uint64_t>(character - '0');
+        if (value > (std::numeric_limits<std::uint64_t>::max() - digit) / 10U) {
+            return false;
+        }
+        value = value * 10U + digit;
+    }
+    out = value;
+    return true;
 }
 
 std::expected<Request, ProtocolError> decode_request(std::string_view line) {

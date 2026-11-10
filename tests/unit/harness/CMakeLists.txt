@@ -30,3 +30,17 @@ add_executable(harness_protocol_tests
 target_link_libraries(harness_protocol_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_protocol COMMAND harness_protocol_tests)
+
+add_executable(harness_command_tests
+    command_tests.cpp)
+
+target_link_libraries(harness_command_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_command COMMAND harness_command_tests)
+
+add_executable(harness_command_result_tests
+    command_result_tests.cpp)
+
+target_link_libraries(harness_command_result_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_command_result COMMAND harness_command_result_tests)

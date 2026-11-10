@@ -53,6 +53,11 @@ struct ProtocolError {
 // Unknown strings map to ProtocolErrorCode::Internal, never to a value the caller did not send.
 [[nodiscard]] ProtocolErrorCode protocol_error_code_from_string(std::string_view text) noexcept;
 
+// Strict decimal text shared by correlation ids and automation UiIds: digits only, no sign, no
+// leading zeros (except "0"), and no overflow. One id therefore has exactly one wire spelling, so a
+// response cannot correlate with a different request than the client meant.
+[[nodiscard]] bool parse_decimal_id(std::string_view text, std::uint64_t& out) noexcept;
+
 // One decoded request. `arguments` holds every member of the line other than the envelope fields,
 // in wire order: command parameters are flat on the wire (`{"id":2,"cmd":"snapshot",
 // "includeHidden":true}`), matching the spec examples, and the command model owns their meaning.
