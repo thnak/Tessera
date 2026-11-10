@@ -190,6 +190,7 @@ namespace demo {
             std::string previous_meta_1_style_opacity = std::move(meta_1_style_opacity_value_);
             meta_1_style_opacity_value_ = std::move(next_meta_1_style_opacity);
             meta_1_style_opacity_node_->set_inline_style("opacity", meta_1_style_opacity_value_);
+            meta_1_style_opacity_node_->mark_dirty(tessera::ui::Dirty::Style);
         }
       }
       if (input_5_editor_.buffer().text() != text_node_5_value_) {

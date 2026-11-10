@@ -300,6 +300,9 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         case MetadataField::Style:
             writer.line(base + "_node_->set_inline_style(" +
                         literal_text(ir::LiteralValue{entry.name}) + ", " + base + "_value_);");
+            // The node borrows the generated string, so an in-place SSO reassignment makes the
+            // setter see equal views and skip its own Style mark; mark the domain explicitly.
+            writer.line(base + "_node_->mark_dirty(tessera::ui::Dirty::Style);");
             break;
         }
         --writer.indent;
