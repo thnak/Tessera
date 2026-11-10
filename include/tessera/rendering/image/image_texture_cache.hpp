@@ -37,6 +37,11 @@ struct ImageTextureCacheConfig {
     rhi::AddressMode address = rhi::AddressMode::ClampToEdge;
 };
 
+// The texture pointer is valid until an acquire() evicts its entry (or invalidate_all()). Eviction
+// destroys the texture immediately, so a frame that draws more distinct (content, extent, format)
+// keys than `max_entries` can leave an earlier draw in the batch pointing at a destroyed texture.
+// Callers must keep one frame's distinct image keys within `max_entries`; deferred destruction at a
+// frame boundary is a known follow-up shared with PathTextureCache.
 struct CachedImageTexture {
     rhi::Texture* texture = nullptr;
     rhi::Extent2D extent; // uploaded raster extent (== key.width/height)

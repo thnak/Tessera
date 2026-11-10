@@ -75,6 +75,20 @@ std::expected<std::shared_ptr<const DecodedImage>, ImageError>
 ImageDecodeCache::acquire(std::span<const std::uint8_t> bytes, ImageLimits limits) {
     const std::uint64_t hash = content_hash(bytes);
     if (const auto found = impl_->index.find(hash); found != impl_->index.end()) {
+        // The entry may have been decoded under looser limits; the caller's limits still apply, so
+        // a hit is judged exactly as a fresh decode of the same bytes would be.
+        const DecodedImage& cached = *found->second->image;
+        if (bytes.empty() || limits.max_input_bytes == 0U || limits.max_width == 0U ||
+            limits.max_height == 0U || limits.max_pixels == 0U) {
+            return std::unexpected(ImageError::invalid_argument);
+        }
+        if (bytes.size() > limits.max_input_bytes) {
+            return std::unexpected(ImageError::input_too_large);
+        }
+        if (cached.width > limits.max_width || cached.height > limits.max_height ||
+            static_cast<std::uint64_t>(cached.width) * cached.height > limits.max_pixels) {
+            return std::unexpected(ImageError::limit_exceeded);
+        }
         // A hit moves the entry to the front (deterministic LRU order).
         impl_->entries.splice(impl_->entries.begin(), impl_->entries, found->second);
         ++impl_->stats.hits;

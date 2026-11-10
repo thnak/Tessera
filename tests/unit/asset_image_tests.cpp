@@ -119,12 +119,35 @@ bool failure_values() {
     return ok;
 }
 
+bool cached_decode_respects_caller_limits() {
+    BundleData data;
+    image::ImageDecodeCache cache;
+    bool ok =
+        expect(assets::load_asset_image(*data.bundle, "images/checker.png", cache).has_value(),
+               "the image decodes under the default limits");
+    image::ImageLimits narrow;
+    narrow.max_width = 4; // the checker fixture is 8x8
+    const auto capped = assets::load_asset_image(*data.bundle, "images/checker.png", cache, narrow);
+    ok = expect(!capped.has_value() && capped.error() == assets::AssetImageError::limit_exceeded,
+                "a cache hit still enforces a stricter width limit") &&
+         ok;
+    image::ImageLimits small_input;
+    small_input.max_input_bytes = 4;
+    const auto too_big =
+        assets::load_asset_image(*data.bundle, "images/checker.png", cache, small_input);
+    ok = expect(!too_big.has_value() && too_big.error() == assets::AssetImageError::input_too_large,
+                "a cache hit still enforces a stricter input-size limit") &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
     bool ok = true;
     ok = loads_and_decodes_once() && ok;
     ok = failure_values() && ok;
+    ok = cached_decode_respects_caller_limits() && ok;
     if (!ok) {
         std::cerr << "asset_image: FAILED\n";
         return 1;
