@@ -145,8 +145,8 @@ std::expected<AuthPhase, AuthError> AuthClient::handle_line(std::string_view lin
     if (is_verb(line, "ERROR")) {
         server_error_ = std::string(argument_of(line));
         if (phase_ == AuthPhase::WaitingForUnixFd) {
-            // fd passing is an optional upgrade: a refusal means a plain connection still works, and
-            // the bridge never needs file descriptors for AT-SPI2 MethodCall/Reply traffic.
+            // fd passing is an optional upgrade: a refusal means a plain connection still works,
+            // and the bridge never needs file descriptors for AT-SPI2 MethodCall/Reply traffic.
             phase_ = AuthPhase::Complete;
             reply.append("BEGIN\r\n");
             return phase_;
