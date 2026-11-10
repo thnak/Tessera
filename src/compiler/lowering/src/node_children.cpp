@@ -272,11 +272,11 @@ bool lower_children(NodeState& state, const jsx::JsxNode& element, const Element
                     ir::Node& node) {
     const schema::ChildrenKind kind = info.row->children;
     if (kind == schema::ChildrenKind::Template) {
-        // The virtualized item template needs the `itemTemplate` IR field that ir-v1 does not have
-        // yet (Q9 of jsx-intrinsics-v1).
+        // The IR has the `itemTemplate` field (ir-v1 section 3.5); lowering the `.map` template
+        // into it is not implemented yet.
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
                   "`<" + std::string(element.tag) +
-                      ">` needs the `itemTemplate` IR field, which ir-v1 does not have yet (Q9)",
+                      ">` item templates are not lowered yet (ir-v1 section 3.5)",
                   element.span);
         return false;
     }

@@ -58,6 +58,10 @@ struct Node {
     ExprPtr condition;
     std::optional<Loop> loop;
     std::unique_ptr<Node> fallback; // ErrorBoundary
+    // VirtualList/VirtualGrid: the static item template. It carries the `loop` (item/index names
+    // and the data source) and the item `key`, but is realized lazily, not repeated eagerly
+    // (section 3.5).
+    std::unique_ptr<Node> item_template;
 };
 
 } // namespace tessera::compiler::ir

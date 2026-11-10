@@ -12,9 +12,6 @@
 
 namespace demo {
   namespace gen {
-    // TODO(tessera-codegen): the remaining runtime API gap is inline style attachment
-    // (docs/design/compiler.md section 11); style values are recorded in the node
-    // comments below until it lands.
     
     namespace {
       [[maybe_unused]] std::string format_value(bool value) {

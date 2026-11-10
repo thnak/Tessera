@@ -154,6 +154,7 @@ it is an IR record of its own, referenced from `events`:
 | `children` | Node[] | no | Paint order |
 | `condition` | Expr/null | no | Static conditional; V1 bool expression (never a template or a non-bool literal) |
 | `loop` | Loop/null | no | Static list loop; this node is the repeated template (section 5) |
+| `itemTemplate` | Node/null | for `VirtualList`/`VirtualGrid` | The static item template of a virtual collection (section 3.5) |
 
 Node kinds are closed in V1; the list above, with `Component` and `Slot` (section 3.4), is the complete list.
 A reference to a project or library component is a `Component` node; there is no dynamic
@@ -164,6 +165,38 @@ component type; see [`custom-elements-v1.md`](custom-elements-v1.md).
 [`virtualization-v1.md`](virtualization-v1.md). They carry a data-source ref/list, a static item
 template, overscan/estimate/gap, a required item key, and optional sticky headers. They do not
 represent VM/container virtualization or a virtual DOM.
+
+## 3.5 Virtual collections
+
+```json
+{
+  "kind": "VirtualList",
+  "id": "node::rows",
+  "uiId": "111111111111111111",
+  "props": { "estimateSize": 32, "overscan": 200, "gap": 4 },
+  "events": { "onEndReached": "bind::on_end_reached" },
+  "itemTemplate": {
+    "kind": "View",
+    "id": "node::row",
+    "uiId": "222222222222222222",
+    "key": { "kind": "ref", "id": "row.id" },
+    "loop": { "kind": "loop", "item": "row", "index": "i", "source": { "kind": "ref", "id": "state::rows" } },
+    "style": { "padding": "4px 8px" }
+  }
+}
+```
+
+- `itemTemplate` is one static node subtree. It carries the `loop` (item and index names and the
+  data source, a list `ref`) and the item `key` exactly like a section 5 template, but the runtime
+  realizes only the visible range plus overscan; the data source is the template's `loop.source`,
+  so there is no separate `data` prop.
+- The template has no `condition`; a dynamic component type is rejected. Its `loop` counts toward
+  the nesting depth limit of section 5.
+- A `VirtualList`/`VirtualGrid` has an `itemTemplate`, no `children` and no `loop` of its own; any
+  other kind with `itemTemplate` is `TESSERA_IR_MALFORMED`. Violations of these rules are
+  `TESSERA_IR_VIRTUAL`; a missing key is `TESSERA_IR_LIST_KEY`.
+- The field is additive and optional, so `irVersion` stays `1` (section 12). The runtime contract
+  is [`virtualization-v1.md`](virtualization-v1.md).
 
 ## 3.1 Automation IDs
 

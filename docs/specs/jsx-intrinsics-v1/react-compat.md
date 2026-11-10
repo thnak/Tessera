@@ -182,8 +182,8 @@ that list together with the alias code above; `tessera_schema` is slice 12. `jsx
 
 The owner accepted every recommendation below; Q14 was decided as O2 (section 4.3). The tables of
 this folder follow the decided options; rows depend on the number in brackets. Decisions that need an
-edit of a spec this folder does not own are pending there: `ir-v1.md` (Q9 `itemTemplate` field, Q26
-allowlist functions), `text-editing-v1.md` (Q4 read-only behavior, Q5 trigger, Q19 defaults),
+edit of a spec this folder does not own are pending there: `ir-v1.md` (Q26 allowlist functions; the Q9 `itemTemplate`
+field is done, section 3.5), `text-editing-v1.md` (Q4 read-only behavior, Q5 trigger, Q19 defaults),
 `error-boundaries-v1.md` and `custom-elements-v1.md` and `component-model-v1.md` (Q23 examples, Q8),
 `accessibility-v1.md` (Q7 tokens), `input.md` (Q2 fields).
 

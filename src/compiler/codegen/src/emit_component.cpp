@@ -84,10 +84,6 @@ bool emit_source(const ir::Component& component, std::string_view ns,
     writer.line("");
     writer.open("namespace " + std::string(ns));
     writer.open("namespace gen");
-    writer.line(
-        "// TODO(tessera-codegen): the remaining runtime API gap is inline style attachment");
-    writer.line("// (docs/design/compiler.md section 11); style values are recorded in the node");
-    writer.line("// comments below until it lands.");
     writer.line("");
     if (has_interpolation || plan.has_lists) {
         emit_format_helpers(writer);

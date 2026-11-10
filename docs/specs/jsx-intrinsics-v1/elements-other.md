@@ -65,10 +65,9 @@ no function-valued prop is needed (subset section 9 forbids it):
   depth limit of 2.
 - Lowering: `props.data` is the receiver of `.map` (a list `ref` or static list); the callback
   element is the item template with `item` and `index` as locals; `key` is the key Expression.
-  The template is stored as the node's `itemTemplate` of ir-v1 / virtualization section 10, which the
-  IR node model does not have yet (`Node` has `children` and `loop` only). Q9 is decided: the field is
-  added to the IR (an `ir-v1.md` edit and a `Node` change are pending); until then the front end must
-  not emit this node.
+  The template is stored as the node's `itemTemplate` (ir-v1 section 3.5, which now exists in the IR
+  model, writer and validator). The lowering that produces it is not implemented yet: the front end
+  still rejects `VirtualList`/`VirtualGrid` with `TESSERA_IR_UNSUPPORTED`.
 - The template is static: no `condition` on it, no dynamic component type.
 
 ### 3.2 Props

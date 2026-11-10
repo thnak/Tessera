@@ -203,6 +203,9 @@ JsonValue to_json(const Node& node) {
     if (node.fallback) {
         json.set("fallback", to_json(*node.fallback));
     }
+    if (node.item_template) {
+        json.set("itemTemplate", to_json(*node.item_template));
+    }
     return json;
 }
 

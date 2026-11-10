@@ -120,6 +120,33 @@ void NodeWalker::check_shape(const Node& node) {
     } else if (node.fallback) {
         context.report("TESSERA_IR_MALFORMED", "only an ErrorBoundary has a fallback", node.source);
     }
+    const bool collection =
+        node.kind == NodeKind::VirtualList || node.kind == NodeKind::VirtualGrid;
+    if (collection) {
+        // Section 3.5: one static template; the data source is the template's loop source.
+        if (!node.item_template) {
+            context.report("TESSERA_IR_VIRTUAL", "a virtual collection needs an itemTemplate",
+                           node.source);
+        } else if (!node.item_template->loop) {
+            context.report("TESSERA_IR_VIRTUAL",
+                           "an itemTemplate carries the loop that names the item and the data",
+                           node.item_template->source);
+        } else if (node.item_template->condition) {
+            context.report("TESSERA_IR_VIRTUAL", "an itemTemplate is static, not conditional",
+                           node.item_template->source);
+        }
+        if (!node.children.empty()) {
+            context.report("TESSERA_IR_VIRTUAL",
+                           "a virtual collection has an itemTemplate, not children", node.source);
+        }
+        if (node.loop) {
+            context.report("TESSERA_IR_VIRTUAL", "a virtual collection is not itself looped",
+                           node.source);
+        }
+    } else if (node.item_template) {
+        context.report("TESSERA_IR_MALFORMED",
+                       "only VirtualList and VirtualGrid have an itemTemplate", node.source);
+    }
 }
 
 void NodeWalker::check_events(const Node& node) {
@@ -227,6 +254,9 @@ void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth)
     }
     if (node.fallback) {
         walk(*node.fallback, locals, loop_depth);
+    }
+    if (node.item_template) {
+        walk(*node.item_template, locals, loop_depth);
     }
 }
 

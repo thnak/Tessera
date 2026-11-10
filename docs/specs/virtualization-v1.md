@@ -197,7 +197,6 @@ Illustrative IR:
   "id": "node::rows",
   "kind": "VirtualList",
   "props": {
-    "data": { "kind": "ref", "id": "state::rows" },
     "estimateSize": 32,
     "overscan": 200,
     "gap": 4,
@@ -207,6 +206,8 @@ Illustrative IR:
   "itemTemplate": {
     "id": "node::row",
     "kind": "View",
+    "key": { "kind": "ref", "id": "row.id" },
+    "loop": { "kind": "loop", "item": "row", "index": "i", "source": { "kind": "ref", "id": "state::rows" } },
     "style": { "display": "flex", "padding": "4px 8px" }
   }
 }
@@ -215,7 +216,7 @@ Illustrative IR:
 Rules:
 
 - The item template is a static IR subtree/component; dynamic component types are rejected.
-- `data` is a list state/ref or a static list; item access uses `item`/`index` locals.
+- The data source is the template's `loop.source` (a list state/ref); item access uses the loop's `item`/`index` locals ([`ir-v1.md`](ir-v1.md) section 3.5).
 - `key` is required; duplicate keys are errors.
 - V1 supports vertical lists, horizontal lists, and fixed/measured grids; span/masonry are not in V1 (no release specified).
 - `onEndReached` is throttled and delivered on the UI thread.

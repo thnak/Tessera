@@ -167,6 +167,65 @@ void test_loops() {
         "");
 }
 
+void test_virtual_collection() {
+    const auto make_template = [] {
+        ir::Node item = leaf(ir::NodeKind::View, "node::91", "91");
+        item.key = ir::make_ref("item");
+        item.loop = ir::Loop{"item", "index", ir::make_ref("state::rows")};
+        return std::make_unique<ir::Node>(std::move(item));
+    };
+    const auto as_collection = [&](ir::IrModule& m, ir::NodeKind kind) -> ir::Node& {
+        ir::Node& node = label_node(m);
+        node.text.reset();
+        node.kind = kind;
+        node.item_template = make_template();
+        return node;
+    };
+    expect(
+        "a virtual list with a looped template",
+        [&](auto& m) { as_collection(m, ir::NodeKind::VirtualList); }, "");
+    expect(
+        "a virtual grid with a looped template",
+        [&](auto& m) { as_collection(m, ir::NodeKind::VirtualGrid); }, "");
+    expect(
+        "a virtual list without a template",
+        [&](auto& m) { as_collection(m, ir::NodeKind::VirtualList).item_template.reset(); },
+        "TESSERA_IR_VIRTUAL;");
+    expect(
+        "a template without a loop",
+        [&](auto& m) {
+            ir::Node& tmpl = *as_collection(m, ir::NodeKind::VirtualList).item_template;
+            tmpl.loop.reset();
+            tmpl.key = ir::make_literal(std::string("k"));
+        },
+        "TESSERA_IR_VIRTUAL;");
+    expect(
+        "a template without an item key",
+        [&](auto& m) { as_collection(m, ir::NodeKind::VirtualList).item_template->key.reset(); },
+        "TESSERA_IR_LIST_KEY;");
+    expect(
+        "a conditional template",
+        [&](auto& m) {
+            as_collection(m, ir::NodeKind::VirtualList).item_template->condition =
+                ir::make_ref("state::n");
+        },
+        "TESSERA_IR_VIRTUAL;");
+    expect(
+        "a virtual list with children",
+        [&](auto& m) {
+            as_collection(m, ir::NodeKind::VirtualList)
+                .children.push_back(leaf(ir::NodeKind::View, "node::90", "90"));
+        },
+        "TESSERA_IR_VIRTUAL;");
+    expect(
+        "an itemTemplate on a View", [&](auto& m) { as_collection(m, ir::NodeKind::View); },
+        kMalformed);
+    expect(
+        "the template subtree is validated too",
+        [&](auto& m) { as_collection(m, ir::NodeKind::VirtualList).item_template->ui_id.clear(); },
+        kMissing);
+}
+
 void test_spans_and_order() {
     const std::string bad_span = "TESSERA_IR_SPAN;";
     expect("component without a file", [](auto& m) { list(m).source.file.clear(); }, bad_span);
@@ -230,6 +289,7 @@ int main() {
     test_node_shapes();
     test_error_boundary();
     test_loops();
+    test_virtual_collection();
     test_spans_and_order();
     return finish("ir validate shape tests");
 }
