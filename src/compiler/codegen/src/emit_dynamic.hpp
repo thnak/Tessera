@@ -48,12 +48,15 @@ struct ListTextSite {
 };
 
 struct ListTemplate {
-    unsigned ordinal = 0;        // the template node's pre-order ordinal
-    unsigned subtree_end = 0;    // one past the last ordinal of the template subtree
-    unsigned parent_ordinal = 0; // the owning group's parent ordinal
+    unsigned ordinal = 0;           // the template node's pre-order ordinal
+    unsigned subtree_end = 0;       // one past the last ordinal of the template subtree
+    unsigned parent_ordinal = 0;    // the owning group's parent ordinal
+    bool is_virtual = false;        // a VirtualList/VirtualGrid item template (ir-v1 section 3.5)
+    unsigned container_ordinal = 0; // the collection node's ordinal when `is_virtual`
     const ir::Node* node = nullptr;
-    std::string item;         // loop item local name
-    std::string index;        // loop index local name (empty when the callback has none)
+    const ir::Node* container = nullptr; // the collection node when `is_virtual`
+    std::string item;                    // loop item local name
+    std::string index;                   // loop index local name (empty when the callback has none)
     std::string element_type; // IR element type of the source list (`string`, `int`, ...)
     std::string element_cpp;  // C++ element type (`std::string`, `int`, ...)
     std::vector<ListTextSite> text_sites;
@@ -65,9 +68,12 @@ struct DynamicPlan {
     unsigned max_ordinal = 0;         // last pre-order ordinal (item ids use max_ordinal + 1)
     bool has_conditionals = false;
     bool has_lists = false;
+    bool has_virtual = false; // at least one VirtualList/VirtualGrid item template
 
     [[nodiscard]] const DynamicGroup* group(unsigned parent_ordinal) const;
     [[nodiscard]] const ListTemplate* list(unsigned ordinal) const;
+    // The item template owned by a virtual collection node with `container_ordinal`.
+    [[nodiscard]] const ListTemplate* virtual_collection(unsigned container_ordinal) const;
     // The kind of `child_ordinal` among the children of `parent_ordinal`.
     [[nodiscard]] DynamicChildKind child_kind(unsigned parent_ordinal,
                                               unsigned child_ordinal) const;
@@ -98,7 +104,7 @@ struct EventAdapter;
                                        std::string& error);
 
 // Emits build_item_<n>(), apply_item_<n>() and apply_list_<n>() for every list template
-// (emit_list.cpp).
+// (emit_list.cpp). A virtual item template emits apply_virtual_<n>() instead of apply_list_<n>().
 [[nodiscard]] bool emit_list_sources(CppWriter& writer, const ir::Component& component,
                                      const DynamicPlan& plan,
                                      const std::vector<EventAdapter>& adapters,

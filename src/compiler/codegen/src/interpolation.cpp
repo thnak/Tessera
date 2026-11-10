@@ -60,6 +60,12 @@ bool collect_text(const ir::Node& node, const ir::Component& component, bool in_
             return false;
         }
     }
+    // The item template of a virtual collection is not a child (ir-v1 section 3.5) but takes its
+    // pre-order ordinals; its text is painted by the per-item content pass, not by apply_state().
+    if (node.item_template &&
+        !collect_text(*node.item_template, component, true, ordinal, entries, error)) {
+        return false;
+    }
     return true;
 }
 
@@ -113,6 +119,12 @@ bool collect_metadata(const ir::Node& node, const ir::Component& component, bool
         if (!collect_metadata(child, component, in_template, ordinal, entries, error)) {
             return false;
         }
+    }
+    // Item templates keep their per-item metadata out of the component-level apply_state() table
+    // (the plan rejects dynamic per-item metadata); the recursion keeps ordinals aligned.
+    if (node.item_template &&
+        !collect_metadata(*node.item_template, component, true, ordinal, entries, error)) {
+        return false;
     }
     return true;
 }

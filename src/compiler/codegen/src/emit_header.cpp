@@ -185,7 +185,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("void apply_state();");
     writer.line("// Host entry after event dispatch: update_effects() then apply_state().");
     writer.line("void update();");
-    if (!plan.groups.empty()) {
+    if (!plan.groups.empty() || !plan.lists.empty()) {
         emit_dynamic_declarations(writer, plan);
     }
     for (const ir::Handler& handler : component.handlers) {

@@ -16,6 +16,7 @@ add_library(tessera_codegen STATIC
     src/emit_lifecycle.cpp
     src/emit_list.cpp
     src/emit_node.cpp
+    src/emit_virtual.cpp
     src/interpolation.cpp
     src/value_ops.cpp)
 
@@ -204,6 +205,33 @@ if (TESSERA_BUILD_TESTS)
             tessera_scene)
 
         add_test(NAME codegen_composition_runtime COMMAND codegen_composition_runtime_tests)
+    endif ()
+
+    # VirtualList/VirtualGrid item templates: goldens from hand-built IR (the `.tsx` front end
+    # cannot author a virtual collection yet) and an integration test that scripts a scroll through
+    # the `tessera_virtual` geometry and checks the realized item range.
+    add_executable(codegen_virtual_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_tests.cpp)
+
+    target_link_libraries(codegen_virtual_tests PRIVATE
+        tessera_codegen
+        tessera_merger)
+
+    target_compile_definitions(codegen_virtual_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_virtual COMMAND codegen_virtual_tests)
+
+    # The sample library owns the committed golden: `codegen_virtual_tests --write` regenerates
+    # tests/golden/codegen/VirtualDemo.*; the guard keeps a fresh worktree configuring before the
+    # golden exists.
+    if (EXISTS ${_tessera_codegen_golden_dir}/VirtualDemo.cpp)
+        add_library(tessera_codegen_virtual_sample STATIC
+            ${_tessera_codegen_golden_dir}/VirtualDemo.cpp)
+        target_include_directories(tessera_codegen_virtual_sample
+            PRIVATE ${_tessera_codegen_golden_dir})
+        target_link_libraries(tessera_codegen_virtual_sample PRIVATE tessera_scene)
+        target_compile_features(tessera_codegen_virtual_sample PUBLIC cxx_std_23)
     endif ()
 
     add_executable(codegen_cli_tests

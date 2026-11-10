@@ -13,6 +13,7 @@
 
 #include "emit_dynamic.hpp"
 #include "emit_node.hpp"
+#include "emit_virtual.hpp"
 #include "value_ops.hpp"
 
 #include <string>
@@ -78,6 +79,7 @@ bool emit_build_item(CppWriter& writer, const ir::Component& component, const Dy
 bool emit_apply_item(CppWriter& writer, const ir::Component& component, const ListTemplate& list,
                      std::string& error) {
     const std::string ordinal = std::to_string(list.ordinal);
+    const std::string table = item_table_prefix(list);
     writer.open("void " + component.name + "::apply_item_" + ordinal +
                 "(std::size_t tessera_slot, const " + list.element_cpp + "& " + list.item +
                 ", std::size_t tessera_index)");
@@ -90,10 +92,10 @@ bool emit_apply_item(CppWriter& writer, const ir::Component& component, const Li
             return false;
         }
     }
-    writer.open("if (!list_" + ordinal + "_set_[tessera_slot] || tessera_hash != list_" + ordinal +
+    writer.open("if (!" + table + "_set_[tessera_slot] || tessera_hash != " + table +
                 "_hashes_[tessera_slot])");
-    writer.line("list_" + ordinal + "_set_[tessera_slot] = true;");
-    writer.line("list_" + ordinal + "_hashes_[tessera_slot] = tessera_hash;");
+    writer.line(table + "_set_[tessera_slot] = true;");
+    writer.line(table + "_hashes_[tessera_slot] = tessera_hash;");
     for (const ListTextSite& site : list.text_sites) {
         const std::string site_text = std::to_string(site.site);
         writer.line("std::string tessera_text_" + site_text + ";");
@@ -104,7 +106,7 @@ bool emit_apply_item(CppWriter& writer, const ir::Component& component, const Li
         writer.line("tessera::ui::PaintData tessera_paint_" + site_text + ";");
         writer.line("tessera_paint_" + site_text + ".text = std::move(tessera_text_" + site_text +
                     ");");
-        writer.line("list_" + ordinal + "_items_[tessera_slot].texts[" + site_text +
+        writer.line(table + "_items_[tessera_slot].texts[" + site_text +
                     "]->set_paint_data(std::move(tessera_paint_" + site_text + "));");
     }
     writer.close("");
@@ -267,6 +269,12 @@ bool emit_list_sources(CppWriter& writer, const ir::Component& component, const 
         }
         if (!emit_apply_item(writer, component, list, error)) {
             return false;
+        }
+        if (list.is_virtual) {
+            if (!emit_apply_virtual(writer, component, list, error)) {
+                return false;
+            }
+            continue;
         }
         if (!emit_apply_list(writer, component, list, error)) {
             return false;

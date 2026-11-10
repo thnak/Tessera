@@ -212,6 +212,13 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
             return false;
         }
     }
+    // ir-v1 section 3.5: a virtual item template is not a child, but its nodes take the same
+    // pre-order ordinal as the plan and may bind events (a row click handler).
+    if (node.item_template &&
+        !collect_event_adapters(*node.item_template, component, bindings, controlled_inputs,
+                                ordinal, adapters, error)) {
+        return false;
+    }
     return true;
 }
 

@@ -10,6 +10,7 @@
 // are produced per item by the generated build_item_<n>().
 
 #include "emit_node.hpp"
+#include "emit_virtual.hpp"
 #include "interpolation.hpp"
 
 #include <algorithm>
@@ -118,11 +119,17 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
                std::string& error) {
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
+        return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
+                               "` nodes are deferred (custom elements are a later codegen slice)");
     case ir::NodeKind::VirtualList:
     case ir::NodeKind::VirtualGrid:
-        return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
-                               "` nodes are deferred (custom elements and virtualized lists are "
-                               "later codegen slices)");
+        // The collection is a plain fixed container; its item window is attached by
+        // apply_virtual_<n>() and its item template is never built here.
+        if (state.locals != nullptr) {
+            return fail(error, "a virtual collection (`" + node.id +
+                                   "`) inside a list template is deferred; wrap it in an element");
+        }
+        break;
     case ir::NodeKind::Component:
         // A component instance owns its own state and is never inlined; its host node and the
         // caller's slot content are emitted by the composition path.
@@ -208,6 +215,21 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
     };
     writer.line(variable + "->set_element_kind(\"" + std::string(ir::node_kind_name(node.kind)) +
                 "\");");
+    const ListTemplate* virtual_collection = nullptr;
+    if (node.kind == ir::NodeKind::VirtualList || node.kind == ir::NodeKind::VirtualGrid) {
+        if (state.plan == nullptr) {
+            return fail(error,
+                        "the virtual collection `" + node.id +
+                            "` requires the dynamic plan; this is an internal codegen error");
+        }
+        virtual_collection = state.plan->virtual_collection(node_ordinal);
+        if (virtual_collection == nullptr) {
+            return fail(error, "the virtual collection `" + node.id + "` is missing from the plan");
+        }
+        // The item window is attached to this fixed container node by apply_virtual_<n>().
+        writer.line("this->" + item_table_prefix(*virtual_collection) + "_ = " + variable +
+                    ".get();");
+    }
     for (const DynamicMetadata& entry : state.dynamic_metadata) {
         if (entry.ordinal == node_ordinal) {
             writer.line(metadata_member(entry) + "_node_ = " + variable + ".get();");
@@ -420,6 +442,13 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         } else {
             writer.line(variable + "->add_child(std::move(" + child_variable + "));");
         }
+    }
+    if (virtual_collection != nullptr) {
+        writer.line("// " + node.item_template->id + " is the virtual item template: build_item_" +
+                    std::to_string(virtual_collection->ordinal) +
+                    "() builds one realized item (bounded window table)");
+        state.next_id = virtual_collection->subtree_end;
+        state.next_var = virtual_collection->subtree_end;
     }
     return true;
 }

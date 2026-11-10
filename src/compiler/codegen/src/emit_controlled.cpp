@@ -111,6 +111,12 @@ bool collect_controlled_inputs(const ir::Node& node, const ir::Component& compon
             return false;
         }
     }
+    // A controlled field inside a virtual item template is rejected by the plan; the recursion
+    // keeps the pre-order ordinals of the nodes after the collection aligned.
+    if (node.item_template && !collect_controlled_inputs(*node.item_template, component, bindings,
+                                                         ordinal, inputs, error)) {
+        return false;
+    }
     return true;
 }
 

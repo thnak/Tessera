@@ -5,6 +5,7 @@
 // declarations (docs/design/compiler.md section 11).
 
 #include "emit_dynamic.hpp"
+#include "emit_virtual.hpp"
 
 #include <string>
 
@@ -25,6 +26,13 @@ void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan) {
     writer.line("// 11): a list materializes at most this many items; a longer source list is");
     writer.line("// truncated at this prefix deterministically.");
     writer.line("inline constexpr std::size_t kMaxGeneratedListItems = 32;");
+    if (plan.has_virtual) {
+        writer.line("");
+        writer.line("// Bound of one virtual collection's realized window (ir-v1.md section 3.5):");
+        writer.line("// the host applies a visible range of at most this many items, so the");
+        writer.line("// generated item table and the live node count stay bounded.");
+        writer.line("inline constexpr std::size_t kMaxGeneratedVirtualItems = 32;");
+    }
     writer.line("");
     for (const ListTemplate& list : plan.lists) {
         writer.line("// Generated nodes of one `node::" + ordinal_text(list.ordinal) + "` item (" +
@@ -64,6 +72,26 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
     }
     for (const ListTemplate& list : plan.lists) {
         const std::string ordinal = ordinal_text(list.ordinal);
+        if (list.is_virtual) {
+            const std::string table = item_table_prefix(list);
+            emit_virtual_geometry_constants(writer, list);
+            writer.line(
+                "// `node::" + ordinal_text(list.container_ordinal) +
+                "` virtual item window (bounded; keyed reuse; the host applies the range).");
+            writer.line("tessera::ui::Node* " + table + "_ = nullptr;");
+            writer.line("std::array<Item_" + ordinal + ", kMaxGeneratedVirtualItems> " + table +
+                        "_items_{};");
+            writer.line("std::array<std::uint64_t, kMaxGeneratedVirtualItems> " + table +
+                        "_hashes_{};");
+            writer.line("std::array<bool, kMaxGeneratedVirtualItems> " + table + "_set_{};");
+            writer.line("std::array<std::string, kMaxGeneratedVirtualItems> " + table +
+                        "_keys_{};");
+            writer.line("std::size_t " + table + "_count_ = 0;");
+            writer.line("std::size_t " + table + "_first_ = 0;");
+            writer.line("std::uint64_t " + table + "_order_hash_ = 0;");
+            writer.line("bool " + table + "_order_set_ = false;");
+            continue;
+        }
         writer.line("// `node::" + ordinal + "` keyed list over `" + list.element_type +
                     "` items (bounded item table; reused by key).");
         writer.line("std::array<Item_" + ordinal + ", kMaxGeneratedListItems> list_" + ordinal +
@@ -93,6 +121,14 @@ void emit_dynamic_declarations(CppWriter& writer, const DynamicPlan& plan) {
                     "& tessera_out);");
         writer.line("void apply_item_" + ordinal + "(std::size_t tessera_slot, const " +
                     list.element_cpp + "& " + list.item + ", std::size_t tessera_index);");
+        if (list.is_virtual) {
+            writer.line("// Applies the half-open realized window the host computed with");
+            writer.line("// tessera::ui::virtualization::ItemGeometry; the table is reused by "
+                        "key.");
+            writer.line("void apply_virtual_" + ordinal_text(list.container_ordinal) +
+                        "(std::size_t tessera_first, std::size_t tessera_last);");
+            continue;
+        }
         writer.line("void apply_list_" + ordinal +
                     "(tessera::ui::Node& parent, std::size_t insert_at);");
     }

@@ -5,6 +5,7 @@
 // numbering as emit_node, counting template subtrees so ids, dynamic-text order and item ids agree.
 
 #include "emit_dynamic.hpp"
+#include "emit_virtual.hpp"
 #include "interpolation.hpp"
 #include "value_ops.hpp"
 
@@ -105,9 +106,13 @@ struct PlanWalk {
     bool in_template = false;
     std::size_t current_list = 0; // index into plan.lists while walking a template subtree
 
-    bool walk(const ir::Node& node, unsigned parent_ordinal, bool is_root);
+    bool walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
+              bool is_virtual_template_root = false);
     bool validate_template_node(const ir::Node& node, bool is_template_root);
+    bool validate_template_loop(const ir::Node& node, const ir::Loop& loop,
+                                std::string& element_type, std::string& element_cpp);
     bool collect_template(const ir::Node& node, unsigned node_ordinal, unsigned parent_ordinal);
+    bool collect_virtual_collection(const ir::Node& node, unsigned node_ordinal);
     bool collect_text_site(const ir::Node& node, unsigned node_ordinal);
     [[nodiscard]] LocalBindings template_locals() const;
 };
@@ -186,9 +191,10 @@ bool PlanWalk::collect_text_site(const ir::Node& node, unsigned node_ordinal) {
     return true;
 }
 
-bool PlanWalk::collect_template(const ir::Node& node, unsigned node_ordinal,
-                                unsigned parent_ordinal) {
-    const ir::Loop& loop = *node.loop;
+// Shared validation of an eager list template and a virtual item template: the loop locals, the
+// source list and its element type, and the key expression. Fills `element_type`/`element_cpp`.
+bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop,
+                                      std::string& element_type, std::string& element_cpp) {
     if (loop.item.empty()) {
         return fail(error, "a list template needs a loop item name");
     }
@@ -213,33 +219,27 @@ bool PlanWalk::collect_template(const ir::Node& node, unsigned node_ordinal,
                                "` has no declared type; v1 lists are backed by a state or prop "
                                "`list<T>`");
     }
-    const std::optional<std::string> element_type = list_element_type(*source_type);
-    if (!element_type) {
+    const std::optional<std::string> element = list_element_type(*source_type);
+    if (!element) {
         return fail(error, "the list source `" + loop.source->id + "` has type `" + *source_type +
                                "`, not `list<T>`");
     }
-    if (!text_value_type(*element_type)) {
-        return fail(error, "the element type `" + *element_type + "` of `" + loop.source->id +
+    if (!text_value_type(*element)) {
+        return fail(error, "the element type `" + *element + "` of `" + loop.source->id +
                                "` has no printable C++ form in this slice; only bool/int/float/"
                                "string/length/color element lists are generated");
     }
-    const std::optional<std::string> element_cpp = cpp_type(*element_type);
-    if (!element_cpp) {
-        return fail(error,
-                    "the element type `" + *element_type + "` has no C++ form in this slice");
+    const std::optional<std::string> cpp = cpp_type(*element);
+    if (!cpp) {
+        return fail(error, "the element type `" + *element + "` has no C++ form in this slice");
     }
-    ListTemplate list;
-    list.ordinal = node_ordinal;
-    list.parent_ordinal = parent_ordinal;
-    list.node = &node;
-    list.item = loop.item;
-    list.index = loop.index;
-    list.element_type = *element_type;
-    list.element_cpp = *element_cpp;
-    plan.lists.push_back(std::move(list));
-    plan.has_lists = true;
-    current_list = plan.lists.size() - 1;
-    const LocalBindings locals = template_locals();
+    element_type = *element;
+    element_cpp = *cpp;
+    LocalBindings locals;
+    locals.push_back(LocalBinding{loop.item, loop.item, element_type});
+    if (!loop.index.empty()) {
+        locals.push_back(LocalBinding{loop.index, "static_cast<int>(tessera_index)", "int"});
+    }
     const ExprEmission key = emit_expr(*node.key, component, locals);
     if (!key.error.empty()) {
         return fail(error, "the key of `" + node.id + "`: " + key.error);
@@ -247,8 +247,7 @@ bool PlanWalk::collect_template(const ir::Node& node, unsigned node_ordinal,
     if (!printable_text_expression(*node.key, component, locals)) {
         return fail(error, "the key of `" + node.id + "` has no printable C++ type");
     }
-    if (!mentions_loop_local(*node.key, plan.lists[current_list].item,
-                             plan.lists[current_list].index)) {
+    if (!mentions_loop_local(*node.key, loop.item, loop.index)) {
         return fail(error, "the key of `" + node.id +
                                "` must read the loop item or index; a constant key gives every "
                                "item the same identity");
@@ -256,16 +255,80 @@ bool PlanWalk::collect_template(const ir::Node& node, unsigned node_ordinal,
     return true;
 }
 
-bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root) {
+bool PlanWalk::collect_template(const ir::Node& node, unsigned node_ordinal,
+                                unsigned parent_ordinal) {
+    const ir::Loop& loop = *node.loop;
+    ListTemplate list;
+    list.ordinal = node_ordinal;
+    list.parent_ordinal = parent_ordinal;
+    list.node = &node;
+    list.item = loop.item;
+    list.index = loop.index;
+    if (!validate_template_loop(node, loop, list.element_type, list.element_cpp)) {
+        return false;
+    }
+    plan.lists.push_back(std::move(list));
+    plan.has_lists = true;
+    current_list = plan.lists.size() - 1;
+    return true;
+}
+
+// ir-v1 section 3.5: a VirtualList/VirtualGrid owns exactly one static item template; it is not a
+// child, so the plan registers it as a list template whose table is a bounded realized window.
+bool PlanWalk::collect_virtual_collection(const ir::Node& node, unsigned node_ordinal) {
+    if (!node.item_template) {
+        return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) + "` (`" + node.id +
+                               "`) needs an itemTemplate");
+    }
+    const ir::Node& item = *node.item_template;
+    if (!item.loop) {
+        return fail(error, "the item template of `" + node.id +
+                               "` carries the loop that names the item and the data source");
+    }
+    if (!validate_virtual_geometry(node, error)) {
+        return false;
+    }
+    ListTemplate list;
+    list.ordinal = node_ordinal + 1; // the template is walked right after its collection
+    list.parent_ordinal = node_ordinal;
+    list.is_virtual = true;
+    list.container_ordinal = node_ordinal;
+    list.container = &node;
+    list.node = &item;
+    list.item = item.loop->item;
+    list.index = item.loop->index;
+    if (!validate_template_loop(item, *item.loop, list.element_type, list.element_cpp)) {
+        return false;
+    }
+    plan.lists.push_back(std::move(list));
+    plan.has_lists = true;
+    plan.has_virtual = true;
+    current_list = plan.lists.size() - 1;
+    return true;
+}
+
+bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
+                    bool is_virtual_template_root) {
     const unsigned self = ++ordinal;
     plan.max_ordinal = self;
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
+        return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
+                               "` nodes are deferred (custom elements are a later codegen slice)");
     case ir::NodeKind::VirtualList:
     case ir::NodeKind::VirtualGrid:
-        return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
-                               "` nodes are deferred (custom elements and virtualized lists are "
-                               "later codegen slices)");
+        if (node.condition) {
+            return fail(error, "a virtual collection (`" + node.id +
+                                   "`) cannot be conditional; wrap it in a container");
+        }
+        if (node.loop) {
+            return fail(error, "a virtual collection (`" + node.id +
+                                   "`) is not itself looped; its item template carries the loop");
+        }
+        if (!collect_virtual_collection(node, self)) {
+            return false;
+        }
+        break;
     case ir::NodeKind::Component:
         // Composition itself is emitted elsewhere; the instance forms it cannot express yet are
         // rejected there, and a conditional or looped instance is rejected here.
@@ -285,6 +348,11 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root)
     default:
         break;
     }
+    const bool collection =
+        node.kind == ir::NodeKind::VirtualList || node.kind == ir::NodeKind::VirtualGrid;
+    if (node.item_template != nullptr && !collection) {
+        return fail(error, "only VirtualList and VirtualGrid have an itemTemplate");
+    }
     if (is_root && node.condition) {
         return fail(error, "the component root cannot be a conditional branch; wrap the condition "
                            "in a container element");
@@ -296,7 +364,7 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root)
     if ((in_template || node.loop) && !validate_template_node(node, node.loop.has_value())) {
         return false;
     }
-    if (node.loop && !collect_template(node, self, parent_ordinal)) {
+    if (node.loop && !is_virtual_template_root && !collect_template(node, self, parent_ordinal)) {
         return false;
     }
     if (node.condition) {
@@ -354,6 +422,17 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root)
         }
         ++group_child;
     }
+    if (collection && node.item_template != nullptr) {
+        // ir-v1 section 3.5: the item template is walked right after its collection node, so its
+        // pre-order ordinals and its text sites line up with the generated item builder.
+        in_template = true;
+        if (!walk(*node.item_template, self, false, true)) {
+            return false;
+        }
+        plan.lists[current_list].subtree_end = ordinal + 1;
+        in_template = template_before;
+        current_list = list_before;
+    }
     if (node.loop) {
         plan.lists[current_list].subtree_end = ordinal + 1;
         in_template = template_before;
@@ -376,6 +455,15 @@ const DynamicGroup* DynamicPlan::group(unsigned parent_ordinal) const {
 const ListTemplate* DynamicPlan::list(unsigned ordinal) const {
     for (const ListTemplate& list : lists) {
         if (list.ordinal == ordinal) {
+            return &list;
+        }
+    }
+    return nullptr;
+}
+
+const ListTemplate* DynamicPlan::virtual_collection(unsigned container_ordinal) const {
+    for (const ListTemplate& list : lists) {
+        if (list.is_virtual && list.container_ordinal == container_ordinal) {
             return &list;
         }
     }
