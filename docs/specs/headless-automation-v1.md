@@ -127,6 +127,40 @@ For coding agents, the harness also exposes a line-delimited JSON protocol over 
 - The protocol is local-only and authenticated by the harness process; no network exposure.
 - A command timeout aborts the step and returns a diagnostic; the harness remains usable.
 
+### 6.1 Codec slice (implemented)
+
+`tessera_harness` (`include/tessera/harness/`, `src/harness/`) implements the transport-neutral half
+of this section. It links no project or third-party library and contains no socket, token, or auth
+code (the section 9 boundary).
+
+- **Framing** (`line_framing.hpp`): one JSON document per line; a 1 MiB payload cap rejected with
+  the typed `FrameErrorCode::LineTooLong`; LF and CRLF terminators; a final unterminated line at
+  EOF; strict UTF-8 validation per line. A rejected line is dropped whole, so a malformed frame is
+  never half-delivered. `json_parse.hpp` bounds nesting at 64 and rejects duplicate keys, raw
+  control characters, lone UTF-16 surrogates, and integers outside int64.
+- **Transport** (`line_transport.hpp`, `in_process_transport.hpp`): `LineTransport::read_line`
+  returns one line, `WouldBlock` (peer still open, no complete line yet), or `Closed`, and never
+  blocks. `write_line` rejects empty payloads, embedded CR/LF, over-cap lines, and invalid UTF-8.
+  The in-process pair is the deterministic implementation for tests and embedding.
+- **Envelope** (`protocol.hpp`): `protocolVersion` 1, `id` as a decimal string (a small JSON number
+  is also accepted on input), `cmd`, and flat command arguments. A request without
+  `protocolVersion` is v1; any other value is `unsupportedVersion`. Responses echo `id`, then carry
+  `ok`, `result` or `error` (`code`/`message`/`detail`), and `elapsedUs`. Error codes are
+  `malformedRequest`, `unsupportedVersion`, `unknownCommand`, `invalidArgument`, `uiIdNotFound`,
+  `timeout`, `internal`; a failure envelope echoes a recovered `id` when the request had one.
+- **Commands** (`command.hpp`, `command_result.hpp`): `snapshot` (`includeHidden`); `click`,
+  `setValue` (`value`), `focus`, and `scroll` (`dx`, `dy`), all taking `uiId` (decimal string) and an
+  optional `itemKey`; `trace` (`path`); `audit` (`profile`, optional `path`). Unknown command names
+  and unknown parameters are rejected, not ignored. The snapshot result carries the canonical
+  snapshot object from [`automation-ids-v1.md`](automation-ids-v1.md) section 5.2 as an embedded
+  value; this slice does not compute or reinterpret UiIds.
+- **Determinism** (`json_value.hpp`, `json_write.hpp`): object members keep wire order, output has
+  no insignificant whitespace, integers stay exact, doubles use the shortest round-trip form, and
+  the same value always serializes to the same bytes.
+
+Still pending for the full section: the stdio adapter, the executor that applies commands to the
+real runtime, and the `tessera test` / `tessera headless` CLIs.
+
 ## 7. Determinism
 
 - Fixed clock/timestep, size/DPI/fonts/locale, assets, and event scripts.

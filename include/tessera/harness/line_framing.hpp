@@ -51,7 +51,8 @@ public:
 
     // Feeds raw bytes. A line that crosses the cap is rejected immediately and the rest of that
     // line is discarded, so a peer cannot grow our buffer without bound; framing resumes at the
-    // next LF.
+    // next LF. Only one rejection is held at a time: draining next() between feeds is how a
+    // caller observes every rejected line, and the transport implementations do exactly that.
     void append(std::string_view bytes);
 
     // Declares that no more bytes will arrive. A pending unterminated line is still delivered.
