@@ -100,6 +100,13 @@ bool check_prop_value(NodeState& state, const jsx::Expr& value, jsx::Span span) 
 
 bool apply_expression(NodeState& state, std::string_view name, const jsx::Expr& value,
                       jsx::Span span, ir::Node& node) {
+    if (name == "children") {
+        // Section 3.4: the slot is not an attribute; the caller writes it between the tags.
+        fail_node(state, "TESSERA_IR_SLOT",
+                  "`children` is a slot attribute on a component reference", span,
+                  "write the nodes between `<Card>` and `</Card>`");
+        return false;
+    }
     if (is_event_name(name)) {
         return lower_component_event(state, name, value, span, node);
     }
@@ -142,6 +149,12 @@ bool apply_expression(NodeState& state, std::string_view name, const jsx::Expr& 
 
 bool apply_literal(NodeState& state, std::string_view name, ir::ExprPtr value, jsx::Span span,
                    ir::Node& node) {
+    if (name == "children") {
+        fail_node(state, "TESSERA_IR_SLOT",
+                  "`children` is a slot attribute on a component reference", span,
+                  "write the nodes between `<Card>` and `</Card>`");
+        return false;
+    }
     if (is_event_name(name)) {
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
                   "a callback prop of a component reference must be a handler (subset 9)", span);

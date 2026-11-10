@@ -18,7 +18,7 @@ namespace tessera::compiler::lowering::internal {
 namespace {
 
 struct ChildItem {
-    enum class Kind { Text, Expression, Element, Conditional, Loop };
+    enum class Kind { Text, Expression, Element, Conditional, Loop, Slot };
 
     Kind kind = Kind::Text;
     const jsx::JsxNode* node = nullptr; // Text node, expression container or element
@@ -27,6 +27,30 @@ struct ChildItem {
 
 bool is_run_item(const ChildItem& item) {
     return item.kind == ChildItem::Kind::Text || item.kind == ChildItem::Kind::Expression;
+}
+
+// Section 3.4: `{children}` of a component that declares the slot is the Slot position, not an
+// ordinary expression child. The name resolver maps the destructured `children` prop to
+// `prop::children`; a local of the same name resolves to itself and is unaffected.
+bool is_children_slot(const NodeState& state, const jsx::Expr& expr) {
+    if (expr.kind != jsx::ExprKind::Identifier) {
+        return false;
+    }
+    const std::optional<std::string> id = state.names.resolve(expr.text);
+    return id.has_value() && *id == "prop::children";
+}
+
+// `{props.children}` of a non-destructured props parameter: the spec accepts only the destructured
+// `{children}` form (jsx-subset-v1.md section 5), so this gets a diagnostic with the fix.
+bool is_props_children_member(const NodeState& state, const jsx::Expr& expr) {
+    if (expr.kind != jsx::ExprKind::Member || expr.text != "children" ||
+        expr.operands.size() != 1 || !expr.operands[0] ||
+        expr.operands[0]->kind != jsx::ExprKind::Identifier) {
+        return false;
+    }
+    const std::optional<std::string> id =
+        state.names.resolve(expr.operands[0]->text + "." + expr.text);
+    return id.has_value() && *id == "prop::children";
 }
 
 bool flatten_children(NodeState& state, const jsx::JsxNode& parent, std::vector<ChildItem>& items,
@@ -57,6 +81,16 @@ bool flatten_children(NodeState& state, const jsx::JsxNode& parent, std::vector<
             const jsx::Expr& expr = *child->expr;
             if (expr.kind == jsx::ExprKind::Boolean || expr.kind == jsx::ExprKind::Null) {
                 break; // renders nothing and does not break a run (elements-basic.md section 0)
+            }
+            if (is_children_slot(state, expr)) {
+                items.push_back(ChildItem{ChildItem::Kind::Slot, child.get(), nullptr});
+                break;
+            }
+            if (is_props_children_member(state, expr)) {
+                fail_node(state, "TESSERA_IR_SLOT",
+                          "a non-destructured props parameter cannot place the children slot",
+                          expr.span, "destructure the prop: `{ children }: CardProps`");
+                return false;
             }
             const ControlKind control = classify_control(expr);
             if (control == ControlKind::Conditional) {
@@ -165,8 +199,27 @@ bool flush_run(NodeState& state, const std::vector<const ChildItem*>& run, ir::N
     return true;
 }
 
-// Appends one element, conditional or loop item to `parent`; false on error.
+// Appends one element, conditional, loop or slot item to `parent`; false on error.
 bool append_node_item(NodeState& state, const ChildItem& item, ir::Node& parent) {
+    if (item.kind == ChildItem::Kind::Slot) {
+        // Section 3.4: the callee's `{children}` position becomes a bare Slot node.
+        if (state.loop_depth > 0) {
+            fail_node(state, "TESSERA_IR_SLOT", "a Slot is not inside a loop template",
+                      item.node->span);
+            return false;
+        }
+        if (++state.slot_count > 1) {
+            fail_node(state, "TESSERA_IR_SLOT", "a component has at most one Slot",
+                      item.node->span);
+            return false;
+        }
+        ir::Node slot;
+        slot.kind = ir::NodeKind::Slot;
+        slot.id = next_node_id(state);
+        slot.source = to_source_span(state.context.source_map, item.node->span, state.context.file);
+        parent.children.push_back(std::move(slot));
+        return true;
+    }
     if (item.kind == ChildItem::Kind::Element) {
         std::optional<ir::Node> child = make_node(state, *item.node);
         if (!child) {
@@ -264,6 +317,17 @@ bool lower_slot_children(NodeState& state, const jsx::JsxNode& element, ir::Node
     std::vector<ChildItem> items;
     if (!flatten_children(state, element, items, false)) {
         return false;
+    }
+    // Slot content is the caller's nodes; the Slot itself belongs in the component whose prop
+    // declares it (ir-v1 section 3.4).
+    for (const ChildItem& item : items) {
+        if (item.kind == ChildItem::Kind::Slot) {
+            fail_node(state, "TESSERA_IR_SLOT",
+                      "a Slot belongs in the component that declares `children`, not in slot "
+                      "content",
+                      item.node->span);
+            return false;
+        }
     }
     return append_runs_and_elements(state, items, node);
 }

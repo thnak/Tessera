@@ -82,6 +82,26 @@ std::optional<ir::NodeKind> ir_node_kind(std::string_view ir_kind) {
     return std::nullopt;
 }
 
+// Section 3.4: a `Children` value has no expression form, so a `children` reference outside the
+// dedicated `{children}` child position is rejected with the slot diagnostic (the slot itself is
+// lowered before expression lowering sees it).
+bool mentions_children_prop(const ir::Expr& expr) {
+    if (expr.kind == ir::ExprKind::Ref) {
+        return expr.id == "prop::children" || expr.id.rfind("prop::children.", 0) == 0;
+    }
+    for (const ir::ExprPtr& operand : expr.operands) {
+        if (operand && mentions_children_prop(*operand)) {
+            return true;
+        }
+    }
+    for (const ir::TemplatePart& part : expr.parts) {
+        if (part.expr && mentions_children_prop(*part.expr)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 void fail_node(NodeState& state, std::string_view code, std::string_view message, jsx::Span span,
@@ -112,6 +132,12 @@ ir::ExprPtr lower_node_expression(NodeState& state, const jsx::Expr& expr) {
         if (!state.error) {
             fail_node(state, "TESSERA_IR_MALFORMED", "the expression produced no IR", expr.span);
         }
+        return nullptr;
+    }
+    if (mentions_children_prop(**lowered)) {
+        fail_node(state, "TESSERA_IR_SLOT",
+                  "`children` is the slot; it has no value expression (ir-v1 section 3.4)",
+                  expr.span, "write `{children}` as a child of an element");
         return nullptr;
     }
     return std::move(*lowered);

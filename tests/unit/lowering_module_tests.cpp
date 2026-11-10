@@ -248,6 +248,80 @@ void test_project_imports_and_ordering() {
     check_eq(result->components[2].root.component, "comp::App", "the parent-directory import");
 }
 
+// Section 3.4 / react-compat Q14: a component's `{children}` lowers to one Slot node, and the
+// caller's child nodes become the Component node's children. One child, several children, a nested
+// component and an empty list are all covered here.
+void test_children_slot_lowering() {
+    const auto fixture = parse_file(
+        "ui/App.tsx", "function Card({ children }: CardProps) {\n"
+                      "  return <View className=\"card\"><Text>head</Text>{children}</View>;\n"
+                      "}\n"
+                      "function Row() { return <Text>row</Text>; }\n"
+                      "function App() {\n"
+                      "  return <Card><Text>one</Text><View><Row /></View></Card>;\n"
+                      "}\n"
+                      "function Alone() { return <Card />; }\n");
+    const auto source = fixture->module_source();
+    const auto result = lowering::lower_module(source, "m");
+    check(result.has_value(), "component children lower into the slot");
+    if (!result) {
+        check(false, std::string("lowering error: ") + first_message(result));
+        return;
+    }
+    const ir::Component* card = find_component(*result, "Card");
+    const ir::Component* app = find_component(*result, "App");
+    const ir::Component* alone = find_component(*result, "Alone");
+    check(card != nullptr && app != nullptr && alone != nullptr, "all components are present");
+    if (card == nullptr || app == nullptr || alone == nullptr) {
+        return;
+    }
+
+    // The declaration: one `children` prop of the slot type.
+    check(card->props.size() == 1, "Card declares one prop");
+    if (card->props.size() == 1) {
+        check_eq(card->props[0].name, "children", "the slot prop name");
+        check_eq(card->props[0].type, "children", "the slot prop type");
+        check(!card->props[0].default_value, "the slot prop has no default");
+    }
+
+    // The callee places the slot once, in source order.
+    check(card->root.children.size() == 2, "Card root has the text and the slot");
+    if (card->root.children.size() == 2) {
+        check_eq(std::string(ir::node_kind_name(card->root.children[0].kind)), "Text",
+                 "the static child");
+        check_eq(std::string(ir::node_kind_name(card->root.children[1].kind)), "Slot",
+                 "`{children}` is the Slot node");
+        check_eq(card->root.children[1].id, "node::3", "the Slot takes its pre-order id");
+        check(!card->root.children[1].source.file.empty(), "the Slot keeps its source span");
+    }
+
+    // The caller's children become the Component node's children, in the caller's pre-order.
+    check(app->root.children.size() == 2, "App passes two children");
+    if (app->root.children.size() == 2) {
+        check_eq(std::string(ir::node_kind_name(app->root.children[0].kind)), "Text",
+                 "the first child stays in the caller tree");
+        check_eq(std::string(ir::node_kind_name(app->root.children[1].kind)), "View",
+                 "the second child is the wrapper");
+        if (app->root.children[1].children.size() == 1) {
+            const ir::Node& nested = app->root.children[1].children[0];
+            check_eq(std::string(ir::node_kind_name(nested.kind)), "Component",
+                     "a nested component lowers inside slot content");
+            check_eq(nested.component, "comp::Row", "the nested reference target");
+        } else {
+            check(false, "the wrapper holds the nested component");
+        }
+    }
+
+    // An empty child list is a valid instantiation.
+    check_eq(std::string(ir::node_kind_name(alone->root.kind)), "Component",
+             "the empty instantiation is a reference node");
+    check(alone->root.children.empty(), "no children means no slot content");
+
+    // The writer exposes the new kind.
+    check(describe_component(*card).find("\"kind\": \"Slot\"") != std::string::npos,
+          "the Slot is written by the IR writer");
+}
+
 void test_module_source_preconditions() {
     const auto fixture = parse_file("ui/App.tsx", "function App() { return <View />; }\n");
     lowering::ModuleSource broken = fixture->module_source();
@@ -262,6 +336,7 @@ void test_module_source_preconditions() {
 int main() {
     test_single_module_components_and_order();
     test_children_forwarding();
+    test_children_slot_lowering();
     test_component_inside_conditional_and_loop();
     test_recursive_and_mutually_recursive_components();
     test_component_props_events_ref_and_automation_id();

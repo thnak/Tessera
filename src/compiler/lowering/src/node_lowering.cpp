@@ -81,6 +81,19 @@ LoweredComponentResult lower_component(const HookLoweringContext& context) {
     component.id = "comp::" + context.component.name;
     component.name = context.component.name;
     component.source = to_source_span(context.source_map, context.component.span, context.file);
+    // Section 3.4: the `children` prop declares the static slot. Other prop types need the type
+    // table (slice 4), so only this declaration is recorded.
+    for (const jsx::PropBinding& binding : context.component.props_bindings) {
+        if (binding.name != "children") {
+            continue;
+        }
+        if (binding.default_value) {
+            internal::fail_node(state, "TESSERA_IR_SLOT",
+                                "the `children` prop has no default value", binding.span);
+            return std::unexpected(single_error(*state.error));
+        }
+        component.props.push_back(ir::Prop{"children", "children", nullptr});
+    }
     component.state = std::move(hooks->state);
     component.handlers = std::move(hooks->handlers);
     component.effects = std::move(hooks->effects);

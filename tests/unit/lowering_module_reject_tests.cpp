@@ -113,6 +113,43 @@ void test_import_failures() {
           "the diagnostic says cycle");
 }
 
+// Section 3.4: the slot is a child position, not a value, an attribute or a repeated node.
+void test_children_slot_rejections() {
+    const auto reject = [](std::string_view what, std::string_view source, std::string_view code) {
+        const auto fixture = parse_file("ui/App.tsx", std::string(source));
+        const auto result = lowering::lower_module(fixture->module_source(), "m");
+        check(!result.has_value(), std::string(what) + " is rejected");
+        check_eq(first_code(result), std::string(code), std::string(what) + " code");
+    };
+
+    reject("a Slot in a Text",
+           "function Card({ children }: P) { return <Text>{children}</Text>; }\n",
+           "TESSERA_IR_UNSUPPORTED");
+    reject("`props.children` of a non-destructured parameter",
+           "function Card(props: P) { return <View>{props.children}</View>; }\n",
+           "TESSERA_IR_SLOT");
+    reject("a children attribute",
+           "function Card(props: P) { return <View />; }\n"
+           "function App() { return <Card children={<View />} />; }\n",
+           "TESSERA_IR_SLOT");
+    reject("a default value on the children prop",
+           "function Card({ children = 1 }: P) { return <View>{children}</View>; }\n",
+           "TESSERA_IR_SLOT");
+    reject("a Slot inside slot content",
+           "function Card({ children }: P) { return <View>{children}</View>; }\n"
+           "function App({ children }: P) { return <Card>{children}</Card>; }\n",
+           "TESSERA_IR_SLOT");
+    reject("two Slots in one component",
+           "function Card({ children }: P) { return <View>{children}{children}</View>; }\n",
+           "TESSERA_IR_SLOT");
+    reject("a Slot inside a loop template",
+           "function Card({ children }: P) {\n"
+           "  const [rows, setRows] = useState<int[]>([]);\n"
+           "  return <View>{rows.map((row) => <View key={row}>{children}</View>)}</View>;\n"
+           "}\n",
+           "TESSERA_IR_SLOT");
+}
+
 void test_module_single_file_relative_import() {
     const auto fixture = parse_file("ui/App.tsx", "import { Card } from \"./Card\";\n"
                                                   "function App() { return <Card />; }\n");
@@ -151,6 +188,7 @@ int main() {
     test_component_in_attribute_position();
     test_component_callback_forms();
     test_component_props_spread();
+    test_children_slot_rejections();
     test_duplicate_component_names();
     test_import_failures();
     test_module_single_file_relative_import();

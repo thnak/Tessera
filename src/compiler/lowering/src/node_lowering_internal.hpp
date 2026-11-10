@@ -30,6 +30,7 @@ struct NodeState {
     std::optional<jsx::Diagnostic> error; // the first error; later reports are ignored
     unsigned next_node_id = 1;            // `node::N`, pre-order per component (decision 2)
     unsigned loop_depth = 0;              // enclosing `.map` loops; at most 2 (ir-v1 section 5)
+    unsigned slot_count = 0;              // `{children}` positions; at most one (ir-v1 section 3.4)
 };
 
 // Reports a TESSERA_IR_* error at `span` unless one was already reported. The diagnostic keeps a
