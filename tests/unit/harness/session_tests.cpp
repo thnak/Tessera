@@ -22,6 +22,13 @@ int main() {
         set_value.ui_id = 10;
         set_value.value = "alice";
         set_value.item_key = std::string("row");
+        tessera::harness::ActionCommand focus;
+        focus.kind = tessera::harness::ActionKind::Focus;
+        focus.ui_id = 12;
+        tessera::harness::ActionCommand scroll;
+        scroll.kind = tessera::harness::ActionKind::Scroll;
+        scroll.ui_id = 11;
+        scroll.scroll_dy = 120.0;
         st::write_lines(
             *pair.first,
             {st::request_line(1, st::SnapshotCommand{true}),
@@ -29,15 +36,16 @@ int main() {
                  2,
                  tessera::harness::ActionCommand{
                      tessera::harness::ActionKind::Click, 9, std::nullopt, {}, 0.0, 0.0}),
-             st::request_line(3, set_value),
-             st::request_line(4, tessera::harness::TraceCommand{"out/trace.json"}),
-             st::request_line(5, tessera::harness::AuditCommand{"desktop", ""})});
+             st::request_line(3, set_value), st::request_line(4, focus),
+             st::request_line(5, scroll),
+             st::request_line(6, tessera::harness::TraceCommand{"out/trace.json"}),
+             st::request_line(7, tessera::harness::AuditCommand{"desktop", ""})});
 
         const st::SessionPumpStats stats = session.pump();
-        st::expect(stats.commands_dispatched == 5, "all five commands dispatched");
-        st::expect(stats.requests_answered == 5, "all five answered");
-        st::expect(stats.responses_written == 5, "all five written");
-        st::expect(handler.seen.size() == 5, "handler saw every command");
+        st::expect(stats.commands_dispatched == 7, "all seven commands dispatched");
+        st::expect(stats.requests_answered == 7, "all seven answered");
+        st::expect(stats.responses_written == 7, "all seven written");
+        st::expect(handler.seen.size() == 7, "handler saw every command");
 
         const auto snapshot = st::read_response(*pair.first, "snapshot response");
         st::expect(snapshot.has_value() && snapshot->id == 1 && snapshot->ok, "snapshot ok");
@@ -67,8 +75,21 @@ int main() {
         st::expect(std::get<tessera::harness::ActionCommand>(handler.seen[2]).value == "alice",
                    "handler saw the setValue text");
 
+        const auto focused = st::read_response(*pair.first, "focus response");
+        st::expect(focused.has_value() && focused->id == 4 && focused->ok, "focus ok");
+        const auto scrolled = st::read_response(*pair.first, "scroll response");
+        st::expect(scrolled.has_value() && scrolled->id == 5 && scrolled->ok, "scroll ok");
+        if (scrolled.has_value()) {
+            const auto decoded =
+                tessera::harness::decode_command_result(scrolled->result, "scroll");
+            st::expect(decoded.has_value() && std::get<st::ActionResult>(*decoded).ui_id == 11,
+                       "scroll uiId echoed");
+        }
+        st::expect(std::get<tessera::harness::ActionCommand>(handler.seen[4]).scroll_dy == 120.0,
+                   "scroll offset forwarded");
+
         const auto traced = st::read_response(*pair.first, "trace response");
-        st::expect(traced.has_value() && traced->ok, "trace ok");
+        st::expect(traced.has_value() && traced->id == 6 && traced->ok, "trace ok");
         if (traced.has_value()) {
             const auto decoded = tessera::harness::decode_command_result(traced->result, "trace");
             st::expect(decoded.has_value() &&
@@ -77,7 +98,7 @@ int main() {
         }
 
         const auto audited = st::read_response(*pair.first, "audit response");
-        st::expect(audited.has_value() && audited->ok, "audit ok");
+        st::expect(audited.has_value() && audited->id == 7 && audited->ok, "audit ok");
         if (audited.has_value()) {
             const auto decoded = tessera::harness::decode_command_result(audited->result, "audit");
             st::expect(decoded.has_value() &&
