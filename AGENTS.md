@@ -491,7 +491,12 @@ visible-range/re-anchor integration with a 10k-item allocation-free churn test, 
 in `ItemStateStore` (focused and selected entries pinned against LRU eviction, refusals counted),
 `VirtualRange` `focus_item`/`step_focus` with exactly one realized `PseudoState::Focus` node and
 `selected_items()` in data order, `scroll_to_index` Start/Center/Nearest (pure query, clamped to
-`[0, total - viewport]`), and `VirtualGridRows` row-granular grid geometry; `tessera_boundary`
+`[0, total - viewport]`), and `VirtualGridRows` row-granular grid geometry, plus
+`CollectionSemantics` (`include/tessera/ui/virtual/collection_semantics.hpp`): set size and 1-based
+`pos_in_set` from the key index, realized `(UiId, ItemKey)` identity read off the realized node, the
+active descendant, selection in data order, and bounded coalesced focus/selection announcements (one
+per observed change, superseded dropped, allocation-free); tests `virtual_collection_semantics`,
+`virtual_announce`. Next for this lane: the a11y tree/bridge consumes it; `tessera_boundary`
 (`include/tessera/ui/boundary/`) provides `BoundaryTable` routing, the single sync catch point
 `run_guarded`, and the decided retry policy (250 ms doubling to a 4 s cap, five retries,
 `TESSERA_BOUNDARY_LOOP`). `tessera_scale` (`include/tessera/ui/scale/`) holds the render-scale

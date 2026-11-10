@@ -140,6 +140,8 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `virtual_scroll_index` | `scroll_to_index` Start/Center/Nearest clamps, pure query identity, re-anchor interaction |
 | `virtual_focus_churn` | 10k-item focus/step/selection script: allocation parity, cap high-water mark, repeat determinism |
 | `virtual_grid_rows` | row-granular grid geometry: row-major mapping, row extent, visible rows/items |
+| `virtual_collection_semantics` | set size and 1-based `pos_in_set` from the key index, realized `(UiId, ItemKey)` identity, active descendant, selection in data order |
+| `virtual_announce` | bounded coalesced focus/selection announcements: one per change, supersede/drop, no per-frame, allocation parity |
 | `frame_pipeline_style_sync` | interpolation sample whitelist and blend at alpha 0/0.5/1 (transform shortest arc, skew hold, drops) |
 | `frame_pipeline_overflow` | scripted two-tick scene painted at alpha 0/0.5/1: damage covers the interpolated box, hit test stays at tick geometry |
 | `boundary_model` | nearest-catcher routing, fallback, reset, async values, cleanup seam |
