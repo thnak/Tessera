@@ -346,26 +346,39 @@ target). Everything is deterministic and testable without a bus daemon.
 | Mapping | `atspi_mapping.*` | Role id/name table (`AtspiRole`), the two-word `AtspiState` set, interface list, action names, text content, `AtspiValue`, component layer, and `/org/a11y/atspi/accessible/<index>` paths. |
 | Dispatch | `atspi_bridge.*`, `atspi_methods.cpp` | Answers `Accessible` (`GetName`, `GetDescription`, `GetRole`, `GetRoleName`, `GetState`, `GetInterfaces`, `GetChildCount`, `GetChildren`, `GetChildAtIndex`, `GetParent`, `GetIndexInParent`, `GetApplication`, `GetAttributes`, `GetRelationSet`, `GetAccessibleId`, `Contains`), `Application` (`GetLocale`, `GetApplicationBusAddress`, `GetName`, `GetVersion`, `GetToolkitName`, `GetId`), `Action` (`GetActionCount`, `GetActions`, `GetActionName`, `GetActionDescription`, `GetKeyBinding`, `DoAction`), `Component` (`GetExtents`, `GetPosition`, `GetSize`, `GetLayer`, `GetMDIZOrder`, `GetAlpha`, `GrabFocus`, `Contains`), `Text` (`GetCharacterCount`, `GetText`, `GetTextAtOffset`, `GetCaretOffset`, `SetCaretOffset`, `GetSelectionCount`, `GetSelection`), and `Value` (`GetCurrentValue`, `SetCurrentValue`, `GetMinimumValue`, `GetMaximumValue`, `GetMinimumIncrement`). Unknown object/method/arguments return `UnknownObject`/`UnknownMethod`/`InvalidArgs`. |
 | Events | `atspi_events.*` | Bounded (64) coalescing queue keyed by `(kind, node, detail)`; state/property/bounds/visible-data factories; one `org.a11y.atspi.Event.Object` signal (`siiva{sv}`) per delivered event. |
+| Properties | `atspi_properties.cpp` | Serves `org.freedesktop.DBus.Properties` `Get`/`GetAll` from a fixed table: Accessible (`Name`, `Description`, `Parent`, `ChildCount`, `Interfaces`, `AccessibleId`), Application (`Name`, `ToolkitName`, `Version`, `AtspiVersion`, `Id`, `Locale`), Text (`CharacterCount`, `CaretOffset`), and Value (`CurrentValue`, `MinimumValue`, `MaximumValue`, `MinimumIncrement`). An unknown interface or property is `InvalidArgs`; `GetAll` emits the table order, which is stable. |
+| Session | `atspi_session.*` | Owns the two connections and runs the handshake: session address -> UNIX connect -> SASL `EXTERNAL` -> `org.freedesktop.DBus.Hello` -> `org.a11y.Bus.GetAddress` at `/org/a11y/bus` -> connect/auth the accessibility bus -> `Hello` -> `org.a11y.atspi.Registry.RegisterEvent` for `object:state-changed`, `object:property-change`, and `object:bounds-changed`. Every step is a byte-driven state machine returning a typed `SessionError`; it never waits on a reply that has not arrived and never throws. Handshake calls are correlated by `reply_serial` against a bounded table, and an unroutable reply is `UnexpectedReply`. |
+
+`pump(timeout_ms)` is the single I/O entry point: it reads at most four 4 KiB chunks, frames
+complete messages from a bounded accumulator, answers handshake replies, dispatches AT method calls
+through `AtspiBridge`, and writes auth replies, handshake calls, replies, and up to one event batch
+(`kMaxEventBatch`) per iteration. A peer close after `Ready` is a clean `Closed`; before `Ready` it
+is `TransportClosed`. `start()` owns exactly one worker thread and `stop()` signals and joins it
+(no detached task); `pump_sync` requests one worker iteration and waits for it, which is how the
+tests drive the handshake deterministically.
 
 Threading ([ADR-021](../../decisions/ADR-021-async-runtime.md)): the UI thread only calls `publish`
-(bounded snapshot copy) and `post_event`/`take_actions` (bounded ring); the bridge thread owns
-`dispatch`/`emit_events` and the transport. Accessibility actions never run on the bridge thread:
-`DoAction`, `GrabFocus`, and `SetCurrentValue` validate the request and append an `ActionRequest`
-(the queue coalesces identical node/action pairs) for the UI thread to execute at a tick boundary.
+(bounded snapshot copy) and `post_event`/`take_actions` (bounded ring); the session's worker thread
+owns `pump` -> transport/`dispatch`/`emit_events`. Accessibility actions never run on the bridge
+thread: `DoAction`, `GrabFocus`, and `SetCurrentValue` validate the request and append an
+`ActionRequest` (the queue coalesces identical node/action pairs) for the UI thread to execute at a
+tick boundary.
 
 Known limits of this slice, with the deferred integration:
 
-- The connect/auth/`Hello`/registry handshake (`org.a11y.Bus.GetAddress`, `Registry.RegisterEvent`)
-  is not wired yet: the bridge starts at the dispatcher, so a caller that owns a connected
-  `Transport` drives it. That handshake is the next slice.
-- `org.freedesktop.DBus.Properties` (`Get`/`GetAll`) is not served; ATs use the equivalent methods.
+- The session has no reconnect/backoff: a closed or failed connection stays terminal until a host
+  calls `start()` again, which reconnects from the session bus.
+- `Properties` is a static read-only table: `Set` and `PropertiesChanged` are not served.
 - Text offsets are UTF-8 byte offsets with one run for the whole text (no line/word boundaries).
 - `Value` reports the snapshot's textual value against a fixed 0..100 range with a 1 increment,
   because the snapshot does not carry ARIA `valuemin`/`valuemax` yet.
-- `GetApplicationBusAddress` returns the configured string; the caller fills it from the registry.
 
 Tests (`tests/unit/a11y/`, names start with `a11y`): `a11y_dbus_address`, `a11y_dbus_transport`,
 `a11y_dbus_wire` (golden bytes for header framing, a `(so)` reply, and a `siiva{sv}` signal),
 `a11y_dbus_wire_bounds` (truncation, alignment, caps, nesting, writer overflow), `a11y_dbus_auth`,
-`a11y_atspi_mapping`, `a11y_atspi_events`, `a11y_atspi_bridge`, and `a11y_atspi_bridge_events`.
+`a11y_atspi_mapping`, `a11y_atspi_events`, `a11y_atspi_bridge`, `a11y_atspi_bridge_events`,
+`a11y_atspi_properties` (variant types, the `GetAll` table, error values),
+`a11y_atspi_session` (byte replay of every handshake message, dispatch and event emission after
+`Ready`, determinism), and `a11y_atspi_session_pump` (worker start/stop join, restart, handshake
+timeout, peer close before and after `Ready`, worker-driven determinism).
 

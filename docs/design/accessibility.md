@@ -59,9 +59,21 @@ accessibility is disabled with a diagnostic. Mobile-specific semantics/IME/decla
 
 The Linux bridge is an in-tree AT-SPI2 protocol client (no libatspi/glib), split into address
 parsing, a `Transport` seam (POSIX socket on Linux, deterministic loopback in tests), the D-Bus wire
-codec, SASL `EXTERNAL`, the interface dispatcher, and a bounded coalescing event queue; see
+codec, SASL `EXTERNAL`, the session handshake, the interface dispatcher, and a bounded coalescing
+event queue; see
 [`accessibility-v1.md`](../specs/accessibility-v1.md#121-implemented-subset-in-tree-at-spi2-d-bus-wire-client).
 Snapshots, events, and queued actions are the only things that cross the bridge thread boundary.
+
+`AtspiSession` owns the two connections and the handshake that turns a bus address into a served
+object tree: session-bus connect/auth/`Hello`, `org.a11y.Bus.GetAddress`, accessibility-bus
+connect/auth/`Hello`, then `Registry.RegisterEvent`. The session releases the session-bus connection
+as soon as the registry has named the accessibility bus, because AT-SPI2 objects are only served
+there. All I/O is one byte-driven state machine on a single owned worker thread
+([ADR-021](../../decisions/ADR-021-async-runtime.md)): `pump` reads a bounded number of bytes,
+frames whole messages, answers handshake replies by `reply_serial`, hands AT calls to the
+dispatcher, and writes one batched reply per iteration, so a slow or hostile peer cannot make the
+bridge allocate or spin without bound. The worker is joined by `stop()`; there is no detached task
+and no UI-thread wait.
 
 ## 4. Focus and keyboard
 
