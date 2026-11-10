@@ -2,6 +2,7 @@
 
 #include "tessera/ui/automation/snapshot_json.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -64,12 +65,9 @@ std::string fixed_3(float value) {
     if (!std::isfinite(value)) {
         return "0.000";
     }
-    const bool negative = value < 0.0f;
-    double magnitude = std::fabs(static_cast<double>(value));
-    if (magnitude > kBoundsLimit) {
-        magnitude = kBoundsLimit;
-    }
-    const auto thousandths = static_cast<long long>(magnitude * kBoundsScale + 0.5);
+    const bool negative = value < 0.0F;
+    const double magnitude = std::min(std::fabs(static_cast<double>(value)), kBoundsLimit);
+    const auto thousandths = static_cast<long long>(std::llround(magnitude * kBoundsScale));
     std::string text;
     if (negative && thousandths != 0) {
         text.push_back('-');
@@ -135,7 +133,7 @@ void append_node(std::string& out, const UiSnapshotNode& node) {
 
 std::string snapshot_to_json(const UiSnapshot& snapshot) {
     std::string json;
-    json.reserve(128 + snapshot.nodes.size() * 320);
+    json.reserve(128 + (snapshot.nodes.size() * 320));
     json += "{\"snapshotVersion\":";
     json += std::to_string(snapshot.version);
     json += ",\"sequence\":";
