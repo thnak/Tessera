@@ -169,6 +169,8 @@ This page is the map and reading order for the framework.
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
 - [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs
+- [`design/icu-data.md`](design/icu-data.md) — ICU reduced static data spike: measured blob,
+  locale subset, build cost, go/no-go
 - [`design/animation.md`](design/animation.md) — transitions, keyframes, springs, fixed-step
   sampling
 - [`design/animation-runtime.md`](design/animation-runtime.md) — implemented runtime: module map,
