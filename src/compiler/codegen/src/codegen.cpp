@@ -82,9 +82,13 @@ CodegenResult generate(const ir::IrModule& module) {
         }
     }
     std::vector<GeneratedFile> files;
+    std::string cycle_error;
+    if (internal::reject_component_cycle(module, cycle_error)) {
+        return std::unexpected(single(std::move(cycle_error)));
+    }
     for (const ir::Component* component : components) {
         std::string error;
-        if (!internal::emit_component(*component, module.name, module.bindings, files, error)) {
+        if (!internal::emit_component(*component, module, files, error)) {
             return std::unexpected(single(std::move(error)));
         }
     }

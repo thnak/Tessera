@@ -5,6 +5,7 @@
 add_library(tessera_codegen STATIC
     src/codegen.cpp
     src/emit_component.cpp
+    src/emit_composition.cpp
     src/emit_conditional.cpp
     src/emit_controlled.cpp
     src/emit_dynamic_header.cpp
@@ -66,6 +67,19 @@ if (EXISTS ${_tessera_codegen_golden_dir}/Dynamic.cpp)
     target_include_directories(tessera_codegen_dynamic_sample PRIVATE ${_tessera_codegen_golden_dir})
     target_link_libraries(tessera_codegen_dynamic_sample PRIVATE tessera_scene)
     target_compile_features(tessera_codegen_dynamic_sample PUBLIC cxx_std_23)
+endif ()
+
+# Composition + static children-slot fixture (generated from the hand-built IR in
+# codegen_composition_tests). Same deliberate golden path: `codegen_composition_tests --write` owns
+# Card.* and CardPage.*.
+if (EXISTS ${_tessera_codegen_golden_dir}/CardPage.cpp AND EXISTS ${_tessera_codegen_golden_dir}/Card.cpp)
+    add_library(tessera_codegen_composition_sample STATIC
+        ${_tessera_codegen_golden_dir}/Card.cpp
+        ${_tessera_codegen_golden_dir}/CardPage.cpp)
+    target_include_directories(tessera_codegen_composition_sample
+        PRIVATE ${_tessera_codegen_golden_dir})
+    target_link_libraries(tessera_codegen_composition_sample PRIVATE tessera_scene)
+    target_compile_features(tessera_codegen_composition_sample PUBLIC cxx_std_23)
 endif ()
 
 # Big Step C sample: seed the committed developer file (protected regions) into the build dir and
@@ -163,6 +177,33 @@ if (TESSERA_BUILD_TESTS)
             tessera_scene)
 
         add_test(NAME codegen_dynamic_runtime COMMAND codegen_dynamic_runtime_tests)
+    endif ()
+
+    # Component composition and the static `children` slot: goldens from hand-built IR plus a
+    # runtime test over the compiled generated components (a nested instance keeps its own state).
+    add_executable(codegen_composition_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_composition_tests.cpp)
+
+    target_link_libraries(codegen_composition_tests PRIVATE
+        tessera_codegen
+        tessera_merger)
+
+    target_compile_definitions(codegen_composition_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_composition COMMAND codegen_composition_tests)
+
+    if (TARGET tessera_codegen_composition_sample)
+        add_executable(codegen_composition_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_composition_runtime_tests.cpp)
+
+        target_include_directories(codegen_composition_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir})
+        target_link_libraries(codegen_composition_runtime_tests PRIVATE
+            tessera_codegen_composition_sample
+            tessera_scene)
+
+        add_test(NAME codegen_composition_runtime COMMAND codegen_composition_runtime_tests)
     endif ()
 
     add_executable(codegen_cli_tests

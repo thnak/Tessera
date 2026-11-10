@@ -100,18 +100,51 @@ bool emit_dep_hash(CppWriter& writer, const ir::Component& component, std::size_
 } // namespace
 
 bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::Binding*>& bindings,
-                    CppWriter& writer, std::string& error) {
+                    const std::vector<ComponentInstance>& instances, CppWriter& writer,
+                    std::string& error) {
+    const auto instance_calls = [&](std::string_view method, bool reverse) {
+        if (reverse) {
+            for (std::size_t i = instances.size(); i-- > 0;) {
+                writer.line(instance_member(instances[i].ordinal) + "." + std::string(method) +
+                            "();");
+            }
+            return;
+        }
+        for (const ComponentInstance& instance : instances) {
+            writer.line(instance_member(instance.ordinal) + "." + std::string(method) + "();");
+        }
+    };
     if (component.effects.empty()) {
         writer.line("");
-        writer.line("void " + component.name + "::mount() {}");
+        if (instances.empty()) {
+            writer.line("void " + component.name + "::mount() {}");
+            writer.line("");
+            writer.line("void " + component.name + "::update_effects() {}");
+            writer.line("");
+            writer.line("void " + component.name + "::unmount() {}");
+            writer.line("");
+            writer.open("void " + component.name + "::update()");
+            writer.line("update_effects();");
+            writer.line("apply_state();");
+            writer.close("");
+            writer.line("");
+            return true;
+        }
+        writer.open("void " + component.name + "::mount()");
+        instance_calls("mount", false);
+        writer.close("");
         writer.line("");
-        writer.line("void " + component.name + "::update_effects() {}");
+        writer.open("void " + component.name + "::update_effects()");
+        writer.close("");
         writer.line("");
-        writer.line("void " + component.name + "::unmount() {}");
+        writer.open("void " + component.name + "::unmount()");
+        instance_calls("unmount", true);
+        writer.close("");
         writer.line("");
         writer.open("void " + component.name + "::update()");
         writer.line("update_effects();");
         writer.line("apply_state();");
+        instance_calls("update", false);
         writer.close("");
         writer.line("");
         return true;
@@ -131,6 +164,7 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
 
     writer.open("void " + component.name + "::mount()");
     writer.line("update_effects();");
+    instance_calls("mount", false);
     writer.close("");
     writer.line("");
 
@@ -172,6 +206,7 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
     writer.open("void " + component.name + "::update()");
     writer.line("update_effects();");
     writer.line("apply_state();");
+    instance_calls("update", false);
     writer.close("");
     writer.line("");
 
@@ -195,6 +230,7 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
         --writer.indent;
         writer.line("}");
     }
+    instance_calls("unmount", true);
     writer.close("");
     writer.line("");
     return true;

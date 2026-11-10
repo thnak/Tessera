@@ -66,7 +66,10 @@ Rules:
 - Props are read-only; changing a prop triggers an update, not a state mutation.
 - `children` is an explicit prop of type `Children`; the caller's child nodes become the `Component`
   node's `children` and the callee places them with `{children}` (a `Slot` node, [`ir-v1.md`](ir-v1.md)
-  section 3.4).
+  section 3.4). The slot is static: one position per component, not a loop, and it is compiled into
+  the generated C++ as a `build(parent, slot)` overload of the callee. Slot content is owned by the
+  caller's component: it reads the caller's state/props, its event bindings stay in the caller's
+  generated file, and the instance's own state belongs to the callee.
 - `key` is required for dynamic lists and stable across reorder.
 - Spread props are allowed only when statically analyzable.
 - Unknown props are compile errors for intrinsics; custom components validate their prop types.

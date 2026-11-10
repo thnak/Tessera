@@ -123,6 +123,12 @@ LocalBindings PlanWalk::template_locals() const {
 }
 
 bool PlanWalk::validate_template_node(const ir::Node& node, bool is_template_root) {
+    if (node.kind == ir::NodeKind::Component || node.kind == ir::NodeKind::Slot) {
+        return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
+                               "` inside a list template (" + node.id +
+                               ") is deferred: a per-item component instance needs per-item "
+                               "state");
+    }
     if (node.kind == ir::NodeKind::TextInput || node.kind == ir::NodeKind::TextArea) {
         return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
                                "` inside a list template (" + node.id +
@@ -255,12 +261,27 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root)
     plan.max_ordinal = self;
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
-    case ir::NodeKind::Component:
     case ir::NodeKind::VirtualList:
     case ir::NodeKind::VirtualGrid:
         return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
-                               "` nodes are deferred (component composition, custom elements and "
-                               "virtualized lists are later codegen slices)");
+                               "` nodes are deferred (custom elements and virtualized lists are "
+                               "later codegen slices)");
+    case ir::NodeKind::Component:
+        // Composition itself is emitted elsewhere; the instance forms it cannot express yet are
+        // rejected there, and a conditional or looped instance is rejected here.
+        if (node.condition || node.loop) {
+            return fail(error, "a conditional or looped component instance (`" + node.id +
+                                   "`) is deferred; wrap the element in a container");
+        }
+        break;
+    case ir::NodeKind::Slot:
+        if (is_root) {
+            return fail(error, "a Slot cannot be the component root");
+        }
+        if (node.condition || node.loop) {
+            return fail(error, "a Slot (`" + node.id + "`) cannot be conditional or looped");
+        }
+        break;
     default:
         break;
     }

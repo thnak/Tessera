@@ -5,8 +5,9 @@ Status: Big Step C is under way. The JSX/TSX front end (`src/compiler/analyzer`,
 (`src/compiler/ir`), the C++ code generator and `tessera_codegen` CLI with incremental regeneration
 (`src/compiler/codegen`) and the protected-region merger (`src/compiler/merger`) are implemented:
 state/effects/refs, text and metadata interpolation, inline styles, conditionals, keyed lists and
-controlled text inputs generate. Still open: component composition and `Slot`, virtualized lists,
-list-typed props (see Deferred below).
+controlled text inputs generate. Component composition and the static `children` slot generate too.
+Still open: virtualized lists, list-typed props, and passing props to a generated child instance
+(see Deferred below).
 
 The compiler is build-time only. It never ships in a production app and never executes
 arbitrary JavaScript from components.
@@ -269,6 +270,27 @@ hand-off; dynamic `automationId` (lowering requires a string literal today) and 
 non-metadata intrinsic props; sample `automationId` emission (numeric `automationId` is emitted
 when the IR has it).
 
+**Component composition and the static `Children` slot (implemented).** A `Component` node emits a
+generated *host* node (element kind `"Component"`, one `NodeId` like any other node) plus one member
+of the referenced component's generated struct (`Card child_2_;`), and the caller's header includes
+the referenced component's header. The instance is never inlined: it owns its state, effects, refs
+and event bindings, and the caller drives its lifecycle (`child_N_.mount()` / `.update()` /
+`.unmount()`, child-first on unmount). Slot content (ir-v1.md section 3.4) is built by the *caller*
+into a local `slot_N` vector with the caller's own code, so its text interpolation, event bindings
+and protected regions stay in the caller's file; the callee receives it through a generated
+`build(parent, slot)` overload (one-argument `build(parent)` delegates with an empty vector) and
+attaches it in source order at its `Slot` node. An empty child list is a valid instantiation and
+renders nothing at the Slot. `Slot` and `Component` nodes still take their pre-order ordinal (the
+Slot consumes one, nothing is created for it), so generated node ids, dynamic text and damage
+tracking stay aligned with the collectors. Deferred loudly with `TESSERA_CODEGEN_UNSUPPORTED`: a
+conditional or looped component instance (wrap it in an element), a component instance inside a list
+template, component props and callback props (they need the component prop types), and a conditional
+list node as a *direct* child of a Component node (its insertion parent would be a callee tree
+position the caller does not know). The goldens `tests/golden/codegen/{Card,CardPage}.*` are
+generated from hand-built IR by `codegen_composition_tests --write`; the build compiles them as
+`tessera_codegen_composition_sample` and `codegen_composition_runtime_tests` asserts the attached
+tree, the slot order and the lifecycle wiring.
+
 **Dynamic child sets: conditional branches and keyed lists (implemented).** Lowering emits a
 conditional child as a *sibling* node carrying `condition`, so codegen builds every branch subtree
 once in `build()` into an ownership slot (`std::unique_ptr<tessera::ui::Node> branch_N_owned_`) and
@@ -375,11 +397,11 @@ element kind; paint emits no caret for an empty text run (empty text paints no d
 focused field has no visible caret until the paint pass grows an empty-run caret.
 
 
-Deferred: dynamic list elements and list-typed props (`Component::props` is not populated yet, so a
-list can be seeded only from a literal array initial or another list reference), virtualized lists
-(`VirtualList`/`VirtualGrid`),
-component composition and `Slot`, reusing computed styles,
-multi-file watch mode, cross-module incremental generation, and single-node incremental
+Deferred: dynamic list elements and list-typed props (`Component::props` is populated only for the
+`children` slot declaration today, so a list can be seeded only from a literal array initial or
+another list reference), virtualized lists (`VirtualList`/`VirtualGrid`), passing props/callback
+props to a generated child instance, a conditional or looped component instance, reusing computed
+styles, multi-file watch mode, cross-module incremental generation, and single-node incremental
 regeneration. Goldens live in
 `tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild: the
 build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).

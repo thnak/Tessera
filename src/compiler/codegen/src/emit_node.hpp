@@ -47,6 +47,12 @@ struct NodeEmitState {
     std::string index_expr; // `tessera_id_slot` inside an item builder, empty in the static tree
     std::string text_out;   // `tessera_out.texts` inside an item builder, empty otherwise
 
+    // Component composition (emit_composition.cpp): the module supplies the referenced component
+    // records, and `slot_variable` names the build() parameter that carries the caller's slot
+    // content (empty in a component that does not declare `children`).
+    const ir::IrModule* module = nullptr;
+    std::string slot_variable;
+
     unsigned next_id = 1;
     unsigned next_var = 1;
 };

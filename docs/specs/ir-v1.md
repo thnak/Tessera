@@ -540,6 +540,8 @@ table that resolves prop types is a later slice), and a re-parsed reader (sectio
 | IR | Generated C++ |
 |---|---|
 | Component | struct/class with state/effect/ref/animated members |
+| `Component` reference | a generated host node (element kind `Component`) plus one member of the referenced component's struct, built by the caller; the instance owns its own state and lifecycle (`mount`/`update`/`unmount` are driven by the caller) |
+| `Slot` | the callee's `build(parent, slot)` overload attaches the caller's slot nodes at the Slot position; the caller builds that content with its own state/props/handlers |
 | Node | `std::make_unique<Node>(id)` + setters/add_child |
 | Text | text node + style + text layout binding |
 | Event binding | `on_event` dispatch to protected region |

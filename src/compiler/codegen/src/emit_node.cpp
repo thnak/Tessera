@@ -32,34 +32,6 @@ bool fail(std::string& error, std::string message) {
     return false;
 }
 
-// `static_cast<tessera::ui::NodeId>(N)` for the static tree; inside a list-item builder the
-// template's pre-order id is offset by the item index so every generated node instance has a unique
-// NodeId (damage tracking keys previous bounds on it).
-std::string node_id_text(const ir::Node& node, NodeEmitState& state, std::string& error) {
-    std::string number;
-    std::string suffix = "u";
-    if (node.ui_id.empty()) {
-        // Slice 10 computes uiId; until then the pre-order index is the deterministic placeholder.
-        number = std::to_string(state.next_id++);
-    } else {
-        for (const char c : node.ui_id) {
-            if (std::isdigit(static_cast<unsigned char>(c)) == 0) {
-                error = "TESSERA_CODEGEN_UNSUPPORTED: node `" + node.id +
-                        "` has a non-numeric uiId `" + node.ui_id + "`";
-                return {};
-            }
-        }
-        ++state.next_id;
-        number = node.ui_id;
-        suffix = "ull";
-    }
-    if (state.index_expr.empty()) {
-        return "static_cast<tessera::ui::NodeId>(" + number + suffix + ")";
-    }
-    return "static_cast<tessera::ui::NodeId>(" + number + suffix + " + " + state.index_expr +
-           " * kItemIdStride)";
-}
-
 // Metadata and event targets that still have no runtime API are recorded in a deterministic
 // comment (docs/design/compiler.md section 11).
 std::string node_comment(const ir::Node& node) {
@@ -114,16 +86,55 @@ const ListTextSite* find_text_site(const std::vector<ListTextSite>* sites, unsig
 
 } // namespace
 
+// `static_cast<tessera::ui::NodeId>(N)` for the static tree; inside a list-item builder the
+// template's pre-order id is offset by the item index so every generated node instance has a unique
+// NodeId (damage tracking keys previous bounds on it).
+std::string node_id_text(const ir::Node& node, NodeEmitState& state, std::string& error) {
+    std::string number;
+    std::string suffix = "u";
+    if (node.ui_id.empty()) {
+        // Slice 10 computes uiId; until then the pre-order index is the deterministic placeholder.
+        number = std::to_string(state.next_id++);
+    } else {
+        for (const char c : node.ui_id) {
+            if (std::isdigit(static_cast<unsigned char>(c)) == 0) {
+                error = "TESSERA_CODEGEN_UNSUPPORTED: node `" + node.id +
+                        "` has a non-numeric uiId `" + node.ui_id + "`";
+                return {};
+            }
+        }
+        ++state.next_id;
+        number = node.ui_id;
+        suffix = "ull";
+    }
+    if (state.index_expr.empty()) {
+        return "static_cast<tessera::ui::NodeId>(" + number + suffix + ")";
+    }
+    return "static_cast<tessera::ui::NodeId>(" + number + suffix + " + " + state.index_expr +
+           " * kItemIdStride)";
+}
+
 bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, std::string& variable,
                std::string& error) {
     switch (node.kind) {
     case ir::NodeKind::CustomElement:
-    case ir::NodeKind::Component:
     case ir::NodeKind::VirtualList:
     case ir::NodeKind::VirtualGrid:
         return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
-                               "` nodes are deferred (component composition, custom elements and "
-                               "virtualized lists are later codegen slices)");
+                               "` nodes are deferred (custom elements and virtualized lists are "
+                               "later codegen slices)");
+    case ir::NodeKind::Component:
+        // A component instance owns its own state and is never inlined; its host node and the
+        // caller's slot content are emitted by the composition path.
+        if (state.locals != nullptr) {
+            return fail(error, "a component instance (`" + node.id +
+                                   "`) inside a list template is deferred; wrap the list in an "
+                                   "element");
+        }
+        return emit_component_node(writer, node, state, variable, error);
+    case ir::NodeKind::Slot:
+        return fail(error, "a Slot (`" + node.id +
+                               "`) is a child position, not a node the build() tree creates");
     default:
         break;
     }
@@ -367,6 +378,26 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         const DynamicChildKind kind = state.plan != nullptr
                                           ? state.plan->child_kind(node_ordinal, child_ordinal)
                                           : DynamicChildKind::Static;
+        if (child.kind == ir::NodeKind::Slot) {
+            // Section 3.4: the callee's slot position. The caller's nodes were already created and
+            // handed over through the build() parameter, so attaching them is all that happens
+            // here.
+            if (state.slot_variable.empty()) {
+                return fail(error, "a Slot (`" + child.id +
+                                       "`) needs the component's `children` prop declaration");
+            }
+            if (kind != DynamicChildKind::Static) {
+                return fail(error,
+                            "a Slot (`" + child.id + "`) cannot be a conditional or list child");
+            }
+            writer.line("// " + child.id + " (the caller's slot content attaches here)");
+            writer.open("for (auto& slot_node : " + state.slot_variable + ")");
+            writer.line(variable + "->add_child(std::move(slot_node));");
+            writer.close("");
+            ++state.next_id;
+            ++state.next_var;
+            continue;
+        }
         if (kind == DynamicChildKind::List) {
             const ListTemplate* list = state.plan->list(child_ordinal);
             writer.line("// " + child.id +

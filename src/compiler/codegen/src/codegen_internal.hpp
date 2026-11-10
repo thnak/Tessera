@@ -80,6 +80,50 @@ struct DynamicText {
     const ir::Expr* text = nullptr;
 };
 
+// One generated component instance: a `Component` node of the emitted component (pre-order ordinal
+// matches the generated node_N variables) and the referenced component.
+struct ComponentInstance {
+    unsigned ordinal = 0;
+    std::string component_id; // IR id, `comp::<Name>`
+    std::string type_name;    // generated C++ struct name (the component name)
+    bool takes_children = false;
+};
+
+struct NodeEmitState; // emit_node.hpp
+
+// The generated `node_N` id expression for a node (the IR `uiId` when numeric, otherwise the
+// pre-order placeholder; inside a list item the template id is offset by the item index).
+[[nodiscard]] std::string node_id_text(const ir::Node& node, NodeEmitState& state,
+                                       std::string& error);
+
+// True when the component declares the static `children` slot (ir-v1.md section 3.4).
+[[nodiscard]] bool component_takes_children(const ir::Component& component);
+
+// The generated struct member that owns a referenced component instance.
+[[nodiscard]] std::string instance_member(unsigned ordinal);
+
+// Collects the `Component` nodes of one component's tree in pre-order; sets `error` for the
+// deferred forms (a conditional or looped instance, component props, an instance inside a list
+// template) and returns false.
+[[nodiscard]] bool collect_component_instances(const ir::IrModule& module,
+                                               const ir::Component& component,
+                                               std::vector<ComponentInstance>& instances,
+                                               std::string& error);
+
+// The generated component headers a component's source/header must include, sorted by name.
+[[nodiscard]] std::vector<std::string> component_includes(const ir::IrModule& module,
+                                                          const ir::Component& component);
+
+// Emits one `Component` node: its host node, the caller's slot content, and the instance's
+// build() call (emit_composition.cpp).
+[[nodiscard]] bool emit_component_node(CppWriter& writer, const ir::Node& node,
+                                       NodeEmitState& state, std::string& variable,
+                                       std::string& error);
+
+// Rejects a reference cycle in the component graph before any file is emitted (a cycle would make
+// the generated structs infinitely recursive); true when a cycle was reported.
+[[nodiscard]] bool reject_component_cycle(const ir::IrModule& module, std::string& error);
+
 // An interpolated element metadata value (`id`, `className`, `role`, `aria-*`, `automationId`).
 // The generated component owns the current string (node metadata stays a borrowed view) and only
 // re-applies it when the hash changes; id/className mark Dirty::Style through the node setters.
@@ -95,24 +139,26 @@ struct DynamicMetadata {
     const ir::Expr* value = nullptr;
 };
 
-// Emits the component header/source (emit_header.cpp / emit_component.cpp).
-[[nodiscard]] bool emit_component_header(const ir::Component& component,
-                                         std::string_view module_namespace,
+// Emits the component header/source (emit_header.cpp / emit_component.cpp). `module` supplies the
+// referenced components for composition and the `children` slot.
+[[nodiscard]] bool emit_component_header(const ir::Component& component, const ir::IrModule& module,
                                          const std::vector<const ir::Binding*>& bindings,
                                          const std::vector<DynamicText>& dynamic_text,
                                          const std::vector<DynamicMetadata>& dynamic_metadata,
                                          const std::vector<ControlledInput>& controlled_inputs,
-                                         const DynamicPlan& plan, GeneratedFile& file,
-                                         std::string& error);
+                                         const DynamicPlan& plan,
+                                         const std::vector<ComponentInstance>& instances,
+                                         GeneratedFile& file, std::string& error);
 
-// Emits the effect deps-hash helpers and mount/update_effects/unmount (emit_lifecycle.cpp).
+// Emits the effect deps-hash helpers, mount/update_effects/unmount and the child-instance
+// lifecycle propagation (emit_lifecycle.cpp).
 [[nodiscard]] bool emit_lifecycle(const ir::Component& component,
                                   const std::vector<const ir::Binding*>& bindings,
+                                  const std::vector<ComponentInstance>& instances,
                                   CppWriter& writer, std::string& error);
 
 // Appends `<Component>.hpp` and `<Component>.cpp` to `files`, or sets `error` and returns false.
-[[nodiscard]] bool emit_component(const ir::Component& component, std::string_view module_namespace,
-                                  const std::vector<ir::Binding>& bindings,
+[[nodiscard]] bool emit_component(const ir::Component& component, const ir::IrModule& module,
                                   std::vector<GeneratedFile>& files, std::string& error);
 
 } // namespace tessera::compiler::codegen::internal
