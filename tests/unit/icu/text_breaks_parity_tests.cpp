@@ -33,6 +33,7 @@ using tessera::ui::text::TextConstraints;
 using tessera::ui::text::TextLayout;
 using tessera::ui::text::TextLine;
 using tessera::ui::text::TextStyle;
+using tessera::ui::text::WhiteSpace;
 using tessera::ui::text::word_boundaries;
 using tessera::ui::text::edit_detail::word_left;
 using tessera::ui::text::edit_detail::word_right;
@@ -262,12 +263,29 @@ TextStyle wrap_style() {
     return style;
 }
 
-TextLayout wrap(std::string_view text, float max_width, BreakBackend backend) {
+TextLayout wrap(std::string_view text, float max_width, BreakBackend backend,
+                WhiteSpace mode = WhiteSpace::Normal) {
+    TextStyle style = wrap_style();
+    style.white_space = mode;
     TextConstraints constraints;
     constraints.wrap = true;
     constraints.max_width = max_width;
-    return layout_text_with_breaks(text, wrap_style(), FontMetrics{12.8f, 3.2f, 3.2f}, constraints,
+    return layout_text_with_breaks(text, style, FontMetrics{12.8f, 3.2f, 3.2f}, constraints,
                                    backend);
+}
+
+const char* mode_name(WhiteSpace mode) {
+    switch (mode) {
+    case WhiteSpace::Normal:
+        return "normal";
+    case WhiteSpace::NoWrap:
+        return "nowrap";
+    case WhiteSpace::PreWrap:
+        return "pre-wrap";
+    case WhiteSpace::BreakSpaces:
+        return "break-spaces";
+    }
+    return "unknown";
 }
 
 std::string show_lines(const TextLayout& layout) {
@@ -338,6 +356,70 @@ void check_wrap_path_parity() {
                      wrap(em_dash, 56.0f, BreakBackend::Icu), "repeat");
 }
 
+// Per-mode parity (task-110): a `white-space` mode changes what a collapsible whitespace run means
+// and whether a line may break, never which engine is right. Both engines must produce identical
+// line boxes per mode on the shared corpus, so the builtin engine stays the ICU-free baseline for
+// every mode and the mode cannot be a hole in the parity matrix.
+void check_mode_parity() {
+    constexpr std::string_view corpus[] = {
+        "hello world",
+        "foo   bar",
+        "alpha  beta   ",
+        "  leading spaces",
+        "a\t\tb",
+        "line\nbreak",
+        "one two three four five six seven eight",
+        "\xE4\xBD\xA0\xE5\xA5\xBD   \xE4\xB8\x96\xE7\x95\x8C",
+        "a\n\nb",
+        "   ",
+    };
+    constexpr WhiteSpace modes[] = {WhiteSpace::Normal, WhiteSpace::NoWrap, WhiteSpace::PreWrap,
+                                    WhiteSpace::BreakSpaces};
+    for (const WhiteSpace mode : modes) {
+        for (const std::string_view text : corpus) {
+            for (const float max_width : {16.0f, 40.0f, 80.0f}) {
+                expect_same_wrap(text, max_width,
+                                 wrap(text, max_width, BreakBackend::Builtin, mode),
+                                 wrap(text, max_width, BreakBackend::Icu, mode), mode_name(mode));
+            }
+        }
+    }
+
+    // The public entry point is the ICU engine in this build, for every mode.
+    const FontMetrics metrics = StubFontMetricsProvider{}.metrics(wrap_style());
+    for (const WhiteSpace mode : modes) {
+        TextStyle style = wrap_style();
+        style.white_space = mode;
+        for (const std::string_view text : corpus) {
+            TextConstraints constraints;
+            constraints.max_width = 80.0f;
+            expect_same_wrap(text, 80.0f, layout_text(text, style, metrics, constraints),
+                             wrap(text, 80.0f, BreakBackend::Icu, mode), mode_name(mode));
+        }
+    }
+
+    // Documented mode difference: UAX #14 class BA still gives ICU an opportunity after an em dash
+    // that the builtin rules lack, so every narrowing mode splits the run the same way the parity
+    // baseline does. NoWrap never consults the boundary sets and stays one literal line.
+    constexpr std::string_view em_dash = "aaaa\xE2\x80\x94"
+                                         "bbbb";
+    for (const WhiteSpace mode :
+         {WhiteSpace::Normal, WhiteSpace::PreWrap, WhiteSpace::BreakSpaces}) {
+        const TextLayout builtin = wrap(em_dash, 56.0f, BreakBackend::Builtin, mode);
+        const TextLayout icu = wrap(em_dash, 56.0f, BreakBackend::Icu, mode);
+        expect(builtin.lines.size() == 2 && builtin.lines[0].begin == 0 &&
+                   builtin.lines[0].end == 9 && std::abs(builtin.lines[0].width - 56.0f) <= 0.001f,
+               std::string(mode_name(mode)) +
+                   " builtin splits the em dash run at the byte budget: " + show_lines(builtin));
+        expect(icu.lines.size() == 2 && icu.lines[0].begin == 0 && icu.lines[0].end == 7 &&
+                   std::abs(icu.lines[0].width - 40.0f) <= 0.001f,
+               std::string(mode_name(mode)) + " icu breaks after the em dash: " + show_lines(icu));
+    }
+    expect_same_wrap(em_dash, 56.0f,
+                     wrap(em_dash, 56.0f, BreakBackend::Builtin, WhiteSpace::NoWrap),
+                     wrap(em_dash, 56.0f, BreakBackend::Icu, WhiteSpace::NoWrap), "nowrap em dash");
+}
+
 void check_determinism() {
     const std::string_view text = "The quick brown fox \xE4\xBD\xA0\xE5\xA5\xBD 12.5% don't";
     const BreakBoundaries first = word_boundaries(text);
@@ -358,6 +440,7 @@ int main() {
     check_line_opportunities();
     check_navigation_contract();
     check_wrap_path_parity();
+    check_mode_parity();
     check_determinism();
 
     if (failures != 0) {
