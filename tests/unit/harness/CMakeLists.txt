@@ -44,3 +44,9 @@ add_executable(harness_command_result_tests
 target_link_libraries(harness_command_result_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_command_result COMMAND harness_command_result_tests)
+add_executable(harness_golden_tests
+    golden_bytes_tests.cpp)
+
+target_link_libraries(harness_golden_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_golden COMMAND harness_golden_tests)
