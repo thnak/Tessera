@@ -38,3 +38,31 @@ add_executable(a11y_dbus_auth_tests
 target_link_libraries(a11y_dbus_auth_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_dbus_auth COMMAND a11y_dbus_auth_tests)
+
+add_executable(a11y_atspi_mapping_tests
+    a11y_atspi_mapping_tests.cpp)
+
+target_link_libraries(a11y_atspi_mapping_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_atspi_mapping COMMAND a11y_atspi_mapping_tests)
+
+add_executable(a11y_atspi_events_tests
+    a11y_atspi_events_tests.cpp)
+
+target_link_libraries(a11y_atspi_events_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_atspi_events COMMAND a11y_atspi_events_tests)
+
+add_executable(a11y_atspi_bridge_tests
+    a11y_atspi_bridge_tests.cpp)
+
+target_link_libraries(a11y_atspi_bridge_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_atspi_bridge COMMAND a11y_atspi_bridge_tests)
+
+add_executable(a11y_atspi_bridge_events_tests
+    a11y_atspi_bridge_events_tests.cpp)
+
+target_link_libraries(a11y_atspi_bridge_events_tests PRIVATE tessera_accessibility)
+
+add_test(NAME a11y_atspi_bridge_events COMMAND a11y_atspi_bridge_events_tests)

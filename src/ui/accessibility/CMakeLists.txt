@@ -13,7 +13,11 @@ add_library(tessera_accessibility STATIC
     dbus_wire.cpp
     dbus_reader.cpp
     dbus_message.cpp
-    dbus_auth.cpp)
+    dbus_auth.cpp
+    atspi_mapping.cpp
+    atspi_events.cpp
+    atspi_bridge.cpp
+    atspi_methods.cpp)
 
 target_include_directories(tessera_accessibility PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
