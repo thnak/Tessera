@@ -160,6 +160,30 @@ int main() {
         return 13;
     }
 
+    // Recognised properties with value forms V1 does not implement are reported, and kept.
+    result = registry.expand(Declaration{"box-shadow", "inset 0 0 4px #000", false, 5});
+    if (!expect(result.declarations.size() == 1, "inset declaration is kept") ||
+        !expect(result.diagnostics.size() == 1 &&
+                    result.diagnostics[0].kind == StyleDiagnosticKind::UnsupportedValue &&
+                    result.diagnostics[0].offset == 5,
+                "inset is reported as an unsupported value")) {
+        return 30;
+    }
+    result = registry.expand(Declaration{"box-shadow", "0 2px 4px rgba(0,0,0,.2)", false, 0});
+    if (!expect(result.diagnostics.empty(), "an outer shadow is clean")) {
+        return 31;
+    }
+    result = registry.expand(Declaration{"transform", "translate3d(1px, 2px, 3px)", false, 0});
+    if (!expect(result.diagnostics.size() == 1 &&
+                    result.diagnostics[0].kind == StyleDiagnosticKind::UnsupportedValue,
+                "3D transform is reported")) {
+        return 32;
+    }
+    result = registry.expand(Declaration{"transform", "rotate(10deg) scale(2)", false, 0});
+    if (!expect(result.diagnostics.empty(), "2D transform is clean")) {
+        return 33;
+    }
+
     result = registry.expand(Declaration{"--Token", "value", false, 0});
     if (!expect(result.declarations.size() == 1, "custom declaration") ||
         !expect(result.declarations[0].property == "--Token", "custom case preserved")) {

@@ -322,7 +322,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color` | gradients, images, filters, general `clip-path` |
 | View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |
 | Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `white-space`, `text-overflow` | full OpenType features, justification |
-| Transforms | `translate`, `scale`, `rotate`, `skew`, 2D affine | 3D, perspective |
+| Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
 | Interaction | `cursor`, `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible` | `:has()`, `:focus-within` |
@@ -331,14 +331,18 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | LTR; RTL via `direction` for text | full bidi layout integration |
 
-**Engine status for the Paint/Transforms rows (what the code does today):**
+**V1 decisions for the Paint/Transforms rows (decided 2026-11-10; the code matches):**
 
 - `z-index` orders painting (ascending) and hit testing (descending); ties keep child order;
-  `auto`/invalid is 0. Stacking is per parent (siblings only), not a global stacking context.
+  `auto`/invalid is 0. Stacking is per parent (siblings only); V1 has no stacking contexts, because
+  isolating opacity/transform needs offscreen layers the batched renderer does not have. Revisit
+  when layer isolation lands.
 - `transform` and `transform-origin` (default `50% 50%`) resolve to a node matrix
   (`translate`, `scale`, `rotate`, `skew`, `matrix` and the axis variants, left to right as in
-  CSS); an invalid value means no transform. Hit testing and node boxes follow the matrix. The
-  individual `translate`/`rotate`/`scale` properties are not implemented yet.
+  CSS); an invalid value means no transform. Hit testing and node boxes follow the matrix. Only the
+  `transform` functions exist in V1: the compiler and React-style sources never emit the individual
+  `translate`/`rotate`/`scale` properties, and adding them changes only the cascade, not what can
+  be drawn. 3D functions (`*3d`, `perspective`) are unsupported and reported.
 - A sink that reports `PaintSink::supports_transform()` (the Batched2D GPU sink) paints transformed
   subtrees under the real matrix; overflow clips inside them map through scale/translate/quarter-turn
   frames and are dropped under other rotations or skews. The damage-clipping wrapper forwards the
@@ -346,7 +350,12 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
   axis-aligned bounding box instead.
 - `box-shadow` takes up to 4 comma-separated shadows (offset, blur, spread, color). Blur is a
   3-8 layer Gaussian-matched stack drawn beneath the node; `inset` parses but is not painted, and
-  the shadow is not cut out beneath a translucent background.
+  the shadow is not cut out beneath a translucent background (that needs an inverse clip the
+  `PaintSink` does not have). Revisit `inset` and the cut-out when the component library needs
+  them or an inverse clip exists.
+- Value forms V1 ignores on a recognised property (`box-shadow: inset`, 3D `transform`) produce a
+  `StyleDiagnosticKind::UnsupportedValue` diagnostic per declaration and stay in the AST, like
+  other unsupported declarations (below).
 - `FramePipeline::sync_style` (between layout and `finish_frame`) copies these values onto the
   scene; nothing in a production loop calls it yet.
 

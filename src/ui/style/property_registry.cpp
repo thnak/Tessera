@@ -157,6 +157,44 @@ StyleDiagnostic invalid_shorthand(const Declaration& declaration, std::string_vi
                            std::string(property), std::move(message)};
 }
 
+// True when `word` appears in `text` as a whole keyword (not inside `inset-x` or a longer name).
+bool has_keyword(std::string_view text, std::string_view word) {
+    std::size_t at = text.find(word);
+    while (at != std::string_view::npos) {
+        const bool left_ok = at == 0 || !(std::isalnum(static_cast<unsigned char>(text[at - 1])) ||
+                                          text[at - 1] == '-');
+        const std::size_t end = at + word.size();
+        const bool right_ok =
+            end >= text.size() ||
+            !(std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '-');
+        if (left_ok && right_ok) {
+            return true;
+        }
+        at = text.find(word, at + 1);
+    }
+    return false;
+}
+
+// Recognised properties may carry value forms V1 does not implement; each is reported once per
+// declaration (stylesheet-v1 section 11: unsupported declarations are never silent).
+void report_unsupported_values(const Declaration& declaration, std::string_view property,
+                               std::vector<StyleDiagnostic>& out) {
+    std::string value(declaration.value);
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (property == "box-shadow" && has_keyword(value, "inset")) {
+        out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
+                                      std::string(property),
+                                      "inset shadows are not supported in V1 and are not painted"});
+    } else if (property == "transform" &&
+               (value.find("3d(") != std::string::npos || has_keyword(value, "perspective") ||
+                value.find("perspective(") != std::string::npos)) {
+        out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
+                                      std::string(property),
+                                      "3D transform functions are not supported in V1"});
+    }
+}
+
 Declaration make_declaration(const Declaration& source, std::string property, std::string value) {
     return Declaration{std::move(property), std::move(value), source.important, source.offset};
 }
@@ -224,6 +262,7 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
     if (find(property) != nullptr) {
         Declaration normalized = declaration;
         normalized.property = property;
+        report_unsupported_values(normalized, property, result.diagnostics);
         result.declarations.push_back(std::move(normalized));
         return result;
     }
