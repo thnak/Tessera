@@ -4,10 +4,10 @@ Status: Big Step C is under way. The JSX/TSX front end (`src/compiler/analyzer`,
 [`jsx-frontend.md`](jsx-frontend.md)), AST -> IR lowering (`src/compiler/lowering`), the IR
 (`src/compiler/ir`), the C++ code generator and `tessera_codegen` CLI with incremental regeneration
 (`src/compiler/codegen`) and the protected-region merger (`src/compiler/merger`) are implemented:
-state/effects/refs, text and metadata interpolation, inline styles, conditionals, keyed lists and
-controlled text inputs generate. Component composition and the static `children` slot generate too.
-Still open: virtualized lists, list-typed props, and passing props to a generated child instance
-(see Deferred below).
+state/effects/refs, text and metadata interpolation, inline styles, conditionals, keyed lists,
+controlled text inputs and virtualized collections generate. Component composition and the static
+`children` slot generate too.
+Still open: list-typed props and passing props to a generated child instance (see Deferred below).
 
 The compiler is build-time only. It never ships in a production app and never executes
 arbitrary JavaScript from components.
@@ -194,8 +194,9 @@ is emitted as a braced C++ list (`std::vector<std::string> items_ = {"a", "b"};`
 expression position it is rejected loudly. Rejected loudly with `TESSERA_CODEGEN_UNSUPPORTED`:
 record-field references (`prop::row.x`,
 `event.value`), `%` (int vs float remainder needs slice 4), text templates with substitutions,
-`length`/`formatNumber`, `env::` references, record-typed fields,
-`Component`/`CustomElement`/`VirtualList`/`VirtualGrid` nodes, and `environment` hooks.
+`length`/`formatNumber`, `env::` references, record-typed fields, `CustomElement` nodes, and
+`environment` hooks. `Component`, `VirtualList`/`VirtualGrid` and `Slot` nodes are emitted by their
+own paths (see the composition and virtual-collection paragraphs).
 
 Scene APIs in use, in the documented per-node emission order: `set_element_kind`,
 `set_element_id`, `set_class_name`, `set_automation_id`, `set_role`, `set_aria` (`aria-*` in name
@@ -328,6 +329,43 @@ tracking and automation. The loop source must be a `state::`/`prop::` reference 
 template, and list sources without a `list<T>` type. A source longer than the cap materializes the
 deterministic prefix (documented truncation, no hidden growth).
 
+**Virtualized collections (implemented).** A `VirtualList`/`VirtualGrid` node is a fixed container
+node (element kind `VirtualList`/`VirtualGrid`) plus one *static item template* (ir-v1.md section
+3.5) that is **not** a child and is never built by `build()`. Lowering turns the collection's single
+`.map` child into `itemTemplate` (the callback element with its `loop` and `key`); when the element
+names neither `itemSize` nor `estimateSize`, lowering records the 32 px `estimateSize` estimate of
+virtualization-v1.md section 4. Codegen emits:
+
+- generated `static constexpr` geometry constants on the component struct
+  (`virtual_<collection>_item_size_`/`estimate_size_`/`overscan_`/`gap_`, plus
+  `row_height_`/`columns_`/`column_width_` for a grid). They are literal-only in this slice; a
+  dynamic geometry value is `TESSERA_CODEGEN_UNSUPPORTED` because no runtime setter exists yet.
+  `overscan` defaults to 200 and `gap` to 0; the effective estimate is the written `estimateSize`,
+  else the grid `rowHeight` / list `itemSize`, else 32 px;
+- a bounded realized-window table (`kMaxGeneratedVirtualItems = 32`) with the keyed-list item struct
+  (`Item_<template>`: root node pointer, id slot, interpolated text pointers) and the same
+  `build_item_<template>` / `apply_item_<template>` pair as an eager list;
+- `apply_virtual_<collection>(first, last)`: the host passes the half-open realized range it
+  computed with `tessera::ui::virtualization::ItemGeometry` (the runtime owns prefix sums, estimates,
+  refinement and scroll anchoring — codegen does not reimplement geometry). The method clamps the
+  range to the data source and to `kMaxGeneratedVirtualItems`, hashes the window's keys first
+  (unchanged window ⇒ no allocation, no node access), detaches the current window, reconciles it by
+  key (a surviving key reuses its subtree and content hash), builds new items with their **absolute
+  item index** as the NodeId slot (`template id + index * kItemIdStride`, stable across scrolls and
+  unique among live items), then runs the hash-compared per-item content pass.
+
+`estimateSize`/`overscan`/`gap`/`rowHeight`/`columns`/`columnWidth` are the collection's own props
+and are not scene-node metadata; the host feeds the generated constants into its geometry config and
+drives `apply_virtual_<n>` from its scroll handling. The goldens
+`tests/golden/codegen/VirtualDemo.*` are generated from hand-built IR by
+`codegen_virtual_tests --write`; the build compiles them as `tessera_codegen_virtual_sample` and
+`codegen_virtual_runtime` scripts a scroll through the real `ItemGeometry` to assert the realized
+range, NodeId slots, keyed reuse, dirty domains and the bounded window. Deferred loudly: dynamic
+virtual geometry, an event prop other than the mapped scene events (`onEndReached` has no
+`EventType` yet), a virtual collection inside an eager list template, and interpolation/metadata
+forms already deferred inside any template (components, `TextInput`/`TextArea`, refs, dynamic
+metadata/style, nested loops).
+
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
 plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
 IR validation → codegen, first-error-only with `file:line:column`, exit 0/1/2. Every generated file
@@ -399,10 +437,10 @@ focused field has no visible caret until the paint pass grows an empty-run caret
 
 Deferred: dynamic list elements and list-typed props (`Component::props` is populated only for the
 `children` slot declaration today, so a list can be seeded only from a literal array initial or
-another list reference), virtualized lists (`VirtualList`/`VirtualGrid`), passing props/callback
-props to a generated child instance, a conditional or looped component instance, reusing computed
-styles, multi-file watch mode, cross-module incremental generation, and single-node incremental
-regeneration. Goldens live in
+another list reference), dynamic virtual geometry and unmapped per-item virtual events, passing
+props/callback props to a generated child instance, a conditional or looped component instance,
+reusing computed styles, multi-file watch mode, cross-module incremental generation, and single-node
+incremental regeneration. Goldens live in
 `tests/golden/codegen/`; update them deliberately with `codegen_tests --write` (then rebuild: the
 build compiles the generated sample as `tessera_codegen_sample`, so it is never hand-maintained).
 

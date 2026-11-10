@@ -232,6 +232,18 @@ if (TESSERA_BUILD_TESTS)
             PRIVATE ${_tessera_codegen_golden_dir})
         target_link_libraries(tessera_codegen_virtual_sample PRIVATE tessera_scene)
         target_compile_features(tessera_codegen_virtual_sample PUBLIC cxx_std_23)
+
+        add_executable(codegen_virtual_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_runtime_tests.cpp)
+
+        target_include_directories(codegen_virtual_runtime_tests
+            PRIVATE ${_tessera_codegen_golden_dir})
+        target_link_libraries(codegen_virtual_runtime_tests PRIVATE
+            tessera_codegen_virtual_sample
+            tessera_scene
+            tessera_virtual)
+
+        add_test(NAME codegen_virtual_runtime COMMAND codegen_virtual_runtime_tests)
     endif ()
 
     add_executable(codegen_cli_tests

@@ -376,8 +376,8 @@ zero/three callback parameters, a non-arrow or additional callback argument, a b
 non-element body, a missing key, and every array method other than `.map` (`flatMap`, `filter`,
 ...).
 
-Not in slice 8: `VirtualList`/`VirtualGrid` item templates (the `itemTemplate` IR field now exists, ir-v1
-section 3.5, but the lowering into it is not written, so those elements stay rejected); component references (slice 9); the type table (slice 4), so
+Not in slice 8: `VirtualList`/`VirtualGrid` item templates (implemented later: the single `.map`
+child lowers into `itemTemplate`, ir-v1 section 3.5); component references (slice 9); the type table (slice 4), so
 conditions/keys are not type-checked and `key` placement outside a loop is not validated; custom
 elements (slice 11); alias resolution (slice 13).
 

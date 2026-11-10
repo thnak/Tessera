@@ -273,7 +273,13 @@ Rules:
 - `key` is required; duplicate keys are errors.
 - V1 supports vertical lists, horizontal lists, and fixed/measured grids; span/masonry are not in V1 (no release specified).
 - `onEndReached` is throttled and delivered on the UI thread.
-- IR v1 gains these node kinds; codegen emits collection construction/update calls.
+- IR v1 gains these node kinds; codegen emits a fixed container node, generated geometry constants
+  (estimate/fixed size, overscan, gap; grid row height/columns), a bounded realized-window item
+  table and `apply_virtual_<n>(first, last)` (ir-v1.md section 10). The host computes `[first, last)`
+  with the `tessera_virtual` geometry and owns the scroll offset; the generated path does not
+  reimplement prefix sums. The item key is the template's `key` expression, item nodes take
+  `(template NodeId, absolute item index)` identity, and an unchanged window or unchanged item
+  content marks nothing dirty.
 
 ## 11. Determinism and tests
 
@@ -336,6 +342,14 @@ Tests:
   visible-range integration over the geometry (overscanned window, build/release churn, measure on
   realize, `reanchor_scroll` after a refinement before the anchor, main-axis placement, cap
   truncation, and an allocation-free scroll path after pool warm-up).
+- Implemented (compiler slice): the `VirtualList`/`VirtualGrid` `.map` child lowers into the IR
+  `itemTemplate` (with the collection's 32 px `estimateSize` default, ir-v1.md section 3.5), and
+  codegen emits the item-template builder plus the bounded `apply_virtual_<n>(first, last)` window
+  path (docs/design/compiler.md section 11). The host computes the window with `VirtualRange` /
+  `ItemGeometry`, so generated code never reimplements prefix sums. Goldens
+  `tests/golden/codegen/VirtualDemo.*`; tests `codegen_virtual` (shape, goldens, determinism,
+  rejections, merger idempotency) and `codegen_virtual_runtime` (a scripted scroll through the real
+  `ItemGeometry`).
 - Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
   refine suffix shift, insert/remove, capacity), `virtual_geometry_scan` (brute-force linear
   oracle for offsets and windows), `virtual_anchor` (re-anchor after measure, clamp),
@@ -350,8 +364,9 @@ Tests:
   `virtual_churn` (10k-item allocation-free churn, no node leak, deterministic step
   records/build/release order).
 - Design/spec only still: grid rows, sticky headers, focus/selection/accessibility integration,
-  async prefetch/cancellation wiring, IR/codegen emission for `VirtualList`/`VirtualGrid`, and
-  dirty/render integration (the range reports dirty through the scene-node bounds it writes).
+  async prefetch/cancellation wiring, per-item event props inside a generated virtual template,
+  dynamic virtual geometry, and dirty/render integration beyond the realized-window path (the range
+  reports dirty through the scene-node bounds it writes).
 - Depends on: IR/component model ([`ir-v1.md`](ir-v1.md),
   [`component-model-v1.md`](component-model-v1.md)), Yoga layout/measure
   ([`layout.md`](../design/layout.md)), input/focus ([`input.md`](../design/input.md)),

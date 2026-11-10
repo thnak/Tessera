@@ -190,11 +190,18 @@ represent VM/container virtualization or a virtual DOM.
   data source, a list `ref`) and the item `key` exactly like a section 5 template, but the runtime
   realizes only the visible range plus overscan; the data source is the template's `loop.source`,
   so there is no separate `data` prop.
-- The template has no `condition`; a dynamic component type is rejected. Its `loop` counts toward
-  the nesting depth limit of section 5.
-- A `VirtualList`/`VirtualGrid` has an `itemTemplate`, no `children` and no `loop` of its own; any
-  other kind with `itemTemplate` is `TESSERA_IR_MALFORMED`. Violations of these rules are
-  `TESSERA_IR_VIRTUAL`; a missing key is `TESSERA_IR_LIST_KEY`.
+- **Lowering.** The element takes exactly one child, a `.map` of the section 5 loop form; the
+  callback element becomes `itemTemplate` with its `loop` and the key expression of its `key`
+  attribute (its item identity). The `.map` receiver is `loop.source` and must be a list `ref`; the
+  item and optional index are the template's locals.
+- **Size default.** A collection with neither `itemSize` nor `estimateSize` records
+  `"estimateSize": 32`, the unmeasured 32 px estimate of
+  [`virtualization-v1.md`](virtualization-v1.md) section 4 (no per-item guess, no heuristic).
+- A `VirtualList`/`VirtualGrid` has an `itemTemplate`, no `children` and no `loop` of its own, and
+  its template is static (no `condition`, no dynamic component type) and counts toward the section
+  5 loop depth; any other kind with `itemTemplate` is `TESSERA_IR_MALFORMED`. A
+  missing/multiple/non-`.map` child is `TESSERA_IR_VIRTUAL`; a missing item key is
+  `TESSERA_IR_LIST_KEY`; a non-`ref` `.map` source is `TESSERA_IR_UNSUPPORTED` (section 5 loop).
 - The field is additive and optional, so `irVersion` stays `1` (section 12). The runtime contract
   is [`virtualization-v1.md`](virtualization-v1.md).
 
@@ -493,7 +500,8 @@ Hard errors:
 - `TextInput`/`TextArea` with children or unsupported props/event payloads
 - dynamic component types, context, suspense, custom hooks
 - missing list key or non-static loop source; a loop `item`/`index` that is empty, dotted or equal
-  (`TESSERA_IR_LOOP`)
+  (`TESSERA_IR_LOOP`); a virtual collection without an `itemTemplate`, an item template without its
+  `loop`, or a condition on it (`TESSERA_IR_VIRTUAL`)
 - a field outside its node kind (`text` on a non-`Text` node, `style` on a `Component` node), a
   template or non-bool literal `condition` (`TESSERA_IR_CONDITION`), or an `ErrorBoundary` fallback
   with `condition`/`loop`
@@ -529,6 +537,7 @@ canonical text, not a re-parsed model.
 | loop `item`/`index`/`source`/`key` | `loop` object; `index` when present | distinct local names, source ref, key required, depth 2 |
 | `Component` reference | `component`, props, events, slot `children` | target resolves, no `style`, children only when the target declares the `children` prop, no reference cycle (`TESSERA_IR_CYCLE`) |
 | `Slot` | `kind` only (a bare position marker) | at most one per component, only with the `children` prop, no payload, not the root, not in a loop template or slot content (`TESSERA_IR_SLOT`) |
+| `VirtualList`/`VirtualGrid` `itemTemplate` | the template node with its `loop` and `key` | one static template, its loop source is a list ref, its key is required, no `children`/own `loop`, no condition (`TESSERA_IR_VIRTUAL`, `TESSERA_IR_LIST_KEY`) |
 | text, style/className, events, `fallback` | `text`/`style`/`props`/`events`, fallback node | `text` only on `Text`; event ids resolve to event bindings; fallback static |
 
 Deliberately not covered: intrinsic prop/event schemas (the IR is a leaf and does not link
@@ -548,6 +557,7 @@ table that resolves prop types is a later slice), and a re-parsed reader (sectio
 | ErrorBoundary | boundary state + guarded child build/update/effect/event + fallback subtree |
 | Conditional | `if` around node creation/update |
 | Loop | keyed list update/rebuild |
+| `VirtualList`/`VirtualGrid` | a fixed container node with generated geometry constants (`itemSize`/`estimateSize`/`overscan`/`gap`, grid row height/columns), a bounded realized-window item table and `apply_virtual_<n>(first, last)`, which reconciles the window by key and repaints changed items; the host computes `[first, last)` with the runtime geometry (`tessera_virtual`) and owns the scroll offset |
 | Ref | `Node*` member + assignment after creation |
 | Animated value | `AnimationController`/`Tween` member |
 | Style token | property id/value or stylesheet class reference |
