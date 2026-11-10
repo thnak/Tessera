@@ -43,6 +43,10 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 
 Exit codes: `0` pass, `1` assertion/audit failure, `2` invalid script/config.
 
+Status: the CLI skeleton parses these commands and flags; `--help` and `--version` work. `--script`
+is recognized but exits `2` with an explicit not-implemented diagnostic until the script runner
+lands (see section 6.5).
+
 ## 4. Script schema
 
 ```json
@@ -127,7 +131,7 @@ For coding agents, the harness also exposes a line-delimited JSON protocol over 
 - The protocol is local-only and authenticated by the harness process; no network exposure.
 - A command timeout aborts the step and returns a diagnostic; the harness remains usable.
 
-### 6.1 Codec slice (implemented)
+### 6.1 Codec (implemented)
 
 `tessera_harness` (`include/tessera/harness/`, `src/harness/`) implements the transport-neutral half
 of this section. It links no project or third-party library and contains no socket, token, or auth
@@ -141,7 +145,8 @@ code (the section 9 boundary).
 - **Transport** (`line_transport.hpp`, `in_process_transport.hpp`): `LineTransport::read_line`
   returns one line, `WouldBlock` (peer still open, no complete line yet), or `Closed`, and never
   blocks. `write_line` rejects empty payloads, embedded CR/LF, over-cap lines, and invalid UTF-8.
-  The in-process pair is the deterministic implementation for tests and embedding.
+  A transport with internal buffering exposes `flush()` and may report `QueueFull`. The in-process
+  pair is the deterministic implementation for tests and embedding.
 - **Envelope** (`protocol.hpp`): `protocolVersion` 1, `id` as a decimal string (a small JSON number
   is also accepted on input), `cmd`, and flat command arguments. A request without
   `protocolVersion` is v1; any other value is `unsupportedVersion`. Responses echo `id`, then carry
@@ -160,6 +165,68 @@ code (the section 9 boundary).
 
 Still pending for the full section: the stdio adapter, the executor that applies commands to the
 real runtime, and the `tessera test` / `tessera headless` CLIs.
+
+### 6.2 Stdio transport (implemented)
+
+`stdio_transport.hpp` adapts the framer to the process's stdin/stdout, or to any injected
+`StdioStream`, and is the v1 transport.
+
+- **Reads never wait.** The OS stream probes readiness with a zero-timeout `poll` (POSIX) or a
+  zero-timeout wait/peek (Windows) and reports `wouldBlock` otherwise; it never flips a blocking
+  handle into non-blocking mode. An interactive console in line-input mode may itself wait for a
+  complete line, which is why the CLI is normally driven by a pipe; a pipe or a file never waits.
+- **Clean EOF.** A final unterminated line is delivered, then the transport reports `Closed`.
+  Framing rejections (over-long, invalid UTF-8, empty) are typed and framing resumes at the next
+  LF. A streaming rejection keeps its position: a line that arrived after the rejected one cannot
+  overtake it.
+- **Bounded writes.** A payload is validated and framed with one LF into a bounded queue (2 MiB by
+  default, clamped to at least one maximum frame). `write_line` succeeds once the line is queued;
+  a partial OS write keeps the remainder queued and `flush()` resumes it in order. A full queue
+  reports `queueFull` and writes nothing, so retrying the same line cannot duplicate bytes.
+- No socket, token, or auth code: the protocol is local-only (section 9).
+
+### 6.3 Session executor (implemented)
+
+`session.hpp` is the single-threaded request loop: read -> decode -> dispatch -> encode -> write.
+
+- One FIFO holds decoded requests and decode failures, so responses leave in request arrival
+  order. A full request queue stops reading (back-pressure) instead of dropping work or growing.
+- `pump()` is one bounded slice: at most `maxReadsPerPump` lines and `maxCommandsPerPump` items,
+  sized so a host can call it from the existing `RuntimeLoop` tick. It never waits, spawns a
+  task, or blocks.
+- The per-command timeout uses simulated time from an injected `SessionClock`. A request whose
+  deadline passed before dispatch is answered with `timeout`, and a handler that overruns the
+  budget has its result replaced with `timeout`. A synchronous handler cannot be preempted,
+  which is exactly why commands are serialized; the session stays usable after either case.
+- `shutdown()` answers queued requests in arrival order with an `internal` cancellation
+  diagnostic, writes as much as the transport accepts without waiting, then closes. Nothing to
+  join exists because the loop owns no thread.
+- A response larger than the transport's line cap is replaced with an `internal` (`lineCap`)
+  failure, so an oversized snapshot cannot desynchronize the stream.
+
+### 6.4 Command handler and artifacts (implemented)
+
+`command_handler.hpp` is the dispatch seam; `harness_handler.hpp` implements v1:
+
+- `snapshot` consumes the host's canonical automation snapshot object (`AutomationHost`) and
+  embeds it unchanged. The harness never computes or rewrites UiIds.
+- `click`, `setValue`, `focus`, and `scroll` go through the host's normal input path and are
+  echoed in the result; they do not mutate state directly.
+- `trace` and `audit` write the host document through `ArtifactSink` under the section 5 names
+  (`trace.json`, `audit.json`, default directory `out/`), capped at 4 MiB. A path taken from a
+  script must be relative, `/`-separated, and made only of `[A-Za-z0-9._-]` components; absolute,
+  drive-qualified, backslash, `..`, dot, and empty components are `invalidArgument`.
+
+### 6.5 CLI skeleton (implemented)
+
+`tessera test` and `tessera headless` parse the documented commands, modes, and flags, and
+`--help` / `--version` work. `--script` is recognized but rejected with exit code `2` and an
+explicit not-implemented diagnostic until the script runner lands, as are a missing `--script`
+for `test`, a missing `--mode` for `headless`, unknown modes or options, and empty option values.
+The executable stays out of the default build (`EXCLUDE_FROM_ALL`) until that runner exists.
+
+Still pending for the full section: the script runner behind `tessera test` / `tessera headless`,
+the fake HAL, and the UI runtime wiring behind `AutomationHost`.
 
 ## 7. Determinism
 
@@ -190,6 +257,11 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
 ## 10. Tests of the harness
 
 - Script parsing/validation and unknown actions.
+- Stdio adapter rules: WouldBlock vs. EOF, a final unterminated line, partial writes and queued
+  retry, the line cap, and typed framing rejections that keep their stream position.
+- Session behavior over a fake transport: every command answered, decode errors, timeout before
+  and during dispatch, request back-pressure, shutdown cancellation/order, and a stalled output
+  stream that resumes in order.
 - Deterministic repeated runs (same manifest/snapshot/pixels).
 - Query/action through the real input path.
 - Custom element unit/structural/golden/GPU-smoke paths; custom commands/asserts; part ids.
@@ -200,7 +272,9 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
 
 ## 11. Open questions
 
-- Protocol transport (stdin/stdout vs local socket) and auth.
+- Protocol transport and auth: resolved as stdin/stdout (or the in-process pair), local-only,
+  with no token; authentication is a property of how the process was started (sections 6 and 9).
+  A local socket remains possible but is not in v1.
 - Snapshot size/compression for large trees.
 - Parallel test isolation (multiple harness processes).
 - Headless accessibility tree exposure.
