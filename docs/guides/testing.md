@@ -130,6 +130,12 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `virtual_anchor` | section 6 re-anchor on `(item_key, offset)` after a mid-list measure |
 | `virtual_state` | keyed item state across recycle, eviction rule, no recycled-state leak |
 | `virtual_allocations` | allocation-free hot path after warm-up (global `new` counter) |
+| `virtual_data_source` | read-only data source contract: build fills a clean caller node, optional release, measure constraints |
+| `virtual_key_index` | fixed-capacity key index: O(1) find/key_at, duplicate and capacity errors invalidate the mapping |
+| `virtual_pool` | recycler: cap refusal without growth, clean-on-acquire, stale-lease rejection, detach/reclaim |
+| `virtual_range` | visible-range release/build over the overscan window with re-anchor relative to the first visible item |
+| `virtual_range_measure` | async measure refinement through `VirtualRange` with suffix shift and re-anchor |
+| `virtual_churn` | 10k items, 1500 scroll steps: zero allocations after warm-up, cap/in-use invariants, determinism |
 | `boundary_model` | nearest-catcher routing, fallback, reset, async values, cleanup seam |
 | `boundary_retry` | 250/500/1000/2000/4000 ms schedule, five-retry cap, `TESSERA_BOUNDARY_LOOP` |
 | `boundary_nested` | nested boundaries and root routing |

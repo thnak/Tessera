@@ -484,7 +484,10 @@ SHA-256, salted hash64 UiIds keyed by the tessera.json namespace with explicit-`
 duplicate and collision diagnostics, and the preorder snapshot builder plus canonical JSON
 serializer; `tessera_virtual` (`include/tessera/ui/virtual/`, `src/ui/virtual/`) provides a
 fixed-capacity Fenwick prefix sum of 32 px main-axis estimates, refine-on-measure suffix shifts,
-the section 6 re-anchor math, and a bounded keyed `ItemStateStore`; `tessera_boundary`
+the section 6 re-anchor math, and a bounded keyed `ItemStateStore`, plus the read-only
+`VirtualDataSource` with its fixed-capacity `KeyIndex`, the bounded `NodeRecycler` keyed to
+`ui.virtualListPoolCap` (clean-on-acquire, stale-lease rejection) and `VirtualRange`
+visible-range/re-anchor integration with a 10k-item allocation-free churn test; `tessera_boundary`
 (`include/tessera/ui/boundary/`) provides `BoundaryTable` routing, the single sync catch point
 `run_guarded`, and the decided retry policy (250 ms doubling to a 4 s cap, five retries,
 `TESSERA_BOUNDARY_LOOP`). `tessera_scale` (`include/tessera/ui/scale/`) holds the render-scale
