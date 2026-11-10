@@ -152,6 +152,9 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `codegen_composition_runtime` | generated component tree: slot order, empty slot, child-first unmount |
 | `codegen_virtual` | VirtualList/VirtualGrid emission: geometry constants, window table, 12 rejects, byte determinism |
 | `codegen_virtual_runtime` | scripted scroll through `ItemGeometry`: realized range, keyed reuse, Clean/Paint domains, 32-item clamp |
+| `forms_lowering` | Field resolves to an ordinary `Component` from a `"tessera"` import: prop-record matrix, Children slot, project-wins, determinism |
+| `forms_codegen` | prop/callback emission through `apply_props()`, typed unknown/mis-bound/wrong-type rejections, no-rule-constant audit, goldens |
+| `forms_codegen_runtime` | compiled two-Field form: dispatch to the caller's Button, host update repaints Field 1 only, callback bound on the validating Field |
 | `scale_quantize` | render-scale ladder quantization (nearest, ties up, clamped) over the DPI table |
 | `scale_state` | per-window render scale: recompute only on DPI/monitor change, revision on step change |
 | `scale_atlas` | one glyph atlas per ladder step, no cross-scale reuse, per-step invalidation |
