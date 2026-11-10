@@ -240,10 +240,25 @@ fixture in [`jsx_diagnostics_cases.hpp`](../../tests/unit/jsx_diagnostics_cases.
 the code once with its exact byte span, resolved line:column and bounded one-line message (or an
 explicit skip entry naming the stage that owns the code), and the byte-compared golden
 [`diagnostics-registry.txt`](../../tests/golden/jsx/diagnostics-registry.txt). The registry test
-(`jsx_diagnostics_registry`) scans the analyzer sources for emission sites and fails on an emitted
-code with no fixture, a fixture for a code nothing emits, a listed code with no fixture and no skip
-entry, or golden drift; its failure text says that adding or renaming a code requires updating the
-golden.
+(`jsx_diagnostics_registry`) scans the analyzer and rules sources for emission sites and fails on an
+emitted code with no fixture, a fixture for a code nothing emits, a listed code with no fixture and
+no skip entry, or golden drift; its failure text says that adding or renaming a code requires
+updating the golden.
+
+**Coverage.** A fixture names the entry point that owns its code: the lexer, one of the parser
+entry points (expression, JSX, type, module), or the Tier-1 rules, whose fixtures parse a small
+module and then run it through [`analyze_module`](../../src/compiler/rules/include/tessera/compiler/rules/analyze.hpp)
+so the span and the message are the rules stage's own output. A code that no stage emits yet is an
+explicit skip entry in
+[`jsx_diagnostics_cases.hpp`](../../tests/unit/jsx_diagnostics_cases.hpp) that names its owner and
+the reason; the test fails as soon as a skipped code starts being emitted, so the skip cannot hide
+a new emission site. The skips today are `TESSERA_JSX_CHILDREN_NOT_ALLOWED` (the intrinsic
+element-constraint evaluation in `src/schema/`; the code is only a `ConstraintRow` code string, no
+pass emits it), `TESSERA_JSX_SUBSET_ANIMATED_READ` and `TESSERA_REACT_SETTER_IN_RENDER` (later
+analyzer slices), `TESSERA_JSX_SUBSET_IMPORT_CYCLE` (project resolver),
+`TESSERA_JSX_TYPE_MISMATCH` (type/lowering) and `TESSERA_REACT_HOOK_NOT_ALLOWED` (the hook
+manifest). The test's summary line prints the live counts of registry codes, fixtures, skips and
+emitted codes.
 
 ### 13.2 Spans
 
