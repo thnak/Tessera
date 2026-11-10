@@ -13,9 +13,9 @@
 namespace tessera::ui::text {
 namespace {
 
-// CSS trims collapsible spaces at a line edge. Only ASCII whitespace is trimmed: UAX #14 keeps
-// no-break spaces inside a segment on purpose, and they must still advance the line.
-bool is_trim_space(char c) {
+// CSS collapsible whitespace. Only ASCII whitespace collapses or trims: UAX #14 keeps no-break and
+// ideographic spaces inside a segment on purpose, and they must still advance the line.
+bool is_collapsible_space(char c) {
     switch (c) {
     case ' ':
     case '\t':
@@ -33,7 +33,8 @@ bool is_trim_space(char c) {
 // whole. LB18 attaches a whitespace run to the segment before it, so the raw range ends in the
 // trailing spaces; `core_begin`/`core_end` exclude them at both edges because a trailing space
 // never advances a line and a leading one is trimmed at a line start. A whitespace-only segment has
-// core_begin == core_end and is skipped by the wrap unless it sits between two segments.
+// core_begin == core_end and is skipped by the wrap unless it sits between two segments. The
+// break-spaces mode builds its units differently (see break_space_units): nothing is trimmed there.
 struct Segment {
     std::size_t core_begin = 0;
     std::size_t core_end = 0;
@@ -63,8 +64,41 @@ std::size_t byte_offset(std::string_view text, std::size_t codepoints) {
     return offset;
 }
 
+// break-spaces units: the paragraph is preserved verbatim, and every preserved ASCII whitespace
+// character becomes its own line unit. CSS puts a break opportunity after every preserved space,
+// so a line may start with spaces, end with them, or consist only of them; the greedy fill keeps
+// as many spaces as fit and moves the rest to the next line. The CR of a CRLF pair is dropped
+// because CSS preprocessing folds it into the segment break and it never advances a line.
+std::vector<Segment> break_space_units(std::string_view text, std::size_t begin, std::size_t end) {
+    std::vector<Segment> units;
+    std::size_t cursor = begin;
+    while (cursor < end) {
+        if (text[cursor] == '\r') {
+            ++cursor;
+            continue;
+        }
+        // ASCII whitespace is one byte and UTF-8 continuation bytes are never ASCII, so a byte
+        // walk keeps multi-byte runs intact.
+        if (is_collapsible_space(text[cursor])) {
+            units.push_back(Segment{cursor, cursor + 1});
+            ++cursor;
+            continue;
+        }
+        std::size_t stop = cursor + 1;
+        while (stop < end && !is_collapsible_space(text[stop])) {
+            ++stop;
+        }
+        units.push_back(Segment{cursor, stop});
+        cursor = stop;
+    }
+    return units;
+}
+
 std::vector<Segment> paragraph_segments(std::string_view text, std::size_t begin, std::size_t end,
-                                        BreakBackend backend) {
+                                        BreakBackend backend, WhiteSpace mode) {
+    if (white_space_breaks_after_spaces(mode)) {
+        return break_space_units(text, begin, end);
+    }
     std::vector<Segment> segments;
     const std::size_t size = end - begin;
     const BreakBoundaries boundaries = line_boundaries(text.substr(begin, size), backend);
@@ -76,11 +110,17 @@ std::vector<Segment> paragraph_segments(std::string_view text, std::size_t begin
             continue;
         }
         Segment segment{previous, at};
-        while (segment.core_begin < segment.core_end && is_trim_space(text[segment.core_begin])) {
-            ++segment.core_begin;
-        }
-        while (segment.core_end > segment.core_begin && is_trim_space(text[segment.core_end - 1])) {
-            --segment.core_end;
+        // Normal and pre-wrap trim both edges. NoWrap never reaches this loop (the caller takes the
+        // single-line path) and break-spaces returned above, so the guard documents the contract.
+        if (white_space_trims_edges(mode)) {
+            while (segment.core_begin < segment.core_end &&
+                   is_collapsible_space(text[segment.core_begin])) {
+                ++segment.core_begin;
+            }
+            while (segment.core_end > segment.core_begin &&
+                   is_collapsible_space(text[segment.core_end - 1])) {
+                --segment.core_end;
+            }
         }
         segments.push_back(segment);
         previous = at;
@@ -113,9 +153,9 @@ TextLayout finalize_bidi(TextLayout layout, std::string_view text) {
     return layout;
 }
 
-// The greedy wrap over UAX #14 segments. One segment is the smallest line unit; a segment wider
-// than the constraint is split at the last measured code-point prefix that fits, then at the last
-// legal break inside that prefix when one exists.
+// The greedy wrap over the mode's line units (docs/design/text.md section 6). One unit is the
+// smallest line unit; a unit wider than the constraint is split at the last measured code-point
+// prefix that fits, then at the last legal break inside that prefix when one exists.
 template<typename Measure>
 TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMetrics& metrics,
                      const TextConstraints& constraints, BreakBackend backend, Measure&& measure) {
@@ -129,7 +169,10 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
         result.width = std::max(result.width, width);
     };
 
-    if (!constraints.wrap || style.nowrap || !std::isfinite(constraints.max_width)) {
+    if (!constraints.wrap || !white_space_wraps(style.white_space) ||
+        !std::isfinite(constraints.max_width)) {
+        // The pinned single-line path: one line, separators measured literally. `NoWrap` and `pre`
+        // land here, so the pre-task-110 no-wrap fixtures and goldens stay byte-identical.
         add_line(measure(text), 0, text.size());
         result.height = line_height;
         result.baseline = metrics.ascent;
@@ -137,6 +180,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
     }
 
     const float max_width = std::max(0.1f, constraints.max_width);
+    const bool collapse_gap = white_space_collapses(style.white_space);
     std::size_t begin = 0;
     while (begin <= text.size()) {
         const std::size_t newline = text.find('\n', begin);
@@ -147,7 +191,8 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
         bool has_line = false;
         std::size_t line_begin = begin;
         std::size_t line_end = begin;
-        for (const Segment& segment : paragraph_segments(text, begin, end, backend)) {
+        for (const Segment& segment :
+             paragraph_segments(text, begin, end, backend, style.white_space)) {
             if (segment.core_begin == segment.core_end) {
                 // Whitespace only: trimmed at a line start, and never the content that starts a
                 // line. Between two segments its bytes are measured as the gap below.
@@ -155,8 +200,16 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
             }
             const float width =
                 measure(text.substr(segment.core_begin, segment.core_end - segment.core_begin));
-            const float gap =
-                has_line ? measure(text.substr(line_end, segment.core_begin - line_end)) : 0.0f;
+            float gap = 0.0f;
+            if (has_line) {
+                // Interior separators. `normal` collapses a run to one space advance; `pre-wrap`
+                // advances the run literally. break-spaces has no gaps: its spaces are units.
+                if (collapse_gap) {
+                    gap = segment.core_begin > line_end ? measure(" ") : 0.0f;
+                } else {
+                    gap = measure(text.substr(line_end, segment.core_begin - line_end));
+                }
+            }
             if (has_line && current + gap + width <= max_width) {
                 current += gap + width;
                 line_end = segment.core_end;

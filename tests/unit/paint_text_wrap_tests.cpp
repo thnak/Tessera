@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
-// Wrapped/multi-line paint text (D9): PaintData wrap/max_lines/text_align options resolved against
-// the shared text-line-box layout, content-box wrap width (border box minus padding), per-line
-// emission order/offsets/baselines, deterministic max_lines truncation, computed-style fallbacks,
+// Wrapped/multi-line paint text (D9): PaintData wrap/max_lines/text_align resolved through the
+// shared text-line-box layout, content-box wrap width, per-line emission order/offsets/baselines,
+// deterministic max_lines truncation, computed-style fallbacks including the white-space modes,
 // and damage-clipped replay of every line. Includes an env-gated 200-word Debug layout benchmark.
 
 #include "tessera/runtime/runtime_loop.hpp"
@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -54,6 +55,7 @@ using tessera::ui::paint::TextDraw;
 using tessera::ui::style::ComputedStyle;
 
 constexpr float kFontSize = 16.0f;
+constexpr std::string_view kParagraph = "one two three four five six seven eight nine ten";
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -138,7 +140,7 @@ PaintData wrapped(std::string text) {
 PaintData paragraph(std::uint32_t max_lines = 0,
                     std::optional<PaintTextAlign> align = std::nullopt) {
     PaintData data;
-    data.text = "one two three four five six seven eight nine ten";
+    data.text = std::string(kParagraph);
     data.wrap = PaintWrap::Wrap;
     data.max_lines = max_lines;
     data.text_align = align;
@@ -154,6 +156,20 @@ std::string joined_lines(const RecordingSink& sink) {
         result += run.text;
     }
     return result;
+}
+
+// Paints one wrapped text node with a single computed-style entry and returns the emitted runs.
+std::vector<RecordedText>
+paint_wrapped(std::string text, float width,
+              std::initializer_list<std::pair<const char*, const char*>> style) {
+    Node node(1);
+    node.set_bounds({0.0f, 0.0f, width, 200.0f});
+    node.set_paint_data(wrapped(std::move(text)));
+    StubStyles styles;
+    styles.set(1, styled(style));
+    RecordingSink sink;
+    paint_scene(node, styles, sink);
+    return sink.texts;
 }
 
 bool test_nowrap_vs_wrap() {
@@ -189,33 +205,28 @@ bool test_nowrap_vs_wrap() {
 }
 
 bool test_padding_box_width() {
-    Node plain(1);
-    plain.set_bounds({0, 0, 120, 80});
-    plain.set_paint_data(paragraph());
-    Node padded(2);
-    padded.set_bounds({0, 0, 120, 80});
-    padded.set_paint_data(paragraph());
-
-    StubStyles styles;
-    styles.set(1, styled({{"font-size", "16px"}}));
-    styles.set(2, styled({{"font-size", "16px"},
-                          {"padding-left", "20px"},
-                          {"padding-right", "20px"},
-                          {"padding-top", "6px"},
-                          {"padding-bottom", "6px"}}));
-
-    RecordingSink plain_sink;
-    RecordingSink padded_sink;
-    paint_scene(plain, styles, plain_sink);
-    paint_scene(padded, styles, padded_sink);
+    const auto paint = [](ComputedStyle style) {
+        Node node(1);
+        node.set_bounds({0, 0, 120, 80});
+        node.set_paint_data(paragraph());
+        StubStyles styles;
+        styles.set(1, std::move(style));
+        RecordingSink sink;
+        paint_scene(node, styles, sink);
+        return sink.texts;
+    };
+    const auto plain = paint(styled({{"font-size", "16px"}}));
+    const auto padded = paint(styled({{"font-size", "16px"},
+                                      {"padding-left", "20px"},
+                                      {"padding-right", "20px"},
+                                      {"padding-top", "6px"},
+                                      {"padding-bottom", "6px"}}));
 
     // Content width 120 - 40 = 80, so the padded node wraps at least as often.
-    bool ok =
-        expect(padded_sink.texts.size() >= plain_sink.texts.size(),
-               "padding narrows the wrap width") &&
-        expect(padded_sink.texts[0].rect.x == 20.0f, "wrapped text starts at the content box") &&
-        expect(padded_sink.texts[0].rect.y == 6.0f, "wrapped text starts below top padding");
-    for (const RecordedText& run : padded_sink.texts) {
+    bool ok = expect(padded.size() >= plain.size(), "padding narrows the wrap width") &&
+              expect(padded[0].rect.x == 20.0f, "wrapped text starts at the content box") &&
+              expect(padded[0].rect.y == 6.0f, "wrapped text starts below top padding");
+    for (const RecordedText& run : padded) {
         ok = expect(run.rect.width <= 80.0f + 0.01f, "padded line fits the content width") && ok;
     }
     return ok;
@@ -237,8 +248,7 @@ bool test_multiline_order_and_offsets() {
     std::size_t cursor = 0;
     for (std::size_t index = 0; index < sink.texts.size(); ++index) {
         const RecordedText& run = sink.texts[index];
-        const std::size_t found =
-            std::string("one two three four five six seven eight nine ten").find(run.text, cursor);
+        const std::size_t found = std::string(kParagraph).find(run.text, cursor);
         ok = expect(found != std::string::npos, "line slices appear in source order") && ok;
         cursor = found == std::string::npos ? cursor : found + run.text.size();
         ok = expect(run.rect.y == static_cast<float>(index) * 20.0f,
@@ -283,62 +293,30 @@ bool test_max_lines_truncation() {
 }
 
 bool test_alignment_and_computed_fallback() {
-    Node start_node(1);
-    start_node.set_bounds({0, 0, 120, 80});
-    start_node.set_paint_data(paragraph(0, PaintTextAlign::Start));
-    Node center_node(2);
-    center_node.set_bounds({0, 0, 120, 80});
-    center_node.set_paint_data(paragraph(0, PaintTextAlign::Center));
-    Node end_node(3);
-    end_node.set_bounds({0, 0, 120, 80});
-    end_node.set_paint_data(paragraph(0, PaintTextAlign::End));
-    Node computed_center(4);
-    computed_center.set_bounds({0, 0, 120, 80});
-    computed_center.set_paint_data(paragraph());
-    Node explicit_start(5);
-    explicit_start.set_bounds({0, 0, 120, 80});
-    explicit_start.set_paint_data(paragraph(0, PaintTextAlign::Start));
+    const auto paint = [](std::optional<PaintTextAlign> align, bool computed_center) {
+        Node node(1);
+        node.set_bounds({0, 0, 120, 80});
+        node.set_paint_data(paragraph(0, align));
+        StubStyles styles;
+        styles.set(1, computed_center ? styled({{"font-size", "16px"}, {"text-align", "center"}})
+                                      : styled({{"font-size", "16px"}}));
+        RecordingSink sink;
+        paint_scene(node, styles, sink);
+        return sink.texts;
+    };
+    const auto start = paint(PaintTextAlign::Start, false);
+    const auto center = paint(PaintTextAlign::Center, false);
+    const auto end = paint(PaintTextAlign::End, false);
+    const auto computed_center = paint(std::nullopt, true);
+    const auto override_start = paint(PaintTextAlign::Start, true);
 
-    StubStyles styles;
-    styles.set(1, styled({{"font-size", "16px"}}));
-    styles.set(2, styled({{"font-size", "16px"}}));
-    styles.set(3, styled({{"font-size", "16px"}}));
-    styles.set(4, styled({{"font-size", "16px"}, {"text-align", "center"}}));
-    styles.set(5, styled({{"font-size", "16px"}, {"text-align", "center"}}));
-
-    RecordingSink start_sink;
-    RecordingSink center_sink;
-    RecordingSink end_sink;
-    RecordingSink computed_sink;
-    RecordingSink explicit_sink;
-    paint_scene(start_node, styles, start_sink);
-    paint_scene(center_node, styles, center_sink);
-    paint_scene(end_node, styles, end_sink);
-    paint_scene(computed_center, styles, computed_sink);
-    paint_scene(explicit_start, styles, explicit_sink);
-
-    bool ok = expect(start_sink.texts[0].rect.x == 0.0f, "Start aligns at the content box") &&
-              expect(center_sink.texts[0].rect.x > start_sink.texts[0].rect.x,
-                     "Center shifts the first line right") &&
-              expect(end_sink.texts[0].rect.x > center_sink.texts[0].rect.x,
-                     "End shifts the first line further right") &&
-              expect(computed_sink.texts[0].rect.x == center_sink.texts[0].rect.x,
-                     "computed text-align:center applies when PaintData has no override") &&
-              expect(explicit_sink.texts[0].rect.x == start_sink.texts[0].rect.x,
-                     "explicit PaintData Start overrides computed center");
-    return ok;
-}
-
-bool test_computed_nowrap_suppresses_wrap() {
-    Node node(1);
-    node.set_bounds({0, 0, 80, 60});
-    node.set_paint_data(paragraph());
-    StubStyles styles;
-    styles.set(1, styled({{"font-size", "16px"}, {"white-space", "nowrap"}}));
-
-    RecordingSink sink;
-    paint_scene(node, styles, sink);
-    return expect(sink.texts.size() == 1, "computed white-space:nowrap suppresses PaintData Wrap");
+    return expect(start[0].rect.x == 0.0f, "Start aligns at the content box") &&
+           expect(center[0].rect.x > start[0].rect.x, "Center shifts the first line right") &&
+           expect(end[0].rect.x > center[0].rect.x, "End shifts the first line further right") &&
+           expect(computed_center[0].rect.x == center[0].rect.x,
+                  "computed text-align:center applies when PaintData has no override") &&
+           expect(override_start[0].rect.x == start[0].rect.x,
+                  "explicit PaintData Start overrides computed center");
 }
 
 bool test_damage_clipped_multiple_lines() {
@@ -389,45 +367,64 @@ bool test_damage_clipped_multiple_lines() {
 }
 
 bool test_separator_trimming_and_break_opportunities() {
-    // The wrap places UAX #14 segments: a trailing separator is trimmed (it never advances the
-    // line and never reaches the painted slice), an interior run is measured as it is, and a
-    // break after a hyphen fills the line instead of moving the whole token.
-    Node trailing(1);
-    trailing.set_bounds({0, 0, 200, 60});
-    trailing.set_paint_data(wrapped("alpha beta   "));
-    Node interior(2);
-    interior.set_bounds({0, 0, 200, 60});
-    interior.set_paint_data(wrapped("alpha  beta"));
-    Node hyphen(3);
-    hyphen.set_bounds({0, 0, 64, 60});
-    hyphen.set_paint_data(wrapped("abc def-ghi"));
+    // A trailing separator is trimmed (it never advances the line and never reaches the painted
+    // slice); an interior run collapses under the default `normal`; a break after a hyphen fills
+    // the line instead of moving the whole token.
+    const auto trailing = paint_wrapped("alpha beta   ", 200.0f, {{"font-size", "16px"}});
+    const auto interior = paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}});
+    const auto hyphen = paint_wrapped("abc def-ghi", 64.0f, {{"font-size", "16px"}});
 
-    StubStyles styles;
-    for (const NodeId id : {NodeId{1}, NodeId{2}, NodeId{3}}) {
-        styles.set(id, styled({{"font-size", "16px"}}));
-    }
-
-    RecordingSink trailing_sink;
-    RecordingSink interior_sink;
-    RecordingSink hyphen_sink;
-    paint_scene(trailing, styles, trailing_sink);
-    paint_scene(interior, styles, interior_sink);
-    paint_scene(hyphen, styles, hyphen_sink);
-
-    return expect(trailing_sink.texts.size() == 1, "trailing spaces add no line") &&
-           expect(trailing_sink.texts[0].text == "alpha beta",
+    return expect(trailing.size() == 1, "trailing spaces add no line") &&
+           expect(trailing[0].text == "alpha beta",
                   "the painted slice drops the trailing separator") &&
-           expect(trailing_sink.texts[0].rect.width == 80.0f,
+           expect(trailing[0].rect.width == 80.0f,
                   "the line width excludes the trailing separator") &&
-           expect(interior_sink.texts.size() == 1, "a wide interior run stays on one line") &&
-           expect(interior_sink.texts[0].text == "alpha  beta",
+           expect(interior.size() == 1, "a wide interior run stays on one line") &&
+           expect(interior[0].text == "alpha  beta",
                   "interior separators stay in the painted slice") &&
-           expect(interior_sink.texts[0].rect.width == 88.0f,
-                  "interior separators advance the line") &&
-           expect(hyphen_sink.texts.size() == 2, "the hyphen is a wrap point") &&
-           expect(hyphen_sink.texts[0].text == "abc def-",
-                  "the first slice fills up to the hyphen") &&
-           expect(hyphen_sink.texts[1].text == "ghi", "the remainder is its own slice");
+           expect(interior[0].rect.width == 80.0f, "normal collapses the interior separator run") &&
+           expect(hyphen.size() == 2, "the hyphen is a wrap point") &&
+           expect(hyphen[0].text == "abc def-", "the first slice fills up to the hyphen") &&
+           expect(hyphen[1].text == "ghi", "the remainder is its own slice");
+}
+
+bool test_white_space_modes() {
+    // Computed `white-space` reaches the wrap: `normal` collapses interior runs, `pre-wrap` keeps
+    // them, `break-spaces` keeps edge runs and gives every preserved space its own line unit, and
+    // `nowrap` suppresses PaintData Wrap.
+    const auto normal = paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}});
+    const auto prewrap =
+        paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}, {"white-space", "pre-wrap"}});
+    const auto breakspaces = paint_wrapped(
+        "alpha  beta   ", 200.0f, {{"font-size", "16px"}, {"white-space", "break-spaces"}});
+    const auto spaces =
+        paint_wrapped("a   b", 16.0f, {{"font-size", "16px"}, {"white-space", "break-spaces"}});
+    const auto overflow =
+        paint_wrapped("a b", 4.0f, {{"font-size", "16px"}, {"white-space", "break-spaces"}});
+    const auto nowrap = paint_wrapped(std::string(kParagraph), 80.0f,
+                                      {{"font-size", "16px"}, {"white-space", "nowrap"}});
+
+    bool ok = expect(normal.size() == 1 && normal[0].rect.width == 80.0f,
+                     "computed normal collapses the interior run") &&
+              expect(prewrap.size() == 1 && prewrap[0].rect.width == 88.0f,
+                     "pre-wrap advances the preserved run") &&
+              expect(breakspaces.size() == 1 && breakspaces[0].rect.width == 112.0f,
+                     "break-spaces keeps the trailing run") &&
+              expect(breakspaces[0].text == "alpha  beta   ",
+                     "break-spaces paints the preserved separators") &&
+              expect(spaces.size() == 3, "break-spaces breaks after every preserved space") &&
+              expect(spaces[0].text == "a " && spaces[0].rect.width == 16.0f,
+                     "the trailing space advances the first line") &&
+              expect(spaces[1].text == "  " && spaces[1].rect.width == 16.0f,
+                     "a line may consist only of preserved spaces") &&
+              expect(spaces[2].text == "b" && spaces[2].rect.width == 8.0f,
+                     "the word starts its own line") &&
+              expect(overflow.size() == 3, "break-spaces keeps one unit per line when over-wide") &&
+              expect(nowrap.size() == 1, "computed white-space:nowrap suppresses PaintData Wrap");
+    for (const RecordedText& run : overflow) {
+        ok = expect(run.rect.width == 8.0f, "an over-wide preserved unit overflows the line") && ok;
+    }
+    return ok;
 }
 
 void benchmark_200_words() {
@@ -471,9 +468,9 @@ int main(int argc, char** argv) {
     ok = test_multiline_order_and_offsets() && ok;
     ok = test_max_lines_truncation() && ok;
     ok = test_alignment_and_computed_fallback() && ok;
-    ok = test_computed_nowrap_suppresses_wrap() && ok;
     ok = test_damage_clipped_multiple_lines() && ok;
     ok = test_separator_trimming_and_break_opportunities() && ok;
+    ok = test_white_space_modes() && ok;
 
     const bool benchmark = argc > 1 && std::string_view(argv[1]) == "--bench";
     if (benchmark) {

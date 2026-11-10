@@ -92,7 +92,7 @@ int main() {
     if (!expect(near(parsed.font_size, 20.0f), "font-size parse") ||
         !expect(near(parsed.line_height, 30.0f), "line-height parse") ||
         !expect(near(parsed.letter_spacing, 1.0f), "letter-spacing parse") ||
-        !expect(parsed.nowrap, "white-space parse")) {
+        !expect(parsed.white_space == tessera::ui::text::WhiteSpace::NoWrap, "white-space parse")) {
         return 7;
     }
 

@@ -358,9 +358,11 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         return;
     }
 
-    // `wrap` is authoritative (NoWrap is the V1 default); computed `white-space: nowrap|pre` can
-    // only suppress wrapping, never opt into it.
-    const bool wrap = data->wrap == PaintWrap::Wrap && !text_style.nowrap;
+    // `wrap` is authoritative (NoWrap is the V1 default); a computed `white-space` mode that does
+    // not wrap (nowrap/pre) can only suppress wrapping, never opt into it. pre-wrap and
+    // break-spaces wrap when PaintData asks for it.
+    const bool wrap =
+        data->wrap == PaintWrap::Wrap && text::white_space_wraps(text_style.white_space);
     StubPaintTextMetrics stub_source;
     const PaintTextMetricsSource* metrics_source =
         context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;

@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/text/text_layout.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <cmath>
+#include <cstddef>
+#include <initializer_list>
 #include <iostream>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -13,6 +17,7 @@ using tessera::ui::text::layout_text;
 using tessera::ui::text::TextConstraints;
 using tessera::ui::text::TextLayout;
 using tessera::ui::text::TextStyle;
+using tessera::ui::text::WhiteSpace;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -75,11 +80,12 @@ bool separators_are_trimmed_and_measured() {
         return false;
     }
 
-    // Nine code points at 8 px: the run counts every space, not one separator per word boundary.
+    // CSS `normal` (the default) collapses the run to one space advance: seven code points at 8 px.
     const TextLayout interior =
         layout_text("foo   bar", style(), kMetrics, TextConstraints{200.0f, true});
     if (!expect(interior.lines.size() == 1, "a wide interior run stays on one line") ||
-        !expect(near(interior.lines[0].width, 72.0f), "interior space runs advance their width") ||
+        !expect(near(interior.lines[0].width, 56.0f),
+                "interior space runs collapse under normal") ||
         !expect(interior.lines[0].begin == 0 && interior.lines[0].end == 9,
                 "interior spaces stay inside the line range")) {
         return false;
@@ -127,6 +133,168 @@ bool break_opportunities_inside_runs() {
                   "two ideographs per line fit the constraint");
 }
 
+// CSS white-space modes on the segment wrap (task-110, docs/design/text.md section 6). One line box
+// is pinned as (source begin, source end, measured width); the painted slice keeps the source bytes
+// even where `normal` collapses their measured width.
+struct ExpectedLine {
+    std::size_t begin = 0;
+    std::size_t end = 0;
+    float width = 0.0f;
+};
+
+const char* mode_name(WhiteSpace mode) {
+    switch (mode) {
+    case WhiteSpace::Normal:
+        return "normal";
+    case WhiteSpace::NoWrap:
+        return "nowrap";
+    case WhiteSpace::PreWrap:
+        return "pre-wrap";
+    case WhiteSpace::BreakSpaces:
+        return "break-spaces";
+    }
+    return "unknown";
+}
+
+TextLayout layout_mode(std::string_view text, float max_width, WhiteSpace mode) {
+    TextStyle value = style();
+    value.white_space = mode;
+    return layout_text(text, value, kMetrics, TextConstraints{max_width, true});
+}
+
+bool expect_lines(std::string_view text, float max_width, WhiteSpace mode,
+                  std::initializer_list<ExpectedLine> expected, const char* what) {
+    const TextLayout layout = layout_mode(text, max_width, mode);
+    if (layout.lines.size() != expected.size()) {
+        std::cerr << "text_layout: " << what << " line count in " << mode_name(mode) << ": got "
+                  << layout.lines.size() << " want " << expected.size() << "\n";
+        return false;
+    }
+    bool ok = true;
+    std::size_t index = 0;
+    for (const ExpectedLine& box : expected) {
+        const tessera::ui::text::TextLine& line = layout.lines[index];
+        if (line.begin != box.begin || line.end != box.end || !near(line.width, box.width)) {
+            std::cerr << "text_layout: " << what << " line " << index << " in " << mode_name(mode)
+                      << ": got (" << line.begin << "," << line.end << ")@" << line.width
+                      << " want (" << box.begin << "," << box.end << ")@" << box.width << "\n";
+            ok = false;
+        }
+        ++index;
+    }
+    return ok;
+}
+
+bool white_space_mode_matrix() {
+    // Interior runs: normal collapses a run to one space; pre-wrap, nowrap (literal single line)
+    // and break-spaces advance every preserved space.
+    bool ok =
+        expect_lines("foo   bar", 200.0f, WhiteSpace::Normal, {{0, 9, 56.0f}}, "interior run") &&
+        expect_lines("foo   bar", 200.0f, WhiteSpace::PreWrap, {{0, 9, 72.0f}}, "interior run") &&
+        expect_lines("foo   bar", 200.0f, WhiteSpace::NoWrap, {{0, 9, 72.0f}}, "interior run") &&
+        expect_lines("foo   bar", 200.0f, WhiteSpace::BreakSpaces, {{0, 9, 72.0f}}, "interior run");
+    // The collapsed run changes where the line breaks: 56 px fits "foo   bar" only under normal.
+    ok = expect_lines("foo   bar", 56.0f, WhiteSpace::Normal, {{0, 9, 56.0f}}, "collapsed fit") &&
+         expect_lines("foo   bar", 56.0f, WhiteSpace::PreWrap, {{0, 3, 24.0f}, {6, 9, 24.0f}},
+                      "preserved overflow") &&
+         ok;
+
+    // Edge runs: normal and pre-wrap never start or end a line with separators; break-spaces keeps
+    // them, so its line range covers the leading and trailing bytes.
+    ok =
+        expect_lines("hello world   ", 200.0f, WhiteSpace::Normal, {{0, 11, 88.0f}},
+                     "trailing run") &&
+        expect_lines("hello world   ", 200.0f, WhiteSpace::PreWrap, {{0, 11, 88.0f}},
+                     "trailing run") &&
+        expect_lines("hello world   ", 200.0f, WhiteSpace::BreakSpaces, {{0, 14, 112.0f}},
+                     "trailing run") &&
+        expect_lines("hello world   ", 200.0f, WhiteSpace::NoWrap, {{0, 14, 112.0f}},
+                     "trailing run") &&
+        expect_lines("   hello", 200.0f, WhiteSpace::Normal, {{3, 8, 40.0f}}, "leading run") &&
+        expect_lines("   hello", 200.0f, WhiteSpace::BreakSpaces, {{0, 8, 64.0f}}, "leading run") &&
+        expect_lines("   hello", 200.0f, WhiteSpace::NoWrap, {{0, 8, 64.0f}}, "leading run") && ok;
+
+    // Tabs are collapsible whitespace: one advance under normal, one per tab byte otherwise.
+    ok = expect_lines("a\t\tb", 200.0f, WhiteSpace::Normal, {{0, 4, 24.0f}}, "tab run") &&
+         expect_lines("a\t\tb", 200.0f, WhiteSpace::PreWrap, {{0, 4, 32.0f}}, "tab run") &&
+         expect_lines("a\t\tb", 200.0f, WhiteSpace::BreakSpaces, {{0, 4, 32.0f}}, "tab run") &&
+         expect_lines("a\t\tb", 24.0f, WhiteSpace::Normal, {{0, 4, 24.0f}}, "collapsed tab") &&
+         expect_lines("a\t\tb", 24.0f, WhiteSpace::PreWrap, {{0, 1, 8.0f}, {3, 4, 8.0f}},
+                      "preserved tab") &&
+         ok;
+
+    // Blank paragraphs keep one zero-width line box in every wrapped mode; break-spaces emits the
+    // spaces themselves, so a whitespace-only paragraph is not blank there.
+    ok = expect_lines("\n\n", 200.0f, WhiteSpace::Normal,
+                      {{0, 0, 0.0f}, {1, 1, 0.0f}, {2, 2, 0.0f}}, "blank lines") &&
+         expect_lines("\n\n", 200.0f, WhiteSpace::BreakSpaces,
+                      {{0, 0, 0.0f}, {1, 1, 0.0f}, {2, 2, 0.0f}}, "blank lines") &&
+         expect_lines("   \n", 200.0f, WhiteSpace::Normal, {{0, 3, 0.0f}, {4, 4, 0.0f}},
+                      "space paragraph") &&
+         expect_lines("   \n", 200.0f, WhiteSpace::BreakSpaces, {{0, 3, 24.0f}, {4, 4, 0.0f}},
+                      "space paragraph") &&
+         ok;
+
+    // CJK: ideographs break per character under both engines; the space run between scripts still
+    // follows the mode (one advance under normal, three under pre-wrap and break-spaces).
+    constexpr std::string_view cjk = "\xE4\xBD\xA0\xE5\xA5\xBD   \xE4\xB8\x96\xE7\x95\x8C";
+    ok = expect_lines(cjk, 200.0f, WhiteSpace::Normal, {{0, 15, 40.0f}}, "cjk space run") &&
+         expect_lines(cjk, 200.0f, WhiteSpace::PreWrap, {{0, 15, 56.0f}}, "cjk space run") &&
+         expect_lines(cjk, 200.0f, WhiteSpace::BreakSpaces, {{0, 15, 56.0f}}, "cjk space run") &&
+         ok;
+    // Narrow: the ideographs fill the line and the separator run decides `break-spaces` line units.
+    constexpr std::string_view cjk_space = "\xE4\xBD\xA0\xE5\xA5\xBD \xE4\xB8\x96\xE7\x95\x8C";
+    ok = expect_lines(cjk_space, 20.0f, WhiteSpace::Normal, {{0, 6, 16.0f}, {7, 13, 16.0f}},
+                      "cjk narrow") &&
+         expect_lines(cjk, 20.0f, WhiteSpace::BreakSpaces,
+                      {{0, 6, 16.0f}, {6, 8, 16.0f}, {8, 9, 8.0f}, {9, 15, 16.0f}}, "cjk narrow") &&
+         ok;
+
+    // Em dash: no mode adds a break opportunity, so whichever engine is active splits the over-wide
+    // run identically in every narrowing mode. `text_breaks_parity` pins the engines' different
+    // split points (builtin byte budget versus UAX #14 class BA), which keeps this file
+    // backend-agnostic.
+    constexpr std::string_view em_dash = "aaaa\xE2\x80\x94"
+                                         "bbbb";
+    const TextLayout dash_normal = layout_mode(em_dash, 56.0f, WhiteSpace::Normal);
+    ok = expect(dash_normal.lines.size() == 2, "the em dash run splits into two lines") &&
+         expect_lines(em_dash, 56.0f, WhiteSpace::NoWrap, {{0, 11, 72.0f}}, "em dash") && ok;
+    for (const WhiteSpace mode : {WhiteSpace::PreWrap, WhiteSpace::BreakSpaces}) {
+        const TextLayout other = layout_mode(em_dash, 56.0f, mode);
+        ok = expect(other.lines.size() == dash_normal.lines.size(),
+                    "the em dash split is mode-independent") &&
+             ok;
+        for (std::size_t index = 0; index < other.lines.size() && index < dash_normal.lines.size();
+             ++index) {
+            ok = expect(other.lines[index].begin == dash_normal.lines[index].begin &&
+                            other.lines[index].end == dash_normal.lines[index].end &&
+                            near(other.lines[index].width, dash_normal.lines[index].width),
+                        "the em dash split is mode-independent") &&
+                 ok;
+        }
+    }
+
+    // Determinism: every mode repeats its line boxes exactly.
+    constexpr WhiteSpace modes[] = {WhiteSpace::Normal, WhiteSpace::NoWrap, WhiteSpace::PreWrap,
+                                    WhiteSpace::BreakSpaces};
+    for (const WhiteSpace mode : modes) {
+        const TextLayout first = layout_mode("foo   bar\n\nbaz\t qux", 60.0f, mode);
+        const TextLayout second = layout_mode("foo   bar\n\nbaz\t qux", 60.0f, mode);
+        ok =
+            expect(first.lines.size() == second.lines.size(), "wrap line count is deterministic") &&
+            ok;
+        for (std::size_t index = 0; index < first.lines.size() && index < second.lines.size();
+             ++index) {
+            ok = expect(first.lines[index].begin == second.lines[index].begin &&
+                            first.lines[index].end == second.lines[index].end &&
+                            first.lines[index].width == second.lines[index].width,
+                        "wrap line boxes are deterministic in every mode") &&
+                 ok;
+        }
+    }
+    return ok;
+}
+
 int main() {
     if (!blank_lines_own_a_line_box()) {
         return 10;
@@ -136,6 +304,9 @@ int main() {
     }
     if (!break_opportunities_inside_runs()) {
         return 12;
+    }
+    if (!white_space_mode_matrix()) {
+        return 13;
     }
     const TextLayout wrapped =
         layout_text("hello world", style(), kMetrics, TextConstraints{50.0f, true});

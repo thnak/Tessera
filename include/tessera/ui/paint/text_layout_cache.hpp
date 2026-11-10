@@ -35,8 +35,9 @@ struct TextLayoutCacheStats {
 };
 
 // Caller-owned bounded LRU cache for wrapped paint text line boxes. Deterministic key: text bytes,
-// content-box wrap width, font size/weight/italic/letter-spacing/line-height, wrap mode, max_lines,
-// and the metrics-source id. Float key fields are compared with exact IEEE equality (no epsilon).
+// content-box wrap width, font size/weight/italic/letter-spacing/line-height, wrap mode, the
+// `white-space` mode (it changes collapsing and break-spaces units), max_lines, and the
+// metrics-source id. Float key fields are compared with exact IEEE equality (no epsilon).
 //
 // A returned reference is stable until the next call that inserts or evicts (or invalidate/clear):
 // a hit performs no allocation and only refreshes the LRU position. There is no global singleton;
@@ -76,6 +77,7 @@ private:
         int font_weight = 0;
         bool italic = false;
         bool wrap = false;
+        text::WhiteSpace white_space = text::WhiteSpace::Normal;
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
     };
@@ -89,6 +91,7 @@ private:
         int font_weight = 0;
         bool italic = false;
         bool wrap = false;
+        text::WhiteSpace white_space = text::WhiteSpace::Normal;
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
     };
@@ -125,6 +128,11 @@ private:
             }
             if (lhs.wrap != rhs.wrap) {
                 return lhs.wrap < rhs.wrap;
+            }
+            // Ordering only needs to be total; the mode isolates collapsing and break-spaces
+            // layouts that share every other field.
+            if (lhs.white_space != rhs.white_space) {
+                return static_cast<int>(lhs.white_space) < static_cast<int>(rhs.white_space);
             }
             if (lhs.font_weight != rhs.font_weight) {
                 return lhs.font_weight < rhs.font_weight;

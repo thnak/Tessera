@@ -121,52 +121,81 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
 
 ## 6. Line breaking and alignment
 
-Implemented greedy wrap (task-106). `ui/text/text_wrap.cpp` lays out one paragraph at a time (a
-hard newline splits paragraphs) over **UAX #14 line-break segments** from `ui/text/text_breaks.*`:
-each segment is the smallest line unit, and a segment wider than the constraint is split at the
-last measured code-point prefix that fits and then at the last legal break inside that prefix
-(`line_boundaries` again: hyphen, ZWSP, CJK). One segmentation pass per paragraph feeds the whole
-wrap, so no line ever needs a second one.
+Implemented greedy wrap (task-106; `white-space` modes task-110). `ui/text/text_wrap.cpp` lays out
+one paragraph at a time (a hard newline splits paragraphs) over **UAX #14 line-break segments** from
+`ui/text/text_breaks.*`: each segment is the smallest line unit, and a segment wider than the
+constraint is split at the last measured code-point prefix that fits and then at the last legal break
+inside that prefix (`line_boundaries` again: hyphen, ZWSP, CJK). One segmentation pass per paragraph
+feeds the whole wrap, so no line ever needs a second one.
 
 The break engine is the ICU data switch, not a separate option: the builtin reduced rules when
 `TESSERA_ICU_REDUCED_DATA=OFF` (the default and every CI job), ICU `ubrk_*` iterators when `ON`.
 `layout_text_with_breaks` (private `src/ui/text/text_wrap.hpp`) takes the engine explicitly, which
 is how the parity test drives both through the whole wrap path rather than only the boundary sets.
 
-Separator trimming (the CSS rule that falls out of UAX #14 LB18, "break after spaces"):
+### 6.1 `white-space` modes (task-110)
 
-- A whitespace run belongs to the segment before it, so a break always sits *after* the spaces.
-  The wrap trims both edges of every segment: a trailing space never advances a line and never
-  reaches the painted slice, and a leading space never starts one.
-- A paragraph that is only whitespace still owns a zero-width line box, so a caret after Enter and
-  a trailing newline land on their own line.
-- Interior whitespace is measured as it is: consecutive spaces inside a line advance their real
-  width. The previous word-based loop added exactly one space advance between words, which
-  silently collapsed runs.
-- `white-space: nowrap`/`pre`, `wrap = false`, and a non-finite width keep the single-line path.
+`TextStyle::white_space` (`WhiteSpace` in `ui/text/text_measure.hpp`) is the measured wrap contract.
+`text_style_from()` maps the computed `white-space` keyword to it, and the paint pass reads only that
+field, so a stylesheet value reaches the wrap without a second parse.
 
-Fixture deltas (task-106). Every pre-existing wrap/layout fixture is unchanged: their corpora are
-single-spaced ASCII, where "one space advance" and "one-segment gap" are the same number.
-Measured: the filtered text suite (20 tests, below) is green before and after, the CPU/GPU text
-goldens keep their output, and two consecutive runs are byte-identical. The deliberately
-re-baselined cases are new fixtures pinning the new contract (stub metrics, 16 px font = 8 px per
-code point):
+| Mode | CSS keywords | Interior run | Line edges | Wraps |
+|---|---|---|---|---|
+| `Normal` | `normal`, `pre-line`, unknown | collapses to one space advance | trimmed | yes |
+| `NoWrap` | `nowrap`, `pre` | literal | literal (whole text, one line) | no |
+| `PreWrap` | `pre-wrap` | literal | trimmed | yes |
+| `BreakSpaces` | `break-spaces` | literal; every preserved space is its own unit | preserved | yes |
 
-| Fixture | Before (word loop) | After (UAX #14 segments) |
+- **Collapsing** (`normal`) measures an interior separator run as the advance of one space
+  (`measure(" ")`), not the run: `foo   bar` is 56 px at 16 px stub metrics instead of 72. The
+  *painted slice* still spans the source bytes, because a `TextLine` is a source range: the measured
+  width is the collapsed one, and a real collapse stage is the remaining contract below.
+- **Trimming** is the task-106 LB18 rule: a whitespace run belongs to the segment before it, so a
+  break always sits *after* the spaces and the wrap trims both edges of every segment. A trailing
+  space never advances a line and never reaches the painted slice; a leading space never starts one.
+- **`break-spaces`** preserves every run and gives each ASCII collapsible whitespace character its
+  own line unit, so a break opportunity exists after every preserved space and a line may start,
+  end, or consist only of spaces. A non-space run stays one unit unless it is wider than the
+  constraint, where the over-wide split uses the last legal UAX #14 break inside the prefix. A unit
+  that alone exceeds the constraint (a space narrower than the line, for example) owns its line and
+  overflows it; that is the only way a line exceeds `max_width`.
+- **`nowrap` keeps the pre-task-110 path**: one line with separators measured literally, so it
+  preserves runs instead of collapsing them the way CSS `nowrap` does. The deviation is deliberate,
+  because that path is what every existing no-wrap paint fixture and golden pins. `pre` maps here
+  (it also preserves and does not wrap); collapsing `nowrap` needs the same text-transform stage
+  `normal` needs for painting, so both are deferred together.
+- `wrap = false`, a mode that does not wrap, and a non-finite width all take the single-line path.
+
+Fixture deltas (task-110). Every fixture whose corpus is single-spaced ASCII is unchanged: with one
+space between words "one collapsed space" and "one segment gap" are the same number, so the default
+(`Normal`) keeps the task-106 line boxes, the CPU/GPU text goldens, and two consecutive runs
+byte-identical. Only the deliberately re-baselined multi-space fixtures move (stub metrics, 16 px
+font = 8 px per code point):
+
+| Fixture | task-106 | task-110 default (`normal`) |
 |---|---|---|
-| `foo   bar` at 200 px | width 56 (one space counted) | width 72 (all three spaces advance) |
-| `abc def-ghi` at 64 px | lines `abc` / `def-ghi` | lines `abc def-` / `ghi` (fills to the hyphen) |
-| `hello world   ` at 200 px | width 88, trailing spaces outside the line | unchanged |
-| `   hello` at 200 px | width 40, line starts at byte 3 | unchanged |
+| `foo   bar` at 200 px | width 72 | width 56 |
+| `alpha  beta` paint line | width 88 | width 80 |
+| `foo   bar` at 56 px | 2 lines (`foo` / `bar`) | 1 line, width 56 |
+| `a\t\tb` at 200 px | width 32 | width 24 |
+| `a\t\tb` at 24 px | 2 lines (`a` / `b`) | 1 line, width 24 |
+| `hello world   ` at 200 px | width 88 | unchanged |
+| `   hello` at 200 px | width 40 | unchanged |
+| em dash `aaaa—bbbb` at 56 px, builtin | `[0,9)` / `[9,11)` | unchanged |
+| em dash same, ICU | `[0,7)` / `[7,11)` | unchanged |
 
-The ICU engine also breaks where the builtin reduced rules have no opportunity (UAX #14 classes
-BA/BB/…): after an em dash, `aaaa—bbbb` at 56 px splits as `[0,9)`/`[9,11)` with the builtin engine
-(measured byte budget) but `[0,7)`/`[7,11)` with ICU. `text_breaks_parity` pins that difference and
-requires identical line boxes (ranges and widths) for the shared single-spaced corpus.
+The mode matrix is pinned in `tests/unit/text_layout_tests.cpp` (interior runs, leading/trailing,
+tabs, blank lines, CJK + spaces, em dash, determinism) and `tests/unit/paint_text_wrap_tests.cpp`
+(collapse and preservation reaching paint, a line of preserved spaces, break-spaces overflow).
+`text_breaks_parity` runs the **same corpus per mode through both engines** and requires identical
+line boxes, plus the em-dash BA difference for every narrowing mode.
 
 Remaining contract, not implemented in this slice:
 
-- `white-space`: normal/nowrap/pre/pre-wrap/break-spaces (the V1 subset is not enumerated; see [`stylesheet-v1.md`](../specs/stylesheet-v1.md)). Space collapsing at the CSS level (`normal`) is still the wrap's trimming rule, not a text transform.
+- A text-transform/collapse stage for painting: `normal` measures a collapsed run but paints the
+  source bytes of the line's range, so an emitted slice can be wider than its line box until that
+  exists. `nowrap` collapsing and `pre-line` newline handling (`pre-line` maps to `normal` because
+  the paragraph split already honors hard newlines) land with it.
 - `text-overflow: ellipsis` needs measured ellipsis width; no mid-glyph clipping.
 - `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
 - Bidi: visual order per line; alignment uses the paragraph direction.
@@ -385,7 +414,7 @@ The follow-up slice landed; all three conditions are met and the option is still
   and emits `icu.locale.fallback` / `icu.locale.missing`, so a trimmed locale can no longer format
   root data silently.
 
-Parity matrix and every intentional difference (word boundaries, line opportunities, and the full
-wrap path with the builtin engine as baseline):
+Parity matrix and every intentional difference (word boundaries, line opportunities, the full wrap
+path with the builtin engine as baseline, and the per-`white-space`-mode matrix of section 6.1):
 `tests/unit/icu/text_breaks_parity_tests.cpp`. Build shape, measured cost, deviations, and the
 exact option flip: [`icu-data.md`](icu-data.md) section 8.

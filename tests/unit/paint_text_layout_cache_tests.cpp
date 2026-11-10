@@ -92,7 +92,8 @@ private:
 
 const TextLayout& get(TextLayoutCache& cache, const Request& request) {
     TextStyle style = request.style;
-    style.nowrap = !request.wrap;
+    style.white_space = request.wrap ? tessera::ui::text::WhiteSpace::Normal
+                                     : tessera::ui::text::WhiteSpace::NoWrap;
     TextConstraints constraints;
     constraints.wrap = request.wrap;
     constraints.max_width = request.width;
@@ -106,7 +107,8 @@ const TextLayout& get(TextLayoutCache& cache, const Request& request) {
 
 TextLayout fresh(const Request& request) {
     TextStyle style = request.style;
-    style.nowrap = !request.wrap;
+    style.white_space = request.wrap ? tessera::ui::text::WhiteSpace::Normal
+                                     : tessera::ui::text::WhiteSpace::NoWrap;
     TextConstraints constraints;
     constraints.wrap = request.wrap;
     constraints.max_width = request.width;

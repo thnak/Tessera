@@ -39,7 +39,8 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
                                              const text::TextConstraints& constraints,
                                              const PaintTextMetricsSource& source,
                                              std::uint32_t max_lines) {
-    const bool wrap = constraints.wrap && !style.nowrap && std::isfinite(constraints.max_width);
+    const bool wrap = constraints.wrap && text::white_space_wraps(style.white_space) &&
+                      std::isfinite(constraints.max_width);
     const KeyView view{text,
                        wrap ? constraints.max_width : 0.0f,
                        style.font_size,
@@ -48,6 +49,7 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
                        style.font_weight,
                        style.italic,
                        wrap,
+                       style.white_space,
                        max_lines,
                        source.id()};
 
@@ -67,10 +69,9 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
 
     ++counters_.misses;
     text::TextLayout layout = build(text, style, constraints, source, max_lines);
-    Key key{std::string(text),     view.width,       view.font_size,
-            view.letter_spacing,   view.line_height, view.font_weight,
-            view.italic,           view.wrap,        view.max_lines,
-            view.metrics_source_id};
+    Key key{std::string(text), view.width,       view.font_size,        view.letter_spacing,
+            view.line_height,  view.font_weight, view.italic,           view.wrap,
+            view.white_space,  view.max_lines,   view.metrics_source_id};
     const std::size_t bytes = entry_bytes(key, layout);
     if (bytes > config_.max_bytes) {
         // The entry alone exceeds the byte budget: return it through scratch instead of breaking
