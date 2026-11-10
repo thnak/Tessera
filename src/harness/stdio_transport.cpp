@@ -68,7 +68,8 @@ public:
         if (input == nullptr || input == INVALID_HANDLE_VALUE) {
             return {StdioIoStatus::Error, 0};
         }
-        if (GetFileType(input) == FILE_TYPE_PIPE) {
+        const DWORD type = GetFileType(input);
+        if (type == FILE_TYPE_PIPE) {
             DWORD available = 0;
             if (PeekNamedPipe(input, nullptr, 0, nullptr, &available, nullptr) == 0) {
                 const DWORD error = GetLastError();
@@ -80,8 +81,10 @@ public:
             if (available == 0) {
                 return {StdioIoStatus::WouldBlock, 0};
             }
-        } else {
-            // A file is always ready; a console becomes ready when the user has typed something.
+        } else if (type != FILE_TYPE_DISK) {
+            // A disk file is always ready. A console becomes ready when the user has typed
+            // something; waiting on a synchronous file handle is not a documented operation, so
+            // the disk case must skip the probe.
             const DWORD wait = WaitForSingleObject(input, 0);
             if (wait == WAIT_TIMEOUT) {
                 return {StdioIoStatus::WouldBlock, 0};
