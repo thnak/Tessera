@@ -18,6 +18,7 @@ target_link_libraries(tessera_path PUBLIC tessera_rhi)
 
 if (TESSERA_ENABLE_THORVG)
     target_sources(tessera_path PRIVATE
+        svg_prescan.cpp
         thorvg_path_rasterizer.cpp
         thorvg_svg_loader.cpp)
     target_compile_definitions(tessera_path PRIVATE TESSERA_HAVE_THORVG=1)
