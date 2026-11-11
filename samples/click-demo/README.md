@@ -34,6 +34,8 @@ click_demo --windowed --hidden --frames 5
 - `AppHost` runs the `docs/design/app-host.md` order (style → layout → sync → damage → paint) and
   the scene idles after settling (the windowed loop only wakes for input, resize or a forced smoke
   frame).
+- The runner is the public `tessera_app_window` library: `WindowHost` owns the window, swapchain,
+  renderer and font stack, and `capture_frame` renders one offscreen frame through the same path.
 - A compiled stylesheet styles generated nodes by element type (`View`, `Text`, `Button`,
   `TextInput`), including radius/border/padding.
 - The generated component's `setState` path repaints only the damaged region; the present loop

@@ -19,3 +19,31 @@ target_link_libraries(tessera_app PUBLIC
     tessera_runtime)
 
 target_compile_features(tessera_app PUBLIC cxx_std_23)
+
+# The window driver: owns the platform window, Vulkan device/swapchain, Batched2D renderer and the
+# font/text stack, and runs the AppHost loop against real input and presentation. Vulkan is the
+# native backend (WebGPU is the Wasm/design-time one), and window presentation is host-only, so the
+# target exists only for host builds with the Vulkan backend.
+if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
+    add_library(tessera_app_window STATIC
+        frame_capture.cpp
+        window.cpp
+        window_internal.hpp)
+
+    target_include_directories(tessera_app_window PUBLIC
+        ${PROJECT_SOURCE_DIR}/include)
+    target_include_directories(tessera_app_window PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+
+    target_link_libraries(tessera_app_window PUBLIC
+        tessera_app
+        tessera_gpu
+        tessera_hal_window
+        tessera_input_pump
+        tessera_paint
+        tessera_rhi_vulkan
+        tessera_text
+        tessera_text_render)
+
+    target_compile_features(tessera_app_window PUBLIC cxx_std_23)
+endif()

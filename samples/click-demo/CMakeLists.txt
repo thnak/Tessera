@@ -11,15 +11,8 @@ target_include_directories(click_demo PRIVATE
     ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
 
 target_link_libraries(click_demo PRIVATE
-    tessera_app
+    tessera_app_window
     tessera_compiler_demo
-    tessera_gpu
-    tessera_rhi_vulkan
-    tessera_hal_window
-    tessera_input_pump
-    tessera_paint
-    tessera_text
-    tessera_text_render
     tessera_stb)
 
 target_compile_definitions(click_demo PRIVATE

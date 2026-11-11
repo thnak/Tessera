@@ -598,14 +598,15 @@ and the `RuntimeLoop`; it never sees a window, swapchain or device. `tests/unit/
 covers first frame, idle (zero work), paint-only damage, resize/DPI and settling. Supporting slice:
 `SceneStyleTree` now populates tag/id/classes/has_text from scene element metadata, so a compiled
 stylesheet styles generated nodes by type, class and id (`tests/unit/scene_style_metadata_tests.cpp`).
-The driver sample `samples/click-demo` landed: generated Demo + compiled stylesheet + visible
-Win32/X11 window with a Vulkan swapchain (two frames in flight), `InputPump` -> `InputRouter` ->
-generated handler -> `UpdateScheduler` flush -> relayout -> repaint, plus a windowless
-`--capture` mode (offscreen target + readback) used by the `click_demo_capture` CTest entry; the
-clicked frame shows `Count: 1` and the attached `Positive` branch (images in
-`docs/images/click-demo-{before,after}.png`). Next for this lane: promote the sample runner into a
-`tessera_app_window` library (visible window + swapchain + Batched2DSink ownership, hidden-window
-smoke), then hover/active pseudo-state and cursor, then TextInput focus/IME.
+The driver sample `samples/click-demo` landed: generated Demo + compiled stylesheet. Its runner is
+now the `tessera_app_window` library (`include/tessera/app/window.hpp`): `WindowHost` owns the
+platform window, Vulkan device/swapchain, Batched2D renderer and font/text stack and drives the
+host loop (events -> `InputPump` -> scheduler flush -> style/layout/damage -> paint -> present,
+resize/DPI/close, two frames in flight), and `capture_frame` renders one windowless offscreen frame
+through the same path; the sample is a thin CLI over both (windowless `--capture` + `--click`,
+`--windowed [--hidden --frames N]`). Tests `app_window` (capture parity + hidden-window smoke) and
+`click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next for this lane:
+hover/active pseudo-state and cursor, then TextInput focus/IME.
 
 Next slices, in order:
 

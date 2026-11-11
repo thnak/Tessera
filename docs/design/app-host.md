@@ -100,9 +100,11 @@ accessibility snapshot publication, which each have their own documents.
   stylesheet, a visible Win32/X11 window with a Vulkan swapchain (two frames in flight, bounded
   wait on the reused slot), `InputPump` → `InputRouter` → generated handler → update scheduler
   flush → relayout → repaint, and a windowless `--capture` mode (offscreen target + readback) for CI
-  and visual review. Swapchain images are not preserved, so a presented frame is a full redraw; the
-  damage plan decides whether the frame happens at all. The runner lives in the sample today;
-  promoting it to a `tessera_app_window` library is the next slice.
+  and visual review. The runner is the `tessera_app_window` library: `WindowHost` owns the window,
+  device, swapchain, renderer, text stack and the host loop, and `capture_frame` renders one
+  offscreen frame through the same path, so tools and tests share it with the window. Swapchain
+  images are not preserved, so a presented frame is a full redraw; the damage plan decides whether
+  the frame happens at all.
 - Texture caches still belong to the paint-sink owner: the driver calls `end_frame()` on them after
   submitting the frame. Promoting that into the host needs a painter abstraction (next slice).
 - Known limits: `UpdateScheduler` is installed by the driver (`AppHost::set_update_scheduler`), not
