@@ -69,7 +69,7 @@ void test_schema_version_and_counts() {
           "12 payload records (common-and-events.md section 2)");
     check(schema::aliases().size() == 101, "27 mapped/partial and 74 unmapped aliases");
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
-    check(schema::style_properties().size() == 70, "70 style longhands");
+    check(schema::style_properties().size() == 71, "71 style longhands");
     check(schema::role_tokens().size() == 22, "22 role tokens (common-and-events.md 1.1)");
     check(schema::common_props().size() == 17, "17 common attributes");
 }

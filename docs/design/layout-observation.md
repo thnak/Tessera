@@ -451,7 +451,11 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    not implemented (`designer/` is empty), so there is nothing to wire. Requirements recorded in
    section 6.2 and [`designer.md`](designer.md) for when it lands. Nothing to build until then.
 7. **`field-sizing: content` for `TextArea`**: property registry, Yoga measure for the editor
-   text, internal scroll above max. Golden.
+   text, internal scroll above max. Golden. Done: the `field-sizing` property (registry, schema,
+   `stylesheet-v1.md`) and the Yoga measure: a `field-sizing: content` leaf is measured even when
+   empty (one line), and `min-height`/`max-height` clamp it; `layout` test covers 1, wrapped,
+   clamped and empty. Not yet: internal scroll above the maximum (editor side), a trailing
+   newline adding a line, and the lavapipe golden.
 8. **Container queries**: `container-type`/`container-name`, `@container` evaluation as an
    engine observer inside the settle round; update `stylesheet-v1.md` and `responsive.md`.
 

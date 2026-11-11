@@ -2489,6 +2489,10 @@
     {
       "kind": "number",
       "name": "z-index"
+    },
+    {
+      "kind": "keyword",
+      "name": "field-sizing"
     }
   ],
   "types": [

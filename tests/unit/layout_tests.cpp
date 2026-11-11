@@ -282,6 +282,35 @@ int main() {
         }
     }
 
+    // field-sizing: content (ADR-041 slice 7): height follows the wrapped text, clamped by
+    // min/max-height; an empty field is one line.
+    const auto field = [&](const char* sizing, const std::string& text, const char* max_height) {
+        return engine.layout(
+            node(300, style({{"display", "flex"}, {"flex-direction", "column"}, {"width", "50px"}}),
+                 {text_node(301,
+                            style({{"font-size", "16px"},
+                                   {"line-height", "20px"},
+                                   {"field-sizing", sizing},
+                                   {"min-height", "30px"},
+                                   {"max-height", max_height}}),
+                            text)}),
+            LayoutViewport{200.0f, 600.0f});
+    };
+    const LayoutResult one_line = field("content", "hi", "100px");
+    const LayoutResult wrapped = field("content", "hello world", "100px");
+    const LayoutResult clamped = field("content", "hello world hello world", "50px");
+    const LayoutResult empty_field = field("content", "", "100px");
+    const LayoutBox* one = find(one_line, 301);
+    const LayoutBox* two = find(wrapped, 301);
+    const LayoutBox* many = find(clamped, 301);
+    const LayoutBox* none = find(empty_field, 301);
+    if (!expect(one && near(one->bounds.height, 30.0f), "one line grows to min-height") ||
+        !expect(two && near(two->bounds.height, 40.0f), "wrapped text grows the field") ||
+        !expect(many && near(many->bounds.height, 50.0f), "max-height clamps the field") ||
+        !expect(none && near(none->bounds.height, 30.0f), "empty field is one line")) {
+        return 13;
+    }
+
     std::cout << "layout: ok\n";
     return 0;
 }

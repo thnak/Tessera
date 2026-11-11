@@ -314,7 +314,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 
 | Area | V1 semantics | Later |
 |---|---|---|
-| Box model | `display` (block/flex/none), `width/height/min/max`, `margin`, `padding`, `border`, `box-sizing` (default `content-box`, as in CSS), `aspect-ratio`, `overflow` | table, multi-column |
+| Box model | `display` (block/flex/none), `width/height/min/max`, `margin`, `padding`, `border`, `box-sizing` (default `content-box`, as in CSS), `aspect-ratio`, `overflow`, `field-sizing` (`fixed`, `content`; `content` makes a `TextArea` a measured leaf, see [layout-observation.md](../design/layout-observation.md) section 6.3) | table, multi-column |
 | Scrolling | `overflow`, `scroll-behavior`, `overscroll-behavior`, `overscroll-effect`, `scrollbar-gutter` | scroll-driven animations, CSS `scroll-snap-*` properties (the scroll controller already implements snap physics in V1, configured through `ScrollSnap` in [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md); `allow_chain` is derived from `overscroll-behavior`, there is no `scroll-chain` property) |
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
 | Grid | fixed/repeat columns/rows, gap, span, basic alignment | subgrid, masonry, dense auto-placement |
