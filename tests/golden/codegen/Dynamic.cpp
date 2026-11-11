@@ -376,6 +376,32 @@ namespace dynamic {
       apply_state();
     }
     
+    void Dynamic::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<Dynamic*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+    }
+    
+    void Dynamic::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      scheduler.detach(update_ticket_);
+    }
+    
+    void Dynamic::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
+    void Dynamic::set_count(int value) {
+      state_count_ = std::move(value);
+      schedule_update();
+    }
+    
+    void Dynamic::set_items(std::vector<std::string> value) {
+      state_items_ = std::move(value);
+      schedule_update();
+    }
+    
     void Dynamic::on_click(const tessera::ui::ClickEvent& event) {
       // [DEVELOPER_LOGIC_START: bind::on_click]
         // TODO(tessera-codegen): implement the developer body for bind::on_click.

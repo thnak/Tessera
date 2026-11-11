@@ -10,6 +10,7 @@
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
+#include "tessera/ui/scene/update_scheduler.hpp"
 
 namespace tessera::runtime {
 class RuntimeLoop;
@@ -103,6 +104,15 @@ public:
     // it automatically; expose it for callers that paint through `paint::paint_scene` directly.
     [[nodiscard]] InterpolationPaintView interpolation_view() const;
 
+    // Installs the per-window update scheduler (issue #5). Its wake hook is bound to the loop's
+    // `request_frame()`, and every `tick()` flushes it first, so state set by setters, input
+    // handlers or async completions is applied before animation, style and layout of that tick.
+    // Pass nullptr to uninstall. The scheduler must outlive the pipeline or be uninstalled first.
+    void set_update_scheduler(UpdateScheduler* scheduler);
+    [[nodiscard]] UpdateScheduler* update_scheduler() const {
+        return scheduler_;
+    }
+
     void set_interpolation(bool enabled) {
         config_.interpolation = enabled;
         if (!enabled) {
@@ -126,6 +136,7 @@ private:
     layout::DamageTracker* damage_tracker_ = nullptr;
     rendering::DamageAccumulator* damage_ = nullptr;
     DirtyPass* dirty_ = nullptr;
+    UpdateScheduler* scheduler_ = nullptr;
     FramePipelineConfig config_;
     bool frame_due_ = false;
     PaintSamples previous_samples_;

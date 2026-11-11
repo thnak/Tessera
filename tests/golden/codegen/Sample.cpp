@@ -252,6 +252,32 @@ namespace demo {
       }
     }
     
+    void Sample::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<Sample*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+    }
+    
+    void Sample::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      scheduler.detach(update_ticket_);
+    }
+    
+    void Sample::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
+    void Sample::set_count(int value) {
+      state_count_ = std::move(value);
+      schedule_update();
+    }
+    
+    void Sample::set_name(std::string value) {
+      state_name_ = std::move(value);
+      schedule_update();
+    }
+    
     tessera::ui::text::EditController& Sample::text_input_editor(std::size_t index) {
       switch (index) {
         case 0u:

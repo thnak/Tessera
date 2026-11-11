@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/animation/loop_bridge.hpp"
 #include "tessera/ui/animation/property_dirty.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
@@ -98,6 +99,18 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
     }
 }
 
+void FramePipeline::set_update_scheduler(UpdateScheduler* scheduler) {
+    if (scheduler_ != nullptr) {
+        scheduler_->set_wake(nullptr, nullptr);
+    }
+    scheduler_ = scheduler;
+    if (scheduler_ != nullptr) {
+        scheduler_->set_wake(
+            [](void* context) { static_cast<runtime::RuntimeLoop*>(context)->request_frame(); },
+            loop_);
+    }
+}
+
 FrameTick FramePipeline::tick(Node& root, double dt) {
     return tick_impl(root, dt, 0.0, false);
 }
@@ -113,6 +126,12 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     // A new frame invalidates the previous frame's render decision; only finish_frame() can make a
     // frame due again.
     frame_due_ = false;
+
+    // Scheduled component updates land before animation, style and layout, so a state change made
+    // since the last tick is part of this frame (an effect or animation they start ticks now).
+    if (scheduler_ != nullptr) {
+        (void)scheduler_->flush();
+    }
 
     FrameTick result;
     result.animation = animation::tick_animations(*animations_, *loop_, dt);

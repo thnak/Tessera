@@ -89,6 +89,7 @@ loop:
     steps = 0
     while accumulator >= fixed_dt and steps < maxUpdatesPerFrame:
         sample_input()          // drain queue, snapshot pointer/key state
+        flush_scheduled_updates() // setter-dirtied components: update_effects + apply_state
         update(fixed_dt)        // hooks, animation state, data streams
         resolve_dirty_styles()
         layout_dirty_subtrees()

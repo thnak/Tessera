@@ -226,6 +226,13 @@ target_link_libraries(scene_dirty_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_dirty COMMAND scene_dirty_tests)
 
+add_executable(update_scheduler_tests
+    update_scheduler_tests.cpp)
+
+target_link_libraries(update_scheduler_tests PRIVATE tessera_scene)
+
+add_test(NAME update_scheduler COMMAND update_scheduler_tests)
+
 add_executable(node_metadata_tests
     node_metadata_tests.cpp)
 

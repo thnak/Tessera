@@ -565,6 +565,32 @@ namespace vlist {
       apply_state();
     }
     
+    void VirtualDemo::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<VirtualDemo*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+    }
+    
+    void VirtualDemo::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      scheduler.detach(update_ticket_);
+    }
+    
+    void VirtualDemo::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
+    void VirtualDemo::set_count(int value) {
+      state_count_ = std::move(value);
+      schedule_update();
+    }
+    
+    void VirtualDemo::set_items(std::vector<std::string> value) {
+      state_items_ = std::move(value);
+      schedule_update();
+    }
+    
     void VirtualDemo::handler_on_end_reached(const tessera::ui::Event& event) {
       (void)event;
       state_count_ = 1;

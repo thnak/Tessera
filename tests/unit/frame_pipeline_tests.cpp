@@ -375,6 +375,61 @@ bool test_paint_frame() {
 
 } // namespace
 
+// Issue #5: a scheduled component update runs at the head of tick(), before animation, style and
+// layout, so the node it dirties reaches this frame's damage; scheduling wakes the loop.
+struct ScheduledNode {
+    Node* node = nullptr;
+    int updates = 0;
+};
+
+bool test_update_scheduler() {
+    Node root(1);
+    root.set_bounds({0, 0, 200, 200});
+    Node& child = root.add_child(std::make_unique<Node>(2));
+    child.set_bounds({10, 10, 20, 20});
+    clear_tree(root);
+
+    ManualClock clock;
+    RuntimeLoop loop(clock);
+    AnimationRuntime animations;
+    DamageAccumulator damage(DamageConfig{Extent2D{200, 200}, 8});
+    DamageTracker tracker;
+    DirtyPass dirty;
+    FramePipeline pipeline(animations, loop, tracker, damage, dirty);
+    tessera::ui::UpdateScheduler scheduler;
+    pipeline.set_update_scheduler(&scheduler);
+
+    ScheduledNode scheduled{&child, 0};
+    tessera::ui::UpdateTicket ticket;
+    ticket.context = &scheduled;
+    ticket.update = [](void* context) {
+        auto* self = static_cast<ScheduledNode*>(context);
+        ++self->updates;
+        self->node->mark_dirty(Dirty::Paint | Dirty::Render);
+    };
+    scheduler.attach(ticket);
+
+    (void)pipeline.tick(root, 0.016); // settle the first frame
+    (void)pipeline.finish_frame(root);
+    clear_tree(root);
+    ticket.schedule();
+    if (!expect(scheduled.updates == 0, "scheduling does not run the update inline") ||
+        !expect(loop.should_render(), "scheduling requests a frame from the loop")) {
+        return false;
+    }
+    (void)pipeline.tick(root, 0.016);
+    const FrameRender render = pipeline.finish_frame(root);
+    if (!expect(scheduled.updates == 1, "tick flushes the scheduler once") ||
+        !expect(render.damage.nodes == 1 && render.should_render,
+                "the scheduled update's dirty node is part of this frame's damage")) {
+        return false;
+    }
+    (void)pipeline.tick(root, 0.016);
+    pipeline.set_update_scheduler(nullptr);
+    ticket.schedule();
+    return expect(scheduled.updates == 1, "an uninstalled scheduler no longer flushes on tick");
+}
+
 int main() {
     Node root(1);
     root.set_bounds({0, 0, 200, 200});
@@ -494,6 +549,9 @@ int main() {
 
     if (!test_paint_frame()) {
         return 9;
+    }
+    if (!test_update_scheduler()) {
+        return 10;
     }
 
     return 0;

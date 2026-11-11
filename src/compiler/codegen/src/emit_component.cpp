@@ -19,6 +19,7 @@
 #include "emit_forms.hpp"
 #include "emit_node.hpp"
 #include "emit_props.hpp"
+#include "emit_schedule.hpp"
 #include "emit_virtual.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
@@ -200,6 +201,9 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         return false;
     }
     if (!emit_lifecycle(component, bindings, instances, writer, error)) {
+        return false;
+    }
+    if (!emit_schedule_definitions(writer, component, instances, error)) {
         return false;
     }
     emit_controlled_accessors(writer, component, controlled_inputs);

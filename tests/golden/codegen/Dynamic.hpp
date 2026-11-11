@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
+#include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/node.hpp"
 
@@ -77,8 +78,17 @@ namespace dynamic {
       
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Host entry after event dispatch: update_effects() then apply_state().
+      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
       void update();
+      // Scheduled updates: a setter marks this component dirty and the host's
+      // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
+      // address must stay stable while attached.
+      tessera::ui::UpdateTicket update_ticket_;
+      void attach_scheduler(tessera::ui::UpdateScheduler& scheduler);
+      void detach_scheduler(tessera::ui::UpdateScheduler& scheduler);
+      void schedule_update();
+      void set_count(int value);
+      void set_items(std::vector<std::string> value);
       // Generated dynamic child paths: deterministic child positions and bounded keyed lists.
       void apply_children_1();
       std::unique_ptr<tessera::ui::Node> build_item_5(const std::string& item, std::size_t tessera_index, std::size_t tessera_id_slot, Item_5& tessera_out);

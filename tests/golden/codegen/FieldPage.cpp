@@ -117,6 +117,34 @@ namespace demo {
       child_3_.update();
     }
     
+    void FieldPage::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<FieldPage*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+      child_3_.attach_scheduler(scheduler);
+    }
+    
+    void FieldPage::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      child_3_.detach_scheduler(scheduler);
+      scheduler.detach(update_ticket_);
+    }
+    
+    void FieldPage::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
+    void FieldPage::set_email(std::string value) {
+      state_email_ = std::move(value);
+      schedule_update();
+    }
+    
+    void FieldPage::set_rules(std::vector<std::string> value) {
+      state_rules_ = std::move(value);
+      schedule_update();
+    }
+    
     void FieldPage::handler_1(const tessera::ui::Event& event) {
       (void)event;
       state_email_ = "ada@example.com";

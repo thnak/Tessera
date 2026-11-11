@@ -8,6 +8,7 @@
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
 #include "emit_props.hpp"
+#include "emit_schedule.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
 
@@ -62,6 +63,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("#pragma once");
     writer.line("");
     writer.line("#include \"tessera/ui/scene/component_lifecycle.hpp\"");
+    writer.line("#include \"tessera/ui/scene/update_scheduler.hpp\"");
     writer.line("#include \"tessera/ui/scene/event_payloads.hpp\"");
     if (!controlled_inputs.empty()) {
         writer.line("#include \"tessera/ui/text/text_input_runtime.hpp\"");
@@ -235,8 +237,12 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
             "// Refresh the declared props of the component instances this component owns.");
         writer.line("void apply_props();");
     }
-    writer.line("// Host entry after event dispatch: update_effects() then apply_state().");
+    writer.line(
+        "// Runs update_effects() then apply_state(); the scheduler calls it at its flush.");
     writer.line("void update();");
+    if (!emit_schedule_declarations(writer, component, error)) {
+        return false;
+    }
     if (!plan.groups.empty() || !plan.lists.empty()) {
         emit_dynamic_declarations(writer, plan);
     }

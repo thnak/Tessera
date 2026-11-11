@@ -107,9 +107,13 @@ produce a printable text value; an `onChange` binding must take a `TextChangeEve
 
 Generated components expose three lifecycle entry points: `build(parent)` attaches the tree,
 `apply_state()` recomputes interpolated text (paint-only dirty marks), and `update()` calls
-`update_effects()` then `apply_state()`. Generated setters and event-binding developer regions only
-raise the component's `state_dirty_` flag; **call `update()` after dispatching events** so effects
-run and interpolated text is written (the next frame is stale until you do). Developer effect
+`update_effects()` then `apply_state()`. A manual `update()` is no longer needed after state changes:
+use the generated `set_<state>(value)` setters (they schedule the
+component) and install an `UpdateScheduler` on the `FramePipeline`, which flushes it at the start of
+each tick so effects run and interpolated text is written in that frame. Call setters on the UI
+thread only (debug builds assert); from a worker, post a completion and set state in its callback.
+Direct field assignment in a developer region still needs `schedule_update()` (or a manual
+`update()` in a headless test). Developer effect
 regions run inside `update_effects()`; mutate state cells there and `update()` refreshes the text
 afterwards.
 
