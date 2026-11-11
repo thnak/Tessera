@@ -116,6 +116,32 @@ Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`
   redacted ring; GPU device-loss uses a separate signature.
 - Crash reporting never blocks startup/first frame; upload queue is bounded/rate-limited.
 
+## 6.2 Implemented: metadata model and exporter (v1 slice)
+
+The report *payload* exists in `include/tessera/diagnostics/crash.hpp` +
+`src/diagnostics/crash.cpp`; the platform capture in section 6.1 (handler, minidump, uploader,
+symbol store) is still to come.
+
+- `CrashMetadata` holds what a fatal-path handler can capture without allocating: version,
+  commit, build id, platform/arch/OS, GPU, config hash, reason, thread, last trace id, an
+  innermost-first frame list and an oldest-first breadcrumb ring. Every field is a view; an
+  empty field is omitted from the document.
+- `crash_metadata_json` writes canonical JSON (`"schema":"tessera.crash.v1"`). String values are
+  JSON-escaped (control bytes as `\u00XX`) and truncated on a UTF-8 boundary, so a cap can never
+  produce an invalid document or split a character.
+- Caps: `max_frames` keeps the innermost frames, `max_breadcrumbs` keeps the newest breadcrumbs in
+  their original order, `max_field_bytes`/`max_breadcrumb_bytes` cap single strings, and
+  `max_text_bytes` bounds the two arrays (the fixed envelope adds at most 1 KiB). Every applied cap
+  is reported in `"truncated":{"frames":N,"breadcrumbs":N,"text":bool}`; nothing is dropped
+  silently.
+- `redact_path` is the privacy rule for module names and breadcrumb paths: only the last component
+  survives (`C:\Users\someone\app\main.cpp` -> `main.cpp`).
+- `crash_signature` is the section 4 grouping key: build id plus the innermost
+  `max_signature_depth` frames as `module!symbol+offset`; symbol names and module basenames only,
+  so the key carries no path, address or user data.
+- Determinism: no clock, no ASLR-dependent address (frames carry a module-relative offset) and
+  caller-assigned breadcrumb sequences, so the same crash and build produce identical bytes and
+  the golden tests are stable.
 ## 7. Deferred/open questions
 
 - Public/self-hosted symbol server and access control.

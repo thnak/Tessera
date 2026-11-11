@@ -456,6 +456,13 @@ target_link_libraries(clip_math_tests PRIVATE tessera_rhi)
 
 add_test(NAME clip_math COMMAND clip_math_tests)
 
+add_executable(diagnostics_crash_tests
+    diagnostics_crash_tests.cpp)
+
+target_link_libraries(diagnostics_crash_tests PRIVATE tessera_diagnostics)
+
+add_test(NAME diagnostics_crash COMMAND diagnostics_crash_tests)
+
 add_executable(diagnostics_tests
     diagnostics_tests.cpp)
 

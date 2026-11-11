@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_diagnostics STATIC
+    crash.cpp
     log.cpp
     memory.cpp
     metrics.cpp
