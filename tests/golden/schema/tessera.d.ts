@@ -127,6 +127,13 @@ export interface ScrollEvent {
   contentHeight: number;
 }
 
+export interface SizeChangeEvent {
+  width: number;
+  height: number;
+  contentWidth: number;
+  contentHeight: number;
+}
+
 export interface ErrorInfo {
   code: string;
   message: string;
@@ -160,6 +167,7 @@ export interface ViewProps extends CommonProps {
   onPointerEnter?: (e: PointerEvent) => void;
   onPointerLeave?: (e: PointerEvent) => void;
   onPointerCancel?: (e: PointerEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface TextProps extends CommonProps {
@@ -171,6 +179,7 @@ export interface TextProps extends CommonProps {
   onPointerEnter?: (e: PointerEvent) => void;
   onPointerLeave?: (e: PointerEvent) => void;
   onPointerCancel?: (e: PointerEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface ButtonProps extends CommonProps {
@@ -188,6 +197,7 @@ export interface ButtonProps extends CommonProps {
   onKeyUp?: (e: KeyEvent) => void;
   onFocus?: (e: FocusEvent) => void;
   onBlur?: (e: FocusEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface TextInputProps extends CommonProps {
@@ -213,6 +223,7 @@ export interface TextInputProps extends CommonProps {
   onCompositionStart?: (e: CompositionEvent) => void;
   onCompositionUpdate?: (e: CompositionEvent) => void;
   onCompositionEnd?: (e: CompositionEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface TextAreaProps extends CommonProps {
@@ -239,6 +250,7 @@ export interface TextAreaProps extends CommonProps {
   onCompositionStart?: (e: CompositionEvent) => void;
   onCompositionUpdate?: (e: CompositionEvent) => void;
   onCompositionEnd?: (e: CompositionEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface ImageProps extends CommonProps {
@@ -246,6 +258,7 @@ export interface ImageProps extends CommonProps {
   src: string;
   alt: string;
   fit?: "contain" | "cover" | "fill" | "none";
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface PathProps extends CommonProps {
@@ -256,6 +269,7 @@ export interface PathProps extends CommonProps {
   stroke?: string;
   strokeWidth?: number;
   label?: string;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface ScrollProps extends CommonProps {
@@ -268,6 +282,7 @@ export interface ScrollProps extends CommonProps {
   onPointerEnter?: (e: PointerEvent) => void;
   onPointerLeave?: (e: PointerEvent) => void;
   onPointerCancel?: (e: PointerEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface SpacerProps extends CommonProps {
@@ -284,6 +299,7 @@ export interface VirtualListProps extends CommonProps {
   orientation?: "vertical" | "horizontal";
   onEndReached?: (e: unknown) => void;
   onScroll?: (e: ScrollEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface VirtualGridProps extends CommonProps {
@@ -297,6 +313,7 @@ export interface VirtualGridProps extends CommonProps {
   orientation?: "vertical" | "horizontal";
   onEndReached?: (e: unknown) => void;
   onScroll?: (e: ScrollEvent) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface ErrorBoundaryProps extends CommonProps {
@@ -316,6 +333,7 @@ export interface CustomElementProps extends CommonProps {
   onWheel?: (e: unknown) => void;
   onText?: (e: unknown) => void;
   onGamepad?: (e: unknown) => void;
+  onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface divProps extends ViewProps {

@@ -11,6 +11,7 @@ namespace tessera::schema::internal::data {
 inline constexpr EventRow kVirtualEvents[] = {
     {"onEndReached", "", "throttled; no payload; runs on the UI thread"},
     {"onScroll", "ScrollEvent", ""},
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
 };
 
 inline constexpr EventRow kErrorBoundaryEvents[] = {
@@ -23,6 +24,7 @@ inline constexpr EventRow kCustomElementEvents[] = {
     {"onWheel", "", "manifest input `wheel`; payload from the manifest"},
     {"onText", "", "manifest input `text`; payload from the manifest"},
     {"onGamepad", "", "manifest input `gamepad`; payload from the manifest"},
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
 };
 
 inline constexpr std::string_view kItemSizeOnlyOn[] = {"VirtualList"};

@@ -65,8 +65,8 @@ const schema::AliasAttr* find_attr(const schema::AliasRow& alias, std::string_vi
 void test_schema_version_and_counts() {
     check_eq(std::to_string(schema::kSchemaVersion), "1", "the schema version");
     check(schema::elements().size() == 13, "13 intrinsic elements (README section 3)");
-    check(schema::type_records().size() == 11,
-          "11 payload records (common-and-events.md section 2)");
+    check(schema::type_records().size() == 12,
+          "12 payload records (common-and-events.md section 2)");
     check(schema::aliases().size() == 101, "27 mapped/partial and 74 unmapped aliases");
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     check(schema::style_properties().size() == 70, "70 style longhands");
@@ -178,8 +178,13 @@ void test_element_details() {
           "onChange payload");
     check(find_event(*boundary, "onError") != nullptr, "ErrorBoundary onError is an event");
     check(find_event(*custom, "onPointer") != nullptr, "CustomElement onPointer");
-    check(schema::find_element("TextInput")->events.size() == 10, "TextInput event rows");
-    check(schema::find_element("Image")->events.empty(), "Image has no event rows");
+    check(schema::find_element("TextInput")->events.size() == 11, "TextInput event rows");
+    check(schema::find_element("Image")->events.size() == 1 &&
+              find_event(*schema::find_element("Image"), "onSizeChange") != nullptr,
+          "Image observes size only");
+    check(find_event(*schema::find_element("Spacer"), "onSizeChange") == nullptr &&
+              find_event(*boundary, "onSizeChange") == nullptr,
+          "box-less kinds reject onSizeChange");
 
     bool saw_conflict = false;
     for (const schema::ConstraintRow& constraint : button->constraints) {

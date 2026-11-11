@@ -440,7 +440,10 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
 4. **Equality-gated setters** in codegen (independent; can land any time). Tests
    `setter_equality`, golden updates.
 5. **`onSizeChange` front end + IR validator + typings**, then **codegen + merger** (two commits).
-   Tests `codegen_size_change*`.
+   Tests `codegen_size_change*`. Front end Done: the schema rows (every element with a box;
+   `Spacer` and `ErrorBoundary` reject it as an unknown event), the `SizeChangeEvent` record, the
+   regenerated `intrinsics.json`/`tessera.d.ts` goldens and lowering tests. Codegen and merger
+   still to do.
 6. **Designer evaluator** delivery after preview layout.
 7. **`field-sizing: content` for `TextArea`**: property registry, Yoga measure for the editor
    text, internal scroll above max. Golden.

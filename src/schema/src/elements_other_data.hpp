@@ -9,10 +9,22 @@
 
 namespace tessera::schema::internal::data {
 inline constexpr EventRow kScrollEvents[] = {
-    {"onScroll", "ScrollEvent", ""},         {"onPointerDown", "PointerEvent", ""},
-    {"onPointerUp", "PointerEvent", ""},     {"onPointerMove", "PointerEvent", ""},
-    {"onPointerEnter", "PointerEvent", ""},  {"onPointerLeave", "PointerEvent", ""},
+    {"onScroll", "ScrollEvent", ""},
+    {"onPointerDown", "PointerEvent", ""},
+    {"onPointerUp", "PointerEvent", ""},
+    {"onPointerMove", "PointerEvent", ""},
+    {"onPointerEnter", "PointerEvent", ""},
+    {"onPointerLeave", "PointerEvent", ""},
     {"onPointerCancel", "PointerEvent", ""},
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
+};
+
+inline constexpr EventRow kImageEvents[] = {
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
+};
+
+inline constexpr EventRow kPathEvents[] = {
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
 };
 
 inline constexpr PropRow kImageProps[] = {
