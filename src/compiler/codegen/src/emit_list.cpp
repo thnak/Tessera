@@ -132,9 +132,6 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component, const Li
     writer.line("std::uint64_t tessera_order = tessera::ui::kEffectHashSeed;");
     writer.line("std::size_t tessera_position = 0;");
     writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source.text + ")");
-    writer.open("if (tessera_position == kMaxGeneratedListItems)");
-    writer.line("break;");
-    writer.close("");
     if (!emit_value_ops(writer, *list.node->key, component, key_locals, "tessera_order", "",
                         error)) {
         return false;
@@ -148,52 +145,53 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component, const Li
     writer.line("list_" + ordinal + "_order_set_ = true;");
     writer.line("list_" + ordinal + "_order_hash_ = tessera_order;");
     writer.line("// Detach the current items, keeping their subtrees and per-item content state.");
-    writer.line("std::array<std::unique_ptr<tessera::ui::Node>, kMaxGeneratedListItems> "
-                "tessera_old_nodes{};");
-    writer.line("std::array<Item_" + ordinal + ", kMaxGeneratedListItems> tessera_old_items{};");
-    writer.line("std::array<std::uint64_t, kMaxGeneratedListItems> tessera_old_hashes{};");
-    writer.line("std::array<bool, kMaxGeneratedListItems> tessera_old_set{};");
-    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < list_" + ordinal +
-                "_count_; ++tessera_slot)");
+    writer.line(
+        "// Take over the previous table: its items, hashes and keys become the reuse pool.");
+    writer.line("const std::size_t tessera_old_count = list_" + ordinal + "_count_;");
+    writer.line(
+        "std::vector<std::unique_ptr<tessera::ui::Node>> tessera_old_nodes(tessera_old_count);");
+    writer.line("std::vector<Item_" + ordinal + "> tessera_old_items = std::move(list_" + ordinal +
+                "_items_);");
+    writer.line("std::vector<std::uint64_t> tessera_old_hashes = std::move(list_" + ordinal +
+                "_hashes_);");
+    writer.line("std::vector<bool> tessera_old_set = std::move(list_" + ordinal + "_set_);");
+    writer.line("std::vector<std::string> tessera_old_keys = std::move(list_" + ordinal +
+                "_keys_);");
+    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; "
+                "++tessera_slot)");
     writer.line("tessera_old_nodes[tessera_slot] = "
-                "parent.remove_child(*list_" +
-                ordinal + "_items_[tessera_slot].root);");
-    writer.line("tessera_old_items[tessera_slot] = list_" + ordinal + "_items_[tessera_slot];");
-    writer.line("tessera_old_hashes[tessera_slot] = list_" + ordinal + "_hashes_[tessera_slot];");
-    writer.line("tessera_old_set[tessera_slot] = list_" + ordinal + "_set_[tessera_slot];");
+                "parent.remove_child(*tessera_old_items[tessera_slot].root);");
     writer.close("");
-    writer.line("std::array<bool, kMaxGeneratedListItems> tessera_reused{};");
-    writer.line("std::array<std::string, kMaxGeneratedListItems> tessera_next_keys{};");
-    writer.line("std::array<Item_" + ordinal + ", kMaxGeneratedListItems> tessera_next_items{};");
-    writer.line("std::array<std::uint64_t, kMaxGeneratedListItems> tessera_next_hashes{};");
-    writer.line("std::array<bool, kMaxGeneratedListItems> tessera_next_set{};");
+    writer.line("// The new table is sized to the source: there is no item cap.");
+    writer.line("std::vector<bool> tessera_reused(tessera_old_count);");
+    writer.line("std::vector<std::string> tessera_next_keys(tessera_position);");
+    writer.line("std::vector<Item_" + ordinal + "> tessera_next_items(tessera_position);");
+    writer.line("std::vector<std::uint64_t> tessera_next_hashes(tessera_position);");
+    writer.line("std::vector<bool> tessera_next_set(tessera_position);");
     writer.line("std::size_t tessera_next = 0;");
     writer.line("// Id slots held by any item of the previous table; a new item takes a free one.");
-    writer.line("std::array<bool, 2 * kMaxGeneratedListItems> tessera_id_used{};");
-    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < list_" + ordinal +
-                "_count_; ++tessera_slot)");
+    writer.line("std::vector<bool> tessera_id_used(tessera_old_count + tessera_position + 1);");
+    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; "
+                "++tessera_slot)");
     writer.line("tessera_id_used[tessera_old_items[tessera_slot].id_slot] = true;");
     writer.close("");
     writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source.text + ")");
-    writer.open("if (tessera_next == kMaxGeneratedListItems)");
-    writer.line("break;");
-    writer.close("");
     const ExprEmission key = emit_expr(*list.node->key, component, next_locals);
     if (!key.error.empty()) {
         return fail(error, "the key of `" + list.node->id + "`: " + key.error);
     }
     writer.line("std::string tessera_key = format_value(" + key.text + ");");
-    writer.line("std::size_t tessera_match = kMaxGeneratedListItems;");
-    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < list_" + ordinal +
-                "_count_; ++tessera_slot)");
-    writer.open("if (!tessera_reused[tessera_slot] && list_" + ordinal +
-                "_keys_[tessera_slot] == tessera_key)");
+    writer.line("std::size_t tessera_match = tessera_old_count;");
+    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; "
+                "++tessera_slot)");
+    writer.open("if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == "
+                "tessera_key)");
     writer.line("tessera_reused[tessera_slot] = true;");
     writer.line("tessera_match = tessera_slot;");
     writer.line("break;");
     writer.close("");
     writer.close("");
-    writer.open("if (tessera_match != kMaxGeneratedListItems)");
+    writer.open("if (tessera_match != tessera_old_count)");
     writer.line("// Reuse: the node subtree, its interpolated text pointers and its content hash "
                 "move to the new slot.");
     writer.line("tessera_next_items[tessera_next] = tessera_old_items[tessera_match];");
@@ -220,24 +218,12 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component, const Li
     writer.line("tessera_next_keys[tessera_next] = std::move(tessera_key);");
     writer.line("++tessera_next;");
     writer.close("");
-    writer.line(
-        "// Publish the new table; the stale slots are cleared so a later reuse cannot match "
-        "a removed key.");
-    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < tessera_next; ++tessera_slot)");
-    writer.line("list_" + ordinal + "_items_[tessera_slot] = tessera_next_items[tessera_slot];");
-    writer.line("list_" + ordinal + "_hashes_[tessera_slot] = tessera_next_hashes[tessera_slot];");
-    writer.line("list_" + ordinal + "_set_[tessera_slot] = tessera_next_set[tessera_slot];");
-    writer.line("list_" + ordinal +
-                "_keys_[tessera_slot] = std::move(tessera_next_keys["
-                "tessera_slot]);");
-    writer.close("");
-    writer.open("for (std::size_t tessera_slot = tessera_next; tessera_slot < list_" + ordinal +
-                "_count_; ++tessera_slot)");
-    writer.line("list_" + ordinal + "_items_[tessera_slot] = Item_" + ordinal + "{};");
-    writer.line("list_" + ordinal + "_hashes_[tessera_slot] = 0;");
-    writer.line("list_" + ordinal + "_set_[tessera_slot] = false;");
-    writer.line("list_" + ordinal + "_keys_[tessera_slot].clear();");
-    writer.close("");
+    writer.line("// Publish the new table; vector sizes track the live count, so no stale slot "
+                "can match a removed key.");
+    writer.line("list_" + ordinal + "_items_ = std::move(tessera_next_items);");
+    writer.line("list_" + ordinal + "_hashes_ = std::move(tessera_next_hashes);");
+    writer.line("list_" + ordinal + "_set_ = std::move(tessera_next_set);");
+    writer.line("list_" + ordinal + "_keys_ = std::move(tessera_next_keys);");
     writer.line("list_" + ordinal + "_count_ = tessera_next;");
     writer.close("");
     writer.line(

@@ -388,8 +388,8 @@ the tracker damages its previous *and* current bounds, which contain the vacated
 residual un-damaged case is a branch that overflows its parent's box (deferred; a full-target redraw
 covers it). A conditional inside a list template is deferred (it needs per-item presence state).
 
-A list template (a node carrying `loop` + `key`) generates a bounded item table
-(`kMaxGeneratedListItems = 32`): `Item_<n>` per slot (item subtree root plus its interpolated text
+A list template (a node carrying `loop` + `key`) generates a growable item table
+(`std::vector`, sized to the source; there is no item cap): `Item_<n>` per slot (item subtree root plus its interpolated text
 pointers), the key strings, per-item content hashes, `count` and `order_hash`. `apply_list_<n>(parent,
 at)` hashes the key list first (no allocation, no formatting, no node access when unchanged) and only
 on a changed hash detaches the current items, matches new keys against the previous key strings,
@@ -420,13 +420,13 @@ virtualization-v1.md section 4. Codegen emits:
   dynamic geometry value is `TESSERA_CODEGEN_UNSUPPORTED` because no runtime setter exists yet.
   `overscan` defaults to 200 and `gap` to 0; the effective estimate is the written `estimateSize`,
   else the grid `rowHeight` / list `itemSize`, else 32 px;
-- a bounded realized-window table (`kMaxGeneratedVirtualItems = 32`) with the keyed-list item struct
+- a growable realized-window table (`std::vector`, sized to the applied range) with the keyed-list item struct
   (`Item_<template>`: root node pointer, id slot, interpolated text pointers) and the same
   `build_item_<template>` / `apply_item_<template>` pair as an eager list;
 - `apply_virtual_<collection>(first, last)`: the host passes the half-open realized range it
   computed with `tessera::ui::virtualization::ItemGeometry` (the runtime owns prefix sums, estimates,
   refinement and scroll anchoring — codegen does not reimplement geometry). The method clamps the
-  range to the data source and to `kMaxGeneratedVirtualItems`, hashes the window's keys first
+  range to the data source only, hashes the window's keys first
   (unchanged window ⇒ no allocation, no node access), detaches the current window, reconciles it by
   key (a surviving key reuses its subtree and content hash), builds new items with their **absolute
   item index** as the NodeId slot (`template id + index * kItemIdStride`, stable across scrolls and

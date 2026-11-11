@@ -103,7 +103,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     writer.line("");
     writer.line("#include <memory>");
     writer.line("#include <utility>");
-    if (takes_children || has_props) {
+    if (takes_children || has_props || plan.has_lists) {
         writer.line("#include <vector>");
     }
     if (has_props) {

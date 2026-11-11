@@ -14,7 +14,7 @@
 //   (`tessera::ui::virtualization::ItemGeometry`), so the generated method takes the half-open
 //   [first, last) range the host computed and never re-implements geometry;
 // - the item table, keyed reuse, NodeId slots and the per-item content hash reuse the keyed-list
-//   emission shape (emit_list.cpp), bounded by kMaxGeneratedVirtualItems.
+//   emission shape (emit_list.cpp), sized to the applied window (no fixed cap).
 namespace tessera::compiler::codegen::internal {
 
 // The generated member-name prefix of one item table: `list_<n>_` for an eager keyed list,

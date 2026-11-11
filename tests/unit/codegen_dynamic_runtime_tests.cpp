@@ -3,7 +3,7 @@
 // Runtime proof of the conditional + keyed-list codegen contract (docs/design/compiler.md section
 // 11): the generated component builds every conditional branch once and attaches/detaches it at its
 // deterministic source position, and the bounded list item table reuses nodes by key, reorders
-// in place, truncates at the documented cap, and marks nothing dirty when nothing changed.
+// in place, grows past 32 items without truncating, and marks nothing dirty when nothing changed.
 //
 // The component under test is the committed golden `tests/golden/codegen/Dynamic.cpp`, generated
 // from the hand-built IR in codegen_dynamic_tests.cpp (the `.tsx` front end cannot author a list
@@ -189,24 +189,26 @@ int main() {
               !ui::has_flag(component.list_5_items_[0].root->dirty(), ui::Dirty::Layout),
           "a repainted item text is Paint-only (it is the template's text node)");
 
-    // --- 7. Cap: the table truncates deterministically at kMaxGeneratedListItems. --------------
+    // --- 7. No cap: a list longer than 32 items is fully materialized (issue #4). ---------------
     clear_all(root);
     component.state_items_.clear();
     for (int index = 0; index < 40; ++index) {
         component.state_items_.push_back("item" + std::to_string(index));
     }
     component.apply_state();
-    check(component.list_5_count_ == dynamic::gen::kMaxGeneratedListItems,
-          "the item table truncates at the documented cap");
+    check(component.list_5_count_ == 40, "a 40-item source is not truncated");
+    check(component.list_5_items_.size() == 40, "the item table grows to the source size");
     {
         std::set<ui::NodeId> ids;
         for (std::size_t index = 0; index < component.list_5_count_; ++index) {
             ids.insert(component.list_5_items_[index].root->id());
         }
-        check(ids.size() == component.list_5_count_, "every truncated item has a unique id");
+        check(ids.size() == component.list_5_count_, "every item of a long list has a unique id");
     }
     check(text_of(*component.list_5_items_[0].root) == "item0 @ 2",
-          "the truncated prefix is the source prefix");
+          "the first item is the source head");
+    check(text_of(*component.list_5_items_[39].root) == "item39 @ 2",
+          "the last source item is materialized");
 
     // --- 8. Ids stay unique when a reused item outlives the slot it was first built in. ---------
     component.state_items_ = {"a", "b"};

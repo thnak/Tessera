@@ -109,9 +109,8 @@ void test_generated_shape() {
     check_eq((*result)[1].path, "Dynamic.cpp", "deterministic source path");
     const std::string& header = (*result)[0].text;
     const std::string& source = (*result)[1].text;
-    check(header.find("inline constexpr std::size_t kMaxGeneratedListItems = 32;") !=
-              std::string::npos,
-          "the bounded item cap is emitted in the header");
+    check(header.find("kMaxGeneratedListItems") == std::string::npos,
+          "no fixed item cap is emitted for keyed lists");
     check(header.find("struct Item_5 {") != std::string::npos, "the per-list item node struct");
     check(header.find("std::array<tessera::ui::Node*, 1> texts{};") != std::string::npos,
           "the item struct records its interpolated text nodes");
@@ -123,11 +122,9 @@ void test_generated_shape() {
           "a conditional branch hashes its condition");
     check(header.find("tessera::ui::Node* children_parent_1_ = nullptr;") != std::string::npos,
           "the dynamic child group keeps its parent node");
-    check(header.find("std::array<Item_5, kMaxGeneratedListItems> list_5_items_{};") !=
-              std::string::npos,
-          "the bounded list item table");
-    check(header.find("std::array<std::string, kMaxGeneratedListItems> list_5_keys_{};") !=
-              std::string::npos,
+    check(header.find("std::vector<Item_5> list_5_items_{};") != std::string::npos,
+          "the growable list item table");
+    check(header.find("std::vector<std::string> list_5_keys_{};") != std::string::npos,
           "the key table");
     check(header.find("void apply_children_1();") != std::string::npos,
           "the child-set update is declared");

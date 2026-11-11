@@ -109,8 +109,8 @@ void test_generated_shape() {
     check_eq((*result)[1].path, "VirtualDemo.cpp", "deterministic source path");
     const std::string& header = (*result)[0].text;
     const std::string& source = (*result)[1].text;
-    check(contains(header, "inline constexpr std::size_t kMaxGeneratedVirtualItems = 32;"),
-          "the bounded realized-window cap is emitted");
+    check(!contains(header, "kMaxGeneratedVirtualItems"),
+          "no fixed realized-window cap is emitted");
     check(contains(header, "struct Item_4 {"), "the item node struct of the list template");
     check(contains(header, "struct Item_7 {"), "the item node struct of the grid template");
     check(contains(header, "std::array<tessera::ui::Node*, 1> texts{};"),
@@ -125,8 +125,8 @@ void test_generated_shape() {
           "no fixed item size means variable-size");
     check(contains(header, "tessera::ui::Node* virtual_3_ = nullptr;"),
           "the collection container is recorded");
-    check(contains(header, "std::array<Item_4, kMaxGeneratedVirtualItems> virtual_3_items_{};"),
-          "the bounded realized-window table");
+    check(contains(header, "std::vector<Item_4> virtual_3_items_{};"),
+          "the growable realized-window table");
     check(contains(header, "std::size_t virtual_3_count_ = 0;"), "the realized item count");
     check(contains(header, "std::size_t virtual_3_first_ = 0;"), "the realized window start");
     check(contains(header,
@@ -149,8 +149,8 @@ void test_generated_shape() {
           "the generated comment names the runtime geometry owner");
     check(contains(source, "const auto& tessera_source = state_items_;"),
           "the template reads the loop source list");
-    check(contains(source, "if (tessera_last - tessera_first > kMaxGeneratedVirtualItems)"),
-          "the realized window is clamped to the bounded table");
+    check(!contains(source, "kMaxGeneratedVirtualItems"),
+          "the realized window is not clamped to a fixed table");
     check(contains(source, "build_item_4(item, tessera_i, tessera_i, "
                            "tessera_next_items[tessera_next]);"),
           "a new item is built with its absolute index as the NodeId slot");

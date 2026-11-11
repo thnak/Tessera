@@ -34,9 +34,8 @@ bool starts_with(std::string_view text, std::string_view prefix) {
 // would silently resolve to the wrong object). Rejecting them keeps the generated code readable.
 bool reserved_loop_local(std::string_view name) {
     static constexpr std::array<std::string_view, 11> kReserved = {
-        "format_value",    "apply_state",   "attach_child_at",        "detach_child",
-        "kEffectHashSeed", "kItemIdStride", "kMaxGeneratedListItems", "build_item",
-        "apply_item",      "apply_list",    "apply_children"};
+        "format_value",  "apply_state", "attach_child_at", "detach_child", "kEffectHashSeed",
+        "kItemIdStride", "build_item",  "apply_item",      "apply_list",   "apply_children"};
     if (starts_with(name, "tessera_") || starts_with(name, "node_")) {
         return true;
     }

@@ -20,15 +20,6 @@
 namespace vlist {
   namespace gen {
     // comp::VirtualDemo (VirtualDemo).
-    // Bound of the generated keyed-list item table (docs/design/compiler.md section
-    // 11): a list materializes at most this many items; a longer source list is
-    // truncated at this prefix deterministically.
-    inline constexpr std::size_t kMaxGeneratedListItems = 32;
-    
-    // Bound of one virtual collection's realized window (ir-v1.md section 3.5):
-    // the host applies a visible range of at most this many items, so the
-    // generated item table and the live node count stay bounded.
-    inline constexpr std::size_t kMaxGeneratedVirtualItems = 32;
     // Hard cap of a generated collection geometry (virtualization-v1.md section
     // 10): a larger data source is refused loudly by scroll_virtual_<n>().
     inline constexpr std::size_t kMaxGeneratedVirtualGeometryItems = 4096;
@@ -67,10 +58,10 @@ namespace vlist {
       static constexpr bool virtual_3_horizontal_ = false; // main axis is x instead of y
       // `node::3` virtual item window (bounded; keyed reuse; the host applies the range).
       tessera::ui::Node* virtual_3_ = nullptr;
-      std::array<Item_4, kMaxGeneratedVirtualItems> virtual_3_items_{};
-      std::array<std::uint64_t, kMaxGeneratedVirtualItems> virtual_3_hashes_{};
-      std::array<bool, kMaxGeneratedVirtualItems> virtual_3_set_{};
-      std::array<std::string, kMaxGeneratedVirtualItems> virtual_3_keys_{};
+      std::vector<Item_4> virtual_3_items_{};
+      std::vector<std::uint64_t> virtual_3_hashes_{};
+      std::vector<bool> virtual_3_set_{};
+      std::vector<std::string> virtual_3_keys_{};
       std::size_t virtual_3_count_ = 0;
       std::size_t virtual_3_first_ = 0;
       std::uint64_t virtual_3_order_hash_ = 0;
@@ -99,10 +90,10 @@ namespace vlist {
       static constexpr double virtual_6_column_width_ = 0.0;
       // `node::6` virtual item window (bounded; keyed reuse; the host applies the range).
       tessera::ui::Node* virtual_6_ = nullptr;
-      std::array<Item_7, kMaxGeneratedVirtualItems> virtual_6_items_{};
-      std::array<std::uint64_t, kMaxGeneratedVirtualItems> virtual_6_hashes_{};
-      std::array<bool, kMaxGeneratedVirtualItems> virtual_6_set_{};
-      std::array<std::string, kMaxGeneratedVirtualItems> virtual_6_keys_{};
+      std::vector<Item_7> virtual_6_items_{};
+      std::vector<std::uint64_t> virtual_6_hashes_{};
+      std::vector<bool> virtual_6_set_{};
+      std::vector<std::string> virtual_6_keys_{};
       std::size_t virtual_6_count_ = 0;
       std::size_t virtual_6_first_ = 0;
       std::uint64_t virtual_6_order_hash_ = 0;

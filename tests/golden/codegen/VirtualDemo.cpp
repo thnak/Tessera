@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 #include <charconv>
 #include <cstdint>
 #include <string>
@@ -158,9 +159,6 @@ namespace vlist {
       if (tessera_last < tessera_first) {
         tessera_last = tessera_first;
       }
-      if (tessera_last - tessera_first > kMaxGeneratedVirtualItems) {
-        tessera_last = tessera_first + kMaxGeneratedVirtualItems;
-      }
       // Key/order hash first: an unchanged window allocates nothing and touches no node.
       std::uint64_t tessera_order = tessera::ui::kEffectHashSeed;
       std::size_t tessera_window = 0;
@@ -174,35 +172,35 @@ namespace vlist {
       if (!virtual_3_order_set_ || tessera_order != virtual_3_order_hash_) {
         virtual_3_order_set_ = true;
         virtual_3_order_hash_ = tessera_order;
-        // Detach the current window, keeping the item subtrees and their content state.
-        std::array<std::unique_ptr<tessera::ui::Node>, kMaxGeneratedVirtualItems> tessera_old_nodes{};
-        std::array<Item_4, kMaxGeneratedVirtualItems> tessera_old_items{};
-        std::array<std::uint64_t, kMaxGeneratedVirtualItems> tessera_old_hashes{};
-        std::array<bool, kMaxGeneratedVirtualItems> tessera_old_set{};
-        for (std::size_t tessera_slot = 0; tessera_slot < virtual_3_count_; ++tessera_slot) {
-          tessera_old_nodes[tessera_slot] = virtual_3_->remove_child(*virtual_3_items_[tessera_slot].root);
-          tessera_old_items[tessera_slot] = virtual_3_items_[tessera_slot];
-          tessera_old_hashes[tessera_slot] = virtual_3_hashes_[tessera_slot];
-          tessera_old_set[tessera_slot] = virtual_3_set_[tessera_slot];
+        // Take over the current window: its items, hashes and keys become the reuse pool.
+        const std::size_t tessera_old_count = virtual_3_count_;
+        std::vector<std::unique_ptr<tessera::ui::Node>> tessera_old_nodes(tessera_old_count);
+        std::vector<Item_4> tessera_old_items = std::move(virtual_3_items_);
+        std::vector<std::uint64_t> tessera_old_hashes = std::move(virtual_3_hashes_);
+        std::vector<bool> tessera_old_set = std::move(virtual_3_set_);
+        std::vector<std::string> tessera_old_keys = std::move(virtual_3_keys_);
+        for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; ++tessera_slot) {
+          tessera_old_nodes[tessera_slot] = virtual_3_->remove_child(*tessera_old_items[tessera_slot].root);
         }
-        std::array<bool, kMaxGeneratedVirtualItems> tessera_reused{};
-        std::array<std::string, kMaxGeneratedVirtualItems> tessera_next_keys{};
-        std::array<Item_4, kMaxGeneratedVirtualItems> tessera_next_items{};
-        std::array<std::uint64_t, kMaxGeneratedVirtualItems> tessera_next_hashes{};
-        std::array<bool, kMaxGeneratedVirtualItems> tessera_next_set{};
+        // The new window is sized to the realized range: there is no item cap.
+        std::vector<bool> tessera_reused(tessera_old_count);
+        std::vector<std::string> tessera_next_keys(tessera_window);
+        std::vector<Item_4> tessera_next_items(tessera_window);
+        std::vector<std::uint64_t> tessera_next_hashes(tessera_window);
+        std::vector<bool> tessera_next_set(tessera_window);
         std::size_t tessera_next = 0;
         for (std::size_t tessera_i = tessera_first; tessera_i < tessera_last; ++tessera_i) {
           const std::string& item = tessera_source[tessera_i];
           std::string tessera_key = format_value(item);
-          std::size_t tessera_match = kMaxGeneratedVirtualItems;
-          for (std::size_t tessera_slot = 0; tessera_slot < virtual_3_count_; ++tessera_slot) {
-            if (!tessera_reused[tessera_slot] && virtual_3_keys_[tessera_slot] == tessera_key) {
+          std::size_t tessera_match = tessera_old_count;
+          for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; ++tessera_slot) {
+            if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == tessera_key) {
               tessera_reused[tessera_slot] = true;
               tessera_match = tessera_slot;
               break;
             }
           }
-          if (tessera_match != kMaxGeneratedVirtualItems) {
+          if (tessera_match != tessera_old_count) {
             // Reuse: the subtree, its text pointers and its content hash move to the new slot.
             tessera_next_items[tessera_next] = tessera_old_items[tessera_match];
             tessera_next_hashes[tessera_next] = tessera_old_hashes[tessera_match];
@@ -220,19 +218,11 @@ namespace vlist {
           tessera_next_keys[tessera_next] = std::move(tessera_key);
           ++tessera_next;
         }
-        // Publish the new window; stale slots are cleared so a later match cannot reuse a removed key.
-        for (std::size_t tessera_slot = 0; tessera_slot < tessera_next; ++tessera_slot) {
-          virtual_3_items_[tessera_slot] = tessera_next_items[tessera_slot];
-          virtual_3_hashes_[tessera_slot] = tessera_next_hashes[tessera_slot];
-          virtual_3_set_[tessera_slot] = tessera_next_set[tessera_slot];
-          virtual_3_keys_[tessera_slot] = std::move(tessera_next_keys[tessera_slot]);
-        }
-        for (std::size_t tessera_slot = tessera_next; tessera_slot < virtual_3_count_; ++tessera_slot) {
-          virtual_3_items_[tessera_slot] = Item_4{};
-          virtual_3_hashes_[tessera_slot] = 0;
-          virtual_3_set_[tessera_slot] = false;
-          virtual_3_keys_[tessera_slot].clear();
-        }
+        // Publish the new window; vector sizes track the live count, so no stale slot can match a removed key.
+        virtual_3_items_ = std::move(tessera_next_items);
+        virtual_3_hashes_ = std::move(tessera_next_hashes);
+        virtual_3_set_ = std::move(tessera_next_set);
+        virtual_3_keys_ = std::move(tessera_next_keys);
         virtual_3_count_ = tessera_next;
         virtual_3_first_ = tessera_first;
       }
@@ -396,9 +386,6 @@ namespace vlist {
       if (tessera_last < tessera_first) {
         tessera_last = tessera_first;
       }
-      if (tessera_last - tessera_first > kMaxGeneratedVirtualItems) {
-        tessera_last = tessera_first + kMaxGeneratedVirtualItems;
-      }
       // Key/order hash first: an unchanged window allocates nothing and touches no node.
       std::uint64_t tessera_order = tessera::ui::kEffectHashSeed;
       std::size_t tessera_window = 0;
@@ -412,35 +399,35 @@ namespace vlist {
       if (!virtual_6_order_set_ || tessera_order != virtual_6_order_hash_) {
         virtual_6_order_set_ = true;
         virtual_6_order_hash_ = tessera_order;
-        // Detach the current window, keeping the item subtrees and their content state.
-        std::array<std::unique_ptr<tessera::ui::Node>, kMaxGeneratedVirtualItems> tessera_old_nodes{};
-        std::array<Item_7, kMaxGeneratedVirtualItems> tessera_old_items{};
-        std::array<std::uint64_t, kMaxGeneratedVirtualItems> tessera_old_hashes{};
-        std::array<bool, kMaxGeneratedVirtualItems> tessera_old_set{};
-        for (std::size_t tessera_slot = 0; tessera_slot < virtual_6_count_; ++tessera_slot) {
-          tessera_old_nodes[tessera_slot] = virtual_6_->remove_child(*virtual_6_items_[tessera_slot].root);
-          tessera_old_items[tessera_slot] = virtual_6_items_[tessera_slot];
-          tessera_old_hashes[tessera_slot] = virtual_6_hashes_[tessera_slot];
-          tessera_old_set[tessera_slot] = virtual_6_set_[tessera_slot];
+        // Take over the current window: its items, hashes and keys become the reuse pool.
+        const std::size_t tessera_old_count = virtual_6_count_;
+        std::vector<std::unique_ptr<tessera::ui::Node>> tessera_old_nodes(tessera_old_count);
+        std::vector<Item_7> tessera_old_items = std::move(virtual_6_items_);
+        std::vector<std::uint64_t> tessera_old_hashes = std::move(virtual_6_hashes_);
+        std::vector<bool> tessera_old_set = std::move(virtual_6_set_);
+        std::vector<std::string> tessera_old_keys = std::move(virtual_6_keys_);
+        for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; ++tessera_slot) {
+          tessera_old_nodes[tessera_slot] = virtual_6_->remove_child(*tessera_old_items[tessera_slot].root);
         }
-        std::array<bool, kMaxGeneratedVirtualItems> tessera_reused{};
-        std::array<std::string, kMaxGeneratedVirtualItems> tessera_next_keys{};
-        std::array<Item_7, kMaxGeneratedVirtualItems> tessera_next_items{};
-        std::array<std::uint64_t, kMaxGeneratedVirtualItems> tessera_next_hashes{};
-        std::array<bool, kMaxGeneratedVirtualItems> tessera_next_set{};
+        // The new window is sized to the realized range: there is no item cap.
+        std::vector<bool> tessera_reused(tessera_old_count);
+        std::vector<std::string> tessera_next_keys(tessera_window);
+        std::vector<Item_7> tessera_next_items(tessera_window);
+        std::vector<std::uint64_t> tessera_next_hashes(tessera_window);
+        std::vector<bool> tessera_next_set(tessera_window);
         std::size_t tessera_next = 0;
         for (std::size_t tessera_i = tessera_first; tessera_i < tessera_last; ++tessera_i) {
           const std::string& cell = tessera_source[tessera_i];
           std::string tessera_key = format_value(cell);
-          std::size_t tessera_match = kMaxGeneratedVirtualItems;
-          for (std::size_t tessera_slot = 0; tessera_slot < virtual_6_count_; ++tessera_slot) {
-            if (!tessera_reused[tessera_slot] && virtual_6_keys_[tessera_slot] == tessera_key) {
+          std::size_t tessera_match = tessera_old_count;
+          for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; ++tessera_slot) {
+            if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == tessera_key) {
               tessera_reused[tessera_slot] = true;
               tessera_match = tessera_slot;
               break;
             }
           }
-          if (tessera_match != kMaxGeneratedVirtualItems) {
+          if (tessera_match != tessera_old_count) {
             // Reuse: the subtree, its text pointers and its content hash move to the new slot.
             tessera_next_items[tessera_next] = tessera_old_items[tessera_match];
             tessera_next_hashes[tessera_next] = tessera_old_hashes[tessera_match];
@@ -458,19 +445,11 @@ namespace vlist {
           tessera_next_keys[tessera_next] = std::move(tessera_key);
           ++tessera_next;
         }
-        // Publish the new window; stale slots are cleared so a later match cannot reuse a removed key.
-        for (std::size_t tessera_slot = 0; tessera_slot < tessera_next; ++tessera_slot) {
-          virtual_6_items_[tessera_slot] = tessera_next_items[tessera_slot];
-          virtual_6_hashes_[tessera_slot] = tessera_next_hashes[tessera_slot];
-          virtual_6_set_[tessera_slot] = tessera_next_set[tessera_slot];
-          virtual_6_keys_[tessera_slot] = std::move(tessera_next_keys[tessera_slot]);
-        }
-        for (std::size_t tessera_slot = tessera_next; tessera_slot < virtual_6_count_; ++tessera_slot) {
-          virtual_6_items_[tessera_slot] = Item_7{};
-          virtual_6_hashes_[tessera_slot] = 0;
-          virtual_6_set_[tessera_slot] = false;
-          virtual_6_keys_[tessera_slot].clear();
-        }
+        // Publish the new window; vector sizes track the live count, so no stale slot can match a removed key.
+        virtual_6_items_ = std::move(tessera_next_items);
+        virtual_6_hashes_ = std::move(tessera_next_hashes);
+        virtual_6_set_ = std::move(tessera_next_set);
+        virtual_6_keys_ = std::move(tessera_next_keys);
         virtual_6_count_ = tessera_next;
         virtual_6_first_ = tessera_first;
       }
