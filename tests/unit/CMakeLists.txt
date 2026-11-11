@@ -1387,6 +1387,26 @@ target_link_libraries(cpu_canvas_tests PRIVATE tessera_software)
 
 add_test(NAME cpu_canvas COMMAND cpu_canvas_tests)
 
+# Deterministic CPU-canvas golden corpus: every primitive the software backend implements (solid
+# quads, coverage blend, textured quads) plus boundary geometry, asserted on exact RGBA8 bytes. The
+# second executable covers the sink-level primitives (clip stacks, translate/rotation, rounded
+# bounds, damage-scissored replays). No GPU, lavapipe, font, clock, or network.
+add_executable(cpu_canvas_corpus_tests
+    cpu_canvas_corpus_tests.cpp)
+
+target_link_libraries(cpu_canvas_corpus_tests PRIVATE tessera_software)
+
+add_test(NAME cpu_canvas_corpus COMMAND cpu_canvas_corpus_tests)
+
+add_executable(cpu_canvas_scene_corpus_tests
+    cpu_canvas_scene_corpus_tests.cpp)
+
+target_link_libraries(cpu_canvas_scene_corpus_tests PRIVATE
+    tessera_paint
+    tessera_software)
+
+add_test(NAME cpu_canvas_scene_corpus COMMAND cpu_canvas_scene_corpus_tests)
+
 # Vulkan-free dirty-only == full-redraw equivalence: damage plan -> damage-clipped paint ->
 # deterministic CPU canvas pixels. Runs on every platform; no GPU/lavapipe required.
 add_executable(damage_equivalence_cpu_tests
