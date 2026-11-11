@@ -115,14 +115,15 @@ void test_generated_shape() {
     check(contains(header, "struct Item_7 {"), "the item node struct of the grid template");
     check(contains(header, "std::array<tessera::ui::Node*, 1> texts{};"),
           "the item struct records its interpolated text node");
-    check(contains(header, "static constexpr double virtual_3_estimate_size_ = 32.0;"),
-          "the list estimate is a generated constant");
-    check(contains(header, "static constexpr double virtual_3_gap_ = 4.0;"),
-          "the list gap is a generated constant");
+    check(contains(header,
+                   "double virtual_3_estimate_size_ = static_cast<double>(state_row_extent_);"),
+          "the list estimate is re-evaluated from its state cell");
+    check(contains(header, "double virtual_3_gap_ = static_cast<double>(state_row_gap_);"),
+          "the list gap is re-evaluated from its state cell");
     check(contains(header, "static constexpr double virtual_3_overscan_ = 200.0;"),
           "the spec default overscan is a generated constant");
-    check(contains(header, "static constexpr double virtual_3_item_size_ = 0.0;"),
-          "no fixed item size means variable-size");
+    check(contains(header, "double virtual_3_item_size_ = static_cast<double>(prop_item_extent_);"),
+          "the declared fixed extent comes from a prop");
     check(contains(header, "tessera::ui::Node* virtual_3_ = nullptr;"),
           "the collection container is recorded");
     check(contains(header, "std::vector<Item_4> virtual_3_items_{};"),
@@ -138,8 +139,8 @@ void test_generated_shape() {
           "the window application signature");
     check(!contains(header, "void apply_list_4("),
           "a virtual template does not emit the eager list application");
-    check(contains(header, "static constexpr double virtual_6_row_height_ = 40.0;"),
-          "the grid row height is a generated constant");
+    check(contains(header, "double virtual_6_row_height_ = static_cast<double>(state_grid_row_);"),
+          "the grid row height is re-evaluated from its state cell");
     check(contains(header, "static constexpr int virtual_6_columns_ = 2;"),
           "the grid column count is a generated constant");
     check(contains(source, "void VirtualDemo::apply_virtual_3(std::size_t tessera_first, "
@@ -202,6 +203,10 @@ void test_scroll_wiring_shape() {
     check(contains(source, "bool VirtualDemo::scroll_virtual_3(float& tessera_scroll, "
                            "float tessera_viewport)"),
           "the scroll entry point is emitted");
+    check(contains(source, "update_virtual_geometry_3(tessera_scroll, tessera_viewport);"),
+          "the scroll entry point runs the geometry re-seed path first");
+    check(contains(header, "std::uint64_t virtual_3_geometry_seeds_ = 0;"),
+          "the re-seed counter is a generated member");
     check(contains(source, "tessera_item->bounds().height;"),
           "a realized item reports its measured main-axis size through its bounds");
     check(contains(source, "virtual_3_geometry_.refine_measure(tessera_index, "
@@ -289,16 +294,6 @@ void test_rejections() {
         ir::IrModule module = make_virtual_module();
         module.components[0].root.children[1].item_template->loop.reset();
         expect_error(module, "an itemTemplate without the loop is rejected");
-    }
-    {
-        ir::IrModule module = make_virtual_module();
-        module.components[0].root.children[1].props["estimateSize"] = ir::make_ref("state::count");
-        expect_error(module, "a dynamic estimateSize is rejected in this slice");
-    }
-    {
-        ir::IrModule module = make_virtual_module();
-        module.components[0].root.children[1].props["gap"] = ir::make_ref("state::count");
-        expect_error(module, "a dynamic gap is rejected in this slice");
     }
     {
         ir::IrModule module = make_virtual_module();

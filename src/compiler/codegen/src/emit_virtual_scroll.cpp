@@ -268,6 +268,11 @@ bool emit_virtual_scroll(CppWriter& writer, const ir::Component& component,
     writer.close("");
     writer.line(table + "_geometry_count_ = tessera_rows;");
     writer.close("");
+    writer.line("// Geometry props/state can change between frames: the re-seed path re-evaluates");
+    writer.line(
+        "// them behind a hash guard (one pass, no rebuild while unchanged) and re-anchors");
+    writer.line("// the offset in place before the measure pass reads the prefix sums.");
+    writer.line("update_virtual_geometry_" + ordinal + "(tessera_scroll, tessera_viewport);");
     writer.line("// Measurement feedback: a realized item reports its main-axis border-box extent");
     writer.line("// through its laid-out scene bounds; an unlaid-out (zero) item reports nothing.");
     writer.line(

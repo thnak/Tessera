@@ -284,7 +284,8 @@ bool PlanWalk::collect_virtual_collection(const ir::Node& node, unsigned node_or
         return fail(error, "the item template of `" + node.id +
                                "` carries the loop that names the item and the data source");
     }
-    if (!validate_virtual_geometry(node, error)) {
+    VirtualGeometrySpec geometry;
+    if (!virtual_geometry_spec(component, node, geometry, error)) {
         return false;
     }
     ListTemplate list;
@@ -293,6 +294,7 @@ bool PlanWalk::collect_virtual_collection(const ir::Node& node, unsigned node_or
     list.is_virtual = true;
     list.container_ordinal = node_ordinal;
     list.container = &node;
+    list.geometry = std::move(geometry);
     list.node = &item;
     list.item = item.loop->item;
     list.index = item.loop->index;

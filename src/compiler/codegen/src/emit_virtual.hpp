@@ -4,6 +4,8 @@
 
 #include "emit_dynamic.hpp"
 
+#include <cstdint>
+#include <optional>
 #include <string>
 // IR -> generated C++ for VirtualList/VirtualGrid item templates (ir-v1.md section 3.5,
 // virtualization-v1.md section 10):
@@ -17,13 +19,17 @@
 //   emission shape (emit_list.cpp), sized to the applied window (no fixed cap).
 namespace tessera::compiler::codegen::internal {
 
+// Resolves and validates the geometry props of one virtual collection. `itemSize`/`estimateSize`/
+// `gap`/`rowHeight` accept a number literal or a numeric state/prop reference (the re-seed path
+// re-evaluates the latter); `orientation`, `columns`, `overscan` and `columnWidth` stay
+// literal-only because they decide the emitted axis, row mapping or window shape at compile time.
+// Unsupported forms are TESSERA_CODEGEN_UNSUPPORTED.
+[[nodiscard]] bool virtual_geometry_spec(const ir::Component& component, const ir::Node& collection,
+                                         VirtualGeometrySpec& out, std::string& error);
+
 // The generated member-name prefix of one item table: `list_<n>_` for an eager keyed list,
 // `virtual_<n>_` for a virtual collection window (both share the Item_<n> shape).
 [[nodiscard]] std::string item_table_prefix(const ListTemplate& list);
-
-// Rejects the geometry props this slice cannot emit (a non-literal itemSize/estimateSize/...).
-// Called by the plan walk so a failing component reports one deterministic error.
-[[nodiscard]] bool validate_virtual_geometry(const ir::Node& collection, std::string& error);
 
 // The collection's `orientation` prop resolved to the generated main axis (x instead of y).
 [[nodiscard]] bool virtual_is_horizontal(const ir::Node& collection);
@@ -39,9 +45,18 @@ namespace tessera::compiler::codegen::internal {
                                           const std::vector<const ir::Binding*>& bindings,
                                           DynamicPlan& plan, std::string& error);
 
-// Emits the generated `static constexpr` geometry constants of one virtual collection into the
-// component struct (virtualization-v1.md section 10; the estimate default is 32 px).
-void emit_virtual_geometry_constants(CppWriter& writer, const ListTemplate& collection);
+// Emits the generated geometry members of one virtual collection into the component struct: the
+// effective estimate, the gap, the declared fixed extent and the compile-time overscan/axis/columns
+// (virtualization-v1.md section 10; the estimate default is 32 px).
+void emit_virtual_geometry_fields(CppWriter& writer, const ListTemplate& collection);
+
+// Emits `<Name>::update_virtual_geometry_<n>(scroll_offset, viewport_extent)`, the re-seed path: it
+// re-evaluates the geometry inputs, hash-compares them against the last seed (so a per-frame call
+// costs one FNV-1a pass and no rebuild), keeps measurements an estimate/gap change cannot
+// invalidate (a changed fixed extent drops all of them), and re-anchors the caller's offset so the
+// item at the viewport start keeps its viewport position, clamped to `[0, total - viewport]`.
+void emit_update_virtual_geometry(CppWriter& writer, const ir::Component& component,
+                                  const ListTemplate& collection);
 
 // Emits `<Name>::apply_virtual_<n>(first, last)`: detaches the current window, reconciles it by key
 // against the bounded table, attaches item nodes with absolute-index NodeId slots, then runs the
@@ -50,10 +65,10 @@ void emit_virtual_geometry_constants(CppWriter& writer, const ListTemplate& coll
                                       const ListTemplate& collection, std::string& error);
 
 // Emits `<Name>::scroll_virtual_<n>(scroll_offset, viewport_extent)`: the generated scroll entry
-// point. It owns the collection's `ItemGeometry` (seeded from the emitted constants), refines the
-// prefix sums from the realized items' measured main-axis bounds, re-anchors the caller's offset in
-// place with the section 6 rule, applies the overscanned realized window, then dispatches
-// `onScroll` and the edge-triggered, distance-throttled `onEndReached`.
+// point. It syncs the geometry count, runs the re-seed path (a geometry prop/state change
+// re-anchors the offset in place), refines the prefix sums from the realized items' measured
+// main-axis bounds, re-anchors again with the section 6 rule, applies the overscanned realized
+// window, then dispatches `onScroll` and the edge-triggered, distance-throttled `onEndReached`.
 [[nodiscard]] bool emit_virtual_scroll(CppWriter& writer, const ir::Component& component,
                                        const ListTemplate& collection, std::string& error);
 

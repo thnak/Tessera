@@ -72,7 +72,7 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
         const std::string ordinal = ordinal_text(list.ordinal);
         if (list.is_virtual) {
             const std::string table = item_table_prefix(list);
-            emit_virtual_geometry_constants(writer, list);
+            emit_virtual_geometry_fields(writer, list);
             writer.line(
                 "// `node::" + ordinal_text(list.container_ordinal) +
                 "` virtual item window (bounded; keyed reuse; the host applies the range).");
@@ -85,13 +85,18 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
             writer.line("std::size_t " + table + "_first_ = 0;");
             writer.line("std::uint64_t " + table + "_order_hash_ = 0;");
             writer.line("bool " + table + "_order_set_ = false;");
-            writer.line("// Geometry owned by the generated scroll handler, seeded from the");
-            writer.line("// emitted constants; its count is synced from the data source.");
+            writer.line(
+                "// Geometry owned by the generated scroll handler; its count is synced from");
+            writer.line("// the data source and update_virtual_geometry_<n>() re-seeds it on a");
+            writer.line("// geometry change.");
             writer.line("tessera::ui::virtualization::ItemGeometry " + table + "_geometry_{{");
             writer.line("    kMaxGeneratedVirtualGeometryItems,");
             writer.line("    static_cast<float>(" + table + "_estimate_size_),");
             writer.line("    static_cast<float>(" + table + "_gap_)}};");
             writer.line("std::size_t " + table + "_geometry_count_ = 0;");
+            writer.line("std::uint64_t " + table + "_geometry_hash_ = 0;");
+            writer.line("bool " + table + "_geometry_set_ = false;");
+            writer.line("std::uint64_t " + table + "_geometry_seeds_ = 0;");
             if (list.events.on_end_reached.present) {
                 writer.line("// Edge/throttle state of the collection's `onEndReached`.");
                 writer.line("bool " + table + "_end_armed_ = true;");
@@ -133,6 +138,11 @@ void emit_dynamic_declarations(CppWriter& writer, const DynamicPlan& plan) {
                         "key.");
             writer.line("void apply_virtual_" + ordinal_text(list.container_ordinal) +
                         "(std::size_t tessera_first, std::size_t tessera_last);");
+            writer.line("// Re-seeds the geometry from the current geometry props/state and");
+            writer.line("// re-anchors the offset so the item at the viewport start keeps its");
+            writer.line("// place; true only when an input changed (hash-guarded).");
+            writer.line("bool update_virtual_geometry_" + ordinal_text(list.container_ordinal) +
+                        "(float& tessera_scroll, float tessera_viewport);");
             writer.line("// Applies one scroll offset: refines the geometry from realized item");
             writer.line("// measures (updating the offset in place on a re-anchor), applies the");
             writer.line("// window, then dispatches the collection events. False when the data");
