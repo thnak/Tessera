@@ -1,6 +1,6 @@
 # ADR-002: WebGPU (Dawn) for design-time Wasm, separate from the Vulkan backend
 
-- Status: Accepted
+- Status: Accepted (amendment to item 2 proposed in [ADR-042](ADR-042-web-target-for-demos.md))
 - Date: 2026-11-07
 - Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin render hardware interface and batched 2D renderer), [ADR-011](ADR-011-shader-authoring-and-cross-compilation.md) (shader authoring and cross-compilation)
 
