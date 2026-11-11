@@ -21,14 +21,19 @@ namespace tessera::parity {
 namespace eval = tessera::compiler::eval;
 namespace ir = tessera::compiler::ir;
 
-// One call of the script: a handler id (`handler::2`, from the IR) or a native binding id
-// (`bind::add`) and its arguments in parameter order.
+// One step of the script. A call names a handler id (`handler::2`, from the IR) or a native
+// binding id (`bind::add`) and gives its arguments in parameter order. A click names the
+// automation id of a node (the numeric `automationId` of the TSX element, as in
+// headless-automation-v1 `click`); the runner resolves it to the handler of the node's `onClick`
+// in the IR, and the native side clicks the scene node that carries the id.
 struct Step {
     std::string target;
     std::vector<eval::Value> args;
+    bool click = false;
 };
 
-// Script text, one step per line: `call <id> [arg...]`. Arguments are an int (`-3`), a float
+// Script text, one step per line: `call <id> [arg...]` or `click <automationId>`. Arguments are an
+// int (`-3`), a float
 // (`1.5`, `2e3`), `true`/`false` or a double-quoted string with `\"` and `\` escapes. Blank lines
 // and lines starting with `#` are ignored.
 [[nodiscard]] std::expected<std::vector<Step>, std::string> parse_script(std::string_view text);
@@ -65,7 +70,8 @@ struct Report {
 
 // Plays `script` on the IR side (the handler's actions, or the native binding's preview body) and
 // on `native`, comparing the native snapshot with the IR state before the first step and after each
-// one. It stops at the first step with a difference, so the report names where they diverge.
+// one. It stops at the first step with a difference, so the report names where they diverge. A
+// click step is reported as `click <automationId> (<handler id>)`.
 [[nodiscard]] Report run_parity(const ir::IrModule& module, const ir::Component& component,
                                 const std::vector<Step>& script, const NativeSide& native);
 
