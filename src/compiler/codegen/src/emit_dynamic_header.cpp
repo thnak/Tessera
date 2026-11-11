@@ -22,16 +22,7 @@ void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan) {
     if (plan.lists.empty()) {
         return;
     }
-    writer.line("// Bound of the generated keyed-list item table (docs/design/compiler.md section");
-    writer.line("// 11): a list materializes at most this many items; a longer source list is");
-    writer.line("// truncated at this prefix deterministically.");
-    writer.line("inline constexpr std::size_t kMaxGeneratedListItems = 32;");
     if (plan.has_virtual) {
-        writer.line("");
-        writer.line("// Bound of one virtual collection's realized window (ir-v1.md section 3.5):");
-        writer.line("// the host applies a visible range of at most this many items, so the");
-        writer.line("// generated item table and the live node count stay bounded.");
-        writer.line("inline constexpr std::size_t kMaxGeneratedVirtualItems = 32;");
         writer.line("// Hard cap of a generated collection geometry (virtualization-v1.md section");
         writer.line("// 10): a larger data source is refused loudly by scroll_virtual_<n>().");
         writer.line("inline constexpr std::size_t kMaxGeneratedVirtualGeometryItems = 4096;");
@@ -86,13 +77,10 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
                 "// `node::" + ordinal_text(list.container_ordinal) +
                 "` virtual item window (bounded; keyed reuse; the host applies the range).");
             writer.line("tessera::ui::Node* " + table + "_ = nullptr;");
-            writer.line("std::array<Item_" + ordinal + ", kMaxGeneratedVirtualItems> " + table +
-                        "_items_{};");
-            writer.line("std::array<std::uint64_t, kMaxGeneratedVirtualItems> " + table +
-                        "_hashes_{};");
-            writer.line("std::array<bool, kMaxGeneratedVirtualItems> " + table + "_set_{};");
-            writer.line("std::array<std::string, kMaxGeneratedVirtualItems> " + table +
-                        "_keys_{};");
+            writer.line("std::vector<Item_" + ordinal + "> " + table + "_items_{};");
+            writer.line("std::vector<std::uint64_t> " + table + "_hashes_{};");
+            writer.line("std::vector<bool> " + table + "_set_{};");
+            writer.line("std::vector<std::string> " + table + "_keys_{};");
             writer.line("std::size_t " + table + "_count_ = 0;");
             writer.line("std::size_t " + table + "_first_ = 0;");
             writer.line("std::uint64_t " + table + "_order_hash_ = 0;");
@@ -115,13 +103,10 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
         }
         writer.line("// `node::" + ordinal + "` keyed list over `" + list.element_type +
                     "` items (bounded item table; reused by key).");
-        writer.line("std::array<Item_" + ordinal + ", kMaxGeneratedListItems> list_" + ordinal +
-                    "_items_{};");
-        writer.line("std::array<std::uint64_t, kMaxGeneratedListItems> list_" + ordinal +
-                    "_hashes_{};");
-        writer.line("std::array<bool, kMaxGeneratedListItems> list_" + ordinal + "_set_{};");
-        writer.line("std::array<std::string, kMaxGeneratedListItems> list_" + ordinal +
-                    "_keys_{};");
+        writer.line("std::vector<Item_" + ordinal + "> list_" + ordinal + "_items_{};");
+        writer.line("std::vector<std::uint64_t> list_" + ordinal + "_hashes_{};");
+        writer.line("std::vector<bool> list_" + ordinal + "_set_{};");
+        writer.line("std::vector<std::string> list_" + ordinal + "_keys_{};");
         writer.line("std::size_t list_" + ordinal + "_count_ = 0;");
         writer.line("std::uint64_t list_" + ordinal + "_order_hash_ = 0;");
         writer.line("bool list_" + ordinal + "_order_set_ = false;");

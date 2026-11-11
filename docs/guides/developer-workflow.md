@@ -116,9 +116,8 @@ afterwards.
 A component with a conditional child or a keyed list also gets generated child-set paths;
 `apply_state()` runs them first. A conditional branch is built once and attached/detached at its
 source position, so a child-set change marks the shared parent `Layout|Paint|Render` (never `Style`)
-and an unchanged condition marks nothing. A keyed list is capped at `kMaxGeneratedListItems` (32)
-items, reuses nodes by key, and allocates nothing when the key list is unchanged; a longer source
-list is truncated deterministically at the prefix. A list-typed state cell is authored like any other
+and an unchanged condition marks nothing. A keyed list has no item cap: its table
+grows to the source, reuses nodes by key, and allocates nothing when the key list is unchanged. A list-typed state cell is authored like any other
 state: `useState<string[]>(["a", "b"])` (literal elements) or a list reference; dynamic elements,
 record element types and list-typed props are not available yet (see
 [`compiler.md` §11](../design/compiler.md#11-c-codegen-first-slice-implemented)).

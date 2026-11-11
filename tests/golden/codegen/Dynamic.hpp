@@ -19,10 +19,6 @@
 namespace dynamic {
   namespace gen {
     // comp::Dynamic (Dynamic).
-    // Bound of the generated keyed-list item table (docs/design/compiler.md section
-    // 11): a list materializes at most this many items; a longer source list is
-    // truncated at this prefix deterministically.
-    inline constexpr std::size_t kMaxGeneratedListItems = 32;
     
     // Generated nodes of one `node::5` item (1 interpolated text node(s), template order).
     struct Item_5 {
@@ -65,10 +61,10 @@ namespace dynamic {
       // Dynamic child set of `node::1`.
       tessera::ui::Node* children_parent_1_ = nullptr;
       // `node::5` keyed list over `string` items (bounded item table; reused by key).
-      std::array<Item_5, kMaxGeneratedListItems> list_5_items_{};
-      std::array<std::uint64_t, kMaxGeneratedListItems> list_5_hashes_{};
-      std::array<bool, kMaxGeneratedListItems> list_5_set_{};
-      std::array<std::string, kMaxGeneratedListItems> list_5_keys_{};
+      std::vector<Item_5> list_5_items_{};
+      std::vector<std::uint64_t> list_5_hashes_{};
+      std::vector<bool> list_5_set_{};
+      std::vector<std::string> list_5_keys_{};
       std::size_t list_5_count_ = 0;
       std::uint64_t list_5_order_hash_ = 0;
       bool list_5_order_set_ = false;

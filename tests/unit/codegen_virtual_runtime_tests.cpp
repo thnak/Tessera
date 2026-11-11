@@ -188,13 +188,19 @@ int main() {
               "an item text repaint is Paint-only");
     }
 
-    // --- 5. Bounded window and clamped range. ---------------------------------------------------
+    // --- 5. Unbounded window and clamped range.
+    // ---------------------------------------------------
     {
         component.apply_virtual_3(0, kItemCount);
-        check(component.virtual_3_count_ == vlist::gen::kMaxGeneratedVirtualItems,
-              "a long visible range is clamped to the bounded item table");
-        check(root.children()[1]->children().size() == vlist::gen::kMaxGeneratedVirtualItems,
-              "the container never exceeds the bounded window");
+        check(component.virtual_3_count_ == kItemCount,
+              "a long visible range is realized in full, not clamped to 32 items");
+        // Issue #4: 24 px rows on a 2160 px viewport plus the 200 px overscan realize ~99 rows.
+        component.apply_virtual_3(0, 99);
+        check(component.virtual_3_count_ == 99 && component.virtual_3_items_.size() == 99,
+              "a 4K-viewport window of 99 rows is realized without missing rows");
+        component.apply_virtual_3(0, kItemCount);
+        check(root.children()[1]->children().size() == kItemCount,
+              "the container holds every realized item");
         component.apply_virtual_3(kItemCount - 4, kItemCount + 50);
         check(component.virtual_3_count_ == 4,
               "a window past the data source clamps to the remaining items");

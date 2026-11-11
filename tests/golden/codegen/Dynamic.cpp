@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 #include <charconv>
 #include <cstdint>
 #include <string>
@@ -283,9 +284,6 @@ namespace dynamic {
       std::uint64_t tessera_order = tessera::ui::kEffectHashSeed;
       std::size_t tessera_position = 0;
       for (const std::string& item : state_items_) {
-        if (tessera_position == kMaxGeneratedListItems) {
-          break;
-        }
         tessera_order = tessera::ui::effect_hash(tessera_order, std::string_view(item));
         ++tessera_position;
       }
@@ -294,41 +292,39 @@ namespace dynamic {
         list_5_order_set_ = true;
         list_5_order_hash_ = tessera_order;
         // Detach the current items, keeping their subtrees and per-item content state.
-        std::array<std::unique_ptr<tessera::ui::Node>, kMaxGeneratedListItems> tessera_old_nodes{};
-        std::array<Item_5, kMaxGeneratedListItems> tessera_old_items{};
-        std::array<std::uint64_t, kMaxGeneratedListItems> tessera_old_hashes{};
-        std::array<bool, kMaxGeneratedListItems> tessera_old_set{};
-        for (std::size_t tessera_slot = 0; tessera_slot < list_5_count_; ++tessera_slot) {
-          tessera_old_nodes[tessera_slot] = parent.remove_child(*list_5_items_[tessera_slot].root);
-          tessera_old_items[tessera_slot] = list_5_items_[tessera_slot];
-          tessera_old_hashes[tessera_slot] = list_5_hashes_[tessera_slot];
-          tessera_old_set[tessera_slot] = list_5_set_[tessera_slot];
+        // Take over the previous table: its items, hashes and keys become the reuse pool.
+        const std::size_t tessera_old_count = list_5_count_;
+        std::vector<std::unique_ptr<tessera::ui::Node>> tessera_old_nodes(tessera_old_count);
+        std::vector<Item_5> tessera_old_items = std::move(list_5_items_);
+        std::vector<std::uint64_t> tessera_old_hashes = std::move(list_5_hashes_);
+        std::vector<bool> tessera_old_set = std::move(list_5_set_);
+        std::vector<std::string> tessera_old_keys = std::move(list_5_keys_);
+        for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; ++tessera_slot) {
+          tessera_old_nodes[tessera_slot] = parent.remove_child(*tessera_old_items[tessera_slot].root);
         }
-        std::array<bool, kMaxGeneratedListItems> tessera_reused{};
-        std::array<std::string, kMaxGeneratedListItems> tessera_next_keys{};
-        std::array<Item_5, kMaxGeneratedListItems> tessera_next_items{};
-        std::array<std::uint64_t, kMaxGeneratedListItems> tessera_next_hashes{};
-        std::array<bool, kMaxGeneratedListItems> tessera_next_set{};
+        // The new table is sized to the source: there is no item cap.
+        std::vector<bool> tessera_reused(tessera_old_count);
+        std::vector<std::string> tessera_next_keys(tessera_position);
+        std::vector<Item_5> tessera_next_items(tessera_position);
+        std::vector<std::uint64_t> tessera_next_hashes(tessera_position);
+        std::vector<bool> tessera_next_set(tessera_position);
         std::size_t tessera_next = 0;
         // Id slots held by any item of the previous table; a new item takes a free one.
-        std::array<bool, 2 * kMaxGeneratedListItems> tessera_id_used{};
-        for (std::size_t tessera_slot = 0; tessera_slot < list_5_count_; ++tessera_slot) {
+        std::vector<bool> tessera_id_used(tessera_old_count + tessera_position + 1);
+        for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; ++tessera_slot) {
           tessera_id_used[tessera_old_items[tessera_slot].id_slot] = true;
         }
         for (const std::string& item : state_items_) {
-          if (tessera_next == kMaxGeneratedListItems) {
-            break;
-          }
           std::string tessera_key = format_value(item);
-          std::size_t tessera_match = kMaxGeneratedListItems;
-          for (std::size_t tessera_slot = 0; tessera_slot < list_5_count_; ++tessera_slot) {
-            if (!tessera_reused[tessera_slot] && list_5_keys_[tessera_slot] == tessera_key) {
+          std::size_t tessera_match = tessera_old_count;
+          for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; ++tessera_slot) {
+            if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == tessera_key) {
               tessera_reused[tessera_slot] = true;
               tessera_match = tessera_slot;
               break;
             }
           }
-          if (tessera_match != kMaxGeneratedListItems) {
+          if (tessera_match != tessera_old_count) {
             // Reuse: the node subtree, its interpolated text pointers and its content hash move to the new slot.
             tessera_next_items[tessera_next] = tessera_old_items[tessera_match];
             tessera_next_hashes[tessera_next] = tessera_old_hashes[tessera_match];
@@ -350,19 +346,11 @@ namespace dynamic {
           tessera_next_keys[tessera_next] = std::move(tessera_key);
           ++tessera_next;
         }
-        // Publish the new table; the stale slots are cleared so a later reuse cannot match a removed key.
-        for (std::size_t tessera_slot = 0; tessera_slot < tessera_next; ++tessera_slot) {
-          list_5_items_[tessera_slot] = tessera_next_items[tessera_slot];
-          list_5_hashes_[tessera_slot] = tessera_next_hashes[tessera_slot];
-          list_5_set_[tessera_slot] = tessera_next_set[tessera_slot];
-          list_5_keys_[tessera_slot] = std::move(tessera_next_keys[tessera_slot]);
-        }
-        for (std::size_t tessera_slot = tessera_next; tessera_slot < list_5_count_; ++tessera_slot) {
-          list_5_items_[tessera_slot] = Item_5{};
-          list_5_hashes_[tessera_slot] = 0;
-          list_5_set_[tessera_slot] = false;
-          list_5_keys_[tessera_slot].clear();
-        }
+        // Publish the new table; vector sizes track the live count, so no stale slot can match a removed key.
+        list_5_items_ = std::move(tessera_next_items);
+        list_5_hashes_ = std::move(tessera_next_hashes);
+        list_5_set_ = std::move(tessera_next_set);
+        list_5_keys_ = std::move(tessera_next_keys);
         list_5_count_ = tessera_next;
       }
       // Content pass: hash-compared per item, so an unchanged item marks nothing dirty.

@@ -230,9 +230,6 @@ bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
     writer.open("if (tessera_last < tessera_first)");
     writer.line("tessera_last = tessera_first;");
     writer.close("");
-    writer.open("if (tessera_last - tessera_first > kMaxGeneratedVirtualItems)");
-    writer.line("tessera_last = tessera_first + kMaxGeneratedVirtualItems;");
-    writer.close("");
     const LocalBindings key_locals = virtual_locals(collection, "static_cast<int>(tessera_i)");
     writer.line("// Key/order hash first: an unchanged window allocates nothing and touches no "
                 "node.");
@@ -255,26 +252,28 @@ bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
     writer.open("if (!" + table + "_order_set_ || tessera_order != " + table + "_order_hash_)");
     writer.line(table + "_order_set_ = true;");
     writer.line(table + "_order_hash_ = tessera_order;");
-    writer.line("// Detach the current window, keeping the item subtrees and their content state.");
-    writer.line("std::array<std::unique_ptr<tessera::ui::Node>, kMaxGeneratedVirtualItems> "
-                "tessera_old_nodes{};");
-    writer.line("std::array<Item_" + ordinal + ", kMaxGeneratedVirtualItems> tessera_old_items{};");
-    writer.line("std::array<std::uint64_t, kMaxGeneratedVirtualItems> tessera_old_hashes{};");
-    writer.line("std::array<bool, kMaxGeneratedVirtualItems> tessera_old_set{};");
-    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < " + table +
-                "_count_; ++tessera_slot)");
-    writer.line("tessera_old_nodes[tessera_slot] = " + table + "_->remove_child(*" + table +
-                "_items_[tessera_slot].root);");
-    writer.line("tessera_old_items[tessera_slot] = " + table + "_items_[tessera_slot];");
-    writer.line("tessera_old_hashes[tessera_slot] = " + table + "_hashes_[tessera_slot];");
-    writer.line("tessera_old_set[tessera_slot] = " + table + "_set_[tessera_slot];");
+    writer.line(
+        "// Take over the current window: its items, hashes and keys become the reuse pool.");
+    writer.line("const std::size_t tessera_old_count = " + table + "_count_;");
+    writer.line("std::vector<std::unique_ptr<tessera::ui::Node>> tessera_old_nodes("
+                "tessera_old_count);");
+    writer.line("std::vector<Item_" + ordinal + "> tessera_old_items = std::move(" + table +
+                "_items_);");
+    writer.line("std::vector<std::uint64_t> tessera_old_hashes = std::move(" + table +
+                "_hashes_);");
+    writer.line("std::vector<bool> tessera_old_set = std::move(" + table + "_set_);");
+    writer.line("std::vector<std::string> tessera_old_keys = std::move(" + table + "_keys_);");
+    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; "
+                "++tessera_slot)");
+    writer.line("tessera_old_nodes[tessera_slot] = " + table +
+                "_->remove_child(*tessera_old_items[tessera_slot].root);");
     writer.close("");
-    writer.line("std::array<bool, kMaxGeneratedVirtualItems> tessera_reused{};");
-    writer.line("std::array<std::string, kMaxGeneratedVirtualItems> tessera_next_keys{};");
-    writer.line("std::array<Item_" + ordinal +
-                ", kMaxGeneratedVirtualItems> tessera_next_items{};");
-    writer.line("std::array<std::uint64_t, kMaxGeneratedVirtualItems> tessera_next_hashes{};");
-    writer.line("std::array<bool, kMaxGeneratedVirtualItems> tessera_next_set{};");
+    writer.line("// The new window is sized to the realized range: there is no item cap.");
+    writer.line("std::vector<bool> tessera_reused(tessera_old_count);");
+    writer.line("std::vector<std::string> tessera_next_keys(tessera_window);");
+    writer.line("std::vector<Item_" + ordinal + "> tessera_next_items(tessera_window);");
+    writer.line("std::vector<std::uint64_t> tessera_next_hashes(tessera_window);");
+    writer.line("std::vector<bool> tessera_next_set(tessera_window);");
     writer.line("std::size_t tessera_next = 0;");
     writer.open("for (std::size_t tessera_i = tessera_first; tessera_i < tessera_last; "
                 "++tessera_i)");
@@ -285,17 +284,17 @@ bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
         return fail(error, "the key of `" + collection.node->id + "`: " + key.error);
     }
     writer.line("std::string tessera_key = format_value(" + key.text + ");");
-    writer.line("std::size_t tessera_match = kMaxGeneratedVirtualItems;");
-    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < " + table +
-                "_count_; ++tessera_slot)");
-    writer.open("if (!tessera_reused[tessera_slot] && " + table +
-                "_keys_[tessera_slot] == tessera_key)");
+    writer.line("std::size_t tessera_match = tessera_old_count;");
+    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < tessera_old_count; "
+                "++tessera_slot)");
+    writer.open("if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == "
+                "tessera_key)");
     writer.line("tessera_reused[tessera_slot] = true;");
     writer.line("tessera_match = tessera_slot;");
     writer.line("break;");
     writer.close("");
     writer.close("");
-    writer.open("if (tessera_match != kMaxGeneratedVirtualItems)");
+    writer.open("if (tessera_match != tessera_old_count)");
     writer.line("// Reuse: the subtree, its text pointers and its content hash move to the new "
                 "slot.");
     writer.line("tessera_next_items[tessera_next] = tessera_old_items[tessera_match];");
@@ -319,21 +318,12 @@ bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,
     writer.line("tessera_next_keys[tessera_next] = std::move(tessera_key);");
     writer.line("++tessera_next;");
     writer.close("");
-    writer.line("// Publish the new window; stale slots are cleared so a later match cannot reuse "
-                "a removed key.");
-    writer.open("for (std::size_t tessera_slot = 0; tessera_slot < tessera_next; ++tessera_slot)");
-    writer.line(table + "_items_[tessera_slot] = tessera_next_items[tessera_slot];");
-    writer.line(table + "_hashes_[tessera_slot] = tessera_next_hashes[tessera_slot];");
-    writer.line(table + "_set_[tessera_slot] = tessera_next_set[tessera_slot];");
-    writer.line(table + "_keys_[tessera_slot] = std::move(tessera_next_keys[tessera_slot]);");
-    writer.close("");
-    writer.open("for (std::size_t tessera_slot = tessera_next; tessera_slot < " + table +
-                "_count_; ++tessera_slot)");
-    writer.line(table + "_items_[tessera_slot] = Item_" + ordinal + "{};");
-    writer.line(table + "_hashes_[tessera_slot] = 0;");
-    writer.line(table + "_set_[tessera_slot] = false;");
-    writer.line(table + "_keys_[tessera_slot].clear();");
-    writer.close("");
+    writer.line("// Publish the new window; vector sizes track the live count, so no stale slot "
+                "can match a removed key.");
+    writer.line(table + "_items_ = std::move(tessera_next_items);");
+    writer.line(table + "_hashes_ = std::move(tessera_next_hashes);");
+    writer.line(table + "_set_ = std::move(tessera_next_set);");
+    writer.line(table + "_keys_ = std::move(tessera_next_keys);");
     writer.line(table + "_count_ = tessera_next;");
     writer.line(table + "_first_ = tessera_first;");
     writer.close("");

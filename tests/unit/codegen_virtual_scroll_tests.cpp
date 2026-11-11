@@ -248,9 +248,11 @@ void test_grid_row_window_and_measure() {
     check(component.scroll_virtual_6(scroll, kViewport), "the grid scroll 1000 applies");
     check_eq(std::to_string(component.virtual_6_first_), std::to_string(38),
              "the grid window starts at the first item of the first visible row");
+    const Window far = window_of(rows, scroll, kViewport);
     check_eq(std::to_string(component.virtual_6_count_),
-             std::to_string(gen::kMaxGeneratedVirtualItems),
-             "a row window wider than the item table is clamped by apply_virtual_<n>");
+             std::to_string(std::min<std::size_t>(100 - component.virtual_6_first_,
+                                                  (far.range.last - far.range.first) * 2)),
+             "a wide row window is realized in full, clamped only by the data source");
 
     // A cell reports 90 px: row 19 grows from the 40 px row height and, since row 19 is before the
     // viewport anchor row, the offset shifts by the 50 px delta.
