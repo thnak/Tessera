@@ -35,6 +35,7 @@ public:
     std::expected<std::unique_ptr<rhi::Swapchain>, rhi::SwapchainError>
     create_swapchain(const rhi::SwapchainDesc& desc) override;
     void wait_idle() override;
+    [[nodiscard]] rhi::DeviceMemoryStats memory_statistics() const override;
 
     // ---- D7 device-loss state -------------------------------------------------------------
     // Losses detected by submit/wait/acquire/present are recorded here; they never throw across
