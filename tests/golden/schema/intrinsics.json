@@ -1718,6 +1718,14 @@
           "name": "fit",
           "type": "\"contain\" | \"cover\" | \"fill\" | \"none\"",
           "value": "literal"
+        },
+        {
+          "default": "display",
+          "lowersTo": "props.decodeSize",
+          "name": "decodeSize",
+          "note": "display decodes at layout size x DPR; original keeps the source size (zoom and edit)",
+          "type": "\"display\" | \"original\"",
+          "value": "literal"
         }
       ],
       "refType": "Image",

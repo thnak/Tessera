@@ -55,6 +55,15 @@ inline constexpr PropRow kImageProps[] = {
      {},
      {},
      ""},
+    {"decodeSize",
+     "\"display\" | \"original\"",
+     ValueKind::Literal,
+     false,
+     "display",
+     "props.decodeSize",
+     {},
+     {},
+     "display decodes at layout size x DPR; original keeps the source size (zoom and edit)"},
 };
 
 inline constexpr PropRow kPathProps[] = {

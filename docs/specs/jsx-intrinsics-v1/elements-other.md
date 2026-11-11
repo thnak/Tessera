@@ -11,7 +11,7 @@ lowering and the cases that section does not state.
 
 | Element | Props (11.1) | IR | Children | Events | Ref | `className`/`style` |
 |---|---|---|---|---|---|---|
-| `Image` | `src` (L, required), `alt` (E, required), `fit` (L, default `"contain"`) | `props.src`, `props.alt`, `props.fit` | none | none | `Image` | yes |
+| `Image` | `src` (L, required), `alt` (E, required), `fit` (L, default `"contain"`), `decodeSize` (L, default `"display"`) | `props.src`, `props.alt`, `props.fit`, `props.decodeSize` | none | none | `Image` | yes |
 | `Path` | `d` (L, required), `viewBox` (L, required), `fill`, `stroke` (L, default `"none"`), `strokeWidth` (L, default `1`), `label` (E) | `props.d`, `props.viewBox`, `props.fill`, `props.stroke`, `props.strokeWidth`, `props.label` | none | none | `Path` | yes |
 | `Spacer` | `size` (length), `grow` (L, default `0`); one of the two | `props.size`, `props.grow` | none | none | none | no |
 
