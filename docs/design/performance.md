@@ -98,13 +98,21 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 | Event-binding table (first binding) | about 200 bytes, once per node | lazy; `node_size` test |
 | Paint payload (text/image node) | about 580 bytes plus its string | lazy; `node_size` test |
 | `InputEvent` | 344 bytes (the 256-event queue is about 86 KiB) | measured, not yet asserted |
+| Resident bytes per plain node (20k-node tree) | about 470 bytes measured, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt` |
+| Idle cycles after warm-up | 0 bytes of RSS growth measured, budget 2 MiB | `memory_steady_state` test |
 
 A node carried 1984 bytes before the rarely used tables became lazily allocated, so a 10k-node
 screen of plain views drops from about 20 MB to about 3 MB of node storage (Yoga node and style
 storage are extra). Clearing a table keeps its allocation, so toggling a value never reallocates.
-Raise a budget only with a recorded decision. Still to measure and budget: steady and peak RSS of
-the sample apps, GPU memory by category (swapchain, atlas pages, images, buffers), Android PSS
-and per-glyph-atlas-page cost.
+`diagnostics::sample_process_memory()` (`diagnostics/memory.hpp`) reads resident and peak bytes
+with no heap allocation (VmRSS/VmHWM on Linux and Android, the working set on Windows,
+`resident_size` on macOS and iOS); `MemoryGauges` publishes them as the gauges `memory.rss_bytes`
+and `memory.rss_peak_bytes`. It is a syscall: sample per second or per scripted checkpoint, never
+per frame. Real RSS is machine dependent, so the committed bounds are generous and catch leaks and
+order-of-magnitude regressions, not noise. Raise a budget only with a recorded decision. Still to
+measure and budget: steady and peak RSS of the sample apps (the baseline covers a synthetic tree
+until a sample runs headless), GPU memory by category (swapchain, atlas pages, images, buffers),
+Android PSS and per-glyph-atlas-page cost.
 
 ## 4. Power policies
 

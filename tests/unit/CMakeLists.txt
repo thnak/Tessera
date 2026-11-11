@@ -417,6 +417,15 @@ target_link_libraries(diagnostics_metrics_tests PRIVATE tessera_diagnostics)
 
 add_test(NAME diagnostics_metrics COMMAND diagnostics_metrics_tests)
 
+add_executable(memory_steady_state_tests
+    memory_steady_state_tests.cpp)
+
+target_link_libraries(memory_steady_state_tests PRIVATE tessera_diagnostics tessera_scene)
+
+add_test(NAME memory_steady_state
+    COMMAND memory_steady_state_tests
+        ${PROJECT_SOURCE_DIR}/tests/golden/memory/steady_state.txt)
+
 add_executable(diagnostics_trace_tests
     diagnostics_trace_tests.cpp)
 

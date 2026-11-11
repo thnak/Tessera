@@ -107,6 +107,9 @@ and the `dashboard_overlay.png` lavapipe golden.
 
 ## 5. Metrics and counters
 
+Process memory: `diagnostics/memory.hpp` samples resident and peak bytes without allocating and
+publishes them as gauges (budgets in [performance.md](performance.md) section 3.1).
+
 Implemented core (`diagnostics::MetricsRegistry`, `diagnostics/metrics.hpp`):
 
 - Fixed-capacity registry (`MetricsRegistry::kMaxMetrics`, default 128) of named counters and
