@@ -37,6 +37,9 @@ team rebuilding inputs, dialogs, menus, and data grids.
 - Forms use [`forms-and-validation-v1`](../specs/forms-and-validation-v1.md); overlays use
   [`overlays-and-layers-v1`](../specs/overlays-and-layers-v1.md).
 - 3D/chart components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.
+- `AppBar` and `WindowChrome` are framework shell components, not library components: they ship in
+  the runtime, are imported from `"tessera"`, and are specified in
+  [`window-chrome-v1`](../specs/window-chrome-v1.md) section 8.
 
 ## 4. Contracts
 

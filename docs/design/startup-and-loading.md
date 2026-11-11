@@ -5,12 +5,20 @@ Status: design for Big Step B2 (runtime slice) and Big Step F (production breadt
 load, not web page navigation. HAL (hardware/OS abstraction layer) is described in [`hal.md`](hal.md);
 other terms are in [`glossary.md`](../reference/glossary.md).
 
+The developer-facing startup surface — the JSX `App` root, the replaceable framework loading screen,
+prioritized resource hints, launch modes and the P0-P5 phase guarantees — is normative in
+[`startup-api-v1.md`](../specs/startup-api-v1.md); this document keeps the UX rationale, loading
+modes and budgets.
+
 This document covers cold/warm startup, first screen, loading UI, auth gates, route/screen
 load, and the lazy/preload/unload policy. Resource mechanics are normative in
 [`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md); the developer decision matrix
 is in [`loading-matrix.md`](../guides/loading-matrix.md). Route/auth/restore:
 [`navigation-v1.md`](../specs/navigation-v1.md) and
-[`state-restoration-v1.md`](../specs/state-restoration-v1.md).
+[`state-restoration-v1.md`](../specs/state-restoration-v1.md). The window chrome and system bars
+around the loading screen are specified in
+[`window-chrome-v1.md`](../specs/window-chrome-v1.md): the launch artifact, the loading screen and
+the platform chrome read one resolved `{background, foreground, scheme}` record.
 
 ## 1. Principles
 
@@ -55,11 +63,20 @@ process start
 | Data/resources | shell/critical data | images/charts/media/next routes |
 | Interactive | as soon as input is handled without blocking the UI thread | background prefetch |
 
-Cold vs warm:
+Cold vs warm vs hot is not a single ladder; the launch mode and the activation are two separate
+axes, and both are framework-detected:
 
-- **Cold**: process start, dynamic links, device creation, font/atlas warm-up, first pipeline.
-- **Warm**: process alive, caches warm, route restore; still revalidate auth/session.
-- **Hot**: app foregrounded; avoid re-running startup work; refresh data lazily.
+- **Launch modes** — `cold` (process start), `warm` (process alive, window/surface/tree recreated,
+  caches reused), `hot_resume` (tree/resources still valid, foreground return, no startup phase) and
+  `process_restore` (OS-killed process resumed from a validated snapshot).
+- **Activations** — `none`, `deep_link`, or `notification`; a pending activation target overrides the
+  restored route and survives readiness/auth.
+
+The normative per-mode behavior, reuse matrix and precedence are in
+[`startup-api-v1.md`](../specs/startup-api-v1.md) section 5.1. In short: cold pays full
+initialization; warm recreates only what was destroyed and reuses caches/device; hot resume runs no
+startup phase and shows no loading screen; process restore is a cold start plus a validated snapshot.
+This document keeps the UX policy, loading modes and budgets.
 
 ## 3. Budgets and metrics
 

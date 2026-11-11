@@ -24,6 +24,10 @@ user-visible continuity.
 - Manual session restore/relaunch.
 - Multi-window: per-window state plus app-global state.
 
+The launch modes that read this snapshot (process restore, warm start), their reuse rules and their
+precedence over a pending deep-link/notification activation are defined in
+[`startup-api-v1.md`](startup-api-v1.md) section 5.1; this document owns the snapshot itself.
+
 ## 2. What to persist
 
 | State | Default | Notes |
@@ -71,6 +75,10 @@ user-visible continuity.
 - `restoreVersion` migrates forward; unknown fields are ignored safely.
 - Size limits per window/state; oversized state is dropped with a diagnostic.
 - Write atomically (temp + rename); keep one previous good snapshot.
+- **Encrypted at rest.** The snapshot is encrypted with a key derived from the platform secure store;
+  logout deletes the snapshot and the key material, and a missing key, a foreign device or a failed
+  decryption discards the snapshot rather than falling back to plaintext
+  ([startup-api-v1.md](startup-api-v1.md) section 5.1, G16).
 
 ## 4. Restore order
 

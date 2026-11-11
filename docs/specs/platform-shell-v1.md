@@ -92,6 +92,9 @@ Task<std::optional<Path>> pick_folder(FolderDialogSpec);
 
 ## 6. Menu bar, tray, shortcuts
 
+The menu *model* is owned here; window decoration and system-bar appearance are specified in
+[`window-chrome-v1.md`](window-chrome-v1.md).
+
 - App menu model: app/file/edit/view/window/help; platform conventions win.
 - Tray/status items: icon, tooltip, menu, click action; battery/visibility policy (the policy
   is not specified here).

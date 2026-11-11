@@ -52,6 +52,9 @@ resize/fold/multi-window. Container size classes have no release assigned (see s
 - Paint may extend into the safe area for backgrounds; interactive content must not.
 - IME insets animate; layout should follow the inset animation without re-creating the tree.
 - Golden tests use fixed insets; device tests cover notch/cutout/gesture-bar variants.
+- System chrome (title bar, menu bar, status/navigation bars) and its appearance are specified in
+  [`window-chrome-v1.md`](../specs/window-chrome-v1.md); this section owns only the content-versus-
+  safe-area rule.
 
 ## 5. Fold postures
 
