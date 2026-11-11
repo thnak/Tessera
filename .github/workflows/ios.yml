@@ -65,7 +65,7 @@ jobs:
           fail=0
           for t in "$PWD"/build/ios-tests/tests/unit/*_tests.app/*_tests "$PWD"/build/ios-tests/tests/gpu/*_tests.app/*_tests; do
             case "$t" in
-              *font_face_tests|*freetype_metrics_tests|*glyph_raster_tests|*glyph_atlas_tests|*harfbuzz_shaper_tests|*fallback_shaper_tests|*glyph_atlas_faces_tests|*glyph_color_tests|*text_render_faces_tests|*text_render_tests) continue ;;
+              *font_face_tests|*freetype_metrics_tests|*glyph_raster_tests|*glyph_atlas_tests|*harfbuzz_shaper_tests|*fallback_shaper_tests|*glyph_atlas_faces_tests|*glyph_color_tests|*emoji_font_tests|*text_render_faces_tests|*text_render_tests) continue ;;
             esac
             echo "== $t"
             xcrun simctl spawn "$device" "$t" || fail=1

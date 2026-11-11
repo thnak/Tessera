@@ -122,10 +122,13 @@ extra texture bind. `TextRenderer` draws color entries with a white tint that ke
 color's alpha, so the glyph keeps its own colors. Test `glyph_color` uses the authored COLRv0
 fixture `tests/fixtures/fonts/ColorTest.ttf`. Limits: the pinned FreeType build disables PNG, so
 bitmap emoji (CBDT, sbix) do not render, and COLRv1 gradients are not supported by this path;
-the production emoji face must be COLRv0. **Not done:** choosing and bundling that face (the
-candidates and their licences need a decision: an OFL COLRv0 build of Noto Color Emoji, or
-Twemoji COLR with attribution), its `THIRD_PARTY_NOTICES.md` and `dependencies.md` rows, a
-default stack that ends with it, and a color tofu/placeholder for clusters no face covers.
+the production emoji face must be COLRv0. **Emoji face (chosen):** Twemoji Mozilla v0.7.0
+(`tests/fixtures/fonts/Twemoji.Mozilla.ttf`, COLRv0, graphics CC-BY 4.0, attribution in
+`THIRD_PARTY_NOTICES.md`). Noto Color Emoji was rejected because its official builds are CBDT or
+COLRv1, which this FreeType cannot draw. Test `emoji_font` shapes a flag, a ZWJ family and a skin-tone
+modifier behind Noto Sans: each is one glyph from the emoji face and rasterizes to real colors.
+**Not done:** a default stack that ends with the face (stacks are supplied by the host today; there
+is no app font bundle yet) and a color tofu/placeholder for clusters no face covers.
 
 ## 5. Glyph atlas (implemented subset)
 

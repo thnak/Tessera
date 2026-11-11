@@ -905,6 +905,15 @@ add_test(NAME glyph_color COMMAND glyph_color_tests
     "${TESSERA_FONT_FIXTURE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/ColorTest.ttf")
 
+add_executable(emoji_font_tests
+    emoji_font_tests.cpp)
+
+target_link_libraries(emoji_font_tests PRIVATE tessera_text)
+
+add_test(NAME emoji_font COMMAND emoji_font_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/Twemoji.Mozilla.ttf")
+
 add_executable(text_layout_tests
     text_layout_tests.cpp)
 
