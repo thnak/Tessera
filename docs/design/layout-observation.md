@@ -431,6 +431,12 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    a relayout callback, plus the runtime-config key, counters and the loop diagnostic. Tests
    `layout_observer_settle`. Wire into the app host when [`app-host.md`](app-host.md) lands; until
    then the helper is exercised by the test harness.
+   **Done:** `ui/layout/layout_observer_settle.hpp` (`observe_and_settle`, `SettleHooks`,
+   `LayoutSettleState`, `clamp_observation_rounds`), test `layout_observer_settle`. The counters
+   live in `SettleTotals` (the host copies them into the frame diagnostics when it lands), and the
+   `TESSERA_LAYOUT_OBSERVER_LOOP` warning is per window, once after `kLoopReportTicks` backlog ticks
+   (observations do not carry a `uiId` yet, so it does not name a node). Reading the config key
+   waits for the runtime-config loader.
 4. **Equality-gated setters** in codegen (independent; can land any time). Tests
    `setter_equality`, golden updates.
 5. **`onSizeChange` front end + IR validator + typings**, then **codegen + merger** (two commits).
