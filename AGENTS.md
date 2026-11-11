@@ -594,10 +594,11 @@ interior runs to one advance under `Normal` (the default; pivot fixtures re-base
 text.md §6.1), keeps the pinned literal single-line path for `NoWrap`, preserves runs for `PreWrap`
 and makes every preserved space its own line unit under `BreakSpaces`; the mode is carried into the
 paint predicate and both layout/measure cache keys, and per-mode line boxes are byte-identical
-across the builtin and ICU backends. Known limitation: a `TextLine` is still a source range, so under
-`Normal` the measured width is collapsed while the painted slice still spans the source bytes - the
-next text slice is a paint-time collapse/transform stage (which also carries `nowrap` collapsing and
-`pre-line` newlines), then `text-overflow: ellipsis`.
+across the builtin and ICU backends. The paint-time collapse stage landed: `ui/text/text_paint.hpp` walks a laid-out line as
+`PaintedSegment`s, so the painted sequence now matches the measured line widths for every mode -
+`Normal`/`NoWrap` collapse interior runs (and `NoWrap` renders one edge-trimmed line), `Pre`/`PreWrap`
+preserve every byte, `BreakSpaces` keeps each preserved space as its own line unit, and a bidi line is
+transformed per visual run. `text-overflow: ellipsis` is the next text slice.
 The app host lane (`src/app/`, `include/tessera/app/host.hpp`) connects the finished pieces:
 `AppHost` runs the docs/design/app-host.md section 3 order for one scene root (animation tick ->
 dirty collection -> selector tree rebuild -> Yoga layout + `apply_layout` -> `sync_style` ->
@@ -645,8 +646,13 @@ lowering and in the driver: `lower_project(files, module, packages)` resolves
 `from "tessera-ui/Button"` to `<root>/Button` and a bare `"tessera-ui"` to `<root>/index`, then
 follows the ordinary cross-file rules; `tessera_codegen` reads the `packages` array from
 `tessera.json`, validates it and follows each file's imports, so a package's sources are not listed
-on the command line (#70). Next for #70: declared prop records from the props type alias (the
-parity test pins that gap), then `library_components.cpp` stops hand-building IR.
+on the command line (#70). Declared prop records now lower from the props type alias:
+`ir::Prop` gained `optional` and a `?` prop is absent rather than a nullable value; the mapping
+covers string/bool/int/float/color/length/node_ref, `T[]` -> `list<T>`, `T|null` -> `optional<T>`,
+`children`, `() => void` callbacks and payload-record callbacks, and an unsupported spelling is
+`TESSERA_IR_UNSUPPORTED` naming the prop. The parity test now compares full prop records. Remaining
+for #70: prop defaults and list/object defaults, callback binding, cross-file props aliases, then
+`library_components.cpp` stops hand-building IR.
 
 Next slices, in order:
 
@@ -664,8 +670,8 @@ Next slices, in order:
    real platform input are next
    (`docs/design/window-resize.md` §0 lists the X11 limits).
 3. Platform input translation beyond Windows pointer/wheel/key/text (Linux/X11 next; touch, IME,
-   hover/active) and remaining focus polish (`focus-visible`; tab order, `:focus`, and modal
-   trapping landed).
+   hover/active). Focus is complete on the scene side: tab order, `:focus`, `:focus-visible`
+   (keyboard-only ring, cleared by pointer focus), and modal trapping are tested.
 4. [x] Damage-redraw equivalence is pinned on the CPU canvas (damage_equivalence_cpu,
    docs/design/dirty-rendering.md 6.7): paint-only, layout move, resize, the area fallback and the
    scissor-count fallback all reproduce the full-redraw pixels byte-for-byte; the swapchain present
