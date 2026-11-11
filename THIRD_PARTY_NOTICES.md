@@ -97,6 +97,14 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: The Noto Project Authors
 - Upstream: https://github.com/notofonts/noto-fonts
 
+### Twemoji Mozilla (emoji font)
+
+- Files: `tests/fixtures/fonts/Twemoji.Mozilla.ttf` (v0.7.0, COLRv0), `tests/fixtures/fonts/TWEMOJI-LICENSE.txt`
+- Used by: `emoji_font` test; the intended emoji face at the end of a font stack
+- License: CC-BY 4.0 (graphics, Twitter, Inc and other contributors); MIT (font build, Mozilla)
+- Attribution: "Twemoji" graphics copyright Twitter, Inc and other contributors, licensed under CC-BY 4.0; COLRv0 build by Mozilla
+- Upstream: https://github.com/mozilla/twemoji-colr
+
 ### Mesa (lavapipe)
 
 - Used by: CI only; not shipped in an application
@@ -152,6 +160,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | simdjson | Apache-2.0 | their respective authors |
 | libFuzzer | Apache-2.0 with LLVM exception | LLVM Project |
 | Noto Sans / Inter | SIL Open Font License 1.1 | their respective authors |
+| Twemoji Mozilla | CC-BY 4.0 (graphics), MIT (build) | Twitter, Inc and contributors; Mozilla |
 | libunibreak | zlib | Wu Yongwei and libunibreak contributors |
 | lunasvg | MIT | lunasvg contributors |
 | miniaudio | Public domain / MIT-0 | David Reid (mackron) |

@@ -1,0 +1,10 @@
+Twemoji Mozilla (Twemoji.Mozilla.ttf), v0.7.0
+https://github.com/mozilla/twemoji-colr
+
+Emoji graphics: Copyright Twitter, Inc and other contributors.
+Licensed under CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+COLRv0 font build tooling and font: Mozilla, MIT License.
+
+Any application that ships this font must credit "Twemoji, Copyright Twitter, Inc and other
+contributors, CC-BY 4.0" in its notices.
