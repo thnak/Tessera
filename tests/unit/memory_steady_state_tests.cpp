@@ -130,12 +130,11 @@ int steady_state(const Baseline& baseline) {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "usage: memory_steady_state_tests <steady_state.txt>\n";
-        return 64;
-    }
-    Baseline baseline;
-    if (!load(argv[1], baseline)) {
+    // CTest passes the committed baseline. Device runners (Android, iOS) execute every test with
+    // no arguments and have no checkout, so they use the same values compiled in; keep both in
+    // step with tests/golden/memory/steady_state.txt.
+    Baseline baseline{20000, 300, 1024, 2097152};
+    if (argc >= 2 && !load(argv[1], baseline)) {
         std::cerr << "memory_steady_state: cannot read the baseline " << argv[1] << "\n";
         return 65;
     }

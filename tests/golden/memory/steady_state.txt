@@ -1,5 +1,6 @@
 # Memory baseline for the memory_steady_state test (issue #13). Real RSS is machine dependent, so
 # the bounds are generous and catch leaks and order-of-magnitude regressions, not noise.
+# The defaults compiled into memory_steady_state_tests.cpp must match these values.
 # Raise a bound only with a recorded decision (docs/design/performance.md, section 3.1).
 nodes=20000
 idle_cycles=300
