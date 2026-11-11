@@ -40,6 +40,14 @@ bool dispatch_event_to(Node& target, Event& event) {
         if (event.stopped) {
             break;
         }
+        // Click bubbles through generated bindings too: `onClick` on a Button must fire when the
+        // pressed node is its label. Other event types keep Target-only bindings.
+        if (event.type == EventType::Click) {
+            path[i - 1]->run_event_bindings(event);
+            if (event.stopped) {
+                break;
+            }
+        }
     }
 
     return true;

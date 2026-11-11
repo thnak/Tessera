@@ -131,6 +131,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
                 clear_hover(true, input);
             }
         }
+        clicks_.cancel(input.pointer_id);
         remove_capture(input.pointer_id);
         promote_primary_after(input.pointer_id);
         return result;
@@ -140,6 +141,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         // fire) plus active: no pointer can be considered over the scene any more. Scene
         // Focus/Blur are owned by FocusManager and are not synthesized here.
         clear_captures();
+        clicks_.clear();
         clear_hover(true, input);
         clear_active();
         primary_pointer_id_ = 0;
@@ -160,6 +162,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
             prevent_default = event.prevent_default;
             consumed = event.handled || event.prevent_default;
         }
+        synthesize_key_click(input, consumed);
 
         // Accelerators run after the focused node's handler and only when the key event was not
         // consumed by it (a text field opts out by setting handled or prevent_default). A fired
@@ -259,6 +262,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         }
         // Bounded implicit capture; a press beyond the bound still dispatches uncaptured.
         set_pointer_capture(target, input.pointer_id);
+        clicks_.press(*target, input, primary);
         if (target->focusable()) {
             // request_focus rejects targets outside the active modal subtree.
             if (focus_manager_.request_focus(target)) {
@@ -274,6 +278,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
     }
 
     if (input.type == InputEventType::PointerMove) {
+        clicks_.move(input);
         const bool primary = input.pointer_id == primary_pointer_id_;
         // Touch contacts never hover (there is no pre-contact position); mouse and pen do when
         // they are the primary pointer. A captured pointer freezes hover: moves are dispatched to
@@ -311,6 +316,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         Event event = make_pointer_event(type, input);
         dispatched = dispatch_to_target(*target, event);
     }
+    synthesize_pointer_click(root, input);
     remove_capture(input.pointer_id);
     promote_primary_after(input.pointer_id);
     return dispatched;
@@ -475,6 +481,7 @@ void InputRouter::clear_active() {
 
 void InputRouter::reset() {
     clear_captures();
+    clicks_.clear();
     // Reset drops state without synthesizing boundary events; there is no input being dispatched.
     clear_hover(false, InputEvent{});
     clear_active();

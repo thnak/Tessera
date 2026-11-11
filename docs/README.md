@@ -166,6 +166,7 @@ This page is the map and reading order for the framework.
 - [`design/startup-and-loading.md`](design/startup-and-loading.md) — startup, loading screen,
   auth gate, route load, failure/offline
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
+- [`design/click-synthesis.md`](design/click-synthesis.md) — `onClick` as a synthesized `Click` (pointer, keyboard, accessibility)
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
 - [`design/layout-observation.md`](design/layout-observation.md) — size observation (`onSizeChange`), layout read model, settle rounds, container queries plan (design only, ADR-041 accepted)

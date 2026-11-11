@@ -4,6 +4,7 @@
 
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/input/key_bindings.hpp"
+#include "tessera/ui/scene/click_synthesis.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -104,6 +105,14 @@ InputDispatchResult dispatch_input(Node& root, const InputEvent& input);
 //   range. Without focus they are dropped. `prevent_default` is advisory for these events: there
 //   is no framework text insertion yet, so it has no default action to suppress.
 //
+// Click synthesis (issue #6, `ClickSynthesizer` holds the rules): after a primary-pointer
+// `PointerUp` the router dispatches `EventType::Click` to the nearest common ancestor of the
+// pressed node and the node under the release point, unless the press was cancelled, a touch/pen
+// contact left the slop radius, or the release missed the scene. Enter/Space on a focused button
+// and `invoke()` (the accessibility Press action) dispatch the same event with another
+// `ClickSource`. Click bubbles and, unlike other events, runs generated bindings on every node of
+// the bubble path, so `onClick` on a Button fires when its label child is the pressed node.
+//
 // Pseudo-state changes go through `Node::set_pseudo_state`, which marks `Dirty::Style` so
 // `:hover`/`:active` rules re-resolve. `hovered()` and `active()` are raw scene pointers: reset or
 // destroy the router before destroying a subtree that currently carries one of those states.
@@ -115,6 +124,10 @@ public:
 
     InputDispatchResult dispatch(Node& root, const InputEvent& input);
     void reset();
+
+    // Accessibility Invoke/Press (and any programmatic activation): dispatches a Click with
+    // `ClickSource::Accessibility` to `target` under `root`. False when nothing was dispatched.
+    bool invoke(Node& root, Node& target);
 
     // Captures `node` for `pointer_id`, replacing an existing entry. Returns false when `node` is
     // null or when a new entry is needed and the bounded map is full. Explicit capture neither
@@ -178,6 +191,10 @@ private:
     void remove_capture(std::uint32_t pointer_id);
     void clear_captures();
     void promote_primary_after(std::uint32_t pointer_id);
+    // Click synthesis (input_dispatch_click.cpp).
+    void synthesize_pointer_click(Node& root, const InputEvent& input);
+    void synthesize_key_click(const InputEvent& input, bool consumed);
+    bool dispatch_click(Node& target, ClickSource source, const InputEvent* input);
 
     Node* root_ = nullptr;
     Node* hovered_ = nullptr;
@@ -189,6 +206,7 @@ private:
     std::size_t capture_count_ = 0;
     FocusManager focus_manager_;
     KeyBindingRegistry accelerators_;
+    ClickSynthesizer clicks_;
 };
 
 } // namespace tessera::ui

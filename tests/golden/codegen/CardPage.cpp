@@ -46,7 +46,7 @@ namespace demo {
       // node::6 events={onClick:bind::on_tap}
       auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(206ull));
       node_6->set_element_kind("Button");
-      node_6->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_6_onClick, this);
+      node_6->bind_event(tessera::ui::EventType::Click, &event_adapter_6_onClick, this);
       node_6->set_focusable(true);
       slot_2.push_back(std::move(node_6));
       this->child_2_.build(*node_2, std::move(slot_2));

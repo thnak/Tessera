@@ -33,10 +33,11 @@ struct EventTypeMapping {
     std::string_view enum_name;
 };
 
-// The JSX event names the scene can dispatch today. onClick maps to PointerUp (click synthesis is
-// a later slice); onChange/onSubmit map to EditText (submit synthesis is later).
+// The JSX event names the scene can dispatch today. onClick maps to the synthesized Click event
+// (same-target pointer press/release, Enter/Space on a focused button, accessibility invoke);
+// onPointerUp stays the raw release. onChange/onSubmit map to EditText (submit synthesis is later).
 constexpr EventTypeMapping kEventTypes[] = {
-    {"onClick", "PointerUp"},
+    {"onClick", "Click"},
     {"onPointerDown", "PointerDown"},
     {"onPointerUp", "PointerUp"},
     {"onPointerMove", "PointerMove"},

@@ -153,7 +153,7 @@ int main() {
     // state cell (the interactive end-to-end proof).
     check(view.children().size() == 3, "the View carries both buttons and the input");
     ui::Event click;
-    click.type = ui::EventType::PointerUp;
+    click.type = ui::EventType::Click;
     click.x = 12.0f;
     click.y = 8.0f;
     click.pointer_kind = ui::PointerKind::Mouse;
@@ -161,7 +161,7 @@ int main() {
     view.clear_dirty(ui::Dirty::All);
     label.clear_dirty(ui::Dirty::All);
     ui::dispatch_event_to(*view.children()[1], click);
-    check(sample.state_count_ == 1, "a dispatched PointerUp runs the generated setter handler");
+    check(sample.state_count_ == 1, "a dispatched Click runs the generated setter handler");
     check(label.dirty() == (ui::Dirty::Paint | ui::Dirty::Render),
           "the setter applies interpolation and marks Paint|Render only");
     check_eq(view.element_id(), "root-1", "the setter refreshed the dynamic id");

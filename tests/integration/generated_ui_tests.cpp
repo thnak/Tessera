@@ -9,7 +9,7 @@
 // resolves them into line-box pixels.
 //
 // The generated code supplies the component struct (state cells/effects), the node tree, the
-// Button's `PointerUp` binding (`handler_1` increments `state_count_`), the TextInput's `EditText`
+// Button's `Click` binding (`handler_1` increments `state_count_`), the TextInput's `EditText`
 // binding (`on_name` copies the committed text into `state_name_`) and the interpolated Text
 // children that `apply_state()` refreshes; `update()` runs the changed effect. Controlled
 // TextInput value/onChange wiring remains a documented codegen gap (docs/design/compiler.md §11):

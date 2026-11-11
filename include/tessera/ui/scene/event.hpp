@@ -39,8 +39,14 @@ enum class EventType {
     // section 12). One event per committed mutation (insert/replace/delete/backspace/delete or an
     // IME commit), never for preedit updates. `text_view`/`selection_*` below carry the payload;
     // generated `onChange` handlers bind through the typed adapter in event_payloads.hpp.
-    TextChange
+    TextChange,
+    // Synthesized activation (issue #6): same-target pointer press and release, Enter/Space on a
+    // focused button, or an accessibility invoke. Produced by the InputRouter, never by a
+    // platform; `Event::click_source` records which path fired it. Bubbles like a pointer event.
+    Click
 };
+
+enum class ClickSource : std::uint8_t { Pointer, Keyboard, Accessibility };
 
 enum class EventPhase { Capture, Target, Bubble };
 
@@ -69,6 +75,8 @@ struct Event {
     double timestamp_s = 0;
     bool is_primary = false;
     bool prevent_default = false;
+    // Meaningful for EventType::Click only.
+    ClickSource click_source = ClickSource::Pointer;
     // IME/text payload, mirrored from the normalized event: UTF-8 bytes plus the UTF-8
     // byte selection range. `text_truncated` marks a payload cut at `kMaxEditTextBytes`.
     std::array<char, kMaxEditTextBytes> text{};

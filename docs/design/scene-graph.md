@@ -130,7 +130,8 @@ ninth binding returns `false`. `unbind_event` removes the first binding for a ty
 listeners run first at the Target phase, then `run_event_bindings` invokes every binding registered
 for `event.type` in registration order, then bubbling continues. A binding receives a read-only
 `const Event&`, so it cannot consume the event or change `handled`/`prevent_default`; the route log
-is identical when no binding is installed.
+is identical when no binding is installed. `Click` is the one event whose bindings also run on every
+ancestor while it bubbles (see [`click-synthesis.md`](click-synthesis.md)).
 
 ## Tests
 

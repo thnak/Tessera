@@ -52,6 +52,8 @@ struct ClickEvent {
     std::uint32_t pointer_id = 0;
     PointerKind pointer_kind = PointerKind::Mouse;
     PointerButton button = PointerButton::None;
+    // Where the activation came from; keyboard and accessibility clicks use the node center.
+    ClickSource source = ClickSource::Pointer;
     bool is_primary = false;
     bool shift = false;
     bool ctrl = false;
@@ -144,6 +146,7 @@ inline ClickEvent click_event(const Event& event) {
                       event.pointer_id,
                       event.pointer_kind,
                       event.button,
+                      event.click_source,
                       event.is_primary,
                       modifier_held(event.modifiers, Modifier::Shift),
                       modifier_held(event.modifiers, Modifier::Control),

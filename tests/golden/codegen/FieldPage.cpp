@@ -28,7 +28,7 @@ namespace demo {
       // node::2 events={onClick:handler::1}
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(402ull));
       node_2->set_element_kind("Button");
-      node_2->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_2_onClick, this);
+      node_2->bind_event(tessera::ui::EventType::Click, &event_adapter_2_onClick, this);
       node_2->set_focusable(true);
       node_1->add_child(std::move(node_2));
       // node::3 ("comp::Field" instance, slot children: 1)

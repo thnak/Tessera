@@ -75,6 +75,8 @@ const char* type_name(EventType type) {
         return "edit-text";
     case EventType::TextChange:
         return "text-change";
+    case EventType::Click:
+        return "click";
     }
     return "unknown";
 }

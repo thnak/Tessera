@@ -198,6 +198,13 @@ target_link_libraries(input_router_tests PRIVATE tessera_scene)
 
 add_test(NAME input_router COMMAND input_router_tests)
 
+add_executable(click_synthesis_tests
+    click_synthesis_tests.cpp)
+
+target_link_libraries(click_synthesis_tests PRIVATE tessera_scene)
+
+add_test(NAME click_synthesis COMMAND click_synthesis_tests)
+
 add_executable(focus_tests
     focus_tests.cpp)
 

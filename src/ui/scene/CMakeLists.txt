@@ -4,10 +4,12 @@ add_library(tessera_scene STATIC
     node.cpp
     node_metadata.cpp
     event.cpp
+    click_synthesis.cpp
     dirty_pass.cpp
     focus.cpp
     hover_dispatch.cpp
     input_dispatch.cpp
+    input_dispatch_click.cpp
     scroll.cpp
     text_input_dispatch.cpp
     update_scheduler.cpp
