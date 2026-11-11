@@ -28,8 +28,10 @@ struct ImageDecodeCacheConfig {
 //   decode, no allocation and no filesystem access.
 // - The returned pointer is stable until that entry is evicted or `clear()` runs.
 // - Eviction is deterministic (least-recently-used first).
-// - Keys are the FNV-1a content hash of the encoded bytes, matching the vector path's identity
-//   rule, so a changed asset is automatically a new key.
+// - Keys are the FNV-1a content hash of the encoded bytes plus the decode target (a size bucket
+//   from `decode_target_for`, or original), so a changed asset is a new key, two display sizes in
+//   one bucket share a decode, and an image whose layout grows past its bucket is decoded again.
+//   A target no smaller than the source decodes at source size and shares the original entry.
 // - Decoding is a pure function of bytes + limits; failures are values and are never cached.
 // - Not thread-safe; one instance per rendering thread.
 class ImageDecodeCache {
@@ -54,7 +56,7 @@ public:
     // Returns a shared, immutable decode: callers may hold it across cache eviction. Oversized
     // images (one decode above `max_bytes`) are returned but not retained.
     [[nodiscard]] std::expected<std::shared_ptr<const DecodedImage>, ImageError>
-    acquire(std::span<const std::uint8_t> bytes, ImageLimits limits = {});
+    acquire(std::span<const std::uint8_t> bytes, ImageLimits limits = {}, DecodeTarget target = {});
 
     void clear();
 

@@ -27,8 +27,22 @@ std::uint64_t decoded_bytes(const DecodedImage& image) noexcept {
 } // namespace
 
 struct ImageDecodeCache::Impl {
-    struct Entry {
+    struct Key {
         std::uint64_t hash = 0;
+        std::uint32_t width = 0; // the decoded size, 0 x 0 for source size
+        std::uint32_t height = 0;
+        [[nodiscard]] bool operator==(const Key&) const noexcept = default;
+    };
+    struct KeyHash {
+        [[nodiscard]] std::size_t operator()(const Key& key) const noexcept {
+            std::uint64_t h = key.hash;
+            h ^= (static_cast<std::uint64_t>(key.width) << 32 | key.height) * 0x9E3779B97F4A7C15ULL;
+            return static_cast<std::size_t>(h ^ (h >> 29));
+        }
+    };
+
+    struct Entry {
+        Key key;
         std::shared_ptr<const DecodedImage> image;
         std::uint64_t bytes = 0;
     };
@@ -46,7 +60,7 @@ struct ImageDecodeCache::Impl {
                 break;
             }
             total_bytes -= entries.back().bytes;
-            index.erase(entries.back().hash);
+            index.erase(entries.back().key);
             entries.pop_back();
             ++stats.evictions;
         }
@@ -61,7 +75,7 @@ struct ImageDecodeCache::Impl {
 
     ImageDecodeCacheConfig config;
     std::list<Entry> entries;
-    std::unordered_map<std::uint64_t, std::list<Entry>::iterator> index;
+    std::unordered_map<Key, std::list<Entry>::iterator, KeyHash> index;
     std::uint64_t total_bytes = 0;
     Stats stats;
 };
@@ -72,9 +86,28 @@ ImageDecodeCache::ImageDecodeCache(ImageDecodeCacheConfig config)
 ImageDecodeCache::~ImageDecodeCache() = default;
 
 std::expected<std::shared_ptr<const DecodedImage>, ImageError>
-ImageDecodeCache::acquire(std::span<const std::uint8_t> bytes, ImageLimits limits) {
+ImageDecodeCache::acquire(std::span<const std::uint8_t> bytes, ImageLimits limits,
+                          DecodeTarget target) {
     const std::uint64_t hash = content_hash(bytes);
-    if (const auto found = impl_->index.find(hash); found != impl_->index.end()) {
+    // The key is the target as asked; a target that turns out not to shrink the image decodes at
+    // source size and is stored under the original key below.
+    Impl::Key key{hash, target.original() ? 0U : target.width,
+                  target.original() ? 0U : target.height};
+    auto found = impl_->index.find(key);
+    if (found == impl_->index.end() && key.width != 0) {
+        // A source-size decode already cached serves any target that would not shrink it.
+        const auto original = impl_->index.find(Impl::Key{hash, 0, 0});
+        if (original != impl_->index.end()) {
+            const DecodedImage& full = *original->second->image;
+            if (fit_decode_size(full.source_width, full.source_height, target).width ==
+                    full.width &&
+                fit_decode_size(full.source_width, full.source_height, target).height ==
+                    full.height) {
+                found = original;
+            }
+        }
+    }
+    if (found != impl_->index.end()) {
         // The entry may have been decoded under looser limits; the caller's limits still apply, so
         // a hit is judged exactly as a fresh decode of the same bytes would be.
         const DecodedImage& cached = *found->second->image;
@@ -85,8 +118,9 @@ ImageDecodeCache::acquire(std::span<const std::uint8_t> bytes, ImageLimits limit
         if (bytes.size() > limits.max_input_bytes) {
             return std::unexpected(ImageError::input_too_large);
         }
-        if (cached.width > limits.max_width || cached.height > limits.max_height ||
-            static_cast<std::uint64_t>(cached.width) * cached.height > limits.max_pixels) {
+        if (cached.source_width > limits.max_width || cached.source_height > limits.max_height ||
+            static_cast<std::uint64_t>(cached.source_width) * cached.source_height >
+                limits.max_pixels) {
             return std::unexpected(ImageError::limit_exceeded);
         }
         // A hit moves the entry to the front (deterministic LRU order).
@@ -96,7 +130,7 @@ ImageDecodeCache::acquire(std::span<const std::uint8_t> bytes, ImageLimits limit
     }
 
     ++impl_->stats.misses;
-    auto decoded = decode_image(bytes, limits);
+    auto decoded = decode_image(bytes, limits, target);
     if (!decoded.has_value()) {
         return std::unexpected(decoded.error());
     }
@@ -110,8 +144,17 @@ ImageDecodeCache::acquire(std::span<const std::uint8_t> bytes, ImageLimits limit
         return shared;
     }
     impl_->evict_until_fits(bytes_used);
-    impl_->entries.push_front(Impl::Entry{hash, shared, bytes_used});
-    impl_->index[hash] = impl_->entries.begin();
+    // A decode that did not shrink is the source-size entry whatever target asked for it.
+    if (shared->width == shared->source_width && shared->height == shared->source_height) {
+        key = Impl::Key{hash, 0, 0};
+    }
+    if (const auto stale = impl_->index.find(key); stale != impl_->index.end()) {
+        impl_->total_bytes -= stale->second->bytes;
+        impl_->entries.erase(stale->second);
+        impl_->index.erase(stale);
+    }
+    impl_->entries.push_front(Impl::Entry{key, shared, bytes_used});
+    impl_->index[key] = impl_->entries.begin();
     impl_->total_bytes += bytes_used;
     return shared;
 }

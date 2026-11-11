@@ -45,7 +45,7 @@ ImageFormat detect_format(std::span<const std::uint8_t> bytes) noexcept {
 }
 
 std::expected<DecodedImage, ImageError> decode_image(std::span<const std::uint8_t> bytes,
-                                                     ImageLimits limits) {
+                                                     ImageLimits limits, DecodeTarget target) {
     if (bytes.empty() || limits.max_input_bytes == 0U || limits.max_width == 0U ||
         limits.max_height == 0U || limits.max_pixels == 0U) {
         return std::unexpected(ImageError::invalid_argument);
@@ -101,10 +101,24 @@ std::expected<DecodedImage, ImageError> decode_image(std::span<const std::uint8_
     DecodedImage image;
     image.width = static_cast<std::uint32_t>(decoded_width);
     image.height = static_cast<std::uint32_t>(decoded_height);
+    image.source_width = image.width;
+    image.source_height = image.height;
     image.format = format;
-    image.rgba.resize(static_cast<std::size_t>(decoded_pixels) * 4U);
-    std::memcpy(image.rgba.data(), decoded, image.rgba.size());
+    const ImageSize reduced = fit_decode_size(image.width, image.height, target);
+    if (reduced.width == image.width && reduced.height == image.height) {
+        image.rgba.resize(static_cast<std::size_t>(decoded_pixels) * 4U);
+        std::memcpy(image.rgba.data(), decoded, image.rgba.size());
+        stbi_image_free(decoded);
+        return image;
+    }
+    // Reduce straight from stb's buffer so only the small raster is ever copied into a vector.
+    DecodedImage full;
+    full.width = image.width;
+    full.height = image.height;
+    full.rgba.assign(decoded, decoded + static_cast<std::size_t>(decoded_pixels) * 4U);
     stbi_image_free(decoded);
+    image = downscale_box(full, reduced.width, reduced.height);
+    image.format = format;
     return image;
 }
 

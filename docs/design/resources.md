@@ -55,6 +55,30 @@ limits can be lowered or raised with `assets.imageMaxFileBytes`, `assets.imageMa
 `assets.imageMaxDecodedBytes` ([`project-config-v1.md`](../specs/project-config-v1.md)). These values were
 chosen by the assistant as starting points and are to be re-measured on target devices.
 
+### 2.2 Decode at display size
+
+The 64 MiB limit bounds a single decode; it does not make a list of thumbnails affordable (issue #14:
+a 4000 x 3000 photo shown at 200 x 150 dp costs 48 MB decoded, but about 1 MB at 3x). A decode
+therefore takes a `DecodeTarget` (`rendering/image/image_resize.hpp`):
+
+- **Target:** `decode_target_for(display_w, display_h, dpr)` is `ceil(display x dpr)` per side rounded
+  up to a bucket of the sequence 64, 96, 128, 192, 256, 384, ... (powers of two and midpoints, at
+  most 50% above the request), so small layout changes keep hitting the same decode.
+- **Size:** the image is reduced to the smallest size that covers the target box, keeps its aspect
+  ratio and is never enlarged. A zero target means `original` (`Image decodeSize="original"`, for
+  zoom and edit).
+- **Filter:** a box filter in pure integer arithmetic, weighting color by alpha, so identical input
+  gives byte-identical output on every platform.
+- **Cache key:** `ImageDecodeCache` keys on content hash and target. A target that does not shrink
+  the image shares the source-size entry; growing past a bucket decodes again. The cache budget
+  counts the reduced raster. Limits are judged on the encoded image's size, so a reduced decode
+  cannot slip past them.
+- **Limit:** stb_image has no scaled decode, so the full raster exists transiently during the call
+  and is freed before it returns; the retained and uploaded memory is the reduced one. Scaled
+  decode through libjpeg-turbo and libwebp is a later optimization that lowers the peak.
+- **Not wired yet:** the `Image` element does not pass a target (layout size and DPR reach the
+  loader through the host, which is design-only), and `decodeSize="original"` has no prop yet.
+
 ## 3. GPU uploads
 
 - Staging buffers are pooled and reused.

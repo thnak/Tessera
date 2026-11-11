@@ -3,6 +3,7 @@
 add_library(tessera_image STATIC
     image_decode_cache.cpp
     image_loader.cpp
+    image_resize.cpp
     image_texture_cache.cpp)
 
 target_include_directories(tessera_image PUBLIC
@@ -29,6 +30,13 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(image_loader_tests PRIVATE
         TESSERA_IMAGE_FIXTURE_DIR="${TESSERA_IMAGE_FIXTURE_DIR}")
     add_test(NAME image_loader COMMAND image_loader_tests)
+
+    add_executable(image_resize_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/image_resize_tests.cpp)
+    target_link_libraries(image_resize_tests PRIVATE tessera_image)
+    target_compile_definitions(image_resize_tests PRIVATE
+        TESSERA_IMAGE_FIXTURE_DIR="${TESSERA_IMAGE_FIXTURE_DIR}")
+    add_test(NAME image_resize COMMAND image_resize_tests)
 
     add_executable(image_texture_cache_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/image_texture_cache_tests.cpp)
