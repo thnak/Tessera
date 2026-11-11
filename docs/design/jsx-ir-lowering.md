@@ -295,7 +295,7 @@ LoweredComponentResult lower_component(const HookLoweringContext& context);
 ```
 
 `lower_component` runs `lower_hooks` and then lowers `component.returned`. `component.id` is
-`comp::<Name>`; `componentId` and every node `uiId` stay empty for slice 10 (`automationId` is
+`comp::<Name>`; `componentId` and every node `uiId` stay empty (slice 10 fills them, `src/compiler/ids/`; `automationId` is
 filled from its attribute when present). Node ids are `node::N` in source pre-order from 1
 (decision 2), including synthetic `Text` children and an `ErrorBoundary` fallback (attributes are
 visited before children, so the fallback subtree comes first). Handler records written directly in
@@ -562,7 +562,7 @@ of this note. Numbers are kept; text elsewhere cites them as "decision N". IR-sh
 `irVersion` stays 1; the `Component` node kind is the one addition to the closed kind list.
 
 1. **ID hash and salt.** FNV-1a 64-bit; `project_salt` is `app.namespace`; tests inject a fixed
-   salt. Implemented in slice 10 only.
+   salt. Implemented in slice 10 (`src/compiler/ids/`, SHA-256 per automation-ids-v1 section 2.1).
 2. **Debug node ids.** `node::N`, a pre-order counter per component starting at 1.
 3. **Same component name in two files** is an error.
 4. **Un-annotated declared arrow.** A `const f = arrow` without `bind::` whose body is setter calls

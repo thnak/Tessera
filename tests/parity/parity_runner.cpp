@@ -126,6 +126,20 @@ std::expected<void, std::string> bind_arguments(const std::vector<ir::Param>& pa
     return {};
 }
 
+// The `onClick` handler of the IR node with `automation_id`: how a click on the UI reaches the
+// handler whose preview body the evaluator runs.
+const ir::Node* find_node(const ir::Node& node, const std::string& automation_id) {
+    if (node.automation_id == automation_id) {
+        return &node;
+    }
+    for (const ir::Node& child : node.children) {
+        if (const ir::Node* found = find_node(child, automation_id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
 struct PreviewBody {
     const std::vector<ir::Param>* params = nullptr;
     const std::vector<ir::Action>* actions = nullptr;
@@ -202,13 +216,24 @@ std::expected<std::vector<Step>, std::string> parse_script(std::string_view text
             }
             return token;
         };
-        if (word() != "call") {
-            return fail("a step starts with `call`");
+        const std::string_view verb = word();
+        if (verb != "call" && verb != "click") {
+            return fail("a step starts with `call` or `click`");
         }
         Step step;
+        step.click = verb == "click";
         step.target = std::string(word());
         if (step.target.empty()) {
-            return fail("`call` needs a handler or binding id");
+            return fail(step.click ? "`click` needs an automation id"
+                                   : "`call` needs a handler or binding id");
+        }
+        if (step.click) {
+            if (step.target.find_first_not_of("0123456789") != std::string::npos) {
+                return fail("`click` takes a numeric automation id, not `" + step.target + "`");
+            }
+            if (pos < line.size()) {
+                return fail("`click` takes no arguments");
+            }
         }
         while (pos < line.size()) {
             auto arg = parse_argument(line, pos);
@@ -278,15 +303,33 @@ Report run_parity(const ir::IrModule& module, const ir::Component& component,
 
     for (std::size_t index = 0; index < script.size(); ++index) {
         const Step& step = script[index];
-        const std::string where = "step " + std::to_string(index) + " (" + step.target + "): ";
-        const std::optional<PreviewBody> body = find_body(module, component, step.target);
+        std::string label = step.target;
+        Step resolved = step; // what the IR side runs: a click becomes its onClick handler
+        if (step.click) {
+            const ir::Node* node = find_node(component.root, step.target);
+            const std::string* handler = nullptr;
+            if (node != nullptr) {
+                const auto found = node->events.find("onClick");
+                handler = found != node->events.end() ? &found->second : nullptr;
+            }
+            if (handler == nullptr) {
+                report.error = "step " + std::to_string(index) + " (click " + step.target +
+                               "): no node with that automation id and an onClick in `" +
+                               component.name + "`";
+                return report;
+            }
+            resolved.target = *handler;
+            label = "click " + step.target + " (" + *handler + ")";
+        }
+        const std::string where = "step " + std::to_string(index) + " (" + label + "): ";
+        const std::optional<PreviewBody> body = find_body(module, component, resolved.target);
         if (!body) {
             report.error =
                 where + "no handler or native binding with that id in `" + component.name + "`";
             return report;
         }
         eval::Scope with_params = *scope;
-        if (auto bound = bind_arguments(*body->params, step, with_params); !bound) {
+        if (auto bound = bind_arguments(*body->params, resolved, with_params); !bound) {
             report.error = where + bound.error();
             return report;
         }
@@ -304,7 +347,7 @@ Report run_parity(const ir::IrModule& module, const ir::Component& component,
             return report;
         }
         ++report.steps_run;
-        compare(*after, *scope, static_cast<int>(index), step.target, report.mismatches);
+        compare(*after, *scope, static_cast<int>(index), label, report.mismatches);
         if (!report.mismatches.empty()) {
             return report;
         }

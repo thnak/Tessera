@@ -161,7 +161,8 @@ void check_case(const jsx_registry::Case& test, std::map<std::string, std::strin
     check(message.size() <= kMaxDiagnosticTextBytes + 3, "bounded message: " + where);
     check(message.find('\n') == std::string::npos, "one-line message: " + where);
     const std::string prefix = std::to_string(span.start.line) + ":" +
-                               std::to_string(span.start.column) + ": error[" +
+                               std::to_string(span.start.column) +
+                               (found->severity == Severity::Warning ? ": warning[" : ": error[") +
                                std::string(test.code) + "]: ";
     check(format_diagnostic(*found).starts_with(prefix), "formatted prefix: " + where);
     messages[std::string(test.code)] = message;

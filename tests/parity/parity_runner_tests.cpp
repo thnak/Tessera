@@ -8,6 +8,7 @@
 #include "tessera/compiler/ir/component.hpp"
 #include "tessera/compiler/ir/expr.hpp"
 #include "tessera/compiler/ir/module.hpp"
+#include "tessera/compiler/ir/node.hpp"
 
 #include <iostream>
 #include <string>
@@ -45,6 +46,20 @@ ir::IrModule make_module() {
     action.value = ir::make_binary("+", ir::make_ref("state::count"), ir::make_ref("by"));
     add.actions.push_back(std::move(action));
     component.handlers.push_back(std::move(add));
+
+    // Node 201 clicks into bind::tag, 202 into handler::1 (which needs an argument), 203 has no
+    // onClick.
+    const auto node = [](const char* automation_id, const char* handler) {
+        ir::Node child;
+        child.automation_id = automation_id;
+        if (handler != nullptr) {
+            child.events["onClick"] = handler;
+        }
+        return child;
+    };
+    component.root.children.push_back(node("201", "bind::tag"));
+    component.root.children.push_back(node("202", "handler::1"));
+    component.root.children.push_back(node("203", nullptr));
     module.components.push_back(std::move(component));
 
     ir::Binding tag;
@@ -75,7 +90,12 @@ struct FakeNative {
 
     std::expected<ui::StateSnapshot, std::string> operator()(const parity::Step* step) {
         if (step != nullptr) {
-            if (step->target == "handler::1") {
+            if (step->click && step->target == "201") {
+                label = "tagged";
+                count += tag_adds;
+            } else if (step->click) {
+                return std::unexpected("native side has no node " + step->target);
+            } else if (step->target == "handler::1") {
                 count += scale * *step->args.at(0).as_int();
             } else if (step->target == "bind::tag") {
                 label = "tagged";
@@ -186,6 +206,53 @@ int main() {
         ok = expect(text == "step 1 (bind::tag): state::count is 2 in the preview and 3 in the "
                             "native code\n",
                     "report text: " + text) &&
+             ok;
+    }
+
+    // --- click steps resolve through the IR node's onClick ----------------------------------
+    {
+        const auto steps = parity::parse_script("click 201\ncall handler::1 4\nclick 201");
+        ok = expect(steps.has_value() && steps->size() == 3 && (*steps)[0].click &&
+                        (*steps)[0].target == "201" && !(*steps)[1].click,
+                    "click and call steps parse") &&
+             ok;
+        ok = expect(!parity::parse_script("click bind::tag").has_value() &&
+                        !parity::parse_script("click").has_value() &&
+                        !parity::parse_script("click 201 3").has_value(),
+                    "a click takes one numeric automation id") &&
+             ok;
+
+        FakeNative agree;
+        parity::Report report = parity::run_parity(
+            module, component, script_of("click 201\ncall handler::1 4"), std::ref(agree));
+        ok = expect(report.ok() && report.steps_run == 2,
+                    "a click runs the preview body of the node's handler: " +
+                        parity::format_report(report)) &&
+             ok;
+
+        FakeNative buggy;
+        buggy.tag_adds = 1;
+        report = parity::run_parity(module, component, script_of("click 201"), std::ref(buggy));
+        ok = expect(parity::format_report(report) ==
+                        "step 0 (click 201 (bind::tag)): state::count is 0 in the preview and 1 "
+                        "in the native code\n",
+                    "a click mismatch names the automation id and the handler: " +
+                        parity::format_report(report)) &&
+             ok;
+
+        FakeNative other;
+        report = parity::run_parity(module, component, script_of("click 999"), std::ref(other));
+        ok = expect(report.error.find("no node with that automation id") != std::string::npos,
+                    "an unknown automation id is a run error") &&
+             ok;
+        report = parity::run_parity(module, component, script_of("click 203"), std::ref(other));
+        ok = expect(report.error.find("no node with that automation id and an onClick") !=
+                        std::string::npos,
+                    "a node without onClick is a run error") &&
+             ok;
+        report = parity::run_parity(module, component, script_of("click 202"), std::ref(other));
+        ok = expect(report.error.find("takes 1 argument") != std::string::npos,
+                    "a click on a handler that needs arguments is a run error") &&
              ok;
     }
 

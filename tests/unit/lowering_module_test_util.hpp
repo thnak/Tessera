@@ -55,7 +55,7 @@ struct FileFixture {
 inline std::unique_ptr<FileFixture> parse_file(std::string path, std::string text) {
     auto fixture = std::make_unique<FileFixture>(std::move(path), std::move(text));
     check(fixture->parsed.ok(), "fixture parses cleanly: " + codes(fixture->parsed));
-    check(fixture->analyzed.diagnostics.empty(),
+    check(!fixture->analyzed.has_errors(),
           "fixture analyses cleanly: " +
               (fixture->analyzed.diagnostics.empty()
                    ? std::string()

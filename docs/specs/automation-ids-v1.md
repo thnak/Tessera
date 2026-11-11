@@ -1,6 +1,6 @@
 # Automation IDs v1: numeric UI/component identity
 
-Status: in progress (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric IDs, headless harness, Lighthouse-style audits). The identity and snapshot slice is implemented as `tessera_automation` (`include/tessera/ui/automation/`, `src/ui/automation/`); manifest emission and IR/codegen wiring remain pending. Companion to
+Status: in progress (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric IDs, headless harness, Lighthouse-style audits). The identity and snapshot slice is implemented as `tessera_automation` (`include/tessera/ui/automation/`, `src/ui/automation/`); the compiler assigns the ids (`tessera_ir_ids`, codegen CLI `--salt`/`--root`) and codegen sets them on the scene nodes; manifest emission remains pending. Companion to
 [`scene-graph.md`](../design/scene-graph.md), [`ir-v1.md`](ir-v1.md), and
 [`headless-automation-v1.md`](headless-automation-v1.md).
 

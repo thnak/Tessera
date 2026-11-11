@@ -8,6 +8,7 @@
 
 #include "Counter.hpp"
 #include "parity_runner.hpp"
+#include "tessera/compiler/ids/assign_identity.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
@@ -15,6 +16,7 @@
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/node.hpp"
 
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -78,35 +80,55 @@ std::expected<ir::IrModule, std::string> lower_sample() {
     return module;
 }
 
-void collect_buttons(ui::Node& node, std::vector<ui::Node*>& out) {
-    if (node.element_kind() == "Button") {
-        out.push_back(&node);
+ui::Node* find_by_automation_id(ui::Node& node, std::uint64_t id) {
+    if (node.automation_id() == id) {
+        return &node;
     }
     for (const auto& child : node.children()) {
-        collect_buttons(*child, out);
+        if (ui::Node* found = find_by_automation_id(*child, id)) {
+            return found;
+        }
     }
+    return nullptr;
 }
 
-// The generated component with its tree mounted; a step is a Click on the Button that carries the
-// handler, which is the path a user's tap takes after hit testing.
+// The IR node whose `onClick` is `handler`; its uiId is what the script clicks.
+const ir::Node* node_with_click(const ir::Node& node, const std::string& handler) {
+    const auto it = node.events.find("onClick");
+    if (it != node.events.end() && it->second == handler) {
+        return &node;
+    }
+    for (const ir::Node& child : node.children) {
+        if (const ir::Node* found = node_with_click(child, handler)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+// The generated component with its tree mounted. A click step finds the scene node that carries
+// the numeric id the compiler assigned and sends it a Click, the event a tap produces after hit
+// testing.
 class NativeCounter {
 public:
     NativeCounter()
         : root_(std::make_unique<ui::Node>(1)) {
         counter_.build(*root_);
         counter_.mount();
-        collect_buttons(*root_, buttons_);
     }
 
     std::expected<ui::StateSnapshot, std::string> operator()(const parity::Step* step) {
         if (step != nullptr) {
-            const std::size_t index = button_for(step->target);
-            if (index >= buttons_.size()) {
-                return std::unexpected("no button carries " + step->target);
+            if (!step->click) {
+                return std::unexpected("this native side takes click steps only");
+            }
+            ui::Node* target = find_by_automation_id(*root_, std::stoull(step->target));
+            if (target == nullptr) {
+                return std::unexpected("no scene node has automation id " + step->target);
             }
             ui::Event click;
             click.type = ui::EventType::Click;
-            if (!ui::dispatch_event_to(*buttons_[index], click)) {
+            if (!ui::dispatch_event_to(*target, click)) {
                 return std::unexpected("the click on " + step->target + " reached no handler");
             }
         }
@@ -114,27 +136,21 @@ public:
     }
 
 private:
-    // Source order of the sample's two buttons: the native `add`, then the inline reset.
-    static std::size_t button_for(const std::string& target) {
-        if (target == "bind::add") {
-            return 0;
-        }
-        if (target == "handler::1") {
-            return 1;
-        }
-        return static_cast<std::size_t>(-1);
-    }
-
     std::unique_ptr<ui::Node> root_;
     parity_sample::gen::Counter counter_;
-    std::vector<ui::Node*> buttons_;
 };
 
 } // namespace
 
 int main() {
-    const auto module = lower_sample();
+    auto module = lower_sample();
     if (!expect(module.has_value(), module ? "" : module.error())) {
+        return 1;
+    }
+    // The same salt and project-relative path the build gives the codegen CLI, so the ids here are
+    // the ones in the generated component.
+    const auto assigned = tessera::compiler::ids::assign_identity(*module, "parity-demo");
+    if (!expect(assigned.has_value(), assigned ? "" : assigned.error().message)) {
         return 1;
     }
     const ir::Component* component = nullptr;
@@ -156,10 +172,19 @@ int main() {
     }
     ok = expect(has_preview, "bind::add has a two-action preview body") && ok;
 
-    const auto script = parity::parse_script("call bind::add\n"
-                                             "call bind::add\n"
-                                             "call handler::1\n"
-                                             "call bind::add\n");
+    // Clicks by uiId, as headless-automation-v1 `click` addresses the UI: the Add button (native
+    // `bind::add`) and the Reset button (the inline handler).
+    const ir::Node* add_button = node_with_click(component->root, "bind::add");
+    const ir::Node* reset_button = node_with_click(component->root, "handler::1");
+    if (!expect(add_button != nullptr && reset_button != nullptr &&
+                    add_button->ui_id != reset_button->ui_id && !add_button->ui_id.empty(),
+                "both buttons have distinct uiIds")) {
+        return 1;
+    }
+    const std::string text = "click " + add_button->ui_id + "\n" + "click " + add_button->ui_id +
+                             "\n" + "click " + reset_button->ui_id + "\n" + "click " +
+                             add_button->ui_id + "\n";
+    const auto script = parity::parse_script(text);
     if (!expect(script.has_value(), "the script parses")) {
         return 1;
     }

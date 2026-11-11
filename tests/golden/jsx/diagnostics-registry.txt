@@ -54,5 +54,7 @@ TESSERA_REACT_EFFECT_RETURN	react-effect-return	the final `return` of an effect 
 TESSERA_REACT_HOOK_FORM	react-hook-form	`useState` is not written in its accepted form
 TESSERA_REACT_HOOK_ORDER	react-hook-order	`count` is used before the hook that declares it
 TESSERA_REACT_LIST_KEY	react-list-key	the element returned by `.map` needs a `key` attribute
+TESSERA_REACT_NO_PREVIEW_BODY	react-no-preview-body	native handler `go` has an empty body, so the designer does nothing for its event
+TESSERA_REACT_PREVIEW_BODY	react-preview-body	the body of native handler `go` is not a preview body, so the designer does nothing for its event
 TESSERA_REACT_UNKNOWN_HOOK	react-unknown-hook	unknown hook `useTheme`: only useState, useEffect, useRef and useAnimatedValue are available
 TESSERA_REACT_UNSUPPORTED_API	react-unsupported-api	`useMemo` is not supported in V1
