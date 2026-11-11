@@ -212,6 +212,9 @@ Compliance notes:
 
 ## 7. Android
 
+Insets and safe-area values listed here are published through `hal::WindowMetrics` and consumed as
+specified in [`window-chrome-v1.md`](window-chrome-v1.md).
+
 Representative callbacks/APIs (not exhaustive):
 
 | Trigger | Source | Normalized | Runtime action |

@@ -295,6 +295,8 @@ monitor-derived ladder step above, not on `renderScale`.
 
 - Respect safe areas, system DPI/scale, min/max sizes, title-bar/non-client behavior, system
   theme/high-contrast, reduced motion, and accessibility settings.
+- Chrome appearance and first-frame timing are specified in
+  [`window-chrome-v1.md`](../specs/window-chrome-v1.md).
 - Multi-monitor: per-monitor DPI/scale/refresh; re-query present modes and VRR on display change.
 - Do not assume 60 Hz or 1.0 scale when the platform cannot report them; use documented fallbacks.
 - Never block the UI/message loop on the compositor, GPU, or a synchronous cross-thread call.

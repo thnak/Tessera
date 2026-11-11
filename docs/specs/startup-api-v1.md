@@ -273,7 +273,7 @@ phase (section 5.1).
 | Id | Phase | Enter when | Content |
 |---|---|---|---|
 | `launch` (P0) | OS launch screen | Process start | Platform-generated launch artifact only: Android splash theme, iOS launch screen, or (desktop) a hidden window. No app code runs |
-| `runtime` (P1) | Minimal native runtime | Launch artifact accepted | Window, graphics surface, device/queues, executors, completion queue, `RuntimeLoop`. No app UI |
+| `runtime` (P1) | Minimal native runtime | Launch artifact accepted | Window, graphics surface, chrome policy ([window-chrome-v1.md](window-chrome-v1.md)), device/queues, executors, completion queue, `RuntimeLoop`. No app UI |
 | `first_frame` (P2) | First frame | Surface presentable | Loading subtree presented once. Independent of app resources |
 | `background_init` (P3) | Background initialization | P2 frame presented | Critical set loads; resource manager, remaining fonts, shader/pipeline warm-up, caches, services, session/auth, initial route and restore validation run off the UI thread |
 | `interactive` (P4) | Interactive ready | Critical set ready and initial route/restore resolved | App UI tree mounted and laid out (first meaningful frame); input dispatched. `high` resources may still load |
@@ -297,8 +297,8 @@ Guarantees, normative:
 - **G5 — No fake progress.** The default screen is indeterminate. A custom screen shows progress
   only for real stage transitions, never percentages or timers
   ([startup-and-loading.md](../design/startup-and-loading.md) section 4).
-- **G6 — No double splash.** P2 is visually continuous with P0 (same background token and mark
-  geometry); no second, differently-styled splash appears.
+- **G6 — No double splash.** P2 is visually continuous with P0 (same `--window-background`/chrome
+  record and mark geometry); no second, differently-styled splash appears.
 - **G7 — No infinite spinner.** Critical-resource failure follows the bounded retry policy of
   [resource-lifecycle-v1.md](resource-lifecycle-v1.md); after it, P4 is skipped and the root error
   boundary fallback is presented instead of the app UI
@@ -346,8 +346,9 @@ loading subtree, or a legacy project, startup presents a valid first frame.
 
 ### 6.1 Presentation
 
-- Full window, themed by the background token of the active theme (built-in `default` theme if the
-  project has none), with the framework mark as a vector `Path` and an indeterminate progress track.
+- Full window, themed by `--window-background` of the active theme (the built-in `default` theme
+  provides it when the project has none, [window-chrome-v1.md](window-chrome-v1.md) section 3.1),
+  with the framework mark as a vector `Path` and an indeterminate progress track.
 - No text in V1: text would need an app font, an i18n catalog, and a locale before P3, none of
   which is guaranteed at P2. Visual brand text belongs in the custom loading subtree.
 - Responsive: centered mark, does not depend on window size, DPI, safe-area insets, or fold posture.
@@ -365,8 +366,10 @@ Codegen emits the launch artifact from the project's icon and theme background:
 - Desktop: window created hidden and shown only after the P2 frame is presented, so no white or
   unpainted window is ever visible.
 
-The artifact is generated, not hand-edited, and must use the same background token as the default
-screen (G6). Platform backends are Big Step F work
+The artifact is generated, not hand-edited, and uses the resolved `{background, foreground, scheme}`
+record that P1 chrome and the default screen also use (G6, [window-chrome-v1.md](window-chrome-v1.md)
+section 3.3); the same record supplies the system-bar appearance on mobile. Platform backends are
+Big Step F work
 ([mobile-integration.md](../design/mobile-integration.md)).
 
 ### 6.3 Accessibility and failure
@@ -533,6 +536,9 @@ Runtime (headless, deterministic; `ManualClock` + CPU sink):
   (zero presents).
 - Accessibility: default screen progressbar name; wrapper for a custom subtree without semantics.
 - Mobile: generated splash theme/launch-screen artifact golden and P0→P2 continuity.
+- Chrome: appearance resolution (`auto`/`light`/`dark`), P0 artifact and P1 request use one record,
+  the window is shown only after P2, and desktop insets stay zero
+  ([window-chrome-v1.md](window-chrome-v1.md) section 11).
 - Launch-mode matrix (section 5.1), each forced deterministically: cold, warm (reuse device/caches,
   no P0), hot resume (no phase, no loading screen, no presents until wake after settle), process
   restore (valid snapshot applied; corrupt/foreign snapshot discarded), and cold/warm/hot deep-link
@@ -549,10 +555,10 @@ Each slice is independently testable and lands green before the next. Big Steps 
 |---|---|---|---|
 | S1 | This spec + ADR-042 + docs index + the jsx-subset member-tag carve-out + the `loading` reconciliation note | `check_docs.py` clean; no code change | docs |
 | S2 | Analyzer: built-in namespace member-tag resolution; startup lowering into the `startup` record + hoisting; diagnostic codes/registry/fixtures; IR golden | accepted/rejected fixtures and IR golden pass | C |
-| S3 | Codegen: startup manifest, entry `main()`, `AppHost` skeleton (P1-P4), default loading screen, desktop window show timing | headless phase-order + first-frame golden + no-blocking test | C/B2 |
+| S3 | Codegen: startup manifest, entry `main()`, `AppHost` skeleton (P1-P4), default loading screen, desktop window show timing and chrome application | headless phase-order + first-frame golden + no-blocking test | C/B2 |
 | S4 | `ResourceManager` minimal (lease, priority, critical set, preload, failure/cancel) wired to startup hints | resource-lifecycle tests; failure → root fallback | B2 |
 | S5 | Background init, readiness/interactive stage, metrics/budgets, power/idle rules | metrics keys present; budget warning; static idle | B2 |
-| S6 | P5 prefetch/optimizing, image variants, next-route preparation; Android/iOS launch artifacts; auth gating | mobile splash golden; prefetch cancellation | B2/F |
+| S6 | P5 prefetch/optimizing, image variants, next-route preparation; Android/iOS launch artifacts and system-bar appearance; auth gating | mobile splash golden; prefetch cancellation | B2/F |
 | S7 | Launch modes: detection, warm/hot resume (lifecycle events, no-reinit path), process restore (validated snapshot), deep-link/notification activation routing and precedence | launch-mode matrix tests of section 11 pass | B2/F |
 | S8 | `useStartupStage()`/`useLaunchMode()` via the hook manifest + custom stage UI | manifest/lowering/goldens | C |
 
@@ -584,3 +590,6 @@ lifecycle events ([os-events-v1.md](os-events-v1.md)), the state-restoration run
   refresh before the first present for auth-gated screens.
 - Snapshot encryption/key management for process restore on shared devices (see
   [state-restoration-v1.md](state-restoration-v1.md)).
+- Whether chrome `auto` follows the window background or the OS colour scheme, and whether the app
+  action bar stays a library component
+  ([window-chrome-v1.md](window-chrome-v1.md) section 12).

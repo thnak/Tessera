@@ -56,6 +56,7 @@ paths are rejected.
 | `width` | integer | `1280` | > 0 |
 | `height` | integer | `800` | > 0 |
 | `scale` | string | `auto` | `auto` or a number (DPI scale) |
+| `appearance` | string | `auto` | Light/dark system chrome: `auto`, `light` or `dark`; `auto` derives from `--window-background` ([`window-chrome-v1.md`](window-chrome-v1.md)) |
 | `resizable` | boolean | `true` | |
 
 ## `ui`
@@ -435,6 +436,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 21. `updates` follows [updates-and-distribution-v1.md](updates-and-distribution-v1.md): HTTPS
     manifest/allowlist, signature key present, channel known, and devtools/updates are
     release-disabled by default.
+22. `window.appearance` is `auto`, `light` or `dark`; the reserved chrome tokens listed in
+    [window-chrome-v1.md](window-chrome-v1.md) section 3 must be plain opaque colours.
 
 ## Example
 

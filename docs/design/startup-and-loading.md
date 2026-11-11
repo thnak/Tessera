@@ -15,7 +15,10 @@ load, and the lazy/preload/unload policy. Resource mechanics are normative in
 [`resource-lifecycle-v1.md`](../specs/resource-lifecycle-v1.md); the developer decision matrix
 is in [`loading-matrix.md`](../guides/loading-matrix.md). Route/auth/restore:
 [`navigation-v1.md`](../specs/navigation-v1.md) and
-[`state-restoration-v1.md`](../specs/state-restoration-v1.md).
+[`state-restoration-v1.md`](../specs/state-restoration-v1.md). The window chrome and system bars
+around the loading screen are specified in
+[`window-chrome-v1.md`](../specs/window-chrome-v1.md): the launch artifact, the loading screen and
+the platform chrome read one resolved `{background, foreground, scheme}` record.
 
 ## 1. Principles
 
