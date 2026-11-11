@@ -14,8 +14,7 @@ class FrameFailureGuard {
 public:
     static constexpr std::uint32_t kDefaultLimit = 8;
 
-    explicit constexpr FrameFailureGuard(
-        std::uint32_t limit = kDefaultLimit) noexcept
+    explicit constexpr FrameFailureGuard(std::uint32_t limit = kDefaultLimit) noexcept
         : limit_(limit) {}
 
     // Records one failed attempt. Returns true once the limit is reached; the caller must stop.
@@ -28,10 +27,16 @@ public:
     }
 
     // A produced frame resets the run of failures.
-    void succeeded() noexcept { consecutive_ = 0; }
+    void succeeded() noexcept {
+        consecutive_ = 0;
+    }
 
-    [[nodiscard]] constexpr std::uint32_t consecutive() const noexcept { return consecutive_; }
-    [[nodiscard]] constexpr std::uint32_t limit() const noexcept { return limit_; }
+    [[nodiscard]] constexpr std::uint32_t consecutive() const noexcept {
+        return consecutive_;
+    }
+    [[nodiscard]] constexpr std::uint32_t limit() const noexcept {
+        return limit_;
+    }
 
 private:
     std::uint32_t limit_ = kDefaultLimit;

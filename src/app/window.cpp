@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/app/window.hpp"
 #include "tessera/app/frame_guard.hpp"
+#include "tessera/app/window.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
@@ -112,8 +112,8 @@ struct WindowHost::Impl {
     // One rendered frame: reuse a free slot, acquire, paint the whole scene, submit async and
     // present. Returns false when the frame could not be produced (slot busy, no image).
     bool render_and_present() {
-        // A slot whose GPU work is still running is skipped, never waited on: the UI thread must not
-        // block on the GPU (ADR-021). The frame is retried on the next tick.
+        // A slot whose GPU work is still running is skipped, never waited on: the UI thread must
+        // not block on the GPU (ADR-021). The frame is retried on the next tick.
         if (in_flight[slot] && !in_flight[slot]->is_complete()) {
             return false;
         }
@@ -221,8 +221,8 @@ struct WindowHost::Impl {
 
             const runtime::RuntimeTick tick = loop->tick();
             if (tick.device_blocked) {
-                // Idle on the bounded platform wait (never spin), and give up after a few ticks so a
-                // bounded run (`--frames N`) still terminates on a lost device.
+                // Idle on the bounded platform wait (never spin), and give up after a few ticks so
+                // a bounded run (`--frames N`) still terminates on a lost device.
                 ++stats.idle_waits;
                 if (failures.failed()) {
                     stats.stalled = true;

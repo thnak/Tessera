@@ -125,9 +125,8 @@ bool Parser::parse_import(ModuleItem& item) {
         const std::string& source = item.source;
         if (item.side_effect) {
             if (!source.ends_with(".css")) {
-                report("TESSERA_JSX_SUBSET_IMPORT",
-                       "a side-effect import must name a `.css` file", cur_.span,
-                       "use `import \"./styles.css\";`");
+                report("TESSERA_JSX_SUBSET_IMPORT", "a side-effect import must name a `.css` file",
+                       cur_.span, "use `import \"./styles.css\";`");
             }
             return;
         }

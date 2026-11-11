@@ -28,9 +28,8 @@ lower_with_packages(const Project& project, std::string_view module_name,
 
 void test_subpath_import_resolves_inside_the_package_root() {
     Project project;
-    project.add(parse_file("ui/App.tsx",
-                           "import { Button } from \"tessera-ui/Button\";\n"
-                           "function App() { return <Button />; }\n"));
+    project.add(parse_file("ui/App.tsx", "import { Button } from \"tessera-ui/Button\";\n"
+                                         "function App() { return <Button />; }\n"));
     project.add(parse_file("packages/tessera-ui/Button.tsx", std::string(kButton)));
 
     const std::array<lowering::PackageRoot, 1> packages{
@@ -48,9 +47,8 @@ void test_subpath_import_resolves_inside_the_package_root() {
 
 void test_bare_specifier_resolves_the_package_index() {
     Project project;
-    project.add(parse_file("ui/App.tsx",
-                           "import { LibraryRoot } from \"tessera-ui\";\n"
-                           "function App() { return <LibraryRoot />; }\n"));
+    project.add(parse_file("ui/App.tsx", "import { LibraryRoot } from \"tessera-ui\";\n"
+                                         "function App() { return <LibraryRoot />; }\n"));
     project.add(parse_file("packages/tessera-ui/index.tsx", std::string(kIndex)));
 
     const std::array<lowering::PackageRoot, 1> packages{
@@ -65,9 +63,8 @@ void test_bare_specifier_resolves_the_package_index() {
 
 void test_unknown_package_is_rejected_and_named() {
     Project project;
-    project.add(parse_file("ui/App.tsx",
-                           "import { Button } from \"missing-ui/Button\";\n"
-                           "function App() { return <View />; }\n"));
+    project.add(parse_file("ui/App.tsx", "import { Button } from \"missing-ui/Button\";\n"
+                                         "function App() { return <View />; }\n"));
 
     const auto result = lower_with_packages(project, "app", {});
     check(!result.has_value(), "an unconfigured package is rejected");
@@ -78,9 +75,8 @@ void test_unknown_package_is_rejected_and_named() {
 
 void test_configured_package_without_the_file_is_unresolved() {
     Project project;
-    project.add(parse_file("ui/App.tsx",
-                           "import { Card } from \"tessera-ui/Card\";\n"
-                           "function App() { return <Card />; }\n"));
+    project.add(parse_file("ui/App.tsx", "import { Card } from \"tessera-ui/Card\";\n"
+                                         "function App() { return <Card />; }\n"));
     project.add(parse_file("packages/tessera-ui/Button.tsx", std::string(kButton)));
 
     const std::array<lowering::PackageRoot, 1> packages{

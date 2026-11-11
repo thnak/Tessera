@@ -223,8 +223,8 @@ bool resolve_imports(ProjectState& state, std::size_t index,
                      "use a relative import or declare the package in the project config");
                 return false;
             }
-            target_key = sub.empty() ? join_path(package->root, "index")
-                                     : join_path(package->root, sub);
+            target_key =
+                sub.empty() ? join_path(package->root, "index") : join_path(package->root, sub);
         } else {
             target_key = join_path(directory_of(source.file), item.source);
         }
@@ -404,7 +404,8 @@ ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
     return lower_files(files, module_name, {});
 }
 
-ModuleLoweringResult lower_project(std::span<const ModuleSource> files, std::string_view module_name,
+ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
+                                   std::string_view module_name,
                                    std::span<const PackageRoot> packages) {
     return lower_files(files, module_name, packages);
 }
