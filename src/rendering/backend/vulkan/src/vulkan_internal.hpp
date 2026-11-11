@@ -116,6 +116,22 @@ inline std::uint32_t checked_sample_count(std::uint32_t sample_count, const char
     return sample_count;
 }
 
+inline std::size_t bytes_per_pixel(rhi::TextureFormat format);
+
+// Estimated device bytes of a texture (extent x texel size x samples).
+inline std::int64_t texture_bytes(rhi::Extent2D extent, rhi::TextureFormat format,
+                                  std::uint32_t sample_count) {
+    return static_cast<std::int64_t>(extent.width) * extent.height *
+           static_cast<std::int64_t>(bytes_per_pixel(format)) * sample_count;
+}
+
+// A multisampled target owns the 1-sample resolve image as well as the multisample render image.
+inline std::int64_t render_target_bytes(rhi::Extent2D extent, rhi::TextureFormat format,
+                                        std::uint32_t sample_count) {
+    return texture_bytes(extent, format, 1) +
+           (sample_count > 1 ? texture_bytes(extent, format, sample_count) : 0);
+}
+
 inline std::size_t bytes_per_pixel(rhi::TextureFormat format) {
     switch (format) {
     case rhi::TextureFormat::R8G8B8A8Unorm:

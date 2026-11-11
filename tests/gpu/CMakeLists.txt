@@ -14,6 +14,15 @@ if (TARGET tessera_rhi_vulkan)
 endif()
 add_test(NAME rhi_buffer_bounds COMMAND rhi_buffer_bounds_tests)
 
+add_executable(rhi_memory_tests
+    rhi/rhi_memory_tests.cpp)
+target_link_libraries(rhi_memory_tests PRIVATE tessera_rhi_null)
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(rhi_memory_tests PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(rhi_memory_tests PRIVATE TESSERA_TEST_HAS_VULKAN)
+endif()
+add_test(NAME rhi_memory COMMAND rhi_memory_tests)
+
 add_executable(batched2d_tests
     batched2d/batched2d_tests.cpp)
 target_link_libraries(batched2d_tests PRIVATE tessera_gpu tessera_rhi_null)

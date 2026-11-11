@@ -22,6 +22,8 @@ void VulkanDevice::mark_device_lost() {
     // refuse to touch dead handles and destructors stop releasing them.
     status_ = rhi::DeviceStatus::Lost;
     ++epoch_;
+    buffer_bytes_ = 0;
+    image_bytes_ = 0;
 }
 
 #if defined(TESSERA_VULKAN_TEST_HOOKS)

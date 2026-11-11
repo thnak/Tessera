@@ -61,6 +61,14 @@ public:
     [[nodiscard]] bool destroyable_epoch(std::uint32_t epoch) const {
         return epoch == epoch_ || (status_ == rhi::DeviceStatus::Lost && simulated_loss_);
     }
+    // Per-kind live bytes for memory_statistics(). A release from before a device loss is ignored:
+    // the counters restart at zero when the generation changes.
+    void account_buffer(std::int64_t delta, std::uint32_t epoch) {
+        account(buffer_bytes_, delta, epoch);
+    }
+    void account_image(std::int64_t delta, std::uint32_t epoch) {
+        account(image_bytes_, delta, epoch);
+    }
     void resource_created() {
         ++live_resources_;
     }
@@ -168,6 +176,14 @@ private:
     rhi::DeviceStatus status_ = rhi::DeviceStatus::Ready;
     std::uint32_t epoch_ = 1;
     std::size_t live_resources_ = 0;
+    std::int64_t buffer_bytes_ = 0;
+    std::int64_t image_bytes_ = 0;
+
+    void account(std::int64_t& counter, std::int64_t delta, std::uint32_t epoch) {
+        if (epoch == epoch_) {
+            counter = counter + delta < 0 ? 0 : counter + delta;
+        }
+    }
     bool recovery_attempted_ = false;
     bool simulated_loss_ = false;
 #if defined(TESSERA_VULKAN_TEST_HOOKS)
