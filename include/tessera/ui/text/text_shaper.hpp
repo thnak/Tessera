@@ -15,6 +15,8 @@ namespace tessera::ui::text {
 struct Glyph {
     std::uint32_t id = 0;
     std::uint32_t cluster = 0;
+    // Index into the font stack of the face this glyph id belongs to (0 for a single-face shaper).
+    std::uint16_t face = 0;
     float advance = 0.0f;
     float x_offset = 0.0f;
     float y_offset = 0.0f;
@@ -25,6 +27,9 @@ struct ShapedRun {
     float ascent = 0.0f;
     float descent = 0.0f;
     bool right_to_left = false;
+    // Glyphs that rendered as .notdef (id 0) because no face of the stack covers them; the host
+    // reports it as a diagnostic.
+    std::uint32_t missing_glyphs = 0;
     std::vector<Glyph> glyphs;
 };
 

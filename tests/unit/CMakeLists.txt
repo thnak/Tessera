@@ -869,6 +869,15 @@ target_link_libraries(harfbuzz_shaper_tests PRIVATE tessera_text)
 
 add_test(NAME harfbuzz_shaper COMMAND harfbuzz_shaper_tests "${TESSERA_FONT_FIXTURE}")
 
+add_executable(fallback_shaper_tests
+    fallback_shaper_tests.cpp)
+
+target_link_libraries(fallback_shaper_tests PRIVATE tessera_text)
+
+add_test(NAME fallback_shaper COMMAND fallback_shaper_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
+
 add_executable(text_layout_tests
     text_layout_tests.cpp)
 

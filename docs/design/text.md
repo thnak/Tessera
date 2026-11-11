@@ -92,10 +92,25 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
 
 - A style has an ordered font stack.
 - Missing glyphs fall through to the next face that covers the codepoint.
-- Emoji/color fonts are not in V1 ([ADR-006](../../decisions/ADR-006-text-stack.md) item 6; no release is named for them); fallback must still be deterministic.
+- Emoji and color fonts: issue #12 decided on one bundled COLRv0/CBDT emoji face as the last entry
+  of the stack, drawn through an RGBA atlas page next to the coverage pages, with no COLRv1
+  gradients yet. That supersedes ADR-006 item 6 ("not in V1") once slices 12b and 12c land; fallback
+  must stay deterministic either way.
 - Fallback decisions are cached per `(font stack, codepoint sequence)`.
 - A missing glyph renders a deterministic tofu/placeholder and emits a diagnostic; it never
   silently changes the font stack across runs.
+
+Implemented (slice 12a, `ui/text/fallback_shaper.*`, test `fallback_shaper`): `FallbackShaper` takes
+the ordered stack and cuts the text into clusters (a base plus combining marks, variation
+selectors, emoji modifiers, ZWJ and tag sequences, regional-indicator pairs). Each cluster goes to
+the first face covering all of it (else the first face drawing its base character, else face 0 and
+`.notdef`), adjacent clusters of one face are shaped together, and `Glyph::face` records the stack
+index. `ShapedRun::missing_glyphs` counts the `.notdef` glyphs for the diagnostic. Sub-runs are
+shaped with the direction of the whole text and joined in visual order. The cluster-to-face
+decision cache is bounded at 4096 entries and restarts when full. Plan: 12b makes the glyph atlas
+and `TextRenderer` face-aware (a rasterizer per face, atlas key `(face, glyph, size)`), 12c adds
+FreeType color loading (`FT_LOAD_COLOR`), RGBA pages and the bundled emoji face with its
+`THIRD_PARTY_NOTICES.md` and `dependencies.md` entries.
 
 ## 5. Glyph atlas (implemented subset)
 
@@ -110,7 +125,7 @@ shaping. `line-height: normal` uses font metrics, not a hardcoded multiplier.
 - `TextRenderer` owns one RHI texture per page, creates it from the page pixels, and updates it in
   place through `rhi::Texture::write` when the page generation changes. Each glyph becomes a
   textured quad with atlas UVs through `Batched2DRenderer`.
-- Not implemented: skyline packing, subpixel positioning, SDF/MSDF, multi-face fallback, async
+- Not implemented: skyline packing, subpixel positioning, SDF/MSDF, multi-face rendering (shaping fallback exists, see section 4), async
   uploads, and per-glyph (rather than per-page) eviction.
 - Hinting/AA settings come from the pinned FreeType build; no system FreeType configuration is
   read.
