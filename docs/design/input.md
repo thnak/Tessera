@@ -459,8 +459,7 @@ Hover/active (implemented, primary pointer only):
 Text/IME routing (implemented, plumbing only): `Text` (one codepoint) and the IME family
 (`CompositionStart`/`Update`/`End`, `EditText`) go to the focused node through the normal path as
 the matching scene `EventType`; without focus they are dropped. The inline UTF-8 payload is capped at
-`kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection offsets are UTF-8 byte offsets into that payload (the HAL converts
-the platform UTF-16 caret).
+`kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection offsets are UTF-8 byte offsets into that payload (HAL-converted).
 `prevent_default` is advisory (no framework text insertion yet).
 
 Keyboard accelerators (implemented): `InputRouter` owns a bounded `KeyBindingRegistry` of
