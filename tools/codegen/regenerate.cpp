@@ -125,10 +125,71 @@ std::string derive_module_name(const std::string& input) {
 // `app.namespace`). The salt is `--salt`, else `app.namespace` of the `tessera.json` at `--root`
 // or found by walking up from the first input; a `tessera.json` that is found but has no usable
 // namespace is an error, not a silent skip.
+// One package root of the project config (docs/specs/project-config-v1.md `packages`, issue #70): a
+// bare specifier resolves inside it, so a TSX component library is compiled by the same pipeline.
+struct PackageRootSpec {
+    std::string name;
+    std::string root; // project-relative POSIX directory
+};
+
 struct ProjectIdentity {
     std::string salt;
     fs::path root;
+    std::vector<PackageRootSpec> packages;
 };
+
+// Reads the optional `packages` array: every entry is `{ "name": string, "root": string }` with a
+// unique name and a project-relative directory (no absolute path, drive letter or `..` escape).
+// Returns false and sets `why` on a malformed entry; an absent/null `packages` is valid.
+bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
+                   std::string& why) {
+    const tessera::harness::JsonValue* packages = config.find("packages");
+    if (packages == nullptr || packages->is_null()) {
+        return true;
+    }
+    const tessera::harness::JsonValue::Array* entries = packages->as_array();
+    if (entries == nullptr) {
+        why = "`packages` must be an array of { \"name\", \"root\" } objects";
+        return false;
+    }
+    for (const tessera::harness::JsonValue& entry : *entries) {
+        const tessera::harness::JsonValue* name_node = entry.find("name");
+        const tessera::harness::JsonValue* root_node = entry.find("root");
+        const std::optional<std::string_view> name =
+            name_node != nullptr ? name_node->as_string() : std::nullopt;
+        const std::optional<std::string_view> root_value =
+            root_node != nullptr ? root_node->as_string() : std::nullopt;
+        if (!name || name->empty() || !root_value || root_value->empty()) {
+            why = "every `packages` entry needs a non-empty `name` and `root`";
+            return false;
+        }
+        if (name->find('/') != std::string_view::npos ||
+            name->find('\\') != std::string_view::npos) {
+            why = "package name `" + std::string(*name) + "` must not contain a path separator";
+            return false;
+        }
+        std::string root(*root_value);
+        std::replace(root.begin(), root.end(), '\\', '/');
+        while (root.size() > 1 && root.back() == '/') {
+            root.pop_back();
+        }
+        const bool absolute = root.front() == '/' || (root.size() > 1 && root[1] == ':');
+        const bool escapes = root == ".." || root == "." || root.starts_with("../") ||
+                             root.find("/../") != std::string::npos || root.ends_with("/..");
+        if (absolute || escapes) {
+            why = "package root `" + root + "` must be a project-relative directory";
+            return false;
+        }
+        for (const PackageRootSpec& existing : identity.packages) {
+            if (existing.name == *name) {
+                why = "duplicate package name `" + std::string(*name) + "`";
+                return false;
+            }
+        }
+        identity.packages.push_back(PackageRootSpec{std::string(*name), std::move(root)});
+    }
+    return true;
+}
 
 std::optional<fs::path> find_config(const fs::path& start) {
     for (fs::path dir = start;; dir = dir.parent_path()) {
@@ -154,7 +215,11 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
         identity.root = config ? config->parent_path() : first;
     }
     if (!identity.salt.empty() || !config) {
-        return identity;
+        // A config can still declare package roots without providing the salt, so the file is read
+        // below whenever it exists.
+        if (!config) {
+            return identity;
+        }
     }
     const auto fail = [&](const std::string& why) {
         report(outcome, true, "tessera_codegen: " + config->generic_string() + ": " + why);
@@ -168,6 +233,13 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
     const auto parsed = tessera::harness::parse_json(*text);
     if (!parsed) {
         return fail("not valid JSON (offset " + std::to_string(parsed.error().offset) + ")");
+    }
+    std::string package_error;
+    if (!read_packages(*parsed, identity, package_error)) {
+        return fail(package_error);
+    }
+    if (!identity.salt.empty()) {
+        return identity;
     }
     const tessera::harness::JsonValue* app = parsed->find("app");
     const tessera::harness::JsonValue* name = app != nullptr ? app->find("namespace") : nullptr;
@@ -224,10 +296,10 @@ Outcome run(const Options& options) {
             outcome.exit_code = 2;
             return outcome;
         }
-        // With a salt the path feeds the ids, so it is project-relative with POSIX separators and
-        // does not depend on the checkout location.
+        // With a salt the path feeds the ids, and with package roots it must be project-relative so
+        // `pkg/Sub` matches `<root>/Sub`; either way the form is POSIX and checkout-independent.
         std::string path = input;
-        if (!identity->salt.empty()) {
+        if (!identity->salt.empty() || !identity->packages.empty()) {
             const fs::path& root = identity->root;
             std::error_code relative_error;
             const fs::path relative =
@@ -276,8 +348,14 @@ Outcome run(const Options& options) {
     const std::string module_name = options.module_name.empty()
                                         ? derive_module_name(options.inputs.front())
                                         : options.module_name;
+    // The package-root strings live in `identity`, so these views stay valid for the lowering call.
+    std::vector<lowering::PackageRoot> packages;
+    packages.reserve(identity->packages.size());
+    for (const PackageRootSpec& spec : identity->packages) {
+        packages.push_back(lowering::PackageRoot{spec.name, spec.root});
+    }
     lowering::ModuleLoweringResult lowered = lowering::lower_project(
-        std::span<const lowering::ModuleSource>(module_sources), module_name);
+        std::span<const lowering::ModuleSource>(module_sources), module_name, packages);
     if (!lowered) {
         const lowering::NodeLoweringErrors& errors = lowered.error();
         report(outcome, true,
