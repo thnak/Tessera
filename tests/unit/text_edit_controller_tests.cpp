@@ -188,6 +188,37 @@ bool composition_commit() {
     return expect(!controller.handle_event(end), "end after commit is a no-op");
 }
 
+bool composition_commit_then_new_preedit() {
+    EditController controller;
+    controller.set_text("");
+    if (!expect(apply(controller, payload_event(EventType::CompositionStart, {})), "start") ||
+        !expect(apply(controller, payload_event(EventType::CompositionUpdate, "ni")), "ni")) {
+        return false;
+    }
+    // One IME message: the first segment commits and the next begins.
+    if (!expect(apply(controller, payload_event(EventType::EditText, "\xE4\xBD\xA0")),
+                "commit segment") ||
+        !expect(!controller.composing(), "commit ends the composition") ||
+        !expect(apply(controller, payload_event(EventType::CompositionUpdate, "hao")),
+                "non-empty update after a commit is consumed")) {
+        return false;
+    }
+    if (!expect(controller.composing() && controller.preedit() == "hao",
+                "the new preedit is visible") ||
+        !expect(controller.composition_start() == 3 && controller.composition_end() == 3,
+                "the new composition starts after the committed text")) {
+        return false;
+    }
+    if (!expect(apply(controller, payload_event(EventType::EditText, "\xE5\xA5\xBD")),
+                "final commit") ||
+        !expect(controller.buffer().text() == "\xE4\xBD\xA0\xE5\xA5\xBD",
+                "the two committed segments concatenate")) {
+        return false;
+    }
+    Event stray = payload_event(EventType::CompositionUpdate, {});
+    return expect(!controller.handle_event(stray), "an empty update while idle stays a no-op");
+}
+
 bool composition_cancel_and_invalid() {
     EditController controller;
     controller.set_text("abc");
@@ -290,6 +321,9 @@ int main() {
     }
     if (!composition_commit()) {
         return 6;
+    }
+    if (!composition_commit_then_new_preedit()) {
+        return 11;
     }
     if (!composition_cancel_and_invalid()) {
         return 7;
