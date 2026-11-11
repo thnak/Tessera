@@ -22,6 +22,9 @@ add_library(tessera_harness STATIC
     json_write.cpp
     line_framing.cpp
     protocol.cpp
+    script.cpp
+    script_runner.cpp
+    script_step.cpp
     session.cpp
     stdio_transport.cpp
     utf8.cpp)

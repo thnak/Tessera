@@ -85,3 +85,40 @@ add_executable(harness_cli_tests
 target_link_libraries(harness_cli_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_cli COMMAND harness_cli_tests)
+
+# Test-only fake HAL and the script runner/fake-HAL suites. `tessera_harness_testing` is built only
+# for tests: no shipping target links it, and `fake_hal.hpp` states that in its first paragraph.
+add_library(tessera_harness_testing STATIC
+    fake_hal.cpp)
+
+target_include_directories(tessera_harness_testing PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(tessera_harness_testing PUBLIC tessera_harness)
+
+# `hal::Window` keeps one out-of-line default (`wait_for_events`) in the platform HAL target; the
+# fake overrides it, but the base class's key function still has to resolve for a derived double.
+target_link_libraries(tessera_harness_testing PRIVATE tessera_hal_window)
+
+target_compile_features(tessera_harness_testing PUBLIC cxx_std_23)
+
+add_executable(harness_fake_hal_tests
+    fake_hal_tests.cpp)
+
+target_link_libraries(harness_fake_hal_tests PRIVATE tessera_harness_testing)
+
+add_test(NAME harness_fake_hal COMMAND harness_fake_hal_tests)
+
+add_executable(harness_script_tests
+    script_tests.cpp)
+
+target_link_libraries(harness_script_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_script COMMAND harness_script_tests)
+
+add_executable(harness_script_runner_tests
+    script_runner_tests.cpp)
+
+target_link_libraries(harness_script_runner_tests PRIVATE tessera_harness_testing)
+
+add_test(NAME harness_script_runner COMMAND harness_script_runner_tests)
