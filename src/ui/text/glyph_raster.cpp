@@ -13,6 +13,37 @@
 
 namespace tessera::ui::text {
 
+namespace {
+
+// A hollow box on the baseline, used when a face's own .notdef has no ink (some fonts ship an empty
+// one), so a character no face of the stack covers is still visible. Fixed proportions of the pixel
+// size keep it deterministic and independent of the face.
+void synthesize_tofu(GlyphBitmap& result, std::uint16_t pixel_size) {
+    if (result.advance <= 0.0f) {
+        result.advance = static_cast<float>(pixel_size) * 0.6f;
+    }
+    const auto advance = static_cast<std::uint32_t>(result.advance + 0.5f);
+    const std::uint32_t width = std::max<std::uint32_t>(3, advance * 4 / 5);
+    const std::uint32_t height = std::max<std::uint32_t>(3, pixel_size * 7U / 10U);
+    const std::uint32_t stroke = std::max<std::uint32_t>(1, pixel_size / 12U);
+    result.width = width;
+    result.height = height;
+    result.bearing_x = static_cast<std::int32_t>((advance - std::min(advance, width)) / 2);
+    result.bearing_y = static_cast<std::int32_t>(height);
+    result.coverage.assign(static_cast<std::size_t>(width) * height, 0);
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            const bool edge =
+                x < stroke || y < stroke || x + stroke >= width || y + stroke >= height;
+            if (edge) {
+                result.coverage[static_cast<std::size_t>(y) * width + x] = 255;
+            }
+        }
+    }
+}
+
+} // namespace
+
 GlyphRasterizer::GlyphRasterizer(FontFace face)
     : face_(std::move(face)) {}
 
@@ -57,6 +88,9 @@ GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index,
 
     const FT_Bitmap& bitmap = slot->bitmap;
     if (bitmap.width == 0 || bitmap.rows == 0) {
+        if (glyph_index == 0) {
+            synthesize_tofu(result, pixel_size);
+        }
         return result;
     }
     if (bitmap.pixel_mode == FT_PIXEL_MODE_BGRA) {
