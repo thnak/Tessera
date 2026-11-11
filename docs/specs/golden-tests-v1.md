@@ -32,10 +32,48 @@ Implementation note: the first harness covers batched2d only. The baseline
 antialiasing rounds differently across lavapipe/LLVM revisions. The corpus also covers a
 shapes-only scene (`dashboard_shapes.png`: rounded cards, two texture UV scales, scissor clipping,
 translation, and clip+transform) compared bit-exactly. `--report` and `--diff` write
-structural/visual artifacts; the
-A CPU canvas (`batched2d_poc --backend cpu`) provides a bit-exact solid-axis-aligned-rect
-baseline on every platform. It intentionally has no AA, paths, text, rounded rectangles,
-transforms, or textures; lavapipe remains the full-fidelity software path for those cases.
+structural/visual artifacts.
+
+### 1.1 Software (CPU canvas) corpus
+
+`batched2d_poc --backend cpu` renders through `CpuCanvas` (`src/rendering/software/`), the
+software reference: alpha-blended axis-aligned solid quads with hardware-style pixel-center edges,
+an 8-bit coverage blend for glyph bitmaps, and an integer nearest-sample textured-quad blit with
+tint and a per-call clip. Its committed baselines run on every platform (no GPU, no lavapipe):
+`dashboard_cpu.png` (solid rects), `dashboard_text_cpu.png` (coverage text),
+`dashboard_vector_cpu.png`, and `dashboard_image_cpu.png` (textured quads).
+
+The deterministic corpus is also pinned without baseline PNGs, on exact RGBA8 bytes, by
+`cpu_canvas_corpus` and `cpu_canvas_scene_corpus` (`tests/unit/`). Coverage:
+
+- solid quads and the pixel-center edge rule (integral, fractional, half-pixel, 1-pixel);
+- overlapping translucent quads (later draws win, so order is significant) and stacked coverage;
+- textured quads: nearest-sample mapping, tint/alpha composition, clip, negative origins,
+  degenerate quads;
+- boundary geometry: zero-size, off-canvas, negative coordinates, 0x0 and 1x1 canvases;
+- sink-level clip stacks: nested `overflow` clips (three-way intersection) and disjoint clips
+  (an empty intersection must paint nothing);
+- translate-only transforms (exact: the paint pass folds them into world bounds) and rounded-rect
+  backgrounds;
+- damage-scissored redraws: a full paint and a `ClippedPaintSink` replay per disjoint scissor
+  region are byte-identical, with an undersized-region negative control.
+
+Documented gaps of the software backend (deliberate, never faked; pinned by the corpus or kept on
+the lavapipe side):
+
+- no rounded/SDF rasterizer: `fill_rounded_rect` paints the axis-aligned bounds, so corners stay
+  square;
+- no rotation/scale/skew rasterizer: `PaintSink::supports_transform()` is false for the CPU sinks,
+  so a transformed node paints its world-bounds AABB (translate is exact);
+- no gradient rasterizer: gradients are approximated by 64 dominant-axis bands in the CPU sink;
+- box shadows are stacked rect layers (3-8 per blurred shadow), not a Gaussian blur;
+- `CpuCanvas` has no clip stack of its own: clipping is a per-call rect applied by the sink;
+- nearest-sample only: vector/image draws are exact when the raster extent equals the destination
+  box, and there is no resampling filter;
+- no antialiasing on geometric edges (glyph coverage is the exception).
+
+Those shapes remain on the lavapipe corpus (`dashboard_shapes.png`, text cases with tolerance),
+which stays the full-fidelity software path.
 
 ## 2. Directory layout
 

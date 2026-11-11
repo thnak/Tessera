@@ -118,6 +118,9 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_cpu_text_golden` | CPU-canvas text baseline (single-line + wrapped PaintData), bit-exact (all platforms) |
 | `batched2d_cpu_vector_golden` | CPU-canvas vector-asset baseline (SVG → CPU raster → textured-quad blit), bit-exact (all platforms; skips when ThorVG is OFF) |
 | `batched2d_cpu_image_golden` | CPU-canvas raster-image baseline (PNG → decode cache → textured-quad blit), bit-exact (all platforms) |
+| `cpu_canvas` | pure CPU coverage-blend math: rounding, alpha, overlap, clip, off-canvas blits, textured-quad sampling/tint/guards |
+| `cpu_canvas_corpus` | software-backend primitive corpus: solid quads, pixel-center edges, alpha order, textured quads, 0-size/off-canvas/1-pixel/negative geometry, negative control |
+| `cpu_canvas_scene_corpus` | sink-level corpus: nested/disjoint clip stacks, translate vs rotation AABB, rounded-rect bounds gap, damage-scissored replay == full redraw, negative control |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
 | `merger_cli_help` | merger CLI usage |
 | `merger_cli_idempotent` | CLI merge idempotency |
@@ -341,8 +344,38 @@ Implemented for the batched2d proof:
   carries the whole check.
 - `batched2d_cpu_golden` exercises `batched2d_poc --backend cpu`: a CPU canvas fills
   axis-aligned solid rectangles into a separate dashboard baseline
-  (`dashboard_cpu.png`), bit-exactly. The CPU canvas intentionally has no AA, paths, text,
-  rounded rectangles, transforms, or textures; those stay on the lavapipe corpus.
+  (`dashboard_cpu.png`), bit-exactly. The software backend's wider corpus is documented in
+  section 4.1.
+
+### 4.1 Software (CPU canvas) corpus
+
+`CpuCanvas` (`src/rendering/software/`) is the deterministic software reference used by the CPU
+goldens (`dashboard_cpu.png`, `dashboard_text_cpu.png`, `dashboard_vector_cpu.png`,
+`dashboard_image_cpu.png`). Its contract, and the exact list of what it does and does not draw,
+lives in [golden-tests-v1.md, section 1.1](../specs/golden-tests-v1.md#11-software-cpu-canvas-corpus).
+The two Vulkan-free suites next to `cpu_canvas` pin it on exact RGBA8 bytes, so widening the
+backend cannot silently change pixels:
+
+- `cpu_canvas_corpus` covers the primitives themselves: solid quads and the pixel-center edge rule
+  (integral/fractional/half-pixel/1-pixel), overlapping translucent quads (draw order is
+  significant), textured quads (nearest sampling, tint, clip, negative origin), and boundary
+  geometry (zero-size, off-canvas, negative coordinates, 0x0 and 1x1 canvases). A deliberately
+  shifted draw and a wrong expected pixel prove the assertions can fail.
+- `cpu_canvas_scene_corpus` covers the sink-level mapping through the real paint pass: nested
+  `overflow` clip stacks (the visible region is the three-way intersection), disjoint clips (an
+  empty intersection paints nothing), translate-only transforms (exact), rounded-rect backgrounds,
+  and damage-scissored replays (`ClippedPaintSink` per disjoint region must equal a full redraw
+  byte for byte, with an undersized-region negative control).
+
+Documented gaps, kept explicit instead of faked: no rounded/SDF rasterizer (a rounded rect paints
+its bounds, corners stay square), no rotation/scale/skew rasterizer (a transformed node paints its
+world-bounds AABB; translate is exact), gradients approximated as 64 dominant-axis bands, box
+shadows as stacked rect layers, no clip stack inside the canvas (clipping is a per-call rect from
+the sink), nearest-sample only (no resampling filter), and no geometric AA (glyph coverage is the
+exception). Rounded, rotating, and resampled shapes stay on the lavapipe corpus
+(`batched2d_shapes_golden` and the text cases).
+
+Both suites are deterministic and fast: no GPU, lavapipe, font, clock, random id, or network.
 - `--report report.json` and `--diff diff.png` write structural failure artifacts for any
   comparison: status, dimensions, mismatch counts, first mismatch coordinate, and a
   magenta-on-gray diff image when per-channel deltas exceed the tolerance.
