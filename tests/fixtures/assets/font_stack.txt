@@ -1,0 +1,5 @@
+# Primary face first, emoji face last.
+
+fonts/NotoSansHebrew-Regular.ttf
+
+  fonts/ColorTest.ttf

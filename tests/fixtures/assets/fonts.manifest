@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# Font bundle for the asset_font tests: a stack of Hebrew then the color test face (emoji last).
+# Format: <normalized asset name> = <path relative to this manifest>
+fonts/stack.txt = font_stack.txt
+fonts/NotoSansHebrew-Regular.ttf = ../fonts/NotoSansHebrew-Regular.ttf
+fonts/ColorTest.ttf = ../fonts/ColorTest.ttf
+fonts/bad-stack.txt = font_stack_bad.txt
+fonts/missing-stack.txt = font_stack_missing.txt
+fonts/empty-stack.txt = font_stack_empty.txt
+fonts/not-a-font.txt = hello.txt

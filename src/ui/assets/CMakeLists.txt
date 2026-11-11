@@ -36,6 +36,20 @@ target_link_libraries(tessera_asset_image PUBLIC
     tessera_assets
     tessera_image)
 
+# Font stacks from a bundle (docs/design/text.md): the app ships its faces and an ordered stack
+# manifest as assets, and the host builds the FallbackShaper from them.
+add_library(tessera_asset_font STATIC
+    asset_font.cpp)
+
+target_include_directories(tessera_asset_font PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_asset_font PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_asset_font PUBLIC
+    tessera_assets
+    tessera_text)
+
 include(${PROJECT_SOURCE_DIR}/cmake/TesseraAssets.cmake)
 
 # Asset tests are registered from this subdirectory so the lane does not edit the shared
@@ -51,6 +65,15 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(asset_image_tests PRIVATE
         TESSERA_IMAGE_FIXTURE_DIR="${TESSERA_ASSET_FIXTURE_DIR}")
     add_test(NAME asset_image COMMAND asset_image_tests)
+
+    add_executable(asset_font_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/asset_font_tests.cpp)
+    tessera_embed_assets(asset_font_tests
+        MANIFEST ${TESSERA_ASSET_FIXTURE_DIR}/fonts.manifest
+        NAMESPACE tessera::ui::assets::font_fixtures
+        STEM asset_font_fixtures)
+    target_link_libraries(asset_font_tests PRIVATE tessera_asset_font)
+    add_test(NAME asset_font COMMAND asset_font_tests)
 
     add_executable(asset_bundle_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/asset_bundle_tests.cpp)
