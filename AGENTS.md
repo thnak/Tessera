@@ -609,7 +609,12 @@ press -> `:active`, release -> generated Click, focus + typed text -> generated 
 `InputPump`) and `click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next
 for this lane: TextInput focus/IME in the window path (the pump already routes `EditText` to the
 focused node), platform cursor shape once the HAL grows a cursor API, then the startup/chrome design
-captures.
+captures. The design captures landed: `tools/poc/design_mock` renders the startup P0/P2/P4 frames and
+the system vs framework window chrome through the same capture path, writes
+`docs/images/{startup-p0,startup-p2,startup-p4,chrome-system,chrome-custom}.png`, and
+`docs/design/shell-design-preview.md` documents them as design mocks (not the phase scheduler or the
+Windows custom title bar). The `AppHost` root now keeps a caller-chosen `display`/`flex-direction`
+(host owns only width/height), so a shell with a sidebar can make the root a row.
 
 Next slices, in order:
 

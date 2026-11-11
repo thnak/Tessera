@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace tessera::app {
@@ -61,6 +62,15 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
     return input;
 }
 
+bool has_inline_style(const ui::Node& node, std::string_view name) {
+    for (const ui::Node::InlineStyleDeclaration& declaration : node.inline_style()) {
+        if (declaration.name == name) {
+            return true;
+        }
+    }
+    return false;
+}
+
 rhi::Extent2D extent_for(float width, float height, float dpi_scale) {
     const auto physical = [](float logical, float scale) {
         const float scaled = std::ceil(logical * scale);
@@ -93,10 +103,17 @@ struct AppHost::Impl {
     }
 
     void apply_root_size() {
+        // Window geometry is host-owned, but the root's layout mode is not: a shell with a sidebar
+        // sets its own `display`/`flex-direction` before the host exists, and clobbering it would
+        // silently stack the shell. Only fill in the defaults the caller did not choose.
         root.set_inline_style("width", pixels(config.width));
         root.set_inline_style("height", pixels(config.height));
-        root.set_inline_style("display", "flex");
-        root.set_inline_style("flex-direction", "column");
+        if (!has_inline_style(root, "display")) {
+            root.set_inline_style("display", "flex");
+        }
+        if (!has_inline_style(root, "flex-direction")) {
+            root.set_inline_style("flex-direction", "column");
+        }
     }
 
     void rebuild_style_tree() {

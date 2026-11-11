@@ -104,6 +104,10 @@ if (TESSERA_BUILD_POC AND TESSERA_ENABLE_THORVG)
     add_subdirectory(tools/poc/thorvg_spike)
 endif()
 
+if (TESSERA_BUILD_POC AND TARGET tessera_app_window)
+    add_subdirectory(tools/poc/design_mock)
+endif()
+
 if (TESSERA_BUILD_VULKAN)
     add_subdirectory(src/rendering/backend/vulkan)
     if (TESSERA_BUILD_POC)

@@ -220,6 +220,31 @@ Text { font-size: 16px; color: #e2e8f0; }
         }
     }
 
+    // --- 7. A caller-styled root keeps its layout mode -----------------------------------
+    {
+        Node styled(1);
+        styled.set_inline_style("display", "flex");
+        styled.set_inline_style("flex-direction", "row");
+        auto left_ptr = std::make_unique<Node>(2);
+        Node& left = styled.add_child(std::move(left_ptr));
+        auto right_ptr = std::make_unique<Node>(3);
+        Node& right = styled.add_child(std::move(right_ptr));
+        left.set_inline_style("width", "80px");
+        left.set_inline_style("height", "20px");
+        right.set_inline_style("width", "80px");
+        right.set_inline_style("height", "20px");
+
+        tessera::runtime::ManualClock styled_clock;
+        tessera::runtime::RuntimeLoop styled_loop(styled_clock);
+        tessera::app::AppHost styled_host(styled, compile_stylesheet(""), styled_loop, config);
+        (void)styled_host.begin_frame(0.0);
+        if (!expect(left.world_bounds().x == 0.0f, "first row child starts at the origin") ||
+            !expect(right.world_bounds().x == 80.0f, "second row child follows it horizontally") ||
+            !expect(right.world_bounds().y == left.world_bounds().y, "row children share a y")) {
+            return 12;
+        }
+    }
+
     std::cout << "app_host: ok\n";
     return 0;
 }
