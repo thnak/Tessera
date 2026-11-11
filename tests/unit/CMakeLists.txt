@@ -1366,6 +1366,17 @@ target_link_libraries(cpu_canvas_tests PRIVATE tessera_software)
 
 add_test(NAME cpu_canvas COMMAND cpu_canvas_tests)
 
+# Vulkan-free dirty-only == full-redraw equivalence: damage plan -> damage-clipped paint ->
+# deterministic CPU canvas pixels. Runs on every platform; no GPU/lavapipe required.
+add_executable(damage_equivalence_cpu_tests
+    damage_equivalence_cpu_tests.cpp)
+target_link_libraries(damage_equivalence_cpu_tests PRIVATE
+    tessera_frame
+    tessera_paint
+    tessera_software
+    tessera_runtime)
+add_test(NAME damage_equivalence_cpu COMMAND damage_equivalence_cpu_tests)
+
 add_executable(paint_text_layout_cache_tests
     paint_text_layout_cache_tests.cpp)
 
