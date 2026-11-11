@@ -304,7 +304,7 @@ void test_leaf_and_scroll_elements() {
     const auto fixture = parse(
         component("", "<View>\n"
                       "  <Scroll axis=\"x\"><View><Text>a</Text></View></Scroll>\n"
-                      "  <Image src=\"a.png\" alt=\"\" fit=\"cover\" />\n"
+                      "  <Image src=\"a.png\" alt=\"\" fit=\"cover\" decodeSize=\"original\" />\n"
                       "  <Path d=\"M0 0\" viewBox=\"0 0 1 1\" fill=\"none\" strokeWidth={2} />\n"
                       "  <Spacer grow={1} />\n"
                       "</View>"));
@@ -325,6 +325,8 @@ void test_leaf_and_scroll_elements() {
     check_eq(std::string(node_kind(root.children[1])), "Image", "Image");
     check_eq(expr_text(root.children[1].props.at("fit").get()),
              "{\"kind\":\"literal\",\"value\":\"cover\"}", "Image fit");
+    check_eq(expr_text(root.children[1].props.at("decodeSize").get()),
+             "{\"kind\":\"literal\",\"value\":\"original\"}", "Image decodeSize");
     check_eq(std::string(node_kind(root.children[2])), "Path", "Path");
     check_eq(expr_text(root.children[2].props.at("strokeWidth").get()),
              "{\"kind\":\"literal\",\"value\":2}", "Path strokeWidth");

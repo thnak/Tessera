@@ -258,6 +258,7 @@ export interface ImageProps extends CommonProps {
   src: string;
   alt: string;
   fit?: "contain" | "cover" | "fill" | "none";
+  decodeSize?: "display" | "original";
   onSizeChange?: (e: SizeChangeEvent) => void;
 }
 

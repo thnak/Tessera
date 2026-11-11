@@ -80,7 +80,8 @@ therefore takes a `DecodeTarget` (`rendering/image/image_resize.hpp`):
   raster extent the draw will upload (explicit extents, else content box x scale), bucketed.
   `PaintImageStyle::decode_original` (`Image decodeSize="original"`) selects the source-size
   decode. Intrinsic size for fit and scale comes from `source_width/height`, so a reduced decode
-  does not change layout or the texture key. The JSX `decodeSize` prop lowering is not done yet.
+  does not change layout or the texture key. The JSX prop `decodeSize="display" | "original"` (default `display`) is in the intrinsics schema and
+  lowers to `props.decodeSize`; native codegen for `Image` maps it to `decode_original` once it exists.
 
 ## 3. GPU uploads
 
