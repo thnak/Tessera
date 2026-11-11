@@ -63,8 +63,12 @@ source text (editor/host) -> front end (changed components only) -> IR
   `TESSERA_IR_EVAL_TYPE` errors; a `formatNumber` result keeps the sign of a negative that rounds
   to zero (`-0.00`). Test `ir_eval`. Generated C++ does not yet match all of this (`%`,
   `length`, `formatNumber` and substituting templates are deferred in codegen, and `int` overflow
-  is plain C++ arithmetic); the differential suite and the preview-parity runner (issue #7) build on
-  this evaluator.
+  is plain C++ arithmetic); the differential suite builds on this evaluator.
+  The preview-parity runner (`tests/parity/`, tests `parity_runner` and `preview_parity`) plays a
+  script of `call <handler::N | bind::id> [args]` steps on the evaluator (a handler's actions, or a
+  native binding's preview body) and on the generated component through `snapshot_state()`, and
+  compares every cell after each step; a mismatch names the step, the id and the cell. The
+  sample is `samples/parity-demo/Counter.tsx` with its developer C++ in `tests/golden/codegen/parity/`.
 
 ## 3. IPC
 

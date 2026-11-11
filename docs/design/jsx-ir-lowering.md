@@ -265,14 +265,14 @@ developer C++ in a protected region; the only stable region id is the one the de
 (section 5 forbids position-derived ids). An unannotated effect therefore has no V1 IR form and is
 rejected rather than given a generated id. The effect id is `effect::<bind id>` because source has
 no other stable name for it (the example in `ir-v1.md` section 2 shows unrelated effect/handler
-ids, which cannot be derived from source). Native handler `params` and `returnType` are lowered;
-the optional `preview` of decision 6 is **not** (it needs the analyzer's preview-body rules and is
-not needed by slice 7).
+ids, which cannot be derived from source). Native handler `params`, `returnType` and `preview` are
+lowered: setter calls (and a final `return <PureExpr>`) become the preview, and a body outside those
+rules has none until the analyzer diagnoses it (issue #7).
 
 Not in slice 6: JSX nodes, props, events on elements, `ref` targets, style and children (slice 7);
 conditionals/loops (slice 8); components and `LoweringOptions` (slice 9); the type table and
 expression typing (slice 4); `environment`/library hooks (slice 11); local inlining, dynamic
-list initials and `preview` bodies; `uiId`/`componentId` (slice 10). Literal array initials are lowered (`useState<T[]>([])`; docs/specs/jsx-subset-v1.md 8.4).
+list initials; `uiId`/`componentId` (slice 10). Literal array initials are lowered (`useState<T[]>([])`; docs/specs/jsx-subset-v1.md 8.4).
 
 Tests are `lowering_hooks` (every hook and binding form, spans, lookups, action lowering),
 `lowering_hooks_reject` (each rejection, first-error-only, no partial IR, precondition checks) and

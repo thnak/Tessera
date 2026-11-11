@@ -256,6 +256,38 @@ void test_lower_handler_actions_for_event_arrows() {
     }
 }
 
+// jsx-subset-v1.md section 9.3: the TSX body of a native handler is its preview body.
+void test_native_preview_bodies() {
+    const auto fixture = parse(
+        component("  const [count, setCount] = useState<int>(0);\n"
+                  "  // Note: bind::add\n"
+                  "  const add = (by: int): int => { setCount(count + by); return count + by; };\n"
+                  "  // Note: bind::empty\n"
+                  "  const nothing = (): void => {};\n"
+                  "  // Note: bind::other\n"
+                  "  const other = (): void => { log(count); };\n"));
+    const auto result = lower(*fixture);
+    check(result.has_value(), "the native handlers lower: " + describe_errors(*fixture, result));
+    if (!result || result->bindings.size() != 3) {
+        check(false, "three bindings");
+        return;
+    }
+    const ir::Binding& add = result->bindings[0];
+    check(add.id == "bind::add" && add.preview.has_value() && add.preview->actions.size() == 1,
+          "a setter-call body is the preview actions");
+    if (add.preview && add.preview->actions.size() == 1) {
+        check_eq(add.preview->actions[0].target, "state::count", "the preview action target");
+        check_eq(expr_text(add.preview->actions[0].value.get()),
+                 "{\"kind\":\"binary\",\"op\":\"+\",\"left\":{\"kind\":\"ref\","
+                 "\"id\":\"state::count\"},\"right\":{\"kind\":\"ref\",\"id\":\"by\"}}",
+                 "the preview value reads the parameter by name");
+        check(add.preview->return_value != nullptr, "a final return is the preview return value");
+    }
+    check(!result->bindings[1].preview.has_value(), "an empty body has no preview");
+    check(!result->bindings[2].preview.has_value(),
+          "a body outside the preview rules has no preview and is not an error");
+}
+
 void test_empty_component() {
     const auto fixture = parse(component(""));
     const auto result = lower(*fixture);
@@ -280,6 +312,7 @@ int main() {
     test_effects_cleanup_and_native_bindings();
     test_inline_setter_handlers();
     test_lower_handler_actions_for_event_arrows();
+    test_native_preview_bodies();
     test_empty_component();
     return finish("lowering hooks tests");
 }

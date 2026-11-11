@@ -120,6 +120,8 @@ if (TESSERA_BUILD_TESTS)
     if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/CMakeLists.txt)
         add_subdirectory(tests/integration)
     endif()
+    # Preview parity (issue #7): IR evaluator versus generated C++ for a native handler.
+    add_subdirectory(tests/parity)
 endif()
 
 # Ship the project license, third-party notices and the generated license bundle with an install.

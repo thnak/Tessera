@@ -440,8 +440,10 @@ const submit = (values: FormValues): void => {
   The preview body is optional. A native handler with an empty body is allowed; the designer then does
   nothing for that event and reports the warning `TESSERA_REACT_NO_PREVIEW_BODY` (severity `warning`,
   never an error, and it does not stop code generation). The project owner decided this.
-- The preview body is not checked against the C++ code; keeping them equivalent is the developer's
-  responsibility. No tool compares them.
+- The compiler does not check the preview body against the C++ code; keeping them equivalent is the
+  developer's responsibility. A project can compare them with the preview-parity test: a script of
+  handler calls runs on the IR evaluator and on the generated component, and the state must match
+  after every step ([`designer.md`](../design/designer.md) section 2, `tests/parity/`).
 - The annotation may also precede a hook call to give its protected region a stable id; the accepted
   positions are: before a handler declaration and before a `useEffect` statement. Any other position
   is `TESSERA_REACT_BIND_POSITION`.
