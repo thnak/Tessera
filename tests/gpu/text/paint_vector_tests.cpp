@@ -241,13 +241,13 @@ struct RenderHarness {
         return rasterizer != nullptr;
     }
 
-    [[nodiscard]] std::vector<std::uint8_t> render(Node& root, StyleProvider& styles,
-                                                   TextureFormat format, Batched2DSink& sink) {
+    [[nodiscard]] std::vector<std::uint8_t>
+    render(Node& root, StyleProvider& styles, TextureFormat format, Batched2DSink& target_sink) {
         const RenderTargetDesc desc = target_desc(format);
         auto target = device->create_render_target(desc);
         auto commands = device->create_command_list();
         renderer->begin(*commands, *target, desc);
-        paint_scene(root, styles, sink);
+        paint_scene(root, styles, target_sink);
         renderer->end();
         commands->submit();
         device->wait_idle();
