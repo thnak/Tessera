@@ -91,7 +91,9 @@ void CompiledStyleSheet::compile_rule(const Rule& rule, std::uint64_t& source_or
     }
 
     const std::size_t rule_index = rules_.size();
-    rules_.push_back(CompiledRule{std::move(expanded.declarations), source_order, layer});
+    rules_.push_back(
+        CompiledRule{std::move(expanded.declarations), source_order, layer, active_containers_});
+    has_container_queries_ = has_container_queries_ || !active_containers_.empty();
     source_order += rules_.back().declarations.size();
     index_.add(parsed.list, rule_index);
 }
@@ -109,6 +111,20 @@ void CompiledStyleSheet::compile_at_rule(const AtRule& at_rule, std::uint64_t& s
         if (evaluate(query.list, media_)) {
             compile_rules(parse_stylesheet(at_rule.block), source_order, layer);
         }
+        return;
+    }
+
+    if (name == "container") {
+        ContainerQueryParseResult query = parse_container_query(at_rule.prelude);
+        if (!query.ok) {
+            diagnostics_.push_back(StyleDiagnostic{StyleDiagnosticKind::InvalidAtRule,
+                                                   at_rule.offset, name,
+                                                   "invalid container query"});
+            return;
+        }
+        active_containers_.push_back(std::move(query.query));
+        compile_rules(parse_stylesheet(at_rule.block), source_order, layer);
+        active_containers_.pop_back();
         return;
     }
 
@@ -177,12 +193,25 @@ void CompiledStyleSheet::compile_at_rule(const AtRule& at_rule, std::uint64_t& s
     }
 }
 
-void CompiledStyleSheet::add_to_cascade(const StyleNode& node, CascadeTable& cascade) const {
+void CompiledStyleSheet::add_to_cascade(const StyleNode& node, CascadeTable& cascade,
+                                        const ContainerSizeSource* containers) const {
     for (const SelectorMatch& match : index_.match(node)) {
         if (match.value >= rules_.size()) {
             continue;
         }
         const CompiledRule& rule = rules_[match.value];
+        if (!rule.containers.empty()) {
+            const bool applies = containers != nullptr &&
+                                 std::all_of(rule.containers.begin(), rule.containers.end(),
+                                             [&](const ContainerQuery& query) {
+                                                 ContainerSize size;
+                                                 return containers->find(node, query.name, size) &&
+                                                        evaluate(query, size);
+                                             });
+            if (!applies) {
+                continue;
+            }
+        }
         std::uint64_t source_order = rule.source_order;
         cascade.add_declarations(rule.declarations, origin_, match.specificity, source_order,
                                  rule.layer);
@@ -203,15 +232,16 @@ std::uint32_t CompiledStyleSheet::layer_for(std::string_view name) {
     return order;
 }
 
-CascadeTable CompiledStyleSheet::cascade(const StyleNode& node) const {
+CascadeTable CompiledStyleSheet::cascade(const StyleNode& node,
+                                         const ContainerSizeSource* containers) const {
     CascadeTable table;
-    add_to_cascade(node, table);
+    add_to_cascade(node, table, containers);
     return table;
 }
 
-ComputedStyle CompiledStyleSheet::compute(const StyleNode& node,
-                                          const ComputedStyle* parent) const {
-    return registry_.compute_with_initial(parent, cascade(node));
+ComputedStyle CompiledStyleSheet::compute(const StyleNode& node, const ComputedStyle* parent,
+                                          const ContainerSizeSource* containers) const {
+    return registry_.compute_with_initial(parent, cascade(node, containers));
 }
 
 CompiledStyleSheet compile_stylesheet(std::string_view source, Origin origin,

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/style/container_query.hpp"
 #include "tessera/ui/style/keyframes.hpp"
 #include "tessera/ui/style/media_query.hpp"
 #include "tessera/ui/style/parser.hpp"
@@ -21,6 +22,8 @@ struct CompiledRule {
     std::vector<Declaration> declarations;
     std::uint64_t source_order = 0;
     std::uint32_t layer = kUnlayeredLayer;
+    // Enclosing `@container` queries, all of which must hold (nesting is a conjunction).
+    std::vector<ContainerQuery> containers;
 };
 
 class CompiledStyleSheet {
@@ -29,9 +32,17 @@ public:
                                 PropertyRegistry registry = PropertyRegistry{},
                                 MediaContext media = MediaContext{});
 
-    void add_to_cascade(const StyleNode& node, CascadeTable& cascade) const;
-    [[nodiscard]] CascadeTable cascade(const StyleNode& node) const;
-    [[nodiscard]] ComputedStyle compute(const StyleNode& node, const ComputedStyle* parent) const;
+    // `containers` resolves `@container` rules; with null, rules inside `@container` never apply.
+    void add_to_cascade(const StyleNode& node, CascadeTable& cascade,
+                        const ContainerSizeSource* containers = nullptr) const;
+    [[nodiscard]] CascadeTable cascade(const StyleNode& node,
+                                       const ContainerSizeSource* containers = nullptr) const;
+    [[nodiscard]] ComputedStyle compute(const StyleNode& node, const ComputedStyle* parent,
+                                        const ContainerSizeSource* containers = nullptr) const;
+    // True when any rule sits inside an `@container` block.
+    [[nodiscard]] bool has_container_queries() const {
+        return has_container_queries_;
+    }
 
     [[nodiscard]] const std::vector<CompiledRule>& rules() const {
         return rules_;
@@ -73,6 +84,8 @@ private:
     std::vector<StyleDiagnostic> diagnostics_;
     std::map<std::string, std::uint32_t> layer_order_;
     std::uint32_t next_layer_ = 0;
+    std::vector<ContainerQuery> active_containers_;
+    bool has_container_queries_ = false;
 };
 
 CompiledStyleSheet compile_stylesheet(std::string_view source, Origin origin = Origin::Author,

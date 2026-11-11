@@ -5,6 +5,7 @@ add_library(tessera_style STATIC
     color.cpp
     color_names.cpp
     compiled_stylesheet.cpp
+    container_query.cpp
     keyframes.cpp
     media_query.cpp
     parser.cpp

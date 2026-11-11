@@ -86,6 +86,8 @@ constexpr StyleProperty kStyleProperties[] = {
     {"order", StyleKind::Number, ""},
     {"z-index", StyleKind::Number, ""},
     {"field-sizing", StyleKind::Keyword, ""},
+    {"container-type", StyleKind::Keyword, ""},
+    {"container-name", StyleKind::Keyword, ""},
 };
 
 constexpr bool style_rows_are_valid(std::span<const StyleProperty> list) {
@@ -102,9 +104,9 @@ constexpr bool style_rows_are_valid(std::span<const StyleProperty> list) {
     return true;
 }
 
-// The registry of src/ui/style/property_registry.cpp lists 71 longhands; a unit test in that
+// The registry of src/ui/style/property_registry.cpp lists 73 longhands; a unit test in that
 // module checks that this table and the registry agree name for name.
-static_assert(std::size(kStyleProperties) == 71, "the style table has one row per longhand");
+static_assert(std::size(kStyleProperties) == 73, "the style table has one row per longhand");
 static_assert(style_rows_are_valid(kStyleProperties), "style rows are unique and named");
 
 } // namespace
