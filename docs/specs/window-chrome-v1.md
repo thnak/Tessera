@@ -310,7 +310,17 @@ a guideline, not a compiler check.
   simulated system chrome is hidden (see the hosted studio design in
   [designer.md](../design/designer.md) section 2.2).
 
-## 12. Deferred and open questions
+## 12. Design-time preview
+
+The studio previews the chrome without owning it: the page paints the simulated title bar, menu bar
+and status/navigation bars as HTML around or over the engine canvas and hands the skin's insets to
+the viewer, so the engine renders exactly the client area (desktop) or the edge-to-edge surface
+(mobile) that production would render ([designer-studio-v1.md](designer-studio-v1.md) section 5).
+The simulated frame is tinted from the same resolved `{background, foreground, scheme}` record, so a
+theme change retints the frame and the canvas in the same frame. The studio never renders system
+chrome inside the engine, and a skin's art is geometry only.
+
+## 13. Deferred and open questions
 
 Owner decisions recorded 2026-11-11: `auto` follows the window background; the Windows custom title
 bar ships in V1 (`window.titleBar: "custom"`); the app shell is framework-owned; insets reach styles

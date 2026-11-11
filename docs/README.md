@@ -106,6 +106,8 @@ This page is the map and reading order for the framework.
   scroll fling/snap, overscroll stretch/spring-back, reduced motion
 - [`specs/designer-protocol-v1.md`](specs/designer-protocol-v1.md) — host/viewer messages of the
   browser designer: source sync, picker, style overrides, commit as text patches
+- [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
+  page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
   handlers, hooks (sections 0-9)
 - [`specs/jsx-subset-v1-jsx.md`](specs/jsx-subset-v1-jsx.md) — part 2 of the JSX/TSX subset: JSX,
@@ -392,11 +394,13 @@ This page is the map and reading order for the framework.
 ### Design-time viewer
 
 1. [Designer](design/designer.md)
-2. [Compiler](design/compiler.md)
-3. [IR](specs/ir-v1.md)
-4. [Renderer](design/renderer.md)
-5. [Shader manifest](specs/shader-manifest-v1.md)
-6. [Security](design/security.md)
+2. [Designer studio](specs/designer-studio-v1.md)
+3. [Designer protocol](specs/designer-protocol-v1.md)
+4. [Compiler](design/compiler.md)
+5. [IR](specs/ir-v1.md)
+6. [Renderer](design/renderer.md)
+7. [Shader manifest](specs/shader-manifest-v1.md)
+8. [Security](design/security.md)
 
 ## 8. Status
 
@@ -427,7 +431,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Mobile integration (Android first) | design only |
 | Memory model / bridge policy | proposed / [ADR-024](../decisions/ADR-024-native-first-boundaries.md) accepted |
 | Buffer config / user tunables | B2/B3 proposed |
-| Startup / loading / auth | design only; developer startup surface spec proposed (`startup-api-v1.md`, [ADR-042](../decisions/ADR-042-jsx-startup-surface.md), [ADR-043](../decisions/ADR-043-launch-modes-and-state-reuse.md)); chrome/system bars proposed (`window-chrome-v1.md`, [ADR-044](../decisions/ADR-044-system-window-chrome-in-v1.md)) |
+| Startup / loading / auth | design only; startup surface, chrome and Windows custom title bar specs proposed with owner decisions recorded (`startup-api-v1.md`, `window-chrome-v1.md`, [ADR-042](../decisions/ADR-042-jsx-startup-surface.md), [ADR-043](../decisions/ADR-043-launch-modes-and-state-reuse.md), [ADR-044](../decisions/ADR-044-system-window-chrome-in-v1.md)) |
 | Resource lifecycle (lazy/preload/unload) | B2/F proposed |
 | Error boundaries | C/F proposed ([ADR-025](../decisions/ADR-025-error-boundaries.md) accepted) |
 | Deep links / external activation | F proposed ([ADR-026](../decisions/ADR-026-deep-links-and-external-activation.md) accepted) |
@@ -446,6 +450,6 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Updates / signing / crash | F proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
 | Component library | after V1; proposed ([ADR-032](../decisions/ADR-032-bundled-component-library.md) accepted) |
 | Samples / media / export | planned/deferred |
-| Designer/Wasm | D proposed |
+| Designer/Wasm | D proposed; hosted studio, data-driven skins, startup-phase preview and a `tessera-mcp` stdio adapter proposed with owner decisions recorded (`designer-studio-v1.md`, [ADR-045](../decisions/ADR-045-browser-hosted-studio.md)) |
 | Packaging/release | F proposed |
 | Pixel goldens on [lavapipe](reference/glossary.md)/software | B2 planned |

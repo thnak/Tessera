@@ -1,6 +1,6 @@
 # ADR-044: Window chrome policy in V1: system by default, Windows client-side title bar opt-in
 
-Status: Proposed (revised 2026-11-11 after owner review; the original text deferred all client-side
+Status: Accepted (revised 2026-11-11 after owner review; the original text deferred all client-side
 decorations, and the owner chose to ship a Windows custom title bar early and to make the app shell
 framework-owned).
 
@@ -91,8 +91,8 @@ startup spec's "background token" reference had no normative source.
 - Two decoration modes must be tested (system and custom) on Windows, including P2 continuity,
   DPI changes, maximize/restore, Snap Layouts and screen readers.
 - The studio must preview both modes: system chrome is simulated by the skin, custom chrome is
-  drawn by the engine and therefore part of the canvas (the hosted studio design in
-  [`designer.md`](../docs/design/designer.md) section 2.2).
+  drawn by the engine and therefore part of the canvas
+  ([`designer-studio-v1.md`](../docs/specs/designer-studio-v1.md) section 5).
 - New public contract: `window.titleBar`, the framework `WindowChrome`/`AppBar` components, and the
   two reserved tokens. All are documented normatively in
   [`window-chrome-v1.md`](../docs/specs/window-chrome-v1.md).
