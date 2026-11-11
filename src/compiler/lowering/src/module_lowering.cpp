@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -142,8 +143,21 @@ bool has_ref(const FileEntry& file, std::string_view name) {
     return false;
 }
 
+constexpr std::size_t kNoFile = static_cast<std::size_t>(-1);
+
+// Index of the project file whose path (without its extension) is `key`, or kNoFile.
+std::size_t find_project_file(const ProjectState& state, std::string_view key) {
+    for (std::size_t candidate = 0; candidate < state.files.size(); ++candidate) {
+        if (without_extension(state.files[candidate].source->file) == key) {
+            return candidate;
+        }
+    }
+    return kNoFile;
+}
+
 // Builds the component references and import graph of one file. False after reporting an error.
-bool resolve_imports(ProjectState& state, std::size_t index) {
+bool resolve_imports(ProjectState& state, std::size_t index,
+                     std::span<const PackageRoot> packages) {
     FileEntry& entry = state.files[index];
     const ModuleSource& source = *entry.source;
     for (const jsx::ModuleItem& item : source.module->items) {
@@ -163,6 +177,7 @@ bool resolve_imports(ProjectState& state, std::size_t index) {
             continue; // side-effect CSS imports are stylesheet work (subset section 4)
         }
         const bool relative = item.source.rfind("./", 0) == 0 || item.source.rfind("../", 0) == 0;
+        std::string target_key;
         if (!relative) {
             if (item.source == "tessera") {
                 // A framework import may name a library component
@@ -181,21 +196,40 @@ bool resolve_imports(ProjectState& state, std::size_t index) {
             if (item.source == "react") {
                 continue; // React-compatible names resolve through the intrinsic schema table
             }
-            fail(state, source, "TESSERA_IR_UNSUPPORTED",
-                 "import `" + item.source +
-                     "` is not a project file (`./X`); bare package names are not supported",
-                 item.span, "use a relative import");
-            return false;
-        }
-        const std::string target_key = join_path(directory_of(source.file), item.source);
-        std::size_t target = static_cast<std::size_t>(-1);
-        for (std::size_t candidate = 0; candidate < state.files.size(); ++candidate) {
-            if (without_extension(state.files[candidate].source->file) == target_key) {
-                target = candidate;
-                break;
+            // A bare specifier names a configured package root (ADR-014): `pkg/Sub` resolves to
+            // `<root>/Sub` and a bare `pkg` to `<root>/index`. Everything after that follows the
+            // ordinary cross-file rules, so a package is compiled by the same pipeline.
+            const PackageRoot* package = nullptr;
+            std::string_view sub;
+            for (const PackageRoot& candidate : packages) {
+                if (item.source == candidate.name) {
+                    package = &candidate;
+                    sub = {};
+                    break;
+                }
+                if (item.source.size() > candidate.name.size() &&
+                    item.source.compare(0, candidate.name.size(), candidate.name) == 0 &&
+                    item.source[candidate.name.size()] == '/') {
+                    package = &candidate;
+                    sub = std::string_view(item.source).substr(candidate.name.size() + 1);
+                    break;
+                }
             }
+            if (package == nullptr) {
+                fail(state, source, "TESSERA_IR_UNSUPPORTED",
+                     "import `" + item.source +
+                         "` is neither a project file (`./X`) nor a configured package",
+                     item.span,
+                     "use a relative import or declare the package in the project config");
+                return false;
+            }
+            target_key = sub.empty() ? join_path(package->root, "index")
+                                     : join_path(package->root, sub);
+        } else {
+            target_key = join_path(directory_of(source.file), item.source);
         }
-        if (target == static_cast<std::size_t>(-1)) {
+        const std::size_t target = find_project_file(state, target_key);
+        if (target == kNoFile) {
             fail(state, source, "TESSERA_IR_UNRESOLVED",
                  "import `" + item.source + "` does not name a file of this project", item.span);
             return false;
@@ -292,7 +326,8 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
 }
 
 ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
-                                 std::string_view module_name) {
+                                 std::string_view module_name,
+                                 std::span<const PackageRoot> packages) {
     ProjectState state;
     state.files.resize(sources.size());
     for (std::size_t i = 0; i < sources.size(); ++i) {
@@ -324,7 +359,7 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
         return sources[left].file < sources[right].file;
     });
     for (const std::size_t index : state.order) {
-        if (!resolve_imports(state, index)) {
+        if (!resolve_imports(state, index, packages)) {
             return std::unexpected(NodeLoweringErrors{*state.error});
         }
     }
@@ -361,12 +396,17 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
 } // namespace
 
 ModuleLoweringResult lower_module(const ModuleSource& source, std::string_view module_name) {
-    return lower_files(std::span<const ModuleSource>(&source, 1), module_name);
+    return lower_files(std::span<const ModuleSource>(&source, 1), module_name, {});
 }
 
 ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
                                    std::string_view module_name) {
-    return lower_files(files, module_name);
+    return lower_files(files, module_name, {});
+}
+
+ModuleLoweringResult lower_project(std::span<const ModuleSource> files, std::string_view module_name,
+                                   std::span<const PackageRoot> packages) {
+    return lower_files(files, module_name, packages);
 }
 
 } // namespace tessera::compiler::lowering

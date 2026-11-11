@@ -67,11 +67,29 @@ using ModuleLoweringResult = std::expected<LoweredModule, NodeLoweringErrors>;
 [[nodiscard]] ModuleLoweringResult lower_module(const ModuleSource& source,
                                                 std::string_view module_name);
 
+// One resolved package root (ADR-014 project config): a bare specifier imports files under `root`,
+// so `from "tessera-ui/Button"` resolves to `<root>/Button` and a bare `from "tessera-ui"` to
+// `<root>/index`. `root` is a project-relative POSIX path without a leading `./`, matching the
+// `ModuleSource::file` form.
+struct PackageRoot {
+    std::string_view name;
+    std::string_view root;
+};
+
 // Lowers every file of a project. Relative imports (`./X`, `../X`) are resolved against `files`,
 // each imported name must be a component exported by the target file, and an import cycle is an
 // error. A component reference resolves to the local component of that name first, then to an
 // import; an unknown tag is a `TESSERA_IR_UNSUPPORTED` naming it.
 [[nodiscard]] ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
                                                  std::string_view module_name);
+
+// As above, with the project's package roots: a bare specifier (`from "tessera-ui"`,
+// `from "tessera-ui/Button"`) resolves inside the matching root and then follows the ordinary
+// cross-file rules. `"tessera"` (framework hooks/intrinsics/library components) and `"react"`
+// stay built-in and are never package imports. An unknown package is `TESSERA_IR_UNSUPPORTED`; a
+// known package without the named file is `TESSERA_IR_UNRESOLVED`.
+[[nodiscard]] ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
+                                                 std::string_view module_name,
+                                                 std::span<const PackageRoot> packages);
 
 } // namespace tessera::compiler::lowering

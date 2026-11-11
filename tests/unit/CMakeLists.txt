@@ -1248,6 +1248,13 @@ target_link_libraries(lowering_module_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_module COMMAND lowering_module_tests)
 
+add_executable(lowering_module_package_tests
+    lowering_module_package_tests.cpp)
+
+target_link_libraries(lowering_module_package_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_module_package COMMAND lowering_module_package_tests)
+
 add_executable(lowering_module_reject_tests
     lowering_module_reject_tests.cpp)
 
