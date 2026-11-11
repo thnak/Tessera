@@ -213,14 +213,14 @@ Events: for every `node.events` entry codegen emits an anonymous-namespace adapt
 `void event_adapter_<N>_<onName>(void* context, const tessera::ui::Event& event)` that casts the
 component context, converts the scene event with the payload-record converter, and calls the
 generated handler/binding method; the node then receives
-`bind_event(tessera::ui::EventType::<Type>, &adapter, this)`. Payload record → C++ type:
-`PointerEvent`→`PointerEventInfo`, `ClickEvent`→`ClickEvent`, `KeyEvent`→`KeyEventInfo`,
-`FocusEvent`→`FocusEventInfo`, `TextChangeEvent`→`TextChangeEvent` (`TextSubmitEvent` is an alias),
-`TextSelection`→`TextSelection`, `CompositionEvent`→`CompositionEvent`,
-`ScrollEvent`→`ScrollEventInfo`, `ErrorInfo`→`ErrorInfo`. JSX event → `EventType`: `onClick` →
-`Click` (synthesized, see [`click-synthesis.md`](click-synthesis.md)); `onPointerDown/Up/Move/Over/Out/Enter/Leave` → the same
-scene type; `onKeyDown/onKeyUp` → `KeyDown/KeyUp`; `onFocus/onBlur` → `Focus/Blur`;
-`onChange/onSubmit` → `EditText`; any other event name is rejected with
+`bind_event(tessera::ui::EventType::<Type>, &adapter, this)`. Payload record â†’ C++ type:
+`PointerEvent`â†’`PointerEventInfo`, `ClickEvent`â†’`ClickEvent`, `KeyEvent`â†’`KeyEventInfo`,
+`FocusEvent`â†’`FocusEventInfo`, `TextChangeEvent`â†’`TextChangeEvent` (`TextSubmitEvent` is an alias),
+`TextSelection`â†’`TextSelection`, `CompositionEvent`â†’`CompositionEvent`,
+`ScrollEvent`â†’`ScrollEventInfo`, `ErrorInfo`â†’`ErrorInfo`. JSX event â†’ `EventType`: `onClick` â†’
+`Click` (synthesized, see [`click-synthesis.md`](click-synthesis.md)); `onPointerDown/Up/Move/Over/Out/Enter/Leave` â†’ the same
+scene type; `onKeyDown/onKeyUp` â†’ `KeyDown/KeyUp`; `onFocus/onBlur` â†’ `Focus/Blur`;
+`onChange/onSubmit` â†’ `EditText`; any other event name is rejected with
 `TESSERA_CODEGEN_UNSUPPORTED`. Bindings are read-only and run at the Target phase after the node's
 own listener and before bubbling ([`scene-graph.md`](scene-graph.md) section 6).
 
@@ -233,14 +233,14 @@ same deps hash) and runs the cleanup region before rerunning when the hash chang
 `unmount()` runs cleanups in reverse declaration order and clears `active`. The effect bodies and
 cleanups are the normal `[DEVELOPER_LOGIC]` binding regions, so protected-region idempotency covers
 them. `useAnimatedValue` remains a plain field: `ui::AnimationRuntime` is target/name keyed
-(`start`/`pause_target`/`tick`) and has no per-value controller API to hand a generated field to —
+(`start`/`pause_target`/`tick`) and has no per-value controller API to hand a generated field to â€”
 the exact gap for a later animation slice.
 
 Interpolation and update path: text expressions (templates with substitutions, plain references,
 conditionals and numeric/binary/call expressions with a printable C++ type) are emitted as a
 generated `apply_state()`: it hashes each interpolated value with the shared FNV-1a helpers and only
 when a hash differs rebuilds the string, stores it in `text_node_N_value_`, and calls
-`set_paint_data(PaintData{...})` — so the node marks `Paint|Render` only, never `Layout`. `build()`
+`set_paint_data(PaintData{...})` â€” so the node marks `Paint|Render` only, never `Layout`. `build()`
 stores each interpolated node's pointer and ends with `apply_state()`. Scheduled updates (issue #5):
 each component owns a `tessera::ui::UpdateTicket`, `attach_scheduler()`/`detach_scheduler()` (owned
 instances attach after their owner, so a parent flushes first), `schedule_update()` and one
@@ -416,77 +416,85 @@ node (element kind `VirtualList`/`VirtualGrid`) plus one *static item template* 
 3.5) that is **not** a child and is never built by `build()`. Lowering turns the collection's single
 `.map` child into `itemTemplate` (the callback element with its `loop` and `key`); when the element
 names neither `itemSize` nor `estimateSize`, lowering records the 32 px `estimateSize` estimate of
-virtualization-v1.md section 4. Codegen emits:
+virtualization-v1.md section 4. The geometry props belong to the collection, not to scene-node
+metadata. Codegen emits:
 
-- generated `static constexpr` geometry constants on the component struct
-  (`virtual_<collection>_item_size_`/`estimate_size_`/`overscan_`/`gap_`, plus
-  `row_height_`/`columns_`/`column_width_` for a grid). They are literal-only in this slice; a
-  dynamic geometry value is `TESSERA_CODEGEN_UNSUPPORTED` because no runtime setter exists yet.
-  `overscan` defaults to 200 and `gap` to 0; the effective estimate is the written `estimateSize`,
-  else the grid `rowHeight` / list `itemSize`, else 32 px;
-- a growable realized-window table (`std::vector`, sized to the applied range) with the keyed-list item struct
-  (`Item_<template>`: root node pointer, id slot, interpolated text pointers) and the same
+- generated geometry members on the component struct (`virtual_<collection>_item_size_`/
+  `estimate_size_`/`overscan_`/`gap_`, plus `row_height_`/`columns_`/`column_width_` for a grid).
+  `itemSize`/`estimateSize`/`gap`/`rowHeight` accept a number literal **or** a numeric state/prop
+  reference (a mutable member holding the last seeded value, re-evaluated by
+  `update_virtual_geometry_<n>()`, below); `overscan` (default 200), `orientation`, `columns` and
+  `columnWidth` stay literal-only, since they decide the emitted axis, row mapping and window shape.
+  The effective estimate is `estimateSize`, else the grid `rowHeight` / list `itemSize`, else 32 px;
+  `gap` defaults to 0;
+- a growable realized-window table (`std::vector`, sized to the applied range) with the keyed-list
+  item struct (`Item_<template>`: root pointer, id slot, text pointers) and the same
   `build_item_<template>` / `apply_item_<template>` pair as an eager list;
 - `apply_virtual_<collection>(first, last)`: the host passes the half-open realized range it
   computed with `tessera::ui::virtualization::ItemGeometry` (the runtime owns prefix sums, estimates,
-  refinement and scroll anchoring — codegen does not reimplement geometry). The method clamps the
+  refinement and scroll anchoring â€” codegen does not reimplement geometry). The method clamps the
   range to the data source only, hashes the window's keys first
-  (unchanged window ⇒ no allocation, no node access), detaches the current window, reconciles it by
+  (unchanged window â‡’ no allocation, no node access), detaches the current window, reconciles it by
   key (a surviving key reuses its subtree and content hash), builds new items with their **absolute
   item index** as the NodeId slot (`template id + index * kItemIdStride`, stable across scrolls and
   unique among live items), then runs the hash-compared per-item content pass.
 
-`estimateSize`/`overscan`/`gap`/`rowHeight`/`columns`/`columnWidth` are the collection's own props
-and are not scene-node metadata; the host feeds the generated constants into its geometry config and
-drives `apply_virtual_<n>` from its scroll handling.
-
 **Generated scroll wiring (implemented).** Each virtual collection also emits
-`scroll_virtual_<collection>(float& scroll_offset, float viewport_extent)`, the collection-level
-scroll entry point. The component owns one `tessera::ui::virtualization::ItemGeometry` seeded from
-the emitted constants (estimate, gap, capacity `kMaxGeneratedVirtualGeometryItems = 4096`). One call
-syncs the geometry count from the loop source, reads every realized item's laid-out main-axis
-border-box extent (`Node::bounds()`) and forwards a positive measure through
-`ItemGeometry::refine_measure` (a grid maps a cell to its row and keeps the row maximum; a zero
-extent means "not laid out yet" and is ignored), re-anchors `scroll_offset` **in place** through
-`virtualization::reanchor_scroll` when the measure lands before the item at the viewport start,
-realizes the viewport window expanded by the emitted `overscan` (the applied table stays capped at
-32 items), then dispatches the collection events. `onScroll` receives the scene `ScrollEventInfo`
-payload (absolute offset plus viewport/content extents) when its handler takes a parameter and a
-default `Event` otherwise.
+`scroll_virtual_<collection>(float& scroll_offset, float viewport_extent)`. The component owns one
+`tessera::ui::virtualization::ItemGeometry` (capacity `kMaxGeneratedVirtualGeometryItems = 4096`).
+One call syncs the count from the loop source, runs the re-seed path, forwards each realized item's
+laid-out main-axis extent through `refine_measure` (a grid maps a cell to its row, keeping the row
+maximum; zero means "not laid out" and is ignored), re-anchors `scroll_offset` **in place** when the
+measure lands before the item at the viewport start, realizes the overscanned window, then
+dispatches the events. `onScroll` receives the scene `ScrollEventInfo` payload when its handler
+takes a parameter and a default `Event` otherwise.
 
-`onEndReached` is edge-triggered and distance-throttled. It fires once when the realized window
-first reaches the last item; staying at the end does not re-fire, and the edge re-arms only after
-the window leaves the end zone. A re-entry whose offset is within `kVirtualEndReachedThrottlePx`
-(200 px) of the previous fire is suppressed and counted. The throttle is distance-based, so it needs
-no wall clock and the scripted tests are deterministic; the generated `virtual_<n>_end_armed_`,
-`_end_fire_offset_`, `_end_fires_` and `_end_throttled_` members hold the state. Order per call:
-measure/refine, re-anchor, window apply, `onScroll`, `onEndReached`.
+**Dynamic geometry (implemented).** `update_virtual_geometry_<collection>(float& scroll, float
+viewport)` is the re-seed path; `scroll_virtual_<n>` runs it first and a host may call it directly.
+It re-evaluates the inputs, hashes them with the shared FNV-1a helpers (one pass, no allocation) and
+returns early on an unchanged hash, so a per-frame call seeds once per change
+(`virtual_<n>_geometry_seeds_` counts the seeds); the path is allocation-free and deterministic. On
+a change:
 
-The scene has no scroll `EventType` yet, so the driver is a host entry point on the component rather
-than a scene event binding: the host owns the scroll offset (and adopts the re-anchored value from
-the updated argument) and calls the method from its scroll handling. Rejected loudly with
-`TESSERA_CODEGEN_UNSUPPORTED`: an `onScroll` payload other than the `ScrollEvent` record or a
-multi-parameter collection handler, an `onEndReached` handler/binding with a payload, a collection
-event binding with a return value, and a `VirtualGrid` that declares a collection event without the
-fixed `columns` count (its generated row mapping needs one). A data source past the geometry cap
-makes the method return false and realize nothing; `columnWidth` grids refuse it and stay
-host-driven through `apply_virtual_<n>`.
+- an `estimateSize`/`gap` change **keeps** every measurement (`ItemGeometry::reseed`: an estimate
+  only describes unmeasured items, and a gap moves offsets, not sizes);
+- a change to a declared fixed extent that seeds the estimate (`itemSize`/`rowHeight` with no
+  `estimateSize` overriding it) **drops** all measurements, because it describes every item; an
+  overridden fixed extent is informational and never drops one;
+- the item at the viewport start keeps its viewport-relative position: `reanchor_scroll` with the
+  old/new prefix sums (`refined_index` 0 = "everything before the anchor"), clamped to
+  `[0, total - viewport]`; the data source is untouched, so its key survives and only the clamp can
+  move the first visible item;
+- `onEndReached`'s edge/throttle members are left alone: no fire, no reset (a moved content end may
+  re-arm the edge through the ordinary rule).
 
-The goldens `tests/golden/codegen/VirtualDemo.*` are generated from hand-built IR by
-`codegen_virtual_tests --write`; the build compiles them as `tessera_codegen_virtual_sample`.
-`codegen_virtual_runtime` scripts a scroll through the real `ItemGeometry` to assert the realized
-range, NodeId slots, keyed reuse, dirty domains and the bounded window, and
-`codegen_virtual_scroll` drives the generated entry point: overscanned range parity with an
-independent geometry, measure refinement changing only the suffix with the re-anchored offset,
-`onEndReached` at the boundary with its throttle, the grid row window, and the cap refusal.
-Deferred loudly: dynamic virtual geometry, a scene `Scroll` event binding for the collection events
-(the host calls the generated entry point), a time-based throttle, a virtual collection inside an
-eager list template, and interpolation/metadata forms already deferred inside any template
-(components, `TextInput`/`TextArea`, refs, dynamic metadata/style, nested loops).
+`onEndReached` is edge-triggered and distance-throttled (200 px, `kVirtualEndReachedThrottlePx`):
+one fire per end-zone entry, no re-fire while staying there, a suppressed re-entry counted. It is
+distance-based, so no wall clock is involved; `virtual_<n>_end_armed_`/`_end_fire_offset_`/
+`_end_fires_`/`_end_throttled_` hold the state. Order per call: re-seed, measure/refine, re-anchor,
+window apply, `onScroll`, `onEndReached`.
+
+The scene has no scroll `EventType` yet, so the driver is a host entry point rather than a scene
+binding: the host owns the offset (and adopts the re-anchored value from the argument) and calls the
+method from its scroll handling. Rejected loudly: an `onScroll` payload other than `ScrollEvent`, a
+multi-parameter collection handler, an `onEndReached` payload, a collection event binding with a
+return value, and a grid collection event without a fixed `columns`. A source past the geometry cap
+returns false and realizes nothing; `columnWidth` grids stay host-driven through `apply_virtual_<n>`.
+
+The goldens `tests/golden/codegen/VirtualDemo.*` come from `codegen_virtual_tests --write`; the
+build compiles them as `tessera_codegen_virtual_sample`. `codegen_virtual_runtime` scripts a scroll
+through the real `ItemGeometry` (realized range, NodeId slots, keyed reuse, dirty domains) and
+`codegen_virtual_scroll` drives the generated entry point (range parity with an independent
+geometry, measure refinement and re-anchor, the throttle, the grid row window, the cap refusal).
+`codegen_virtual_geometry` pins the re-seed emission and the rejection matrix, and
+`codegen_virtual_geometry_runtime` executes a state/prop-driven change: one seed per change, the
+measurement rule above, the preserved anchor, the clamp and the untouched `onEndReached` state.
+Deferred loudly: a scene `Scroll` event binding, a time-based throttle, a virtual collection inside
+an eager list template, and the forms already deferred inside any template.
 
 Regeneration CLI (`tools/codegen/`, executable `tessera_codegen`): `.tsx` in, `--out DIR`
-plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser → analysis → lowering →
-IR validation → codegen, first-error-only with `file:line:column`, exit 0/1/2. Every generated file
+plus `--check`/`--write` (default), `--namespace`, `--verbose`; runs parser â†’ analysis â†’ lowering â†’
+IR validation â†’ codegen, first-error-only with `file:line:column`, exit 0/1/2. Every generated file
 is merged with the existing file (`merge(generated, existing)`) and rewritten only when the merged
 bytes differ, so a no-op run leaves bytes and mtime untouched; `--check` reports drift (including
 outside-region edits) and writes nothing. Slice 10 identity diagnostics (`componentId`/`uiId`/
@@ -552,10 +560,9 @@ Remaining demo-documented gaps: the sample emits no `automationId`, so nodes are
 element kind; paint emits no caret for an empty text run (empty text paints no decoration), so an empty
 focused field has no visible caret until the paint pass grows an empty-run caret.
 
-
 Deferred: dynamic list elements and list-typed *state* initials of a project component
 (`Component::props` is populated only for the `children` slot declaration today, so a list can be
-seeded only from a literal array initial or another list reference), dynamic virtual geometry and a
+seeded only from a literal array initial or another list reference), a
 scene `Scroll` event binding for the collection events (the host calls `scroll_virtual_<n>` today;
 item-template events are wired), a value expression on a component prop beyond one payload-record
 callback parameter, a

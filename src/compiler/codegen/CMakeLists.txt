@@ -23,6 +23,7 @@ add_library(tessera_codegen STATIC
     src/emit_node.cpp
     src/emit_props.cpp
     src/emit_virtual.cpp
+    src/emit_virtual_geometry.cpp
     src/emit_virtual_scroll.cpp
     src/interpolation.cpp
     src/value_ops.cpp)
@@ -282,6 +283,17 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME codegen_virtual COMMAND codegen_virtual_tests)
 
+    # Dynamic virtual geometry: the re-seed path, the measurement-invalidation rule and the
+    # literal-only structural props (one virtual collection geometry, not the whole template).
+    add_executable(codegen_virtual_geometry_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_geometry_tests.cpp)
+
+    target_link_libraries(codegen_virtual_geometry_tests PRIVATE
+        tessera_codegen
+        tessera_merger)
+
+    add_test(NAME codegen_virtual_geometry COMMAND codegen_virtual_geometry_tests)
+
     # The sample library owns the committed golden: `codegen_virtual_tests --write` regenerates
     # tests/golden/codegen/VirtualDemo.*; the guard keeps a fresh worktree configuring before the
     # golden exists.
@@ -320,6 +332,22 @@ if (TESSERA_BUILD_TESTS)
             tessera_virtual)
 
         add_test(NAME codegen_virtual_scroll COMMAND codegen_virtual_scroll_tests)
+
+        # Dynamic geometry at runtime: the state/prop-driven re-seed path (once per change, not per
+        # frame), the measurement-invalidation rule, the re-anchor and its clamp, and the untouched
+        # `onEndReached` edge/throttle state.
+        add_executable(codegen_virtual_geometry_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_geometry_runtime_tests.cpp)
+
+        target_include_directories(codegen_virtual_geometry_runtime_tests
+            PRIVATE ${_tessera_codegen_golden_dir})
+        target_link_libraries(codegen_virtual_geometry_runtime_tests PRIVATE
+            tessera_codegen_virtual_sample
+            tessera_scene
+            tessera_virtual)
+
+        add_test(NAME codegen_virtual_geometry_runtime
+            COMMAND codegen_virtual_geometry_runtime_tests)
     endif ()
 
     # `Field` as a library component on the ordinary component path: a framework import names the

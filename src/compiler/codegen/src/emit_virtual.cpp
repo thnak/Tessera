@@ -11,7 +11,6 @@
 #include "emit_virtual.hpp"
 #include "value_ops.hpp"
 
-#include <charconv>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -27,33 +26,6 @@ bool fail(std::string& error, std::string message) {
     return false;
 }
 
-bool is_grid(const ir::Node& collection) {
-    return collection.kind == ir::NodeKind::VirtualGrid;
-}
-
-bool is_geometry_prop(std::string_view name, bool grid) {
-    if (name == "estimateSize" || name == "overscan" || name == "gap" || name == "orientation") {
-        return true;
-    }
-    if (name == "itemSize") {
-        return !grid;
-    }
-    return grid && (name == "rowHeight" || name == "columns" || name == "columnWidth");
-}
-
-std::optional<double> number_literal(const ir::Expr* expr) {
-    if (expr == nullptr || expr->kind != ir::ExprKind::Literal) {
-        return std::nullopt;
-    }
-    if (const auto* integer = std::get_if<std::int64_t>(&expr->literal)) {
-        return static_cast<double>(*integer);
-    }
-    if (const auto* number = std::get_if<double>(&expr->literal)) {
-        return *number;
-    }
-    return std::nullopt;
-}
-
 std::optional<std::int64_t> integer_literal(const ir::Expr* expr) {
     if (expr == nullptr || expr->kind != ir::ExprKind::Literal) {
         return std::nullopt;
@@ -65,21 +37,6 @@ std::optional<std::int64_t> integer_literal(const ir::Expr* expr) {
         return static_cast<std::int64_t>(*number);
     }
     return std::nullopt;
-}
-
-std::string double_text(double value) {
-    char buffer[64];
-    const auto result = std::to_chars(buffer, buffer + sizeof buffer, value);
-    std::string out(buffer, result.ptr);
-    if (out.find_first_of(".eE") == std::string::npos) {
-        out += ".0";
-    }
-    return out;
-}
-
-const ir::Expr* prop(const ir::Node& node, std::string_view name) {
-    const auto found = node.props.find(std::string(name));
-    return found == node.props.end() ? nullptr : found->second.get();
 }
 
 // The item and index locals of one virtual template for the emitted C++ statements: the item is
@@ -116,89 +73,6 @@ std::string item_table_prefix(const ListTemplate& list) {
         return "virtual_" + std::to_string(list.container_ordinal);
     }
     return "list_" + std::to_string(list.ordinal);
-}
-
-bool validate_virtual_geometry(const ir::Node& collection, std::string& error) {
-    const bool grid = is_grid(collection);
-    const std::string tag = grid ? "VirtualGrid" : "VirtualList";
-    for (const auto& [name, value] : collection.props) {
-        if (!is_geometry_prop(name, grid)) {
-            continue; // other props are emitted by the static/dynamic metadata paths
-        }
-        if (name == "orientation") {
-            const ir::Expr* expr = value.get();
-            if (expr == nullptr || expr->kind != ir::ExprKind::Literal) {
-                return fail(error, "`<" + tag + ">` prop `orientation` must be a string literal");
-            }
-            const auto* text = std::get_if<std::string>(&expr->literal);
-            if (text == nullptr || (*text != "vertical" && *text != "horizontal")) {
-                return fail(error, "`<" + tag +
-                                       ">` prop `orientation` must be \"vertical\" or "
-                                       "\"horizontal\"");
-            }
-            continue;
-        }
-        if (name == "columns") {
-            const std::optional<std::int64_t> columns = integer_literal(value.get());
-            if (!columns || *columns < 1) {
-                return fail(error,
-                            "`<" + tag +
-                                ">` prop `columns` must be an integer literal of at least 1");
-            }
-            continue;
-        }
-        if (!number_literal(value.get()).has_value()) {
-            return fail(error, "`<" + tag + ">` prop `" + name +
-                                   "` must be a number literal in this slice; dynamic virtual "
-                                   "geometry has no runtime API yet");
-        }
-    }
-    return true;
-}
-
-void emit_virtual_geometry_constants(CppWriter& writer, const ListTemplate& collection) {
-    const ir::Node& node = *collection.container;
-    const bool grid = is_grid(node);
-    const std::string base = "virtual_" + std::to_string(collection.container_ordinal) + "_";
-    const std::optional<double> item_size = number_literal(prop(node, "itemSize"));
-    const std::optional<double> estimate = number_literal(prop(node, "estimateSize"));
-    const std::optional<double> row_height = number_literal(prop(node, "rowHeight"));
-    const std::optional<double> column_width = number_literal(prop(node, "columnWidth"));
-    const std::optional<double> overscan = number_literal(prop(node, "overscan"));
-    const std::optional<double> gap = number_literal(prop(node, "gap"));
-    const std::optional<std::int64_t> columns = integer_literal(prop(node, "columns"));
-    // virtualization-v1.md section 4 and the section 13 register decision: an unmeasured item
-    // contributes a 32 px main-axis estimate; there is no per-item guess and no growth heuristic.
-    double effective_estimate = 32.0;
-    if (estimate) {
-        effective_estimate = *estimate;
-    } else if (grid && row_height) {
-        effective_estimate = *row_height;
-    } else if (!grid && item_size) {
-        effective_estimate = *item_size;
-    }
-    writer.line("// `" + node.id + "` " + (grid ? "VirtualGrid" : "VirtualList") +
-                " geometry (virtualization-v1.md section 10). The host feeds these into the");
-    writer.line("// tessera_virtual geometry, which owns the prefix sums and the visible range.");
-    writer.line("static constexpr double " + base + "item_size_ = " +
-                double_text(item_size.value_or(0.0)) + "; // 0 means variable-size");
-    writer.line("static constexpr double " + base +
-                "estimate_size_ = " + double_text(effective_estimate) + ";");
-    writer.line("static constexpr double " + base +
-                "overscan_ = " + double_text(overscan.value_or(200.0)) + ";");
-    writer.line("static constexpr double " + base + "gap_ = " + double_text(gap.value_or(0.0)) +
-                ";");
-    writer.line("static constexpr bool " + base +
-                "horizontal_ = " + (virtual_is_horizontal(node) ? "true" : "false") +
-                "; // main axis is x instead of y");
-    if (grid) {
-        writer.line("static constexpr double " + base + "row_height_ = " +
-                    double_text(row_height.value_or(0.0)) + "; // 0 means variable row height");
-        writer.line("static constexpr int " + base + "columns_ = " +
-                    std::to_string(columns.value_or(0)) + "; // 0 means column-width mode");
-        writer.line("static constexpr double " + base +
-                    "column_width_ = " + double_text(column_width.value_or(0.0)) + ";");
-    }
 }
 
 bool emit_apply_virtual(CppWriter& writer, const ir::Component& component,

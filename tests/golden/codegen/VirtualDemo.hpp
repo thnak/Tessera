@@ -46,17 +46,26 @@ namespace vlist {
     struct VirtualDemo {
       // prop `seed`.
       std::vector<std::string> prop_seed_ = {};
+      // prop `item_extent`.
+      int prop_item_extent_ = {};
       // useState `count`.
       int state_count_ = 0;
       // useState `items`.
       std::vector<std::string> state_items_ = prop_seed_;
+      // useState `row_extent`.
+      int state_row_extent_ = 32;
+      // useState `row_gap`.
+      int state_row_gap_ = 4;
+      // useState `grid_row`.
+      int state_grid_row_ = 40;
       
-      // `node::3` VirtualList geometry (virtualization-v1.md section 10). The host feeds these into the
-      // tessera_virtual geometry, which owns the prefix sums and the visible range.
-      static constexpr double virtual_3_item_size_ = 0.0; // 0 means variable-size
-      static constexpr double virtual_3_estimate_size_ = 32.0;
+      // `node::3` VirtualList geometry (virtualization-v1.md section 10). These are the last seeded values:
+      // update_virtual_geometry_3() re-evaluates them from their props/state and re-seeds the geometry below.
+      // Declared fixed extent; 0 means variable-size.
+      double virtual_3_item_size_ = static_cast<double>(prop_item_extent_);
+      double virtual_3_estimate_size_ = static_cast<double>(state_row_extent_);
       static constexpr double virtual_3_overscan_ = 200.0;
-      static constexpr double virtual_3_gap_ = 4.0;
+      double virtual_3_gap_ = static_cast<double>(state_row_gap_);
       static constexpr bool virtual_3_horizontal_ = false; // main axis is x instead of y
       // `node::3` virtual item window (bounded; keyed reuse; the host applies the range).
       tessera::ui::Node* virtual_3_ = nullptr;
@@ -68,26 +77,30 @@ namespace vlist {
       std::size_t virtual_3_first_ = 0;
       std::uint64_t virtual_3_order_hash_ = 0;
       bool virtual_3_order_set_ = false;
-      // Geometry owned by the generated scroll handler, seeded from the
-      // emitted constants; its count is synced from the data source.
+      // Geometry owned by the generated scroll handler; its count is synced from
+      // the data source and update_virtual_geometry_<n>() re-seeds it on a
+      // geometry change.
       tessera::ui::virtualization::ItemGeometry virtual_3_geometry_{{
           kMaxGeneratedVirtualGeometryItems,
           static_cast<float>(virtual_3_estimate_size_),
           static_cast<float>(virtual_3_gap_)}};
       std::size_t virtual_3_geometry_count_ = 0;
+      std::uint64_t virtual_3_geometry_hash_ = 0;
+      bool virtual_3_geometry_set_ = false;
+      std::uint64_t virtual_3_geometry_seeds_ = 0;
       // Edge/throttle state of the collection's `onEndReached`.
       bool virtual_3_end_armed_ = true;
       float virtual_3_end_fire_offset_ = 0.0f;
       std::uint64_t virtual_3_end_fires_ = 0;
       std::uint64_t virtual_3_end_throttled_ = 0;
-      // `node::6` VirtualGrid geometry (virtualization-v1.md section 10). The host feeds these into the
-      // tessera_virtual geometry, which owns the prefix sums and the visible range.
-      static constexpr double virtual_6_item_size_ = 0.0; // 0 means variable-size
-      static constexpr double virtual_6_estimate_size_ = 40.0;
+      // `node::6` VirtualGrid geometry (virtualization-v1.md section 10). These are the last seeded values:
+      // update_virtual_geometry_6() re-evaluates them from their props/state and re-seeds the geometry below.
+      // Declared fixed extent; 0 means variable-size.
+      double virtual_6_row_height_ = static_cast<double>(state_grid_row_);
+      double virtual_6_estimate_size_ = static_cast<double>(state_grid_row_);
       static constexpr double virtual_6_overscan_ = 200.0;
-      static constexpr double virtual_6_gap_ = 2.0;
+      double virtual_6_gap_ = 2.0;
       static constexpr bool virtual_6_horizontal_ = false; // main axis is x instead of y
-      static constexpr double virtual_6_row_height_ = 40.0; // 0 means variable row height
       static constexpr int virtual_6_columns_ = 2; // 0 means column-width mode
       static constexpr double virtual_6_column_width_ = 0.0;
       // `node::6` virtual item window (bounded; keyed reuse; the host applies the range).
@@ -100,13 +113,17 @@ namespace vlist {
       std::size_t virtual_6_first_ = 0;
       std::uint64_t virtual_6_order_hash_ = 0;
       bool virtual_6_order_set_ = false;
-      // Geometry owned by the generated scroll handler, seeded from the
-      // emitted constants; its count is synced from the data source.
+      // Geometry owned by the generated scroll handler; its count is synced from
+      // the data source and update_virtual_geometry_<n>() re-seeds it on a
+      // geometry change.
       tessera::ui::virtualization::ItemGeometry virtual_6_geometry_{{
           kMaxGeneratedVirtualGeometryItems,
           static_cast<float>(virtual_6_estimate_size_),
           static_cast<float>(virtual_6_gap_)}};
       std::size_t virtual_6_geometry_count_ = 0;
+      std::uint64_t virtual_6_geometry_hash_ = 0;
+      bool virtual_6_geometry_set_ = false;
+      std::uint64_t virtual_6_geometry_seeds_ = 0;
       void build(tessera::ui::Node& parent);
       // Lifecycle: mount() runs effects once; update_effects() re-runs changed deps;
       // unmount() runs cleanups in reverse declaration order.
@@ -127,6 +144,9 @@ namespace vlist {
       void schedule_update();
       void set_count(int value);
       void set_items(std::vector<std::string> value);
+      void set_row_extent(int value);
+      void set_row_gap(int value);
+      void set_grid_row(int value);
       // Every state and animated cell by IR id, in declaration order (tests, parity).
       [[nodiscard]] tessera::ui::StateSnapshot snapshot_state() const;
       // Generated dynamic child paths: deterministic child positions and bounded keyed lists.
@@ -135,6 +155,10 @@ namespace vlist {
       // Applies the half-open realized window the host computed with
       // tessera::ui::virtualization::ItemGeometry; the table is reused by key.
       void apply_virtual_3(std::size_t tessera_first, std::size_t tessera_last);
+      // Re-seeds the geometry from the current geometry props/state and
+      // re-anchors the offset so the item at the viewport start keeps its
+      // place; true only when an input changed (hash-guarded).
+      bool update_virtual_geometry_3(float& tessera_scroll, float tessera_viewport);
       // Applies one scroll offset: refines the geometry from realized item
       // measures (updating the offset in place on a re-anchor), applies the
       // window, then dispatches the collection events. False when the data
@@ -145,6 +169,10 @@ namespace vlist {
       // Applies the half-open realized window the host computed with
       // tessera::ui::virtualization::ItemGeometry; the table is reused by key.
       void apply_virtual_6(std::size_t tessera_first, std::size_t tessera_last);
+      // Re-seeds the geometry from the current geometry props/state and
+      // re-anchors the offset so the item at the viewport start keeps its
+      // place; true only when an input changed (hash-guarded).
+      bool update_virtual_geometry_6(float& tessera_scroll, float tessera_viewport);
       // Applies one scroll offset: refines the geometry from realized item
       // measures (updating the offset in place on a re-anchor), applies the
       // window, then dispatches the collection events. False when the data

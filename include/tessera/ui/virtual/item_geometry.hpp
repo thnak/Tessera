@@ -103,6 +103,16 @@ public:
     [[nodiscard]] MeasureChange reset_measure(std::size_t index) noexcept;
     void clear_measurements() noexcept;
 
+    // Geometry re-seed: adopts a new default extent for unmeasured items and a new inter-item gap
+    // (the `estimateSize`/`gap` props of virtualization-v1.md section 10) **without** dropping
+    // measurements. An estimate only describes items that were never measured, and a gap shifts
+    // offsets rather than an item's own size, so neither invalidates a recorded size. The prefix
+    // tree is rebuilt once (O(n)); returns false and changes nothing when neither value moved, so a
+    // per-frame caller can hash-compare first and skip the re-anchor. A caller that needs the
+    // measurements gone (a changed fixed `itemSize`/`rowHeight`) calls `clear_measurements` after
+    // this.
+    [[nodiscard]] bool reseed(float estimate_main, float gap) noexcept;
+
 private:
     [[nodiscard]] float prefix(std::size_t count) const noexcept;
     [[nodiscard]] std::size_t lower_bound_prefix(float target) const noexcept;

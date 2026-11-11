@@ -63,6 +63,32 @@ struct VirtualEventWiring {
     VirtualEventTarget on_end_reached;
 };
 
+// One numeric geometry input of a virtual collection (virtualization-v1.md section 10). `cpp` is
+// the emitted C++ expression: a literal such as `32.0`, or `static_cast<double>(<member>)` for a
+// value `update_virtual_geometry_<n>()` re-evaluates from a state/prop cell.
+struct VirtualGeometryValue {
+    bool present = false; // the collection declares this input
+    bool literal = false; // a number literal (compile-time; never re-evaluated)
+    double literal_value = 0.0;
+    std::string cpp;
+};
+
+// The geometry of one virtual collection, resolved once by the plan walk: the values the generated
+// `ItemGeometry` seeds from plus the rule that says whether a change invalidates measurements.
+struct VirtualGeometrySpec {
+    bool grid = false;
+    bool horizontal = false;           // main axis is x instead of y
+    VirtualGeometryValue fixed_extent; // list `itemSize` / grid `rowHeight` (absent means variable)
+    VirtualGeometryValue estimate;     // effective estimate for unmeasured items
+    VirtualGeometryValue gap;          // inter-item main-axis gap
+    std::int64_t columns = 0;          // grid columns; 0 means column-width mode
+    double overscan = 200.0;           // main-axis overscan distance
+    double column_width = 0.0;         // grid column extent (column-width mode)
+    // A declared fixed extent seeds the effective estimate only when no `estimateSize` overrides
+    // it, so only then does changing it invalidate the recorded measurements.
+    bool fixed_seeds_estimate = false;
+};
+
 struct ListTemplate {
     unsigned ordinal = 0;           // the template node's pre-order ordinal
     unsigned subtree_end = 0;       // one past the last ordinal of the template subtree
@@ -76,7 +102,8 @@ struct ListTemplate {
     std::string element_type; // IR element type of the source list (`string`, `int`, ...)
     std::string element_cpp;  // C++ element type (`std::string`, `int`, ...)
     std::vector<ListTextSite> text_sites;
-    VirtualEventWiring events; // collection-level events (virtual collections only)
+    VirtualEventWiring events;    // collection-level events (virtual collections only)
+    VirtualGeometrySpec geometry; // resolved geometry inputs (virtual collections only)
 };
 
 struct DynamicPlan {

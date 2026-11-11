@@ -258,5 +258,31 @@ int main() {
         return 25;
     }
 
+    // Geometry re-seed (`reseed`, virtualization-v1.md section 10): a new estimate/gap keeps every
+    // measurement, moves only the unmeasured entries, and an unchanged pair reports false.
+    ItemGeometry reseeded = make_geometry(4);
+    if (!expect(near(reseeded.refine_measure(1, 64.0f).delta, 32.0f), "reseed: seed measurement") ||
+        !expect(near(reseeded.total_extent(), 172.0f), "reseed: measured total") ||
+        !expect(reseeded.reseed(40.0f, 8.0f), "reseed: a changed estimate/gap reseeds") ||
+        !expect(near(reseeded.estimate_main(), 40.0f), "reseed: the estimate was adopted") ||
+        !expect(near(reseeded.gap(), 8.0f), "reseed: the gap was adopted") ||
+        !expect(reseeded.is_measured(1), "reseed: the measured entry stayed measured") ||
+        !expect(near(reseeded.item_main_size(1), 64.0f), "reseed: the measure kept its size") ||
+        !expect(near(reseeded.item_main_size(0), 40.0f), "reseed: unmeasured took the estimate") ||
+        !expect(near(reseeded.item_offset(1), 48.0f), "reseed: offsets use the new stride") ||
+        !expect(near(reseeded.item_offset(2), 120.0f),
+                "reseed: the measured entry keeps its slot") ||
+        !expect(near(reseeded.total_extent(), 208.0f), "reseed: total follows the new entries") ||
+        !expect(!reseeded.reseed(40.0f, 8.0f), "reseed: an unchanged pair reports false") ||
+        !expect(reseeded.measured_count() == 1, "reseed: nothing was dropped")) {
+        return 26;
+    }
+    reseeded.clear_measurements();
+    if (!expect(reseeded.measured_count() == 0, "reseed: clear_measurements drops the rest") ||
+        !expect(near(reseeded.item_main_size(1), 40.0f), "reseed: cleared entry is the estimate") ||
+        !expect(near(reseeded.total_extent(), 184.0f), "reseed: total after the clear")) {
+        return 27;
+    }
+
     return 0;
 }

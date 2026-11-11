@@ -193,6 +193,25 @@ void ItemGeometry::clear_measurements() noexcept {
     rebuild();
 }
 
+bool ItemGeometry::reseed(float estimate_main, float gap) noexcept {
+    const float next_estimate = std::max(estimate_main, 0.0f);
+    const float next_gap = std::max(gap, 0.0f);
+    if (next_estimate == estimate_ && next_gap == gap_) {
+        return false;
+    }
+    estimate_ = next_estimate;
+    gap_ = next_gap;
+    // Only the entries that still hold the estimate follow it; a measured size is a fact about the
+    // item, not about the default.
+    for (std::size_t index = 0; index < count_; ++index) {
+        if (measured_flag_[index] == 0) {
+            size_[index] = estimate_;
+        }
+    }
+    rebuild();
+    return true;
+}
+
 float ItemGeometry::prefix(std::size_t count) const noexcept {
     float sum = 0.0f;
     for (std::size_t index = count; index > 0; index -= lowbit(index)) {

@@ -237,6 +237,48 @@ namespace vlist {
       }
     }
     
+    bool VirtualDemo::update_virtual_geometry_3(float& tessera_scroll, float tessera_viewport) {
+      // Geometry re-seed (virtualization-v1.md section 10): the props/state cells are
+      // re-evaluated and hash-compared first, so a per-frame call costs one FNV-1a
+      // pass and an unchanged geometry is never rebuilt.
+      const double tessera_fixed = static_cast<double>(prop_item_extent_);
+      const double tessera_estimate = static_cast<double>(state_row_extent_);
+      const double tessera_gap = static_cast<double>(state_row_gap_);
+      std::uint64_t tessera_hash = tessera::ui::kEffectHashSeed;
+      tessera_hash = tessera::ui::effect_hash(tessera_hash, tessera_fixed);
+      tessera_hash = tessera::ui::effect_hash(tessera_hash, tessera_estimate);
+      tessera_hash = tessera::ui::effect_hash(tessera_hash, tessera_gap);
+      if (virtual_3_geometry_set_ && tessera_hash == virtual_3_geometry_hash_) {
+        return false;
+      }
+      // The viewport-start item keeps its viewport position across the change: capture
+      // its prefix offset before the re-seed and shift by the delta afterwards.
+      const std::size_t tessera_anchor =
+          virtual_3_geometry_.index_at_offset(tessera_scroll);
+      const float tessera_anchor_offset =
+          virtual_3_geometry_.item_offset(tessera_anchor);
+      virtual_3_item_size_ = tessera_fixed;
+      virtual_3_estimate_size_ = tessera_estimate;
+      virtual_3_gap_ = tessera_gap;
+      // The hash guard above already proved the change is real; `reseed`'s own return
+      // value only reports that, so it is intentionally discarded.
+      (void)virtual_3_geometry_.reseed(static_cast<float>(tessera_estimate),
+          static_cast<float>(tessera_gap));
+      virtual_3_geometry_hash_ = tessera_hash;
+      virtual_3_geometry_set_ = true;
+      ++virtual_3_geometry_seeds_;
+      // Section 6 re-anchor with the old/new prefix sums: `refined_index` 0 means "the
+      // whole content before the anchor", so the shift is the aggregate delta and the
+      // runtime rule clamps the result to [0, total - viewport].
+      const tessera::ui::virtualization::AnchorAdjustment tessera_adjust =
+          tessera::ui::virtualization::reanchor_scroll(
+              tessera_scroll, tessera_viewport, virtual_3_geometry_.total_extent(),
+              tessera_anchor, 0,
+              virtual_3_geometry_.item_offset(tessera_anchor) - tessera_anchor_offset);
+      tessera_scroll = tessera_adjust.scroll_offset;
+      return true;
+    }
+    
     bool VirtualDemo::scroll_virtual_3(float& tessera_scroll, float tessera_viewport) {
       // Generated scroll entry point (virtualization-v1.md section 10): the component
       // owns the geometry, refines it from realized item measures, re-anchors the
@@ -260,6 +302,10 @@ namespace vlist {
         }
         virtual_3_geometry_count_ = tessera_rows;
       }
+      // Geometry props/state can change between frames: the re-seed path re-evaluates
+      // them behind a hash guard (one pass, no rebuild while unchanged) and re-anchors
+      // the offset in place before the measure pass reads the prefix sums.
+      update_virtual_geometry_3(tessera_scroll, tessera_viewport);
       // Measurement feedback: a realized item reports its main-axis border-box extent
       // through its laid-out scene bounds; an unlaid-out (zero) item reports nothing.
       // `tessera_anchor` is the item at the viewport start: a measure before it shifts
@@ -464,6 +510,57 @@ namespace vlist {
       }
     }
     
+    bool VirtualDemo::update_virtual_geometry_6(float& tessera_scroll, float tessera_viewport) {
+      // Geometry re-seed (virtualization-v1.md section 10): the props/state cells are
+      // re-evaluated and hash-compared first, so a per-frame call costs one FNV-1a
+      // pass and an unchanged geometry is never rebuilt.
+      const double tessera_fixed = static_cast<double>(state_grid_row_);
+      const double tessera_estimate = static_cast<double>(state_grid_row_);
+      const double tessera_gap = 2.0;
+      std::uint64_t tessera_hash = tessera::ui::kEffectHashSeed;
+      tessera_hash = tessera::ui::effect_hash(tessera_hash, tessera_fixed);
+      tessera_hash = tessera::ui::effect_hash(tessera_hash, tessera_estimate);
+      tessera_hash = tessera::ui::effect_hash(tessera_hash, tessera_gap);
+      if (virtual_6_geometry_set_ && tessera_hash == virtual_6_geometry_hash_) {
+        return false;
+      }
+      // A declared fixed extent describes every item, so changing it invalidates
+      // the recorded measurements; an estimate or gap change never does (an
+      // estimate only describes unmeasured items and a gap moves offsets, not
+      // sizes).
+      const bool tessera_drop_measures =
+          virtual_6_geometry_set_ && tessera_fixed != virtual_6_row_height_;
+      // The viewport-start item keeps its viewport position across the change: capture
+      // its prefix offset before the re-seed and shift by the delta afterwards.
+      const std::size_t tessera_anchor =
+          virtual_6_geometry_.index_at_offset(tessera_scroll);
+      const float tessera_anchor_offset =
+          virtual_6_geometry_.item_offset(tessera_anchor);
+      virtual_6_row_height_ = tessera_fixed;
+      virtual_6_estimate_size_ = tessera_estimate;
+      virtual_6_gap_ = tessera_gap;
+      // The hash guard above already proved the change is real; `reseed`'s own return
+      // value only reports that, so it is intentionally discarded.
+      (void)virtual_6_geometry_.reseed(static_cast<float>(tessera_estimate),
+          static_cast<float>(tessera_gap));
+      if (tessera_drop_measures) {
+        virtual_6_geometry_.clear_measurements();
+      }
+      virtual_6_geometry_hash_ = tessera_hash;
+      virtual_6_geometry_set_ = true;
+      ++virtual_6_geometry_seeds_;
+      // Section 6 re-anchor with the old/new prefix sums: `refined_index` 0 means "the
+      // whole content before the anchor", so the shift is the aggregate delta and the
+      // runtime rule clamps the result to [0, total - viewport].
+      const tessera::ui::virtualization::AnchorAdjustment tessera_adjust =
+          tessera::ui::virtualization::reanchor_scroll(
+              tessera_scroll, tessera_viewport, virtual_6_geometry_.total_extent(),
+              tessera_anchor, 0,
+              virtual_6_geometry_.item_offset(tessera_anchor) - tessera_anchor_offset);
+      tessera_scroll = tessera_adjust.scroll_offset;
+      return true;
+    }
+    
     bool VirtualDemo::scroll_virtual_6(float& tessera_scroll, float tessera_viewport) {
       // Generated scroll entry point (virtualization-v1.md section 10): the component
       // owns the geometry, refines it from realized item measures, re-anchors the
@@ -494,6 +591,10 @@ namespace vlist {
         }
         virtual_6_geometry_count_ = tessera_rows;
       }
+      // Geometry props/state can change between frames: the re-seed path re-evaluates
+      // them behind a hash guard (one pass, no rebuild while unchanged) and re-anchors
+      // the offset in place before the measure pass reads the prefix sums.
+      update_virtual_geometry_6(tessera_scroll, tessera_viewport);
       // Measurement feedback: a realized item reports its main-axis border-box extent
       // through its laid-out scene bounds; an unlaid-out (zero) item reports nothing.
       // `tessera_anchor` is the item at the viewport start: a measure before it shifts
@@ -597,10 +698,37 @@ namespace vlist {
       schedule_update();
     }
     
+    void VirtualDemo::set_row_extent(int value) {
+      if (state_row_extent_ == value) {
+        return;
+      }
+      state_row_extent_ = std::move(value);
+      schedule_update();
+    }
+    
+    void VirtualDemo::set_row_gap(int value) {
+      if (state_row_gap_ == value) {
+        return;
+      }
+      state_row_gap_ = std::move(value);
+      schedule_update();
+    }
+    
+    void VirtualDemo::set_grid_row(int value) {
+      if (state_grid_row_ == value) {
+        return;
+      }
+      state_grid_row_ = std::move(value);
+      schedule_update();
+    }
+    
     tessera::ui::StateSnapshot VirtualDemo::snapshot_state() const {
       tessera::ui::StateSnapshot snapshot;
       snapshot.push_back(tessera::ui::state_cell("state::count", state_count_));
       snapshot.push_back(tessera::ui::state_cell("state::items", state_items_));
+      snapshot.push_back(tessera::ui::state_cell("state::row_extent", state_row_extent_));
+      snapshot.push_back(tessera::ui::state_cell("state::row_gap", state_row_gap_));
+      snapshot.push_back(tessera::ui::state_cell("state::grid_row", state_grid_row_));
       return snapshot;
     }
     

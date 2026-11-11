@@ -260,6 +260,7 @@ bool emit_list_sources(CppWriter& writer, const ir::Component& component, const 
             if (!emit_apply_virtual(writer, component, list, error)) {
                 return false;
             }
+            emit_update_virtual_geometry(writer, component, list);
             if (!emit_virtual_scroll(writer, component, list, error)) {
                 return false;
             }

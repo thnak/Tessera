@@ -63,9 +63,17 @@ inline ir::IrModule make_virtual_module() {
     component.source = span(0, 240, 1, 1);
     // A list-typed prop seeds the list state: the IR-expressible list initial value.
     component.props.push_back({"seed", "list<string>", nullptr});
+    // A numeric prop drives the list's declared fixed extent: the generated re-seed path
+    // re-evaluates it every scroll call (virtualization-v1.md section 10's dynamic geometry).
+    component.props.push_back({"item_extent", "int", nullptr});
     component.state.push_back({"state::count", "count", "int", integer(0)});
     component.state.push_back(
         {"state::items", "items", "list<string>", ir::make_ref("prop::seed")});
+    // Geometry cells: the list estimate/gap and the grid row height are state-driven, so a
+    // geometry change is a plain state write (the generated re-seed path picks it up).
+    component.state.push_back({"state::row_extent", "row_extent", "int", integer(32)});
+    component.state.push_back({"state::row_gap", "row_gap", "int", integer(4)});
+    component.state.push_back({"state::grid_row", "grid_row", "int", integer(40)});
 
     ir::Node root = leaf(ir::NodeKind::View, "node::1", "1");
     root.children.push_back(leaf(ir::NodeKind::Text, "node::2", "2"));
@@ -74,8 +82,11 @@ inline ir::IrModule make_virtual_module() {
     // `{rows.map((item) => <View key={item}><Text>{item} # {count}</Text></View>)}` inside a
     // VirtualList: the item template is not a child, so its nodes take the next ordinals.
     ir::Node list = leaf(ir::NodeKind::VirtualList, "node::3", "3");
-    list.props.emplace("estimateSize", integer(32));
-    list.props.emplace("gap", integer(4));
+    // Geometry from state (estimate, gap) and from a prop (the declared fixed extent): the
+    // generated code re-evaluates each one behind a hash guard instead of baking a constant.
+    list.props.emplace("estimateSize", ir::make_ref("state::row_extent"));
+    list.props.emplace("gap", ir::make_ref("state::row_gap"));
+    list.props.emplace("itemSize", ir::make_ref("prop::item_extent"));
     // Collection-level events (virtualization-v1.md section 10): an `onScroll` binding receives the
     // scene ScrollEvent payload, an `onEndReached` inline handler takes none.
     list.events.emplace("onScroll", "bind::on_scroll");
@@ -91,7 +102,7 @@ inline ir::IrModule make_virtual_module() {
 
     // A VirtualGrid over the same data: fixed row height and column count.
     ir::Node grid = leaf(ir::NodeKind::VirtualGrid, "node::6", "6");
-    grid.props.emplace("rowHeight", integer(40));
+    grid.props.emplace("rowHeight", ir::make_ref("state::grid_row"));
     grid.props.emplace("columns", integer(2));
     grid.props.emplace("gap", integer(2));
     ir::Node grid_item = leaf(ir::NodeKind::View, "node::7", "7");
