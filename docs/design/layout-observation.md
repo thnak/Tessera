@@ -458,6 +458,16 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    newline adding a line, and the lavapipe golden.
 8. **Container queries**: `container-type`/`container-name`, `@container` evaluation as an
    engine observer inside the settle round; update `stylesheet-v1.md` and `responsive.md`.
+   Done (8a, style engine): `container-type`/`container-name` properties, `@container` parsing
+   (`container_query.*`), per-rule evaluation against a `ContainerSizeSource`, and
+   `SceneStyleTree::compute` resolving the nearest ancestor container from a host size callback
+   (test `container_query`). Done (8b): `ContainerQueryTracker` remembers the size each registered
+   container was styled at and marks its descendants style-dirty only when a query result
+   changed; `SettleHooks::engine_observe` runs it at the start of every round of
+   `observe_and_settle`, before app observations, sharing the round budget
+   (`SettleStats::engine_rounds`; test `container_query_settle`). Not yet: the host that
+   registers containers from computed `container-type` and wires the hook (the app host is
+   design-only), the `container` shorthand, container style queries.
 
 ## 10. Owner decisions
 

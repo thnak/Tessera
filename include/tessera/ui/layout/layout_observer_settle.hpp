@@ -26,35 +26,44 @@ inline constexpr std::uint32_t kDefaultObservationRounds = 4;
 
 // Counters of one `observe_and_settle` call.
 struct SettleStats {
-    std::uint32_t rounds = 0;     // collect/deliver rounds that delivered something
-    std::uint32_t deliveries = 0; // callbacks invoked
-    std::uint32_t relayouts = 0;  // times the host relayout callback ran
-    std::size_t deferred = 0;     // observations still due when the call returned
-    bool round_limit_hit = false; // the budget ended the loop while work remained
-    bool loop_reported = false;   // TESSERA_LAYOUT_OBSERVER_LOOP was logged by this call
+    std::uint32_t rounds = 0;        // collect/deliver rounds that delivered something
+    std::uint32_t deliveries = 0;    // callbacks invoked
+    std::uint32_t engine_rounds = 0; // rounds in which the engine observer changed state
+    std::uint32_t relayouts = 0;     // times the host relayout callback ran
+    std::size_t deferred = 0;        // observations still due when the call returned
+    bool round_limit_hit = false;    // the budget ended the loop while work remained
+    bool loop_reported = false;      // TESSERA_LAYOUT_OBSERVER_LOOP was logged by this call
 };
 
 // Running totals (the frame-diagnostics counters of section 5.3).
 struct SettleTotals {
     std::uint64_t deliveries = 0;
     std::uint64_t rounds = 0;
+    std::uint64_t engine_rounds = 0;
     std::uint64_t deferred = 0;
     std::uint64_t round_limit_hits = 0;
     std::uint64_t loop_reports = 0;
 };
 
-// Host-provided hooks. `relayout` must run style, layout, `apply_layout` and
-// `LayoutReadModel::publish` for the state changes the callbacks scheduled; `wake` asks the
-// runtime loop for another frame (typically `RuntimeLoop::request_frame`). `logger` may be null.
+// Host-provided hooks. `engine_observe` is the engine-owned observer (container queries,
+// ADR-041 slice 8b): it runs at the start of every round, before the app observations, and returns
+// true when it changed state (marked style dirty) so that style and layout must run again. Its
+// rounds count against the same budget as app rounds. `relayout` must run style, layout,
+// `apply_layout` and `LayoutReadModel::publish` for the state changes the callbacks scheduled;
+// `wake` asks the runtime loop for another frame (typically `RuntimeLoop::request_frame`). `logger`
+// may be null.
 struct SettleHooks {
     using RelayoutFn = void (*)(void* context);
     using WakeFn = void (*)(void* context);
+    using EngineObserveFn = bool (*)(void* context, const LayoutReadModel& model);
 
     RelayoutFn relayout = nullptr;
     void* relayout_context = nullptr;
     WakeFn wake = nullptr;
     void* wake_context = nullptr;
     diagnostics::Logger* logger = nullptr;
+    EngineObserveFn engine_observe = nullptr;
+    void* engine_observe_context = nullptr;
 };
 
 class LayoutSettleState;

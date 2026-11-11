@@ -21,8 +21,16 @@ namespace tessera::ui::style {
 // view from `Node::pseudo_state()`, so a tree captured before a focus change still resolves
 // `:focus`/`:not(:focus)` against the new state. Reconstruct the tree when children are added or
 // removed.
+//
+// `@container` rules resolve against ancestors whose computed `container-type` is `size` or
+// `inline-size`. The host supplies each container's content-box size (typically from the layout
+// read model) through `ContainerSizeFn`; a container with no size yet (before the first layout)
+// leaves its rules unapplied, and the settle round re-resolves once it has one.
 class SceneStyleTree {
 public:
+    // Writes the content-box width and height of `container`; returns false when it has none.
+    using ContainerSizeFn = bool (*)(void* context, const Node& container, ContainerSize& out);
+
     explicit SceneStyleTree(const Node& root);
 
     // Returns the selector view for `node`, refreshing its pseudo-state from the scene node.
@@ -31,7 +39,9 @@ public:
 
     // Computes the style for `node` from `sheet`, cascading through its captured ancestors. Nodes
     // outside the captured tree resolve to the registry's initial style.
-    [[nodiscard]] ComputedStyle compute(const CompiledStyleSheet& sheet, const Node& node);
+    [[nodiscard]] ComputedStyle compute(const CompiledStyleSheet& sheet, const Node& node,
+                                        ContainerSizeFn container_size = nullptr,
+                                        void* container_context = nullptr);
 
 private:
     struct Entry {

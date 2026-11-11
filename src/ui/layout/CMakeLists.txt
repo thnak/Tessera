@@ -2,6 +2,7 @@
 
 add_library(tessera_layout STATIC
     apply_layout.cpp
+    container_query_tracker.cpp
     damage_pass.cpp
     damage_tracker.cpp
     layout_engine.cpp

@@ -20,7 +20,7 @@ SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadMod
                                UpdateScheduler& scheduler, const SettleHooks& hooks,
                                LayoutSettleState& state) {
     SettleStats stats;
-    if (observers.size() == 0) {
+    if (observers.size() == 0 && hooks.engine_observe == nullptr) {
         state.backlog_ticks_ = 0;
         return stats;
     }
@@ -28,6 +28,21 @@ SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadMod
     const std::uint32_t max_rounds = observers.max_rounds();
     std::size_t depth_floor = 0;
     for (;;) {
+        // Engine observers first, so app callbacks see sizes that already reflect container styles.
+        if (hooks.engine_observe != nullptr &&
+            hooks.engine_observe(hooks.engine_observe_context, model)) {
+            ++stats.engine_rounds;
+            if (stats.rounds + stats.engine_rounds >= max_rounds) {
+                stats.round_limit_hit = true; // the styles it dirtied wait for the next tick
+                break;
+            }
+            scheduler.flush();
+            if (hooks.relayout != nullptr) {
+                hooks.relayout(hooks.relayout_context);
+                ++stats.relayouts;
+            }
+            continue;
+        }
         if (observers.collect(model, depth_floor) == 0) {
             break;
         }
@@ -37,7 +52,7 @@ SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadMod
         if (!scheduler.pending()) {
             break; // the callbacks changed no state, so there is nothing to lay out again
         }
-        if (stats.rounds >= max_rounds) {
+        if (stats.rounds + stats.engine_rounds >= max_rounds) {
             stats.round_limit_hit = true;
             break;
         }
@@ -55,6 +70,7 @@ SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadMod
 
     state.totals_.deliveries += stats.deliveries;
     state.totals_.rounds += stats.rounds;
+    state.totals_.engine_rounds += stats.engine_rounds;
     state.totals_.deferred += stats.deferred;
     if (stats.round_limit_hit) {
         ++state.totals_.round_limit_hits;

@@ -90,6 +90,8 @@ constexpr PropertyDef kProperties[] = {
     {"overflow-y", "visible", false},
     {"order", "0", false},
     {"field-sizing", "fixed", false},
+    {"container-type", "normal", false},
+    {"container-name", "none", false},
     {"z-index", "auto", false},
     {"transform", "none", false},
     {"transform-origin", "50% 50%", false},

@@ -2493,6 +2493,14 @@
     {
       "kind": "keyword",
       "name": "field-sizing"
+    },
+    {
+      "kind": "keyword",
+      "name": "container-type"
+    },
+    {
+      "kind": "keyword",
+      "name": "container-name"
     }
   ],
   "types": [

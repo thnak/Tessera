@@ -299,7 +299,7 @@ Without it, the project has one theme, the built-in `default`, which has no toke
 | `@font-face` | parse | font loading is [ADR-006](../../decisions/ADR-006-text-stack.md); V1 uses committed fonts |
 | `@keyframes` | parse | animation runtime samples at fixed timestep |
 | `@import` | build-time | resolved by the asset/build pipeline |
-| `@container` | Later | parsed; evaluated in the responsive slice |
+| `@container` | V1 (engine) | `(min-/max-)width/height/inline-size/block-size` and range form, joined with `and`, optional container name; `or`, `not`, `style()` are diagnosed. Rules apply against the nearest ancestor with `container-type: size \| inline-size` (and a matching `container-name`); a container is not styled by its own query. Inline-size containers answer width only. Re-resolution on a size change is the engine observer of the settle loop ([layout-observation.md](../design/layout-observation.md) section 5.4): only a crossed condition restyles |
 | `@property` | Later | parsed; typed custom properties in V1.1 |
 | `@scope` | Later | parsed; evaluated later |
 | `@page`/`@namespace`/`@charset` | no-op | parsed and ignored |
@@ -326,7 +326,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
 | Interaction | `cursor`, `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible` | `:has()`, `:focus-within` |
-| Responsive | viewport media queries, rem/vw/vh | container queries |
+| Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | LTR; RTL via `direction` for text | full bidi layout integration |
