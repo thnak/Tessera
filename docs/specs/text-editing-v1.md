@@ -301,7 +301,9 @@ Buffer and caret model:
 
 - UTF-8 storage; caret and selection anchor are **byte offsets** that are always grapheme-cluster
   boundaries. `CaretPosition` reports the same position as bytes, code points, and grapheme
-  clusters (counted from the buffer start, O(n) per query).
+  clusters. The counts come from a memo of the counts up to the last cluster boundary the buffer
+  counted, so a query costs the distance moved since the previous one, not the distance from the
+  buffer start; an edit at or before the memo recounts from the start (issue #11).
 - Bounds: `max_bytes` (constructor, default `kMaxEditTextBytes = 64 KiB`, G-01 contiguous cap).
   Growth is `std::string`'s amortized growth; `reserve()` (bounded by the cap) lets a caller edit
   without allocation until the cap is reached. There is no per-keystroke allocation beyond the
@@ -333,8 +335,8 @@ Documented simplified grapheme cluster rule (UAX #29 reduced set, no-ICU fallbac
 3. Two **regional indicators** pair into one cluster (flags); a third starts a new cluster.
 4. **CRLF** is one cluster (the buffer normalizes CR away anyway).
 5. Not modelled: Hangul jamo sequences, Indic conjuncts, spacing marks, prepend characters, and
-   the remaining UAX #29 rules. Cluster scanning is O(n) in the buffer; a versioned grapheme index
-   is deferred (G-01).
+   the remaining UAX #29 rules. Position queries are incremental (see `CaretPosition`); a versioned
+   grapheme index for random access by cluster number is deferred (G-01).
 
 Text validity and normalization: inserted/committed text must be valid UTF-8 (no overlong forms,
 surrogates, or > U+10FFFF); invalid input leaves the buffer unchanged with `InvalidUtf8`. CRLF and

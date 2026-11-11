@@ -35,11 +35,56 @@ std::string_view EditBuffer::selected_text() const {
 }
 
 CaretPosition EditBuffer::caret_position() const {
+    // Count forward from the memoized prefix; a caret before it recounts from the start.
+    if (counted_.offset > caret_ || counted_.offset > text_.size() ||
+        (counted_.verify &&
+         edit_detail::snap_to_cluster(text_, counted_.offset) != counted_.offset)) {
+        counted_ = CountedPrefix{};
+    }
+    counted_.verify = false;
+    const EditOffset limit = caret_ > text_.size() ? text_.size() : caret_;
+    EditOffset cursor = counted_.offset;
+    std::uint32_t partial_graphemes = 0;
+    std::uint32_t partial_codepoints = 0;
+    while (cursor < limit) {
+        const EditOffset next = edit_detail::next_cluster(text_, cursor);
+        if (next > limit) {
+            // The caret sits inside a cluster (an insert can leave it there): the position counts
+            // that cluster and the code points before the caret, but the memo keeps only whole
+            // clusters so it stays valid for any later caret.
+            partial_graphemes = 1;
+            for (EditOffset at = cursor; at < limit; at = edit_detail::next_codepoint(text_, at)) {
+                ++partial_codepoints;
+            }
+            break;
+        }
+        ++counted_.graphemes;
+        for (EditOffset at = cursor; at < next; at = edit_detail::next_codepoint(text_, at)) {
+            ++counted_.codepoints;
+        }
+        cursor = next;
+    }
+    counted_.offset = cursor;
     CaretPosition position;
     position.bytes = caret_;
-    position.codepoints = edit_detail::count_codepoints(text_, caret_);
-    position.graphemes = edit_detail::count_graphemes(text_, caret_);
+    position.codepoints = counted_.codepoints + partial_codepoints;
+    position.graphemes = counted_.graphemes + partial_graphemes;
     return position;
+}
+
+void EditBuffer::note_edit(EditOffset from) {
+    // The text before `from` is unchanged, and so is the boundary at counted_.offset when it lies
+    // before `from`. A memo ending exactly at `from` stays only if that is still a boundary after
+    // the edit (an insertion there can extend the cluster before it), which the next query checks.
+    // A memo beyond `from` describes text that no longer exists.
+    if (counted_.offset < from) {
+        return;
+    }
+    if (counted_.offset == from) {
+        counted_.verify = true;
+        return;
+    }
+    counted_ = CountedPrefix{};
 }
 
 EditResult EditBuffer::snapshot(EditStatus status, bool changed, bool truncated) const {
@@ -78,6 +123,7 @@ EditResult EditBuffer::set_text(std::string_view text) {
         truncated = true;
     }
     const bool changed = stored != text_;
+    counted_ = CountedPrefix{};
     text_.assign(stored.data(), stored.size());
     caret_ = text_.size();
     anchor_ = caret_;
@@ -156,12 +202,14 @@ EditResult EditBuffer::replace_range(EditOffset start, EditOffset end, std::stri
             return snapshot(truncated ? EditStatus::Truncated : EditStatus::NoChange, false,
                             truncated);
         }
+        note_edit(from);
         text_.erase(from, removed);
         caret_ = from;
         anchor_ = from;
         return snapshot(EditStatus::Ok, true, truncated);
     }
 
+    note_edit(from);
     text_.replace(from, removed, inserted);
     caret_ = from + inserted.size();
     anchor_ = caret_;
