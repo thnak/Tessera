@@ -2,8 +2,9 @@
 
 // Slice 4 (partial): a component's declared prop records. The props parameter's type is either an
 // inline object type or a same-file type alias whose target is an object; every member becomes one
-// `ir::Prop` in declaration order (docs/specs/ir-v1.md section 2). Defaults, value-record types and
-// callback *binding* stay documented gaps (docs/design/jsx-ir-lowering.md section 9).
+// `ir::Prop` in declaration order (docs/specs/ir-v1.md section 2). A destructuring default
+// (`{ label = "" }`) becomes the record's `default_value`; value-record types and callback
+// *binding* stay documented gaps (docs/design/jsx-ir-lowering.md section 9).
 
 #include "node_lowering_internal.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
@@ -20,6 +21,37 @@ namespace tessera::compiler::lowering::internal {
 namespace {
 
 constexpr std::size_t kMaxAliasDepth = 8;
+
+// The default forms of jsx-subset-v1.md section 6: a literal, or a flat list of literals. A
+// computed default would need a runtime, and the IR has no expression form for a list of lists.
+bool is_literal_default(const jsx::Expr& expr) {
+    switch (expr.kind) {
+    case jsx::ExprKind::Number:
+    case jsx::ExprKind::String:
+    case jsx::ExprKind::Boolean:
+    case jsx::ExprKind::Null:
+        return true;
+    case jsx::ExprKind::Array:
+        for (const jsx::ExprPtr& element : expr.operands) {
+            if (!element || element->kind == jsx::ExprKind::Array ||
+                !is_literal_default(*element)) {
+                return false;
+            }
+        }
+        return true;
+    default:
+        return false;
+    }
+}
+
+const jsx::PropBinding* find_binding(const NodeState& state, std::string_view name) {
+    for (const jsx::PropBinding& binding : state.context.component.props_bindings) {
+        if (binding.name == name) {
+            return &binding;
+        }
+    }
+    return nullptr;
+}
 
 bool is_void_name(const jsx::TypeNode& type) {
     return type.kind == jsx::TypeKind::Name && type.children.empty() && type.text == "void";
@@ -202,6 +234,12 @@ DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& 
                           member.span);
                 return DeclaredPropsKind::Error;
             }
+            if (const jsx::PropBinding* binding = find_binding(state, member.name);
+                binding != nullptr && binding->default_value) {
+                fail_node(state, "TESSERA_IR_SLOT", "the `children` prop has no default value",
+                          binding->span);
+                return DeclaredPropsKind::Error;
+            }
             props.push_back(ir::Prop{"children", "children", nullptr});
             continue;
         }
@@ -211,7 +249,34 @@ DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& 
                       member.span);
             return DeclaredPropsKind::Error;
         }
-        props.push_back(ir::Prop{member.name, *type, nullptr, member.optional});
+        // The destructuring on the props parameter is where a default is authored; the alias only
+        // carries `?`. Lowering keeps both records: `optional` is the "may be omitted" flag and
+        // `default_value` is the value codegen initializes the prop field with.
+        ir::ExprPtr default_value;
+        if (const jsx::PropBinding* binding = find_binding(state, member.name);
+            binding != nullptr && binding->default_value) {
+            if (!is_literal_default(*binding->default_value)) {
+                fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                          "default of prop `" + member.name +
+                              "` must be a literal or a literal list",
+                          binding->span);
+                return DeclaredPropsKind::Error;
+            }
+            default_value = lower_node_expression(state, *binding->default_value);
+            if (!default_value) {
+                return DeclaredPropsKind::Error;
+            }
+        }
+        props.push_back(ir::Prop{member.name, *type, std::move(default_value), member.optional});
+    }
+    // A default on a name the alias does not declare would silently disappear; reject it instead.
+    for (const jsx::PropBinding& binding : state.context.component.props_bindings) {
+        if (binding.default_value && names.find(binding.name) == names.end()) {
+            fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                      "default of `" + binding.name + "` has no declared prop record",
+                      binding.span);
+            return DeclaredPropsKind::Error;
+        }
     }
     return DeclaredPropsKind::Lowered;
 }

@@ -13,6 +13,10 @@
 // lowering emits a `Component` node and codegen instantiates it through the ordinary component
 // path. There is no intrinsic node kind for any library component (docs/specs/forms-and-
 // validation-v1.md section 5, Q-09).
+//
+// The declarations are authored in `tessera/components/*.tsx` and lowered at build time by
+// `tessera_codegen --emit-library-cpp`; the generated data is compiled into `tessera_lowering`.
+// See docs/design/component-library.md section 3.5 for the generation contract.
 namespace tessera::compiler::lowering {
 
 // One built-in component: the JSX tag, the IR component id, and the header/base name codegen
@@ -22,7 +26,8 @@ struct LibraryComponent {
     std::string_view id;   // IR component id, `comp::<Name>`
 };
 
-// The built-in library components, sorted by name (deterministic).
+// The built-in library components, sorted by name (deterministic). The registry is generated from
+// the TSX sources; this entry point only exposes it.
 [[nodiscard]] std::span<const LibraryComponent> library_components();
 
 // The built-in component named `name`, or nullptr when the name is not a library component.
@@ -31,7 +36,7 @@ struct LibraryComponent {
 // The IR declaration of one library component: its declared prop records (docs/specs/forms-and-
 // validation-v1.md section 5.1) and the node tree it builds, including a static `children` slot
 // that a Field wrapper places around the caller's widget. Deterministic: the same component always
-// yields the same IR, with synthetic source spans under `tessera/components/`.
+// yields the same IR, with source spans that name the real TSX file under `tessera/components/`.
 [[nodiscard]] ir::Component make_library_component(const LibraryComponent& component);
 
 } // namespace tessera::compiler::lowering

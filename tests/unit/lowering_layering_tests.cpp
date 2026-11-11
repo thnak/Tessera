@@ -2,9 +2,10 @@
 
 // Layering rule of docs/design/jsx-ir-lowering.md section 6: lowering is the only layer that
 // includes the JSX AST, the analysis result, the shared schema table and the IR; the IR includes
-// neither the front end nor the analysis, and the lowering target links exactly those four
-// libraries (section 6, "tessera_lowering links front end, rules and tessera_ir"; slice 12 adds the
-// leaf schema library, which every compiler layer may link).
+// neither the front end nor the analysis, and the lowering core links exactly those four libraries
+// (section 6, "tessera_lowering links front end, rules and tessera_ir"; slice 12 adds the leaf
+// schema library, which every compiler layer may link). The public `tessera_lowering` combines the
+// core with the build-generated library component registry (issue #70).
 
 #include "lowering_test_util.hpp"
 
@@ -102,10 +103,15 @@ int main() {
     check(saw_ir, "lowering builds the IR");
 
     const std::string cmake = read_file((lowering / "CMakeLists.txt").string());
-    check(cmake.find("target_link_libraries(tessera_lowering PUBLIC") != std::string::npos &&
+    check(cmake.find("target_link_libraries(tessera_lowering_core PUBLIC") != std::string::npos &&
               cmake.find("tessera_react_rules") != std::string::npos &&
               cmake.find("tessera_schema)") != std::string::npos,
-          "tessera_lowering links the front end, the IR, the analysis and the schema");
+          "tessera_lowering_core links the front end, the IR, the analysis and the schema");
+    check(cmake.find("target_link_libraries(tessera_lowering INTERFACE") != std::string::npos &&
+              cmake.find("tessera_lowering_core") != std::string::npos &&
+              cmake.find("tessera_library_components") != std::string::npos,
+          "tessera_lowering combines the core pipeline and the generated library component "
+          "registry");
 
     // The other direction: nothing under src/compiler/ir includes the front end or the analysis.
     for (const auto& entry : fs::recursive_directory_iterator(root / "ir")) {

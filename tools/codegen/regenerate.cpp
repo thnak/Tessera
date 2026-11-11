@@ -3,10 +3,13 @@
 // Codegen CLI driver: read .tsx -> parse/analyse -> lower -> validate IR -> generate C++ -> merge
 // with the existing files and rewrite only what changed (docs/guides/developer-workflow.md).
 
+#include "emit_library_components.hpp"
+#include "project_identity.hpp"
 #include "regenerate.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ids/assign_identity.hpp"
 #include "tessera/compiler/ids/manifest.hpp"
+#include "tessera/compiler/ir/ir_json.hpp"
 #include "tessera/compiler/ir/validate.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
@@ -28,6 +31,14 @@
 #include <vector>
 
 namespace tessera::compiler::codegen::cli {
+
+using internal::import_target;
+using internal::PackageRootSpec;
+using internal::ProjectIdentity;
+using internal::read_file;
+using internal::report;
+using internal::resolve_identity;
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -63,13 +74,6 @@ struct SourceFile {
     rules::AnalyzedModule analyzed;
 };
 
-void report(Outcome& outcome, bool is_error, std::string text) {
-    outcome.messages.push_back(Message{is_error, std::move(text)});
-    if (is_error) {
-        outcome.exit_code = outcome.exit_code == 0 ? 1 : outcome.exit_code;
-    }
-}
-
 std::string diagnostic_text(std::string_view path, const jsx::Diagnostic& diagnostic) {
     return std::string(path) + ":" + jsx::format_diagnostic(diagnostic);
 }
@@ -82,16 +86,6 @@ std::string ir_diagnostic_text(const ir::IrDiagnostic& diagnostic) {
             span.file + ":" + std::to_string(span.line) + ":" + std::to_string(span.column) + ": ";
     }
     return text + diagnostic.code + ": " + diagnostic.message;
-}
-
-std::optional<std::string> read_file(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) {
-        return std::nullopt;
-    }
-    std::ostringstream text;
-    text << in.rdbuf();
-    return text.str();
 }
 
 bool safe_file_name(std::string_view name) {
@@ -121,170 +115,6 @@ std::string derive_module_name(const std::string& input) {
     return name;
 }
 
-// The project identity of this run: the id salt (empty: ids stay unassigned) and the root that
-// source paths are relative to (docs/specs/automation-ids-v1.md section 2, project-config-v1.md
-// `app.namespace`). The salt is `--salt`, else `app.namespace` of the `tessera.json` at `--root`
-// or found by walking up from the first input; a `tessera.json` that is found but has no usable
-// namespace is an error, not a silent skip.
-// One package root of the project config (docs/specs/project-config-v1.md `packages`, issue #70): a
-// bare specifier resolves inside it, so a TSX component library is compiled by the same pipeline.
-struct PackageRootSpec {
-    std::string name;
-    std::string root; // project-relative POSIX directory
-};
-
-struct ProjectIdentity {
-    std::string salt;
-    fs::path root;
-    std::vector<PackageRootSpec> packages;
-};
-
-// Reads the optional `packages` array: every entry is `{ "name": string, "root": string }` with a
-// unique name and a project-relative directory (no absolute path, drive letter or `..` escape).
-// Returns false and sets `why` on a malformed entry; an absent/null `packages` is valid.
-bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
-                   std::string& why) {
-    const tessera::harness::JsonValue* packages = config.find("packages");
-    if (packages == nullptr || packages->is_null()) {
-        return true;
-    }
-    const tessera::harness::JsonValue::Array* entries = packages->as_array();
-    if (entries == nullptr) {
-        why = "`packages` must be an array of { \"name\", \"root\" } objects";
-        return false;
-    }
-    for (const tessera::harness::JsonValue& entry : *entries) {
-        const tessera::harness::JsonValue* name_node = entry.find("name");
-        const tessera::harness::JsonValue* root_node = entry.find("root");
-        const std::optional<std::string_view> name =
-            name_node != nullptr ? name_node->as_string() : std::nullopt;
-        const std::optional<std::string_view> root_value =
-            root_node != nullptr ? root_node->as_string() : std::nullopt;
-        if (!name || name->empty() || !root_value || root_value->empty()) {
-            why = "every `packages` entry needs a non-empty `name` and `root`";
-            return false;
-        }
-        if (name->find('/') != std::string_view::npos ||
-            name->find('\\') != std::string_view::npos) {
-            why = "package name `" + std::string(*name) + "` must not contain a path separator";
-            return false;
-        }
-        std::string root(*root_value);
-        std::replace(root.begin(), root.end(), '\\', '/');
-        while (root.size() > 1 && root.back() == '/') {
-            root.pop_back();
-        }
-        const bool absolute = root.front() == '/' || (root.size() > 1 && root[1] == ':');
-        const bool escapes = root == ".." || root == "." || root.starts_with("../") ||
-                             root.find("/../") != std::string::npos || root.ends_with("/..");
-        if (absolute || escapes) {
-            why = "package root `" + root + "` must be a project-relative directory";
-            return false;
-        }
-        for (const PackageRootSpec& existing : identity.packages) {
-            if (existing.name == *name) {
-                why = "duplicate package name `" + std::string(*name) + "`";
-                return false;
-            }
-        }
-        identity.packages.push_back(PackageRootSpec{std::string(*name), std::move(root)});
-    }
-    return true;
-}
-
-std::optional<fs::path> find_config(const fs::path& start) {
-    for (fs::path dir = start;; dir = dir.parent_path()) {
-        std::error_code error;
-        if (fs::is_regular_file(dir / "tessera.json", error)) {
-            return dir / "tessera.json";
-        }
-        if (!dir.has_parent_path() || dir.parent_path() == dir) {
-            return std::nullopt;
-        }
-    }
-}
-
-std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome& outcome) {
-    const fs::path first = fs::absolute(fs::path(options.inputs.front())).parent_path();
-    const std::optional<fs::path> config =
-        find_config(options.root.empty() ? first : fs::absolute(fs::path(options.root)));
-    ProjectIdentity identity;
-    identity.salt = options.salt;
-    if (!options.root.empty()) {
-        identity.root = fs::absolute(fs::path(options.root));
-    } else {
-        identity.root = config ? config->parent_path() : first;
-    }
-    if (!identity.salt.empty() || !config) {
-        // A config can still declare package roots without providing the salt, so the file is read
-        // below whenever it exists.
-        if (!config) {
-            return identity;
-        }
-    }
-    const auto fail = [&](const std::string& why) {
-        report(outcome, true, "tessera_codegen: " + config->generic_string() + ": " + why);
-        outcome.exit_code = 1;
-        return std::optional<ProjectIdentity>();
-    };
-    const std::optional<std::string> text = read_file(*config);
-    if (!text) {
-        return fail("cannot read the file");
-    }
-    const auto parsed = tessera::harness::parse_json(*text);
-    if (!parsed) {
-        return fail("not valid JSON (offset " + std::to_string(parsed.error().offset) + ")");
-    }
-    std::string package_error;
-    if (!read_packages(*parsed, identity, package_error)) {
-        return fail(package_error);
-    }
-    if (!identity.salt.empty()) {
-        return identity;
-    }
-    const tessera::harness::JsonValue* app = parsed->find("app");
-    const tessera::harness::JsonValue* name = app != nullptr ? app->find("namespace") : nullptr;
-    const std::optional<std::string_view> value =
-        name != nullptr ? name->as_string() : std::nullopt;
-    if (!value || value->empty()) {
-        return fail(
-            "`app.namespace` is required and must be a non-empty string: it is the id salt");
-    }
-    identity.salt = std::string(*value);
-    return identity;
-}
-
-// The project-relative file an import names, with the `.tsx` extension the front end reads:
-// relative specifiers resolve against the importing file, bare ones against the configured package
-// roots, and
-// `"tessera"`/`"react"` never name a file. Nullopt means "not a project file"; the caller leaves
-// the diagnostic to lowering so there is one message for a specifier that does not resolve.
-std::optional<std::string> import_target(std::string_view from_file, std::string_view specifier,
-                                         const ProjectIdentity& identity) {
-    if (specifier == "tessera" || specifier == "react") {
-        return std::nullopt;
-    }
-    if (specifier.starts_with("./") || specifier.starts_with("../")) {
-        const std::size_t slash = from_file.rfind('/');
-        const std::string_view base =
-            slash == std::string_view::npos ? std::string_view() : from_file.substr(0, slash);
-        return lowering::join_project_path(base, specifier) + ".tsx";
-    }
-    for (const PackageRootSpec& package : identity.packages) {
-        if (specifier == package.name) {
-            return lowering::join_project_path(package.root, "index") + ".tsx";
-        }
-        if (specifier.size() > package.name.size() &&
-            specifier.compare(0, package.name.size(), package.name) == 0 &&
-            specifier[package.name.size()] == '/') {
-            return lowering::join_project_path(package.root,
-                                               specifier.substr(package.name.size() + 1)) +
-                   ".tsx";
-        }
-    }
-    return std::nullopt;
-}
-
 bool generate_files(const ir::IrModule& module, std::vector<GeneratedFile>& files, Outcome& outcome,
                     std::string_view input) {
     const auto generated = generate(module);
@@ -309,7 +139,13 @@ Outcome run(const Options& options) {
         outcome.exit_code = 2;
         return outcome;
     }
-    if (options.output_dir.empty()) {
+    if (!options.emit_ir_path.empty() && !options.emit_library_cpp_path.empty()) {
+        report(outcome, true, "tessera_codegen: choose one of --emit-ir and --emit-library-cpp");
+        outcome.exit_code = 2;
+        return outcome;
+    }
+    const bool emits = !options.emit_ir_path.empty() || !options.emit_library_cpp_path.empty();
+    if (!emits && options.output_dir.empty()) {
         report(outcome, true, "tessera_codegen: --out is required");
         outcome.exit_code = 2;
         return outcome;
@@ -466,6 +302,53 @@ Outcome run(const Options& options) {
     if (first_ir != all_diagnostics.end()) {
         report(outcome, true, ir_diagnostic_text(*first_ir));
         outcome.exit_code = 1;
+        return outcome;
+    }
+
+    // Build-time emission modes. Both write exactly one file and generate no per-component C++;
+    // the TSX sources are the single source of truth, so a source that does not lower cleanly
+    // stops the run here (the build fails rather than falling back to hand-built data).
+    if (emits) {
+        const std::string& target_path = options.emit_library_cpp_path.empty()
+                                             ? options.emit_ir_path
+                                             : options.emit_library_cpp_path;
+        const fs::path target(target_path);
+        if (target.has_parent_path()) {
+            std::error_code directory_error;
+            fs::create_directories(target.parent_path(), directory_error);
+            if (directory_error) {
+                report(outcome, true,
+                       "tessera_codegen: cannot create `" + target.parent_path().string() +
+                           "`: " + directory_error.message());
+                outcome.exit_code = 2;
+                return outcome;
+            }
+        }
+        std::string text;
+        if (!options.emit_ir_path.empty()) {
+            text = ir::write_ir_json(module);
+        } else {
+            std::string why;
+            if (!emit_library_components_cpp(module, target.string(), why)) {
+                report(outcome, true, "tessera_codegen: " + why);
+                outcome.exit_code = 1;
+                return outcome;
+            }
+            if (options.verbose) {
+                report(outcome, false, target.string() + ": written");
+            }
+            return outcome;
+        }
+        std::ofstream out(target, std::ios::binary | std::ios::trunc);
+        out << text;
+        if (!out) {
+            report(outcome, true, "tessera_codegen: cannot write `" + target.string() + "`");
+            outcome.exit_code = 2;
+            return outcome;
+        }
+        if (options.verbose) {
+            report(outcome, false, target.string() + ": written");
+        }
         return outcome;
     }
 

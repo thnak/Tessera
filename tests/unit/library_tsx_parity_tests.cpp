@@ -1,41 +1,25 @@
 // SPDX-License-Identifier: MIT
 
 // `Field` and `Form` are authored as real TSX sources (tessera/components/Field.tsx and
-// tessera/components/Form.tsx, issue #70). This test compiles them through the ordinary parser,
-// analysis and lowering path and pins the result against the hand-built IR declaration of
-// `make_library_component()` (src/compiler/lowering/src/library_components.cpp, which this slice
-// deliberately does not change). The two must not drift: an edit to a source file, to the lowering
-// pipeline, or to the hand-built table fails here.
+// tessera/components/Form.tsx, issue #70). The build lowers them with `tessera_codegen
+// --emit-library-cpp` and compiles the generated `library_components_generated.cpp` into
+// `tessera_lowering`; the TSX sources are the single source of truth.
 //
-// The comparison is structural: both components are serialized with the canonical
-// `ir::to_text(ir::to_json(component))` and compared byte for byte. Three differences are
-// normalized first, because the current pipeline cannot reproduce them from source:
-//
-// 1. Identity. `Component::component_id` and `Node::ui_id` are filled by the identity-assignment
-//    slice (10) and are empty after lowering; the hand-built table hardcodes magic ids
-//    (900000000000000001, ...). Both are cleared.
-// 2. Spans. The hand-built table synthesizes spans that point into no real source text (offset 0
-//    with length 400 for the component, 12-byte node spans). Only `SourceSpan::file` is compared,
-//    because the file name is exactly what issue #70 is about: the IR names a file that did not
-//    exist. Every node in the lowered tree keeps that file name after normalization.
-// 3. The text-run shape. Lowering turns a JSX text run into a `template` ("a run is a literal
-//    string or a `template`", docs/design/jsx-ir-lowering.md), so `{label}` lowers to a one-part
-//    template. The hand-built tree stores the bare `ref` the template wraps. The comparison
-//    collapses a one-expression template to its expression; `check_text_run_shape_gap` pins the
-//    raw shapes so the divergence stays visible instead of disappearing into the normalization.
-//
-// Declared prop records are lowered from the TSX props alias (issue #70): every member becomes one
-// IR record with its name, mapped IR type and `?` optional flag. The one remaining difference is
-// the default value: a type alias has no default syntax, so lowering carries `optional` while the
-// hand-built table carries a default on exactly those records. `check_declared_records` pins the
-// alias-to-record mapping and `check_default_gap` pins the unlowered defaults; the structural
-// comparison folds a default into `optional` and clears it, so the rest of the record must match.
+// This test is the staleness guard: it re-runs the ordinary parser, analysis and lowering pipeline
+// on the committed TSX in-process and compares the result with `make_library_component()` (the
+// generated declaration compiled into the test binary). An edit to a source file, the lowering
+// pipeline or the generated data that is not followed by a rebuild fails here. The generated data
+// differs from a raw lowering in exactly one respect: the build generator stamps the stable
+// component/node identity band (`Component::component_id`, `Node::ui_id`) that the committed
+// codegen goldens pin. The comparison clears those two fields and compares everything else byte for
+// byte, including source spans, prop defaults and the lowered text-run shape.
 
 #include "lowering_module_test_util.hpp"
 #include "tessera/compiler/lowering/library_components.hpp"
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -43,6 +27,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #ifndef TESSERA_LIBRARY_TSX_DIR
@@ -56,13 +41,6 @@ namespace fs = std::filesystem;
 
 constexpr std::string_view kFieldFile = "tessera/components/Field.tsx";
 constexpr std::string_view kFormFile = "tessera/components/Form.tsx";
-
-// The records whose default value the pipeline still does not lower: the alias has no default
-// syntax, so the IR records `optional` instead. Kept as literals so a changed capability fails
-// loudly instead of being absorbed by a predicate.
-constexpr std::string_view kFieldDefaultRecords =
-    "name,label,value,defaultValue,required,validators,error,errors";
-constexpr std::string_view kFormDefaultRecords = "initial";
 
 std::string source_path(std::string_view file) {
     return (fs::path(TESSERA_LIBRARY_TSX_DIR) / fs::path(file).filename()).string();
@@ -81,7 +59,7 @@ std::unique_ptr<FileFixture> parse_source_file(std::string_view file) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Deep copies, so normalization never mutates the lowering result or the hand-built declaration.
+// Deep copies, so normalization never mutates the lowering result or the generated declaration.
 
 ir::ExprPtr clone_expr(const ir::Expr* expr) {
     if (expr == nullptr) {
@@ -166,76 +144,23 @@ ir::Component clone_component(const ir::Component& component) {
     return copy;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Normalization of the three differences listed in the header comment.
-
-void normalize_span(ir::SourceSpan& span) {
-    span.offset = 0;
-    span.length = 0;
-    span.line = 1;
-    span.column = 1;
-    span.end_line = 1;
-    span.end_column = 1;
-}
-
-ir::ExprPtr normalize_expr(ir::ExprPtr expr) {
-    if (!expr) {
-        return nullptr;
-    }
-    for (ir::TemplatePart& part : expr->parts) {
-        if (part.expr) {
-            part.expr = normalize_expr(std::move(part.expr));
-        }
-    }
-    for (ir::ExprPtr& operand : expr->operands) {
-        operand = normalize_expr(std::move(operand));
-    }
-    // A run of exactly one expression is the only template the comparison folds. A template with
-    // literal text (even empty text around an expression) is a real template and stays.
-    if (expr->kind == ir::ExprKind::Template && expr->parts.size() == 1 &&
-        expr->parts.front().expr && expr->parts.front().text.empty()) {
-        return std::move(expr->parts.front().expr);
-    }
-    return expr;
-}
-
-void normalize_node(ir::Node& node) {
+// The stable identity band is the only thing the build generator adds.
+void normalize_identity_nodes(ir::Node& node) {
     node.ui_id.clear();
-    normalize_span(node.source);
-    node.key = normalize_expr(std::move(node.key));
-    for (auto& entry : node.props) {
-        entry.second = normalize_expr(std::move(entry.second));
-    }
-    for (auto& entry : node.style) {
-        entry.second = normalize_expr(std::move(entry.second));
-    }
-    node.text = normalize_expr(std::move(node.text));
-    node.condition = normalize_expr(std::move(node.condition));
     for (ir::Node& child : node.children) {
-        normalize_node(child);
-    }
-    if (node.loop) {
-        node.loop->source = normalize_expr(std::move(node.loop->source));
+        normalize_identity_nodes(child);
     }
     if (node.fallback) {
-        normalize_node(*node.fallback);
+        normalize_identity_nodes(*node.fallback);
     }
     if (node.item_template) {
-        normalize_node(*node.item_template);
+        normalize_identity_nodes(*node.item_template);
     }
 }
 
-void normalize_component(ir::Component& component) {
+void normalize_identity(ir::Component& component) {
     component.component_id.clear();
-    normalize_span(component.source);
-    for (ir::Prop& prop : component.props) {
-        // Lowering records the source `?` as `optional`; the hand-built table records a default on
-        // exactly those props. Fold the default into the flag and drop it (the documented gap), so
-        // the rest of the record is compared.
-        prop.optional = prop.optional || prop.default_value != nullptr;
-        prop.default_value.reset();
-    }
-    normalize_node(component.root);
+    normalize_identity_nodes(component.root);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -257,9 +182,8 @@ const jsx::ModuleItem* find_item(const jsx::Module& module, jsx::ItemKind kind,
     return nullptr;
 }
 
-// The source type -> IR prop type mapping of forms sections 5.1/5.2. It is duplicated here on
-// purpose: the type table that will own it is slice 4 and does not exist yet, so this test pins the
-// documented mapping instead of assuming it.
+// The source type -> IR prop type mapping of forms sections 5.1/5.2. It is duplicated on purpose:
+// this test pins the documented mapping instead of assuming the lowering table.
 std::string ir_type_of(const jsx::TypeNode& type) {
     switch (type.kind) {
     case jsx::TypeKind::Name:
@@ -324,31 +248,34 @@ std::vector<DeclaredRecord> declared_records(const jsx::Module& module,
 }
 
 void check_declared_records(const jsx::Module& module, const jsx::ModuleItem& component,
-                            const ir::Component& hand, std::string_view name) {
+                            const ir::Component& generated, std::string_view name) {
     const std::vector<DeclaredRecord> records = declared_records(module, component);
-    check(records.size() == hand.props.size(),
-          std::string(name) + ": the TSX alias declares one record per hand-built prop, found " +
-              std::to_string(records.size()) + " and " + std::to_string(hand.props.size()));
-    const std::size_t count = std::min(records.size(), hand.props.size());
+    check(records.size() == generated.props.size(),
+          std::string(name) + ": the TSX alias declares one record per generated prop, found " +
+              std::to_string(records.size()) + " and " + std::to_string(generated.props.size()));
+    const std::size_t count = std::min(records.size(), generated.props.size());
     for (std::size_t i = 0; i < count; ++i) {
         const std::string where = std::string(name) + " prop " + std::to_string(i + 1);
         const DeclaredRecord& record = records[i];
-        const ir::Prop& prop = hand.props[i];
+        const ir::Prop& prop = generated.props[i];
         check_eq(record.name, prop.name, where + ": the TSX record name matches the IR record");
         check(!record.type.empty(),
               where + " (`" + record.name + "`): the TSX type maps to an IR type");
         check_eq(record.type, prop.type,
                  where + " (`" + record.name + "`): the TSX type matches the IR prop type");
+        check(record.optional == prop.optional,
+              where + " (`" + record.name + "`): `?` in the alias matches the IR optional flag");
         check(record.optional == (prop.default_value != nullptr),
               where + " (`" + record.name +
-                  "`): `?` in the alias marks exactly the hand-built records with a default");
+                  "`): the destructuring default marks exactly the records the alias marks `?`");
     }
 }
 
-// The lowered records must be the alias records, in declaration order, with the `?` flag. A default
-// value is the one thing lowering does not fill yet (the alias has no default syntax).
-void check_lowered_records(const ir::Component& lowered, const std::vector<DeclaredRecord>& records,
-                           std::string_view name) {
+// The lowered records must be the alias records, in declaration order, with the `?` flag and the
+// default the destructuring carries. The source and the generated declaration are compared again
+// byte for byte below; these checks name the failing record when they differ.
+void check_generated_records(const ir::Component& lowered,
+                             const std::vector<DeclaredRecord>& records, std::string_view name) {
     check(lowered.props.size() == records.size(),
           std::string(name) + ": one lowered record per declared alias member, found " +
               std::to_string(lowered.props.size()) + " and " + std::to_string(records.size()));
@@ -360,85 +287,101 @@ void check_lowered_records(const ir::Component& lowered, const std::vector<Decla
                  where + " (`" + records[i].name + "`): IR type");
         check(lowered.props[i].optional == records[i].optional,
               where + " (`" + records[i].name + "`): the `?` optional flag");
-        check(lowered.props[i].default_value == nullptr,
-              where + " (`" + records[i].name + "`): a prop default stays a documented gap");
+        check((lowered.props[i].default_value != nullptr) == records[i].optional,
+              where + " (`" + records[i].name +
+                  "`): a destructuring default lowers to the IR record on exactly the `?` props");
     }
 }
 
-std::string join_prop_names_with_defaults(const ir::Component& component) {
-    std::string joined;
-    for (const ir::Prop& prop : component.props) {
-        if (prop.default_value == nullptr) {
-            continue;
-        }
-        if (!joined.empty()) {
-            joined.push_back(',');
-        }
-        joined += prop.name;
+// The concrete defaults of forms sections 5.1/5.2, pinned by name so a dropped or retyped default
+// fails with the record it belongs to rather than only as a JSON diff.
+std::string describe_expr(const ir::Expr& expr);
+
+void check_default_literal(const ir::Component& component, std::string_view prop,
+                           std::string_view expected, std::string_view name,
+                           std::string_view what) {
+    const auto found =
+        std::find_if(component.props.begin(), component.props.end(),
+                     [prop](const ir::Prop& candidate) { return candidate.name == prop; });
+    check(found != component.props.end(),
+          std::string(name) + " declares `" + std::string(prop) + "`");
+    if (found == component.props.end()) {
+        return;
     }
-    return joined;
-}
-
-// The remaining #70 delta: the hand-built table still carries a default value on these records
-// while the TSX alias can only carry `?`. Fails if lowering starts filling defaults (then the list
-// shrinks) or if the hand-built table gains one the alias cannot express.
-void check_default_gap(const ir::Component& hand, std::string_view name,
-                       std::string_view expected_records) {
-    check_eq(join_prop_names_with_defaults(hand), std::string(expected_records),
-             std::string(name) +
-                 ": the hand-built records still carrying a default value. The TSX alias records "
-                 "the same props as `?` and lowering keeps `default` empty; a default value (and a "
-                 "list/object literal default) is the remaining documented #70 gap");
-}
-
-// ---------------------------------------------------------------------------------------------
-// The text-run shape gap (see the header comment, item 3).
-
-bool is_one_expression_template(const ir::Expr* expr) {
-    return expr != nullptr && expr->kind == ir::ExprKind::Template && expr->parts.size() == 1 &&
-           expr->parts.front().expr != nullptr && expr->parts.front().text.empty();
-}
-
-void check_text_run_shape_gap(const ir::Component& lowered, const ir::Component& hand,
-                              std::string_view name) {
-    std::size_t text_nodes = 0;
-    const std::size_t count = std::min(lowered.root.children.size(), hand.root.children.size());
-    for (std::size_t i = 0; i < count; ++i) {
-        const ir::Node& tsx_node = lowered.root.children[i];
-        const ir::Node& hand_node = hand.root.children[i];
-        if (tsx_node.kind != ir::NodeKind::Text) {
-            continue;
-        }
-        ++text_nodes;
-        check(is_one_expression_template(tsx_node.text.get()),
-              std::string(name) + " text node " + std::to_string(i + 1) +
-                  ": the subset lowers a one-expression run to a one-part template");
-        check(hand_node.text != nullptr && hand_node.text->kind == ir::ExprKind::Ref,
-              std::string(name) + " text node " + std::to_string(i + 1) +
-                  ": the hand-built IR stores a bare ref, a shape the JSX front end cannot emit; "
-                  "the comparison folds the one-part template so this gap stays visible here");
+    const ir::Expr* value = found->default_value.get();
+    check(value != nullptr,
+          std::string(name) + " prop `" + std::string(prop) + "` has a default value");
+    if (value == nullptr) {
+        return;
     }
+    const std::string actual = describe_expr(*value);
+    check_eq(actual, std::string(expected),
+             std::string(name) + " prop `" + std::string(prop) + "` " + std::string(what));
+}
+
+std::string describe_expr(const ir::Expr& expr) {
+    switch (expr.kind) {
+    case ir::ExprKind::Literal:
+        if (const auto* text = std::get_if<std::string>(&expr.literal)) {
+            return "\"" + *text + "\"";
+        }
+        if (const auto* flag = std::get_if<bool>(&expr.literal)) {
+            return *flag ? "true" : "false";
+        }
+        if (const auto* whole = std::get_if<std::int64_t>(&expr.literal)) {
+            return std::to_string(*whole);
+        }
+        if (const auto* real = std::get_if<double>(&expr.literal)) {
+            return std::to_string(*real);
+        }
+        return "null";
+    case ir::ExprKind::Array:
+        return "[" + std::to_string(expr.operands.size()) + " items]";
+    default:
+        return "expr";
+    }
+}
+
+void check_defaults(const ir::Component& component, std::string_view name) {
     if (name == "Field") {
-        check(text_nodes == 3, "Field has the label, value and error text nodes");
+        for (const std::string_view prop : {"name", "label", "value", "defaultValue", "error"}) {
+            check_default_literal(component, prop, "\"\"", name, "defaults to the empty string");
+        }
+        check_default_literal(component, "required", "false", name, "defaults to false");
+        for (const std::string_view prop : {"validators", "errors"}) {
+            check_default_literal(component, prop, "[0 items]", name, "defaults to the empty list");
+        }
+    } else if (name == "Form") {
+        check_default_literal(component, "initial", "[0 items]", name,
+                              "defaults to the empty seed list");
+    }
+    for (const std::string_view prop : {"onValidate", "validate", "onSubmit", "children"}) {
+        const auto found =
+            std::find_if(component.props.begin(), component.props.end(),
+                         [prop](const ir::Prop& candidate) { return candidate.name == prop; });
+        if (found != component.props.end()) {
+            check(found->default_value == nullptr,
+                  std::string(name) + " prop `" + std::string(prop) + "` has no default value");
+        }
     }
 }
 
 // ---------------------------------------------------------------------------------------------
-// The structural comparison and the per-component driver.
+// The staleness comparison and the per-component driver.
 
-void check_parity(const ir::Component& lowered, const ir::Component& hand, std::string_view name) {
+void check_parity(const ir::Component& lowered, const ir::Component& generated,
+                  std::string_view name) {
     ir::Component tsx = clone_component(lowered);
-    normalize_component(tsx);
-    ir::Component expected = clone_component(hand);
-    normalize_component(expected);
+    ir::Component expected = clone_component(generated);
+    normalize_identity(tsx);
+    normalize_identity(expected);
     check_eq(describe_component(tsx), describe_component(expected),
              std::string(name) +
-                 ": the TSX lowering and make_library_component() are the same component (records "
-                 "included) after the documented identity/span/run-shape/default normalizations");
+                 ": the committed TSX lowers to exactly the generated IR declaration (identity "
+                 "band excluded), including spans, prop defaults and text-run shape");
 }
 
-void check_component(std::string_view file, std::string_view name,
-                     std::string_view expected_defaults) {
+void check_component(std::string_view file, std::string_view name) {
     std::unique_ptr<FileFixture> fixture = parse_source_file(file);
     if (!fixture) {
         check(false, "the library component source is readable: " + std::string(file));
@@ -457,31 +400,30 @@ void check_component(std::string_view file, std::string_view name,
     if (lowered == nullptr || library == nullptr) {
         return;
     }
-    const ir::Component hand = lowering::make_library_component(*library);
+    const ir::Component generated = lowering::make_library_component(*library);
 
-    check_eq(lowered->id, hand.id, std::string(name) + ": same IR component id");
-    check_eq(lowered->name, hand.name, std::string(name) + ": same component name");
+    check_eq(lowered->id, generated.id, std::string(name) + ": same IR component id");
+    check_eq(lowered->name, generated.name, std::string(name) + ": same component name");
     check_eq(lowered->source.file, std::string(file),
              std::string(name) + ": the source span names the real TSX file");
     check(is_presentational(*lowered), std::string(name) + ": the source is presentational");
-    check(is_presentational(hand), std::string(name) + ": the hand-built IR is presentational");
+    check(is_presentational(generated), std::string(name) + ": the generated IR is presentational");
 
     const jsx::ModuleItem* item = find_item(*fixture->parsed.root, jsx::ItemKind::Component, name);
     check(item != nullptr, std::string(name) + " is a parsed component declaration");
     if (item != nullptr) {
         const std::vector<DeclaredRecord> records = declared_records(*fixture->parsed.root, *item);
-        check_lowered_records(*lowered, records, name);
-        check_declared_records(*fixture->parsed.root, *item, hand, name);
+        check_generated_records(*lowered, records, name);
+        check_declared_records(*fixture->parsed.root, *item, generated, name);
     }
-    check_default_gap(hand, name, expected_defaults);
-    check_text_run_shape_gap(*lowered, hand, name);
-    check_parity(*lowered, hand, name);
+    check_defaults(generated, name);
+    check_parity(*lowered, generated, name);
 }
 
 } // namespace
 
 int main() {
-    check_component(kFieldFile, "Field", kFieldDefaultRecords);
-    check_component(kFormFile, "Form", kFormDefaultRecords);
+    check_component(kFieldFile, "Field");
+    check_component(kFormFile, "Form");
     return jsx_test::finish("library TSX parity tests");
 }

@@ -1319,9 +1319,9 @@ target_link_libraries(lowering_module_determinism_tests PRIVATE
 
 add_test(NAME lowering_module_determinism COMMAND lowering_module_determinism_tests)
 
-# Field/Form are authored as real TSX sources (issue #70): the two files under tessera/components/
-# are compiled through the ordinary front end and pinned against the hand-built IR of
-# make_library_component(), so the sources and the compiler cannot drift.
+# Field/Form are authored as real TSX sources (issue #70): the build lowers the two files under
+# tessera/components/ into library_components_generated.cpp, and this test re-lowers the committed
+# sources in-process to prove the embedded declaration is not stale and cannot drift.
 add_executable(library_tsx_parity_tests
     library_tsx_parity_tests.cpp)
 
