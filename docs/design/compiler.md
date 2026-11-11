@@ -324,10 +324,9 @@ of truth (contract in [`component-library.md`](component-library.md) section 3.5
 component of the same name wins.
 `Field` declares the prop records of
 [`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md) section 5.1 (including the
-record-typed `onValidate`), places its own label/value/error text and its `Slot`, and is emitted by
-the ordinary component path: the IR node kind is `Component` (asserted by `forms_lowering`), the
-generated host node records element kind `Component`, and the caller's widget rides the Children
-slot. The library evaluates no validation rule; `required`/`validators` reach it as prop data only.
+record-typed `onValidate`), places its own label/value/error text and its `Slot`, and rides the
+ordinary component path (`Component` node kind, asserted by `forms_lowering`): the caller's widget
+rides the Children slot, and `required`/`validators` reach it as prop data only (no rule code).
 
 `Form` (section 5.2) declares `initial` (`list<string>` of `name=value` seeds), the payload-free
 callback props `validate`/`onSubmit` (IR type `callback`, generated `std::function<void()>`) and the
@@ -594,9 +593,8 @@ compiles the generated samples, so they are never hand-maintained.
 
 - The open questions listed in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18 (the built-in
   hook manifest format is specified in its section 7.1).
-- Parser error recovery for the live view (editing partially valid files).
+- Parser error recovery for the live view (editing partially valid files; V1 fails fast).
 - Source maps from generated C++ back to TSX.
 - Incremental codegen at the node level vs component level.
 - How much static analysis for effect dependencies.
-- Error recovery for partially valid files (V1: fail fast).
 - Migration tooling for binding renames.

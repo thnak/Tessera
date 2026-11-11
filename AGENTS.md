@@ -654,9 +654,17 @@ on the command line (#70). Declared prop records now lower from the props type a
 `ir::Prop` gained `optional` and a `?` prop is absent rather than a nullable value; the mapping
 covers string/bool/int/float/color/length/node_ref, `T[]` -> `list<T>`, `T|null` -> `optional<T>`,
 `children`, `() => void` callbacks and payload-record callbacks, and an unsupported spelling is
-`TESSERA_IR_UNSUPPORTED` naming the prop. The parity test now compares full prop records. Remaining
-for #70: prop defaults and list/object defaults, callback binding, cross-file props aliases, then
-`library_components.cpp` stops hand-building IR.
+`TESSERA_IR_UNSUPPORTED` naming the prop. The parity test now compares full prop records. The
+library components are no longer hand-built IR: a CMake step lowers
+`tessera/components/{Field,Form}.tsx` with a small bootstrap registry and compiles the generated
+table into `tessera_library_components`, while the host build compares the fresh unit against the
+committed copy the cross builds consume, so stale generated data fails the build. `library_tsx_parity`
+re-lowers the committed TSX in-process and compares full canonical JSON (spans, defaults, template
+shape); only the stamped identity band is normalized. Prop defaults are part of the TSX now (flat
+literal-list defaults are lowered into `Prop::default_value`) and the Field/Form goldens are
+byte-identical. Remaining for #70: cross-file props aliases, object-literal defaults (the IR has no
+object type), and the index-based identity band (inserting a component alphabetically shifts later
+ids, so the goldens need regenerating).
 
 Next slices, in order:
 
