@@ -122,6 +122,7 @@ void CompiledStyleSheet::compile_at_rule(const AtRule& at_rule, std::uint64_t& s
                                                    "invalid container query"});
             return;
         }
+        container_queries_.push_back(query.query);
         active_containers_.push_back(std::move(query.query));
         compile_rules(parse_stylesheet(at_rule.block), source_order, layer);
         active_containers_.pop_back();

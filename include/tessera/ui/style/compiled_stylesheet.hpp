@@ -39,6 +39,10 @@ public:
                                        const ContainerSizeSource* containers = nullptr) const;
     [[nodiscard]] ComputedStyle compute(const StyleNode& node, const ComputedStyle* parent,
                                         const ContainerSizeSource* containers = nullptr) const;
+    // Every `@container` query of the sheet, in source order, for the container-query tracker.
+    [[nodiscard]] const std::vector<ContainerQuery>& container_queries() const {
+        return container_queries_;
+    }
     // True when any rule sits inside an `@container` block.
     [[nodiscard]] bool has_container_queries() const {
         return has_container_queries_;
@@ -85,6 +89,7 @@ private:
     std::map<std::string, std::uint32_t> layer_order_;
     std::uint32_t next_layer_ = 0;
     std::vector<ContainerQuery> active_containers_;
+    std::vector<ContainerQuery> container_queries_;
     bool has_container_queries_ = false;
 };
 

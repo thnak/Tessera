@@ -1451,3 +1451,10 @@ add_executable(container_query_tests
 target_link_libraries(container_query_tests PRIVATE tessera_style)
 
 add_test(NAME container_query COMMAND container_query_tests)
+
+add_executable(container_query_settle_tests
+    container_query_settle_tests.cpp)
+
+target_link_libraries(container_query_settle_tests PRIVATE tessera_layout)
+
+add_test(NAME container_query_settle COMMAND container_query_settle_tests)

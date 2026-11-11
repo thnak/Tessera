@@ -36,7 +36,7 @@ Breakpoints are app-authored; Tessera does not impose a fixed set. Recommended d
 dashboard-style apps: compact < 600 dp, medium 600–839 dp, expanded >= 840 dp. These values
 are guidance, not semantics.
 
-`@container` size queries are evaluated by the style engine (ADR-041 slice 8; the host settle step that re-resolves on a size change is not wired yet). Until a host wires it, use size classes derived
+`@container` size queries are evaluated by the style engine (ADR-041 slice 8; the settle-loop observer that re-resolves on a crossed condition exists, the app host that wires it does not yet). Until a host wires it, use size classes derived
 from metrics or explicit props.
 
 ## 3. Size classes

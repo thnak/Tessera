@@ -299,7 +299,7 @@ Without it, the project has one theme, the built-in `default`, which has no toke
 | `@font-face` | parse | font loading is [ADR-006](../../decisions/ADR-006-text-stack.md); V1 uses committed fonts |
 | `@keyframes` | parse | animation runtime samples at fixed timestep |
 | `@import` | build-time | resolved by the asset/build pipeline |
-| `@container` | V1 (engine) | `(min-/max-)width/height/inline-size/block-size` and range form, joined with `and`, optional container name; `or`, `not`, `style()` are diagnosed. Rules apply against the nearest ancestor with `container-type: size \| inline-size` (and a matching `container-name`); a container is not styled by its own query. Inline-size containers answer width only. The scene settle round that re-resolves on size change is a host step ([layout-observation.md](../design/layout-observation.md) section 5.4) |
+| `@container` | V1 (engine) | `(min-/max-)width/height/inline-size/block-size` and range form, joined with `and`, optional container name; `or`, `not`, `style()` are diagnosed. Rules apply against the nearest ancestor with `container-type: size \| inline-size` (and a matching `container-name`); a container is not styled by its own query. Inline-size containers answer width only. Re-resolution on a size change is the engine observer of the settle loop ([layout-observation.md](../design/layout-observation.md) section 5.4): only a crossed condition restyles |
 | `@property` | Later | parsed; typed custom properties in V1.1 |
 | `@scope` | Later | parsed; evaluated later |
 | `@page`/`@namespace`/`@charset` | no-op | parsed and ignored |
