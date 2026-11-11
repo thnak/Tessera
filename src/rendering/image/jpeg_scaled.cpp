@@ -14,10 +14,19 @@ extern "C" {
 namespace tessera::rendering::image {
 namespace {
 
+// std::jmp_buf needs 16-byte alignment on MSVC, so the struct is padded past `base`. The tail
+// padding is expected and harmless; suppress only that warning (C4324) for this definition.
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4324)
+#endif
 struct ErrorManager {
     jpeg_error_mgr base;
     std::jmp_buf jump;
 };
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 // libjpeg reports fatal errors by calling error_exit, which must not return: unwind to the setjmp
 // in decode_jpeg_scaled. Nothing with a destructor lives between the two (only C frames).

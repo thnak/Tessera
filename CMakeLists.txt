@@ -33,7 +33,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(TESSERA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
 if (MSVC)
-    add_compile_options(/W4 /permissive-)
+    # /utf-8: source files are UTF-8 without a BOM (test fixtures carry non-ASCII literals like
+    # U'א'); without it MSVC reads them as the ANSI code page and rejects multi-byte constants.
+    add_compile_options(/W4 /permissive- /utf-8)
     # The Visual Studio generator compiles the files of one project serially unless /MP is set.
     # Ninja already parallelizes per file, so /MP there would only oversubscribe the CPU.
     if (CMAKE_GENERATOR MATCHES "Visual Studio")

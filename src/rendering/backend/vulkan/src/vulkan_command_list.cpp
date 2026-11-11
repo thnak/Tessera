@@ -387,7 +387,6 @@ bool VulkanCommandList::wait(std::uint64_t timeout_ms) {
         owner_.mark_device_lost();
         return false;
     }
-    constexpr std::uint64_t kNanosecondsPerMillisecond = 1'000'000;
     const std::uint64_t timeout_ns = timeout_ms > UINT64_MAX / kNanosecondsPerMillisecond
                                          ? UINT64_MAX
                                          : timeout_ms * kNanosecondsPerMillisecond;
