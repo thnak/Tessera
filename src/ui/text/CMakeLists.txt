@@ -11,6 +11,7 @@ add_library(tessera_text STATIC
     glyph_atlas.cpp
     glyph_raster.cpp
     scale_glyph_atlas.cpp
+    fallback_shaper.cpp
     harfbuzz_shaper.cpp
     text_breaks.cpp
     text_measure.cpp

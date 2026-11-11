@@ -59,7 +59,21 @@ HarfBuzzShaper::~HarfBuzzShaper() = default;
 HarfBuzzShaper::HarfBuzzShaper(HarfBuzzShaper&&) noexcept = default;
 HarfBuzzShaper& HarfBuzzShaper::operator=(HarfBuzzShaper&&) noexcept = default;
 
+const FontFace& HarfBuzzShaper::face() const noexcept {
+    return impl_->face;
+}
+
 ShapedRun HarfBuzzShaper::shape(std::string_view utf8, const TextStyle& style) const {
+    return shape_impl(utf8, style, -1);
+}
+
+ShapedRun HarfBuzzShaper::shape_directed(std::string_view utf8, const TextStyle& style,
+                                         bool right_to_left) const {
+    return shape_impl(utf8, style, right_to_left ? 1 : 0);
+}
+
+ShapedRun HarfBuzzShaper::shape_impl(std::string_view utf8, const TextStyle& style,
+                                     int direction) const {
     ShapedRun run;
     if (impl_ == nullptr || impl_->font == nullptr || utf8.empty() || style.font_size <= 0.0f) {
         return run;
@@ -71,6 +85,9 @@ ShapedRun HarfBuzzShaper::shape(std::string_view utf8, const TextStyle& style) c
     hb_buffer_add_utf8(buffer, utf8.data(), static_cast<int>(utf8.size()), 0,
                        static_cast<int>(utf8.size()));
     hb_buffer_guess_segment_properties(buffer);
+    if (direction >= 0) {
+        hb_buffer_set_direction(buffer, direction == 1 ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
+    }
     hb_shape(impl_->font, buffer, nullptr, 0);
 
     unsigned int count = 0;
@@ -86,6 +103,7 @@ ShapedRun HarfBuzzShaper::shape(std::string_view utf8, const TextStyle& style) c
         glyph.advance = static_cast<float>(positions[i].x_advance) * scale;
         glyph.x_offset = static_cast<float>(positions[i].x_offset) * scale;
         glyph.y_offset = static_cast<float>(positions[i].y_offset) * scale;
+        run.missing_glyphs += glyph.id == 0 ? 1U : 0U;
         run.advance += glyph.advance;
         run.glyphs.push_back(glyph);
     }
