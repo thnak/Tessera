@@ -23,7 +23,10 @@ Child       = JsxElement | JsxText | "{" ChildExpr "}" ;
   alias of an intrinsic ([`jsx-intrinsics-v1`](jsx-intrinsics-v1/html-aliases.md),
   [ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md)); one with no mapping is `TESSERA_JSX_SUBSET_HTML_TAG`.
 - Member tags (`<A.B>`), namespace tags (`<a:b>`), and a tag that is a variable (dynamic component
-  type) are rejected.
+  type) are rejected. The only exception is the built-in startup namespaces `Startup` and
+  `Resources` (`<Startup.Loading>`, `<Resources.Font>`, ...): they resolve in analysis against the
+  closed member table of [`startup-api-v1.md`](startup-api-v1.md) section 4 and never become runtime
+  tags ([ADR-042](../../decisions/ADR-042-jsx-startup-surface.md)).
 - Opening and closing tag names must match. A mismatch is a parse error that names both tags.
 - A fragment `<>...</>` is accepted only as a child of another element; its children are placed
   directly in the parent in order. A fragment as the component's returned element is rejected,
@@ -131,6 +134,11 @@ Library components (for example `Form`, `Field`, `DataGrid`) are imported from `
 ordinary components for the front end; their props are validated against their declared prop types
 ([`component-library.md`](../design/component-library.md)).
 
+Startup elements (`App`, `Startup.Loading`, `Startup.Resources`, `Resources.Font`,
+`Resources.Image`, `Resources.Data`) are a third built-in group defined in
+[`startup-api-v1.md`](startup-api-v1.md): they lower into the component startup record and produce
+no scene nodes, so they are neither rows of the intrinsic table nor ordinary components.
+
 ### 11.1 `Image`, `Path` and `Spacer`
 
 All three have no children and no event props (`onClick` and the like give `TESSERA_JSX_SUBSET_UNKNOWN_PROP`).
@@ -185,7 +193,7 @@ and no silent skipping.
 | Context, `createContext`, `useContext`, suspense, portals | `TESSERA_REACT_UNSUPPORTED_API` | Use services and overlays ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) |
 | `useReducer`, `memo`, `forwardRef`; `useMemo`/`useCallback` outside the safe forms | `TESSERA_REACT_UNSUPPORTED_API` | Compute in a `const`. `useMemo(() => pure expr, deps)` and `useCallback(setter-call arrow, deps)` lower as plain locals/handlers (Q16, `jsx-intrinsics-v1/react-compat.md` 4.2) |
 | Lowercase tags with no alias mapping | `TESSERA_JSX_SUBSET_HTML_TAG` | See the alternative in `jsx-intrinsics-v1/html-aliases.md` |
-| Dynamic component type, member tags, namespace tags | `TESSERA_JSX_SUBSET_DYNAMIC_TAG` | Use a fixed tag |
+| Dynamic component type, member tags outside the built-in startup namespaces, namespace tags | `TESSERA_JSX_SUBSET_DYNAMIC_TAG` | Use a fixed tag; the startup exception is [`startup-api-v1.md`](startup-api-v1.md) section 4 |
 | `==`, `!=` | `TESSERA_JSX_SUBSET_LOOSE_EQUALITY` | Use `===`, `!==` |
 | `??`, `?.`, `**`, bitwise operators, comma, `typeof`, `instanceof`, `in`, `delete`, `void` | `TESSERA_JSX_SUBSET_OPERATOR` | Not available in V1 |
 | Arbitrary calls, method calls other than `.set`/`.map` | `TESSERA_JSX_SUBSET_CALL` | Use an allowlisted function or a native handler |
@@ -222,7 +230,7 @@ and no silent skipping.
 A diagnostic has: `code`, `severity` (`error` or `warning`), `message`, `span`, optional
 `suggestion` (text, and optionally one text edit), and optional related spans (for example the
 opening tag for a closing-tag mismatch). Codes are stable strings of the form
-`TESSERA_JSX_<AREA>_<NAME>` (lexing, parsing, subset, type) or `TESSERA_REACT_<NAME>` (React-style
+`TESSERA_JSX_<AREA>_<NAME>` (lexing, parsing, subset, type, startup) or `TESSERA_REACT_<NAME>` (React-style
 rule checks, [`compiler.md`](../design/compiler.md) section 4). A code is never reused for a different
 meaning.
 

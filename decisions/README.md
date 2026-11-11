@@ -51,6 +51,8 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule) | Accepted |
 | [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (would supersede ADR-008) | Proposed |
 | [ADR-041](ADR-041-layout-observation.md) | Layout observation (`onSizeChange`), a layout read model, and container queries second | Accepted |
+| [ADR-042](ADR-042-jsx-startup-surface.md) | Declarative JSX startup surface: `App` root, built-in `Startup.*`/`Resources.*` member tags, framework loading screen | Proposed |
+| [ADR-043](ADR-043-launch-modes-and-state-reuse.md) | Launch modes (cold/warm/hot resume/process restore) and state reuse, activation precedence, snapshot trust | Proposed |
 
 ## Dependency overview
 

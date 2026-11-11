@@ -180,6 +180,12 @@ Rules: `criticalResources` stays small; `preload` is bounded/cancellable; user s
 adjust budgets only within hard caps; golden/deterministic mode pins the critical set and load
 order and ignores network/system fonts.
 
+The TSX startup declaration ([`startup-api-v1.md`](startup-api-v1.md) section 7) owns which
+resources the app declares (with a priority) and which loading subtree replaces the framework
+default; this block owns policy and budgets. Precedence is CLI > `AppConfig` > compiled startup
+declaration > `tessera.json` > defaults; a direct overlap reports
+`TESSERA_STARTUP_CONFIG_SHADOWED`.
+
 Restore precedence: `restore.enabled` is the master switch. `navigation.restore` controls the
 route stack; `loading.restoreRoute` only resumes a pending deep-link/activation after auth.
 A false master disables both.
@@ -414,6 +420,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 16. `loading` follows [resource-lifecycle-v1.md](resource-lifecycle-v1.md): `criticalResources`
     is a small explicit set, `preload` is bounded/cancellable, and unload/eviction are enabled
     by the `unloadOnBackground` and `evictOnMemoryPressure` fields. Deterministic mode pins the critical set and load order.
+    The compiled startup declaration ([`startup-api-v1.md`](startup-api-v1.md)) contributes its
+    `critical` entries to the same set and adds no policy fields.
 17. `deepLinks` follows [deep-linking-v1.md](deep-linking-v1.md): schemes/hosts/routes are
     unique allowlists, route patterns resolve to real routes, `fallbackUrl` is HTTPS, and no
     secrets/tokens are allowed in URLs.

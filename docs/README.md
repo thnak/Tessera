@@ -80,6 +80,8 @@ This page is the map and reading order for the framework.
   ranges/scopes, memory budget, apply/restart rules
 - [`specs/resource-lifecycle-v1.md`](specs/resource-lifecycle-v1.md) — lazy/preload/lease/
   unload/eviction, budgets, determinism
+- [`specs/startup-api-v1.md`](specs/startup-api-v1.md) — developer startup surface: `App` root,
+  replaceable framework loading screen, prioritized resource hints, launch modes, phases P0-P5
 - [`specs/error-boundaries-v1.md`](specs/error-boundaries-v1.md) — caught/not-caught errors,
   fallback/reset/retry, async errors, exception policy
 - [`specs/deep-linking-v1.md`](specs/deep-linking-v1.md) — external activation, route mapping,
@@ -305,14 +307,15 @@ This page is the map and reading order for the framework.
 ### Startup / loading / auth
 
 1. [Startup & loading design](design/startup-and-loading.md)
-2. [Resource lifecycle](specs/resource-lifecycle-v1.md)
-3. [Error boundaries](specs/error-boundaries-v1.md)
-4. [Deep linking](specs/deep-linking-v1.md)
-5. [Loading strategy matrix](guides/loading-matrix.md)
-6. [Resources & assets](design/resources.md)
-7. [Async runtime](design/async.md)
-8. [Performance & power](design/performance.md)
-9. [Security](design/security.md)
+2. [Startup API](specs/startup-api-v1.md)
+3. [Resource lifecycle](specs/resource-lifecycle-v1.md)
+4. [Error boundaries](specs/error-boundaries-v1.md)
+5. [Deep linking](specs/deep-linking-v1.md)
+6. [Loading strategy matrix](guides/loading-matrix.md)
+7. [Resources & assets](design/resources.md)
+8. [Async runtime](design/async.md)
+9. [Performance & power](design/performance.md)
+10. [Security](design/security.md)
 
 ### Custom native elements
 
@@ -419,7 +422,7 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Mobile integration (Android first) | design only |
 | Memory model / bridge policy | proposed / [ADR-024](../decisions/ADR-024-native-first-boundaries.md) accepted |
 | Buffer config / user tunables | B2/B3 proposed |
-| Startup / loading / auth | design only |
+| Startup / loading / auth | design only; developer startup surface spec proposed (`startup-api-v1.md`, [ADR-042](../decisions/ADR-042-jsx-startup-surface.md), [ADR-043](../decisions/ADR-043-launch-modes-and-state-reuse.md)) |
 | Resource lifecycle (lazy/preload/unload) | B2/F proposed |
 | Error boundaries | C/F proposed ([ADR-025](../decisions/ADR-025-error-boundaries.md) accepted) |
 | Deep links / external activation | F proposed ([ADR-026](../decisions/ADR-026-deep-links-and-external-activation.md) accepted) |
