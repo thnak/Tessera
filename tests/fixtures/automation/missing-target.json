@@ -1,0 +1,6 @@
+{
+  "scriptVersion": 1,
+  "steps": [
+    { "action": "click", "uiId": "424242" }
+  ]
+}

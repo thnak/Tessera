@@ -1,0 +1,6 @@
+{
+  "scriptVersion": 1,
+  "steps": [
+    { "action": "screenshot", "path": "harness_cli_out/screen.png" }
+  ]
+}

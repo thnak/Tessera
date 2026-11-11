@@ -1,0 +1,14 @@
+{
+  "scriptVersion": 1,
+  "profile": { "width": 320, "height": 240, "scale": 1.0, "locale": "en-US" },
+  "steps": [
+    { "action": "snapshot" },
+    { "action": "click", "uiId": "9003" },
+    { "action": "snapshot" },
+    { "action": "type", "uiId": "9004", "text": "Ada" },
+    { "action": "focus", "uiId": "9004" },
+    { "action": "scroll", "uiId": "9005", "dx": 0, "dy": 40 },
+    { "action": "trace" },
+    { "action": "audit", "profile": "desktop" }
+  ]
+}

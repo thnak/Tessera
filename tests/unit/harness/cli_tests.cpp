@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: MIT
+//
+// Argument handling of the promoted `tessera` CLI: documented flags, exit codes, and the exit-2
+// diagnostics for an unreadable or invalid script. Execution behaviour lives in
+// cli_integration_tests.
 
 #include "tessera/harness/cli.hpp"
 
@@ -9,6 +13,10 @@
 #include <vector>
 
 namespace {
+
+using tessera::harness::run_cli;
+
+constexpr std::string_view kFixtureDirectory = TESSERA_HARNESS_FIXTURE_SCRIPT_DIR;
 
 int failures = 0;
 
@@ -30,7 +38,7 @@ Outcome run(const std::vector<std::string_view>& args) {
     std::ostringstream out;
     std::ostringstream err;
     Outcome outcome;
-    outcome.code = tessera::harness::run_cli(args, out, err);
+    outcome.code = run_cli(args, out, err);
     outcome.out = out.str();
     outcome.err = err.str();
     return outcome;
@@ -40,16 +48,21 @@ bool contains(const std::string& text, std::string_view needle) {
     return text.find(needle) != std::string::npos;
 }
 
+std::string fixture(std::string_view name) {
+    return std::string(kFixtureDirectory) + "/" + std::string(name);
+}
+
 } // namespace
 
 int main() {
-    // --help and --version are the two commands that work today.
+    // --help and --version.
     {
         const Outcome help = run({"--help"});
         expect(help.code == 0, "top-level help exits 0");
         expect(contains(help.out, "Usage:") && contains(help.out, "tessera test"),
                "help describes both commands");
         expect(contains(help.out, "Exit codes"), "help documents the exit codes");
+        expect(contains(help.out, "--script"), "help documents --script");
         expect(help.err.empty(), "help writes to stdout");
 
         const Outcome sub_help = run({"test", "--help"});
@@ -70,34 +83,16 @@ int main() {
         expect(contains(none.err, "Usage:"), "missing subcommand prints usage");
     }
 
-    // --script parses but the runner is not implemented yet: reject loudly with exit code 2.
-    {
-        const Outcome test = run({"test", "--script", "tests/agent/login.json"});
-        expect(test.code == 2, "--script exits 2");
-        expect(contains(test.err, "not implemented"), "--script says it is not implemented");
-        expect(contains(test.err, "headless-automation-v1"), "--script points at the spec");
-
-        const Outcome full = run({"test", "--script", "in.json", "--mode", "golden", "--out", "out",
-                                  "--report", "out/report.json"});
-        expect(full.code == 2 && contains(full.err, "not implemented"),
-               "fully specified test is still not implemented");
-
-        const Outcome headless =
-            run({"headless", "--mode", "audit", "--profile", "desktop", "--script", "audit.json"});
-        expect(headless.code == 2 && contains(headless.err, "not implemented"),
-               "headless --script rejected");
-
-        const Outcome headless_no_script = run({"headless", "--mode", "structural"});
-        expect(headless_no_script.code == 2 && contains(headless_no_script.err, "not implemented"),
-               "headless without a script is not implemented either");
-    }
-
     // Missing or malformed configuration is exit code 2 with a specific diagnostic.
     {
         expect(run({"test"}).code == 2 && contains(run({"test"}).err, "--script is required"),
                "test requires a script");
-        expect(run({"headless"}).code == 2 && contains(run({"headless"}).err, "--mode is required"),
+        const Outcome headless = run({"headless"});
+        expect(headless.code == 2 && contains(headless.err, "--mode is required"),
                "headless requires a mode");
+        const Outcome headless_no_script = run({"headless", "--mode", "structural"});
+        expect(headless_no_script.code == 2 && contains(headless_no_script.err, "--script"),
+               "headless requires a script");
         expect(run({"test", "--mode", "bogus", "--script", "x"}).code == 2,
                "unknown mode rejected");
         expect(run({"test", "--bogus"}).code == 2, "unknown option rejected");
@@ -108,24 +103,54 @@ int main() {
         expect(run({"test", "--script", ""}).code == 2, "empty script rejected");
         expect(run({"headless", "--mode", "audit", "--profile", ""}).code == 2,
                "empty profile rejected");
-        for (const char* mode : {"structural", "golden", "gpu-smoke", "audit"}) {
-            const Outcome outcome = run({"headless", "--mode", mode});
-            expect(outcome.code == 2 && contains(outcome.err, "not implemented"),
-                   "documented mode parses");
-        }
+        expect(run({"test", "--script", fixture("smoke.json"), "--report", ""}).code == 2,
+               "empty report rejected");
+    }
+
+    // Only the structural lane exists; the rendering modes are rejected instead of pretending.
+    for (const char* mode : {"golden", "gpu-smoke"}) {
+        const Outcome outcome = run({"test", "--script", fixture("smoke.json"), "--mode", mode});
+        expect(outcome.code == 2 && contains(outcome.err, "not implemented"),
+               "documented rendering mode parses but is not implemented");
+    }
+    for (const char* mode : {"structural", "audit"}) {
+        const Outcome outcome = run({"headless", "--mode", mode, "--script", "missing.json"});
+        expect(outcome.code == 2 && contains(outcome.err, "cannot read script"),
+               "documented script mode parses and reports a missing file");
+    }
+
+    // Script and artifact paths are validated before the engine starts.
+    {
+        const Outcome missing = run({"test", "--script", "does/not/exist.json"});
+        expect(missing.code == 2 && contains(missing.err, "cannot read script"),
+               "an unreadable script is exit 2");
+
+        const Outcome absolute =
+            run({"test", "--script", fixture("smoke.json"), "--out", "C:/tmp/harness"});
+        expect(absolute.code == 2 && contains(absolute.err, "safe relative path"),
+               "an absolute output directory is rejected");
+
+        const Outcome version = run({"test", "--script", fixture("bad-version.json")});
+        expect(version.code == 2 && contains(version.err, "unsupportedVersion"),
+               "an unsupported script version is reported");
+
+        const Outcome unsupported = run({"test", "--script", fixture("unsupported-action.json")});
+        expect(unsupported.code == 2 && contains(unsupported.err, "unsupportedAction"),
+               "a spec-only action is reported at parse time");
     }
 
     // Repeating an option keeps the last value; the parser does not silently ignore arguments.
     {
-        const Outcome repeated = run({"test", "--script", "a.json", "--script", "b.json"});
-        expect(repeated.code == 2 && contains(repeated.err, "not implemented"),
-               "last --script value wins");
-        expect(run({"test", "--script", "x", "--report", ""}).code == 2, "empty report rejected");
+        const std::string smoke = fixture("smoke.json");
+        const Outcome repeated = run({"test", "--script", smoke, "--script", "missing.json"});
+        expect(repeated.code == 2 && contains(repeated.err, "cannot read script"),
+               "the last --script value wins");
     }
 
     if (failures != 0) {
         std::cerr << "harness_cli: " << failures << " failure(s)\n";
         return 1;
     }
+    std::cout << "harness_cli: ok\n";
     return 0;
 }
