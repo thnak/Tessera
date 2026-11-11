@@ -58,12 +58,24 @@ int main() {
     check(label_text(root) == "Count: 0", "scheduling does not repaint inline");
     check(wakes.count == 1, "the setter woke the loop");
 
+    // Equality-gated: setting the value the cell already holds schedules nothing (ADR-041).
+    sample.set_count(3);
+    check(wakes.count == 1, "an unchanged value does not wake the loop again");
+    ui::UpdateFlushStats idle = scheduler.flush();
+    check(idle.updated == 1, "the earlier real change still flushed once");
+    sample.set_count(3);
+    check(!scheduler.pending(), "setting an equal value schedules no update");
+    check(scheduler.flush().updated == 0, "an equal-value set flushes nothing");
+    sample.set_count(3);
+    sample.set_count(4);
+    check(scheduler.pending(), "a different value schedules again");
+
     // Several setters in one tick batch into one update() at the flush.
     sample.set_count(4);
     sample.set_count(5);
-    check(wakes.count == 1, "further setters in the same tick do not wake again");
+    check(wakes.count == 2, "further setters in the same tick do not wake again");
     const ui::UpdateFlushStats stats = scheduler.flush();
-    check(stats.updated == 1, "three setters produce one update()");
+    check(stats.updated == 1, "several setters produce one update()");
     check(label_text(root) == "Count: 5", "the flush applied the latest state");
 
     // An async continuation sets state from a completion; the next flush repaints it.

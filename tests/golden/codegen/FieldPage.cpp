@@ -136,11 +136,17 @@ namespace demo {
     }
     
     void FieldPage::set_email(std::string value) {
+      if (state_email_ == value) {
+        return;
+      }
       state_email_ = std::move(value);
       schedule_update();
     }
     
     void FieldPage::set_rules(std::vector<std::string> value) {
+      if (state_rules_ == value) {
+        return;
+      }
       state_rules_ = std::move(value);
       schedule_update();
     }

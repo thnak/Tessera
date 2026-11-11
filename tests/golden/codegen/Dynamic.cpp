@@ -393,11 +393,17 @@ namespace dynamic {
     }
     
     void Dynamic::set_count(int value) {
+      if (state_count_ == value) {
+        return;
+      }
       state_count_ = std::move(value);
       schedule_update();
     }
     
     void Dynamic::set_items(std::vector<std::string> value) {
+      if (state_items_ == value) {
+        return;
+      }
       state_items_ = std::move(value);
       schedule_update();
     }
