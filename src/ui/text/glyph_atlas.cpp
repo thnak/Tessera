@@ -63,6 +63,7 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
     entry.bearing_x = bitmap.bearing_x;
     entry.bearing_y = bitmap.bearing_y;
     entry.advance = bitmap.advance;
+    entry.color = bitmap.color;
 
     if (bitmap.width != 0 && bitmap.height != 0) {
         bool placed = false;
@@ -244,6 +245,15 @@ std::int32_t GlyphAtlas::evict_page() {
 }
 
 void GlyphAtlas::upload(Page& page, const GlyphBitmap& bitmap, std::uint32_t x, std::uint32_t y) {
+    if (bitmap.color) {
+        for (std::uint32_t row = 0; row < bitmap.height; ++row) {
+            std::copy_n(bitmap.rgba.data() + static_cast<std::size_t>(row) * bitmap.width * 4,
+                        static_cast<std::size_t>(bitmap.width) * 4,
+                        page.pixels.data() +
+                            (static_cast<std::size_t>(y + row) * config_.page_width + x) * 4);
+        }
+        return;
+    }
     for (std::uint32_t row = 0; row < bitmap.height; ++row) {
         std::uint8_t* destination =
             page.pixels.data() + (static_cast<std::size_t>(y + row) * config_.page_width + x) * 4 +

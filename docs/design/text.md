@@ -112,9 +112,20 @@ glyph atlas and `TextRenderer` face-aware: both take a vector of rasterizers, `G
 the rasterizer and the atlas key is `(face, glyph, size)`, so equal glyph ids of different faces
 never collide and glyphs of every face share the pages and batch into one draw (tests
 `glyph_atlas_faces`, `text_render_faces`). A face index outside the stack is an empty, counted
-(`GlyphAtlasStats::dropped`) entry. `ScaleGlyphAtlas` stays single-face. Plan: 12c adds
-FreeType color loading (`FT_LOAD_COLOR`), RGBA pages and the bundled emoji face with its
-`THIRD_PARTY_NOTICES.md` and `dependencies.md` entries.
+(`GlyphAtlasStats::dropped`) entry. `ScaleGlyphAtlas` stays single-face.
+
+Slice 12c (done): color glyphs. `GlyphRasterizer` loads with `FT_LOAD_COLOR`; FreeType composites
+COLRv0 layers into BGRA, which is converted once to straight-alpha RGBA (`GlyphBitmap::color`,
+`rgba`). The atlas pages were already RGBA8, so a color glyph is copied in as is instead of white
+coverage and the entry carries `GlyphAtlasEntry::color`; there is no second page format and no
+extra texture bind. `TextRenderer` draws color entries with a white tint that keeps only the text
+color's alpha, so the glyph keeps its own colors. Test `glyph_color` uses the authored COLRv0
+fixture `tests/fixtures/fonts/ColorTest.ttf`. Limits: the pinned FreeType build disables PNG, so
+bitmap emoji (CBDT, sbix) do not render, and COLRv1 gradients are not supported by this path;
+the production emoji face must be COLRv0. **Not done:** choosing and bundling that face (the
+candidates and their licences need a decision: an OFL COLRv0 build of Noto Color Emoji, or
+Twemoji COLR with attribution), its `THIRD_PARTY_NOTICES.md` and `dependencies.md` rows, a
+default stack that ends with it, and a color tofu/placeholder for clusters no face covers.
 
 ## 5. Glyph atlas (implemented subset)
 

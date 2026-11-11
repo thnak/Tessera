@@ -17,7 +17,13 @@ struct GlyphBitmap {
     std::int32_t bearing_x = 0;
     std::int32_t bearing_y = 0;
     float advance = 0.0f;
+    // A color glyph (COLRv0 layers composited by FreeType, issue #12) carries straight-alpha RGBA8
+    // in `rgba` (width x height x 4) and leaves `coverage` empty; every other glyph is coverage
+    // only. Color glyphs scale with the pixel size like outlines; embedded bitmap strikes (CBDT,
+    // sbix) need PNG support, which the pinned FreeType build disables.
+    bool color = false;
     std::vector<std::uint8_t> coverage;
+    std::vector<std::uint8_t> rgba;
 };
 
 // Rasterizes glyphs from one loaded face at integer pixel sizes. The rasterizer mutates the
