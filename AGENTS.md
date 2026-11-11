@@ -665,9 +665,12 @@ Next slices, in order:
    window, Vulkan Xlib surface/swapchain, and bounded event wait with `runtime::wait_for_next_frame`
    landed; swapchain image render targets, Win32/X11 render+present, and the windowed POC
    pacing demo are wired; the windowed POC and both swapchain smoke tests submit asynchronously
-   with two frames in flight, and the POC is driven by `RuntimeLoop` + `SteadyClock`. Wayland,
-   device-loss recovery, and driving the render-on-demand loop (`--on-demand`, scripted changes) with
-   real platform input are next
+   with two frames in flight, and the POC is driven by `RuntimeLoop` + `SteadyClock`. Device-loss
+   recovery is wired: `app/recovery_policy.hpp` charges at most three attempts per run, rebuilds the
+   device/swapchain/sink/renderer/text stack at the current metrics (or waits for the runtime's
+   recovered tick), never waits device-wide on the UI thread, and a failed recovery ends through
+   `FrameFailureGuard` with `stats.stalled`; `app_window_recovery` drives it. Wayland and driving the
+   render-on-demand loop (`--on-demand`, scripted changes) with real platform input are next
    (`docs/design/window-resize.md` §0 lists the X11 limits).
 3. Platform input translation beyond Windows pointer/wheel/key/text (Linux/X11 next; touch, IME,
    hover/active). Focus is complete on the scene side: tab order, `:focus`, `:focus-visible`
