@@ -3,6 +3,7 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
+#include "x11_input.hpp"
 
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
@@ -92,13 +93,16 @@ public:
     }
     std::size_t poll_events(std::span<WindowEvent> events) override;
     bool wait_for_events(double timeout_seconds) override;
+    void set_input_queue(ui::InputQueue* queue) override {
+        input_.set_queue(queue);
+    }
     void show() override;
     void hide() override;
     void request_redraw() override;
     void close() override;
 
 private:
-    void handle_event(XEvent& event);
+    void handle_event(XEvent& event, bool auto_repeat = false);
     void enqueue(WindowEventType type);
     void request_close();
     void pump(bool discard);
@@ -115,6 +119,7 @@ private:
     Atom wm_delete_window_ = 0;
     std::thread::id owner_thread_ = std::this_thread::get_id();
     EventQueue events_;
+    X11InputTranslator input_;
     bool initializing_ = true;
     bool mapped_ = false;
     bool focused_ = false;
@@ -142,8 +147,10 @@ bool X11Window::create(const WindowDesc& desc) {
     XSetWindowAttributes attributes{};
     attributes.background_pixel = BlackPixel(display_, screen_);
     // StructureNotify carries ConfigureNotify/DestroyNotify; Exposure carries the redraw wake;
-    // FocusChange is normalized to Focus/Blur.
-    attributes.event_mask = StructureNotifyMask | ExposureMask | FocusChangeMask;
+    // FocusChange is normalized to Focus/Blur; key, button and motion events feed the input queue.
+    attributes.event_mask = StructureNotifyMask | ExposureMask | FocusChangeMask | KeyPressMask |
+                            KeyReleaseMask | ButtonPressMask | ButtonReleaseMask |
+                            PointerMotionMask;
 
     window_ = XCreateWindow(display_, root_, 0, 0, width, height, 0, CopyFromParent, InputOutput,
                             CopyFromParent, CWBackPixel | CWEventMask, &attributes);
@@ -239,7 +246,12 @@ void X11Window::request_close() {
     enqueue(WindowEventType::Close);
 }
 
-void X11Window::handle_event(XEvent& event) {
+void X11Window::handle_event(XEvent& event, bool auto_repeat) {
+    // Input events (and the input half of focus changes) go to the queue; focus still falls
+    // through to the window's own Focus/Blur state below.
+    if (input_.handle(event, dpi_scale(dpi_), auto_repeat)) {
+        return;
+    }
     switch (event.type) {
     case ConfigureNotify: {
         const XConfigureEvent& configure = event.xconfigure;
@@ -295,14 +307,28 @@ void X11Window::pump(bool discard) {
     while (XPending(display_) > 0) {
         XEvent event{};
         XNextEvent(display_, &event);
-        if (!discard) {
-            handle_event(event);
+        if (discard) {
+            continue;
         }
+        bool auto_repeat = false;
+        if (event.type == KeyRelease && XPending(display_) > 0) {
+            // Auto-repeat arrives as a release immediately followed by a press with the same
+            // keycode and timestamp. Drop the release and deliver the press as a repeat.
+            XEvent next{};
+            XPeekEvent(display_, &next);
+            if (next.type == KeyPress &&
+                X11InputTranslator::is_auto_repeat_pair(event.xkey, next.xkey)) {
+                XNextEvent(display_, &event);
+                auto_repeat = true;
+            }
+        }
+        handle_event(event, auto_repeat);
     }
 }
 
 bool X11Window::has_pending_events() const {
-    return events_.count() > 0 || (close_requested_ && !close_delivered_) || redraw_pending_;
+    return events_.count() > 0 || (close_requested_ && !close_delivered_) || redraw_pending_ ||
+           input_.pending();
 }
 
 std::size_t X11Window::poll_events(std::span<WindowEvent> events) {
