@@ -32,6 +32,7 @@ using tessera::ui::text::TextDirection;
 using tessera::ui::text::TextLayout;
 using tessera::ui::text::TextLine;
 using tessera::ui::text::TextStyle;
+using tessera::ui::text::WhiteSpace;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -56,7 +57,15 @@ TextLayout layout(std::string_view text, float width = 1000.0f, bool wrap = true
 }
 
 float advance(std::string_view text, const TextStyle& /*text_style*/, void* /*user*/) {
-    return layout(text, 100000.0f, false).width;
+    // Literal advance seam: a run slice may end with a separator, which the collapsing modes would
+    // trim if this went through the mode's line layout.
+    TextStyle literal = style();
+    literal.white_space = WhiteSpace::Pre;
+    TextConstraints constraints;
+    constraints.wrap = false;
+    constraints.max_width = 100000.0f;
+    return layout_text(text, literal, StubFontMetricsProvider{}.metrics(literal), constraints)
+        .width;
 }
 
 bool runs_cover_line(const TextLine& line) {

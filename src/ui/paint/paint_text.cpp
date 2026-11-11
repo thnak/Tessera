@@ -10,11 +10,13 @@
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
+#include "tessera/ui/text/text_paint.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -63,20 +65,73 @@ float bidi_advance(std::string_view text, const text::TextStyle& style, void* us
 }
 
 // Visual x of a logical byte offset relative to the line start. Uses the bidi run order/affinity
-// when the line has visual runs; pure LTR lines keep the plain measured prefix.
+// when the line has visual runs; pure LTR lines sum the painted segments of the prefix, so a
+// collapsed interior run costs the one space advance the layout measured.
 float line_offset_x(std::string_view text, const text::TextLine& line, std::size_t offset,
                     const text::TextStyle& style, const PaintTextMetricsSource& source) {
     if (line.visual_runs.empty()) {
         const std::size_t clamped = std::min(std::max(offset, line.begin), line.end);
-        return source.advance(text.substr(line.begin, clamped - line.begin), style);
+        float x = 0.0f;
+        text::PaintedSegmentCursor cursor(text, line.begin, clamped, style.white_space);
+        text::PaintedSegment segment;
+        while (cursor.next(segment)) {
+            x += source.advance(segment.source, style);
+        }
+        return x;
     }
     return text::bidi_offset_x(text, line, offset, style, &bidi_advance,
                                const_cast<PaintTextMetricsSource*>(&source));
 }
 
-// Emits one line's glyph runs left-to-right in visual order. A line with no visual runs emits the
-// same single TextDraw as before bidi integration (LTR byte-identical); bidi lines emit one draw
-// per visual run at its measured x, with RTL runs still shaped as an RTL slice.
+// Emits the painted segment sequence of one source range (docs/design/text.md section 6.2),
+// advancing `x`. `single_width` is set when the range is a whole line: if it paints as one run the
+// laid-out box width is authoritative, so the painted advance equals the measured line width for
+// every metrics source (the sink still shapes `source`).
+void emit_range_segments(std::string_view text, const text::TextLine& line, std::size_t begin,
+                         std::size_t end, bool trim_edges, std::optional<float> single_width,
+                         const text::TextStyle& text_style, const PaintTextMetricsSource& source,
+                         float& x, float line_top, const rhi::Color& color, PaintSink& sink,
+                         PaintStats& stats) {
+    text::PaintedSegmentCursor cursor(text, begin, end, text_style.white_space, trim_edges);
+    text::PaintedSegment first;
+    if (!cursor.next(first)) {
+        return;
+    }
+    text::PaintedSegment second;
+    const bool has_second = cursor.next(second);
+    const bool single = !has_second && first.source_begin == begin && first.source_end == end;
+
+    const auto emit = [&](const text::PaintedSegment& segment, float width) {
+        TextDraw run;
+        run.rect = {std::round(x), std::round(line_top), width, line.height};
+        run.text = segment.source;
+        run.font_size = text_style.font_size;
+        run.font_weight = text_style.font_weight;
+        run.color = color;
+        run.baseline = std::round(line_top + line.baseline);
+        sink.draw_text(run);
+        ++stats.texts;
+        x += width;
+    };
+    if (single) {
+        emit(first, single_width.value_or(source.advance(first.source, text_style)));
+        return;
+    }
+    emit(first, source.advance(first.source, text_style));
+    if (!has_second) {
+        return;
+    }
+    emit(second, source.advance(second.source, text_style));
+    while (cursor.next(second)) {
+        emit(second, source.advance(second.source, text_style));
+    }
+}
+
+// Emits one line's glyph runs left-to-right in visual order, applying the mode's paint-time
+// segment transform: `normal`/`nowrap` paint a collapsed run as the one space advance the layout
+// measured, while `pre`, `pre-wrap` and `break-spaces` keep every preserved byte in one run. A
+// bidi line applies the same transform per visual run, and only the run that owns a separator
+// run's first byte paints its collapsed space.
 void emit_line_runs(const text::TextLine& line, std::string_view text,
                     const text::TextStyle& text_style, const PaintTextMetricsSource& source,
                     float line_x, float line_top, const rhi::Color& color, PaintSink& sink,
@@ -85,15 +140,9 @@ void emit_line_runs(const text::TextLine& line, std::string_view text,
         return;
     }
     if (line.visual_runs.empty()) {
-        TextDraw run;
-        run.rect = {std::round(line_x), std::round(line_top), line.width, line.height};
-        run.text = text.substr(line.begin, line.end - line.begin);
-        run.font_size = text_style.font_size;
-        run.font_weight = text_style.font_weight;
-        run.color = color;
-        run.baseline = std::round(line_top + line.baseline);
-        sink.draw_text(run);
-        ++stats.texts;
+        float x = line_x;
+        emit_range_segments(text, line, line.begin, line.end, true, line.width, text_style, source,
+                            x, line_top, color, sink, stats);
         return;
     }
     float x = line_x;
@@ -101,19 +150,8 @@ void emit_line_runs(const text::TextLine& line, std::string_view text,
         if (visual_run.end <= visual_run.begin) {
             continue;
         }
-        const std::string_view slice =
-            text.substr(visual_run.begin, visual_run.end - visual_run.begin);
-        const float width = source.advance(slice, text_style);
-        TextDraw run;
-        run.rect = {std::round(x), std::round(line_top), width, line.height};
-        run.text = slice;
-        run.font_size = text_style.font_size;
-        run.font_weight = text_style.font_weight;
-        run.color = color;
-        run.baseline = std::round(line_top + line.baseline);
-        sink.draw_text(run);
-        ++stats.texts;
-        x += width;
+        emit_range_segments(text, line, visual_run.begin, visual_run.end, false, std::nullopt,
+                            text_style, source, x, line_top, color, sink, stats);
     }
 }
 
@@ -374,8 +412,10 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         return;
     }
     if (!wrap) {
-        // Pure LTR no-wrap keeps the exact pre-bidi single draw. Bidi text needs the line's visual
-        // runs, so lay it out and emit one draw per run (same shaping advances).
+        // One line. The fast path below (whole text painted as one run) stays the pre-transform
+        // single draw, so ordinary text keeps the box rect and sink top-alignment byte-identical.
+        // A collapsing mode that trims edges or collapses an interior run, or bidi text that needs
+        // the line's visual runs, emits the painted segment sequence instead.
         text::TextConstraints no_wrap_constraints;
         no_wrap_constraints.wrap = false;
         no_wrap_constraints.max_width = content_width;
@@ -384,13 +424,25 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         if (data->max_lines > 0 && no_wrap_layout.lines.size() > data->max_lines) {
             no_wrap_layout.lines.resize(data->max_lines);
         }
-        if (!no_wrap_layout.lines.empty() && !no_wrap_layout.lines.front().visual_runs.empty()) {
-            const text::TextLine& line = no_wrap_layout.lines.front();
+        if (no_wrap_layout.lines.empty()) {
+            return;
+        }
+        const text::TextLine& line = no_wrap_layout.lines.front();
+        bool identity = false;
+        if (line.visual_runs.empty()) {
+            text::PaintedSegmentCursor cursor(data->text, line.begin, line.end,
+                                              text_style.white_space, true);
+            text::PaintedSegment only;
+            text::PaintedSegment extra;
+            identity = cursor.next(only) && !cursor.next(extra) && only.source_begin == 0 &&
+                       only.source_end == data->text.size();
+        }
+        if (!identity) {
             float line_x = content_x;
-            const PaintTextAlign align = data->text_align.value_or(computed_text_align(style));
-            if (align == PaintTextAlign::Center) {
+            const PaintTextAlign line_align = data->text_align.value_or(computed_text_align(style));
+            if (line_align == PaintTextAlign::Center) {
                 line_x += (content_width - line.width) * 0.5f;
-            } else if (align == PaintTextAlign::End) {
+            } else if (line_align == PaintTextAlign::End) {
                 line_x += content_width - line.width;
             }
             emit_line_runs(line, data->text, text_style, *metrics_source,

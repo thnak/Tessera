@@ -49,9 +49,14 @@ public:
     }
     [[nodiscard]] float advance(std::string_view text,
                                 const text::TextStyle& style) const override {
+        // The raw advance seam is literal: it must never trim or collapse, because the wrap adds
+        // `advance(" ")` for a collapsed run and paint measures that same one-space segment with
+        // this call.
+        text::TextStyle literal = style;
+        literal.white_space = text::WhiteSpace::Pre;
         text::TextConstraints no_wrap;
         no_wrap.wrap = false;
-        return layout(text, style, no_wrap).width;
+        return layout(text, literal, no_wrap).width;
     }
     [[nodiscard]] text::TextLayout layout(std::string_view text, const text::TextStyle& style,
                                           const text::TextConstraints& constraints) const override {

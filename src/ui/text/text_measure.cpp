@@ -50,12 +50,16 @@ bool parse_number(std::string_view text, float& value) {
 }
 
 // CSS `white-space` keyword to the mode the wrap understands (docs/design/text.md section 6).
-// `pre` is the no-wrap mode because NoWrap already preserves runs; `pre-line`, `normal`, and an
-// unknown value all collapse and wrap. Unknown values stay tolerant like the rest of the parser.
+// `nowrap` keeps one line but collapses runs, `pre` keeps one literal line, and `pre-line` maps to
+// Normal because the paragraph split already honors hard newlines. Unknown values stay tolerant
+// like the rest of the parser.
 WhiteSpace parse_white_space(std::string_view value) {
     const std::string token = lower(trim(value));
-    if (token == "nowrap" || token == "pre") {
+    if (token == "nowrap") {
         return WhiteSpace::NoWrap;
+    }
+    if (token == "pre") {
+        return WhiteSpace::Pre;
     }
     if (token == "pre-wrap") {
         return WhiteSpace::PreWrap;

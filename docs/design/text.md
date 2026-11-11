@@ -202,28 +202,33 @@ field, so a stylesheet value reaches the wrap without a second parse.
 | Mode | CSS keywords | Interior run | Line edges | Wraps |
 |---|---|---|---|---|
 | `Normal` | `normal`, `pre-line`, unknown | collapses to one space advance | trimmed | yes |
-| `NoWrap` | `nowrap`, `pre` | literal | literal (whole text, one line) | no |
+| `NoWrap` | `nowrap` | collapses to one space advance | trimmed (one line) | no |
+| `Pre` | `pre` | literal | literal (whole text, one line) | no |
 | `PreWrap` | `pre-wrap` | literal | trimmed | yes |
 | `BreakSpaces` | `break-spaces` | literal; every preserved space is its own unit | preserved | yes |
 
-- **Collapsing** (`normal`) measures an interior separator run as the advance of one space
-  (`measure(" ")`), not the run: `foo   bar` is 56 px at 16 px stub metrics instead of 72. The
-  *painted slice* still spans the source bytes, because a `TextLine` is a source range: the measured
-  width is the collapsed one, and a real collapse stage is the remaining contract below.
+- **Collapsing** (`normal`, `nowrap`) measures an interior separator run as the advance of one
+  space (`measure(" ")`), not the run: `foo   bar` is 56 px at 16 px stub metrics instead of 72.
+  Paint applies the same rule (section 6.2): the line's source range maps to `foo`, one borrowed
+  space, `bar`, so the painted advances are 24 + 8 + 24 = 56 = the line width. A single plain space
+  stays inside its neighbouring painted run, so ordinary prose is still one glyph run per line.
 - **Trimming** is the task-106 LB18 rule: a whitespace run belongs to the segment before it, so a
   break always sits *after* the spaces and the wrap trims both edges of every segment. A trailing
   space never advances a line and never reaches the painted slice; a leading space never starts one.
+  `nowrap` is one line, so the same edge rule trims its two ends.
 - **`break-spaces`** preserves every run and gives each ASCII collapsible whitespace character its
   own line unit, so a break opportunity exists after every preserved space and a line may start,
   end, or consist only of spaces. A non-space run stays one unit unless it is wider than the
   constraint, where the over-wide split uses the last legal UAX #14 break inside the prefix. A unit
   that alone exceeds the constraint (a space narrower than the line, for example) owns its line and
   overflows it; that is the only way a line exceeds `max_width`.
-- **`nowrap` keeps the pre-task-110 path**: one line with separators measured literally, so it
-  preserves runs instead of collapsing them the way CSS `nowrap` does. The deviation is deliberate,
-  because that path is what every existing no-wrap paint fixture and golden pins. `pre` maps here
-  (it also preserves and does not wrap); collapsing `nowrap` needs the same text-transform stage
-  `normal` needs for painting, so both are deferred together.
+- **`nowrap` collapses but does not wrap**: the single-line path trims both edges and measures every
+  interior run as one space, and paint collapses it identically. `pre` is its own mode now
+  (`WhiteSpace::Pre`, new in this slice) so it still preserves runs and hard newlines literally on
+  one line; before the collapse stage both keywords mapped to `NoWrap`, which is why the pre-task-110
+  no-wrap fixtures were literal. `pre-line` still maps to `Normal`: the paragraph split already
+  keeps hard newlines, so collapsing (and the per-paragraph line boxes) is its whole observable
+  contract.
 - `wrap = false`, a mode that does not wrap, and a non-finite width all take the single-line path.
 
 Fixture deltas (task-110). Every fixture whose corpus is single-spaced ASCII is unchanged: with one
@@ -244,23 +249,60 @@ font = 8 px per code point):
 | em dash `aaaa—bbbb` at 56 px, builtin | `[0,9)` / `[9,11)` | unchanged |
 | em dash same, ICU | `[0,7)` / `[7,11)` | unchanged |
 
+Paint/collapse deltas (this slice). `normal` line boxes do not move; only the painted slices do.
+`nowrap` (previously literal) moves to the same collapse rule on one edge-trimmed line, and `pre`
+takes over the old literal path under its own mode:
+
+| Fixture | before (task-110) | after (this slice) |
+|---|---|---|
+| `alpha  beta` paint, `normal` | one run, box 80, source 88 | `alpha` / space / `beta`, 40 + 8 + 32 = 80 |
+| `foo   bar` paint, `normal` | one run, box 56, source 72 | `foo` / space / `bar`, 24 + 8 + 24 = 56 |
+| `foo   bar`, `nowrap` | width 72, range [0,9) | width 56, range [0,9), same 3 segments |
+| `hello world   `, `nowrap` | width 112, range [0,14) | width 88, range [0,11) |
+| `   hello`, `nowrap` | width 64, range [0,8) | width 40, range [3,8) |
+| `a\t\tb`, `nowrap` | width 32 | width 24 |
+| `foo   bar`, `pre` | width 72 (was `NoWrap`) | width 72, range [0,9), one literal run |
+
 The mode matrix is pinned in `tests/unit/text_layout_tests.cpp` (interior runs, leading/trailing,
-tabs, blank lines, CJK + spaces, em dash, determinism) and `tests/unit/paint_text_wrap_tests.cpp`
-(collapse and preservation reaching paint, a line of preserved spaces, break-spaces overflow).
+tabs, blank lines, CJK + spaces, em dash, determinism), `tests/unit/paint_text_wrap_tests.cpp`
+(collapse and preservation reaching paint, a line of preserved spaces, break-spaces overflow), and
+`tests/unit/text_paint_tests.cpp` (the painted segment/advance sequence per mode, section 6.2).
 `text_breaks_parity` runs the **same corpus per mode through both engines** and requires identical
 line boxes, plus the em-dash BA difference for every narrowing mode.
 
 Remaining contract, not implemented in this slice:
 
-- A text-transform/collapse stage for painting: `normal` measures a collapsed run but paints the
-  source bytes of the line's range, so an emitted slice can be wider than its line box until that
-  exists. `nowrap` collapsing and `pre-line` newline handling (`pre-line` maps to `normal` because
-  the paragraph split already honors hard newlines) land with it.
+- `text-transform` (upper/lower/capitalize) and `word-spacing`: they change the painted bytes
+  themselves, which the whitespace mapping of section 6.2 does not own.
+- `HitTest`/caret mapping by point still sums literal per-cluster advances; paint's own caret and
+  selection already walk the painted segments, so collapsing a point-to-caret map is a follow-up.
 - `text-overflow: ellipsis` needs measured ellipsis width; no mid-glyph clipping.
 - `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
 - Bidi: visual order per line; alignment uses the paragraph direction.
 - Baseline: layout uses the first line's baseline for alignment; multi-line boxes document
   their baseline choice.
+
+### 6.2 Paint-time segment transform
+
+`text::PaintedSegmentCursor` (`ui/text/text_paint.hpp`, `src/ui/text/text_paint.cpp`) is the painted
+contract. It walks a `TextLine`'s source range and yields
+`PaintedSegment{source, source_begin, source_end, collapsed}` without allocating: `source` views the
+layout text, or borrows the one-byte static space (`kCollapsedSpace`) that a collapsed run paints.
+Paint (`src/ui/paint/paint_text.cpp`) measures each segment with the same metrics source the wrap
+used and emits one `TextDraw` per segment, so a line's painted advances sum to its laid-out width.
+
+| Mode | Source range to painted segments |
+|---|---|
+| `Normal`, `NoWrap` | content spans plus one borrowed space per collapsible run; a single plain space stays inside its span; line edges trim |
+| `Pre`, `PreWrap` | one segment spanning the trimmed line range: every preserved byte paints |
+| `BreakSpaces` | one segment spanning the line range: every preserved space paints because the wrap made it a line unit |
+
+When the sequence is one segment covering the whole line range, the run's box width is the laid-out
+`TextLine::width`, so a single-run line is exact for real-font metrics too. Bidi lines run the
+cursor per visual run; a separator run cut by a run boundary paints its one space only in the run
+that owns its first byte. The trim flag is what keeps a whitespace-only `normal` line box (range
+[begin,end), width 0) from painting its trimmed spaces. Per-mode pinned sequences and the
+segment-sum-equals-line-width invariant live in `tests/unit/text_paint_tests.cpp`.
 
 ## 7. Caches
 
