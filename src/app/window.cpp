@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/app/window.hpp"
+#include "tessera/app/frame_guard.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
@@ -24,7 +25,6 @@ namespace rhi = tessera::rendering::rhi;
 namespace hal = tessera::hal;
 
 constexpr std::size_t kFramesInFlight = 2;
-constexpr std::uint32_t kSlotWaitMs = 1000;
 constexpr std::size_t kMaxWindowEvents = 16;
 
 bool subtree_dirty(const ui::Node& root) {
@@ -102,10 +102,19 @@ struct WindowHost::Impl {
         }
     }
 
-    // One rendered frame: wait for the reused slot, acquire, paint the whole scene, submit async
-    // and present. Returns false when the frame could not be produced (slot busy, no image).
+    // Recreates the swapchain at the window's current physical size. OutOfDate means the surface
+    // changed size; resize(extent()) would be the documented no-op and never clear the error.
+    void recreate_swapchain() {
+        const hal::WindowMetrics current = window->metrics();
+        swapchain->resize({current.physical_width, current.physical_height});
+    }
+
+    // One rendered frame: reuse a free slot, acquire, paint the whole scene, submit async and
+    // present. Returns false when the frame could not be produced (slot busy, no image).
     bool render_and_present() {
-        if (in_flight[slot] && !in_flight[slot]->wait(kSlotWaitMs)) {
+        // A slot whose GPU work is still running is skipped, never waited on: the UI thread must not
+        // block on the GPU (ADR-021). The frame is retried on the next tick.
+        if (in_flight[slot] && !in_flight[slot]->is_complete()) {
             return false;
         }
         in_flight[slot].reset();
@@ -118,7 +127,8 @@ struct WindowHost::Impl {
                 break;
             }
             if (acquired.error() == rhi::SwapchainError::OutOfDate) {
-                swapchain->resize(swapchain->extent());
+                // A same-size resize is a documented no-op, so recreate at the window's real size.
+                recreate_swapchain();
                 continue;
             }
             break;
@@ -149,7 +159,7 @@ struct WindowHost::Impl {
         if (present || present.error() == rhi::SwapchainError::Suboptimal) {
             ++stats.presented;
         } else if (present.error() == rhi::SwapchainError::OutOfDate) {
-            swapchain->resize(swapchain->extent());
+            recreate_swapchain();
         }
         return true;
     }
@@ -174,6 +184,9 @@ struct WindowHost::Impl {
 
         bool closed = false;
         double last_tick = hal::steady_now_seconds();
+        // A frame that keeps failing (lost device, a slot that never completes, a swapchain that
+        // never yields an image) stops the run instead of spinning or hanging (ADR-021).
+        FrameFailureGuard failures;
         std::array<hal::WindowEvent, kMaxWindowEvents> events{};
         // Startup is a frame cause: the scene has no dirty flags until the first layout.
         loop->mark_render_dirty();
@@ -207,6 +220,17 @@ struct WindowHost::Impl {
             }
 
             const runtime::RuntimeTick tick = loop->tick();
+            if (tick.device_blocked) {
+                // Idle on the bounded platform wait (never spin), and give up after a few ticks so a
+                // bounded run (`--frames N`) still terminates on a lost device.
+                ++stats.idle_waits;
+                if (failures.failed()) {
+                    stats.stalled = true;
+                    break;
+                }
+                window->wait_for_events(0.05);
+                continue;
+            }
             if (!tick.should_render) {
                 ++stats.idle_waits;
                 window->wait_for_events(0.25);
@@ -226,9 +250,14 @@ struct WindowHost::Impl {
 
             if (!render_and_present()) {
                 ++stats.idle_waits;
+                if (failures.failed()) {
+                    stats.stalled = true;
+                    break;
+                }
                 window->wait_for_events(0.002);
                 continue;
             }
+            failures.succeeded();
             host->end_frame();
             loop->clear_render_dirty();
             if (force_frames && stats.frames >= max_frames) {

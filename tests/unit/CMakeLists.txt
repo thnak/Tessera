@@ -240,6 +240,14 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# The window driver stops after a bounded run of frame failures instead of spinning or hanging.
+add_executable(app_frame_guard_tests
+    app_frame_guard_tests.cpp)
+
+target_link_libraries(app_frame_guard_tests PRIVATE tessera_app)
+
+add_test(NAME app_frame_guard COMMAND app_frame_guard_tests)
+
 # Input through the window pump: hover/active, click synthesis and typed text on the generated Demo.
 # The generated demo target only exists on host builds.
 if (TARGET tessera_compiler_demo)

@@ -39,6 +39,7 @@ struct WindowOptions {
 // available == false and zero frames.
 struct WindowFrameStats {
     bool available = false;
+    bool stalled = false; // run() gave up after repeated frame failures (lost device, no image)
     std::uint32_t frames = 0; // frames painted and submitted
     std::uint32_t presented = 0;
     std::uint32_t idle_waits = 0;
