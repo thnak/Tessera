@@ -251,17 +251,29 @@ EditOffset snap_to_cluster(std::string_view text, EditOffset offset) {
     return text.size();
 }
 
+namespace {
+
+// Index of the word-set segment containing `offset` (the last segment when offset == size).
+std::size_t segment_at(const BreakBoundaries& boundaries, EditOffset offset) {
+    std::size_t index = 0;
+    while (index + 2 < boundaries.offsets.size() && boundaries.offsets[index + 1] <= offset) {
+        ++index;
+    }
+    return index;
+}
+
+} // namespace
+
 EditOffset word_left(std::string_view text, EditOffset offset) {
     const EditOffset limit = offset > text.size() ? text.size() : offset;
-    const BreakBoundaries boundaries = word_boundaries(text);
-    // The greatest boundary before `limit` that starts a word: the caret skips the whitespace or
-    // punctuation run and lands on the previous word, matching the pre-ICU navigation rule.
-    for (std::size_t index = boundaries.offsets.size(); index-- > 0;) {
+    const WordSet set = word_set(text);
+    const BreakBoundaries& boundaries = set.boundaries;
+    const std::vector<bool>& is_word = set.is_word;
+    // The start of the nearest word segment before `limit`: the caret skips the whitespace or
+    // punctuation run and lands on the previous word.
+    for (std::size_t index = is_word.size(); index-- > 0;) {
         const EditOffset at = boundaries.offsets[index];
-        if (at >= limit) {
-            continue;
-        }
-        if (at == 0 || is_word_codepoint(codepoint_at(text, at))) {
+        if (at < limit && (at == 0 || is_word[index])) {
             return at;
         }
     }
@@ -272,26 +284,18 @@ EditOffset word_right(std::string_view text, EditOffset offset) {
     if (offset >= text.size()) {
         return text.size();
     }
-    const BreakBoundaries boundaries = word_boundaries(text);
-    // Inside a word the caret moves to the end of that word; otherwise it skips the non-word run
-    // and lands on the end of the next word.
-    if (is_word_codepoint(codepoint_at(text, offset))) {
-        for (const EditOffset at : boundaries.offsets) {
-            if (at > offset) {
-                return at;
-            }
-        }
+    const WordSet set = word_set(text);
+    const BreakBoundaries& boundaries = set.boundaries;
+    const std::vector<bool>& is_word = set.is_word;
+    if (is_word.empty()) {
         return text.size();
     }
-    for (std::size_t index = 0; index < boundaries.offsets.size(); ++index) {
-        const EditOffset at = boundaries.offsets[index];
-        if (at < offset || at >= text.size()) {
-            continue;
+    // Inside a word the caret moves to the end of that word; otherwise it skips the non-word run
+    // and lands on the end of the next word.
+    for (std::size_t index = segment_at(boundaries, offset); index < is_word.size(); ++index) {
+        if (is_word[index]) {
+            return boundaries.offsets[index + 1];
         }
-        if (!is_word_codepoint(codepoint_at(text, at))) {
-            continue;
-        }
-        return index + 1 < boundaries.offsets.size() ? boundaries.offsets[index + 1] : text.size();
     }
     return text.size();
 }

@@ -38,6 +38,16 @@ struct BreakBoundaries {
 // Word break opportunities (UAX #29 word boundaries via ubrk_* when ICU is linked).
 [[nodiscard]] BreakBoundaries word_boundaries(std::string_view text);
 
+// A word break set plus the classification of each segment: segment i spans
+// [offsets[i], offsets[i+1]) and is_word[i] is true for letters, digits, ideographs and kana, false
+// for whitespace and punctuation. ICU supplies it from the UAX #29 rule status, so it needs no
+// Unicode property data; the builtin backend classifies by `is_word_codepoint`.
+struct WordSet {
+    BreakBoundaries boundaries;
+    std::vector<bool> is_word;
+};
+[[nodiscard]] WordSet word_set(std::string_view text);
+
 // Line break opportunities (UAX #14 via ubrk_* when ICU is linked). These are the segments the
 // greedy wrap places, plus the legal break points inside a run wider than the constraint.
 [[nodiscard]] BreakBoundaries line_boundaries(std::string_view text);
