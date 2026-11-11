@@ -589,6 +589,20 @@ across the builtin and ICU backends. Known limitation: a `TextLine` is still a s
 `Normal` the measured width is collapsed while the painted slice still spans the source bytes - the
 next text slice is a paint-time collapse/transform stage (which also carries `nowrap` collapsing and
 `pre-line` newlines), then `text-overflow: ellipsis`.
+The app host lane (`src/app/`, `include/tessera/app/host.hpp`) connects the finished pieces:
+`AppHost` runs the docs/design/app-host.md section 3 order for one scene root (animation tick ->
+dirty collection -> selector tree rebuild -> Yoga layout + `apply_layout` -> `sync_style` ->
+damage/redraw plan -> paint), owns the compiled stylesheet, `SceneStyleTree`/provider, layout
+engine, `DirtyPass`, `DamageTracker`/`DamageAccumulator` and `FramePipeline`, and borrows the root
+and the `RuntimeLoop`; it never sees a window, swapchain or device. `tests/unit/app_host_tests.cpp`
+covers first frame, idle (zero work), paint-only damage, resize/DPI and settling. Supporting slice:
+`SceneStyleTree` now populates tag/id/classes/has_text from scene element metadata, so a compiled
+stylesheet styles generated nodes by type, class and id (`tests/unit/scene_style_metadata_tests.cpp`).
+Next for this lane: a window runner (visible Win32 window + Vulkan swapchain + `Batched2DSink` +
+`TextRenderer`, resize/DPI/close) and the `InputPump` wiring (OS input -> hit test -> click
+synthesis -> generated handler -> setState -> relayout -> repaint -> present), then
+`samples/click-demo`.
+
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes

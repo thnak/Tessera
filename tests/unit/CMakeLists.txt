@@ -233,6 +233,13 @@ target_link_libraries(scene_style_metadata_tests PRIVATE tessera_style)
 
 add_test(NAME scene_style_metadata COMMAND scene_style_metadata_tests)
 
+add_executable(app_host_tests
+    app_host_tests.cpp)
+
+target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME app_host COMMAND app_host_tests)
+
 add_executable(scene_dirty_tests
     scene_dirty_tests.cpp)
 

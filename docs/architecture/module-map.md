@@ -21,6 +21,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; style/layout/text/input/animation B2 core; view/responsive/accessibility planned |
 | `src/ui/input/` | normalized input event, bounded queue, move coalescing | B2 core |
 | `src/ui/style/` | CSS tokenizer, parser, selectors, cascade, media queries, `@supports`, keyframes, property registry | B2 core |
+| `src/app/` | app host: production frame loop (style, layout, sync, damage, paint) for one scene root, `tessera_app` | implemented; window runner + input driver next |
 | `src/rendering/rhi/` | thin RHI (render hardware interface) interfaces | B1; swapchain seam B3 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
