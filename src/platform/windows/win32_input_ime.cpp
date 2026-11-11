@@ -40,7 +40,7 @@ void Win32InputTranslator::ime_composition(HWND window, LPARAM lparam) {
         strings.composition_truncated =
             read(GCS_COMPSTR, strings.composition, strings.composition_length);
         const LONG cursor = ImmGetCompositionStringW(context, GCS_CURSORPOS, nullptr, 0);
-        if (cursor > 0) {
+        if (cursor >= 0) {
             strings.cursor = static_cast<std::uint32_t>(cursor);
         }
     }

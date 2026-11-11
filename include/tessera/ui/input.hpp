@@ -94,8 +94,8 @@ struct InputEvent {
     bool is_primary = false;
     // Bounded inline composition/edit payload: UTF-8 bytes. `text_size` counts valid bytes and
     // `text_truncated` is set when the platform string did not fit `kMaxEditTextBytes`. The
-    // selection range is in UTF-16 code units (the unit platforms report IME caret offsets in),
-    // even though the payload itself is UTF-8; consumers converting to byte offsets must convert.
+    // selection range is UTF-8 byte offsets into `text` (the HAL converts the platform's UTF-16
+    // IME caret), so it uses the same unit as the payload and as `TextChange`.
     std::array<char, kMaxEditTextBytes> text{};
     std::uint32_t text_size = 0;
     bool text_truncated = false;

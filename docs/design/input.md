@@ -459,7 +459,7 @@ Hover/active (implemented, primary pointer only):
 Text/IME routing (implemented, plumbing only): `Text` (one codepoint) and the IME family
 (`CompositionStart`/`Update`/`End`, `EditText`) go to the focused node through the normal path as
 the matching scene `EventType`; without focus they are dropped. The inline UTF-8 payload is capped at
-`kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection offsets are UTF-16 code units.
+`kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection offsets are UTF-8 byte offsets into that payload (HAL-converted).
 `prevent_default` is advisory (no framework text insertion yet).
 
 Keyboard accelerators (implemented): `InputRouter` owns a bounded `KeyBindingRegistry` of
@@ -480,7 +480,7 @@ Implemented plumbing (the text editor itself is a later slice):
   result string; `CompositionStart`/`Update`/`End` mirror the IME preedit lifecycle. All are routed
   to the focused node only (section 7).
 - Payload: inline UTF-8 capped at `kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection
-  offsets are UTF-16 code units as the platform reports them.
+  offsets are UTF-8 byte offsets into that payload; Win32 converts `GCS_CURSORPOS` from UTF-16.
 - Win32 reads `GCS_COMPSTR`/`GCS_RESULTSTR`/`GCS_CURSORPOS` bounded to 512 UTF-16 units and returns
   the messages handled, so there is no default IME insertion.
 

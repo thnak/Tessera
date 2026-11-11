@@ -69,13 +69,13 @@ struct Event {
     double timestamp_s = 0;
     bool is_primary = false;
     bool prevent_default = false;
-    // IME/text payload, mirrored from the normalized event: UTF-8 bytes plus the UTF-16
-    // code-unit selection range. `text_truncated` marks a payload cut at `kMaxEditTextBytes`.
+    // IME/text payload, mirrored from the normalized event: UTF-8 bytes plus the UTF-8
+    // byte selection range. `text_truncated` marks a payload cut at `kMaxEditTextBytes`.
     std::array<char, kMaxEditTextBytes> text{};
     std::uint32_t text_size = 0;
     bool text_truncated = false;
-    // For `TextChange` these are half-open UTF-8 byte offsets; for the IME/EditText events they are
-    // UTF-16 code units, as the platform reports them.
+    // Half-open UTF-8 byte offsets: into the full text for `TextChange`, into the inline payload
+    // for the IME/EditText events (the HAL converts the platform's UTF-16 caret).
     std::uint32_t selection_start = 0;
     std::uint32_t selection_end = 0;
     // Borrowed full-text view used by `TextChange`: points into the edit buffer and is only valid
