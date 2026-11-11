@@ -1614,6 +1614,13 @@ target_link_libraries(layout_scheduler_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_scheduler COMMAND layout_scheduler_tests)
 
+add_executable(layout_signature_tests
+    layout_signature_tests.cpp)
+
+target_link_libraries(layout_signature_tests PRIVATE tessera_layout)
+
+add_test(NAME layout_signature COMMAND layout_signature_tests)
+
 add_executable(swapchain_tests
     swapchain_tests.cpp)
 
