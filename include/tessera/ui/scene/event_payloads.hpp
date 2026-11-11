@@ -23,6 +23,7 @@ namespace tessera::ui {
 //   TextSelection    -> TextSelection
 //   CompositionEvent -> CompositionEvent
 //   ScrollEvent      -> ScrollEventInfo
+//   SizeChangeEvent  -> SizeChangeEvent (delivered by layout observation, not an Event)
 //   ErrorInfo        -> ErrorInfo
 //
 // Everything here is trivially copyable and allocation-free. String fields are borrowed views into
@@ -105,6 +106,15 @@ struct ScrollEventInfo {
     float offset_y = 0.0f;
     float viewport_width = 0.0f;
     float viewport_height = 0.0f;
+    float content_width = 0.0f;
+    float content_height = 0.0f;
+};
+
+// Layout-observation payload (docs/design/layout-observation.md section 5.5): border box and
+// content box size in logical px. It is delivered by `LayoutObserverSet`, not through an `Event`.
+struct SizeChangeEvent {
+    float width = 0.0f;
+    float height = 0.0f;
     float content_width = 0.0f;
     float content_height = 0.0f;
 };

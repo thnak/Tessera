@@ -36,7 +36,7 @@ IR kind `View`. Container; lays out its children with the style engine (Yoga). N
 | Children | nodes and text runs (section 0). Fragments splice; conditionals and `.map` allowed |
 | Props | none beyond the common attributes |
 | Implied role | `generic` |
-| Events | `onClick`; `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onPointerCancel` (payloads `ClickEvent`, `PointerEvent`) |
+| Events | `onClick`; `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onPointerCancel` (payloads `ClickEvent`, `PointerEvent`); `onSizeChange` (`SizeChangeEvent`, [common-and-events.md](common-and-events.md) section 2) |
 | Ref | `View` |
 
 A `View` with an event but no `role` and no accessible name gets the warning

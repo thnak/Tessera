@@ -17,6 +17,7 @@
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
+#include "emit_layout_observe.hpp"
 #include "emit_node.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
@@ -206,6 +207,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (!emit_schedule_definitions(writer, component, instances, error)) {
         return false;
     }
+    emit_size_observation_definitions(writer, component, module, adapters, instances);
     emit_controlled_accessors(writer, component, controlled_inputs);
     for (const ir::Handler& handler : component.handlers) {
         bool typed = false;

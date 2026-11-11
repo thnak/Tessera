@@ -36,6 +36,20 @@ void test_unknown_props_and_events() {
     check(!event_result.has_value(), "an unknown event is rejected");
     check_eq(first_code(event_result), "TESSERA_IR_UNKNOWN_PROP", "the unknown-event code");
 
+    const auto spacer_size = parse(component("  const [n, setN] = useState<int>(0);\n",
+                                             "<Spacer grow={1} onSizeChange={() => setN(1)} />"));
+    const auto spacer_size_result = lower(*spacer_size);
+    check(!spacer_size_result.has_value(), "a Spacer has no box to observe");
+    check_eq(first_code(spacer_size_result), "TESSERA_IR_UNKNOWN_PROP", "the Spacer code");
+
+    const auto boundary_size =
+        parse(component("  const [n, setN] = useState<int>(0);\n",
+                        "<ErrorBoundary fallback={<View />} onSizeChange={() => setN(1)}><View "
+                        "/></ErrorBoundary>"));
+    const auto boundary_size_result = lower(*boundary_size);
+    check(!boundary_size_result.has_value(), "an ErrorBoundary has no box to observe");
+    check_eq(first_code(boundary_size_result), "TESSERA_IR_UNKNOWN_PROP", "the boundary code");
+
     const auto aria = parse(component("", "<View aria-labelledby=\"x\" />"));
     const auto aria_result = lower(*aria);
     check(!aria_result.has_value(), "an unknown aria-* name is rejected");

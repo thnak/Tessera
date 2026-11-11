@@ -43,6 +43,10 @@ struct EventAdapter {
     std::string event_type; // `tessera::ui::EventType::PointerUp`
     std::string function;   // `event_adapter_2_onClick`
     std::string call;       // `component->handler_1(tessera::ui::click_event(event));`
+    // `onSizeChange`: not a scene event. `function` is the LayoutObservation thunk and
+    // `event_type` is empty (emit_layout_observe.hpp).
+    bool size_change = false;
+    bool reads_size = false; // the handler takes the SizeChangeEvent payload
 };
 
 // Walks the node tree in pre-order, assigning the same ordinals as emit_node, and resolves every
@@ -52,7 +56,7 @@ struct EventAdapter {
                                           const std::vector<const ir::Binding*>& bindings,
                                           const std::vector<ControlledInput>& controlled_inputs,
                                           unsigned& ordinal, std::vector<EventAdapter>& adapters,
-                                          std::string& error);
+                                          std::string& error, bool in_item_template = false);
 
 // Emits the adapter functions in an anonymous namespace (deterministic IR order).
 void emit_event_adapters(CppWriter& writer, std::string_view component_name,

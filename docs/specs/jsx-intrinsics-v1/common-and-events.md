@@ -68,6 +68,7 @@ The field lists are the proposal of this spec; the normative event model is
 | `TextSelection` | `anchor: int`, `focus: int` (grapheme offsets, [`text-editing-v1.md`](../text-editing-v1.md) section 2; affinity is not exposed) | `onSelectionChange` and the `selection` prop |
 | `CompositionEvent` | `text: string`, `start: int`, `end: int` | `onCompositionStart/Update/End` |
 | `ScrollEvent` | `offsetX: float`, `offsetY: float`, `viewportWidth: float`, `viewportHeight: float`, `contentWidth: float`, `contentHeight: float` | `onScroll` |
+| `SizeChangeEvent` | `width: float`, `height: float`, `contentWidth: float`, `contentHeight: float` (logical px; border box and content box, [layout observation](../../design/layout-observation.md) section 6.1) | `onSizeChange` |
 | `ErrorInfo` | `code: string`, `message: string` | `onError` of `ErrorBoundary` ([`error-model-v1.md`](../error-model-v1.md) `Error`, reduced to the two fields that are safe to show) |
 
 `value` and `target.value` of `TextChangeEvent` are always equal; `value` is the Tessera form and
@@ -106,18 +107,20 @@ redaction rules of [`text-editing-v1.md`](../text-editing-v1.md) section 10 appl
 ## 4. Events by element (summary)
 
 The full rows are in the element tables. `P` = the six pointer events, `K` = `onKeyDown`/`onKeyUp`,
-`F` = `onFocus`/`onBlur`.
+`F` = `onFocus`/`onBlur`, `S` = `onSizeChange` (every element with a layout box; delivered
+by layout observation, not through event dispatch, so it neither bubbles nor captures).
 
 | Element | Events |
 |---|---|
-| `View`, `Text` | `onClick`, `P` |
-| `Button` | `onClick`, `P`, `K`, `F` |
-| `TextInput`, `TextArea` | `onChange`, `onSubmit`, `K`, `F`, `onSelectionChange`, `onCompositionStart/Update/End` |
-| `Scroll` | `onScroll`, `P` |
-| `VirtualList`, `VirtualGrid` | `onEndReached`, `onScroll` |
-| `ErrorBoundary` | `onError` |
-| `CustomElement` | the events of its manifest entry plus `onPointer`, `onKey`, `onWheel`, `onText`, `onGamepad` as the manifest `input` list allows |
-| `Image`, `Path`, `Spacer` | none (subset 11.1) |
+| `View`, `Text` | `onClick`, `P`, `S` |
+| `Button` | `onClick`, `P`, `K`, `F`, `S` |
+| `TextInput`, `TextArea` | `onChange`, `onSubmit`, `K`, `F`, `onSelectionChange`, `onCompositionStart/Update/End`, `S` |
+| `Scroll` | `onScroll`, `P`, `S` |
+| `VirtualList`, `VirtualGrid` | `onEndReached`, `onScroll`, `S` |
+| `ErrorBoundary` | `onError` (no `S`: it has no layout box) |
+| `CustomElement` | the events of its manifest entry plus `onPointer`, `onKey`, `onWheel`, `onText`, `onGamepad` as the manifest `input` list allows, and `S` |
+| `Image`, `Path` | `S` only |
+| `Spacer` | none (no box of its own to observe; subset 11.1) |
 
 Not defined in V1, so rejected as unknown: `onDoubleClick`, `onContextMenu`, `onWheel` on non-custom
 elements, `onDrag*`, `onTouch*`, `onMouse*`, `onInput`, `onLongPress` and the gesture recognizers of

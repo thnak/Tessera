@@ -440,8 +440,16 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
 4. **Equality-gated setters** in codegen (independent; can land any time). Tests
    `setter_equality`, golden updates.
 5. **`onSizeChange` front end + IR validator + typings**, then **codegen + merger** (two commits).
-   Tests `codegen_size_change*`.
-6. **Designer evaluator** delivery after preview layout.
+   Tests `codegen_size_change*`. Front end Done: the schema rows (every element with a box;
+   `Spacer` and `ErrorBoundary` reject it as an unknown event), the `SizeChangeEvent` record, the
+   regenerated `intrinsics.json`/`tessera.d.ts` goldens and lowering tests. Codegen and merger
+   Done: `emit_layout_observe.*`, the `Watcher`/`WatchPage` goldens, runtime test and merger
+   idempotency; handler bodies read `e.width` and friends. Not yet supported (rejected loudly):
+   `onSizeChange` inside a list or virtual item template, where each realized row would need its
+   own observation. A node in a detached conditional branch reads as zeros until it is attached.
+6. **Designer evaluator** delivery after preview layout. Blocked: the IR evaluator of ADR-037 is
+   not implemented (`designer/` is empty), so there is nothing to wire. Requirements recorded in
+   section 6.2 and [`designer.md`](designer.md) for when it lands. Nothing to build until then.
 7. **`field-sizing: content` for `TextArea`**: property registry, Yoga measure for the editor
    text, internal scroll above max. Golden.
 8. **Container queries**: `container-type`/`container-name`, `@container` evaluation as an

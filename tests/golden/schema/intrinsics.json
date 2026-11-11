@@ -1100,6 +1100,11 @@
         {
           "name": "onPointerCancel",
           "payload": "PointerEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "generic",
@@ -1142,6 +1147,11 @@
         {
           "name": "onPointerCancel",
           "payload": "PointerEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "text",
@@ -1225,6 +1235,11 @@
         {
           "name": "onBlur",
           "payload": "FocusEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "button",
@@ -1329,6 +1344,11 @@
         {
           "name": "onCompositionEnd",
           "payload": "CompositionEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "textbox",
@@ -1522,6 +1542,11 @@
         {
           "name": "onCompositionEnd",
           "payload": "CompositionEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "textbox",
@@ -1660,7 +1685,13 @@
           "kind": "custom"
         }
       ],
-      "events": [],
+      "events": [
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
+        }
+      ],
       "impliedRole": "img",
       "irKind": "Image",
       "note": "alt=\"\" makes it decorative",
@@ -1703,7 +1734,13 @@
           "note": "d must parse as SVG path data"
         }
       ],
-      "events": [],
+      "events": [
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
+        }
+      ],
       "impliedRole": "img",
       "irKind": "Path",
       "note": "role img only when label is present; otherwise decorative",
@@ -1790,6 +1827,11 @@
         {
           "name": "onPointerCancel",
           "payload": "PointerEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "scroll view",
@@ -1869,6 +1911,11 @@
         {
           "name": "onScroll",
           "payload": "ScrollEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "list",
@@ -1951,6 +1998,11 @@
         {
           "name": "onScroll",
           "payload": "ScrollEvent"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "impliedRole": "list",
@@ -2099,6 +2151,11 @@
         {
           "name": "onGamepad",
           "note": "manifest input `gamepad`; payload from the manifest"
+        },
+        {
+          "name": "onSizeChange",
+          "note": "layout observation; no bubbling, not a pointer event",
+          "payload": "SizeChangeEvent"
         }
       ],
       "irKind": "CustomElement",
@@ -2659,6 +2716,28 @@
       ],
       "name": "ScrollEvent",
       "note": "All sizes in dp."
+    },
+    {
+      "fields": [
+        {
+          "name": "width",
+          "type": "float"
+        },
+        {
+          "name": "height",
+          "type": "float"
+        },
+        {
+          "name": "contentWidth",
+          "type": "float"
+        },
+        {
+          "name": "contentHeight",
+          "type": "float"
+        }
+      ],
+      "name": "SizeChangeEvent",
+      "note": "Border-box and content-box size in logical px; delivered by layout observation."
     },
     {
       "fields": [

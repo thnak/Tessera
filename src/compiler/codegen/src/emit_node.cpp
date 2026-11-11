@@ -9,6 +9,7 @@
 // and attached by apply_state(). A list template (a child with `loop`) is not built here; its nodes
 // are produced per item by the generated build_item_<n>().
 
+#include "emit_layout_observe.hpp"
 #include "emit_node.hpp"
 #include "emit_virtual.hpp"
 #include "interpolation.hpp"
@@ -342,6 +343,14 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         }
         if (adapter == nullptr) {
             return fail(error, "event `" + jsx_name + "` has no adapter");
+        }
+        if (adapter->size_change) {
+            if (item_builder) {
+                return fail(error, "`onSizeChange` inside a list template is not supported yet "
+                                   "(a realized row would need its own observation)");
+            }
+            emit_size_observation_binding(writer, variable, *adapter);
+            continue;
         }
         writer.line(variable + "->bind_event(" + adapter->event_type + ", &" + adapter->function +
                     ", this);");

@@ -220,6 +220,31 @@ void test_events_and_handler_numbering() {
     }
 }
 
+void test_on_size_change_lowers_with_typed_payload() {
+    const auto fixture =
+        parse(component("  const [wide, setWide] = useState<bool>(false);\n"
+                        "  const [box, setBox] = useState<SizeChangeEvent>(null);\n",
+                        "<View onSizeChange={(e) => setWide(e.width >= 600)}>\n"
+                        "  <Image src=\"a.png\" alt=\"\" onSizeChange={setBox} />\n"
+                        "</View>"));
+    const auto result = lower(*fixture);
+    check(result.has_value(), "onSizeChange lowers: " + describe_errors(*fixture, result));
+    if (!result) {
+        return;
+    }
+    const ir::Node& root = result->component.root;
+    check_eq(root.events.at("onSizeChange"), "handler::1", "the View observes its size");
+    check(root.children.size() == 1 && root.children[0].events.count("onSizeChange") == 1,
+          "the Image observes its size");
+    check(result->component.handlers.size() == 2, "two handler records");
+    if (result->component.handlers.size() != 2) {
+        return;
+    }
+    const ir::Handler& arrow = result->component.handlers[0];
+    check(arrow.params.size() == 1 && arrow.params[0].type == "SizeChangeEvent",
+          "the arrow parameter is typed by the SizeChangeEvent payload");
+}
+
 void test_ref_key_and_automation_id() {
     const auto fixture =
         parse(component("  const r = useRef<Button>(null);\n",
@@ -355,6 +380,7 @@ int main() {
     test_button_label_and_children();
     test_fragment_splicing();
     test_events_and_handler_numbering();
+    test_on_size_change_lowers_with_typed_payload();
     test_ref_key_and_automation_id();
     test_error_boundary_fallback();
     test_leaf_and_scroll_elements();

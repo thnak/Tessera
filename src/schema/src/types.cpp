@@ -59,6 +59,13 @@ constexpr TypeField kScrollFields[] = {
     {"viewportHeight", "float"}, {"contentWidth", "float"}, {"contentHeight", "float"},
 };
 
+constexpr TypeField kSizeChangeFields[] = {
+    {"width", "float"},
+    {"height", "float"},
+    {"contentWidth", "float"},
+    {"contentHeight", "float"},
+};
+
 constexpr TypeField kErrorFields[] = {
     {"code", "string"},
     {"message", "string"},
@@ -72,7 +79,7 @@ template<std::size_t N> constexpr std::span<const TypeField> fields(const TypeFi
     return std::span<const TypeField>(list, N);
 }
 
-constexpr std::array<TypeRecord, 11> kTypeRecords{{
+constexpr std::array<TypeRecord, 12> kTypeRecords{{
     {"PointerEvent", fields(kPointerFields), "",
      "Node-local logical pixels; button 0 left, 1 middle, 2 right."},
     {"ClickEvent", fields(kClickFields), "",
@@ -89,6 +96,8 @@ constexpr std::array<TypeRecord, 11> kTypeRecords{{
      "Grapheme offsets; caret affinity is not exposed."},
     {"CompositionEvent", fields(kCompositionFields), "", "IME composition updates."},
     {"ScrollEvent", fields(kScrollFields), "", "All sizes in dp."},
+    {"SizeChangeEvent", fields(kSizeChangeFields), "",
+     "Border-box and content-box size in logical px; delivered by layout observation."},
     {"ErrorInfo", fields(kErrorFields), "", "The safe subset of the runtime Error record."},
 }};
 

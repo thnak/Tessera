@@ -9,10 +9,14 @@
 
 namespace tessera::schema::internal::data {
 inline constexpr EventRow kViewEvents[] = {
-    {"onClick", "ClickEvent", ""},           {"onPointerDown", "PointerEvent", ""},
-    {"onPointerUp", "PointerEvent", ""},     {"onPointerMove", "PointerEvent", ""},
-    {"onPointerEnter", "PointerEvent", ""},  {"onPointerLeave", "PointerEvent", ""},
+    {"onClick", "ClickEvent", ""},
+    {"onPointerDown", "PointerEvent", ""},
+    {"onPointerUp", "PointerEvent", ""},
+    {"onPointerMove", "PointerEvent", ""},
+    {"onPointerEnter", "PointerEvent", ""},
+    {"onPointerLeave", "PointerEvent", ""},
     {"onPointerCancel", "PointerEvent", ""},
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
 };
 
 inline constexpr EventRow kButtonEvents[] = {
@@ -27,6 +31,7 @@ inline constexpr EventRow kButtonEvents[] = {
     {"onKeyUp", "KeyEvent", ""},
     {"onFocus", "FocusEvent", ""},
     {"onBlur", "FocusEvent", ""},
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
 };
 
 inline constexpr EventRow kTextInputEvents[] = {
@@ -40,6 +45,7 @@ inline constexpr EventRow kTextInputEvents[] = {
     {"onCompositionStart", "CompositionEvent", ""},
     {"onCompositionUpdate", "CompositionEvent", ""},
     {"onCompositionEnd", "CompositionEvent", ""},
+    {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
 };
 
 inline constexpr PropRow kButtonProps[] = {

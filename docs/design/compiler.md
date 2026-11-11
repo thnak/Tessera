@@ -247,7 +247,7 @@ instances attach after their owner, so a parent flushes first), `schedule_update
 flush; `FramePipeline::tick` flushes it first and wakes the loop on the dirty edge. Setters stay
 cheap (no effects inside a setter) and repeated setters batch into one update; a setter chain is
 bounded by a pass budget. Setters are UI-thread only (debug-asserted): other threads post a
-completion and set state in its callback. `update()` stays public for headless tests. Unchanged values allocate nothing (hash path only); a changed value builds one bounded
+completion and set state in its callback. `update()` stays public for headless tests. A node with `onSizeChange` gets a `LayoutObservation` member, a thunk converting `SizeChange` to `SizeChangeEvent`, and `attach_layout_observers()`/`detach_layout_observers()` (instances forward in mount order; only observing components get them; [layout-observation.md](layout-observation.md) section 6.2). Unchanged values allocate nothing (hash path only); a changed value builds one bounded
 string and one `PaintData` copy. Templates with substitutions can appear directly or inside a text
 conditional (`{count === 0 ? "Counter" : `Count: ${count}`}`), which emits branching hash/append
 statements rather than a temporary string. Formatting: `true`/`false`, decimal integers, shortest
