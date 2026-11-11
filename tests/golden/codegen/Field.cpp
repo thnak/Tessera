@@ -139,5 +139,10 @@ namespace demo {
       update_ticket_.schedule();
     }
     
+    tessera::ui::StateSnapshot Field::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      return snapshot;
+    }
+    
   }
 }

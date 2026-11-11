@@ -52,6 +52,12 @@ std::string callee_name(const jsx::Expr& call);
 // list; a statement that is not a setter call or an animated-value `.set(...)` is an error.
 [[nodiscard]] std::vector<ir::Action> lower_actions(HookState& state, const jsx::Expr& arrow);
 
+// The preview body of a native handler (jsx-subset-v1.md section 9.3): setter calls and animated
+// `.set(...)` calls as actions, plus an optional final `return <PureExpr>;`. Nullopt when the body
+// is empty or is outside those rules; the front end does not yet diagnose such a body, so the
+// designer has nothing to run for it, and no error is recorded in `state`.
+[[nodiscard]] std::optional<ir::Preview> lower_preview(HookState& state, const jsx::Expr& arrow);
+
 // The parameters of a declared handler from its annotations. A parameter without a written type
 // is an error: event payload types need the type table of slice 4.
 [[nodiscard]] std::vector<ir::Param> lower_handler_params(HookState& state, const jsx::Expr& arrow);

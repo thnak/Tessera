@@ -6,6 +6,7 @@
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
+#include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "Watcher.hpp"
 #include "tessera/ui/layout/layout_observer.hpp"
@@ -42,6 +43,8 @@ namespace demo {
       void attach_scheduler(tessera::ui::UpdateScheduler& scheduler);
       void detach_scheduler(tessera::ui::UpdateScheduler& scheduler);
       void schedule_update();
+      // Every state and animated cell by IR id, in declaration order (tests, parity).
+      [[nodiscard]] tessera::ui::StateSnapshot snapshot_state() const;
       // Layout observation (onSizeChange): one observation per observed node. The host's
       // LayoutObserverSet delivers it after layout; the component must not move while
       // attached.

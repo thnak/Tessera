@@ -284,6 +284,14 @@ namespace demo {
       schedule_update();
     }
     
+    tessera::ui::StateSnapshot Sample::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      snapshot.push_back(tessera::ui::state_cell("state::count", state_count_));
+      snapshot.push_back(tessera::ui::state_cell("state::name", state_name_));
+      snapshot.push_back(tessera::ui::state_cell("anim::opacity", anim_opacity_));
+      return snapshot;
+    }
+    
     tessera::ui::text::EditController& Sample::text_input_editor(std::size_t index) {
       switch (index) {
         case 0u:

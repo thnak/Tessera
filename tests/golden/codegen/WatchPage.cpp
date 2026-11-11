@@ -79,6 +79,11 @@ namespace demo {
       update_ticket_.schedule();
     }
     
+    tessera::ui::StateSnapshot WatchPage::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      return snapshot;
+    }
+    
     void WatchPage::attach_layout_observers(tessera::ui::layout::LayoutObserverSet& observers) {
       layout_observers_ = &observers;
       child_2_.attach_layout_observers(observers);

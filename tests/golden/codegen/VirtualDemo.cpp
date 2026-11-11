@@ -597,6 +597,13 @@ namespace vlist {
       schedule_update();
     }
     
+    tessera::ui::StateSnapshot VirtualDemo::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      snapshot.push_back(tessera::ui::state_cell("state::count", state_count_));
+      snapshot.push_back(tessera::ui::state_cell("state::items", state_items_));
+      return snapshot;
+    }
+    
     void VirtualDemo::handler_on_end_reached(const tessera::ui::Event& event) {
       (void)event;
       state_count_ = 1;

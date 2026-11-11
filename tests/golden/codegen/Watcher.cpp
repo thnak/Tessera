@@ -90,6 +90,13 @@ namespace demo {
       schedule_update();
     }
     
+    tessera::ui::StateSnapshot Watcher::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      snapshot.push_back(tessera::ui::state_cell("state::wide", state_wide_));
+      snapshot.push_back(tessera::ui::state_cell("state::resized", state_resized_));
+      return snapshot;
+    }
+    
     void Watcher::attach_layout_observers(tessera::ui::layout::LayoutObserverSet& observers) {
       layout_observers_ = &observers;
       if (size_observation_1_) {

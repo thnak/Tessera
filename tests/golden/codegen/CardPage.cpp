@@ -93,6 +93,11 @@ namespace demo {
       update_ticket_.schedule();
     }
     
+    tessera::ui::StateSnapshot CardPage::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      return snapshot;
+    }
+    
     void CardPage::on_tap(const tessera::ui::Event& event) {
       // [DEVELOPER_LOGIC_START: bind::on_tap]
         // TODO(tessera-codegen): implement the developer body for bind::on_tap.

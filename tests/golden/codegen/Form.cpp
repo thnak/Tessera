@@ -57,5 +57,10 @@ namespace demo {
       update_ticket_.schedule();
     }
     
+    tessera::ui::StateSnapshot Form::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      return snapshot;
+    }
+    
   }
 }

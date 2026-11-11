@@ -21,6 +21,7 @@
 #include "emit_node.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
+#include "emit_snapshot.hpp"
 #include "emit_virtual.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
@@ -207,6 +208,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (!emit_schedule_definitions(writer, component, instances, error)) {
         return false;
     }
+    emit_snapshot_definition(writer, component);
     emit_size_observation_definitions(writer, component, module, adapters, instances);
     emit_controlled_accessors(writer, component, controlled_inputs);
     for (const ir::Handler& handler : component.handlers) {
