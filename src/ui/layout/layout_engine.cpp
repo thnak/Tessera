@@ -46,10 +46,14 @@ YGSize measure_text(YGNodeConstRef node, float width, YGMeasureMode width_mode, 
     constraints.max_width =
         width_mode == YGMeasureModeUndefined ? std::numeric_limits<float>::infinity() : width;
     constraints.wrap = width_mode != YGMeasureModeUndefined;
-    const text::TextMetrics metrics =
-        context->cache->measure(context->input->text, context->style, constraints);
+    // An empty `field-sizing: content` field is one line tall and no wider than its padding.
+    const bool empty = context->input->text.empty();
+    const text::TextMetrics metrics = context->cache->measure(
+        empty ? std::string_view(" ") : std::string_view(context->input->text), context->style,
+        constraints);
 
-    const float measured_width = width_mode == YGMeasureModeExactly ? width : metrics.width;
+    const float measured_width =
+        width_mode == YGMeasureModeExactly ? width : (empty ? 0.0f : metrics.width);
     const float measured_height = height_mode == YGMeasureModeExactly ? height : metrics.height;
     return YGSize{measured_width, measured_height};
 }
@@ -59,7 +63,9 @@ YGNodeRef build_node(const LayoutInput& input, const LayoutViewport& viewport,
                      std::vector<std::unique_ptr<MeasureContext>>& contexts) {
     YGNodeRef node = YGNodeNew();
     apply_style(node, input.style, viewport);
-    if (!input.text.empty() && input.children.empty()) {
+    // `field-sizing: content` makes an editable field a measured leaf even when it is empty.
+    const bool sizes_to_content = is_keyword(input.style.find("field-sizing"), "content");
+    if ((!input.text.empty() || sizes_to_content) && input.children.empty()) {
         contexts.push_back(std::make_unique<MeasureContext>(
             MeasureContext{&input, text::text_style_from(input.style), &cache}));
         YGNodeSetContext(node, contexts.back().get());
