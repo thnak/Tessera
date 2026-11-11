@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/text/bidi.hpp"
+#include "tessera/ui/text/text_paint.hpp"
 #include "text_wrap.hpp"
 
 #include <algorithm>
@@ -12,22 +13,6 @@
 
 namespace tessera::ui::text {
 namespace {
-
-// CSS collapsible whitespace. Only ASCII whitespace collapses or trims: UAX #14 keeps no-break and
-// ideographic spaces inside a segment on purpose, and they must still advance the line.
-bool is_collapsible_space(char c) {
-    switch (c) {
-    case ' ':
-    case '\t':
-    case '\n':
-    case '\r':
-    case '\f':
-    case '\v':
-        return true;
-    default:
-        return false;
-    }
-}
 
 // One UAX #14 segment between two legal break opportunities: the unit the greedy wrap places as a
 // whole. LB18 attaches a whitespace run to the segment before it, so the raw range ends in the
@@ -153,6 +138,46 @@ TextLayout finalize_bidi(TextLayout layout, std::string_view text) {
     return layout;
 }
 
+// One collapsing single line (CSS `normal` with wrapping disabled, and `nowrap`): leading and
+// trailing collapsible runs are trimmed and every interior run measures as one space advance,
+// exactly what the wrapped path adds per segment gap. Allocation-free: one measure call per content
+// span and one per interior run.
+struct CollapsedLine {
+    std::size_t begin = 0;
+    std::size_t end = 0;
+    float width = 0.0f;
+};
+
+template<typename Measure>
+CollapsedLine measure_collapsed_line(std::string_view text, Measure&& measure) {
+    CollapsedLine line;
+    const std::size_t size = text.size();
+    std::size_t pos = 0;
+    while (pos < size && is_collapsible_space(text[pos])) {
+        ++pos;
+    }
+    line.begin = pos;
+    line.end = pos;
+    while (pos < size) {
+        const std::size_t content_begin = pos;
+        while (pos < size && !is_collapsible_space(text[pos])) {
+            ++pos;
+        }
+        line.width += measure(text.substr(content_begin, pos - content_begin));
+        line.end = pos;
+        if (pos >= size) {
+            break;
+        }
+        while (pos < size && is_collapsible_space(text[pos])) {
+            ++pos;
+        }
+        if (pos < size) {
+            line.width += measure(" ");
+        }
+    }
+    return line;
+}
+
 // The greedy wrap over the mode's line units (docs/design/text.md section 6). One unit is the
 // smallest line unit; a unit wider than the constraint is split at the last measured code-point
 // prefix that fits, then at the last legal break inside that prefix when one exists.
@@ -171,9 +196,15 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
 
     if (!constraints.wrap || !white_space_wraps(style.white_space) ||
         !std::isfinite(constraints.max_width)) {
-        // The pinned single-line path: one line, separators measured literally. `NoWrap` and `pre`
-        // land here, so the pre-task-110 no-wrap fixtures and goldens stay byte-identical.
-        add_line(measure(text), 0, text.size());
+        // The single-line path. Collapsing modes (`normal` with wrapping disabled, `nowrap`) trim
+        // the edges and measure every interior run as one space; `pre`, `pre-wrap` and
+        // `break-spaces` keep the previous literal single line.
+        if (white_space_collapses(style.white_space)) {
+            const CollapsedLine line = measure_collapsed_line(text, measure);
+            add_line(line.width, line.begin, line.end);
+        } else {
+            add_line(measure(text), 0, text.size());
+        }
         result.height = line_height;
         result.baseline = metrics.ascent;
         return finalize_bidi(std::move(result), text);

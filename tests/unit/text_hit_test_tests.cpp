@@ -26,6 +26,7 @@ using tessera::ui::text::StubFontMetricsProvider;
 using tessera::ui::text::TextConstraints;
 using tessera::ui::text::TextHit;
 using tessera::ui::text::TextStyle;
+using tessera::ui::text::WhiteSpace;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -42,7 +43,10 @@ TextStyle style() {
 
 float advance(std::string_view text, const TextStyle& text_style, void* user) {
     const auto* metrics = static_cast<const FontMetrics*>(user);
-    return layout_text(text, text_style, *metrics, TextConstraints{}).width;
+    // Literal cluster advance, matching the text module's advance seam.
+    TextStyle literal = text_style;
+    literal.white_space = WhiteSpace::Pre;
+    return layout_text(text, literal, *metrics, TextConstraints{}).width;
 }
 
 TextHit hit(std::string_view text, float x, float y, bool wrap = false, float max_width = 1000.0f) {

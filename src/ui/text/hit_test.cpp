@@ -14,7 +14,11 @@ namespace {
 
 float stub_advance(std::string_view run, const TextStyle& style, void* user) {
     const auto* metrics = static_cast<const FontMetrics*>(user);
-    return layout_text(run, style, *metrics, TextConstraints{}).width;
+    // The advance seam is literal: hit testing measures one cluster at a time, so a space cluster
+    // must advance one space even when the line's mode collapses or trims separator runs.
+    TextStyle literal = style;
+    literal.white_space = WhiteSpace::Pre;
+    return layout_text(run, literal, *metrics, TextConstraints{}).width;
 }
 
 struct Cursor {

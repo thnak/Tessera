@@ -280,6 +280,8 @@ const char* mode_name(WhiteSpace mode) {
         return "normal";
     case WhiteSpace::NoWrap:
         return "nowrap";
+    case WhiteSpace::Pre:
+        return "pre";
     case WhiteSpace::PreWrap:
         return "pre-wrap";
     case WhiteSpace::BreakSpaces:
@@ -373,8 +375,8 @@ void check_mode_parity() {
         "a\n\nb",
         "   ",
     };
-    constexpr WhiteSpace modes[] = {WhiteSpace::Normal, WhiteSpace::NoWrap, WhiteSpace::PreWrap,
-                                    WhiteSpace::BreakSpaces};
+    constexpr WhiteSpace modes[] = {WhiteSpace::Normal, WhiteSpace::NoWrap, WhiteSpace::Pre,
+                                    WhiteSpace::PreWrap, WhiteSpace::BreakSpaces};
     for (const WhiteSpace mode : modes) {
         for (const std::string_view text : corpus) {
             for (const float max_width : {16.0f, 40.0f, 80.0f}) {
@@ -400,7 +402,7 @@ void check_mode_parity() {
 
     // Documented mode difference: UAX #14 class BA still gives ICU an opportunity after an em dash
     // that the builtin rules lack, so every narrowing mode splits the run the same way the parity
-    // baseline does. NoWrap never consults the boundary sets and stays one literal line.
+    // baseline does. NoWrap/Pre never consult the boundary sets and stay one line.
     constexpr std::string_view em_dash = "aaaa\xE2\x80\x94"
                                          "bbbb";
     for (const WhiteSpace mode :

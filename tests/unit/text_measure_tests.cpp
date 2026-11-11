@@ -95,6 +95,12 @@ int main() {
         !expect(parsed.white_space == tessera::ui::text::WhiteSpace::NoWrap, "white-space parse")) {
         return 7;
     }
+    computed.set("white-space", "pre");
+    if (!expect(tessera::ui::text::text_style_from(computed).white_space ==
+                    tessera::ui::text::WhiteSpace::Pre,
+                "white-space:pre keeps the literal mode")) {
+        return 9;
+    }
 
     ComputedStyle multiplied;
     multiplied.set("font-size", "10px");

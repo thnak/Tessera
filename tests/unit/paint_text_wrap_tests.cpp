@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
-// Wrapped/multi-line paint text (D9): PaintData wrap/max_lines/text_align resolved through the
-// shared text-line-box layout, content-box wrap width, per-line emission order/offsets/baselines,
-// deterministic max_lines truncation, computed-style fallbacks including the white-space modes,
-// and damage-clipped replay of every line. Includes an env-gated 200-word Debug layout benchmark.
+// Wrapped/multi-line paint text (D9): PaintData wrap/max_lines/text_align through the shared
+// text-line-box layout, per-line order/offsets/baselines, deterministic max_lines truncation,
+// white-space mode fallbacks, damage-clipped replay, and an env-gated 200-word Debug benchmark.
 
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
@@ -366,10 +365,17 @@ bool test_damage_clipped_multiple_lines() {
     return ok;
 }
 
+float painted_width(const std::vector<RecordedText>& runs) {
+    float total = 0.0f;
+    for (const RecordedText& run : runs) {
+        total += run.rect.width;
+    }
+    return total;
+}
+
 bool test_separator_trimming_and_break_opportunities() {
-    // A trailing separator is trimmed (it never advances the line and never reaches the painted
-    // slice); an interior run collapses under the default `normal`; a break after a hyphen fills
-    // the line instead of moving the whole token.
+    // A trailing separator is trimmed and never reaches the painted slice; an interior run
+    // collapses into the one space advance the layout measured; the hyphen fills the line.
     const auto trailing = paint_wrapped("alpha beta   ", 200.0f, {{"font-size", "16px"}});
     const auto interior = paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}});
     const auto hyphen = paint_wrapped("abc def-ghi", 64.0f, {{"font-size", "16px"}});
@@ -379,20 +385,25 @@ bool test_separator_trimming_and_break_opportunities() {
                   "the painted slice drops the trailing separator") &&
            expect(trailing[0].rect.width == 80.0f,
                   "the line width excludes the trailing separator") &&
-           expect(interior.size() == 1, "a wide interior run stays on one line") &&
-           expect(interior[0].text == "alpha  beta",
-                  "interior separators stay in the painted slice") &&
-           expect(interior[0].rect.width == 80.0f, "normal collapses the interior separator run") &&
+           expect(interior.size() == 3, "normal paints the collapsed segment sequence") &&
+           expect(interior[0].text == "alpha" && interior[1].text == " " &&
+                      interior[2].text == "beta" && painted_width(interior) == 80.0f,
+                  "normal paints one space for the whole interior run") &&
+           expect(interior[2].rect.x == 48.0f && interior[2].rect.width == 32.0f,
+                  "the collapsed run advances exactly one space") &&
            expect(hyphen.size() == 2, "the hyphen is a wrap point") &&
            expect(hyphen[0].text == "abc def-", "the first slice fills up to the hyphen") &&
            expect(hyphen[1].text == "ghi", "the remainder is its own slice");
 }
 
 bool test_white_space_modes() {
-    // Computed `white-space` reaches the wrap: `normal` collapses interior runs, `pre-wrap` keeps
-    // them, `break-spaces` keeps edge runs and gives every preserved space its own line unit, and
-    // `nowrap` suppresses PaintData Wrap.
+    // Computed `white-space` reaches wrap and paint: `normal`/`nowrap` collapse interior runs,
+    // `pre`/`pre-wrap` keep them, `break-spaces` keeps edge runs and per-space line units.
     const auto normal = paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}});
+    const auto nowrap =
+        paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}, {"white-space", "nowrap"}});
+    const auto pre =
+        paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}, {"white-space", "pre"}});
     const auto prewrap =
         paint_wrapped("alpha  beta", 200.0f, {{"font-size", "16px"}, {"white-space", "pre-wrap"}});
     const auto breakspaces = paint_wrapped(
@@ -401,11 +412,15 @@ bool test_white_space_modes() {
         paint_wrapped("a   b", 16.0f, {{"font-size", "16px"}, {"white-space", "break-spaces"}});
     const auto overflow =
         paint_wrapped("a b", 4.0f, {{"font-size", "16px"}, {"white-space", "break-spaces"}});
-    const auto nowrap = paint_wrapped(std::string(kParagraph), 80.0f,
-                                      {{"font-size", "16px"}, {"white-space", "nowrap"}});
+    const auto nowrap_computed = paint_wrapped(std::string(kParagraph), 80.0f,
+                                               {{"font-size", "16px"}, {"white-space", "nowrap"}});
 
-    bool ok = expect(normal.size() == 1 && normal[0].rect.width == 80.0f,
-                     "computed normal collapses the interior run") &&
+    bool ok = expect(normal.size() == 3 && painted_width(normal) == 80.0f,
+                     "computed normal collapses the interior run to one advance") &&
+              expect(nowrap.size() == 3 && painted_width(nowrap) == 80.0f,
+                     "nowrap collapses the same way on one line") &&
+              expect(pre.size() == 1 && pre[0].text == "alpha  beta",
+                     "pre preserves the run literally") &&
               expect(prewrap.size() == 1 && prewrap[0].rect.width == 88.0f,
                      "pre-wrap advances the preserved run") &&
               expect(breakspaces.size() == 1 && breakspaces[0].rect.width == 112.0f,
@@ -420,7 +435,8 @@ bool test_white_space_modes() {
               expect(spaces[2].text == "b" && spaces[2].rect.width == 8.0f,
                      "the word starts its own line") &&
               expect(overflow.size() == 3, "break-spaces keeps one unit per line when over-wide") &&
-              expect(nowrap.size() == 1, "computed white-space:nowrap suppresses PaintData Wrap");
+              expect(nowrap_computed.size() == 1,
+                     "computed white-space:nowrap suppresses PaintData Wrap");
     for (const RecordedText& run : overflow) {
         ok = expect(run.rect.width == 8.0f, "an over-wide preserved unit overflows the line") && ok;
     }
@@ -471,7 +487,6 @@ int main(int argc, char** argv) {
     ok = test_damage_clipped_multiple_lines() && ok;
     ok = test_separator_trimming_and_break_opportunities() && ok;
     ok = test_white_space_modes() && ok;
-
     const bool benchmark = argc > 1 && std::string_view(argv[1]) == "--bench";
     if (benchmark) {
         benchmark_200_words();

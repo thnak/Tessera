@@ -12,40 +12,44 @@ namespace tessera::ui::text {
 
 class FontMetricsProvider;
 
-// CSS `white-space` modes this release measures and wraps (docs/design/text.md section 6).
+// CSS `white-space` modes this release measures, wraps, and paints (docs/design/text.md section 6).
 //
 // The wrap places one UAX #14 segment per line unit; the mode decides what a collapsible
 // whitespace run between two units means, whether a line may break, and whether line edges trim:
 //   * Normal      - interior runs collapse to one space advance; lines wrap and both edges trim.
-//   * NoWrap      - the pinned single-line path: one line, separators measured literally.
-//   * PreWrap     - interior runs advance their literal width; lines wrap and both edges trim.
+//   * NoWrap      - interior runs collapse the same way, but the whole text stays one line whose
+//                   edges trim (CSS `nowrap`).
+//   * Pre         - runs and hard newlines are preserved literally on one line (CSS `pre`).
+//   * PreWrap     - interior runs advance their literal width; lines wrap and both edges trim, and
+//                   a hard newline starts a new line (CSS `pre-wrap`).
 //   * BreakSpaces - runs are preserved; lines wrap, and every preserved space is its own line
 //                   unit, so a line may start, end, or consist only of spaces.
 //
-// `pre` parses to NoWrap (the mode already preserves runs) and `pre-line` to Normal (the paragraph
-// split already keeps hard newlines, so collapsing is the only observable part of pre-line).
-// Collapsing `nowrap` to one space as CSS does is deliberately not implemented: NoWrap stays the
-// pre-task-110 path so the existing no-wrap fixtures and goldens are byte-identical.
+// `pre` parses to Pre and `pre-line` to Normal: the paragraph split already keeps hard newlines, so
+// collapsing is the only observable part of pre-line (docs/design/text.md section 6.1).
 enum class WhiteSpace {
     Normal,
     NoWrap,
+    Pre,
     PreWrap,
     BreakSpaces,
 };
 
-// True when the mode wraps long lines at TextConstraints::max_width (NoWrap is the single line).
+// True when the mode wraps long lines at TextConstraints::max_width (NoWrap and Pre are single
+// line).
 [[nodiscard]] constexpr bool white_space_wraps(WhiteSpace mode) {
-    return mode != WhiteSpace::NoWrap;
+    return mode != WhiteSpace::NoWrap && mode != WhiteSpace::Pre;
 }
 
-// True when an interior collapsible run measures as one space advance.
+// True when an interior collapsible run measures (and paints) as one space advance.
 [[nodiscard]] constexpr bool white_space_collapses(WhiteSpace mode) {
-    return mode == WhiteSpace::Normal;
+    return mode == WhiteSpace::Normal || mode == WhiteSpace::NoWrap;
 }
 
-// True when a wrapped line trims collapsible whitespace at both edges.
+// True when a line trims collapsible whitespace at both edges. NoWrap is one line, so the same rule
+// trims its two edges.
 [[nodiscard]] constexpr bool white_space_trims_edges(WhiteSpace mode) {
-    return mode == WhiteSpace::Normal || mode == WhiteSpace::PreWrap;
+    return mode == WhiteSpace::Normal || mode == WhiteSpace::NoWrap || mode == WhiteSpace::PreWrap;
 }
 
 // True when each preserved space is its own line unit (CSS break-spaces).

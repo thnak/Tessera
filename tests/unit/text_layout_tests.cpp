@@ -134,8 +134,8 @@ bool break_opportunities_inside_runs() {
 }
 
 // CSS white-space modes on the segment wrap (task-110, docs/design/text.md section 6). One line box
-// is pinned as (source begin, source end, measured width); the painted slice keeps the source bytes
-// even where `normal` collapses their measured width.
+// is pinned as (source begin, source end, measured width); the painted segment sequence of a line
+// is pinned separately in `text_paint_tests`.
 struct ExpectedLine {
     std::size_t begin = 0;
     std::size_t end = 0;
@@ -148,6 +148,8 @@ const char* mode_name(WhiteSpace mode) {
         return "normal";
     case WhiteSpace::NoWrap:
         return "nowrap";
+    case WhiteSpace::Pre:
+        return "pre";
     case WhiteSpace::PreWrap:
         return "pre-wrap";
     case WhiteSpace::BreakSpaces:
@@ -186,39 +188,50 @@ bool expect_lines(std::string_view text, float max_width, WhiteSpace mode,
 }
 
 bool white_space_mode_matrix() {
-    // Interior runs: normal collapses a run to one space; pre-wrap, nowrap (literal single line)
-    // and break-spaces advance every preserved space.
+    // Interior runs: normal and nowrap collapse a run to one space; pre, pre-wrap and break-spaces
+    // advance every preserved space (nowrap is still one edge-trimmed line).
     bool ok =
         expect_lines("foo   bar", 200.0f, WhiteSpace::Normal, {{0, 9, 56.0f}}, "interior run") &&
+        expect_lines("foo   bar", 200.0f, WhiteSpace::NoWrap, {{0, 9, 56.0f}}, "interior run") &&
+        expect_lines("foo   bar", 200.0f, WhiteSpace::Pre, {{0, 9, 72.0f}}, "interior run") &&
         expect_lines("foo   bar", 200.0f, WhiteSpace::PreWrap, {{0, 9, 72.0f}}, "interior run") &&
-        expect_lines("foo   bar", 200.0f, WhiteSpace::NoWrap, {{0, 9, 72.0f}}, "interior run") &&
         expect_lines("foo   bar", 200.0f, WhiteSpace::BreakSpaces, {{0, 9, 72.0f}}, "interior run");
-    // The collapsed run changes where the line breaks: 56 px fits "foo   bar" only under normal.
+    // The collapsed run changes where the line breaks: 56 px fits "foo   bar" only when collapsing.
     ok = expect_lines("foo   bar", 56.0f, WhiteSpace::Normal, {{0, 9, 56.0f}}, "collapsed fit") &&
+         expect_lines("foo   bar", 56.0f, WhiteSpace::NoWrap, {{0, 9, 56.0f}}, "collapsed fit") &&
          expect_lines("foo   bar", 56.0f, WhiteSpace::PreWrap, {{0, 3, 24.0f}, {6, 9, 24.0f}},
                       "preserved overflow") &&
-         ok;
+         expect_lines("foo   bar", 56.0f, WhiteSpace::Pre, {{0, 9, 72.0f}}, "pre overflow") && ok;
 
-    // Edge runs: normal and pre-wrap never start or end a line with separators; break-spaces keeps
-    // them, so its line range covers the leading and trailing bytes.
+    // Edge runs: normal, nowrap and pre-wrap never start or end a line with separators (nowrap is
+    // one line, so the same rule trims its two edges); pre and break-spaces keep them.
     ok =
         expect_lines("hello world   ", 200.0f, WhiteSpace::Normal, {{0, 11, 88.0f}},
+                     "trailing run") &&
+        expect_lines("hello world   ", 200.0f, WhiteSpace::NoWrap, {{0, 11, 88.0f}},
+                     "trailing run") &&
+        expect_lines("hello world   ", 200.0f, WhiteSpace::Pre, {{0, 14, 112.0f}},
                      "trailing run") &&
         expect_lines("hello world   ", 200.0f, WhiteSpace::PreWrap, {{0, 11, 88.0f}},
                      "trailing run") &&
         expect_lines("hello world   ", 200.0f, WhiteSpace::BreakSpaces, {{0, 14, 112.0f}},
                      "trailing run") &&
-        expect_lines("hello world   ", 200.0f, WhiteSpace::NoWrap, {{0, 14, 112.0f}},
-                     "trailing run") &&
         expect_lines("   hello", 200.0f, WhiteSpace::Normal, {{3, 8, 40.0f}}, "leading run") &&
+        expect_lines("   hello", 200.0f, WhiteSpace::NoWrap, {{3, 8, 40.0f}}, "leading run") &&
+        expect_lines("   hello", 200.0f, WhiteSpace::Pre, {{0, 8, 64.0f}}, "leading run") &&
         expect_lines("   hello", 200.0f, WhiteSpace::BreakSpaces, {{0, 8, 64.0f}}, "leading run") &&
-        expect_lines("   hello", 200.0f, WhiteSpace::NoWrap, {{0, 8, 64.0f}}, "leading run") && ok;
+        ok;
 
-    // Tabs are collapsible whitespace: one advance under normal, one per tab byte otherwise.
+    // Tabs are collapsible whitespace: one advance under the collapsing modes, one per tab byte
+    // otherwise.
     ok = expect_lines("a\t\tb", 200.0f, WhiteSpace::Normal, {{0, 4, 24.0f}}, "tab run") &&
+         expect_lines("a\t\tb", 200.0f, WhiteSpace::NoWrap, {{0, 4, 24.0f}}, "tab run") &&
+         expect_lines("a\t\tb", 200.0f, WhiteSpace::Pre, {{0, 4, 32.0f}}, "tab run") &&
          expect_lines("a\t\tb", 200.0f, WhiteSpace::PreWrap, {{0, 4, 32.0f}}, "tab run") &&
          expect_lines("a\t\tb", 200.0f, WhiteSpace::BreakSpaces, {{0, 4, 32.0f}}, "tab run") &&
          expect_lines("a\t\tb", 24.0f, WhiteSpace::Normal, {{0, 4, 24.0f}}, "collapsed tab") &&
+         expect_lines("a\t\tb", 24.0f, WhiteSpace::NoWrap, {{0, 4, 24.0f}}, "collapsed tab") &&
+         expect_lines("a\t\tb", 24.0f, WhiteSpace::Pre, {{0, 4, 32.0f}}, "pre tab") &&
          expect_lines("a\t\tb", 24.0f, WhiteSpace::PreWrap, {{0, 1, 8.0f}, {3, 4, 8.0f}},
                       "preserved tab") &&
          ok;
@@ -275,8 +288,8 @@ bool white_space_mode_matrix() {
     }
 
     // Determinism: every mode repeats its line boxes exactly.
-    constexpr WhiteSpace modes[] = {WhiteSpace::Normal, WhiteSpace::NoWrap, WhiteSpace::PreWrap,
-                                    WhiteSpace::BreakSpaces};
+    constexpr WhiteSpace modes[] = {WhiteSpace::Normal, WhiteSpace::NoWrap, WhiteSpace::Pre,
+                                    WhiteSpace::PreWrap, WhiteSpace::BreakSpaces};
     for (const WhiteSpace mode : modes) {
         const TextLayout first = layout_mode("foo   bar\n\nbaz\t qux", 60.0f, mode);
         const TextLayout second = layout_mode("foo   bar\n\nbaz\t qux", 60.0f, mode);

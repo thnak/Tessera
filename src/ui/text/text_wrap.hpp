@@ -14,8 +14,9 @@
 // TESSERA_ICU_REDUCED_DATA switch is the only thing that picks the engine. The parity test drives
 // both engines through this entry point, which is why it takes the backend instead of reading it.
 // TextStyle::white_space selects what a collapsible whitespace run means between line units:
-// `normal` collapses it to one space advance, `pre-wrap` advances it literally, `break-spaces`
-// makes every preserved space its own unit, and `NoWrap` keeps the single-line literal path.
+// `normal` collapses it to one space advance, `nowrap` collapses it on one edge-trimmed line,
+// `pre` preserves it literally on one line, `pre-wrap` advances it literally, `break-spaces`
+// makes every preserved space its own unit.
 namespace tessera::ui::text {
 
 // `measure` is the advance seam of TextLayout: nullptr keeps the deterministic stub advance
