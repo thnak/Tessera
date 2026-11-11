@@ -203,6 +203,20 @@ inline const std::vector<Case> kCases = {
             27, 5, 2),
     fixture("TESSERA_REACT_LIST_KEY", "react-list-key", Entry::kExpression, "rows.map(r => <Row/>)",
             14, 6),
+    fixture("TESSERA_REACT_NO_PREVIEW_BODY", "react-no-preview-body", Entry::kRules,
+            "function A() {\n"
+            "  // Note: bind::go\n"
+            "  const go = (): void => {};\n"
+            "  return <View onClick={go}/>;\n"
+            "}\n",
+            37, 26, 3),
+    fixture("TESSERA_REACT_PREVIEW_BODY", "react-preview-body", Entry::kRules,
+            "function A() {\n"
+            "  // Note: bind::go\n"
+            "  const go = (): void => { log(1); };\n"
+            "  return <View onClick={go}/>;\n"
+            "}\n",
+            37, 35, 3),
     fixture("TESSERA_REACT_UNKNOWN_HOOK", "react-unknown-hook", Entry::kRules,
             "function A() {\n"
             "  const t = useTheme();\n"

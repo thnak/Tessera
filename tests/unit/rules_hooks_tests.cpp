@@ -73,7 +73,10 @@ void test_hook_in_a_function_is_rejected() {
     check_eq(describe_all(*fixture),
              "TESSERA_REACT_HOOK_ORDER | 3:28 | useState<int>(0) | hook `useState` is called "
              "inside a function (handler, effect or callback); hooks are only allowed at the "
-             "top level of the component body\n",
+             "top level of the component body\n"
+             "TESSERA_REACT_PREVIEW_BODY | 3:3 | const go = (): void => { useState<int>(0); }; | "
+             "the body of native handler `go` is not a preview body, so the designer does nothing "
+             "for its event\n",
              "a hook in a handler body");
 
     const auto effect = analyze(component("  useEffect(() => { useRef<View>(null); }, []);\n"));
