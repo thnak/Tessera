@@ -138,6 +138,21 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
         return 3;
     }
 
+    // Resize/DPI through the synthetic metrics seam: same path as an OS resize event.
+    tessera::hal::WindowMetrics metrics;
+    metrics.logical_width = 480;
+    metrics.logical_height = 320;
+    metrics.physical_width = 960;
+    metrics.physical_height = 640;
+    metrics.dpi_scale = 2.0f;
+    host.apply_metrics(metrics);
+    (void)host.run(2);
+    if (!expect(root.world_bounds().width == 480.0f, "the root reflows to the new logical width") ||
+        !expect(host.host().width() == 480.0f, "the host reports the new logical width") ||
+        !expect(host.host().target_extent().width == 960, "the damage target follows DPI")) {
+        return 4;
+    }
+
     std::cout << "app_window_input: ok\n";
     return 0;
 }

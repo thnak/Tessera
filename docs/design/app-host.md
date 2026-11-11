@@ -113,10 +113,11 @@ accessibility snapshot publication, which each have their own documents.
   click -> generated handler -> state and pointer focus + typed text -> generated onChange on a real
   hidden window + swapchain.
 - Resize/DPI coverage: `AppHost::resize` (target recreation, subtree marks, layout reflow) is covered
-  by `app_host`, and `capture_frame` covers the scaled target/paint path (640x400 at scale 2 ->
-  1280x800). The OS-driven window-resize path is exercised by the HAL window tests and the
-  windowed POC; a synthetic-metrics seam on `WindowHost` (feeding `WindowMetrics` without the OS) is
-  the remaining test follow-up.
+  by `app_host`; `WindowHost::apply_metrics` feeds a `WindowMetrics` snapshot through the same path
+  as an OS resize/DpiChange event (swapchain + host resize + frame request) and
+  `tests/gpu/app_window_input_tests.cpp` asserts the 480x320 @ 2x reflow and 960 px damage target
+  over a real hidden window; `capture_frame` covers the scaled offscreen target (640x400 at scale 2
+  -> 1280x800). The OS-driven resize remains covered by the HAL window tests and the windowed POC.
 - Known limits: `UpdateScheduler` is installed by the driver (`AppHost::set_update_scheduler`), not
   created by the host; the style tree rebuild is O(n) per geometry frame; resize reuses the previous
   `LayoutEngine` text cache; `:hover`/`:active` work through `InputPump` → `InputRouter` (the

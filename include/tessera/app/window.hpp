@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/app/host.hpp"
+#include "tessera/hal/window.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -79,6 +80,11 @@ public:
     // and dispatches it through the same InputPump/InputRouter path as real OS input. Used by
     // automation and tests that drive a window without a mouse/keyboard.
     bool post_input(const ui::InputEvent& event);
+
+    // Applies a metrics snapshot as if the platform had reported a resize/DPI change: the swapchain
+    // is resized, the AppHost re-lays out at the new logical size and the next frame is requested.
+    // Tests use it to exercise the resize path without an OS-driven window resize.
+    void apply_metrics(const hal::WindowMetrics& metrics);
 
     [[nodiscard]] const WindowFrameStats& stats() const;
     // The host the driver feeds; expose for tests and late root style changes. Reference is stable

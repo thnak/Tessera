@@ -609,11 +609,11 @@ press -> `:active`, release -> generated Click, focus + typed text -> generated 
 `InputPump`) and `click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next
 for this lane: generated controlled `TextInput` caret/selection decoration (the editor owns the
 offsets but codegen does not publish them into PaintData yet), platform cursor shape once the HAL
-grows a cursor API, and a synthetic-metrics seam on `WindowHost` so OS resize/DPI can be tested
-without the window. The window input path is covered: `WindowHost::post_input` feeds normalized
+grows a cursor API. The window input path is covered: `WindowHost::post_input` feeds normalized
 events into the same InputPump/InputRouter as OS input, and `tests/gpu/app_window_input_tests.cpp`
 drives click -> generated state and pointer focus + typed text -> generated onChange on a real hidden
-window + swapchain. The design captures landed: `tools/poc/design_mock` renders the startup P0/P2/P4 frames and
+window + swapchain; `WindowHost::apply_metrics` feeds a metrics snapshot through the resize/DPI path
+(same test asserts the reflow and damage target). The design captures landed: `tools/poc/design_mock` renders the startup P0/P2/P4 frames and
 the system vs framework window chrome through the same capture path, writes
 `docs/images/{startup-p0,startup-p2,startup-p4,chrome-system,chrome-custom}.png`, and
 `docs/design/shell-design-preview.md` documents them as design mocks (not the phase scheduler or the

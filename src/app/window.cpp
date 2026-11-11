@@ -154,6 +154,16 @@ struct WindowHost::Impl {
         return true;
     }
 
+    void apply_metrics(const hal::WindowMetrics& metrics) {
+        if (!available) {
+            return;
+        }
+        swapchain->resize({metrics.physical_width, metrics.physical_height});
+        host->resize(static_cast<float>(metrics.logical_width),
+                     static_cast<float>(metrics.logical_height), metrics.dpi_scale);
+        loop->mark_render_dirty();
+    }
+
     WindowFrameStats run(std::uint32_t max_frames) {
         stats = {};
         if (!available) {
@@ -176,14 +186,9 @@ struct WindowHost::Impl {
                     closed = true;
                     break;
                 case hal::WindowEventType::Resize:
-                case hal::WindowEventType::DpiChange: {
-                    const hal::WindowMetrics metrics = window->metrics();
-                    swapchain->resize({metrics.physical_width, metrics.physical_height});
-                    host->resize(static_cast<float>(metrics.logical_width),
-                                 static_cast<float>(metrics.logical_height), metrics.dpi_scale);
-                    loop->mark_render_dirty();
+                case hal::WindowEventType::DpiChange:
+                    apply_metrics(window->metrics());
                     break;
-                }
                 default:
                     break;
                 }
@@ -279,6 +284,10 @@ bool WindowHost::post_input(const ui::InputEvent& event) {
         return false;
     }
     return impl_->pump.queue().push(event);
+}
+
+void WindowHost::apply_metrics(const hal::WindowMetrics& metrics) {
+    impl_->apply_metrics(metrics);
 }
 
 const WindowFrameStats& WindowHost::stats() const {
