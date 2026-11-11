@@ -123,12 +123,23 @@ bool Parser::parse_import(ModuleItem& item) {
     advance(LexMode::Code);
     const auto check_source = [&] {
         const std::string& source = item.source;
-        const bool relative = source.starts_with("./") || source.starts_with("../");
-        if (item.side_effect ? !source.ends_with(".css") : (source != "tessera" && !relative)) {
+        if (item.side_effect) {
+            if (!source.ends_with(".css")) {
+                report("TESSERA_JSX_SUBSET_IMPORT",
+                       "a side-effect import must name a `.css` file", cur_.span,
+                       "use `import \"./styles.css\";`");
+            }
+            return;
+        }
+        // A named import comes from the framework (`"tessera"`), from React-compatible names
+        // (`"react"`), from a relative project file, or from a package root configured in the
+        // project (ADR-014). Resolution and its diagnostics are the lowering step's job, so the
+        // parser only rejects a malformed specifier: empty, absolute, or a bare drive/UNC path.
+        if (source.empty() || source.starts_with("/") || source.starts_with("\\") ||
+            (source.size() > 1 && source[1] == ':')) {
             report("TESSERA_JSX_SUBSET_IMPORT",
-                   item.side_effect ? "a side-effect import must name a `.css` file"
-                                    : "imports come from \"tessera\" or a relative path",
-                   cur_.span, "use `from \"tessera\"` or `from \"./Name\"`");
+                   "an import source must be a package name or a relative path", cur_.span,
+                   "use `from \"tessera\"`, `from \"pkg/Name\"` or `from \"./Name\"`");
         }
     };
     if (cur_.kind == TokenKind::String) {
