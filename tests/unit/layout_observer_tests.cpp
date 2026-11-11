@@ -16,6 +16,12 @@
 #include <utility>
 #include <vector>
 
+// GCC at -O3 inlines the replaced operator new/delete pair into std::make_unique and then flags
+// the free() inside our operator delete; the pair is intentionally malloc/free.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
 namespace {
 
 std::size_t g_allocations = 0;
