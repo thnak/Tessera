@@ -61,7 +61,15 @@ int main() {
         !expect(stats.presented >= 3, "the loop presented at least three frames")) {
         return 1;
     }
+
+    // run() is re-entrant: the input queue is reattached on entry and teardown drains the
+    // submitted lists without a device-wide wait, so a second bounded run still produces frames.
+    const tessera::app::WindowFrameStats second = host.run(2);
+    if (!expect(second.frames >= 2, "a second run paints frames") ||
+        !expect(second.presented >= 2, "a second run presents frames")) {
+        return 2;
+    }
     std::cout << "app_window_smoke: ok (frames=" << stats.frames << " presented=" << stats.presented
-              << " idle_waits=" << stats.idle_waits << ")\n";
+              << " idle_waits=" << stats.idle_waits << " second_frames=" << second.frames << ")\n";
     return 0;
 }

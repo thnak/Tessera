@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/app/frame_guard.hpp"
+#include "tessera/app/idle_policy.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/hal/window_wait.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
+#include "tessera/runtime/frame_pacer.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/input.hpp"
@@ -13,6 +16,7 @@
 #include "window_internal.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <optional>
 #include <stdexcept>
@@ -38,7 +42,8 @@ struct WindowHost::Impl {
          ui::UpdateScheduler* update_scheduler)
         : root(root),
           options(std::move(window_options)),
-          scheduler(update_scheduler) {
+          scheduler(update_scheduler),
+          pacer(runtime::FramePacerConfig{options.max_fps}) {
         hal::WindowDesc desc;
         desc.title = options.title;
         desc.width = options.width;
@@ -97,8 +102,37 @@ struct WindowHost::Impl {
         if (window != nullptr) {
             window->set_input_queue(nullptr);
         }
-        if (device != nullptr) {
-            device->wait_idle();
+        // No device-wide wait_idle(): drain only the lists this loop submitted, with a hard
+        // budget, and let the device's own destruction be the deferred full drain.
+        release_in_flight();
+    }
+
+    // Parks on the bounded platform wait for at most `seconds` (already clamped by the caller).
+    // Returns as soon as the window has an event and never sleeps past the deadline: the HAL wait
+    // slices at 50 ms and re-checks. A zero budget still pumps the message queue without sleeping
+    // so a close queued during a long idle is never missed.
+    void idle(double seconds) {
+        if (!(seconds > 0.0) || !std::isfinite(seconds)) {
+            (void)window->wait_for_events(0.0);
+            return;
+        }
+        (void)hal::wait_for_events_until(*window, hal::steady_now_seconds() + seconds);
+    }
+
+    // Teardown drain: poll the lists this loop submitted instead of calling a device-wide
+    // wait_idle(). The total budget is hard, so a lost or hung device cannot stall shutdown; a list
+    // still running after it is released to the RHI, which owns the command resources until the
+    // completion fence signals. The swapchain's own teardown drain is bounded the same way.
+    void release_in_flight() {
+        constexpr double kDrainBudgetSeconds = 0.25;
+        constexpr std::uint64_t kPollSliceMs = 1;
+        const double deadline = hal::steady_now_seconds() + kDrainBudgetSeconds;
+        for (auto& commands : in_flight) {
+            while (commands != nullptr && !commands->is_complete() &&
+                   hal::steady_now_seconds() < deadline) {
+                (void)commands->wait(kPollSliceMs);
+            }
+            commands.reset();
         }
     }
 
@@ -181,6 +215,10 @@ struct WindowHost::Impl {
         }
         stats.available = true;
         const bool force_frames = max_frames > 0;
+        // A previous run detached the queue so a platform event could not outlive its pump, so a
+        // second run() reattaches it on entry instead of leaving the window deaf forever.
+        window->set_input_queue(&pump.queue());
+        pacer.reset();
 
         bool closed = false;
         double last_tick = hal::steady_now_seconds();
@@ -221,30 +259,46 @@ struct WindowHost::Impl {
 
             const runtime::RuntimeTick tick = loop->tick();
             if (tick.device_blocked) {
-                // Idle on the bounded platform wait (never spin), and give up after a few ticks so
-                // a bounded run (`--frames N`) still terminates on a lost device.
+                // No presents while lost/recovering. Poll recovery on a short bounded retry and
+                // give up after a few ticks so a bounded run still terminates on a lost device.
                 ++stats.idle_waits;
                 if (failures.failed()) {
                     stats.stalled = true;
                     break;
                 }
-                window->wait_for_events(0.05);
+                idle(kFrameRetryWaitSeconds);
                 continue;
             }
             if (!tick.should_render) {
+                // Settled scene: do not begin a host frame at all, so no style, layout or paint
+                // work runs. Park until the next scheduled present or a wake source.
                 ++stats.idle_waits;
-                window->wait_for_events(0.25);
+                idle(idle_wait_seconds(pacer.ready(hal::steady_now_seconds())));
                 continue;
             }
 
+            // A frame the runtime wants still respects the present-rate cap: idle to the pacer
+            // deadline instead of rendering early and sleeping a fixed amount afterwards.
             const double now = hal::steady_now_seconds();
+            const runtime::PaceDecision pace = pacer.ready(now);
+            if (!pace.render_now) {
+                ++stats.idle_waits;
+                idle(pacer_wait_seconds(pace));
+                continue;
+            }
+
             const double dt = now - last_tick;
             last_tick = now;
             const HostFrame frame = host->begin_frame(dt, tick.alpha);
-            if (!frame.frame_due && !force_frames) {
+            const bool has_damage = !frame.render.redraw_plan.scissors.empty();
+            if (!should_present(frame.frame_due, has_damage, force_frames)) {
+                // A wake that changed nothing: clear the dirt the tick collected so it cannot stay
+                // latched into a phantom render request, then idle without painting. The forced CI
+                // path is the only caller allowed to paint an unchanged scene.
+                host->end_frame();
                 loop->clear_render_dirty();
                 ++stats.idle_waits;
-                window->wait_for_events(0.02);
+                idle(idle_wait_seconds(pacer.ready(hal::steady_now_seconds())));
                 continue;
             }
 
@@ -254,20 +308,24 @@ struct WindowHost::Impl {
                     stats.stalled = true;
                     break;
                 }
-                window->wait_for_events(0.002);
+                // A busy slot may free on any GPU completion; retry on the bounded backoff.
+                idle(kFrameRetryWaitSeconds);
                 continue;
             }
             failures.succeeded();
+            pacer.present(hal::steady_now_seconds());
             host->end_frame();
             loop->clear_render_dirty();
             if (force_frames && stats.frames >= max_frames) {
                 break;
             }
-            window->wait_for_events(0.001);
+            // Park until the next present is due (a zero budget only pumps the event queue when
+            // the pacer is uncapped, so a continuous loop never spins on a timer).
+            idle(pacer_wait_seconds(pacer.ready(hal::steady_now_seconds())));
         }
 
         window->set_input_queue(nullptr);
-        device->wait_idle();
+        release_in_flight();
         return stats;
     }
 
@@ -286,6 +344,8 @@ struct WindowHost::Impl {
     std::unique_ptr<ui::paint::Batched2DSink> sink;
     runtime::SteadyClock clock;
     std::unique_ptr<runtime::RuntimeLoop> loop = std::make_unique<runtime::RuntimeLoop>(clock);
+    // Present-rate cap and deadline source for the idle paths (0 = uncapped).
+    runtime::FramePacer pacer;
     std::unique_ptr<AppHost> host;
 
     ui::InputPump pump;
@@ -296,7 +356,14 @@ struct WindowHost::Impl {
 
 WindowHost::WindowHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, WindowOptions options,
                        ui::UpdateScheduler* scheduler)
-    : impl_(std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler)) {}
+    : impl_(nullptr) {
+    // Validate before the pacer is constructed: a negative or non-finite cap would throw from a
+    // member initializer where the message is opaque.
+    if (!std::isfinite(options.max_fps) || options.max_fps < 0.0) {
+        throw std::invalid_argument("tessera app window: max_fps must be finite and non-negative");
+    }
+    impl_ = std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler);
+}
 
 WindowHost::~WindowHost() = default;
 

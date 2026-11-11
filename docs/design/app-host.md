@@ -18,7 +18,7 @@ documented order:
 | `FramePipeline::sync_style` | same | `AppHost::begin_frame`, after layout |
 | `SceneStyleTree` / `SceneStyleProvider` | `src/ui/style/`, `src/ui/paint/` | created by the host from its compiled stylesheet; rebuilt when style or layout work is needed |
 | `apply_layout` and the layout engine | `src/ui/layout/` | `AppHost` layout pass |
-| texture caches' `end_frame()` | `src/rendering/{path,image}/` | still the paint-sink owner (a Batched2DSink caller), see section 6 |
+| `AppHost::end_frame()` (dirty clear) and the texture caches' own `end_frame()` | `src/app/host.cpp`, `src/rendering/{path,image}/` | the host clears dirt; texture caches stay with the composition root that owns them (section 6) |
 | `RuntimeLoop`, `FramePacer` | `src/runtime/` | the driver (window runner / test), passed into the host by reference |
 
 The only other real loop, `tools/poc/batched2d/main.cpp`, pushes rectangles directly and uses none
@@ -32,15 +32,18 @@ of the style, layout or paint pipeline. The host is the component that owns this
 - The host does not own the window, swapchain or GPU device. UI code sees `WindowMetrics` only
   ([ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md)); the host receives metrics
   and a `PaintSink` plus a present callback from the platform layer.
-- Everything runs on the UI thread and never blocks (no fence waits, no blocking I/O). Async work
-  completes through the `RuntimeLoop` completion queue.
+- Everything runs on the UI thread. The frame loop never blocks on the GPU: no fence waits, no
+  `wait_idle()`, no blocking I/O; async work completes through the `RuntimeLoop` completion queue.
+  Teardown (the window driver returning or being destroyed) drains only the command lists it
+  submitted, polling `is_complete()` under a bounded total budget, never a device-wide wait.
 
 ## 3. Frame order
 
 One iteration, in this order (steps 3 to 5 are skipped when nothing is dirty):
 
-1. **Wake and decide.** `RuntimeLoop::tick`; if it does not say render and no input is queued,
-   park until the next wake. A static UI presents nothing.
+1. **Wake and decide.** `RuntimeLoop::tick`; if it does not say render, park on the bounded
+   platform wait until the pacer's next deadline (clamped by `app/idle_policy.hpp`). A static UI
+   presents nothing.
 2. **Input.** Drain the normalized input queue and dispatch to the scene; handlers mark nodes dirty.
 3. **Tick.** `FramePipeline::tick(root, dt)` advances animations and collects dirty nodes. Its
    `needs_style` / `needs_layout` flags gate the next two steps.
@@ -54,9 +57,13 @@ One iteration, in this order (steps 3 to 5 are skipped when nothing is dirty):
    return to step 1.
 7. **Paint.** `paint_frame` with the plan: a partial plan wraps the sink in `ClippedPaintSink`
    (which forwards matrices, so rotated nodes stay exact), a full redraw paints directly.
-8. **End of frame.** Call `end_frame()` on each texture cache so textures retired this frame are
-   released (deferred destruction, bounded by the cache limits), then clear dirty flags.
-9. **Present.** Hand the finished frame to the platform present callback.
+8. **End of frame.** `AppHost::end_frame()` clears every dirty domain on the scene; a skipped frame
+   calls it too, so dirt cannot stay latched into a phantom render request. Texture caches
+   (`PathTextureCache`, `ImageTextureCache`) have their own `end_frame()` for textures retired this
+   frame; they belong to the composition root that installs them in the sink, not to `AppHost`
+   (section 6).
+9. **Present.** Hand the finished frame to the platform present callback only when the host's
+   damage/redraw plan has regions, or when the caller forces frames (bounded CI runs).
 
 ## 4. Decisions taken by the implementation
 
@@ -105,8 +112,20 @@ accessibility snapshot publication, which each have their own documents.
   offscreen frame through the same path, so tools and tests share it with the window. Swapchain
   images are not preserved, so a presented frame is a full redraw; the damage plan decides whether
   the frame happens at all.
-- Texture caches still belong to the paint-sink owner: the driver calls `end_frame()` on them after
-  submitting the frame. Promoting that into the host needs a painter abstraction (next slice).
+- Texture caches still belong to the composition root: a sink built with `VectorPaintConfig` /
+  `ImagePaintConfig` borrows them, and that owner calls their `end_frame()` after the frame's
+  commands finish. `AppHost::end_frame()` only clears scene dirty flags, and `WindowHost` installs
+  no vector/image caches, so it has no texture-cache `end_frame()` to call. Promoting cache
+  ownership into the host needs a painter abstraction (next slice).
+- `WindowHost` is the concrete driver of steps 1, 2 and 9 (`app/idle_policy.hpp`). It idles on the
+  `FramePacer` deadline (`pacer_wait_seconds` / `idle_wait_seconds`, clamped to
+  `kMaxIdleWaitSeconds = 250 ms`) instead of sleeping a fixed amount and never sleeps past the
+  deadline; the settled path parks before `begin_frame`, so a static scene does no style, layout or
+  paint work. A frame the host did not make due calls `end_frame()` and paints nothing. Only a
+  frame whose damage/redraw plan has regions is presented (the forced `run(max_frames > 0)` CI path
+  is the exception). `run()` can be called again: the input queue is reattached on entry, and
+  teardown polls only the submitted command lists under a bounded budget instead of a device-wide
+  `wait_idle()`.
 - `WindowHost::post_input` is the automation/test seam: it queues normalized events exactly as the
   platform translator does, so a window can be driven without a mouse/keyboard and the same pump,
   router, focus and generated handlers run. `tests/gpu/app_window_input_tests.cpp` uses it for

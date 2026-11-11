@@ -248,6 +248,15 @@ target_link_libraries(app_frame_guard_tests PRIVATE tessera_app)
 
 add_test(NAME app_frame_guard COMMAND app_frame_guard_tests)
 
+# The window driver idles on the pacer deadline (never a fixed sleep), never sleeps past it, and
+# presents only frames whose damage plan has regions.
+add_executable(app_idle_tests
+    app_idle_tests.cpp)
+
+target_link_libraries(app_idle_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME app_idle COMMAND app_idle_tests)
+
 # Input through the window pump: hover/active, click synthesis and typed text on the generated Demo.
 # The generated demo target only exists on host builds.
 if (TARGET tessera_compiler_demo)

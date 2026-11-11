@@ -31,6 +31,10 @@ struct WindowOptions {
     std::uint32_t height = 620;
     bool visible = true;
     bool vsync = true;
+    // Present-rate cap for the driver: 0 = uncapped (the display/vsync is the practical limit).
+    // A non-zero cap makes the loop park on the pacer deadline instead of presenting early.
+    // Negative or non-finite values are rejected by the WindowHost constructor.
+    double max_fps = 0.0;
     std::string font_path;
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
 };
@@ -51,9 +55,11 @@ struct WindowFrameStats {
 //   events -> InputPump -> update scheduler -> style/layout/sync/damage -> paint -> present.
 // Resize/DPI changes resize the swapchain and the host; a close event ends the loop.
 //
-// A static scene idles: the loop parks on the platform event wait and presents nothing until input,
-// a resize or a scheduled update asks for a frame. `run(max_frames > 0)` forces that many frames
-// (CI smoke) even when nothing is dirty.
+// A static scene idles: the loop parks on the bounded platform wait for the pacer's next deadline
+// (clamped by app/idle_policy.hpp) and presents nothing until input, a resize or a scheduled update
+// asks for a frame that changed. `run(max_frames > 0)` forces that many frames (CI smoke) even when
+// nothing is dirty. The loop never waits on the GPU; teardown drains the submitted lists with a
+// bounded per-list poll, and a host can run() again (the input queue is reattached on entry).
 //
 // One window per host (docs/design/app-host.md section 5). The host is single-threaded and must be
 // created, run and destroyed on the same thread as the window.
@@ -74,7 +80,8 @@ public:
     // returns immediately with stats().available == false.
     [[nodiscard]] bool available() const;
 
-    // Runs until the window closes. With max_frames > 0 it stops after that many presented frames.
+    // Runs until the window closes. With max_frames > 0 it stops after that many presented frames,
+    // forcing a frame even when the scene is clean (the bounded CI path). Callable more than once.
     WindowFrameStats run(std::uint32_t max_frames = 0);
 
     // Queues one normalized input event as if the platform had produced it; the next run() pumps
