@@ -83,6 +83,11 @@ bool value_supported(std::string_view property, std::string_view value) {
     if (property == "text-transform") {
         return keyword_in(normalized, {"none", "capitalize", "uppercase", "lowercase"});
     }
+    if (property == "text-overflow") {
+        // One value only: the two-value `<overflow> <side>` form is not implemented (the registry
+        // rejects it too, docs/design/text.md section 6.3).
+        return keyword_in(normalized, {"clip", "ellipsis"});
+    }
     if (property == "visibility") {
         return keyword_in(normalized, {"visible", "hidden", "collapse"});
     }
