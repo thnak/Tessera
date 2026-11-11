@@ -17,7 +17,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-005](ADR-005-yoga-layout-adapter.md) | Yoga for Flexbox, with a small Grid subset | Accepted |
 | [ADR-006](ADR-006-text-stack.md) | Text stack: FreeType, HarfBuzz, SheenBidi, ICU (International Components for Unicode) | Accepted |
 | [ADR-007](ADR-007-compiler-ir.md) | A neutral IR (intermediate representation) between JSX and C++ codegen | Accepted |
-| [ADR-008](ADR-008-protected-regions-and-manifest.md) | [Protected regions](../docs/reference/glossary.md), [binding manifest](../docs/reference/glossary.md), idempotent merging | Accepted |
+| [ADR-008](ADR-008-protected-regions-and-manifest.md) | [Protected regions](../docs/reference/glossary.md), [binding manifest](../docs/reference/glossary.md), idempotent merging | Superseded by ADR-040 |
 | [ADR-009](ADR-009-deterministic-headless-golden-tests.md) | Deterministic headless [golden](../docs/reference/glossary.md) tests on a software path | Accepted |
 | [ADR-010](ADR-010-macos-via-moltenvk-deferred.md) | macOS through MoltenVK, deferred from V1 | Accepted (deferred) |
 | [ADR-011](ADR-011-shader-authoring-and-cross-compilation.md) | Shader authoring and cross-compilation | Proposed |
@@ -49,7 +49,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-037](ADR-037-self-contained-wasm-designer.md) | Self-contained Wasm designer engine (front end + evaluator), picker, style editing | Accepted |
 | [ADR-038](ADR-038-cpp23-baseline.md) | C++23 language baseline (supersedes item 1 of ADR-015) | Accepted |
 | [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule) | Accepted |
-| [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (would supersede ADR-008) | Proposed |
+| [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (supersedes ADR-008) | Accepted |
 | [ADR-041](ADR-041-layout-observation.md) | Layout observation (`onSizeChange`), a layout read model, and container queries second | Accepted |
 
 ## Dependency overview
@@ -61,7 +61,7 @@ ADR-002 WebGPU/Dawn ─┘        │                     ADR-006 text
                               ├─ ADR-009 goldens
                               └─ ADR-011 shaders
 
-ADR-007 IR ── ADR-008 protected regions ── ADR-040 generated base + developer class (proposed)
+ADR-007 IR ── ADR-008 protected regions (superseded) ── ADR-040 generated base + developer class
 ADR-010 macOS (deferred)
 ADR-012 static linking (cross-cutting: build, licenses, accessibility)
 ADR-013 MIT license (cross-cutting: dependency choices)

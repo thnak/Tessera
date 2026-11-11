@@ -33,9 +33,12 @@ A cross-platform C++ UI framework:
    Backends live under `src/rendering/backend/{vulkan,webgpu,null}`.
 4. **Compiler is IR-first.** JSX/TSX → `src/compiler/ir` → C++ codegen. Never make codegen
    read the raw parser AST directly.
-5. **Protected regions are idempotent.**
-   `merge(merge(generated, existing), existing) == merge(generated, existing)`.
-   Developer C++ inside `[DEVELOPER_LOGIC_START: bind::id]` must survive UI regeneration.
+5. **Generated code and developer code have separate owners** ([ADR-040](decisions/ADR-040-generated-base-and-developer-class.md)).
+   Codegen emits a `gen::<Component>Base<Self>` that is never edited or merged; developer C++
+   lives in a developer-owned derived class scaffolded once, and a missing `bind::` member is a
+   compile error. Until the migration lands, the legacy protected-region merger must stay
+   idempotent (`merge(merge(g, e), e) == merge(g, e)`); keep it working but add no new features
+   to it.
 6. **Deterministic headless tests use a software path.** Golden images come from
    Mesa **lavapipe** or the CPU rasterizer, never from a real GPU framebuffer.
 7. **No React runtime in production.** Production is pure C++. React semantics exist only

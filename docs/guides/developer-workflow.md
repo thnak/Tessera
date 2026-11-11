@@ -1,5 +1,7 @@
 # Developer workflow and generated-code ownership
 
+> **Superseded model.** [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md) replaces protected regions with a generated base class plus a developer-owned class. This guide still describes the code as it is today and will be rewritten with the ADR-040 migration.
+
 Status: applies from Big Step C (compiler vertical slice) onward; the merger prototype was delivered in Big Step A (see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). V1 below means the first-release scope defined there.
 
 This guide is the practical companion to [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest). A protected region is a block of developer-written C++ between `[DEVELOPER_LOGIC_START: bind::<id>]` and `[DEVELOPER_LOGIC_END: bind::<id>]` markers; the merger is the tool that re-inserts those blocks into regenerated files. It defines who owns which bytes in a Tessera
