@@ -4,6 +4,7 @@
 #include "text_breaks.hpp"
 
 #include <cctype>
+#include <optional>
 
 namespace tessera::ui::text::edit_detail {
 namespace {
@@ -161,6 +162,16 @@ EditOffset next_cluster(std::string_view text, EditOffset offset) {
     if (offset >= text.size()) {
         return text.size();
     }
+    if (const std::optional<EditOffset> icu = grapheme_following(text, offset)) {
+        return *icu;
+    }
+    return builtin_next_cluster(text, offset);
+}
+
+EditOffset builtin_next_cluster(std::string_view text, EditOffset offset) {
+    if (offset >= text.size()) {
+        return text.size();
+    }
     const std::uint32_t first = codepoint_at(text, offset);
     EditOffset cursor = next_codepoint(text, offset);
     // CRLF is one cluster (the buffer normalizes CR on insertion, but helpers stay defensive).
@@ -197,11 +208,17 @@ EditOffset prev_cluster(std::string_view text, EditOffset offset) {
     if (offset == 0) {
         return 0;
     }
+    if (offset > text.size()) {
+        offset = text.size();
+    }
+    if (const std::optional<EditOffset> icu = grapheme_preceding(text, offset)) {
+        return *icu;
+    }
     EditOffset cursor = 0;
     EditOffset previous = 0;
     while (cursor < offset) {
         previous = cursor;
-        const EditOffset next = next_cluster(text, cursor);
+        const EditOffset next = builtin_next_cluster(text, cursor);
         if (next >= offset) {
             return previous;
         }
@@ -217,12 +234,15 @@ EditOffset snap_to_cluster(std::string_view text, EditOffset offset) {
     if (offset >= text.size()) {
         return text.size();
     }
+    if (const std::optional<EditOffset> icu = grapheme_snap(text, offset)) {
+        return *icu;
+    }
     EditOffset cursor = 0;
     while (cursor < text.size()) {
         if (offset == cursor) {
             return cursor;
         }
-        const EditOffset next = next_cluster(text, cursor);
+        const EditOffset next = builtin_next_cluster(text, cursor);
         if (offset < next) {
             return cursor;
         }

@@ -92,9 +92,89 @@ BreakBoundaries icu_break_iteration(std::string_view text, UBreakIteratorType ty
     finish(boundaries, text.size(), BreakBackend::Icu);
     return boundaries;
 }
+
+enum class GraphemeQuery { Following, Preceding, Snap };
+
+std::optional<EditOffset> icu_grapheme_query(std::string_view text, EditOffset offset,
+                                             GraphemeQuery query) {
+    if (icu::initialize() == icu::InitStatus::Failed) {
+        return std::nullopt;
+    }
+    UErrorCode status = U_ZERO_ERROR;
+    UText utext = UTEXT_INITIALIZER;
+    utext_openUTF8(&utext, text.data(), static_cast<int64_t>(text.size()), &status);
+    if (U_FAILURE(status)) {
+        utext_close(&utext);
+        return std::nullopt;
+    }
+    status = U_ZERO_ERROR;
+    UBreakIterator* iterator = ubrk_open(UBRK_CHARACTER, "", nullptr, 0, &status);
+    if (U_FAILURE(status) || iterator == nullptr) {
+        utext_close(&utext);
+        return std::nullopt;
+    }
+    status = U_ZERO_ERROR;
+    ubrk_setUText(iterator, &utext, &status);
+    std::optional<EditOffset> result;
+    if (U_SUCCESS(status)) {
+        const auto at = static_cast<int32_t>(offset);
+        int32_t found = UBRK_DONE;
+        switch (query) {
+        case GraphemeQuery::Following:
+            found = ubrk_following(iterator, at);
+            break;
+        case GraphemeQuery::Preceding:
+            found = ubrk_preceding(iterator, at);
+            break;
+        case GraphemeQuery::Snap:
+            found = ubrk_isBoundary(iterator, at) != 0 ? at : ubrk_preceding(iterator, at);
+            break;
+        }
+        if (found != UBRK_DONE) {
+            result = static_cast<EditOffset>(found);
+        } else if (query == GraphemeQuery::Following) {
+            result = text.size();
+        } else {
+            result = 0;
+        }
+    }
+    ubrk_close(iterator);
+    utext_close(&utext);
+    return result;
+}
 #endif
 
 } // namespace
+
+std::optional<EditOffset> grapheme_following(std::string_view text, EditOffset offset) {
+#if defined(TESSERA_ICU_ENABLED)
+    return icu_grapheme_query(text, offset, GraphemeQuery::Following);
+#else
+    (void)text;
+    (void)offset;
+    return std::nullopt;
+#endif
+}
+
+std::optional<EditOffset> grapheme_preceding(std::string_view text, EditOffset offset) {
+#if defined(TESSERA_ICU_ENABLED)
+    return icu_grapheme_query(text, offset, GraphemeQuery::Preceding);
+#else
+    (void)text;
+    (void)offset;
+    return std::nullopt;
+#endif
+}
+
+std::optional<EditOffset> grapheme_snap(std::string_view text, EditOffset offset) {
+#if defined(TESSERA_ICU_ENABLED)
+    return icu_grapheme_query(text, offset, GraphemeQuery::Snap);
+#else
+    (void)text;
+    (void)offset;
+    return std::nullopt;
+#endif
+}
 
 BreakBackend active_backend() {
 #if defined(TESSERA_ICU_ENABLED)

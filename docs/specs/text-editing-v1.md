@@ -317,7 +317,13 @@ Buffer and caret model:
   home/end, document home/end, `select_all`; plain arrows collapse a selection to its leading edge
   (left: start, right: end) and Shift extends it while keeping the anchor.
 
-Documented simplified grapheme cluster rule (UAX #29 reduced set):
+With the ICU slice linked (`TESSERA_ICU_REDUCED_DATA=ON`), `next_cluster`, `prev_cluster` and
+`snap_to_cluster` use ICU `UBRK_CHARACTER` (full UAX #29: Hebrew points, Arabic harakat, Thai marks,
+kana voicing marks, Hangul, Indic conjuncts, spacing marks, prepend). Fixtures:
+`tests/unit/icu/grapheme_icu_tests.cpp`. The reduced rule below is the no-ICU fallback and the
+parity baseline (`builtin_next_cluster`); ICU still opens one iterator per query.
+
+Documented simplified grapheme cluster rule (UAX #29 reduced set, no-ICU fallback):
 
 1. One base code point, then any following **Extend** code points: combining marks in
    U+0300–U+036F, U+1AB0–U+1AFF, U+1DC0–U+1DFF, U+20D0–U+20FF, U+FE20–U+FE2F; variation selectors
