@@ -96,10 +96,18 @@ accessibility snapshot publication, which each have their own documents.
 - `FramePipelineConfig` (DPI scale, damage margin, redraw policy, interpolation) is `HostConfig`'s
   `pipeline` field; `text_measurer` injects a real layout measurer (null keeps the deterministic
   stub used by the goldens).
+- `samples/click-demo` is the first driver: the generated `Demo` component plus a compiled
+  stylesheet, a visible Win32/X11 window with a Vulkan swapchain (two frames in flight, bounded
+  wait on the reused slot), `InputPump` → `InputRouter` → generated handler → update scheduler
+  flush → relayout → repaint, and a windowless `--capture` mode (offscreen target + readback) for CI
+  and visual review. Swapchain images are not preserved, so a presented frame is a full redraw; the
+  damage plan decides whether the frame happens at all. The runner lives in the sample today;
+  promoting it to a `tessera_app_window` library is the next slice.
 - Texture caches still belong to the paint-sink owner: the driver calls `end_frame()` on them after
   submitting the frame. Promoting that into the host needs a painter abstraction (next slice).
-- Known limits: `UpdateScheduler` is not installed by the host yet; the style tree rebuild is O(n)
-  per geometry frame; resize reuses the previous `LayoutEngine` text cache.
+- Known limits: `UpdateScheduler` is installed by the driver (`AppHost::set_update_scheduler`), not
+  created by the host; the style tree rebuild is O(n) per geometry frame; resize reuses the previous
+  `LayoutEngine` text cache; hover/active pseudo-state and text cursor styling are not wired yet.
 
 Related: [dirty-rendering.md](dirty-rendering.md), [game-loop.md](game-loop.md),
 [gpu/frames.md](gpu/frames.md), [animation-runtime.md](animation-runtime.md),

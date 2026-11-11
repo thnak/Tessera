@@ -108,6 +108,11 @@ if (TESSERA_BUILD_VULKAN)
     if (TESSERA_BUILD_POC)
         add_subdirectory(tools/poc/vulkan_offscreen)
         add_subdirectory(tools/poc/batched2d)
+        # The generated demo target only exists on host builds, and the sample presents through the
+        # Vulkan surface path, so it is gated like the PoCs.
+        if (NOT CMAKE_CROSSCOMPILING)
+            add_subdirectory(samples/click-demo)
+        endif()
     endif()
 endif()
 
