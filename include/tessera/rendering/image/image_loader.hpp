@@ -73,8 +73,9 @@ struct DecodedImage {
 // With a non-original `target` (display size x DPR bucket, image_resize.hpp) the raster is reduced
 // by a deterministic box filter to the smallest size that still covers the target and is never
 // enlarged, so what a caller retains is bounded by the display, not the source. Limits apply to the
-// encoded image's size. stb_image has no scaled decode, so the full raster exists transiently
-// during the call; it is freed before returning.
+// encoded image's size. A JPEG is decoded at 1/2, 1/4 or 1/8 inside the IDCT (libjpeg-turbo), so
+// its full raster never exists; other formats go through stb_image, which has no scaled decode, so
+// their full raster exists transiently during the call and is freed before returning.
 [[nodiscard]] std::expected<DecodedImage, ImageError>
 decode_image(std::span<const std::uint8_t> bytes, ImageLimits limits = {},
              DecodeTarget target = {});

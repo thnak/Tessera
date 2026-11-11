@@ -73,9 +73,15 @@ therefore takes a `DecodeTarget` (`rendering/image/image_resize.hpp`):
   the image shares the source-size entry; growing past a bucket decodes again. The cache budget
   counts the reduced raster. Limits are judged on the encoded image's size, so a reduced decode
   cannot slip past them.
-- **Limit:** stb_image has no scaled decode, so the full raster exists transiently during the call
-  and is freed before it returns; the retained and uploaded memory is the reduced one. Scaled
-  decode through libjpeg-turbo and libwebp is a later optimization that lowers the peak.
+- **Limit:** stb_image has no scaled decode, so PNG (and any JPEG the fast path declines) holds the
+  full raster transiently during the call and frees it before it returns; the retained and uploaded
+  memory is the reduced one.
+- **Scaled JPEG:** libjpeg-turbo (plain C, no SIMD) decodes at 1/2, 1/4 or 1/8 inside the IDCT, the
+  largest step that still covers the reduced size (`jpeg_scale_denominator`); the box filter
+  finishes the last fraction. A 4000 x 3000 photo shown as a thumbnail never allocates its 48 MB
+  raster, which lowers the peak, not only the retained size. CMYK, non-8-bit and corrupt data fall
+  back to stb. A target that needs no reduction keeps using stb, so unscaled output is unchanged.
+  WebP scaled decode is still open (stb has no WebP decoder).
 - **Wiring:** the Batched2D sink asks `image_decode_target(draw, device_scale)` for the target: the
   raster extent the draw will upload (explicit extents, else content box x scale), bucketed.
   `PaintImageStyle::decode_original` (`Image decodeSize="original"`) selects the source-size

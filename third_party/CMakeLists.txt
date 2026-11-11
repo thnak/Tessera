@@ -68,6 +68,81 @@ if (TARGET freetype)
     target_link_libraries(tessera_freetype INTERFACE freetype)
 endif()
 
+# libjpeg-turbo gives JPEG a scaled decode (1/2, 1/4, 1/8 in the IDCT), so a thumbnail of a large
+# photo never allocates the full raster (issue #14). Upstream refuses add_subdirectory(), so the
+# archive is fetched without adding it and the plain-C library is built here: no SIMD (no assembler
+# on any CI platform, identical output everywhere), no TurboJPEG API, no tools. 12- and 16-bit
+# object sets are required by the library's precision-generic entry points, as upstream does.
+FetchContent_Declare(
+    libjpeg_turbo
+    URL https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz
+    URL_HASH SHA256=0270f9496ad6d69e743f1e7b9e3e9398f5b4d606b6a47744df4b73df50f62e38
+    SOURCE_SUBDIR tessera_not_a_subdirectory
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(libjpeg_turbo)
+
+set(LJT ${libjpeg_turbo_SOURCE_DIR})
+set(LJT_GEN ${CMAKE_CURRENT_BINARY_DIR}/libjpeg_turbo_config)
+set(JPEG_LIB_VERSION 62)
+set(VERSION 3.0.4)
+set(LIBJPEG_TURBO_VERSION_NUMBER 3000004)
+set(BUILD "tessera")
+set(HIDDEN "")
+set(SIZE_T ${CMAKE_SIZEOF_VOID_P})
+if (MSVC)
+    set(INLINE "__forceinline")
+    set(THREAD_LOCAL "__declspec(thread)")
+else()
+    set(INLINE "inline __attribute__((always_inline))")
+    set(THREAD_LOCAL "__thread")
+endif()
+set(D_ARITH_CODING_SUPPORTED 1)
+configure_file(${LJT}/jconfig.h.in ${LJT_GEN}/jconfig.h)
+configure_file(${LJT}/jconfigint.h.in ${LJT_GEN}/jconfigint.h)
+configure_file(${LJT}/jversion.h.in ${LJT_GEN}/jversion.h)
+
+set(LJT16_SOURCES jcapistd.c jccolor.c jcdiffct.c jclossls.c jcmainct.c jcprepct.c jcsample.c
+    jdapistd.c jdcolor.c jddiffct.c jdlossls.c jdmainct.c jdpostct.c jdsample.c jutils.c)
+set(LJT12_SOURCES ${LJT16_SOURCES} jccoefct.c jcdctmgr.c jdcoefct.c jddctmgr.c jdmerge.c
+    jfdctfst.c jfdctint.c jidctflt.c jidctfst.c jidctint.c jidctred.c jquant1.c jquant2.c)
+set(LJT_SOURCES ${LJT12_SOURCES} jcapimin.c jchuff.c jcicc.c jcinit.c jclhuff.c jcmarker.c
+    jcmaster.c jcomapi.c jcparam.c jcphuff.c jctrans.c jdapimin.c jdatadst.c jdatasrc.c
+    jdhuff.c jdicc.c jdinput.c jdlhuff.c jdmarker.c jdmaster.c jdphuff.c jdtrans.c jerror.c
+    jfdctflt.c jmemmgr.c jmemnobs.c jpeg_nbits.c jaricom.c jdarith.c)
+
+function(tessera_ljt_sources out)
+    set(list "")
+    foreach (name ${ARGN})
+        list(APPEND list ${LJT}/${name})
+    endforeach()
+    set(${out} ${list} PARENT_SCOPE)
+endfunction()
+
+tessera_ljt_sources(LJT16_PATHS ${LJT16_SOURCES})
+tessera_ljt_sources(LJT12_PATHS ${LJT12_SOURCES})
+tessera_ljt_sources(LJT_PATHS ${LJT_SOURCES})
+
+add_library(tessera_jpeg12 OBJECT ${LJT12_PATHS})
+target_compile_definitions(tessera_jpeg12 PRIVATE BITS_IN_JSAMPLE=12)
+add_library(tessera_jpeg16 OBJECT ${LJT16_PATHS})
+target_compile_definitions(tessera_jpeg16 PRIVATE BITS_IN_JSAMPLE=16)
+add_library(tessera_jpeg STATIC ${LJT_PATHS} $<TARGET_OBJECTS:tessera_jpeg12>
+    $<TARGET_OBJECTS:tessera_jpeg16>)
+foreach (jpeg_target tessera_jpeg12 tessera_jpeg16 tessera_jpeg)
+    # Generated config first so it wins over any installed libjpeg header.
+    target_include_directories(${jpeg_target} PRIVATE ${LJT_GEN} ${LJT})
+    set_target_properties(${jpeg_target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    if (MSVC)
+        target_compile_options(${jpeg_target} PRIVATE /W0)
+        target_compile_definitions(${jpeg_target} PRIVATE _CRT_SECURE_NO_WARNINGS)
+    else()
+        target_compile_options(${jpeg_target} PRIVATE -w)
+    endif()
+endforeach()
+target_include_directories(tessera_jpeg SYSTEM PUBLIC
+    $<BUILD_INTERFACE:${LJT_GEN}>
+    $<BUILD_INTERFACE:${LJT}>)
+
 # HarfBuzz turns text runs into glyph ids/positions. It parses the same pinned font bytes as
 # FreeType, so the FreeType integration and the platform shapers stay out of the build.
 set(HB_BUILD_UTILS OFF CACHE BOOL "" FORCE)
