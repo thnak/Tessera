@@ -53,7 +53,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-041](ADR-041-layout-observation.md) | Layout observation (`onSizeChange`), a layout read model, and container queries second | Accepted |
 | [ADR-042](ADR-042-jsx-startup-surface.md) | Declarative JSX startup surface: `App` root, built-in `Startup.*`/`Resources.*` member tags, framework loading screen | Proposed |
 | [ADR-043](ADR-043-launch-modes-and-state-reuse.md) | Launch modes (cold/warm/hot resume/process restore) and state reuse, activation precedence, snapshot trust | Proposed |
-| [ADR-044](ADR-044-system-window-chrome-in-v1.md) | System-owned window chrome in V1: reserved chrome tokens, chrome applied before first show, no client-side title bar | Proposed |
+| [ADR-044](ADR-044-system-window-chrome-in-v1.md) | Window chrome policy in V1: system chrome by default, Windows opt-in `WindowChrome` title bar, framework-owned `AppBar`, reserved chrome tokens | Proposed (revised) |
 
 ## Dependency overview
 

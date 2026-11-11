@@ -57,6 +57,7 @@ paths are rejected.
 | `height` | integer | `800` | > 0 |
 | `scale` | string | `auto` | `auto` or a number (DPI scale) |
 | `appearance` | string | `auto` | Light/dark system chrome: `auto`, `light` or `dark`; `auto` derives from `--window-background` ([`window-chrome-v1.md`](window-chrome-v1.md)) |
+| `titleBar` | string | `system` | `system` or `custom`. `custom` draws the framework `WindowChrome`; Windows only in V1, other platforms warn and keep the system chrome ([`window-chrome-v1.md`](window-chrome-v1.md)) |
 | `resizable` | boolean | `true` | |
 
 ## `ui`
@@ -438,6 +439,10 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     release-disabled by default.
 22. `window.appearance` is `auto`, `light` or `dark`; the reserved chrome tokens listed in
     [window-chrome-v1.md](window-chrome-v1.md) section 3 must be plain opaque colours.
+23. `window.titleBar` is `system` or `custom`. `custom` requires the platform support of
+    [window-chrome-v1.md](window-chrome-v1.md) section 8.1; on other platforms it is a runtime
+    warning (`TESSERA_CHROME_UNSUPPORTED`), not a build failure, so one project source stays
+    portable.
 
 ## Example
 
