@@ -262,6 +262,20 @@ VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
 #endif
 }
 
+rhi::DeviceMemoryStats VulkanDevice::memory_statistics() const {
+    rhi::DeviceMemoryStats stats;
+    if (allocator_ == nullptr) {
+        return stats;
+    }
+    VmaTotalStatistics total{};
+    vmaCalculateStatistics(allocator_, &total);
+    stats.block_bytes = total.total.statistics.blockBytes;
+    stats.allocation_bytes = total.total.statistics.allocationBytes;
+    stats.block_count = total.total.statistics.blockCount;
+    stats.allocation_count = total.total.statistics.allocationCount;
+    return stats;
+}
+
 void VulkanDevice::wait_idle() {
     if (device_ == VK_NULL_HANDLE || status_ == rhi::DeviceStatus::Lost) {
         return;

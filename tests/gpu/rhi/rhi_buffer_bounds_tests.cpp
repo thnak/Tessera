@@ -82,6 +82,14 @@ int main() {
         return 1;
     }
 
+    {
+        const auto stats = null_device->memory_statistics();
+        if (!expect(stats.allocation_bytes == 0 && stats.block_count == 0, "null",
+                    "a backend without tracking reports zero memory")) {
+            return 1;
+        }
+    }
+
 #if defined(TESSERA_TEST_HAS_VULKAN)
     rhi::DeviceDesc vulkan_desc;
     vulkan_desc.backend = rhi::Backend::Vulkan;
@@ -95,6 +103,22 @@ int main() {
     }
     if (!check_device(*vulkan_device, "vulkan")) {
         return 2;
+    }
+    {
+        constexpr std::size_t kMemoryProbe = 1U << 20;
+        const auto before = vulkan_device->memory_statistics();
+        auto probe = vulkan_device->create_buffer({kMemoryProbe, rhi::BufferUsage::Readback});
+        const auto during = vulkan_device->memory_statistics();
+        probe.reset();
+        const auto after = vulkan_device->memory_statistics();
+        if (!expect(during.allocation_bytes >= before.allocation_bytes + kMemoryProbe, "vulkan",
+                    "a live buffer shows in allocation_bytes") ||
+            !expect(during.block_bytes >= during.allocation_bytes, "vulkan",
+                    "blocks cover allocations") ||
+            !expect(after.allocation_bytes == before.allocation_bytes, "vulkan",
+                    "freeing the buffer returns allocation_bytes to the baseline")) {
+            return 3;
+        }
     }
 #endif
 

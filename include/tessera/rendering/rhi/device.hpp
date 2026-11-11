@@ -123,6 +123,16 @@ enum class DeviceRecoveryError {
     DeviceCreationFailed,
 };
 
+// GPU memory the device's allocator holds (issue #13). `block_bytes` is what was requested from the
+// driver; `allocation_bytes` is the part handed to live buffers and images, so the gap is allocator
+// slack. All zero on backends that do not track it.
+struct DeviceMemoryStats {
+    std::uint64_t block_bytes = 0;
+    std::uint64_t allocation_bytes = 0;
+    std::uint32_t block_count = 0;
+    std::uint32_t allocation_count = 0;
+};
+
 class Device {
 public:
     virtual ~Device() = default;
@@ -140,6 +150,12 @@ public:
     create_swapchain(const SwapchainDesc& desc) = 0;
 
     virtual void wait_idle() = 0;
+
+    // Snapshot of the allocator's totals. Cheap (no GPU work) but not free: sample at checkpoints,
+    // not per frame.
+    [[nodiscard]] virtual DeviceMemoryStats memory_statistics() const {
+        return {};
+    }
 
     // True when `sample_count` (1 or 4) is supported for `format` as a color render target on this
     // device. Unsupported requests must be reported to the caller (creation throws); backends never

@@ -114,6 +114,12 @@ measure and budget: steady and peak RSS of the sample apps (the baseline covers 
 until a sample runs headless), GPU memory by category (swapchain, atlas pages, images, buffers),
 Android PSS and per-glyph-atlas-page cost.
 
+GPU memory: `rhi::Device::memory_statistics()` returns the allocator totals (`block_bytes` asked of
+the driver, `allocation_bytes` handed to live buffers and images, and their counts). The Vulkan
+backend fills it from `vmaCalculateStatistics`; other backends report zero. It is a snapshot with no
+GPU work, for checkpoints rather than every frame. Swapchain images are driver-owned and not in
+these totals, and there is no per-category split yet (needs VMA pools or per-resource tags).
+
 ## 4. Power policies
 
 `runtime.powerPolicy` selects a coherent set of defaults:
