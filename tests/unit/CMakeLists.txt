@@ -330,7 +330,29 @@ if (TESSERA_X11_FOUND)
         X11::X11)
 
     add_test(NAME window_x11 COMMAND window_x11_tests)
+
+    add_executable(window_x11_input_tests
+        window_x11_input_tests.cpp)
+
+    target_link_libraries(window_x11_input_tests PRIVATE
+        tessera_hal_window
+        tessera_input
+        X11::X11)
+
+    add_test(NAME window_x11_input COMMAND window_x11_input_tests)
 endif()
+
+# The pure X11 keysym/button/modifier mapping has no Xlib dependency, so it runs on every platform.
+add_executable(x11_input_translation_tests
+    x11_input_translation_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp)
+
+target_link_libraries(x11_input_translation_tests PRIVATE tessera_input)
+
+target_include_directories(x11_input_translation_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/linux)
+
+add_test(NAME x11_input_translation COMMAND x11_input_translation_tests)
 
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)

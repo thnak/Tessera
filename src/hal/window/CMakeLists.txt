@@ -28,8 +28,12 @@ if (WIN32)
         uiautomationcore)
 elseif (TESSERA_X11_FOUND)
     target_sources(tessera_hal_window PRIVATE
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp)
-    target_link_libraries(tessera_hal_window PUBLIC X11::X11)
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp)
+    target_include_directories(tessera_hal_window PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/linux)
+    target_link_libraries(tessera_hal_window PUBLIC X11::X11 PRIVATE tessera_input)
 else()
     target_sources(tessera_hal_window PRIVATE
         window_stub.cpp)

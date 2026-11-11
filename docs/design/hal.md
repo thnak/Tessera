@@ -290,8 +290,11 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   resize/device-loss policy, and runtime/pacer integration (macOS via
   [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per
   [`mobile-integration.md`](mobile-integration.md)).
-- X11 limitations in this slice: **no pointer or keyboard input** (the window selects only
-  structure, expose and focus events; XInput2/XKB are planned in [`input.md`](input.md)), no Wayland, no IME/XIM, no occlusion/minimize signal, no RandR
-  or display-hotplug handling, and DPI is a global `Xft.dpi` heuristic (96 fallback). See
-  [`window-resize.md`](window-resize.md) §0.
+- X11 limitations in this slice: input is the **core protocol only** (pointer, wheel, key and
+  keysym text through `set_input_queue`, translated by `src/platform/linux/x11_input*.cpp` with the mapping rules in
+  `x11_input_translation.cpp`; see [`input.md`](input.md)); there is no
+  XInput2 (smooth scroll, touch, pen), no XKB layout tracking or dead-key/compose text, no
+  Wayland, no IME/XIM/IBus, no occlusion/minimize signal, no RandR or display-hotplug handling,
+  and DPI is a global `Xft.dpi` heuristic (96 fallback). See [`window-resize.md`](window-resize.md)
+  §0.
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).
