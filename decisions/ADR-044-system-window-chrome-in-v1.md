@@ -1,6 +1,8 @@
-# ADR-044: System-owned window chrome in V1
+# ADR-044: Window chrome policy in V1: system by default, Windows client-side title bar opt-in
 
-Status: Proposed (2026-11-11).
+Status: Proposed (revised 2026-11-11 after owner review; the original text deferred all client-side
+decorations, and the owner chose to ship a Windows custom title bar early and to make the app shell
+framework-owned).
 
 ## Context
 
@@ -16,72 +18,81 @@ Three pressures are in conflict:
 
 1. **Continuity.** A white title bar or a light status bar around a dark loading screen looks like a
    bug; launch artifacts, loading screen and chrome must derive from one value.
-2. **Branding.** Apps want a custom title bar (an app-drawn bar with window controls) for a
-   uniform look across platforms.
-3. **Correctness cost.** A client-side title bar means per-platform non-client hit-testing, dragging,
-   resize borders, Snap Layouts support, traffic-light placement, and accessibility for the
-   controls. On Linux/X11 the window manager owns decorations and the app must take over resize and
-   move protocols to replace them. This is a large, hard-to-reverse surface that no V1 acceptance
-   criterion needs.
+2. **Branding.** Apps want a title bar and an action bar that match the app, not the OS. The owner
+   chose that this is worth doing on Windows in V1, and that the app shell should be a
+   framework-owned component rather than a library component the app re-implements.
+3. **Correctness cost.** A client-side title bar means non-client hit-testing, dragging, resize
+   borders, Snap Layouts support, and accessibility for the controls. On Linux/X11 the window
+   manager owns decorations and the app must take over resize and move protocols to replace them;
+   macOS has its own traffic-light and window-state rules.
 
 The theme asset already defines colours but has no reserved token for the window surface, so the
 startup spec's "background token" reference had no normative source.
 
 ## Decision
 
-1. **System chrome stays system-owned in V1.** Tessera paints no title bar, no window controls and
-   no system bar. The client area is the whole scene; on desktop the title bar is outside it and
-   desktop insets are zero.
-2. **The appearance the framework supplies is a policy, not a widget.** Two reserved theme tokens
-   (`--window-background`, `--window-foreground`) plus `window.appearance` (`auto`/`light`/`dark`)
-   are resolved at build time into the startup manifest as `{background, foreground, scheme}`. The
-   P0 launch artifact, the P2 default loading screen and the P1 platform call read that one record;
-   `tessera_codegen --check` treats divergence as a build error.
-3. **Chrome is applied in P1, before the window is shown**, and re-applied at a frame boundary when
-   the theme, DPI or insets change. It is a bounded HAL call on the window's thread, never a
-   compositor round-trip and never a startup gate.
-4. **The app action bar is app chrome.** `AppBar` stays a library component mounted at P4; the
-   framework synthesizes no action bar, no title text and no menu button. A static header in a
-   custom loading subtree is allowed as a continuity guideline.
-5. **Unsupported chrome degrades, never fails.** An older Windows build that ignores a DWM
-   attribute, or a compositor that forces server-side decorations, produces a structured
-   `TESSERA_CHROME_UNSUPPORTED` warning and default OS chrome.
-6. **Client-side decorations are deferred.** Adding them later requires its own ADR with a
-   per-platform matrix (Windows `WM_NCCALCSIZE`/`WM_NCHITTEST`/Snap Layouts, Linux X11/Wayland
-   resize and move obligations, macOS traffic lights) and an accessibility plan for the custom
-   controls.
+1. **System chrome is the default on every platform.** With no configuration, the OS owns the title
+   bar, menu bar and system bars; Tessera paints none of them.
+2. **Windows V1 adds an opt-in client-side title bar.** `window.titleBar: "custom"` makes the
+   framework draw its own title bar and window controls on Windows, because the owner wants early
+   branding and chrome consistency. Linux and macOS stay system-only in V1; requesting `custom`
+   there warns (`TESSERA_CHROME_UNSUPPORTED`) and keeps the system chrome, so one project source
+   still runs everywhere.
+3. **The app shell is framework-owned.** `WindowChrome` (title bar and window controls) and `AppBar`
+   (the action row) are framework components imported from `"tessera"`, not library components.
+   `AppHost` mounts `WindowChrome` when custom decoration is enabled, already in P2, so no frame is
+   ever visible without a title bar. `AppBar` is mounted by the app at P4.
+4. **The appearance contract is unchanged and shared.** Two reserved theme tokens
+   (`--window-background`, `--window-foreground`) plus `window.appearance` are resolved at build
+   time into the startup manifest as `{background, foreground, scheme}`. The P0 launch artifact, the
+   P2 default loading screen, the P1 platform call and the engine-drawn custom title bar read that
+   one record.
+5. **Custom decoration is applied in P1, before `show()`.** `WM_NCCALCSIZE` and the decoration state
+   are set on the hidden window, so the first visible frame already has the custom bar. The HAL
+   owns the non-client hit-test (`WM_NCHITTEST`): resize borders, `HTCAPTION` drag, `HTSYSMENU`,
+   and `HTMAXBUTTON` for Snap Layouts on Windows 11; double-click maximize, the system menu,
+   per-monitor DPI and the maximized/restored icon state are part of the contract.
+6. **Unsupported chrome degrades, never fails.** An older Windows build that ignores a DWM
+   attribute, a platform without the requested decoration mode, or a compositor that forces
+   server-side decorations produces a structured warning and default OS chrome.
+7. **The custom title bar is accessibility content.** Its window controls are framework nodes with
+   names, roles and actions exposed through the platform accessibility bridge; they are not part of
+   the app component tree and cannot be styled or hit-tested by app code.
 
 ## Alternatives
 
-- **Custom title bar from day one (CSD everywhere).** Best branding, but it forces non-client
-  hit-testing, resize borders and window-control accessibility into the first release, risks
-  platform breakage (Snap Layouts, Wayland forcing SSD), and would make the startup story depend on
-  a component that does not exist. Rejected for V1.
-- **Per-platform chrome props in JSX.** `titleBarColor`, `statusBarStyle`, etc. per platform would
-  leak platform `ifdef`-style decisions into app source and double-maintain every platform. The
-  theme token + scheme pair keeps one declaration and one resolved value. Rejected.
-- **No chrome control at all.** Simplest, but leaves the wrong-theme flash the startup spec
-  explicitly forbids (G6 continuity) and gives no way to theme dark apps. Rejected.
+- **System chrome only (the original proposal).** Cheapest and most native, but the owner wants a
+  branded Windows title bar in V1; rejected.
+- **Client-side decorations everywhere in V1.** Consistent branding, but Linux resize/move protocols
+  and macOS window behaviour are a large, hard-to-reverse surface that no current acceptance
+  criterion needs. Rejected for V1; Windows only, with the same contract extended later.
+- **Library `AppBar` / app-drawn title bar.** The app would re-implement window controls, drag,
+  Snap Layouts and accessibility per project, and the loading screen could not show a consistent
+  bar. Rejected; the shell is framework-owned.
+- **Per-platform chrome props in JSX.** `titleBarColor`, `statusBarStyle`, etc. per platform leak
+  platform decisions into app source and double-maintain every platform. The theme token + scheme
+  pair keeps one declaration and one resolved value. Rejected.
 - **Let the app draw a fake title bar inside the client area while keeping the system title bar.**
   Double chrome, double close buttons, a title bar that cannot be dragged for move, and a
   hit-testing trap. Rejected.
-- **Put chrome policy in `tessera.json` only, with no theme tokens.** Chrome would ignore runtime
-  theme switching and could drift from the loading screen. Rejected; config owns the switch,
-  the theme owns the colours.
 
 ## Consequences
 
-- Positive: no chrome flash on either side of the desktop/mobile split; one value drives P0/P1/P2;
-  the first release avoids the hardest cross-platform decoration work; desktop layout and goldens
-  are unchanged because desktop insets stay zero.
-- Negative: V1 apps look native rather than uniformly branded on desktop; the caption colour is
-  partly an OS-version lottery (Windows 10 vs 11) and needs the degradation rule; a project that
-  wants a branded title bar must wait for the CSD ADR.
-- New public contract: two reserved theme tokens and one config key. Both are documented
-  normatively in [`window-chrome-v1.md`](../docs/specs/window-chrome-v1.md), and the stylesheet
-  theme asset section ([`stylesheet-v1.md`](../docs/specs/stylesheet-v1.md) section 9.2) defines
-  their value rules.
-- Follow-ups: chrome work rides startup slice S3 (desktop) and S6 (mobile artifacts); no new slice
-  is added. The CSD decision (section 13 of the spec, open questions 1-2) stays open, and the
-  design-time preview of chrome is specified in
-  [`designer-studio-v1.md`](../docs/specs/designer-studio-v1.md) section 5.
+- V1 gains a Windows-only decoration path: `WM_NCCALCSIZE`, `WM_NCHITTEST` (resize/Snap Layouts),
+  DWM frame and shadow handling, window-state icons, high-DPI metrics, and accessibility for the
+  window controls. This rides the B3 window work and the startup slice S3, not a new slice.
+- The custom bar is engine content, so it must be present in the P2 loading frame. The default
+  loading screen renders below it; a custom loading subtree renders inside the content area.
+- Title text needs a font. If the app font has not loaded at P2 (critical resource still in
+  flight), the bar shows the mark and controls without text and fills the title at P4; no system
+  font is ever loaded.
+- Linux/macOS custom decoration is deferred; a project that requests it still runs with system
+  chrome and one warning, so cross-platform projects are not blocked.
+- Two decoration modes must be tested (system and custom) on Windows, including P2 continuity,
+  DPI changes, maximize/restore, Snap Layouts and screen readers.
+- The studio must preview both modes: system chrome is simulated by the skin, custom chrome is
+  drawn by the engine and therefore part of the canvas
+  ([`designer-studio-v1.md`](../docs/specs/designer-studio-v1.md) section 5).
+- New public contract: `window.titleBar`, the framework `WindowChrome`/`AppBar` components, and the
+  two reserved tokens. All are documented normatively in
+  [`window-chrome-v1.md`](../docs/specs/window-chrome-v1.md).

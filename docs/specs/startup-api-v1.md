@@ -274,7 +274,7 @@ phase (section 5.1).
 |---|---|---|---|
 | `launch` (P0) | OS launch screen | Process start | Platform-generated launch artifact only: Android splash theme, iOS launch screen, or (desktop) a hidden window. No app code runs |
 | `runtime` (P1) | Minimal native runtime | Launch artifact accepted | Window, graphics surface, chrome policy ([window-chrome-v1.md](window-chrome-v1.md)), device/queues, executors, completion queue, `RuntimeLoop`. No app UI |
-| `first_frame` (P2) | First frame | Surface presentable | Loading subtree presented once. Independent of app resources |
+| `first_frame` (P2) | First frame | Surface presentable | Framework `WindowChrome` (when `window.titleBar` is `custom`) plus the loading subtree presented once. Independent of app resources |
 | `background_init` (P3) | Background initialization | P2 frame presented | Critical set loads; resource manager, remaining fonts, shader/pipeline warm-up, caches, services, session/auth, initial route and restore validation run off the UI thread |
 | `interactive` (P4) | Interactive ready | Critical set ready and initial route/restore resolved | App UI tree mounted and laid out (first meaningful frame); input dispatched. `high` resources may still load |
 | `optimizing` (P5) | Progressive optimization | P4 reached | `low` prefetch, image variants, cache warm-up, next-route preparation; idle-only and cancellable |
@@ -353,6 +353,9 @@ loading subtree, or a legacy project, startup presents a valid first frame.
   which is guaranteed at P2. Visual brand text belongs in the custom loading subtree.
 - Responsive: centered mark, does not depend on window size, DPI, safe-area insets, or fold posture.
 - Reduced motion: the progress track becomes static.
+- In `custom` title-bar mode the screen fills the content area below the framework `WindowChrome`
+  ([window-chrome-v1.md](window-chrome-v1.md) section 8.1); the first frame still presents before
+  any app resource.
 - The screen is not dismissed by time; it is replaced by the app UI exactly at P4 (or by the error
   fallback at G7), and it is not shown at all on `hot_resume` (G13).
 
@@ -494,6 +497,7 @@ In V1:
   `Resources.Data`; the membership carve-out of section 4.4; the phase guarantees; the default
   screen; the generated manifest and entry; the diagnostics above.
 - `restoreState` as a boolean only; restore mechanics stay as specified elsewhere.
+- The framework shell components `WindowChrome` and `AppBar` ([window-chrome-v1.md](window-chrome-v1.md) section 8).
 
 Deferred (not V1; an addition needs an ADR or a spec revision):
 
@@ -538,7 +542,8 @@ Runtime (headless, deterministic; `ManualClock` + CPU sink):
 - Mobile: generated splash theme/launch-screen artifact golden and P0→P2 continuity.
 - Chrome: appearance resolution (`auto`/`light`/`dark`), P0 artifact and P1 request use one record,
   the window is shown only after P2, and desktop insets stay zero
-  ([window-chrome-v1.md](window-chrome-v1.md) section 11).
+  ([window-chrome-v1.md](window-chrome-v1.md) section 11). In `custom` mode the P2 frame includes the
+  framework title bar and the loading subtree renders below it.
 - Launch-mode matrix (section 5.1), each forced deterministically: cold, warm (reuse device/caches,
   no P0), hot resume (no phase, no loading screen, no presents until wake after settle), process
   restore (valid snapshot applied; corrupt/foreign snapshot discarded), and cold/warm/hot deep-link
@@ -590,6 +595,5 @@ lifecycle events ([os-events-v1.md](os-events-v1.md)), the state-restoration run
   refresh before the first present for auth-gated screens.
 - Snapshot encryption/key management for process restore on shared devices (see
   [state-restoration-v1.md](state-restoration-v1.md)).
-- Whether chrome `auto` follows the window background or the OS colour scheme, and whether the app
-  action bar stays a library component
-  ([window-chrome-v1.md](window-chrome-v1.md) section 13).
+- Chrome/shell details still open (title-bar height, Windows 10 support, custom-control a11y) live in
+  [window-chrome-v1.md](window-chrome-v1.md) section 13.
