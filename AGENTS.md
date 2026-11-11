@@ -598,7 +598,11 @@ across the builtin and ICU backends. The paint-time collapse stage landed: `ui/t
 `PaintedSegment`s, so the painted sequence now matches the measured line widths for every mode -
 `Normal`/`NoWrap` collapse interior runs (and `NoWrap` renders one edge-trimmed line), `Pre`/`PreWrap`
 preserve every byte, `BreakSpaces` keeps each preserved space as its own line unit, and a bidi line is
-transformed per visual run. `text-overflow: ellipsis` is the next text slice.
+transformed per visual run. `text-overflow: ellipsis` landed on top of it: the property is a single
+value (`clip`/`ellipsis`, a two-value shorthand is rejected), and at paint time a line wider than its
+content box is cut on a cluster boundary to the longest prefix plus one U+2026 that still fits
+(nothing when the ellipsis alone does not fit), per visual run for bidi text; layout, line boxes and
+the measure cache are unaffected. `text-transform` and `word-spacing` stay open.
 The app host lane (`src/app/`, `include/tessera/app/host.hpp`) connects the finished pieces:
 `AppHost` runs the docs/design/app-host.md section 3 order for one scene root (animation tick ->
 dirty collection -> selector tree rebuild -> Yoga layout + `apply_layout` -> `sync_style` ->
