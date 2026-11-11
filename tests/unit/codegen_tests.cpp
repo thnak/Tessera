@@ -141,7 +141,7 @@ void test_generated_shape() {
     check(source.find("component->handler_1(tessera::ui::click_event(event));") !=
               std::string::npos,
           "handler adapter converts the scene event to its payload record");
-    check(source.find("->bind_event(tessera::ui::EventType::PointerUp, "
+    check(source.find("->bind_event(tessera::ui::EventType::Click, "
                       "&event_adapter_2_onClick, this);") != std::string::npos,
           "generated binding attaches with the mapped EventType");
     check(source.find("parent.add_child(std::move(node_1));") != std::string::npos,

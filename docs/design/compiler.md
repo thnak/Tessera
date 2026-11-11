@@ -216,7 +216,7 @@ generated handler/binding method; the node then receives
 `FocusEvent`→`FocusEventInfo`, `TextChangeEvent`→`TextChangeEvent` (`TextSubmitEvent` is an alias),
 `TextSelection`→`TextSelection`, `CompositionEvent`→`CompositionEvent`,
 `ScrollEvent`→`ScrollEventInfo`, `ErrorInfo`→`ErrorInfo`. JSX event → `EventType`: `onClick` →
-`PointerUp` (click synthesis is later); `onPointerDown/Up/Move/Over/Out/Enter/Leave` → the same
+`Click` (synthesized, see [`click-synthesis.md`](click-synthesis.md)); `onPointerDown/Up/Move/Over/Out/Enter/Leave` → the same
 scene type; `onKeyDown/onKeyUp` → `KeyDown/KeyUp`; `onFocus/onBlur` → `Focus/Blur`;
 `onChange/onSubmit` → `EditText`; any other event name is rejected with
 `TESSERA_CODEGEN_UNSUPPORTED`. Bindings are read-only and run at the Target phase after the node's

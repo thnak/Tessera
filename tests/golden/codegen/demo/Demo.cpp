@@ -109,7 +109,7 @@ namespace demo {
       // node::4 events={onClick:handler::1}
       auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4u));
       node_4->set_element_kind("Button");
-      node_4->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_4_onClick, this);
+      node_4->bind_event(tessera::ui::EventType::Click, &event_adapter_4_onClick, this);
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
       // node::5 events={onChange:handler::2}

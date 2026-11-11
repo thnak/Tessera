@@ -277,7 +277,7 @@ void test_the_standalone_field_still_uses_explicit_props() {
         return;
     }
     ui::Event click;
-    click.type = ui::EventType::PointerUp;
+    click.type = ui::EventType::Click;
     check(ui::dispatch_event_to(*form.children()[0], click), "the Button binding dispatched");
     page.update();
     check_eq(paint_text(*value), "ada@example.com",

@@ -137,7 +137,7 @@ namespace dynamic {
       // node::10 events={onClick:bind::on_click}
       auto node_10 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(10ull));
       node_10->set_element_kind("Button");
-      node_10->bind_event(tessera::ui::EventType::PointerUp, &event_adapter_10_onClick, this);
+      node_10->bind_event(tessera::ui::EventType::Click, &event_adapter_10_onClick, this);
       node_10->set_focusable(true);
       // node::11
       auto node_11 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(11ull));
