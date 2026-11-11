@@ -190,4 +190,6 @@ changes, and measure only dirty subtrees (a subtree whose text/font/style did no
 - Browser-divergence policy for `box-sizing` (the default is `content-box`; any difference from browsers is not yet listed).
 - Sticky positioning and scroll-container semantics (see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
 - Container queries and their interaction with layout invalidation (see [`responsive.md`](responsive.md)).
+  Proposed answer, with component size observation and a layout read model:
+  [`layout-observation.md`](layout-observation.md) (ADR-041, Proposed).
 - Baseline alignment for mixed fonts/emoji.
