@@ -105,6 +105,10 @@ public:
     [[nodiscard]] const ui::frame::FrameRender& last_render() const;
     [[nodiscard]] ui::paint::StyleProvider& styles();
     [[nodiscard]] ui::layout::LayoutEngine& layout_engine();
+    // Layout passes actually run, and cached results reused because the layout input signature
+    // (tree shape, layout-affecting longhands, text, viewport) did not change.
+    [[nodiscard]] std::size_t layout_runs() const;
+    [[nodiscard]] std::size_t layout_cache_hits() const;
     [[nodiscard]] ui::animation::AnimationRuntime& animations();
     [[nodiscard]] float width() const;
     [[nodiscard]] float height() const;

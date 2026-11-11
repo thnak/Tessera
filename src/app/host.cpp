@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/app/host.hpp"
+#include "tessera/ui/layout/layout_scheduler.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
@@ -88,7 +90,7 @@ struct AppHost::Impl {
           sheet(std::move(sheet)),
           loop(loop),
           config(config),
-          layout(config.text_measurer),
+          engine(config.text_measurer),
           damage(std::make_unique<rendering::DamageAccumulator>(
               rendering::DamageConfig{extent_for(config.width, config.height, config.dpi_scale),
                                       config.damage_max_rects})) {
@@ -125,8 +127,11 @@ struct AppHost::Impl {
 
     void run_layout_pass() {
         const ui::layout::LayoutInput input = build_layout_input(root, *provider);
-        last_layout = layout.layout(
-            input, ui::layout::LayoutViewport{config.width, config.height, config.dpi_scale});
+        const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
+        // The scheduler reuses the cached result when the layout input signature (tree shape,
+        // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
+        // cannot move boxes skips Yoga and only re-syncs the scene style.
+        last_layout = layout_scheduler.update(input, viewport, true);
         last_applied = ui::layout::apply_layout(last_layout, root);
     }
 
@@ -137,7 +142,8 @@ struct AppHost::Impl {
 
     std::unique_ptr<ui::style::SceneStyleTree> tree;
     std::unique_ptr<ui::paint::SceneStyleProvider> provider;
-    ui::layout::LayoutEngine layout;
+    ui::layout::LayoutEngine engine;
+    ui::layout::LayoutScheduler layout_scheduler{engine};
     ui::DirtyPass dirty;
     ui::layout::DamageTracker tracker;
     std::unique_ptr<rendering::DamageAccumulator> damage;
@@ -245,7 +251,15 @@ ui::paint::StyleProvider& AppHost::styles() {
 }
 
 ui::layout::LayoutEngine& AppHost::layout_engine() {
-    return impl_->layout;
+    return impl_->engine;
+}
+
+std::size_t AppHost::layout_runs() const {
+    return impl_->layout_scheduler.layout_runs();
+}
+
+std::size_t AppHost::layout_cache_hits() const {
+    return impl_->layout_scheduler.cache_hits();
 }
 
 ui::animation::AnimationRuntime& AppHost::animations() {

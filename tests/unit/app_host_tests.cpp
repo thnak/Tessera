@@ -172,12 +172,12 @@ Text { font-size: 16px; color: #e2e8f0; }
     }
     host.end_frame();
 
-    // --- 4. Resize: new target, reflow, full repaint --------------------------------------
     host.resize(400.0f, 300.0f, 2.0f);
     const auto extent = host.target_extent();
     if (!expect(extent.width == 800 && extent.height == 600, "damage target follows DPI scale")) {
         return 8;
     }
+    // --- 4. Resize: new target, reflow, full repaint --------------------------------------
     const tessera::app::HostFrame resized = host.begin_frame(1.0 / 60.0);
     if (!expect(resized.tick.needs_layout, "resize asks for layout") ||
         !expect(resized.frame_due, "resize makes a frame due") ||
