@@ -1,6 +1,6 @@
 # Component library and design system
 
-Status: design; a product layer; the library ships after V1 (decided 2026-11-08; V1 is defined in the [glossary](../reference/glossary.md), staging is in [ADR-032](../../decisions/ADR-032-bundled-component-library.md)). Decision: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library).
+Status: design; a product layer; the library ships after V1 (decided 2026-11-08; V1 is defined in the [glossary](../reference/glossary.md), staging is in [ADR-032](../../decisions/ADR-032-bundled-component-library.md)). Decisions: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library), amended by [ADR-043](../../decisions/ADR-043-component-library-layers-and-design-language.md) (layers, theme versioning, Instrument design language, catalog and stages).
 
 The framework provides primitives; a bundled component library makes it usable without every
 team rebuilding inputs, dialogs, menus, and data grids.
@@ -20,23 +20,74 @@ team rebuilding inputs, dialogs, menus, and data grids.
 - Token changes are style-only; a change that only edits a token value does not require recompiling components. Which other token changes (renames, new tokens) do require it is not specified.
 - Tokens are versioned; visual changes require golden updates.
 
-## 3. Primitives
+## 3. Catalog
 
-| Group | Components |
+Stage numbers refer to section 8. Behavior primitives (press, toggle, focus scope, roving focus,
+dismissable layer, list/grid navigation, typeahead) are stage 0 and are not listed per component.
+
+| Group | Components (stage) |
 |---|---|
-| Actions | Button, IconButton, ToggleButton, Link |
-| Inputs | TextInput, TextArea, Checkbox, Radio, Switch, Slider, Select, DatePicker |
-| Layout | Stack, Grid, Card, Divider, Spacer, ScrollView |
-| Navigation | Tabs, Breadcrumb, Sidebar, AppBar, Pagination |
-| Overlays | Dialog, Sheet, Popover, Tooltip, Menu, ContextMenu, Toast |
-| Data | List, Table/DataGrid, Tree, VirtualList/Grid, EmptyState, Skeleton |
-| Feedback | Progress, Spinner, Banner, Alert, Badge |
-| Utilities | Avatar, Chip, Accordion, Tooltip, VisuallyHidden |
+| Foundations | Icon (0); Text, Heading, Label, Kbd, Code, Divider, Spacer, VisuallyHidden, SafeArea (1); AnimatedIcon (2) |
+| Actions | Button, IconButton, ToggleButton, SegmentedControl, Link (1); SplitButton, CopyButton, FloatingActionButton (2) |
+| Inputs | TextInput, TextArea, PasswordInput, SearchInput, NumberInput, Checkbox, RadioGroup, Switch, Slider, Select (1); RangeSlider, PinInput (2); ComboBox/Autocomplete, TagInput, DatePicker, TimePicker (3); DateRangePicker, ColorPicker, FilePicker/Dropzone, Rating (4); RichTextEditor, CodeEditor (5) |
+| Forms | Field, Form (1, moved to TSX by issue [#70](https://github.com/thnak/Tessera/issues/70)); FieldSet, ValidationSummary (2) |
+| Layout | Stack, Grid, Card, ScrollView, AspectRatio (1); Accordion/Collapsible (2); Splitter, TwoPane (3); Masonry (4); DockingLayout (5) |
+| Navigation and shell | Tabs, AppBar, Sidebar/NavigationRail, BottomNavigation, Drawer, Breadcrumb, MenuBar, Toolbar, StatusBar, Navigator (2); Pagination, Stepper/Wizard, CommandPalette (3) |
+| Overlays | Tooltip (1); Dialog, AlertDialog, Sheet/BottomSheet, Popover, HoverCard, Menu, ContextMenu, Toast (2) |
+| Feedback and status | Spinner, Progress (linear/circular), Skeleton, Badge, Chip/Tag, EmptyState, Banner/Alert (1); Meter/Gauge (3) |
+| Data display | List (1); Table, Tree, Timeline, Stat/KPI tile, Descriptions (3); DataGrid, TreeTable, PropertyGrid, Calendar (month/week/day) (4); Spreadsheet, Kanban (5) |
+| Charts | Line, Bar, Area, Pie/Donut, Sparkline, Gauge (3); Scatter for large data, Candlestick/OHLC, Heatmap, Histogram, Box plot, real-time streaming with decimation, zoom/pan/crosshair, multi-axis (4); charts inside Spreadsheet, 3D charts (6) |
+| Media | Image, Avatar (1); Carousel (2); QRCode (3); ImageViewer with zoom/pan (4); Video, AudioPlayer, Lottie (5); CameraPreview, QRScanner, PDFViewer, Map (6) |
+| Motion and transitions | AnimatePresence (enter/exit), ViewTransition, SharedElement (2); PullToRefresh, InfiniteScroll, Sortable (drag and drop) (3) |
 
 - DataGrid builds on `VirtualGrid` (see [`virtualization-v1`](../specs/virtualization-v1.md)), selection, sorting, column resize/reorder, keyboard nav.
 - Forms use [`forms-and-validation-v1`](../specs/forms-and-validation-v1.md); overlays use
   [`overlays-and-layers-v1`](../specs/overlays-and-layers-v1.md).
-- 3D/chart components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.
+- ViewTransition, SharedElement and Navigator transitions wrap
+  [`view-transitions-v1`](../specs/view-transitions-v1.md) ([ADR-035](../../decisions/ADR-035-view-transitions.md)).
+- Charts are drawn with vector paths ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)); 3D and map components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.
+- Image decodes at display size times device pixel ratio (issue [#14](https://github.com/thnak/Tessera/issues/14)); Video and AudioPlayer use the platform media services of [`media-and-export.md`](media-and-export.md).
+
+### 3.1 Icons and animated icons (Iconify)
+
+- Icons come from [Iconify](https://iconify.design/) icon sets, pinned by version and imported at
+  **build time** (`tessera icons add <set>:<name>`). Apps never fetch icons from the Iconify API at
+  run time: builds stay deterministic, offline and free of third-party requests.
+- **License gate** from each set's metadata: MIT, ISC, Apache-2.0, BSD, CC0 and OFL-1.1 are
+  accepted; CC-BY is accepted with attribution written to the generated notices; share-alike sets
+  need an explicit opt-in; GPL-family, non-commercial and unknown licenses are rejected.
+- Static icons become vector paths (ADR-004) and are tree-shaken. `currentColor` maps to the text
+  color token; multi-color icons keep their palette unless `monochrome` is set.
+- **AnimatedIcon** converts the SVG SMIL animations that animated Iconify sets use, plus CSS
+  `@keyframes` inside the SVG, into Tessera keyframes at build time. Supported subset: `opacity`,
+  `stroke-dasharray`, `stroke-dashoffset`, fill and stroke colors, path `d` when both shapes have
+  the same command structure, `animateTransform` rotate/translate/scale, `begin` offsets and
+  `<id>.end` chaining, `repeatCount`, `keyTimes`, `keySplines`, and linear/spline/discrete
+  `calcMode`. Anything else reports `TESSERA_ICON_ANIMATION_UNSUPPORTED` and falls back to the
+  static first frame.
+- Animated icons run on the animation runtime: they respect reduced motion (end state shown),
+  pause when hidden and keep render-on-demand.
+- Lottie animations are a separate component (stage 5), not part of the icon path.
+
+### 3.2 Safe areas, notches and folds
+
+- `SafeArea` applies the insets from `SafeAreaChanged` and `FoldInfo`
+  ([`os-events-v1`](../specs/os-events-v1.md)): notches and display cutouts, rounded screen
+  corners, status/navigation bars, home indicator and the on-screen keyboard. An `edges` prop
+  selects which sides apply.
+- AppBar, BottomNavigation, Drawer, Sheet and Toast apply safe areas by default; content can opt
+  out to draw edge to edge.
+- `TwoPane` places content on each side of a hinge or fold and becomes one pane on unfolded or
+  single screens.
+
+### 3.3 Spreadsheet compared with DataGrid
+
+- DataGrid shows typed records: one row per record, one column per field.
+- Spreadsheet is cell-addressed (`A1`): range selection, fill handle, frozen rows and columns,
+  merged cells, copy/paste as TSV, undo/redo and a deterministic formula subset (arithmetic,
+  `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `IF`, references and ranges). Both share `VirtualGrid`.
+- File import/export (`.xlsx`, `.csv`) is an optional package (stage 6), subject to the license
+  rules in [`dependencies.md`](../specs/dependencies.md).
 
 ## 4. Contracts
 
@@ -72,11 +123,21 @@ team rebuilding inputs, dialogs, menus, and data grids.
 
 ## 8. Roadmap
 
-1. Tokens + Button/Text/Input/Checkbox/Radio/Switch.
-2. Dialog/Menu/Popover/Tooltip/Toast.
-3. Tabs/Sidebar/AppBar/List/Table.
-4. DataGrid/DatePicker/Tree.
-5. Charts/3D via custom elements.
+Defined by [ADR-043](../../decisions/ADR-043-component-library-layers-and-design-language.md).
+Each stage ends when every listed component meets the definition of done (accessibility contract,
+headless interaction test, gallery page, documented parts, goldens per theme variant), the gallery
+is published for native and web, and the stage's starter template builds only on public library
+components.
+
+| Stage | Goal | Contents (section 3) | Starter | Prerequisites |
+|---|---|---|---|---|
+| 0 | Foundations | Package imports and Field/Form move (#70), `::part()`, Instrument tokens and fonts, behavior primitives, Icon with the Iconify import tool, gallery skeleton | none; exit is one styled Button end to end, shown in the web gallery | front end, stylesheet engine |
+| 1 | A settings screen | Core controls, inputs, layout, feedback, SafeArea, Image, List, Tooltip | Settings | stage 0 |
+| 2 | A multi-screen app | Overlays, app shell (MenuBar, Toolbar, StatusBar, AppBar, Sidebar, Tabs), Navigator with ViewTransition/SharedElement, AnimatedIcon, Carousel | App shell | overlays spec, ADR-035 |
+| 3 | CRUD and simple dashboards | Table, Tree, Splitter, TwoPane, ComboBox, Date/TimePicker, CommandPalette, basic charts, Stat tile, Sortable | List-detail CRUD, dashboard | vector paths (ADR-004) |
+| 4 | Desktop tools and monitoring | DataGrid, TreeTable, PropertyGrid, Calendar, ColorPicker, Dropzone, advanced charts, ImageViewer | Admin/monitoring console | virtualization, clipboard |
+| 5 | Media, documents and editors | Video, AudioPlayer, Lottie, Spreadsheet, RichTextEditor, CodeEditor, DockingLayout, Kanban | Media or document app | media services, multi-style text runs, formula engine |
+| 6 | Specialized | Map, 3D wrappers, CameraPreview, QRScanner, PDFViewer, spreadsheet file import/export, 3D charts | none | custom elements, optional packages |
 
 ## 8.1 Detail design
 
@@ -138,13 +199,16 @@ Gap-closure decisions:
 - **G-25/Q-24** (gap and question ids in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)): token JSON v1 is semantic and SemVer-versioned; component API contract includes
   controlled state, focus, and accessibility; the initial DataGrid supports virtual rows/columns,
   selection, sort, resize/reorder, keyboard. Editing/grouping/pivot are deferred.
-- Components ship styled by default with a headless escape hatch for custom rendering; fonts are
-  app assets unless the app opts into the bundled font pack.
+- Components ship styled by default on top of public behavior primitives, with `::part()` styling
+  and eject (ADR-043); fonts are app assets unless the app opts into the bundled font pack.
 
 ## 9. Deferred/open questions
 
-- Icon set/format and licensing.
+- Lottie: ThorVG's Lottie loader versus a separate library, after a size and license check.
+- Spreadsheet formula engine scope beyond the stage-5 subset.
+- Map tile provider and tile licensing.
+- Video on Linux: GStreamer is LGPL, which conflicts with static linking ([ADR-012](../../decisions/ADR-012-static-linking.md)).
 - DataGrid editing/grouping/pivot.
 - Bundled font pack/versioning.
 - Token rename migration tooling.
-- Charts/3D component wrappers.
+- 3D component wrappers.

@@ -1,10 +1,9 @@
 # ADR-043: Component library layers, theme versioning, design language and coverage
 
-- Status: Proposed
+- Status: Accepted (2026-11-11)
 - Date: 2026-11-11
-- Amends (when accepted): [ADR-032](ADR-032-bundled-component-library.md) items 1, 2, 3 and 6, and
-  the roadmap in [`component-library.md`](../docs/design/component-library.md) section 8. ADR-032
-  stays in force unchanged until this ADR is Accepted.
+- Amends: [ADR-032](ADR-032-bundled-component-library.md) items 1, 2, 3 and 6, and the catalog and
+  roadmap in [`component-library.md`](../docs/design/component-library.md) sections 3 and 8.
 - Related: [ADR-004](ADR-004-buy-vector-path-rasterization.md) (vector paths),
   [ADR-014](ADR-014-project-config-format.md) (project config),
   [ADR-016](ADR-016-stylesheet-engine.md) (stylesheet engine),
@@ -92,21 +91,30 @@ The library also needs a recognizable look of its own. Imitating each platform's
    (ADR-034) for behavior: dialog button order, shortcuts, menu bar placement on macOS, scroll and
    overscroll physics, focus-ring visibility rules. The visual theme stays the same across
    platforms.
-7. **Coverage includes desktop and data controls.** The roadmap replaces ADR-032's:
-
-   | Stage | Contents |
-   |---|---|
-   | 1 | Tokens, Instrument theme, icons, primitives layer; Button, IconButton, ToggleButton, Link, TextInput, TextArea, NumberInput, Checkbox, Radio, Switch, Slider, Select |
-   | 2 | Dialog, Sheet, Popover, Tooltip, Menu, ContextMenu, Toast, MenuBar, Toolbar, StatusBar |
-   | 3 | Tabs, Sidebar, AppBar, Splitter, List, Table, Badge, Progress, basic charts (line, bar, area, sparkline, gauge) |
-   | 4 | DataGrid, Tree, ComboBox with autocomplete, DatePicker, TimePicker, ColorPicker, PropertyGrid |
-   | 5 | Docking layout, advanced charts, 3D wrappers |
-
-   Basic charts are styled components drawn with vector paths (ADR-004) and custom elements only
-   where vector paths are not enough.
-8. **Icons.** One open-licensed (ISC or MIT) icon set ships with the library as vector paths
-   (ADR-004), not as an icon font, so unused icons are removed at build time. Lucide (ISC) is the
-   default candidate, confirmed when its license entry is added to `dependencies.md`.
+7. **Full coverage in stages.** The catalog covers desktop, data, media and motion components, not
+   only mobile basics: among others NumberInput, MenuBar, Toolbar, StatusBar, Splitter,
+   PropertyGrid, DataGrid, Spreadsheet, charts from sparklines to real-time streaming, Image,
+   Video, Lottie, AnimatedIcon, SafeArea for notches/cutouts/folds, and ViewTransition and
+   SharedElement on ADR-035. The catalog and stages live in
+   [`component-library.md`](../docs/design/component-library.md) sections 3 and 8, the single
+   source for them. Staging rules:
+   - stages follow dependencies: behavior primitives and package imports (stage 0) come before any
+     styled component, overlays before menus and pickers, `VirtualGrid` before DataGrid and
+     Spreadsheet, media services before Video;
+   - each stage delivers something buildable: settings screen (1), multi-screen app (2), CRUD and
+     simple dashboard (3), desktop tools and monitoring (4), media/document apps (5), specialized
+     integrations (6);
+   - basic charts come in stage 3, not last, because dashboards are a common first use;
+   - a stage closes only when its components meet item 10 and its starter template builds.
+8. **Icons from Iconify, imported at build time.** Icons come from pinned versions of the
+   [Iconify](https://iconify.design/) icon sets through a `tessera icons add <set>:<name>` tool,
+   never from the Iconify API at run time. A license gate reads each set's metadata: MIT, ISC,
+   Apache-2.0, BSD, CC0 and OFL-1.1 pass, CC-BY passes with generated attribution, share-alike
+   needs an explicit opt-in, and GPL-family, non-commercial and unknown licenses are rejected.
+   Static icons become vector paths (ADR-004) and are tree-shaken. Animated icons convert a
+   defined subset of SVG SMIL and CSS `@keyframes` to Tessera keyframes at build time and fall back
+   to a static frame with a diagnostic for anything outside it; they respect reduced motion and
+   render-on-demand. Lottie is a separate stage-5 component.
 9. **Gallery and starters are part of the library.** `samples/gallery` shows every component in
    every state with theme, density, RTL and text-scale switches, runs on native and on the web
    target (ADR-042), and is published by CI. Starter templates (dashboard, settings, list-detail
@@ -134,7 +142,10 @@ The library also needs a recognizable look of its own. Imitating each platform's
   tooling report that an update exists.
 - A strong default identity will not fit every product; other themes on the same tokens are the
   answer, and they cost design time.
-- Stage 3 charts add scope earlier than ADR-032 planned.
+- Stage 3 charts add scope earlier than ADR-032 planned; the full catalog is large and stages 5
+  and 6 depend on platform media services and optional packages.
+- Iconify sets mix licenses; the gate must stay strict so one icon cannot pull an incompatible
+  license into an app.
 
 ## Alternatives considered
 
@@ -157,6 +168,6 @@ The library also needs a recognizable look of its own. Imitating each platform's
 - `::part(name)` in `stylesheet-v1.md` and the stylesheet engine.
 - Instrument token set (JSON v1, G-25) with light, dark and high-contrast variants; font choice
   and license entries.
-- Icon set license entry and vector-path import tool.
-- `samples/gallery` with a CI web build (after ADR-042 is accepted).
-- On acceptance: add a note to ADR-032, update `component-library.md` sections 1, 3, 5, 8 and 9.
+- Iconify import tool with the license gate, vector-path conversion and the SMIL/keyframe
+  converter for animated icons.
+- `samples/gallery` with a CI web build ([ADR-042](ADR-042-web-target-for-demos.md)).
