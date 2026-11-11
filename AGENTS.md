@@ -526,11 +526,22 @@ pass `RuntimeTick::alpha` from the runtime driver and decide the alpha wake thre
 strict JSON-lines framing (1 MiB cap, CRLF/EOF, per-line UTF-8), `LineTransport` with an in-process
 pair, the versioned request/response envelope with stable error codes, the snapshot/action/trace/
 audit command and result models, and canonical JSON; tests `harness_*`. The stdio adapter, bounded
-session executor, host handler seam and CLI skeleton are in (`stdio_transport.hpp`, `session.hpp`,
-`handler.hpp`, `tessera test`/`tessera headless` behind EXCLUDE_FROM_ALL; tests `harness_stdio_transport`,
-`harness_handler`, `harness_session`, `harness_session_stream`, `harness_cli`); next: the script
-runner, the fake HAL, and AutomationHost wiring to the real snapshot/input path (plus promoting the
-CLI and passing the RuntimeLoop tick budget into `SessionExecutor::pump`). `tessera_accessibility`
+session executor, host handler seam and CLI are in (`stdio_transport.hpp`, `session.hpp`,
+`handler.hpp`; tests `harness_stdio_transport`, `harness_handler`, `harness_session`,
+`harness_session_stream`, `harness_cli`). The deterministic script runner and a test-only fake HAL
+landed, and the runner is wired to the real engine: `automation::EngineAutomationHost`
+(`include/tessera/automation/engine_host.hpp`) borrows scene root + `AppHost` + `RuntimeLoop`, builds
+the snapshot from the automation builder over the live tree (bounded: 65536 nodes, depth 64,
+256-byte paths), and routes click/type/focus/scroll through the owned `InputPump`/`FocusManager`
+with at most one settle frame per action; `AutomationDiagnostics` records one instant per command
+when enabled and is proved byte-identical to no seams when disabled. `tessera test --script FILE
+[--out DIR] [--report PATH] [--mode structural|audit]` and `tessera headless --mode ... --script`
+are promoted, run one `RuntimeLoop` tick per `ScriptRunner::pump` with a `ManualClock` and a tick
+`SessionClock`, write `report.json` plus trace/audit artifacts, and exit 0 pass / 1 run failure /
+2 invalid script; `--out`/`--report` accept Windows separators. Next for this lane: the stdio
+protocol server needs a non-spinning blocking wait before `tessera headless` can serve without
+`--script`, then manifest/app-config loading (scripts currently drive the fixture scene, ids
+9001-9006), `itemKey`/list identity, golden and gpu-smoke modes, and latency audits. `tessera_accessibility`
 now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Transport` seam with a
 loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface
 mapping, and Accessible/Application/Action/Component/Text/Value dispatch with a bounded action
