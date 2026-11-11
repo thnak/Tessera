@@ -177,7 +177,12 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `harness_handler` | host seam dispatch for every v1 command, artifact paths/caps, relative-path validation |
 | `harness_session` | bounded session executor: FIFO ordering, back-pressure, per-pump budgets, timeout, ordered shutdown |
 | `harness_session_stream` | full round trip including focus and scroll over a stream pair |
-| `harness_cli` | CLI skeleton: `--help`/`--version`, not-implemented exits, mode/flag validation |
+| `harness_cli` | CLI argument handling: `--help`/`--version`, mode/flag validation, unreadable/invalid script exits |
+| `harness_cli_integration` | promoted CLI: `tessera test/headless --script` exit codes, report/trace/audit artifacts, deterministic reruns |
+| `harness_engine_host` | wired lane over a real `AppHost` scene: one script runs snapshot/click/type/focus/scroll/trace/audit with byte-identical reruns |
+| `harness_engine_host_failure` | wired failure paths: `unsupportedAction`/`unknownAction`, `uiIdNotFound`, step cap, run/step timeout, non-focusable/`itemKey`/hidden targets |
+| `harness_diagnostics_cost` | disabled trace/audit attach no work: empty recorder/registry, no fabricated report, same bytes as no seams |
+| `harness_tick_budget` | `SessionExecutor::pump(SessionTickBudget)` narrows one pump to a runtime tick's reads/commands |
 | `a11y_uia_mapping` | UIA control types/patterns/automation ids from the semantics tree |
 | `a11y_uia_handoff` | single-slot snapshot handoff: overwrite-with-count, reserved buffers, no allocation |
 | `a11y_uia_bridge` | MTA bridge: publication, action ring overflow, thread ownership |

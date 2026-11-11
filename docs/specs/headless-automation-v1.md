@@ -43,9 +43,10 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 
 Exit codes: `0` pass, `1` assertion/audit failure, `2` invalid script/config.
 
-Status: the CLI skeleton parses these commands and flags; `--help` and `--version` work. `--script`
-is recognized but exits `2` with an explicit not-implemented diagnostic until the script runner
-lands (see section 6.5).
+Status: `tessera test --script FILE` and `tessera headless --mode structural|audit --script FILE`
+run the script against the built-in windowless fixture (section 6.8), write `out/report.json`, and
+return the section 3 exit codes. `--mode golden` and `--mode gpu-smoke` parse but exit `2` until the
+offscreen rendering lane lands. `--help` and `--version` work. See section 6.5.
 
 ## 4. Script schema
 
@@ -197,7 +198,8 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
   order. A full request queue stops reading (back-pressure) instead of dropping work or growing.
 - `pump()` is one bounded slice: at most `maxReadsPerPump` lines and `maxCommandsPerPump` items,
   sized so a host can call it from the existing `RuntimeLoop` tick. It never waits, spawns a
-  task, or blocks.
+  task, or blocks. `pump(SessionTickBudget)` narrows both counts to one tick's work (a fixed-step
+  host passes its `RuntimeLoop` update bound), so one pump can never outrun one tick.
 - The per-command timeout uses simulated time from an injected `SessionClock`. A request whose
   deadline passed before dispatch is answered with `timeout`, and a handler that overruns the
   budget has its result replaced with `timeout`. A synchronous handler cannot be preempted,
@@ -221,15 +223,21 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
   script must be relative, `/`-separated, and made only of `[A-Za-z0-9._-]` components; absolute,
   drive-qualified, backslash, `..`, dot, and empty components are `invalidArgument`.
 
-### 6.5 CLI skeleton (implemented)
+### 6.5 CLI (implemented)
 
-`tessera test` and `tessera headless` parse the documented commands, modes, and flags, and
-`--help` / `--version` work. `--script` is recognized and still rejected with exit code `2` and an
-explicit diagnostic because the process has no `AutomationHost` to build a handler from: the script
-runner is a library seam (6.6), not yet wired behind a command. A missing `--script` for `test`, a
-missing `--mode` for `headless`, unknown modes or options, and empty option values are rejected the
-same way. The executable stays out of the default build (`EXCLUDE_FROM_ALL`) until that wiring
-exists.
+`tessera_harness_cli` is built by default (promoted out of `EXCLUDE_FROM_ALL`) and implements the
+section 3 invocations: `tessera test --script FILE [--out DIR] [--report PATH] [--mode
+structural|audit]`, plus the `headless` equivalent.
+
+- `--script` is required for both commands (`headless` without one exits `2`: no app-config loader
+  yet). `--mode` accepts `structural` and `audit` (both run the script; `audit` also enables the
+  diagnostics seams); `golden`/`gpu-smoke` parse but exit `2` as not implemented.
+- One `RuntimeLoop` tick per pump: the driver advances a `ManualClock` by one fixed step, ticks the
+  loop, then calls `ScriptRunner::pump()` once (hard guard `kMaxScriptSteps + 1`). Time comes from
+  an injected tick clock (1/60 s per tick), never the wall clock.
+- The report goes to `<out>/report.json` (`out/` by default) or `--report`, both validated with the
+  section 6.4 path rules. Exit codes: `0` pass, `1` step/run failure (script and protocol codes
+  printed), `2` unreadable/invalid script or config. A failing run still writes its report.
 
 ### 6.6 Script runner (implemented)
 
@@ -289,8 +297,54 @@ links. It provides the section 2 platform edges as deterministic doubles:
   durations are reproducible.
 - It opens no OS window, device, or swapchain and starts no thread.
 
-Still pending for the full section: the CLI wiring that supplies an `AutomationHost`, and the UI
-runtime wiring behind `AutomationHost` (the script runner and fake HAL are in tree; see 6.6, 6.7).
+### 6.8 Engine host (implemented)
+
+`EngineAutomationHost` (`include/tessera/automation/engine_host.hpp`,
+`src/harness/engine_host*.cpp`) is the concrete `AutomationHost` over the real engine: one
+`ui::Node` scene root driven by an `app::AppHost` frame loop. It links `tessera_harness` but is a
+separate target (`tessera_automation_host`), because the protocol library itself stays engine-free.
+
+- **Snapshot.** The host walks the live scene into the automation snapshot builder
+  ([`automation-ids-v1.md`](automation-ids-v1.md) section 5.2) and returns the canonical document
+  decoded as a `JsonValue`: `uiId` from `Node::automation_id` (0 = not targetable), `componentId`
+  `"0"` until the scene carries one, the element kind, a structural preorder `path`
+  (`root/View[0]/Button[1]`), `aria-label` as `name`, the paint text, world-pixel `bounds`, and
+  ancestor-propagated `visible`; `enabled`/`focused`/`selected` come from the `Disabled`/`Focus`/
+  `Checked` pseudo-states. Caps: `kMaxSnapshotNodes` 65536, `kMaxSnapshotDepth` 64,
+  `kMaxSnapshotPathBytes` 256; exceeding a cap is `internal`, never a truncated tree. `sequence`
+  is a host-owned counter starting at 0.
+- **Actions.** Click, type, focus and scroll go through the production input path, never direct
+  state mutation. Click queues `PointerMove`/`PointerDown`/`PointerUp` at the target's center into
+  the host's `ui::InputPump`, so hover/active, implicit capture, pointer focus and click synthesis
+  are the window driver's code. Type focuses the target through `FocusManager` (a non-focusable
+  target is `invalidArgument`) and queues committed `EditText` payloads in <=256-byte UTF-8 chunks.
+  Scroll queues a `Wheel` event at the target's center with the pixel delta divided by
+  `kPixelsPerWheelUnit`, so the scroll default action clamps like real wheel input. After an action
+  the host runs at most one settle frame, and only when the input made a frame due.
+- **Targets.** The first visible preorder node whose `automation_id` matches is the target; an
+  absent or hidden target is `uiIdNotFound`. `itemKey` is `invalidArgument` (no list-item identity
+  in the scene graph yet).
+- **Trace and audit.** `AutomationDiagnostics` attaches the existing
+  `diagnostics::TraceRecorder` and `diagnostics::MetricsRegistry`; `enabled` gates all of it.
+  Enabled, each command records one instant span and `trace` returns `to_chrome_trace_json`; `audit`
+  returns a structural report (three counter-derived checks plus the registry snapshot) scored
+  `100 * passed / checks` and passing at >= 90. Disabled, the host calls neither seam, answers
+  `trace` with the empty Chrome document (`[]`), and answers `audit` with an `internal` diagnostic
+  instead of a fabricated score; the cost is one branch per command.
+
+### 6.9 Built-in fixture and wired tests (implemented)
+
+Until the app-config loader lands, `tessera test --script` runs against the deterministic fixture
+scene in `include/tessera/automation/fixture_scene.hpp`: a card `View` (id `9001`) with a counter
+`Text` (id `9002`) and a focusable `Button` (id `9003`) that bumps it, a focusable `TextInput`
+(id `9004`) that mirrors committed text, and a scroll list (id `9005`) with one item (id `9006`).
+A script written for another app fails with `uiIdNotFound` until config loading exists.
+
+Wired coverage (`tests/unit/harness/`): `harness_engine_host` (every action against a real scene,
+plus byte-identical reruns), `harness_engine_host_failure` (`unsupportedAction`/`unknownAction`,
+`uiIdNotFound`, step cap, both timeouts, non-focusable/`itemKey`/hidden targets),
+`harness_diagnostics_cost` (a disabled seam matches a seam-free run byte for byte), and
+`harness_cli_integration` (exit codes, artifacts, deterministic reruns).
 
 ## 7. Determinism
 
@@ -323,6 +377,9 @@ runtime wiring behind `AutomationHost` (the script runner and fake HAL are in tr
 - Script parsing/validation and unknown actions.
 - Script runner and fake HAL: a happy path over the handler seam, the step-count cap, a per-step
   budget overrun, a malformed step, cancellation, and scripted metrics/events/clock stepping.
+- The wired lane (6.8/6.9): a script over a real scene, failure paths through the real host
+  (`unsupportedAction`, `uiIdNotFound`, step cap, both timeouts), the disabled-diagnostics no-cost
+  rule, and the promoted CLI's exit codes and artifacts.
 - Stdio adapter rules: WouldBlock vs. EOF, a final unterminated line, partial writes and queued
   retry, the line cap, and typed framing rejections that keep their stream position.
 - Session behavior over a fake transport: every command answered, decode errors, timeout before
