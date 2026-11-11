@@ -13,11 +13,12 @@
 
 namespace tessera::rendering::image {
 
-// Supported raster formats for embedded image assets (documented subset: PNG and JPEG).
+// Supported raster formats for embedded image assets (documented subset: PNG, JPEG and WebP).
 enum class ImageFormat : std::uint8_t {
     unknown = 0,
     png = 1,
     jpeg = 2,
+    webp = 3,
 };
 
 // Decode limits enforced against the raw input and the decoded raster, so a hostile or accidental
@@ -34,7 +35,7 @@ struct ImageLimits {
 enum class ImageError : std::uint8_t {
     invalid_argument = 0, // empty input or zero/nonsense limits
     input_too_large,      // encoded bytes exceed limits.max_input_bytes
-    unsupported_format,   // not PNG/JPEG (or a 16-bit PNG we deliberately do not decode yet)
+    unsupported_format,   // not PNG/JPEG/WebP (or a 16-bit PNG we deliberately do not decode yet)
     malformed,            // the decoder rejected the bytes
     limit_exceeded,       // decoded width/height/pixel budget exceeded
 };
@@ -63,12 +64,12 @@ struct DecodedImage {
 // Stable, human-readable format name for diagnostics.
 [[nodiscard]] std::string_view format_name(ImageFormat format) noexcept;
 
-// Detects the container from its signature (PNG/JPEG only). Returns unknown for anything else
+// Detects the container from its signature (PNG/JPEG/WebP). Returns unknown for anything else
 // without decoding. Used by decode_image and available to callers that want a cheap classification.
 [[nodiscard]] ImageFormat detect_format(std::span<const std::uint8_t> bytes) noexcept;
 
-// Decodes PNG/JPEG bytes to RGBA8. Never throws across this seam and never touches the filesystem.
-// A corrupt/truncated/unsupported input is a value, not a crash.
+// Decodes PNG/JPEG/WebP bytes to RGBA8. Never throws across this seam and never touches the
+// filesystem. A corrupt/truncated/unsupported input is a value, not a crash.
 //
 // With a non-original `target` (display size x DPR bucket, image_resize.hpp) the raster is reduced
 // by a deterministic box filter to the smallest size that still covers the target and is never

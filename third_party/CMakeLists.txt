@@ -143,6 +143,44 @@ target_include_directories(tessera_jpeg SYSTEM PUBLIC
     $<BUILD_INTERFACE:${LJT_GEN}>
     $<BUILD_INTERFACE:${LJT}>)
 
+# libwebp decodes WebP, including its own scaled decode, so a thumbnail never holds the full raster
+# (issue #14). Upstream supports add_subdirectory(); the mux and every tool are off. SIMD stays on
+# (turning it off makes upstream pass -mno-sse2, which breaks x86-64 builds): the decoder's SIMD
+# paths are written to be bit-exact with its C code, which the cross-platform tests rely on.
+set(WEBP_BUILD_ANIM_UTILS OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_CWEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_DWEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_GIF2WEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_IMG2WEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_VWEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_WEBPINFO OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_WEBPMUX OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_LIBWEBPMUX OFF CACHE BOOL "" FORCE)
+set(WEBP_ENABLE_SWAP_16BIT_CSP OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    libwebp
+    URL https://github.com/webmproject/libwebp/archive/refs/tags/v1.4.0.tar.gz
+    URL_HASH SHA256=12af50c45530f0a292d39a88d952637e43fb2d4ab1883c44ae729840f7273381
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(libwebp)
+
+foreach (webp_target webp webpdemux sharpyuv webpdecoder)
+    if (TARGET ${webp_target})
+        if (MSVC)
+            target_compile_options(${webp_target} PRIVATE /W0)
+        else()
+            target_compile_options(${webp_target} PRIVATE -w)
+        endif()
+    endif()
+endforeach()
+
+add_library(tessera_webp INTERFACE)
+target_link_libraries(tessera_webp INTERFACE webpdemux webp)
+target_include_directories(tessera_webp SYSTEM INTERFACE
+    $<BUILD_INTERFACE:${libwebp_SOURCE_DIR}/src>)
+
 # HarfBuzz turns text runs into glyph ids/positions. It parses the same pinned font bytes as
 # FreeType, so the FreeType integration and the platform shapers stay out of the build.
 set(HB_BUILD_UTILS OFF CACHE BOOL "" FORCE)

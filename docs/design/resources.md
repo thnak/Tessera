@@ -13,7 +13,7 @@ be deterministic, bounded, and asynchronous: loading never blocks the UI thread 
 
 | Kind | Source | Runtime representation |
 |---|---|---|
-| Image | PNG/JPEG/WebP (decoder set not chosen yet, see section 9) | GPU texture + sampler |
+| Image | PNG/JPEG/WebP (stb_image for PNG, libjpeg-turbo for scaled JPEG, libwebp for WebP, section 2) | GPU texture + sampler |
 | Font | committed TTF/OTF | FreeType face + glyph atlas entries (text stack: [`text.md`](text.md)) |
 | SVG/path | SVG/ThorVG/Skia ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)) | path geometry/tessellation |
 | Shader | GLSL/WGSL + manifest ([`shader-manifest-v1.md`](../specs/shader-manifest-v1.md)) | pipeline + reflection |
@@ -81,7 +81,11 @@ therefore takes a `DecodeTarget` (`rendering/image/image_resize.hpp`):
   finishes the last fraction. A 4000 x 3000 photo shown as a thumbnail never allocates its 48 MB
   raster, which lowers the peak, not only the retained size. CMYK, non-8-bit and corrupt data fall
   back to stb. A target that needs no reduction keeps using stb, so unscaled output is unchanged.
-  WebP scaled decode is still open (stb has no WebP decoder).
+- **WebP:** libwebp decodes the format (stb has none). A still image is scaled inside the decoder
+  (its own rescaler) straight into the result buffer, so the full raster never exists; an animated
+  file decodes its first frame composed on the canvas and then goes through the box filter.
+  libwebp keeps its SIMD paths, which are written to be bit-exact with its C code. Limits are
+  judged on the encoded size before any pixel is allocated.
 - **Wiring:** the Batched2D sink asks `image_decode_target(draw, device_scale)` for the target: the
   raster extent the draw will upload (explicit extents, else content box x scale), bucketed.
   `PaintImageStyle::decode_original` (`Image decodeSize="original"`) selects the source-size
@@ -163,7 +167,7 @@ therefore takes a `DecodeTarget` (`rendering/image/image_resize.hpp`):
 
 ## 9. Open questions
 
-- Image decoder set (libpng/libjpeg-turbo/libwebp) and build-size impact.
+- Build-size impact of the image decoder set (stb_image, libjpeg-turbo, libwebp).
 - Texture compression (BC/ASTC/ETC2) and platform support.
 - SVG rasterization backend (ThorVG vs lunasvg).
 - Asset streaming for very large images/atlases.
