@@ -242,7 +242,7 @@ when a hash differs rebuilds the string, stores it in `text_node_N_value_`, and 
 stores each interpolated node's pointer and ends with `apply_state()`. Scheduled updates (issue #5):
 each component owns a `tessera::ui::UpdateTicket`, `attach_scheduler()`/`detach_scheduler()` (owned
 instances attach after their owner, so a parent flushes first), `schedule_update()` and one
-`set_<state>(value)` per `useState` cell that assigns and schedules. The host's `UpdateScheduler`
+`set_<state>(value)` per `useState` cell that assigns and schedules only when the value changed. The host's `UpdateScheduler`
 (`ui/scene/update_scheduler.hpp`) runs `update()` = `update_effects(); apply_state();` once per
 flush; `FramePipeline::tick` flushes it first and wakes the loop on the dirty edge. Setters stay
 cheap (no effects inside a setter) and repeated setters batch into one update; a setter chain is

@@ -96,6 +96,12 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
             return false;
         }
         writer.open("void " + component.name + "::" + setter_name(state) + "(" + *type + " value)");
+        // Equality-gated (ADR-041, decision 6): an unchanged value schedules nothing, so a repeated
+        // identical set neither wakes the loop nor runs update(). NaN never compares equal and
+        // therefore always schedules, which is the safe direction.
+        writer.open("if (" + member_name(state.id) + " == value)");
+        writer.line("return;");
+        writer.close("");
         writer.line(member_name(state.id) + " = std::move(value);");
         writer.line("schedule_update();");
         writer.close("");

@@ -269,11 +269,17 @@ namespace demo {
     }
     
     void Sample::set_count(int value) {
+      if (state_count_ == value) {
+        return;
+      }
       state_count_ = std::move(value);
       schedule_update();
     }
     
     void Sample::set_name(std::string value) {
+      if (state_name_ == value) {
+        return;
+      }
       state_name_ = std::move(value);
       schedule_update();
     }
