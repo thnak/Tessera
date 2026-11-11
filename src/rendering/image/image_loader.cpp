@@ -2,6 +2,7 @@
 
 #include "jpeg_scaled.hpp"
 #include "tessera/rendering/image/image_loader.hpp"
+#include "webp_decode.hpp"
 
 #include <algorithm>
 #include <array>
@@ -29,6 +30,8 @@ std::string_view format_name(ImageFormat format) noexcept {
         return "png";
     case ImageFormat::jpeg:
         return "jpeg";
+    case ImageFormat::webp:
+        return "webp";
     case ImageFormat::unknown:
         break;
     }
@@ -42,6 +45,9 @@ ImageFormat detect_format(std::span<const std::uint8_t> bytes) noexcept {
     }
     if (is_jpeg(bytes)) {
         return ImageFormat::jpeg;
+    }
+    if (is_webp(bytes)) {
+        return ImageFormat::webp;
     }
     return ImageFormat::unknown;
 }
@@ -58,6 +64,10 @@ std::expected<DecodedImage, ImageError> decode_image(std::span<const std::uint8_
     const ImageFormat format = detect_format(bytes);
     if (format == ImageFormat::unknown) {
         return std::unexpected(ImageError::unsupported_format);
+    }
+
+    if (format == ImageFormat::webp) {
+        return decode_webp_image(bytes, limits, target);
     }
 
     int encoded_width = 0;

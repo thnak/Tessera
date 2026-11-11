@@ -35,6 +35,16 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: libjpeg-turbo contributors, Independent JPEG Group
 - Upstream: https://github.com/libjpeg-turbo/libjpeg-turbo (3.0.4)
 
+### libwebp
+
+- Used by: `src/rendering/image/` (WebP decode, issue #14)
+- Fetched at configure time from
+  `https://github.com/webmproject/libwebp/archive/refs/tags/v1.4.0.tar.gz` (pinned SHA-256);
+  not vendored in the tree. Only libwebp, libwebpdemux and sharpyuv are built
+- License: BSD-3-Clause
+- Copyright: Google LLC
+- Upstream: https://github.com/webmproject/libwebp (1.4.0)
+
 ### Vulkan SDK components (Vulkan-Headers, Vulkan-Loader, Vulkan-ValidationLayers, shaderc/glslc)
 
 - Used by: `src/rendering/backend/vulkan/`, build step
