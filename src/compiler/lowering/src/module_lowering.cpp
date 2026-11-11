@@ -59,42 +59,6 @@ std::string directory_of(std::string_view file) {
     return slash == std::string_view::npos ? std::string() : std::string(file.substr(0, slash));
 }
 
-// Joins `base` and a relative import source and collapses `.`/`..` segments.
-std::string join_path(std::string_view base, std::string_view relative) {
-    std::string joined(base);
-    if (!joined.empty()) {
-        joined.push_back('/');
-    }
-    joined += relative;
-    std::vector<std::string_view> parts;
-    std::string_view pending = joined;
-    std::size_t start = 0;
-    while (start <= pending.size()) {
-        const std::size_t slash = pending.find('/', start);
-        const std::string_view part = pending.substr(
-            start, slash == std::string_view::npos ? std::string_view::npos : slash - start);
-        if (part == "..") {
-            if (!parts.empty()) {
-                parts.pop_back();
-            }
-        } else if (!part.empty() && part != ".") {
-            parts.push_back(part);
-        }
-        if (slash == std::string_view::npos) {
-            break;
-        }
-        start = slash + 1;
-    }
-    std::string out;
-    for (const std::string_view part : parts) {
-        if (!out.empty()) {
-            out.push_back('/');
-        }
-        out += part;
-    }
-    return out;
-}
-
 // "ui/Counter.tsx" -> "ui/Counter"; an import source omits the extension (subset section 4).
 std::string without_extension(std::string_view path) {
     const std::size_t dot = path.rfind('.');
@@ -223,10 +187,10 @@ bool resolve_imports(ProjectState& state, std::size_t index,
                      "use a relative import or declare the package in the project config");
                 return false;
             }
-            target_key =
-                sub.empty() ? join_path(package->root, "index") : join_path(package->root, sub);
+            target_key = sub.empty() ? join_project_path(package->root, "index")
+                                     : join_project_path(package->root, sub);
         } else {
-            target_key = join_path(directory_of(source.file), item.source);
+            target_key = join_project_path(directory_of(source.file), item.source);
         }
         const std::size_t target = find_project_file(state, target_key);
         if (target == kNoFile) {
@@ -394,6 +358,41 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
 }
 
 } // namespace
+
+std::string join_project_path(std::string_view base, std::string_view relative) {
+    std::string joined(base);
+    if (!joined.empty()) {
+        joined.push_back('/');
+    }
+    joined += relative;
+    std::vector<std::string_view> parts;
+    std::string_view pending = joined;
+    std::size_t start = 0;
+    while (start <= pending.size()) {
+        const std::size_t slash = pending.find('/', start);
+        const std::string_view part = pending.substr(
+            start, slash == std::string_view::npos ? std::string_view::npos : slash - start);
+        if (part == "..") {
+            if (!parts.empty()) {
+                parts.pop_back();
+            }
+        } else if (!part.empty() && part != ".") {
+            parts.push_back(part);
+        }
+        if (slash == std::string_view::npos) {
+            break;
+        }
+        start = slash + 1;
+    }
+    std::string out;
+    for (const std::string_view part : parts) {
+        if (!out.empty()) {
+            out.push_back('/');
+        }
+        out += part;
+    }
+    return out;
+}
 
 ModuleLoweringResult lower_module(const ModuleSource& source, std::string_view module_name) {
     return lower_files(std::span<const ModuleSource>(&source, 1), module_name, {});

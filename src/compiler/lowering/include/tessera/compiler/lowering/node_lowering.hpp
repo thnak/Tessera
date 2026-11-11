@@ -76,6 +76,11 @@ struct PackageRoot {
     std::string_view root;
 };
 
+// Joins `base` and a relative import source and collapses `.`/`..` segments, producing the same
+// project-relative POSIX form `ModuleSource::file` uses (no leading `./`, no extension handling).
+// Shared with the driver so import discovery and lowering cannot disagree about a path.
+[[nodiscard]] std::string join_project_path(std::string_view base, std::string_view relative);
+
 // Lowers every file of a project. Relative imports (`./X`, `../X`) are resolved against `files`,
 // each imported name must be a component exported by the target file, and an import cycle is an
 // error. A component reference resolves to the local component of that name first, then to an

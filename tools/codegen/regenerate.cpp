@@ -19,6 +19,7 @@
 #include <fstream>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <sstream>
 #include <string>
@@ -253,6 +254,37 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
     return identity;
 }
 
+// The project-relative file an import names, with the `.tsx` extension the front end reads:
+// relative specifiers resolve against the importing file, bare ones against the configured package
+// roots, and
+// `"tessera"`/`"react"` never name a file. Nullopt means "not a project file"; the caller leaves
+// the diagnostic to lowering so there is one message for a specifier that does not resolve.
+std::optional<std::string> import_target(std::string_view from_file, std::string_view specifier,
+                                         const ProjectIdentity& identity) {
+    if (specifier == "tessera" || specifier == "react") {
+        return std::nullopt;
+    }
+    if (specifier.starts_with("./") || specifier.starts_with("../")) {
+        const std::size_t slash = from_file.rfind('/');
+        const std::string_view base =
+            slash == std::string_view::npos ? std::string_view() : from_file.substr(0, slash);
+        return lowering::join_project_path(base, specifier) + ".tsx";
+    }
+    for (const PackageRootSpec& package : identity.packages) {
+        if (specifier == package.name) {
+            return lowering::join_project_path(package.root, "index") + ".tsx";
+        }
+        if (specifier.size() > package.name.size() &&
+            specifier.compare(0, package.name.size(), package.name) == 0 &&
+            specifier[package.name.size()] == '/') {
+            return lowering::join_project_path(package.root,
+                                               specifier.substr(package.name.size() + 1)) +
+                   ".tsx";
+        }
+    }
+    return std::nullopt;
+}
+
 bool generate_files(const ir::IrModule& module, std::vector<GeneratedFile>& files, Outcome& outcome,
                     std::string_view input) {
     const auto generated = generate(module);
@@ -288,18 +320,15 @@ Outcome run(const Options& options) {
         return outcome;
     }
 
+    // Project-relative names are required with a salt (they feed the ids) and with package roots
+    // (bare specifiers match against them); either way the form is POSIX and checkout-independent.
+    const bool project_paths = !identity->salt.empty() || !identity->packages.empty();
     std::vector<std::unique_ptr<SourceFile>> sources;
+    std::vector<std::pair<std::string, fs::path>> pending; // (project path, file on disk)
+    std::set<std::string> seen;
     for (const std::string& input : options.inputs) {
-        std::optional<std::string> text = read_file(fs::path(input));
-        if (!text) {
-            report(outcome, true, "tessera_codegen: cannot read `" + input + "`");
-            outcome.exit_code = 2;
-            return outcome;
-        }
-        // With a salt the path feeds the ids, and with package roots it must be project-relative so
-        // `pkg/Sub` matches `<root>/Sub`; either way the form is POSIX and checkout-independent.
         std::string path = input;
-        if (!identity->salt.empty() || !identity->packages.empty()) {
+        if (project_paths) {
             const fs::path& root = identity->root;
             std::error_code relative_error;
             const fs::path relative =
@@ -313,7 +342,45 @@ Outcome run(const Options& options) {
             }
             path = relative.generic_string();
         }
-        sources.push_back(std::make_unique<SourceFile>(path, std::move(*text)));
+        if (seen.insert(path).second) {
+            pending.emplace_back(std::move(path), fs::path(input));
+        }
+    }
+    while (!pending.empty()) {
+        std::pair<std::string, fs::path> next = std::move(pending.front());
+        pending.erase(pending.begin());
+        std::optional<std::string> text = read_file(next.second);
+        if (!text) {
+            report(outcome, true,
+                   "tessera_codegen: cannot read `" + next.second.generic_string() + "`");
+            outcome.exit_code = 2;
+            return outcome;
+        }
+        sources.push_back(std::make_unique<SourceFile>(std::move(next.first), std::move(*text)));
+        // Import closure (issue #70): a run follows the imports of every file it loads, so a
+        // package's sources do not have to be listed on the command line. A specifier that names no
+        // file is left alone here - lowering reports it with the import diagnostics.
+        const SourceFile& source = *sources.back();
+        if (!project_paths || !source.parses()) {
+            continue;
+        }
+        for (const jsx::ModuleItem& item : source.parsed.root->items) {
+            if (item.kind != jsx::ItemKind::Import || item.side_effect) {
+                continue;
+            }
+            const std::optional<std::string> target =
+                import_target(source.path, item.source, *identity);
+            if (!target || !seen.insert(*target).second) {
+                continue;
+            }
+            const fs::path target_disk = identity->root / fs::path(*target);
+            std::error_code file_error;
+            if (!fs::is_regular_file(target_disk, file_error)) {
+                seen.erase(*target);
+                continue;
+            }
+            pending.emplace_back(*target, target_disk);
+        }
     }
     for (const auto& source : sources) {
         if (!source->parses()) {

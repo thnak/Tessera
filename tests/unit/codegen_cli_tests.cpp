@@ -245,8 +245,8 @@ int main(int argc, char** argv) {
           "the overriding salt changes the ids");
 
     // Package roots (project-config-v1.md `packages`, issue #70): a bare specifier resolves inside
-    // the configured root, so a TSX component library compiles through the same pipeline. Both
-    // files are explicit inputs today - the driver does not follow imports to discover files yet.
+    // the configured root, and the driver follows the import, so the package source does not have
+    // to be listed on the command line.
     const fs::path packaged = work / "packaged";
     fs::create_directories(packaged / "ui");
     fs::create_directories(packaged / "packages" / "tessera-ui");
@@ -257,8 +257,7 @@ int main(int argc, char** argv) {
     const auto run_packaged = [&](const fs::path& output) {
         return run_cli(cli,
                        "--write --out " + quoted(output) + " --namespace demo " +
-                           quoted(packaged / "ui" / "App.tsx") + " " +
-                           quoted(packaged / "packages" / "tessera-ui" / "Card.tsx"),
+                           quoted(packaged / "ui" / "App.tsx"),
                        log_dir);
     };
     const std::string packages =
