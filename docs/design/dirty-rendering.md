@@ -15,8 +15,9 @@ covered by `damage_equivalence_tests`: a full frame followed by a `LoadOp::Load`
 bit-identical to a fresh full frame, both for static content and for a moved/recolored card whose
 damage region covers old and new bounds; an undersized damage region is asserted to leave stale
 pixels, so the equality check is not vacuous. The Vulkan command list preserves the target layout
-across load frames. Retained caches/layers remain
-design-only. Decision record:
+across load frames. The same dirty-only == full-redraw contract is now also pinned without a GPU
+on the deterministic CPU canvas (`damage_equivalence_cpu_tests`; see §6.7). Retained caches/layers
+remain design-only. Decision record:
 [ADR-018](../../decisions/ADR-018-dirty-rendering-and-frame-pacing.md) (dirty rendering and frame
 pacing). Companion to [`game-loop.md`](game-loop.md) (runtime loop and pacing) and
 [`renderer.md`](renderer.md). Terms such as golden, damage, batch key, Yoga and `ComputedStyle` are in
@@ -284,6 +285,50 @@ cap + 1 is full, both damage-pass and tracker paths), `damage_tracker` (same rul
 tracker), `frame_pipeline_overflow` (overflow frame paints byte-identically to a full redraw, the next
 under-cap frame is partial, the settled frame is idle, determinism), and `damage_clear` (the latch
 clears).
+
+### 6.7 Equivalence contract (dirty-only == full redraw)
+
+The contract is stated against a **preserved** render target: the target already contains the
+previous frame, and a redraw may change only what the plan authorizes.
+
+- **Full plan** (`full_redraw == true`): the target is cleared per the render-target descriptor and
+  the whole scene is painted. This is the reference output.
+- **Partial plan**: undamaged pixels are preserved (the partial pass uses `LoadOp::Load`; the
+  renderer never clears), and every paint command is replayed clipped to exactly one plan scissor.
+  The result must be **byte-identical** to a fresh full redraw of the current scene when the
+  damage covers every changed pixel and the plan's scissor regions are disjoint (the accumulator
+  guarantees disjointness by AABB-merging touching rects).
+- **Empty partial plan**: no render pass, no draws, no pixels changed.
+
+This is tested portably on the **CPU canvas** (`tests/unit/damage_equivalence_cpu_tests.cpp`,
+`tessera_software`), which needs no GPU, lavapipe, font, wall clock or network:
+
+1. Frame 0 paints the whole scene into a persistent `CpuCanvas` (the previous frame) and seeds
+   `DamageTracker` with every node's bounds.
+2. A scripted change marks the affected nodes; `FramePipeline::tick`/`finish_frame` derive damage,
+   old+new bounds and the normalized `RedrawPlan` (`should_full_redraw` applied).
+3. `FramePipeline::paint_frame(plan)` paints the updated scene through `ClippedPaintSink`, i.e.
+   the same per-region clipping rule as `Batched2DRenderer::begin_damaged`, over the persistent
+   canvas.
+4. The result is compared byte-for-byte with a fresh full paint of the updated scene.
+
+Covered cases: paint-only recolor (one scissor), a layout move with the old and new bounds both
+damaged (two scissors), a shrinking resize (merged region restores the revealed background), the
+**area policy** fallback (whole-target background change -> full plan), the **scissor-count policy**
+fallback (nine disjoint recolors exceed the default eight-region cap -> full plan), and a repeated
+run producing the same plan and pixels. A negative control repaints with an undersized region and
+asserts stale pixels remain, so the equality assertions are sensitive to real under-damage.
+
+The GPU-side proof stays `damage_equivalence` (lavapipe, `LoadOp::Load`, two frames and the stale
+pixel control) and the null backend keeps `damage_redraw`'s containment assertion (every partial
+draw's scissor lies inside a plan region). The CPU test is the cross-platform pixel proof; it does
+not duplicate the Vulkan layout/readback path.
+
+Documented exception: **swapchain/present targets are not guarded by this contract** because an
+acquired image is not guaranteed to preserve the previous frame's contents; B3 still presents the
+full surface, and the on-demand POC uses a full redraw for every presented frame. The equivalence
+above is for preserved offscreen/CPU targets. The unsupported overlap/backdrop/shadow cases from
+§6.2 still force the full-redraw fallback rather than being asserted as partial.
 
 ## 7. GPU resources and synchronization
 
