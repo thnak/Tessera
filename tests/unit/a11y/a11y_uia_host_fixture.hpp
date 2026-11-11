@@ -122,6 +122,25 @@ public:
         ++destroys;
     }
 
+    // Window thread, before start: the host forwards the opaque handle and the fake records it. A
+    // repeated identical install is a no-op, so the install path can be asserted idempotent.
+    void set_host_handle(tessera::hal::AccessibilityHostHandle handle) override {
+        log_.add("platform.set_handle");
+        if (handle.token == handle_.token) {
+            return;
+        }
+        handle_ = handle;
+        ++handle_sets;
+    }
+
+    [[nodiscard]] tessera::ui::a11y::UiaHostElementStatus host_element_status() const override {
+        tessera::ui::a11y::UiaHostElementStatus status;
+        status.handle_installed = handle_.valid();
+        status.state = handle_.valid() ? tessera::ui::a11y::UiaHostElementState::Pending
+                                       : tessera::ui::a11y::UiaHostElementState::Unavailable;
+        return status;
+    }
+
     [[nodiscard]] tessera::ui::a11y::UiaError
     raise(std::span<const tessera::ui::a11y::UiaEvent> events) override {
         log_.add("platform.raise");
@@ -148,6 +167,8 @@ public:
     std::thread::id create_thread;
     std::thread::id destroy_thread;
     bool running_at_create = true;
+    tessera::hal::AccessibilityHostHandle handle_{};
+    std::size_t handle_sets = 0;
 
 private:
     Log& log_;

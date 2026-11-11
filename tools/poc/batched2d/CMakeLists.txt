@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: MIT
 
 add_executable(batched2d_poc
-    main.cpp)
+    main.cpp
+    window_accessibility.cpp
+    window_accessibility.hpp)
 
 target_link_libraries(batched2d_poc PRIVATE
+    tessera_accessibility
     tessera_gpu
     tessera_hal_window
     tessera_runtime

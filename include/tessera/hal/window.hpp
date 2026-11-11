@@ -53,6 +53,19 @@ struct NativeWindowHandle {
     void* window = nullptr;
 };
 
+// Opaque identity of the window's native host element for the platform accessibility root
+// (Windows: the HWND that `UiaHostProviderFromHwnd` consumes). UI and accessibility code pass it by
+// value and never inspect, cast, or dereference `token`: only a platform/UIA translation unit may
+// interpret it, so no OS handle type leaks into a UI-layer type (ADR-020). A null token means the
+// backend has no native host element (offscreen/null window or no accessibility platform).
+struct AccessibilityHostHandle {
+    void* token = nullptr;
+
+    [[nodiscard]] bool valid() const noexcept {
+        return token != nullptr;
+    }
+};
+
 struct WindowEvent {
     WindowEventType type = WindowEventType::Resize;
     WindowMetrics metrics;
@@ -128,6 +141,13 @@ public:
 
     // Renderer/swapchain glue only. Win32 sets window (HWND); X11 sets display and window.
     [[nodiscard]] virtual NativeWindowHandle native_handle() const {
+        return {};
+    }
+
+    // The window's native host element for the accessibility root. Only the platform/UIA layer may
+    // interpret the opaque token; it is valid until the window is destroyed, and a null handle
+    // means this backend cannot host a UI Automation root (offscreen/null window).
+    [[nodiscard]] virtual AccessibilityHostHandle accessibility_host_handle() const {
         return {};
     }
 };

@@ -40,6 +40,7 @@
 #include "tessera/ui/text/glyph_raster.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 #include "text_demo.hpp"
+#include "window_accessibility.hpp"
 #if defined(TESSERA_VULKAN_TEST_HOOKS)
 #include "vulkan_internal.hpp"
 #endif
@@ -614,6 +615,9 @@ int run_windowed(const Options& options) {
         std::cout << "windowed: skipped (window has no native handle)\n";
         return 0;
     }
+    // The window is the real UIA root: the host answers WM_GETOBJECT and reports this HWND as the
+    // root's host element. On a platform without UIA the class is inert.
+    poc::batched2d::WindowAccessibility accessibility(*window);
 
     auto device =
         vulkan::create_vulkan_device(rhi::DeviceDesc{rhi::Backend::Vulkan, options.validation, -1});
@@ -833,6 +837,7 @@ int run_windowed(const Options& options) {
         bool closed = false;
 
         while (!closed) {
+            accessibility.tick();
             const double now = hal::steady_now_seconds();
             if (now - start >= run_seconds) {
                 break;
@@ -1001,6 +1006,7 @@ int run_windowed(const Options& options) {
 
     bool closed = false;
     for (std::uint32_t frame = 0; frame < options.frames && !closed; ++frame) {
+        accessibility.tick();
         const std::size_t event_count = window->poll_events(events);
         for (std::size_t i = 0; i < event_count; ++i) {
             if (events[i].type == hal::WindowEventType::Close) {
@@ -1303,6 +1309,8 @@ int run_windowed_hardened(const Options& options) {
         std::cout << "windowed-hardened: skipped (window has no native handle)\n";
         return 0;
     }
+    // Same real UIA root wiring as the default windowed path; inert without a UIA platform.
+    poc::batched2d::WindowAccessibility accessibility(*window);
 
     auto device =
         vulkan::create_vulkan_device(rhi::DeviceDesc{rhi::Backend::Vulkan, options.validation, -1});
@@ -1540,6 +1548,7 @@ int run_windowed_hardened(const Options& options) {
     constexpr std::uint32_t kPreLossFrames = 3;
     constexpr std::uint32_t kMaxTicks = 5000;
     for (std::uint32_t tick_index = 0; tick_index < kMaxTicks && !closed; ++tick_index) {
+        accessibility.tick();
         const std::size_t event_count = window->poll_events(events);
         for (std::size_t i = 0; i < event_count; ++i) {
             if (events[i].type == hal::WindowEventType::Close) {

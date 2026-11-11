@@ -248,14 +248,34 @@ UiaComProvider::get_HostRawElementProvider(IRawElementProviderSimple** out) {
     if (out == nullptr) {
         return E_INVALIDARG;
     }
-    // The HAL host (WM_GETOBJECT/UiaReturnRawElementProvider) supplies the host provider later; a
-    // fragment provider that is not hosted returns null.
     *out = nullptr;
-    return S_OK;
+    // Only the window root (index 0) has a native host element; a child fragment keeps the
+    // documented "no host provider" answer.
+    if (index_ != 0) {
+        return S_OK;
+    }
+    // E_FAIL is the documented answer for a root that cannot be connected: no platform source, no
+    // installed handle, or a stopped bridge. This path touches no COM and never waits.
+    if (host_element_ == nullptr || bridge_ == nullptr || !bridge_->running()) {
+        return E_FAIL;
+    }
+    // The host provider is created from the window's handle on the bridge thread, where the COM
+    // apartment lives. The platform caches it, so only the first client query pays for the build.
+    const HRESULT result = run_service([this, out](UiaProvider&) -> HRESULT {
+        const HostElement element = host_element_->acquire();
+        if (element.state != HostElementState::Ready || element.provider == nullptr) {
+            return E_FAIL;
+        }
+        *out = element.provider; // the source returned an AddRef'd reference for the caller
+        return S_OK;
+    });
+    // A failed marshal (stopped bridge, timeout) is also a clean "not connected" answer.
+    return SUCCEEDED(result) ? S_OK : E_FAIL;
 }
 
-::IRawElementProviderSimple* create_uia_provider(UiaBridge& bridge, A11yIndex index) {
-    UiaComProvider* provider = new (std::nothrow) UiaComProvider(&bridge, index);
+::IRawElementProviderSimple* create_uia_provider(UiaBridge& bridge, A11yIndex index,
+                                                 HostElementSource* host_element) {
+    UiaComProvider* provider = new (std::nothrow) UiaComProvider(&bridge, index, host_element);
     return static_cast<::IRawElementProviderSimple*>(provider);
 }
 

@@ -30,9 +30,10 @@ class UiaComProvider final : public ::IRawElementProviderSimple,
                              public ::IValueProvider,
                              public ::ISelectionItemProvider {
 public:
-    UiaComProvider(UiaBridge* bridge, A11yIndex index)
+    UiaComProvider(UiaBridge* bridge, A11yIndex index, HostElementSource* host_element)
         : bridge_(bridge),
-          index_(index) {}
+          index_(index),
+          host_element_(host_element) {}
 
     // IUnknown.
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** out) override;
@@ -92,12 +93,15 @@ public:
         if (bridge_ == nullptr) {
             return nullptr;
         }
-        return new (std::nothrow) UiaComProvider(bridge_, index);
+        return new (std::nothrow) UiaComProvider(bridge_, index, host_element_);
     }
 
 private:
     UiaBridge* bridge_ = nullptr;
     A11yIndex index_ = kInvalidIndex;
+    // Immutable after construction; the root's HostRawElementProvider answer uses it on the bridge
+    // thread. Null for providers created without a platform source (standalone tests).
+    HostElementSource* host_element_ = nullptr;
     std::atomic<ULONG> refs_{1};
 };
 

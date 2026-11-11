@@ -411,11 +411,11 @@ verbatim: no second tree, no scene pointers across the boundary. Everything live
 | Handoff | `uia_handoff.*` | Single-producer/single-consumer one-slot handoff. `publish` replaces an unconsumed snapshot and increments `dropped` (drop-oldest, newest tree wins); `take` copies into the consumer's reused buffer. The slot keeps its reserved capacity, so the UI-thread path allocates nothing after the first snapshot. |
 | Provider | `uia_provider.*` | Bridge-thread projection of one node (`UiaElementInfo`: control type, patterns, bounded name/value/description, automation id, bounds, enabled/focused/selected), a precomputed parent table, `element`/`child_count`/`child_at`/`focused`/`hit_test`, and a bounded (32) coalescing action ring with a `SetValue` text payload. Every query asserts bridge-thread ownership. |
 | Bridge | `uia_bridge.*`, `uia_bridge_jobs.*` | Owns the one bridge thread, the apartment, the handoff, and a bounded (8) client-job ring. Phases `Idle -> Starting -> Running -> Failed/Stopped`; `start` never blocks on COM initialization, `stop` signals and joins with a liveness bound, restart re-initializes the same apartment. Jobs run inline when the caller is already the bridge thread; `post` enqueues work without waiting. The newest published tree is adopted immediately before each job runs, and `set_hooks` installs the bridge-thread lifecycle hooks the host uses to own the root provider. |
-| Host | `uia_host.*`, `uia_platform*.cpp` | `UiaHost` is the window/host owner: it creates the root provider on the bridge thread (the start hook) and releases it before the apartment shuts down (the stop hook), publishes only dirty snapshots, derives and queues events, drains actions at a tick boundary, and answers `WM_GETOBJECT` from one atomic pointer. `UiaPlatform` is the platform seam: the Windows implementation owns the COM root and the bounded per-node provider cache; every other platform returns nullptr, so `start` reports `UnsupportedPlatform` and the app runs with accessibility off. |
+| Host | `uia_host.*`, `uia_platform*.cpp` | `UiaHost` is the window/host owner: it creates the root provider on the bridge thread (the start hook) and releases it before the apartment shuts down (the stop hook), publishes only dirty snapshots, derives and queues events, drains actions at a tick boundary, and answers `WM_GETOBJECT` from one atomic pointer. `UiaHost::set_host_handle` forwards the window's opaque `hal::AccessibilityHostHandle` to the platform (window thread, atomic store only); `UiaHost::host_element_status` reports the structured wiring state. `UiaPlatform` is the platform seam: the Windows implementation owns the COM root, the cached `UiaHostProviderFromHwnd` host element, and the bounded per-node provider cache; every other platform returns nullptr, so `start` reports `UnsupportedPlatform` and the app runs with accessibility off. |
 | Events | `uia_events.*` | Bounded (64) coalescing queue plus the pre-order tree diff that derives one root `ChildrenInvalidated`, per-node child-list changes (`Reordered` when only the order moved), name/value/help-text/enabled/selected/bounds property changes, and one focus event. Windows raises a batch with `UiaRaiseStructureChangedEvent`, `UiaRaiseAutomationPropertyChangedEvent` and `UiaRaiseAutomationEvent` (focus) from the cached providers on the bridge thread. |
-| Window seam | `include/tessera/hal/window.hpp`, `src/hal/window/window_accessibility_win.hpp`, `src/platform/windows/window_accessibility.cpp` | `hal::Window::set_accessibility_root` installs a non-blocking answer callback. The Win32 window procedure answers `WM_GETOBJECT` with `UiaReturnRawElementProvider(hwnd, wParam, lParam, root)` and falls back to `DefWindowProc` when no root is published (starting, failed, stopped, or a non-UIA object id), so UIA keeps the default MSAA bridge instead of seeing an empty provider. |
+| Window seam | `include/tessera/hal/window.hpp`, `src/hal/window/window_accessibility_win.hpp`, `src/platform/windows/window_accessibility.cpp` | `hal::Window::set_accessibility_root` installs a non-blocking answer callback. The Win32 window procedure answers `WM_GETOBJECT` with `UiaReturnRawElementProvider(hwnd, wParam, lParam, root)` and falls back to `DefWindowProc` when no root is published (starting, failed, stopped, or a non-UIA object id), so UIA keeps the default MSAA bridge instead of seeing an empty provider. `hal::Window::accessibility_host_handle()` returns the same window as an opaque `hal::AccessibilityHostHandle`; only the platform/UIA layer interprets the token, so no HWND crosses into a UI-layer type. |
 | Apartment | `uia_apartment*.cpp` | Windows: `CoInitializeEx(nullptr, COINIT_MULTITHREADED)` + `CoUninitialize` + a bounded `PeekMessage`/`DispatchMessage` pump; `RPC_E_CHANGED_MODE` is `ApartmentUnavailable`. Every other platform: an apartment whose `init` returns `UnsupportedPlatform`, so accessibility disables instead of failing the app. |
-| COM adapter | `uia_com*.cpp`, `uia_com_provider.hpp` | `IRawElementProviderSimple`, `IRawElementProviderFragment` (+Root for index 0), `IInvokeProvider`, `IValueProvider`, `ISelectionItemProvider`. Properties: Name, ControlType, IsEnabled, BoundingRectangle (`VT_ARRAY | VT_R8`), HasKeyboardFocus, IsOffscreen, AutomationId, HelpText, FrameworkId, ValueValue, ValueIsReadOnly, SelectionItemIsSelected; unsupported ids are `VT_EMPTY` + `S_OK`. Runtime id is `(UiaAppendRuntimeId, index + 1)`. `get_ProviderOptions` reports `ServerSideProvider | UseComThreading`. |
+| COM adapter | `uia_com*.cpp`, `uia_com_provider.hpp` | `IRawElementProviderSimple`, `IRawElementProviderFragment` (+Root for index 0), `IInvokeProvider`, `IValueProvider`, `ISelectionItemProvider`. Properties: Name, ControlType, IsEnabled, BoundingRectangle (`VT_ARRAY | VT_R8`), HasKeyboardFocus, IsOffscreen, AutomationId, HelpText, FrameworkId, ValueValue, ValueIsReadOnly, SelectionItemIsSelected; unsupported ids are `VT_EMPTY` + `S_OK`. The root's `get_HostRawElementProvider` returns the window's `UiaHostProviderFromHwnd` provider (built once on the bridge thread and cached), or `E_FAIL` when no handle/source/bridge is connected; a child fragment keeps `S_OK` + null. Runtime id is `(UiaAppendRuntimeId, index + 1)`. `get_ProviderOptions` reports `ServerSideProvider | UseComThreading`. |
 
 Threading is the whole point of the slice:
 
@@ -448,6 +448,18 @@ Host wiring (`WM_GETOBJECT`):
   UIA root object id (`UiaRootObjectId`, -25); `OBJID_CLIENT` and child ids keep the platform
   default. `stop()` clears the pointer before the stop hook releases the provider, so a shutdown
   race sees "not ready" rather than a dangling object.
+- The native handle crosses the seam as `hal::AccessibilityHostHandle`: `UiaHost::set_host_handle`
+  stores the opaque token on the platform (window thread, atomic store only, idempotent for the same
+  token). The root's `get_HostRawElementProvider` marshals to the bridge thread, where the platform
+  calls `UiaHostProviderFromHwnd` once, caches the provider, and returns it `AddRef`'d. A missing
+  handle, a stopped bridge, or a failed build answers `E_FAIL` with a null out-parameter; a failure is
+  latched per installed handle, so a client retry does not repeat the COM call. The structured
+  diagnostic is `UiaHost::host_element_status()` (`Unavailable`/`Pending`/`Ready`/`Failed` plus a
+  failure count), never one log line per client call.
+- `make_window_root_provider(UiaHost&)` builds the `hal::AccessibilityRoot` answer and
+  `hal::Window::set_accessibility_root` installs it; reinstalling the same host is idempotent. The
+  windowed POC installs it (plus a static demo pane) on both windowed paths, so a real window answers
+  UIA requests; offscreen/null backends expose no host handle and are unaffected.
 - `UiaHost::mark_dirty()` is called from the semantics/layout/focus change paths and `tick()` is the
   UI-thread boundary: it builds a snapshot only when dirty, publishes it, then drains at most
   `max_actions_per_tick` (8) validated actions in arrival order. A static window (not dirty, no
@@ -461,8 +473,8 @@ Host wiring (`WM_GETOBJECT`):
 Caps: 256 snapshot nodes, 32 queued actions, 8 queued client jobs, 64 queued events, 8 actions per
 tick, 4 jobs per iteration, 5 s per-call liveness bound, 2 s stop liveness bound, 16 ms idle wait.
 The COM object's reference count is atomic; the host owns every provider it creates (the Windows
-platform caches one per snapshot index and releases the cache with the root before destroying the
-bridge).
+platform caches one per snapshot index and one `UiaHostProviderFromHwnd` host element, and releases
+both with the root before destroying the bridge).
 
 Tests (`tests/unit/a11y/`, names start with `a11y`): `a11y_uia_mapping` (role/control-type/pattern
 tables, run on every platform), `a11y_uia_handoff` (drop-oldest counter, newest-tree-wins, buffer
@@ -478,13 +490,19 @@ bridge thread, unchanged trees raise nothing), `a11y_uia_compile_check` (Windows
 static_asserts, `uiautomationcore`/`ole32` link), `a11y_uia_window_getobject` (Windows: the real
 window procedure routes `WM_GETOBJECT` through the handshake and falls back after uninstall), and
 `a11y_uia_com` / `a11y_uia_com_nav` (Windows: the real provider vtable, properties, patterns,
-navigation, shutdown behavior; no UIA client).
+navigation, shutdown behavior; no UIA client), `a11y_uia_com_host_element` (Windows: the root's
+`get_HostRawElementProvider` contract with a fake `UiaHostProviderFromHwnd` source: AddRef'd
+provider, cached across queries, `E_FAIL` for no source/unavailable/failed/stopped, `S_OK` + null
+for a child), and `a11y_uia_window_host_element` (Windows: the real window + real platform seam
+answer with the window's HWND, cache the provider, and fail cleanly without a handle; the client
+query runs on a helper thread while the window thread pumps, so no screen reader is needed).
 
 Known limits of this slice:
 
-- `get_HostRawElementProvider` still returns null: the bridge has no window handle, so the root must
-  eventually receive an opaque native handle (or `UiaHostProviderFromHwnd`) through the platform
-  seam.
+- A `UiaHostProviderFromHwnd` build failure is latched until the handle changes: a recreated window
+  must call `UiaHost::set_host_handle` with the new handle (the POC does this at construction). The
+  host element is built on the first query, not eagerly at `start`, so a client that never asks for
+  it pays nothing.
 - `UiaRaiseAutomationPropertyChangedEvent` is raised with empty `VARIANT` old/new values; clients
   re-query the property. Focus events are only raised when the host marks the snapshot dirty for the
   focus change (the event is derived from the snapshot diff, not from the input path directly).
@@ -496,3 +514,26 @@ Known limits of this slice:
 - `ValuePattern.SetValue` text is truncated to `kMaxTextBytes` at a byte boundary, so a long
   non-ASCII value can end in a partial UTF-8 sequence; the UI thread validates before applying it.
 - `IsOffscreen` is always false: the snapshot carries world bounds, not a viewport intersection.
+
+### Manual screen-reader smoke checklist (Narrator/NVDA)
+
+Run on a real desktop session (not a headless CI agent), from the repository root:
+
+```powershell
+.\build\vs2026\tools\poc\batched2d\Release\batched2d_poc.exe --backend vulkan --windowed --on-demand --run-seconds 60
+```
+
+- [ ] Narrator (Win+Ctrl+Enter): focus the POC window; Narrator announces "Tessera windowed POC" and
+      a pane. The announcement appears once, not once per frame.
+- [ ] Narrator scan mode (Caps+Space, then arrow keys): the accessibility tree contains exactly the
+      demo pane and its bounds match the window's client area.
+- [ ] NVDA: focus the window with NVDA running; the speech viewer shows the same pane name, and
+      NVDA's element list (`NVDA+F7`) lists one pane with no error dialog.
+- [ ] Resize the window while a screen reader is attached: the pane's bounding rectangle follows the
+      client area and the window never hangs (input and painting stay responsive).
+- [ ] Close the window with Narrator/NVDA attached: the process exits normally, with no orphaned
+      provider, no crash dialog, and no multi-second stall on close.
+- [ ] Static window: with no frames due and a screen reader attached, Task Manager shows ~0% CPU for
+      the process (the static tick does no UIA work).
+- [ ] Accessibility off (a non-Windows build or a failed UIA start): the app runs, the window keeps
+      its default provider, and no error is reported to the user.
