@@ -33,14 +33,15 @@ namespace {
 
 std::expected<std::shared_ptr<const rendering::image::DecodedImage>, AssetImageError>
 load_asset_image(const AssetBundle& bundle, std::string_view name,
-                 rendering::image::ImageDecodeCache& cache, rendering::image::ImageLimits limits) {
+                 rendering::image::ImageDecodeCache& cache, rendering::image::ImageLimits limits,
+                 rendering::image::DecodeTarget target) {
     const auto asset = bundle.find(name);
     if (!asset.has_value()) {
         return std::unexpected(asset.error() == AssetError::invalid_name
                                    ? AssetImageError::invalid_name
                                    : AssetImageError::not_found);
     }
-    auto decoded = cache.acquire(as_u8(asset->bytes), limits);
+    auto decoded = cache.acquire(as_u8(asset->bytes), limits, target);
     if (!decoded.has_value()) {
         return std::unexpected(map_error(decoded.error()));
     }

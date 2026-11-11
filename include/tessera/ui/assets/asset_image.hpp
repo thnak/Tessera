@@ -25,10 +25,12 @@ enum class AssetImageError : std::uint8_t {
 
 // Loads an embedded raster image by name through the decode cache: one stb_image decode per content
 // hash, no filesystem access, deterministic RGBA8 straight-alpha output. The returned decode
-// carries its content hash, which is the texture-cache key.
+// carries its content hash, which is the texture-cache key. A non-original `target` (see
+// `rendering::image::decode_target_for`) decodes at display size x DPR instead of source size.
 [[nodiscard]] std::expected<std::shared_ptr<const rendering::image::DecodedImage>, AssetImageError>
 load_asset_image(const AssetBundle& bundle, std::string_view name,
                  rendering::image::ImageDecodeCache& cache,
-                 rendering::image::ImageLimits limits = {});
+                 rendering::image::ImageLimits limits = {},
+                 rendering::image::DecodeTarget target = {});
 
 } // namespace tessera::ui::assets

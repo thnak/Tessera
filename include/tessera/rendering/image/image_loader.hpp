@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/rendering/image/image_resize.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -43,6 +45,10 @@ enum class ImageError : std::uint8_t {
 struct DecodedImage {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    // Size of the encoded image. Equals width/height unless the decode was reduced to a target
+    // (issue #14); limits and layout intrinsic size are judged on this, not on the reduced raster.
+    std::uint32_t source_width = 0;
+    std::uint32_t source_height = 0;
     ImageFormat format = ImageFormat::unknown;
     // FNV-1a content hash of the encoded bytes; set by the decode cache and used as the texture
     // key.
@@ -63,7 +69,14 @@ struct DecodedImage {
 
 // Decodes PNG/JPEG bytes to RGBA8. Never throws across this seam and never touches the filesystem.
 // A corrupt/truncated/unsupported input is a value, not a crash.
+//
+// With a non-original `target` (display size x DPR bucket, image_resize.hpp) the raster is reduced
+// by a deterministic box filter to the smallest size that still covers the target and is never
+// enlarged, so what a caller retains is bounded by the display, not the source. Limits apply to the
+// encoded image's size. stb_image has no scaled decode, so the full raster exists transiently
+// during the call; it is freed before returning.
 [[nodiscard]] std::expected<DecodedImage, ImageError>
-decode_image(std::span<const std::uint8_t> bytes, ImageLimits limits = {});
+decode_image(std::span<const std::uint8_t> bytes, ImageLimits limits = {},
+             DecodeTarget target = {});
 
 } // namespace tessera::rendering::image
