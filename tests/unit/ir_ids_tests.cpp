@@ -5,6 +5,7 @@
 // ids that are already present, and the error cases.
 
 #include "tessera/compiler/ids/assign_identity.hpp"
+#include "tessera/compiler/ids/manifest.hpp"
 #include "tessera/compiler/ir/expr.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/compiler/ir/node.hpp"
@@ -190,6 +191,37 @@ int main() {
     const auto bad = ids::assign_identity(text, "factory");
     ok = expect(!bad.has_value() && bad.error().message.find("non-numeric") != std::string::npos,
                 "a non-numeric automationId is an error") &&
+         ok;
+
+    // --- the manifest lists every component and node, deterministically -----------------------
+    const std::string manifest = ids::write_manifest(module, "factory");
+    ok = expect(manifest == ids::write_manifest(again, "factory"),
+                "the same input gives a byte-identical manifest") &&
+         ok;
+    ok = expect(manifest.find("\"manifestVersion\": 1") != std::string::npos &&
+                    manifest.find("\"projectSalt\": \"factory\"") != std::string::npos,
+                "the manifest names its version and salt") &&
+         ok;
+    ok = expect(manifest.find("\"componentId\": \"" + module.components[0].component_id + "\"") !=
+                    std::string::npos,
+                "the manifest lists the component id") &&
+         ok;
+    ok = expect(manifest.find("\"uiId\": \"" + button.ui_id + "\"") != std::string::npos &&
+                    manifest.find("\"path\": \"Counter/root[0]/Button[1]\"") != std::string::npos,
+                "the manifest maps the button's uiId to its path") &&
+         ok;
+    ok = expect(manifest.find("\"path\": \"Counter/root[0]/ErrorBoundary[2]/fallback[0]\"") !=
+                    std::string::npos,
+                "a fallback node is listed with its path") &&
+         ok;
+    std::size_t listed = 0;
+    for (std::size_t at = manifest.find("\"uiId\""); at != std::string::npos;
+         at = manifest.find("\"uiId\"", at + 1)) {
+        ++listed;
+    }
+    ok = expect(listed == 6, "all six nodes are listed") && ok;
+    ok = expect(manifest != ids::write_manifest(other_salt, "other"),
+                "another salt gives another manifest") &&
          ok;
 
     if (!ok) {

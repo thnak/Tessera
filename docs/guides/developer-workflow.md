@@ -83,7 +83,8 @@ tessera_codegen --check --out build/generated --namespace demo ui/Screen.tsx
 # Numeric automation ids (docs/specs/automation-ids-v1.md): when a tessera.json is found at --root
 # or above the input, its `app.namespace` is the id salt and its directory the project root, so
 # every component and node gets a componentId/uiId and the scene node carries it as its automation
-# id. A tessera.json without a usable `app.namespace` is an error. --salt overrides the namespace.
+# id, and `automation.manifest.json` (ids to names, paths and sources) is written next to the generated
+# files. A tessera.json without a usable `app.namespace` is an error. --salt overrides it.
 tessera_codegen --out build/generated --namespace demo ui/Screen.tsx
 tessera_codegen --salt factory --root . --out build/generated --namespace demo ui/Screen.tsx
 

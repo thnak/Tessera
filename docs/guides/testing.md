@@ -133,7 +133,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `virtual_data_source` | read-only data source contract: build fills a clean caller node, optional release, measure constraints |
 | `virtual_key_index` | fixed-capacity key index: O(1) find/key_at, duplicate and capacity errors invalidate the mapping |
 | `virtual_pool` | recycler: cap refusal without growth, clean-on-acquire, stale-lease rejection, detach/reclaim |
-| `ir_ids` | IR identity assignment: componentId/uiId from salt, source path and node path, explicit automationId, kept ids, errors |
+| `ir_ids` | IR identity assignment (componentId/uiId from salt, source path and node path, explicit automationId, kept ids, errors) and the deterministic automation manifest |
 | `parity_runner` | preview-parity runner: `call` and `click` steps, int/float identity, mismatch report naming step, id and cell, run errors |
 | `preview_parity` | `samples/parity-demo`: a native handler's TSX preview body (IR evaluator) and its developer C++ leave the same state after every scripted click, addressed by the numeric uiId |
 | `virtual_range` | visible-range release/build over the overscan window with re-anchor relative to the first visible item |

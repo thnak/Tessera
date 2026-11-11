@@ -244,6 +244,35 @@ int main(int argc, char** argv) {
     check(read_file(work / "cfg-c" / "Demo.cpp") != read_file(work / "cfg-a" / "Demo.cpp"),
           "the overriding salt changes the ids");
 
+    // The automation manifest is written next to the generated files, is identical for the same
+    // ids, is a no-op on a second run, and is covered by --check.
+    const fs::path manifest = work / "cfg-a" / "automation.manifest.json";
+    check(fs::exists(manifest), "a salted run writes automation.manifest.json");
+    const std::string manifest_text = read_file(manifest);
+    check(manifest_text.find("\"projectSalt\": \"factory\"") != std::string::npos &&
+              manifest_text.find("\"path\": \"Demo/root[0]") != std::string::npos,
+          "the manifest names the salt and the node paths");
+    check(manifest_text == read_file(work / "cfg-b" / "automation.manifest.json"),
+          "the manifest is the same for the same ids");
+    check(manifest_text != read_file(work / "cfg-c" / "automation.manifest.json"),
+          "another salt gives another manifest");
+    check(!fs::exists(out / "automation.manifest.json"), "without a salt no manifest is written");
+    const auto manifest_time = fs::last_write_time(manifest);
+    check(from_config(work / "cfg-a") == 0, "a second salted run exits 0");
+    check(fs::last_write_time(manifest) == manifest_time,
+          "the second run leaves the manifest untouched");
+    check(run_cli(cli,
+                  "--check --out " + quoted(work / "cfg-a") + " --namespace demo " +
+                      quoted(configured / "ui" / "Demo.tsx"),
+                  log_dir) == 0,
+          "--check passes on a current manifest");
+    write_file(manifest, manifest_text + " ");
+    check(run_cli(cli,
+                  "--check --out " + quoted(work / "cfg-a") + " --namespace demo " +
+                      quoted(configured / "ui" / "Demo.tsx"),
+                  log_dir) == 1,
+          "--check reports a stale manifest");
+
     // A tessera.json that is found must be usable: no silent unassigned ids.
     write_file(configured / "tessera.json", R"({"schemaVersion":1,"app":{"namespace":""}})");
     check(from_config(work / "cfg-d") == 1, "an empty app.namespace exits 1");
