@@ -97,8 +97,8 @@ bool buttons() {
                   "button 5 scrolls down (positive web dy)") &&
            expect(wheel_left.dx < 0.0F && wheel_left.dy == 0.0F, "button 6 scrolls left") &&
            expect(wheel_right.dx > 0.0F, "button 7 scrolls right") &&
-           expect(x11::button_action(0).kind == x11::ButtonAction::Kind::None &&
-                      x11::button_action(42).kind == x11::ButtonAction::Kind::None,
+           expect(x11::button_action(0).kind == x11::ButtonAction::Kind::Ignored &&
+                      x11::button_action(42).kind == x11::ButtonAction::Kind::Ignored,
                   "unknown buttons are ignored");
 }
 
