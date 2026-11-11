@@ -214,7 +214,7 @@ reuses bitmaps produced for another scale.
   live state untouched.
 - **Atlases.** [`ScaleGlyphAtlas`](../../include/tessera/ui/text/scale_glyph_atlas.hpp) keeps one
   `GlyphAtlas` per ladder step, so an atlas built for 1.25 never serves 2.0. A DPI change releases
-  the previous step only; other steps stay warm and are reused when the window moves back. Page
+  the previous step only; the renderer's own step-change policy is in [`text.md`](text.md) §5. Page
   LRU and page generations stay per atlas, so eviction on one step cannot invalidate another.
 - **Bound.** The set holds at most `kRenderScaleStepCount` (4) atlases; a request for an
   in-between or out-of-range scale quantizes onto an existing slot instead of creating one. With
@@ -296,6 +296,8 @@ monitor-derived ladder step above, not on `renderScale`.
 
 - Respect safe areas, system DPI/scale, min/max sizes, title-bar/non-client behavior, system
   theme/high-contrast, reduced motion, and accessibility settings.
+- Chrome appearance and first-frame timing are specified in
+  [`window-chrome-v1.md`](../specs/window-chrome-v1.md).
 - Multi-monitor: per-monitor DPI/scale/refresh; re-query present modes and VRR on display change.
 - Do not assume 60 Hz or 1.0 scale when the platform cannot report them; use documented fallbacks.
 - Never block the UI/message loop on the compositor, GPU, or a synchronous cross-thread call.

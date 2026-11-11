@@ -12,6 +12,9 @@ A cross-platform C++ UI framework:
 - **Production**: a two-tier compiler turns JSX → IR → **native C++** source.
 - **Design time**: the same C++ engine compiled to **WebAssembly + WebGPU** for instant,
   emulator-free preview in a browser.
+- **Web target (secondary)**: the same app, generated C++ plus developer C++, built with
+  Emscripten to run in a browser for demos and trials
+  ([ADR-046](decisions/ADR-046-web-target-for-demos.md)); native stays primary.
 - **Native backend**: **Vulkan 1.3 is the primary renderer**. WebGPU/Dawn is the browser backend.
 - **Core model**: game-engine-style fixed timestep, zero-allocation buffers, retained/immediate
   hybrid, dirty-flag invalidation.
@@ -33,9 +36,12 @@ A cross-platform C++ UI framework:
    Backends live under `src/rendering/backend/{vulkan,webgpu,null}`.
 4. **Compiler is IR-first.** JSX/TSX → `src/compiler/ir` → C++ codegen. Never make codegen
    read the raw parser AST directly.
-5. **Protected regions are idempotent.**
-   `merge(merge(generated, existing), existing) == merge(generated, existing)`.
-   Developer C++ inside `[DEVELOPER_LOGIC_START: bind::id]` must survive UI regeneration.
+5. **Generated code and developer code have separate owners** ([ADR-040](decisions/ADR-040-generated-base-and-developer-class.md)).
+   Codegen emits a `gen::<Component>Base<Self>` that is never edited or merged; developer C++
+   lives in a developer-owned derived class scaffolded once, and a missing `bind::` member is a
+   compile error. Until the migration lands, the legacy protected-region merger must stay
+   idempotent (`merge(merge(g, e), e) == merge(g, e)`); keep it working but add no new features
+   to it.
 6. **Deterministic headless tests use a software path.** Golden images come from
    Mesa **lavapipe** or the CPU rasterizer, never from a real GPU framebuffer.
 7. **No React runtime in production.** Production is pure C++. React semantics exist only
@@ -169,6 +175,9 @@ Repo + build + the two riskiest proofs.
 - [ ] C++ engine → Wasm (Emscripten) + WebGPU/Dawn surface.
 - [ ] Self-contained Wasm engine (front end + IR evaluator, ADR-037) renders parsed UI
       immediately; picker + style editing with source patches; IPC bridge + hot reload.
+- [ ] Hosted studio on GitHub Pages: static site, page as host, two-pane shell, data-driven skins
+      and simulated system chrome, project import/export (`docs/specs/designer-studio-v1.md`).
+- [ ] `tessera-mcp` stdio adapter of the same engine for coding agents, compile-only first.
 - [ ] Acceptance: same screen previews in a browser and matches native output.
 
 ### Big Step E — Data-heavy UI
@@ -589,6 +598,51 @@ across the builtin and ICU backends. Known limitation: a `TextLine` is still a s
 `Normal` the measured width is collapsed while the painted slice still spans the source bytes - the
 next text slice is a paint-time collapse/transform stage (which also carries `nowrap` collapsing and
 `pre-line` newlines), then `text-overflow: ellipsis`.
+The app host lane (`src/app/`, `include/tessera/app/host.hpp`) connects the finished pieces:
+`AppHost` runs the docs/design/app-host.md section 3 order for one scene root (animation tick ->
+dirty collection -> selector tree rebuild -> Yoga layout + `apply_layout` -> `sync_style` ->
+damage/redraw plan -> paint), owns the compiled stylesheet, `SceneStyleTree`/provider, layout
+engine, `DirtyPass`, `DamageTracker`/`DamageAccumulator` and `FramePipeline`, and borrows the root
+and the `RuntimeLoop`; it never sees a window, swapchain or device. `tests/unit/app_host_tests.cpp`
+covers first frame, idle (zero work), paint-only damage, resize/DPI and settling. Supporting slice:
+`SceneStyleTree` now populates tag/id/classes/has_text from scene element metadata, so a compiled
+stylesheet styles generated nodes by type, class and id (`tests/unit/scene_style_metadata_tests.cpp`).
+The driver sample `samples/click-demo` landed: generated Demo + compiled stylesheet. Its runner is
+now the `tessera_app_window` library (`include/tessera/app/window.hpp`): `WindowHost` owns the
+platform window, Vulkan device/swapchain, Batched2D renderer and font/text stack and drives the
+host loop (events -> `InputPump` -> scheduler flush -> style/layout/damage -> paint -> present,
+resize/DPI/close, two frames in flight), and `capture_frame` renders one windowless offscreen frame
+through the same path; the sample is a thin CLI over both (windowless `--capture` + `--click`,
+`--windowed [--hidden --frames N]`). Tests `app_window` (capture parity + hidden-window smoke), `app_input` (pointer move -> `:hover`,
+press -> `:active`, release -> generated Click, focus + typed text -> generated onChange through the
+`InputPump`) and `click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next
+for this lane: generated controlled `TextInput` caret/selection decoration (the editor owns the
+offsets but codegen does not publish them into PaintData yet), platform cursor shape once the HAL
+grows a cursor API. The window input path is covered: `WindowHost::post_input` feeds normalized
+events into the same InputPump/InputRouter as OS input, and `tests/gpu/app_window_input_tests.cpp`
+drives click -> generated state and pointer focus + typed text -> generated onChange on a real hidden
+window + swapchain; `WindowHost::apply_metrics` feeds a metrics snapshot through the resize/DPI path
+(same test asserts the reflow and damage target). The design captures landed: `tools/poc/design_mock` renders the startup P0/P2/P4 frames and
+the system vs framework window chrome through the same capture path, writes
+`docs/images/{startup-p0,startup-p2,startup-p4,chrome-system,chrome-custom}.png`, and
+`docs/design/shell-design-preview.md` documents them as design mocks (not the phase scheduler or the
+Windows custom title bar). The `AppHost` root now keeps a caller-chosen `display`/`flex-direction`
+(host owns only width/height), so a shell with a sidebar can make the root a row.
+
+The Windows lane is unblocked: MSVC now compiles the tree with `/utf-8` (sources are UTF-8
+without a BOM), `FrameFailureGuard` (`include/tessera/app/frame_guard.hpp`) bounds consecutive
+frame failures so a bounded `--frames` run always terminates, a busy slot is skipped until
+`is_complete()` instead of waiting on the GPU from the UI thread, and `OutOfDate` recreates the
+swapchain at the window's real size rather than at its own current extent (a documented no-op).
+Remaining app-host debt: drive the idle/skip paths from the pacer deadline instead of fixed
+sleeps, present only on damage, call `end_frame()` on the not-due path, and drain in-flight
+commands at teardown without a device-wide `wait_idle()`. Package imports are live in lowering:
+`lower_project(files, module, packages)` resolves `from "tessera-ui/Button"` to `<root>/Button`
+and a bare `"tessera-ui"` to `<root>/index`, then follows the ordinary cross-file rules, so
+package TSX is compiled by the same pipeline (#70). Next for #70: the project-config loader
+feeds `PackageRoot`s, `tessera/components/{Field,Form}.tsx` become the source of truth (a parity
+test pins the IR), and `library_components.cpp` stops hand-building IR.
+
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes

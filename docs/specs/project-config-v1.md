@@ -18,6 +18,7 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `app` | object | yes | — | Application identity and targets |
 | `window` | object | no | see the `window` section | Initial window |
 | `ui` | object | yes | — | Component discovery and hooks |
+| `packages` | array | no | `[]` | Bare import specifiers resolved to package roots |
 | `codegen` | object | no | see the `codegen` section | Generated C++ options |
 | `assets` | object | no | empty | Fonts, images, theme |
 | `build` | object | no | see the `build` section | CMake and toolchain |
@@ -56,6 +57,8 @@ paths are rejected.
 | `width` | integer | `1280` | > 0 |
 | `height` | integer | `800` | > 0 |
 | `scale` | string | `auto` | `auto` or a number (DPI scale) |
+| `appearance` | string | `auto` | Light/dark system chrome: `auto`, `light` or `dark`; `auto` derives from `--window-background` ([`window-chrome-v1.md`](window-chrome-v1.md)) |
+| `titleBar` | string | `system` | `system` or `custom`. `custom` draws the framework `WindowChrome`; Windows only in V1, other platforms warn and keep the system chrome ([`window-chrome-v1.md`](window-chrome-v1.md)) |
 | `resizable` | boolean | `true` | |
 
 ## `ui`
@@ -74,6 +77,20 @@ paths are rejected.
 | `limits.maxComponents` | integer | no | `64` | Front-end limit: components per file; greater than 0 |
 | `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids tying JSX logic to protected C++ regions, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
 | `bindings.manifest` | string | no | `generated/bindings.json` | Must stay inside `codegen.outDir` |
+
+## `packages`
+
+Bare specifiers resolved by the compiler ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 4); empty
+by default. `"tessera"` and `"react"` are never captured by a package root.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Bare specifier, no `/` or `.`; unique; not `tessera` or `react` |
+| `root` | string | yes | Project-relative POSIX directory; no leading `./`, no `..`, no absolute path |
+
+```json
+"packages": [{ "name": "acme-ui", "root": "packages/acme-ui/src" }]
+```
 
 ## `codegen`
 
@@ -151,7 +168,7 @@ Startup/loading/auth and resource policy. See
 ```json
 "loading": {
   "criticalResources": ["theme.default", "font.inter.regular"],
-  "screen": "skeleton",
+  "brand": { "logo": "assets/images/logo.png", "background": "--window-background" },
   "authMode": "blocking",
   "restoreRoute": true,
   "resourcePolicy": "lazy",
@@ -166,7 +183,9 @@ Startup/loading/auth and resource policy. See
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `criticalResources` | string[] | `[]` | Minimal eager set for first meaningful frame |
-| `screen` | string | `skeleton` | `none`, `shell`, `skeleton`, `progress`, `spinner` |
+| `screen` | string | `skeleton` | Deprecated ([startup-api-v1.md](startup-api-v1.md) section 7.2); while read: `none`, `shell`, `skeleton`, `progress`, `spinner` |
+| `brand.logo` | string | `null` | Image used by the default loading screen instead of the framework mark; must be listed by `assets.images` |
+| `brand.background` | string | `--window-background` | Default-screen fill: a plain colour or a `--token` name from the theme asset |
 | `authMode` | string | `blocking` | `blocking`, `overlay`, `deferred`, `background` |
 | `restoreRoute` | boolean | `true` | Restore last route/deep link after auth |
 | `resourcePolicy` | string | `lazy` | `lazy` (default); explicit preload list |
@@ -178,7 +197,16 @@ Startup/loading/auth and resource policy. See
 
 Rules: `criticalResources` stays small; `preload` is bounded/cancellable; user settings may
 adjust budgets only within hard caps; golden/deterministic mode pins the critical set and load
-order and ignores network/system fonts.
+order and ignores network/system fonts. `screen` is deprecated in favour of the JSX loading surface
+and reports `TESSERA_STARTUP_CONFIG_DEPRECATED` when used; `brand.logo` must be covered by
+`assets.images` and `brand.background` is a plain colour or an existing theme token
+(`TESSERA_STARTUP_BRAND` otherwise).
+
+The TSX startup declaration ([`startup-api-v1.md`](startup-api-v1.md) section 7) owns which
+resources the app declares (with a priority) and which loading subtree replaces the framework
+default; this block owns policy and budgets. Precedence is CLI > `AppConfig` > compiled startup
+declaration > `tessera.json` > defaults; a direct overlap reports
+`TESSERA_STARTUP_CONFIG_SHADOWED`.
 
 Restore precedence: `restore.enabled` is the master switch. `navigation.restore` controls the
 route stack; `loading.restoreRoute` only resumes a pending deep-link/activation after auth.
@@ -399,7 +427,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 6. `codegen.outDir` must not be inside `ui.sourceDirs`.
 7. `build.staticRuntime` must be `true`.
 8. `dependencies.linkLibraries` must be reviewed (ADR-013, MIT license and permissive dependencies); no GPL/LGPL in statically linked code.
-9. Unknown fields, absolute paths, and duplicate binding ids are errors.
+9. Unknown fields, absolute paths, duplicate binding ids and duplicate `packages` names are
+   errors; a `packages[].root` is a project-relative directory inside the project.
 10. `tessera generate --check` fails if generated output differs from the working tree.
 11. `runtime` follows [runtime-config-v1.md](runtime-config-v1.md) validation; `deterministic`
     is forced for golden/headless runs.
@@ -414,6 +443,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 16. `loading` follows [resource-lifecycle-v1.md](resource-lifecycle-v1.md): `criticalResources`
     is a small explicit set, `preload` is bounded/cancellable, and unload/eviction are enabled
     by the `unloadOnBackground` and `evictOnMemoryPressure` fields. Deterministic mode pins the critical set and load order.
+    The compiled startup declaration ([`startup-api-v1.md`](startup-api-v1.md)) contributes its
+    `critical` entries to the same set and adds no policy fields.
 17. `deepLinks` follows [deep-linking-v1.md](deep-linking-v1.md): schemes/hosts/routes are
     unique allowlists, route patterns resolve to real routes, `fallbackUrl` is HTTPS, and no
     secrets/tokens are allowed in URLs.
@@ -427,6 +458,15 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 21. `updates` follows [updates-and-distribution-v1.md](updates-and-distribution-v1.md): HTTPS
     manifest/allowlist, signature key present, channel known, and devtools/updates are
     release-disabled by default.
+22. `window.appearance` is `auto`, `light` or `dark`; the reserved chrome tokens listed in
+    [window-chrome-v1.md](window-chrome-v1.md) section 3 must be plain opaque colours.
+23. `window.titleBar` is `system` or `custom`. `custom` requires the platform support of
+    [window-chrome-v1.md](window-chrome-v1.md) section 8.1; on other platforms it is a runtime
+    warning (`TESSERA_CHROME_UNSUPPORTED`), not a build failure, so one project source stays
+    portable.
+24. `loading.brand.logo` is covered by `assets.images`; `loading.brand.background` is a plain colour
+    or an existing theme token; a route id used by a `Resources.*` declaration resolves in the
+    navigation table ([navigation-v1.md](navigation-v1.md)).
 
 ## Example
 
@@ -546,6 +586,6 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 
 ## Versioning
 
-- Adding optional fields: schema version stays `1`.
+- Adding optional fields (for example `packages`): schema version stays `1`.
 - Changing meaning/default of an existing field: bump to `2` and provide `tessera migrate`.
 - Removing a field: bump and provide a migration.

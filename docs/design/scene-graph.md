@@ -109,6 +109,12 @@ values; no UTF-8 boundary logic). `id` and `className` are the selector inputs a
 domain. Text is not a metadata field: generated text attaches the existing D9 `PaintData` through
 `set_paint_data`, and layout never reads that payload.
 
+`style::SceneStyleTree` exposes that metadata to the selector matcher: `tag` comes from
+`element_kind()`, `id` from `element_id()`, `classes` from the whitespace-split `class_name()`, and
+`has_text` from a `PaintKind::Text` payload. A compiled stylesheet therefore styles generated
+components by type, class and id selector without an extra element layer; `aria-*` is not a
+selector input (attributes stay empty). Rebuild the tree when children are added or removed.
+
 ## 6. Event payloads and generated bindings
 
 Generated components attach handlers to scene nodes instead of subclassing them. Payload record

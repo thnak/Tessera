@@ -17,7 +17,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-005](ADR-005-yoga-layout-adapter.md) | Yoga for Flexbox, with a small Grid subset | Accepted |
 | [ADR-006](ADR-006-text-stack.md) | Text stack: FreeType, HarfBuzz, SheenBidi, ICU (International Components for Unicode) | Accepted |
 | [ADR-007](ADR-007-compiler-ir.md) | A neutral IR (intermediate representation) between JSX and C++ codegen | Accepted |
-| [ADR-008](ADR-008-protected-regions-and-manifest.md) | [Protected regions](../docs/reference/glossary.md), [binding manifest](../docs/reference/glossary.md), idempotent merging | Accepted |
+| [ADR-008](ADR-008-protected-regions-and-manifest.md) | [Protected regions](../docs/reference/glossary.md), [binding manifest](../docs/reference/glossary.md), idempotent merging | Superseded by ADR-040 |
 | [ADR-009](ADR-009-deterministic-headless-golden-tests.md) | Deterministic headless [golden](../docs/reference/glossary.md) tests on a software path | Accepted |
 | [ADR-010](ADR-010-macos-via-moltenvk-deferred.md) | macOS through MoltenVK, deferred from V1 | Accepted (deferred) |
 | [ADR-011](ADR-011-shader-authoring-and-cross-compilation.md) | Shader authoring and cross-compilation | Proposed |
@@ -49,8 +49,14 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-037](ADR-037-self-contained-wasm-designer.md) | Self-contained Wasm designer engine (front end + evaluator), picker, style editing | Accepted |
 | [ADR-038](ADR-038-cpp23-baseline.md) | C++23 language baseline (supersedes item 1 of ADR-015) | Accepted |
 | [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule) | Accepted |
-| [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (would supersede ADR-008) | Proposed |
+| [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (supersedes ADR-008) | Accepted |
 | [ADR-041](ADR-041-layout-observation.md) | Layout observation (`onSizeChange`), a layout read model, and container queries second | Accepted |
+| [ADR-042](ADR-042-jsx-startup-surface.md) | Declarative JSX startup surface: `App` root, built-in `Startup.*`/`Resources.*` member tags, framework loading screen | Proposed |
+| [ADR-043](ADR-043-launch-modes-and-state-reuse.md) | Launch modes (cold/warm/hot resume/process restore) and state reuse, activation precedence, snapshot trust | Proposed |
+| [ADR-044](ADR-044-system-window-chrome-in-v1.md) | Window chrome policy in V1: system chrome by default, Windows opt-in `WindowChrome` title bar, framework-owned `AppBar`, reserved chrome tokens | Accepted (revised) |
+| [ADR-045](ADR-045-browser-hosted-studio.md) | Browser-hosted designer studio on GitHub Pages (page as host, HTML shell, data-driven skins) and a stdio MCP adapter of the same engine | Accepted |
+| [ADR-046](ADR-046-web-target-for-demos.md) | Web (Wasm + WebGPU) as a secondary target for running apps in the browser (amends ADR-024 and ADR-002) | Accepted |
+| [ADR-047](ADR-047-component-library-layers-and-design-language.md) | Component library layers, theme versioning, "Instrument" design language, catalog and stages (amends ADR-032) | Accepted |
 
 ## Dependency overview
 
@@ -61,7 +67,7 @@ ADR-002 WebGPU/Dawn ─┘        │                     ADR-006 text
                               ├─ ADR-009 goldens
                               └─ ADR-011 shaders
 
-ADR-007 IR ── ADR-008 protected regions ── ADR-040 generated base + developer class (proposed)
+ADR-007 IR ── ADR-008 protected regions (superseded) ── ADR-040 generated base + developer class
 ADR-010 macOS (deferred)
 ADR-012 static linking (cross-cutting: build, licenses, accessibility)
 ADR-013 MIT license (cross-cutting: dependency choices)
@@ -86,6 +92,8 @@ ADR-032 component library/design tokens (product layer)
 ADR-033 gap resolutions (cross-cutting: text/scroll/overlay/forms/nav/restore/shell/i18n/a11y/data/production)
 ADR-034 interaction/overscroll animation (visual state, platform profiles, spring-back)
 ADR-041 layout observation (accepted) ── ADR-020 resize, ADR-018 dirty rendering, ADR-016 stylesheet
+ADR-046 web target for demos ── ADR-002 WebGPU, ADR-024 boundaries, ADR-037 designer
+ADR-047 component library layers/design language ── ADR-032 component library, ADR-016 stylesheet
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

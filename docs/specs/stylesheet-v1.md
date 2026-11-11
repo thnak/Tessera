@@ -255,7 +255,8 @@ build-time and runtime.
 ### 9.1 Theme asset
 
 The **theme asset** is the JSON file named by `assets.theme` in [`project-config-v1.md`](project-config-v1.md).
-Without it, the project has one theme, the built-in `default`, which has no tokens.
+Without it, the project has one theme, the built-in `default`, which defines only the reserved chrome
+pair (section 9.2).
 
 ```json
 {
@@ -288,6 +289,25 @@ Without it, the project has one theme, the built-in `default`, which has no toke
   nothing but its own state; the framework does not link them automatically in V1.
 - The compiler embeds the asset in the generated program; changing it needs a rebuild, and the designer
   reloads it on `asset.update`.
+
+### 9.2 Reserved chrome tokens
+
+Two custom properties are reserved because the framework reads them before a render tree exists
+(launch artifact, loading screen, window chrome):
+
+| Token | Built-in `default` value | Used by |
+|---|---|---|
+| `--window-background` | `#ffffff` | P0 launch artifact, P2 loading screen background, system-bar tint |
+| `--window-foreground` | `#111111` | loading mark/foreground, light/dark title-bar and system-bar glyphs |
+
+- Values must be plain, fully opaque colours (named, `#hex`, `rgb()`, `rgba()` with alpha 255,
+  `hsl()`); `var()`, `calc()`, percentages and lengths are `TESSERA_CHROME_THEME_VALUE` at build
+  time, because the pair is resolved from the theme asset before the style engine runs.
+- The built-in `default` theme defines both tokens, so a project without a theme asset always has a
+  coherent pair. A project theme may override either or both per theme; defining only one is
+  `TESSERA_THEME_TOKEN_MISSING` and the other falls back to the built-in value.
+- Artifact generation, `window.appearance` and chrome timing are normative in
+  [`window-chrome-v1.md`](window-chrome-v1.md).
 
 ## 10. At-rules
 

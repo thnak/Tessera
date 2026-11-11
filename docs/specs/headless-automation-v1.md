@@ -116,6 +116,10 @@ failures cannot is not specified).
 For coding agents, the harness also exposes a line-delimited JSON protocol over stdin/stdout
 (or a local socket):
 
+The `tessera-mcp` stdio server exposes these commands as Model Context Protocol tools; it is a thin
+adapter over this section and adds no second protocol
+([`designer-studio-v1.md`](designer-studio-v1.md) section 8).
+
 ```json
 {"id":1,"cmd":"launch","script":"tests/agent/home.json"}
 {"id":2,"cmd":"snapshot"}

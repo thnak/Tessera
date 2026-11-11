@@ -60,6 +60,11 @@ OS activation -> platform adapter -> validate/allowlist -> queue
 - Unknown route -> the `notFound` route defined in [`navigation-v1.md`](navigation-v1.md) (not-found
   screen with back and home actions); malformed -> error, not crash.
 
+Launch-mode detection (cold, warm, hot resume, process restore) and the precedence between a pending
+activation and a restored route are normative in
+[`startup-api-v1.md`](startup-api-v1.md) section 5.1. This document owns the activation event,
+declaration and routing; the startup spec owns which phases run and what must not be re-run.
+
 ## 3. Developer declaration
 
 `tessera.json` ([`project-config-v1.md`](project-config-v1.md)):

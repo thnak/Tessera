@@ -71,6 +71,22 @@ source text (editor/host) -> front end (changed components only) -> IR
   step finds the generated scene node by the numeric id the compiler assigned. The
   sample is `samples/parity-demo/Counter.tsx` with its developer C++ in `tests/golden/codegen/parity/`.
 
+### 2.2 Hosted studio
+
+[`designer-studio-v1.md`](../specs/designer-studio-v1.md) is the hosted form of this viewer: a static
+site built from this repository and deployed to GitHub Pages, with the **page itself as the host**.
+It reads a folder, a zip or a sample project in the browser, edits it with an in-page editor and
+speaks `postMessage` to the viewer; the native CLI host remains for filesystem and codegen work.
+Package size and first-paint are the deployment constraints, not local build time.
+
+The page shell (toolbar, file tree, editor, skin frame) is HTML and never Tessera-rendered, so a
+preview failure cannot take down the editor. System chrome is simulated **outside** the engine: the
+skin frame is HTML/SVG around the canvas, tinted from the engine's resolved chrome record
+([`window-chrome-v1.md`](../specs/window-chrome-v1.md)); the engine draws only the client area (desktop)
+or the edge-to-edge surface (mobile). In `window.titleBar: "custom"` mode the framework title bar is
+engine content, so the studio hides the simulated bar and previews the engine-drawn one. The same
+engine also runs in Node over stdio for coding agents (`tessera-mcp`, section 8 of the studio spec).
+
 ## 3. IPC
 
 Messages are versioned JSON (a binary encoding is not designed yet). The normative message
@@ -194,7 +210,11 @@ source change -> hash -> viewer front end (changed components) -> IR diff
 ## 10. Open questions
 
 - Wasm module size/startup budget. (The front end runs in a Web Worker and the designer requires a host in
-  V1: [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) sections 11 and 14.)
+  V1: [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) sections 11 and 14. The hosted
+  studio turns this into a download/time-to-interactive budget:
+  [`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 2.3.)
+- Skin set, device presets and their art licensing (studio spec section 5).
+- MCP tool surface and the pixel path for agent screenshots (studio spec section 8).
 - Patch format for hot reload (IR diff vs generated C++ diff).
 - State preservation across structural changes (not in V1: [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) section 14).
 - Dawn version and WebGPU feature floor.

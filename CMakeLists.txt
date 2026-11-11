@@ -12,6 +12,13 @@ if (MSVC AND TESSERA_STATIC_RUNTIME)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
+# /Z7 embeds debug info in the object file, which compiler caches (sccache/ccache) can cache;
+# /Zi writes a shared PDB and defeats them. Needs CMake 3.25+ (CMP0141); older CMake ignores it.
+if (MSVC AND NOT CMAKE_VERSION VERSION_LESS 3.25)
+    cmake_policy(SET CMP0141 NEW)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+endif()
+
 if (TESSERA_STATIC_RUNTIME AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_link_options(-static-libstdc++ -static-libgcc)
 endif()
@@ -26,7 +33,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(TESSERA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
 if (MSVC)
-    add_compile_options(/W4 /permissive-)
+    # /utf-8: source files are UTF-8 without a BOM (test fixtures carry non-ASCII literals like
+    # U'א'); without it MSVC reads them as the ANSI code page and rejects multi-byte constants.
+    add_compile_options(/W4 /permissive- /utf-8)
+    # The Visual Studio generator compiles the files of one project serially unless /MP is set.
+    # Ninja already parallelizes per file, so /MP there would only oversubscribe the CPU.
+    if (CMAKE_GENERATOR MATCHES "Visual Studio")
+        add_compile_options(/MP)
+    endif()
     if (TESSERA_WARNINGS_AS_ERRORS)
         add_compile_options(/WX)
     endif()
@@ -84,6 +98,7 @@ add_subdirectory(src/ui/accessibility)
 add_subdirectory(src/ui/automation)
 add_subdirectory(src/ui/virtual)
 add_subdirectory(src/ui/boundary)
+add_subdirectory(src/app)
 add_subdirectory(src/harness)
 add_subdirectory(src/schema)
 add_subdirectory(src/compiler/merger)
@@ -104,11 +119,20 @@ if (TESSERA_BUILD_POC AND TESSERA_ENABLE_THORVG)
     add_subdirectory(tools/poc/thorvg_spike)
 endif()
 
+if (TESSERA_BUILD_POC AND TARGET tessera_app_window)
+    add_subdirectory(tools/poc/design_mock)
+endif()
+
 if (TESSERA_BUILD_VULKAN)
     add_subdirectory(src/rendering/backend/vulkan)
     if (TESSERA_BUILD_POC)
         add_subdirectory(tools/poc/vulkan_offscreen)
         add_subdirectory(tools/poc/batched2d)
+        # The generated demo target only exists on host builds, and the sample presents through the
+        # Vulkan surface path, so it is gated like the PoCs.
+        if (NOT CMAKE_CROSSCOMPILING)
+            add_subdirectory(samples/click-demo)
+        endif()
     endif()
 endif()
 

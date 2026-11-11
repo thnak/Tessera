@@ -31,6 +31,10 @@ void test_imports() {
     check_eq(dump_module("import \"./theme.css\";"),
              "(module\n  (import-side-effect \"./theme.css\"))", "stylesheet import");
     check(parse_module("import { A } from \"../up/A\";").ok(), "parent-relative path");
+    check(parse_module("import { A } from \"react\";").ok(), "React-compatible names");
+    // Package specifiers parse here and resolve in lowering (ADR-014 package roots, issue #70).
+    check(parse_module("import { A } from \"tessera-ui\";").ok(), "a bare package specifier");
+    check(parse_module("import { A } from \"tessera-ui/Button\";").ok(), "a package subpath");
 }
 
 void test_import_rejections() {
@@ -42,7 +46,6 @@ void test_import_rejections() {
         {"import X from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import * as X from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import { A as B } from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
-        {"import { A } from \"react\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import { A } from \"/abs/A\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import \"./x.js\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"export default function A() {}", "TESSERA_JSX_SUBSET_IMPORT;"},

@@ -1,6 +1,6 @@
 # ADR-032: Bundled component library and design tokens
 
-- Status: Accepted
+- Status: Accepted; items 1, 2, 3 and 6 amended by [ADR-047](ADR-047-component-library-layers-and-design-language.md) (2026-11-11)
 - Date: 2026-11-07
 - Related: [ADR-029](ADR-029-interaction-completeness.md) (interaction completeness), [ADR-030](ADR-030-app-platform-completeness.md) (app-platform completeness), [ADR-031](ADR-031-production-tooling-and-distribution.md) (production tooling and distribution)
 

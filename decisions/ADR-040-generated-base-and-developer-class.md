@@ -1,10 +1,10 @@
 # ADR-040: Generated base class plus developer-owned class instead of protected regions
 
-- Status: Proposed
+- Status: Accepted (2026-11-11)
 - Date: 2026-11-10
-- Supersedes (when accepted): [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected
-  regions, binding manifest, idempotent merging). ADR-008 stays in force until this ADR is
-  Accepted.
+- Supersedes: [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected regions, binding
+  manifest, idempotent merging). The region merge path stays in the code only until the migration
+  in Follow-up lands; do not extend it.
 - Related: [ADR-007](ADR-007-compiler-ir.md) (compiler IR),
   [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end; native handlers and
   preview bodies), [ADR-037](ADR-037-self-contained-wasm-designer.md) (Wasm designer),

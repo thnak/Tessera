@@ -21,6 +21,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/ui/` | view, scene, layout, style, animation, responsive, text, editing, overlay, forms, accessibility | scene B1; style/layout/text/input/animation B2 core; view/responsive/accessibility planned |
 | `src/ui/input/` | normalized input event, bounded queue, move coalescing | B2 core |
 | `src/ui/style/` | CSS tokenizer, parser, selectors, cascade, media queries, `@supports`, keyframes, property registry | B2 core |
+| `src/app/` | app host (`tessera_app`) + window driver (`tessera_app_window`: window, Vulkan swapchain, renderer, text, capture) | implemented; input polish next |
 | `src/rendering/rhi/` | thin RHI (render hardware interface) interfaces | B1; swapchain seam B3 |
 | `src/rendering/gpu/` | batched 2D renderer | B1 |
 | `src/element/` | custom native element runtime, registry, snapshots | planned (B2/C) |
@@ -43,7 +44,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/diagnostics/` | logging, tracing, profiling, crash reporting | planned (B2); counters live in `src/runtime/` |
 | `src/devtools/` | local inspector/hot-reload protocol | planned (C/D) |
 | `src/updates/` | signed manifest, staging, rollback | planned (F) |
-| `designer/web/` | Wasm (WebAssembly) + WebGPU viewer, live view, IPC (inter-process communication) | planned (D) |
+| `designer/web/` | Wasm (WebAssembly) + WebGPU viewer, live view, IPC (inter-process communication), hosted studio page and skins | planned (D) |
 | `designer/native/` | native host/IPC | planned (D) |
 | `tests/unit/` | UI/compiler unit tests (CTest) | B1 subset |
 | `tests/gpu/` | GPU/RHI contract/resource/frame tests (CTest) | B1 subset |

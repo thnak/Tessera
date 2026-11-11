@@ -803,7 +803,7 @@ int run_windowed(const Options& options) {
         rendering::DamageAccumulator damage(rendering::DamageConfig{swapchain->extent(), 8});
         ui::layout::DamageTracker tracker;
         ui::DirtyPass dirty_pass;
-        ui::frame::FramePipeline pipeline(animations, demand_loop, tracker, damage, dirty_pass);
+        ui::frame::FramePipeline frames(animations, demand_loop, tracker, damage, dirty_pass);
 
         // Real pointer input arrives through this queue: the window translates OS messages into
         // ui::InputEvent. A press recolors the card and a move drags the square, so each input
@@ -930,9 +930,9 @@ int run_windowed(const Options& options) {
                 continue;
             }
 
-            (void)pipeline.tick(root, now - last_tick);
+            (void)frames.tick(root, now - last_tick);
             last_tick = now;
-            const ui::frame::FrameRender plan = pipeline.finish_frame(root);
+            const ui::frame::FrameRender plan = frames.finish_frame(root);
             if (!first_frame && !plan.should_render) {
                 dirty_pass.clear(root, ui::Dirty::All);
                 demand_loop.clear_render_dirty();

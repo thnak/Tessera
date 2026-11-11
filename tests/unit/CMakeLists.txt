@@ -226,6 +226,43 @@ target_link_libraries(focus_style_tests PRIVATE tessera_style)
 
 add_test(NAME focus_style COMMAND focus_style_tests)
 
+add_executable(scene_style_metadata_tests
+    scene_style_metadata_tests.cpp)
+
+target_link_libraries(scene_style_metadata_tests PRIVATE tessera_style)
+
+add_test(NAME scene_style_metadata COMMAND scene_style_metadata_tests)
+
+add_executable(app_host_tests
+    app_host_tests.cpp)
+
+target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME app_host COMMAND app_host_tests)
+
+# The window driver stops after a bounded run of frame failures instead of spinning or hanging.
+add_executable(app_frame_guard_tests
+    app_frame_guard_tests.cpp)
+
+target_link_libraries(app_frame_guard_tests PRIVATE tessera_app)
+
+add_test(NAME app_frame_guard COMMAND app_frame_guard_tests)
+
+# Input through the window pump: hover/active, click synthesis and typed text on the generated Demo.
+# The generated demo target only exists on host builds.
+if (TARGET tessera_compiler_demo)
+    add_executable(app_input_tests
+        app_input_tests.cpp)
+    target_include_directories(app_input_tests PRIVATE
+        ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
+    target_link_libraries(app_input_tests PRIVATE
+        tessera_app
+        tessera_compiler_demo
+        tessera_input_pump
+        tessera_paint)
+    add_test(NAME app_input COMMAND app_input_tests)
+endif()
+
 add_executable(scene_dirty_tests
     scene_dirty_tests.cpp)
 
@@ -1211,6 +1248,13 @@ target_link_libraries(lowering_module_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_module COMMAND lowering_module_tests)
 
+add_executable(lowering_module_package_tests
+    lowering_module_package_tests.cpp)
+
+target_link_libraries(lowering_module_package_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_module_package COMMAND lowering_module_package_tests)
+
 add_executable(lowering_module_reject_tests
     lowering_module_reject_tests.cpp)
 
@@ -1226,6 +1270,19 @@ target_link_libraries(lowering_module_determinism_tests PRIVATE
     Threads::Threads)
 
 add_test(NAME lowering_module_determinism COMMAND lowering_module_determinism_tests)
+
+# Field/Form are authored as real TSX sources (issue #70): the two files under tessera/components/
+# are compiled through the ordinary front end and pinned against the hand-built IR of
+# make_library_component(), so the sources and the compiler cannot drift.
+add_executable(library_tsx_parity_tests
+    library_tsx_parity_tests.cpp)
+
+target_link_libraries(library_tsx_parity_tests PRIVATE tessera_lowering)
+
+target_compile_definitions(library_tsx_parity_tests PRIVATE
+    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/tessera/components")
+
+add_test(NAME library_tsx_parity COMMAND library_tsx_parity_tests)
 
 add_executable(paint_pass_tests
     paint_pass_tests.cpp)
