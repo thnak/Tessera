@@ -652,8 +652,9 @@ Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
    bit-exactly (text with tolerance), and a CPU canvas (`--backend cpu`) covers solid-rect
-   references on every platform. Remaining diagnostics (exporters/crash) and wider CPU coverage
-   are next.
+   references on every platform. The crash-report metadata exporter landed (diagnostics/crash.hpp,
+   spec section 6.2: bounded, redacted, canonical JSON); platform capture, symbolication and the
+   uploader stay open. Wider CPU coverage is next.
 2. B3 window/present path: the Windows HAL window, Vulkan Win32 surface/swapchain, Linux/X11
    window, Vulkan Xlib surface/swapchain, and bounded event wait with `runtime::wait_for_next_frame`
    landed; swapchain image render targets, Win32/X11 render+present, and the windowed POC
@@ -665,7 +666,10 @@ Next slices, in order:
 3. Platform input translation beyond Windows pointer/wheel/key/text (Linux/X11 next; touch, IME,
    hover/active) and remaining focus polish (`focus-visible`; tab order, `:focus`, and modal
    trapping landed).
-4. Golden-image equivalence for damage redraw (the scissor path landed).
+4. [x] Damage-redraw equivalence is pinned on the CPU canvas (damage_equivalence_cpu,
+   docs/design/dirty-rendering.md 6.7): paint-only, layout move, resize, the area fallback and the
+   scissor-count fallback all reproduce the full-redraw pixels byte-for-byte; the swapchain present
+   path stays B3.
 5. Incremental relayout: `LayoutScheduler` skips clean frames and patches independent subtrees;
    general Yoga partial reflow remains.
 6. Big Step C: JSX lexer, expression/type/module parser with per-item recovery landed (`src/compiler/analyzer/`); typed native handlers, `bind::` pairing, list-loop and attribute rules landed; AST -> IR lowering, C++ codegen with the `tessera_codegen` CLI, state/effects/refs, inline styles, conditionals, keyed lists and controlled text inputs landed; component composition and the static `Children` slot landed (`NodeKind::Slot` + validator rules, `{children}` lowering, `emit_composition.cpp` host node + `build(parent, slot)` overload with caller-owned slot content and child-first lifecycle, goldens `Card`/`CardPage`); next is virtual collection events (`onScroll`/`onEndReached`), generated scroll wiring and measurement feedback through `ItemGeometry::refine_measure`, then component prop lowering and callback props (`library_components.cpp` injects the library `Field` from a `"tessera"` import as an ordinary component, `apply_props()` assigns value props and callback props bind as payload-record `std::function` on node events, with typed prop diagnostics and no validation rules in generated code; goldens `Field`/`FormPage`); next is the `Form` library component and its generated form-state binding. The `Form` component is
