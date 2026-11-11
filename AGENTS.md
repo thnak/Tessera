@@ -629,6 +629,20 @@ the system vs framework window chrome through the same capture path, writes
 Windows custom title bar). The `AppHost` root now keeps a caller-chosen `display`/`flex-direction`
 (host owns only width/height), so a shell with a sidebar can make the root a row.
 
+The Windows lane is unblocked: MSVC now compiles the tree with `/utf-8` (sources are UTF-8
+without a BOM), `FrameFailureGuard` (`include/tessera/app/frame_guard.hpp`) bounds consecutive
+frame failures so a bounded `--frames` run always terminates, a busy slot is skipped until
+`is_complete()` instead of waiting on the GPU from the UI thread, and `OutOfDate` recreates the
+swapchain at the window's real size rather than at its own current extent (a documented no-op).
+Remaining app-host debt: drive the idle/skip paths from the pacer deadline instead of fixed
+sleeps, present only on damage, call `end_frame()` on the not-due path, and drain in-flight
+commands at teardown without a device-wide `wait_idle()`. Package imports are live in lowering:
+`lower_project(files, module, packages)` resolves `from "tessera-ui/Button"` to `<root>/Button`
+and a bare `"tessera-ui"` to `<root>/index`, then follows the ordinary cross-file rules, so
+package TSX is compiled by the same pipeline (#70). Next for #70: the project-config loader
+feeds `PackageRoot`s, `tessera/components/{Field,Form}.tsx` become the source of truth (a parity
+test pins the IR), and `library_components.cpp` stops hand-building IR.
+
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
