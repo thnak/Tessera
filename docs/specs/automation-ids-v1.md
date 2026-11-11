@@ -1,6 +1,6 @@
 # Automation IDs v1: numeric UI/component identity
 
-Status: in progress (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric IDs, headless harness, Lighthouse-style audits). The identity and snapshot slice is implemented as `tessera_automation` (`include/tessera/ui/automation/`, `src/ui/automation/`); the compiler assigns the ids (`tessera_ir_ids`; the codegen CLI reads `app.namespace` from `tessera.json`, or takes `--salt`/`--root`) and codegen sets them on the scene nodes; manifest emission remains pending. Companion to
+Status: in progress (Big Steps B2 and C, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Decision: [ADR-027](../../decisions/ADR-027-agent-automation-and-audits.md) (numeric IDs, headless harness, Lighthouse-style audits). The identity and snapshot slice is implemented as `tessera_automation` (`include/tessera/ui/automation/`, `src/ui/automation/`); the compiler assigns the ids (`tessera_ir_ids`; the codegen CLI reads `app.namespace` from `tessera.json`, or takes `--salt`/`--root`) and codegen sets them on the scene nodes and writes the manifest; the harness does not read the manifest yet. Companion to
 [`scene-graph.md`](../design/scene-graph.md), [`ir-v1.md`](ir-v1.md), and
 [`headless-automation-v1.md`](headless-automation-v1.md).
 
@@ -63,7 +63,7 @@ IDs would then differ per checkout.
   errors (`IdErrorCode::DuplicateAutomationId`, `ZeroAutomationId`, `IdCollision`). Nothing is
   silently last-wins or renumbered.
 
-Manifest (`generated/automation.manifest.json`):
+Manifest (`generated/automation.manifest.json`; the codegen CLI writes it as `automation.manifest.json` in its `--out` directory whenever ids are assigned, and `--check` covers it; `write_manifest` in `src/compiler/ids/`, keys in byte order, nodes in document order, `path` as hashed):
 
 ```json
 {
@@ -246,8 +246,7 @@ byte-identical canonical JSON (including uint64 values above 2^53).
 
 Still required for the full section (not produced by this slice):
 
-- Deterministic manifest (`generated/automation.manifest.json`) across repeated builds.
-- IR validation and codegen emission of `componentId`/`uiId`.
+- The headless harness loading the manifest to resolve ids to names and sources.
 - Query/actions through the real input path.
 - Trace correlation (IDs present, correct span names).
 - Move/rename ID change is documented; `automationId` stays stable.
@@ -273,5 +272,5 @@ Resolved (normative here; mirrored in [`docs/reference/open-questions.md`](../re
 - **Encoding for very large snapshots** — canonical JSON with uint64 decimal strings; very large
   trees stream NDJSON per node; zstd is opt-in only after a >16 MiB measurement.
 
-Not yet implemented by the identity/snapshot slice: manifest emission, `windowId` in the snapshot
+Not yet implemented: manifest loading by the harness, `windowId` in the snapshot
 header, `partId` fields, NDJSON streaming, and zstd.

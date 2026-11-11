@@ -6,6 +6,7 @@
 #include "regenerate.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ids/assign_identity.hpp"
+#include "tessera/compiler/ids/manifest.hpp"
 #include "tessera/compiler/ir/validate.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
@@ -326,6 +327,13 @@ Outcome run(const Options& options) {
     std::vector<GeneratedFile> files;
     if (!generate_files(module, files, outcome, options.inputs.front())) {
         return outcome;
+    }
+
+    if (!identity->salt.empty()) {
+        // The manifest resolves the numeric ids to names and sources; it is generated, covered by
+        // --check, and has no protected regions.
+        files.push_back({"automation.manifest.json",
+                         tessera::compiler::ids::write_manifest(module, identity->salt)});
     }
 
     const fs::path output_dir(options.output_dir);

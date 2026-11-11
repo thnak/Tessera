@@ -4,7 +4,8 @@
 # from the project salt, the source path and the structural node path. It uses the hashing of
 # `tessera_automation` and the IR types, and nothing else of the project.
 add_library(tessera_ir_ids STATIC
-    src/assign_identity.cpp)
+    src/assign_identity.cpp
+    src/manifest.cpp)
 
 target_include_directories(tessera_ir_ids
     PUBLIC

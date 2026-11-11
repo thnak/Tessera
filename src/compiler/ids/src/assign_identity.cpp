@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "node_walk.hpp"
 #include "tessera/compiler/ids/assign_identity.hpp"
 #include "tessera/ui/automation/id.hpp"
 
@@ -32,30 +33,6 @@ std::string key_text(const ir::Node& node) {
     return {};
 }
 
-struct Slot {
-    ir::Node* node = nullptr;
-    const ir::Component* component = nullptr;
-    std::string path;
-};
-
-void collect(ir::Node& node, const ir::Component& component, const std::string& path,
-             std::vector<Slot>& out) {
-    out.push_back({&node, &component, path});
-    for (std::size_t i = 0; i < node.children.size(); ++i) {
-        ir::Node& child = node.children[i];
-        collect(child, component,
-                path + "/" + std::string(ir::node_kind_name(child.kind)) + "[" + std::to_string(i) +
-                    "]",
-                out);
-    }
-    if (node.fallback) {
-        collect(*node.fallback, component, path + "/fallback[0]", out);
-    }
-    if (node.item_template) {
-        collect(*node.item_template, component, path + "/template[0]", out);
-    }
-}
-
 std::string describe(const automation::IdError& error) {
     return std::string(automation::to_string(error.code)) + ": " + error.detail;
 }
@@ -83,11 +60,11 @@ std::expected<void, IdentityError> assign_identity(ir::IrModule& module, std::st
     }
 
     // Then the nodes that have no uiId yet, in document order per component.
-    std::vector<Slot> slots;
+    std::vector<Slot<ir::Node>> slots;
     for (ir::Component& component : module.components) {
-        std::vector<Slot> all;
+        std::vector<Slot<ir::Node>> all;
         collect(component.root, component, component.name + "/root[0]", all);
-        for (Slot& slot : all) {
+        for (Slot<ir::Node>& slot : all) {
             if (slot.node->ui_id.empty()) {
                 slots.push_back(std::move(slot));
             }
@@ -95,7 +72,7 @@ std::expected<void, IdentityError> assign_identity(ir::IrModule& module, std::st
     }
     std::vector<automation::NodeIdInput> node_inputs;
     node_inputs.reserve(slots.size());
-    for (const Slot& slot : slots) {
+    for (const Slot<ir::Node>& slot : slots) {
         automation::NodeIdInput input;
         input.source_path = slot.component->source.file;
         input.node_path = slot.path;
