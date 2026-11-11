@@ -15,6 +15,7 @@ add_library(tessera_codegen STATIC
     src/emit_forms.cpp
     src/emit_layout_observe.cpp
     src/emit_schedule.cpp
+    src/emit_snapshot.cpp
     src/form_binding.cpp
     src/emit_header.cpp
     src/emit_lifecycle.cpp

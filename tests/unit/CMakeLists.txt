@@ -1544,3 +1544,11 @@ add_executable(ir_eval_tests
 target_link_libraries(ir_eval_tests PRIVATE tessera_ir_eval)
 
 add_test(NAME ir_eval COMMAND ir_eval_tests)
+
+# StateCell helpers behind generated snapshot_state() (issue #7).
+add_executable(state_snapshot_tests
+    state_snapshot_tests.cpp)
+
+target_include_directories(state_snapshot_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
+add_test(NAME state_snapshot COMMAND state_snapshot_tests)

@@ -176,6 +176,17 @@ int main(int argc, char** argv) {
         return 7;
     }
 
+    // The generated snapshot_state() reads every state cell by IR id, in declaration order: the
+    // click set count to 1, the name is still empty, and the animated value is untouched.
+    const tessera::ui::StateSnapshot snapshot = fixture.demo.snapshot_state();
+    if (!expect(snapshot.size() == 3 && snapshot[0].name == "state::count" &&
+                    std::get<int>(snapshot[0].value) == 1 && snapshot[1].name == "state::name" &&
+                    std::get<std::string>(snapshot[1].value).empty() &&
+                    snapshot[2].name == "anim::fade" && std::get<double>(snapshot[2].value) == 1.0,
+                "snapshot_state() reports every state and animated cell")) {
+        return 7;
+    }
+
     DirtyPass dirty;
     dirty.collect(*fixture.root, Dirty::Paint | Dirty::Render);
     DamageAccumulator damage(DamageConfig{Extent2D{kWidth, kHeight}, 16});

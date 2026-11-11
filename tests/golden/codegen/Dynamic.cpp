@@ -408,6 +408,13 @@ namespace dynamic {
       schedule_update();
     }
     
+    tessera::ui::StateSnapshot Dynamic::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      snapshot.push_back(tessera::ui::state_cell("state::count", state_count_));
+      snapshot.push_back(tessera::ui::state_cell("state::items", state_items_));
+      return snapshot;
+    }
+    
     void Dynamic::on_click(const tessera::ui::ClickEvent& event) {
       // [DEVELOPER_LOGIC_START: bind::on_click]
         // TODO(tessera-codegen): implement the developer body for bind::on_click.

@@ -10,6 +10,7 @@
 #include "emit_layout_observe.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
+#include "emit_snapshot.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
 
@@ -66,6 +67,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("#include \"tessera/ui/scene/component_lifecycle.hpp\"");
     writer.line("#include \"tessera/ui/scene/update_scheduler.hpp\"");
     writer.line("#include \"tessera/ui/scene/event_payloads.hpp\"");
+    writer.line("#include \"tessera/ui/scene/state_snapshot.hpp\"");
     if (!controlled_inputs.empty()) {
         writer.line("#include \"tessera/ui/text/text_input_runtime.hpp\"");
     }
@@ -248,6 +250,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (!emit_schedule_declarations(writer, component, error)) {
         return false;
     }
+    emit_snapshot_declaration(writer);
     if (observes) {
         std::vector<EventAdapter> observed;
         unsigned ordinal = 0;
