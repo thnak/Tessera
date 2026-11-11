@@ -354,6 +354,20 @@ if (TESSERA_X11_FOUND)
         X11::X11)
 
     add_test(NAME window_x11_input COMMAND window_x11_input_tests)
+
+    # Real server-generated input through the XTEST extension (issue #10); needs libXtst.
+    if (TARGET X11::Xtst)
+        add_executable(window_x11_real_input_tests
+            window_x11_real_input_tests.cpp)
+
+        target_link_libraries(window_x11_real_input_tests PRIVATE
+            tessera_hal_window
+            tessera_input
+            X11::X11
+            X11::Xtst)
+
+        add_test(NAME window_x11_real_input COMMAND window_x11_real_input_tests)
+    endif()
 endif()
 
 # The pure X11 keysym/button/modifier mapping has no Xlib dependency, so it runs on every platform.

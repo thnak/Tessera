@@ -292,7 +292,10 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   [`mobile-integration.md`](mobile-integration.md)).
 - X11 limitations in this slice: input is the **core protocol only** (pointer, wheel, key and
   keysym text through `set_input_queue`, translated by `src/platform/linux/x11_input*.cpp` with the mapping rules in
-  `x11_input_translation.cpp`; see [`input.md`](input.md)); there is no
+  `x11_input_translation.cpp`; see [`input.md`](input.md)). Tests: `window_x11_input` sends
+  synthetic events with `XSendEvent`; `window_x11_real_input` drives the window through the XTEST
+  extension (what `xdotool` uses) so the X server itself generates the pointer, wheel, key and
+  focus events (verified under Xvfb on Linux; it skips without `DISPLAY` or libXtst). There is no
   XInput2 (smooth scroll, touch, pen), no XKB layout tracking or dead-key/compose text, no
   Wayland, no IME/XIM/IBus, no occlusion/minimize signal, no RandR or display-hotplug handling,
   and DPI is a global `Xft.dpi` heuristic (96 fallback). See [`window-resize.md`](window-resize.md)
