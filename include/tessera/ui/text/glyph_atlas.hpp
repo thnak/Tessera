@@ -31,6 +31,9 @@ struct GlyphAtlasEntry {
     float advance = 0.0f;
     std::uint16_t page = 0;
     bool has_bitmap = false;
+    // The page pixels hold the glyph's own colors (straight alpha) instead of white coverage, so a
+    // renderer draws it untinted, keeping only the text color's opacity.
+    bool color = false;
 };
 
 struct GlyphAtlasStats {

@@ -100,7 +100,8 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             };
             renderer.push_texture(
                 {left, top, static_cast<float>(entry.width), static_cast<float>(entry.height)},
-                *impl_->textures[entry.page].texture, uv, color);
+                *impl_->textures[entry.page].texture, uv,
+                entry.color ? rendering::rhi::Color{1.0f, 1.0f, 1.0f, color.a} : color);
         }
         pen_x += glyph.advance;
     }

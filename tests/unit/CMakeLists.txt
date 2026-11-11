@@ -896,6 +896,15 @@ add_test(NAME glyph_atlas_faces COMMAND glyph_atlas_faces_tests
     "${TESSERA_FONT_FIXTURE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
 
+add_executable(glyph_color_tests
+    glyph_color_tests.cpp)
+
+target_link_libraries(glyph_color_tests PRIVATE tessera_text)
+
+add_test(NAME glyph_color COMMAND glyph_color_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/ColorTest.ttf")
+
 add_executable(text_layout_tests
     text_layout_tests.cpp)
 
