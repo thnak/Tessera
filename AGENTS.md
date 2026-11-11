@@ -683,8 +683,15 @@ Next slices, in order:
    docs/design/dirty-rendering.md 6.7): paint-only, layout move, resize, the area fallback and the
    scissor-count fallback all reproduce the full-redraw pixels byte-for-byte; the swapchain present
    path stays B3.
-5. Incremental relayout: `LayoutScheduler` skips clean frames and patches independent subtrees;
-   general Yoga partial reflow remains.
+5. Incremental relayout: `LayoutScheduler` skips clean frames, patches independent subtrees, and now
+   guards a cached result with a layout input signature (`ui/layout/layout_signature.hpp`: viewport
+   bits, tree shape, every layout-affecting longhand, text; paint-only properties, colors, shadows
+   and transforms are deliberately excluded). It is wired into `AppHost` (`layout_runs()` /
+   `layout_cache_hits()` report the policy) and `layout_signature_tests` prove the guarded boxes are
+   field-identical to a fresh reflow. Two gaps remain: general Yoga partial reflow (Yoga has no
+   partial-layout API, so a miss still free-layouts the whole tree), and the hit rate - a
+   paint-only inline style edit still misses the guard in the AppHost path (1 run, 0 hits), so the
+   signature contents need one more pass before the optimization pays off.
 6. Big Step C: JSX lexer, expression/type/module parser with per-item recovery landed (`src/compiler/analyzer/`); typed native handlers, `bind::` pairing, list-loop and attribute rules landed; AST -> IR lowering, C++ codegen with the `tessera_codegen` CLI, state/effects/refs, inline styles, conditionals, keyed lists and controlled text inputs landed; component composition and the static `Children` slot landed (`NodeKind::Slot` + validator rules, `{children}` lowering, `emit_composition.cpp` host node + `build(parent, slot)` overload with caller-owned slot content and child-first lifecycle, goldens `Card`/`CardPage`); next is virtual collection events (`onScroll`/`onEndReached`), generated scroll wiring and measurement feedback through `ItemGeometry::refine_measure`, then component prop lowering and callback props (`library_components.cpp` injects the library `Field` from a `"tessera"` import as an ordinary component, `apply_props()` assigns value props and callback props bind as payload-record `std::function` on node events, with typed prop diagnostics and no validation rules in generated code; goldens `Field`/`FormPage`); next is the `Form` library component and its generated form-state binding. The `Form` component is
 now a library component too: `library_components.cpp` registers it (`initial` name=value seeds,
 `validate`/`onSubmit` callback props, `children` slot), codegen emits a lazy
