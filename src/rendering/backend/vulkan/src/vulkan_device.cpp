@@ -96,6 +96,7 @@ std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& 
              "vmaCreateBuffer");
 
     resource_created();
+    account_buffer(static_cast<std::int64_t>(desc.size), epoch_);
     return std::make_unique<VulkanBuffer>(this, epoch_, allocator_, buffer, allocation, desc.size,
                                           allocated.pMappedData);
 }
@@ -200,12 +201,16 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
 
         // The target owns images/views from here.
         resource_created();
+        const std::int64_t target_bytes =
+            render_target_bytes(desc.extent, desc.format, sample_count);
+        account_image(target_bytes, epoch_);
         try {
             return std::make_unique<VulkanRenderTarget>(
                 this, epoch_, device_, allocator_, render_image.image, view,
                 render_image.allocation, desc.extent, desc.format, true, false, resolve_image.image,
                 resolve_view, resolve_image.allocation, sample_count);
         } catch (...) {
+            account_image(-target_bytes, epoch_);
             resource_destroyed();
             throw;
         }
@@ -269,6 +274,8 @@ rhi::DeviceMemoryStats VulkanDevice::memory_statistics() const {
     }
     VmaTotalStatistics total{};
     vmaCalculateStatistics(allocator_, &total);
+    stats.buffer_bytes = static_cast<std::uint64_t>(buffer_bytes_);
+    stats.image_bytes = static_cast<std::uint64_t>(image_bytes_);
     stats.block_bytes = total.total.statistics.blockBytes;
     stats.allocation_bytes = total.total.statistics.allocationBytes;
     stats.block_count = total.total.statistics.blockCount;

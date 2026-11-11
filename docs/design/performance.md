@@ -111,14 +111,18 @@ and `memory.rss_peak_bytes`. It is a syscall: sample per second or per scripted 
 per frame. Real RSS is machine dependent, so the committed bounds are generous and catch leaks and
 order-of-magnitude regressions, not noise. Raise a budget only with a recorded decision. Still to
 measure and budget: steady and peak RSS of the sample apps (the baseline covers a synthetic tree
-until a sample runs headless), GPU memory by category (swapchain, atlas pages, images, buffers),
-Android PSS and per-glyph-atlas-page cost.
+until a sample runs headless) and Android PSS.
 
 GPU memory: `rhi::Device::memory_statistics()` returns the allocator totals (`block_bytes` asked of
 the driver, `allocation_bytes` handed to live buffers and images, and their counts). The Vulkan
 backend fills it from `vmaCalculateStatistics`; other backends report zero. It is a snapshot with no
-GPU work, for checkpoints rather than every frame. Swapchain images are driver-owned and not in
-these totals, and there is no per-category split yet (needs VMA pools or per-resource tags).
+GPU work, for checkpoints rather than every frame. `buffer_bytes` (exact) and `image_bytes`
+(estimated as extent x texel size, x samples plus the resolve image for a multisampled target) split
+the live resources by kind. Swapchain images are driver-owned and not counted. Measured costs, which
+`rhi_memory` asserts: a 1024x1024 R8 glyph atlas page is 1 MiB; a 1280x720 RGBA target is 3.5 MiB,
+and 17.6 MiB at 4x MSAA. A texture upload also holds a staging buffer of the same size until the
+copy finishes. `diagnostics::GpuMemoryGauges` publishes the four numbers as `gpu.buffer_bytes`,
+`gpu.image_bytes`, `gpu.block_bytes` and `gpu.allocation_bytes`.
 
 ## 4. Power policies
 

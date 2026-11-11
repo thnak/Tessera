@@ -46,4 +46,40 @@ private:
     std::size_t peak_id_ = MetricsRegistry::kInvalidMetric;
 };
 
+// GPU memory as plain numbers, so diagnostics needs no RHI types: the caller copies them from
+// rhi::DeviceMemoryStats (see docs/design/performance.md, section 3.1).
+struct GpuMemory {
+    std::uint64_t buffer_bytes = 0;
+    std::uint64_t image_bytes = 0;
+    std::uint64_t block_bytes = 0;
+    std::uint64_t allocation_bytes = 0;
+};
+
+// Gauges `gpu.buffer_bytes`, `gpu.image_bytes`, `gpu.block_bytes` and `gpu.allocation_bytes`.
+// Registration allocates once; `publish` does not.
+class GpuMemoryGauges {
+public:
+    explicit GpuMemoryGauges(MetricsRegistry& registry);
+
+    void publish(const GpuMemory& memory) noexcept;
+
+    [[nodiscard]] std::size_t buffer_id() const noexcept {
+        return ids_[0];
+    }
+    [[nodiscard]] std::size_t image_id() const noexcept {
+        return ids_[1];
+    }
+    [[nodiscard]] std::size_t block_id() const noexcept {
+        return ids_[2];
+    }
+    [[nodiscard]] std::size_t allocation_id() const noexcept {
+        return ids_[3];
+    }
+
+private:
+    MetricsRegistry* registry_ = nullptr;
+    std::size_t ids_[4] = {MetricsRegistry::kInvalidMetric, MetricsRegistry::kInvalidMetric,
+                           MetricsRegistry::kInvalidMetric, MetricsRegistry::kInvalidMetric};
+};
+
 } // namespace tessera::diagnostics

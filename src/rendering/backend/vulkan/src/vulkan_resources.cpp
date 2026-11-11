@@ -12,6 +12,7 @@ VulkanBuffer::~VulkanBuffer() {
         if (buffer_ != VK_NULL_HANDLE && owner_->destroyable_epoch(epoch_)) {
             vmaDestroyBuffer(allocator_, buffer_, allocation_);
         }
+        owner_->account_buffer(-static_cast<std::int64_t>(size_), epoch_);
         owner_->resource_destroyed();
         return;
     }
@@ -65,6 +66,9 @@ void VulkanBuffer::read(void* data, std::size_t size, std::size_t offset) const 
 }
 
 VulkanTexture::~VulkanTexture() {
+    if (owner_ != nullptr) {
+        owner_->account_image(-texture_bytes(extent_, format_, sample_count_), epoch_);
+    }
     const bool destroy_handles = owner_ == nullptr || owner_->destroyable_epoch(epoch_);
     const auto destroy = [device = device_, allocator = allocator_, image = image_, view = view_,
                           sampler = sampler_, allocation = allocation_, pool = descriptor_pool_,
@@ -129,6 +133,9 @@ VulkanRenderTarget::~VulkanRenderTarget() {
             owner_->resource_destroyed();
         }
         return;
+    }
+    if (owner_ != nullptr) {
+        owner_->account_image(-render_target_bytes(extent_, format_, sample_count_), epoch_);
     }
     const bool destroy_handles = owner_ == nullptr || owner_->destroyable_epoch(epoch_);
     if (destroy_handles) {

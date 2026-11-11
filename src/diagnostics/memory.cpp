@@ -121,4 +121,16 @@ ProcessMemory MemoryGauges::sample() noexcept {
     return memory;
 }
 
+GpuMemoryGauges::GpuMemoryGauges(MetricsRegistry& registry)
+    : registry_(&registry),
+      ids_{registry.add_gauge("gpu.buffer_bytes"), registry.add_gauge("gpu.image_bytes"),
+           registry.add_gauge("gpu.block_bytes"), registry.add_gauge("gpu.allocation_bytes")} {}
+
+void GpuMemoryGauges::publish(const GpuMemory& memory) noexcept {
+    registry_->set(ids_[0], memory.buffer_bytes);
+    registry_->set(ids_[1], memory.image_bytes);
+    registry_->set(ids_[2], memory.block_bytes);
+    registry_->set(ids_[3], memory.allocation_bytes);
+}
+
 } // namespace tessera::diagnostics

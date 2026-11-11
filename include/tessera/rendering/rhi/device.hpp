@@ -125,8 +125,13 @@ enum class DeviceRecoveryError {
 
 // GPU memory the device's allocator holds (issue #13). `block_bytes` is what was requested from the
 // driver; `allocation_bytes` is the part handed to live buffers and images, so the gap is allocator
-// slack. All zero on backends that do not track it.
+// slack. `buffer_bytes` and `image_bytes` split the live resources by kind: buffers are exact,
+// images are estimated as extent x texel size (x samples, plus the resolve image, for multisampled
+// targets), and presentation images are not counted because the driver owns them. All zero on
+// backends that do not track it.
 struct DeviceMemoryStats {
+    std::uint64_t buffer_bytes = 0;
+    std::uint64_t image_bytes = 0;
     std::uint64_t block_bytes = 0;
     std::uint64_t allocation_bytes = 0;
     std::uint32_t block_count = 0;

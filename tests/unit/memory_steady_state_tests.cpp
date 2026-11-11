@@ -82,6 +82,15 @@ int sampler() {
         !expect(registry.name(gauges.resident_id()) == "memory.rss_bytes", "gauge name")) {
         return 2;
     }
+
+    diag::GpuMemoryGauges gpu(registry);
+    gpu.publish({1, 2, 3, 4});
+    if (!expect(registry.value(gpu.buffer_id()) == 1 && registry.value(gpu.image_id()) == 2 &&
+                    registry.value(gpu.block_id()) == 3 && registry.value(gpu.allocation_id()) == 4,
+                "the GPU gauges carry what was published") ||
+        !expect(registry.name(gpu.image_id()) == "gpu.image_bytes", "GPU gauge name")) {
+        return 3;
+    }
     return 0;
 }
 

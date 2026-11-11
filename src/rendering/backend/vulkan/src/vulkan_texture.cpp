@@ -103,6 +103,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     // From here the texture owns every handle: if the upload below throws, its destructor
     // releases them (deferred past any upload already queued), so the guards step aside.
     resource_created();
+    account_image(texture_bytes(desc.extent, desc.format, sample_count), epoch_);
     auto texture = std::make_unique<VulkanTexture>(
         device_, allocator_, image, view, sampler, allocation, descriptor_pool_, descriptor_set,
         desc.extent, desc.format, this, epoch_, sample_count);
