@@ -410,9 +410,9 @@ lower_project(std::span<const ModuleSource>, std::string_view module_name); // i
   inline handler), children are the caller's slot content with the caller's `node::N` ids, and
   `ref`/`automationId` work as on intrinsics; recursion and mutual recursion are supported because
   references are never inlined (tested).
-- Imports: relative `./X`/`../X` resolve against the given file set (extension omitted); each name
-  must be a component, type alias or constant of the target; type/constant imports are tolerated.
-  Unknown file/name, conflicting duplicate names, a cycle and bare package names are errors.
+- Imports: relative `./X`/`../X` resolve against the file set (extension omitted); each name must be
+  a component, type alias or constant of the target. A bare specifier resolves through the project's
+  package roots (`packages` in `tessera.json`: `pkg/Sub` -> `<root>/Sub`); else unsupported.
 - Deferred/rejected: prop, event and children *types* (slice 4), so unknown props and children are
   forwarded unvalidated; a component callback parameter or setter reference, `style` on a
   component, a props-parameter spread and a component reference as an ordinary prop value are
