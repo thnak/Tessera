@@ -154,7 +154,8 @@ Only `include/tessera/` is public. Current headers:
 | `ui/animation/transition_runtime.hpp` | transition matching, string/numeric starts, computed-style diffs, interruption |
 | `ui/layout/layout_engine.hpp` | computed-style to Yoga mapping + boxes + cached measure callback |
 | `ui/layout/apply_layout.hpp` | absolute boxes -> parent-relative scene bounds + dirty propagation |
-| `ui/layout/layout_scheduler.hpp` | skips clean layout frames, reuses last boxes (B2) |
+| `ui/layout/layout_signature.hpp` | allocation-free hash of every input that can move a box (tree shape, layout longhands, text, viewport) |
+| `ui/layout/layout_scheduler.hpp` | reuses the last boxes while the layout-input signature is unchanged; subtree patch + explicit invalidate |
 | `ui/layout/pixel_snap.hpp` | paint-time edge snapping (`round_half_up`, DPI scale clamp) |
 | `ui/layout/damage_pass.hpp` | dirty bounds -> damage rects + previous-bounds tracker |
 | `ui/frame_pipeline.hpp` | one-frame orchestration: animation tick -> target dirty domains -> damage -> normalized redraw plan |

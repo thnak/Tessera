@@ -8,8 +8,10 @@ absolute boxes in DFS order. Non-empty leaf `text` is measured through `ui/text/
 a Yoga measure callback, backed by a bounded `TextMeasureCache` (capacity configurable per engine);
 the default `StubTextMeasurer` is deterministic until the real text stack lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
 leaving unchanged boxes clean and marking changed ones paint/render dirty. `LayoutScheduler`
-(`ui/layout/layout_scheduler.hpp`) caches the last result and recomputes only when layout is dirty
-or the viewport changes, so paint-only and animation-only frames reuse boxes. Independent
+(`ui/layout/layout_scheduler.hpp`) caches the last result and reuses it only while the
+layout-input signature (`ui/layout/layout_signature.hpp`, section 7.1) is unchanged, so clean
+frames and spurious layout dirt (paint-only style changes) reuse boxes while any real input change
+reflows. Independent
 subtrees (overlays/popups) can be relaid out in isolation with `LayoutEngine::layout_subtree` +
 `LayoutScheduler::relayout_subtree`, which patches the cached boxes while preserving the subtree
 root's parent offset; structural removals inside the subtree still require `invalidate()` or a
@@ -164,6 +166,56 @@ documented note.
 
 Yoga nodes are reused; avoid rebuilding the Yoga tree every frame. Rebuild only on structural
 changes, and measure only dirty subtrees (a subtree whose text/font/style did not change keeps its cached measurement).
+
+### 7.1 Layout-input signature
+
+`layout_signature(root, viewport)` (`ui/layout/layout_signature.hpp`) folds the complete layout
+input into one deterministic FNV-1a 64-bit value in a single allocation-free pass over the
+`LayoutInput` tree. `LayoutScheduler::update` computes it every call and reuses the cached
+`LayoutResult` when it matches the value stored with that result, then counts a `cache_hits()`
+entry and does not call Yoga. A mismatch reflows, stores the new signature and counts
+`layout_runs()`. `needs_layout` is only a hint: a caller may report layout dirt conservatively, but
+a reported dirt whose inputs are unchanged is spurious and is safe to drop.
+
+Included in the signature:
+
+- **Tree shape**: node id, child count and child order, recursively. Node ids are included because
+  a box belongs to an id, so a re-keyed identical geometry is still a different result.
+- **Layout longhands**, exactly the computed properties `apply_style`
+  (`src/ui/layout/layout_style.cpp`) reads: `display`, `flex-direction`, `flex-wrap`,
+  `justify-content`, `align-items`, `align-content`, `align-self`, `position`, `overflow-x`/`-y`,
+  `direction`, `box-sizing`, `width`/`height`/`min-*`/`max-*`, `flex-basis`/`-grow`/`-shrink`,
+  `aspect-ratio`, `margin-*`, `padding-*`, `border-*-width`/`border-*-style`, `top`/`right`/
+  `bottom`/`left`, `row-gap`/`column-gap`, and `field-sizing` (it decides whether an empty leaf is
+  a measured node).
+- **Text measurement longhands**, exactly what `text_style_from` reads: `font-size`,
+  `line-height`, `letter-spacing`, `font-weight`, `font-style`, `white-space`.
+- **Measured text**: the node's `text` bytes. A text change can change a measured leaf even when
+  the surrounding box has fixed dimensions, so it always invalidates; the guard does not try to
+  prove text changes geometry-neutral.
+- **Viewport**: `width`, `height`, `dpi_scale` (each as a 32-bit bit pattern).
+
+Deliberately excluded: paint-only and interaction longhands, which cannot move a box — all colors,
+backgrounds, borders' `*-color`/`border-radius`, `box-shadow`, `opacity`, `visibility`,
+`transform`, `z-index`, `text-overflow` (documented paint-only in `text_measure.hpp`),
+`font-family` (the measure seam receives `text::TextStyle`, which carries no family), and any
+custom property. `ComputedStyle` is a sorted map, so declaration insertion order does not affect
+the signature, and only present layout properties are folded in: removing a property whose value
+equalled Yoga's default still triggers a (safe, redundant) reflow.
+
+Guarantee: two inputs with the same signature produce the same boxes, because the signature covers
+everything `apply_style` and the measure callback consume, and both are pure functions of those
+inputs. A hit is therefore equivalent to a reflow for the same signature; the only gap is the
+64-bit hash collision probability. The equivalence test
+(`tests/unit/layout_signature_tests.cpp`) asserts the guarded boxes field-for-field against a fresh
+engine layout for paint-only, text-only, width, reorder, viewport and invalidate scripts, and
+asserts zero reflows for paint-only dirt and exactly one for each real change.
+
+`invalidate()` clears both the result and the signature. A successful `relayout_subtree` also drops
+the signature: the patch is a subtree snapshot resolved against the subtree root's own width and
+siblings are left untouched, which is an approximation of a full reflow. The next `update`
+therefore reflows, bounding the patch to the case it was designed for (an independent
+overlay/popup) instead of letting a later hit stand for the approximation.
 
 ## 8. Performance
 

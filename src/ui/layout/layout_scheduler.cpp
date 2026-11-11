@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/layout/layout_scheduler.hpp"
+#include "tessera/ui/layout/layout_signature.hpp"
 
 #include <unordered_set>
 
@@ -10,17 +11,19 @@ LayoutScheduler::LayoutScheduler(LayoutEngine& engine)
     : engine_(&engine) {}
 
 const LayoutResult& LayoutScheduler::update(const LayoutInput& root, const LayoutViewport& viewport,
-                                            bool needs_layout) {
-    const bool viewport_changed = viewport.width != viewport_.width ||
-                                  viewport.height != viewport_.height ||
-                                  viewport.dpi_scale != viewport_.dpi_scale;
-    if (valid_ && !needs_layout && !viewport_changed) {
+                                            [[maybe_unused]] bool needs_layout) {
+    // The signature is authoritative; `needs_layout` only documents caller intent. A paint-only
+    // style change can raise layout dirt while the inputs that decide boxes are unchanged, and
+    // that report is safe to drop. The hash walk is allocation-free (layout_signature.hpp).
+    const std::uint64_t signature = layout_signature(root, viewport);
+    if (valid_ && signature_valid_ && signature == signature_) {
         ++cache_hits_;
         return last_;
     }
 
     last_ = engine_->layout(root, viewport);
-    viewport_ = viewport;
+    signature_ = signature;
+    signature_valid_ = true;
     valid_ = true;
     ++layout_runs_;
     return last_;
@@ -76,12 +79,18 @@ bool LayoutScheduler::relayout_subtree(const LayoutInput& root, std::uint64_t id
         last_.boxes.push_back(box);
     }
     ++partial_runs_;
+    // The patch is not a full reflow: it resolved the subtree in isolation and kept every sibling
+    // box as-is. Dropping the signature forces the next update through a real reflow so a later
+    // hit can never stand for an approximation.
+    signature_valid_ = false;
     return true;
 }
 
 void LayoutScheduler::invalidate() {
     valid_ = false;
     last_ = LayoutResult{};
+    signature_ = 0;
+    signature_valid_ = false;
 }
 
 } // namespace tessera::ui::layout
