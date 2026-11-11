@@ -12,6 +12,13 @@ if (MSVC AND TESSERA_STATIC_RUNTIME)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
+# /Z7 embeds debug info in the object file, which compiler caches (sccache/ccache) can cache;
+# /Zi writes a shared PDB and defeats them. Needs CMake 3.25+ (CMP0141); older CMake ignores it.
+if (MSVC AND NOT CMAKE_VERSION VERSION_LESS 3.25)
+    cmake_policy(SET CMP0141 NEW)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+endif()
+
 if (TESSERA_STATIC_RUNTIME AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_link_options(-static-libstdc++ -static-libgcc)
 endif()
@@ -27,6 +34,11 @@ option(TESSERA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
 if (MSVC)
     add_compile_options(/W4 /permissive-)
+    # The Visual Studio generator compiles the files of one project serially unless /MP is set.
+    # Ninja already parallelizes per file, so /MP there would only oversubscribe the CPU.
+    if (CMAKE_GENERATOR MATCHES "Visual Studio")
+        add_compile_options(/MP)
+    endif()
     if (TESSERA_WARNINGS_AS_ERRORS)
         add_compile_options(/WX)
     endif()
