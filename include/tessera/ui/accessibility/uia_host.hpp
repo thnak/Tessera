@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/hal/window.hpp"
 #include "tessera/ui/accessibility/uia_bridge.hpp"
 #include "tessera/ui/accessibility/uia_events.hpp"
 
@@ -19,6 +20,24 @@ namespace tessera::ui::a11y {
 // Windows spells it `UiaRootObjectId`; the value is repeated here so this header stays SDK-free and
 // every platform compiles it (`uia_sdk_probe.cpp` static_asserts it against the SDK on Windows).
 inline constexpr std::intptr_t kUiaRootObjectId = -25;
+
+// Host-element wiring state for the root provider (`get_HostRawElementProvider`). The root answers
+// E_FAIL until a native handle is installed and a host provider was built from it; the state is
+// latched on failure so a broken window cannot turn every client query into another COM attempt.
+enum class UiaHostElementState : std::uint8_t {
+    Unavailable, // no native host handle is installed (or this platform has none)
+    Pending,     // a handle is installed; the host provider is built on the first UIA query
+    Ready,       // the root answered with a `UiaHostProviderFromHwnd` provider
+    Failed,      // an installed handle produced no host provider; latched until the handle changes
+};
+
+struct UiaHostElementStatus {
+    UiaHostElementState state = UiaHostElementState::Unavailable;
+    bool handle_installed = false;
+    // Failed `UiaHostProviderFromHwnd` attempts; never incremented more than once per installed
+    // handle, so a caller can report it without log spam.
+    std::uint64_t failures = 0;
+};
 
 // Platform seam for the host wiring (docs/specs/accessibility-v1.md section 12.2). The Windows
 // implementation creates the COM root provider and raises UIA events with `UIAutomationCore`; every
@@ -40,6 +59,20 @@ public:
     // job, never from the window thread. A raised error drops the batch and is reported as a value
     // (the tree itself is already published, so clients re-query on the next structure event).
     [[nodiscard]] virtual UiaError raise(std::span<const UiaEvent> events) = 0;
+
+    // Window thread, before or after `start`: installs the opaque native host element the root
+    // answers `get_HostRawElementProvider` from. The platform only stores the token; the
+    // `UiaHostProviderFromHwnd` call happens on the bridge thread on demand, so this never calls
+    // COM and never blocks. Idempotent; a null handle clears the wiring. A handle installed before
+    // `start` is the normal path.
+    virtual void set_host_handle(hal::AccessibilityHostHandle handle) {
+        (void)handle;
+    }
+    // Any thread: structured state of the host-element wiring, for one diagnostic instead of one
+    // line per client call. Never calls COM.
+    [[nodiscard]] virtual UiaHostElementStatus host_element_status() const {
+        return {};
+    }
 };
 
 // Windows: a `UiaPlatform` over the UIA provider surface. Every other platform: nullptr.
@@ -107,6 +140,15 @@ public:
     // means the caller must fall back to the platform default.
     [[nodiscard]] bool answer_get_object(std::intptr_t object_id, void*& raw_provider) const;
 
+    // Window thread: installs the window's opaque native host element so the root can answer
+    // `get_HostRawElementProvider`. Call it before `start()` (the usual path) or while running;
+    // repeated or identical installs are free. Never calls COM and never blocks. A missing handle
+    // makes the root fail that one query cleanly instead of answering with a providerless element.
+    void set_host_handle(hal::AccessibilityHostHandle handle);
+    // Any thread: structured diagnostic for the host-element wiring. Reads one atomic snapshot and
+    // never calls COM; a failed build stays latched until a new handle is installed.
+    [[nodiscard]] UiaHostElementStatus host_element_status() const;
+
     // UI thread: marks the semantics snapshot dirty. Call it from the style/layout/focus/text
     // change paths, not per frame; repeated calls before a tick are free.
     void mark_dirty();
@@ -149,5 +191,11 @@ private:
     A11ySnapshot next_;
     A11ySnapshot previous_;
 };
+
+// The WM_GETOBJECT answer for one window: forwards to `host.answer_get_object` on the window's
+// thread, where it is one atomic load. Install it with `hal::Window::set_accessibility_root`; the
+// host must outlive the window or the root must be uninstalled first. Calling it again for the
+// same host is idempotent (the callback and context are the same).
+[[nodiscard]] hal::AccessibilityRoot make_window_root_provider(UiaHost& host);
 
 } // namespace tessera::ui::a11y

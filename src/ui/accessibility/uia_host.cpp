@@ -12,6 +12,16 @@
 #include <utility>
 
 namespace tessera::ui::a11y {
+namespace {
+
+// One WM_GETOBJECT answer: the host owns the published provider pointer and the window thread only
+// reads it. Kept out of the header so no UI-layer type gains a Win32-shaped callback.
+bool answer_root_get_object(void* context, std::intptr_t object_id, void*& raw_provider) {
+    auto* host = static_cast<UiaHost*>(context);
+    return host != nullptr && host->answer_get_object(object_id, raw_provider);
+}
+
+} // namespace
 
 UiaHost::UiaHost(UiaHostConfig config, std::unique_ptr<UiaApartment> apartment,
                  std::unique_ptr<UiaPlatform> platform)
@@ -63,6 +73,18 @@ bool UiaHost::answer_get_object(std::intptr_t object_id, void*& raw_provider) co
     }
     raw_provider = root;
     return true;
+}
+
+void UiaHost::set_host_handle(hal::AccessibilityHostHandle handle) {
+    // The platform stores the token; nothing is created until a client asks for the host element on
+    // the bridge thread. Window thread only, so it cannot race the bridge's own root state.
+    if (platform_ != nullptr) {
+        platform_->set_host_handle(handle);
+    }
+}
+
+UiaHostElementStatus UiaHost::host_element_status() const {
+    return platform_ != nullptr ? platform_->host_element_status() : UiaHostElementStatus{};
 }
 
 void UiaHost::mark_dirty() {
@@ -201,6 +223,11 @@ void UiaHost::on_bridge_stop(UiaProvider&) {
     // than a dangling provider.
     root_.store(nullptr, std::memory_order_release);
     platform_->destroy_root();
+}
+
+hal::AccessibilityRoot make_window_root_provider(UiaHost& host) {
+    // Same context and callback on every call, so reinstalling is a no-op for the window.
+    return {&host, &answer_root_get_object};
 }
 
 } // namespace tessera::ui::a11y

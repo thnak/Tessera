@@ -200,4 +200,26 @@ if (WIN32)
         PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/accessibility)
 
     add_test(NAME a11y_uia_com_nav COMMAND a11y_uia_com_nav_tests)
+
+    # The root's HostRawElementProvider answer: a fake source pins the COM contract (AddRef'd
+    # provider, E_FAIL for no/absent/failed handle, S_OK + null for a child).
+    add_executable(a11y_uia_com_host_element_tests
+        a11y_uia_com_host_element_tests.cpp)
+
+    target_link_libraries(a11y_uia_com_host_element_tests PRIVATE tessera_accessibility)
+    target_include_directories(a11y_uia_com_host_element_tests
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/accessibility)
+
+    add_test(NAME a11y_uia_com_host_element COMMAND a11y_uia_com_host_element_tests)
+
+    # The real window + real UIA platform: the host element comes from the window's HWND, is cached,
+    # and a missing handle fails cleanly. The client call runs on a helper thread while the window
+    # thread pumps, so the test never depends on a screen reader.
+    add_executable(a11y_uia_window_host_element_tests
+        a11y_uia_window_host_element_tests.cpp)
+
+    target_link_libraries(a11y_uia_window_host_element_tests PRIVATE tessera_accessibility
+        tessera_hal_window)
+
+    add_test(NAME a11y_uia_window_host_element COMMAND a11y_uia_window_host_element_tests)
 endif()
