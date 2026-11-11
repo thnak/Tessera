@@ -53,6 +53,12 @@ unsigned jpeg_scale_denominator(std::uint32_t width, std::uint32_t height,
     return best;
 }
 
+// setjmp/longjmp is how libjpeg reports fatal errors. Only C frames sit between the setjmp and the
+// longjmp (see on_error), so the C4611 "non-portable with C++ destruction" warning does not apply.
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4611)
+#endif
 bool decode_jpeg_scaled(std::span<const std::uint8_t> bytes, unsigned denominator,
                         JpegRaster& out) {
     if (bytes.empty() ||
@@ -104,5 +110,8 @@ bool decode_jpeg_scaled(std::span<const std::uint8_t> bytes, unsigned denominato
     jpeg_destroy_decompress(&cinfo);
     return true;
 }
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 } // namespace tessera::rendering::image

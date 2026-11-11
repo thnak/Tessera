@@ -44,7 +44,7 @@ function Enter-VsDevShell {
 
 function Invoke-Native {
     param([string]$Exe, [string[]]$Arguments)
-    & $Exe @Arguments
+    & $Exe @Arguments | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "$Exe $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
     }
@@ -60,7 +60,7 @@ try {
 
     $buildArgs = @('--build', '--preset', $Preset)
     if ($Target) { $buildArgs += @('--target', $Target) }
-    $elapsed = Measure-Command { Invoke-Native cmake $buildArgs }
+    $elapsed = Measure-Command { Invoke-Native cmake $buildArgs | Out-Host }
     Write-Host ('Build finished in {0:mm\:ss}' -f $elapsed)
 
     if ($Test) {
