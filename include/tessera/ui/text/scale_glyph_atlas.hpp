@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace tessera::ui::text {
 
@@ -31,6 +32,10 @@ namespace tessera::ui::text {
 class ScaleGlyphAtlas {
 public:
     ScaleGlyphAtlas(GlyphRasterizer& rasterizer, GlyphAtlasConfig config = {});
+    // A font stack: every atlas in the set rasterizes glyph `face` i with `rasterizers[i]`, so a
+    // face-aware renderer keeps glyphs of every face in the same per-step atlas (and page). The
+    // rasterizers must outlive the set.
+    ScaleGlyphAtlas(std::vector<GlyphRasterizer*> rasterizers, GlyphAtlasConfig config = {});
 
     ScaleGlyphAtlas(const ScaleGlyphAtlas&) = delete;
     ScaleGlyphAtlas& operator=(const ScaleGlyphAtlas&) = delete;
@@ -62,7 +67,7 @@ public:
 private:
     [[nodiscard]] static std::size_t slot_for(float render_scale) noexcept;
 
-    GlyphRasterizer* rasterizer_ = nullptr;
+    std::vector<GlyphRasterizer*> rasterizers_;
     GlyphAtlasConfig config_;
     std::array<std::unique_ptr<GlyphAtlas>, scale::kRenderScaleStepCount> slots_;
     std::uint64_t created_count_ = 0;

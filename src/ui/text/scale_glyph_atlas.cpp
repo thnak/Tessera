@@ -8,7 +8,10 @@
 namespace tessera::ui::text {
 
 ScaleGlyphAtlas::ScaleGlyphAtlas(GlyphRasterizer& rasterizer, GlyphAtlasConfig config)
-    : rasterizer_(&rasterizer),
+    : ScaleGlyphAtlas(std::vector<GlyphRasterizer*>{&rasterizer}, config) {}
+
+ScaleGlyphAtlas::ScaleGlyphAtlas(std::vector<GlyphRasterizer*> rasterizers, GlyphAtlasConfig config)
+    : rasterizers_(std::move(rasterizers)),
       config_(config) {}
 
 std::size_t ScaleGlyphAtlas::slot_for(float render_scale) noexcept {
@@ -22,7 +25,7 @@ std::size_t ScaleGlyphAtlas::slot_for(float render_scale) noexcept {
 GlyphAtlas& ScaleGlyphAtlas::atlas_for(float render_scale) {
     std::unique_ptr<GlyphAtlas>& slot = slots_[slot_for(render_scale)];
     if (!slot) {
-        slot = std::make_unique<GlyphAtlas>(*rasterizer_, config_);
+        slot = std::make_unique<GlyphAtlas>(rasterizers_, config_);
         ++created_count_;
     }
     return *slot;
