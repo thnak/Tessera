@@ -1,11 +1,11 @@
 # ADR-042: Web (Wasm + WebGPU) as a secondary target for running apps in the browser
 
-- Status: Proposed
+- Status: Accepted (2026-11-11)
 - Date: 2026-11-11
-- Amends (when accepted): [ADR-024](ADR-024-native-first-boundaries.md) items 6 and 9 (the browser
+- Amends: [ADR-024](ADR-024-native-first-boundaries.md) items 6 and 9 (the browser
   becomes an allowed OS/HAL boundary for this target) and [ADR-002](ADR-002-webgpu-dawn-for-wasm.md)
-  item 2 (WebGPU serves this target as well as design time). Both stay in force unchanged until
-  this ADR is Accepted.
+  item 2 (WebGPU serves this target as well as design time). All other items of both stay in
+  force.
 - Related: [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin RHI),
   [ADR-009](ADR-009-deterministic-headless-golden-tests.md) (goldens),
   [ADR-012](ADR-012-static-linking.md) (static linking),
