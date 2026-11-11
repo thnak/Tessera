@@ -139,8 +139,18 @@ Rules:
     `CustomElement`). `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
     of `"tessera"` (other names and `import React` are errors; [`jsx-intrinsics-v1`](jsx-intrinsics-v1/react-compat.md) Q15).
   - `from "./X"` or `from "../X"` imports a component, type or constant exported by another source
-    file of the project (extension omitted). Absolute paths and bare package names other than
-    `"tessera"` are errors.
+    file of the project (extension omitted). Absolute paths are errors.
+  - `from "pkg"` or `from "pkg/Sub"` resolves through a package root configured in `tessera.json`
+    `packages` ([`project-config-v1.md`](project-config-v1.md)): `"pkg"` is `<root>/index` and
+    `"pkg/Sub"` is `<root>/Sub`, extensions omitted like a relative import. A bare specifier with
+    no package root is `TESSERA_IR_UNSUPPORTED` naming the specifier ("neither a project file
+    (`./X`) nor a configured package"); a configured root without the named file is
+    `TESSERA_IR_UNRESOLVED`. `"tessera"` and `"react"` stay built in and are never captured by a
+    package root of the same name.
+  - A resolved package import follows the ordinary cross-file rules: the imported name must be
+    declared in the target file, component names stay unique project-wide, import cycles apply,
+    and the package file is compiled by the same analyzer, rules and lowering pipeline (no
+    special-casing downstream).
   - `import "./file.css";` (side-effect import) registers a stylesheet with the build
     ([`stylesheet-v1.md`](stylesheet-v1.md)); the path must end in `.css`.
 - **Exports**: named exports only. `export default` is rejected in V1.

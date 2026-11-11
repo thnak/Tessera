@@ -84,7 +84,9 @@ Unsupported patterns are hard errors with `TESSERA_JSX_*`/`TESSERA_REACT_*` code
 
 ## 5. Tier 2: lowering
 
-- Resolve imports and component references.
+- Resolve imports and component references. A package import resolves through the configured
+  package roots and compiles through this same pipeline
+  ([`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 4).
 - Map JSX intrinsics to IR node kinds (`View`, `Text`, `Button`, `Image`, `Path`, `Scroll`,
   `CustomElement`).
 - Map props/style/events to IR fields.

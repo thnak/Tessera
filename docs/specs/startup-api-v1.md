@@ -191,8 +191,8 @@ Accepted, and only these:
    ([jsx-subset-v1-jsx.md](jsx-subset-v1-jsx.md) section 10.1). This is the one carve-out
    [ADR-042](../../decisions/ADR-042-jsx-startup-surface.md) records; no dynamic or namespace tags
    are introduced.
-5. No other bare package name than `"tessera"` is importable
-   ([jsx-subset-v1.md](jsx-subset-v1.md) section 4). The framework package name in source is
+5. Bare specifiers other than `"tessera"` and `"react"` resolve only through configured package
+   roots ([jsx-subset-v1.md](jsx-subset-v1.md) section 4); the framework package name in source is
    therefore `tessera`, not a vendor-scoped package.
 
 Rejected with a stable code: `Startup.*` or `Resources.*` outside `<App>`; a second `<App>`;

@@ -18,6 +18,7 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `app` | object | yes | — | Application identity and targets |
 | `window` | object | no | see the `window` section | Initial window |
 | `ui` | object | yes | — | Component discovery and hooks |
+| `packages` | array | no | `[]` | Bare import specifiers resolved to package roots |
 | `codegen` | object | no | see the `codegen` section | Generated C++ options |
 | `assets` | object | no | empty | Fonts, images, theme |
 | `build` | object | no | see the `build` section | CMake and toolchain |
@@ -76,6 +77,20 @@ paths are rejected.
 | `limits.maxComponents` | integer | no | `64` | Front-end limit: components per file; greater than 0 |
 | `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids tying JSX logic to protected C++ regions, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
 | `bindings.manifest` | string | no | `generated/bindings.json` | Must stay inside `codegen.outDir` |
+
+## `packages`
+
+Bare specifiers resolved by the compiler ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 4); empty
+by default. `"tessera"` and `"react"` are never captured by a package root.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Bare specifier, no `/` or `.`; unique; not `tessera` or `react` |
+| `root` | string | yes | Project-relative POSIX directory; no leading `./`, no `..`, no absolute path |
+
+```json
+"packages": [{ "name": "acme-ui", "root": "packages/acme-ui/src" }]
+```
 
 ## `codegen`
 
@@ -412,7 +427,8 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 6. `codegen.outDir` must not be inside `ui.sourceDirs`.
 7. `build.staticRuntime` must be `true`.
 8. `dependencies.linkLibraries` must be reviewed (ADR-013, MIT license and permissive dependencies); no GPL/LGPL in statically linked code.
-9. Unknown fields, absolute paths, and duplicate binding ids are errors.
+9. Unknown fields, absolute paths, duplicate binding ids and duplicate `packages` names are
+   errors; a `packages[].root` is a project-relative directory inside the project.
 10. `tessera generate --check` fails if generated output differs from the working tree.
 11. `runtime` follows [runtime-config-v1.md](runtime-config-v1.md) validation; `deterministic`
     is forced for golden/headless runs.
@@ -570,6 +586,6 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 
 ## Versioning
 
-- Adding optional fields: schema version stays `1`.
+- Adding optional fields (for example `packages`): schema version stays `1`.
 - Changing meaning/default of an existing field: bump to `2` and provide `tessera migrate`.
 - Removing a field: bump and provide a migration.
