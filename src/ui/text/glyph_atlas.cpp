@@ -21,7 +21,10 @@ std::vector<std::uint8_t> make_page_pixels(std::uint32_t width, std::uint32_t he
 } // namespace
 
 GlyphAtlas::GlyphAtlas(GlyphRasterizer& rasterizer, GlyphAtlasConfig config)
-    : rasterizer_(&rasterizer),
+    : GlyphAtlas(std::vector<GlyphRasterizer*>{&rasterizer}, config) {}
+
+GlyphAtlas::GlyphAtlas(std::vector<GlyphRasterizer*> rasterizers, GlyphAtlasConfig config)
+    : rasterizers_(std::move(rasterizers)),
       config_(config) {
     config_.page_width = std::max(config_.page_width, 1u);
     config_.page_height = std::max(config_.page_height, 1u);
@@ -29,12 +32,23 @@ GlyphAtlas::GlyphAtlas(GlyphRasterizer& rasterizer, GlyphAtlasConfig config)
     config_.padding = std::min(config_.padding, std::min(config_.page_width, config_.page_height));
 }
 
-const GlyphAtlasEntry& GlyphAtlas::get(char32_t codepoint, std::uint16_t pixel_size) {
-    return get_glyph(rasterizer_->glyph_index(codepoint), pixel_size);
+const GlyphAtlasEntry& GlyphAtlas::get(char32_t codepoint, std::uint16_t pixel_size,
+                                       std::uint16_t face) {
+    if (face >= rasterizers_.size()) {
+        uncached_ = GlyphAtlasEntry{};
+        return uncached_;
+    }
+    return get_glyph(rasterizers_[face]->glyph_index(codepoint), pixel_size, face);
 }
 
-const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size) {
-    const Key key{glyph_index, pixel_size};
+const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
+                                             std::uint16_t face) {
+    if (face >= rasterizers_.size()) {
+        ++stats_.dropped;
+        uncached_ = GlyphAtlasEntry{};
+        return uncached_;
+    }
+    const Key key{glyph_index, pixel_size, face};
     const auto found = entries_.find(key);
     if (found != entries_.end()) {
         ++stats_.hits;
@@ -43,7 +57,7 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
     }
 
     ++stats_.misses;
-    const GlyphBitmap bitmap = rasterizer_->rasterize_glyph(glyph_index, pixel_size);
+    const GlyphBitmap bitmap = rasterizers_[face]->rasterize_glyph(glyph_index, pixel_size);
 
     GlyphAtlasEntry entry;
     entry.bearing_x = bitmap.bearing_x;
@@ -124,13 +138,17 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
     return inserted.first->second;
 }
 
-const GlyphAtlasEntry* GlyphAtlas::find(char32_t codepoint, std::uint16_t pixel_size) const {
-    return find_glyph(rasterizer_->glyph_index(codepoint), pixel_size);
+const GlyphAtlasEntry* GlyphAtlas::find(char32_t codepoint, std::uint16_t pixel_size,
+                                        std::uint16_t face) const {
+    if (face >= rasterizers_.size()) {
+        return nullptr;
+    }
+    return find_glyph(rasterizers_[face]->glyph_index(codepoint), pixel_size, face);
 }
 
-const GlyphAtlasEntry* GlyphAtlas::find_glyph(std::uint32_t glyph_index,
-                                              std::uint16_t pixel_size) const {
-    const auto found = entries_.find(Key{glyph_index, pixel_size});
+const GlyphAtlasEntry* GlyphAtlas::find_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
+                                              std::uint16_t face) const {
+    const auto found = entries_.find(Key{glyph_index, pixel_size, face});
     return found == entries_.end() ? nullptr : &found->second;
 }
 

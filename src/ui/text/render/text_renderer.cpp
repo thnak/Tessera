@@ -15,9 +15,10 @@ struct TextRenderer::Impl {
         bool created = false;
     };
 
-    Impl(rendering::rhi::Device& device, GlyphRasterizer& rasterizer, GlyphAtlasConfig config)
+    Impl(rendering::rhi::Device& device, std::vector<GlyphRasterizer*> rasterizers,
+         GlyphAtlasConfig config)
         : device(&device),
-          atlas(rasterizer, config) {}
+          atlas(std::move(rasterizers), config) {}
 
     rendering::rhi::Device* device = nullptr;
     GlyphAtlas atlas;
@@ -28,7 +29,11 @@ struct TextRenderer::Impl {
 
 TextRenderer::TextRenderer(rendering::rhi::Device& device, GlyphRasterizer& rasterizer,
                            GlyphAtlasConfig config)
-    : impl_(std::make_unique<Impl>(device, rasterizer, config)) {}
+    : impl_(std::make_unique<Impl>(device, std::vector<GlyphRasterizer*>{&rasterizer}, config)) {}
+
+TextRenderer::TextRenderer(rendering::rhi::Device& device,
+                           std::vector<GlyphRasterizer*> rasterizers, GlyphAtlasConfig config)
+    : impl_(std::make_unique<Impl>(device, std::move(rasterizers), config)) {}
 
 TextRenderer::~TextRenderer() = default;
 
@@ -47,7 +52,7 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
     impl_->entries.clear();
     impl_->used_pages.clear();
     for (const Glyph& glyph : run.glyphs) {
-        impl_->entries.push_back(impl_->atlas.get_glyph(glyph.id, pixel_size));
+        impl_->entries.push_back(impl_->atlas.get_glyph(glyph.id, pixel_size, glyph.face));
         const GlyphAtlasEntry& entry = impl_->entries.back();
         if (entry.has_bitmap && std::find(impl_->used_pages.begin(), impl_->used_pages.end(),
                                           entry.page) == impl_->used_pages.end()) {

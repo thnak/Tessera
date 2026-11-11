@@ -48,12 +48,24 @@ class GlyphAtlas {
 public:
     explicit GlyphAtlas(GlyphRasterizer& rasterizer, GlyphAtlasConfig config = {});
 
+    // A font stack: `rasterizers[i]` draws the glyphs whose `Glyph::face` is i (FallbackShaper).
+    // Entries are keyed by (face, glyph, size), so equal glyph ids of different faces never
+    // collide. The rasterizers must outlive the atlas. A face index outside the stack yields an
+    // empty entry with no bitmap and no advance.
+    explicit GlyphAtlas(std::vector<GlyphRasterizer*> rasterizers, GlyphAtlasConfig config = {});
+
     // References stay valid until the next get() that inserts or evicts.
-    const GlyphAtlasEntry& get(char32_t codepoint, std::uint16_t pixel_size);
-    const GlyphAtlasEntry& get_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size);
-    [[nodiscard]] const GlyphAtlasEntry* find(char32_t codepoint, std::uint16_t pixel_size) const;
-    [[nodiscard]] const GlyphAtlasEntry* find_glyph(std::uint32_t glyph_index,
-                                                    std::uint16_t pixel_size) const;
+    const GlyphAtlasEntry& get(char32_t codepoint, std::uint16_t pixel_size,
+                               std::uint16_t face = 0);
+    const GlyphAtlasEntry& get_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
+                                     std::uint16_t face = 0);
+    [[nodiscard]] const GlyphAtlasEntry* find(char32_t codepoint, std::uint16_t pixel_size,
+                                              std::uint16_t face = 0) const;
+    [[nodiscard]] const GlyphAtlasEntry*
+    find_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size, std::uint16_t face = 0) const;
+    [[nodiscard]] std::size_t face_count() const {
+        return rasterizers_.size();
+    }
 
     void begin_frame();
     void touch(const GlyphAtlasEntry& entry);
@@ -77,16 +89,19 @@ private:
     struct Key {
         std::uint32_t glyph_index = 0;
         std::uint16_t pixel_size = 0;
+        std::uint16_t face = 0;
 
         bool operator==(const Key& other) const {
-            return glyph_index == other.glyph_index && pixel_size == other.pixel_size;
+            return glyph_index == other.glyph_index && pixel_size == other.pixel_size &&
+                   face == other.face;
         }
     };
 
     struct KeyHash {
         std::size_t operator()(const Key& key) const noexcept {
-            const std::uint64_t value =
-                (static_cast<std::uint64_t>(key.glyph_index) << 16) | key.pixel_size;
+            const std::uint64_t value = (static_cast<std::uint64_t>(key.glyph_index) << 32) |
+                                        (static_cast<std::uint64_t>(key.face) << 16) |
+                                        key.pixel_size;
             return std::hash<std::uint64_t>{}(value);
         }
     };
@@ -106,7 +121,7 @@ private:
     [[nodiscard]] std::int32_t evict_page();
     void upload(Page& page, const GlyphBitmap& bitmap, std::uint32_t x, std::uint32_t y);
 
-    GlyphRasterizer* rasterizer_ = nullptr;
+    std::vector<GlyphRasterizer*> rasterizers_;
     GlyphAtlasConfig config_;
     std::vector<Page> pages_;
     std::unordered_map<Key, GlyphAtlasEntry, KeyHash> entries_;
