@@ -189,7 +189,8 @@ public:
     void set_paint_data(std::optional<PaintData> data);
     void clear_paint_data();
     [[nodiscard]] const std::optional<PaintData>& paint_data() const {
-        return paint_data_;
+        static const std::optional<PaintData> kNone;
+        return paint_data_ ? *paint_data_ : kNone;
     }
 
     // Element metadata (compiler codegen, docs/design/scene-graph.md section 5). Additive and
@@ -241,7 +242,8 @@ public:
     void clear_aria();
     // The stored pairs in insertion order: the accessor a future accessibility bridge consumes.
     [[nodiscard]] std::span<const AriaAttribute> aria_attributes() const {
-        return std::span<const AriaAttribute>(aria_.data(), aria_count_);
+        return aria_ ? std::span<const AriaAttribute>(aria_->items.data(), aria_->count)
+                     : std::span<const AriaAttribute>();
     }
 
     // Inline style declarations (compiler `style={{...}}`, docs/design/compiler.md section 11).
@@ -263,7 +265,9 @@ public:
     bool set_inline_style(std::string_view name, std::string_view value);
     void clear_inline_style();
     [[nodiscard]] std::span<const InlineStyleDeclaration> inline_style() const {
-        return std::span<const InlineStyleDeclaration>(inline_style_.data(), inline_style_count_);
+        return inline_style_ ? std::span<const InlineStyleDeclaration>(inline_style_->items.data(),
+                                                                       inline_style_->count)
+                             : std::span<const InlineStyleDeclaration>();
     }
 
     // Generated event bindings (docs/design/scene-graph.md section 6). Storage is bounded and
@@ -287,7 +291,9 @@ public:
     void clear_event_bindings();
     [[nodiscard]] bool has_event_binding(EventType type) const;
     [[nodiscard]] std::span<const EventBinding> event_bindings() const {
-        return std::span<const EventBinding>(event_bindings_.data(), event_binding_count_);
+        return event_bindings_ ? std::span<const EventBinding>(event_bindings_->items.data(),
+                                                               event_bindings_->count)
+                               : std::span<const EventBinding>();
     }
     // Invokes every binding registered for `event.type` in registration order. Called by
     // dispatch_event_to; returns the number of bindings invoked.
@@ -309,19 +315,32 @@ private:
     int tab_index_ = 0;
     int z_index_ = 0;
     PaintOutsets paint_outsets_;
-    std::optional<PaintData> paint_data_;
+    // Rarely used payloads live behind lazily allocated pointers so a plain View pays one pointer
+    // each instead of the full inline tables (docs/design/performance.md, memory budgets). A table
+    // is allocated by the first set/bind and kept until the node dies; clearing only resets the
+    // count, so a node that toggles a value never reallocates.
+    struct AriaTable {
+        std::array<AriaAttribute, kMaxAriaPairs> items{};
+        std::size_t count = 0;
+    };
+    struct InlineStyleTable {
+        std::array<InlineStyleDeclaration, kMaxInlineStyleDeclarations> items{};
+        std::size_t count = 0;
+    };
+    struct BindingTable {
+        std::array<EventBinding, kMaxEventBindings> items{};
+        std::size_t count = 0;
+    };
+    std::unique_ptr<std::optional<PaintData>> paint_data_;
     // Borrowed views: the caller keeps the storage alive (codegen passes literals). No allocations.
     std::string_view element_kind_;
     std::string_view element_id_;
     std::string_view class_name_;
     std::string_view role_;
     std::uint64_t automation_id_ = 0;
-    std::array<AriaAttribute, kMaxAriaPairs> aria_{};
-    std::size_t aria_count_ = 0;
-    std::array<InlineStyleDeclaration, kMaxInlineStyleDeclarations> inline_style_{};
-    std::size_t inline_style_count_ = 0;
-    std::array<EventBinding, kMaxEventBindings> event_bindings_{};
-    std::size_t event_binding_count_ = 0;
+    std::unique_ptr<AriaTable> aria_;
+    std::unique_ptr<InlineStyleTable> inline_style_;
+    std::unique_ptr<BindingTable> event_bindings_;
     bool scrollable_x_ = false;
     bool scrollable_y_ = false;
     float content_width_ = 0.0f;
@@ -336,6 +355,11 @@ private:
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;
 };
+
+// Memory budget of one scene node (docs/design/performance.md, memory budgets): a 10k-node screen
+// costs 10k times this plus Yoga and style storage. Raise it only with a recorded decision.
+inline constexpr std::size_t kNodeSizeBudget = 320;
+static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
 
 bool dispatch_event(Node& root, Event& event);
 bool dispatch_event_to(Node& target, Event& event);
