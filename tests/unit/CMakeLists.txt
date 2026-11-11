@@ -226,6 +226,13 @@ target_link_libraries(focus_style_tests PRIVATE tessera_style)
 
 add_test(NAME focus_style COMMAND focus_style_tests)
 
+add_executable(scene_style_metadata_tests
+    scene_style_metadata_tests.cpp)
+
+target_link_libraries(scene_style_metadata_tests PRIVATE tessera_style)
+
+add_test(NAME scene_style_metadata COMMAND scene_style_metadata_tests)
+
 add_executable(scene_dirty_tests
     scene_dirty_tests.cpp)
 
