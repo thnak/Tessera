@@ -422,6 +422,7 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
 
 1. **Content insets in `LayoutBox`** (Yoga padding + border) and `LayoutReadModel`
    (`publish`, `find`, generation). Tests `layout_read_model`. Unblocks U3/U5 for C++.
+   **Done:** `LayoutBox::content_insets`, `ui/layout/layout_read_model.hpp`, test `layout_read_model`.
 2. **`LayoutObserverSet` + `LayoutObservation`** (attach/detach, collect, deliver, initial,
    coalescing, depth rule bookkeeping) without settle rounds. Tests `layout_observer`.
 3. **Settle rounds** in a host-facing helper (`observe_and_settle`) that takes the scheduler and

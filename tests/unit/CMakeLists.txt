@@ -956,6 +956,13 @@ target_link_libraries(layout_apply_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_apply COMMAND layout_apply_tests)
 
+add_executable(layout_read_model_tests
+    layout_read_model_tests.cpp)
+
+target_link_libraries(layout_read_model_tests PRIVATE tessera_layout)
+
+add_test(NAME layout_read_model COMMAND layout_read_model_tests)
+
 add_executable(pixel_snap_tests
     pixel_snap_tests.cpp)
 
