@@ -168,6 +168,7 @@ This page is the map and reading order for the framework.
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
+- [`design/layout-observation.md`](design/layout-observation.md) — size observation (`onSizeChange`), layout read model, settle rounds, container queries plan (design only, ADR-041 proposed)
 - [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs
 - [`design/icu-data.md`](design/icu-data.md) — ICU reduced static data spike: measured blob,
   locale subset, build cost, go/no-go
@@ -267,6 +268,7 @@ This page is the map and reading order for the framework.
 3. [UI model](design/ui-model.md)
 4. [UI virtualization](specs/virtualization-v1.md)
 5. [Layout](design/layout.md)
+   - [Layout observation](design/layout-observation.md)
 6. [Text](design/text.md)
 7. [Animation](design/animation.md)
 8. [Animation runtime](design/animation-runtime.md)

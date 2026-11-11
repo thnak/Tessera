@@ -238,7 +238,8 @@ monitor-derived ladder step above, not on `renderScale`.
 - **Min/max window size** comes from OS constraints and app config; components can express
   layout min/max but do not call OS APIs.
 - **Resize observation** for components (if exposed) is delivered after layout on the UI thread,
-  with a generation counter; it is not the raw OS resize event.
+  with a generation counter; it is not the raw OS resize event. Proposed design:
+  [`layout-observation.md`](layout-observation.md).
 - **DPI/scale** changes recompute logical sizes, media queries, hit-test coordinates, cursor
   assets, glyph rasterization, and render-target sizes.
 
@@ -337,7 +338,10 @@ monitor-derived ladder step above, not on `renderScale`.
 - Per-platform overrides of `resizeMode` (the default is `adaptive` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).
 - Exact swapchain-recreate delay heuristic for slow GPUs.
 - Safe-area APIs for Android/macOS (both backends are unscheduled; macOS per ADR-010, Android in Big Step F).
-- Whether to expose a declarative `onResize`/`ResizeObserver` API or keep it internal.
+- Whether to expose a declarative `onResize`/`ResizeObserver` API or keep it internal. Register
+  answer: keep it internal until container queries ship. Superseded by proposal:
+  [ADR-041](../../decisions/ADR-041-layout-observation.md) (Proposed) adds a post-layout `onSizeChange`
+  observer and a layout read model first ([`layout-observation.md`](layout-observation.md)).
 - ~~Fractional scaling + text rasterization on mixed-DPI multi-monitor setups.~~ Decided: the
   device scale quantizes onto the 1.0/1.25/1.5/2.0 ladder (nearest, ties up, clamped) and each
   ladder step owns one glyph atlas that is released when the window leaves that step (§2.3). One

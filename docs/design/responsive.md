@@ -106,7 +106,8 @@ Rules:
 
 ## 10. Open questions
 
-- Container queries and their invalidation model.
+- Container queries and their invalidation model. Proposed: evaluated after layout inside the
+  settle rounds of [`layout-observation.md`](layout-observation.md) section 5.4 (ADR-041, Proposed).
 - Breakpoint tokens in the theme vs app-authored CSS.
 - Safe-area behavior for background layers vs content.
 - Fold continuity across Android process restart.
