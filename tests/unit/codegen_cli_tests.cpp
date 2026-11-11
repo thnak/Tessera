@@ -218,6 +218,43 @@ int main(int argc, char** argv) {
                   log_dir) == 2,
           "a salted input outside the root exits 2");
 
+    // The salt defaults to `app.namespace` of the tessera.json found above the input; the project
+    // root is that file's directory, so ids match an explicit --salt/--root run.
+    const fs::path configured = work / "configured";
+    fs::create_directories(configured / "ui");
+    fs::copy_file(sample_dir / "Demo.tsx", configured / "ui" / "Demo.tsx");
+    write_file(configured / "tessera.json", R"({"schemaVersion":1,"app":{"namespace":"factory"}})");
+    const auto from_config = [&](const fs::path& output, const std::string& extra = {}) {
+        return run_cli(cli,
+                       "--write --out " + quoted(output) + " --namespace demo " + extra +
+                           quoted(configured / "ui" / "Demo.tsx"),
+                       log_dir);
+    };
+    check(from_config(work / "cfg-a") == 0, "a run with a tessera.json exits 0");
+    check(run_cli(cli,
+                  "--write --out " + quoted(work / "cfg-b") + " --namespace demo --salt factory " +
+                      "--root " + quoted(configured) + " " + quoted(configured / "ui" / "Demo.tsx"),
+                  log_dir) == 0,
+          "the explicit equivalent exits 0");
+    check(read_file(work / "cfg-a" / "Demo.cpp").find("set_automation_id(") != std::string::npos,
+          "the config namespace assigns ids without --salt");
+    check(read_file(work / "cfg-a" / "Demo.cpp") == read_file(work / "cfg-b" / "Demo.cpp"),
+          "the config gives the same ids as --salt with --root");
+    check(from_config(work / "cfg-c", "--salt other ") == 0, "--salt overrides the config");
+    check(read_file(work / "cfg-c" / "Demo.cpp") != read_file(work / "cfg-a" / "Demo.cpp"),
+          "the overriding salt changes the ids");
+
+    // A tessera.json that is found must be usable: no silent unassigned ids.
+    write_file(configured / "tessera.json", R"({"schemaVersion":1,"app":{"namespace":""}})");
+    check(from_config(work / "cfg-d") == 1, "an empty app.namespace exits 1");
+    check(read_file(log_dir / "cli.log").find("app.namespace") != std::string::npos,
+          "the diagnostic names app.namespace");
+    write_file(configured / "tessera.json", R"({"schemaVersion":1})");
+    check(from_config(work / "cfg-e") == 1, "a missing app.namespace exits 1");
+    write_file(configured / "tessera.json", "{not json");
+    check(from_config(work / "cfg-f") == 1, "a malformed tessera.json exits 1");
+    check(!fs::exists(work / "cfg-f" / "Demo.cpp"), "a bad config produces no output");
+
     // Usage errors exit 2.
     check(run_cli(cli, "", log_dir) == 2, "no arguments exits 2");
     check(run_cli(cli, "--out " + quoted(work / "no-input-out"), log_dir) == 2,

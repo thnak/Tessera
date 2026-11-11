@@ -23,9 +23,10 @@ constexpr std::string_view kUsage =
     "  --check           fail (exit 1) when DIR is out of date; writes nothing\n"
     "  --write           regenerate and merge with existing developer regions (default)\n"
     "  --namespace NAME  C++ namespace / IR module name (default: first file stem)\n"
-    "  --salt SALT       tessera.json namespace: assign numeric componentId/uiId (automation ids)\n"
+    "  --salt SALT       id salt, overriding `app.namespace` of tessera.json (found at --root or\n"
+    "                    above the first input); with a salt every node gets a numeric uiId\n"
     "  --root DIR        project root that source paths in the ids are relative to (default: the\n"
-    "                    directory of the first input)\n"
+    "                    directory of tessera.json, else of the first input)\n"
     "  --verbose         report every file as written or unchanged\n";
 
 int usage_error(std::string_view message) {
