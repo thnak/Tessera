@@ -22,7 +22,7 @@ per-tick input pump
 (queue -> sampler -> router -> `RuntimeLoop::request_frame`) is
 `include/tessera/ui/input_pump.hpp` and `src/ui/input/input_pump.cpp`. Windows platform translation
 (mouse, touch/pen, IME, wheel, key and character messages into `InputEvent`, see section 2.1) is
-implemented in `src/platform/windows/`. Linux/X11 and other platform translation,
+implemented in `src/platform/windows/` (X11 core input: [`hal.md`](hal.md) section 10). Other platform translation,
 platform-specific `:focus-visible` refinements (see section 6), window-blur focus retention policy
 (blur already cancels captures, hover, and active), ancestor hover chains and hover recomputation on
 scene changes, IME producers beyond Win32, gesture handlers, and recording remain design-only.
@@ -66,7 +66,7 @@ single-consumer queue; V1 = first release (scope rule in
 Platform backends (`hal/input`) translate OS messages:
 
 - Windows: `WM_POINTER*`, `WM_MOUSE*`, `WM_KEY*`, `WM_CHAR`, `WM_IME_*`, DPI change.
-- Linux/X11: XInput2, `XKB`, RandR, Present.
+- Linux/X11: core pointer/key events today; XInput2, `XKB`, RandR, Present planned.
 - Linux/Wayland: `wl_pointer`, `wl_keyboard`, `wl_touch`, `text-input`, `wp_presentation`.
 - Android: not implemented; planned in Big Step F (`MotionEvent`, `KeyEvent`, `InputConnection`; see [`mobile-integration.md`](mobile-integration.md)).
 - macOS: deferred ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via MoltenVK).
