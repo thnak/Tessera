@@ -447,7 +447,9 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    idempotency; handler bodies read `e.width` and friends. Not yet supported (rejected loudly):
    `onSizeChange` inside a list or virtual item template, where each realized row would need its
    own observation. A node in a detached conditional branch reads as zeros until it is attached.
-6. **Designer evaluator** delivery after preview layout.
+6. **Designer evaluator** delivery after preview layout. Blocked: the IR evaluator of ADR-037 is
+   not implemented (`designer/` is empty), so there is nothing to wire. Requirements recorded in
+   section 6.2 and [`designer.md`](designer.md) for when it lands. Nothing to build until then.
 7. **`field-sizing: content` for `TextArea`**: property registry, Yoga measure for the editor
    text, internal scroll above max. Golden.
 8. **Container queries**: `container-type`/`container-name`, `@container` evaluation as an

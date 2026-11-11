@@ -163,6 +163,10 @@ source change -> hash -> viewer front end (changed components) -> IR diff
 - Parity images: native vs WebGPU with tolerance.
 - Browser matrix: Chrome/Edge/Firefox; WebGPU availability fallback message.
 - Differential: evaluator vs generated native code on a shared corpus (scene snapshots + goldens).
+- Layout observation ([ADR-041](../../decisions/ADR-041-layout-observation.md)): after each preview
+  layout the evaluator runs `observe_and_settle` with the production round budget and depth rule;
+  the differential corpus includes an `onSizeChange` component and compares delivered sizes and
+  the loop diagnostic.
 - Picker: hit-test/granularity/selection restore after hot reload; overlay excluded from goldens.
 - Style edit: override validation, patch round-trip yields identical IR, formatting/comment
   preservation, undo/redo, unsupported-property diagnostics.
