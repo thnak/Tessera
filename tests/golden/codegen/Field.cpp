@@ -123,5 +123,21 @@ namespace demo {
       apply_state();
     }
     
+    void Field::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<Field*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+    }
+    
+    void Field::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      scheduler.detach(update_ticket_);
+    }
+    
+    void Field::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
   }
 }

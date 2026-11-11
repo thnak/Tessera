@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
+#include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "Field.hpp"
@@ -45,8 +46,17 @@ namespace demo {
       void apply_state();
       // Refresh the declared props of the component instances this component owns.
       void apply_props();
-      // Host entry after event dispatch: update_effects() then apply_state().
+      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
       void update();
+      // Scheduled updates: a setter marks this component dirty and the host's
+      // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
+      // address must stay stable while attached.
+      tessera::ui::UpdateTicket update_ticket_;
+      void attach_scheduler(tessera::ui::UpdateScheduler& scheduler);
+      void detach_scheduler(tessera::ui::UpdateScheduler& scheduler);
+      void schedule_update();
+      void set_email(std::string value);
+      void set_rules(std::vector<std::string> value);
       void handler_1(const tessera::ui::Event& event);
       void on_validate(const tessera::ui::TextChangeEvent& e);
     };

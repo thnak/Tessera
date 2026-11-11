@@ -48,5 +48,21 @@ namespace demo {
       apply_state();
     }
     
+    void Card::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<Card*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+    }
+    
+    void Card::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      scheduler.detach(update_ticket_);
+    }
+    
+    void Card::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
   }
 }

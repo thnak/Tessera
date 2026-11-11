@@ -13,6 +13,7 @@ add_library(tessera_codegen STATIC
     src/emit_events.cpp
     src/emit_expr.cpp
     src/emit_forms.cpp
+    src/emit_schedule.cpp
     src/form_binding.cpp
     src/emit_header.cpp
     src/emit_lifecycle.cpp
@@ -156,6 +157,18 @@ if (TESSERA_BUILD_TESTS)
         tessera_style)
 
     add_test(NAME codegen_runtime COMMAND codegen_runtime_tests)
+
+    # Scheduled updates (issue #5): setters schedule, the flush runs update() once.
+    add_executable(codegen_schedule_runtime_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_schedule_runtime_tests.cpp)
+
+    target_include_directories(codegen_schedule_runtime_tests PRIVATE ${_tessera_codegen_golden_dir})
+    target_link_libraries(codegen_schedule_runtime_tests PRIVATE
+        tessera_codegen_sample
+        tessera_scene
+        tessera_runtime)
+
+    add_test(NAME codegen_schedule_runtime COMMAND codegen_schedule_runtime_tests)
 
     # Conditional + keyed-list codegen: goldens from hand-built IR (the `.tsx` front end cannot
     # author a list type yet) and a runtime test over the compiled generated component.

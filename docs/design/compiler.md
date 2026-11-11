@@ -239,13 +239,15 @@ conditionals and numeric/binary/call expressions with a printable C++ type) are 
 generated `apply_state()`: it hashes each interpolated value with the shared FNV-1a helpers and only
 when a hash differs rebuilds the string, stores it in `text_node_N_value_`, and calls
 `set_paint_data(PaintData{...})` — so the node marks `Paint|Render` only, never `Layout`. `build()`
-stores each interpolated node's pointer and ends with `apply_state()`. Generated setters and event
-binding developer regions raise a component-level `state_dirty_` flag instead of touching the node
-directly; `update()` = `update_effects(); apply_state(); state_dirty_ = false;` is the host entry
-after event dispatch. Tradeoff (documented): setters stay cheap and synchronous-total (no effects
-inside a setter), the host must call `update()` after dispatch (React-like scheduling), and the
-current headless demo keeps its existing CPU goldens because a click alone marks no node dirty until
-`update()`. Unchanged values allocate nothing (hash path only); a changed value builds one bounded
+stores each interpolated node's pointer and ends with `apply_state()`. Scheduled updates (issue #5):
+each component owns a `tessera::ui::UpdateTicket`, `attach_scheduler()`/`detach_scheduler()` (owned
+instances attach after their owner, so a parent flushes first), `schedule_update()` and one
+`set_<state>(value)` per `useState` cell that assigns and schedules. The host's `UpdateScheduler`
+(`ui/scene/update_scheduler.hpp`) runs `update()` = `update_effects(); apply_state();` once per
+flush; `FramePipeline::tick` flushes it first and wakes the loop on the dirty edge. Setters stay
+cheap (no effects inside a setter) and repeated setters batch into one update; a setter chain is
+bounded by a pass budget. Setters are UI-thread only (debug-asserted): other threads post a
+completion and set state in its callback. `update()` stays public for headless tests. Unchanged values allocate nothing (hash path only); a changed value builds one bounded
 string and one `PaintData` copy. Templates with substitutions can appear directly or inside a text
 conditional (`{count === 0 ? "Counter" : `Count: ${count}`}`), which emits branching hash/append
 statements rather than a temporary string. Formatting: `true`/`false`, decimal integers, shortest

@@ -10,6 +10,7 @@ add_library(tessera_scene STATIC
     input_dispatch.cpp
     scroll.cpp
     text_input_dispatch.cpp
+    update_scheduler.cpp
     wheel_dispatch.cpp)
 
 target_include_directories(tessera_scene PUBLIC

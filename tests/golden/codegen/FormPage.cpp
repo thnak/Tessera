@@ -373,6 +373,28 @@ namespace demo {
       child_5_.update();
     }
     
+    void FormPage::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<FormPage*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+      child_2_.attach_scheduler(scheduler);
+      child_3_.attach_scheduler(scheduler);
+      child_5_.attach_scheduler(scheduler);
+    }
+    
+    void FormPage::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      child_5_.detach_scheduler(scheduler);
+      child_3_.detach_scheduler(scheduler);
+      child_2_.detach_scheduler(scheduler);
+      scheduler.detach(update_ticket_);
+    }
+    
+    void FormPage::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
     void FormPage::on_submit(const tessera::ui::Event& event) {
       // [DEVELOPER_LOGIC_START: bind::on_submit]
         // TODO(tessera-codegen): implement the developer body for bind::on_submit.

@@ -75,6 +75,24 @@ namespace demo {
       child_2_.update();
     }
     
+    void CardPage::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      update_ticket_.context = this;
+      update_ticket_.update = [](void* context) {
+        static_cast<CardPage*>(context)->update();
+      };
+      scheduler.attach(update_ticket_);
+      child_2_.attach_scheduler(scheduler);
+    }
+    
+    void CardPage::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      child_2_.detach_scheduler(scheduler);
+      scheduler.detach(update_ticket_);
+    }
+    
+    void CardPage::schedule_update() {
+      update_ticket_.schedule();
+    }
+    
     void CardPage::on_tap(const tessera::ui::Event& event) {
       // [DEVELOPER_LOGIC_START: bind::on_tap]
         // TODO(tessera-codegen): implement the developer body for bind::on_tap.
