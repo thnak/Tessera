@@ -95,6 +95,12 @@ public:
     // full redraw (the old target's damage rectangles are meaningless at the new size).
     void resize(float width, float height, float dpi_scale);
 
+    // Installs the per-window update scheduler. Its flush runs before animation, style and layout
+    // of every begin_frame(), so generated components' schedule_update() tickets apply in the frame
+    // that asked for them. Pass nullptr to uninstall; the scheduler must outlive the host or be
+    // detached first.
+    void set_update_scheduler(ui::UpdateScheduler* scheduler);
+
     [[nodiscard]] bool frame_due() const;
     [[nodiscard]] const ui::frame::FrameRender& last_render() const;
     [[nodiscard]] ui::paint::StyleProvider& styles();

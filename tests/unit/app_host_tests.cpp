@@ -194,6 +194,32 @@ Text { font-size: 16px; color: #e2e8f0; }
         return 10;
     }
 
+    // --- 6. The installed update scheduler flushes at the start of a frame ------------------
+    {
+        struct Counter {
+            int runs = 0;
+        };
+        Counter counter;
+        tessera::ui::UpdateScheduler scheduler;
+        tessera::ui::UpdateTicket ticket;
+        ticket.update = [](void* context) { static_cast<Counter*>(context)->runs += 1; };
+        ticket.context = &counter;
+        scheduler.attach(ticket);
+        host.set_update_scheduler(&scheduler);
+        ticket.schedule();
+        if (!expect(ticket.queued(), "the ticket is queued before the frame")) {
+            return 11;
+        }
+        (void)host.begin_frame(1.0 / 60.0);
+        host.end_frame();
+        host.set_update_scheduler(nullptr);
+        scheduler.detach(ticket);
+        if (!expect(counter.runs == 1, "the host flushed the scheduled update once") ||
+            !expect(!ticket.queued(), "the flushed ticket is no longer queued")) {
+            return 11;
+        }
+    }
+
     std::cout << "app_host: ok\n";
     return 0;
 }

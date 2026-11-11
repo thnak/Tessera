@@ -126,6 +126,7 @@ struct AppHost::Impl {
     std::unique_ptr<rendering::DamageAccumulator> damage;
     ui::animation::AnimationRuntime animations;
     std::unique_ptr<ui::frame::FramePipeline> pipeline;
+    ui::UpdateScheduler* scheduler = nullptr;
 
     ui::layout::LayoutResult last_layout;
     ui::layout::LayoutApplyResult last_applied;
@@ -205,7 +206,13 @@ void AppHost::resize(float width, float height, float dpi_scale) {
     state.pipeline = std::make_unique<ui::frame::FramePipeline>(state.animations, state.loop,
                                                                 state.tracker, *state.damage,
                                                                 state.dirty, state.config.pipeline);
+    state.pipeline->set_update_scheduler(state.scheduler);
     mark_subtree(state.root, ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
+}
+
+void AppHost::set_update_scheduler(ui::UpdateScheduler* scheduler) {
+    impl_->scheduler = scheduler;
+    impl_->pipeline->set_update_scheduler(scheduler);
 }
 
 bool AppHost::frame_due() const {
