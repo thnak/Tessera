@@ -76,8 +76,11 @@ therefore takes a `DecodeTarget` (`rendering/image/image_resize.hpp`):
 - **Limit:** stb_image has no scaled decode, so the full raster exists transiently during the call
   and is freed before it returns; the retained and uploaded memory is the reduced one. Scaled
   decode through libjpeg-turbo and libwebp is a later optimization that lowers the peak.
-- **Not wired yet:** the `Image` element does not pass a target (layout size and DPR reach the
-  loader through the host, which is design-only), and `decodeSize="original"` has no prop yet.
+- **Wiring:** the Batched2D sink asks `image_decode_target(draw, device_scale)` for the target: the
+  raster extent the draw will upload (explicit extents, else content box x scale), bucketed.
+  `PaintImageStyle::decode_original` (`Image decodeSize="original"`) selects the source-size
+  decode. Intrinsic size for fit and scale comes from `source_width/height`, so a reduced decode
+  does not change layout or the texture key. The JSX `decodeSize` prop lowering is not done yet.
 
 ## 3. GPU uploads
 

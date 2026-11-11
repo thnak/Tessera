@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/image/image_resize.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 
 #include <algorithm>
@@ -94,6 +95,26 @@ resolve_image_raster(const ImageDraw& draw, std::uint32_t image_width, std::uint
                      float device_scale) noexcept {
     return resolve_content_raster(draw.rect, draw.raster_width, draw.raster_height, draw.scale,
                                   image_width, image_height, device_scale);
+}
+
+// The decode target of an image draw (issue #14): the raster extent the draw will upload (explicit
+// extents, else content box x scale), bucketed. With one explicit extent the other is unknown, so
+// the target box is square on the larger side and the decode stays at least as big as needed.
+// `decode_original` yields the original (source-size) target.
+[[nodiscard]] inline rendering::image::DecodeTarget
+image_decode_target(const ImageDraw& draw, float device_scale) noexcept {
+    if (draw.decode_original) {
+        return {};
+    }
+    const float pixel_scale = draw.scale > 0.0f ? draw.scale : device_scale;
+    float width = draw.raster_width != 0U ? static_cast<float>(draw.raster_width)
+                                          : draw.rect.width * pixel_scale;
+    float height = draw.raster_height != 0U ? static_cast<float>(draw.raster_height)
+                                            : draw.rect.height * pixel_scale;
+    if ((draw.raster_width == 0U) != (draw.raster_height == 0U)) {
+        width = height = std::max(width, height);
+    }
+    return rendering::image::decode_target_for(width, height, 1.0f);
 }
 
 } // namespace tessera::ui::paint

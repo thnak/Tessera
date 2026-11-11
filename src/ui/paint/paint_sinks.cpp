@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
+#include "tessera/rendering/image/image_resize.hpp"
 #include "tessera/rendering/path/path_texture_key.hpp"
 #include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/rendering/path/svg_loader.hpp"
@@ -217,8 +218,11 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
         ++image_stats_.missing_resources;
         return;
     }
+    // Decode at the raster extent the draw will upload (issue #14): the explicit extents, else the
+    // content box x scale. One extent given means the other is unknown, so the box is square.
     const auto decoded =
-        ui::assets::load_asset_image(*image_.bundle, draw.asset, *image_.decoded, image_.limits);
+        ui::assets::load_asset_image(*image_.bundle, draw.asset, *image_.decoded, image_.limits,
+                                     image_decode_target(draw, image_.device_scale));
     if (!decoded.has_value()) {
         switch (decoded.error()) {
         case ui::assets::AssetImageError::not_found:
@@ -231,8 +235,8 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
         }
         return;
     }
-    const auto request =
-        resolve_image_raster(draw, (*decoded)->width, (*decoded)->height, image_.device_scale);
+    const auto request = resolve_image_raster(draw, (*decoded)->source_width,
+                                              (*decoded)->source_height, image_.device_scale);
     if (!request.has_value()) {
         return;
     }
