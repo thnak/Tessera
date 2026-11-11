@@ -10,7 +10,7 @@
   [ADR-034](ADR-034-interaction-and-overscroll-animation.md) (platform interaction profiles),
   [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end),
   [ADR-037](ADR-037-self-contained-wasm-designer.md) (designer picker),
-  [ADR-042](ADR-042-web-target-for-demos.md) (web target), issue
+  [ADR-046](ADR-046-web-target-for-demos.md) (web target), issue
   [#70](https://github.com/thnak/Tessera/issues/70).
 - Terms: **behavior primitive** = a component or hook that owns state, keyboard, focus and
   accessibility for a control but draws nothing of its own. **Styled component** = a primitive
@@ -118,7 +118,7 @@ The library also needs a recognizable look of its own. Imitating each platform's
    render-on-demand. Lottie is a separate stage-5 component.
 9. **Gallery and starters are part of the library.** `samples/gallery` shows every component in
    every state with theme, density, RTL and text-scale switches, runs on native and on the web
-   target (ADR-042), and is published by CI. Starter templates (dashboard, settings, list-detail
+   target (ADR-046), and is published by CI. Starter templates (dashboard, settings, list-detail
    CRUD) are built only from public library components.
 10. **Definition of done per component.** ADR-032 item 4 and item 5 apply, plus: a primitive with a
     headless interaction test, a gallery page, documented parts, and goldens for each theme
@@ -171,4 +171,4 @@ The library also needs a recognizable look of its own. Imitating each platform's
   and license entries.
 - Iconify import tool with the license gate, vector-path conversion and the SMIL/keyframe
   converter for animated icons.
-- `samples/gallery` with a CI web build ([ADR-042](ADR-042-web-target-for-demos.md)).
+- `samples/gallery` with a CI web build ([ADR-046](ADR-046-web-target-for-demos.md)).
