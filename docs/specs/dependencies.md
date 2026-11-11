@@ -109,7 +109,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
 | libpng | V1 optional | libpng | `ui/image` | PNG decode |
-| libjpeg-turbo | V1 optional | BSD-3-Clause / IJG | `ui/image` | JPEG decode |
+| libjpeg-turbo | V1 hard (FetchContent 3.0.4) | BSD-3-Clause / IJG | `rendering/image` | Scaled JPEG decode (1/2, 1/4, 1/8 inside the IDCT) so a thumbnail never allocates the full raster (issue #14); plain-C build, no SIMD, no TurboJPEG API; fetched from a pinned archive hash; stb remains the unscaled and fallback path |
 | libwebp | V1 optional | BSD-3-Clause | `ui/image` | WebP decode |
 | lunasvg | V1 optional | MIT | `ui/image` | SVG rasterization if ThorVG is not adopted |
 | miniaudio | V1 optional | Public domain / MIT-0 | `hal/audio` | Audio hooks, notification sounds |

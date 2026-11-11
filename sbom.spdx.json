@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "https://github.com/thnak/Tessera/spdx/tessera-0.0.1-35e9f63dcbea06ab",
+  "documentNamespace": "https://github.com/thnak/Tessera/spdx/tessera-0.0.1-88789e1d01c0402c",
   "hasExtractedLicensingInfos": [
     {
       "extractedText": "SQLite Is Public Domain\n\nAll of the code and documentation in SQLite has been dedicated to the public domain by the\nauthors. All code authors, and representatives of the companies they work for, have signed\naffidavits dedicating their contributions to the public domain and originals of those signed\naffidavits are stored in a firesafe at the main offices of Hwaci. All contributors are citizens of\ncountries that allow creative works to be dedicated into the public domain. Anyone is free to\ncopy, modify, publish, use, compile, sell, or distribute the original SQLite code, either in\nsource code form or as a compiled binary, for any purpose, commercial or non-commercial, and by\nany means.",
@@ -147,13 +147,14 @@
     },
     {
       "SPDXID": "SPDXRef-Package-libjpeg-turbo",
-      "copyrightText": "libjpeg-turbo contributors",
-      "downloadLocation": "NOASSERTION",
+      "copyrightText": "libjpeg-turbo contributors, Independent JPEG Group",
+      "downloadLocation": "https://github.com/libjpeg-turbo/libjpeg-turbo",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause OR IJG",
       "licenseDeclared": "BSD-3-Clause OR IJG",
       "name": "libjpeg-turbo",
-      "supplier": "NOASSERTION"
+      "supplier": "NOASSERTION",
+      "versionInfo": "3.0.4"
     },
     {
       "SPDXID": "SPDXRef-Package-libpng",

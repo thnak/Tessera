@@ -63,7 +63,7 @@ libcurl
 
 libjpeg-turbo
   License: BSD-3-Clause / IJG
-  Copyright: libjpeg-turbo contributors
+  Copyright: libjpeg-turbo contributors, Independent JPEG Group
 
 libpng
   License: libpng

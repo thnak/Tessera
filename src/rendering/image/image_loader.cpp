@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 
+#include "jpeg_scaled.hpp"
 #include "tessera/rendering/image/image_loader.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstring>
 #include <limits>
+#include <utility>
 
 #include <stb_image.h>
 
@@ -79,6 +81,34 @@ std::expected<DecodedImage, ImageError> decode_image(std::span<const std::uint8_
     // This slice decodes 8-bit inputs only; 16-bit PNGs are rejected rather than silently narrowed.
     if (stbi_is_16_bit_from_memory(bytes.data(), static_cast<int>(bytes.size())) == 1) {
         return std::unexpected(ImageError::unsupported_format);
+    }
+
+    // A JPEG shown smaller than its source is decoded at 1/2, 1/4 or 1/8 inside the IDCT, so the
+    // full raster is never allocated; anything that path declines falls through to stb below.
+    if (format == ImageFormat::jpeg && !target.original()) {
+        const std::uint32_t source_width = static_cast<std::uint32_t>(encoded_width);
+        const std::uint32_t source_height = static_cast<std::uint32_t>(encoded_height);
+        const ImageSize wanted = fit_decode_size(source_width, source_height, target);
+        const unsigned denominator =
+            jpeg_scale_denominator(source_width, source_height, wanted.width, wanted.height);
+        JpegRaster scaled;
+        if (denominator > 1U && decode_jpeg_scaled(bytes, denominator, scaled)) {
+            DecodedImage image;
+            image.width = scaled.width;
+            image.height = scaled.height;
+            image.source_width = source_width;
+            image.source_height = source_height;
+            image.format = format;
+            image.rgba = std::move(scaled.rgba);
+            if (image.width != wanted.width || image.height != wanted.height) {
+                DecodedImage reduced = downscale_box(image, wanted.width, wanted.height);
+                reduced.source_width = source_width;
+                reduced.source_height = source_height;
+                reduced.format = format;
+                return reduced;
+            }
+            return image;
+        }
     }
 
     int decoded_width = 0;

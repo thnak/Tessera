@@ -25,6 +25,16 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: Sean Barrett and contributors
 - Upstream: https://github.com/nothings/stb
 
+### libjpeg-turbo
+
+- Used by: `src/rendering/image/` (scaled JPEG decode, issue #14)
+- Fetched at configure time from
+  `https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz` (pinned SHA-256);
+  not vendored in the tree. Built as plain C without SIMD, TurboJPEG or tools
+- License: BSD-3-Clause / IJG (the zlib-licensed SIMD code is not built)
+- Copyright: libjpeg-turbo contributors, Independent JPEG Group
+- Upstream: https://github.com/libjpeg-turbo/libjpeg-turbo (3.0.4)
+
 ### Vulkan SDK components (Vulkan-Headers, Vulkan-Loader, Vulkan-ValidationLayers, shaderc/glslc)
 
 - Used by: `src/rendering/backend/vulkan/`, build step

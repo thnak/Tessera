@@ -4,6 +4,7 @@ add_library(tessera_image STATIC
     image_decode_cache.cpp
     image_loader.cpp
     image_resize.cpp
+    jpeg_scaled.cpp
     image_texture_cache.cpp)
 
 target_include_directories(tessera_image PUBLIC
@@ -15,7 +16,8 @@ target_compile_features(tessera_image PUBLIC cxx_std_23)
 # (decode of embedded image assets), so its license/notice/SBOM rows are updated with this slice.
 target_link_libraries(tessera_image PUBLIC
     tessera_rhi
-    tessera_stb)
+    tessera_stb
+    tessera_jpeg)
 
 # Image tests are registered from this subdirectory so the lane does not edit the shared
 # tests/unit registry while other lanes are working in it.
@@ -37,6 +39,12 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(image_resize_tests PRIVATE
         TESSERA_IMAGE_FIXTURE_DIR="${TESSERA_IMAGE_FIXTURE_DIR}")
     add_test(NAME image_resize COMMAND image_resize_tests)
+
+    add_executable(jpeg_scaled_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/jpeg_scaled_tests.cpp)
+    target_include_directories(jpeg_scaled_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(jpeg_scaled_tests PRIVATE tessera_image)
+    add_test(NAME jpeg_scaled COMMAND jpeg_scaled_tests)
 
     add_executable(image_texture_cache_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/image_texture_cache_tests.cpp)
