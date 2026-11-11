@@ -6,6 +6,30 @@
 #include "parser_internal.hpp"
 
 namespace tessera::compiler::jsx {
+namespace {
+
+// A prop default is a literal, or a flat list of literals (`validators = []`). The IR keeps the
+// literal value; anything computed would need a runtime and is rejected at parse time.
+bool is_literal_default(const Expr& expr) {
+    switch (expr.kind) {
+    case ExprKind::Number:
+    case ExprKind::String:
+    case ExprKind::Boolean:
+    case ExprKind::Null:
+        return true;
+    case ExprKind::Array:
+        for (const ExprPtr& element : expr.operands) {
+            if (!element || element->kind == ExprKind::Array || !is_literal_default(*element)) {
+                return false;
+            }
+        }
+        return true;
+    default:
+        return false;
+    }
+}
+
+} // namespace
 
 bool Parser::parse_component(ModuleItem& item) {
     item.kind = ItemKind::Component;
@@ -70,11 +94,11 @@ bool Parser::parse_component_param(ModuleItem& item) {
                 if (!binding.default_value) {
                     return false;
                 }
-                const ExprKind kind = binding.default_value->kind;
-                if (kind != ExprKind::Number && kind != ExprKind::String &&
-                    kind != ExprKind::Boolean && kind != ExprKind::Null) {
-                    report("TESSERA_JSX_SUBSET_LITERAL", "a prop default must be a literal",
-                           binding.default_value->span, "use a number, string, boolean or null");
+                if (!is_literal_default(*binding.default_value)) {
+                    report("TESSERA_JSX_SUBSET_LITERAL",
+                           "a prop default must be a literal or a literal list",
+                           binding.default_value->span,
+                           "use a number, string, boolean, null or a list of those");
                 }
             }
             item.props_bindings.push_back(std::move(binding));

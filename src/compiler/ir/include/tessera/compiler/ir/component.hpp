@@ -16,8 +16,9 @@ struct Prop {
     std::string type;
     ExprPtr default_value;
     // The source `?` marker: the caller may omit the prop. Kept separate from the type because an
-    // absent prop is not the same value as a nullable (`optional<T>`) one, and because a default
-    // value is a later slice (docs/design/jsx-ir-lowering.md section 9).
+    // absent prop is not the same value as a nullable (`optional<T>`) one. `default_value` is the
+    // literal (or flat literal list) from the props destructuring default
+    // (docs/specs/jsx-subset-v1.md section 6); it is the value codegen initializes the field with.
     bool optional = false;
 };
 

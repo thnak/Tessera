@@ -46,7 +46,10 @@ endif ()
 # so the tessera_codegen library keeps its IR-only dependency (docs/guides/developer-workflow.md).
 add_executable(tessera_codegen_cli
     ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp)
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
 
 target_include_directories(tessera_codegen_cli PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
 target_link_libraries(tessera_codegen_cli PRIVATE

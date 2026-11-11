@@ -17,7 +17,8 @@ import { Children } from "tessera";
 // The documented form prop records (forms section 5.2). `initial` is the field seed list as
 // `name=value` pairs in declaration order; IR v1 has no record type, so the documented object
 // literal `{{ email: "" }}` is not lowered and the `list<string>` form is the canonical encoding.
-// The IR records a default on `initial` only, so `?` marks it alone.
+// Its default is the empty list, authored as the destructuring default below; the IR records a
+// default on `initial` only (`?` marks it alone).
 //
 // `validate` and `onSubmit` are payload-free callback props: the IR records the type `callback`
 // (codegen emits `std::function<void()>`). The generated binding invokes `validate` after the
@@ -29,8 +30,8 @@ export type FormProps = {
   children: Children;
 };
 
-// The tree is the hand-built one: the `form` container and its Slot.
-export function Form({ children }: FormProps) {
+// The tree is the hand-written one: the `form` container and its Slot.
+export function Form({ initial = [], validate, onSubmit, children }: FormProps) {
   return (
     <View className="form">
       {children}

@@ -14,9 +14,10 @@
 
 import { Children, TextChangeEvent } from "tessera";
 
-// The documented field prop records (forms section 5.1). The IR records a default value on every
-// record except `onValidate` and `children`; a type alias has no default syntax in this subset, so
-// `?` marks exactly the records that carry one. `validators`/`errors` default to the empty list.
+// The documented field prop records (forms section 5.1). A default is authored as a destructuring
+// default below: the IR records it as the prop's `default_value`, and codegen initializes the
+// generated field with it. `?` marks exactly the records that may be omitted. `validators` and
+// `errors` default to the empty list.
 //
 // `onValidate` is a callback prop. The IR records its payload record `TextChangeEvent` as the prop
 // type and binds it through the node's events, never as a value (codegen emits
@@ -34,10 +35,22 @@ export type FieldProps = {
   children: Children;
 };
 
-// The tree is the hand-built one, in the same pre-order: the `field` container, then the label, the
-// value and the error text, then the caller's widget at the Slot. Only the props the tree reads are
-// destructured; the rest stay declared by `FieldProps`.
-export function Field({ label, value, error, children }: FieldProps) {
+// The tree is the hand-written one, in the same pre-order: the `field` container, then the label,
+// the value and the error text, then the caller's widget at the Slot. The defaults are on every
+// record that may be omitted, including the ones this tree does not read: they are the component's
+// prop contract, not local values.
+export function Field({
+  name = "",
+  label = "",
+  value = "",
+  defaultValue = "",
+  required = false,
+  validators = [],
+  onValidate,
+  error = "",
+  errors = [],
+  children,
+}: FieldProps) {
   return (
     <View className="field">
       <Text>{label}</Text>
