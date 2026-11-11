@@ -100,9 +100,9 @@ std::optional<ir::Action> lower_animated_set(HookState& state, const jsx::Expr& 
     return action;
 }
 
-} // namespace
-
-std::vector<ir::Action> lower_actions(HookState& state, const jsx::Expr& arrow) {
+// The first `count` statements of `arrow` as actions.
+std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arrow,
+                                         std::size_t count) {
     std::vector<ir::Action> actions;
     if (arrow.kind != jsx::ExprKind::Arrow) {
         fail_hook(state, "TESSERA_IR_UNSUPPORTED",
@@ -113,7 +113,8 @@ std::vector<ir::Action> lower_actions(HookState& state, const jsx::Expr& arrow) 
     for (const std::string& param : arrow.params) {
         names.add_local(param);
     }
-    for (const jsx::ExprPtr& statement : arrow.operands) {
+    for (std::size_t i = 0; i < count; ++i) {
+        const jsx::ExprPtr& statement = arrow.operands[i];
         if (!statement || statement->kind != jsx::ExprKind::Call || statement->operands.empty() ||
             !statement->operands[0]) {
             fail_hook(state, "TESSERA_IR_UNSUPPORTED", kBodyRule,
@@ -139,6 +140,46 @@ std::vector<ir::Action> lower_actions(HookState& state, const jsx::Expr& arrow) 
         actions.push_back(std::move(*action));
     }
     return actions;
+}
+
+} // namespace
+
+std::vector<ir::Action> lower_actions(HookState& state, const jsx::Expr& arrow) {
+    if (arrow.kind != jsx::ExprKind::Arrow) {
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                  "only an arrow function has inline handler actions", arrow.span);
+        return {};
+    }
+    return lower_statements(state, arrow, arrow.operands.size());
+}
+
+std::optional<ir::Preview> lower_preview(HookState& state, const jsx::Expr& arrow) {
+    if (arrow.kind != jsx::ExprKind::Arrow || arrow.operands.empty()) {
+        return std::nullopt;
+    }
+    // A scratch state: a body outside the preview rules is not an error here.
+    HookState scratch{state.context, std::nullopt};
+    std::size_t count = arrow.operands.size();
+    ir::ExprPtr return_value;
+    const jsx::ExprPtr& last = arrow.operands.back();
+    if (last && last->kind == jsx::ExprKind::Return) {
+        --count;
+        if (last->operands.size() == 1 && last->operands[0]) {
+            ComponentNames names(scratch.context.analysis);
+            for (const std::string& param : arrow.params) {
+                names.add_local(param);
+            }
+            return_value = lower_component_expression(scratch, *last->operands[0], names);
+            if (scratch.error || !return_value) {
+                return std::nullopt;
+            }
+        }
+    }
+    std::vector<ir::Action> actions = lower_statements(scratch, arrow, count);
+    if (scratch.error) {
+        return std::nullopt;
+    }
+    return ir::Preview{std::move(actions), std::move(return_value)};
 }
 
 std::vector<ir::Param> lower_handler_params(HookState& state, const jsx::Expr& arrow) {

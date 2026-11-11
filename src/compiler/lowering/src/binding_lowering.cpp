@@ -134,6 +134,7 @@ void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks
         binding.region = statement.bind_id;
         binding.params = std::move(params);
         binding.return_type = *return_type;
+        binding.preview = lower_preview(state, arrow);
         out.bindings.push_back(std::move(binding));
         const HandlerRef ref{HandlerRefKind::Binding, out.bindings.back().id};
         for (const std::string& name : statement.names) {
