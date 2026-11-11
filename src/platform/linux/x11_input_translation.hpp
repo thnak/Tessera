@@ -4,7 +4,9 @@
 
 #include "tessera/ui/input.hpp"
 
+#include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 // Pure mapping rules for X11 core input. This header deliberately does not include <X11/Xlib.h>:
 // keysyms, button numbers and state bits are stable protocol values, so the rules are unit-testable
@@ -32,6 +34,12 @@ inline constexpr unsigned kMod4Mask = 1U << 6;
 // keypad digits and the 0x01000000-offset Unicode keysyms; full composition (dead keys, XIM) is
 // outside this core path.
 [[nodiscard]] std::uint32_t codepoint_from_keysym(unsigned long keysym);
+
+// Decodes the next code point of `text` starting at `position` and advances it. Malformed UTF-8
+// (a stray continuation byte, a truncated or overlong sequence, a surrogate, a value above
+// U+10FFFF) yields U+FFFD and consumes one byte, so a bad input method never stalls or overruns
+// the loop. XIM hands over UTF-8 text through Xutf8LookupString.
+[[nodiscard]] std::uint32_t next_utf8_codepoint(std::string_view text, std::size_t& position);
 
 // What one core button press means. X11 reports wheel notches as button 4..7 presses.
 struct ButtonAction {

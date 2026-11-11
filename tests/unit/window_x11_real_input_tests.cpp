@@ -15,6 +15,8 @@
 #include <X11/extensions/XTest.h>
 #include <X11/keysym.h>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -223,6 +225,126 @@ bool keyboard(const Server& server, tessera::hal::Window& window, tessera::ui::I
                   "a real left arrow maps to kArrowLeft and types nothing");
 }
 
+// A keycode with nothing mapped to it, so the test can give it a dead key or a compose key
+// without disturbing a real layout.
+std::vector<KeyCode> free_keycodes(Display* display, std::size_t count) {
+    int first = 0;
+    int last = 0;
+    XDisplayKeycodes(display, &first, &last);
+    int per_key = 0;
+    KeySym* map =
+        XGetKeyboardMapping(display, static_cast<KeyCode>(first), last - first + 1, &per_key);
+    std::vector<KeyCode> found;
+    for (int code = last; code >= first && found.size() < count; --code) {
+        bool empty = true;
+        for (int i = 0; i < per_key; ++i) {
+            if (map[(code - first) * per_key + i] != NoSymbol) {
+                empty = false;
+            }
+        }
+        if (empty) {
+            found.push_back(static_cast<KeyCode>(code));
+        }
+    }
+    XFree(map);
+    return found;
+}
+
+void map_key(Display* display, KeyCode code, KeySym keysym) {
+    KeySym symbols[4] = {keysym, keysym, keysym, keysym};
+    XChangeKeyboardMapping(display, code, 4, symbols, 1);
+    XSync(display, False);
+}
+
+std::vector<std::uint32_t> typed_text(const std::vector<InputEvent>& events) {
+    std::vector<std::uint32_t> text;
+    for (const InputEvent& event : events) {
+        if (event.type == InputEventType::Text) {
+            text.push_back(event.text_codepoint);
+        }
+    }
+    return text;
+}
+
+void tap(const Server& server, KeyCode code) {
+    XTestFakeKeyEvent(server.display, code, True, 0);
+    XTestFakeKeyEvent(server.display, code, False, 0);
+    server.flush();
+}
+
+// Dead keys and compose go through the window's input context: the dead key is still a key event
+// but types nothing, and the key that completes the sequence types the composed character.
+bool composition(const Server& server, tessera::hal::Window& window,
+                 tessera::ui::InputQueue& queue) {
+    const std::vector<KeyCode> spare = free_keycodes(server.display, 4);
+    if (spare.size() < 4) {
+        std::cout << "window_x11_real_input: compose checks skipped (no spare keycodes)\n";
+        return true;
+    }
+    const KeyCode dead_acute = spare[0];
+    const KeyCode dead_circumflex = spare[1];
+    const KeyCode multi_key = spare[2];
+    const KeyCode e_circumflex = spare[3];
+    map_key(server.display, dead_acute, XK_dead_acute);
+    map_key(server.display, dead_circumflex, XK_dead_circumflex);
+    map_key(server.display, multi_key, XK_Multi_key);
+    map_key(server.display, e_circumflex, XK_ecircumflex);
+    (void)drain(window, queue); // the window refreshes its keymap on MappingNotify
+
+    const KeyCode a_key = XKeysymToKeycode(server.display, XK_a);
+    const KeyCode e_key = XKeysymToKeycode(server.display, XK_e);
+    const KeyCode apostrophe = XKeysymToKeycode(server.display, XK_apostrophe);
+
+    tap(server, dead_acute);
+    std::vector<InputEvent> events = drain(window, queue);
+    bool ok = expect(first_of(events, InputEventType::KeyDown) != nullptr,
+                     "a dead key is still a key event") &&
+              expect(typed_text(events).empty(), "a dead key types nothing by itself");
+    tap(server, a_key);
+    events = drain(window, queue);
+    ok = expect(typed_text(events) == std::vector<std::uint32_t>{0x00E1},
+                "dead acute then a types a-acute") &&
+         ok;
+
+    tap(server, dead_circumflex);
+    (void)drain(window, queue);
+    tap(server, e_key);
+    events = drain(window, queue);
+    ok = expect(typed_text(events) == std::vector<std::uint32_t>{0x00EA},
+                "dead circumflex then e types e-circumflex") &&
+         ok;
+
+    // Vietnamese stacks a tone on a vowel with a hat: dead acute then e-circumflex.
+    tap(server, dead_acute);
+    (void)drain(window, queue);
+    tap(server, e_circumflex);
+    events = drain(window, queue);
+    ok = expect(typed_text(events) == std::vector<std::uint32_t>{0x1EBF},
+                "dead acute then e-circumflex types the Vietnamese e with circumflex and acute") &&
+         ok;
+
+    tap(server, multi_key);
+    (void)drain(window, queue);
+    tap(server, apostrophe);
+    (void)drain(window, queue);
+    tap(server, e_key);
+    events = drain(window, queue);
+    ok = expect(typed_text(events) == std::vector<std::uint32_t>{0x00E9},
+                "compose key, apostrophe, e types e-acute") &&
+         ok;
+
+    tap(server, e_key);
+    events = drain(window, queue);
+    ok = expect(typed_text(events) == std::vector<std::uint32_t>{'e'},
+                "an ordinary key still types after a completed sequence") &&
+         ok;
+
+    for (const KeyCode code : spare) {
+        map_key(server.display, code, NoSymbol);
+    }
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -273,8 +395,8 @@ int main() {
     const Server server{display, native, origin_x, origin_y};
     const float scale = window->metrics().dpi_scale;
 
-    const bool ok =
-        pointer_and_wheel(server, *window, queue, scale) && keyboard(server, *window, queue);
+    const bool ok = pointer_and_wheel(server, *window, queue, scale) &&
+                    keyboard(server, *window, queue) && composition(server, *window, queue);
 
     window->set_input_queue(nullptr);
     window.reset();

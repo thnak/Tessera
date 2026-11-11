@@ -5,8 +5,11 @@
 #include "tessera/ui/key_code.hpp"
 #include "x11_input_translation.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <string_view>
+#include <vector>
 
 namespace {
 
@@ -102,6 +105,44 @@ bool buttons() {
                   "unknown buttons are ignored");
 }
 
+// What an input method commits arrives as UTF-8; malformed bytes must become U+FFFD one byte at a
+// time and never stall or read past the end.
+std::vector<std::uint32_t> decode(std::string_view text) {
+    std::vector<std::uint32_t> codepoints;
+    std::size_t position = 0;
+    while (position < text.size()) {
+        const std::size_t before = position;
+        codepoints.push_back(x11::next_utf8_codepoint(text, position));
+        if (position <= before || position > text.size()) {
+            codepoints.push_back(0xDEAD); // no progress or overrun: fail the comparison
+            break;
+        }
+    }
+    return codepoints;
+}
+
+bool utf8() {
+    using Codepoints = std::vector<std::uint32_t>;
+    return expect(decode("a") == Codepoints{'a'}, "ASCII") &&
+           expect(decode("\303\251") == Codepoints{0xE9}, "two-byte sequence") &&
+           expect(decode("\341\272\277") == Codepoints{0x1EBF}, "Vietnamese e circumflex acute") &&
+           expect(decode("\360\237\230\200") == Codepoints{0x1F600}, "four-byte sequence") &&
+           expect(decode("a\303\251\341\272\277") == Codepoints{'a', 0xE9, 0x1EBF},
+                  "a run of mixed lengths") &&
+           expect(decode("\200") == Codepoints{0xFFFD}, "stray continuation byte") &&
+           expect(decode("\303") == Codepoints{0xFFFD}, "truncated two-byte sequence") &&
+           expect(decode("\341\272") == Codepoints{0xFFFD, 0xFFFD},
+                  "truncated three-byte sequence") &&
+           expect(decode("\300\200") == Codepoints{0xFFFD, 0xFFFD}, "overlong encoding") &&
+           expect(decode("\355\240\200") == Codepoints{0xFFFD, 0xFFFD, 0xFFFD}, "surrogate") &&
+           expect(decode("\364\220\200\200") == Codepoints{0xFFFD, 0xFFFD, 0xFFFD, 0xFFFD},
+                  "above U+10FFFF") &&
+           expect(decode("\377") == Codepoints{0xFFFD}, "byte that is never valid") &&
+           expect(decode("\303a") == Codepoints{0xFFFD, 'a'},
+                  "bad continuation keeps the next byte") &&
+           expect(decode("").empty(), "empty text");
+}
+
 } // namespace
 
 int main() {
@@ -116,6 +157,9 @@ int main() {
     }
     if (!buttons()) {
         return 4;
+    }
+    if (!utf8()) {
+        return 5;
     }
     std::cout << "x11_input_translation: ok\n";
     return 0;
