@@ -49,6 +49,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-037](ADR-037-self-contained-wasm-designer.md) | Self-contained Wasm designer engine (front end + evaluator), picker, style editing | Accepted |
 | [ADR-038](ADR-038-cpp23-baseline.md) | C++23 language baseline (supersedes item 1 of ADR-015) | Accepted |
 | [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule) | Accepted |
+| [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (would supersede ADR-008) | Proposed |
 
 ## Dependency overview
 
@@ -59,7 +60,7 @@ ADR-002 WebGPU/Dawn ─┘        │                     ADR-006 text
                               ├─ ADR-009 goldens
                               └─ ADR-011 shaders
 
-ADR-007 IR ── ADR-008 protected regions
+ADR-007 IR ── ADR-008 protected regions ── ADR-040 generated base + developer class (proposed)
 ADR-010 macOS (deferred)
 ADR-012 static linking (cross-cutting: build, licenses, accessibility)
 ADR-013 MIT license (cross-cutting: dependency choices)
