@@ -205,12 +205,23 @@ bool EditController::handle_event(Event& event) {
         return true;
     }
     case EventType::CompositionUpdate: {
-        if (read_only_ || !composing_) {
+        if (read_only_) {
             return false;
         }
         const std::string_view text = event_text(event);
         if (!edit_detail::valid_utf8(text)) {
             return false;
+        }
+        if (!composing_) {
+            // An IME can commit one segment and start the next inside a single message (Windows
+            // sends no second start): a non-empty update then begins a composition at the
+            // current selection, exactly as CompositionStart would.
+            if (text.empty()) {
+                return false;
+            }
+            composing_ = true;
+            composition_start_ = buffer_.selection_start();
+            composition_end_ = buffer_.selection_end();
         }
         preedit_.assign(text.data(), text.size());
         event.handled = true;
