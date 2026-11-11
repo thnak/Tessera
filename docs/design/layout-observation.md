@@ -425,6 +425,8 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    **Done:** `LayoutBox::content_insets`, `ui/layout/layout_read_model.hpp`, test `layout_read_model`.
 2. **`LayoutObserverSet` + `LayoutObservation`** (attach/detach, collect, deliver, initial,
    coalescing, depth rule bookkeeping) without settle rounds. Tests `layout_observer`.
+   **Done:** `ui/layout/layout_observer.hpp` (`LayoutObservation`, `LayoutObserverSet`: attach/detach,
+   `collect(model, min_depth)`, `deliver`), test `layout_observer`.
 3. **Settle rounds** in a host-facing helper (`observe_and_settle`) that takes the scheduler and
    a relayout callback, plus the runtime-config key, counters and the loop diagnostic. Tests
    `layout_observer_settle`. Wire into the app host when [`app-host.md`](app-host.md) lands; until
