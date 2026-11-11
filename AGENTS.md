@@ -604,9 +604,12 @@ platform window, Vulkan device/swapchain, Batched2D renderer and font/text stack
 host loop (events -> `InputPump` -> scheduler flush -> style/layout/damage -> paint -> present,
 resize/DPI/close, two frames in flight), and `capture_frame` renders one windowless offscreen frame
 through the same path; the sample is a thin CLI over both (windowless `--capture` + `--click`,
-`--windowed [--hidden --frames N]`). Tests `app_window` (capture parity + hidden-window smoke) and
-`click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next for this lane:
-hover/active pseudo-state and cursor, then TextInput focus/IME.
+`--windowed [--hidden --frames N]`). Tests `app_window` (capture parity + hidden-window smoke), `app_input` (pointer move -> `:hover`,
+press -> `:active`, release -> generated Click, focus + typed text -> generated onChange through the
+`InputPump`) and `click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next
+for this lane: TextInput focus/IME in the window path (the pump already routes `EditText` to the
+focused node), platform cursor shape once the HAL grows a cursor API, then the startup/chrome design
+captures.
 
 Next slices, in order:
 

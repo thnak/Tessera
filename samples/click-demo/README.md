@@ -47,5 +47,6 @@ click_demo --windowed --hidden --frames 5
   sample's stylesheet draws only the button box.
 - The window's damage-clipped path is not used for presentation yet: a frame that happens is
   painted in full (the damage plan decides *whether* to paint), matching the batched2d POC.
-- Hover/active pseudo-classes and the text cursor are not styled yet; `TextInput` focus/IME
+- `:hover` and `:active` are styled and driven by `InputPump` → `InputRouter`; the cursor *shape*
+  is not set (the HAL has no cursor-shape API yet), and `TextInput` focus/IME in the window path
   arrives with the input slice.

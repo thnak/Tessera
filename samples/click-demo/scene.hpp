@@ -54,6 +54,12 @@ Button {
   border-radius: 8px;
   background-color: #2563eb;
 }
+Button:hover {
+  background-color: #1d4ed8;
+}
+Button:active {
+  background-color: #1e40af;
+}
 TextInput {
   width: 220px;
   height: 32px;

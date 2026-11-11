@@ -109,7 +109,10 @@ accessibility snapshot publication, which each have their own documents.
   submitting the frame. Promoting that into the host needs a painter abstraction (next slice).
 - Known limits: `UpdateScheduler` is installed by the driver (`AppHost::set_update_scheduler`), not
   created by the host; the style tree rebuild is O(n) per geometry frame; resize reuses the previous
-  `LayoutEngine` text cache; hover/active pseudo-state and text cursor styling are not wired yet.
+  `LayoutEngine` text cache; `:hover`/`:active` work through `InputPump` → `InputRouter` (the
+  router sets the pseudo-state and the next begin_frame re-resolves style), but the platform cursor
+  shape is not set because the HAL has no cursor API yet; TextInput focus/IME in the window path is
+  the next input slice.
 
 Related: [dirty-rendering.md](dirty-rendering.md), [game-loop.md](game-loop.md),
 [gpu/frames.md](gpu/frames.md), [animation-runtime.md](animation-runtime.md),
