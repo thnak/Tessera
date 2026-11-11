@@ -414,4 +414,22 @@ if (TARGET tessera_app_window)
     add_test(NAME app_window_smoke COMMAND app_window_smoke_tests)
     set_tests_properties(app_window_smoke PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
+
+    # Window-path input: real hidden window + swapchain, normalized events posted through
+    # WindowHost::post_input, generated click/typing handlers. The generated demo is host-only.
+    if (TARGET tessera_compiler_demo)
+        add_executable(app_window_input_tests
+            app_window_input_tests.cpp)
+        target_include_directories(app_window_input_tests PRIVATE
+            ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
+        target_compile_definitions(app_window_input_tests PRIVATE
+            TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+        target_link_libraries(app_window_input_tests PRIVATE
+            tessera_app_window
+            tessera_compiler_demo)
+        add_test(NAME app_window_input COMMAND app_window_input_tests)
+        set_tests_properties(app_window_input PROPERTIES
+            SKIP_REGULAR_EXPRESSION "skipped")
+    endif()
 endif()
+

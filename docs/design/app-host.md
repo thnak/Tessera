@@ -107,12 +107,23 @@ accessibility snapshot publication, which each have their own documents.
   the frame happens at all.
 - Texture caches still belong to the paint-sink owner: the driver calls `end_frame()` on them after
   submitting the frame. Promoting that into the host needs a painter abstraction (next slice).
+- `WindowHost::post_input` is the automation/test seam: it queues normalized events exactly as the
+  platform translator does, so a window can be driven without a mouse/keyboard and the same pump,
+  router, focus and generated handlers run. `tests/gpu/app_window_input_tests.cpp` uses it for
+  click -> generated handler -> state and pointer focus + typed text -> generated onChange on a real
+  hidden window + swapchain.
+- Resize/DPI coverage: `AppHost::resize` (target recreation, subtree marks, layout reflow) is covered
+  by `app_host`, and `capture_frame` covers the scaled target/paint path (640x400 at scale 2 ->
+  1280x800). The OS-driven window-resize path is exercised by the HAL window tests and the
+  windowed POC; a synthetic-metrics seam on `WindowHost` (feeding `WindowMetrics` without the OS) is
+  the remaining test follow-up.
 - Known limits: `UpdateScheduler` is installed by the driver (`AppHost::set_update_scheduler`), not
   created by the host; the style tree rebuild is O(n) per geometry frame; resize reuses the previous
   `LayoutEngine` text cache; `:hover`/`:active` work through `InputPump` → `InputRouter` (the
   router sets the pseudo-state and the next begin_frame re-resolves style), but the platform cursor
-  shape is not set because the HAL has no cursor API yet; TextInput focus/IME in the window path is
-  the next input slice.
+  shape is not set because the HAL has no cursor API yet; generated controlled `TextInput`s publish
+  their value through `PaintData` but not caret/selection decoration yet (the editor owns the
+  offsets; the headless integration test publishes decoration by hand).
 
 Related: [dirty-rendering.md](dirty-rendering.md), [game-loop.md](game-loop.md),
 [gpu/frames.md](gpu/frames.md), [animation-runtime.md](animation-runtime.md),

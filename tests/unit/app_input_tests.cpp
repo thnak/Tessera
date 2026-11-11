@@ -211,12 +211,20 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
         return 5;
     }
 
-    // Focus the TextInput through the pump's router, then type: the generated onChange must copy
-    // the committed text into state and the controlled node must paint it.
-    if (!expect(pump.router().focus_manager().request_focus(input),
-                "TextInput can take focus through the pump router")) {
+    // Focus the TextInput by pressing it (the pump router focuses focusable targets), then type:
+    // the generated onChange must copy the committed text into state and the controlled node must
+    // paint it.
+    const Rect input_box = input->world_bounds();
+    (void)pump.queue().push(
+        pointer(InputEventType::PointerDown, input_box.x + 8.0f, input_box.y + 8.0f));
+    (void)pump.pump(root, loop);
+    (void)host.begin_frame(1.0 / 60.0);
+    if (!expect(pump.router().focus_manager().focused() == input,
+                "pressing the TextInput focuses it through the pump")) {
         return 6;
     }
+    (void)pump.queue().push(
+        pointer(InputEventType::PointerUp, input_box.x + 8.0f, input_box.y + 8.0f));
     (void)pump.queue().push(edit_text("Ada"));
     (void)pump.pump(root, loop);
     (void)host.begin_frame(1.0 / 60.0);

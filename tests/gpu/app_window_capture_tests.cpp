@@ -131,6 +131,34 @@ int main() {
         return 4;
     }
 
+    // A different window size and device scale rebuilds the target and reflows the scene: the
+    // capture extent is physical pixels and the content is still painted (resize/DPI fallback,
+    // because a synthetic-metrics seam for the window itself does not exist yet).
+    tessera::app::CaptureOptions big = options();
+    big.width = 640;
+    big.height = 400;
+    big.dpi_scale = 2.0f;
+    const auto scaled = tessera::app::capture_frame(scene.root, sheet(), big);
+    if (!scaled) {
+        return 5;
+    }
+    if (!expect(scaled->width == 1280 && scaled->height == 800, "DPI scales the capture extent") ||
+        !expect(scaled->rgba.size() == 1280u * 800u * 4u, "scaled capture buffer is RGBA8") ||
+        !expect(fnv1a(scaled->rgba) != fnv1a(after->rgba), "the scaled frame differs")) {
+        return 5;
+    }
+    bool scaled_painted = false;
+    for (std::size_t index = 0; index < scaled->rgba.size(); index += 4) {
+        if (scaled->rgba[index] != 11 || scaled->rgba[index + 1] != 18 ||
+            scaled->rgba[index + 2] != 32) {
+            scaled_painted = true;
+            break;
+        }
+    }
+    if (!expect(scaled_painted, "the scene paints at the scaled size")) {
+        return 5;
+    }
+
     std::cout << "app_window_capture: ok\n";
     return 0;
 }

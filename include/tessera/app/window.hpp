@@ -11,6 +11,10 @@
 #include <string>
 #include <vector>
 
+namespace tessera::ui {
+struct InputEvent;
+}
+
 namespace tessera::ui::text {
 class TextMeasurer;
 }
@@ -70,6 +74,11 @@ public:
 
     // Runs until the window closes. With max_frames > 0 it stops after that many presented frames.
     WindowFrameStats run(std::uint32_t max_frames = 0);
+
+    // Queues one normalized input event as if the platform had produced it; the next run() pumps
+    // and dispatches it through the same InputPump/InputRouter path as real OS input. Used by
+    // automation and tests that drive a window without a mouse/keyboard.
+    bool post_input(const ui::InputEvent& event);
 
     [[nodiscard]] const WindowFrameStats& stats() const;
     // The host the driver feeds; expose for tests and late root style changes. Reference is stable

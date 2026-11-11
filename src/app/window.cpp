@@ -6,6 +6,7 @@
 #include "tessera/rendering/rhi/swapchain.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
+#include "tessera/ui/input.hpp"
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "window_internal.hpp"
@@ -271,6 +272,13 @@ bool WindowHost::available() const {
 
 WindowFrameStats WindowHost::run(std::uint32_t max_frames) {
     return impl_->run(max_frames);
+}
+
+bool WindowHost::post_input(const ui::InputEvent& event) {
+    if (!impl_->available) {
+        return false;
+    }
+    return impl_->pump.queue().push(event);
 }
 
 const WindowFrameStats& WindowHost::stats() const {
