@@ -5,6 +5,7 @@
 
 #include "regenerate.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
+#include "tessera/compiler/ids/assign_identity.hpp"
 #include "tessera/compiler/ir/validate.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
@@ -155,7 +156,26 @@ Outcome run(const Options& options) {
             outcome.exit_code = 2;
             return outcome;
         }
-        sources.push_back(std::make_unique<SourceFile>(input, std::move(*text)));
+        // With a salt the path feeds the ids, so it is project-relative with POSIX separators and
+        // does not depend on the checkout location.
+        std::string path = input;
+        if (!options.salt.empty()) {
+            const fs::path root = options.root.empty()
+                                      ? fs::absolute(fs::path(options.inputs.front())).parent_path()
+                                      : fs::absolute(fs::path(options.root));
+            std::error_code relative_error;
+            const fs::path relative =
+                fs::relative(fs::absolute(fs::path(input)), root, relative_error);
+            if (relative_error || relative.empty() || *relative.begin() == "..") {
+                report(outcome, true,
+                       "tessera_codegen: `" + input + "` is outside the project root `" +
+                           root.generic_string() + "`");
+                outcome.exit_code = 2;
+                return outcome;
+            }
+            path = relative.generic_string();
+        }
+        sources.push_back(std::make_unique<SourceFile>(path, std::move(*text)));
     }
     for (const auto& source : sources) {
         if (!source->parses()) {
@@ -207,12 +227,22 @@ Outcome run(const Options& options) {
     module.components = std::move(lowered_module.components);
     module.bindings = std::move(lowered_module.bindings);
 
-    // Slice 10 computes componentId/uiId/automationId; until then the validator reports them as
+    if (!options.salt.empty()) {
+        const auto assigned = tessera::compiler::ids::assign_identity(module, options.salt);
+        if (!assigned) {
+            report(outcome, true, "tessera_codegen: " + assigned.error().message);
+            outcome.exit_code = 1;
+            return outcome;
+        }
+    }
+
+    // Without a salt nothing computes componentId/uiId/automationId; the validator reports them as
     // missing. They are the only documented diagnostics the CLI filters (docs/guides/
     // developer-workflow.md), and every other IR diagnostic still fails the run.
     const std::vector<ir::IrDiagnostic> all_diagnostics = ir::validate(module);
-    const auto deferred_identity = [](const ir::IrDiagnostic& diagnostic) {
-        if (diagnostic.code != "TESSERA_IR_MISSING_ID") {
+    const bool identity_assigned = !options.salt.empty();
+    const auto deferred_identity = [identity_assigned](const ir::IrDiagnostic& diagnostic) {
+        if (identity_assigned || diagnostic.code != "TESSERA_IR_MISSING_ID") {
             return false;
         }
         return diagnostic.message.find("componentId") != std::string::npos ||

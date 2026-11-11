@@ -186,6 +186,38 @@ int main(int argc, char** argv) {
     check(!fs::exists(work / "broken-out" / "Broken.cpp"),
           "a diagnostic produces no partial output");
 
+    // --salt assigns numeric automation ids; they depend on the salt and the project-relative path,
+    // not on where the project is checked out.
+    const fs::path project_a = work / "project-a";
+    const fs::path project_b = work / "deep" / "project-b";
+    fs::create_directories(project_a);
+    fs::create_directories(project_b);
+    fs::copy_file(sample_dir / "Demo.tsx", project_a / "Demo.tsx");
+    fs::copy_file(sample_dir / "Demo.tsx", project_b / "Demo.tsx");
+    const auto salted = [&](const fs::path& project, const fs::path& output, const char* salt) {
+        return run_cli(cli,
+                       "--write --out " + quoted(output) + " --namespace demo --salt " + salt +
+                           " --root " + quoted(project) + " " + quoted(project / "Demo.tsx"),
+                       log_dir);
+    };
+    check(salted(project_a, work / "salt-a", "factory") == 0, "a salted run exits 0");
+    check(salted(project_b, work / "salt-b", "factory") == 0, "a salted run elsewhere exits 0");
+    check(salted(project_a, work / "salt-c", "other") == 0,
+          "a salted run with another salt exits 0");
+    const std::string ids_a = read_file(work / "salt-a" / "Demo.cpp");
+    check(ids_a.find("set_automation_id(") != std::string::npos,
+          "a salted run gives every node its automation id");
+    check(ids_a == read_file(work / "salt-b" / "Demo.cpp"),
+          "the ids do not depend on the checkout location");
+    check(ids_a != read_file(work / "salt-c" / "Demo.cpp"), "another salt gives other ids");
+    check(read_file(out / "Demo.cpp").find("set_automation_id(") == std::string::npos,
+          "without a salt no ids are assigned");
+    check(run_cli(cli,
+                  "--write --out " + quoted(work / "salt-d") + " --salt factory --root " +
+                      quoted(project_a) + " " + quoted(project_b / "Demo.tsx"),
+                  log_dir) == 2,
+          "a salted input outside the root exits 2");
+
     // Usage errors exit 2.
     check(run_cli(cli, "", log_dir) == 2, "no arguments exits 2");
     check(run_cli(cli, "--out " + quoted(work / "no-input-out"), log_dir) == 2,

@@ -29,7 +29,8 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_parity_dir}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_parity_seed} ${_parity_dir}/Counter.cpp
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write
-            --out ${_parity_dir} --namespace parity_sample ${_parity_sample_dir}/Counter.tsx
+            --out ${_parity_dir} --namespace parity_sample --salt parity-demo
+            --root ${_parity_sample_dir} ${_parity_sample_dir}/Counter.tsx
     DEPENDS tessera_codegen_cli ${_parity_sample_dir}/Counter.tsx ${_parity_seed}
     COMMENT "Regenerating the preview-parity sample"
     VERBATIM)
@@ -40,7 +41,7 @@ target_link_libraries(tessera_parity_counter PUBLIC tessera_scene tessera_text_e
 
 add_executable(preview_parity_tests preview_parity_tests.cpp)
 target_link_libraries(preview_parity_tests PRIVATE
-    tessera_parity_runner tessera_parity_counter tessera_lowering)
+    tessera_parity_runner tessera_parity_counter tessera_lowering tessera_ir_ids)
 target_compile_definitions(preview_parity_tests PRIVATE
     TESSERA_PARITY_SAMPLE_DIR="${_parity_sample_dir}")
 add_test(NAME preview_parity COMMAND preview_parity_tests)

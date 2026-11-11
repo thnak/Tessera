@@ -1552,3 +1552,11 @@ add_executable(state_snapshot_tests
 target_include_directories(state_snapshot_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
 add_test(NAME state_snapshot COMMAND state_snapshot_tests)
+
+# Numeric identity assignment for the IR (docs/specs/automation-ids-v1.md sections 2-3).
+add_executable(ir_ids_tests
+    ir_ids_tests.cpp)
+
+target_link_libraries(ir_ids_tests PRIVATE tessera_ir_ids)
+
+add_test(NAME ir_ids COMMAND ir_ids_tests)
