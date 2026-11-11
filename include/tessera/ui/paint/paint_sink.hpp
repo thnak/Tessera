@@ -70,6 +70,8 @@ struct ImageDraw {
     std::uint32_t raster_height = 0;
     float scale = 0.0f;
     rhi::Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+    bool decode_original =
+        false; // decode at source size (zoom/edit); default is display size x DPR
 };
 
 // One resolved linear-gradient fill. Stops are clamped/sorted by the paint pass and each color's

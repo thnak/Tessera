@@ -54,11 +54,13 @@ struct PaintImageStyle {
     float scale = 0.0f;
     std::optional<rendering::rhi::Color> tint;
     float opacity = 1.0f;
+    // `Image decodeSize="original"`: decode at source size instead of display size x DPR.
+    bool decode_original = false;
 
     bool operator==(const PaintImageStyle& other) const {
         if (asset != other.asset || raster_width != other.raster_width ||
             raster_height != other.raster_height || scale != other.scale ||
-            opacity != other.opacity) {
+            opacity != other.opacity || decode_original != other.decode_original) {
             return false;
         }
         if (tint.has_value() != other.tint.has_value()) {

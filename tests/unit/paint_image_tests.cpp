@@ -6,6 +6,7 @@
 
 #include "tessera/ui/paint/clipped_paint_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/paint/vector_raster.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
@@ -307,6 +308,29 @@ bool damage_replay() {
     return ok;
 }
 
+bool decode_target_follows_the_draw() {
+    ImageDraw draw;
+    draw.rect = {0.0f, 0.0f, 200.0f, 150.0f};
+    // 200x150 logical on a 3x screen needs 600x450 pixels: buckets 768 and 512.
+    auto target = tessera::ui::paint::image_decode_target(draw, 3.0f);
+    bool ok = expect(target.width == 768 && target.height == 512, "content box x device scale");
+    draw.scale = 1.0f;
+    target = tessera::ui::paint::image_decode_target(draw, 3.0f);
+    ok = expect(target.width == 256 && target.height == 192, "an explicit scale wins") && ok;
+    draw.raster_width = 100;
+    draw.raster_height = 100;
+    target = tessera::ui::paint::image_decode_target(draw, 3.0f);
+    ok = expect(target.width == 128 && target.height == 128, "explicit extents win") && ok;
+    draw.raster_height = 0;
+    target = tessera::ui::paint::image_decode_target(draw, 3.0f);
+    ok = expect(target.width == target.height && target.width >= 192,
+                "one explicit extent keeps a square box at least as large as needed") &&
+         ok;
+    draw.decode_original = true;
+    target = tessera::ui::paint::image_decode_target(draw, 3.0f);
+    return expect(target.original(), "decodeSize=original decodes at source size") && ok;
+}
+
 } // namespace
 
 int main() {
@@ -315,6 +339,7 @@ int main() {
     ok = precedence_one_kind() && ok;
     ok = clipping_and_skips() && ok;
     ok = damage_replay() && ok;
+    ok = decode_target_follows_the_draw() && ok;
     if (!ok) {
         std::cerr << "paint_image: FAILED\n";
         return 1;

@@ -36,6 +36,7 @@ void paint_image_content(const Node& node, const style::ComputedStyle& style,
     draw.raster_width = payload.raster_width;
     draw.raster_height = payload.raster_height;
     draw.scale = payload.scale;
+    draw.decode_original = payload.decode_original;
     draw.tint = *tint;
     sink.draw_image(draw);
     ++stats.images;
