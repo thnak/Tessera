@@ -175,7 +175,7 @@ host                                   viewer
 | `project.load` | request | `config` (project configuration object), `files` (array of `{path, version, text}`), `assets` (array of `{path, version}`; bytes are fetched by the shell, not sent in JSON) | Replaces all viewer state; answered by `project.state` |
 | `source.update` | event | `files`: array of `{path, version, text}` | Section 7 |
 | `asset.update` | event | `assets`: array of `{path, version, url?}` | Font, image or theme asset changed; viewer reloads those assets and requests one frame. `url` is an opaque same-origin or `blob:` URL supplied by a host without an HTTP file origin (the studio); when absent the viewer fetches `GET /assets/<path>` |
-| `viewport.set` | event | optional `width`, `height`, `dpr`, `theme` (a theme id of the project: `default` or a key of the theme asset), `colorScheme` (`"light"` or `"dark"`, the value of `prefers-color-scheme`), `reducedMotion` (boolean), `safeAreas`, `foldPosture` | Sets the preview environment ([`designer.md`](../design/designer.md) section 8); omitted fields keep their value. `theme` is the value of `useTheme()` and `width` determines `useBreakpoint()` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1) |
+| `viewport.set` | event | optional `width`, `height`, `dpr`, `theme` (a theme id of the project: `default` or a key of the theme asset), `colorScheme` (`"light"` or `"dark"`, the value of `prefers-color-scheme`), `reducedMotion` (boolean), `locale` (a BCP-47 tag), `direction` (`"ltr"` or `"rtl"`), `textScale` (a number > 0, the user font-scale multiplier), `safeAreas`, `foldPosture` | Sets the preview environment ([`designer.md`](../design/designer.md) section 8); omitted fields keep their value. `theme` is the value of `useTheme()` and `width` determines `useBreakpoint()` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1) |
 | `pick.mode` | event | `enabled` (boolean) | Section 8.1 |
 | `selection.set` | request | one of: `node` (NodeRef), `source` (`{file, offset}`), `parent` (true), `none` (true) | Section 8.2; answered by `selection.set.result` |
 | `style.inspect` | request | `node` (NodeRef) | Answered by `style.info` (section 9.1) |
@@ -451,3 +451,6 @@ speaks `postMessage`, while the viewer still never reads project files
 - Picker modifiers: plain, `Alt`, repeated `Ctrl`/`Cmd` click up the ancestors.
 - Studio host: `postMessage` session from the page, `asset.update` with `url`, `theme.applied` after
   load and after a theme change, and a project imported from a zip.
+- `viewport.set` locale/direction/text scale: applied to text measurement and layout, omitted fields
+  keep their previous value, and an invalid tag or a non-positive `textScale` is rejected with
+  `TESSERA_DESIGNER_MALFORMED`.

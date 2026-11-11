@@ -64,8 +64,9 @@ The page shell (toolbar, file tree, editor, skin frame) is HTML and never Tesser
 preview failure cannot take down the editor. System chrome is simulated **outside** the engine: the
 skin frame is HTML/SVG around the canvas, tinted from the engine's resolved chrome record
 ([`window-chrome-v1.md`](../specs/window-chrome-v1.md)); the engine draws only the client area (desktop)
-or the edge-to-edge surface (mobile). The same engine also runs in Node over stdio for coding agents
-(`tessera-mcp`, section 8 of the studio spec).
+or the edge-to-edge surface (mobile). In `window.titleBar: "custom"` mode the framework title bar is
+engine content, so the studio hides the simulated bar and previews the engine-drawn one. The same
+engine also runs in Node over stdio for coding agents (`tessera-mcp`, section 8 of the studio spec).
 
 ## 3. IPC
 

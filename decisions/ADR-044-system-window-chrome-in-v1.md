@@ -1,6 +1,6 @@
 # ADR-044: Window chrome policy in V1: system by default, Windows client-side title bar opt-in
 
-Status: Proposed (revised 2026-11-11 after owner review; the original text deferred all client-side
+Status: Accepted (revised 2026-11-11 after owner review; the original text deferred all client-side
 decorations, and the owner chose to ship a Windows custom title bar early and to make the app shell
 framework-owned).
 

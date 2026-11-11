@@ -67,7 +67,8 @@ and using Tessera itself to render the studio's own chrome.
 
 The engine uses the builtin break-rule backend instead of the ICU reduced-data blob, and project
 fonts load from the project, not the bundle. The budget is measured by the studio smoke test and
-reported as a warning; whether it should be a hard CI gate is open (section 13).
+reported as a warning; the owner decided (2026-11-11) that it stays a warning in V1 and becomes a
+hard gate only after D-S5 is stable.
 
 ## 3. Page composition
 
@@ -103,19 +104,22 @@ to break its own editor; native text editing, file access, clipboard and accessi
 the browser; and the shell can show a diagnostic when the engine fails to boot, which a
 self-hosted editor could not.
 
-### 3.1 Three chrome layers
+### 3.1 Chrome layers
 
-The word "chrome" means three different things in the studio and the naming is normative:
+The word "chrome" means several different things in the studio and the naming is normative:
 
 | Layer | Owner | Drawn by | In the studio |
 |---|---|---|---|
 | Studio chrome | studio | HTML/CSS | toolbar, panels, tabs |
-| Simulated system chrome | OS in production, studio in preview | HTML/SVG skin | title bar, menu bar, status bar, navigation bar, cutout |
-| App chrome | the app | the engine | `AppBar`, toolbars inside the canvas |
+| Simulated system chrome | OS in production, studio in preview | HTML/SVG skin | title bar, menu bar, status bar, navigation bar, cutout, in `system` mode only |
+| Framework chrome | framework | the engine | `WindowChrome` title bar and window controls in `custom` mode; `AppBar` |
+| App chrome | the app | the engine | toolbars, bottom navigation, in-page headers |
 
-Only the third is produced by the engine. The first is never part of the preview. The second is a
-simulation whose geometry and colours must match production ([window-chrome-v1.md](window-chrome-v1.md));
-it is never an input to the previewed app's layout except through the insets it supplies.
+The last two are produced by the engine. The first is never part of the preview. The simulated system
+chrome is a simulation whose geometry and colours must match production
+([window-chrome-v1.md](window-chrome-v1.md)); it is never an input to the previewed app's layout
+except through the insets it supplies. In `custom` mode the framework title bar is engine content, so
+the studio shows it from the engine and hides the simulated one.
 
 ## 4. Host and viewer in one page
 
@@ -145,9 +149,13 @@ system chrome from the engine's resolved record.
 
 The engine always receives the same geometry production would give it:
 
-- **Desktop category**: the canvas is the client area. The skin draws the title bar (and macOS menu
-  bar) as a strip outside the canvas, exactly as the OS does; the viewer receives zero insets
-  ([window-chrome-v1.md](window-chrome-v1.md) section 6).
+- **Desktop category, `system` mode** (`window.titleBar: "system"`): the canvas is the client area.
+  The skin draws the title bar (and macOS menu bar) as a strip outside the canvas, exactly as the OS
+  does; the viewer receives zero insets ([window-chrome-v1.md](window-chrome-v1.md) section 6).
+- **Desktop category, `custom` mode** (`window.titleBar: "custom"`): the canvas is still the client
+  area, but the engine draws the framework `WindowChrome` at its top; the skin draws only the outer
+  bezel and adds no title strip. `viewport.set` height includes the bar, because the bar lives inside
+  the client area; the studio switches modes live when the config changes.
 - **Mobile category**: the canvas is the full display; the skin overlays the status bar, navigation
   bar and cutout on top of the canvas, and its insets are passed to the viewer as `safeAreas` in
   `viewport.set`, exactly as `WindowMetrics::insets` would arrive from the HAL.
@@ -193,8 +201,8 @@ Skins are data plus static art, never code. One directory per skin under the sit
   screen, negative size) rejects the skin with `TESSERA_STUDIO_SKIN` and it is not offered.
 - Bundled V1 skins: generic desktop window (Windows 11, macOS, Linux), generic phone (Android, iOS),
   generic tablet, generic foldable (book and tabletop postures). All art is original or
-  permissively licensed; vendor device art (Apple, Google, Samsung) is not redistributed
-  (open question 3). User-provided skins are not part of V1.
+  permissively licensed; vendor device art (Apple, Google, Samsung) is not redistributed, and
+  user-provided skins are not part of V1 (owner decision 2026-11-11: bundled skins only).
 
 ### 5.3 Presets and controls
 
@@ -213,18 +221,18 @@ V1 controls and their protocol mapping:
 | Preview scale (50/75/100/150/200%) | page zoom of the skin, not `dpr` | Keeps the engine at device density |
 | Theme and colour scheme | `viewport.set` `theme`, `colorScheme`; retint via `theme.applied` | Style cascade and simulated chrome |
 | Reduced motion | `viewport.set` `reducedMotion` | Animation policy |
-| Locale and direction | `viewport.set` extension (open question 6) | Text, RTL |
-| Text scale | `viewport.set` extension (open question 6) | Font scale |
+| Locale and direction | `viewport.set` `locale`, `direction` | Text, RTL |
+| Text scale | `viewport.set` `textScale` | Font scale |
 | Safe-area and cutout overlay | page-only overlay | Debug aid; excluded from screenshots |
 | Fold posture (foldables) | `viewport.set` `foldPosture` | Two-pane layout |
 | Freeze time | fixed clock in the viewer | Deterministic screenshots and animations |
 | Input injection (hover, press, click, type, key, scroll, touch) | viewer input path, same as the real runtime | Drives hooks and events |
+| Startup phase (P0/P2/P4) | viewer startup pipeline with a frozen stage | Loading screen, framework chrome and P2->P4 continuity (D-S9) |
 | Screenshot | page canvas readback (WebGPU `copyTextureToBuffer` + PNG) | Artifacts for review |
 | Pick mode | `pick.mode` | Selection from the preview |
 
 Deferred: multi-window split, picture-in-picture, network throttling/offline, memory-pressure and
-thermal simulation, animation timeline scrubbing, and startup-phase preview (freezing the engine at
-P2 or P4 of [startup-api-v1.md](startup-api-v1.md) to see the loading screen).
+thermal simulation, and animation timeline scrubbing.
 
 ## 7. Project load, edit and save
 
@@ -263,20 +271,22 @@ there is no third protocol to keep in sync.
 | `list_files` | host file tree | Files, kinds, versions |
 | `diagnostics` | `diagnostic` events | Compile errors with file/line/column |
 | `get_ir` | `project.state` + IR access | The lowered IR for a component (early mode) |
-| `apply_edits` | `source.patch` TextEdits | Apply edits in memory, or on disk with `write: true` |
-| `set_viewport` | `viewport.set` | Device size, DPR, theme, safe areas, fold |
+| `apply_edits` | `source.patch` TextEdits | Apply edits in memory by default; `write: true` writes them to the project directory |
+| `set_viewport` | `viewport.set` | Device size, DPR, theme, locale, safe areas, fold |
 | `snapshot` | harness `snapshot` | Node tree, bounds, roles, text, focus |
 | `query_style` | `style.inspect` | Computed style, matched rules, layout box |
 | `pick` | `selection.set` by point | Node at a coordinate |
-| `screenshot` | software render | PNG of the scene (see open question 4) |
+| `screenshot` | native headless renderer (Dawn/Vulkan, GPU) | PNG of the scene; best-effort visual, never a golden |
 | `run_script` | harness script (`launch`/`click`/`assert`/...) | End-to-end checks with a report |
 
 - **Early milestone**: compile-only mode. Before the evaluator and layout exist, the server supports
   `open_project`, `list_files`, `diagnostics` and `get_ir`; an agent can validate TSX/CSS against the
   real front end while the app is still being built. This is the first shippable MCP slice.
 - **Determinism**: fixed clock and DPI, bundled OFL test fonts unless the project supplies fonts, no
-  network, canonical JSON outputs, and pixel outputs only where the renderer is deterministic
-  ([golden-tests-v1.md](golden-tests-v1.md)).
+  network, and canonical JSON for the structural and tool outputs. `screenshot` runs the native
+  headless renderer (Dawn or Vulkan) because the Wasm module has no GPU context in Node; its pixels
+  are best-effort visual evidence, never goldens, and CI skips GPU screenshots unless a device is
+  provisioned ([golden-tests-v1.md](golden-tests-v1.md)).
 - **Security**: stdio only (no listener), local paths only, no shell execution, project files are
   untrusted, and the server never edits C++ or files outside the project.
 
@@ -314,13 +324,20 @@ there is no third protocol to keep in sync.
   change retints without reload, invalid skin rejected with `TESSERA_STUDIO_SKIN`.
 - Host loop: edit → diagnostic → frame, monotonic versions, save, download-zip round trip, dirty
   state, File System Access fallback path.
-- Chrome preview: simulated bars use the `theme.applied` record; desktop canvas excludes the title
-  bar; mobile canvas includes it as an overlay and the viewer gets matching insets.
+- Chrome preview: simulated bars use the `theme.applied` record; desktop `system` mode excludes the
+  title bar from the canvas; `custom` mode draws the framework bar in the engine and hides the
+  simulated one, and the content area starts below it; mobile canvas includes the bars as overlays
+  and the viewer gets matching insets.
+- Startup preview: freeze at P2 shows the framework chrome plus the loading subtree, freeze at P4
+  shows the app UI; no frame is frameless in `custom` mode.
 - Security: oversized file, zip-slip and absolute paths, non-UI file open, CSP, no cross-origin
   request.
-- Budgets: compressed download and TTI recorded per build; a regression warns.
+- Budgets: compressed download and TTI recorded per build; a regression warns (owner decision: not a
+  gate in V1).
 - MCP: tool JSON schemas, error shape, determinism, cancellation, and the compile-only milestone on
-  a corpus of valid/invalid TSX.
+  a corpus of valid/invalid TSX. Screenshot runs only on the GPU lane and is skipped otherwise.
+- Startup phase freeze: stage ids match the startup spec; the same snapshot is produced twice from
+  the same input.
 - Browser matrix: current Chrome/Edge/Firefox/Safari; the unsupported page for no WebGPU.
 
 ## 12. Slices
@@ -334,30 +351,34 @@ there is no third protocol to keep in sync.
 | D-S5 | Wasm CI build and GitHub Pages deployment; smoke gate; budgets | deployed URL serves the current build id |
 | D-S6 | MCP compile-only server (`open_project`, `diagnostics`, `get_ir`) | agent can validate TSX from stdio |
 | D-S7 | MCP snapshot/style/pick/screenshot; harness script tool | deterministic results on the corpus |
-| D-S8 | Deferred simulation controls and startup-phase preview | as decided |
+| D-S8 | Remaining simulation controls (multi-window, PiP, animation timeline) | as decided |
+| D-S9 | Startup-phase preview: freeze at P0/P2/P4, render framework chrome and the loading subtree, startup diagnostics in the panel | stage freeze + loading-screen golden; needs startup S3/S5 and D-S3 |
 
-Prerequisites: D-S2 to D-S7 need the Wasm engine build, the WebGPU backend and the IR evaluator
+Prerequisites: D-S2 to D-S9 need the Wasm engine build, the WebGPU backend and the IR evaluator
 (Big Step D items that do not exist yet: `designer/web` and `rendering/backend/webgpu` are
 placeholders). D-S5 can land before D-S2 as a "diagnostics-only" page: the front end is enough to
-validate TSX in the browser, which gives the hosted URL value early.
+validate TSX in the browser, which gives the hosted URL value early. D-S9 additionally needs the
+startup pipeline of [startup-api-v1.md](startup-api-v1.md) slices S3 and S5 compiled to Wasm, so it
+can only follow the startup work; it is planned, not parallel.
 
-## 13. Open questions
+## 13. Decisions and open questions
 
-1. Are the size and time-to-interactive budgets of 2.3 hard CI gates or warnings? What is the
-   acceptable first-paint for a designer page?
-2. Worker model: `OffscreenCanvas` + WebGPU in a worker (Chromium) with a main-thread fallback, or
-   accept the main thread everywhere for one code path? The fallback needs a visible degraded badge.
-3. Skin art licensing and user-supplied skins: bundled original art only in V1, or a zip-imported
-   skin format with validation?
-4. MCP `screenshot`: the Wasm software rasterizer (deterministic, slower), headless Dawn (needs a
-   GPU driver), or no pixels in V1 with snapshots only?
-5. MCP `apply_edits`: default to in-memory with an explicit `write: true`, or always write to the
-   project directory like a normal host?
-6. Locale, text direction and text scale are not in `viewport.set` today; extend the protocol, or
-   reuse `project.load` config? (Extending is a minor protocol change.)
-7. Is GitHub Pages the only supported hosting, or does the design keep a second header-capable host
-   (Cloudflare Pages/Netlify) for threads and cross-origin isolation later?
-8. Startup-phase preview: should the studio be able to freeze the engine at P0/P2 to inspect the
-   loading screen and chrome, or is the mounted UI the only preview in V1?
-9. Does the studio ship a "native parity" mode that renders the same scene through the native
-   software path and diffs it, or does parity stay a CI-only concern?
+Owner decisions recorded 2026-11-11: budgets are CI warnings, not gates, in V1; `OffscreenCanvas` +
+WebGPU in a worker with a visible main-thread fallback; bundled skins only; MCP screenshots come
+from the native headless renderer (GPU), not the Wasm module; `apply_edits` defaults to in-memory
+with an explicit `write: true`; the studio previews startup phases P0/P2/P4 in V1; `viewport.set`
+gains `locale`, `direction` and `textScale`; GitHub Pages is the only host in V1; native parity stays
+a CI concern.
+
+Open questions (no decision yet):
+
+1. Concrete budget numbers and the first-paint target for the designer page; when the warnings turn
+   into gates.
+2. Which browsers must run the fallback path, and whether the fallback may use the CPU rasterizer
+   instead of WebGPU.
+3. The bundled skin and preset list: how many devices, which postures, and how much art ships.
+4. GPU screenshot requirements for MCP: Dawn bindings in Node versus spawning the native `tessera`
+   headless renderer, and how CI behaves without a GPU.
+5. Startup preview fidelity: which stages are pinnable, whether it runs the real `AppHost` or a
+   reduced stage machine, and how fixtures pin a frozen stage.
+6. MCP tool naming, published JSON Schema, and versioning policy for the tool surface.

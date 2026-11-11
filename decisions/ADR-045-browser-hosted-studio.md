@@ -1,6 +1,8 @@
 # ADR-045: Browser-hosted designer studio and a stdio MCP adapter
 
-Status: Proposed (2026-11-11).
+Status: Accepted (2026-11-11; owner selected the browser-hosted studio, page-as-host, bundled skins,
+worker with main-thread fallback, warning budgets, GPU screenshots for MCP, and in-V1 startup-phase
+preview).
 
 ## Context
 
@@ -43,7 +45,10 @@ the studio must show it without turning the engine into a window manager.
    bars are HTML/SVG around or over the canvas; the engine receives the production geometry (desktop
    client area with zero insets, mobile edge-to-edge with `safeAreas`). The skin is data plus static
    art; chrome colours come from the engine's resolved `{background, foreground, scheme}` record via
-   a new `theme.applied` event, so preview chrome and production chrome cannot drift.
+   a new `theme.applied` event, so preview chrome and production chrome cannot drift. In
+   `window.titleBar: "custom"` mode the title bar is framework chrome drawn by the engine inside the
+   canvas ([ADR-044](ADR-044-system-window-chrome-in-v1.md)); the studio then hides the simulated bar
+   and previews the engine-drawn one.
 5. **Single-threaded Wasm on GitHub Pages.** No custom headers means no `SharedArrayBuffer` and no
    Wasm threads. Work off the main thread uses Web Workers and transferable buffers. If threads
    become necessary, the project either adopts a cross-origin-isolation service worker or moves the
@@ -51,10 +56,16 @@ the studio must show it without turning the engine into a window manager.
 6. **MCP is a thin adapter, not a third protocol.** `tessera-mcp` runs the same engine in Node over
    stdio and maps each tool to a [headless-automation-v1.md](../docs/specs/headless-automation-v1.md)
    command or a designer-protocol message. A compile-only mode (`open_project`, `diagnostics`,
-   `get_ir`) ships before the evaluator, so agents get value early.
+   `get_ir`) ships before the evaluator, so agents get value early. Structural outputs stay
+   deterministic in the Wasm module; `screenshot` uses the native headless renderer (Dawn or Vulkan)
+   because the Wasm module has no GPU context in Node, and those pixels are best-effort visual
+   evidence, never goldens.
 7. **No vendor device art and no user code in the shell.** Bundled skins are original or
    permissively licensed; project files stay in the browser; user code is IR only, never JavaScript
    (ADR-024, ADR-036).
+8. **Startup phases are previewable in V1.** The studio can freeze at P0/P2/P4 to show the loading
+   screen, the framework chrome and the P2 -> P4 continuity (slice D-S9). It runs the startup pipeline
+   compiled to Wasm, so it lands after startup slices S3/S5, not in parallel with them.
 
 ## Alternatives
 
@@ -86,5 +97,8 @@ the studio must show it without turning the engine into a window manager.
 - Skins are a new art and data asset class with licensing rules; vendor device art is excluded.
 - MCP gives agents an early path but also creates a second consumer of the engine's determinism and
   error contracts; the harness and designer specs stay the single source.
+- GPU screenshots add a driver requirement to the MCP lane; CI skips them without a device, and the
+  structural path remains the tested one.
+- Startup-phase preview couples the studio to the startup work (S3/S5); D-S9 is sequenced after it.
 - `designer/web` and `rendering/backend/webgpu` are placeholders today; this ADR changes the target
   of Big Step D, not the amount of work already done.
