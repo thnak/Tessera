@@ -51,6 +51,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule) | Accepted |
 | [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (would supersede ADR-008) | Proposed |
 | [ADR-041](ADR-041-layout-observation.md) | Layout observation (`onSizeChange`), a layout read model, and container queries second | Accepted |
+| [ADR-043](ADR-043-component-library-layers-and-design-language.md) | Component library layers, theme versioning, "Instrument" design language and coverage (would amend ADR-032) | Proposed |
 
 ## Dependency overview
 
@@ -86,6 +87,7 @@ ADR-032 component library/design tokens (product layer)
 ADR-033 gap resolutions (cross-cutting: text/scroll/overlay/forms/nav/restore/shell/i18n/a11y/data/production)
 ADR-034 interaction/overscroll animation (visual state, platform profiles, spring-back)
 ADR-041 layout observation (accepted) ── ADR-020 resize, ADR-018 dirty rendering, ADR-016 stylesheet
+ADR-043 component library layers/design language (proposed) ── ADR-032 component library, ADR-016 stylesheet
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.
