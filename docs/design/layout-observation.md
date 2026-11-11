@@ -1,6 +1,6 @@
 # Layout observation: size changes, layout reads, and container queries
 
-Status: design only (proposed in [ADR-041](../../decisions/ADR-041-layout-observation.md)).
+Status: design only (accepted in [ADR-041](../../decisions/ADR-041-layout-observation.md)).
 Nothing here is implemented. Written 2026-11-11 in answer to "is there a component listener for
 size changes, like the DOM `ResizeObserver`?". Builds on
 [ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (window resize and lifecycle),
@@ -438,7 +438,12 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
 8. **Container queries**: `container-type`/`container-name`, `@container` evaluation as an
    engine observer inside the settle round; update `stylesheet-v1.md` and `responsive.md`.
 
-## 10. Open questions for the owner
+## 10. Owner decisions
+
+Decided 2026-11-11: the owner accepted every recommendation below as written (event name
+`onSizeChange`, same-tick settle with 4 rounds, keep waking plus diagnostic on oscillation, size
+only, observer before container queries, equality-gated setters by default, `field-sizing: content`).
+The table is kept as the record of the options considered.
 
 | # | Question | Options | Recommendation |
 |---|---|---|---|

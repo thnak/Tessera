@@ -340,7 +340,7 @@ monitor-derived ladder step above, not on `renderScale`.
 - Safe-area APIs for Android/macOS (both backends are unscheduled; macOS per ADR-010, Android in Big Step F).
 - Whether to expose a declarative `onResize`/`ResizeObserver` API or keep it internal. Register
   answer: keep it internal until container queries ship. Superseded by proposal:
-  [ADR-041](../../decisions/ADR-041-layout-observation.md) (Proposed) adds a post-layout `onSizeChange`
+  [ADR-041](../../decisions/ADR-041-layout-observation.md) (Accepted) adds a post-layout `onSizeChange`
   observer and a layout read model first ([`layout-observation.md`](layout-observation.md)).
 - ~~Fractional scaling + text rasterization on mixed-DPI multi-monitor setups.~~ Decided: the
   device scale quantizes onto the 1.0/1.25/1.5/2.0 ladder (nearest, ties up, clamped) and each

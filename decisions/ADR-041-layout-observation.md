@@ -1,8 +1,8 @@
 # ADR-041: Layout observation, a layout read model, and container queries second
 
-- Status: Proposed
+- Status: Accepted (owner accepted all seven recommendations in the design note, 2026-11-11)
 - Date: 2026-11-11
-- Revises (when accepted): the open-questions register entry `design/window-resize.md#4` ("no
+- Revises: the open-questions register entry `design/window-resize.md#4` ("no
   public `onResize`/`ResizeObserver` until container queries ship"). [ADR-020](ADR-020-window-resize-and-lifecycle.md)
   itself is not superseded: its section 1 stays in force.
 - Related: [ADR-005](ADR-005-yoga-layout-adapter.md) (Yoga layout),
