@@ -224,13 +224,73 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
 ### 6.5 CLI skeleton (implemented)
 
 `tessera test` and `tessera headless` parse the documented commands, modes, and flags, and
-`--help` / `--version` work. `--script` is recognized but rejected with exit code `2` and an
-explicit not-implemented diagnostic until the script runner lands, as are a missing `--script`
-for `test`, a missing `--mode` for `headless`, unknown modes or options, and empty option values.
-The executable stays out of the default build (`EXCLUDE_FROM_ALL`) until that runner exists.
+`--help` / `--version` work. `--script` is recognized and still rejected with exit code `2` and an
+explicit diagnostic because the process has no `AutomationHost` to build a handler from: the script
+runner is a library seam (6.6), not yet wired behind a command. A missing `--script` for `test`, a
+missing `--mode` for `headless`, unknown modes or options, and empty option values are rejected the
+same way. The executable stays out of the default build (`EXCLUDE_FROM_ALL`) until that wiring
+exists.
 
-Still pending for the full section: the script runner behind `tessera test` / `tessera headless`,
-the fake HAL, and the UI runtime wiring behind `AutomationHost`.
+### 6.6 Script runner (implemented)
+
+`script.hpp` owns the section 4 document and `script_runner.hpp` executes it against the same
+`CommandHandler` seam as the line protocol.
+
+- **Format.** One JSON object with a closed member set: required `scriptVersion` (exactly 1;
+  missing is `malformedScript` and any other value `unsupportedVersion`), optional `profile`
+  (`width`/`height` 1..16384, `scale` in (0, 8], `locale` at most 64 bytes), optional `app`
+  (`config` is a safe relative path), and required `steps` (at most 256). A script is untrusted
+  input: parsing is all-or-nothing, so a bad step rejects the document before the first host
+  command runs.
+- **Steps.** v1 executes `click`, `type`, `focus`, `scroll`, `snapshot`, `trace`, and `audit`.
+  `type` is the section 4 name for the `setValue` command. `uiId` must be a canonical decimal
+  string (the protocol's small-integer convenience is not accepted for script input) and `itemKey`
+  an optional non-empty string of at most 256 bytes. `timeoutMs` is 1..60000. Unknown members are
+  rejected, not ignored. `snapshot` takes optional `includeHidden` and `path`; `trace`/`audit` take
+  an optional `path`, where empty means the section 5 default name; `audit` requires `profile`. The
+  other section 4 actions (lifecycle, `waitFor`, `assert*`, `screenshot`, custom-element,
+  navigation, and overlay actions) parse as `unsupportedAction` because `AutomationHost` does not
+  expose the capabilities they need; they are never skipped silently.
+- **Execution.** `ScriptRunner::pump()` makes at most one synchronous `CommandHandler::handle` call,
+  so a host can drive it from a `RuntimeLoop` tick. Commands stay serialized; the runner owns no
+  thread and never waits, sleeps, polls, or reads a wall clock. It fails fast at the first failing
+  step, and the report keeps the steps that ran.
+- **Bounds.** `ScriptBudget` caps `max_steps` (default 256), a per-step `step_timeout_us` (default
+  5 s, narrowed by a step's `timeoutMs`), and an optional whole-run `run_timeout_us`. Time comes
+  only from the injected `SessionClock`: a step whose deadline passed before dispatch is answered
+  `stepTimeout` without a handler call, and a handler whose simulated elapsed time overruns the
+  budget has its result replaced with `stepTimeout`, mirroring 6.3. `cancel()` stops at the next
+  pump. Stable codes: `malformedScript`, `unsupportedVersion`, `unknownAction`,
+  `unsupportedAction`, `invalidStep`, `scriptTooLarge`, `stepCapExceeded`, `stepTimeout`,
+  `runTimeout`, `cancelled`, `handlerError`, `artifactError`, and `internal`; a handler failure also
+  carries its protocol error code.
+- **Artifacts.** A `snapshot` step with a `path` writes the canonical snapshot object through the
+  `ArtifactSink` under the 6.4 path/cap rules; without a path the document is embedded in that
+  step's result. `trace` and `audit` report the path their handler wrote.
+- **Report.** `encode_script_report` emits canonical JSON with `scriptVersion`, `passed`,
+  `cancelled`, `elapsedUs`, `stepsRun`, `stepsTotal`, `steps`, and an optional run-level `error`.
+  Each step carries `index`, `action`, `uiId`/`itemKey` when targeted, `ok`, `elapsedUs`, either
+  `result` or an `error` object (script code, message/detail, `step`, and `protocolCode` when a
+  command failed), and `artifact` when a file was written.
+
+### 6.7 Fake HAL (test-only, implemented)
+
+`tests/unit/harness/fake_hal.hpp` builds into `tessera_harness_testing`, which no shipping target
+links. It provides the section 2 platform edges as deterministic doubles:
+
+- `FakeWindow` implements `hal::Window`: normalized `WindowMetrics` (logical/physical pixels, DPI
+  scale, insets, focus, occlusion, minimized), oldest-first `poll_events`, and scripted
+  `resize`/`set_dpi_scale`/`set_focused`/`set_occluded`/`set_minimized`/`push_event`/`close`.
+  A resize derives physical pixels from the logical size and DPI scale. `wait_for_events` never
+  sleeps: it reports whether an event is already queued. The queue is capped at 64 events; the
+  oldest is dropped and counted.
+- `ManualClock` implements `SessionClock`: time starts at 0 (or an explicit start), moves only
+  through `advance_us`/`advance_ms`, and saturates instead of wrapping, so runner budgets and step
+  durations are reproducible.
+- It opens no OS window, device, or swapchain and starts no thread.
+
+Still pending for the full section: the CLI wiring that supplies an `AutomationHost`, and the UI
+runtime wiring behind `AutomationHost` (the script runner and fake HAL are in tree; see 6.6, 6.7).
 
 ## 7. Determinism
 
@@ -261,6 +321,8 @@ the fake HAL, and the UI runtime wiring behind `AutomationHost`.
 ## 10. Tests of the harness
 
 - Script parsing/validation and unknown actions.
+- Script runner and fake HAL: a happy path over the handler seam, the step-count cap, a per-step
+  budget overrun, a malformed step, cancellation, and scripted metrics/events/clock stepping.
 - Stdio adapter rules: WouldBlock vs. EOF, a final unterminated line, partial writes and queued
   retry, the line cap, and typed framing rejections that keep their stream position.
 - Session behavior over a fake transport: every command answered, decode errors, timeout before
