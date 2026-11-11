@@ -1271,6 +1271,19 @@ target_link_libraries(lowering_module_determinism_tests PRIVATE
 
 add_test(NAME lowering_module_determinism COMMAND lowering_module_determinism_tests)
 
+# Field/Form are authored as real TSX sources (issue #70): the two files under tessera/components/
+# are compiled through the ordinary front end and pinned against the hand-built IR of
+# make_library_component(), so the sources and the compiler cannot drift.
+add_executable(library_tsx_parity_tests
+    library_tsx_parity_tests.cpp)
+
+target_link_libraries(library_tsx_parity_tests PRIVATE tessera_lowering)
+
+target_compile_definitions(library_tsx_parity_tests PRIVATE
+    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/tessera/components")
+
+add_test(NAME library_tsx_parity COMMAND library_tsx_parity_tests)
+
 add_executable(paint_pass_tests
     paint_pass_tests.cpp)
 
