@@ -77,8 +77,13 @@ void collect_boxes(YGNodeRef node, const LayoutInput& input, float parent_x, flo
     const float top = YGNodeLayoutGetTop(node);
     const float x = parent_x + left;
     const float y = parent_y + top;
+    const auto inset = [node](YGEdge edge) {
+        return YGNodeLayoutGetPadding(node, edge) + YGNodeLayoutGetBorder(node, edge);
+    };
     result.boxes.push_back(LayoutBox{
-        input.id, rhi::Rect{x, y, YGNodeLayoutGetWidth(node), YGNodeLayoutGetHeight(node)}});
+        input.id, rhi::Rect{x, y, YGNodeLayoutGetWidth(node), YGNodeLayoutGetHeight(node)},
+        LayoutInsets{inset(YGEdgeLeft), inset(YGEdgeTop), inset(YGEdgeRight),
+                     inset(YGEdgeBottom)}});
 
     for (std::size_t i = 0; i < input.children.size(); ++i) {
         collect_boxes(YGNodeGetChild(node, i), input.children[i], x, y, result);

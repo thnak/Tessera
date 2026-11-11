@@ -33,9 +33,22 @@ struct LayoutViewport {
     float dpi_scale = 1.0f;
 };
 
+// Resolved padding plus border on each side, in logical pixels: the distance from the border box
+// to the content box (docs/design/layout-observation.md section 5.3).
+struct LayoutInsets {
+    float left = 0.0f;
+    float top = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
+
+    bool operator==(const LayoutInsets&) const = default;
+};
+
 struct LayoutBox {
     std::uint64_t id = 0;
     rhi::Rect bounds;
+    // Border box is `bounds`; the content box is `bounds` inset by these.
+    LayoutInsets content_insets = {};
 };
 
 struct LayoutResult {
