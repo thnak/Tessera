@@ -63,8 +63,10 @@ The B3 seams now have real Windows and Linux/X11 implementations:
   and submits each frame with `submit_async` over a two-slot ring. Still pending: Wayland,
   real-GPU-reset validation of device loss (the minimal D7 recovery path in
   [§7](#7-device-loss-d7) and [`gpu/backends.md`](gpu/backends.md#81-device-loss-d7) is
-  implemented), a render-on-demand loop fed by a real scene, and full OS compliance
-  beyond the messages handled here. The platform rules in §4 describe the target behavior.
+  implemented, and the app window driver now recovers within a bounded budget instead of ending the
+  run - [§7.2](#72-app-window-recovery-windowhost)), a render-on-demand loop fed by a real scene,
+  and full OS compliance beyond the messages handled here. The platform rules in §4 describe the
+  target behavior.
 
 Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe the target):
 
@@ -324,7 +326,8 @@ monitor-derived ladder step above, not on `renderScale`.
 - Swapchain seam: null-backend descriptor validation, image rotation, out-of-date resize,
   configurable timeout, and missing/duplicate/out-of-range present rejection.
 - Device loss: injected loss from submit/fence-wait/acquire, generation invalidation, one-shot
-  recovery, rendering after recreation, and the failure path (see §7).
+  recovery, rendering after recreation, and the failure path (see §7). The window driver adds a
+  deterministic attempt-budget policy test and a real hidden-window GPU test (§7.2).
 - Live-resize storms: coalescing, one resize frame per tick, no unbounded queue.
 - In-flight frames: old swapchain retirement, no use-after-free, no validation errors.
 - Style/layout: viewport/media/container re-evaluation, text reflow, percentages/flex/grid.
@@ -434,3 +437,56 @@ Measured locally (AMD RX 5300M, validation on): `--msaa 4` = 3/3 frames presente
 must be byte-identical (and a repeat run matches), a 4x frame renders through its resolved image when
 supported, and a simulated loss recovered by the controller must render the pre-loss pixels again.
 It skips cleanly without Vulkan, test hooks, or the fixture font, and fails on any `[vulkan]` line.
+
+### 7.2 App window recovery (`WindowHost`)
+
+The production window driver ([`include/tessera/app/window.hpp`](../../include/tessera/app/window.hpp))
+attaches a `runtime::DeviceRecoveryController` to its `RuntimeLoop` and recovers instead of ending
+the run. The caller side of one loss:
+
+1. **Blocked** (`RuntimeTick::device_blocked`, or a frame whose acquire/present reported
+   `SwapchainError::DeviceLost`): no frame is begun or presented. The first blocked tick of a loss
+   releases the lost generation - the in-flight command lists first (closed out without polling: a
+   lost device never signals its fences, so polling would spin the UI thread) and then the sink,
+   renderer, text stack (glyph-atlas textures included), white texture, pipeline and swapchain. The
+   driver then parks on the bounded platform wait, so recovery never spins.
+2. **Recovered** (`RuntimeTick::device_recovered`): the device is healthy again. The driver recreates
+   the whole presentation stack for the window's *current* metrics: swapchain (image count and
+   `WindowOptions::vsync`), the 2D pipeline for the swapchain's format, the white texture, the
+   `Batched2DRenderer` (two frames in flight), the `TextStack` (face, rasterizer, shaper, atlas) and
+   the `Batched2DSink`, then calls `RuntimeLoop::mark_render_dirty()` so the next frame is a full
+   repaint - the damage plan and scissor state described the lost swapchain generation.
+3. **Failed** (`RuntimeTick::device_failed`): the backend's one-shot in-place `recover()` is spent,
+   so the driver replaces the RHI device object itself (`detail::create_device()`), reattaches the
+   controller to the new device and recreates the stack. The platform window outlives every device
+   generation, so its native surface handle, the input queue (`Window::set_input_queue`) and the
+   accessibility root seam stay valid; the queue is re-asserted after a recovery.
+
+Attempt budget (explicit, [`include/tessera/app/recovery_policy.hpp`](../../include/tessera/app/recovery_policy.hpp)):
+`kMaxDeviceRecoveryAttempts = 3` per `run()`. Each release/recovery cycle and each device rebuild
+charges one attempt; when the budget is spent - or a rebuild cannot create a device or a swapchain -
+the run stops through `FrameFailureGuard` (`stats.stalled == true`,
+`stats.device_state == WindowDeviceState::Lost`). The budget is per `run()` invocation, not per loss,
+so a caller that retries `run()` starts a fresh bounded sequence.
+
+Nothing device-wide is waited on from the UI thread: no `Device::wait_idle()`. The only device-wide
+wait is the backend's own teardown inside `recover()` (its simulated-loss path), and the driver's
+in-flight drain is a bounded per-list poll that is skipped entirely once the device is lost.
+
+What the caller sees (`WindowFrameStats`):
+
+| Field | Meaning |
+|---|---|
+| `recovered` | successful recoveries in this run (each recreated the presentation stack) |
+| `recovery_attempts` | attempts charged against the budget |
+| `device_state` | `Ready`, `Lost` or `Unavailable` when `run()` returned |
+| `stalled` | the run gave up; `device_state` is `Lost` |
+
+Tests: `tests/unit/app_recovery_policy_tests.cpp` (ctest `app_recovery_policy`) drives the policy
+deterministically - a transient loss releases once and recovers, a persistent loss lands exactly on
+the budget and gives up, a zero budget gives up immediately. `tests/gpu/app_window_recovery_tests.cpp`
+(ctest `app_window_recovery`) injects one `DeviceLostOnAcquire` fault through the Vulkan backend's
+fault seam on a real hidden window, runs two frames and asserts the run recovered, presented,
+reported `Ready`, stayed inside the budget and kept presenting afterwards. It skips without a window
+backend, the Vulkan backend or the fault hooks. Real driver resets (a dead `VkDevice`, not a
+simulated one) remain unproven without hardware fault injection.

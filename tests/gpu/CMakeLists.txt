@@ -431,5 +431,35 @@ if (TARGET tessera_app_window)
         set_tests_properties(app_window_input PROPERTIES
             SKIP_REGULAR_EXPRESSION "skipped")
     endif()
+
+    # Device-loss recovery on the real window path: one injected device-lost fault, release of the
+    # lost generation, recovery through the runtime controller, a recreated device + presentation
+    # stack, and frames presented afterwards. Needs the backend fault-injection seam.
+    if (TESSERA_VULKAN_TEST_HOOKS)
+        add_executable(app_window_recovery_tests
+            app_window_recovery_tests.cpp)
+        target_include_directories(app_window_recovery_tests PRIVATE
+            ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/src
+            ${PROJECT_SOURCE_DIR}/third_party/volk
+            ${PROJECT_SOURCE_DIR}/third_party/vma)
+        target_compile_definitions(app_window_recovery_tests PRIVATE
+            VK_NO_PROTOTYPES
+            TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+        if (WIN32)
+            target_compile_definitions(app_window_recovery_tests PRIVATE
+                VK_USE_PLATFORM_WIN32_KHR)
+        elseif (TESSERA_X11_FOUND)
+            target_compile_definitions(app_window_recovery_tests PRIVATE
+                VK_USE_PLATFORM_XLIB_KHR)
+            target_link_libraries(app_window_recovery_tests PRIVATE X11::X11)
+        endif()
+        target_link_libraries(app_window_recovery_tests PRIVATE
+            tessera_app_window
+            tessera_rhi_vulkan)
+        add_test(NAME app_window_recovery COMMAND app_window_recovery_tests)
+        set_tests_properties(app_window_recovery PROPERTIES
+            SKIP_REGULAR_EXPRESSION "skipped"
+            FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+    endif()
 endif()
 

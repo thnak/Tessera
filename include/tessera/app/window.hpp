@@ -12,6 +12,10 @@
 #include <string>
 #include <vector>
 
+namespace tessera::rendering::rhi {
+class Device;
+}
+
 namespace tessera::ui {
 struct InputEvent;
 }
@@ -39,6 +43,15 @@ struct WindowOptions {
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
 };
 
+// Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
+// a host that never had a presentation surface) from a run that stopped because a lost device could
+// not be recovered (Lost; run() also sets WindowFrameStats::stalled).
+enum class WindowDeviceState {
+    Unavailable,
+    Ready,
+    Lost,
+};
+
 // Counters of one run() call; a skipped run (no window backend or no presentation surface) reports
 // available == false and zero frames.
 struct WindowFrameStats {
@@ -48,6 +61,12 @@ struct WindowFrameStats {
     std::uint32_t presented = 0;
     std::uint32_t idle_waits = 0;
     std::uint32_t input_events = 0;
+    // Bounded device-loss recovery (docs/design/window-resize.md section 7): successful recoveries
+    // in this run, attempts charged against the budget (app/recovery_policy.hpp), and the final
+    // health.
+    std::uint32_t recovered = 0;
+    std::uint32_t recovery_attempts = 0;
+    WindowDeviceState device_state = WindowDeviceState::Unavailable;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the
@@ -60,6 +79,12 @@ struct WindowFrameStats {
 // asks for a frame that changed. `run(max_frames > 0)` forces that many frames (CI smoke) even when
 // nothing is dirty. The loop never waits on the GPU; teardown drains the submitted lists with a
 // bounded per-list poll, and a host can run() again (the input queue is reattached on entry).
+//
+// A lost device does not end the run: the driver releases the lost generation, lets the runtime's
+// DeviceRecoveryController attempt recovery, rebuilds the device when that is spent, and recreates
+// the swapchain, renderer, glyph atlas and sink for the current window metrics before repainting a
+// full frame. The attempt budget is app/recovery_policy.hpp; when it is spent (or the presentation
+// stack cannot be rebuilt) run() returns with stats.stalled and stats.device_state == Lost.
 //
 // One window per host (docs/design/app-host.md section 5). The host is single-threaded and must be
 // created, run and destroyed on the same thread as the window.
@@ -98,6 +123,14 @@ public:
     // The host the driver feeds; expose for tests and late root style changes. Reference is stable
     // for the WindowHost lifetime.
     [[nodiscard]] AppHost& host();
+
+#if defined(TESSERA_VULKAN_TEST_HOOKS)
+    // Test seam, compiled only when the backend's fault-injection hooks are on: the live RHI
+    // device, so a GPU test can inject one device-lost fault through the backend's existing seam
+    // (VulkanDevice::inject_fault_for_testing). Not part of the public contract; the type stays
+    // opaque to app code.
+    [[nodiscard]] rendering::rhi::Device& device_for_testing();
+#endif
 
 private:
     struct Impl;
