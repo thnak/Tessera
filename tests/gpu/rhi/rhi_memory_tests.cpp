@@ -27,6 +27,7 @@ bool expect(bool condition, const char* message) {
     return condition;
 }
 
+#if defined(TESSERA_TEST_HAS_VULKAN)
 bool check_vulkan(rhi::Device& device) {
     const auto base = device.memory_statistics();
     bool ok = expect(base.buffer_bytes == 0 && base.image_bytes == 0,
@@ -73,6 +74,7 @@ bool check_vulkan(rhi::Device& device) {
          ok;
     return ok;
 }
+#endif
 
 } // namespace
 
