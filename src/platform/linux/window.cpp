@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <climits>
+#include <clocale>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -102,10 +103,12 @@ public:
     void close() override;
 
 private:
-    void handle_event(XEvent& event, bool auto_repeat = false);
+    void handle_event(XEvent& event, bool auto_repeat = false, bool filtered = false);
     void enqueue(WindowEventType type);
     void request_close();
     void pump(bool discard);
+    void open_input_method();
+    void close_input_method();
     [[nodiscard]] bool has_pending_events() const;
 
     Display* display_ = nullptr;
@@ -120,6 +123,8 @@ private:
     std::thread::id owner_thread_ = std::this_thread::get_id();
     EventQueue events_;
     X11InputTranslator input_;
+    XIM input_method_ = nullptr;
+    XIC input_context_ = nullptr;
     bool initializing_ = true;
     bool mapped_ = false;
     bool focused_ = false;
@@ -166,6 +171,7 @@ bool X11Window::create(const WindowDesc& desc) {
         XSetWMProtocols(display_, window_, &wm_delete_window_, 1);
     }
     XStoreName(display_, window_, desc.title.c_str());
+    open_input_method();
     last_width_ = static_cast<int>(width);
     last_height_ = static_cast<int>(height);
 
@@ -195,6 +201,7 @@ X11Window::~X11Window() {
         window_ = 0;
         return;
     }
+    close_input_method();
     if (window_ != 0) {
         XDestroyWindow(display_, window_);
         window_ = 0;
@@ -246,10 +253,10 @@ void X11Window::request_close() {
     enqueue(WindowEventType::Close);
 }
 
-void X11Window::handle_event(XEvent& event, bool auto_repeat) {
+void X11Window::handle_event(XEvent& event, bool auto_repeat, bool filtered) {
     // Input events (and the input half of focus changes) go to the queue; focus still falls
     // through to the window's own Focus/Blur state below.
-    if (input_.handle(event, dpi_scale(dpi_), auto_repeat)) {
+    if (input_.handle(event, dpi_scale(dpi_), auto_repeat, filtered)) {
         return;
     }
     switch (event.type) {
@@ -269,11 +276,22 @@ void X11Window::handle_event(XEvent& event, bool auto_repeat) {
         return;
     case FocusIn:
         focused_ = true;
+        if (input_context_ != nullptr) {
+            XSetICFocus(input_context_);
+        }
         enqueue(WindowEventType::Focus);
         return;
     case FocusOut:
         focused_ = false;
+        if (input_context_ != nullptr) {
+            XUnsetICFocus(input_context_);
+        }
         enqueue(WindowEventType::Blur);
+        return;
+    case MappingNotify:
+        // A layout or keymap change (setxkbmap, a layout switcher): Xlib keeps its own copy of the
+        // keymap, and keys translate through the old one until it is refreshed.
+        XRefreshKeyboardMapping(&event.xmapping);
         return;
     case MapNotify:
         mapped_ = true;
@@ -300,6 +318,61 @@ void X11Window::handle_event(XEvent& event, bool auto_repeat) {
     }
 }
 
+void X11Window::open_input_method() {
+    // Compose and input methods need a locale that Xlib supports. An application that set its own
+    // locale keeps it; one left at "C" gets UTF-8 character handling, the one setting this window
+    // needs (LC_CTYPE only: numbers, dates and collation stay untouched).
+    const char* current = std::setlocale(LC_CTYPE, nullptr);
+    if (current == nullptr || std::string_view(current) == "C" ||
+        std::string_view(current) == "POSIX") {
+        if (std::setlocale(LC_CTYPE, "C.UTF-8") == nullptr) {
+            std::setlocale(LC_CTYPE, "");
+        }
+    }
+    if (XSupportsLocale() == 0) {
+        return; // keysym-only text
+    }
+    XSetLocaleModifiers("");
+    input_method_ = XOpenIM(display_, nullptr, nullptr, nullptr);
+    if (input_method_ == nullptr) {
+        // No input-method server is running: the built-in method still does dead keys and compose.
+        XSetLocaleModifiers("@im=none");
+        input_method_ = XOpenIM(display_, nullptr, nullptr, nullptr);
+    }
+    if (input_method_ == nullptr) {
+        return;
+    }
+    // No pre-edit or status drawing yet: the method composes and commits text only.
+    input_context_ = XCreateIC(input_method_, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+                               XNClientWindow, window_, XNFocusWindow, window_, nullptr);
+    if (input_context_ == nullptr) {
+        XCloseIM(input_method_);
+        input_method_ = nullptr;
+        return;
+    }
+    // The method names the events it needs delivered to filter key input.
+    unsigned long filter_events = 0;
+    if (XGetICValues(input_context_, XNFilterEvents, &filter_events, nullptr) == nullptr) {
+        XWindowAttributes attributes{};
+        XGetWindowAttributes(display_, window_, &attributes);
+        XSelectInput(display_, window_,
+                     attributes.your_event_mask | static_cast<long>(filter_events));
+    }
+    input_.set_input_context(input_context_);
+}
+
+void X11Window::close_input_method() {
+    input_.set_input_context(nullptr);
+    if (input_context_ != nullptr) {
+        XDestroyIC(input_context_);
+        input_context_ = nullptr;
+    }
+    if (input_method_ != nullptr) {
+        XCloseIM(input_method_);
+        input_method_ = nullptr;
+    }
+}
+
 void X11Window::pump(bool discard) {
     if (display_ == nullptr) {
         return;
@@ -307,7 +380,13 @@ void X11Window::pump(bool discard) {
     while (XPending(display_) > 0) {
         XEvent event{};
         XNextEvent(display_, &event);
+        // The input method sees every event first (XIM protocol messages included); a filtered
+        // key event is still delivered as a key, a filtered anything else is the method's own.
+        const bool filtered = input_method_ != nullptr && XFilterEvent(&event, None) != 0;
         if (discard) {
+            continue;
+        }
+        if (filtered && event.type != KeyPress && event.type != KeyRelease) {
             continue;
         }
         bool auto_repeat = false;
@@ -322,7 +401,7 @@ void X11Window::pump(bool discard) {
                 auto_repeat = true;
             }
         }
-        handle_event(event, auto_repeat);
+        handle_event(event, auto_repeat, filtered);
     }
 }
 

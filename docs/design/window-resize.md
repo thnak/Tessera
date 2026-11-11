@@ -73,8 +73,9 @@ Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe
 - **DPI is a heuristic.** `Xft.dpi` is read once at creation and applies to every window/screen;
   RandR per-monitor scale, `_NET_WM_SYNC_REQUEST`, refresh/VRR, and display hotplug are not
   queried. A bare Xvfb display has no `Xft.dpi` and reports scale 1.
-- **No occlusion/minimize/IME.** `WindowMetrics.occluded`/`minimized` stay `false`, focus is
-  tracked from `FocusIn`/`FocusOut` only, and there is no XIM/IC integration. No window manager
+- **No occlusion/minimize.** `WindowMetrics.occluded`/`minimized` stay `false` and focus is
+  tracked from `FocusIn`/`FocusOut` only (text input uses an XIM input context, see
+  [`hal.md`](hal.md)). No window manager
   is required or spoken to beyond `WM_DELETE_WINDOW`.
 - **No frames in flight.** Acquire/present are bounded (100 ms clamp) and presentation is
   drained at recreation, but there is no per-image fence/semaphore set and no render-target
