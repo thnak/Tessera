@@ -32,6 +32,8 @@ namespace tessera::ui::text::edit_detail {
 // Cluster boundary after `offset` (>= offset + one code point). A cluster is one base code point
 // plus its Extend code points, a ZWJ sequence, or a regional-indicator pair; CRLF is one cluster.
 [[nodiscard]] EditOffset next_cluster(std::string_view text, EditOffset offset);
+// The documented reduced cluster rule, kept as the no-ICU fallback and the parity baseline.
+[[nodiscard]] EditOffset builtin_next_cluster(std::string_view text, EditOffset offset);
 // Cluster boundary before `offset`.
 [[nodiscard]] EditOffset prev_cluster(std::string_view text, EditOffset offset);
 // Clamps to [0, size] and snaps down to the start of the containing cluster.

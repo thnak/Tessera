@@ -5,6 +5,7 @@
 #include "tessera/ui/text/edit_buffer.hpp"
 
 #include <cstddef>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -45,6 +46,16 @@ struct BreakBoundaries {
 // linked (TESSERA_ICU_ENABLED); an ICU-free build documents the request as "use the builtin
 // rules", so the wrap parity test needs no conditional code.
 [[nodiscard]] BreakBoundaries line_boundaries(std::string_view text, BreakBackend backend);
+
+// Grapheme-cluster (UAX #29 UBRK_CHARACTER) caret movement. Each returns nullopt when the ICU
+// slice is not linked or fails to open, so the caller keeps the documented builtin cluster rule.
+// `following` is the first boundary after `offset`, `preceding` the last one before it, and `snap`
+// is `offset` itself when it is a boundary, else the boundary before it. Offsets are UTF-8 bytes.
+[[nodiscard]] std::optional<EditOffset> grapheme_following(std::string_view text,
+                                                           EditOffset offset);
+[[nodiscard]] std::optional<EditOffset> grapheme_preceding(std::string_view text,
+                                                           EditOffset offset);
+[[nodiscard]] std::optional<EditOffset> grapheme_snap(std::string_view text, EditOffset offset);
 
 // The builtin rules, callable directly so parity tests and ICU-free builds share one path.
 [[nodiscard]] BreakBoundaries builtin_word_boundaries(std::string_view text);
