@@ -209,7 +209,8 @@ ParamType  = IDENT ":" TypeExpr ;
 ```ebnf
 Param  = ( IDENT | DestructuredProps ) ":" TypeExpr ;
 DestructuredProps = "{" PropBind { "," PropBind } [ "," ] "}" ;
-PropBind = IDENT [ "=" Literal ] ;
+PropBind = IDENT [ "=" PropDefault ] ;
+PropDefault = Literal | "[" [ Literal { "," Literal } ] "]" ;
 Block  = "{" { Stmt } ReturnStmt "}" ;
 Stmt   = StateDecl | RefDecl | AnimDecl | EffectStmt | HandlerDecl | LocalDecl ;
 ReturnStmt = "return" ( JsxElement | "(" JsxElement ")" ) ";" ;
@@ -217,9 +218,9 @@ LocalDecl  = "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
 ```
 
 - A component has zero or one parameter: the props. The parameter is either a name
-  (`props: CounterProps`, read as `props.initial`) or a destructuring with literal defaults
-  (`{ initial = 0 }: CounterProps`). The type annotation is required when the parameter exists.
-  Rest elements (`...rest`) are rejected.
+  (`props: CounterProps`, read as `props.initial`) or a destructuring with literal or flat
+  literal-list defaults (`{ initial = 0 }: CounterProps`, `{ items = [] }: P`). The type annotation
+  is required when the parameter exists. Rest elements (`...rest`) are rejected.
 - The name starts with an uppercase letter.
 - The body is a sequence of statements followed by exactly one `return` that is the last statement.
   The returned value is one JSX element (not an array, string or `null`).

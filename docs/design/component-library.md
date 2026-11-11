@@ -116,6 +116,33 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
 - File import/export (`.xlsx`, `.csv`) is an optional package (stage 6), subject to the license
   rules in [`dependencies.md`](../specs/dependencies.md).
 
+### 3.5 Field and Form IR generation (issue #70)
+
+- `tessera/components/Field.tsx` and `tessera/components/Form.tsx` are the single source of truth for
+  the first two library components: their names, `comp::` ids, declared prop records, destructuring
+  defaults and node trees. Nothing builds their IR by hand.
+- The build runs `tessera_codegen --emit-library-cpp` over both files (CMake lists the two sources as
+  explicit dependencies) and compiles the generated `library_components_generated.cpp` into
+  `tessera_library_components`. The public `library_components()` / `find_library_component()` /
+  `make_library_component()` contract in `library_components.cpp` delegates to that registry.
+- A source that does not lower cleanly (parse, analysis, lowering, or an unsupported default) fails
+  the build; there is no hand-built fallback. The generator is a separate host executable linked
+  against the lowering core, not the generated registry, so the data can depend on the generator
+  without a build cycle. Cross-compiling builds cannot run the generator and compile a committed
+  copy; every host build compares that copy with the freshly generated unit and fails loudly when it
+  is stale.
+- Defaults are authored where React puts them, as destructuring defaults on the props parameter
+  (`label = ""`, `validators = []`, `required = false`); lowering stores them as `Prop::default_value`
+  and codegen initializes the generated field with them. `?` in the props alias remains the separate
+  "may be omitted" flag.
+- Determinism: the generated file has no timestamps or absolute paths, and identity comes from a
+  stable band (`900000000000000001 + N` per component, `900000000000000101 + 100 * N + node - 1`
+  per node) that the committed codegen goldens pin.
+- `tests/unit/library_tsx_parity_tests.cpp` re-lowers the committed TSX in-process and compares the
+  result with the embedded IR (identity band excluded), including spans, defaults and text-run
+  shape. It is the staleness guard: editing a TSX source without rebuilding the embedded data fails
+  the suite, as does regenerating it from a changed source.
+
 ## 4. Contracts
 
 - Every interactive component: role/name/state/actions, keyboard behavior, focus ring,

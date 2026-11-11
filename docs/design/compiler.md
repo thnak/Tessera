@@ -318,8 +318,10 @@ event, a literal of the wrong type, `children` as a value, and a callback whose 
 different payload record. No prop path is intrinsic-specific.
 
 **Library components (implemented, `Field` and `Form`).** `import { Field, Form } from "tessera"`
-adds ordinary component references and the module receives each component's IR declaration
-(`src/compiler/lowering/src/library_components.cpp`); a project component of the same name wins.
+adds ordinary component references and the module receives each component's IR declaration. The
+declarations are generated at build time from `tessera/components/*.tsx`, so the TSX is the source
+of truth (contract in [`component-library.md`](component-library.md) section 3.5); a project
+component of the same name wins.
 `Field` declares the prop records of
 [`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md) section 5.1 (including the
 record-typed `onValidate`), places its own label/value/error text and its `Slot`, and is emitted by

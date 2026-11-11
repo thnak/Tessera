@@ -413,11 +413,11 @@ lower_project(std::span<const ModuleSource>, std::string_view module_name); // i
 - Imports: relative `./X`/`../X` resolve against the file set (extension omitted); each name must be
   a component, type alias or constant of the target. A bare specifier resolves through the project's
   package roots (`packages` in `tessera.json`: `pkg/Sub` -> `<root>/Sub`); else unsupported.
-- Declared prop records come from the props type alias or inline object type (slice 4); unknown props
-  and children still forward unvalidated, prop defaults are deferred, and a component callback
-  parameter or setter reference, `style` on a component, a props-parameter spread or a component
-  reference as an ordinary prop value are rejected (`fallback` accepts one). Library components are
-  slice 11; `LoweringOptions` is not introduced; `lower_module` rejects relative imports.
+- Declared prop records come from the props type alias or inline object type (slice 4);
+  destructuring defaults lower into `Prop::default_value`; unknown props/children and a component
+  callback parameter, setter reference, `style` on a component, props spread or component value are
+  rejected (`fallback` accepts one). Library components are slice 11; `LoweringOptions` is not
+  introduced; `lower_module` rejects relative imports.
 
 Tests are `lowering_module`, `lowering_module_reject` and `lowering_module_determinism`.
 ## 4. Spans and diagnostics
@@ -529,9 +529,9 @@ Each slice is behavior, tests and docs, committed on its own.
 2. **IR validator.** Section 9 hard errors on hand-built IR; the layering test.
 3. **Analysis skeleton (done).** `tessera_react_rules`: symbol table per component, hook forms and order,
    arrow roles (handler/effect/cleanup), `return` placement, effect dependency matching.
-4. **Types (props records done).** A component's props alias or inline object type lowers every
-   member (name, IR v1 type, `?` optional flag, `children` slot). Still deferred: defaults,
-   inline value records, payload-record fields, callback parameters and expression typing.
+4. **Types (props records/defaults done).** The props alias or inline object type lowers every member
+   (name, IR v1 type, `?`, `children` slot) and the destructuring default (`Prop::default_value`).
+   Deferred: inline value records, payload-record fields, callback parameters and expression typing.
 5. **Lowering of expressions (done).** `Expr` -> IR `Expr` with the operator mapping and folding of
    top-level constants; no components yet.
 6. **Lowering of hooks and bindings (done).** state, refs, animated values, effects, cleanup,
