@@ -153,7 +153,7 @@ Startup/loading/auth and resource policy. See
 ```json
 "loading": {
   "criticalResources": ["theme.default", "font.inter.regular"],
-  "screen": "skeleton",
+  "brand": { "logo": "assets/images/logo.png", "background": "--window-background" },
   "authMode": "blocking",
   "restoreRoute": true,
   "resourcePolicy": "lazy",
@@ -168,7 +168,9 @@ Startup/loading/auth and resource policy. See
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `criticalResources` | string[] | `[]` | Minimal eager set for first meaningful frame |
-| `screen` | string | `skeleton` | `none`, `shell`, `skeleton`, `progress`, `spinner` |
+| `screen` | string | `skeleton` | Deprecated ([startup-api-v1.md](startup-api-v1.md) section 7.2); while read: `none`, `shell`, `skeleton`, `progress`, `spinner` |
+| `brand.logo` | string | `null` | Image used by the default loading screen instead of the framework mark; must be listed by `assets.images` |
+| `brand.background` | string | `--window-background` | Default-screen fill: a plain colour or a `--token` name from the theme asset |
 | `authMode` | string | `blocking` | `blocking`, `overlay`, `deferred`, `background` |
 | `restoreRoute` | boolean | `true` | Restore last route/deep link after auth |
 | `resourcePolicy` | string | `lazy` | `lazy` (default); explicit preload list |
@@ -180,7 +182,10 @@ Startup/loading/auth and resource policy. See
 
 Rules: `criticalResources` stays small; `preload` is bounded/cancellable; user settings may
 adjust budgets only within hard caps; golden/deterministic mode pins the critical set and load
-order and ignores network/system fonts.
+order and ignores network/system fonts. `screen` is deprecated in favour of the JSX loading surface
+and reports `TESSERA_STARTUP_CONFIG_DEPRECATED` when used; `brand.logo` must be covered by
+`assets.images` and `brand.background` is a plain colour or an existing theme token
+(`TESSERA_STARTUP_BRAND` otherwise).
 
 The TSX startup declaration ([`startup-api-v1.md`](startup-api-v1.md) section 7) owns which
 resources the app declares (with a priority) and which loading subtree replaces the framework
@@ -443,6 +448,9 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     [window-chrome-v1.md](window-chrome-v1.md) section 8.1; on other platforms it is a runtime
     warning (`TESSERA_CHROME_UNSUPPORTED`), not a build failure, so one project source stays
     portable.
+24. `loading.brand.logo` is covered by `assets.images`; `loading.brand.background` is a plain colour
+    or an existing theme token; a route id used by a `Resources.*` declaration resolves in the
+    navigation table ([navigation-v1.md](navigation-v1.md)).
 
 ## Example
 

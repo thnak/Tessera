@@ -82,6 +82,8 @@ This page is the map and reading order for the framework.
   unload/eviction, budgets, determinism
 - [`specs/startup-api-v1.md`](specs/startup-api-v1.md) — developer startup surface: `App` root,
   replaceable framework loading screen, prioritized resource hints, launch modes, phases P0-P5
+- [`specs/startup-tests-v1.md`](specs/startup-tests-v1.md) — acceptance tests of the startup
+  surface, launch modes and stored state
 - [`specs/window-chrome-v1.md`](specs/window-chrome-v1.md) — title bar, menu bar and status/navigation
   bars: appearance policy, launch phases, insets, platform support
 - [`specs/error-boundaries-v1.md`](specs/error-boundaries-v1.md) — caught/not-caught errors,

@@ -140,9 +140,9 @@ per `<App>` (`TESSERA_JSX_STARTUP_DUPLICATE` otherwise), and may be empty.
 
 | Element | Props | Rule |
 |---|---|---|
-| `Resources.Font` | `name` string, `src` string literal, `priority` enum | `src` must be listed by `assets.fonts` (`TESSERA_JSX_STARTUP_ASSET`); `priority` defaults to `high` |
-| `Resources.Image` | `name` string, `src` string literal, `priority` enum | `src` must be inside a directory or file of `assets.images`, PNG/JPEG/WebP within [resources.md](../design/resources.md) limits (`TESSERA_JSX_STARTUP_ASSET`) |
-| `Resources.Data` | `name` string, `src` string literal, `priority` enum | Opaque byte payload (`ResourceClass::Data`); not a query cache ([async-data-v1.md](async-data-v1.md)) |
+| `Resources.Font` | `name` string, `src` string literal, `priority` enum, optional `route` string literal | `src` must be listed by `assets.fonts` (`TESSERA_JSX_STARTUP_ASSET`); `priority` defaults to `high` |
+| `Resources.Image` | `name` string, `src` string literal, `priority` enum, optional `scale` number literal, optional `placeholder` string literal, optional `route` string literal | `src` must be inside a directory or file of `assets.images`, PNG/JPEG/WebP within [resources.md](../design/resources.md) limits (`TESSERA_JSX_STARTUP_ASSET`) |
+| `Resources.Data` | `name` string, `src` string literal, `priority` enum, optional `route` string literal | Opaque byte payload (`ResourceClass::Data`); not a query cache ([async-data-v1.md](async-data-v1.md)) |
 
 - `priority`: `"critical" | "high" | "low"`. Defaults: `high`. Meaning:
   - `critical` — part of the critical set; the app UI (P4) waits for it.
@@ -157,6 +157,24 @@ per `<App>` (`TESSERA_JSX_STARTUP_DUPLICATE` otherwise), and may be empty.
   runtime metadata ([resources.md](../design/resources.md)).
 - Declaration order is the load order inside a priority class and is deterministic; the golden mode
   pins it ([resource-lifecycle-v1.md](resource-lifecycle-v1.md) section on determinism).
+- **Image variants.** Two or more `Resources.Image` declarations with the same `name` and different
+  `scale` (1, 2 or 3) form one logical image: the loader picks the nearest variant for the render
+  scale, falling back to scale 1. Each variant's `src` is validated independently; a duplicate
+  `scale` for one name, or a variant that repeats `priority`, is `TESSERA_JSX_STARTUP_VARIANT`. The
+  first declaration establishes the resource id, priority and route scope; later variants must not
+  contradict them.
+- **Placeholder.** `placeholder` is a low-resolution asset shown until the selected variant is ready
+  (progressive image). It is a string literal covered by `assets.images`, always loads at `low`
+  priority, and never replaces the final image; a missing or uncovered placeholder is
+  `TESSERA_JSX_STARTUP_PLACEHOLDER`.
+- **Route scope.** Any `Resources.*` may carry `route` (a string literal route id of the navigation
+  table). It scopes the resource lifetime to that route: when the route is the initial or activation
+  target of this launch, the resource joins the critical set so a custom loading subtree may render
+  it at P2; it is released when the route exits ([navigation-v1.md](navigation-v1.md);
+  [resource-lifecycle-v1.md](resource-lifecycle-v1.md) gains a `Route` scope). An unknown route id is
+  `TESSERA_JSX_STARTUP_ROUTE`. A loading subtree that uses a route-scoped resource depends on that
+  route being resolved before P2 (initial route, restore or activation); otherwise the framework
+  reports `TESSERA_STARTUP_LOADING_ROUTE` and the image renders as its placeholder or is omitted.
 
 ### 4.4 Accepted and rejected forms
 
@@ -241,11 +259,16 @@ Mode behavior, normative:
   reached. The framework resumes presenting on demand, revalidates session and stale data in the
   background (stale-while-revalidate), reapplies geometry/DPI/fold changes that happened while away,
   resumes animations under reduced motion, and cancels stale loads. There is no loading screen on
-  this path (G13).
+  this path (G13). Non-auth screens present the retained frame immediately and revalidate in the
+  background; an auth-gated screen refreshes before its first present, so stale user data is never
+  shown as current (G14).
 - **Process restore**: cold phases with a validated snapshot. Validation covers app version, route
   table, size limits and ids; an invalid, foreign or corrupt snapshot is discarded in favor of the
   previous good snapshot or the route root, never executed and never blocking startup. User-scoped
-  state applies only after auth; logout clears it.
+  state applies only after auth; logout clears it. Snapshots are **encrypted at rest** with a key
+  derived from OS secure storage ([state-restoration-v1.md](state-restoration-v1.md)); a missing
+  key, a foreign device or a failed decryption discards the snapshot, and logout deletes both the
+  snapshot and the key material (G16).
 - **Deep link / notification**: the base mode is cold, warm or hot resume, plus one pending
   activation. Cold/warm: the activation is parsed and validated before P2 and resolved after
   auth/shell (P3), then overrides the restored route at P4. Hot resume: routed immediately without a
@@ -253,6 +276,10 @@ Mode behavior, normative:
   ([deep-linking-v1.md](deep-linking-v1.md) section 6). The pending activation survives readiness
   and auth; in V1 it is bounded to one entry, latest wins, and duplicates are deduped. Notification
   payloads are validated and normalized by the notification service before they become an activation.
+  V1 keeps a **bounded activation queue** (four entries, FIFO): entries are deduped by their
+  normalized target, auth-gated entries wait for auth, one entry is routed per stage boundary, and
+  logout discards the queue. Overflow drops the oldest entry with
+  `TESSERA_STARTUP_ACTIVATION_DROPPED` (warning) instead of growing without bound.
 
 Activation target precedence:
 
@@ -349,6 +376,10 @@ loading subtree, or a legacy project, startup presents a valid first frame.
 - Full window, themed by `--window-background` of the active theme (the built-in `default` theme
   provides it when the project has none, [window-chrome-v1.md](window-chrome-v1.md) section 3.1),
   with the framework mark as a vector `Path` and an indeterminate progress track.
+- Brand override: when `loading.brand` is configured the screen shows its `logo` image instead of
+  the framework mark and fills with its `background` (a plain colour or a `--token` reference,
+  default `--window-background`); both are validated at build time (`TESSERA_STARTUP_BRAND`).
+  Without the block the framework mark and the token are used.
 - No text in V1: text would need an app font, an i18n catalog, and a locale before P3, none of
   which is guaranteed at P2. Visual brand text belongs in the custom loading subtree.
 - Responsive: centered mark, does not depend on window size, DPI, safe-area insets, or fold posture.
@@ -407,8 +438,10 @@ binary.
 
 1. **Critical set** is the union: JSX `critical` entries plus `loading.criticalResources`, deduped
    by resource id; on a duplicate the JSX entry wins. Dedupe order is deterministic.
-2. **Loading screen**: `<Startup.Loading>` replaces the default screen. If it is absent,
-   `loading.screen` selects the default presentation: `none` (themed background only, warns
+2. **Loading screen**: `<Startup.Loading>` replaces the default screen. `loading.screen` is
+   **deprecated** as of this spec: it is still read for a project without the JSX surface, reports
+   `TESSERA_STARTUP_CONFIG_DEPRECATED` (warning), and is removed one release after the JSX surface
+   ships. While present it selects the default presentation: `none` (themed background only, warns
    `TESSERA_STARTUP_SCREEN_NONE`), `progress`/`spinner` (default screen). `shell` and `skeleton`
    describe an app-shaped screen that the framework cannot synthesize; with no custom loading
    subtree they fall back to the default screen and report `TESSERA_STARTUP_SCREEN_NO_COMPONENT`
@@ -468,6 +501,13 @@ and codegen-owned codes are stage-owned skip entries until implemented). Initial
 | `TESSERA_JSX_STARTUP_RESOURCE_ID` | error | Duplicate or missing `name` |
 | `TESSERA_JSX_STARTUP_ASSET` | error | `src` not covered by `assets.fonts`/`assets.images` or over limits |
 | `TESSERA_JSX_STARTUP_PRIORITY` | error | Unknown `priority` value |
+| `TESSERA_JSX_STARTUP_VARIANT` | error | Duplicate image `scale`, a contradictory variant, or a repeated priority |
+| `TESSERA_JSX_STARTUP_PLACEHOLDER` | error | Missing or uncovered `placeholder` asset |
+| `TESSERA_JSX_STARTUP_ROUTE` | error | Unknown `route` id in a resource declaration |
+| `TESSERA_JSX_STARTUP_BRAND` | error | `loading.brand` logo not in `assets.images` or invalid background |
+| `TESSERA_JSX_STARTUP_CONFIG_DEPRECATED` | warning | A deprecated config field is still used |
+| `TESSERA_STARTUP_ACTIVATION_DROPPED` | warning | Activation queue overflow dropped the oldest entry |
+| `TESSERA_STARTUP_LOADING_ROUTE` | warning | A loading subtree references a route-scoped resource whose route is not resolved at P2 |
 | `TESSERA_JSX_STARTUP_OUTSIDE_APP` | error | `Startup.*`/`Resources.*` outside `App`/`Startup.Resources` |
 | `TESSERA_JSX_STARTUP_NAME_RESERVED` | error | Project component/import named `App`, `Startup` or `Resources` |
 | `TESSERA_STARTUP_CONFIG_SHADOWED` | warning | JSX overrides an explicit config value |
@@ -497,6 +537,8 @@ In V1:
   `Resources.Data`; the membership carve-out of section 4.4; the phase guarantees; the default
   screen; the generated manifest and entry; the diagnostics above.
 - `restoreState` as a boolean only; restore mechanics stay as specified elsewhere.
+- Image variants (`scale`), `placeholder`, route-scoped declarations (`route`), `loading.brand`, the
+  bounded activation queue and encrypted process-restore snapshots.
 - The framework shell components `WindowChrome` and `AppBar` ([window-chrome-v1.md](window-chrome-v1.md) section 8).
 
 Deferred (not V1; an addition needs an ADR or a spec revision):
@@ -511,7 +553,7 @@ Deferred (not V1; an addition needs an ADR or a spec revision):
   (tests/harness only).
 - `initialScreen`/component-reference props (rejected because no component-reference value exists
   in the IR; children express the initial UI).
-- `Resources.Icon`, `Resources.Media`, `Resources.Route`, `Resources.ShaderPipeline`; shader and
+- `Resources.Icon`, `Resources.Media`, `Resources.ShaderPipeline`; shader and
   pipeline warm-up is automatic in P3.
 - Multiple apps per process, multiple windows started in one App subtree, and per-window startup
   declarations.
@@ -519,37 +561,9 @@ Deferred (not V1; an addition needs an ADR or a spec revision):
 
 ## 11. Tests and acceptance
 
-Compile time:
-
-- Accepted-form fixtures for section 3 and section 4, with IR golden containing the hoisted startup
-  record and no declaration nodes.
-- One rejection fixture per code of section 9 (code, span, message) and the diagnostics registry
-  golden.
-- Determinism: same source and config produce byte-identical IR, manifest and diagnostics.
-
-Runtime (headless, deterministic; `ManualClock` + CPU sink):
-
-- Phase-order test: P2 presented before any critical resource completes; app UI not built before
-  P3; P4 after the critical set and restore; P5 only after P4.
-- No-blocking test: no tick exceeds the per-tick budget; completions apply at frame boundaries.
-- First-frame and default-screen goldens at two window sizes, two DPI scales, light/dark theme,
-  reduced motion.
-- Failure test: critical failure → retry → root fallback; never blank, never endless spinner;
-  custom loading failure → default screen + diagnostic.
-- Cancellation/close during P3/P5; background pause of P5; static idle after settle
-  (zero presents).
-- Accessibility: default screen progressbar name; wrapper for a custom subtree without semantics.
-- Mobile: generated splash theme/launch-screen artifact golden and P0→P2 continuity.
-- Chrome: appearance resolution (`auto`/`light`/`dark`), P0 artifact and P1 request use one record,
-  the window is shown only after P2, and desktop insets stay zero
-  ([window-chrome-v1.md](window-chrome-v1.md) section 11). In `custom` mode the P2 frame includes the
-  framework title bar and the loading subtree renders below it.
-- Launch-mode matrix (section 5.1), each forced deterministically: cold, warm (reuse device/caches,
-  no P0), hot resume (no phase, no loading screen, no presents until wake after settle), process
-  restore (valid snapshot applied; corrupt/foreign snapshot discarded), and cold/warm/hot deep-link
-  and notification launches (target overrides restored route, survives auth, deduped, invalid target
-  falls back). Also: logout clears pending activation and user-scoped restore; reuse invalidation on
-  app-version/asset/user change (G17).
+The compile-time, runtime and launch-mode acceptance lists are normative in
+[startup-tests-v1.md](startup-tests-v1.md); chrome tests are in
+[window-chrome-v1.md](window-chrome-v1.md) section 11.
 
 ## 12. Staged implementation plan
 
@@ -567,33 +581,19 @@ Each slice is independently testable and lands green before the next. Big Steps 
 | S7 | Launch modes: detection, warm/hot resume (lifecycle events, no-reinit path), process restore (validated snapshot), deep-link/notification activation routing and precedence | launch-mode matrix tests of section 11 pass | B2/F |
 | S8 | `useStartupStage()`/`useLaunchMode()` via the hook manifest + custom stage UI | manifest/lowering/goldens | C |
 
-Prerequisites: S3 needs the entry/mount seam that does not exist yet (no generated `main()`, no
-`AppHost`); S4 needs the resource runtime (`src/rendering/resources/` and `src/core/resource/` are
-empty `.gitkeep` directories); S6 needs the mobile platform backend (Big Step F); S7 needs OS
-lifecycle events ([os-events-v1.md](os-events-v1.md)), the state-restoration runtime
-(`RestoreService`, snapshot read/write) and the deep-link platform adapters
-([deep-linking-v1.md](deep-linking-v1.md)). These are stated so the plan is not read as
-"compiler-only".
+Prerequisites: S3 needs the entry/mount seam (no `main()`, no `AppHost`); S4 the resource runtime
+(`src/rendering/resources/`, `src/core/resource/` are `.gitkeep`); S6 the mobile backend; S7 OS
+events, the restore runtime and deep-link adapters — so this is not compiler-only.
 
-## 13. Open questions
+## 13. Decisions and open questions
 
-- Whether the implicit App (no `<App>` in source) stays a warning forever or becomes an error once
-  the generator can migrate projects.
-- Whether `Resources.*` should accept low-resolution/high-resolution variants and a
-  `placeholder` in V1.1 for the progressive phase.
-- Whether the default loading screen should support a project-provided logo and background override
-  without writing a custom subtree.
-- Whether `loading.screen` should be deprecated entirely in favor of the JSX surface after one
-  release.
-- Whether a custom loading subtree may reference route-scoped resources (a scope no spec defines
-  yet; see [resource-lifecycle-v1.md](resource-lifecycle-v1.md)).
-- Exact budget enforcement wiring (diagnostics warning vs profile-driven `startupMs` threshold).
-- Warm-start and process-restore budgets (warm is only required not to run P0; no number is fixed).
-- Pending-activation policy beyond V1 one-latest-wins, and notification action/category routing
-  ownership between the notification service and the route table.
-- Whether hot resume may present a stale frame while revalidating (stale-while-revalidate) or must
-  refresh before the first present for auth-gated screens.
-- Snapshot encryption/key management for process restore on shared devices (see
-  [state-restoration-v1.md](state-restoration-v1.md)).
-- Chrome/shell details still open (title-bar height, Windows 10 support, custom-control a11y) live in
-  [window-chrome-v1.md](window-chrome-v1.md) section 13.
+Owner decisions recorded 2026-11-11: member tags stay as in ADR-042; an implicit App is a permanent
+warning; image variants and `placeholder` are V1; `loading.brand` overrides the default screen;
+`loading.screen` is deprecated immediately (warning, removed one release later); route-scoped
+resources are V1 through a `route` prop and a `Route` resource scope; budgets are diagnostics
+warnings with a profile threshold; the activation queue is bounded FIFO (four entries); hot resume
+presents a retained frame and revalidates in the background, except auth-gated screens which refresh
+first; process-restore snapshots are encrypted at rest and cleared on logout.
+
+Open questions (no decision yet): activation queue size/overflow after real usage data; whether
+route scope extends to nested or parameterised routes; snapshot key rotation and migration.
