@@ -55,6 +55,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-043](ADR-043-launch-modes-and-state-reuse.md) | Launch modes (cold/warm/hot resume/process restore) and state reuse, activation precedence, snapshot trust | Proposed |
 | [ADR-044](ADR-044-system-window-chrome-in-v1.md) | Window chrome policy in V1: system chrome by default, Windows opt-in `WindowChrome` title bar, framework-owned `AppBar`, reserved chrome tokens | Accepted (revised) |
 | [ADR-045](ADR-045-browser-hosted-studio.md) | Browser-hosted designer studio on GitHub Pages (page as host, HTML shell, data-driven skins) and a stdio MCP adapter of the same engine | Accepted |
+| [ADR-046](ADR-046-web-target-for-demos.md) | Web (Wasm + WebGPU) as a secondary target for running apps in the browser (amends ADR-024 and ADR-002) | Accepted |
 
 ## Dependency overview
 
@@ -90,6 +91,7 @@ ADR-032 component library/design tokens (product layer)
 ADR-033 gap resolutions (cross-cutting: text/scroll/overlay/forms/nav/restore/shell/i18n/a11y/data/production)
 ADR-034 interaction/overscroll animation (visual state, platform profiles, spring-back)
 ADR-041 layout observation (accepted) ── ADR-020 resize, ADR-018 dirty rendering, ADR-016 stylesheet
+ADR-046 web target for demos ── ADR-002 WebGPU, ADR-024 boundaries, ADR-037 designer
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.
