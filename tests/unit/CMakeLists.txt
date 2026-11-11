@@ -963,6 +963,13 @@ target_link_libraries(layout_observer_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_observer COMMAND layout_observer_tests)
 
+add_executable(layout_observer_settle_tests
+    layout_observer_settle_tests.cpp)
+
+target_link_libraries(layout_observer_settle_tests PRIVATE tessera_layout)
+
+add_test(NAME layout_observer_settle COMMAND layout_observer_settle_tests)
+
 add_executable(layout_read_model_tests
     layout_read_model_tests.cpp)
 
