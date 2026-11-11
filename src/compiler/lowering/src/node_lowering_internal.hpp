@@ -62,6 +62,16 @@ struct ElementInfo {
 [[nodiscard]] bool lower_slot_children(NodeState& state, const jsx::JsxNode& element,
                                        ir::Node& node);
 
+// Slice 4 (partial): the component's declared prop records, from its props type alias or inline
+// object type (docs/specs/ir-v1.md section 2).
+enum class DeclaredPropsKind : std::uint8_t {
+    None,    // no props parameter, or the props type is not a same-file object alias (gap)
+    Lowered, // `props` holds one record per declared member, in declaration order
+    Error,   // a diagnostic was reported: unsupported type, duplicate name or a malformed slot
+};
+[[nodiscard]] DeclaredPropsKind lower_declared_props(NodeState& state,
+                                                     std::vector<ir::Prop>& props);
+
 // What an attribute name means on one element, from the shared schema table.
 struct AttributeInfo {
     enum class Kind : std::uint8_t {

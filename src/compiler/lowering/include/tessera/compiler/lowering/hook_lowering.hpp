@@ -41,6 +41,10 @@ struct HookLoweringContext {
     // Slice 9: the component tags this component may reference, local first and imported after.
     // Empty for the single-component entry points, where any component tag is rejected.
     std::span<const ComponentRef> component_refs{};
+    // Slice 4: the module the component was parsed from, used to resolve its props type alias
+    // (`props: Props` -> `type Props = {...}`). Null in the single-component entry points, where a
+    // component's declared prop records then stay unlowered (the documented gap).
+    const jsx::Module* module = nullptr;
 };
 
 // What an event attribute value resolves to (docs/specs/ir-v1.md sections 2.1 and 6).

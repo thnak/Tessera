@@ -52,6 +52,9 @@ JsonValue to_json(const Component& component) {
         JsonValue entry = JsonValue::object();
         entry.set("name", JsonValue::string(prop.name));
         entry.set("type", JsonValue::string(prop.type));
+        if (prop.optional) {
+            entry.set("optional", JsonValue::boolean(true));
+        }
         if (prop.default_value) {
             entry.set("default", value_to_json(prop.default_value.get()));
         }

@@ -81,18 +81,26 @@ LoweredComponentResult lower_component(const HookLoweringContext& context) {
     component.id = "comp::" + context.component.name;
     component.name = context.component.name;
     component.source = to_source_span(context.source_map, context.component.span, context.file);
-    // Section 3.4: the `children` prop declares the static slot. Other prop types need the type
-    // table (slice 4), so only this declaration is recorded.
-    for (const jsx::PropBinding& binding : context.component.props_bindings) {
-        if (binding.name != "children") {
-            continue;
+    // Slice 4: the declared prop records come from the props parameter's type, inline or through a
+    // same-file alias. Without a resolvable object type only the static `children` slot is
+    // recorded, which is the pre-slice-4 behavior for the component-level entry points.
+    const internal::DeclaredPropsKind declared =
+        internal::lower_declared_props(state, component.props);
+    if (declared == internal::DeclaredPropsKind::Error) {
+        return std::unexpected(single_error(*state.error));
+    }
+    if (declared == internal::DeclaredPropsKind::None) {
+        for (const jsx::PropBinding& binding : context.component.props_bindings) {
+            if (binding.name != "children") {
+                continue;
+            }
+            if (binding.default_value) {
+                internal::fail_node(state, "TESSERA_IR_SLOT",
+                                    "the `children` prop has no default value", binding.span);
+                return std::unexpected(single_error(*state.error));
+            }
+            component.props.push_back(ir::Prop{"children", "children", nullptr});
         }
-        if (binding.default_value) {
-            internal::fail_node(state, "TESSERA_IR_SLOT",
-                                "the `children` prop has no default value", binding.span);
-            return std::unexpected(single_error(*state.error));
-        }
-        component.props.push_back(ir::Prop{"children", "children", nullptr});
     }
     component.state = std::move(hooks->state);
     component.handlers = std::move(hooks->handlers);

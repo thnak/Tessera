@@ -22,6 +22,7 @@ add_library(tessera_lowering STATIC
     src/node_attributes.cpp
     src/node_children.cpp
     src/node_lowering.cpp
+    src/prop_records.cpp
     src/reference_lowering.cpp
     src/schema_bridge.cpp
     src/source_span.cpp

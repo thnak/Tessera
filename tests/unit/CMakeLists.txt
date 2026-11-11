@@ -1185,6 +1185,13 @@ target_compile_definitions(lowering_golden_tests PRIVATE
 
 add_test(NAME lowering_golden COMMAND lowering_golden_tests)
 
+add_executable(lowering_props_tests
+    lowering_props_tests.cpp)
+
+target_link_libraries(lowering_props_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_props COMMAND lowering_props_tests)
+
 add_executable(lowering_layering_tests
     lowering_layering_tests.cpp)
 
