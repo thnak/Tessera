@@ -5,6 +5,7 @@
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -35,10 +36,13 @@ float checked_scale(float value) {
     return value;
 }
 
-std::string pixels(float value) {
-    char buffer[32];
-    std::snprintf(buffer, sizeof(buffer), "%gpx", static_cast<double>(value));
-    return std::string(buffer);
+// Formats `<value>px` into caller-owned storage. The scene borrows inline-style text
+// (`Node::set_inline_style` keeps a `string_view`), so the host must own the generated sizes for as
+// long as the root carries them. A temporary here leaves the root's computed `width`/`height`
+// reading freed memory as soon as the style tree is rebuilt, which makes the layout input - and so
+// the layout signature - differ from frame to frame even though nothing was edited.
+void write_pixels(std::array<char, 32>& buffer, float value) {
+    std::snprintf(buffer.data(), buffer.size(), "%gpx", static_cast<double>(value));
 }
 
 void mark_subtree(ui::Node& node, ui::Dirty dirty) {
@@ -108,8 +112,14 @@ struct AppHost::Impl {
         // Window geometry is host-owned, but the root's layout mode is not: a shell with a sidebar
         // sets its own `display`/`flex-direction` before the host exists, and clobbering it would
         // silently stack the shell. Only fill in the defaults the caller did not choose.
-        root.set_inline_style("width", pixels(config.width));
-        root.set_inline_style("height", pixels(config.height));
+        //
+        // The size strings live in host-owned buffers because the scene borrows them (see
+        // write_pixels); they are stable for the host's lifetime, so a resize re-formats in place
+        // and refreshes the declarations without invalidating anything already stored.
+        write_pixels(root_width_text_, config.width);
+        write_pixels(root_height_text_, config.height);
+        root.set_inline_style("width", std::string_view(root_width_text_.data()));
+        root.set_inline_style("height", std::string_view(root_height_text_.data()));
         if (!has_inline_style(root, "display")) {
             root.set_inline_style("display", "flex");
         }
@@ -139,6 +149,10 @@ struct AppHost::Impl {
     ui::style::CompiledStyleSheet sheet;
     runtime::RuntimeLoop& loop;
     HostConfig config;
+
+    // Host-owned storage for the root's inline `width`/`height` text (the scene borrows it).
+    std::array<char, 32> root_width_text_{};
+    std::array<char, 32> root_height_text_{};
 
     std::unique_ptr<ui::style::SceneStyleTree> tree;
     std::unique_ptr<ui::paint::SceneStyleProvider> provider;
