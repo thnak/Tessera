@@ -10,7 +10,6 @@
 # harness binary, tests, and any in-process embedding can share the same bytes.
 add_library(tessera_harness STATIC
     artifact_sink.cpp
-    cli.cpp
     command.cpp
     command_args.cpp
     command_result.cpp
@@ -34,10 +33,36 @@ target_include_directories(tessera_harness PUBLIC
 
 target_compile_features(tessera_harness PUBLIC cxx_std_23)
 
-# CLI skeleton (`tessera test` / `tessera headless`). Kept out of the default build until the
-# script runner lands; build it with `--target tessera_harness_cli`. The Lead promotes it (and an
-# alias named `tessera`) in root CMakeLists.txt at that point.
-add_executable(tessera_harness_cli EXCLUDE_FROM_ALL
+# The engine side of the lane: the concrete AutomationHost over a live AppHost scene, the
+# deterministic fixture scene the CLI runs scripts against, and the promoted `tessera` CLI. It is a
+# separate target because tessera_harness deliberately links no engine target; the driver may link
+# whatever the host needs.
+add_library(tessera_automation_host STATIC
+    cli.cpp
+    engine_host.cpp
+    engine_host_diagnostics.cpp
+    engine_host_snapshot.cpp
+    fixture_scene.cpp)
+
+target_include_directories(tessera_automation_host PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_link_libraries(tessera_automation_host PUBLIC
+    tessera_app
+    tessera_automation
+    tessera_diagnostics
+    tessera_harness
+    tessera_input_pump
+    tessera_scene
+    tessera_style
+    tessera_runtime)
+
+target_compile_features(tessera_automation_host PUBLIC cxx_std_23)
+
+# `tessera` CLI. Promoted out of EXCLUDE_FROM_ALL now that `--script` runs: the documented
+# invocation must be buildable in the default configuration. The alias/install name stays a
+# root-CMakeLists concern (Lead-owned).
+add_executable(tessera_harness_cli
     cli_main.cpp)
 
-target_link_libraries(tessera_harness_cli PRIVATE tessera_harness)
+target_link_libraries(tessera_harness_cli PRIVATE tessera_automation_host)

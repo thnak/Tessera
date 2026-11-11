@@ -89,8 +89,22 @@ void SessionExecutor::handle_line(std::string_view line) {
     queue_.push_back(std::move(pending));
 }
 
-void SessionExecutor::read_phase(SessionPumpStats& stats) {
-    while (stats.lines_read < limits_.max_reads_per_pump) {
+std::size_t SessionExecutor::read_budget(SessionTickBudget budget) const noexcept {
+    if (budget.max_reads == 0) {
+        return limits_.max_reads_per_pump;
+    }
+    return std::max<std::size_t>(1, std::min(budget.max_reads, limits_.max_reads_per_pump));
+}
+
+std::size_t SessionExecutor::command_budget(SessionTickBudget budget) const noexcept {
+    if (budget.max_commands == 0) {
+        return limits_.max_commands_per_pump;
+    }
+    return std::max<std::size_t>(1, std::min(budget.max_commands, limits_.max_commands_per_pump));
+}
+
+void SessionExecutor::read_phase(SessionPumpStats& stats, std::size_t max_reads) {
+    while (stats.lines_read < max_reads) {
         if (queue_.size() >= limits_.max_queued_requests) {
             stats.read_backpressure = true;
             return;
@@ -183,9 +197,9 @@ void SessionExecutor::enqueue_response(Response response, SessionPumpStats& stat
     ++stats.requests_answered;
 }
 
-void SessionExecutor::dispatch_phase(SessionPumpStats& stats) {
+void SessionExecutor::dispatch_phase(SessionPumpStats& stats, std::size_t max_commands) {
     std::size_t processed = 0;
-    while (!queue_.empty() && processed < limits_.max_commands_per_pump && !transport_closed_) {
+    while (!queue_.empty() && processed < max_commands && !transport_closed_) {
         Pending pending = std::move(queue_.front());
         queue_.pop_front();
         ++processed;
@@ -255,18 +269,20 @@ void SessionExecutor::finish_if_done() {
     finished_ = true;
 }
 
-SessionPumpStats SessionExecutor::pump() {
+SessionPumpStats SessionExecutor::pump(SessionTickBudget budget) {
     SessionPumpStats stats;
     if (finished_) {
         stats.closed = true;
         return stats;
     }
+    const std::size_t max_reads = read_budget(budget);
+    const std::size_t max_commands = command_budget(budget);
     flush_output(stats);
     if (!transport_closed_ && !output_blocked_) {
-        read_phase(stats);
+        read_phase(stats, max_reads);
     }
     if (!transport_closed_ && !output_blocked_) {
-        dispatch_phase(stats);
+        dispatch_phase(stats, max_commands);
     }
     flush_output(stats);
     finish_if_done();

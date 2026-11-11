@@ -43,6 +43,18 @@ struct SessionLimits {
     std::uint64_t command_timeout_us = 5'000'000;
 };
 
+// Narrows one pump to the work a single `RuntimeLoop` tick may do. A host that drives the session
+// from a fixed-step loop passes the same bound it gives a tick (its
+// `FixedStepConfig::max_updates_per_frame` and the reads that can feed them), so one pump can never
+// outrun one tick. Zero means "use the configured SessionLimits value"; a non-zero value is clamped
+// to it and is never raised, so a budget can only narrow work.
+struct SessionTickBudget {
+    std::size_t max_reads = 0;
+    std::size_t max_commands = 0;
+
+    friend constexpr bool operator==(const SessionTickBudget&, const SessionTickBudget&) = default;
+};
+
 struct SessionPumpStats {
     std::size_t lines_read = 0;
     std::size_t commands_dispatched = 0; // handler calls
@@ -74,7 +86,9 @@ public:
     SessionExecutor(const SessionExecutor&) = delete;
     SessionExecutor& operator=(const SessionExecutor&) = delete;
 
-    [[nodiscard]] SessionPumpStats pump();
+    // One bounded slice. The default budget is the configured SessionLimits; a tick budget only
+    // narrows it, so a caller can size one pump to one runtime tick.
+    [[nodiscard]] SessionPumpStats pump(SessionTickBudget budget = {});
     // Cancels queued requests in arrival order (each is answered with an Internal diagnostic),
     // writes as much as the transport accepts without waiting, then closes. Bytes a peer refused
     // to read are dropped: shutdown never blocks.
@@ -98,8 +112,11 @@ private:
         std::uint64_t deadline_us = 0;
     };
 
-    void read_phase(SessionPumpStats& stats);
-    void dispatch_phase(SessionPumpStats& stats);
+    [[nodiscard]] std::size_t read_budget(SessionTickBudget budget) const noexcept;
+    [[nodiscard]] std::size_t command_budget(SessionTickBudget budget) const noexcept;
+
+    void read_phase(SessionPumpStats& stats, std::size_t max_reads);
+    void dispatch_phase(SessionPumpStats& stats, std::size_t max_commands);
     void flush_output(SessionPumpStats& stats);
     void handle_line(std::string_view line);
     void answer(const Pending& pending, SessionPumpStats& stats);

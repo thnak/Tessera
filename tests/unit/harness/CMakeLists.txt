@@ -82,7 +82,10 @@ add_test(NAME harness_session_stream COMMAND harness_session_stream_tests)
 add_executable(harness_cli_tests
     cli_tests.cpp)
 
-target_link_libraries(harness_cli_tests PRIVATE tessera_harness)
+target_link_libraries(harness_cli_tests PRIVATE tessera_automation_host)
+
+target_compile_definitions(harness_cli_tests PRIVATE
+    TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/automation")
 
 add_test(NAME harness_cli COMMAND harness_cli_tests)
 
@@ -122,3 +125,46 @@ add_executable(harness_script_runner_tests
 target_link_libraries(harness_script_runner_tests PRIVATE tessera_harness_testing)
 
 add_test(NAME harness_script_runner COMMAND harness_script_runner_tests)
+
+# The wired lane (docs/specs/headless-automation-v1.md sections 6.8-6.9): the concrete host over a
+# real AppHost scene, its failure paths, the opt-in diagnostics cost, and the promoted CLI. These
+# link the engine-side target; the protocol-only suites above stay engine-free.
+set(TESSERA_HARNESS_FIXTURE_SCRIPTS "${PROJECT_SOURCE_DIR}/tests/fixtures/automation")
+
+add_executable(harness_engine_host_tests
+    engine_host_tests.cpp)
+
+target_link_libraries(harness_engine_host_tests PRIVATE tessera_automation_host)
+
+add_test(NAME harness_engine_host COMMAND harness_engine_host_tests)
+
+add_executable(harness_engine_host_failure_tests
+    engine_host_failure_tests.cpp)
+
+target_link_libraries(harness_engine_host_failure_tests PRIVATE tessera_automation_host)
+
+add_test(NAME harness_engine_host_failure COMMAND harness_engine_host_failure_tests)
+
+add_executable(harness_diagnostics_cost_tests
+    diagnostics_cost_tests.cpp)
+
+target_link_libraries(harness_diagnostics_cost_tests PRIVATE tessera_automation_host)
+
+add_test(NAME harness_diagnostics_cost COMMAND harness_diagnostics_cost_tests)
+
+add_executable(harness_tick_budget_tests
+    tick_budget_tests.cpp)
+
+target_link_libraries(harness_tick_budget_tests PRIVATE tessera_harness tessera_runtime)
+
+add_test(NAME harness_tick_budget COMMAND harness_tick_budget_tests)
+
+add_executable(harness_cli_integration_tests
+    cli_integration_tests.cpp)
+
+target_link_libraries(harness_cli_integration_tests PRIVATE tessera_automation_host)
+
+target_compile_definitions(harness_cli_integration_tests PRIVATE
+    TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${TESSERA_HARNESS_FIXTURE_SCRIPTS}")
+
+add_test(NAME harness_cli_integration COMMAND harness_cli_integration_tests)
