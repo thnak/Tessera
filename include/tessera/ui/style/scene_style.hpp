@@ -7,15 +7,19 @@
 
 #include <cstddef>
 #include <deque>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace tessera::ui::style {
 
 // Materializes selector-matching views for a scene subtree so the stylesheet engine can evaluate
-// scene nodes without owning them. The view exposes tree structure and pseudo-state today; element
-// metadata (tag/id/classes/attributes) is not stored on scene nodes yet, so type, class, id, and
-// attribute selectors only match once a later element layer populates those fields.
+// scene nodes without owning them. The view exposes tree structure, pseudo-state, and the element
+// metadata the scene already stores (docs/design/scene-graph.md section 5): `tag` from
+// `Node::element_kind()`, `id` from `Node::element_id()`, `classes` from the whitespace-separated
+// `Node::class_name()`, and `has_text` from a `PaintKind::Text` payload. Attribute selectors see
+// no attributes yet: `aria-*` metadata is owned by the accessibility lane and is not a selector
+// input. Reconstruct the tree when children are added or removed.
 //
 // The scene stays the source of truth for interaction state: `view`/`compute` refresh the cached
 // view from `Node::pseudo_state()`, so a tree captured before a focus change still resolves
@@ -54,6 +58,9 @@ private:
 
     std::deque<Entry> entries_;
     std::unordered_map<const Node*, std::size_t> index_;
+    // Stable storage for the whitespace-split class-name tokens the views point at. A deque keeps
+    // references valid while the tree is built, so a view never points at a reallocated buffer.
+    std::deque<std::string> class_storage_;
 };
 
 } // namespace tessera::ui::style

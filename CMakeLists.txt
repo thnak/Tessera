@@ -84,6 +84,7 @@ add_subdirectory(src/ui/accessibility)
 add_subdirectory(src/ui/automation)
 add_subdirectory(src/ui/virtual)
 add_subdirectory(src/ui/boundary)
+add_subdirectory(src/app)
 add_subdirectory(src/harness)
 add_subdirectory(src/schema)
 add_subdirectory(src/compiler/merger)
@@ -104,11 +105,20 @@ if (TESSERA_BUILD_POC AND TESSERA_ENABLE_THORVG)
     add_subdirectory(tools/poc/thorvg_spike)
 endif()
 
+if (TESSERA_BUILD_POC AND TARGET tessera_app_window)
+    add_subdirectory(tools/poc/design_mock)
+endif()
+
 if (TESSERA_BUILD_VULKAN)
     add_subdirectory(src/rendering/backend/vulkan)
     if (TESSERA_BUILD_POC)
         add_subdirectory(tools/poc/vulkan_offscreen)
         add_subdirectory(tools/poc/batched2d)
+        # The generated demo target only exists on host builds, and the sample presents through the
+        # Vulkan surface path, so it is gated like the PoCs.
+        if (NOT CMAKE_CROSSCOMPILING)
+            add_subdirectory(samples/click-demo)
+        endif()
     endif()
 endif()
 

@@ -3,6 +3,7 @@
 #include "tessera/ui/style/scene_style.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -17,7 +18,30 @@ SceneStyleTree::SceneStyleTree(const Node& root) {
 void SceneStyleTree::build(const Node& node, StyleNode* parent) {
     Entry entry;
     entry.node = &node;
+    entry.view.tag = node.element_kind();
+    entry.view.id = node.element_id();
     entry.view.state = node.pseudo_state();
+    const auto& paint = node.paint_data();
+    entry.view.has_text = paint.has_value() && paint->kind == tessera::ui::PaintKind::Text;
+
+    const std::string_view class_name = node.class_name();
+    std::size_t position = 0;
+    while (position < class_name.size()) {
+        while (position < class_name.size() &&
+               std::isspace(static_cast<unsigned char>(class_name[position])) != 0) {
+            ++position;
+        }
+        const std::size_t end = position;
+        while (position < class_name.size() &&
+               std::isspace(static_cast<unsigned char>(class_name[position])) == 0) {
+            ++position;
+        }
+        if (position > end) {
+            class_storage_.emplace_back(class_name.substr(end, position - end));
+            entry.view.classes.push_back(class_storage_.back());
+        }
+    }
+
     entry.view.parent = parent;
     entries_.push_back(std::move(entry));
 

@@ -191,7 +191,8 @@ This page is the map and reading order for the framework.
   focus, contrast/motion
 - [`design/input.md`](design/input.md) — input normalization, focus, capture, IME (input method editor)
 - [`design/game-loop.md`](design/game-loop.md) — fixed timestep, frame cap, vsync, VRR (variable refresh rate)
-- [`design/app-host.md`](design/app-host.md) — the production frame loop that wires style, layout, sync, damage, paint and present (design only)
+- [`design/app-host.md`](design/app-host.md) — the production frame loop that wires style, layout, sync, damage, paint and present (steps 3-8 implemented by `tessera_app`; input/present are the driver)
+- [`design/shell-design-preview.md`](design/shell-design-preview.md) — mock captures of the startup P0/P2/P4 frames and the system vs framework window chrome, rendered through the real style/layout/paint path
 - [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage,
   multi-frame execution, render-side damage present-loop evidence (`damage_min`/`damage_present`)
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive

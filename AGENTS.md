@@ -598,6 +598,37 @@ across the builtin and ICU backends. Known limitation: a `TextLine` is still a s
 `Normal` the measured width is collapsed while the painted slice still spans the source bytes - the
 next text slice is a paint-time collapse/transform stage (which also carries `nowrap` collapsing and
 `pre-line` newlines), then `text-overflow: ellipsis`.
+The app host lane (`src/app/`, `include/tessera/app/host.hpp`) connects the finished pieces:
+`AppHost` runs the docs/design/app-host.md section 3 order for one scene root (animation tick ->
+dirty collection -> selector tree rebuild -> Yoga layout + `apply_layout` -> `sync_style` ->
+damage/redraw plan -> paint), owns the compiled stylesheet, `SceneStyleTree`/provider, layout
+engine, `DirtyPass`, `DamageTracker`/`DamageAccumulator` and `FramePipeline`, and borrows the root
+and the `RuntimeLoop`; it never sees a window, swapchain or device. `tests/unit/app_host_tests.cpp`
+covers first frame, idle (zero work), paint-only damage, resize/DPI and settling. Supporting slice:
+`SceneStyleTree` now populates tag/id/classes/has_text from scene element metadata, so a compiled
+stylesheet styles generated nodes by type, class and id (`tests/unit/scene_style_metadata_tests.cpp`).
+The driver sample `samples/click-demo` landed: generated Demo + compiled stylesheet. Its runner is
+now the `tessera_app_window` library (`include/tessera/app/window.hpp`): `WindowHost` owns the
+platform window, Vulkan device/swapchain, Batched2D renderer and font/text stack and drives the
+host loop (events -> `InputPump` -> scheduler flush -> style/layout/damage -> paint -> present,
+resize/DPI/close, two frames in flight), and `capture_frame` renders one windowless offscreen frame
+through the same path; the sample is a thin CLI over both (windowless `--capture` + `--click`,
+`--windowed [--hidden --frames N]`). Tests `app_window` (capture parity + hidden-window smoke), `app_input` (pointer move -> `:hover`,
+press -> `:active`, release -> generated Click, focus + typed text -> generated onChange through the
+`InputPump`) and `click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next
+for this lane: generated controlled `TextInput` caret/selection decoration (the editor owns the
+offsets but codegen does not publish them into PaintData yet), platform cursor shape once the HAL
+grows a cursor API. The window input path is covered: `WindowHost::post_input` feeds normalized
+events into the same InputPump/InputRouter as OS input, and `tests/gpu/app_window_input_tests.cpp`
+drives click -> generated state and pointer focus + typed text -> generated onChange on a real hidden
+window + swapchain; `WindowHost::apply_metrics` feeds a metrics snapshot through the resize/DPI path
+(same test asserts the reflow and damage target). The design captures landed: `tools/poc/design_mock` renders the startup P0/P2/P4 frames and
+the system vs framework window chrome through the same capture path, writes
+`docs/images/{startup-p0,startup-p2,startup-p4,chrome-system,chrome-custom}.png`, and
+`docs/design/shell-design-preview.md` documents them as design mocks (not the phase scheduler or the
+Windows custom title bar). The `AppHost` root now keeps a caller-chosen `display`/`flex-direction`
+(host owns only width/height), so a shell with a sidebar can make the root a row.
+
 Next slices, in order:
 
 1. Golden/software path: the lavapipe corpus now covers dashboard, overlay, text, and shapes
