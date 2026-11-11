@@ -16,6 +16,8 @@ using tessera::ui::text::edit_detail::builtin_next_cluster;
 using tessera::ui::text::edit_detail::next_cluster;
 using tessera::ui::text::edit_detail::prev_cluster;
 using tessera::ui::text::edit_detail::snap_to_cluster;
+using tessera::ui::text::edit_detail::word_left;
+using tessera::ui::text::edit_detail::word_right;
 
 int failures = 0;
 
@@ -63,6 +65,24 @@ int main() {
         // The reduced builtin table lacks these ranges: that gap is what the ICU backend closes.
         check(builtin_next_cluster(fixtures[0].text, 0) == 2, "builtin splits a Hebrew point");
         check(builtin_next_cluster(fixtures[3].text, 0) == 3, "builtin splits a Thai vowel");
+    }
+    if (icu) {
+        // Non-ASCII spaces and punctuation are not word characters under the ICU rule status.
+        const std::string_view nbsp = "foo\xC2\xA0"
+                                      "bar"; // U+00A0
+        check(word_right(nbsp, 0) == 3, "word_right stops before a no-break space");
+        check(word_right(nbsp, 3) == 8, "word_right skips a no-break space to the next word end");
+        check(word_left(nbsp, 8) == 5, "word_left lands on the word after a no-break space");
+        const std::string_view dash = "foo\xE2\x80\x94"
+                                      "bar"; // U+2014 em dash
+        check(word_right(dash, 0) == 3, "word_right stops before an em dash");
+        check(word_left(dash, 9) == 6, "word_left skips an em dash");
+        const std::string_view ideographic = "a\xE3\x80\x80"
+                                             "b"; // U+3000
+        check(word_right(ideographic, 0) == 1, "word_right stops before an ideographic space");
+        check(word_left(ideographic, 5) == 4, "word_left skips an ideographic space");
+        const std::string_view cjk = "\xE4\xBB\x8A\xE5\xA4\xA9\xE5\xA5\xBD"; // CJK run
+        check(word_right(cjk, 0) < cjk.size(), "a CJK run is segmented into more than one word");
     }
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";

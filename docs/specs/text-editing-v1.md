@@ -340,7 +340,7 @@ Text validity and normalization: inserted/committed text must be valid UTF-8 (no
 surrogates, or > U+10FFFF); invalid input leaves the buffer unchanged with `InvalidUtf8`. CRLF and
 lone CR normalize to LF on insert and `set_text`, so the buffer never stores CR.
 
-Word and line rules: word code points are ASCII `[A-Za-z0-9_]` plus every non-ASCII code point;
+Word and line rules (no-ICU fallback; with ICU, word movement classifies each UAX #29 segment by its rule status, so non-ASCII spaces and punctuation such as U+00A0, U+2014 and U+3000 are not word characters and CJK runs are dictionary-segmented): word code points are ASCII `[A-Za-z0-9_]` plus every non-ASCII code point;
 word-left/right skip non-word code points to the next word boundary. Lines are LF-delimited; line
 home is the byte after the previous LF (0 on the first line) and line end is the next LF (size on
 the last line).

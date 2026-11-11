@@ -49,7 +49,8 @@ void finish(BreakBoundaries& boundaries, std::size_t size, BreakBackend backend)
 }
 
 #if defined(TESSERA_ICU_ENABLED)
-BreakBoundaries icu_break_iteration(std::string_view text, UBreakIteratorType type) {
+BreakBoundaries icu_break_iteration(std::string_view text, UBreakIteratorType type,
+                                    std::vector<bool>* word_flags = nullptr) {
     BreakBoundaries boundaries;
     boundaries.offsets.push_back(0);
     if (text.empty()) {
@@ -80,7 +81,13 @@ BreakBoundaries icu_break_iteration(std::string_view text, UBreakIteratorType ty
     if (U_SUCCESS(status)) {
         // With a UText, iterator indices are native (UTF-8 byte) offsets.
         for (int32_t at = ubrk_first(iterator); at != UBRK_DONE; at = ubrk_next(iterator)) {
+            const std::size_t before = boundaries.offsets.size();
             push_unique(boundaries, static_cast<std::size_t>(at), text.size());
+            if (word_flags != nullptr && boundaries.offsets.size() > before &&
+                boundaries.offsets.size() > 1) {
+                // The status of the boundary ending a segment classifies that segment.
+                word_flags->push_back(ubrk_getRuleStatus(iterator) >= UBRK_WORD_NONE_LIMIT);
+            }
         }
     }
     ubrk_close(iterator);
@@ -229,6 +236,28 @@ BreakBoundaries builtin_line_boundaries(std::string_view text) {
     }
     finish(boundaries, text.size(), BreakBackend::Builtin);
     return boundaries;
+}
+
+WordSet word_set(std::string_view text) {
+    WordSet set;
+#if defined(TESSERA_ICU_ENABLED)
+    set.boundaries = icu_break_iteration(text, UBRK_WORD, &set.is_word);
+    if (set.boundaries.backend == BreakBackend::Icu &&
+        set.is_word.size() + 1 == set.boundaries.offsets.size()) {
+        return set;
+    }
+    set.is_word.clear();
+#else
+    set.boundaries = builtin_word_boundaries(text);
+#endif
+    if (set.boundaries.backend == BreakBackend::Builtin || set.is_word.empty()) {
+        set.boundaries = builtin_word_boundaries(text);
+    }
+    for (std::size_t index = 0; index + 1 < set.boundaries.offsets.size(); ++index) {
+        set.is_word.push_back(edit_detail::is_word_codepoint(
+            edit_detail::codepoint_at(text, set.boundaries.offsets[index])));
+    }
+    return set;
 }
 
 BreakBoundaries word_boundaries(std::string_view text) {
