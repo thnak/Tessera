@@ -1536,3 +1536,11 @@ target_link_libraries(tofu_placeholder_tests PRIVATE tessera_text)
 add_test(NAME tofu_placeholder COMMAND tofu_placeholder_tests
     "${TESSERA_FONT_FIXTURE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/EmptyNotdef.ttf")
+
+# IR expression and action evaluator (docs/specs/ir-v1.md sections 4.1 and 4.2).
+add_executable(ir_eval_tests
+    ir_eval_tests.cpp)
+
+target_link_libraries(ir_eval_tests PRIVATE tessera_ir_eval)
+
+add_test(NAME ir_eval COMMAND ir_eval_tests)

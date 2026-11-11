@@ -51,6 +51,20 @@ source text (editor/host) -> front end (changed components only) -> IR
 - The evaluator must match generated C++ semantics; unsupported constructs are rejected by the
   front end, never discovered at preview time. A differential suite compares the evaluator and
   generated native code on the same IR.
+- **Evaluator (done):** `src/compiler/eval` (`tessera_ir_eval`, links only the IR) evaluates
+  expressions and runs action lists over a `Scope` of named values, with the numeric table of
+  [`ir-v1.md`](../specs/ir-v1.md) section 4.1 (32-bit wrapping `int`, binary64 `float`, `%` and
+  `/` rules, `NaN` comparisons, number text) and exactly the section 4.2 functions
+  (`formatNumber` is rounded from the exact value by decimal expansion, ties away from zero).
+  `TESSERA_IR_INT_MODULO_ZERO` is reported once per expression node per `Evaluator`. Actions apply
+  immediately, in order, as the generated handler assigns, so a later action reads an earlier
+  one's result. Where the spec is silent the evaluator is strict, because the front end rejects
+  those programs: string ordering, a `bool` in a template and cross-type `==` are
+  `TESSERA_IR_EVAL_TYPE` errors; a `formatNumber` result keeps the sign of a negative that rounds
+  to zero (`-0.00`). Test `ir_eval`. Generated C++ does not yet match all of this (`%`,
+  `length`, `formatNumber` and substituting templates are deferred in codegen, and `int` overflow
+  is plain C++ arithmetic); the differential suite and the preview-parity runner (issue #7) build on
+  this evaluator.
 
 ## 3. IPC
 
