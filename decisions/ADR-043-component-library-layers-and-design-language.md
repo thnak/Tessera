@@ -94,7 +94,8 @@ The library also needs a recognizable look of its own. Imitating each platform's
 7. **Full coverage in stages.** The catalog covers desktop, data, media and motion components, not
    only mobile basics: among others NumberInput, MenuBar, Toolbar, StatusBar, Splitter,
    PropertyGrid, DataGrid, Spreadsheet, charts from sparklines to real-time streaming, Image,
-   Video, Lottie, AnimatedIcon, SafeArea for notches/cutouts/folds, and ViewTransition and
+   Video, Lottie, AnimatedIcon, SafeArea for notches/cutouts/folds, LiveCapsule (a floating
+   status capsule around the top cutout), and ViewTransition and
    SharedElement on ADR-035. The catalog and stages live in
    [`component-library.md`](../docs/design/component-library.md) sections 3 and 8, the single
    source for them. Staging rules:

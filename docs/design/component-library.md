@@ -33,7 +33,7 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
 | Forms | Field, Form (1, moved to TSX by issue [#70](https://github.com/thnak/Tessera/issues/70)); FieldSet, ValidationSummary (2) |
 | Layout | Stack, Grid, Card, ScrollView, AspectRatio (1); Accordion/Collapsible (2); Splitter, TwoPane (3); Masonry (4); DockingLayout (5) |
 | Navigation and shell | Tabs, AppBar, Sidebar/NavigationRail, BottomNavigation, Drawer, Breadcrumb, MenuBar, Toolbar, StatusBar, Navigator (2); Pagination, Stepper/Wizard, CommandPalette (3) |
-| Overlays | Tooltip (1); Dialog, AlertDialog, Sheet/BottomSheet, Popover, HoverCard, Menu, ContextMenu, Toast (2) |
+| Overlays | Tooltip (1); Dialog, AlertDialog, Sheet/BottomSheet, Popover, HoverCard, Menu, ContextMenu, Toast, LiveCapsule (2) |
 | Feedback and status | Spinner, Progress (linear/circular), Skeleton, Badge, Chip/Tag, EmptyState, Banner/Alert (1); Meter/Gauge (3) |
 | Data display | List (1); Table, Tree, Timeline, Stat/KPI tile, Descriptions (3); DataGrid, TreeTable, PropertyGrid, Calendar (month/week/day) (4); Spreadsheet, Kanban (5) |
 | Charts | Line, Bar, Area, Pie/Donut, Sparkline, Gauge (3); Scatter for large data, Candlestick/OHLC, Heatmap, Histogram, Box plot, real-time streaming with decimation, zoom/pan/crosshair, multi-axis (4); charts inside Spreadsheet, 3D charts (6) |
@@ -80,7 +80,31 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
 - `TwoPane` places content on each side of a hinge or fold and becomes one pane on unfolded or
   single screens.
 
-### 3.3 Spreadsheet compared with DataGrid
+### 3.3 LiveCapsule (floating status capsule)
+
+- A pill-shaped overlay anchored at the top center of the window that shows ongoing activity
+  (timer, playback, upload or download progress, call, recording) without leaving the current
+  screen. It is an in-app component, not the operating system's live-activity feature.
+- **Placement**: on devices with a top display cutout it wraps the cutout, so the capsule reads as
+  an extension of the hardware; elsewhere it sits under the top safe-area inset. This needs the
+  cutout **rectangles**, not only insets: `os-events-v1` gains cutout bounds from Android
+  `DisplayCutout` bounding rects; platforms without them (iOS, desktop, web) fall back to top
+  center under the safe area.
+- **States**: `minimal` (icon or dot), `compact` (leading and trailing slots around the cutout) and
+  `expanded` (a card with content and actions). Tap expands, tapping outside or swiping up
+  collapses. Size and corner radius morph between states with the spring runtime; reduced motion
+  switches states with a cross-fade.
+- **Activities**: an app-level queue with priority; at most one compact activity plus one
+  minimal one are visible, others wait. Each activity owns its content through slots and ends
+  explicitly or on a timeout.
+- **Accessibility**: a polite live region announces start and end of an activity; the capsule is
+  focusable, has a name from the active activity, and its expanded actions are reachable by
+  keyboard. It never steals focus.
+- **Power**: an idle capsule draws nothing new; progress updates follow render-on-demand.
+- Mirroring activities into system live activities (iOS Live Activities, Android ongoing
+  notifications) is a stage-6 platform integration.
+
+### 3.4 Spreadsheet compared with DataGrid
 
 - DataGrid shows typed records: one row per record, one column per field.
 - Spreadsheet is cell-addressed (`A1`): range selection, fill handle, frozen rows and columns,
@@ -133,11 +157,11 @@ components.
 |---|---|---|---|---|
 | 0 | Foundations | Package imports and Field/Form move (#70), `::part()`, Instrument tokens and fonts, behavior primitives, Icon with the Iconify import tool, gallery skeleton | none; exit is one styled Button end to end, shown in the web gallery | front end, stylesheet engine |
 | 1 | A settings screen | Core controls, inputs, layout, feedback, SafeArea, Image, List, Tooltip | Settings | stage 0 |
-| 2 | A multi-screen app | Overlays, app shell (MenuBar, Toolbar, StatusBar, AppBar, Sidebar, Tabs), Navigator with ViewTransition/SharedElement, AnimatedIcon, Carousel | App shell | overlays spec, ADR-035 |
+| 2 | A multi-screen app | Overlays, LiveCapsule, app shell (MenuBar, Toolbar, StatusBar, AppBar, Sidebar, Tabs), Navigator with ViewTransition/SharedElement, AnimatedIcon, Carousel | App shell | overlays spec, ADR-035, cutout bounds in `os-events-v1` |
 | 3 | CRUD and simple dashboards | Table, Tree, Splitter, TwoPane, ComboBox, Date/TimePicker, CommandPalette, basic charts, Stat tile, Sortable | List-detail CRUD, dashboard | vector paths (ADR-004) |
 | 4 | Desktop tools and monitoring | DataGrid, TreeTable, PropertyGrid, Calendar, ColorPicker, Dropzone, advanced charts, ImageViewer | Admin/monitoring console | virtualization, clipboard |
 | 5 | Media, documents and editors | Video, AudioPlayer, Lottie, Spreadsheet, RichTextEditor, CodeEditor, DockingLayout, Kanban | Media or document app | media services, multi-style text runs, formula engine |
-| 6 | Specialized | Map, 3D wrappers, CameraPreview, QRScanner, PDFViewer, spreadsheet file import/export, 3D charts | none | custom elements, optional packages |
+| 6 | Specialized | Map, 3D wrappers, CameraPreview, QRScanner, PDFViewer, spreadsheet file import/export, 3D charts, LiveCapsule mirroring to system live activities | none | custom elements, optional packages, platform services |
 
 ## 8.1 Detail design
 
