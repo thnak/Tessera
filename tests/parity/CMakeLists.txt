@@ -29,9 +29,9 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_parity_dir}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_parity_seed} ${_parity_dir}/Counter.cpp
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write
-            --out ${_parity_dir} --namespace parity_sample --salt parity-demo
-            --root ${_parity_sample_dir} ${_parity_sample_dir}/Counter.tsx
-    DEPENDS tessera_codegen_cli ${_parity_sample_dir}/Counter.tsx ${_parity_seed}
+            --out ${_parity_dir} --namespace parity_sample ${_parity_sample_dir}/Counter.tsx
+    DEPENDS tessera_codegen_cli ${_parity_sample_dir}/Counter.tsx
+            ${_parity_sample_dir}/tessera.json ${_parity_seed}
     COMMENT "Regenerating the preview-parity sample"
     VERBATIM)
 
