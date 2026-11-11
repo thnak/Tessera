@@ -42,6 +42,13 @@ add_executable(text_render_tests
 target_link_libraries(text_render_tests PRIVATE tessera_text_render tessera_rhi_null)
 add_test(NAME text_render COMMAND text_render_tests "${TESSERA_FONT_FIXTURE}")
 
+add_executable(text_render_faces_tests
+    text/text_render_faces_tests.cpp)
+target_link_libraries(text_render_faces_tests PRIVATE tessera_text_render tessera_rhi_null)
+add_test(NAME text_render_faces COMMAND text_render_faces_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
+
 # Path raster cache -> batched2d textured draw. The null-device section runs everywhere; the Vulkan
 # readback cases are compiled in only when the Vulkan backend is part of the build.
 add_executable(path_texture_draw_tests

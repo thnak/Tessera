@@ -887,6 +887,15 @@ add_test(NAME fallback_shaper COMMAND fallback_shaper_tests
     "${TESSERA_FONT_FIXTURE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
 
+add_executable(glyph_atlas_faces_tests
+    glyph_atlas_faces_tests.cpp)
+
+target_link_libraries(glyph_atlas_faces_tests PRIVATE tessera_text)
+
+add_test(NAME glyph_atlas_faces COMMAND glyph_atlas_faces_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
+
 add_executable(text_layout_tests
     text_layout_tests.cpp)
 

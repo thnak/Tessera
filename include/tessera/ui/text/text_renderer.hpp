@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace tessera::ui::text {
 
@@ -17,6 +18,9 @@ namespace tessera::ui::text {
 class TextRenderer {
 public:
     TextRenderer(rendering::rhi::Device& device, GlyphRasterizer& rasterizer,
+                 GlyphAtlasConfig config = {});
+    // A font stack: glyph `face` i is rasterized by `rasterizers[i]` (see FallbackShaper).
+    TextRenderer(rendering::rhi::Device& device, std::vector<GlyphRasterizer*> rasterizers,
                  GlyphAtlasConfig config = {});
     ~TextRenderer();
 

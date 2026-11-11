@@ -107,8 +107,12 @@ the first face covering all of it (else the first face drawing its base characte
 `.notdef`), adjacent clusters of one face are shaped together, and `Glyph::face` records the stack
 index. `ShapedRun::missing_glyphs` counts the `.notdef` glyphs for the diagnostic. Sub-runs are
 shaped with the direction of the whole text and joined in visual order. The cluster-to-face
-decision cache is bounded at 4096 entries and restarts when full. Plan: 12b makes the glyph atlas
-and `TextRenderer` face-aware (a rasterizer per face, atlas key `(face, glyph, size)`), 12c adds
+decision cache is bounded at 4096 entries and restarts when full. Slice 12b (done) makes the
+glyph atlas and `TextRenderer` face-aware: both take a vector of rasterizers, `Glyph::face` picks
+the rasterizer and the atlas key is `(face, glyph, size)`, so equal glyph ids of different faces
+never collide and glyphs of every face share the pages and batch into one draw (tests
+`glyph_atlas_faces`, `text_render_faces`). A face index outside the stack is an empty, counted
+(`GlyphAtlasStats::dropped`) entry. `ScaleGlyphAtlas` stays single-face. Plan: 12c adds
 FreeType color loading (`FT_LOAD_COLOR`), RGBA pages and the bundled emoji face with its
 `THIRD_PARTY_NOTICES.md` and `dependencies.md` entries.
 
@@ -125,7 +129,7 @@ FreeType color loading (`FT_LOAD_COLOR`), RGBA pages and the bundled emoji face 
 - `TextRenderer` owns one RHI texture per page, creates it from the page pixels, and updates it in
   place through `rhi::Texture::write` when the page generation changes. Each glyph becomes a
   textured quad with atlas UVs through `Batched2DRenderer`.
-- Not implemented: skyline packing, subpixel positioning, SDF/MSDF, multi-face rendering (shaping fallback exists, see section 4), async
+- Not implemented: skyline packing, subpixel positioning, SDF/MSDF, async
   uploads, and per-glyph (rather than per-page) eviction.
 - Hinting/AA settings come from the pinned FreeType build; no system FreeType configuration is
   read.
