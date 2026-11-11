@@ -14,6 +14,14 @@ constexpr std::uint32_t kHighSurrogateLast = 0xDBFF;
 constexpr std::uint32_t kLowSurrogateFirst = 0xDC00;
 constexpr std::uint32_t kLowSurrogateLast = 0xDFFF;
 
+bool is_high_surrogate(char16_t unit) {
+    return unit >= kHighSurrogateFirst && unit <= kHighSurrogateLast;
+}
+
+bool is_low_surrogate(char16_t unit) {
+    return unit >= kLowSurrogateFirst && unit <= kLowSurrogateLast;
+}
+
 void append_codepoint(char32_t codepoint, ui::InputEvent& out) {
     char bytes[4];
     std::size_t size = 0;
@@ -99,7 +107,16 @@ bool composition_event(const ImeStrings& strings, ui::InputEvent& out) {
     out.text_truncated = out.text_truncated || strings.composition_truncated;
     const std::uint32_t units = static_cast<std::uint32_t>(
         std::min<std::size_t>(strings.composition_length, kMaxImeStringUnits));
-    const std::uint32_t cursor = std::min(strings.cursor, units);
+    std::uint32_t cursor_units = std::min(strings.cursor, units);
+    if (cursor_units > 0 && cursor_units < units &&
+        is_low_surrogate(strings.composition[cursor_units]) &&
+        is_high_surrogate(strings.composition[cursor_units - 1])) {
+        --cursor_units; // inside a surrogate pair: snap to the start of the code point
+    }
+    // The payload is UTF-8, so the caret is the byte length of the converted prefix.
+    ui::InputEvent prefix;
+    write_utf8(std::span<const char16_t>(strings.composition.data(), cursor_units), prefix);
+    const std::uint32_t cursor = std::min(prefix.text_size, out.text_size);
     out.selection_start = cursor;
     out.selection_end = cursor;
     return true;

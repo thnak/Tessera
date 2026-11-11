@@ -97,7 +97,7 @@ int main() {
         !expect(event.type == InputEventType::CompositionUpdate, "composition event type") ||
         !expect(as_bytes(event) == "xyz", "composition UTF-8") ||
         !expect(event.selection_start == 2 && event.selection_end == 2,
-                "cursor maps to a clamped UTF-16 range")) {
+                "cursor maps to a clamped UTF-8 offset")) {
         return 5;
     }
 
@@ -118,6 +118,38 @@ int main() {
         !expect(event.selection_start == 3 && event.selection_end == 3,
                 "cursor clamps to composition length")) {
         return 7;
+    }
+
+    // The cursor is converted from UTF-16 units to UTF-8 bytes: "a", U+4F60 (3 bytes), U+1F600
+    // (surrogate pair, 4 bytes).
+    ImeStrings wide;
+    wide.has_composition = true;
+    wide.composition[0] = u'a';
+    wide.composition[1] = char16_t(0x4F60);
+    wide.composition[2] = char16_t(0xD83D);
+    wide.composition[3] = char16_t(0xDE00);
+    wide.composition_length = 4;
+    wide.cursor = 2;
+    if (!expect(composition_event(wide, event), "wide composition translates") ||
+        !expect(event.text_size == 8, "wide composition UTF-8 size") ||
+        !expect(event.selection_start == 4 && event.selection_end == 4,
+                "a UTF-16 cursor after a CJK character is a UTF-8 byte offset")) {
+        return 12;
+    }
+    wide.cursor = 3; // inside the surrogate pair
+    if (!expect(composition_event(wide, event) && event.selection_start == 4,
+                "a cursor inside a surrogate pair snaps to the pair start")) {
+        return 13;
+    }
+    wide.cursor = 4;
+    if (!expect(composition_event(wide, event) && event.selection_start == 8,
+                "a cursor at the end maps to the payload size")) {
+        return 14;
+    }
+    wide.cursor = 0;
+    if (!expect(composition_event(wide, event) && event.selection_start == 0,
+                "cursor 0 is a valid caret at the start")) {
+        return 15;
     }
 
     // Payloads past the inline capacity are truncated at a UTF-8 boundary and flagged.

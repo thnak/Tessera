@@ -43,8 +43,10 @@ void write_utf8(std::span<const char16_t> units, ui::InputEvent& out);
 
 // Fills `out` with a `CompositionUpdate` event from GCS_COMPSTR, including an empty composition
 // string (a valid update that clears the in-progress text). Returns false when no composition
-// string was reported. The selection range is (cursor, cursor), clamped to the composition length,
-// in UTF-16 code units.
+// string was reported. The selection range is (cursor, cursor): the UTF-16 cursor is clamped to
+// the composition length and converted to a UTF-8 byte offset into the payload (a cursor inside a
+// surrogate pair snaps to the start of the pair; a payload cut at the inline cap clamps the cursor
+// to the bytes kept).
 [[nodiscard]] bool composition_event(const ImeStrings& strings, ui::InputEvent& out);
 
 } // namespace tessera::hal::win32
