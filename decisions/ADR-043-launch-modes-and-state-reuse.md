@@ -1,6 +1,6 @@
 # ADR-043: Launch modes and state reuse
 
-- Status: Proposed
+- Status: Accepted (2026-11-11; owner selected a bounded activation queue, encrypted snapshots and stale-while-revalidate hot resume).
 - Date: 2026-11-11
 - Related: [`startup-api-v1.md`](../docs/specs/startup-api-v1.md) (normative behavior and matrix),
   [`state-restoration-v1.md`](../docs/specs/state-restoration-v1.md) (snapshot, restore order),
@@ -45,15 +45,20 @@ only place that can decide reuse safely and consistently across platforms.
 3. **Activation outranks continuity.** A pending deep-link/notification target overrides the
    restored route; without an activation a valid snapshot overrides the default UI. Auth-gated
    targets wait for auth and survive login; destructive actions still require confirmation; invalid
-   targets fall back to the not-found route or route root. Pending activations are bounded (V1: one,
-   latest wins) and deduped.
+   targets fall back to the not-found route or route root. Pending activations use a bounded FIFO
+   queue (V1: four entries), deduped by normalized target, one routed per stage boundary, and the
+   oldest entry is dropped on overflow (diagnostic), never growing without bound.
 4. **Untrusted persistence.** A snapshot is validated (version, route table, limits, ids), migrated,
    and never executed; corrupt/foreign snapshots fall back to the previous good snapshot or the route
    root. User-scoped restore and user-scoped activations apply only after auth; logout clears both.
-   Secrets are never restored (they live in the keystore).
+   Secrets are never restored (they live in the keystore). Snapshots are encrypted at rest with a key
+   derived from the platform secure store; logout deletes the snapshot and the key material, and a
+   missing key, foreign device or failed decryption discards the snapshot.
 5. **Reuse must expire.** A change of app version, route table, asset identity or signed-in user
    downgrades reuse (`hot_resume` -> `warm` -> `cold`) or discards the snapshot; hot resume always
    revalidates session and stale data in the background instead of trusting the last frame's data.
+   Non-auth screens present the retained frame before revalidation; auth-gated screens refresh before
+   their first present, so stale user data is never shown as current.
 6. **Launch is observable.** Every launch records `launch.mode` and `activation.source` as
    diagnostics and metric labels, with `startupMs`, `ttfpMs`, `ttiMs`, `resumeMs` per mode. Forcing
    a mode is a harness capability, never a release feature.

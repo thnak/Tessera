@@ -1,6 +1,6 @@
 # ADR-042: A declarative JSX startup surface with a framework-provided loading screen
 
-- Status: Proposed
+- Status: Accepted (2026-11-11; owner kept the member-tag carve-out and made the implicit App a permanent warning).
 - Date: 2026-11-11
 - Related: [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own JSX/TSX front end),
   [ADR-039](ADR-039-lowercase-html-tags-accepted.md) (precedent: a narrow, data-driven exception to
