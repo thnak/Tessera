@@ -133,8 +133,14 @@ modifier behind Noto Sans: each is one glyph from the emoji face and rasterizes 
 the advance wide, 0.7 em tall, a stroke of 1/12 em), so the character never vanishes. It is
 coverage only and takes the text color; a fixed warning color was rejected because it would override
 the author's color. Test `tofu_placeholder` (fixture `EmptyNotdef.ttf`, `ColorTest.ttf` with the
-`.notdef` outline removed). **Not done:** a default stack that ends with the face (stacks are
-supplied by the host today; there is no app font bundle yet).
+`.notdef` outline removed). **App font stack (done):** an app ships its faces as bundle assets plus
+`fonts/stack.txt`, one font asset name per line in fallback order (`#` comments and blank lines
+ignored, at most 16 faces); the emoji face goes last. `assets::load_font_stack(bundle)`
+(`ui/assets/asset_font.hpp`) returns the faces for `FallbackShaper`, and every failure is a value
+naming the asset (missing, not a font, empty manifest). Test `asset_font` builds a bundle with
+Hebrew then the color test face and shapes Hebrew, an emoji and an uncovered Thai character through
+it. **Not done:** a framework-supplied stack when the app lists none (apps choose their faces; the
+repo ships Noto Sans and Twemoji only as test fixtures).
 
 ## 5. Glyph atlas (implemented subset)
 
