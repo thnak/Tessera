@@ -634,14 +634,19 @@ without a BOM), `FrameFailureGuard` (`include/tessera/app/frame_guard.hpp`) boun
 frame failures so a bounded `--frames` run always terminates, a busy slot is skipped until
 `is_complete()` instead of waiting on the GPU from the UI thread, and `OutOfDate` recreates the
 swapchain at the window's real size rather than at its own current extent (a documented no-op).
-Remaining app-host debt: drive the idle/skip paths from the pacer deadline instead of fixed
-sleeps, present only on damage, call `end_frame()` on the not-due path, and drain in-flight
-commands at teardown without a device-wide `wait_idle()`. Package imports are live in lowering:
-`lower_project(files, module, packages)` resolves `from "tessera-ui/Button"` to `<root>/Button`
-and a bare `"tessera-ui"` to `<root>/index`, then follows the ordinary cross-file rules, so
-package TSX is compiled by the same pipeline (#70). Next for #70: the project-config loader
-feeds `PackageRoot`s, `tessera/components/{Field,Form}.tsx` become the source of truth (a parity
-test pins the IR), and `library_components.cpp` stops hand-building IR.
+The idle and teardown debt is closed: `include/tessera/app/idle_policy.hpp` parks the window driver
+on the platform wait until the pacer deadline (clamped, never past it, never spinning), no host
+frame begins while `RuntimeLoop` says nothing is due, a not-due tick calls `end_frame()` and paints
+nothing, a frame is presented only when the redraw plan has damage (forced frames still paint), and
+teardown polls the submitted command lists under a bounded budget instead of `device->wait_idle()`;
+`run()` is re-entrant (it re-attaches the input queue and a second run is covered by
+`app_window_smoke`), and `WindowOptions::max_fps` caps the cadence. Package imports are live in
+lowering and in the driver: `lower_project(files, module, packages)` resolves
+`from "tessera-ui/Button"` to `<root>/Button` and a bare `"tessera-ui"` to `<root>/index`, then
+follows the ordinary cross-file rules; `tessera_codegen` reads the `packages` array from
+`tessera.json`, validates it and follows each file's imports, so a package's sources are not listed
+on the command line (#70). Next for #70: declared prop records from the props type alias (the
+parity test pins that gap), then `library_components.cpp` stops hand-building IR.
 
 Next slices, in order:
 
