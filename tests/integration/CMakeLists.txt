@@ -43,3 +43,33 @@ add_test(
     COMMAND generated_ui_tests
         ${TESSERA_DEMO_FONT_FIXTURE}
         ${PROJECT_SOURCE_DIR}/tests/golden/baseline/generated_ui)
+
+# Memory benchmark on the same headless sample (issue #13): resident growth of the build, the first
+# paint and a scripted click loop, compared with tests/golden/memory/generated_ui.txt.
+add_executable(generated_ui_memory_tests
+    ${CMAKE_CURRENT_LIST_DIR}/generated_ui_demo.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/generated_ui_memory_tests.cpp)
+
+target_link_libraries(generated_ui_memory_tests PRIVATE
+    tessera_compiler_demo
+    tessera_diagnostics
+    tessera_scene
+    tessera_style
+    tessera_layout
+    tessera_paint
+    tessera_text
+    tessera_text_edit
+    tessera_software
+    tessera_golden
+    tessera_stb)
+
+target_include_directories(generated_ui_memory_tests PRIVATE
+    ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
+
+target_compile_features(generated_ui_memory_tests PRIVATE cxx_std_23)
+
+add_test(
+    NAME generated_ui_memory
+    COMMAND generated_ui_memory_tests
+        ${TESSERA_DEMO_FONT_FIXTURE}
+        ${PROJECT_SOURCE_DIR}/tests/golden/memory/generated_ui.txt)

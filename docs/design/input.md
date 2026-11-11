@@ -66,7 +66,7 @@ single-consumer queue; V1 = first release (scope rule in
 Platform backends (`hal/input`) translate OS messages:
 
 - Windows: `WM_POINTER*`, `WM_MOUSE*`, `WM_KEY*`, `WM_CHAR`, `WM_IME_*`, DPI change.
-- Linux/X11: core pointer/key events today; XInput2, `XKB`, RandR, Present planned.
+- Linux/X11: core pointer/key events plus XIM text today; XInput2, RandR, Present planned.
 - Linux/Wayland: `wl_pointer`, `wl_keyboard`, `wl_touch`, `text-input`, `wp_presentation`.
 - Android: not implemented; planned in Big Step F (`MotionEvent`, `KeyEvent`, `InputConnection`; see [`mobile-integration.md`](mobile-integration.md)).
 - macOS: deferred ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via MoltenVK).

@@ -100,6 +100,10 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 | `InputEvent` | 344 bytes (the 256-event queue is about 86 KiB) | measured, not yet asserted |
 | Resident bytes per plain node (20k-node tree) | about 470 bytes measured, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt` |
 | Idle cycles after warm-up | 0 bytes of RSS growth measured, budget 2 MiB | `memory_steady_state` test |
+| Headless generated-UI sample: build and layout | about 0.6 MB measured, budget 8 MiB | `generated_ui_memory` test, `tests/golden/memory/generated_ui.txt` |
+| Same sample: first paint | about 0.9 MB measured, budget 8 MiB | `generated_ui_memory` |
+| Same sample: 300 click + repaint cycles after warm-up | 0 to 45 KB measured, budget 1 MiB | `generated_ui_memory` |
+| Same sample: process peak resident | about 8.7 MB measured, budget 64 MiB | `generated_ui_memory` |
 
 A node carried 1984 bytes before the rarely used tables became lazily allocated, so a 10k-node
 screen of plain views drops from about 20 MB to about 3 MB of node storage (Yoga node and style
@@ -110,8 +114,10 @@ with no heap allocation (VmRSS/VmHWM on Linux and Android, the working set on Wi
 and `memory.rss_peak_bytes`. It is a syscall: sample per second or per scripted checkpoint, never
 per frame. Real RSS is machine dependent, so the committed bounds are generous and catch leaks and
 order-of-magnitude regressions, not noise. Raise a budget only with a recorded decision. Still to
-measure and budget: steady and peak RSS of the sample apps (the baseline covers a synthetic tree
-until a sample runs headless) and Android PSS.
+measure and budget: Android PSS (needs the Android sample). The `generated_ui_memory` test runs the
+compiler-generated demo headless (CPU canvas, no GPU), samples resident memory after the build, the
+first paint and a scripted click loop, and prints the numbers on every run so CI logs show the
+trend; it fails above the committed bounds.
 
 GPU memory: `rhi::Device::memory_statistics()` returns the allocator totals (`block_bytes` asked of
 the driver, `allocation_bytes` handed to live buffers and images, and their counts). The Vulkan

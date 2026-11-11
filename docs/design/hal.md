@@ -290,11 +290,21 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   resize/device-loss policy, and runtime/pacer integration (macOS via
   [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per
   [`mobile-integration.md`](mobile-integration.md)).
-- X11 limitations in this slice: input is the **core protocol only** (pointer, wheel, key and
-  keysym text through `set_input_queue`, translated by `src/platform/linux/x11_input*.cpp` with the mapping rules in
-  `x11_input_translation.cpp`; see [`input.md`](input.md)); there is no
-  XInput2 (smooth scroll, touch, pen), no XKB layout tracking or dead-key/compose text, no
-  Wayland, no IME/XIM/IBus, no occlusion/minimize signal, no RandR or display-hotplug handling,
+- X11 limitations in this slice: input is the **core protocol plus an X input method** (pointer,
+  wheel and key events through `set_input_queue`, translated by `src/platform/linux/x11_input*.cpp`
+  with the mapping rules in `x11_input_translation.cpp`; see [`input.md`](input.md)). Text comes
+  from the window's XIC (`Xutf8LookupString`): dead keys, compose sequences and text committed by
+  an input method (ibus, fcitx) arrive as `Text` events, and a dead key is still a key event that
+  types nothing. Every event goes through `XFilterEvent` first; with no input-method server the
+  built-in `@im=none` method still composes. A window left at the `C` locale gets `C.UTF-8` for
+  `LC_CTYPE` only. `MappingNotify` refreshes Xlib's keymap, so a layout switch applies to a
+  running app. Pre-edit text is not drawn and the candidate window is not positioned
+  (`XNSpotLocation`), and only the built-in method is tested, not a real ibus or fcitx server. Tests: `window_x11_input` sends
+  synthetic events with `XSendEvent`; `window_x11_real_input` drives the window through the XTEST
+  extension (what `xdotool` uses) so the X server itself generates the pointer, wheel, key and
+  focus events (verified under Xvfb on Linux; it skips without `DISPLAY` or libXtst). There is no
+  XInput2 (smooth scroll, touch, pen), no pre-edit display, no Wayland, no
+  occlusion/minimize signal, no RandR or display-hotplug handling,
   and DPI is a global `Xft.dpi` heuristic (96 fallback). See [`window-resize.md`](window-resize.md)
   §0.
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).

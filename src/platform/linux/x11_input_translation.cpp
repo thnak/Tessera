@@ -211,4 +211,54 @@ ButtonAction button_action(unsigned x_button) {
     return action;
 }
 
+std::uint32_t next_utf8_codepoint(std::string_view text, std::size_t& position) {
+    constexpr std::uint32_t kReplacement = 0xFFFD;
+    const auto byte_at = [&](std::size_t index) {
+        return static_cast<std::uint32_t>(static_cast<unsigned char>(text[index]));
+    };
+    const std::uint32_t lead = byte_at(position);
+    std::size_t length = 0;
+    std::uint32_t codepoint = 0;
+    std::uint32_t minimum = 0;
+    if (lead < 0x80) {
+        ++position;
+        return lead;
+    }
+    if (lead >= 0xC2 && lead <= 0xDF) {
+        length = 2;
+        codepoint = lead & 0x1F;
+        minimum = 0x80;
+    } else if (lead >= 0xE0 && lead <= 0xEF) {
+        length = 3;
+        codepoint = lead & 0x0F;
+        minimum = 0x800;
+    } else if (lead >= 0xF0 && lead <= 0xF4) {
+        length = 4;
+        codepoint = lead & 0x07;
+        minimum = 0x10000;
+    } else {
+        ++position; // stray continuation byte, or a lead byte that is never valid
+        return kReplacement;
+    }
+    if (position + length > text.size()) {
+        ++position;
+        return kReplacement;
+    }
+    for (std::size_t i = 1; i < length; ++i) {
+        const std::uint32_t continuation = byte_at(position + i);
+        if ((continuation & 0xC0) != 0x80) {
+            ++position;
+            return kReplacement;
+        }
+        codepoint = (codepoint << 6) | (continuation & 0x3F);
+    }
+    if (codepoint < minimum || codepoint > 0x10FFFF ||
+        (codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+        ++position;
+        return kReplacement;
+    }
+    position += length;
+    return codepoint;
+}
+
 } // namespace tessera::hal::x11

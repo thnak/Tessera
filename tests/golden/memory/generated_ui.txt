@@ -1,0 +1,15 @@
+# Memory baseline for the generated_ui_memory test (issue #13): resident bytes of the headless
+# generated-UI sample. Measured on Windows (debug build): build about 0.6 MB, first frame about
+# 0.9 MB, 300 click + repaint cycles about 0 to 45 KB, peak about 8.7 MB. Real RSS is machine
+# dependent, so the bounds are far above that and catch leaks and order-of-magnitude regressions,
+# not noise. Raise a bound only with a recorded decision (docs/design/performance.md, section 3.1).
+warmup_cycles=20
+cycles=300
+# Growth from building the generated tree and its layout.
+max_build_bytes=8388608
+# Growth from the first paint (glyph rasterization, shaping, canvas).
+max_first_frame_bytes=8388608
+# Growth across all cycles after warm-up (a leak guard).
+max_interaction_bytes=1048576
+# Process resident high-water mark at the end.
+max_peak_bytes=67108864
