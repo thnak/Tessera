@@ -1513,3 +1513,12 @@ add_executable(container_query_settle_tests
 target_link_libraries(container_query_settle_tests PRIVATE tessera_layout)
 
 add_test(NAME container_query_settle COMMAND container_query_settle_tests)
+
+add_executable(tofu_placeholder_tests
+    tofu_placeholder_tests.cpp)
+
+target_link_libraries(tofu_placeholder_tests PRIVATE tessera_text)
+
+add_test(NAME tofu_placeholder COMMAND tofu_placeholder_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/EmptyNotdef.ttf")

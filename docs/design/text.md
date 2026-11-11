@@ -127,8 +127,14 @@ the production emoji face must be COLRv0. **Emoji face (chosen):** Twemoji Mozil
 `THIRD_PARTY_NOTICES.md`). Noto Color Emoji was rejected because its official builds are CBDT or
 COLRv1, which this FreeType cannot draw. Test `emoji_font` shapes a flag, a ZWJ family and a skin-tone
 modifier behind Noto Sans: each is one glyph from the emoji face and rasterizes to real colors.
-**Not done:** a default stack that ends with the face (stacks are supplied by the host today; there
-is no app font bundle yet) and a color tofu/placeholder for clusters no face covers.
+**Tofu (done):** a cluster no face covers is drawn by face 0's `.notdef` and counted in
+`missing_glyphs`. When that `.notdef` has no ink (some fonts ship an empty one),
+`GlyphRasterizer` draws a hollow box on the baseline instead, sized from the pixel size (about 0.8 of
+the advance wide, 0.7 em tall, a stroke of 1/12 em), so the character never vanishes. It is
+coverage only and takes the text color; a fixed warning color was rejected because it would override
+the author's color. Test `tofu_placeholder` (fixture `EmptyNotdef.ttf`, `ColorTest.ttf` with the
+`.notdef` outline removed). **Not done:** a default stack that ends with the face (stacks are
+supplied by the host today; there is no app font bundle yet).
 
 ## 5. Glyph atlas (implemented subset)
 
