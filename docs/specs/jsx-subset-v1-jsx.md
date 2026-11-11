@@ -209,6 +209,8 @@ and no silent skipping.
 | `bind::` annotation in a position other than before a handler or `useEffect` | `TESSERA_REACT_BIND_POSITION` | Move the comment (section 9.3) |
 | A hook written in a form other than those of section 7 (for example `const x = useState(0);`) | `TESSERA_REACT_HOOK_FORM` | Use the form of the table in section 7 |
 | `const f = () => ...` without `bind::` whose body is not made of setter calls only (section 9.2) | `TESSERA_REACT_BIND_MISSING` | Add `// Note: bind::<id>` before it, or reduce the body to setter calls |
+| Native handler with an empty body | `TESSERA_REACT_NO_PREVIEW_BODY` (warning) | Write the preview body (section 9.3 of the subset spec) |
+| Native handler body that is not setter calls plus an optional final `return` | `TESSERA_REACT_PREVIEW_BODY` (warning) | Keep only setter calls and a final `return`; the C++ is the real behavior |
 | Member access on a value of unknown record type | `TESSERA_JSX_SUBSET_MEMBER` | Declare a type for the value |
 | Unknown attribute or event name on an intrinsic | `TESSERA_JSX_SUBSET_UNKNOWN_PROP` | See the element's spec (section 11) |
 | Children on a leaf intrinsic or on a component without a `children: Children` prop | `TESSERA_JSX_CHILDREN_NOT_ALLOWED` | Remove them, or declare the prop (sections 5, 10.4) |

@@ -68,11 +68,46 @@ void test_unannotated_arrow_that_is_not_setter_only_is_rejected() {
           "a call of an undeclared setter is not a setter call");
 }
 
-void test_annotated_arrow_may_have_any_body() {
-    const auto fixture = analyze(component("  // Note: bind::go\n"
-                                           "  const f = (n: int): int => { go(n); return n; };\n"));
-    check_eq(describe_all(*fixture), "", "a native handler body is a preview body, return allowed");
+void test_native_handler_preview_body_warnings() {
+    // Setter calls and a final return are a preview body: no diagnostics.
+    const auto fixture = analyze(component(kState + "  // Note: bind::go\n"
+                                                    "  const f = (n: int): int => { setCount(n); "
+                                                    "v.set(1); return n; };\n"));
+    check_eq(describe_all(*fixture), "",
+             "a setter-call body with a final return is a preview body");
     check_eq(role_text(fixture->analyzed.components[0]), "NativeHandler(go) ", "role");
+
+    const auto only_return = analyze(component("  // Note: bind::go\n"
+                                               "  const f = (n: int): int => { return n; };\n"));
+    check_eq(describe_all(*only_return), "", "a body that only returns is a preview body");
+
+    // An empty body is allowed: a warning, never an error.
+    const auto empty = analyze(component("  // Note: bind::go\n"
+                                         "  const f = (): void => {};\n"));
+    check_eq(describe_all(*empty),
+             "TESSERA_REACT_NO_PREVIEW_BODY | 3:3 | const f = (): void => {}; | native handler "
+             "`f` has an empty body, so the designer does nothing for its event\n",
+             "an empty native body warns");
+    check(!empty->analyzed.has_errors() && empty->analyzed.components[0].ok,
+          "the empty-body warning is not an error");
+
+    // Anything else is outside the preview rules: also a warning, and the role is unchanged.
+    const auto other = analyze(component("  // Note: bind::go\n"
+                                         "  const f = (n: int): int => { go(n); return n; };\n"));
+    check_eq(describe_all(*other),
+             "TESSERA_REACT_PREVIEW_BODY | 3:3 | const f = (n: int): int => { go(n); return n; }; "
+             "| the body of native handler `f` is not a preview body, so the designer does "
+             "nothing for its event\n",
+             "a call that is not a setter warns");
+    check(!other->analyzed.has_errors(), "an out-of-rule preview body is not an error");
+    check_eq(role_text(other->analyzed.components[0]), "NativeHandler(go) ", "role");
+
+    const auto middle_return =
+        analyze(component(kState + "  // Note: bind::go\n"
+                                   "  const f = (n: int): int => { return n; setCount(n); };\n"));
+    check(middle_return->analyzed.diagnostics.size() == 1 &&
+              middle_return->analyzed.diagnostics[0].code == "TESSERA_REACT_PREVIEW_BODY",
+          "a return that is not last is outside the preview rules");
 }
 
 void test_effect_return_placement() {
@@ -123,7 +158,7 @@ void test_declared_arrow_order_of_reports() {
 int main() {
     test_roles_of_every_arrow();
     test_unannotated_arrow_that_is_not_setter_only_is_rejected();
-    test_annotated_arrow_may_have_any_body();
+    test_native_handler_preview_body_warnings();
     test_effect_return_placement();
     test_declared_arrow_order_of_reports();
     return finish("rules arrows tests");

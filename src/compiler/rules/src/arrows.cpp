@@ -46,10 +46,42 @@ bool is_setter_only(const Context& ctx, const Expr& arrow) {
                                                   });
 }
 
+// Spec 9.3: the body of a native handler is its preview body: setter calls and animated `.set(...)`
+// calls, then optionally a final `return <PureExpr>;`. Neither finding stops code generation, so
+// both are warnings; lowering gives such a handler no preview.
+void check_preview_body(Context& ctx, const jsx::Statement& statement) {
+    const Expr& arrow = *statement.init;
+    const std::string name = statement.names.empty() ? std::string() : statement.names[0];
+    if (arrow.operands.empty()) {
+        ctx.sink.report("TESSERA_REACT_NO_PREVIEW_BODY", jsx::Severity::Warning,
+                        "native handler `" + name +
+                            "` has an empty body, so the designer does nothing for its event",
+                        statement.span,
+                        "write the preview body: setter calls, and optionally a final `return`");
+        return;
+    }
+    std::size_t count = arrow.operands.size();
+    if (arrow.operands.back()->kind == ExprKind::Return) {
+        --count;
+    }
+    const bool in_rules =
+        std::all_of(arrow.operands.begin(), arrow.operands.begin() + static_cast<long>(count),
+                    [&](const jsx::ExprPtr& body) { return is_setter_call(ctx, *body); });
+    if (!in_rules) {
+        ctx.sink.report("TESSERA_REACT_PREVIEW_BODY", jsx::Severity::Warning,
+                        "the body of native handler `" + name +
+                            "` is not a preview body, so the designer does nothing for its event",
+                        statement.span,
+                        "keep only setter calls and a final `return <expression>;`; the C++ in "
+                        "the protected region is the real behavior");
+    }
+}
+
 void classify_declared_arrow(Context& ctx, const jsx::Statement& statement) {
     const Expr& arrow = *statement.init;
     if (!statement.bind_id.empty()) {
         add_arrow(ctx, arrow, ArrowRole::NativeHandler, statement.bind_id);
+        check_preview_body(ctx, statement);
     } else if (is_setter_only(ctx, arrow)) {
         add_arrow(ctx, arrow, ArrowRole::InlineHandler);
     } else {

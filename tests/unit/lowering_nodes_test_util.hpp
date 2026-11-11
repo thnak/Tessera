@@ -49,7 +49,7 @@ struct Fixture {
 inline std::unique_ptr<Fixture> parse(std::string text) {
     auto fixture = std::make_unique<Fixture>(std::move(text));
     check(fixture->parsed.ok(), "fixture parses cleanly: " + codes(fixture->parsed));
-    check(fixture->analyzed.diagnostics.empty(),
+    check(!fixture->analyzed.has_errors(),
           "fixture analyses cleanly: " +
               (fixture->analyzed.diagnostics.empty()
                    ? std::string()

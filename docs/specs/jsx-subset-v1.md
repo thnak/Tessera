@@ -439,7 +439,9 @@ const submit = (values: FormValues): void => {
   the rules of section 9.2, and may additionally contain `return <PureExpr>;` for a non-`void` handler.
   The preview body is optional. A native handler with an empty body is allowed; the designer then does
   nothing for that event and reports the warning `TESSERA_REACT_NO_PREVIEW_BODY` (severity `warning`,
-  never an error, and it does not stop code generation). The project owner decided this.
+  never an error, and it does not stop code generation). The project owner decided this. A body that
+  is not setter calls plus an optional final `return` is `TESSERA_REACT_PREVIEW_BODY`, also a warning:
+  it has no preview and the designer does nothing for the event.
 - The compiler does not check the preview body against the C++ code; keeping them equivalent is the
   developer's responsibility. A project can compare them with the preview-parity test: a script of
   handler calls runs on the IR evaluator and on the generated component, and the state must match
