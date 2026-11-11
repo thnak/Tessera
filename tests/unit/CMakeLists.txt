@@ -947,6 +947,16 @@ target_link_libraries(text_edit_tests PRIVATE tessera_text)
 
 add_test(NAME text_edit COMMAND text_edit_tests)
 
+add_executable(edit_position_cache_tests
+    edit_position_cache_tests.cpp)
+
+target_link_libraries(edit_position_cache_tests PRIVATE tessera_text)
+
+target_include_directories(edit_position_cache_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/ui/text)
+
+add_test(NAME edit_position_cache COMMAND edit_position_cache_tests)
+
 add_executable(text_edit_controller_tests
     text_edit_controller_tests.cpp)
 

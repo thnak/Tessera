@@ -130,11 +130,26 @@ private:
     EditOffset snap(EditOffset offset) const;
     EditResult snapshot(EditStatus status, bool changed, bool truncated = false) const;
     void clamp_selection();
+    // Keeps the caret-position memo valid across a change that starts at `from` (see below).
+    void note_edit(EditOffset from);
 
     std::string text_;
     EditOffset caret_ = 0;
     EditOffset anchor_ = 0;
     std::size_t max_bytes_ = kMaxEditTextBytes;
+
+    // Memo for caret_position(): the code point and grapheme counts of text_[0, offset), where
+    // `offset` is a cluster boundary. A query counts forward from it, so typing and arrow keys
+    // cost the distance moved instead of the distance from the buffer start (issue #11).
+    struct CountedPrefix {
+        EditOffset offset = 0;
+        std::uint32_t codepoints = 0;
+        std::uint32_t graphemes = 0;
+        // Set by an edit that began at `offset`: the new text may have merged the cluster before
+        // it with what follows, so the next query re-checks that `offset` is still a boundary.
+        bool verify = false;
+    };
+    mutable CountedPrefix counted_;
 };
 
 } // namespace tessera::ui::text
