@@ -102,53 +102,70 @@ bool Node::set_aria(std::string_view name, std::string_view value) {
         return false;
     }
     const std::string_view bounded_value = bounded_view(value, kMaxAriaValueBytes);
-    for (std::size_t i = 0; i < aria_count_; ++i) {
-        if (aria_[i].name == bounded_name) {
-            aria_[i].value = bounded_value;
+    if (!aria_) {
+        aria_ = std::make_unique<AriaTable>();
+    }
+    for (std::size_t i = 0; i < aria_->count; ++i) {
+        if (aria_->items[i].name == bounded_name) {
+            aria_->items[i].value = bounded_value;
             return true;
         }
     }
-    if (aria_count_ == kMaxAriaPairs) {
+    if (aria_->count == kMaxAriaPairs) {
         return false;
     }
-    aria_[aria_count_++] = AriaAttribute{bounded_name, bounded_value};
+    aria_->items[aria_->count++] = AriaAttribute{bounded_name, bounded_value};
     return true;
 }
 
 void Node::clear_aria() {
-    aria_count_ = 0;
+    if (aria_) {
+        aria_->count = 0;
+    }
 }
 
 bool Node::bind_event(EventType type, BoundEventHandler handler, void* context) {
-    if (handler == nullptr || event_binding_count_ == kMaxEventBindings) {
+    if (handler == nullptr) {
         return false;
     }
-    event_bindings_[event_binding_count_++] = EventBinding{type, handler, context};
+    if (!event_bindings_) {
+        event_bindings_ = std::make_unique<BindingTable>();
+    }
+    if (event_bindings_->count == kMaxEventBindings) {
+        return false;
+    }
+    event_bindings_->items[event_bindings_->count++] = EventBinding{type, handler, context};
     return true;
 }
 
 bool Node::unbind_event(EventType type) {
-    for (std::size_t i = 0; i < event_binding_count_; ++i) {
-        if (event_bindings_[i].type != type) {
+    if (!event_bindings_) {
+        return false;
+    }
+    BindingTable& table = *event_bindings_;
+    for (std::size_t i = 0; i < table.count; ++i) {
+        if (table.items[i].type != type) {
             continue;
         }
-        for (std::size_t j = i; j + 1 < event_binding_count_; ++j) {
-            event_bindings_[j] = event_bindings_[j + 1];
+        for (std::size_t j = i; j + 1 < table.count; ++j) {
+            table.items[j] = table.items[j + 1];
         }
-        --event_binding_count_;
-        event_bindings_[event_binding_count_] = EventBinding{};
+        --table.count;
+        table.items[table.count] = EventBinding{};
         return true;
     }
     return false;
 }
 
 void Node::clear_event_bindings() {
-    event_binding_count_ = 0;
+    if (event_bindings_) {
+        event_bindings_->count = 0;
+    }
 }
 
 bool Node::has_event_binding(EventType type) const {
-    for (std::size_t i = 0; i < event_binding_count_; ++i) {
-        if (event_bindings_[i].type == type) {
+    for (const EventBinding& binding : event_bindings()) {
+        if (binding.type == type) {
             return true;
         }
     }
@@ -157,8 +174,7 @@ bool Node::has_event_binding(EventType type) const {
 
 std::size_t Node::run_event_bindings(const Event& event) const {
     std::size_t invoked = 0;
-    for (std::size_t i = 0; i < event_binding_count_; ++i) {
-        const EventBinding& binding = event_bindings_[i];
+    for (const EventBinding& binding : event_bindings()) {
         if (binding.type == event.type) {
             binding.handler(binding.context, event);
             ++invoked;
@@ -173,30 +189,34 @@ bool Node::set_inline_style(std::string_view name, std::string_view value) {
         return false;
     }
     const std::string_view bounded_value = bounded_view(value, kMaxInlineStyleValueBytes);
-    for (std::size_t i = 0; i < inline_style_count_; ++i) {
-        if (inline_style_[i].name != bounded_name) {
+    if (!inline_style_) {
+        inline_style_ = std::make_unique<InlineStyleTable>();
+    }
+    InlineStyleTable& table = *inline_style_;
+    for (std::size_t i = 0; i < table.count; ++i) {
+        if (table.items[i].name != bounded_name) {
             continue;
         }
-        if (inline_style_[i].value == bounded_value) {
+        if (table.items[i].value == bounded_value) {
             return true;
         }
-        inline_style_[i].value = bounded_value;
+        table.items[i].value = bounded_value;
         mark_dirty(Dirty::Style);
         return true;
     }
-    if (inline_style_count_ == kMaxInlineStyleDeclarations) {
+    if (table.count == kMaxInlineStyleDeclarations) {
         return false;
     }
-    inline_style_[inline_style_count_++] = InlineStyleDeclaration{bounded_name, bounded_value};
+    table.items[table.count++] = InlineStyleDeclaration{bounded_name, bounded_value};
     mark_dirty(Dirty::Style);
     return true;
 }
 
 void Node::clear_inline_style() {
-    if (inline_style_count_ == 0) {
+    if (!inline_style_ || inline_style_->count == 0) {
         return;
     }
-    inline_style_count_ = 0;
+    inline_style_->count = 0;
     mark_dirty(Dirty::Style);
 }
 
@@ -204,10 +224,16 @@ void Node::set_paint_data(std::optional<PaintData> data) {
     if (data) {
         data->text = truncate_utf8(data->text, PaintData::kMaxTextBytes);
     }
-    if (paint_data_ == data) {
+    if (paint_data() == data) {
         return;
     }
-    paint_data_ = std::move(data);
+    if (!data) {
+        paint_data_.reset();
+    } else if (paint_data_) {
+        *paint_data_ = std::move(data);
+    } else {
+        paint_data_ = std::make_unique<std::optional<PaintData>>(std::move(data));
+    }
     // Visual payload only: no style/layout invalidation.
     mark_dirty(Dirty::Paint | Dirty::Render);
 }

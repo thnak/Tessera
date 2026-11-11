@@ -240,6 +240,13 @@ target_link_libraries(update_scheduler_tests PRIVATE tessera_scene)
 
 add_test(NAME update_scheduler COMMAND update_scheduler_tests)
 
+add_executable(node_size_tests
+    node_size_tests.cpp)
+
+target_link_libraries(node_size_tests PRIVATE tessera_scene)
+
+add_test(NAME node_size COMMAND node_size_tests)
+
 add_executable(node_metadata_tests
     node_metadata_tests.cpp)
 

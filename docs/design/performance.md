@@ -85,6 +85,27 @@ Metrics report `frame_time_ms`, `update_time_ms`, `style_time_ms`, `layout_time_
 Adaptive quality uses these, not a utilization target. Measurement/tracing is defined in
 [`diagnostics.md`](diagnostics.md).
 
+### 3.1 Memory budgets
+
+Frame budgets say nothing about resident memory, which regresses late and on mobile first (issue
+#13). Measured numbers, enforced where noted:
+
+| Item | Cost | Enforced by |
+|---|---|---|
+| `ui::Node` (plain View) | about 290 bytes, budget `kNodeSizeBudget` = 320 | `static_assert` in `node.hpp`, `node_size` test |
+| ARIA table (first `aria-*`) | about 520 bytes, once per node | lazy; `node_size` test counts allocations |
+| Inline-style table (first declaration) | about 520 bytes, once per node | lazy; `node_size` test |
+| Event-binding table (first binding) | about 200 bytes, once per node | lazy; `node_size` test |
+| Paint payload (text/image node) | about 580 bytes plus its string | lazy; `node_size` test |
+| `InputEvent` | 344 bytes (the 256-event queue is about 86 KiB) | measured, not yet asserted |
+
+A node carried 1984 bytes before the rarely used tables became lazily allocated, so a 10k-node
+screen of plain views drops from about 20 MB to about 3 MB of node storage (Yoga node and style
+storage are extra). Clearing a table keeps its allocation, so toggling a value never reallocates.
+Raise a budget only with a recorded decision. Still to measure and budget: steady and peak RSS of
+the sample apps, GPU memory by category (swapchain, atlas pages, images, buffers), Android PSS
+and per-glyph-atlas-page cost.
+
 ## 4. Power policies
 
 `runtime.powerPolicy` selects a coherent set of defaults:
