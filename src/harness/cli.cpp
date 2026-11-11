@@ -18,6 +18,7 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -345,13 +346,21 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
         return 2;
     }
 
-    const std::string_view directory = out_directory.value_or("out");
+    // Windows users type `--out build\reports`; the artifact rules are written for POSIX
+    // separators, so normalize before validating and keep the normalized form for the paths we
+    // create.
+    const auto artifact_path = [](std::string_view path) {
+        std::string normalized(path);
+        std::replace(normalized.begin(), normalized.end(), '\\', '/');
+        return normalized;
+    };
+    const std::string directory = artifact_path(out_directory.value_or("out"));
     if (!is_safe_artifact_path(directory)) {
         err << "tessera: --out must be a safe relative path below the working directory\n";
         return 2;
     }
     const std::string report_path =
-        report.has_value() ? std::string(*report) : std::string(directory) + "/report.json";
+        report.has_value() ? artifact_path(*report) : directory + "/report.json";
     if (!is_safe_artifact_path(report_path)) {
         err << "tessera: --report must be a safe relative path below the working directory\n";
         return 2;
