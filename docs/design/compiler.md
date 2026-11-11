@@ -488,8 +488,8 @@ IR validation → codegen, first-error-only with `file:line:column`, exit 0/1/2.
 is merged with the existing file (`merge(generated, existing)`) and rewritten only when the merged
 bytes differ, so a no-op run leaves bytes and mtime untouched; `--check` reports drift (including
 outside-region edits) and writes nothing. Slice 10 identity diagnostics (`componentId`/`uiId`/
-`automationId` missing) are the only IR diagnostics the CLI filters, and only without `--salt`: with
-a salt it runs `assign_identity` (`src/compiler/ids/`, test `ir_ids`) and the IR must validate fully. `samples/compiler-demo/` proves the flow end to end: `Demo.tsx` +
+`automationId` missing) are the only IR diagnostics the CLI filters, and only when there is no salt (`--salt`, or
+`app.namespace` of a `tessera.json` at the root or above the input): with a salt it runs `assign_identity` (`src/compiler/ids/`, test `ir_ids`) and the IR must validate fully. `samples/compiler-demo/` proves the flow end to end: `Demo.tsx` +
 committed developer seed `tests/golden/codegen/demo/Demo.cpp` with hand-written region bodies, regenerated into the build
 dir and compiled as `tessera_compiler_demo` under warnings-as-errors; `codegen_cli_tests` asserts
 idempotent runs, mtime no-op, region preservation and outside-region repair. `Demo.tsx` also carries

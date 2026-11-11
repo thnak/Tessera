@@ -51,6 +51,7 @@ add_executable(tessera_codegen_cli
 target_include_directories(tessera_codegen_cli PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
 target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_codegen
+    tessera_harness
     tessera_ir_ids
     tessera_lowering
     tessera_merger)

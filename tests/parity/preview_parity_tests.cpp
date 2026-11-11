@@ -147,9 +147,9 @@ int main() {
     if (!expect(module.has_value(), module ? "" : module.error())) {
         return 1;
     }
-    // The same salt and project-relative path the build gives the codegen CLI, so the ids here are
-    // the ones in the generated component.
-    const auto assigned = tessera::compiler::ids::assign_identity(*module, "parity-demo");
+    // The `app.namespace` of samples/parity-demo/tessera.json, which the codegen CLI reads, and the
+    // same project-relative path, so the ids here are the ones in the generated component.
+    const auto assigned = tessera::compiler::ids::assign_identity(*module, "parity_demo");
     if (!expect(assigned.has_value(), assigned ? "" : assigned.error().message)) {
         return 1;
     }

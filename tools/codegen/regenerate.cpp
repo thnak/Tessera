@@ -11,6 +11,7 @@
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/merger.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
+#include "tessera/harness/json_parse.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -118,6 +119,67 @@ std::string derive_module_name(const std::string& input) {
     return name;
 }
 
+// The project identity of this run: the id salt (empty: ids stay unassigned) and the root that
+// source paths are relative to (docs/specs/automation-ids-v1.md section 2, project-config-v1.md
+// `app.namespace`). The salt is `--salt`, else `app.namespace` of the `tessera.json` at `--root`
+// or found by walking up from the first input; a `tessera.json` that is found but has no usable
+// namespace is an error, not a silent skip.
+struct ProjectIdentity {
+    std::string salt;
+    fs::path root;
+};
+
+std::optional<fs::path> find_config(const fs::path& start) {
+    for (fs::path dir = start;; dir = dir.parent_path()) {
+        std::error_code error;
+        if (fs::is_regular_file(dir / "tessera.json", error)) {
+            return dir / "tessera.json";
+        }
+        if (!dir.has_parent_path() || dir.parent_path() == dir) {
+            return std::nullopt;
+        }
+    }
+}
+
+std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome& outcome) {
+    const fs::path first = fs::absolute(fs::path(options.inputs.front())).parent_path();
+    const std::optional<fs::path> config =
+        find_config(options.root.empty() ? first : fs::absolute(fs::path(options.root)));
+    ProjectIdentity identity;
+    identity.salt = options.salt;
+    if (!options.root.empty()) {
+        identity.root = fs::absolute(fs::path(options.root));
+    } else {
+        identity.root = config ? config->parent_path() : first;
+    }
+    if (!identity.salt.empty() || !config) {
+        return identity;
+    }
+    const auto fail = [&](const std::string& why) {
+        report(outcome, true, "tessera_codegen: " + config->generic_string() + ": " + why);
+        outcome.exit_code = 1;
+        return std::optional<ProjectIdentity>();
+    };
+    const std::optional<std::string> text = read_file(*config);
+    if (!text) {
+        return fail("cannot read the file");
+    }
+    const auto parsed = tessera::harness::parse_json(*text);
+    if (!parsed) {
+        return fail("not valid JSON (offset " + std::to_string(parsed.error().offset) + ")");
+    }
+    const tessera::harness::JsonValue* app = parsed->find("app");
+    const tessera::harness::JsonValue* name = app != nullptr ? app->find("namespace") : nullptr;
+    const std::optional<std::string_view> value =
+        name != nullptr ? name->as_string() : std::nullopt;
+    if (!value || value->empty()) {
+        return fail(
+            "`app.namespace` is required and must be a non-empty string: it is the id salt");
+    }
+    identity.salt = std::string(*value);
+    return identity;
+}
+
 bool generate_files(const ir::IrModule& module, std::vector<GeneratedFile>& files, Outcome& outcome,
                     std::string_view input) {
     const auto generated = generate(module);
@@ -148,6 +210,11 @@ Outcome run(const Options& options) {
         return outcome;
     }
 
+    const std::optional<ProjectIdentity> identity = resolve_identity(options, outcome);
+    if (!identity) {
+        return outcome;
+    }
+
     std::vector<std::unique_ptr<SourceFile>> sources;
     for (const std::string& input : options.inputs) {
         std::optional<std::string> text = read_file(fs::path(input));
@@ -159,10 +226,8 @@ Outcome run(const Options& options) {
         // With a salt the path feeds the ids, so it is project-relative with POSIX separators and
         // does not depend on the checkout location.
         std::string path = input;
-        if (!options.salt.empty()) {
-            const fs::path root = options.root.empty()
-                                      ? fs::absolute(fs::path(options.inputs.front())).parent_path()
-                                      : fs::absolute(fs::path(options.root));
+        if (!identity->salt.empty()) {
+            const fs::path& root = identity->root;
             std::error_code relative_error;
             const fs::path relative =
                 fs::relative(fs::absolute(fs::path(input)), root, relative_error);
@@ -227,8 +292,8 @@ Outcome run(const Options& options) {
     module.components = std::move(lowered_module.components);
     module.bindings = std::move(lowered_module.bindings);
 
-    if (!options.salt.empty()) {
-        const auto assigned = tessera::compiler::ids::assign_identity(module, options.salt);
+    if (!identity->salt.empty()) {
+        const auto assigned = tessera::compiler::ids::assign_identity(module, identity->salt);
         if (!assigned) {
             report(outcome, true, "tessera_codegen: " + assigned.error().message);
             outcome.exit_code = 1;
@@ -240,7 +305,7 @@ Outcome run(const Options& options) {
     // missing. They are the only documented diagnostics the CLI filters (docs/guides/
     // developer-workflow.md), and every other IR diagnostic still fails the run.
     const std::vector<ir::IrDiagnostic> all_diagnostics = ir::validate(module);
-    const bool identity_assigned = !options.salt.empty();
+    const bool identity_assigned = !identity->salt.empty();
     const auto deferred_identity = [identity_assigned](const ir::IrDiagnostic& diagnostic) {
         if (identity_assigned || diagnostic.code != "TESSERA_IR_MISSING_ID") {
             return false;
