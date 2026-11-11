@@ -1,6 +1,7 @@
 # ADR-024: Native-first boundaries; no production bridges
 
-- Status: Accepted
+- Status: Accepted; items 6 and 9 amended by [ADR-042](ADR-042-web-target-for-demos.md) (2026-11-11): the browser is an allowed
+  OS/HAL boundary for the secondary web target
 - Date: 2026-11-07
 - Related: [ADR-007](ADR-007-compiler-ir.md) (compiler intermediate representation), [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest), [ADR-012](ADR-012-static-linking.md) (static linking), [ADR-021](ADR-021-async-runtime.md) (async runtime), [ADR-023](ADR-023-os-event-normalization-and-foldables.md) (OS event normalization and foldables)
 

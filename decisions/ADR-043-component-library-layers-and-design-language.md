@@ -11,7 +11,7 @@
   [ADR-034](ADR-034-interaction-and-overscroll-animation.md) (platform interaction profiles),
   [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end),
   [ADR-037](ADR-037-self-contained-wasm-designer.md) (designer picker),
-  ADR-042 (web target, proposed in [PR #68](https://github.com/thnak/Tessera/pull/68)), issue
+  [ADR-042](ADR-042-web-target-for-demos.md) (web target), issue
   [#70](https://github.com/thnak/Tessera/issues/70).
 - Terms: **behavior primitive** = a component or hook that owns state, keyboard, focus and
   accessibility for a control but draws nothing of its own. **Styled component** = a primitive

@@ -12,6 +12,9 @@ A cross-platform C++ UI framework:
 - **Production**: a two-tier compiler turns JSX → IR → **native C++** source.
 - **Design time**: the same C++ engine compiled to **WebAssembly + WebGPU** for instant,
   emulator-free preview in a browser.
+- **Web target (secondary)**: the same app, generated C++ plus developer C++, built with
+  Emscripten to run in a browser for demos and trials
+  ([ADR-042](decisions/ADR-042-web-target-for-demos.md)); native stays primary.
 - **Native backend**: **Vulkan 1.3 is the primary renderer**. WebGPU/Dawn is the browser backend.
 - **Core model**: game-engine-style fixed timestep, zero-allocation buffers, retained/immediate
   hybrid, dirty-flag invalidation.
