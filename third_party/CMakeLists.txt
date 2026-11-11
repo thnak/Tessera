@@ -166,13 +166,19 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 FetchContent_MakeAvailable(libwebp)
 
-foreach (webp_target webp webpdemux sharpyuv webpdecoder)
-    if (TARGET ${webp_target})
-        if (MSVC)
-            target_compile_options(${webp_target} PRIVATE /W0)
-        else()
-            target_compile_options(${webp_target} PRIVATE -w)
-        endif()
+# Third-party sources are not held to this project's warning policy. libwebp splits itself into
+# several internal targets (webpdecode, webpdsp, webputils, ...), so every target its directory
+# defines is covered instead of a hand-kept list.
+get_property(webp_targets DIRECTORY ${libwebp_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
+foreach (webp_target IN LISTS webp_targets)
+    get_target_property(webp_type ${webp_target} TYPE)
+    if (webp_type STREQUAL "INTERFACE_LIBRARY")
+        continue()
+    endif()
+    if (MSVC)
+        target_compile_options(${webp_target} PRIVATE /W0)
+    else()
+        target_compile_options(${webp_target} PRIVATE -w)
     endif()
 endforeach()
 
