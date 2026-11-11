@@ -37,7 +37,7 @@ inline constexpr unsigned kMod4Mask = 1U << 6;
 struct ButtonAction {
     enum class Kind : std::uint8_t { Ignored, Button, Wheel };
     Kind kind = Kind::Ignored;
-    ui::PointerButton button = ui::PointerButton::None;
+    ui::PointerButton button{}; // default-initialized: X.h defines a `None` macro
     // Wheel notches with the web sign (positive dy scrolls content down, positive dx right).
     float dx = 0.0F;
     float dy = 0.0F;
