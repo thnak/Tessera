@@ -336,6 +336,24 @@ ExprEmission emit_initializer_expr(const ir::Expr& expr, const ir::Component& co
     return ExprEmission{std::move(text), {}};
 }
 
+// `e.width`, `e.contentHeight`, ...: the fields of a SizeChangeEvent parameter, spelled the way the
+// C++ record names them, so an expression like `e.width >= 600` has a C++ form.
+namespace {
+LocalBindings payload_field_locals(std::span<const ir::Param> params) {
+    LocalBindings locals;
+    for (const ir::Param& param : params) {
+        if (param.type != "SizeChangeEvent" || param.name.empty()) {
+            continue;
+        }
+        locals.push_back({param.name + ".width", param.name + ".width", "float"});
+        locals.push_back({param.name + ".height", param.name + ".height", "float"});
+        locals.push_back({param.name + ".contentWidth", param.name + ".content_width", "float"});
+        locals.push_back({param.name + ".contentHeight", param.name + ".content_height", "float"});
+    }
+    return locals;
+}
+} // namespace
+
 std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                                         const ir::Component& component,
                                         std::span<const ir::Param> params, std::string& error) {
@@ -359,7 +377,7 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
             }
         }
         if (value.text.empty()) {
-            value = emit_expr(*action.value, component);
+            value = emit_expr(*action.value, component, payload_field_locals(params));
         }
         if (!value.error.empty()) {
             error = value.error;

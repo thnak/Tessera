@@ -25,6 +25,8 @@ constexpr PayloadRecord kPayloads[] = {
     {"TextSelection", "TextSelection", "text_selection_event"},
     {"CompositionEvent", "CompositionEvent", "composition_event"},
     {"ScrollEvent", "ScrollEventInfo", "scroll_event_info"},
+    // Delivered by layout observation, not a scene Event: the converter is never applied.
+    {"SizeChangeEvent", "SizeChangeEvent", ""},
     {"ErrorInfo", "ErrorInfo", "error_info"},
 };
 
@@ -153,7 +155,7 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
                             const std::vector<const ir::Binding*>& bindings,
                             const std::vector<ControlledInput>& controlled_inputs,
                             unsigned& ordinal, std::vector<EventAdapter>& adapters,
-                            std::string& error) {
+                            std::string& error, bool in_item_template) {
     ++ordinal;
     const auto controlled =
         std::any_of(controlled_inputs.begin(), controlled_inputs.end(),
@@ -177,8 +179,13 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
             // Bound through TextChangeBinding by emit_controlled_wiring, not the generic adapter.
             continue;
         }
-        const EventTypeMapping* mapping = find_event_type(jsx_name);
-        if (mapping == nullptr) {
+        const bool size_change = jsx_name == "onSizeChange";
+        if (size_change && in_item_template) {
+            return fail(error, "`onSizeChange` inside a virtual item template is not supported yet "
+                               "(a realized row would need its own observation)");
+        }
+        const EventTypeMapping* mapping = size_change ? nullptr : find_event_type(jsx_name);
+        if (mapping == nullptr && !size_change) {
             return fail(error, "event `" + jsx_name + "` has no scene EventType in this slice");
         }
         const std::vector<ir::Param>* params = nullptr;
@@ -209,13 +216,28 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
             return fail(error, "event `" + jsx_name + "` payload record `" + params->front().type +
                                    "` has no C++ record");
         }
+        EventAdapter adapter;
+        adapter.ordinal = ordinal;
+        adapter.jsx_name = jsx_name;
+        if (size_change) {
+            if (typed && params->front().type != "SizeChangeEvent") {
+                return fail(error, "`onSizeChange` handler parameter must be a SizeChangeEvent");
+            }
+            adapter.size_change = true;
+            adapter.reads_size = typed;
+            adapter.function = "on_size_change_" + std::to_string(ordinal);
+            adapter.call = "component->" + method + "(" +
+                           (typed ? "tessera::ui::SizeChangeEvent{size.width, size.height, "
+                                    "size.content_width, size.content_height}"
+                                  : "tessera::ui::Event{}") +
+                           ");";
+            adapters.push_back(std::move(adapter));
+            continue;
+        }
         const std::string conversion =
             typed ? "tessera::ui::" + std::string(find_payload(params->front().type)->converter) +
                         "(event)"
                   : "event";
-        EventAdapter adapter;
-        adapter.ordinal = ordinal;
-        adapter.jsx_name = jsx_name;
         adapter.event_type = "tessera::ui::EventType::" + std::string(mapping->enum_name);
         adapter.function = adapter_function_name(ordinal, jsx_name);
         adapter.call = "component->" + method + "(" + conversion + ");";
@@ -223,7 +245,7 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
     }
     for (const ir::Node& child : node.children) {
         if (!collect_event_adapters(child, component, bindings, controlled_inputs, ordinal,
-                                    adapters, error)) {
+                                    adapters, error, in_item_template)) {
             return false;
         }
     }
@@ -231,7 +253,7 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
     // pre-order ordinal as the plan and may bind events (a row click handler).
     if (node.item_template &&
         !collect_event_adapters(*node.item_template, component, bindings, controlled_inputs,
-                                ordinal, adapters, error)) {
+                                ordinal, adapters, error, true)) {
         return false;
     }
     return true;
@@ -245,9 +267,14 @@ void emit_event_adapters(CppWriter& writer, std::string_view component_name,
     writer.open("namespace");
     for (const EventAdapter& adapter : adapters) {
         writer.open("void " + adapter.function +
-                    "(void* context, const tessera::ui::Event& event)");
+                    (adapter.size_change
+                         ? "(void* context, const tessera::ui::layout::SizeChange& size)"
+                         : "(void* context, const tessera::ui::Event& event)"));
         writer.line("auto* component = static_cast<" + std::string(component_name) +
                     "*>(context);");
+        if (adapter.size_change && !adapter.reads_size) {
+            writer.line("(void)size; // the handler takes no payload");
+        }
         writer.line(adapter.call);
         writer.close("");
     }

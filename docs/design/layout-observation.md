@@ -443,7 +443,10 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    Tests `codegen_size_change*`. Front end Done: the schema rows (every element with a box;
    `Spacer` and `ErrorBoundary` reject it as an unknown event), the `SizeChangeEvent` record, the
    regenerated `intrinsics.json`/`tessera.d.ts` goldens and lowering tests. Codegen and merger
-   still to do.
+   Done: `emit_layout_observe.*`, the `Watcher`/`WatchPage` goldens, runtime test and merger
+   idempotency; handler bodies read `e.width` and friends. Not yet supported (rejected loudly):
+   `onSizeChange` inside a list or virtual item template, where each realized row would need its
+   own observation. A node in a detached conditional branch reads as zeros until it is attached.
 6. **Designer evaluator** delivery after preview layout.
 7. **`field-sizing: content` for `TextArea`**: property registry, Yoga measure for the editor
    text, internal scroll above max. Golden.

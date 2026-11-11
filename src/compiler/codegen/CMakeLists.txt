@@ -13,6 +13,7 @@ add_library(tessera_codegen STATIC
     src/emit_events.cpp
     src/emit_expr.cpp
     src/emit_forms.cpp
+    src/emit_layout_observe.cpp
     src/emit_schedule.cpp
     src/form_binding.cpp
     src/emit_header.cpp
@@ -86,6 +87,19 @@ if (EXISTS ${_tessera_codegen_golden_dir}/CardPage.cpp AND EXISTS ${_tessera_cod
         PRIVATE ${_tessera_codegen_golden_dir})
     target_link_libraries(tessera_codegen_composition_sample PRIVATE tessera_scene)
     target_compile_features(tessera_codegen_composition_sample PUBLIC cxx_std_23)
+endif ()
+
+# onSizeChange fixture (ADR-041 slice 5), generated from the hand-built IR in
+# codegen_size_change_tests. Same deliberate golden path: `codegen_size_change_tests --write` owns
+# Watcher.* and WatchPage.*. It links tessera_layout for LayoutObservation.
+if (EXISTS ${_tessera_codegen_golden_dir}/Watcher.cpp AND EXISTS ${_tessera_codegen_golden_dir}/WatchPage.cpp)
+    add_library(tessera_codegen_size_watch_sample STATIC
+        ${_tessera_codegen_golden_dir}/Watcher.cpp
+        ${_tessera_codegen_golden_dir}/WatchPage.cpp)
+    target_include_directories(tessera_codegen_size_watch_sample
+        PRIVATE ${_tessera_codegen_golden_dir})
+    target_link_libraries(tessera_codegen_size_watch_sample PUBLIC tessera_scene tessera_layout)
+    target_compile_features(tessera_codegen_size_watch_sample PUBLIC cxx_std_23)
 endif ()
 
 # Big Step C sample: seed the committed developer file (protected regions) into the build dir and
@@ -222,6 +236,32 @@ if (TESSERA_BUILD_TESTS)
             tessera_scene)
 
         add_test(NAME codegen_composition_runtime COMMAND codegen_composition_runtime_tests)
+    endif ()
+
+    add_executable(codegen_size_change_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_size_change_tests.cpp)
+
+    target_link_libraries(codegen_size_change_tests PRIVATE
+        tessera_codegen
+        tessera_merger)
+
+    target_compile_definitions(codegen_size_change_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_size_change COMMAND codegen_size_change_tests)
+
+    if (TARGET tessera_codegen_size_watch_sample)
+        add_executable(codegen_size_change_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_size_change_runtime_tests.cpp)
+
+        target_include_directories(codegen_size_change_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir})
+        target_link_libraries(codegen_size_change_runtime_tests PRIVATE
+            tessera_codegen_size_watch_sample
+            tessera_scene
+            tessera_layout)
+
+        add_test(NAME codegen_size_change_runtime COMMAND codegen_size_change_runtime_tests)
     endif ()
 
     # VirtualList/VirtualGrid item templates: goldens from hand-built IR (the `.tsx` front end

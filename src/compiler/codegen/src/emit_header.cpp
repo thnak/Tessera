@@ -7,6 +7,7 @@
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
+#include "emit_layout_observe.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
 #include "form_binding.hpp"
@@ -76,6 +77,10 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("#include \"" + include + ".hpp\"");
     }
     emit_form_includes(writer, forms);
+    const bool observes = observes_size(component, module);
+    if (observes) {
+        writer.line("#include \"tessera/ui/layout/layout_observer.hpp\"");
+    }
     writer.line("");
     writer.line("#include <cstdint>");
     if (plan.has_lists) {
@@ -242,6 +247,15 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("void update();");
     if (!emit_schedule_declarations(writer, component, error)) {
         return false;
+    }
+    if (observes) {
+        std::vector<EventAdapter> observed;
+        unsigned ordinal = 0;
+        if (!collect_event_adapters(component.root, component, bindings, controlled_inputs, ordinal,
+                                    observed, error)) {
+            return false;
+        }
+        emit_size_observation_declarations(writer, component, module, observed);
     }
     if (!plan.groups.empty() || !plan.lists.empty()) {
         emit_dynamic_declarations(writer, plan);
