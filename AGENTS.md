@@ -702,11 +702,18 @@ seeded from the emitted constants (4096-item cap), refines it from realized item
 `refine_measure`, re-anchors the caller's offset in place with `reanchor_scroll`, applies the
 overscanned window through `apply_virtual_<n>`, then dispatches `onScroll` and `onEndReached`;
 `onEndReached` is edge-triggered with a distance-based 200 px re-entry throttle (deterministic, no
-wall clock) and generated state. Collection events are dispatched by that generated host entry point
+wall clock) and generated state. Virtual geometry is dynamic too: `itemSize`/`estimateSize`/`gap`/
+`rowHeight` accept a number literal or a numeric state/prop ref, generated
+`update_virtual_geometry_<n>` re-evaluates them behind a FNV-1a hash guard and seeds once per change
+(`ItemGeometry::reseed`), an estimate/gap change keeps every measured entry while a changed fixed
+extent that seeds the estimate drops them, and the caller's offset is re-anchored with the old/new
+prefix sums and clamped so the first visible key survives (`codegen_virtual_geometry_runtime`).
+`orientation`/`columns`/`overscan`/`columnWidth` stay literal-only and non-numeric values are
+rejected. Collection events are dispatched by that generated host entry point
 rather than a scene binding - there is still no `EventType::Scroll`, which is the deferred scene-side
 step. Test `codegen_virtual_scroll`; docs in compiler.md §11 and virtualization-v1.md §10/§14. Next
-compiler slice: dynamic virtual geometry (state/prop-driven `itemSize`/`estimateSize`/`gap`/
-`rowHeight` with a re-seed path and documented re-anchor on geometry change) (`docs/design/compiler.md`).
+compiler slice: prop defaults (the last pinned gap for #70) and callback binding, then dynamic
+`orientation`/`columns`/`overscan` and a scene-side `EventType::Scroll`.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
