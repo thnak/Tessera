@@ -6,6 +6,7 @@
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
+#include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/text/text_input_runtime.hpp"
 #include "tessera/ui/scene/node.hpp"
 
@@ -99,6 +100,8 @@ namespace demo {
       void schedule_update();
       void set_count(int value);
       void set_name(std::string value);
+      // Every state and animated cell by IR id, in declaration order (tests, parity).
+      [[nodiscard]] tessera::ui::StateSnapshot snapshot_state() const;
       void handler_1(const tessera::ui::ClickEvent& event);
       void handler_2(const tessera::ui::TextChangeEvent& e);
       void on_click(const tessera::ui::ClickEvent& event);

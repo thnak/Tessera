@@ -151,6 +151,13 @@ namespace demo {
       schedule_update();
     }
     
+    tessera::ui::StateSnapshot FieldPage::snapshot_state() const {
+      tessera::ui::StateSnapshot snapshot;
+      snapshot.push_back(tessera::ui::state_cell("state::email", state_email_));
+      snapshot.push_back(tessera::ui::state_cell("state::rules", state_rules_));
+      return snapshot;
+    }
+    
     void FieldPage::handler_1(const tessera::ui::Event& event) {
       (void)event;
       state_email_ = "ada@example.com";

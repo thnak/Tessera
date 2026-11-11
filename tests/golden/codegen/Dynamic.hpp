@@ -6,6 +6,7 @@
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
+#include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <cstdint>
@@ -89,6 +90,8 @@ namespace dynamic {
       void schedule_update();
       void set_count(int value);
       void set_items(std::vector<std::string> value);
+      // Every state and animated cell by IR id, in declaration order (tests, parity).
+      [[nodiscard]] tessera::ui::StateSnapshot snapshot_state() const;
       // Generated dynamic child paths: deterministic child positions and bounded keyed lists.
       void apply_children_1();
       std::unique_ptr<tessera::ui::Node> build_item_5(const std::string& item, std::size_t tessera_index, std::size_t tessera_id_slot, Item_5& tessera_out);
