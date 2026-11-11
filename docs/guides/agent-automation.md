@@ -30,6 +30,10 @@ Modes:
 - `gpu-smoke` — backend smoke only; never updates goldens.
 - `audit` — Lighthouse-style metrics/score (see section 7).
 
+Without a native toolchain, the `tessera-mcp` stdio mode runs the same engine compiled to Wasm in
+Node and exposes these commands as MCP tools (compile-only first)
+([`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 8).
+
 ## 3. Find nodes
 
 Prefer stable IDs:

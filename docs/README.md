@@ -104,6 +104,8 @@ This page is the map and reading order for the framework.
   scroll fling/snap, overscroll stretch/spring-back, reduced motion
 - [`specs/designer-protocol-v1.md`](specs/designer-protocol-v1.md) — host/viewer messages of the
   browser designer: source sync, picker, style overrides, commit as text patches
+- [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
+  page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
   handlers, hooks (sections 0-9)
 - [`specs/jsx-subset-v1-jsx.md`](specs/jsx-subset-v1-jsx.md) — part 2 of the JSX/TSX subset: JSX,
@@ -390,11 +392,13 @@ This page is the map and reading order for the framework.
 ### Design-time viewer
 
 1. [Designer](design/designer.md)
-2. [Compiler](design/compiler.md)
-3. [IR](specs/ir-v1.md)
-4. [Renderer](design/renderer.md)
-5. [Shader manifest](specs/shader-manifest-v1.md)
-6. [Security](design/security.md)
+2. [Designer studio](specs/designer-studio-v1.md)
+3. [Designer protocol](specs/designer-protocol-v1.md)
+4. [Compiler](design/compiler.md)
+5. [IR](specs/ir-v1.md)
+6. [Renderer](design/renderer.md)
+7. [Shader manifest](specs/shader-manifest-v1.md)
+8. [Security](design/security.md)
 
 ## 8. Status
 
@@ -444,6 +448,6 @@ In the State column, B1, B2, and B3 are the phases of [Big Step B](../AGENTS.md#
 | Updates / signing / crash | F proposed ([ADR-031](../decisions/ADR-031-production-tooling-and-distribution.md) accepted) |
 | Component library | after V1; proposed ([ADR-032](../decisions/ADR-032-bundled-component-library.md) accepted) |
 | Samples / media / export | planned/deferred |
-| Designer/Wasm | D proposed |
+| Designer/Wasm | D proposed; hosted studio on GitHub Pages and a `tessera-mcp` stdio adapter proposed (`designer-studio-v1.md`, [ADR-045](../decisions/ADR-045-browser-hosted-studio.md)) |
 | Packaging/release | F proposed |
 | Pixel goldens on [lavapipe](reference/glossary.md)/software | B2 planned |

@@ -232,7 +232,17 @@ system bars are visible from P0, which is why the splash theme and the P1 call m
 - Artifact: `tessera_codegen --check` fails when a generated launch artifact diverges from the
   manifest pair.
 
-## 12. Deferred and open questions
+## 12. Design-time preview
+
+The studio previews the chrome without owning it: the page paints the simulated title bar, menu bar
+and status/navigation bars as HTML around or over the engine canvas and hands the skin's insets to
+the viewer, so the engine renders exactly the client area (desktop) or the edge-to-edge surface
+(mobile) that production would render ([designer-studio-v1.md](designer-studio-v1.md) section 5).
+The simulated frame is tinted from the same resolved `{background, foreground, scheme}` record, so a
+theme change retints the frame and the canvas in the same frame. The studio never renders system
+chrome inside the engine, and a skin's art is geometry only.
+
+## 13. Deferred and open questions
 
 Deferred (not V1; an addition needs an ADR or a spec revision):
 

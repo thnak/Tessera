@@ -129,6 +129,8 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | Skia (fallback) | BSD-3-Clause | Google LLC |
 | Dawn | BSD-3-Clause | Google LLC |
 | Emscripten | MIT / UIUC | Emscripten contributors |
+| CodeMirror 6 | MIT | Marijn Haverbeke and contributors; bundled in the hosted studio page |
+| fflate | MIT | Arjun Barrett; hosted studio zip import/export |
 | Catch2 | Boost Software License 1.0 | Catch2 contributors |
 | Google Benchmark | Apache-2.0 | Google LLC |
 | libpng | libpng License | PNG Reference Library authors |
@@ -167,6 +169,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | Ninja | Apache-2.0 | build tool |
 | sccache | Apache-2.0 | optional compiler cache (preferred) |
 | ccache | GPL-3.0-or-later | optional compiler cache; separate program, not linked |
+| Node.js | MIT | hosted-studio build scripts and the `tessera-mcp` stdio server; design-time tooling, never linked into the app |
 
 ## Not linked
 

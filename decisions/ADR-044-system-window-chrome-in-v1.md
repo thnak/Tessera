@@ -82,4 +82,6 @@ startup spec's "background token" reference had no normative source.
   theme asset section ([`stylesheet-v1.md`](../docs/specs/stylesheet-v1.md) section 9.2) defines
   their value rules.
 - Follow-ups: chrome work rides startup slice S3 (desktop) and S6 (mobile artifacts); no new slice
-  is added. The CSD decision (section 12 of the spec, open questions 1-2) stays open.
+  is added. The CSD decision (section 13 of the spec, open questions 1-2) stays open, and the
+  design-time preview of chrome is specified in
+  [`designer-studio-v1.md`](../docs/specs/designer-studio-v1.md) section 5.

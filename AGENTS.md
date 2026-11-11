@@ -169,6 +169,9 @@ Repo + build + the two riskiest proofs.
 - [ ] C++ engine → Wasm (Emscripten) + WebGPU/Dawn surface.
 - [ ] Self-contained Wasm engine (front end + IR evaluator, ADR-037) renders parsed UI
       immediately; picker + style editing with source patches; IPC bridge + hot reload.
+- [ ] Hosted studio on GitHub Pages: static site, page as host, two-pane shell, data-driven skins
+      and simulated system chrome, project import/export (`docs/specs/designer-studio-v1.md`).
+- [ ] `tessera-mcp` stdio adapter of the same engine for coding agents, compile-only first.
 - [ ] Acceptance: same screen previews in a browser and matches native output.
 
 ### Big Step E — Data-heavy UI

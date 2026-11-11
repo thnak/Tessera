@@ -46,6 +46,8 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
 | Emscripten | V1 hard for design-time | MIT / UIUC | `designer/web` | C++ → WebAssembly toolchain |
 | Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu) | V1 hard for design-time | MIT / UIUC | `designer/web` | Browser WebGPU API |
+| CodeMirror 6 | V1 design-time (studio) | MIT | `designer/web` | Code editor in the hosted studio; bundled and version-pinned |
+| fflate | V1 design-time (studio) | MIT | `designer/web` | Zip import/export for browsers without the File System Access API |
 | Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan ICD (installable client driver, the plug-in the Vulkan loader uses to reach a GPU or software rasterizer) for deterministic goldens |
 | Vulkan ValidationLayers | V1 debug | Apache-2.0 | dev / CI | Validation |
 | naga | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md), shader authoring and cross-compilation) | MIT / Apache-2.0 | `tools/shaders` | SPIR-V → WGSL |
@@ -128,7 +130,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | CMake | V1 build | BSD-3-Clause | build | Build system |
 | vcpkg | V1 build (recommended) | MIT | build | Dependency management |
 | Ninja | V1 optional | Apache-2.0 | build | Fast builds |
-| Node.js | Not required ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) | MIT | - | Was the host for SWC/oxc; not a build dependency |
+| Node.js | Design-time tooling only ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md)) | MIT | `designer/web`, `tools/mcp` | Studio build scripts and the `tessera-mcp` stdio server; never a build or runtime dependency of the native app ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) |
 | Python 3 | Build-time | PSF | `scripts` | Tooling and CI helpers |
 
 ## 6. Platform and HAL

@@ -16,7 +16,7 @@ or which style values are valid ([`stylesheet-v1.md`](stylesheet-v1.md)).
 
 | Term | Meaning in this document |
 |---|---|
-| Host | The program that owns the project files: an editor integration or the native `tessera` CLI ([`designer.md`](../design/designer.md) section 2). It reads and writes files |
+| Host | The program that owns the project files: an editor integration, the native `tessera` CLI, or the studio page ([`designer-studio-v1.md`](designer-studio-v1.md)). It reads and writes files |
 | Viewer | The static Wasm engine plus its JavaScript shell in the browser page ([ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md)). It never reads or writes project files |
 | Message | One JSON object sent in one direction (section 2) |
 | Request / response | A message with an `id` and the message that answers it with the same `id` |
@@ -92,7 +92,7 @@ The envelope is the same on every transport. V1 defines two:
 | Transport | Use | Rules |
 |---|---|---|
 | WebSocket | The default: a viewer page served by the host | URL `ws://127.0.0.1:<port>/designer`, where `<port>` is `dev.preview.port` ([`project-config-v1.md`](project-config-v1.md)). One message per text frame, UTF-8 JSON. The host binds the loopback interface only and checks the `Origin` header against the origin that served the page |
-| `postMessage` | A viewer embedded in an editor webview | One message per `postMessage` call, the envelope as a structured-clone object. The viewer accepts messages only from its parent window and only with the origin the editor gave it at start |
+| `postMessage` | A viewer embedded in an editor webview, or the studio page's in-page host ([`designer-studio-v1.md`](designer-studio-v1.md)) | One message per `postMessage` call, the envelope as a structured-clone object. The viewer accepts messages only from its parent window and only with the origin the editor gave it at start |
 
 Limits, which both sides enforce before parsing. A violation is answered with `error` code
 `TESSERA_DESIGNER_LIMIT`, and the message is not processed:
@@ -102,7 +102,7 @@ Limits, which both sides enforce before parsing. A violation is answered with `e
 | Message size | 8 MiB (8388608 bytes) of JSON text |
 | One project file in `project.load` or `source.update` | 1 MiB, the same as `ui.limits.maxFileBytes` |
 | Open requests per sender | 64 |
-| Assets | Not sent as messages. `asset.update` lists paths; the viewer fetches each file by HTTP `GET /assets/<path>` from the origin that served it, within the limits of [`resources.md`](../design/resources.md) section 2.1 |
+| Assets | Not sent as messages. `asset.update` lists paths; the viewer fetches each file by HTTP `GET /assets/<path>` from the origin that served it, or from the entry's `url` when present, within the limits of [`resources.md`](../design/resources.md) section 2.1 |
 
 There is no binary encoding; all messages are JSON ([`designer.md`](../design/designer.md) section 3).
 These values were chosen by the assistant as starting points.
@@ -174,7 +174,7 @@ host                                   viewer
 | `hello` | request | `versions` | Section 4 |
 | `project.load` | request | `config` (project configuration object), `files` (array of `{path, version, text}`), `assets` (array of `{path, version}`; bytes are fetched by the shell, not sent in JSON) | Replaces all viewer state; answered by `project.state` |
 | `source.update` | event | `files`: array of `{path, version, text}` | Section 7 |
-| `asset.update` | event | `assets`: array of `{path, version}` | Font, image or theme asset changed; viewer reloads those assets and requests one frame |
+| `asset.update` | event | `assets`: array of `{path, version, url?}` | Font, image or theme asset changed; viewer reloads those assets and requests one frame. `url` is an opaque same-origin or `blob:` URL supplied by a host without an HTTP file origin (the studio); when absent the viewer fetches `GET /assets/<path>` |
 | `viewport.set` | event | optional `width`, `height`, `dpr`, `theme` (a theme id of the project: `default` or a key of the theme asset), `colorScheme` (`"light"` or `"dark"`, the value of `prefers-color-scheme`), `reducedMotion` (boolean), `safeAreas`, `foldPosture` | Sets the preview environment ([`designer.md`](../design/designer.md) section 8); omitted fields keep their value. `theme` is the value of `useTheme()` and `width` determines `useBreakpoint()` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1) |
 | `pick.mode` | event | `enabled` (boolean) | Section 8.1 |
 | `selection.set` | request | one of: `node` (NodeRef), `source` (`{file, offset}`), `parent` (true), `none` (true) | Section 8.2; answered by `selection.set.result` |
@@ -193,6 +193,7 @@ host                                   viewer
 | `ready` | response to `hello` | Section 4 | Once |
 | `project.state` | response to `project.load` | `components` (array of ComponentState, section 7.3) | After the first parse of every file |
 | `source.applied` | event | `files`: array of `{path, version}`, `components` (array of ComponentState) | After each `source.update` is processed (section 7.2) |
+| `theme.applied` | event | `theme` (active theme id), `colorScheme` (`"light"` or `"dark"`), `chrome` (`{background, foreground, scheme}` resolved as in [`window-chrome-v1.md`](window-chrome-v1.md) section 3.3) | After `project.load` and whenever the active theme or `viewport.set` colour scheme changes; the host paints simulated system chrome from the same record the production launch artifact uses ([`designer-studio-v1.md`](designer-studio-v1.md) section 5) |
 | `diagnostic` | event | `file`, `version`, `diagnostics` (array of Diagnostic) | The full diagnostic list of one file, replacing the previous list for that file at that version or older. An empty array clears the file's diagnostics |
 | `error` | event | `code`, `message`, optional `ref` (`id` of the offending message) | A protocol-level or engine-level failure that is not a source diagnostic (section 12) |
 | `hover.changed` | event | `node` (NodeRef or `null`), `span` (SourceSpan or `null`) | Pick mode is on and the node under the pointer changed |
@@ -426,7 +427,10 @@ defaults and may be revised by the project owner.
 adding one is a minor protocol change.
 
 **Host.** The viewer always works with a host. With no host connection it shows a "no host" status and
-loads no project; a mode that reads project files in the browser itself is not part of V1.
+loads no project; a mode that reads project files in the browser itself is not part of V1. The studio
+page is a host: it owns files in the browser (File System Access API, OPFS or an imported zip) and
+speaks `postMessage`, while the viewer still never reads project files
+([`designer-studio-v1.md`](designer-studio-v1.md) section 4).
 
 ## 15. Tests
 
@@ -445,3 +449,5 @@ loads no project; a mode that reads project files in the browser itself is not p
 - Transport limits: message over 8 MiB, file over 1 MiB, 65th open request, wrong `Origin`.
 - Worker: a result superseded by a newer queued `source.update` is never applied; `source.applied` follows application.
 - Picker modifiers: plain, `Alt`, repeated `Ctrl`/`Cmd` click up the ancestors.
+- Studio host: `postMessage` session from the page, `asset.update` with `url`, `theme.applied` after
+  load and after a theme change, and a project imported from a zip.

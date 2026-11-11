@@ -43,7 +43,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/diagnostics/` | logging, tracing, profiling, crash reporting | planned (B2); counters live in `src/runtime/` |
 | `src/devtools/` | local inspector/hot-reload protocol | planned (C/D) |
 | `src/updates/` | signed manifest, staging, rollback | planned (F) |
-| `designer/web/` | Wasm (WebAssembly) + WebGPU viewer, live view, IPC (inter-process communication) | planned (D) |
+| `designer/web/` | Wasm (WebAssembly) + WebGPU viewer, live view, IPC (inter-process communication), hosted studio page and skins | planned (D) |
 | `designer/native/` | native host/IPC | planned (D) |
 | `tests/unit/` | UI/compiler unit tests (CTest) | B1 subset |
 | `tests/gpu/` | GPU/RHI contract/resource/frame tests (CTest) | B1 subset |

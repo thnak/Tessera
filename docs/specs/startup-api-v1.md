@@ -592,4 +592,4 @@ lifecycle events ([os-events-v1.md](os-events-v1.md)), the state-restoration run
   [state-restoration-v1.md](state-restoration-v1.md)).
 - Whether chrome `auto` follows the window background or the OS colour scheme, and whether the app
   action bar stays a library component
-  ([window-chrome-v1.md](window-chrome-v1.md) section 12).
+  ([window-chrome-v1.md](window-chrome-v1.md) section 13).
