@@ -257,6 +257,15 @@ target_link_libraries(app_idle_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_idle COMMAND app_idle_tests)
 
+# Bounded device-loss recovery policy: a transient loss recovers once, a persistent loss stops after
+# the explicit attempt budget instead of retrying forever.
+add_executable(app_recovery_policy_tests
+    app_recovery_policy_tests.cpp)
+
+target_link_libraries(app_recovery_policy_tests PRIVATE tessera_app)
+
+add_test(NAME app_recovery_policy COMMAND app_recovery_policy_tests)
+
 # Input through the window pump: hover/active, click synthesis and typed text on the generated Demo.
 # The generated demo target only exists on host builds.
 if (TARGET tessera_compiler_demo)
