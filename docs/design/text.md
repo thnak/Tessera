@@ -16,7 +16,8 @@ UTF-8 runs into glyph ids, byte clusters, and pixel advances, including kerning 
 ligatures. `GlyphRasterizer` (`ui/text/glyph_raster.hpp`) renders hinted 8-bit coverage,
 `GlyphAtlas` (`ui/text/glyph_atlas.hpp`) shelf-packs bounded RGBA8 pages with a frame-age LRU, and
 `TextRenderer` (`ui/text/text_renderer.hpp`, target `tessera_text_render`) emits glyph quads through
-`Batched2DRenderer`. Bidi run splitting, line breaking, font-stack fallback, and SDF/subpixel
+`Batched2DRenderer`, selecting its atlas by the render-scale ladder step. Bidi run splitting, line
+breaking, font-stack fallback, and SDF/subpixel
 rasterization are not implemented. ICU itself is not integrated: there are no ICU call sites
 (HarfBuzz is built with `HB_HAVE_ICU=OFF`) and no ICU data package; the measured reduced-data
 cost, the locale set, and the GO decision are in section 13.
@@ -112,7 +113,8 @@ glyph atlas and `TextRenderer` face-aware: both take a vector of rasterizers, `G
 the rasterizer and the atlas key is `(face, glyph, size)`, so equal glyph ids of different faces
 never collide and glyphs of every face share the pages and batch into one draw (tests
 `glyph_atlas_faces`, `text_render_faces`). A face index outside the stack is an empty, counted
-(`GlyphAtlasStats::dropped`) entry. `ScaleGlyphAtlas` stays single-face.
+(`GlyphAtlasStats::dropped`) entry. `ScaleGlyphAtlas` takes the same rasterizer stack, so each
+ladder step still owns one face-aware atlas set.
 
 Slice 12c (done): color glyphs. `GlyphRasterizer` loads with `FT_LOAD_COLOR`; FreeType composites
 COLRv0 layers into BGRA, which is converted once to straight-alpha RGBA (`GlyphBitmap::color`,
@@ -155,6 +157,19 @@ repo ships Noto Sans and Twemoji only as test fixtures).
 - `TextRenderer` owns one RHI texture per page, creates it from the page pixels, and updates it in
   place through `rhi::Texture::write` when the page generation changes. Each glyph becomes a
   textured quad with atlas UVs through `Batched2DRenderer`.
+- **Atlas per render-scale step (feat/text-scale-atlas).** The renderer holds a `ScaleGlyphAtlas`
+  (`ui/text/scale_glyph_atlas.hpp`) instead of a single glyph atlas. `render_scale` (default 1.0)
+  is quantized through `scale::quantize_render_scale`; `draw()` uses `atlas_for(render_scale)`,
+  and RHI page textures are keyed by `(ladder index, page)` so two steps never share a page.
+  `set_render_scale()` is a DPI/monitor-change call, never a frame-path call: it belongs between
+  frames, and selecting the step already active is a no-op, while a real change invalidates
+  **only the step being left** (its atlas entry and its page textures), which the next draw at
+  that step rebuilds on demand. The other
+  steps are untouched, so page eviction on one scale never affects another. `begin_frame()`
+  advances every live step's page LRU. The scale keys the cache only: the raster pixel size is
+  still the caller's `pixel_size`, so a device-scale pixel-size policy is a separate slice. Test
+  `text_renderer_scale` pins the quantization mapping, the previous-step release/re-rasterization,
+  and the unchanged 1.0 draw records.
 - Not implemented: skyline packing, subpixel positioning, SDF/MSDF, async
   uploads, and per-glyph (rather than per-page) eviction.
 - Hinting/AA settings come from the pinned FreeType build; no system FreeType configuration is
@@ -256,6 +271,7 @@ Remaining contract, not implemented in this slice:
 | Text layout | runs + constraints + break policy | style/font/constraints change |
 | Glyph | face, size, glyph id, hinting | atlas/face change |
 | Atlas page | packer generation | eviction/repack |
+| Atlas set | quantized render scale (ladder step) | a ladder change releases the previous step only |
 
 All caches are bounded and report hit/miss/eviction metrics.
 
