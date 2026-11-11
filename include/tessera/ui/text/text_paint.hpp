@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <cstddef>
@@ -40,6 +41,36 @@ struct PaintedSegment {
 // The single space a collapsed whitespace run paints. Static storage, so a PaintedSegment can point
 // at it without copying.
 inline constexpr char kCollapsedSpace = ' ';
+
+// U+2026 HORIZONTAL ELLIPSIS, the one glyph `text-overflow: ellipsis` paints. Static view, so the
+// truncating paint path copies and allocates nothing (docs/design/text.md section 6.3).
+inline constexpr std::string_view kEllipsisUtf8 = "\xE2\x80\xA6";
+
+// The truncation `text-overflow: ellipsis` applies to one laid-out line. `source_end` is the
+// exclusive end of the surviving logical prefix (cluster-aligned); `ellipsis` says whether one
+// `kEllipsisUtf8` run is painted immediately after its painted segments.
+struct PaintedEllipsis {
+    std::size_t source_end = 0;
+    bool ellipsis = false;
+};
+
+// Fits `text-overflow: ellipsis` into `available_width` for the laid-out range [begin, end).
+//
+// The prefix is the longest cluster-aligned logical prefix whose *painted* advance fits, where the
+// painted advance is the section 6.2 segment sequence (so a collapsed whitespace run costs one
+// space, not its literal bytes) plus the one ellipsis this call reserves room for. The rules:
+//   * the ellipsis is painted only when its own advance fits `available_width`; otherwise the
+//     longest prefix that fits is painted with no ellipsis at all;
+//   * the prefix may be empty (paint only the ellipsis) and the whole result never exceeds
+//     `available_width`;
+//   * nothing is rounded, measured twice, or allocated.
+// `advance` is the metrics seam that measures one painted run (the same one paint shapes with).
+// Callers only invoke this for a line whose laid-out width exceeds `available_width`; a line that
+// fits is painted unchanged and never reaches this function.
+[[nodiscard]] PaintedEllipsis fit_ellipsis_prefix(std::string_view text, std::size_t begin,
+                                                  std::size_t end, WhiteSpace mode,
+                                                  float available_width, const TextStyle& style,
+                                                  TextAdvanceMeasure advance, void* user) noexcept;
 
 // Sequential, allocation-free mapping from a laid-out line's source range to the painted segment
 // sequence. The layout already trimmed the line edges for the trimming modes; `trim_edges` makes

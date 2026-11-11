@@ -276,7 +276,6 @@ Remaining contract, not implemented in this slice:
   themselves, which the whitespace mapping of section 6.2 does not own.
 - `HitTest`/caret mapping by point still sums literal per-cluster advances; paint's own caret and
   selection already walk the painted segments, so collapsing a point-to-caret map is a follow-up.
-- `text-overflow: ellipsis` needs measured ellipsis width; no mid-glyph clipping.
 - `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
 - Bidi: visual order per line; alignment uses the paragraph direction.
 - Baseline: layout uses the first line's baseline for alignment; multi-line boxes document
@@ -303,6 +302,49 @@ cursor per visual run; a separator run cut by a run boundary paints its one spac
 that owns its first byte. The trim flag is what keeps a whitespace-only `normal` line box (range
 [begin,end), width 0) from painting its trimmed spaces. Per-mode pinned sequences and the
 segment-sum-equals-line-width invariant live in `tests/unit/text_paint_tests.cpp`.
+
+### 6.3 `text-overflow: ellipsis` (paint-side truncation)
+
+`text-overflow` is a registered, non-inherited property with initial `clip`
+(`src/ui/style/property_registry.cpp`); `text_style_from()` maps `ellipsis` to
+`TextStyle::text_overflow` and everything else to `TextOverflow::Clip`. Measurement is untouched:
+the field is deliberately absent from both cache keys (the measure cache and the paint text-layout
+cache), because it changes no glyph advance, line box, or baseline.
+
+The documented case is a single `white-space: nowrap` line wider than its content box. When the
+computed value is `ellipsis` and a laid-out line is wider than the width left from its start offset,
+`text::fit_ellipsis_prefix()` (`ui/text/text_paint.hpp`, `src/ui/text/text_paint.cpp`) fits the
+painted prefix, paint emits it through the section 6.2 segment cursor, and one `U+2026` follows:
+
+| Condition | Painted result |
+|---|---|
+| line fits (`line.width <= available`) | unchanged, no ellipsis |
+| prefix + `U+2026` fits | longest cluster-aligned prefix + one ellipsis |
+| `U+2026` alone does not fit | longest prefix that fits, no ellipsis, no overflow |
+| nothing fits | nothing is painted |
+
+- The fit walks the line's painted segment sequence once, so a collapsed whitespace run costs the
+  one space the layout measured; only the segment that straddles the budget is searched further
+  (binary search on the source prefix, then snap down to a grapheme-cluster boundary via
+  `edit_detail::snap_to_cluster`/`prev_cluster`). No multi-byte character, base + mark cluster, or
+  ZWJ sequence is ever split, and the ellipsis advance comes from the same metrics seam.
+- The cut is not a line edge, so the truncated range does not trim again: a cut that lands after a
+  collapsed run keeps the one space the fit reserved before the ellipsis.
+- Bidi lines are cut on the logical prefix and painted per visual run, so the visual run order is
+  unchanged and a run that starts after the cut paints nothing. Caret, selection and IME preedit
+  keep `clip` for now: truncating under an editing caret would desynchronize its byte offsets from
+  what is drawn.
+- Nothing allocates on this path: the fit works on `std::string_view`s and the static
+  `kEllipsisUtf8`/`kCollapsedSpace` storage.
+- Layout, line boxes, baselines, measured widths and the cache keys are byte-identical to `clip`;
+  truncation happens entirely in paint, and a line that does not overflow keeps today's fast path.
+
+The two-value `<overflow> <side>` form (`clip ellipsis`, `ellipsis left`) is not implemented: the
+registry rejects the whole declaration with an `InvalidShorthand` diagnostic, so neither half is
+applied and the computed value stays `clip`, and `@supports (text-overflow: ...)` accepts only the
+two one-value keywords. The rules above are pinned in `tests/unit/text_overflow_tests.cpp`
+(registry/cascade, every row of the table, a trailing collapsed run, multi-byte and combining-mark
+clusters, a bidi line, layout invariance, and the end-to-end paint output).
 
 ## 7. Caches
 

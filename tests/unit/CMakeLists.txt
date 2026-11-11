@@ -995,6 +995,15 @@ target_link_libraries(text_paint_tests PRIVATE tessera_text)
 
 add_test(NAME text_paint COMMAND text_paint_tests)
 
+# `text-overflow: ellipsis` (docs/design/text.md section 6.3): registry/cascade value, the fit rules
+# at the text layer, layout invariance, and the end-to-end paint path.
+add_executable(text_overflow_tests
+    text_overflow_tests.cpp)
+
+target_link_libraries(text_overflow_tests PRIVATE tessera_paint tessera_text)
+
+add_test(NAME text_overflow COMMAND text_overflow_tests)
+
 add_executable(text_bidi_tests
     text_bidi_tests.cpp)
 

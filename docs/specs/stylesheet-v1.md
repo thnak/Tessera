@@ -341,7 +341,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
 | Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color` | gradients, images, filters, general `clip-path` |
 | View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |
-| Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `white-space` (`normal`, `nowrap`, `pre`, `pre-wrap`, `break-spaces`; mode semantics in [`text.md`](../design/text.md) section 6.1), `text-overflow` | full OpenType features, justification |
+| Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `white-space` (`normal`, `nowrap`, `pre`, `pre-wrap`, `break-spaces`; mode semantics in [`text.md`](../design/text.md) section 6.1), `text-overflow` (`clip`, `ellipsis`; one value only, paint-side truncation in [`text.md`](../design/text.md) section 6.3) | full OpenType features, justification |
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |

@@ -69,6 +69,10 @@ constexpr PropertyDef kProperties[] = {
     {"word-spacing", "normal", true},
     {"text-align", "start", true},
     {"text-transform", "none", true},
+    // Not inherited, as in CSS: `text-overflow` applies to the box that paints the line, and a
+    // child never inherits its parent's truncation. Paint-side only (docs/design/text.md
+    // section 6.3).
+    {"text-overflow", "clip", false},
     {"white-space", "normal", true},
     {"visibility", "visible", true},
     {"cursor", "auto", true},
@@ -260,6 +264,16 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
 
     if (is_custom_property(declaration.property)) {
         result.declarations.push_back(declaration);
+        return result;
+    }
+    // CSS allows `text-overflow: <overflow> <side>`, which V1 does not implement. Reject the whole
+    // declaration instead of applying half of it: no winner reaches the cascade, so the computed
+    // value stays at the initial `clip` and the diagnostic names the unsupported form.
+    if (property == "text-overflow" && split_components(declaration.value).size() != 1) {
+        result.diagnostics.push_back(
+            invalid_shorthand(declaration, property,
+                              "text-overflow takes one value (clip or ellipsis); the two-value "
+                              "<overflow> <side> shorthand is not supported in V1"));
         return result;
     }
     if (find(property) != nullptr) {

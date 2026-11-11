@@ -70,6 +70,14 @@ WhiteSpace parse_white_space(std::string_view value) {
     return WhiteSpace::Normal;
 }
 
+// CSS `text-overflow` (docs/design/text.md section 6.3). The registry rejects the two-value
+// `<overflow> <side>` form, so a computed value is one keyword (or a keyword the parser did not
+// understand, which stays tolerant like `white-space`). Only `ellipsis` opts into paint-time
+// truncation; everything else is `clip`.
+TextOverflow parse_text_overflow(std::string_view value) {
+    return lower(trim(value)) == "ellipsis" ? TextOverflow::Ellipsis : TextOverflow::Clip;
+}
+
 float parse_length(std::string_view value, float relative_to) {
     const std::string token = lower(trim(value));
     if (token.empty() || token == "normal") {
@@ -142,6 +150,9 @@ TextStyle text_style_from(const style::ComputedStyle& computed) {
     }
     if (const std::string* white_space = computed.find("white-space")) {
         result.white_space = parse_white_space(*white_space);
+    }
+    if (const std::string* overflow = computed.find("text-overflow")) {
+        result.text_overflow = parse_text_overflow(*overflow);
     }
     return result;
 }

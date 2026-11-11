@@ -57,6 +57,16 @@ enum class WhiteSpace {
     return mode == WhiteSpace::BreakSpaces;
 }
 
+// CSS `text-overflow`, paint-side only (docs/design/text.md section 6.3). The property never
+// changes measurement, line boxes or baselines: every mode lays out exactly as it does with Clip.
+//   * Clip     - paint the laid-out line verbatim, even when it is wider than its content box.
+//   * Ellipsis - when the laid-out line does not fit, paint the longest cluster-aligned prefix plus
+//                one U+2026 that still fits the content box (the layout is unchanged).
+enum class TextOverflow {
+    Clip,
+    Ellipsis,
+};
+
 struct TextStyle {
     float font_size = 16.0f;
     float line_height = 0.0f;
@@ -64,6 +74,8 @@ struct TextStyle {
     int font_weight = 400;
     bool italic = false;
     WhiteSpace white_space = WhiteSpace::Normal;
+    // Paint-only: the measure cache key deliberately omits it, because it changes no glyph advance.
+    TextOverflow text_overflow = TextOverflow::Clip;
 };
 
 struct TextConstraints {

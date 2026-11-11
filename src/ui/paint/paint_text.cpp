@@ -6,7 +6,7 @@
 
 #include "paint_properties.hpp"
 #include "paint_text.hpp"
-#include "tessera/ui/text/bidi.hpp"
+#include "paint_text_runs.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -16,6 +16,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -59,102 +60,6 @@ PaintTextAlign computed_text_align(const style::ComputedStyle& style) {
 // them. Selection is a translucent fill derived from the text color; the caret is the text color at
 // full alpha, 1 px at device scale 1 and 2 px at scale >= 2. A blink phase below 0.5 hides only the
 // caret; paint has no timers.
-// Advance callback for bidi caret mapping: the metrics source used for this paint.
-float bidi_advance(std::string_view text, const text::TextStyle& style, void* user) {
-    return static_cast<const PaintTextMetricsSource*>(user)->advance(text, style);
-}
-
-// Visual x of a logical byte offset relative to the line start. Uses the bidi run order/affinity
-// when the line has visual runs; pure LTR lines sum the painted segments of the prefix, so a
-// collapsed interior run costs the one space advance the layout measured.
-float line_offset_x(std::string_view text, const text::TextLine& line, std::size_t offset,
-                    const text::TextStyle& style, const PaintTextMetricsSource& source) {
-    if (line.visual_runs.empty()) {
-        const std::size_t clamped = std::min(std::max(offset, line.begin), line.end);
-        float x = 0.0f;
-        text::PaintedSegmentCursor cursor(text, line.begin, clamped, style.white_space);
-        text::PaintedSegment segment;
-        while (cursor.next(segment)) {
-            x += source.advance(segment.source, style);
-        }
-        return x;
-    }
-    return text::bidi_offset_x(text, line, offset, style, &bidi_advance,
-                               const_cast<PaintTextMetricsSource*>(&source));
-}
-
-// Emits the painted segment sequence of one source range (docs/design/text.md section 6.2),
-// advancing `x`. `single_width` is set when the range is a whole line: if it paints as one run the
-// laid-out box width is authoritative, so the painted advance equals the measured line width for
-// every metrics source (the sink still shapes `source`).
-void emit_range_segments(std::string_view text, const text::TextLine& line, std::size_t begin,
-                         std::size_t end, bool trim_edges, std::optional<float> single_width,
-                         const text::TextStyle& text_style, const PaintTextMetricsSource& source,
-                         float& x, float line_top, const rhi::Color& color, PaintSink& sink,
-                         PaintStats& stats) {
-    text::PaintedSegmentCursor cursor(text, begin, end, text_style.white_space, trim_edges);
-    text::PaintedSegment first;
-    if (!cursor.next(first)) {
-        return;
-    }
-    text::PaintedSegment second;
-    const bool has_second = cursor.next(second);
-    const bool single = !has_second && first.source_begin == begin && first.source_end == end;
-
-    const auto emit = [&](const text::PaintedSegment& segment, float width) {
-        TextDraw run;
-        run.rect = {std::round(x), std::round(line_top), width, line.height};
-        run.text = segment.source;
-        run.font_size = text_style.font_size;
-        run.font_weight = text_style.font_weight;
-        run.color = color;
-        run.baseline = std::round(line_top + line.baseline);
-        sink.draw_text(run);
-        ++stats.texts;
-        x += width;
-    };
-    if (single) {
-        emit(first, single_width.value_or(source.advance(first.source, text_style)));
-        return;
-    }
-    emit(first, source.advance(first.source, text_style));
-    if (!has_second) {
-        return;
-    }
-    emit(second, source.advance(second.source, text_style));
-    while (cursor.next(second)) {
-        emit(second, source.advance(second.source, text_style));
-    }
-}
-
-// Emits one line's glyph runs left-to-right in visual order, applying the mode's paint-time
-// segment transform: `normal`/`nowrap` paint a collapsed run as the one space advance the layout
-// measured, while `pre`, `pre-wrap` and `break-spaces` keep every preserved byte in one run. A
-// bidi line applies the same transform per visual run, and only the run that owns a separator
-// run's first byte paints its collapsed space.
-void emit_line_runs(const text::TextLine& line, std::string_view text,
-                    const text::TextStyle& text_style, const PaintTextMetricsSource& source,
-                    float line_x, float line_top, const rhi::Color& color, PaintSink& sink,
-                    PaintStats& stats) {
-    if (line.end <= line.begin) {
-        return;
-    }
-    if (line.visual_runs.empty()) {
-        float x = line_x;
-        emit_range_segments(text, line, line.begin, line.end, true, line.width, text_style, source,
-                            x, line_top, color, sink, stats);
-        return;
-    }
-    float x = line_x;
-    for (const text::BidiVisualRun& visual_run : line.visual_runs) {
-        if (visual_run.end <= visual_run.begin) {
-            continue;
-        }
-        emit_range_segments(text, line, visual_run.begin, visual_run.end, false, std::nullopt,
-                            text_style, source, x, line_top, color, sink, stats);
-    }
-}
-
 void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
                            const text::TextStyle& text_style, const rhi::Color& color,
                            float opacity, bool wrap, PaintTextAlign align, PaintSink& sink,
@@ -262,9 +167,11 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
     }
 
     // Glyph runs: selection above, text now (per line so the geometry matches the decoration).
+    // Caret/selection/preedit paint the laid-out line verbatim: truncating under an editing caret
+    // would desynchronize the byte offsets from what is drawn, so `text-overflow` is clip here.
     for (const LineGeometry& geometry : lines) {
         emit_line_runs(geometry.line, text, text_style, *metrics_source, geometry.x, geometry.top,
-                       color, sink, stats);
+                       std::numeric_limits<float>::infinity(), color, sink, stats);
     }
 
     // IME preedit: underline the composition range and, when the preedit is not part of the painted
@@ -428,8 +335,21 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
             return;
         }
         const text::TextLine& line = no_wrap_layout.lines.front();
+        // Alignment first: the ellipsis fit is what the line has left from its start offset, so an
+        // over-wide line (the documented case) starts at the content box and gets its full width.
+        float line_x = content_x;
+        const PaintTextAlign line_align = data->text_align.value_or(computed_text_align(style));
+        if (line_align == PaintTextAlign::Center) {
+            line_x += (content_width - line.width) * 0.5f;
+        } else if (line_align == PaintTextAlign::End) {
+            line_x += content_width - line.width;
+        }
+        line_x = std::max(content_x, line_x);
+        const float available_width = std::max(0.0f, content_x + content_width - line_x);
+        const bool truncate = text_style.text_overflow == text::TextOverflow::Ellipsis &&
+                              line.width > available_width;
         bool identity = false;
-        if (line.visual_runs.empty()) {
+        if (!truncate && line.visual_runs.empty()) {
             text::PaintedSegmentCursor cursor(data->text, line.begin, line.end,
                                               text_style.white_space, true);
             text::PaintedSegment only;
@@ -438,15 +358,8 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
                        only.source_end == data->text.size();
         }
         if (!identity) {
-            float line_x = content_x;
-            const PaintTextAlign line_align = data->text_align.value_or(computed_text_align(style));
-            if (line_align == PaintTextAlign::Center) {
-                line_x += (content_width - line.width) * 0.5f;
-            } else if (line_align == PaintTextAlign::End) {
-                line_x += content_width - line.width;
-            }
-            emit_line_runs(line, data->text, text_style, *metrics_source,
-                           std::max(content_x, line_x), content_y, color, sink, stats);
+            emit_line_runs(line, data->text, text_style, *metrics_source, line_x, content_y,
+                           available_width, color, sink, stats);
             return;
         }
         TextDraw run;
@@ -489,8 +402,9 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         } else if (align == PaintTextAlign::End) {
             line_x += content_width - line.width;
         }
-        emit_line_runs(line, data->text, text_style, *metrics_source, std::max(content_x, line_x),
-                       line_top, color, sink, stats);
+        line_x = std::max(content_x, line_x);
+        emit_line_runs(line, data->text, text_style, *metrics_source, line_x, line_top,
+                       std::max(0.0f, content_x + content_width - line_x), color, sink, stats);
         line_top += line.height;
     }
 }
