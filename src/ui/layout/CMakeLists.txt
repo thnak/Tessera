@@ -6,6 +6,7 @@ add_library(tessera_layout STATIC
     damage_tracker.cpp
     layout_engine.cpp
     layout_observer.cpp
+    layout_observer_settle.cpp
     layout_read_model.cpp
     layout_style.cpp
     layout_scheduler.cpp
@@ -16,6 +17,7 @@ target_include_directories(tessera_layout PUBLIC
 
 target_link_libraries(tessera_layout PUBLIC
     tessera_damage
+    tessera_diagnostics
     tessera_scene
     tessera_style
     tessera_text

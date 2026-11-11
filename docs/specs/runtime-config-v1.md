@@ -54,6 +54,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     "resizeDebounceMs": 16,
     "swapchainRecreateDelayMs": 16,
     "maxPendingResizes": 1,
+    "layoutObservationMaxRounds": 4,
     "asyncWorkerThreads": 0,
     "asyncIoThreads": 1,
     "asyncQueueCapacity": 4096,
@@ -100,6 +101,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `resizeDebounceMs` | number | `16` | `0..1000` | Coalesce resize events before layout/recreate. |
 | `swapchainRecreateDelayMs` | number | `16` | `0..1000` | Delay after resize settles before recreation. |
 | `maxPendingResizes` | integer | `1` | `1..16` | Coalescing queue bound; excess events merge. |
+| `layoutObservationMaxRounds` | integer | `4` | `1..16` | Same-tick settle rounds for size observations; `1` delivers on the next tick ([`layout-observation.md`](../design/layout-observation.md) section 5.3). Out-of-range values clamp. |
 | `asyncWorkerThreads` | integer | `0` | `0..256` | `0` = auto (hardware concurrency minus UI/IO). |
 | `asyncIoThreads` | integer | `1` | `1..16` | Dedicated blocking I/O threads. |
 | `asyncQueueCapacity` | integer | `4096` | `64..1048576` | Bounded completion/task queue. |
