@@ -211,6 +211,21 @@ inputs. A hit is therefore equivalent to a reflow for the same signature; the on
 engine layout for paint-only, text-only, width, reorder, viewport and invalidate scripts, and
 asserts zero reflows for paint-only dirt and exactly one for each real change.
 
+Hit rate in the `AppHost` path: a paint-only inline-style edit
+(`Node::set_inline_style("background", ...)`) rebuilt the selector tree and still missed the guard.
+The signature was right and the input really did differ. `AppHost::apply_root_size` passed a
+temporary string to `set_inline_style` for the host-owned root `width`/`height`, while
+`Node::set_inline_style` *borrows* its name/value (the caller keeps the storage alive, as generated
+code does with literals). The temporary was freed at the end of the constructor expression, so the
+computed root values were read from freed bytes; once a rebuild reused that heap block, the input
+became `width: "320px"` -> `width: <freed bytes>` and the guard correctly reported a changed input.
+The rule: an inline-style value must outlive the declaration it is stored in. `AppHost` now formats
+the root size into host-owned buffers (stable addresses for the host's lifetime, re-formatted in
+place on resize), so a rebuild produces a byte-identical input and the paint-only edit is a hit.
+The cascade never re-serializes unrelated longhands: a value that reaches `ComputedStyle` is a
+copied `std::string`, and the guard hashes only the properties in the include lists above, so a
+re-resolved default cannot masquerade as a layout change.
+
 `invalidate()` clears both the result and the signature. A successful `relayout_subtree` also drops
 the signature: the patch is a subtree snapshot resolved against the subtree root's own width and
 siblings are left untouched, which is an approximation of a full reflow. The next `update`

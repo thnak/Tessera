@@ -153,7 +153,22 @@ Text { font-size: 16px; color: #e2e8f0; }
         return 5;
     }
 
-    // --- 3. State change: paint-only frame with partial damage ----------------------------
+    // --- 3. A paint-only inline style edit hits the layout signature guard ----------------
+    label.set_inline_style("background", "#ff0000");
+    const std::size_t style_runs = host.layout_runs();
+    const std::size_t style_hits = host.layout_cache_hits();
+    const tessera::app::HostFrame restyled = host.begin_frame(1.0 / 60.0);
+    if (!expect(restyled.tick.needs_style, "a style-only edit reports style work") ||
+        !expect(!restyled.tick.needs_layout, "a paint-only edit reports no layout dirt") ||
+        !expect(host.layout_runs() == style_runs,
+                "a paint-only inline style edit must not run a layout pass") ||
+        !expect(host.layout_cache_hits() == style_hits + 1,
+                "a paint-only inline style edit is a layout cache hit")) {
+        return 20;
+    }
+    host.end_frame();
+
+    // --- 4. State change: paint-only frame with partial damage ----------------------------
     label.set_paint_data(text_payload("Count: 1"));
     const tessera::app::HostFrame changed = host.begin_frame(1.0 / 60.0);
     if (!expect(!changed.tick.needs_style && !changed.tick.needs_layout,
@@ -177,7 +192,7 @@ Text { font-size: 16px; color: #e2e8f0; }
     if (!expect(extent.width == 800 && extent.height == 600, "damage target follows DPI scale")) {
         return 8;
     }
-    // --- 4. Resize: new target, reflow, full repaint --------------------------------------
+    // --- 5. Resize: new target, reflow, full repaint --------------------------------------
     const tessera::app::HostFrame resized = host.begin_frame(1.0 / 60.0);
     if (!expect(resized.tick.needs_layout, "resize asks for layout") ||
         !expect(resized.frame_due, "resize makes a frame due") ||
@@ -188,13 +203,53 @@ Text { font-size: 16px; color: #e2e8f0; }
     }
     host.end_frame();
 
-    // --- 5. Back to idle after the resize frame -------------------------------------------
+    // --- 6. Back to idle after the resize frame -------------------------------------------
     const tessera::app::HostFrame settled = host.begin_frame(1.0 / 60.0);
     if (!expect(!settled.frame_due, "the loop settles again")) {
         return 10;
     }
 
-    // --- 6. The installed update scheduler flushes at the start of a frame ------------------
+    // --- 7. The guard cannot silently skip a real layout input change ----------------------
+    // A hit is only sound for an unchanged input, so each edit the engine consumes must still
+    // reach Yoga exactly once.
+    {
+        const std::size_t runs = host.layout_runs();
+        card.set_inline_style("width", "240px");
+        (void)host.begin_frame(1.0 / 60.0);
+        host.end_frame();
+        if (!expect(host.layout_runs() == runs + 1,
+                    "a width change runs exactly one layout pass") ||
+            !expect(card.world_bounds().width == 256.0f,
+                    "the width change reaches the card's box")) {
+            return 21;
+        }
+    }
+    {
+        // A text change raises layout dirt through the conservative caller path; the signature
+        // must see the new bytes and reflow instead of trusting the dirt or dropping it.
+        const std::size_t runs = host.layout_runs();
+        label.set_paint_data(text_payload("Count: 2"));
+        label.mark_dirty(Dirty::Layout);
+        (void)host.begin_frame(1.0 / 60.0);
+        host.end_frame();
+        if (!expect(host.layout_runs() == runs + 1, "a text change runs exactly one layout pass")) {
+            return 22;
+        }
+    }
+    {
+        const std::size_t runs = host.layout_runs();
+        host.resize(360.0f, 240.0f, 1.0f);
+        (void)host.begin_frame(1.0 / 60.0);
+        host.end_frame();
+        if (!expect(host.layout_runs() == runs + 1,
+                    "a viewport change runs exactly one layout pass") ||
+            !expect(root.world_bounds().width == 360.0f,
+                    "the viewport change reaches the root's box")) {
+            return 23;
+        }
+    }
+
+    // --- 8. The installed update scheduler flushes at the start of a frame ------------------
     {
         struct Counter {
             int runs = 0;
@@ -220,7 +275,7 @@ Text { font-size: 16px; color: #e2e8f0; }
         }
     }
 
-    // --- 7. A caller-styled root keeps its layout mode -----------------------------------
+    // --- 9. A caller-styled root keeps its layout mode -----------------------------------
     {
         Node styled(1);
         styled.set_inline_style("display", "flex");
