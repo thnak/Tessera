@@ -60,6 +60,9 @@ void ComponentChecker::check_declarations() {
         if (children_prop && prop.default_value) {
             context.report("TESSERA_IR_SLOT", "the `children` prop has no default value", where);
         }
+        if (children_prop && prop.optional) {
+            context.report("TESSERA_IR_SLOT", "the `children` prop has no optional form", where);
+        }
         validate_type(context, prop.type, where);
         validate_expr(context, scope, {}, prop.default_value.get(), where);
     }

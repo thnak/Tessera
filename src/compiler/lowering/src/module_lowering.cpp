@@ -236,8 +236,9 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
                      "component `" + item.name + "` was not analysed", item.span);
                 return std::nullopt;
             }
-            const HookLoweringContext context{item, *analysis, *source.source_map, source.file,
-                                              entry.component_refs};
+            const HookLoweringContext context{
+                item,         *analysis, *source.source_map, source.file, entry.component_refs,
+                source.module};
             LoweredComponentResult component = lower_component(context);
             if (!component) {
                 if (!state.error && !component.error().empty()) {

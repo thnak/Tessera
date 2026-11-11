@@ -26,7 +26,7 @@ parse_module -> analysis (Tier 1, new) -> lowering (Tier 2, new) -> IR -> IR val
 | AST construct | IR | Notes |
 |---|---|---|
 | Component item | `Component` | `name`, `source` = whole function span, `id` = `comp::<Name>`; `return <Root/>` is `root` |
-| Props parameter, destructured defaults | `props[]` (`name`, `type`, `default`) | `props.x` reads become `ref` to the prop (decision 8) |
+| Props parameter and its type alias / inline object type | `props[]` (`name`, `type`, `optional`, `default`) | one record per member, declaration order; `?` is `optional`; `props.x` reads become `ref` (decision 8) |
 | `const [x, setX] = useState<T>(e)` | `state[]` entry `state::x` | setter name is a symbol, not an IR object; `initial` is a literal or Expr (decision 9) |
 | `useRef<E>(null)` + `ref={r}` | `refs[]` (`ref::r`, `target` = node id) | target filled when the element is lowered |
 | `useAnimatedValue(e)` | `animatedValues[]` | |
@@ -413,11 +413,11 @@ lower_project(std::span<const ModuleSource>, std::string_view module_name); // i
 - Imports: relative `./X`/`../X` resolve against the file set (extension omitted); each name must be
   a component, type alias or constant of the target. A bare specifier resolves through the project's
   package roots (`packages` in `tessera.json`: `pkg/Sub` -> `<root>/Sub`); else unsupported.
-- Deferred/rejected: prop, event and children *types* (slice 4), so unknown props and children are
-  forwarded unvalidated; a component callback parameter or setter reference, `style` on a
-  component, a props-parameter spread and a component reference as an ordinary prop value are
-  rejected (`fallback` accepts one). Library components are slice 11; `LoweringOptions` is not
-  introduced; `lower_module` rejects relative imports (use `lower_project`).
+- Declared prop records come from the props type alias or inline object type (slice 4); unknown props
+  and children still forward unvalidated, prop defaults are deferred, and a component callback
+  parameter or setter reference, `style` on a component, a props-parameter spread or a component
+  reference as an ordinary prop value are rejected (`fallback` accepts one). Library components are
+  slice 11; `LoweringOptions` is not introduced; `lower_module` rejects relative imports.
 
 Tests are `lowering_module`, `lowering_module_reject` and `lowering_module_determinism`.
 ## 4. Spans and diagnostics
@@ -467,9 +467,8 @@ src/compiler/codegen/       (later)             depends on tessera_ir only
 ```
 
 - `tessera_ir`: static library, C++23, links nothing from the project. Public headers under
-  `include/tessera/compiler/ir/`: `ir.hpp` (aggregate structs for components, nodes, expressions,
-  bindings, types), `source_span.hpp`, `json_writer.hpp`, `validate.hpp`. One primary type per header
-  once `ir.hpp` passes 300 lines. Children are `std::unique_ptr`; no RTTI.
+  `include/tessera/compiler/ir/` (component, node, expr, module, source span, JSON, validator);
+  one primary type per header. Children are `std::unique_ptr`; no RTTI.
 - `tessera_react_rules` links the front end; `tessera_lowering` links front end, rules and `tessera_ir`.
 - `add_subdirectory` lines go next to the existing compiler entries in the top-level
   `CMakeLists.txt`. Tests register in `tests/unit/CMakeLists.txt` as `ir_*`, `rules_*`, `lowering_*`.
@@ -485,10 +484,9 @@ bindings, ref targets, action targets and `Component` targets; operators and fun
 `ErrorBoundary` shape, loop key, loop source and loop depth 2; binding id, region and unused
 bindings; sorted components and bindings.
 
-Not covered: type checking of expressions and props (the analysis pass), element and prop schemas
-of `CustomElement` and intrinsics, a `Component` node's props against the referenced component's
-props, 64-bit id hashing, warnings (unused state or refs), and record type declarations (any
-identifier is accepted as a record type name until the type table exists).
+Not covered: type checking of expressions and prop values (the analysis pass), element and prop
+schemas of `CustomElement` and intrinsics, a `Component` node's props against its target's props,
+64-bit id hashing, warnings, and record type declarations beyond a prop member's bare name.
 
 ## 7. Serialisation and determinism
 
@@ -531,8 +529,9 @@ Each slice is behavior, tests and docs, committed on its own.
 2. **IR validator.** Section 9 hard errors on hand-built IR; the layering test.
 3. **Analysis skeleton (done).** `tessera_react_rules`: symbol table per component, hook forms and order,
    arrow roles (handler/effect/cleanup), `return` placement, effect dependency matching.
-4. **Types.** Type table (props, aliases, records), expression typing, boolean conditions, event
-   payload types, `ref` targets, `key` placement, list depth.
+4. **Types (props records done).** A component's props alias or inline object type lowers every
+   member (name, IR v1 type, `?` optional flag, `children` slot). Still deferred: defaults,
+   inline value records, payload-record fields, callback parameters and expression typing.
 5. **Lowering of expressions (done).** `Expr` -> IR `Expr` with the operator mapping and folding of
    top-level constants; no components yet.
 6. **Lowering of hooks and bindings (done).** state, refs, animated values, effects, cleanup,

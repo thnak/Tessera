@@ -85,14 +85,14 @@ read the parser AST.
 | `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1) |
 | `root` | Node | yes | Exactly one root node |
 
-`props[].default` and `state[].initial` are Expressions (section 4). A literal is written as the bare
-JSON value (`"initial": 0`), any other expression as its object (`{ "kind": "ref", "id": "prop::start" }`).
-Reference ids are `state::<name>`, `prop::<name>`, `ref::<name>`, `anim::<name>`, `env::<name>`; a
-field of a record-typed value is a dotted id (`item.id`, `prop::row.label`); a loop item and index are
-named as written in the source.
-
-V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`, `children`
-(section 3.4; props only). No arbitrary objects/functions in state. Nullable types use `optional<T>`.
+`props[].default` and `state[].initial` are Expressions (section 4); a literal is the bare JSON value,
+any other expression its object (`{ "kind": "ref", "id": "prop::start" }`). A `Prop` is `{ "name",
+"type", "optional"?, "default"? }`: `optional` is the source `?` (the caller may omit the prop), not a
+nullable `optional<T>` value; `children` has type `children` and neither. Reference ids are `state::`,
+`prop::`, `ref::`, `anim::`, `env::<name>`; a field of a record-typed value is dotted (`item.id`); loop
+item/index names are as written. V1 types: `bool`, `int`, `float`, `string`, `color`, `length`,
+`node_ref`, `list<T>`, `children` (section 3.4; props only), `optional<T>`, and for props `callback` or a
+payload record name (`TextChangeEvent`). No arbitrary objects/functions in state.
 
 ## 2.1 Handlers
 

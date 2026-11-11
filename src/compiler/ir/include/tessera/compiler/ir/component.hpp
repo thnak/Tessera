@@ -15,6 +15,10 @@ struct Prop {
     std::string name;
     std::string type;
     ExprPtr default_value;
+    // The source `?` marker: the caller may omit the prop. Kept separate from the type because an
+    // absent prop is not the same value as a nullable (`optional<T>`) one, and because a default
+    // value is a later slice (docs/design/jsx-ir-lowering.md section 9).
+    bool optional = false;
 };
 
 struct State {
