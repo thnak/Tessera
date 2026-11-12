@@ -1724,3 +1724,10 @@ add_executable(animation_event_tests
 target_link_libraries(animation_event_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_event COMMAND animation_event_tests)
+
+add_executable(frame_pipeline_spring_tests
+    frame_pipeline_spring_tests.cpp)
+
+target_link_libraries(frame_pipeline_spring_tests PRIVATE tessera_frame tessera_runtime)
+
+add_test(NAME frame_pipeline_spring COMMAND frame_pipeline_spring_tests)

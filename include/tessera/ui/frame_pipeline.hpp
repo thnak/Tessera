@@ -5,12 +5,15 @@
 #include "tessera/rendering/damage.hpp"
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/ui/animation/runtime.hpp"
+#include "tessera/ui/animation/spring_runtime.hpp"
 #include "tessera/ui/frame_interpolation.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+
+#include <unordered_map>
 
 namespace tessera::runtime {
 class RuntimeLoop;
@@ -113,6 +116,18 @@ public:
         return scheduler_;
     }
 
+    // The pipeline-owned spring runtime for style-property springs (start/retarget through it).
+    // Each tick advances it by the same dt as the CSS animation runtime, merges its samples into
+    // `FrameTick::animation` (so dirty marking and paint interpolation treat them like any other
+    // animation sample), requests a frame while a spring runs, drops springs whose node left the
+    // tree, and follows the animation runtime's reduced-motion flag (springs snap to target).
+    [[nodiscard]] animation::SpringRuntime& springs() {
+        return springs_;
+    }
+    [[nodiscard]] const animation::SpringRuntime& springs() const {
+        return springs_;
+    }
+
     void set_interpolation(bool enabled) {
         config_.interpolation = enabled;
         if (!enabled) {
@@ -130,6 +145,8 @@ public:
 
 private:
     FrameTick tick_impl(Node& root, double dt, double alpha, bool interpolate);
+    void tick_springs(Node& root, double dt, animation::AnimationTickResult& into,
+                      std::unordered_map<NodeId, Node*>& index);
 
     animation::AnimationRuntime* animations_ = nullptr;
     runtime::RuntimeLoop* loop_ = nullptr;
@@ -137,6 +154,7 @@ private:
     rendering::DamageAccumulator* damage_ = nullptr;
     DirtyPass* dirty_ = nullptr;
     UpdateScheduler* scheduler_ = nullptr;
+    animation::SpringRuntime springs_;
     FramePipelineConfig config_;
     bool frame_due_ = false;
     PaintSamples previous_samples_;

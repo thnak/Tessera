@@ -119,6 +119,8 @@ public:
     [[nodiscard]] std::size_t layout_runs() const;
     [[nodiscard]] std::size_t layout_cache_hits() const;
     [[nodiscard]] ui::animation::AnimationRuntime& animations();
+    // Style-property springs, owned and ticked by the frame pipeline (see FramePipeline::springs).
+    [[nodiscard]] ui::animation::SpringRuntime& springs();
     [[nodiscard]] float width() const;
     [[nodiscard]] float height() const;
     [[nodiscard]] float dpi_scale() const;

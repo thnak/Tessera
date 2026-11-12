@@ -138,8 +138,11 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     result.animation = animation::tick_animations(*animations_, *loop_, dt);
 
     std::unordered_map<NodeId, Node*> index;
+    tick_springs(root, dt, result.animation, index);
     if (!result.animation.samples.empty()) {
-        index_nodes(root, index);
+        if (index.empty()) {
+            index_nodes(root, index);
+        }
         for (const animation::AnimationSample& sample : result.animation.samples) {
             const auto found = index.find(sample.target);
             if (found == index.end()) {
@@ -183,6 +186,30 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
         loop_->request_frame();
     }
     return result;
+}
+
+void FramePipeline::tick_springs(Node& root, double dt, animation::AnimationTickResult& into,
+                                 std::unordered_map<NodeId, Node*>& index) {
+    springs_.set_reduced_motion(animations_->reduced_motion());
+    if (springs_.empty()) {
+        return;
+    }
+    index_nodes(root, index);
+    for (const std::uint64_t target : springs_.targets()) {
+        if (index.find(target) == index.end()) {
+            springs_.stop_target(target);
+        }
+    }
+    animation::AnimationTickResult sprung = springs_.tick(dt);
+    for (animation::AnimationSample& sample : sprung.samples) {
+        into.samples.push_back(std::move(sample));
+    }
+    into.finished.insert(into.finished.end(), sprung.finished.begin(), sprung.finished.end());
+    into.dirty = into.dirty | sprung.dirty;
+    into.keep_awake = into.keep_awake || sprung.keep_awake;
+    if (sprung.keep_awake || !sprung.finished.empty()) {
+        loop_->request_frame();
+    }
 }
 
 InterpolationPaintView FramePipeline::interpolation_view() const {

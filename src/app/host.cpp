@@ -298,6 +298,10 @@ ui::animation::AnimationRuntime& AppHost::animations() {
     return impl_->animations;
 }
 
+ui::animation::SpringRuntime& AppHost::springs() {
+    return impl_->pipeline->springs();
+}
+
 float AppHost::width() const {
     return impl_->config.width;
 }

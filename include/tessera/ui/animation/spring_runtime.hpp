@@ -28,6 +28,10 @@ public:
 
     [[nodiscard]] AnimationTickResult tick(double dt);
     bool stop(AnimationId id);
+    // Drops every spring on `target` without running completion callbacks (a removed node).
+    std::size_t stop_target(std::uint64_t target);
+    // Distinct node ids that currently have a running spring.
+    [[nodiscard]] std::vector<std::uint64_t> targets() const;
     void clear();
 
     [[nodiscard]] std::size_t active() const {
@@ -36,9 +40,9 @@ public:
     [[nodiscard]] bool empty() const {
         return entries_.empty();
     }
-    void set_reduced_motion(bool enabled) {
-        reduced_motion_ = enabled;
-    }
+    // Turning reduced motion on snaps running springs to their targets; they settle on the next
+    // tick. Setting the current value again is a no-op.
+    void set_reduced_motion(bool enabled);
     [[nodiscard]] bool reduced_motion() const {
         return reduced_motion_;
     }

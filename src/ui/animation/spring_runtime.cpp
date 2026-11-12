@@ -112,6 +112,35 @@ bool SpringRuntime::stop(AnimationId id) {
     return true;
 }
 
+std::size_t SpringRuntime::stop_target(std::uint64_t target) {
+    const std::size_t before = entries_.size();
+    entries_.erase(std::remove_if(entries_.begin(), entries_.end(),
+                                  [&](const Entry& entry) { return entry.target == target; }),
+                   entries_.end());
+    return before - entries_.size();
+}
+
+std::vector<std::uint64_t> SpringRuntime::targets() const {
+    std::vector<std::uint64_t> result;
+    for (const Entry& entry : entries_) {
+        if (std::find(result.begin(), result.end(), entry.target) == result.end()) {
+            result.push_back(entry.target);
+        }
+    }
+    return result;
+}
+
+void SpringRuntime::set_reduced_motion(bool enabled) {
+    if (enabled && !reduced_motion_) {
+        for (Entry& entry : entries_) {
+            const float target = entry.spring.target();
+            entry.spring.snap_to(target);
+            entry.spring.set_target(target);
+        }
+    }
+    reduced_motion_ = enabled;
+}
+
 void SpringRuntime::clear() {
     entries_.clear();
 }
