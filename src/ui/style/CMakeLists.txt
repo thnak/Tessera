@@ -9,6 +9,9 @@ add_library(tessera_style STATIC
     keyframes.cpp
     media_query.cpp
     parser.cpp
+    prepared_stylesheet.cpp
+    stylesheet_blob_read.cpp
+    stylesheet_blob_write.cpp
     property_registry.cpp
     scene_style.cpp
     supports.cpp
