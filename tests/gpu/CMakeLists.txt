@@ -474,6 +474,18 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_occluded PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # Host-owned caret blink: a ManualClock injected through WindowOptions::clock drives the blink
+    # on a real hidden window through the single-iteration seam. One frame per visibility flip, no
+    # frames while the caret is inactive or the window is paused.
+    add_executable(app_window_caret_tests
+        app_window_caret_tests.cpp)
+    target_compile_definitions(app_window_caret_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_caret_tests PRIVATE tessera_app_window)
+    add_test(NAME caret_blink_host COMMAND app_window_caret_tests)
+    set_tests_properties(caret_blink_host PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     # Window-path input: real hidden window + swapchain, normalized events posted through
     # WindowHost::post_input, generated click/typing handlers. The generated demo is host-only.
     if (TARGET tessera_compiler_demo)

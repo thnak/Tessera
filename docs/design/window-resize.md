@@ -536,3 +536,39 @@ presentation work. Implemented in the `WindowHost` driver
   real hidden window: a fresh host presents, an occluded snapshot presents nothing while still
   draining input, the resume repaints fully, minimized behaves like occluded, and an unfocused but
   visible window keeps painting. It skips without a window backend or presentation surface.
+
+### 8.1 Host-owned caret blink
+
+`ui::text::CaretBlink` (the state machine of
+[`text-editing-v1.md`](../specs/text-editing-v1.md) section 12) has no owner in application code:
+paint is timer-free, so the window driver owns one blink per window. Implemented in
+`WindowHost::Impl` (`src/app/window_impl.hpp`, ticked from `window.cpp` and `window_lifecycle.cpp`):
+
+- **Clock seam.** `WindowOptions::clock` is a borrowed `runtime::Clock*` (null keeps the HAL
+  monotonic clock). It is the caret tick's time source only: frame `dt`, pacing, pausing and
+  teardown stay on the system clock, so the rendering timeline does not move.
+- **Focus policy input.** `WindowHost::set_caret_active(bool)` is the one lever: the app passes
+  `focused && !read_only && !has_selection` (`EditController::caret_blink_active`, the same rule as
+  the editing core) and the driver forwards it to `CaretBlink::set_active(active, clock->now())`.
+  Activating shows the caret immediately and requests the one frame that paints it; deactivating
+  hides it, stops ticking and requests nothing (the field that lost focus repaints its own focus
+  state). A painter reads `WindowHost::caret_visible()`.
+- **Per-iteration tick.** Both `run()` and `pump_once()` tick the blink once per iteration, after
+  the pause guard and before the frame decision: an inactive blink is not ticked at all, so an
+  unfocused window requests no frames and stays idle with no GPU work. A tick that changes the
+  visibility increments `WindowFrameStats::caret_blinks` and requests exactly one frame - a second
+  iteration at the same clock time requests nothing. Because a caret is not a scene node, the
+  damage plan cannot place it, so the driver reuses its existing full-target latch
+  (`AppHost::request_full_repaint()`, the pause-resume lever) for the flip; a caret-rect damage
+  source is deferred until paint owns a caret rectangle. There are exactly two flips per period
+  (the 500/500 ms defaults), never a flag between boundaries.
+- **Pause wins.** A paused (occluded/minimized) window never ticks the caret, even when the clock
+  crosses a phase boundary, and a flip can never un-pause it. The pause state machine above is
+  unchanged: on resume the first tick catches up with at most one flip for the elapsed paused time
+  (a jump over several phases flips once).
+- **Determinism.** No wall clock, sleeps or real OS focus change are involved: a test injects a
+  `ManualClock` and advances it in step with `pump_once()`. `tests/gpu/app_window_caret_tests.cpp`
+  (ctest `caret_blink_host`) asserts one presented frame and one `caret_blinks` tick per
+  half-period, no frame at a repeated timestamp, no frames or ticks while the caret is inactive or
+  the window is paused, and the resume catch-up. It skips without a window backend or presentation
+  surface.

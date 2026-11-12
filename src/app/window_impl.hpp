@@ -18,6 +18,7 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/input_pump.hpp"
+#include "tessera/ui/text/caret_blink.hpp"
 #include "window_internal.hpp"
 
 #include <array>
@@ -81,6 +82,20 @@ struct WindowHost::Impl {
     // One bounded iteration shared by pump_once(): events -> input -> pause -> tick -> one frame.
     bool pump_once();
 
+    // --- host-owned caret blink (window_lifecycle.cpp) --------------------------------------
+    // The clock the caret ticks against: the borrowed WindowOptions::clock when set (tests inject a
+    // ManualClock), else the HAL monotonic clock. Rendering dt/pacing never use this.
+    [[nodiscard]] double caret_now_seconds() const {
+        const runtime::Clock* source = options.clock;
+        return source != nullptr ? source->now_seconds() : runtime::SteadyClock{}.now_seconds();
+    }
+    // One iteration's caret tick: called after the pause guard and before the frame decision of
+    // both pump_once() and run(). Inactive (unfocused) blinks are not ticked at all, so they
+    // request nothing and the loop stays idle. A visibility flip requests exactly one frame.
+    void tick_caret();
+    // Focus/editability/selection policy input; false stops ticking and requests nothing.
+    void set_caret_active(bool active);
+
     // --- device-loss recovery (window_recovery.cpp) -----------------------------------------
     // Creates the swapchain, 2D pipeline, renderer, text stack and sink on `device` at the window's
     // current metrics; false (never a throw) when the backend refuses the request.
@@ -125,6 +140,10 @@ struct WindowHost::Impl {
 
     ui::InputPump pump;
     WindowFrameStats stats;
+    // The window's one caret blink (500/500 ms defaults), host-owned so every driver path - run(),
+    // pump_once(), pause - sees the same state. Starts inactive: no field owns focus until the app
+    // calls set_caret_active(true), so a fresh window requests nothing for the caret.
+    ui::text::CaretBlink caret;
     std::array<std::unique_ptr<rhi::CommandList>, detail::kFramesInFlight> in_flight;
     std::size_t slot = 0;
 

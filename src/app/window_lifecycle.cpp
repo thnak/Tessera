@@ -95,6 +95,41 @@ void WindowHost::Impl::update_pause_state() {
     host->request_full_repaint();
 }
 
+// Host-owned caret blink (docs/specs/text-editing-v1.md section 12). The blink is the driver's, not
+// paint's: every iteration of run() and pump_once() advances it once, against the configured clock,
+// after the pause guard. An inactive blink is never ticked, so an unfocused field costs no frame
+// request and no GPU work; a paused window never ticks either (the pause wins over the blink).
+void WindowHost::Impl::tick_caret() {
+    if (!caret.active()) {
+        return;
+    }
+    if (!caret.tick(caret_now_seconds())) {
+        return;
+    }
+    ++stats.caret_blinks;
+    // The caret is not a scene node, so the damage plan cannot place it. Mark the loop dirty and
+    // latch a full-target repaint - the driver's existing "something the damage state does not
+    // describe changed" lever, the same one the pause resume uses - so this flip gets exactly one
+    // frame. A repeated tick in the same phase asks for nothing.
+    loop->mark_render_dirty();
+    host->request_full_repaint();
+}
+
+void WindowHost::Impl::set_caret_active(bool active) {
+    const bool changed = caret.set_active(active, caret_now_seconds());
+    if (!changed || host == nullptr || !available) {
+        // Deactivating hides the caret (caret_visible() reads false immediately) and requests
+        // nothing: the field that lost focus is the one that repaints its own focus state, and an
+        // inactive blink stays idle across any number of clock advances.
+        return;
+    }
+    // Showing the caret is a visible change: request the frame that paints it.
+    loop->mark_render_dirty();
+    if (active) {
+        host->request_full_repaint();
+    }
+}
+
 // One bounded iteration: pump events and input, honour the pause, tick the loop and produce at most
 // one frame. Deliberately no parking, retry or device-loss servicing - run() owns those, and a
 // caller of this seam decides when the next iteration happens.
@@ -129,6 +164,12 @@ bool WindowHost::Impl::pump_once() {
         last_tick_seconds_ = hal::steady_now_seconds();
         return false;
     }
+
+    // Caret tick, between the pause guard and the frame decision: an inactive blink is skipped
+    // entirely and a flip marks the frame dirty for this iteration (single-iteration twin of the
+    // call in run()).
+    tick_caret();
+
     if (stats.frames == 0 || subtree_dirty(root)) {
         // Startup is a frame cause, exactly like run(): the scene has no dirty flags until the
         // first layout, and the first iteration of an automation script is expected to paint.

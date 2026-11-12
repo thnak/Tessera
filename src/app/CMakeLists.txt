@@ -51,6 +51,7 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
         tessera_paint
         tessera_rhi_vulkan
         tessera_text
+        tessera_text_edit
         tessera_text_render)
 
     target_compile_features(tessera_app_window PUBLIC cxx_std_23)

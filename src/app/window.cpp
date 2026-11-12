@@ -32,6 +32,9 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
       options(std::move(window_options)),
       scheduler(update_scheduler),
       pacer(runtime::FramePacerConfig{options.max_fps}) {
+    // No field owns focus until the app says so. An inactive blink is not ticked, so a window that
+    // never gains an editable field never requests a caret frame (ADR-019: static UI idles).
+    (void)caret.set_active(false, caret_now_seconds());
     hal::WindowDesc desc;
     desc.title = options.title;
     desc.width = options.width;
@@ -274,6 +277,11 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
             continue;
         }
 
+        // After the pause guard and before the frame decision: a paused window never ticks the
+        // caret (pause wins over the blink), and a flip requests exactly one frame for this
+        // iteration.
+        tick_caret();
+
         const runtime::RuntimeTick tick = loop->tick();
         if (tick.device_blocked || tick.device_failed) {
             // No presents while the device is lost: release once, let the runtime's bounded attempt
@@ -390,6 +398,14 @@ bool WindowHost::post_input(const ui::InputEvent& event) {
 
 void WindowHost::apply_metrics(const hal::WindowMetrics& metrics) {
     impl_->apply_metrics(metrics);
+}
+
+void WindowHost::set_caret_active(bool active) {
+    impl_->set_caret_active(active);
+}
+
+bool WindowHost::caret_visible() const {
+    return impl_->caret.caret_visible();
 }
 
 const WindowFrameStats& WindowHost::stats() const {
