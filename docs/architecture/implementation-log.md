@@ -442,3 +442,40 @@ Three lessons, all now in `.claude/team-memory.md`:
    clang accepted with `-Wall -Wextra -Wpedantic -Werror`.
 3. **Write the bound the compiler cannot infer.** The fix for the GCC 13 warning was not a
    suppression but restating the loop as a bulk copy; the same shape is safer for the next reader.
+
+## 2026-11-13, last hours: closing the power ladder and a CI lesson
+
+Four slices finished the loop the second half started:
+
+- **Present cap** (`src/runtime/present_cap.{hpp,cpp}`, #139): a pure function of (refresh,
+  `maxFps`, quality step) moves the cap to the next refresh divisor below the current effective rate,
+  and the pacer applies it through its existing rate-change path at the next frame boundary. The walk
+  **stops** at the last divisor at or above 10 Hz instead of clamping to 10 Hz, because a clamp would
+  name a rate the display cannot produce and would break "every value is a refresh divisor".
+- **Display refresh** (`src/hal/window/refresh_rate.cpp`, #143): the divisor needed a source, so the
+  HAL gained `display_refresh_hz()` — Windows reads the current mode of the window's monitor, X11
+  uses the active RandR CRTC of the output under the window, and everything else stays unknown. 0
+  means unknown, never a guess, and an explicit `WindowOptions::refresh_hz` still wins. The queried
+  value is deliberately not pushed into the pacer's uncapped base pacing: doing that wall-clock-gated
+  the deterministic `pump_once()` seam for every default window and broke five GPU tests.
+- **GPU frame time** (`include/tessera/rendering/rhi/timestamp.hpp`, #152): a capability probe plus a
+  per-slot timestamp ring gives the controller a GPU sample when the device reports one and the CPU
+  sample otherwise. The read happens inside the existing `is_complete()` slot-reuse branch, so there
+  is no fence wait, no `WAIT_BIT` and no `wait_idle` — the ADR-021 rule survives an honest GPU
+  measurement. The sample lags by up to two frames and the fallback counters make that visible.
+- **Composable bundles** (`include/tessera/ui/assets/asset_bundle_compose.hpp`, #146): the vector
+  payload slice had recorded a real limit — `VectorPaintConfig` took one bundle, so an app embedding
+  its manifest could not paint a generated vector. The composition is a borrowed span searched
+  first-wins; merging into a new bundle would have copied every blob at startup to answer a lookup
+  that a binary search already answers.
+
+### The lesson that cost the most time
+
+Slack in a gate is not the same as a green gate. Android had been **red on `main`** from `8e27260`
+onwards and was reported green three times, because every push cancels the in-progress run of the
+same workflow: the newest row said "in progress" or showed the *current* commit while the last
+completed run on an earlier commit had failed. The failing binary was `ir_ids_stability_tests`, a
+repo-file reader that needs the library `.tsx` files from the checkout, which the emulator sandbox
+does not have — the same reason a dozen other binaries were already skipped. Fixed in #150 by adding
+it to that list; the check that would have caught it earlier is reading the ledger of completed runs
+per workflow, not the newest row.
