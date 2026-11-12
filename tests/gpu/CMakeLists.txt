@@ -46,6 +46,20 @@ set(TESSERA_BIDI_FONT_FIXTURE
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
 get_filename_component(TESSERA_BIDI_FONT_FIXTURE "${TESSERA_BIDI_FONT_FIXTURE}" REALPATH)
 
+# ADR-049 drift guard: the batched2d GLSL (read as text, no glslc needed) and the embedded WGSL
+# twin declare the same interface. Runs in every build; the tool-backed checks are opt-in
+# (TESSERA_SHADER_CROSS, tools/shaders).
+add_executable(shader_parity_tests
+    shaders/shader_parity_tests.cpp)
+target_link_libraries(shader_parity_tests PRIVATE tessera_gpu tessera_webgpu_mapping)
+target_compile_definitions(shader_parity_tests PRIVATE
+    TESSERA_VULKAN_SHADER_DIR="${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders")
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(shader_parity_tests PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(shader_parity_tests PRIVATE TESSERA_TEST_HAS_VULKAN)
+endif()
+add_test(NAME shader_parity COMMAND shader_parity_tests)
+
 add_executable(text_render_tests
     text/text_render_tests.cpp)
 target_link_libraries(text_render_tests PRIVATE tessera_text_render tessera_rhi_null)

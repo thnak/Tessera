@@ -44,16 +44,17 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | ThorVG | V1 hard (FetchContent v1.1.3, `TESSERA_ENABLE_THORVG` default OFF; spike Go) | MIT | `rendering/path` | Vector paths behind `rendering::PathRasterizer`: CPU raster into RGBA8, uploaded through the RHI; SVG assets later |
 | Skia Graphite | Fallback only ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md); owner chose ThorVG first) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
-| Emscripten | V1 hard for design-time | MIT / UIUC | `designer/web` | C++ → WebAssembly toolchain |
-| Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu) | V1 hard for design-time | MIT / UIUC | `designer/web` | Browser WebGPU API |
+| Emscripten (emsdk 6.0.13, `tools/emsdk-version.txt`) | V1 hard for design-time | MIT / UIUC | `designer/web`, `rendering/backend/webgpu` | C++ → WebAssembly toolchain; the `wasm-webgpu` preset and the WebGPU CI lane build `tessera_webgpu` with it; installed by emsdk outside the repository, not vendored |
+| Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu, port `v20260423.175430` pinned with its SHA-512 by emsdk 6.0.13) | V1 hard for design-time | MIT / UIUC / BSD-3-Clause | `designer/web`, `rendering/backend/webgpu` | Browser WebGPU API behind `--use-port=emdawnwebgpu`; the JS bindings are MIT/UIUC, the Dawn-authored headers BSD-3-Clause; fetched by the emsdk port mechanism, not vendored |
 | CodeMirror 6 | V1 design-time (studio) | MIT | `designer/web` | Code editor in the hosted studio; bundled and version-pinned |
 | fflate | V1 design-time (studio) | MIT | `designer/web` | Zip import/export for browsers without the File System Access API |
 | Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan ICD (installable client driver, the plug-in the Vulkan loader uses to reach a GPU or software rasterizer) for deterministic goldens |
 | Vulkan ValidationLayers | V1 debug | Apache-2.0 | dev / CI | Validation |
-| naga | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md), shader authoring and cross-compilation) | MIT / Apache-2.0 | `tools/shaders` | SPIR-V → WGSL |
-| Tint | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)) | BSD-3-Clause | `tools/shaders` | WGSL → SPIR-V |
+| naga (naga-cli 30.0.1) | Build-time (optional, `TESSERA_SHADER_CROSS` and the WebGPU CI lane; [ADR-049](../../decisions/ADR-049-backend-extensibility.md)) | MIT / Apache-2.0 | `tools/shaders` | Portable SPIR-V → WGSL reference output and WGSL validation (also the CI WGSL gate, `scripts/ci/validate_wgsl.py`); version pinned in `tools/naga-version.txt`; installed with `cargo install naga-cli --version 30.0.1 --locked`, not vendored, output never shipped |
+| Tint | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)) | BSD-3-Clause | `tools/shaders` | WGSL → SPIR-V; part of Dawn, not in the Vulkan SDK |
 | Slang | Future ([ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md)) | Apache-2.0 (LLVM exception) | `tools/shaders` | Single-source shaders |
-| SPIRV-Cross | Future | Apache-2.0 | `tools/shaders` | SPIR-V → HLSL/GLSL/MSL if needed |
+| SPIRV-Cross | Build-time (optional, `TESSERA_SHADER_CROSS`; [ADR-049](../../decisions/ADR-049-backend-extensibility.md)) | Apache-2.0 | `tools/shaders` | Portable SPIR-V → MSL/HLSL for contributed backends; from the pinned Vulkan SDK, output stays in the build directory |
+| DirectX Shader Compiler (dxc) | Build-time (optional, `TESSERA_SHADER_CROSS`) | University of Illinois/NCSA | `tools/shaders` | Compiles the generated HLSL as a validity check; from the pinned Vulkan SDK |
 | zlib | V1 transitive | zlib | `rendering/resources` | PNG/texture compression |
 
 VMA and volk are vendored from Vulkan SDK 1.4.357.0 (`Include/vma`, `Include/Volk`) into

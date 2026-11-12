@@ -15,6 +15,7 @@ Gate order:
   6. pins            reproducible dependency pins + dependencies.md rows (adds --check)
   7. package         only with --archive PATH: validates the distributable archive
   8. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
+  9. wgsl            only with --wgsl: authored WGSL passes the pinned naga (needs naga-cli)
 
 The runner is cwd-independent (children run from the repository root) and forces UTF-8 for child
 processes while making its own stdout/stderr tolerant, so it behaves the same on Windows cp1252
@@ -67,6 +68,7 @@ BASE_GATES: List[Gate] = [
 OPTIONAL_GATES: List[Gate] = [
     Gate("package", "check_package.py", (), "distributable archive contents (needs --archive)"),
     Gate("fixtures", "-", (), "gate self-tests (unittest discovery, needs --fixtures)"),
+    Gate("wgsl", "ci/validate_wgsl.py", (), "authored WGSL passes pinned naga (needs --wgsl)"),
 ]
 
 
@@ -165,6 +167,8 @@ def select_gates(args: argparse.Namespace) -> List[Gate]:
         )
     if args.fixtures:
         gates.append(OPTIONAL_GATES[1])
+    if args.wgsl:
+        gates.append(OPTIONAL_GATES[2])
     if not args.only:
         return gates
     requested = [name.strip() for name in args.only.split(",") if name.strip()]
@@ -219,6 +223,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument("--json", action="store_true", dest="as_json", help="machine-readable report")
     parser.add_argument("--quiet", action="store_true", help="summary only, no gate output")
+    parser.add_argument(
+        "--wgsl", action="store_true", help="also validate authored WGSL (needs naga-cli)"
+    )
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()

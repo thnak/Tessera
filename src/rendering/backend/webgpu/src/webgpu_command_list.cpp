@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// UNBUILT on the authoring host; see webgpu_internal.hpp.
+// Built only by the wasm-webgpu preset (Emscripten); see webgpu_internal.hpp.
 
 #include "webgpu_internal.hpp"
 
@@ -16,6 +16,8 @@ namespace {
 // Largest push-constant block the RHI uses is 112 bytes (Batched2DPushConstants); one slice each.
 constexpr std::uint32_t kMaxPushConstantBytes = 256;
 constexpr std::uint32_t kArenaSlices = 256; // 64 KiB per command list
+// Distinct (pipeline layout, texture) pairs kept per command list; a frame binds a handful.
+constexpr std::size_t kBindGroupCacheSize = 16;
 
 struct Completion {
     bool done = false;
@@ -38,6 +40,7 @@ public:
 
     ~WebGpuCommandList() override {
         release_pass();
+        release_groups();
         if (encoder_ != nullptr) {
             wgpuCommandEncoderRelease(encoder_);
         }
@@ -211,6 +214,22 @@ private:
         wgpuQueueWriteBuffer(context_->queue, arena_, offset, padded.data(),
                              pipeline_->uniform_size());
 
+        wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group(), 1, &offset);
+        dirty_ = false;
+    }
+
+    // The arena and its binding size are fixed per pipeline, so a group depends only on the layout
+    // and the texture; push-constant changes move the dynamic offset instead of making a new group.
+    WGPUBindGroup bind_group() {
+        const WGPUBindGroupLayout layout = pipeline_->bind_group_layout();
+        const WGPUTextureView view = texture_->view();
+        const WGPUSampler sampler = texture_->sampler();
+        for (const CachedGroup& cached : groups_) {
+            if (cached.group != nullptr && cached.layout == layout && cached.view == view &&
+                cached.sampler == sampler && cached.size == pipeline_->uniform_size()) {
+                return cached.group;
+            }
+        }
         std::array<WGPUBindGroupEntry, 3> entries{};
         for (auto& entry : entries) {
             entry = WGPU_BIND_GROUP_ENTRY_INIT;
@@ -219,22 +238,46 @@ private:
         entries[0].buffer = arena_;
         entries[0].size = pipeline_->uniform_size();
         entries[1].binding = kBindingTexture;
-        entries[1].textureView = texture_->view();
+        entries[1].textureView = view;
         entries[2].binding = kBindingSampler;
-        entries[2].sampler = texture_->sampler();
+        entries[2].sampler = sampler;
         WGPUBindGroupDescriptor desc = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
-        desc.layout = pipeline_->bind_group_layout();
+        desc.layout = layout;
         desc.entryCount = entries.size();
         desc.entries = entries.data();
-        WGPUBindGroup group = wgpuDeviceCreateBindGroup(context_->device, &desc);
-        wgpuRenderPassEncoderSetBindGroup(pass, 0, group, 1, &offset);
-        // The pass keeps the group alive until submit.
-        wgpuBindGroupRelease(group);
-        dirty_ = false;
+        // Round-robin eviction; a pass that already bound the evicted group keeps its own ref.
+        CachedGroup& slot = groups_[next_group_];
+        next_group_ = (next_group_ + 1) % groups_.size();
+        if (slot.group != nullptr) {
+            wgpuBindGroupRelease(slot.group);
+        }
+        slot = {layout, view, sampler, pipeline_->uniform_size(),
+                wgpuDeviceCreateBindGroup(context_->device, &desc)};
+        return slot.group;
     }
+
+    void release_groups() {
+        for (CachedGroup& cached : groups_) {
+            if (cached.group != nullptr) {
+                wgpuBindGroupRelease(cached.group);
+                cached.group = nullptr;
+            }
+        }
+    }
+
+    struct CachedGroup {
+        WGPUBindGroupLayout layout = nullptr;
+        WGPUTextureView view = nullptr;
+        WGPUSampler sampler = nullptr;
+        std::uint32_t size = 0;
+        WGPUBindGroup group = nullptr;
+    };
 
     std::shared_ptr<WebGpuContext> context_;
     std::shared_ptr<Completion> completion_;
+    // Resources outlive the command list (RHI contract), so cached handles cannot dangle.
+    std::array<CachedGroup, kBindGroupCacheSize> groups_{};
+    std::size_t next_group_ = 0;
     WGPUCommandEncoder encoder_ = nullptr;
     WGPURenderPassEncoder pass_ = nullptr;
     WGPUBuffer arena_ = nullptr;

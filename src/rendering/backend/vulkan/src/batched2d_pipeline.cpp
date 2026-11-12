@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/gpu/shader_ids.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 
@@ -34,6 +35,7 @@ rhi::PipelineDesc batched2d_pipeline_desc(rhi::TextureFormat color_format,
     desc.sample_count = sample_count;
     desc.blend = rhi::BlendMode::Alpha;
     desc.push_constant_size = sizeof(gpu::Batched2DPushConstants);
+    desc.shader_id = gpu::kBatched2dShaderId;
     return desc;
 }
 

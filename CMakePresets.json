@@ -56,6 +56,24 @@
       "displayName": "Visual Studio 2022",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64"
+    },
+    {
+      "name": "wasm-webgpu",
+      "displayName": "Emscripten WebGPU (Wasm, needs EMSDK)",
+      "description": "Builds the WebGPU device backend with the emdawnwebgpu port; emsdk version pinned in tools/emsdk-version.txt",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_CXX_STANDARD": "23",
+        "TESSERA_BUILD_TESTS": "OFF",
+        "TESSERA_BUILD_POC": "OFF",
+        "TESSERA_BUILD_VULKAN": "OFF",
+        "TESSERA_USE_COMPILER_CACHE": "OFF",
+        "TESSERA_WARNINGS_AS_ERRORS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -80,6 +98,15 @@
       "name": "vs2022-release",
       "configurePreset": "vs2022",
       "configuration": "Release"
+    },
+    {
+      "name": "wasm-webgpu",
+      "configurePreset": "wasm-webgpu",
+      "targets": [
+        "tessera_webgpu",
+        "tessera_webgpu_mapping",
+        "webgpu_wasm_smoke"
+      ]
     }
   ],
   "testPresets": [

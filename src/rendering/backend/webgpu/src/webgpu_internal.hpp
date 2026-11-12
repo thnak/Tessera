@@ -2,9 +2,9 @@
 
 #pragma once
 
-// UNBUILT on the authoring host: this and the sibling webgpu_*.cpp files compile only under
-// Emscripten (or TESSERA_BUILD_WEBGPU with a webgpu.h on the include path). See
-// docs/design/gpu/webgpu-backend.md for what is verified and how to verify the rest.
+// This and the sibling webgpu_*.cpp files compile only under Emscripten (the wasm-webgpu preset,
+// emdawnwebgpu port pinned through tools/emsdk-version.txt) or with TESSERA_BUILD_WEBGPU and a
+// native webgpu.h. See docs/design/gpu/webgpu-backend.md for what is verified.
 
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/webgpu/shader_registry.hpp"
@@ -21,7 +21,8 @@ namespace tessera::rendering::webgpu {
 struct WebGpuContext {
     WGPUDevice device = nullptr;
     WGPUQueue queue = nullptr;
-    ShaderRegistry shaders;
+    // Keyed by `PipelineDesc::shader_id`; starts with the built-in programs.
+    ShaderRegistry shaders = builtin_shader_registry();
     bool lost = false;
 
     WebGpuContext() = default;

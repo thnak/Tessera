@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/gpu/shader_ids.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/webgpu/shader_registry.hpp"
 #include "tessera/rendering/webgpu/webgpu_mapping.hpp"
@@ -181,23 +182,40 @@ void test_vertex_layout_validation() {
 }
 
 void test_shader_registry() {
-    static const std::uint32_t key_a[1] = {0};
-    static const std::uint32_t key_b[1] = {0};
     wg::ShaderRegistry registry;
-    expect(registry.find(key_a) == nullptr && registry.find(nullptr) == nullptr, "empty registry");
+    expect(registry.find("batched2d") == nullptr && registry.find("") == nullptr, "empty registry");
+    expect(!registry.add("", wg::WgslProgram{"ignored"}) && registry.size() == 0,
+           "empty id means SPIR-V words and is rejected");
 
-    registry.add(key_a, wg::WgslProgram{"first"});
-    expect(registry.size() == 1 && registry.find(key_a) != nullptr, "registered key resolves");
-    expect(registry.find(key_a)->source == "first" &&
-               registry.find(key_a)->vertex_entry == "vs_main",
+    expect(registry.add("custom", wg::WgslProgram{"first"}), "non-empty id registers");
+    expect(registry.size() == 1 && registry.find("custom") != nullptr, "registered id resolves");
+    expect(registry.find("custom")->source == "first" &&
+               registry.find("custom")->vertex_entry == "vs_main",
            "program contents and default entry points");
-    expect(registry.find(key_b) == nullptr, "keys compare by identity, not content");
+    expect(registry.find("Custom") == nullptr && registry.find("custom2") == nullptr,
+           "ids compare exactly");
 
-    registry.add(key_a, wg::WgslProgram{"second"});
-    expect(registry.size() == 1 && registry.find(key_a)->source == "second",
+    // The id is copied: a caller's temporary buffer may go away after registration.
+    {
+        std::string temporary = "transient";
+        registry.add(temporary, wg::WgslProgram{"kept"});
+    }
+    expect(registry.find("transient") != nullptr && registry.find("transient")->source == "kept",
+           "registry owns its ids");
+
+    registry.add("custom", wg::WgslProgram{"second"});
+    expect(registry.size() == 2 && registry.find("custom")->source == "second",
            "re-registering replaces");
 }
 
+void test_builtin_registry() {
+    const wg::ShaderRegistry registry = wg::builtin_shader_registry();
+    const wg::WgslProgram* program = registry.find(tessera::rendering::gpu::kBatched2dShaderId);
+    expect(program != nullptr, "built-in registry resolves batched2d");
+    expect(program != nullptr && program->source == wg::batched2d_wgsl_program().source,
+           "built-in batched2d is the embedded WGSL");
+    expect(registry.find("") == nullptr, "SPIR-V-only descriptors never resolve to WGSL");
+}
 void test_builtin_wgsl() {
     const wg::WgslProgram program = wg::batched2d_wgsl_program();
     const std::string_view source = program.source;
@@ -229,6 +247,7 @@ int main() {
     test_sizes_and_alignment();
     test_vertex_layout_validation();
     test_shader_registry();
+    test_builtin_registry();
     test_builtin_wgsl();
     if (g_failures != 0) {
         std::cerr << "webgpu_mapping: " << g_failures << " failure(s)\n";
