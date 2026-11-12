@@ -27,13 +27,27 @@ std::string env_value(const char* name) {
 #endif
 }
 
-// The loader separates manifests with ';' on Windows and ':' elsewhere (a drive letter's ':' must
-// not split a Windows path).
-#if defined(_WIN32)
-constexpr const char* kSeparators = ";";
-#else
-constexpr const char* kSeparators = ";:";
-#endif
+// The loader separates manifests with ';' on Windows and ':' on POSIX, but an ICD list may name a
+// Windows-style path on any host (tests, a copied environment, WSL), so a drive-letter colon must
+// not split. A ':' is a separator unless it is the drive colon of "X:\" or "X:/".
+bool is_separator(std::string_view value, std::size_t index) noexcept {
+    const char c = value[index];
+    if (c == ';') {
+        return true;
+    }
+    if (c != ':') {
+        return false;
+    }
+    if (index == 1) {
+        const char drive = value[0];
+        const bool letter = (drive >= 'A' && drive <= 'Z') || (drive >= 'a' && drive <= 'z');
+        const bool slash = value.size() > 2 && (value[2] == '\\' || value[2] == '/');
+        if (letter && slash) {
+            return false;
+        }
+    }
+    return true;
+}
 
 bool is_lavapipe_manifest(std::string_view entry) noexcept {
     return entry.find("lvp_icd") != std::string_view::npos ||
@@ -49,9 +63,9 @@ bool selects_only_software_icd(std::string_view icd_filenames) noexcept {
     std::size_t begin = 0;
     bool any = false;
     while (begin <= icd_filenames.size()) {
-        std::size_t end = icd_filenames.find_first_of(kSeparators, begin);
-        if (end == std::string_view::npos) {
-            end = icd_filenames.size();
+        std::size_t end = begin;
+        while (end < icd_filenames.size() && !is_separator(icd_filenames, end)) {
+            ++end;
         }
         const std::string_view entry = icd_filenames.substr(begin, end - begin);
         if (!entry.empty()) {
