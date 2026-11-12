@@ -94,8 +94,18 @@ void test_payload_mapping() {
 
     event.scroll_x = -2.0f;
     event.scroll_y = 9.0f;
+    event.scroll_offset_x = 12.0f;
+    event.scroll_offset_y = 34.0f;
+    event.scroll_viewport_width = 100.0f;
+    event.scroll_viewport_height = 80.0f;
+    event.scroll_content_width = 100.0f;
+    event.scroll_content_height = 300.0f;
     const ui::ScrollEventInfo scroll = ui::scroll_event_info(event);
-    check(scroll.offset_x == -2.0f && scroll.offset_y == 9.0f, "scroll offsets map");
+    check(scroll.offset_x == 12.0f && scroll.offset_y == 34.0f, "scroll offsets map");
+    check(scroll.viewport_width == 100.0f && scroll.viewport_height == 80.0f,
+          "scroll viewport maps");
+    check(scroll.content_width == 100.0f && scroll.content_height == 300.0f,
+          "scroll content extent maps");
 
     const ui::FocusEventInfo focus = ui::focus_event_info(event);
     (void)focus;

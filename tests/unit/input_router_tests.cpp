@@ -68,6 +68,8 @@ const char* type_name(EventType type) {
         return "text-change";
     case EventType::Click:
         return "click";
+    case EventType::Scroll:
+        return "scroll";
     }
     return "unknown";
 }

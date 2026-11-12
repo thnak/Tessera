@@ -75,6 +75,15 @@ Event types in V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#n
 non-bubbling `PointerEnter`/`PointerLeave` pair fires once per node on the entered/left chain.
 Focus, keyboard, and hover-boundary routing are described in [`input.md`](input.md).
 
+`Scroll` is a scene event, never an OS event: the platform produces `Wheel`, and the scene emits
+`Scroll` to a scroll container whose offset actually changed (wheel-driven, `scroll_to`/`scroll_by`,
+`scroll_into_view`). It dispatches in the same capture → target → bubble order with the container as
+the target; `scroll_x`/`scroll_y` carry the delta the container applied (web sign, positive
+`scroll_y` scrolls content down) and `ScrollEventInfo` the resulting offsets plus the container's
+scrollport/content metrics. A clamped-to-zero, non-scrollable, or no-op request emits nothing, and
+`prevent_default` cannot undo a move that already happened (see
+[`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md) section 2.1).
+
 Dispatch is W3C-style (the DOM event model of the World Wide Web Consortium):
 
 1. hit-test to find the target;
@@ -126,8 +135,10 @@ valid during dispatch. Mapping (schema/IR name → C++ type): `PointerEvent` →
 `TextSelection` → `TextSelection`, `CompositionEvent` → `CompositionEvent`,
 `ScrollEvent` → `ScrollEventInfo`, `ErrorInfo` → `ErrorInfo`. Fields come from the payload record
 definitions; fields the scene `Event` does not carry yet are zero/empty (`KeyEventInfo::code`,
-`ScrollEventInfo` viewport/content sizes, `ErrorInfo`) and `KeyEventInfo::key` is the code point in
-this slice.
+`ErrorInfo`) and `KeyEventInfo::key` is the code point in this slice. `ScrollEventInfo` is filled
+from the container's live state when the scene emits `EventType::Scroll`: `offset_x`/`offset_y` are
+the resulting offsets, the viewport is the scrollport (border box inset by `scrollport_insets`), and
+the content extents are the node's content size.
 
 `Node::bind_event(EventType, handler, context)` stores at most `kMaxEventBindings = 8`
 `{EventType, function pointer, void* context}` tuples per node with no per-event allocation; a
@@ -154,6 +165,10 @@ ancestor while it bubbles (see [`click-synthesis.md`](click-synthesis.md)).
   generated setter (no GPU).
 - `tests/unit/scene_event_binding_tests.cpp`: payload field mapping, the per-node binding cap,
   Target-phase ordering, read-only bindings and route-log equality without bindings.
+- `tests/unit/scene_scroll_event_tests.cpp`: one `Scroll` per applied move with the delta/offsets and
+  real viewport/content metrics, capture → target → bubble order, no event for clamped,
+  non-scrollable or no-op requests, `scroll_into_view` emission, and the bounded self-scrolling
+  handler.
 - `tests/gpu/batched2d/batched2d_tests.cpp`: batch count and vertex count across texture and
   scissor changes, with the null backend.
 
