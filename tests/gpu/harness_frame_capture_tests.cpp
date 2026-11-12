@@ -170,7 +170,11 @@ void test_render(CompareMode mode) {
                       << "\n";
             ++failures;
         } else if (update) {
-            expect(checked->baseline_updated, "the golden run rewrote the committed baseline");
+            // check_frame rewrites the baseline only when the comparison fails, so a regeneration
+            // whose output is unchanged reports a plain match: both outcomes mean the committed
+            // image is the one this build produces.
+            expect(checked->baseline_updated || checked->compare.passed(),
+                   "the golden run matches or rewrote the committed baseline");
         } else {
             if (!expect(checked->ok(),
                         "the capture matches its baseline under the mode's policy")) {
