@@ -104,7 +104,9 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Setting the value starts/retargets the animation; `set(value, { animate: false })` snaps. `set(value, { duration, easing })`
   carries literal timing through the IR (`animSet.durationMs`/`easing`); without it the default is 200 ms `ease-out`.
   `set(value, { spring: true | { stiffness, damping, mass } })` carries a literal spring (`animSet.spring`, exclusive with
-  duration/easing); codegen wiring of springs is separate.
+  duration/easing). `AnimatedScalar` runs it with the `Spring` integrator, sub-stepped for stability (stiff springs stay
+  stable at 60 Hz, a stalled frame is capped at 0.25 s), keeps velocity across a retarget, and settles on a relative bound
+  for large travel; codegen emits `options.spring` from the IR.
 - Animated values can drive style properties, transforms, or chart data.
 - Implemented: `ui::animation::AnimatedScalar` (`include/tessera/ui/animation/animated_scalar.hpp`) is a clock-free scalar
   the owner ticks with the frame delta. `set(v, {duration, easing, animate})` retargets from the current value (no jump),
@@ -119,8 +121,8 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
   `UpdateScheduler::set_reduced_motion` and `UpdateTicket::motion`, every generated component (`apply_reduced_motion`),
   including components attached later. The window driver reads the Windows setting once at startup
   (`app::system_prefers_reduced_motion`, `SPI_GETCLIENTAREAANIMATION`); other platforms report false for now.
-- Not yet: reacting to a setting change while the app runs, the macOS/Linux/Android queries, springs as a scalar driver
-  (`SpringRuntime` still has no owner), and a completion callback for animated values.
+- Not yet: reacting to a setting change while the app runs, the macOS/Linux/Android queries, `SpringRuntime` (springs on
+  style properties still has no owner in the host), and a completion callback for animated values.
 - Completion callbacks are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 
