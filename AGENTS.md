@@ -223,8 +223,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tests/gpu/cpu_wide_golden_tests.cpp`, `tests/golden/baseline/cpu_wide/`.
 - [x] **B2:** Host-owned `CaretBlink` in `WindowHost` — toggles under `ManualClock`; idle when
       unfocused — `src/app/window_lifecycle.cpp`, `tests/gpu/app_window_caret_tests.cpp`.
-- [ ] **B2:** `scrollIntoView` reveals an unrealized virtual item via `VirtualRange` — harness
-      script.
+- [x] **B2:** `scrollIntoView` reveals an unrealized virtual item via `VirtualRange` — harness
+      script — `src/harness/manifest_virtual.cpp`,
+      `include/tessera/automation/virtual_collection.hpp`,
+      `tests/unit/harness/scroll_into_view_tests.cpp`.
 - [x] **B2:** Compile the POSIX `poll` path of `LineTransport::wait_readable` — real POSIX stdio
       test — `src/harness/stdio_transport.cpp`, `tests/unit/harness/stdio_transport_posix_tests.cpp`.
 - [ ] **B3:** Wayland window + Vulkan surface (Win32/X11 incl. swapchain retirement and device-loss

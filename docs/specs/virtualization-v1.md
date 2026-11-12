@@ -216,10 +216,11 @@ nothing: the cap is a refusal, not a growth policy, and the realized window trun
   reset.
 - `scroll_to_key(key, align)` realizes the target, measures if needed, scrolls, then focuses if
   requested.
-- `scroll_to_index(index, alignment)` is a pure query (`Start`/`Center`/`Nearest`): it computes the
-  offset that puts the item main start at the viewport start, the item center at the viewport
-  center, or the shortest move that makes the item fully visible (`Nearest` does not move an item
-  that is already fully visible). The result is clamped to
+- `scroll_to_index(index, alignment)` is a pure query (`Start`/`Center`/`End`/`Nearest`): it
+  computes the offset that puts the item main start at the viewport start, the item center at the
+  viewport center, the item main end at the viewport end, or the shortest move that makes the item
+  fully visible (`Nearest` does not move an item that is already fully visible). The result is
+  clamped to
   `[0, total_extent - viewport_extent]`, and the query never syncs, releases, or rebuilds anything,
   so it cannot cause a full-list resync. Offsets come from the current prefix sums (estimates for
   unmeasured items), so the caller runs `update` with them and uses the returned offset: measuring
@@ -477,7 +478,7 @@ Tests:
   focuses a key, `step_focus(Next|Previous|First|Last)` is clamped Tab/arrow stepping that leaves
   exactly one realized node carrying `PseudoState::Focus`, `focused_node()` reports the realized
   node, `selected_items(span)` returns keys in data order, and `scroll_to_index` adds
-  `Start`/`Center`/`Nearest` placement with the documented clamp and no resync.
+  `Start`/`Center`/`End`/`Nearest` placement with the documented clamp and no resync.
 - Implemented (semantics/accessibility slice): `virtualization::CollectionSemantics` exposes the
   set size and 1-based `pos_in_set` resolved through the key index, realized items in data order
   with their `(UiId, ItemKey)` automation identity (read from the realized node's `automation_id`,

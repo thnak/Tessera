@@ -51,7 +51,8 @@ add_library(tessera_automation_host STATIC
     engine_host_snapshot.cpp
     fixture_scene.cpp
     manifest_loader.cpp
-    manifest_scene.cpp)
+    manifest_scene.cpp
+    manifest_virtual.cpp)
 
 target_include_directories(tessera_automation_host PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -64,7 +65,8 @@ target_link_libraries(tessera_automation_host PUBLIC
     tessera_input_pump
     tessera_scene
     tessera_style
-    tessera_runtime)
+    tessera_runtime
+    tessera_virtual)
 
 target_compile_features(tessera_automation_host PUBLIC cxx_std_23)
 

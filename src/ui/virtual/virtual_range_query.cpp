@@ -57,6 +57,9 @@ VirtualRange::scroll_to_index(std::size_t index, float viewport_extent, ScrollAl
     case ScrollAlignment::Center:
         offset = start - (viewport - extent) * 0.5f;
         break;
+    case ScrollAlignment::End:
+        offset = end - viewport;
+        break;
     case ScrollAlignment::Nearest:
         if (start >= scroll_offset_ && end <= scroll_offset_ + viewport) {
             offset = scroll_offset_; // already fully visible: no scroll at all

@@ -61,6 +61,9 @@ int run_headless_serve(LineTransport& transport, std::string_view output_directo
     if (app != nullptr) {
         host_config.annotations = automation::annotations_from_manifest(*app);
     }
+    if (manifest_scene.has_value()) {
+        host_config.virtual_collections = &manifest_scene->virtual_collections();
+    }
     automation::EngineAutomationHost automation_host(root, host, loop, std::move(host_config));
     automation::AutomationDiagnostics hooks;
     hooks.trace = &trace;

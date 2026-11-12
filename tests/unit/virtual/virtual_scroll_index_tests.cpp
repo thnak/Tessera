@@ -121,6 +121,11 @@ int main() {
                 "Center puts the item center at the viewport center")) {
         return 3;
     }
+    target = range.scroll_to_index(10, kViewport, ScrollAlignment::End);
+    if (!expect(near(target->scroll_offset, 252.0f),
+                "End puts the item main end at the viewport end")) {
+        return 3;
+    }
     // Nearest: an already-visible item does not move, an item below bottom-aligns.
     if (!expect(near(range.scroll_to_index(0, kViewport, ScrollAlignment::Nearest)->scroll_offset,
                      0.0f),
@@ -168,6 +173,9 @@ int main() {
         !expect(near(range.scroll_to_index(99, kViewport, ScrollAlignment::Center)->scroll_offset,
                      3100.0f),
                 "Center clamps at the scrollable end") ||
+        !expect(near(range.scroll_to_index(99, kViewport, ScrollAlignment::End)->scroll_offset,
+                     3100.0f),
+                "End clamps at the scrollable end") ||
         !expect(near(range.scroll_to_index(99, kViewport, ScrollAlignment::Nearest)->scroll_offset,
                      3100.0f),
                 "Nearest clamps at the scrollable end") ||
@@ -214,6 +222,9 @@ int main() {
             near(measured.scroll_to_index(10, kViewport, ScrollAlignment::Center)->scroll_offset,
                  466.0f),
             "Center follows the measured prefix") ||
+        !expect(near(measured.scroll_to_index(10, kViewport, ScrollAlignment::End)->scroll_offset,
+                     432.0f),
+                "End follows the measured prefix") ||
         !expect(
             near(measured.scroll_to_index(10, kViewport, ScrollAlignment::Nearest)->scroll_offset,
                  432.0f),

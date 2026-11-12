@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -165,6 +166,7 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
                            *action == ScriptAction::Assert || *action == ScriptAction::WaitFor;
     const bool is_assert = *action == ScriptAction::Assert;
     const bool is_wait = *action == ScriptAction::WaitFor;
+    const bool is_scroll_into_view = *action == ScriptAction::ScrollIntoView;
     const bool has_text = *action == ScriptAction::Type;
     const bool has_scroll = *action == ScriptAction::Scroll;
     const bool has_path = *action == ScriptAction::Snapshot || *action == ScriptAction::Trace ||
@@ -176,6 +178,7 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
         const std::string_view key = member.first;
         const bool known = key == "action" || key == "timeoutMs" ||
                            (has_ui_id && (key == "uiId" || key == "itemKey")) ||
+                           (is_scroll_into_view && (key == "itemIndex" || key == "alignment")) ||
                            (has_text && key == "text") ||
                            (has_scroll && (key == "dx" || key == "dy")) ||
                            (has_path && key == "path") || (has_profile && key == "profile") ||
@@ -212,6 +215,41 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
                                  "itemKey", index));
             }
             step.item_key = std::move(*key);
+        }
+        if (is_scroll_into_view) {
+            if (const JsonValue* item_index = value.find("itemIndex"); item_index != nullptr) {
+                const auto parsed = item_index->as_integer();
+                if (!parsed.has_value() || *parsed < 0 ||
+                    static_cast<std::uint64_t>(*parsed) > std::numeric_limits<std::size_t>::max()) {
+                    return unexpected(script_error(ScriptErrorCode::InvalidStep,
+                                                   "step.itemIndex must be a non-negative integer",
+                                                   "itemIndex", index));
+                }
+                step.item_index = static_cast<std::size_t>(*parsed);
+            }
+            if (const JsonValue* alignment = value.find("alignment"); alignment != nullptr) {
+                const auto text = read_string(alignment, 16);
+                const auto parsed =
+                    text.has_value() ? scroll_alignment_from_string(*text) : std::nullopt;
+                if (!parsed.has_value()) {
+                    return unexpected(
+                        script_error(ScriptErrorCode::InvalidStep,
+                                     "step.alignment must be start, center, end, or nearest",
+                                     "alignment", index));
+                }
+                step.alignment = *parsed;
+            }
+            if (step.item_key.has_value() && step.item_index.has_value()) {
+                return unexpected(script_error(ScriptErrorCode::InvalidStep,
+                                               "step.itemKey and step.itemIndex are mutually "
+                                               "exclusive",
+                                               "itemKey", index));
+            }
+            if (value.find("alignment") != nullptr && !step.item_index.has_value()) {
+                return unexpected(script_error(ScriptErrorCode::InvalidStep,
+                                               "step.alignment requires step.itemIndex",
+                                               "alignment", index));
+            }
         }
     }
 

@@ -125,6 +125,10 @@ build_source_node(const ui::Node& node, std::string_view path, bool parent_visib
 std::expected<harness::JsonValue, harness::ProtocolError>
 EngineAutomationHost::canonical_snapshot(bool include_hidden) {
     settle();
+    // A settle may have run layout, which assigns flow bounds to realized item nodes; restore the
+    // window placement before reading bounds. This also realizes the initial window on the first
+    // snapshot after layout.
+    refresh_virtual_collections();
 
     std::size_t count = 0;
     auto source = build_source_node(root_, "root", true, 0, config_.max_snapshot_nodes, count,

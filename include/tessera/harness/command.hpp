@@ -5,6 +5,7 @@
 #include "tessera/harness/json_value.hpp"
 #include "tessera/harness/protocol.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -38,12 +39,30 @@ enum class ActionKind {
     SetValue,
     Focus,
     Scroll,
-    ScrollIntoView, // reveals the target in its scroll containers; takes no offsets
+    // Reveals the target in its scroll containers. With no item index it adjusts every scrollable
+    // ancestor of the resolved node; with one it scrolls the virtual collection itself (see
+    // `scrollIntoViewAlignment`).
+    ScrollIntoView,
+};
+
+// Placement of the item revealed by `scrollIntoView` with an `itemIndex`
+// (`virtualization::ScrollAlignment` on the engine side). `Nearest` is the shortest move that makes
+// the item fully visible; no move when it already is.
+enum class ScrollIntoViewAlignment {
+    Start,
+    Center,
+    End,
+    Nearest,
 };
 
 // Wire spellings of the action kinds; also the `cmd` names.
 [[nodiscard]] std::string_view to_string(ActionKind kind) noexcept;
 [[nodiscard]] std::optional<ActionKind> action_kind_from_string(std::string_view text) noexcept;
+
+// Wire spellings of the alignment values (`start`, `center`, `end`, `nearest`).
+[[nodiscard]] std::string_view to_string(ScrollIntoViewAlignment alignment) noexcept;
+[[nodiscard]] std::optional<ScrollIntoViewAlignment>
+scroll_alignment_from_string(std::string_view text) noexcept;
 
 // Read-only structural query. Hidden/offscreen nodes are omitted with their subtree unless
 // includeHidden is set (automation-ids-v1 section 5.2).
@@ -53,9 +72,11 @@ struct SnapshotCommand {
     friend bool operator==(const SnapshotCommand&, const SnapshotCommand&) = default;
 };
 
-// One input action against a UiId, optionally narrowed to a list/grid item by (UiId, itemKey).
-// `value` carries setValue text, `scroll_dx`/`scroll_dy` carry scroll offsets; the encoder writes
-// only the fields the kind uses, so an unused field can never reach the wire.
+// One input action against a UiId, optionally narrowed to a list/grid item by (UiId, itemKey), or
+// (scrollIntoView only) by a zero-based `itemIndex` into a virtual collection. `value` carries
+// setValue text, `scroll_dx`/`scroll_dy` carry scroll offsets; the encoder writes only the fields
+// the kind uses, so an unused field can never reach the wire. `itemIndex` and `itemKey` are
+// mutually exclusive, and `alignment` is only meaningful with an index.
 struct ActionCommand {
     ActionKind kind = ActionKind::Click;
     UiId ui_id = 0;
@@ -63,6 +84,10 @@ struct ActionCommand {
     std::string value;
     double scroll_dx = 0.0;
     double scroll_dy = 0.0;
+    // Appended after the v1 fields so existing brace initializers keep working; both default to
+    // the "no index" form.
+    std::optional<std::size_t> item_index = std::nullopt;
+    ScrollIntoViewAlignment alignment = ScrollIntoViewAlignment::Nearest;
 
     friend bool operator==(const ActionCommand&, const ActionCommand&) = default;
 };

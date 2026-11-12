@@ -108,6 +108,10 @@ struct ScriptStep {
     ScriptAction action = ScriptAction::Click;
     std::optional<UiId> ui_id; // required for click/type/focus/scroll
     std::optional<std::string> item_key;
+    // scrollIntoView only: reveal this zero-based index in the virtual collection instead of an
+    // already-realized node. Mutually exclusive with `item_key`.
+    std::optional<std::size_t> item_index;
+    ScrollIntoViewAlignment alignment = ScrollIntoViewAlignment::Nearest;
     std::string text; // type (setValue)
     double scroll_dx = 0.0;
     double scroll_dy = 0.0;

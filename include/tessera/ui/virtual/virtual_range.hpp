@@ -34,6 +34,7 @@ enum class VirtualRangeError : std::uint8_t {
 enum class ScrollAlignment : std::uint8_t {
     Start,   // item main start at the viewport start
     Center,  // item center at the viewport center
+    End,     // item main end at the viewport end
     Nearest, // shortest move that makes the item fully visible; no move when it already is
 };
 
