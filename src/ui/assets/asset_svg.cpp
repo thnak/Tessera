@@ -58,6 +58,18 @@ namespace path = tessera::rendering::path;
     return AssetSvgError::texture_failed;
 }
 
+// Shared decode step: the lookup differs per bundle shape, the rest of the chain must not.
+[[nodiscard]] std::expected<const path::SvgDocument*, AssetSvgError>
+decode_asset(const Asset& asset, path::SvgDocumentCache& cache, path::SvgLimits limits) {
+    // The content hash keys the document cache, so two names for the same bytes share one decode.
+    const path::SvgDocumentKey key = path::make_svg_document_key(as_u8(asset.bytes), limits);
+    auto document = cache.acquire(key, as_u8(asset.bytes));
+    if (!document.has_value()) {
+        return std::unexpected(map_svg_error(document.error()));
+    }
+    return document.value();
+}
+
 } // namespace
 
 std::expected<const path::SvgDocument*, AssetSvgError> load_asset_svg(const AssetBundle& bundle,
@@ -68,13 +80,17 @@ std::expected<const path::SvgDocument*, AssetSvgError> load_asset_svg(const Asse
     if (!asset.has_value()) {
         return std::unexpected(map_asset_error(asset.error()));
     }
-    // The content hash keys the document cache, so two names for the same bytes share one decode.
-    const path::SvgDocumentKey key = path::make_svg_document_key(as_u8(asset->bytes), limits);
-    auto document = cache.acquire(key, as_u8(asset->bytes));
-    if (!document.has_value()) {
-        return std::unexpected(map_svg_error(document.error()));
+    return decode_asset(*asset, cache, limits);
+}
+
+std::expected<const path::SvgDocument*, AssetSvgError>
+load_asset_svg(const ComposedAssetBundle& bundles, std::string_view name,
+               path::SvgDocumentCache& cache, path::SvgLimits limits) {
+    const auto asset = bundles.find(name);
+    if (!asset.has_value()) {
+        return std::unexpected(map_asset_error(asset.error()));
     }
-    return document.value();
+    return decode_asset(*asset, cache, limits);
 }
 
 std::expected<AssetSvgTexture, AssetSvgError>

@@ -48,6 +48,7 @@ the sink wiring and the measured cost.
 | Field | Rule |
 |---|---|
 | `bundle` | generated embedded bundle; borrowed, must outlive the sink |
+| `bundles` | optional ordered composition (`ComposedAssetBundle`) for an app with more than one bundle; when set it takes precedence over `bundle`. Borrowed, must outlive the sink (see [Multiple bundles](#multiple-bundles-composedassetbundle)) |
 | `documents` | `SvgDocumentCache*`; decode once per content hash, safe to share |
 | `textures` | `PathTextureCache*`; one texture per (document, size, scale); caller must call `notify_device_lost()` before `Device::recover()` (D7), same as any cache owner |
 | `device_scale` | default 1.0; multiplied into derived raster sizes |
@@ -68,6 +69,46 @@ Framework/hot-path rule: `PathTextureCache` textures are destroyed on LRU evicti
 than one frame in flight the cache must be sized to keep all in-flight frames' assets resident;
 evicting a texture still referenced by a pending command list is a use-after-free. With the default
 single frame in flight this is automatic.
+
+## Multiple bundles (`ComposedAssetBundle`)
+
+`#140` gives codegen its own `<module>_vector_assets.hpp` bundle while a project's manifest bundle
+(fonts, images, theme) is a second `AssetBundle`. [`asset_bundle_compose.hpp`](../../../include/tessera/ui/assets/asset_bundle_compose.hpp)
+closes that gap on the consumer side: neither producer changes its output shape, and the generated
+`bundle()` and the manifest `bundle()` are used as-is.
+
+- `ComposedAssetBundle(std::span<const AssetBundle>)` is a borrowed, allocation-free view over an
+  ordered array of `AssetBundle` values. `find(name)` / `contains(name)` resolve the normalized name
+  across the list; `bundles()`, `size()` and `empty()` describe it.
+- **Precedence rule: the first bundle in the list that contains the name wins, and a duplicate name
+  in a later bundle is shadowed by the earlier one (not an error).** The order is the app's
+  precedence, so "generated vectors first, manifest second" makes a generated asset shadow a
+  same-named manifest asset; reversing the array reverses the winner.
+- Lookup is the same value operation as `AssetBundle::find`: `normalize_asset_name()` first, then
+  one binary search per bundle, no allocation, no copying, no RTTI, and the returned span points
+  into the winning bundle's read-only blob.
+- Failure is a value: `not_found` when no bundle contains the name, `invalid_name` for a malformed
+  name (reported before the list is consulted, so an empty composition still rejects it), and an
+  empty list is a valid composition that misses every name.
+
+Wiring is once at setup, not per paint (the RHI and `PaintData`/`PaintVectorStyle` are unchanged):
+
+```cpp
+const std::array<tessera::ui::assets::AssetBundle, 2> bundles = {
+    my_app::gen::vector_assets::bundle(), // generated `Path` assets (first = highest precedence)
+    my_app::assets::bundle(),             // project manifest: fonts, images, theme
+};
+const tessera::ui::assets::ComposedAssetBundle assets(bundles);
+
+tessera::ui::paint::VectorPaintConfig vector;
+vector.bundles = &assets; // composition replaces the single `bundle` field
+vector.documents = &documents;
+vector.textures = &textures;
+```
+
+The array, the composition and every bundle must outlive the sink. `load_asset_svg` has a
+`ComposedAssetBundle` overload, so `Batched2DSink::draw_vector` decodes from the winning bundle with
+the same `SvgDocumentCache`/`PathTextureCache` chain; the content hash still keys the decode.
 
 ## Damage-clipped replay
 
@@ -135,11 +176,9 @@ codegen **synthesizes** the document instead of asking the project for one
   positive width and height, an empty `d`, and a `var(--name)` colour (a standalone SVG document
   has no stylesheet to resolve it against).
 
-Known limits: the generated bundle is a second `AssetBundle` and `VectorPaintConfig::bundle` takes
-one, so a project that also embeds a manifest bundle needs a composition helper (follow-up); the
-paint pass maps the whole document into the content box, so a document aspect that differs from the
-box is stretched rather than letterboxed (the pre-existing payload contract, not a codegen choice);
-a `Path` without `label` keeps the schema's implied `img` role and is not emitted as
+Known limits: the paint pass maps the whole document into the content box, so a document aspect that
+differs from the box is stretched rather than letterboxed (the pre-existing payload contract, not a
+codegen choice); a `Path` without `label` keeps the schema's implied `img` role and is not emitted as
 `presentation` — the "otherwise decorative" half of the intrinsic rule belongs to the accessibility
 layer, which has no element-kind conditional today. The document declares `xmlns`, carries no
 `width`/`height` (the decoded document size comes from the `viewBox`) and is one line of bytes.
@@ -155,6 +194,12 @@ layer, which has no element-kind conditional today. The document declares `xmlns
   one decode/upload, missing-asset no-op, byte-identical repeat, sRGB target round-trip, validation
   enabled. In a ThorVG-OFF Vulkan build it asserts the documented no-op and returns clean.
 - `paint_vector_gpu --measure` prints the table above.
+- `asset_bundle_compose` (unit): single-bundle behavior unchanged, disjoint bundles, first-bundle-
+  wins precedence (including the reversed order and a content comparison so the winning bytes are
+  proven), not-found, empty list, malformed names, and the end-to-end chain a generated-style bundle
+  plus a manifest-style bundle through `load_asset_svg`.
+- `paint_vector_sink` covers the sink wiring: a `VectorPaintConfig` with `bundles` set draws through
+  the composed lookup and counts a composed miss as the documented no-op.
 
 ## Deferrals
 

@@ -7,6 +7,7 @@
 #include "tessera/rendering/path/path_texture_cache.hpp"
 #include "tessera/rendering/path/svg_document_cache.hpp"
 #include "tessera/ui/assets/asset_bundle.hpp"
+#include "tessera/ui/assets/asset_bundle_compose.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 
 #include <cstdint>
@@ -27,6 +28,11 @@ namespace tessera::ui::paint {
 //
 // Ownership/lifetime rules:
 // - `bundle` must be the generated AssetBundle for this app; names are looked up per draw.
+// - `bundles` is the alternative when the app has more than one bundle (a generated vector bundle
+//   plus the project manifest bundle). When set it is the lookup source and `bundle` is ignored;
+//   precedence is ComposedAssetBundle's first-bundle-wins order. The composition borrows an array
+//   of AssetBundle values, so the array, the bundles and `bundles` itself must outlive the sink.
+//   Wiring it once here is the whole per-app integration: PaintData and the RHI are unchanged.
 // - `documents` caches decoded SVG documents by content hash; safe to share across sinks/frames.
 // - `textures` caches uploaded document textures (one per document/size/scale). It polls the RHI
 //   device for D7 loss, so the caller must call `notify_device_lost()` before `Device::recover()`
@@ -46,6 +52,10 @@ struct VectorPaintConfig {
     rendering::path::PathTextureCache* textures = nullptr;
     float device_scale = 1.0f;
     rendering::rhi::TextureFormat texture_format = rendering::rhi::TextureFormat::R8G8B8A8Unorm;
+    // Ordered composition of several bundles; takes precedence over `bundle` when non-null. Use it
+    // when the generated vector bundle and the project manifest bundle are separate values. It is
+    // last so existing positional aggregate initialization of this config stays source-compatible.
+    const ui::assets::ComposedAssetBundle* bundles = nullptr;
 };
 
 // Raster-image resources for Batched2DSink (D12). Borrowed pointers, same lifetime rules as

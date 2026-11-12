@@ -13,6 +13,7 @@
 #include "tessera/rendering/path/svg_loader.hpp"
 #include "tessera/rendering/path/svg_texture.hpp"
 #include "tessera/ui/assets/asset_bundle.hpp"
+#include "tessera/ui/assets/asset_bundle_compose.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/clipped_paint_sink.hpp"
@@ -285,6 +286,57 @@ bool raster_request_contract() {
     return ok;
 }
 
+bool sink_composed_bundle_contract() {
+    if (!path::svg_backend_available()) {
+        return true;
+    }
+    constexpr std::string_view kSvg =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">"
+        "<path d=\"M4 4 L20 4 L20 20 Z\" fill=\"#2e8b57\"/></svg>";
+    const std::vector<std::uint8_t> generated_bytes(kSvg.begin(), kSvg.end());
+    const std::array<assets::AssetEntry, 1> generated_entries = {
+        assets::AssetEntry{"vector/Icon/1.svg", 0,
+                           static_cast<std::uint32_t>(generated_bytes.size()), "image/svg+xml"}};
+    const assets::AssetBundle generated(
+        std::span<const assets::AssetEntry>(generated_entries.data(), generated_entries.size()),
+        std::as_bytes(
+            std::span<const std::uint8_t>(generated_bytes.data(), generated_bytes.size())));
+
+    // A manifest-style bundle with unrelated assets: the sink must see both through the
+    // composition.
+    const std::vector<std::uint8_t> manifest_bytes = {'f', 'o', 'n', 't'};
+    const std::array<assets::AssetEntry, 1> manifest_entries = {
+        assets::AssetEntry{"fonts/app.ttf", 0, static_cast<std::uint32_t>(manifest_bytes.size()),
+                           "application/octet-stream"}};
+    const assets::AssetBundle manifest(
+        std::span<const assets::AssetEntry>(manifest_entries.data(), manifest_entries.size()),
+        std::as_bytes(std::span<const std::uint8_t>(manifest_bytes.data(), manifest_bytes.size())));
+
+    const std::array<assets::AssetBundle, 2> list = {generated, manifest};
+    const assets::ComposedAssetBundle composed(list);
+
+    auto rasterizer = path::make_path_rasterizer(path::PathBackend::thorvg);
+    if (!expect(rasterizer != nullptr, "ThorVG rasterizer is available")) {
+        return false;
+    }
+    FakeDevice device;
+    path::PathTextureCache textures(device, *rasterizer, {});
+    path::SvgDocumentCache documents;
+    NullRenderer harness;
+    tessera::ui::paint::VectorPaintConfig config;
+    config.bundles = &composed;
+    config.documents = &documents;
+    config.textures = &textures;
+    Batched2DSink sink(*harness.renderer, nullptr, nullptr, config);
+    sink.draw_vector(sample_draw("vector/Icon/1.svg", Rect{0.0f, 0.0f, 32.0f, 32.0f}));
+    sink.draw_vector(sample_draw("vector/missing.svg", Rect{0.0f, 0.0f, 32.0f, 32.0f}));
+    harness.finish();
+    return expect(sink.vector_stats().draws == 1 && textures.stats().uploads == 1,
+                  "a composed lookup draws one textured quad through the sink config") &&
+           expect(sink.vector_stats().missing_assets == 1,
+                  "a composed miss counts a documented missing-asset no-op");
+}
+
 } // namespace
 
 int main() {
@@ -292,6 +344,7 @@ int main() {
     ok = sink_missing_resources_is_noop() && ok;
     ok = sink_failure_values_are_noops() && ok;
     ok = sink_scale_contract() && ok;
+    ok = sink_composed_bundle_contract() && ok;
     ok = raster_request_contract() && ok;
     if (!ok) {
         std::cerr << "paint_vector_sink: FAILED\n";
