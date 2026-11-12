@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: MIT
 
-# Only configured when TESSERA_SHADER_CROSS=ON (see cmake/TesseraShaderCross.cmake, ADR-049).
-include(${PROJECT_SOURCE_DIR}/cmake/TesseraShaderCross.cmake)
+# Build-time shader manifest validator CLI (docs/specs/shader-manifest-v1.md sections 5 and 9).
+# The Vulkan and TESSERA_SHADER_CROSS shader rules run it before glslc; the manifest path is set
+# by the top-level CMakeLists.txt so both rules use the same file.
+add_executable(tessera_shader_manifest_check manifest_check.cpp)
 
-tessera_cross_compile_shader(batched2d
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders
-    VERTEX batched2d.vert
-    FRAGMENT batched2d.frag
-    AUTHORED_WGSL ${PROJECT_SOURCE_DIR}/src/rendering/backend/webgpu/shaders/batched2d.wgsl)
+target_link_libraries(tessera_shader_manifest_check PRIVATE tessera_schema)
+
+target_compile_features(tessera_shader_manifest_check PRIVATE cxx_std_23)

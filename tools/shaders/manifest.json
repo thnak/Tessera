@@ -1,0 +1,48 @@
+{
+  "manifestVersion": 1,
+  "shaders": [
+    {
+      "name": "batched2d",
+      "kind": "element",
+      "stages": ["vertex", "fragment"],
+      "entry": { "vertex": "main", "fragment": "main" },
+      "sources": {
+        "vulkan": ["batched2d.vert", "batched2d.frag"],
+        "webgpu": ["batched2d.wgsl"]
+      },
+      "vertexLayout": [
+        { "location": 0, "format": "float2", "semantic": "position" },
+        { "location": 1, "format": "float2", "semantic": "uv" },
+        { "location": 2, "format": "ubyte4norm", "semantic": "color" },
+        { "location": 3, "format": "float2", "semantic": "local" },
+        { "location": 4, "format": "float2", "semantic": "half_size" },
+        { "location": 5, "format": "float", "semantic": "radius" },
+        { "location": 6, "format": "float", "semantic": "mode" }
+      ],
+      "bindings": [
+        { "group": 0, "binding": 0, "type": "uniform_buffer", "name": "pc" },
+        { "group": 0, "binding": 1, "type": "sampled_texture", "name": "u_texture" },
+        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" }
+      ],
+      "pushConstants": {
+        "size": 112,
+        "fields": [
+          { "name": "viewport", "type": "float2", "offset": 0 },
+          { "name": "aa_radius", "type": "float", "offset": 8 },
+          { "name": "clip_count", "type": "uint", "offset": 12 },
+          { "name": "clips[0].rect", "type": "float4", "offset": 16 },
+          { "name": "clips[0].radii", "type": "float4", "offset": 32 },
+          { "name": "clips[1].rect", "type": "float4", "offset": 48 },
+          { "name": "clips[1].radii", "type": "float4", "offset": 64 },
+          { "name": "clips[2].rect", "type": "float4", "offset": 80 },
+          { "name": "clips[2].radii", "type": "float4", "offset": 96 }
+        ]
+      },
+      "tests": [
+        { "name": "dashboard_smoke" },
+        { "name": "dashboard", "golden": "tests/golden/baseline/batched2d/dashboard.png" },
+        { "name": "dashboard_shapes", "golden": "tests/golden/baseline/batched2d/dashboard_shapes.png" }
+      ]
+    }
+  ]
+}

@@ -204,7 +204,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       test validation-clean.
 - [ ] **B2:** Interpolation alpha wake threshold + `animationInterpolation` config key — static
       scene still idles.
-- [ ] **B2:** Call the shader manifest validator before `glslc` — bad manifest fails the build.
+- [x] **B2:** Call the shader manifest validator before `glslc` — bad manifest fails the build —
+      `tools/shaders/manifest.json`, `tools/shaders/manifest_check.cpp`,
+      `src/rendering/backend/vulkan/CMakeLists.txt`,
+      `tests/unit/manifest/manifest_build_step_tests.cpp`.
 - [ ] **B2:** Harness goldens: baselines in `tests/golden/baseline/harness/`, run on lavapipe CI.
 - [ ] **B2:** Wider CPU goldens (borders, clips, gradients) — bit-exact on every platform.
 - [ ] **B2:** Host-owned `CaretBlink` in `WindowHost` — toggles under `ManualClock`; idle when
