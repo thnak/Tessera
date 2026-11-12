@@ -234,6 +234,8 @@ This page is the map and reading order for the framework.
 - [`design/app-framework-open-questions.md`](design/app-framework-open-questions.md) — proposed
   answers to ADR-050's open questions (background work, scopes, multi-window, SQLite, HTTP, state,
   startup, default modules, surfaces) and the spec contradictions they would fix
+- [`design/reference-equantic-ui.md`](design/reference-equantic-ui.md) — reference study of
+  eQuantic.UI (C# web + native GPU engine): architecture, maturity, lessons, playground slice plan
 - [`design/security.md`](design/security.md) — threat model, compiler/runtime/designer,
   supply chain, privacy
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI
