@@ -193,8 +193,9 @@ code (the section 9 boundary).
   `malformedRequest`, `unsupportedVersion`, `unknownCommand`, `invalidArgument`, `uiIdNotFound`,
   `timeout`, `internal`; a failure envelope echoes a recovered `id` when the request had one.
 - **Commands** (`command.hpp`, `command_result.hpp`): `snapshot` (`includeHidden`); `click`,
-  `setValue` (`value`), `focus`, `scroll` (`dx`, `dy`), and `scrollIntoView`, all taking `uiId` (decimal string) and an
-  optional `itemKey`; `trace` (`path`); `audit` (`profile`, optional `path`). Unknown command names
+  `setValue` (`value`), `focus`, `scroll` (`dx`, `dy`), and `scrollIntoView` (optional `itemIndex`,
+  optional `alignment`), all taking `uiId` (decimal string) and an optional `itemKey`; `trace`
+  (`path`); `audit` (`profile`, optional `path`). Unknown command names
   and unknown parameters are rejected, not ignored. The snapshot result carries the canonical
   snapshot object from [`automation-ids-v1.md`](automation-ids-v1.md) section 5.2 as an embedded
   value; this slice does not compute or reinterpret UiIds.
@@ -309,8 +310,10 @@ structural|audit]`, plus the `headless` equivalent.
 - **Steps.** v1 executes `click`, `type`, `focus`, `scroll`, `scrollIntoView`, `waitFor`, `assert`, `snapshot`, `trace`, and `audit`.
   `type` is the section 4 name for the `setValue` command. `uiId` must be a canonical decimal
   string (the protocol's small-integer convenience is not accepted for script input) and `itemKey`
-  an optional non-empty string of at most 256 bytes. `timeoutMs` is 1..60000. Unknown members are
-  rejected, not ignored. `snapshot` takes optional `includeHidden` and `path`; `trace`/`audit` take
+  an optional non-empty string of at most 256 bytes. `scrollIntoView` also accepts an optional
+  integer `itemIndex` and an `alignment` (`start`/`center`/`end`/`nearest`), mutually exclusive with
+  `itemKey`, matching the section 6.8 item form; both are dispatched as the protocol action.
+  `timeoutMs` is 1..60000. Unknown members are rejected, not ignored. `snapshot` takes optional `includeHidden` and `path`; `trace`/`audit` take
   an optional `path`, where empty means the section 5 default name; `audit` requires `profile`. `assert` takes `uiId`,
   optional `itemKey`, and at least one of boolean `exists`/`visible`/`enabled`/`focused`/`selected` or
   string `text`/`name`; `waitFor` takes `state` (default `visible`). Both run the `snapshot` command
@@ -391,10 +394,34 @@ separate target (`tessera_automation_host`), because the protocol library itself
   targetable: it, an unknown key, a key under the wrong `uiId` and a hidden item are all
   `uiIdNotFound` (detail `<uiId>/<itemKey>`; no new error code). A key that is not canonical decimal
   (sign, leading zero, whitespace, overflow, text) is `invalidArgument`. `scroll` with an `itemKey`
-  wheels at that row's center (bubbling to its scroller). `scrollIntoView` (same `uiId`/`itemKey`
-  targeting, no offsets) reveals the realized target through `ui::scroll_into_view`, adjusting every
-  scrollable ancestor like a focus reveal; an already visible target is an idempotent success.
-  Revealing an unrealized virtual item is not available: it is `uiIdNotFound`.
+  wheels at that row's center (bubbling to its scroller).
+- **scrollIntoView, node form.** With only `uiId`/`itemKey` (no offsets) it reveals the realized
+  target through `ui::scroll_into_view`, adjusting every scrollable ancestor like a focus reveal; an
+  already visible target is an idempotent success.
+- **scrollIntoView, item form.** An optional zero-based `itemIndex` (JSON integer, mutually
+  exclusive with `itemKey`) reveals an item that is not currently realized, and an optional
+  `alignment` places it: `{"cmd":"scrollIntoView","uiId":"...","itemIndex":40,"alignment":"center"}`.
+  `alignment` is `start`/`center`/`end`/`nearest` (default `nearest`): the item main start, center
+  or end at the same viewport edge, or the shortest move that makes it fully visible (no move when
+  it already is); the offset is clamped to `[0, total_extent - viewport_extent]`. The target must be
+  a `VirtualList`/`VirtualGrid` node with a live collection in the harness scene: the host resolves
+  the collection, calls the existing `VirtualRange::scroll_to_index` (grid: the `VirtualGridRows`
+  row path), re-realizes the window, settles one frame, then re-places the window because layout
+  assigns flow bounds to newly attached item children. Each realized item node carries the
+  collection's `uiId` and the item's key, so the post-scroll snapshot lists it and a later
+  `click`/`focus` by `(uiId, itemKey)` resolves it. Failures are typed: an index at or past the
+  collection's item count is `invalidArgument` (message names the index and item count; detail
+  `<index>/<count>`); `alignment` without `itemIndex`, `itemIndex` with `itemKey`, and a negative or
+  non-integer index are `invalidArgument`; an `itemIndex` whose `uiId` names a visible node that is
+  not a registered virtual collection is `uiIdNotFound` (detail `<uiId>`), like an absent or hidden
+  target. The reveal records one `automation.scrollIntoView` instant span.
+- **Manifest virtual collections.** `automation.manifest.json` describes structure, not item data,
+  so the manifest scene gives every `VirtualList`/`VirtualGrid` node a live synthetic collection:
+  100 items, 16 px main extent, four grid columns, item key = zero-based index. `ManifestScene`
+  exposes them through `VirtualCollectionRegistry` and the CLI passes that registry to the host, so
+  an indexed `scrollIntoView` works on a plain manifest scene. The realized window is viewport
+  relative (the container stays at scroll 0); snapshots and the host re-place the window after any
+  settle that ran layout.
 - **Trace and audit.** `AutomationDiagnostics` attaches the existing
   `diagnostics::TraceRecorder` and `diagnostics::MetricsRegistry`; `enabled` gates all of it.
   Enabled, each command records one instant span and `trace` returns `to_chrome_trace_json`; `audit`
@@ -438,7 +465,9 @@ A script written for another app fails with `uiIdNotFound` until config loading 
 Wired coverage (`tests/unit/harness/`): `harness_engine_host` (every action against a real scene,
 plus byte-identical reruns), `harness_engine_host_failure` (`unsupportedAction`/`unknownAction`,
 `uiIdNotFound`, step cap, both timeouts, non-focusable/hidden targets), `harness_engine_host_items` (`(uiId, itemKey)` snapshot keys and
-click/focus/scroll resolution, unknown/malformed/hidden keys),
+click/focus/scroll resolution, unknown/malformed/hidden keys), `harness_scroll_into_view` (an
+unrealized list/grid item revealed by `itemIndex`, alignment offsets, typed failures, and the
+unchanged node form),
 `harness_diagnostics_cost` (a disabled seam matches a seam-free run byte for byte), and
 `harness_cli_integration` (exit codes, artifacts, deterministic reruns).
 

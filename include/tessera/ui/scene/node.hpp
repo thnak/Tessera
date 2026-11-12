@@ -34,6 +34,13 @@ public:
     [[nodiscard]] NodeId id() const {
         return id_;
     }
+    // Assigns the runtime id of a node that was not built with one (a pooled virtual item node,
+    // which `NodeRecycler` constructs with id 0). The id participates in scene lookups (layout
+    // boxes, keyed focus, input capture), so callers must assign a unique id before attaching the
+    // node and must never change it afterwards.
+    void set_id(NodeId id) {
+        id_ = id;
+    }
     [[nodiscard]] Node* parent() const {
         return parent_;
     }

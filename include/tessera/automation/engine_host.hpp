@@ -4,6 +4,7 @@
 
 #include "tessera/app/host.hpp"
 #include "tessera/automation/node_annotation.hpp"
+#include "tessera/automation/virtual_collection.hpp"
 #include "tessera/harness/automation_host.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/input_pump.hpp"
@@ -61,6 +62,9 @@ public:
         AutomationDiagnostics diagnostics{};
         std::size_t max_snapshot_nodes = kMaxSnapshotNodes;
         NodeAnnotations annotations{};
+        // Live virtual collections of the scene (`ManifestScene::virtual_collections()`). Null
+        // keeps `scrollIntoView` node-only; an `itemIndex` then fails as a non-collection target.
+        VirtualCollectionRegistry* virtual_collections = nullptr;
     };
 
     EngineAutomationHost(ui::Node& root, app::AppHost& host, runtime::RuntimeLoop& loop,
@@ -137,7 +141,17 @@ private:
     [[nodiscard]] std::expected<void, harness::ProtocolError> focus(ui::Node& target);
     [[nodiscard]] std::expected<void, harness::ProtocolError> scroll(ui::Node& target, double dx,
                                                                      double dy);
+    // Node form: reveals an already-realized node in its scroll containers.
     [[nodiscard]] std::expected<void, harness::ProtocolError> scroll_into_view(ui::Node& target);
+    // Collection form: reveals an item index through the collection's virtual range, settles the
+    // frame, then re-places the realized window (a layout pass rewrites item bounds from flow).
+    [[nodiscard]] std::expected<void, harness::ProtocolError>
+    scroll_into_view_item(VirtualCollection& collection, std::size_t index,
+                          harness::ScrollIntoViewAlignment alignment);
+
+    // Re-places every registered collection's realized window; called after a settle so snapshots
+    // and follow-up taps see windowed item bounds rather than layout-flow bounds.
+    void refresh_virtual_collections();
 
     // Applies at most one frame when the dispatched input made one due (and no frame otherwise).
     void settle();

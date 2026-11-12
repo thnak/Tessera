@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "manifest_virtual.hpp"
 #include "tessera/automation/manifest_scene.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
@@ -84,7 +85,8 @@ NodeAnnotations annotations_from_manifest(const AppManifest& manifest) {
     return annotations;
 }
 
-ManifestScene::ManifestScene(Node& root, const AppManifest& manifest) {
+ManifestScene::ManifestScene(Node& root, const AppManifest& manifest)
+    : virtual_scene_(std::make_unique<ManifestVirtualScene>()) {
     // Manifest order is document order, so a parent precedes its children; a node whose parent
     // path is absent (a component root) attaches to the scene root.
     std::unordered_map<std::string, Node*> by_path;
@@ -96,11 +98,22 @@ ManifestScene::ManifestScene(Node& root, const AppManifest& manifest) {
         Node& node = host.add_child(std::make_unique<Node>(node_id++));
         node.set_automation_id(entry.ui_id);
         configure(node, entry.kind);
+        if (entry.kind == "VirtualList") {
+            virtual_scene_->add_list(node);
+        } else if (entry.kind == "VirtualGrid") {
+            virtual_scene_->add_grid(node, kManifestVirtualGridColumns);
+        }
         if (!entry.name.empty()) {
             (void)node.set_aria("aria-label", entry.name);
         }
         by_path.emplace(entry.path, &node);
     }
+}
+
+ManifestScene::~ManifestScene() = default;
+
+VirtualCollectionRegistry& ManifestScene::virtual_collections() noexcept {
+    return virtual_scene_->registry();
 }
 
 } // namespace tessera::automation

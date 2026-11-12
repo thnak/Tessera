@@ -119,6 +119,8 @@ bool ScriptRunner::execute(const ScriptStep& step, std::uint64_t start_us,
                                                             : ActionKind::ScrollIntoView;
         action.ui_id = step.ui_id.value_or(0);
         action.item_key = step.item_key;
+        action.item_index = step.item_index;
+        action.alignment = step.alignment;
         action.value = step.text;
         action.scroll_dx = step.scroll_dx;
         action.scroll_dy = step.scroll_dy;

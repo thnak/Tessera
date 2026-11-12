@@ -19,9 +19,25 @@ namespace {
 
 namespace harness = tessera::harness;
 namespace ui = tessera::ui;
+namespace virt = tessera::ui::virtualization;
 
 // One event per fixed simulation step, so timestamps never depend on a wall clock.
 constexpr double kEventStepSeconds = 1.0 / 60.0;
+
+ui::virtualization::ScrollAlignment
+to_engine_alignment(harness::ScrollIntoViewAlignment alignment) {
+    switch (alignment) {
+    case harness::ScrollIntoViewAlignment::Start:
+        return virt::ScrollAlignment::Start;
+    case harness::ScrollIntoViewAlignment::Center:
+        return virt::ScrollAlignment::Center;
+    case harness::ScrollIntoViewAlignment::End:
+        return virt::ScrollAlignment::End;
+    case harness::ScrollIntoViewAlignment::Nearest:
+        return virt::ScrollAlignment::Nearest;
+    }
+    return virt::ScrollAlignment::Nearest;
+}
 
 harness::ProtocolError error(harness::ProtocolErrorCode code, std::string message,
                              std::string detail = {}) {
@@ -138,6 +154,26 @@ void EngineAutomationHost::settle() {
 std::expected<void, harness::ProtocolError>
 EngineAutomationHost::dispatch_action(const harness::ActionCommand& action) {
     ++stats_.actions;
+    // An indexed scrollIntoView addresses a virtual collection, not a realized node: resolve the
+    // collection container by uiId and let the collection realize the item. Every other action (and
+    // scrollIntoView without an index) keeps the node-targeting path below.
+    if (action.kind == harness::ActionKind::ScrollIntoView && action.item_index.has_value()) {
+        ui::Node* target = find_target(action.ui_id);
+        if (target == nullptr) {
+            return unexpected(error(harness::ProtocolErrorCode::UiIdNotFound,
+                                    "no visible node matches the automation id",
+                                    std::to_string(action.ui_id)));
+        }
+        VirtualCollection* collection = config_.virtual_collections == nullptr
+                                            ? nullptr
+                                            : config_.virtual_collections->find(*target);
+        if (collection == nullptr) {
+            return unexpected(error(harness::ProtocolErrorCode::UiIdNotFound,
+                                    "no virtual collection matches the automation id",
+                                    std::to_string(action.ui_id)));
+        }
+        return scroll_into_view_item(*collection, *action.item_index, action.alignment);
+    }
     const auto resolved = resolve_target(action.ui_id, action.item_key);
     if (!resolved.has_value()) {
         return std::unexpected(resolved.error());
@@ -156,6 +192,37 @@ EngineAutomationHost::dispatch_action(const harness::ActionCommand& action) {
         return scroll_into_view(*target);
     }
     return unexpected(error(harness::ProtocolErrorCode::InvalidArgument, "unknown action kind"));
+}
+
+void EngineAutomationHost::refresh_virtual_collections() {
+    if (config_.virtual_collections != nullptr) {
+        config_.virtual_collections->refresh_all();
+    }
+}
+
+std::expected<void, harness::ProtocolError>
+EngineAutomationHost::scroll_into_view_item(VirtualCollection& collection, std::size_t index,
+                                            harness::ScrollIntoViewAlignment alignment) {
+    const std::size_t count = collection.item_count();
+    if (index >= count) {
+        return unexpected(error(harness::ProtocolErrorCode::InvalidArgument,
+                                "itemIndex " + std::to_string(index) +
+                                    " is outside the collection's " + std::to_string(count) +
+                                    " items",
+                                std::to_string(index) + "/" + std::to_string(count)));
+    }
+    const auto outcome = collection.scroll_to_index(index, to_engine_alignment(alignment));
+    if (!outcome.has_value()) {
+        return unexpected(error(harness::ProtocolErrorCode::Internal,
+                                "virtual collection could not realize the item",
+                                std::to_string(index)));
+    }
+    // Realization adds/removes item children, which dirties layout; one settle frame applies it.
+    // The collection then re-places the window because layout assigned flow bounds to the items.
+    settle();
+    refresh_virtual_collections();
+    record("automation.scrollIntoView", diagnostics::TraceCategory::Input);
+    return {};
 }
 
 std::expected<void, harness::ProtocolError> EngineAutomationHost::click(ui::Node& target) {

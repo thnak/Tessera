@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -41,8 +42,13 @@ decode_action(ActionKind kind, const JsonValue& arguments) {
     switch (kind) {
     case ActionKind::Click:
     case ActionKind::Focus:
-    case ActionKind::ScrollIntoView:
         if (auto error = reject_unknown(arguments, {"uiId", "itemKey"}); error.has_value()) {
+            return std::unexpected(std::move(*error));
+        }
+        break;
+    case ActionKind::ScrollIntoView:
+        if (auto error = reject_unknown(arguments, {"uiId", "itemKey", "itemIndex", "alignment"});
+            error.has_value()) {
             return std::unexpected(std::move(*error));
         }
         break;
@@ -74,6 +80,33 @@ decode_action(ActionKind kind, const JsonValue& arguments) {
             return invalid_argument("itemKey must be a string", "itemKey");
         }
         command.item_key = std::move(*text);
+    }
+    if (const JsonValue* item_index = arguments.find("itemIndex"); item_index != nullptr) {
+        const auto value = item_index->as_integer();
+        if (!value.has_value() || *value < 0 ||
+            static_cast<std::uint64_t>(*value) > std::numeric_limits<std::size_t>::max()) {
+            return invalid_argument("itemIndex must be a non-negative integer", "itemIndex");
+        }
+        command.item_index = static_cast<std::size_t>(*value);
+    }
+    const JsonValue* alignment_value = arguments.find("alignment");
+    if (alignment_value != nullptr) {
+        const auto text = read_string(alignment_value);
+        if (!text.has_value()) {
+            return invalid_argument("alignment must be a string", "alignment");
+        }
+        const auto parsed = scroll_alignment_from_string(*text);
+        if (!parsed.has_value()) {
+            return invalid_argument("alignment must be start, center, end, or nearest",
+                                    "alignment");
+        }
+        command.alignment = *parsed;
+    }
+    if (command.item_key.has_value() && command.item_index.has_value()) {
+        return invalid_argument("itemKey and itemIndex are mutually exclusive", "itemKey");
+    }
+    if (alignment_value != nullptr && !command.item_index.has_value()) {
+        return invalid_argument("alignment requires itemIndex", "alignment");
     }
     if (kind == ActionKind::SetValue) {
         const JsonValue* value = arguments.find("value");
@@ -171,16 +204,35 @@ encode_snapshot(const SnapshotCommand& command) {
     }
     const bool is_set_value = command.kind == ActionKind::SetValue;
     const bool is_scroll = command.kind == ActionKind::Scroll;
+    const bool is_scroll_into_view = command.kind == ActionKind::ScrollIntoView;
     if (!is_set_value && !command.value.empty()) {
         return invalid_argument("value is only valid for setValue", "value");
     }
     if (!is_scroll && (command.scroll_dx != 0.0 || command.scroll_dy != 0.0)) {
         return invalid_argument("dx/dy are only valid for scroll", "dx");
     }
+    if (command.item_index.has_value() && !is_scroll_into_view) {
+        return invalid_argument("itemIndex is only valid for scrollIntoView", "itemIndex");
+    }
+    if (!is_scroll_into_view && command.alignment != ScrollIntoViewAlignment::Nearest) {
+        return invalid_argument("alignment is only valid for scrollIntoView", "alignment");
+    }
+    if (command.item_key.has_value() && command.item_index.has_value()) {
+        return invalid_argument("itemKey and itemIndex are mutually exclusive", "itemKey");
+    }
+    if (command.alignment != ScrollIntoViewAlignment::Nearest && !command.item_index.has_value()) {
+        return invalid_argument("alignment requires itemIndex", "alignment");
+    }
     JsonValue::Object members;
     members.emplace_back("uiId", JsonValue::string(std::to_string(command.ui_id)));
     if (command.item_key.has_value()) {
         members.emplace_back("itemKey", JsonValue::string(*command.item_key));
+    }
+    if (command.item_index.has_value()) {
+        members.emplace_back("itemIndex",
+                             JsonValue::integer(static_cast<std::int64_t>(*command.item_index)));
+        members.emplace_back("alignment",
+                             JsonValue::string(std::string(to_string(command.alignment))));
     }
     if (is_set_value) {
         members.emplace_back("value", JsonValue::string(command.value));
@@ -251,6 +303,37 @@ std::optional<ActionKind> action_kind_from_string(std::string_view text) noexcep
     }
     if (text == kScrollIntoViewCommand) {
         return ActionKind::ScrollIntoView;
+    }
+    return std::nullopt;
+}
+
+std::string_view to_string(ScrollIntoViewAlignment alignment) noexcept {
+    switch (alignment) {
+    case ScrollIntoViewAlignment::Start:
+        return "start";
+    case ScrollIntoViewAlignment::Center:
+        return "center";
+    case ScrollIntoViewAlignment::End:
+        return "end";
+    case ScrollIntoViewAlignment::Nearest:
+        return "nearest";
+    }
+    return "nearest";
+}
+
+std::optional<ScrollIntoViewAlignment>
+scroll_alignment_from_string(std::string_view text) noexcept {
+    if (text == "start") {
+        return ScrollIntoViewAlignment::Start;
+    }
+    if (text == "center") {
+        return ScrollIntoViewAlignment::Center;
+    }
+    if (text == "end") {
+        return ScrollIntoViewAlignment::End;
+    }
+    if (text == "nearest") {
+        return ScrollIntoViewAlignment::Nearest;
     }
     return std::nullopt;
 }

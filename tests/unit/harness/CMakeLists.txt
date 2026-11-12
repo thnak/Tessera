@@ -169,6 +169,16 @@ target_link_libraries(harness_engine_host_items_tests PRIVATE tessera_automation
 
 add_test(NAME harness_engine_host_items COMMAND harness_engine_host_items_tests)
 
+# `scrollIntoView` over an unrealized virtual item (docs/specs/headless-automation-v1.md section
+# 6.8): the manifest scene's live collections, index targeting, alignment offsets, grid rows, the
+# typed failures, and the unchanged node-targeting form.
+add_executable(harness_scroll_into_view_tests
+    scroll_into_view_tests.cpp)
+
+target_link_libraries(harness_scroll_into_view_tests PRIVATE tessera_automation_host)
+
+add_test(NAME harness_scroll_into_view COMMAND harness_scroll_into_view_tests)
+
 add_executable(harness_diagnostics_cost_tests
     diagnostics_cost_tests.cpp)
 
