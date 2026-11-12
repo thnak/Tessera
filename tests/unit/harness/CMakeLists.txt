@@ -168,3 +168,10 @@ target_compile_definitions(harness_cli_integration_tests PRIVATE
     TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${TESSERA_HARNESS_FIXTURE_SCRIPTS}")
 
 add_test(NAME harness_cli_integration COMMAND harness_cli_integration_tests)
+
+add_executable(harness_serve_tests
+    serve_tests.cpp)
+
+target_link_libraries(harness_serve_tests PRIVATE tessera_harness)
+
+add_test(NAME harness_serve COMMAND harness_serve_tests)
