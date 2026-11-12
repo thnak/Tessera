@@ -7,6 +7,7 @@
 #include "tessera/rendering/path/svg_loader.hpp"
 #include "tessera/rendering/path/svg_texture.hpp"
 #include "tessera/ui/assets/asset_bundle.hpp"
+#include "tessera/ui/assets/asset_bundle_compose.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -35,6 +36,14 @@ enum class AssetSvgError : std::uint8_t {
 
 [[nodiscard]] std::expected<const rendering::path::SvgDocument*, AssetSvgError>
 load_asset_svg(const AssetBundle& bundle, std::string_view name,
+               rendering::path::SvgDocumentCache& cache, rendering::path::SvgLimits limits = {});
+
+// Composed lookup for apps whose generated vector bundle and project manifest bundle are separate
+// (see ComposedAssetBundle): resolves the name first-bundle-wins, then decodes it exactly like the
+// single-bundle overload. The returned document is cached by asset content, so two names for the
+// same bytes still share one decode.
+[[nodiscard]] std::expected<const rendering::path::SvgDocument*, AssetSvgError>
+load_asset_svg(const ComposedAssetBundle& bundles, std::string_view name,
                rendering::path::SvgDocumentCache& cache, rendering::path::SvgLimits limits = {});
 
 struct AssetSvgTexture {

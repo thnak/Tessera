@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_assets STATIC
-    asset_bundle.cpp)
+    asset_bundle.cpp
+    asset_bundle_compose.cpp)
 
 target_include_directories(tessera_assets PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -96,6 +97,16 @@ if (TESSERA_BUILD_TESTS)
         NAMESPACE tessera::ui::assets::empty_fixtures)
     target_link_libraries(asset_zero_bundle_tests PRIVATE tessera_assets)
     add_test(NAME asset_zero_bundle COMMAND asset_zero_bundle_tests)
+
+    # Composition over several bundles: first-bundle-wins precedence, value failures, and the
+    # vector asset chain (composed lookup -> SVG decode) an app uses when it embeds both a generated
+    # vector bundle and a project manifest bundle.
+    add_executable(asset_bundle_compose_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/asset_bundle_compose_tests.cpp)
+    target_link_libraries(asset_bundle_compose_tests PRIVATE
+        tessera_asset_svg
+        tessera_path)
+    add_test(NAME asset_bundle_compose COMMAND asset_bundle_compose_tests)
 
     add_test(
         NAME asset_generator

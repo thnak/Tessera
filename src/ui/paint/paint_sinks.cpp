@@ -146,14 +146,18 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
     if (draw.asset.empty() || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
         return;
     }
-    if (vector_.bundle == nullptr || vector_.documents == nullptr || vector_.textures == nullptr) {
+    if ((vector_.bundles == nullptr && vector_.bundle == nullptr) || vector_.documents == nullptr ||
+        vector_.textures == nullptr) {
         // Documented no-op: a sink without vector resources (or a ThorVG-OFF build) paints the
         // node's box visuals only.
         ++vector_stats_.missing_resources;
         return;
     }
 
-    const auto asset = vector_.bundle->find(draw.asset);
+    // A configured composition is the whole lookup source; the single bundle stays the default for
+    // one-bundle callers. Both are allocation-free value lookups over read-only tables.
+    const auto asset = vector_.bundles != nullptr ? vector_.bundles->find(draw.asset)
+                                                  : vector_.bundle->find(draw.asset);
     if (!asset.has_value()) {
         ++vector_stats_.missing_assets;
         return;
@@ -167,7 +171,9 @@ void Batched2DSink::draw_vector(const VectorDraw& draw) {
 
     // Decode once per asset content (keyed by hash inside SvgDocumentCache).
     const auto document =
-        ui::assets::load_asset_svg(*vector_.bundle, draw.asset, *vector_.documents);
+        vector_.bundles != nullptr
+            ? ui::assets::load_asset_svg(*vector_.bundles, draw.asset, *vector_.documents)
+            : ui::assets::load_asset_svg(*vector_.bundle, draw.asset, *vector_.documents);
     if (!document.has_value()) {
         switch (document.error()) {
         case ui::assets::AssetSvgError::not_found:
