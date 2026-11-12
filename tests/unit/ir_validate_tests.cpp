@@ -2,6 +2,7 @@
 
 // IR validation (docs/specs/ir-v1.md section 9): one valid module, then one broken copy per rule.
 
+#include <optional>
 #include "ir_samples.hpp"
 #include "ir_test_util.hpp"
 #include "ir_validate_util.hpp"
@@ -164,6 +165,40 @@ void test_references() {
     expect(
         "action without a value", [](auto& m) { list(m).handlers[0].actions[0].value.reset(); },
         kMalformed);
+
+    // animSet timing options: valid forms pass, contradictions and bad values are
+    // TESSERA_IR_ANIMATION.
+    const auto timing = [](auto& m, std::optional<double> duration, std::string easing) {
+        ir::Action& action = list(m).handlers[0].actions[1];
+        action.animate = true;
+        action.duration_ms = duration;
+        action.easing = std::move(easing);
+    };
+    constexpr const char* kAnimation = "TESSERA_IR_ANIMATION;";
+    expect(
+        "animSet timing is valid",
+        [&](auto& m) { timing(m, 300.0, "cubic-bezier(0.4, 0, 0.2, 1)"); }, "");
+    expect("animSet keyword easing is valid", [&](auto& m) { timing(m, 0.0, "ease-in-out"); }, "");
+    expect("animSet duration above the cap", [&](auto& m) { timing(m, 60001.0, ""); }, kAnimation);
+    expect("animSet negative duration", [&](auto& m) { timing(m, -1.0, ""); }, kAnimation);
+    expect(
+        "animSet unknown easing", [&](auto& m) { timing(m, std::nullopt, "bounce"); }, kAnimation);
+    expect(
+        "animSet cubic-bezier x out of range",
+        [&](auto& m) { timing(m, std::nullopt, "cubic-bezier(1.5, 0, 0.2, 1)"); }, kAnimation);
+    expect(
+        "animSet cubic-bezier needs four numbers",
+        [&](auto& m) { timing(m, std::nullopt, "cubic-bezier(0, 0, 1)"); }, kAnimation);
+    expect(
+        "animate false cannot take timing",
+        [&](auto& m) {
+            timing(m, 100.0, "");
+            list(m).handlers[0].actions[1].animate = false;
+        },
+        kAnimation);
+    expect(
+        "timing on a plain set",
+        [](auto& m) { list(m).handlers[0].actions[0].duration_ms = 100.0; }, kAnimation);
 }
 
 void test_events_and_bindings() {

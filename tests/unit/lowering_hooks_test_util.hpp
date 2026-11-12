@@ -158,6 +158,12 @@ inline std::string action_text(const ir::Action& action) {
     out += action.target + " = " + expr_text(action.value.get());
     if (action.kind == ir::ActionKind::AnimSet) {
         out += action.animate ? " animate" : " animate=false";
+        if (action.duration_ms.has_value()) {
+            out += " duration=" + std::to_string(*action.duration_ms);
+        }
+        if (!action.easing.empty()) {
+            out += " easing=" + action.easing;
+        }
     }
     return out;
 }

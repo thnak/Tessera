@@ -23,6 +23,49 @@ constexpr std::string_view kFunctions[] = {"min",     "max",    "clamp",       "
 constexpr std::string_view kPrimitiveTypes[] = {"bool",  "int",    "float",    "string",
                                                 "color", "length", "node_ref", "children"};
 
+constexpr std::string_view kEasingKeywords[] = {"linear", "ease", "ease-in", "ease-out",
+                                                "ease-in-out"};
+constexpr double kMaxAnimationMs = 60'000.0;
+
+// `cubic-bezier(x1, y1, x2, y2)` with the x control points in [0, 1] (the CSS rule that keeps the
+// curve a function of time).
+bool valid_cubic_bezier(std::string_view text) {
+    constexpr std::string_view kPrefix = "cubic-bezier(";
+    if (!text.starts_with(kPrefix) || !text.ends_with(')')) {
+        return false;
+    }
+    std::string body(text.substr(kPrefix.size(), text.size() - kPrefix.size() - 1));
+    double values[4] = {};
+    std::size_t start = 0;
+    for (int index = 0; index < 4; ++index) {
+        const std::size_t end = index == 3 ? body.size() : body.find(',', start);
+        if (end == std::string::npos || end == start) {
+            return false;
+        }
+        const std::string piece = body.substr(start, end - start);
+        std::size_t used = 0;
+        try {
+            values[index] = std::stod(piece, &used);
+        } catch (...) {
+            return false;
+        }
+        while (used < piece.size() && piece[used] == ' ') {
+            ++used;
+        }
+        if (used != piece.size() || !std::isfinite(values[index])) {
+            return false;
+        }
+        start = end + 1;
+    }
+    return values[0] >= 0.0 && values[0] <= 1.0 && values[2] >= 0.0 && values[2] <= 1.0;
+}
+
+bool valid_easing(std::string_view text) {
+    return std::find(std::begin(kEasingKeywords), std::end(kEasingKeywords), text) !=
+               std::end(kEasingKeywords) ||
+           valid_cubic_bezier(text);
+}
+
 template<std::size_t N> bool contains(const std::string_view (&list)[N], std::string_view value) {
     return std::find(std::begin(list), std::end(list), value) != std::end(list);
 }
@@ -158,6 +201,36 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
     }
 }
 
+// Timing options exist on `animSet` only, are meaningless when `animate` is false, and are bounded
+// so a generated tween always finishes (ir-v1.md section 2.1).
+void validate_animation_options(ValidationContext& context, const Action& action,
+                                const SourceSpan& where) {
+    const bool has_timing = action.duration_ms.has_value() || !action.easing.empty();
+    if (!has_timing) {
+        return;
+    }
+    if (action.kind != ActionKind::AnimSet) {
+        context.report("TESSERA_IR_ANIMATION", "only an `animSet` action takes duration or easing",
+                       where);
+        return;
+    }
+    if (!action.animate) {
+        context.report("TESSERA_IR_ANIMATION",
+                       "`animate: false` snaps, so it cannot take a duration or easing", where);
+    }
+    if (action.duration_ms.has_value() &&
+        (!std::isfinite(*action.duration_ms) || *action.duration_ms < 0.0 ||
+         *action.duration_ms > kMaxAnimationMs)) {
+        context.report("TESSERA_IR_ANIMATION", "duration must be 0..60000 ms", where);
+    }
+    if (!action.easing.empty() && !valid_easing(action.easing)) {
+        context.report("TESSERA_IR_ANIMATION",
+                       "easing must be linear, ease, ease-in, ease-out, ease-in-out or "
+                       "cubic-bezier(x1, y1, x2, y2) with x in [0, 1]",
+                       where);
+    }
+}
+
 void validate_actions(ValidationContext& context, const ComponentScope& scope,
                       const LocalNames& locals, const std::vector<Action>& actions,
                       const SourceSpan& where) {
@@ -171,6 +244,7 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
                 where);
         }
         require_expr(context, scope, locals, action.value.get(), where, "an action value");
+        validate_animation_options(context, action, where);
     }
 }
 

@@ -154,6 +154,7 @@ void test_new_v1_fields() {
     check(has("\"component\": \"comp::Row\""), "Component node reference");
     check(has("\"handlers\": ["), "handlers");
     check(has("\"animate\": false"), "animSet with animate false");
+    check(!has("\"durationMs\"") && !has("\"easing\""), "timing is omitted when absent");
     check(has("\"returnType\": \"bool\""), "binding returnType");
     check(has("\"preview\": {"), "binding preview");
     check(has("\"loop\": {"), "loop on the node");
@@ -175,6 +176,16 @@ void test_new_v1_fields() {
     module.components[0].handlers[0].actions[1].animate = false;
     check(ir::write_ir_json(module).find("\"animate\": false") != std::string::npos,
           "animSet with animate false writes it");
+
+    // Timing options are written for animSet only, in a fixed order after `animate`.
+    module.components[0].handlers[0].actions[1].duration_ms = 250.0;
+    module.components[0].handlers[0].actions[1].easing = "ease-out";
+    module.components[0].handlers[0].actions[0].duration_ms = 99.0;
+    const std::string timed = ir::write_ir_json(module);
+    check(timed.find("\"durationMs\": 250") != std::string::npos &&
+              timed.find("\"easing\": \"ease-out\"") != std::string::npos,
+          "animSet timing is written");
+    check(timed.find("99") == std::string::npos, "a plain set never writes timing");
 
     // `index` appears only when the loop has one.
     auto& row = module.components[0].root.children[0];

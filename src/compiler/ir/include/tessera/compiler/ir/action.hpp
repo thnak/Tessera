@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/ir/expr.hpp"
 
+#include <optional>
 #include <string>
 
 namespace tessera::compiler::ir {
@@ -22,6 +23,10 @@ struct Action {
     std::string target; // state::x or anim::x
     ExprPtr value;
     bool animate = true; // AnimSet only
+    // AnimSet only, and only when `animate` is true: the literal timing options of
+    // `v.set(x, { duration, easing })`. Absent means the runtime default (200 ms, ease-out).
+    std::optional<double> duration_ms;
+    std::string easing; // CSS easing text, empty when absent
 };
 
 } // namespace tessera::compiler::ir

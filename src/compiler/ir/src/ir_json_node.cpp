@@ -124,6 +124,12 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
         if (action.kind == ActionKind::AnimSet && !action.animate) {
             json.set("animate", JsonValue::boolean(false));
         }
+        if (action.kind == ActionKind::AnimSet && action.duration_ms.has_value()) {
+            json.set("durationMs", JsonValue::number(*action.duration_ms));
+        }
+        if (action.kind == ActionKind::AnimSet && !action.easing.empty()) {
+            json.set("easing", JsonValue::string(action.easing));
+        }
         list.push(std::move(json));
     }
     return list;

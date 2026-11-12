@@ -9,9 +9,8 @@ discipline"); "IR" means the compiler intermediate representation (see the
 The IR is the only input to C++ codegen. It is neutral, versioned, serializable to JSON, and
 independent of the JSX parser
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md), a neutral IR between JSX and C++ codegen;
-the JSX front end is described in
-[ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)). Codegen must not
-read the parser AST.
+the JSX front end is [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)).
+Codegen must not read the parser AST.
 
 ## 1. Top level
 
@@ -115,6 +114,9 @@ it is an IR record of its own, referenced from `events`:
 - `actions` run in order. `set` writes a state variable through its setter; `animSet` is an
   animated-value `.set(...)`, with `animate` defaulting to `true`. Values are pure Expressions that may
   read `params`.
+- An `animSet` may carry literal timing, omitted when absent (default 200 ms `ease-out`): `durationMs`
+  (0..60000) and `easing` (a CSS keyword or `cubic-bezier(x1, y1, x2, y2)` with x in [0, 1]). Additive,
+  so `irVersion` stays 1; invalid timing is `TESSERA_IR_ANIMATION`.
 - A handler declared once and used by several event props is one record with several references.
 
 ## 3. Node
@@ -588,8 +590,6 @@ The worked Counter example (a complete `ir.json`) lives in
 [`ir-v1-example.md`](ir-v1-example.md) to keep this normative spec under the size limit.
 
 ## 14. Open questions
-
-Each item has no decision yet.
 
 - Virtual collection data source/paging and nested virtualization; see
   [`virtualization-v1.md`](virtualization-v1.md).

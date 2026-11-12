@@ -5,6 +5,7 @@
 
 #include "hook_lowering_internal.hpp"
 
+#include <cmath>
 #include <optional>
 #include <string>
 #include <utility>
@@ -28,18 +29,45 @@ const rules::Symbol* state_for_setter(const rules::ComponentAnalysis& analysis,
     return nullptr;
 }
 
-bool animate_flag(HookState& state, const jsx::Expr& options, bool& animate) {
-    // The only option of an animated-value setter is `{ animate: false }` (jsx-subset-v1.md
-    // section 7). Anything else is rejected rather than ignored.
-    if (options.kind != jsx::ExprKind::Object || options.properties.size() != 1 ||
-        options.properties[0].key != "animate" || !options.properties[0].value ||
-        options.properties[0].value->kind != jsx::ExprKind::Boolean) {
-        fail_hook(state, "TESSERA_IR_UNSUPPORTED",
-                  "the options of an animated-value setter must be `{ animate: false }`",
-                  options.span);
+// The options of an animated-value setter (jsx-subset-v1.md section 7): `animate` (boolean),
+// `duration` (a non-negative number literal, milliseconds) and `easing` (a string literal). They
+// are literals so the IR stays static; anything else is rejected rather than ignored. Whether the
+// easing text is valid and whether the combination makes sense is the IR validator's job.
+bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& action) {
+    constexpr const char* kShape =
+        "the options of an animated-value setter are `{ animate, duration, easing }` with a "
+        "boolean, a non-negative number literal (ms) and a string literal";
+    if (options.kind != jsx::ExprKind::Object) {
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, options.span);
         return false;
     }
-    animate = options.properties[0].value->boolean;
+    bool seen_animate = false;
+    bool seen_duration = false;
+    bool seen_easing = false;
+    for (const jsx::ObjectProperty& property : options.properties) {
+        const jsx::Expr* value = property.value.get();
+        if (value == nullptr) {
+            fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, options.span);
+            return false;
+        }
+        const bool is_animate = property.key == "animate" && !seen_animate;
+        const bool is_duration = property.key == "duration" && !seen_duration;
+        const bool is_easing = property.key == "easing" && !seen_easing;
+        if (is_animate && value->kind == jsx::ExprKind::Boolean) {
+            seen_animate = true;
+            action.animate = value->boolean;
+        } else if (is_duration && value->kind == jsx::ExprKind::Number &&
+                   std::isfinite(value->number) && value->number >= 0.0) {
+            seen_duration = true;
+            action.duration_ms = value->number;
+        } else if (is_easing && value->kind == jsx::ExprKind::String) {
+            seen_easing = true;
+            action.easing = value->text;
+        } else {
+            fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, value->span);
+            return false;
+        }
+    }
     return true;
 }
 
@@ -69,11 +97,12 @@ std::optional<ir::Action> lower_setter_call(HookState& state, const jsx::Expr& c
 
 std::optional<ir::Action> lower_animated_set(HookState& state, const jsx::Expr& call,
                                              const jsx::Expr& callee, const ComponentNames& names) {
-    // `v.set(value)` or `v.set(value, { animate: false })`.
+    // `v.set(value)` or `v.set(value, { animate, duration, easing })`.
     if (call.operands.size() < 2 || call.operands.size() > 3 || !callee.operands[0]) {
-        fail_hook(state, "TESSERA_IR_UNSUPPORTED",
-                  "an animated-value setter takes a value and optional `{ animate: false }`",
-                  call.span, kBodyRule);
+        fail_hook(
+            state, "TESSERA_IR_UNSUPPORTED",
+            "an animated-value setter takes a value and optional `{ animate, duration, easing }`",
+            call.span, kBodyRule);
         return std::nullopt;
     }
     const jsx::Expr& receiver = *callee.operands[0];
@@ -84,19 +113,17 @@ std::optional<ir::Action> lower_animated_set(HookState& state, const jsx::Expr& 
         fail_hook(state, "TESSERA_IR_UNSUPPORTED", kBodyRule, call.span);
         return std::nullopt;
     }
-    bool animate = true;
-    if (call.operands.size() == 3 && !animate_flag(state, *call.operands[2], animate)) {
+    ir::Action action;
+    action.kind = ir::ActionKind::AnimSet;
+    if (call.operands.size() == 3 && !animated_options(state, *call.operands[2], action)) {
         return std::nullopt;
     }
     ir::ExprPtr value = lower_component_expression(state, *call.operands[1], names);
     if (!value) {
         return std::nullopt;
     }
-    ir::Action action;
-    action.kind = ir::ActionKind::AnimSet;
     action.target = "anim::" + animated->name;
     action.value = std::move(value);
-    action.animate = animate;
     return action;
 }
 

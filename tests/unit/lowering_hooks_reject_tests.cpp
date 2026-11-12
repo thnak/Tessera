@@ -150,6 +150,30 @@ void test_animated_set_options_are_bounded() {
     check_eq(first_code(actions), "TESSERA_IR_UNSUPPORTED", "the code");
 }
 
+// Timing options must be literals of the right type, each given once.
+void test_animated_set_timing_is_literal() {
+    const char* const bad[] = {
+        "{ duration: -5 }",  "{ duration: \"fast\" }",       "{ duration: speed }", "{ easing: 3 }",
+        "{ easing: curve }", "{ duration: 1, duration: 2 }", "{ animate: 1 }",      "{ other: 1 }"};
+    for (const char* options : bad) {
+        const auto fixture = parse(
+            component("  const v = useAnimatedValue(1.0);\n",
+                      std::string("<View onClick={() => { v.set(1, ") + options + "); }} />"));
+        const rules::ComponentAnalysis* analysis = analysis_of(*fixture);
+        if (analysis == nullptr || analysis->item == nullptr || !analysis->item->returned ||
+            analysis->item->returned->attributes.size() != 1 ||
+            !analysis->item->returned->attributes[0].expr) {
+            check(false, std::string("fixture for ") + options);
+            continue;
+        }
+        const lowering::HookLoweringContext context{*analysis->item, *analysis, fixture->map,
+                                                    "ui/Counter.tsx"};
+        const lowering::HandlerActionsResult actions =
+            lowering::lower_handler_actions(*analysis->item->returned->attributes[0].expr, context);
+        check(!actions.has_value(), std::string("rejected: ") + options);
+    }
+}
+
 void test_first_error_only_and_no_partial_ir() {
     const auto fixture = parse(component("  useEffect(() => { go(); }, []);\n"
                                          "  const [x, setX] = useState<{ a: int }>(null);\n"));
@@ -198,6 +222,7 @@ int main() {
     test_declared_handler_parameters_need_annotations();
     test_event_arrow_body_rule();
     test_animated_set_options_are_bounded();
+    test_animated_set_timing_is_literal();
     test_first_error_only_and_no_partial_ir();
     test_analysis_failure_is_not_lowered();
     test_mismatched_analysis_is_rejected();

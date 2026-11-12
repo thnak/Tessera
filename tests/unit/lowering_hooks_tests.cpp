@@ -303,6 +303,31 @@ void test_empty_component() {
     check_eq(describe(hooks), "component comp::A\nnext handler 1\n", "the full description");
 }
 
+// `v.set(x, { duration, easing })` carries literal timing into the animSet action.
+void test_animated_set_timing() {
+    const auto fixture = parse(component(
+        "  const v = useAnimatedValue(0);\n"
+        "  const fade = () => { v.set(1, { duration: 300, easing: \"ease-in-out\" }); };\n"
+        "  const slide = () => { v.set(2, { easing: \"cubic-bezier(0.4, 0, 0.2, 1)\" }); };\n"
+        "  const snap = () => { v.set(3, { animate: false }); };\n"));
+    auto result = lower(*fixture);
+    check(result.has_value(), "timing options lower: " + describe_errors(*fixture, result));
+    if (!result || result->handlers.size() != 3) {
+        return;
+    }
+    check_eq(action_text(result->handlers[0].actions[0]),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":1} animate duration=300.000000 "
+             "easing=ease-in-out",
+             "duration and easing are carried");
+    check_eq(action_text(result->handlers[1].actions[0]),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":2} animate "
+             "easing=cubic-bezier(0.4, 0, 0.2, 1)",
+             "easing alone is carried");
+    check_eq(action_text(result->handlers[2].actions[0]),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":3} animate=false",
+             "animate:false stays valid");
+}
+
 } // namespace
 
 int main() {
@@ -314,5 +339,6 @@ int main() {
     test_lower_handler_actions_for_event_arrows();
     test_native_preview_bodies();
     test_empty_component();
+    test_animated_set_timing();
     return finish("lowering hooks tests");
 }
