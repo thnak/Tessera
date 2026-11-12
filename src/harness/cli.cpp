@@ -9,6 +9,7 @@
 #include "tessera/harness/cli.hpp"
 #include "tessera/harness/harness_handler.hpp"
 #include "tessera/harness/json_write.hpp"
+#include "tessera/harness/latency_audit.hpp"
 #include "tessera/harness/protocol.hpp"
 #include "tessera/harness/script.hpp"
 #include "tessera/harness/script_runner.hpp"
@@ -120,7 +121,8 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
 // exit code: 0 pass, 1 run failure, 2 configuration/artifact failure.
 [[nodiscard]] int run_script(const Script& script, std::string_view command,
                              std::string_view output_directory, const std::string& report_path,
-                             bool diagnostics_enabled, std::ostream& out, std::ostream& err) {
+                             bool diagnostics_enabled, const std::optional<LatencyProfile>& latency,
+                             SessionClock& audit_clock, std::ostream& out, std::ostream& err) {
     ui::Node root(1);
     automation::FixtureScene fixture(root);
 
@@ -151,7 +153,10 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
     HarnessCommandHandler handler(automation_host, sink, handler_config);
 
     TickClock script_clock;
-    ScriptRunner runner(script, handler, sink, script_clock);
+    // Audit mode alone measures real elapsed time (spec section 7); every other mode keeps the
+    // simulated tick clock so its reports stay byte-identical across runs.
+    SessionClock& runner_clock = latency.has_value() ? audit_clock : script_clock;
+    ScriptRunner runner(script, handler, sink, runner_clock);
 
     // One RuntimeLoop tick per pump: one pump is one bounded step (spec sections 6.3 and 6.6).
     std::size_t ticks = 0;
@@ -173,7 +178,21 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
     }
 
     const ScriptReport& report = runner.report();
-    auto document = to_json(encode_script_report(report));
+    JsonValue report_json = encode_script_report(report);
+    std::optional<LatencyAudit> latency_audit;
+    if (latency.has_value()) {
+        latency_audit = evaluate_latency(report, *latency);
+        const JsonValue encoded = encode_latency_audit(*latency_audit);
+        report_json.set("latencyAudit", encoded);
+        auto audit_document = to_json(encoded);
+        const std::string audit_path =
+            std::string(output_directory) + "/" + std::string(kLatencyAuditFile);
+        if (!audit_document.has_value() || !sink.write(audit_path, *audit_document).has_value()) {
+            err << "tessera " << command << ": cannot write '" << audit_path << "'\n";
+            return 2;
+        }
+    }
+    auto document = to_json(report_json);
     if (!document.has_value()) {
         err << "tessera " << command << ": report could not be encoded\n";
         return 2;
@@ -191,8 +210,17 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
     out << "tessera " << command << ": " << (report.passed ? "pass" : "fail") << ", "
         << report.steps_executed << "/" << report.steps_total << " steps, " << report.elapsed_us
         << " us, report " << report_path << "\n";
+    if (latency_audit.has_value()) {
+        out << "tessera " << command << ": latency audit '" << latency_audit->profile.name << "' "
+            << (latency_audit->passed ? "pass" : "fail") << ", p95 " << latency_audit->stats.p95_us
+            << " us, max " << latency_audit->stats.max_us << " us\n";
+        for (const LatencyViolation& violation : latency_audit->violations) {
+            err << "tessera " << command << ": latency violation " << violation.id << ": "
+                << violation.actual_us << " us > " << violation.limit_us << " us\n";
+        }
+    }
     if (report.passed) {
-        return 0;
+        return latency_audit.has_value() && !latency_audit->passed ? 1 : 0;
     }
     if (report.error.has_value()) {
         print_script_error(err, command, *report.error);
@@ -224,6 +252,11 @@ std::string_view cli_usage() noexcept {
 }
 
 int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+    return run_cli_with_audit_clock(args, out, err, nullptr);
+}
+
+int run_cli_with_audit_clock(std::span<const std::string_view> args, std::ostream& out,
+                             std::ostream& err, SessionClock* audit_clock) {
     if (args.empty()) {
         err << cli_usage();
         return 2;
@@ -380,8 +413,19 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
         print_script_error(err, command, parsed.error());
         return 2;
     }
+    std::optional<LatencyProfile> latency;
+    if (mode == CliMode::Audit) {
+        auto resolved = resolve_latency_profile(profile.value_or("desktop"));
+        if (!resolved.has_value()) {
+            err << "tessera " << command << ": " << resolved.error() << "\n";
+            return 2;
+        }
+        latency = std::move(*resolved);
+    }
+    SteadySessionClock steady_clock;
     return run_script(*parsed, command, directory, report_path,
-                      mode == CliMode::Audit || wants_diagnostics(*parsed), out, err);
+                      mode == CliMode::Audit || wants_diagnostics(*parsed), latency,
+                      audit_clock != nullptr ? *audit_clock : steady_clock, out, err);
 }
 
 } // namespace tessera::harness
