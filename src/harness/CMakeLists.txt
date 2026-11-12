@@ -46,7 +46,9 @@ add_library(tessera_automation_host STATIC
     engine_host_diagnostics.cpp
     engine_host_items.cpp
     engine_host_snapshot.cpp
-    fixture_scene.cpp)
+    fixture_scene.cpp
+    manifest_loader.cpp
+    manifest_scene.cpp)
 
 target_include_directories(tessera_automation_host PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

@@ -1,0 +1,41 @@
+{
+  "components": [
+    {
+      "componentId": "5000000000000000001",
+      "name": "Counter",
+      "source": "ui/Counter.tsx"
+    }
+  ],
+  "manifestVersion": 1,
+  "nodes": [
+    {
+      "componentId": "5000000000000000001",
+      "kind": "View",
+      "path": "Counter/root[0]",
+      "source": { "column": 3, "file": "ui/Counter.tsx", "line": 5 },
+      "uiId": "7000000000000000001"
+    },
+    {
+      "componentId": "5000000000000000001",
+      "kind": "Text",
+      "path": "Counter/root[0]/Text[0]",
+      "source": { "column": 5, "file": "ui/Counter.tsx", "line": 6 },
+      "uiId": "7000000000000000002"
+    },
+    {
+      "componentId": "5000000000000000001",
+      "kind": "Button",
+      "path": "Counter/root[0]/Button[1]",
+      "source": { "column": 5, "file": "ui/Counter.tsx", "line": 7 },
+      "uiId": "7000000000000000003"
+    },
+    {
+      "componentId": "5000000000000000001",
+      "kind": "TextInput",
+      "path": "Counter/root[0]/TextInput[2]",
+      "source": { "column": 5, "file": "ui/Counter.tsx", "line": 8 },
+      "uiId": "7000000000000000004"
+    }
+  ],
+  "projectSalt": "factory"
+}
