@@ -50,8 +50,7 @@ int run_headless_serve(LineTransport& transport, std::string_view output_directo
     config.width = static_cast<float>(profile.width);
     config.height = static_cast<float>(profile.height);
     config.dpi_scale = static_cast<float>(profile.scale);
-    app::AppHost host(root, ui::style::compile_stylesheet(stylesheet),
-                      loop, config);
+    app::AppHost host(root, ui::style::compile_stylesheet(stylesheet), loop, config);
     (void)host.begin_frame(0.0);
     host.end_frame();
 

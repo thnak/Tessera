@@ -129,8 +129,8 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
                              std::string_view output_directory, const std::string& report_path,
                              bool diagnostics_enabled, const std::optional<LatencyProfile>& latency,
                              SessionClock& audit_clock, const automation::AppManifest* app,
-                             const std::optional<CliFrameRequest>& frame_request,
-                             std::ostream& out, std::ostream& err) {
+                             const std::optional<CliFrameRequest>& frame_request, std::ostream& out,
+                             std::ostream& err) {
     ui::Node root(1);
     // The fixture is the default scene; an app manifest (script `app.config`) replaces it.
     std::optional<automation::FixtureScene> fixture;
@@ -281,7 +281,8 @@ std::string_view cli_usage() noexcept {
            "Exit codes: 0 pass, 1 run/audit failure, 2 invalid script/config.\n"
            "The script lane runs against the built-in windowless fixture scene and writes\n"
            "out/report.json (or --report) plus any snapshot/trace/audit artifacts the script asks\n"
-           "for. --mode golden and gpu-smoke then render the final scene and compare it with --baseline;\n"
+           "for. --mode golden and gpu-smoke then render the final scene and compare it with "
+           "--baseline;\n"
            "golden needs the software (lavapipe) Vulkan path, and only golden honours\n"
            "--update-goldens.\n";
 }

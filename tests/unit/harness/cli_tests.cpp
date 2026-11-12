@@ -182,14 +182,16 @@ int main() {
     {
         const Outcome smoke_update = run({"test", "--script", fixture("smoke.json"), "--mode",
                                           "gpu-smoke", "--baseline", "b.png", "--update-goldens"});
-        expect(smoke_update.code == 2 && contains(smoke_update.err, "only allowed with --mode golden"),
+        expect(smoke_update.code == 2 &&
+                   contains(smoke_update.err, "only allowed with --mode golden"),
                "gpu-smoke never updates goldens");
         const Outcome structural_update =
             run({"test", "--script", fixture("smoke.json"), "--update-goldens"});
-        expect(structural_update.code == 2 && contains(structural_update.err, "golden or gpu-smoke only"),
+        expect(structural_update.code == 2 &&
+                   contains(structural_update.err, "golden or gpu-smoke only"),
                "baseline flags are rejected outside the rendering modes");
-        const Outcome empty_baseline = run({"test", "--script", fixture("smoke.json"), "--mode",
-                                            "golden", "--baseline", ""});
+        const Outcome empty_baseline =
+            run({"test", "--script", fixture("smoke.json"), "--mode", "golden", "--baseline", ""});
         expect(empty_baseline.code == 2, "empty baseline rejected");
     }
     for (const char* mode : {"structural", "audit"}) {
