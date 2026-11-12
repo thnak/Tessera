@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <charconv>
-#include <cstdint>
 #include <fstream>
 #include <set>
 #include <string>
@@ -38,16 +37,14 @@ using internal::is_project_relative;
     return internal::quoted(text);
 }
 
-// The stable identity band of the library components. The previous hand-built declarations used
-// these numbers and the committed codegen goldens pin them, so generation keeps the same scheme:
-// component N (in name order) is `...001 + N`, and its node with the pre-order id `node::K` is
-// `...101 + 100 * N + K - 1`. A component may therefore have at most 100 nodes; a larger tree is
-// a loud generation failure rather than a silent overlap with the next component.
-constexpr std::uint64_t kComponentIdBase = 900000000000000001ULL;
-constexpr std::uint64_t kNodeUiIdBase = 900000000000000101ULL;
-constexpr std::uint64_t kNodeUiIdStride = 100ULL;
-constexpr unsigned kNodesPerComponent = 100;
+// Identity is not derived here. `--emit-library-cpp` stamps every component id and node uiId with
+// `ids::assign_library_identity` (the fixed `kLibraryIdSalt`) before this writer runs, so a
+// component's id is a function of its source path, name and node paths only
+// (docs/specs/automation-ids-v1.md section 2.1). Inserting another library component therefore
+// never shifts the ids of the existing ones; this writer only copies them into the generated unit.
 
+// The `node::N` ordinal names the generated builder function of that node (and proves the debug id
+// is well formed); it is not an identity input.
 bool node_ordinal(const ir::Node& node, unsigned& ordinal, std::string& error) {
     constexpr std::string_view kPrefix = "node::";
     if (!node.id.starts_with(kPrefix)) {
@@ -60,10 +57,6 @@ bool node_ordinal(const ir::Node& node, unsigned& ordinal, std::string& error) {
     const auto parsed = std::from_chars(first, last, value);
     if (parsed.ec != std::errc{} || parsed.ptr != last || value == 0) {
         error = "node id `" + node.id + "` is not a positive `node::N` id";
-        return false;
-    }
-    if (value > kNodesPerComponent) {
-        error = "node id `" + node.id + "` is outside the 100-node library identity band";
         return false;
     }
     ordinal = value;
@@ -126,8 +119,11 @@ bool emit_node(Emitter& emitter, const ir::Node& node) {
     out += "    ir::Node node;\n";
     out += "    node.kind = ir::NodeKind::" + kind + ";\n";
     out += "    node.id = " + quoted(node.id) + ";\n";
-    const std::uint64_t ui_id = kNodeUiIdBase + kNodeUiIdStride * emitter.index + ordinal - 1;
-    out += "    node.ui_id = \"" + std::to_string(ui_id) + "\";\n";
+    if (node.ui_id.empty()) {
+        emitter.error = "node `" + node.id + "` has no uiId";
+        return false;
+    }
+    out += "    node.ui_id = " + quoted(node.ui_id) + ";\n";
     if (!node.automation_id.empty()) {
         out += "    node.automation_id = " + quoted(node.automation_id) + ";\n";
     }
@@ -251,8 +247,11 @@ bool emit_component(Emitter& emitter, const ir::Component& component) {
     out += "ir::Component make_component_" + std::to_string(emitter.index) + "() {\n";
     out += "    ir::Component component;\n";
     out += "    component.id = " + quoted(component.id) + ";\n";
-    out += "    component.component_id = \"" + std::to_string(kComponentIdBase + emitter.index) +
-           "\";\n";
+    if (component.component_id.empty()) {
+        emitter.error = "component `" + component.name + "` has no componentId";
+        return false;
+    }
+    out += "    component.component_id = " + quoted(component.component_id) + ";\n";
     out += "    component.name = " + quoted(component.name) + ";\n";
     span_lines(out, "component.source", component.source);
     for (const ir::Prop& prop : component.props) {

@@ -18,14 +18,24 @@ struct IdentityError {
     std::string message;
 };
 
+// The fixed id salt of the first-party library components (docs/specs/automation-ids-v1.md
+// section 2.1). They are compiled into the framework once, not generated per project, so their ids
+// must not depend on the project's `tessera.json` namespace. The value is part of the published id
+// scheme: changing it invalidates every stamped library id and the committed codegen goldens.
+inline constexpr std::string_view kLibraryIdSalt = "tessera.library";
+
 // Fills `component_id` of each component and `ui_id` of each node (all components, including
 // conditional branches, error-boundary fallbacks and virtual item templates) that does not have
 // one yet; ids already present, such as those of library components, are kept.
 //
 //   - `salt` is the `namespace` of tessera.json and must not be empty.
+//   - A component's id is keyed by its source path, its name and the position among components
+//     with the same name in that file (docs/specs/automation-ids-v1.md section 2.1); it never
+//     depends on the absolute index in the module.
 //   - A node with an explicit `automation_id` (decimal, non-zero) takes it as its `ui_id`.
-//   - A node's path is `<Component>/root[0]/<Kind>[<index among siblings>]/...`; a fallback or an
-//     item template adds `fallback`/`template` to the path. A literal `key` joins the hash input.
+//   - A node's path is `<Component>[/#N]/root[0]/<Kind>[<index among siblings>]/...`; a fallback
+//     or an item template adds `fallback`/`template` to the path. A literal `key` joins the hash
+//     input. `<#N>` only appears for a repeated component name in the same file.
 //   - Every node ends with `automation_id == ui_id`: the scene node's automation id is what
 //     codegen emits and what snapshots report, and IR validation requires the two to agree.
 //
@@ -33,5 +43,13 @@ struct IdentityError {
 // never renumbered. On error the module is left unchanged.
 [[nodiscard]] std::expected<void, IdentityError> assign_identity(ir::IrModule& module,
                                                                  std::string_view salt);
+
+// Stamps the identity of the framework library components (issue #70) with `kLibraryIdSalt`:
+// `component_id` and every node's `ui_id`, but not `automation_id` (library nodes are internal and
+// have no explicit automation target). That keeps a library component's ids fixed when another
+// component is inserted before it, because nothing is derived from its index in the generated
+// module. Ids already present are kept, so this is also safe to call on a partially stamped
+// module. Used by `tessera_codegen --emit-library-cpp`.
+[[nodiscard]] std::expected<void, IdentityError> assign_library_identity(ir::IrModule& module);
 
 } // namespace tessera::compiler::ids

@@ -4,6 +4,7 @@
 #include "tessera/compiler/ids/manifest.hpp"
 #include "tessera/compiler/ir/json_value.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -44,7 +45,8 @@ const std::string* static_name(const ir::Node& node) {
 std::string write_manifest(const ir::IrModule& module, std::string_view salt) {
     ir::JsonValue components = ir::JsonValue::array();
     ir::JsonValue nodes = ir::JsonValue::array();
-    for (const ir::Component& component : module.components) {
+    for (std::size_t index = 0; index < module.components.size(); ++index) {
+        const ir::Component& component = module.components[index];
         ir::JsonValue entry = ir::JsonValue::object();
         entry.set("componentId", ir::JsonValue::string(component.component_id));
         entry.set("name", ir::JsonValue::string(component.name));
@@ -52,7 +54,8 @@ std::string write_manifest(const ir::IrModule& module, std::string_view salt) {
         components.push(std::move(entry));
 
         std::vector<Slot<const ir::Node>> walked;
-        collect<const ir::Node>(component.root, component, component.name + "/root[0]", walked);
+        collect<const ir::Node>(component.root, component,
+                                component_prefix(module, index) + "/root[0]", walked);
         for (const Slot<const ir::Node>& slot : walked) {
             ir::JsonValue source = ir::JsonValue::object();
             source.set("file", ir::JsonValue::string(slot.node->source.file));

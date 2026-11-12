@@ -27,7 +27,7 @@ ir::Node component_0_node_2() {
     ir::Node node;
     node.kind = ir::NodeKind::Text;
     node.id = "node::2";
-    node.ui_id = "900000000000000102";
+    node.ui_id = "13267076054899992132";
     node.source.file = "tessera/components/Field.tsx";
     node.source.offset = 2299;
     node.source.length = 20;
@@ -43,7 +43,7 @@ ir::Node component_0_node_3() {
     ir::Node node;
     node.kind = ir::NodeKind::Text;
     node.id = "node::3";
-    node.ui_id = "900000000000000103";
+    node.ui_id = "8152738129134940916";
     node.source.file = "tessera/components/Field.tsx";
     node.source.offset = 2326;
     node.source.length = 20;
@@ -59,7 +59,7 @@ ir::Node component_0_node_4() {
     ir::Node node;
     node.kind = ir::NodeKind::Text;
     node.id = "node::4";
-    node.ui_id = "900000000000000104";
+    node.ui_id = "3694229539795756584";
     node.source.file = "tessera/components/Field.tsx";
     node.source.offset = 2353;
     node.source.length = 20;
@@ -75,7 +75,7 @@ ir::Node component_0_node_5() {
     ir::Node node;
     node.kind = ir::NodeKind::Slot;
     node.id = "node::5";
-    node.ui_id = "900000000000000105";
+    node.ui_id = "17496656312152977124";
     node.source.file = "tessera/components/Field.tsx";
     node.source.offset = 2380;
     node.source.length = 10;
@@ -90,7 +90,7 @@ ir::Node component_0_node_1() {
     ir::Node node;
     node.kind = ir::NodeKind::View;
     node.id = "node::1";
-    node.ui_id = "900000000000000101";
+    node.ui_id = "14606735032667053897";
     node.source.file = "tessera/components/Field.tsx";
     node.source.offset = 2268;
     node.source.length = 134;
@@ -109,7 +109,7 @@ ir::Node component_0_node_1() {
 ir::Component make_component_0() {
     ir::Component component;
     component.id = "comp::Field";
-    component.component_id = "900000000000000001";
+    component.component_id = "12447991771284244900";
     component.name = "Field";
     component.source.file = "tessera/components/Field.tsx";
     component.source.offset = 2056;
@@ -202,7 +202,7 @@ ir::Node component_1_node_2() {
     ir::Node node;
     node.kind = ir::NodeKind::Slot;
     node.id = "node::2";
-    node.ui_id = "900000000000000202";
+    node.ui_id = "6329452206982080452";
     node.source.file = "tessera/components/Form.tsx";
     node.source.offset = 1913;
     node.source.length = 10;
@@ -217,7 +217,7 @@ ir::Node component_1_node_1() {
     ir::Node node;
     node.kind = ir::NodeKind::View;
     node.id = "node::1";
-    node.ui_id = "900000000000000201";
+    node.ui_id = "10212168639766696313";
     node.source.file = "tessera/components/Form.tsx";
     node.source.offset = 1883;
     node.source.length = 52;
@@ -233,7 +233,7 @@ ir::Node component_1_node_1() {
 ir::Component make_component_1() {
     ir::Component component;
     component.id = "comp::Form";
-    component.component_id = "900000000000000002";
+    component.component_id = "10752412967569661560";
     component.name = "Form";
     component.source.file = "tessera/components/Form.tsx";
     component.source.offset = 1786;

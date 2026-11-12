@@ -39,20 +39,27 @@ std::string describe(const automation::IdError& error) {
 
 } // namespace
 
-std::expected<void, IdentityError> assign_identity(ir::IrModule& module, std::string_view salt) {
+namespace {
+
+// Shared body of `assign_identity` and `assign_library_identity`: components first, then the nodes
+// that have no uiId yet, in document order. `mirror_automation_id` is off for framework library
+// components, whose nodes are internal and carry no explicit automation target.
+std::expected<void, IdentityError>
+assign_module_identity(ir::IrModule& module, std::string_view salt, bool mirror_automation_id) {
     if (salt.empty()) {
         return std::unexpected(
             IdentityError{"the project salt (tessera.json `namespace`) is empty"});
     }
 
-    // Components first, in module order.
-    std::vector<ir::Component*> pending_components;
+    // Every component is an input, in module order: a repeated (source path, name) pair is
+    // disambiguated by its occurrence among same-named components of that file, never by the
+    // absolute index in the module. Components that already have an id (library components) keep
+    // it; the computed vector is still aligned with `module.components` so the occurrence counting
+    // is module-wide and stable.
     std::vector<automation::ComponentIdInput> component_inputs;
-    for (ir::Component& component : module.components) {
-        if (component.component_id.empty()) {
-            pending_components.push_back(&component);
-            component_inputs.push_back({component.source.file, component.name});
-        }
+    component_inputs.reserve(module.components.size());
+    for (const ir::Component& component : module.components) {
+        component_inputs.push_back({component.source.file, component.name});
     }
     auto component_ids = automation::assign_component_ids(salt, component_inputs);
     if (!component_ids) {
@@ -61,9 +68,10 @@ std::expected<void, IdentityError> assign_identity(ir::IrModule& module, std::st
 
     // Then the nodes that have no uiId yet, in document order per component.
     std::vector<Slot<ir::Node>> slots;
-    for (ir::Component& component : module.components) {
+    for (std::size_t index = 0; index < module.components.size(); ++index) {
+        ir::Component& component = module.components[index];
         std::vector<Slot<ir::Node>> all;
-        collect(component.root, component, component.name + "/root[0]", all);
+        collect(component.root, component, component_prefix(module, index) + "/root[0]", all);
         for (Slot<ir::Node>& slot : all) {
             if (slot.node->ui_id.empty()) {
                 slots.push_back(std::move(slot));
@@ -94,14 +102,28 @@ std::expected<void, IdentityError> assign_identity(ir::IrModule& module, std::st
         return std::unexpected(IdentityError{describe(node_ids.error())});
     }
 
-    for (std::size_t i = 0; i < pending_components.size(); ++i) {
-        pending_components[i]->component_id = std::to_string((*component_ids)[i]);
+    for (std::size_t index = 0; index < module.components.size(); ++index) {
+        if (module.components[index].component_id.empty()) {
+            module.components[index].component_id = std::to_string((*component_ids)[index]);
+        }
     }
     for (std::size_t i = 0; i < slots.size(); ++i) {
         slots[i].node->ui_id = std::to_string((*node_ids)[i].ui_id);
-        slots[i].node->automation_id = slots[i].node->ui_id;
+        if (mirror_automation_id) {
+            slots[i].node->automation_id = slots[i].node->ui_id;
+        }
     }
     return {};
+}
+
+} // namespace
+
+std::expected<void, IdentityError> assign_identity(ir::IrModule& module, std::string_view salt) {
+    return assign_module_identity(module, salt, true);
+}
+
+std::expected<void, IdentityError> assign_library_identity(ir::IrModule& module) {
+    return assign_module_identity(module, kLibraryIdSalt, false);
 }
 
 } // namespace tessera::compiler::ids

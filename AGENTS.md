@@ -252,7 +252,10 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `tests/unit/compiled_stylesheet_tests.cpp`.
 - [ ] #81/ADR-048: embed the theme asset through the same blob — loads without parsing.
 - [ ] #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
-      component identity (inserting a component keeps other ids and goldens).
+      component identity (inserting a component keeps other ids and goldens) — stable identity
+      landed (`src/compiler/ids/src/assign_identity.cpp`, `tests/unit/ir_ids_stability_tests.cpp`);
+      still to do: cross-file props aliases and object-literal defaults (blocked on an IR record
+      type).
 - [x] Scene-side `EventType::Scroll` for virtual collections — dispatch test —
       `include/tessera/ui/scene/event.hpp`, `tests/unit/scene_scroll_event_tests.cpp`.
 - [ ] Dynamic `orientation`/`columns`/`overscan` on virtual lists/grids — codegen runtime test.

@@ -210,21 +210,26 @@ int main() {
         return 11;
     }
 
-    // Component ids use the same rule and the same collision policy. The duplicate and
-    // missing-name inputs are named locals because GCC 15 warns when an inline temporary vector of
-    // string-view inputs is passed straight into the assignment call.
+    // Component ids use the same rule. Two components with the same source path and name are not a
+    // collision: the occurrence among same-named components of that file disambiguates them
+    // (docs/specs/automation-ids-v1.md section 2.1), and the first occurrence keeps the original
+    // key so existing ids do not move. The missing-name input is a named local because GCC 15 warns
+    // when an inline temporary vector of string-view inputs is passed straight into the call.
     const std::vector<ComponentIdInput> components{{"ui/Counter.tsx", "Counter"},
                                                    {"ui/App.tsx", "App"}};
-    const std::vector<ComponentIdInput> duplicate_components{{"ui/Counter.tsx", "Counter"},
-                                                             {"ui/Counter.tsx", "Counter"}};
+    const std::vector<ComponentIdInput> same_named_components{{"ui/Counter.tsx", "Counter"},
+                                                              {"ui/Counter.tsx", "Counter"}};
     const std::vector<ComponentIdInput> unnamed_component{{"ui/App.tsx", ""}};
     const auto component_result = assign_component_ids("factory", components);
+    const auto repeated_result = assign_component_ids("factory", same_named_components);
     if (!expect(component_result.has_value(), "component assignment succeeds") ||
         !expect((*component_result)[0] == 15449676450390438563ULL, "computed component id") ||
         !expect((*component_result)[0] != (*component_result)[1], "components differ") ||
-        !expect(is_error(assign_component_ids("factory", duplicate_components),
-                         IdErrorCode::IdCollision, "id collision"),
-                "duplicate component diagnosed") ||
+        !expect(repeated_result.has_value(), "same-named components assign") ||
+        !expect((*repeated_result)[0] != (*repeated_result)[1],
+                "same-named components get distinct ids") ||
+        !expect((*repeated_result)[0] == (*component_result)[0],
+                "the first occurrence keeps the original component id") ||
         !expect(is_error(assign_component_ids("", components), IdErrorCode::EmptySalt),
                 "component salt required") ||
         !expect(is_error(assign_component_ids("factory", unnamed_component),

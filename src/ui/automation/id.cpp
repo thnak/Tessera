@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <map>
 #include <span>
 #include <string>
 #include <string_view>
@@ -79,14 +80,20 @@ std::string make_ui_id_key(std::string_view salt, std::string_view source_path,
 }
 
 std::string make_component_id_key(std::string_view salt, std::string_view source_path,
-                                  std::string_view component_name) {
+                                  std::string_view component_name, std::size_t occurrence) {
     std::string salted;
-    salted.reserve(salt.size() + source_path.size() + component_name.size() + 4);
+    salted.reserve(salt.size() + source_path.size() + component_name.size() + 24);
     salted += salt;
     salted += "|c|";
     salted += source_path;
     salted += '|';
     salted += component_name;
+    if (occurrence != 0) {
+        // Only a repeated name in the same file gets a suffix: the first occurrence keeps the
+        // original key, so existing ids and the documented known answers do not change.
+        salted += "|#";
+        salted += std::to_string(occurrence);
+    }
     return salted;
 }
 
@@ -174,6 +181,10 @@ assign_component_ids(std::string_view salt, std::span<const ComponentIdInput> co
     assigned.reserve(components.size());
     std::unordered_map<ComponentId, std::size_t> first_use;
     first_use.reserve(components.size());
+    // Occurrence index among components with the same (source path, name). It is derived from the
+    // input order, never from the absolute position in the module, so a component's identity does
+    // not move when other components are inserted or reordered around it.
+    std::map<std::pair<std::string, std::string>, std::size_t> occurrences;
     for (std::size_t index = 0; index < components.size(); ++index) {
         const ComponentIdInput& component = components[index];
         if (component.source_path.empty()) {
@@ -187,8 +198,10 @@ assign_component_ids(std::string_view salt, std::span<const ComponentIdInput> co
                         describe_component(index, component) + " has no component name"});
         }
 
+        const std::size_t occurrence = occurrences[std::pair<std::string, std::string>{
+            component.source_path, component.name}]++;
         const ComponentId id =
-            hash64(make_component_id_key(salt, component.source_path, component.name));
+            hash64(make_component_id_key(salt, component.source_path, component.name, occurrence));
         const auto [existing, inserted] = first_use.try_emplace(id, index);
         if (!inserted) {
             const std::size_t first = existing->second;

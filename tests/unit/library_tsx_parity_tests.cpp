@@ -10,9 +10,10 @@
 // generated declaration compiled into the test binary). An edit to a source file, the lowering
 // pipeline or the generated data that is not followed by a rebuild fails here. The generated data
 // differs from a raw lowering in exactly one respect: the build generator stamps the stable
-// component/node identity band (`Component::component_id`, `Node::ui_id`) that the committed
-// codegen goldens pin. The comparison clears those two fields and compares everything else byte for
-// byte, including source spans, prop defaults and the lowered text-run shape.
+// component/node identity (`Component::component_id`, `Node::ui_id`) from the fixed library salt
+// (docs/specs/automation-ids-v1.md section 2.1) that the committed codegen goldens pin. The
+// comparison clears those two fields and compares everything else byte for byte, including source
+// spans, prop defaults and the lowered text-run shape.
 
 #include "lowering_module_test_util.hpp"
 #include "tessera/compiler/lowering/library_components.hpp"
@@ -144,7 +145,7 @@ ir::Component clone_component(const ir::Component& component) {
     return copy;
 }
 
-// The stable identity band is the only thing the build generator adds.
+// The fixed library identity is the only thing the build generator adds.
 void normalize_identity_nodes(ir::Node& node) {
     node.ui_id.clear();
     for (ir::Node& child : node.children) {
