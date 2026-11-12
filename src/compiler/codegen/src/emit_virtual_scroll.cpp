@@ -121,29 +121,53 @@ bool resolve_virtual_event(const ir::Component& component,
 }
 
 // The `onScroll` call: the scene `ScrollEventInfo` record mapped to absolute offsets, or a default
-// `Event` for a zero-parameter handler.
+// `Event` for a zero-parameter handler. A prop-driven orientation makes the axis a runtime choice,
+// so both branches are emitted and selected by the refreshed member (no allocation either way).
 void emit_on_scroll_call(CppWriter& writer, const ListTemplate& collection,
-                         const std::string& table, bool horizontal) {
+                         const std::string& table, const std::string& base, bool horizontal,
+                         bool horizontal_dynamic) {
     const VirtualEventTarget& target = collection.events.on_scroll;
     if (target.payload) {
         writer.line("tessera::ui::ScrollEventInfo tessera_scroll_info{};");
-        writer.line(std::string("tessera_scroll_info.offset_") +
-                    (horizontal ? "x = tessera_scroll;" : "y = tessera_scroll;"));
-        writer.line(std::string("tessera_scroll_info.viewport_") +
-                    (horizontal ? "width = tessera_viewport;" : "height = tessera_viewport;"));
-        writer.line(std::string("tessera_scroll_info.content_") + (horizontal
-                                                                       ? "width = " + table +
-                                                                             "_geometry_."
-                                                                             "total_extent();"
-                                                                       : "height = " + table +
-                                                                             "_geometry_."
-                                                                             "total_extent();"));
+        if (horizontal_dynamic) {
+            writer.open("if (" + base + "horizontal_)");
+            writer.line("tessera_scroll_info.offset_x = tessera_scroll;");
+            writer.line("tessera_scroll_info.viewport_width = tessera_viewport;");
+            writer.line("tessera_scroll_info.content_width = " + table +
+                        "_geometry_.total_extent();");
+            writer.close("");
+            writer.open("else");
+            writer.line("tessera_scroll_info.offset_y = tessera_scroll;");
+            writer.line("tessera_scroll_info.viewport_height = tessera_viewport;");
+            writer.line("tessera_scroll_info.content_height = " + table +
+                        "_geometry_.total_extent();");
+            writer.close("");
+        } else {
+            writer.line(std::string("tessera_scroll_info.offset_") +
+                        (horizontal ? "x = tessera_scroll;" : "y = tessera_scroll;"));
+            writer.line(std::string("tessera_scroll_info.viewport_") +
+                        (horizontal ? "width = tessera_viewport;" : "height = tessera_viewport;"));
+            writer.line(std::string("tessera_scroll_info.content_") +
+                        (horizontal ? "width = " + table +
+                                          "_geometry_."
+                                          "total_extent();"
+                                    : "height = " + table +
+                                          "_geometry_."
+                                          "total_extent();"));
+        }
         writer.line("this->" + target.member + "(tessera_scroll_info);");
         return;
     }
     writer.line("tessera::ui::Event tessera_scroll_event{};");
-    writer.line(std::string("tessera_scroll_event.scroll_") +
-                (horizontal ? "x = tessera_scroll;" : "y = tessera_scroll;"));
+    if (horizontal_dynamic) {
+        writer.line("tessera_scroll_event.scroll_x =");
+        writer.line("    " + base + "horizontal_ ? tessera_scroll : 0.0f;");
+        writer.line("tessera_scroll_event.scroll_y =");
+        writer.line("    " + base + "horizontal_ ? 0.0f : tessera_scroll;");
+    } else {
+        writer.line(std::string("tessera_scroll_event.scroll_") +
+                    (horizontal ? "x = tessera_scroll;" : "y = tessera_scroll;"));
+    }
     writer.line("this->" + target.member + "(tessera_scroll_event);");
 }
 
@@ -199,14 +223,15 @@ bool collect_virtual_events(const ir::Component& component,
                                    wiring.on_end_reached, error)) {
             return false;
         }
-        // The generated row mapping needs a fixed column count; a column-width grid can still be
+        // The generated row mapping needs a column count; a column-width grid can still be
         // driven by the host through apply_virtual_<n>, but not by the generated scroll entry
-        // point.
+        // point. A literal count and a prop-driven count both reach the generated member.
         if (list.container->kind == ir::NodeKind::VirtualGrid &&
             (wiring.on_scroll.present || wiring.on_end_reached.present)) {
             const auto columns = list.container->props.find("columns");
+            const bool dynamic = list.geometry.columns_source.prop_driven;
             if (columns == list.container->props.end() ||
-                !virtual_integer_literal(columns->second.get()).has_value()) {
+                (!virtual_integer_literal(columns->second.get()).has_value() && !dynamic)) {
                 return fail(error, "`<VirtualGrid>` (`" + list.container->id +
                                        "`) declares a collection event but no `columns`; the "
                                        "generated scroll handler maps rows with a fixed column "
@@ -222,7 +247,8 @@ bool emit_virtual_scroll(CppWriter& writer, const ir::Component& component,
                          const ListTemplate& collection, std::string& error) {
     const ir::Node& node = *collection.container;
     const bool grid = node.kind == ir::NodeKind::VirtualGrid;
-    const bool horizontal = virtual_is_horizontal(node);
+    const bool horizontal = collection.geometry.horizontal;
+    const bool horizontal_dynamic = collection.geometry.orientation_source.prop_driven;
     const std::string table = item_table_prefix(collection);
     const std::string ordinal = std::to_string(collection.container_ordinal);
     const std::string base = "virtual_" + ordinal + "_";
@@ -242,6 +268,7 @@ bool emit_virtual_scroll(CppWriter& writer, const ir::Component& component,
     writer.open("if (tessera_scroll < 0.0f)");
     writer.line("tessera_scroll = 0.0f;");
     writer.close("");
+    emit_virtual_option_refresh(writer, collection);
     writer.line("const auto& tessera_source = " + source.text + ";");
     writer.line("const std::size_t tessera_total = tessera_source.size();");
     writer.open("if (tessera_total > kMaxGeneratedVirtualGeometryItems)");
@@ -287,7 +314,13 @@ bool emit_virtual_scroll(CppWriter& writer, const ir::Component& component,
     writer.line("continue;");
     writer.close("");
     writer.line("const float tessera_measured =");
-    writer.line(std::string("    tessera_item->bounds().") + (horizontal ? "width;" : "height;"));
+    if (horizontal_dynamic) {
+        writer.line("    " + base + "horizontal_ ? tessera_item->bounds().width");
+        writer.line("                         : tessera_item->bounds().height;");
+    } else {
+        writer.line(std::string("    tessera_item->bounds().") +
+                    (horizontal ? "width;" : "height;"));
+    }
     writer.open("if (!(tessera_measured > 0.0f))");
     writer.line("continue;");
     writer.close("");
@@ -344,7 +377,7 @@ bool emit_virtual_scroll(CppWriter& writer, const ir::Component& component,
         writer.line("apply_virtual_" + ordinal + "(tessera_range.first, tessera_range.last);");
     }
     if (collection.events.on_scroll.present) {
-        emit_on_scroll_call(writer, collection, table, horizontal);
+        emit_on_scroll_call(writer, collection, table, base, horizontal, horizontal_dynamic);
     }
     if (collection.events.on_end_reached.present) {
         emit_on_end_reached_call(writer, collection, table, grid);

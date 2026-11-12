@@ -73,17 +73,30 @@ struct VirtualGeometryValue {
     std::string cpp;
 };
 
+// One structural geometry input (`orientation`, `columns`, `overscan`, `columnWidth`). A literal is
+// emitted as a `static constexpr` member, byte-identical to the literal-only emission; a component
+// prop reference makes it a mutable member that `scroll_virtual_<n>()` refreshes from the generated
+// props field at sync time (virtualization-v1.md section 10).
+struct VirtualOption {
+    bool prop_driven = false; // the value comes from a `props.<name>` reference
+    std::string cpp;          // generated props member expression when prop-driven
+};
+
 // The geometry of one virtual collection, resolved once by the plan walk: the values the generated
 // `ItemGeometry` seeds from plus the rule that says whether a change invalidates measurements.
 struct VirtualGeometrySpec {
     bool grid = false;
-    bool horizontal = false;           // main axis is x instead of y
+    bool horizontal = false;           // literal main axis: x instead of y
     VirtualGeometryValue fixed_extent; // list `itemSize` / grid `rowHeight` (absent means variable)
     VirtualGeometryValue estimate;     // effective estimate for unmeasured items
     VirtualGeometryValue gap;          // inter-item main-axis gap
-    std::int64_t columns = 0;          // grid columns; 0 means column-width mode
-    double overscan = 200.0;           // main-axis overscan distance
-    double column_width = 0.0;         // grid column extent (column-width mode)
+    std::int64_t columns = 0;          // literal grid columns; 0 means column-width mode
+    double overscan = 200.0;           // literal main-axis overscan distance
+    double column_width = 0.0;         // literal grid column extent (column-width mode)
+    VirtualOption orientation_source;  // prop-driven orientation (empty for a literal)
+    VirtualOption columns_source;      // prop-driven grid column count
+    VirtualOption overscan_source;     // prop-driven overscan distance
+    VirtualOption column_width_source; // prop-driven grid column extent
     // A declared fixed extent seeds the effective estimate only when no `estimateSize` overrides
     // it, so only then does changing it invalidate the recorded measurements.
     bool fixed_seeds_estimate = false;

@@ -262,7 +262,9 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       still to do: object-literal defaults (blocked on an IR record type).
 - [x] Scene-side `EventType::Scroll` for virtual collections — dispatch test —
       `include/tessera/ui/scene/event.hpp`, `tests/unit/scene_scroll_event_tests.cpp`.
-- [ ] Dynamic `orientation`/`columns`/`overscan` on virtual lists/grids — codegen runtime test.
+- [x] Dynamic `orientation`/`columns`/`overscan` on virtual lists/grids — codegen runtime test —
+      `src/compiler/codegen/src/emit_virtual_geometry.cpp`,
+      `tests/unit/codegen_dynamic_virtual_tests.cpp`, `tests/golden/codegen/dynamic/`.
 - [ ] Codegen emission of vector payloads (`PaintKind::Vector`) — generated golden.
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))

@@ -393,6 +393,42 @@ if (TESSERA_BUILD_TESTS)
             COMMAND codegen_virtual_geometry_runtime_tests)
     endif ()
 
+    # Prop-driven structural options on virtual collections: `orientation`/`columns`/`overscan`
+    # (and `columnWidth`) re-read their component prop at sync time, so a prop change re-realizes
+    # the window. The committed golden under `dynamic/` is compiled by the sample library;
+    # `codegen_dynamic_virtual_tests --write` regenerates it. The literal golden must not move.
+    add_executable(codegen_dynamic_virtual_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_virtual_tests.cpp)
+
+    target_link_libraries(codegen_dynamic_virtual_tests PRIVATE
+        tessera_codegen
+        tessera_merger)
+
+    target_compile_definitions(codegen_dynamic_virtual_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_dynamic_virtual_options COMMAND codegen_dynamic_virtual_tests)
+
+    if (EXISTS ${_tessera_codegen_golden_dir}/dynamic/DynamicVirtual.cpp)
+        add_library(tessera_codegen_dynamic_virtual_sample STATIC
+            ${_tessera_codegen_golden_dir}/dynamic/DynamicVirtual.cpp)
+        target_include_directories(tessera_codegen_dynamic_virtual_sample
+            PRIVATE ${_tessera_codegen_golden_dir}/dynamic)
+        target_link_libraries(tessera_codegen_dynamic_virtual_sample PRIVATE
+            tessera_scene
+            tessera_virtual)
+        target_compile_features(tessera_codegen_dynamic_virtual_sample PUBLIC cxx_std_23)
+
+        target_compile_definitions(codegen_dynamic_virtual_tests PRIVATE
+            TESSERA_DYNAMIC_VIRTUAL_SAMPLE=1)
+        target_include_directories(codegen_dynamic_virtual_tests
+            PRIVATE ${_tessera_codegen_golden_dir}/dynamic)
+        target_link_libraries(codegen_dynamic_virtual_tests PRIVATE
+            tessera_codegen_dynamic_virtual_sample
+            tessera_scene
+            tessera_virtual)
+    endif ()
+
     # `Field` as a library component on the ordinary component path: a framework import names the
     # built-in component, lowering emits an ordinary `Component` node with the documented prop
     # records, and the static Children slot carries the caller's widget.

@@ -11,8 +11,10 @@
 //   measurement; a changed declared fixed extent (`itemSize`/`rowHeight`) additionally drops them,
 //   but only when that extent seeds the estimate (no `estimateSize` overriding it);
 // - the re-anchor runs through the runtime section 6 rule with the old/new prefix sums;
-// - `orientation`/`columns`/`overscan`/`columnWidth` stay literal-only, and a non-numeric or
-//   computed geometry value is a loud TESSERA_CODEGEN_UNSUPPORTED.
+// - a non-numeric or computed geometry value is a loud TESSERA_CODEGEN_UNSUPPORTED, and the
+//   structural options (`orientation`/`columns`/`overscan`/`columnWidth`) reject every dynamic form
+//   except a component prop reference (the prop-driven slice has its own
+//   `codegen_dynamic_virtual_options` test).
 
 #include "codegen_virtual_module.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
@@ -170,9 +172,9 @@ void test_rejections() {
         return module;
     };
     expect_error(with_list_prop("orientation", ir::make_ref("state::row_gap")),
-                 "a dynamic orientation is rejected (the axis is compile-time)");
+                 "a state-driven orientation is rejected (only a component prop is prop-driven)");
     expect_error(with_list_prop("overscan", ir::make_ref("state::row_gap")),
-                 "a dynamic overscan is rejected (it is window shape, not item size)");
+                 "a state-driven overscan is rejected (only a component prop is prop-driven)");
     expect_error(with_list_prop("estimateSize", ir::make_ref("state::items")),
                  "a non-numeric geometry cell is rejected");
     expect_error(with_list_prop("gap", ir::make_binary("*", integer(2), integer(3))),
@@ -180,12 +182,13 @@ void test_rejections() {
     {
         ir::IrModule module = make_virtual_module();
         module.components[0].root.children[2].props["columns"] = ir::make_ref("state::row_gap");
-        expect_error(module, "a dynamic grid column count is rejected (row mapping)");
+        expect_error(module,
+                     "a state-driven grid column count is rejected (only a prop is dynamic)");
     }
     {
         ir::IrModule module = make_virtual_module();
         module.components[0].root.children[2].props["columnWidth"] = ir::make_ref("state::row_gap");
-        expect_error(module, "a dynamic column width is rejected");
+        expect_error(module, "a state-driven column width is rejected");
     }
 }
 
