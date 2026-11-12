@@ -248,6 +248,8 @@ This page is the map and reading order for the framework.
   browser/file activation
 - [`guides/agent-automation.md`](guides/agent-automation.md) — use IDs/snapshots/actions/traces
   and audits from a coding agent
+- [`tools/wiki/README.md`](../tools/wiki/README.md) — browse these docs in a static React client
+  themed with a Tessera stylesheet
 - [`guides/custom-elements.md`](guides/custom-elements.md) — declare/implement/test a custom
   native element with shaders, 3D, input and reuse
 - [`guides/sample-apps.md`](guides/sample-apps.md) — templates and feature-coverage matrix

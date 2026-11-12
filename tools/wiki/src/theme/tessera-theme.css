@@ -1,0 +1,136 @@
+/*
+ * Tessera wiki theme.
+ *
+ * Authored as a Tessera stylesheet (ADR-016, docs/specs/stylesheet-v1.md): only the V1 semantic
+ * priorities are used -- custom properties, @layer, @media (width, color-scheme,
+ * prefers-reduced-motion), flexbox, box model, typography, colors, borders/radius.
+ * No grid, :has(), @container, @scope, @property or wide-gamut colors. `npm run check:theme`
+ * enforces this, so the same file can later be loaded by the native engine for the
+ * first-party UI demo.
+ */
+@layer reset, tokens, base, layout, content;
+
+@layer tokens {
+  :root {
+    --color-bg: #ffffff;
+    --color-surface: #f6f8fa;
+    --color-border: #d0d7de;
+    --color-text: #1f2328;
+    --color-muted: #59636e;
+    --color-accent: #0969da;
+    --color-code-bg: #eff1f3;
+    --font-body: system-ui, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 16px;
+    --space-4: 24px;
+    --radius: 6px;
+    --nav-width: 300px;
+    --content-width: 860px;
+  }
+
+  @media (color-scheme: dark) {
+    :root {
+      --color-bg: #0d1117;
+      --color-surface: #151b23;
+      --color-border: #3d444d;
+      --color-text: #f0f6fc;
+      --color-muted: #9198a1;
+      --color-accent: #4493f8;
+      --color-code-bg: #212830;
+    }
+  }
+}
+
+@layer reset {
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  a { color: var(--color-accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+}
+
+@layer layout {
+  .app { display: flex; flex-direction: row; min-height: 100%; }
+  .nav {
+    width: var(--nav-width);
+    flex-shrink: 0;
+    background-color: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    padding: var(--space-3);
+    overflow: auto;
+    max-height: 100vh;
+    position: sticky;
+    top: 0;
+  }
+  .main { flex-grow: 1; min-width: 0; padding: var(--space-4); }
+  .article { max-width: var(--content-width); margin: 0 auto; }
+
+  @media (width < 800px) {
+    .app { flex-direction: column; }
+    .nav { width: 100%; position: static; max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--color-border); }
+  }
+}
+
+@layer content {
+  .brand { font-weight: 700; font-size: 20px; margin-bottom: var(--space-3); }
+  .search {
+    width: 100%;
+    padding: var(--space-2);
+    margin-bottom: var(--space-3);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .nav-section { margin-top: var(--space-3); }
+  .nav-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-muted);
+    margin-bottom: var(--space-1);
+  }
+  .nav-link { display: block; padding: var(--space-1) var(--space-2); border-radius: var(--radius); color: var(--color-text); }
+  .nav-link:hover { background-color: var(--color-border); text-decoration: none; }
+  .nav-link.active { background-color: var(--color-accent); color: #ffffff; }
+  .status { color: var(--color-muted); }
+
+  .article h1, .article h2, .article h3 { line-height: 1.25; margin-top: var(--space-4); }
+  .article h1 { font-size: 32px; padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border); }
+  .article h2 { font-size: 24px; padding-bottom: var(--space-1); border-bottom: 1px solid var(--color-border); }
+  .article h3 { font-size: 20px; }
+  .article code {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    background-color: var(--color-code-bg);
+    padding: 2px 6px;
+    border-radius: var(--radius);
+  }
+  .article pre {
+    background-color: var(--color-code-bg);
+    padding: var(--space-3);
+    border-radius: var(--radius);
+    overflow: auto;
+  }
+  .article pre code { background-color: transparent; padding: 0; }
+  .article blockquote {
+    margin: var(--space-3) 0;
+    padding: 0 var(--space-3);
+    color: var(--color-muted);
+    border-left: 4px solid var(--color-border);
+  }
+  .article table { border-collapse: collapse; display: block; overflow: auto; }
+  .article th, .article td { border: 1px solid var(--color-border); padding: var(--space-1) var(--space-3); }
+  .article th { background-color: var(--color-surface); }
+  .article img { max-width: 100%; }
+}

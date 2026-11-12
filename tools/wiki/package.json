@@ -1,0 +1,30 @@
+{
+  "name": "tessera-wiki",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Static documentation client for docs/ and decisions/, styled with a Tessera stylesheet",
+  "scripts": {
+    "manifest": "node scripts/build-manifest.mjs",
+    "check:theme": "node scripts/check-theme.mjs",
+    "predev": "npm run manifest",
+    "dev": "vite",
+    "prebuild": "npm run manifest && npm run check:theme",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.0.0",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  }
+}
