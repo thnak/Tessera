@@ -19,6 +19,7 @@
 #include <windows.h>
 #else
 #include <cerrno>
+#include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
 #endif
@@ -155,6 +156,10 @@ public:
         if (output == nullptr || output == INVALID_HANDLE_VALUE) {
             return {StdioIoStatus::Error, 0};
         }
+        // Unlike POSIX, an already-open synchronous stdio handle cannot be switched to non-blocking
+        // for one call, and Windows cannot query the free space of a pipe it is writing to. A peer
+        // that leaves the pipe full therefore delays this WriteFile until it drains; see the write
+        // contract in stdio_transport.hpp.
         DWORD written = 0;
         const DWORD request = static_cast<DWORD>(
             std::min<std::size_t>(bytes.size(), static_cast<std::size_t>(64) * 1024));
@@ -238,6 +243,33 @@ public:
     }
 
     [[nodiscard]] StdioIoResult write_some(std::string_view bytes) override {
+        if (bytes.empty()) {
+            return {StdioIoStatus::Ok, 0};
+        }
+        // The process's stdout descriptor is normally blocking, so write(2) would wait for the peer
+        // as soon as the pipe buffer fills and "flush without waiting" would be a lie. O_NONBLOCK is
+        // raised for exactly this call and restored before returning, so a stalled peer shows up as
+        // WouldBlock while the descriptor keeps the blocking mode its owner chose (a caller that
+        // opened stdout non-blocking keeps that flag too).
+        const int flags = ::fcntl(STDOUT_FILENO, F_GETFL);
+        if (flags < 0) {
+            return {StdioIoStatus::Error, 0};
+        }
+        const bool raise = (flags & O_NONBLOCK) == 0;
+        if (raise && ::fcntl(STDOUT_FILENO, F_SETFL, flags | O_NONBLOCK) != 0) {
+            return {StdioIoStatus::Error, 0};
+        }
+        const StdioIoResult result = write_nonblocking(bytes);
+        if (raise) {
+            // Never leave the process's descriptor changed, whatever the write reported: the caller
+            // retries through the queue, and a stray non-blocking stdout would break other writers.
+            (void)::fcntl(STDOUT_FILENO, F_SETFL, flags);
+        }
+        return result;
+    }
+
+private:
+    [[nodiscard]] static StdioIoResult write_nonblocking(std::string_view bytes) {
         for (;;) {
             const ssize_t count = ::write(STDOUT_FILENO, bytes.data(), bytes.size());
             if (count >= 0) {

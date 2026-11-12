@@ -24,6 +24,10 @@
 #include <string_view>
 #include <unistd.h>
 
+#if defined(__linux__)
+#include <fcntl.h> // F_SETPIPE_SZ/F_GETPIPE_SZ: the only portable way to bound the fill below
+#endif
+
 namespace {
 
 using tessera::harness::make_process_stdio_stream;
@@ -85,6 +89,26 @@ std::string read_exactly(int fd, std::size_t count) {
     out.resize(got);
     return out;
 }
+
+#if defined(__linux__)
+// Fills the stdout pipe to capacity with one blocking write that cannot wait: it requests exactly
+// the space the kernel reports, so it finishes without a peer reading. The capacity is shrunk first
+// (Linux-only, and one page is the unprivileged minimum) to keep the byte count exact and the fill
+// cheap. Linux is the only platform whose pipe capacity is queryable, so the full-pipe case below
+// is skipped elsewhere instead of guessing a default.
+bool fill_output_pipe(std::string& filler) {
+    constexpr int kSmallPipe = 4096;
+    if (::fcntl(STDOUT_FILENO, F_SETPIPE_SZ, kSmallPipe) < 0) {
+        return false;
+    }
+    const int capacity = ::fcntl(STDOUT_FILENO, F_GETPIPE_SZ);
+    if (capacity < kSmallPipe) {
+        return false;
+    }
+    filler.assign(static_cast<std::size_t>(capacity), 'f');
+    return write_all(STDOUT_FILENO, filler);
+}
+#endif
 
 // Replaces process stdin/stdout with pipe ends for one scope and restores the saved descriptors on
 // every exit path (a failed assertion only increments a counter, it does not unwind). Descriptors
@@ -351,6 +375,39 @@ int main() {
                    "the split line is reassembled");
         }
     }
+
+#if defined(__linux__)
+    // (f) A full stdout pipe must surface as WouldBlock, not as a wait. Production stdout is a
+    // blocking descriptor, so this case is what distinguishes "flush without waiting" from a
+    // write(2) that sleeps until the peer drains. A regression here hangs instead of failing, which
+    // is why the ctest target carries a short TIMEOUT.
+    {
+        StdioPipeFixture fixture;
+        if (expect(fixture.valid(), "stdin/stdout could not be redirected onto pipes")) {
+            std::string filler;
+            if (expect(fill_output_pipe(filler), "the stdout pipe was filled to capacity")) {
+                const auto stream = make_process_stdio_stream();
+                const auto full = stream->write_some("stalled");
+                expect(full.status == StdioIoStatus::WouldBlock && full.bytes == 0,
+                       "a full stdout pipe reports WouldBlock instead of waiting");
+
+                // The transport queues the frame and retries it after the drain, so no byte is
+                // lost and the failure the caller sees is a retryable WouldBlock-free success.
+                StdioTransport transport(make_process_stdio_stream());
+                constexpr std::string_view kFrame = "{\"id\":9}\n";
+                expect(transport.write_line("{\"id\":9}").has_value(),
+                       "a frame is accepted while stdout is full");
+                expect(transport.pending_write_bytes() == kFrame.size(),
+                       "the frame stays queued until the pipe has room");
+                expect(fixture.read_output(filler.size()) == filler, "the filler drains out");
+                expect(transport.flush_pending().has_value(), "the flush succeeds after the drain");
+                expect(transport.pending_write_bytes() == 0, "the queue is empty after the flush");
+                expect(fixture.read_output(kFrame.size()) == kFrame,
+                       "the queued frame arrives in order after the drain");
+            }
+        }
+    }
+#endif
 
     if (failures != 0) {
         std::cerr << "harness_stdio_transport_posix: " << failures << " failure(s)\n";

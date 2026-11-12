@@ -69,6 +69,10 @@ if (UNIX)
     target_link_libraries(harness_stdio_transport_posix_tests PRIVATE tessera_harness)
 
     add_test(NAME harness_stdio_transport_posix COMMAND harness_stdio_transport_posix_tests)
+
+    # The full-pipe case asserts that a write to a full pipe reports WouldBlock; with the fix
+    # reverted it waits for the peer instead, so a short timeout turns that hang into a failure.
+    set_tests_properties(harness_stdio_transport_posix PROPERTIES TIMEOUT 60)
 endif ()
 
 add_executable(harness_handler_tests
