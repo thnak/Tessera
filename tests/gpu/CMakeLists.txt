@@ -462,6 +462,18 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_smoke PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # Occluded/minimized pause: the single-iteration seam (WindowHost::pump_once) with metrics
+    # snapshots that report the lifecycle, so the pause, the input-draining park and the full
+    # repaint on resume are deterministic and need no real OS focus/occlusion change.
+    add_executable(app_window_occluded_tests
+        app_window_occluded_tests.cpp)
+    target_compile_definitions(app_window_occluded_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_occluded_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_occluded COMMAND app_window_occluded_tests)
+    set_tests_properties(app_window_occluded PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     # Window-path input: real hidden window + swapchain, normalized events posted through
     # WindowHost::post_input, generated click/typing handlers. The generated demo is host-only.
     if (TARGET tessera_compiler_demo)

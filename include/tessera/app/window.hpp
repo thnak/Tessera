@@ -52,15 +52,22 @@ enum class WindowDeviceState {
     Lost,
 };
 
-// Counters of one run() call; a skipped run (no window backend or no presentation surface) reports
-// available == false and zero frames.
+// Counters of one run() call (or the accumulation of pump_once() calls); a skipped run (no window
+// backend or no presentation surface) reports available == false and zero frames.
 struct WindowFrameStats {
     bool available = false;
     bool stalled = false;     // run() gave up after repeated frame failures (lost device, no image)
     std::uint32_t frames = 0; // frames painted and submitted
     std::uint32_t presented = 0;
+    // Presented frames whose damage plan covered the whole target. The window path paints the whole
+    // scene on every present, so this is the plan's own verdict: it proves a resume after a pause
+    // repaints fully instead of trusting the pre-pause damage state.
+    std::uint32_t full_repaints = 0;
     std::uint32_t idle_waits = 0;
     std::uint32_t input_events = 0;
+    // Loop iterations that parked because the window was occluded/minimized. They acquire, paint
+    // and present nothing and are not counted as idle_waits (different reason, same no-work rule).
+    std::uint32_t paused_iterations = 0;
     // Bounded device-loss recovery (docs/design/window-resize.md section 7): successful recoveries
     // in this run, attempts charged against the budget (app/recovery_policy.hpp), and the final
     // health.
@@ -79,6 +86,15 @@ struct WindowFrameStats {
 // asks for a frame that changed. `run(max_frames > 0)` forces that many frames (CI smoke) even when
 // nothing is dirty. The loop never waits on the GPU; teardown drains the submitted lists with a
 // bounded per-list poll, and a host can run() again (the input queue is reattached on entry).
+//
+// A window the platform reports as occluded or minimized is paused (docs/design/window-resize.md
+// section 8): no frame is begun, so nothing is acquired, painted or presented and the animation
+// runtime does not tick, while the loop keeps pumping events/input and parking on the bounded wait.
+// Focus/blur alone never pauses: a visible background window keeps painting. The pause is cleared
+// by the platform's restore/visible event or by a `WindowMetrics` snapshot whose `occluded` and
+// `minimized` are both false; the resume edge requests a full repaint, so the first frame after a
+// pause covers the whole target. A paused window makes `run(max_frames)` wait for the window to
+// become visible again (or to close): the pause wins over the forced-frame path.
 //
 // A lost device does not end the run: the driver releases the lost generation, lets the runtime's
 // DeviceRecoveryController attempt recovery, rebuilds the device when that is spent, and recreates
@@ -108,6 +124,18 @@ public:
     // Runs until the window closes. With max_frames > 0 it stops after that many presented frames,
     // forcing a frame even when the scene is clean (the bounded CI path). Callable more than once.
     WindowFrameStats run(std::uint32_t max_frames = 0);
+
+    // One bounded driver iteration for automation and tests: pump the platform event queue and
+    // queued input, honour the occlusion/minimize pause, tick the loop and paint/present at most
+    // one frame. Returns true when that iteration presented a frame. It never parks, never retries
+    // and never services a lost device (run() owns pacing, retry and recovery), so a caller decides
+    // when to call it again; it is not a loop of its own and must not be called in a tight spin.
+    //
+    // It shares state with run(): the input queue is reattached on entry, the first call paints
+    // (startup frames are a frame cause), device_state starts Ready on a healthy host, and every
+    // counter accumulates in stats() exactly as run() does. Paused iterations count in
+    // paused_iterations and return false.
+    bool pump_once();
 
     // Queues one normalized input event as if the platform had produced it; the next run() pumps
     // and dispatches it through the same InputPump/InputRouter path as real OS input. Used by

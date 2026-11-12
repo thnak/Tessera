@@ -75,10 +75,11 @@ Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe
 - **DPI is a heuristic.** `Xft.dpi` is read once at creation and applies to every window/screen;
   RandR per-monitor scale, `_NET_WM_SYNC_REQUEST`, refresh/VRR, and display hotplug are not
   queried. A bare Xvfb display has no `Xft.dpi` and reports scale 1.
-- **No occlusion/minimize.** `WindowMetrics.occluded`/`minimized` stay `false` and focus is
-  tracked from `FocusIn`/`FocusOut` only (text input uses an XIM input context, see
-  [`hal.md`](hal.md)). No window manager
-  is required or spoken to beyond `WM_DELETE_WINDOW`.
+- **No occlusion/minimize.** X11 metrics keep `WindowMetrics.occluded`/`minimized` `false` and
+  track focus from `FocusIn`/`FocusOut` only (text input uses an XIM input context, see
+  [`hal.md`](hal.md)), so an X11 window never pauses through §8. The window driver honours the
+  flags whenever a platform (or a synthetic metrics snapshot) reports them. No window manager is
+  required or spoken to beyond `WM_DELETE_WINDOW`.
 - **No frames in flight.** Acquire/present are bounded (100 ms clamp) and presentation is
   drained at recreation, but there is no per-image fence/semaphore set and no render-target
   wrapper yet; images must be fully rendered before `present`.
@@ -328,6 +329,9 @@ monitor-derived ladder step above, not on `renderScale`.
 - Device loss: injected loss from submit/fence-wait/acquire, generation invalidation, one-shot
   recovery, rendering after recreation, and the failure path (see §7). The window driver adds a
   deterministic attempt-budget policy test and a real hidden-window GPU test (§7.2).
+- Occluded/minimized pause: a metrics snapshot pauses (no paint, no present) while input still
+  drains, the resume repaints the full target, minimized behaves like occluded, and focus alone
+  never pauses - `tests/gpu/app_window_occluded_tests.cpp`, ctest `app_window_occluded` (§8).
 - Live-resize storms: coalescing, one resize frame per tick, no unbounded queue.
 - In-flight frames: old swapchain retirement, no use-after-free, no validation errors.
 - Style/layout: viewport/media/container re-evaluation, text reflow, percentages/flex/grid.
@@ -490,3 +494,45 @@ fault seam on a real hidden window, runs two frames and asserts the run recovere
 reported `Ready`, stayed inside the budget and kept presenting afterwards. It skips without a window
 backend, the Vulkan backend or the fault hooks. Real driver resets (a dead `VkDevice`, not a
 simulated one) remain unproven without hardware fault injection.
+
+## 8. Occluded/minimized pause (B2 power slice)
+
+ADR-019 (`docs/design/performance.md` §5) requires an occluded or minimized window to do no
+presentation work. Implemented in the `WindowHost` driver
+([`include/tessera/app/window.hpp`](../../include/tessera/app/window.hpp),
+`src/app/window_lifecycle.cpp`):
+
+- **Pause sources.** `WindowHost::Impl` derives one pause state from two inputs:
+  1. platform lifecycle events - `Minimized` and `Occluded` pause; `Restored` (the HAL's
+     visible/restore value; the enum has no separate `Visible`) clears the event-driven pause and
+     re-reads the live metrics, so a window restored into a still-occluded state stays paused;
+  2. the latest `hal::WindowMetrics` - `occluded || minimized` pauses. Occlusion has no Win32 or
+     X11 event yet, so the metrics flag is the channel a platform (and a deterministic test)
+     reports it through, honoured by `apply_metrics()`.
+  `Focus`/`Blur` never pause: a visible but background window keeps painting (only the keyboard
+  focus moved).
+- **While paused** the loop polls events, drains queued input, counts a `paused_iterations` stat,
+  and parks on the same bounded platform wait an idle iteration uses. It never begins a host
+  frame: no style/layout/paint work, no animation or spring tick, and no acquire, submit or
+  present. Nothing adds a GPU wait (ADR-021); close, resize, metrics and input still wake the loop.
+  A metrics snapshot that reports the window as paused skips the target resize and re-layout
+  (a minimized window can report a zero client area) and keeps the scene tree intact (§2 rule 6).
+- **On resume** (a pause -> resume edge) the driver calls `AppHost::request_full_repaint()`, which
+  latches a full-target damage plan for the next frame and wakes the on-demand loop. The first
+  frame after a pause therefore covers every pixel instead of trusting damage accumulated before
+  or during the pause; `WindowFrameStats::full_repaints` records presented frames whose plan was
+  the full target. The paused wall time is dropped from the frame dt, so animations continue from
+  where they stopped instead of jumping.
+- **`run(max_frames)`** still runs until the window closes; the pause wins over the forced-frame
+  path, so a caller on an occluded window waits for a restore or a close (documented behavior, not
+  a spin: each iteration parks).
+- **Deterministic test seam.** `WindowHost::pump_once()` is the public single-iteration entry for
+  automation and tests: it pumps events and input, honours the pause, ticks the loop and
+  paints/presents at most one frame, returning whether it presented. It never parks, retries or
+  services a lost device (`run()` keeps those), so a script decides when the next iteration
+  happens. Tests drive occlusion through `apply_metrics()` because no backend emits `Occluded`
+  yet, and focus through the same snapshot because no seam injects a real OS focus change.
+- **Evidence.** `tests/gpu/app_window_occluded_tests.cpp` (ctest `app_window_occluded`) runs on a
+  real hidden window: a fresh host presents, an occluded snapshot presents nothing while still
+  draining input, the resume repaints fully, minimized behaves like occluded, and an unfocused but
+  visible window keeps painting. It skips without a window backend or presentation surface.

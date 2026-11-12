@@ -169,6 +169,9 @@ struct AppHost::Impl {
     ui::layout::LayoutResult last_layout;
     ui::layout::LayoutApplyResult last_applied;
     ui::frame::FrameRender last_render;
+    // One-shot full-repaint request from request_full_repaint(). It is applied after the pipeline's
+    // tick (which clears the accumulator), so it survives the tick it was requested before.
+    bool full_repaint_pending = false;
 };
 
 AppHost::AppHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
@@ -189,6 +192,14 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
     Impl& state = *impl_;
     HostFrame frame;
     frame.tick = state.pipeline->tick(state.root, dt, alpha);
+
+    // A latched full repaint is re-applied after the tick: tick() starts from a cleared damage
+    // accumulator, so latching before it would be dropped. finish_frame() below turns it into a
+    // full-target plan.
+    if (state.full_repaint_pending) {
+        state.damage->force_full_redraw();
+        state.full_repaint_pending = false;
+    }
 
     // Any style or layout work may have changed the tree's shape (a state change can attach a
     // conditional child), and the damage pass latches a full redraw on overflow. Rebuild the
@@ -248,6 +259,13 @@ void AppHost::resize(float width, float height, float dpi_scale) {
                                                                 state.dirty, state.config.pipeline);
     state.pipeline->set_update_scheduler(state.scheduler);
     mark_subtree(state.root, ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
+}
+
+void AppHost::request_full_repaint() {
+    Impl& state = *impl_;
+    state.full_repaint_pending = true;
+    // The frame may be on-demand and the scene clean: the repaint request is its own wake source.
+    state.loop.mark_render_dirty();
 }
 
 void AppHost::set_update_scheduler(ui::UpdateScheduler* scheduler) {
