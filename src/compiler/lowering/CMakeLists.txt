@@ -25,12 +25,14 @@ set(_tessera_lowering_core_sources
     src/node_attributes.cpp
     src/node_children.cpp
     src/node_lowering.cpp
+    src/project_path.cpp
     src/prop_records.cpp
     src/reference_lowering.cpp
     src/schema_bridge.cpp
     src/source_span.cpp
     src/style_lowering.cpp
-    src/template_lowering.cpp)
+    src/template_lowering.cpp
+    src/type_alias_table.cpp)
 
 add_library(tessera_lowering_core STATIC ${_tessera_lowering_core_sources})
 

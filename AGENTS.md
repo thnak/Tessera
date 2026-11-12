@@ -256,9 +256,10 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `src/app/host_theme.cpp`, `tests/unit/{theme_asset_tests.cpp,app_host_theme_tests.cpp}`.
 - [ ] #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
       component identity (inserting a component keeps other ids and goldens) — stable identity
-      landed (`src/compiler/ids/src/assign_identity.cpp`, `tests/unit/ir_ids_stability_tests.cpp`);
-      still to do: cross-file props aliases and object-literal defaults (blocked on an IR record
-      type).
+      landed (`src/compiler/ids/src/assign_identity.cpp`, `tests/unit/ir_ids_stability_tests.cpp`)
+      and cross-file props aliases landed
+      (`src/compiler/lowering/src/type_alias_table.cpp`, `tests/unit/lowering_props_alias_tests.cpp`);
+      still to do: object-literal defaults (blocked on an IR record type).
 - [x] Scene-side `EventType::Scroll` for virtual collections — dispatch test —
       `include/tessera/ui/scene/event.hpp`, `tests/unit/scene_scroll_event_tests.cpp`.
 - [ ] Dynamic `orientation`/`columns`/`overscan` on virtual lists/grids — codegen runtime test.

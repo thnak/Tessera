@@ -8,6 +8,7 @@
 
 #include "node_lowering_internal.hpp"
 #include "tessera/compiler/lowering/library_components.hpp"
+#include "type_scope.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -26,8 +27,12 @@ namespace {
 struct FileEntry {
     const ModuleSource* source = nullptr;
     std::vector<ComponentRef> component_refs; // local declarations and imported components
-    std::vector<std::size_t> import_targets;  // indices of files this file imports from
+    std::vector<std::size_t> import_targets;  // indices of files this file value-imports from
     std::vector<std::string> declared_names;  // component names declared here
+    // Names still to resolve (issue #70): named imports and type re-exports of the project. Module
+    // paths are resolved here; `build_type_names` follows the names.
+    std::vector<internal::ProjectModuleRef> named_imports;
+    std::vector<internal::ProjectModuleRef> re_exports;
 };
 
 struct ProjectState {
@@ -159,6 +164,54 @@ bool resolve_stylesheet(ProjectState& state, const ModuleSource& source,
     return true;
 }
 
+// The project file a relative or package specifier names, or nullopt after reporting why it does
+// not resolve (ADR-014 package roots, issue #70). Shared by named imports and type re-exports.
+std::optional<std::size_t> resolve_project_file(ProjectState& state, const ModuleSource& source,
+                                                const jsx::ModuleItem& item,
+                                                std::span<const PackageRoot> packages) {
+    const bool relative = item.source.rfind("./", 0) == 0 || item.source.rfind("../", 0) == 0;
+    std::string target_key;
+    if (!relative) {
+        // A bare specifier names a configured package root: `pkg/Sub` resolves to `<root>/Sub` and
+        // a bare `pkg` to `<root>/index`. Everything after that follows the ordinary cross-file
+        // rules, so a package is compiled by the same pipeline.
+        const PackageRoot* package = nullptr;
+        std::string_view sub;
+        for (const PackageRoot& candidate : packages) {
+            if (item.source == candidate.name) {
+                package = &candidate;
+                sub = {};
+                break;
+            }
+            if (item.source.size() > candidate.name.size() &&
+                item.source.compare(0, candidate.name.size(), candidate.name) == 0 &&
+                item.source[candidate.name.size()] == '/') {
+                package = &candidate;
+                sub = std::string_view(item.source).substr(candidate.name.size() + 1);
+                break;
+            }
+        }
+        if (package == nullptr) {
+            fail(state, source, "TESSERA_IR_UNSUPPORTED",
+                 "import `" + item.source +
+                     "` is neither a project file (`./X`) nor a configured package",
+                 item.span, "use a relative import or declare the package in the project config");
+            return std::nullopt;
+        }
+        target_key = sub.empty() ? join_project_path(package->root, "index")
+                                 : join_project_path(package->root, sub);
+    } else {
+        target_key = join_project_path(directory_of(source.file), item.source);
+    }
+    const std::size_t target = find_project_file(state, target_key);
+    if (target == kNoFile) {
+        fail(state, source, "TESSERA_IR_UNRESOLVED",
+             "import `" + item.source + "` does not name a file of this project", item.span);
+        return std::nullopt;
+    }
+    return target;
+}
+
 // Builds the component references and import graph of one file. False after reporting an error.
 bool resolve_imports(ProjectState& state, std::size_t index, std::span<const PackageRoot> packages,
                      std::span<const StylesheetFile> stylesheets) {
@@ -177,6 +230,28 @@ bool resolve_imports(ProjectState& state, std::size_t index, std::span<const Pac
         }
     }
     for (const jsx::ModuleItem& item : source.module->items) {
+        if (item.kind == jsx::ItemKind::ReExport) {
+            // A type re-export is a type-only edge: it adds no runtime import cycle, and its names
+            // are resolved by `build_type_names` after every file has been read.
+            if (item.source.empty()) {
+                entry.re_exports.push_back(internal::ProjectModuleRef{&item, kNoFile});
+                continue;
+            }
+            if (item.source == "tessera" || item.source == "react") {
+                fail(state, source, "TESSERA_IR_UNSUPPORTED",
+                     "`export type` cannot re-export from the built-in module `" + item.source +
+                         "`",
+                     item.span, "re-export the name from a project file instead");
+                return false;
+            }
+            const std::optional<std::size_t> target =
+                resolve_project_file(state, source, item, packages);
+            if (!target) {
+                return false;
+            }
+            entry.re_exports.push_back(internal::ProjectModuleRef{&item, *target});
+            continue;
+        }
         if (item.kind == jsx::ItemKind::Import && item.side_effect) {
             if (!resolve_stylesheet(state, source, item, stylesheets)) {
                 return false;
@@ -186,86 +261,53 @@ bool resolve_imports(ProjectState& state, std::size_t index, std::span<const Pac
         if (item.kind != jsx::ItemKind::Import) {
             continue;
         }
-        const bool relative = item.source.rfind("./", 0) == 0 || item.source.rfind("../", 0) == 0;
-        std::string target_key;
-        if (!relative) {
-            if (item.source == "tessera") {
-                // A framework import may name a library component
-                // (docs/design/component-library.md): it becomes an ordinary component reference,
-                // and the module gets the component's IR declaration. Hooks, intrinsics and types
-                // keep resolving through the schema.
-                for (const jsx::ImportName& name : item.names) {
-                    const LibraryComponent* library = find_library_component(name.name);
-                    if (library != nullptr && !has_ref(entry, name.name)) {
-                        entry.component_refs.push_back(
-                            ComponentRef{name.name, std::string(library->id)});
-                    }
-                }
-                continue;
-            }
-            if (item.source == "react") {
-                continue; // React-compatible names resolve through the intrinsic schema table
-            }
-            // A bare specifier names a configured package root (ADR-014): `pkg/Sub` resolves to
-            // `<root>/Sub` and a bare `pkg` to `<root>/index`. Everything after that follows the
-            // ordinary cross-file rules, so a package is compiled by the same pipeline.
-            const PackageRoot* package = nullptr;
-            std::string_view sub;
-            for (const PackageRoot& candidate : packages) {
-                if (item.source == candidate.name) {
-                    package = &candidate;
-                    sub = {};
-                    break;
-                }
-                if (item.source.size() > candidate.name.size() &&
-                    item.source.compare(0, candidate.name.size(), candidate.name) == 0 &&
-                    item.source[candidate.name.size()] == '/') {
-                    package = &candidate;
-                    sub = std::string_view(item.source).substr(candidate.name.size() + 1);
-                    break;
+        if (item.source == "tessera") {
+            // A framework import may name a library component
+            // (docs/design/component-library.md): it becomes an ordinary component reference, and
+            // the module gets the component's IR declaration. Hooks, intrinsics and types keep
+            // resolving through the schema.
+            for (const jsx::ImportName& name : item.names) {
+                const LibraryComponent* library = find_library_component(name.name);
+                if (library != nullptr && !has_ref(entry, name.local())) {
+                    entry.component_refs.push_back(
+                        ComponentRef{std::string(name.local()), std::string(library->id)});
                 }
             }
-            if (package == nullptr) {
-                fail(state, source, "TESSERA_IR_UNSUPPORTED",
-                     "import `" + item.source +
-                         "` is neither a project file (`./X`) nor a configured package",
-                     item.span,
-                     "use a relative import or declare the package in the project config");
-                return false;
-            }
-            target_key = sub.empty() ? join_project_path(package->root, "index")
-                                     : join_project_path(package->root, sub);
-        } else {
-            target_key = join_project_path(directory_of(source.file), item.source);
+            continue;
         }
-        const std::size_t target = find_project_file(state, target_key);
-        if (target == kNoFile) {
-            fail(state, source, "TESSERA_IR_UNRESOLVED",
-                 "import `" + item.source + "` does not name a file of this project", item.span);
+        if (item.source == "react") {
+            continue; // React-compatible names resolve through the intrinsic schema table
+        }
+        const std::optional<std::size_t> target =
+            resolve_project_file(state, source, item, packages);
+        if (!target) {
             return false;
         }
-        entry.import_targets.push_back(target);
-        const jsx::Module& target_module = *state.files[target].source->module;
+        // A type-only import binds no value, so it does not join the runtime import cycle graph.
+        if (!item.type_only) {
+            entry.import_targets.push_back(*target);
+        }
+        entry.named_imports.push_back(internal::ProjectModuleRef{&item, *target});
+        const jsx::Module& target_module = *state.files[*target].source->module;
         for (const jsx::ImportName& name : item.names) {
-            if (has_ref(entry, name.name)) {
+            if (has_ref(entry, name.local())) {
                 continue; // the same name imported twice; the first wins deterministically
             }
             const jsx::ModuleItem* declaration = find_declaration(target_module, name.name);
-            if (declaration == nullptr) {
-                fail(state, source, "TESSERA_IR_UNRESOLVED",
-                     "`" + name.name + "` is not exported by `" + item.source + "`", name.span);
-                return false;
+            if (declaration != nullptr && declaration->kind == jsx::ItemKind::Component) {
+                // A renamed import binds the local tag to the target's component id.
+                entry.component_refs.push_back(
+                    ComponentRef{std::string(name.local()), "comp::" + name.name});
             }
-            if (declaration->kind == jsx::ItemKind::Component) {
-                entry.component_refs.push_back(ComponentRef{name.name, "comp::" + name.name});
-            }
-            // Type aliases and constants are imported for later slices; they have no IR yet.
+            // A missing name may still be exported by a re-export of the target file: the name
+            // resolution of `build_type_names` reports it if it is not, so a re-export chain works.
         }
     }
     return true;
 }
 
-std::optional<LoweredModule> finish(ProjectState& state, std::string_view module_name) {
+std::optional<LoweredModule> finish(ProjectState& state, std::string_view module_name,
+                                    const TypeNameTable* types) {
     LoweredModule lower;
     lower.name = std::string(module_name);
     for (const std::size_t index : state.order) {
@@ -283,8 +325,8 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
                 return std::nullopt;
             }
             const HookLoweringContext context{
-                item,         *analysis, *source.source_map, source.file, entry.component_refs,
-                source.module};
+                item,          *analysis, *source.source_map, source.file, entry.component_refs,
+                source.module, types};
             LoweredComponentResult component = lower_component(context);
             if (!component) {
                 if (!state.error && !component.error().empty()) {
@@ -403,7 +445,22 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
             return std::unexpected(NodeLoweringErrors{*state.error});
         }
     }
-    std::optional<LoweredModule> module = finish(state, module_name);
+    // Issue #70: resolve the type names every file imports or re-exports. This needs every file's
+    // module paths resolved first, and it must pass before any component is lowered: an imported
+    // props alias that cannot be resolved is a diagnostic, never an empty props record.
+    std::vector<internal::ProjectFileScope> scopes;
+    scopes.reserve(state.files.size());
+    for (const FileEntry& file : state.files) {
+        scopes.push_back(internal::ProjectFileScope{file.source->file, file.source->module,
+                                                    file.source->source_map, file.named_imports,
+                                                    file.re_exports});
+    }
+    internal::ProjectTypeNames types = internal::build_type_names(scopes);
+    if (types.error) {
+        state.error = std::move(*types.error);
+        return std::unexpected(NodeLoweringErrors{*state.error});
+    }
+    std::optional<LoweredModule> module = finish(state, module_name, &types.table);
     if (!module) {
         return std::unexpected(NodeLoweringErrors{*state.error});
     }
@@ -411,41 +468,6 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
 }
 
 } // namespace
-
-std::string join_project_path(std::string_view base, std::string_view relative) {
-    std::string joined(base);
-    if (!joined.empty()) {
-        joined.push_back('/');
-    }
-    joined += relative;
-    std::vector<std::string_view> parts;
-    std::string_view pending = joined;
-    std::size_t start = 0;
-    while (start <= pending.size()) {
-        const std::size_t slash = pending.find('/', start);
-        const std::string_view part = pending.substr(
-            start, slash == std::string_view::npos ? std::string_view::npos : slash - start);
-        if (part == "..") {
-            if (!parts.empty()) {
-                parts.pop_back();
-            }
-        } else if (!part.empty() && part != ".") {
-            parts.push_back(part);
-        }
-        if (slash == std::string_view::npos) {
-            break;
-        }
-        start = slash + 1;
-    }
-    std::string out;
-    for (const std::string_view part : parts) {
-        if (!out.empty()) {
-            out.push_back('/');
-        }
-        out += part;
-    }
-    return out;
-}
 
 ModuleLoweringResult lower_module(const ModuleSource& source, std::string_view module_name) {
     return lower_files(std::span<const ModuleSource>(&source, 1), module_name, {}, {});

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Slice 4 (partial): a component's declared prop records. The props parameter's type is either an
-// inline object type or a same-file type alias whose target is an object; every member becomes one
-// `ir::Prop` in declaration order (docs/specs/ir-v1.md section 2). A destructuring default
-// (`{ label = "" }`) becomes the record's `default_value`; value-record types and callback
-// *binding* stay documented gaps (docs/design/jsx-ir-lowering.md section 9).
+// Slice 4: a component's declared prop records. The props parameter's type is either an inline
+// object type or a type alias; the alias may be declared in another project file and reached
+// through `import type`/`import`, an `as` rename or a re-export chain (issue #70). Every member
+// becomes one `ir::Prop` in declaration order (docs/specs/ir-v1.md section 2), so where the alias
+// is authored cannot change the records. A destructuring default (`{ label = "" }`) becomes the
+// record's `default_value`; value-record types and callback *binding* stay documented gaps
+// (docs/design/jsx-ir-lowering.md section 9).
 
 #include "node_lowering_internal.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
+#include "tessera/compiler/lowering/type_alias.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -170,57 +173,149 @@ const jsx::ModuleItem* find_alias(const jsx::Module& module, std::string_view na
     return nullptr;
 }
 
-// The declared members of the props type, or null when the component declares no props parameter,
-// or its type is not an object (inline or through a same-file alias chain). An imported alias is a
-// documented gap and stays unlowered rather than becoming an error.
-const std::vector<jsx::TypeMember>* props_members(const NodeState& state) {
+// The object body of the props type, and the file its member spans belong to.
+struct MembersView {
+    const std::vector<jsx::TypeMember>* members = nullptr;
+    std::string_view file;
+};
+
+// Reports a type-resolution error. The span may live in another project file; `TypeNameTable`
+// carries that file's source map so the diagnostic keeps the right line and column, and the message
+// names the foreign file because `jsx::Diagnostic` has no file field.
+void fail_type(NodeState& state, std::string_view code, std::string message, std::string_view file,
+               jsx::Span span, std::string_view suggestion = {}) {
+    if (state.error) {
+        return;
+    }
+    const jsx::SourceMap* map = &state.context.source_map;
+    if (file != state.context.file) {
+        if (state.context.types != nullptr) {
+            if (const jsx::SourceMap* foreign = state.context.types->map_of(file)) {
+                map = foreign;
+            }
+        }
+        message += " (in `" + std::string(file) + "`)";
+    }
+    state.error = jsx::Diagnostic{code,
+                                  jsx::Severity::Error,
+                                  std::move(message),
+                                  map->resolve(span),
+                                  std::string(suggestion),
+                                  std::nullopt};
+}
+
+enum class MembersKind : std::uint8_t { None, Found, Error };
+
+// The declared members of the props type, or `None` when the component declares no props parameter
+// or its type is not an object. With a `TypeNameTable` the name is resolved across project files,
+// following imports, `as` renames and re-export chains to the one declaration that owns the object
+// body (issue #70); a name declared as a component/constant, a missing name inside an imported
+// alias and a cycle are loud. Without a table only a same-file alias chain is followed, and a name
+// with no declaration keeps the pre-slice-4 behavior (the documented gap for entry points that
+// lower a single component).
+MembersKind props_members(NodeState& state, MembersView& view) {
     const jsx::ModuleItem& component = state.context.component;
     if (!component.has_props || !component.props_type) {
-        return nullptr;
+        return MembersKind::None;
     }
     const jsx::TypeNode* type = component.props_type.get();
-    for (std::size_t depth = 0; depth < kMaxAliasDepth && type != nullptr; ++depth) {
+    std::string_view scope = state.context.file;
+    std::unordered_set<const jsx::ModuleItem*> visited;
+    for (std::size_t depth = 0; depth < kMaxAliasDepth; ++depth) {
         if (type->kind == jsx::TypeKind::Object) {
-            return &type->members;
+            view = MembersView{&type->members, scope};
+            return MembersKind::Found;
         }
-        if (type->kind != jsx::TypeKind::Name || !type->children.empty() ||
-            state.context.module == nullptr) {
-            return nullptr;
+        if (type->kind != jsx::TypeKind::Name || !type->children.empty()) {
+            return MembersKind::None; // a union/function/generic props type has no prop records
+        }
+        if (state.context.types != nullptr) {
+            const TypeNameEntry* entry = state.context.types->find(scope, type->text);
+            if (entry == nullptr) {
+                if (scope == state.context.file) {
+                    return MembersKind::None;
+                }
+                fail_type(state, "TESSERA_IR_TYPE_UNRESOLVED",
+                          "type `" + type->text + "` is not declared in `" + std::string(scope) +
+                              "`",
+                          scope, type->span);
+                return MembersKind::Error;
+            }
+            if (entry->kind == TypeNameKind::Value) {
+                fail_type(state, "TESSERA_IR_TYPE_NOT_ALIAS",
+                          "`" + type->text + "` is declared in `" + std::string(scope) +
+                              "` as a component or constant, not as a type alias",
+                          scope, type->span, "declare the props type with `type`");
+                return MembersKind::Error;
+            }
+            if (entry->alias == nullptr || !entry->alias->type) {
+                fail_type(state, "TESSERA_IR_MALFORMED",
+                          "type alias `" + type->text + "` has no target type", entry->alias_file,
+                          type->span);
+                return MembersKind::Error;
+            }
+            if (!visited.insert(entry->alias).second) {
+                fail_type(state, "TESSERA_IR_TYPE_CYCLE",
+                          "type-alias cycle through `" + type->text + "`", entry->alias_file,
+                          type->span, "break the alias chain");
+                return MembersKind::Error;
+            }
+            type = entry->alias->type.get();
+            scope = entry->alias_file;
+            continue;
+        }
+        if (state.context.module == nullptr) {
+            return MembersKind::None;
         }
         const jsx::ModuleItem* alias = find_alias(*state.context.module, type->text);
         if (alias == nullptr || !alias->type) {
-            return nullptr;
+            return MembersKind::None;
+        }
+        if (!visited.insert(alias).second) {
+            fail_type(state, "TESSERA_IR_TYPE_CYCLE",
+                      "type-alias cycle through `" + type->text + "`", scope, type->span,
+                      "break the alias chain");
+            return MembersKind::Error;
         }
         type = alias->type.get();
     }
-    return nullptr;
+    fail_type(state, "TESSERA_IR_UNSUPPORTED",
+              "the props type alias chain is deeper than " + std::to_string(kMaxAliasDepth) +
+                  " aliases",
+              scope, type->span);
+    return MembersKind::Error;
 }
 
 } // namespace
 
 DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& props) {
-    const std::vector<jsx::TypeMember>* members = props_members(state);
-    if (members == nullptr) {
+    MembersView view;
+    const MembersKind kind = props_members(state, view);
+    if (kind == MembersKind::None) {
         return DeclaredPropsKind::None;
     }
+    if (kind == MembersKind::Error) {
+        return DeclaredPropsKind::Error;
+    }
+    const std::vector<jsx::TypeMember>& members = *view.members;
     std::unordered_set<std::string> names;
-    for (const jsx::TypeMember& member : *members) {
+    for (const jsx::TypeMember& member : members) {
         if (member.name.empty() || !member.type) {
-            fail_node(state, "TESSERA_IR_MALFORMED",
-                      "a declared prop record needs a name and a type", member.span);
+            fail_type(state, "TESSERA_IR_MALFORMED",
+                      "a declared prop record needs a name and a type", view.file, member.span);
             return DeclaredPropsKind::Error;
         }
         if (!names.insert(member.name).second) {
-            fail_node(state, "TESSERA_IR_DUPLICATE_ID", "duplicate prop `" + member.name + "`",
-                      member.span);
+            fail_type(state, "TESSERA_IR_DUPLICATE_ID", "duplicate prop `" + member.name + "`",
+                      view.file, member.span);
             return DeclaredPropsKind::Error;
         }
         const std::optional<std::string> type = lower_prop_type(*member.type);
         if (!type) {
-            fail_node(state, "TESSERA_IR_UNSUPPORTED",
+            fail_type(state, "TESSERA_IR_UNSUPPORTED",
                       "prop `" + member.name + "` has a type with no IR form in v1 (`" +
                           jsx::dump(*member.type) + "`)",
-                      member.type->span,
+                      view.file, member.type->span,
                       "write an IR type, for example `string`, `int`, `T[]`, `optional<...>` or "
                       "a payload record name");
             return DeclaredPropsKind::Error;
@@ -228,10 +323,10 @@ DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& 
         if (member.name == "children") {
             // Section 3.4: the slot has the `children` type, no default and no `?`.
             if (member.optional || *type != "children") {
-                fail_node(state, "TESSERA_IR_SLOT",
-                          "the `children` prop declares the static slot, so it has type `Children` "
-                          "and no `?`",
-                          member.span);
+                fail_type(state, "TESSERA_IR_SLOT",
+                          "the `children` prop declares the static slot, so it has type "
+                          "`Children` and no `?`",
+                          view.file, member.span);
                 return DeclaredPropsKind::Error;
             }
             if (const jsx::PropBinding* binding = find_binding(state, member.name);
@@ -244,8 +339,8 @@ DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& 
             continue;
         }
         if (*type == "children") {
-            fail_node(state, "TESSERA_IR_SLOT",
-                      "prop `" + member.name + "` cannot have the `children` slot type",
+            fail_type(state, "TESSERA_IR_SLOT",
+                      "prop `" + member.name + "` cannot have the `children` slot type", view.file,
                       member.span);
             return DeclaredPropsKind::Error;
         }

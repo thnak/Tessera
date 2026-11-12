@@ -114,11 +114,13 @@ return `ParseResult<Node>`: the tree, every comment with its span, and the diagn
 
 ### Module level (slice 3)
 
-`parse_module(source, limits)` returns a `Module` of `ModuleItem`s (import, type alias, constant,
-component) in source order (`module_ast.hpp`, types in `type_ast.hpp`). Hooks are not special in
-the AST: `const [n, setN] = useState<int>(0);` is a const statement whose initializer is a call
-with `type_args`, and `useEffect(...)` is an expression statement. Only identifiers starting with
-`use` may take type arguments, so `a < b > (c)` elsewhere stays a comparison. A component is
+`parse_module(source, limits)` returns a `Module` of `ModuleItem`s (import, type re-export, type
+alias, constant, component) in source order (`module_ast.hpp`, types in `type_ast.hpp`). A named
+import or a type re-export keeps one `ImportName` per name with its `as` alias in `local_name`, and
+`import type` sets `type_only` (spec section 4). Hooks are not special in the AST:
+`const [n, setN] = useState<int>(0);` is a const statement whose initializer is a call with
+`type_args`, and `useEffect(...)` is an expression statement. Only identifiers starting with `use`
+may take type arguments, so `a < b > (c)` elsewhere stays a comparison. A component is
 `[export] function Name(props: T) [: R] { statements... return <element>; }`; the body may only
 contain `const` declarations and expression statements before the one `return`.
 

@@ -82,8 +82,10 @@ LoweredComponentResult lower_component(const HookLoweringContext& context) {
     component.name = context.component.name;
     component.source = to_source_span(context.source_map, context.component.span, context.file);
     // Slice 4: the declared prop records come from the props parameter's type, inline or through a
-    // same-file alias. Without a resolvable object type only the static `children` slot is
-    // recorded, which is the pre-slice-4 behavior for the component-level entry points.
+    // type alias. The alias may be declared in another project file (issue #70): `types` resolves
+    // imports, renames and re-export chains. Without a resolvable object type only the static
+    // `children` slot is recorded, which is the pre-slice-4 behavior for the component-level entry
+    // points.
     const internal::DeclaredPropsKind declared =
         internal::lower_declared_props(state, component.props);
     if (declared == internal::DeclaredPropsKind::Error) {

@@ -92,9 +92,12 @@ struct StylesheetFile {
 };
 
 // Lowers every file of a project. Relative imports (`./X`, `../X`) are resolved against `files`,
-// each imported name must be a component exported by the target file, and an import cycle is an
-// error. A component reference resolves to the local component of that name first, then to an
-// import; an unknown tag is a `TESSERA_IR_UNSUPPORTED` naming it.
+// each imported name must be a component, type alias or constant of the target (directly or through
+// its type re-exports), and an import cycle is an error. A component reference resolves to the
+// local component of that name first, then to an import; an unknown tag is a
+// `TESSERA_IR_UNSUPPORTED` naming it. Type-only imports (`import type`), `as` renames and `export
+// type { ... }` re-exports resolve for a component's props type exactly as a same-file alias does
+// (issue #70).
 [[nodiscard]] ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
                                                  std::string_view module_name);
 

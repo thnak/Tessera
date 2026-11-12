@@ -10,6 +10,7 @@
 #include "tessera/compiler/jsx/diagnostic.hpp"
 #include "tessera/compiler/jsx/module_ast.hpp"
 #include "tessera/compiler/jsx/source_map.hpp"
+#include "tessera/compiler/lowering/type_alias.hpp"
 #include "tessera/compiler/rules/component_analysis.hpp"
 
 #include <expected>
@@ -45,6 +46,9 @@ struct HookLoweringContext {
     // (`props: Props` -> `type Props = {...}`). Null in the single-component entry points, where a
     // component's declared prop records then stay unlowered (the documented gap).
     const jsx::Module* module = nullptr;
+    // Slice 4 (cross-file): every type name visible in the project files, resolved through imports
+    // and re-exports by `lower_project` (issue #70). Null keeps the same-file-only alias walk.
+    const TypeNameTable* types = nullptr;
 };
 
 // What an event attribute value resolves to (docs/specs/ir-v1.md sections 2.1 and 6).
