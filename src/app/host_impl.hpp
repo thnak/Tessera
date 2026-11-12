@@ -6,6 +6,7 @@
 // loop (host.cpp) and the embedded theme asset (host_theme.cpp). Not installed; only src/app
 // includes it.
 
+#include "adaptive_quality.hpp"
 #include "tessera/app/host.hpp"
 #include "tessera/rendering/damage.hpp"
 #include "tessera/ui/layout/layout_scheduler.hpp"
@@ -69,6 +70,12 @@ struct AppHost::Impl {
     ui::layout::LayoutResult last_layout;
     ui::layout::LayoutApplyResult last_applied;
     ui::frame::FrameRender last_render;
+    // Adaptive quality (docs/design/performance.md section 6): the deterministic controller is fed
+    // one measured frame time per presented frame by observe_frame_time_ms(); the diagnostics
+    // object keeps its latest decision and counts changes. Both are per host (not per pipeline), so
+    // the quality ladder survives an AppHost::resize(), which only re-creates the pipeline.
+    runtime::AdaptiveQualityController quality_controller;
+    runtime::FrameDiagnostics frame_diagnostics;
     // One-shot full-repaint request from request_full_repaint(). It is applied after the pipeline's
     // tick (which clears the accumulator), so it survives the tick it was requested before.
     bool full_repaint_pending = false;

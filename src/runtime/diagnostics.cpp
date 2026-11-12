@@ -19,8 +19,20 @@ void FrameDiagnostics::record(FrameDiagnosticsSample sample) {
     }
 }
 
+void FrameDiagnostics::record_adaptive_quality(const AdaptiveQualitySample& sample) noexcept {
+    adaptive_quality_ = sample;
+    if (!sample.changed) {
+        return;
+    }
+    ++adaptive_quality_changes_;
+    if (sample.downgrade) {
+        ++adaptive_quality_downgrades_;
+    }
+}
+
 void FrameDiagnostics::reset() {
     last_ = FrameDiagnosticsSample{};
+    adaptive_quality_ = AdaptiveQualitySample{};
     frames_ = 0;
     total_steps_ = 0;
     total_completions_ = 0;
@@ -28,6 +40,8 @@ void FrameDiagnostics::reset() {
     total_scissors_ = 0;
     total_animation_samples_ = 0;
     full_redraw_frames_ = 0;
+    adaptive_quality_changes_ = 0;
+    adaptive_quality_downgrades_ = 0;
 }
 
 } // namespace tessera::runtime

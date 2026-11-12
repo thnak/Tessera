@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "tessera/app/host.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
 
@@ -35,5 +36,13 @@ struct WindowPausePolicy {
 // The occluded/minimized pause policy for one window. Only `pauseWhenOccluded` is wired in this
 // slice; the remaining lifecycle keys stay unwired.
 [[nodiscard]] WindowPausePolicy window_pause_policy(const RuntimeConfig& runtime);
+
+// The adaptive-quality policy for one window (docs/design/performance.md section 6): the
+// `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale` and `frameBudgetMs` keys, plus
+// the effective present rate that derives the budget when `frameBudgetMs` is 0. That rate is
+// `maxFps` when it is capped, else `preferredRefreshRate` when requested, else the 60 Hz baseline
+// the framework's default fixed timestep uses (the pacer still follows the real display; feeding it
+// a later measured rate is a follow-up, not part of this slice).
+[[nodiscard]] AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtime);
 
 } // namespace tessera::app

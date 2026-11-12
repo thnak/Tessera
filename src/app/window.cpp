@@ -69,6 +69,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.text_measurer = options.text_measurer;
     config.reduced_motion = system_prefers_reduced_motion();
     config.pipeline = window_pipeline_config(options.runtime);
+    config.adaptive_quality = window_adaptive_quality_policy(options.runtime);
     motion = MotionPreference(config.reduced_motion);
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     if (scheduler != nullptr) {
@@ -369,6 +370,11 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         }
         failures.succeeded();
         pacer.present(hal::steady_now_seconds());
+        // Adaptive quality (docs/design/performance.md section 6): the one frame observation, fed
+        // with the time this frame took from the pacer decision (`now`) to the completed present.
+        // It is the frame's CPU cost; GPU timestamps are the follow-up in section 7. A skipped
+        // attempt returned above and is not an observation.
+        host->observe_frame_time_ms((hal::steady_now_seconds() - now) * 1000.0);
         host->end_frame();
         loop->clear_render_dirty();
         if (force_frames && stats.frames >= max_frames) {

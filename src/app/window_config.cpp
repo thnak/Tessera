@@ -19,4 +19,23 @@ WindowPausePolicy window_pause_policy(const RuntimeConfig& runtime) {
     return policy;
 }
 
+AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtime) {
+    AdaptiveQualityPolicy policy;
+    policy.adaptive_quality = runtime.adaptive_quality;
+    policy.power_policy = runtime.power_policy;
+    policy.render_scale = runtime.render_scale;
+    policy.min_render_scale = runtime.min_render_scale;
+    policy.frame_budget_ms = runtime.frame_budget_ms;
+    // The budget derives from the effective present rate (section 5.2); with neither a cap nor a
+    // requested refresh the framework targets its default 60 Hz tick baseline.
+    if (runtime.max_fps != 0) {
+        policy.target_fps = static_cast<double>(runtime.max_fps);
+    } else if (runtime.preferred_refresh_rate != 0) {
+        policy.target_fps = static_cast<double>(runtime.preferred_refresh_rate);
+    } else {
+        policy.target_fps = 60.0;
+    }
+    return policy;
+}
+
 } // namespace tessera::app

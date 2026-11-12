@@ -274,6 +274,22 @@ target_link_libraries(window_config_tests PRIVATE tessera_app tessera_frame tess
 
 add_test(NAME window_config COMMAND window_config_tests)
 
+# Adaptive quality (docs/design/performance.md section 6; runtime-config-v1.md 5.7 and 6.2): the
+# deterministic controller's thresholds, clamps, disabled paths, hysteresis and determinism, plus the
+# host wiring that feeds it one observed frame at a time and records a change - not a raw frame time
+# - in frame diagnostics. Pure CPU: no GPU, window or wall clock.
+add_executable(adaptive_quality_tests
+    adaptive_quality_tests.cpp)
+
+target_include_directories(adaptive_quality_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/runtime)
+
+target_link_libraries(adaptive_quality_tests PRIVATE
+    tessera_app
+    tessera_runtime)
+
+add_test(NAME adaptive_quality COMMAND adaptive_quality_tests)
+
 # The window driver stops after a bounded run of frame failures instead of spinning or hanging.
 add_executable(app_frame_guard_tests
     app_frame_guard_tests.cpp)

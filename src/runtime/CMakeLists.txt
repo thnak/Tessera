@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_runtime STATIC
+    adaptive_quality.cpp
     async.cpp
     clock.cpp
     config.cpp

@@ -110,6 +110,19 @@ void report_blob_failure(std::string_view path, const ui::style::BlobError& erro
                  path.data(), blob_error_name(error.code), error.message.c_str());
 }
 
+// The public policy struct and the runtime's private controller config carry the same six fields;
+// this is the one place that converts between them, so a new key is added once.
+runtime::AdaptiveQualityConfig quality_controller_config(const AdaptiveQualityPolicy& policy) {
+    runtime::AdaptiveQualityConfig config;
+    config.adaptive_quality = policy.adaptive_quality;
+    config.power_policy = policy.power_policy;
+    config.render_scale = policy.render_scale;
+    config.min_render_scale = policy.min_render_scale;
+    config.frame_budget_ms = policy.frame_budget_ms;
+    config.target_fps = policy.target_fps;
+    return config;
+}
+
 } // namespace
 
 AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
@@ -121,7 +134,8 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
       config(config),
       engine(config.text_measurer),
       damage(std::make_unique<rendering::DamageAccumulator>(rendering::DamageConfig{
-          extent_for(config.width, config.height, config.dpi_scale), config.damage_max_rects})) {
+          extent_for(config.width, config.height, config.dpi_scale), config.damage_max_rects})),
+      quality_controller(quality_controller_config(config.adaptive_quality)) {
     // The window root is the host's geometry: logical size plus the column flex container every
     // app content area starts from. Inline style is the outermost origin, so an app stylesheet
     // can style the root's background but never resize the window.
@@ -135,6 +149,10 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
     provider = std::make_unique<ui::paint::SceneStyleProvider>(this->sheet, *tree);
     pipeline = std::make_unique<ui::frame::FramePipeline>(animations, this->loop, tracker, *damage,
                                                           dirty, this->config.pipeline);
+    // Publish the full-quality decision before the first frame, so diagnostics and
+    // adaptive_quality() agree from the start instead of reporting a default 1.0 scale for a window
+    // configured at another renderScale.
+    frame_diagnostics.record_adaptive_quality(quality_controller.decision());
 }
 
 void AppHost::Impl::apply_root_size() {
@@ -290,6 +308,22 @@ ui::frame::FramePaint AppHost::paint(ui::paint::PaintSink& sink, bool force) {
 
 void AppHost::end_frame() {
     impl_->dirty.clear(impl_->root, ui::Dirty::All);
+}
+
+void AppHost::observe_frame_time_ms(double frame_time_ms) {
+    Impl& state = *impl_;
+    // The controller returns the decision in force with this frame's change flags; recording it
+    // always keeps the latest scale readable and only counts the frames that changed something.
+    state.frame_diagnostics.record_adaptive_quality(
+        state.quality_controller.observe(frame_time_ms));
+}
+
+const runtime::AdaptiveQualitySample& AppHost::adaptive_quality() const {
+    return impl_->quality_controller.decision();
+}
+
+const runtime::FrameDiagnostics& AppHost::frame_diagnostics() const {
+    return impl_->frame_diagnostics;
 }
 
 const ui::paint::PaintCacheStats& AppHost::paint_cache_stats() const {
