@@ -14,6 +14,8 @@ const banned = [
   [/@container/, "@container"],
   [/@scope/, "@scope"],
   [/@property/, "@property"],
+  [/@media[^{]*\(\s*color-scheme\s*:/, "@media (color-scheme) -- browsers only know prefers-color-scheme"],
+  [/@media[^{]*\(\s*(width|height)\s*[<>]/, "media range syntax -- the engine supports min-/max- only"],
   [/\b(color|oklch|oklab|lab|lch|display-p3)\(/, "wide-gamut/modern color functions"],
 ];
 

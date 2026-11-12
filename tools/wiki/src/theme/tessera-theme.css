@@ -2,8 +2,8 @@
  * Tessera wiki theme.
  *
  * Authored as a Tessera stylesheet (ADR-016, docs/specs/stylesheet-v1.md): only the V1 semantic
- * priorities are used -- custom properties, @layer, @media (width, color-scheme,
- * prefers-reduced-motion), flexbox, box model, typography, colors, borders/radius.
+ * priorities are used -- custom properties, @layer, @media (min-/max-width,
+ * prefers-color-scheme, prefers-reduced-motion), flexbox, box model, typography, colors, borders/radius.
  * No grid, :has(), @container, @scope, @property or wide-gamut colors. `npm run check:theme`
  * enforces this, so the same file can later be loaded by the native engine for the
  * first-party UI demo.
@@ -30,7 +30,7 @@
     --content-width: 860px;
   }
 
-  @media (color-scheme: dark) {
+  @media (prefers-color-scheme: dark) {
     :root {
       --color-bg: #0d1117;
       --color-surface: #151b23;
@@ -76,7 +76,7 @@
   .main { flex-grow: 1; min-width: 0; padding: var(--space-4); }
   .article { max-width: var(--content-width); margin: 0 auto; }
 
-  @media (width < 800px) {
+  @media (max-width: 799px) {
     .app { flex-direction: column; }
     .nav { width: 100%; position: static; max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--color-border); }
   }

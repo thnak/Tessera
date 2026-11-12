@@ -40,4 +40,4 @@ theme in the native engine. `npm run check:theme` fails the build if the file us
 `@container`, `@scope`, `@property` or wide-gamut colors.
 
 Design tokens live in the `tokens` layer as `--color-*`, `--space-*`, `--font-*` custom
-properties; dark mode is a `@media (color-scheme: dark)` override of the same tokens.
+properties; dark mode is a `@media (prefers-color-scheme: dark)` override of the same tokens.
