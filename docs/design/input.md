@@ -22,10 +22,11 @@ per-tick input pump
 (queue -> sampler -> router -> `RuntimeLoop::request_frame`) is
 `include/tessera/ui/input_pump.hpp` and `src/ui/input/input_pump.cpp`. Windows platform translation
 (mouse, touch/pen, IME, wheel, key and character messages into `InputEvent`, see section 2.1) is
-implemented in `src/platform/windows/` (X11 core input: [`hal.md`](hal.md) section 10). Other platform translation,
-platform-specific `:focus-visible` refinements (see section 6), window-blur focus retention policy
-(blur already cancels captures, hover, and active), ancestor hover chains and hover recomputation on
-scene changes, IME producers beyond Win32, gesture handlers, and recording remain design-only.
+implemented in `src/platform/windows/`; Linux/X11 translates core input plus XInput2 smooth scroll,
+touch, pen and XIM pre-edit (sections 2.2 and 8). Other platform translation, platform-specific
+`:focus-visible` refinements (see section 6), window-blur focus retention policy (blur already
+cancels captures, hover, and active), ancestor hover chains and hover recomputation on scene
+changes, IME producers beyond Win32 and X11, gesture handlers, and recording remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).
 Terms: IME = input method editor; HAL = hardware/OS abstraction layer ([`hal.md`](hal.md)); tick = one
@@ -66,7 +67,8 @@ single-consumer queue; V1 = first release (scope rule in
 Platform backends (`hal/input`) translate OS messages:
 
 - Windows: `WM_POINTER*`, `WM_MOUSE*`, `WM_KEY*`, `WM_CHAR`, `WM_IME_*`, DPI change.
-- Linux/X11: core pointer/key events plus XIM text today; XInput2, RandR, Present planned.
+- Linux/X11: core pointer/key events plus XIM text, and with XInput2 (section 2.2) smooth-scroll
+  valuators, touch sequences and pen/tablet pressure; RandR and Present planned.
 - Linux/Wayland: `wl_pointer`, `wl_keyboard`, `wl_touch`, `text-input`, `wp_presentation`.
 - Android: not implemented; planned in Big Step F (`MotionEvent`, `KeyEvent`, `InputConnection`; see [`mobile-integration.md`](mobile-integration.md)).
 - macOS: deferred ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via MoltenVK).
@@ -79,53 +81,71 @@ No platform-specific type may leak into `ui/`.
 queue (not owned; reset it with `nullptr` before destroying it). `Win32InputTranslator` runs on the
 window's thread, so the queue's single producer is the UI thread.
 
-- **Pointer:** `WM_MOUSEMOVE`, the left/right/middle/X1/X2 buttons. Coordinates are logical pixels
-  (physical client position divided by the window's DPI scale), `dx`/`dy` are the change from the
-  previous pointer event, pressure is 0.5 while any button is down, and `pointer_kind` stays the
-  default `Mouse`. A press captures the mouse (`SetCapture`) so the move and release arrive outside
-  the window; losing the capture, focus
-  or modal mode emits `PointerCancel` and clears the pressed buttons. A release without a seen
-  press is ignored. Shift and Control come from the message, Alt and Meta from the keyboard state.
-- **Touch and pen (`WM_POINTER*`, implemented):** `WM_POINTERDOWN`/`WM_POINTERUPDATE`/
-  `WM_POINTERUP` map to pointer down/move/up for `PT_TOUCH` (`PointerKind::Touch`) and `PT_PEN`
-  (`PointerKind::Pen`); `PT_MOUSE` maps to `Mouse`, and `WM_POINTERCAPTURECHANGED` or a
-  `POINTER_FLAG_CANCELED` flag maps to `PointerCancel` (Windows has no `WM_POINTERCANCEL`
-  message). `pointer_id` is `GET_POINTERID_WPARAM` (a Windows pointer id, used verbatim and not
-  reused across kinds); `is_primary` is `IS_POINTER_PRIMARY_WPARAM`; pen pressure comes from
-  `GetPointerPenInfo().pressure`, normalized and clamped to 0..1, and is 0 for touch and mouse.
-  Coordinates come from `GetPointerInfo().ptPixelLocation`, converted screen->client and divided
-  by the same DPI scale as the mouse path. Touch updates without contact are dropped, so touch
-  never produces hover; pen in-range updates do produce `PointerMove` with `PointerKind::Pen`. The
-  window does not call `EnableMouseInPointer`, so the legacy mouse path remains the only mouse
-  producer, and handling pointer messages stops Windows from promoting contacts to mouse messages.
-- **`WM_TOUCH` fallback (implemented):** legacy touch messages (for example after
-  `RegisterTouchWindow`) translate each `TOUCHINPUT`: `TOUCHEVENTF_DOWN`/`UP`/`MOVE` map to the
-  event type, `TOUCHEVENTF_PRIMARY` sets `is_primary`, and `dwID` maps to
-  `0x80000000 | (dwID & 0x7fffffff)` (disjoint from WM_POINTER ids, stable per contact). Up to 32
-  contacts per message are translated (bounded buffer; extras dropped, no allocation).
-- **Wheel:** vertical and horizontal, in notches (120 units) with the web sign: positive `dy`
-  scrolls content down, positive `dx` scrolls right; screen coordinates become client pixels.
-- **Keys:** `KeyDown`/`KeyUp` with a logical code from `include/tessera/ui/key_code.hpp`
-  (upper-case ASCII for letters and digits, `0x100`+ for non-printable keys). Auto-repeat sets
-  `repeat` on key down. System keys (Alt combinations, F10) are recorded and still reach the
-  default window procedure.
-- **Text:** `WM_CHAR` becomes `Text` with the code point; surrogate pairs are combined, an orphan
-  half is dropped, and control characters (including Backspace, Enter and Tab) are left to key
-  events. Keyboard text stays a single-codepoint `Text` event.
-- **IME (`WM_IME_*`, implemented):** start/end composition emit `CompositionStart`/`CompositionEnd`;
-  `WM_IME_COMPOSITION` reads `GCS_COMPSTR`/`GCS_RESULTSTR`/`GCS_CURSORPOS` with
-  `ImmGetCompositionStringW` and emits `CompositionUpdate` and/or committed `EditText` (result
-  first). Payloads are bounded UTF-8 (`kMaxEditTextBytes` = 256, `text_truncated`) with UTF-16
-  code-unit selection offsets and at most 512 UTF-16 units read per string. Messages are returned
-  handled, so there is no default insertion; candidate-window styling is deferred (`WM_CHAR` still
-  produces `Text`).
-- **Focus:** `WM_SETFOCUS`/`WM_KILLFOCUS` also emit `Focus`/`Blur` input events.
-- **Waking:** `wait_for_events` returns `true` while the queue holds unconsumed input, because
-  input never becomes a `WindowEvent`; this is what lets a render-on-demand loop sleep until a
-  pointer or key event.
-- **Not yet:** dead keys, per-key `code` (physical position), OS-level pointer
-  capture, IME candidate-window styling/positioning, and pen barrel/tilt/orientation beyond
-  pressure.
+- **Pointer:** `WM_MOUSEMOVE` and the left/right/middle/X1/X2 buttons, in logical pixels (physical
+  position / DPI scale) with `dx`/`dy` from the previous event, pressure 0.5 while any button is
+  down, and `pointer_kind` `Mouse`. A press captures the mouse (`SetCapture`) so move and release
+  arrive outside the window; losing the capture, focus or modal mode emits `PointerCancel`. A
+  release without a seen press is ignored; Alt/Meta come from the keyboard state.
+- **Touch and pen (`WM_POINTER*`):** down/update/up for `PT_TOUCH` (`Touch`) and `PT_PEN` (`Pen`);
+  `PT_MOUSE` maps to `Mouse`, `WM_POINTERCAPTURECHANGED`/`POINTER_FLAG_CANCELED` to
+  `PointerCancel`. `pointer_id` is `GET_POINTERID_WPARAM`, `is_primary` is
+  `IS_POINTER_PRIMARY_WPARAM`, pen pressure is `GetPointerPenInfo().pressure` clamped to 0..1 (0
+  for touch/mouse). Touch updates without contact are dropped (no touch hover); pen in-range
+  updates produce `PointerMove`. `EnableMouseInPointer` is not called, so the legacy mouse path
+  stays the only mouse producer.
+- **`WM_TOUCH` fallback:** each `TOUCHINPUT` maps its flags to down/up/move, `TOUCHEVENTF_PRIMARY`
+  to `is_primary`, and `dwID` to `0x80000000 | (dwID & 0x7fffffff)` (disjoint from WM_POINTER ids);
+  up to 32 contacts per message (bounded, extras dropped).
+- **Wheel, keys and text:** wheel notches (120 units) with the web sign (positive `dy` scrolls
+  content down, positive `dx` right). `KeyDown`/`KeyUp` carry a logical code from
+  `include/tessera/ui/key_code.hpp`; auto-repeat sets `repeat`, and system keys (Alt combinations,
+  F10) still reach the default procedure. `WM_CHAR` becomes one `Text` per code point (surrogates
+  combined, orphan halves dropped, control characters left to key events).
+- **IME (`WM_IME_*`):** start/end emit `CompositionStart`/`CompositionEnd`;
+  `WM_IME_COMPOSITION` reads `GCS_COMPSTR`/`GCS_RESULTSTR`/`GCS_CURSORPOS` and emits
+  `CompositionUpdate` and/or committed `EditText` (result first), bounded UTF-8 with UTF-16
+  code-unit offsets and at most 512 units per string; messages are returned handled. Candidate
+  windows are deferred.
+- **Focus and waking:** `WM_SETFOCUS`/`WM_KILLFOCUS` also emit `Focus`/`Blur`; `wait_for_events`
+  returns true while the queue holds input, which is what lets a render-on-demand loop sleep.
+- **Not yet:** dead keys, per-key physical `code`, OS-level pointer capture, IME candidate-window
+  styling/positioning, and pen tilt.
+
+### 2.2 Linux/X11 XInput2 translation (implemented)
+
+When the server has XInput and the build found `X11/extensions/XInput2.h` plus libXi
+(`TESSERA_X11_XI2`), the window selects XI2 events and translates them with the pure rules in
+`src/platform/linux/x11_xi2_translation.{hpp,cpp}`; without either, the core path above is
+unchanged. The Xlib pump is `src/platform/linux/x11_xi2*.cpp`, the pre-edit state machine
+`src/platform/linux/x11_ime_composition.{hpp,cpp}`, and both are unit-tested without a display
+(`tests/unit/x11_input_translation_xi2_tests.cpp`). Selected are motion and buttons on
+`XIAllMasterDevices`, touch begin/update/end per touch-capable slave device, and
+`XI_HierarchyChanged` on `XIAllDevices`: an event delivered as XI2 stops the core event for it, so
+the pump owns the pointer path while XI2 is active, while keys, focus, resize and close stay core.
+
+- **Scroll:** XI 2.1 valuators. One scroll unit is the axis' `XIScrollClass` increment (one notch);
+  raw deltas become wheel units and the per-device remainder accumulates (no drift), while a
+  zero/non-finite increment disables the axis. Positive vertical means scroll down (it emulates
+  button 5) and positive horizontal means right, which is the web sign, so
+  `dy = raw_v / increment_v` and `dx = raw_h / increment_h`; natural scrolling is applied by the
+  driver and not inverted again. The server's emulated duplicate of each notch or valuator carries
+  `XIPointerEmulated` and is dropped, so one notch is one `Wheel` event. The model has no scroll
+  phase: each wheel event is an independent delta.
+- **Touch:** `PointerKind::Touch` from a bounded slot table keyed by `(device id, touch id)` with a
+  stable `pointer_id` (`0x8000'0000` base): begin→`PointerDown`, update→`PointerMove`, end→
+  `PointerUp`, device removal→`PointerCancel`. Unpaired samples and updates after an end are
+  ignored, 16 contacts bound the table, and touch-emulated pointer events are dropped.
+- **Pen/tablet:** `PointerKind::Pen` with pressure normalized from the pressure valuator and
+  clamped to 0..1 (0.5 when the device has no pressure axis, 0 while hovering). Tilt and the
+  eraser tool are classified, but the normalized event has no field for them: `PenValue` reports
+  both and they are dropped at the queue boundary.
+- **IME pre-edit:** with `XIMPreeditCallbacks`, `XNPreeditStart/Draw/Done` drive the bounded
+  composition: start→`CompositionStart`, draw→`CompositionUpdate` (the XIM draw is a splice), done
+  →`EditText` + `CompositionEnd`. Payloads clamp at `kMaxEditTextBytes` on a UTF-8 boundary,
+  malformed bytes become U+FFFD, the caret is a UTF-8 byte offset converted from the XIM character
+  index, and the duplicate keycode-0 commit is dropped by a commit gate. A wide-character pre-edit
+  is treated as empty (UTF-8 locales use the multibyte form), and no text editor paints the marked
+  range yet.
 
 ## 3. Event model
 
@@ -238,22 +258,16 @@ Pointer capture:
   bounded fixed-capacity map).
 - Losing the window/focus cancels every capture, and clears hover/active states.
 
-Implemented subset: `InputRouter` owns a bounded capture map (at most
-`InputRouter::kMaxPointerCaptures` = 8 simultaneous pointers, fixed array, no allocation). A
-`PointerDown` implicitly captures the hit target for that pointer;
-`set_pointer_capture(node, pointer_id)` / `release_pointer_capture(pointer_id)` expose the same
-state to custom elements and tests, and `captured(pointer_id)` reports the resolved target.
-Capture targets are stored as `{pointer_id, NodeId}` and resolved under the last dispatched scene
-root on every use, so removing (or destroying) the captured subtree drops the capture instead of
-leaving a dangling pointer behind. `PointerMove`/`PointerUp`/`PointerCancel` route to that
-pointer's capture target, else the hit target; releasing or cancelling one pointer never affects
-another, while a window `Focus`/`Blur` input event clears every capture. A press beyond the bounded
-map is still dispatched but is not captured; an explicit release frees a slot again. Wheel events
-are hit-tested at the cursor and are not delivered to the capture target; text events go to the
-focused node; `pointer-events: none`, clipping, and `prevent_default` for scrolling/selection are
-not implemented. `prevent_default` is honored for the Tab default action only (section 6). Platform
-touch/pen translation and gesture recognizers are still missing, so independent per-pointer
-captures are exercised by synthetic events for now.
+Implemented subset: `InputRouter` owns a bounded capture map (`kMaxPointerCaptures` = 8 fixed
+slots, no allocation). A `PointerDown` implicitly captures the hit target;
+`set_pointer_capture`/`release_pointer_capture` expose the same state to custom elements and tests,
+and `captured(pointer_id)` reports the resolved target. Targets are stored as `{pointer_id, NodeId}`
+and resolved under the last dispatched root, so a removed subtree drops its capture instead of
+dangling. `PointerMove`/`Up`/`Cancel` route to that pointer's capture target, else the hit target;
+releases and cancels are per pointer, and a window `Focus`/`Blur` clears every capture. Wheel events
+are hit-tested at the cursor and not sent to the capture target; text goes to the focused node.
+`pointer-events: none`, clipping, and `prevent_default` for scrolling/selection are not implemented
+(`prevent_default` is honored for the Tab action only, section 6).
 
 ### 5.1 Custom element input
 
@@ -298,8 +312,7 @@ Implemented focus rules (`ui/scene/focus.hpp` + `FocusManager`):
   set, pointer leaves it clear. `clear_focus`/`reset` clear both bits. A caller that wants the ring
   after a programmatic `request_focus` must call `FocusManager::set_focus_visible(true)`
   explicitly; direct `focus_next`/`focus_previous` calls count as programmatic. The change marks
-  `Style` dirty through `set_pseudo_state`, and `ui/style/scene_style.hpp` exposes the bit to
-  selector matching, so `:focus-visible` rules re-resolve on the next style pass.
+  `Style` dirty, so `:focus-visible` rules re-resolve on the next style pass.
 - Sequential traversal order (`focus_next` / `focus_previous`):
   1. focusable nodes with a positive `tab_index`, ascending; equal values keep depth-first
      document order (pre-order);
@@ -346,9 +359,8 @@ Deferred policy (design intent, not implemented):
 
 - Platform-specific `:focus-visible` refinements (text-input/IME focus, keyboard shortcuts that
   focus a node) and window-blur focus retention.
-- Keyboard shortcuts/global handlers, editable-node text editing/selection, and IME composition.
-  Committed characters already reach the focused node as `Text` events, but there is no editable
-  node model behind them yet.
+- Keyboard shortcuts/global handlers and editable-node text editing/selection: committed text and
+  composition events reach the focused node, but no editable node model consumes them yet.
 
 ## 7. Pointer state and pseudo-classes
 
@@ -404,63 +416,45 @@ Pointer kinds (implemented):
 
 Hover/active (implemented, primary pointer only):
 
-- The primary pointer is the pointer that went down while no other pointer was captured; it is
-  pointer 0 before the first press. When it goes up or is cancelled, the oldest remaining capture
-  (insertion order) becomes primary, or pointer 0 when none remain. Only the primary pointer drives
-  `Hover`/`Active`; secondary presses keep their own capture but do not steal hover or active.
+- The primary pointer is the one that went down while no other pointer was captured (pointer 0
+  before the first press); when it goes up or is cancelled, the oldest remaining capture becomes
+  primary, or pointer 0 when none remain. Only it drives `Hover`/`Active`; secondary presses keep
+  their capture but do not steal them.
 - `:hover`: `InputRouter::hovered()` is the deepest hit target of the primary pointer's last
-  `PointerMove`. A new hover target gains `PseudoState::Hover` and the previous hover target loses
-  the bit on the next move; a move that hits nothing (the pointer left the scene) clears it. A
-  captured pointer freezes the hover chain (see the boundary-event rule below). Only `PointerMove`
-  updates hover: a synthetic `PointerDown` with no preceding move activates but does not hover,
-  moves from non-primary pointers are ignored for hover, and touch moves never hover at all.
-- Hover boundary events (implemented): a hover-target change fires the W3C pointer family.
-  `PointerOut` is dispatched at the old target and bubbles through its ancestors down to
-  (excluding) the deepest common ancestor of the old and new chains; `PointerLeave` then fires once
-  on each old-chain node strictly below that ancestor, innermost to outermost. `PointerOver` and
-  `PointerEnter` mirror this for the new chain, with `PointerEnter` firing outermost to innermost.
-  Enter/leave do not bubble; over/out bubble. The events carry the current pointer payload
-  (id/kind/position/pressure/timestamp). A null side (entering or leaving the scene) makes the
-  common ancestor empty, so leaving fires out/leave on the whole old chain including the root and
-  entering fires over/enter from the root down.
-- Capture freezes boundary events: while a pointer is captured its moves still dispatch to the
-  capture target, but they do not update `hovered()`, the `Hover` bits, or fire
-  over/out/enter/leave. The chain resumes on the first move after the capture is released. A window
-  `Blur`, a primary mouse/pen `PointerCancel`, and `InputRouter::reset()` (silently) clear the
-  chain; cancel/blur fire out/leave so no stale enter state remains. Touch never fires boundary
-  events.
-- Only the deepest hit target carries `Hover`; ancestors are not hovered. Ancestor `:hover` chains
-  are deferred together with scene-change recomputation: a chain must be recomputed when the tree,
-  bounds, or visibility change, and the input layer has no change notification yet. Maintaining it
-  from pointer moves alone would leave stale ancestor bits.
-- `:active`: `InputRouter::active()` is the primary pointer's `PointerDown` hit target. The bit is
-  cleared before the primary pointer's `PointerUp` event is dispatched, and also on its
-  `PointerCancel`, a window `Focus`/`Blur` input event, and `InputRouter::reset()`. A primary press
-  that hits nothing clears any older active target. Capture does not move `Active`, and a secondary
-  pointer press never sets it.
-- `:focus` is independent of pointer state; `FocusManager` owns the `PseudoState::Focus` bit and
-  clears/sets it around `Blur`/`Focus` dispatch. Pointer-down focus behavior is unchanged: every
-  `PointerDown` (primary or secondary) follows the same focus rules as before.
-- Window `Focus`/`Blur` input events reset interaction state: all captures, the hover chain
-  (firing out/leave), and active are cleared because no pointer can be considered over the scene.
-  Scene focus is retained (see section 6); `FocusManager` remains the owner of scene-level
-  Focus/Blur events.
-- `:disabled`/`:checked` come from node state, not pointer state.
-- State changes go through `Node::set_pseudo_state`, which marks `Dirty::Style`; the style resolver
-  then raises layout/paint/render dirty domains only if the matched rules change those groups. A
-  repeated move onto the same target does not churn the dirty flags. `SceneStyleTree::compute`
-  refreshes the cached pseudo-state from the node on each evaluation, so a hover/active change is
-  reflected by the next style resolution without rebuilding the tree.
-- Hover and active targets are also validated by `NodeId` before their bit is cleared, so a target
-  removed from the scene is never dereferenced; the interaction target is dropped instead.
-  `hovered()` and `active()` remain raw scene pointers for observation, so reset or destroy the
-  router before destroying the scene root.
+  `PointerMove`. A new target gains `PseudoState::Hover` and the previous one loses it on the next
+  move; a move that hits nothing clears it, and a captured pointer freezes the chain (below). Only
+  `PointerMove` updates hover: a press with no preceding move activates but does not hover, moves
+  from non-primary pointers are ignored, and touch moves never hover.
+- Hover boundary events fire the W3C family: `PointerOut` at the old target bubbles to (excluding)
+  the deepest common ancestor of the old and new chains, then `PointerLeave` fires once on each old
+  node below it, innermost first; `PointerOver`/`PointerEnter` mirror this for the new chain, with
+  enter outermost first. Enter/leave do not bubble, over/out do, and each carries the pointer
+  payload. A null side leaves the whole old chain (root included) and enters from the root down.
+- Capture freezes boundary events: moves still dispatch to the capture target but do not update
+  `hovered()`, the `Hover` bits, or fire over/out/enter/leave; the chain resumes on the first move
+  after release. A window `Blur`, a primary mouse/pen `PointerCancel` and `InputRouter::reset()`
+  clear it (cancel/blur fire out/leave so no stale enter state remains); touch never fires them.
+- Only the deepest target carries `Hover`; ancestor `:hover` chains and their recomputation on
+  scene changes are deferred: a chain must be recomputed when the tree, bounds or visibility
+  change, and the input layer has no change notification.
+- `:active`: `InputRouter::active()` is the primary pointer's `PointerDown` target, cleared before
+  its `PointerUp` and on its `PointerCancel`, a window `Focus`/`Blur` and `InputRouter::reset()`.
+  A press that hits nothing clears any older active target; capture does not move `Active` and a
+  secondary press never sets it.
+- `:focus` is independent of pointer state (`FocusManager` owns the bit); a `PointerDown` on a
+  focusable target requests focus, on a non-focusable target inside a trap (or anywhere without
+  one) clears it, and outside a trap neither steals nor clears it.
+- `:disabled`/`:checked` come from node state, not pointer state. State changes go through
+  `Node::set_pseudo_state`, which marks `Dirty::Style`; the style resolver raises layout/paint/
+  render only if the matched rules change those groups, and a repeated move onto the same target
+  does not churn the flags (the cached pseudo-state is refreshed on each evaluation).
+- Hover/active targets are validated by `NodeId` before their bit is cleared, so a removed target
+  is never dereferenced (the target is dropped); `hovered()`/`active()` stay raw pointers, so reset
+  or destroy the router before the scene root.
 
 Text/IME routing (implemented, plumbing only): `Text` (one codepoint) and the IME family
-(`CompositionStart`/`Update`/`End`, `EditText`) go to the focused node through the normal path as
-the matching scene `EventType`; without focus they are dropped. The inline UTF-8 payload is capped at
-`kMaxEditTextBytes` (256 bytes) with `text_truncated`; selection offsets are UTF-8 byte offsets into that payload (HAL-converted).
-`prevent_default` is advisory (no framework text insertion yet).
+(`CompositionStart`/`Update`/`End`, `EditText`) go to the focused node as the matching scene
+`EventType` and are dropped without focus; the payload bounds and offsets are in section 8.
 
 Keyboard accelerators (implemented): `InputRouter` owns a bounded `KeyBindingRegistry` of
 `KeyChord` shortcuts; see [`os-events-v1.md`](../specs/os-events-v1.md) §12.1 (rules/bounds).
@@ -489,8 +483,8 @@ handling, and IME producers beyond Win32.
 
 ## 9. Determinism and recording
 
-- Every event carries a simulated timestamp in deterministic mode.
-- A recorded script is a sequence of `(tick, event)` records; replay is exact.
+- Every event carries a simulated timestamp in deterministic mode; a recorded script is a sequence
+  of `(tick, event)` records and replay is exact.
 - Synthetic tests can inject events directly into the UI-thread queue.
 - No wall-clock reads, random device ids, or OS-dependent ordering in golden mode.
 - Pointer coalescing is deterministic: sort by source sequence, take the last position.
@@ -562,8 +556,7 @@ handling, and IME producers beyond Win32.
 - Scene payload mapping: button, pointer id, pointer kind, pressure, wheel deltas, timestamp
   (`tests/unit/input_pipeline_tests.cpp`).
 - Wheel hit-testing/bubbling, text delivered to focus only, Focus/Blur input cancelling capture and
-  clearing hover/active.
-- Tab/Shift+Tab default focus movement and `prevent_default` suppression.
+  clearing hover/active; Tab/Shift+Tab default focus movement and `prevent_default` suppression.
 - Gesture pipeline: tap/double-tap/long-press (sampled tick time)/drag/swipe end-to-end from raw
   events, stable target id across relayout and node removal, identical W3C route log with and
   without a gesture sink installed, pointer cancel and window blur cleanup, two-pointer target
@@ -575,6 +568,14 @@ handling, and IME producers beyond Win32.
   (`tests/unit/window_win32_input_tests.cpp`).
 - `InputPump`: per-tick budget, move coalescing, dropped counters, `request_frame` wake with a
   `ManualClock`, queue overflow, and reset (`tests/unit/input_pipeline_tests.cpp`).
+- X11 XInput2 translation: valuator scroll at several increments and both signs, fractional
+  accumulation (no drift, no double emit), disabled axes and NaN/Inf deltas; touch begin/update/end/
+  cancel per slot with two interleaved contacts, unpaired samples and updates after end ignored, the
+  slot bound and device-removal cancels; pen pressure/tilt normalization, the no-pressure default,
+  eraser classification and dropped tilt; the XIM pre-edit lifecycle (start, updates, commit,
+  cancel, empty commit, replacement start, clamped payloads, malformed UTF-8, caret byte offsets),
+  and a byte-identical replay (`tests/unit/x11_input_translation_xi2_tests.cpp`, ctest
+  `x11_xi2_translation`).
 
 ## 13. Platform notes
 
@@ -588,13 +589,12 @@ handling, and IME producers beyond Win32.
 
 ## 14. Open questions
 
-- Gesture recognizers/arena (the system that decides which recognizer wins a pointer sequence) are
-  implemented as a pure, scene-independent state machine in `include/tessera/ui/gesture.hpp`
-  (bounded per-pointer slots, claim/reject protocol, tap/double-tap/long-press/drag/swipe/pinch/
-  rotate recognizers); see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)
-  section 5.1 and the pan-scroll handoff in section 5.2. Remaining: non-scroll gesture handling,
-  custom-element consumption, wheel/edge-swipe recognizers, and platform edge/back gesture policy.
+- Gesture recognizers/arena are a pure, scene-independent state machine in
+  `include/tessera/ui/gesture.hpp`; see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)
+  sections 5.1-5.2. Remaining: non-scroll gesture handling, custom-element consumption,
+  wheel/edge-swipe recognizers, and platform edge/back gesture policy.
 - Accessibility actions (invoke, set value) mapped into the same event flow (see [`accessibility.md`](accessibility.md)).
-- Gamepad and stylus pressure/tilt.
+- Gamepad input, and a tilt/orientation field on the normalized event (XI2 classifies tilt, but the
+  event has nowhere to carry it).
 - IME candidate-window styling and positioning across platforms.
 - Event timestamp source and clock correlation with the game loop.

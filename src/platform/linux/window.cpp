@@ -4,6 +4,7 @@
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
 #include "x11_input.hpp"
+#include "x11_xi2.hpp"
 
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
@@ -96,6 +97,10 @@ public:
     bool wait_for_events(double timeout_seconds) override;
     void set_input_queue(ui::InputQueue* queue) override {
         input_.set_queue(queue);
+        xi2_.set_queue(queue);
+        // The XI2 pre-edit machine and the key path share one owner per commit: the gate drops the
+        // key event carrying text the composition already committed as an EditText event.
+        input_.set_ime_commit_gate({&X11Xi2Pump::consume_commit_thunk, static_cast<void*>(&xi2_)});
     }
     void show() override;
     void hide() override;
@@ -123,6 +128,7 @@ private:
     std::thread::id owner_thread_ = std::this_thread::get_id();
     EventQueue events_;
     X11InputTranslator input_;
+    X11Xi2Pump xi2_;
     XIM input_method_ = nullptr;
     XIC input_context_ = nullptr;
     bool initializing_ = true;
@@ -171,6 +177,9 @@ bool X11Window::create(const WindowDesc& desc) {
         XSetWMProtocols(display_, window_, &wm_delete_window_, 1);
     }
     XStoreName(display_, window_, desc.title.c_str());
+    // XI2 is initialized before the input method opens: an active XI2 pump is what lets the window
+    // ask for client-side pre-edit, and a missing XInput2 leaves the core path unchanged.
+    (void)xi2_.initialize(display_, window_);
     open_input_method();
     last_width_ = static_cast<int>(width);
     last_height_ = static_cast<int>(height);
@@ -202,6 +211,7 @@ X11Window::~X11Window() {
         return;
     }
     close_input_method();
+    xi2_.shutdown();
     if (window_ != 0) {
         XDestroyWindow(display_, window_);
         window_ = 0;
@@ -254,6 +264,11 @@ void X11Window::request_close() {
 }
 
 void X11Window::handle_event(XEvent& event, bool auto_repeat, bool filtered) {
+    // XI2 device events (smooth scroll, touch, pen) are consumed here. Selecting them as XI2
+    // events is what stops the server from also delivering the core event for the same device.
+    if (xi2_.handle(event, dpi_scale(dpi_))) {
+        return;
+    }
     // Input events (and the input half of focus changes) go to the queue; focus still falls
     // through to the window's own Focus/Blur state below.
     if (input_.handle(event, dpi_scale(dpi_), auto_repeat, filtered)) {
@@ -283,6 +298,7 @@ void X11Window::handle_event(XEvent& event, bool auto_repeat, bool filtered) {
         return;
     case FocusOut:
         focused_ = false;
+        xi2_.cancel_all();
         if (input_context_ != nullptr) {
             XUnsetICFocus(input_context_);
         }
@@ -342,13 +358,27 @@ void X11Window::open_input_method() {
     if (input_method_ == nullptr) {
         return;
     }
-    // No pre-edit or status drawing yet: the method composes and commits text only.
+    // The method composes and commits text through the IC. Client-side pre-edit is requested when
+    // the method offers it and the XI2 pump is active, because that is the path that carries the
+    // CompositionStart/Update/End events; the fallback IC keeps today's commit-only behavior.
     input_context_ = XCreateIC(input_method_, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
                                XNClientWindow, window_, XNFocusWindow, window_, nullptr);
     if (input_context_ == nullptr) {
         XCloseIM(input_method_);
         input_method_ = nullptr;
         return;
+    }
+    if (xi2_.enabled() && xi2_.input_method_supports_preedit(input_method_)) {
+        XIC with_preedit =
+            XCreateIC(input_method_, XNInputStyle, XIMPreeditCallbacks | XIMStatusNothing,
+                      XNClientWindow, window_, XNFocusWindow, window_, nullptr);
+        if (with_preedit != nullptr && xi2_.attach_input_context(input_method_, with_preedit)) {
+            XDestroyIC(input_context_);
+            input_context_ = with_preedit;
+        } else if (with_preedit != nullptr) {
+            // The method advertised callbacks but refused them: keep the commit-only context.
+            XDestroyIC(with_preedit);
+        }
     }
     // The method names the events it needs delivered to filter key input.
     unsigned long filter_events = 0;

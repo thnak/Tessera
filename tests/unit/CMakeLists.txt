@@ -494,6 +494,22 @@ target_include_directories(x11_input_translation_tests PRIVATE
 
 add_test(NAME x11_input_translation COMMAND x11_input_translation_tests)
 
+# The pure XInput2 rules (scroll valuators, touch slots, pen normalization) and the XIM pre-edit
+# composition state machine have no Xlib dependency either, so they run on every platform too.
+add_executable(x11_input_translation_xi2_tests
+    x11_input_translation_xi2_tests.cpp
+    x11_input_translation_xi2_ime_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_translation.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_ime_composition.cpp)
+
+target_link_libraries(x11_input_translation_xi2_tests PRIVATE tessera_input)
+
+target_include_directories(x11_input_translation_xi2_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/linux)
+
+add_test(NAME x11_xi2_translation COMMAND x11_input_translation_xi2_tests)
+
 add_executable(runtime_loop_tests
     runtime_loop_tests.cpp)
 

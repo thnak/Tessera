@@ -77,7 +77,8 @@ void X11InputTranslator::push_text(std::uint32_t codepoint, ui::Modifier modifie
     push(text);
 }
 
-void X11InputTranslator::push_typed_text(const XKeyEvent& key, ui::Modifier modifiers) {
+void X11InputTranslator::push_typed_text(const XKeyEvent& key, ui::Modifier modifiers,
+                                         bool ime_commit) {
     XKeyEvent copy = key;
     KeySym typed = NoSymbol;
     if (context_ == nullptr) {
@@ -101,6 +102,12 @@ void X11InputTranslator::push_typed_text(const XKeyEvent& key, ui::Modifier modi
     }
     if (status == XLookupChars || status == XLookupBoth) {
         const std::string_view text(data, length > 0 ? static_cast<std::size_t>(length) : 0U);
+        // The pre-edit state machine may already have committed this string as one EditText event;
+        // it reports that by consuming the gate, so the text is not inserted twice.
+        if (ime_commit && ime_gate_.consume != nullptr &&
+            ime_gate_.consume(ime_gate_.context, text)) {
+            return;
+        }
         std::size_t position = 0;
         while (position < text.size()) {
             push_text(x11::next_utf8_codepoint(text, position), modifiers);
@@ -135,7 +142,7 @@ void X11InputTranslator::key_event(const XKeyEvent& key, bool down, bool auto_re
     if (!down || filtered || (key.state & kControlAltMeta) != 0) {
         return; // shortcuts are key events, not text
     }
-    push_typed_text(key, modifiers);
+    push_typed_text(key, modifiers, commit);
 }
 
 bool X11InputTranslator::is_auto_repeat_pair(const XKeyEvent& release, const XKeyEvent& press) {

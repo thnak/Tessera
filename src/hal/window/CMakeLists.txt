@@ -30,10 +30,27 @@ elseif (TESSERA_X11_FOUND)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp)
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_translation.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_ime_composition.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_events.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_ime.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux)
     target_link_libraries(tessera_hal_window PUBLIC X11::X11 PRIVATE tessera_input)
+    # XInput2 (XI 2.1 smooth-scroll valuators, XI 2.2 touch, tablet pressure) needs the XInput2
+    # headers and libXi. Without them the browser-independent pure rules still compile and the
+    # window keeps the core-protocol pointer path unchanged (TESSERA_X11_XI2 undefined).
+    find_path(TESSERA_XINPUT2_INCLUDE_DIR X11/extensions/XInput2.h)
+    find_library(TESSERA_XINPUT2_LIBRARY NAMES Xi)
+    if (TESSERA_XINPUT2_INCLUDE_DIR AND TESSERA_XINPUT2_LIBRARY)
+        target_compile_definitions(tessera_hal_window PRIVATE TESSERA_X11_XI2=1)
+        target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_XINPUT2_LIBRARY})
+        message(STATUS "XInput2 found: Linux smooth scroll, touch and pen input enabled")
+    else()
+        message(STATUS "XInput2 not found: Linux input keeps the core-protocol path")
+    endif()
 else()
     target_sources(tessera_hal_window PRIVATE
         window_stub.cpp)

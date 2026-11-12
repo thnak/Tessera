@@ -20,8 +20,9 @@ IME, accessibility, clipboard, selection, undo/redo, and deterministic tests.
 
 Input plumbing status: the normalized input model and scene routing for text/IME are implemented
 (`InputEventType::CompositionStart/Update/End` and `EditText`, bounded inline UTF-8 payload with
-truncation, UTF-16 code-unit offsets, focused-node-only delivery, Win32 `WM_IME_*` translation;
-see [`input.md`](../design/input.md) sections 2.1 and 8). The editing core is implemented in
+truncation, UTF-16 code-unit offsets, focused-node-only delivery, Win32 `WM_IME_*` translation and
+X11/XIM pre-edit translation when XInput2 is available; see [`input.md`](../design/input.md)
+sections 2.1, 2.2 and 8). The editing core is implemented in
 `include/tessera/ui/text/edit_buffer.hpp` and `edit_controller.hpp` (UTF-8 buffer, caret/selection,
 grapheme/word/line commands, bounded length, IME composition commit/cancel; see section 12).
 Editable-node scene integration, undo/redo, clipboard, bidi visual movement, candidate-window
@@ -99,6 +100,12 @@ scroll_into_view(caret)
 - The platform/HAL owns the native IME and candidate-window placement; Tessera normalizes
   composition start/update/end, committed text, and dead keys, and reports the caret rect to the
   platform (see [`input.md`](../design/input.md)).
+- HAL pre-edit rules: the pre-edit payload is clamped at the inline cap on a UTF-8 boundary
+  (`text_truncated` set), malformed bytes become U+FFFD, and the caret is converted to a UTF-8 byte
+  offset. A start while composing replaces the in-progress pre-edit (no end event for the replaced
+  text); a commit with an empty pre-edit emits no text, only the end; a cancel discards the
+  pre-edit. A platform that also reports the committed string separately must not deliver it twice
+  (the X11/XIM producer drops the key event the composition already committed).
 - Composition text is rendered with underline/marked style; caret stays at the composition
   boundary; committed text replaces the marked range atomically.
 - Candidate window is positioned near the caret, flipped/clamped to the window and safe area.
