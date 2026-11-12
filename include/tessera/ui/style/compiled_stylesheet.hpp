@@ -7,6 +7,7 @@
 #include "tessera/ui/style/keyframes.hpp"
 #include "tessera/ui/style/media_query.hpp"
 #include "tessera/ui/style/parser.hpp"
+#include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/selector_match.hpp"
 
@@ -29,6 +30,11 @@ struct CompiledRule {
 class CompiledStyleSheet {
 public:
     explicit CompiledStyleSheet(StyleSheet sheet, Origin origin = Origin::Author,
+                                PropertyRegistry registry = PropertyRegistry{},
+                                MediaContext media = MediaContext{});
+    // Resolve stage (ADR-048): evaluates `@media` against `media` and builds the cascade
+    // structures from an already prepared sheet, without tokenizing or parsing.
+    explicit CompiledStyleSheet(const PreparedStyleSheet& prepared, Origin origin = Origin::Author,
                                 PropertyRegistry registry = PropertyRegistry{},
                                 MediaContext media = MediaContext{});
 
@@ -74,10 +80,7 @@ public:
     }
 
 private:
-    void compile_rules(const StyleSheet& sheet, std::uint64_t& source_order, std::uint32_t layer);
-    void compile_rule(const Rule& rule, std::uint64_t& source_order, std::uint32_t layer);
-    void compile_at_rule(const AtRule& at_rule, std::uint64_t& source_order, std::uint32_t layer);
-    std::uint32_t layer_for(std::string_view name);
+    void resolve(const PreparedStyleSheet& prepared);
 
     Origin origin_ = Origin::Author;
     PropertyRegistry registry_;
@@ -87,8 +90,6 @@ private:
     std::vector<KeyframeBlock> keyframes_;
     std::vector<StyleDiagnostic> diagnostics_;
     std::map<std::string, std::uint32_t> layer_order_;
-    std::uint32_t next_layer_ = 0;
-    std::vector<ContainerQuery> active_containers_;
     std::vector<ContainerQuery> container_queries_;
     bool has_container_queries_ = false;
 };
