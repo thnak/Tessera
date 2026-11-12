@@ -60,7 +60,7 @@ This page is the map and reading order for the framework.
 - [ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) — own JSX/TSX front end; React-like model
 - [ADR-037](../decisions/ADR-037-self-contained-wasm-designer.md) — self-contained Wasm (WebAssembly) designer engine
 - [ADR-039](../decisions/ADR-039-lowercase-html-tags-accepted.md) — lowercase HTML tags accepted as intrinsic aliases
-- [ADR-050](../decisions/ADR-050-opt-in-app-framework-layer.md) — opt-in app-framework layer (lifecycle, services, task scopes, app state); proposed
+- [ADR-050](../decisions/ADR-050-opt-in-app-framework-layer.md) — application-framework layer (lifecycle, services resolved at mount, `useService<Interface>()`, task scopes, app state, native render surfaces); proposed
 
 ## 3. Specs (normative)
 
@@ -226,6 +226,8 @@ This page is the map and reading order for the framework.
 - [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
 - [`design/services.md`](design/services.md) — i18n (internationalization), navigation, storage, networking,
   notifications
+- [`design/native-render-surfaces.md`](design/native-render-surfaces.md) — typed refs to native
+  render surfaces drawn through the RHI: lifecycle, threading, dirty/idle rules (ADR-050 section 7)
 - [`design/service-resolve-benchmark.md`](design/service-resolve-benchmark.md) — measured cost of
   resolving app services (per call, per mount, cache effects, virtual vs static dispatch) behind
   ADR-050's resolve-at-mount rule
