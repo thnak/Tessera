@@ -8,6 +8,7 @@
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
@@ -93,6 +94,15 @@ public:
     // Step 8: clears every dirty domain on the scene after a painted frame. Safe to call after a
     // skipped frame too (nothing is dirty then).
     void end_frame();
+
+    // Cumulative counters of the pipeline-owned per-node paint cache. begin_frame() invalidates the
+    // cache whenever it rebuilds the selector tree (`HostFrame::style_rebuilt`, i.e. every frame
+    // that reported style or layout work), because a rebuilt tree is a new style generation: a
+    // clean node can compute a different style through inheritance, an ancestor/sibling selector or
+    // a restyled root without its own dirty flag being set. A node's own style change marks it
+    // dirty, which the cache key already handles. `resize()` re-creates the pipeline, so the cache
+    // starts cold there. Read the counters after paint() to see one frame's hits/misses.
+    [[nodiscard]] const ui::paint::PaintCacheStats& paint_cache_stats() const;
 
     // Client-area change: updates the root's inline size, the layout viewport, the damage target
     // and the pipeline's DPI scale, then marks the whole subtree for layout/paint and forces a

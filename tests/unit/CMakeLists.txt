@@ -1781,3 +1781,16 @@ add_executable(webgpu_mapping_tests
 target_link_libraries(webgpu_mapping_tests PRIVATE tessera_webgpu_mapping)
 
 add_test(NAME webgpu_mapping COMMAND webgpu_mapping_tests)
+
+# The FramePipeline/AppHost-owned per-node paint cache (docs/design/dirty-rendering.md 5.4): a
+# settled frame replays its records, output stays byte-identical to the uncached pass, and a
+# style/tree generation change invalidates instead of replaying the previous generation.
+add_executable(frame_paint_cache_tests
+    frame_paint_cache_tests.cpp)
+
+target_link_libraries(frame_paint_cache_tests PRIVATE
+    tessera_app
+    tessera_frame
+    tessera_runtime)
+
+add_test(NAME frame_paint_cache COMMAND frame_paint_cache_tests)

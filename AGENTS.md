@@ -197,10 +197,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [x] **B2:** Text stack done except ICU in CI: add the `icu-text` job
       (`TESSERA_ICU_REDUCED_DATA=ON`, filtered text ctest) — `.github/workflows/linux.yml`,
       `docs/design/icu-data.md`.
-- [ ] **B2:** Dirty rendering done except per-node paint caches — clean subtrees are not
-      re-recorded; damage equivalence still passes — cache component landed
-      (`src/ui/paint/paint_cache.cpp`, `tests/unit/paint_cache_tests.cpp`); still to do: wire it into
-      `FramePipeline`/`AppHost` and invalidate it on a style/tree generation change.
+- [x] **B2:** Dirty rendering done except per-node paint caches — clean subtrees are not
+      re-recorded; damage equivalence still passes —
+      `src/ui/paint/paint_cache.cpp`, `src/ui/frame/frame_pipeline.cpp`,
+      `tests/unit/paint_cache_tests.cpp`, `tests/unit/frame_paint_cache_tests.cpp`.
 - [x] **B2:** Pacing done except dynamic refresh/VRR — pacer follows a scripted rate change —
       `src/runtime/frame_pacer.cpp`, `tests/unit/frame_pacer_tests.cpp`.
 - [ ] **B2:** Power: adaptive quality and occluded/background pause — occluded window presents
