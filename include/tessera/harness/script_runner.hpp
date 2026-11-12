@@ -109,7 +109,6 @@ private:
     std::size_t next_ = 0;
     bool finished_ = false;
     bool cancelled_ = false;
-    bool failed_ = false;
 };
 
 } // namespace tessera::harness
