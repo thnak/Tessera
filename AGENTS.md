@@ -211,8 +211,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       (`tests/unit/adaptive_quality_tests.cpp`) and the host consumes it
       (`src/ui/scale/render_target_extent.cpp`, `tests/gpu/app_window_render_scale_tests.cpp`):
       a downgrade renders into a smaller target and blits it up, while scale 1.0 keeps the
-      direct path and every golden unchanged. Still missing: the effect and present-cap steps
-      of the design order, and GPU timestamps as the frame-time signal.
+      direct path and every golden unchanged. Step 3 landed too: a downgrade lowers the present
+      cap to the next refresh divisor (`src/runtime/present_cap.cpp`,
+      `tests/gpu/app_window_present_cap_tests.cpp`). Still missing: step 1 (effect reduction),
+      step 4 (pausing non-essential animations) and GPU timestamps as the frame-time signal.
 - [x] **B2:** Multi-frame sync: timeline semaphores (two frames in flight already work) — smoke
       test validation-clean — `src/rendering/backend/vulkan/src/vulkan_swapchain_present.cpp`,
       `tests/gpu/vulkan_timeline_frame_tests.cpp`.
@@ -280,7 +282,11 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
 - [x] Dynamic `orientation`/`columns`/`overscan` on virtual lists/grids — codegen runtime test —
       `src/compiler/codegen/src/emit_virtual_geometry.cpp`,
       `tests/unit/codegen_dynamic_virtual_tests.cpp`, `tests/golden/codegen/dynamic/`.
-- [ ] Codegen emission of vector payloads (`PaintKind::Vector`) — generated golden.
+- [x] Codegen emission of vector payloads (`PaintKind::Vector`) — generated golden —
+      `src/compiler/codegen/src/emit_vector.cpp`,
+      `tests/unit/codegen_vector_payload_tests.cpp`,
+      `tests/gpu/codegen_vector_paint_golden_tests.cpp`,
+      `tests/golden/baseline/codegen/vector_payload_cpu.png`.
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))
 ADR-049 is Accepted and the shader chain is on `main`; WebGPU stays Tier 2 until its CI lane is green on GitHub.
@@ -578,11 +584,11 @@ both ADR-048 blob artifacts (compiled stylesheets registered in import-graph ord
 `@layer tessera-ui`, and the embedded theme asset loaded without parsing); in-tree UIA and AT-SPI2
 bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
-**Farm order:** V1-M1 and V1-M2 first. Remaining unblocked M2 slices: codegen vector payloads and
-the ADR-040 generated-base migration; the last #70 leftover (object-literal prop defaults) is blocked
-on an IR record type. Remaining M1 slices: the rest of the power item (effect reduction and the
-present-cap divisor, plus GPU timestamps as the frame-time signal), the interpolation alpha wake
-threshold, the B3 Wayland window and the B3 OS-event item. V1-M3 and V1-M5 wait for their design PRs
+**Farm order:** V1-M1 and V1-M2 first. Remaining unblocked M2 slice: the ADR-040 generated-base
+migration (the last #70 leftover, object-literal prop defaults, is blocked on an IR record type).
+Remaining M1 slices: the rest of the power item (effect reduction, pausing non-essential animations,
+GPU timestamps as the frame-time signal and a real display-refresh query for the present cap), the
+interpolation alpha wake threshold, the B3 Wayland window and the B3 OS-event item. V1-M3 and V1-M5 wait for their design PRs
 (#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may start now. V1-M4, V1-M6, V1-M7
 and V1-M8 come later.
 
