@@ -193,8 +193,9 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [ ] **B2:** Stylesheet: `text-transform` (`uppercase`/`lowercase`/`capitalize`) — text paint test.
 - [x] **B2:** Stylesheet: `word-spacing` — `src/ui/text/text_wrap.cpp`,
       `tests/unit/word_spacing_tests.cpp`.
-- [ ] **B2:** Text stack done except ICU in CI: add the `icu-text` job
-      (`TESSERA_ICU_REDUCED_DATA=ON`, filtered text ctest).
+- [x] **B2:** Text stack done except ICU in CI: add the `icu-text` job
+      (`TESSERA_ICU_REDUCED_DATA=ON`, filtered text ctest) — `.github/workflows/linux.yml`,
+      `docs/design/icu-data.md`.
 - [ ] **B2:** Dirty rendering done except per-node paint caches — clean subtrees are not
       re-recorded; damage equivalence still passes.
 - [x] **B2:** Pacing done except dynamic refresh/VRR — pacer follows a scripted rate change —

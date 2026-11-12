@@ -10,14 +10,18 @@
 #include <unicode/utypes.h>
 #include <unicode/uversion.h>
 
-namespace tessera::ui::text::icu {
-namespace {
-
 // The genccode object defines the blob under the pinned ICU data symbol (TESSERA_ICU_DATA_SYMBOL
-// comes from the tessera_icu INTERFACE target, so the name follows the ICU version).
+// comes from the tessera_icu INTERFACE target, so the name follows the ICU version). The
+// declaration must stay at namespace scope: inside an anonymous namespace it would take internal
+// linkage, so on a C++ compiler that keeps the C name only for external declarations (GCC) the
+// reference resolves to an undefined `(anonymous namespace)::icudt<major>_dat` instead of the C
+// symbol the generated object defines.
 extern "C" {
 extern const char TESSERA_ICU_DATA_SYMBOL[];
 }
+
+namespace tessera::ui::text::icu {
+namespace {
 
 bool attempted = false;
 bool installed = false;

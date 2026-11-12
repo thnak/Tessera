@@ -185,10 +185,12 @@ reproduce every number above.
 
 ## 8. Implementation (task-101): static ICU with the reduced blob
 
-Status: landed behind the same `TESSERA_ICU_REDUCED_DATA=OFF` switch. CI and the default build are
-unchanged; a lane that flips the option gets the whole dependency. The greedy wrap consumes UAX #14
-segments in both configurations (`text.md` section 6), so nothing in the tree needs the option to
-stay OFF any more; section 8.6 has the flip, its measured cost, and the CI fallback.
+Status: landed behind the same `TESSERA_ICU_REDUCED_DATA=OFF` switch. The default build and every
+default lane stay on the builtin engine; the dedicated Linux `icu-text` CI job
+(`.github/workflows/linux.yml`) provisions the pinned host tools and data, configures with the
+option ON, and runs the filtered text suite, so the ICU engine is proven on every push without
+linking the blob into every job (see section 8.6). The greedy wrap consumes UAX #14 segments in both
+configurations (`text.md` section 6), so nothing in the tree needs the option to stay OFF any more.
 
 ### 8.1 Build shape
 
@@ -354,9 +356,13 @@ test step, so the ICU tests join it without a workflow edit.
 
 Fallback when enabling it on every job is too slow: keep every existing job on the builtin engine
 and add one dedicated Linux `icu-text` job that carries the provisioning, the ON configure, the
-build, and the filtered `ctest` lines above. The UAX #14 + ICU path is then proven on every push
-for one job's build cost instead of every job's, and the parity test keeps proving that the
-builtin engine the other lanes ship produces the same line boxes for the shared corpus.
+build, and the filtered `ctest` lines above. That is what `linux.yml` does (timeout 40 minutes):
+the job downloads the pinned `icu4c-76_1-src.tgz` (sha256-verified), builds its host tools with
+`runConfigureICU Linux --disable-samples` plus `make`, and passes `TESSERA_ICU_TOOLS_DIR`,
+`TESSERA_ICU_FULL_DATA` and `TESSERA_ICU_SOURCE_DIR` to the `ci` preset. The UAX #14 + ICU path is
+then proven on every push for one job's build cost instead of every job's, and the parity test keeps
+proving that the builtin engine the other lanes ship produces the same line boxes for the shared
+corpus.
 
 Making ICU mandatory later is: move the four option/set lines from `third_party/CMakeLists.txt` to
 the root options block and default them ON.
