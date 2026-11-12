@@ -226,6 +226,9 @@ This page is the map and reading order for the framework.
 - [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
 - [`design/services.md`](design/services.md) — i18n (internationalization), navigation, storage, networking,
   notifications
+- [`design/service-resolve-benchmark.md`](design/service-resolve-benchmark.md) — measured cost of
+  resolving app services (per call, per mount, cache effects, virtual vs static dispatch) behind
+  ADR-050's resolve-at-mount rule
 - [`design/security.md`](design/security.md) — threat model, compiler/runtime/designer,
   supply chain, privacy
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI
