@@ -56,6 +56,27 @@ tint and a per-call clip. Its committed baselines run on every platform (no GPU,
 `dashboard_cpu.png` (solid rects), `dashboard_text_cpu.png` (coverage text),
 `dashboard_vector_cpu.png`, and `dashboard_image_cpu.png` (textured quads).
 
+The wider paint corpus is committed as `tests/golden/baseline/cpu_wide/{borders,clips,gradients}.png`
+and rendered by `tests/gpu/cpu_wide_golden_tests.cpp` (ctest `cpu_wide_golden`) through
+`ui::paint::paint_scene` and the CPU paint sink. Coverage:
+
+- `borders`: one rounded card with four border sides of distinct widths and colours (the top,
+  right, bottom and left edge quads), a second card with a uniform square border, and a borderless
+  rounded card that pins the sink's documented bounds approximation (corners stay square);
+- `clips`: three nested `overflow: hidden` scopes whose intersection cuts the fills, an outermost
+  clip whose rect starts off-canvas, and a disjoint clip whose child must paint nothing even where
+  the child would fall on the canvas;
+- `gradients`: a vertical three-stop and a horizontal two-stop linear ramp sampled through
+  `ui::paint::sample_linear_gradient` (the sink's shared 64-band encoded-space approximation, not a
+  private copy of the ramp math), plus a gradient clipped by two nested scopes.
+
+The three baselines are generated on the CPU path only with
+`cpu_wide_golden_tests --update-goldens` and are bit-exact on Windows and Linux. The comparison
+rule is exact: decode both PNGs to RGBA8, require equal dimensions, compare every byte including
+alpha, and fail on a single differing pixel (per-channel tolerance 0, mismatch budget 0). No
+libm/locale/font/GPU rounding is involved, so the same bytes must come out on every platform; the
+test also renders every scene twice and requires byte identity before touching the baseline.
+
 The deterministic corpus is also pinned without baseline PNGs, on exact RGBA8 bytes, by
 `cpu_canvas_corpus` and `cpu_canvas_scene_corpus` (`tests/unit/`). Coverage:
 

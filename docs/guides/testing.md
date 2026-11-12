@@ -119,6 +119,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_cpu_text_golden` | CPU-canvas text baseline (single-line + wrapped PaintData), bit-exact (all platforms) |
 | `batched2d_cpu_vector_golden` | CPU-canvas vector-asset baseline (SVG → CPU raster → textured-quad blit), bit-exact (all platforms; skips when ThorVG is OFF) |
 | `batched2d_cpu_image_golden` | CPU-canvas raster-image baseline (PNG → decode cache → textured-quad blit), bit-exact (all platforms) |
+| `cpu_wide_golden` | CPU-canvas wider paint corpus: borders, nested clips and linear gradients, bit-exact (all platforms; `--update-goldens` regenerates) |
 | `cpu_canvas` | pure CPU coverage-blend math: rounding, alpha, overlap, clip, off-canvas blits, textured-quad sampling/tint/guards |
 | `cpu_canvas_corpus` | software-backend primitive corpus: solid quads, pixel-center edges, alpha order, textured quads, 0-size/off-canvas/1-pixel/negative geometry, negative control |
 | `cpu_canvas_scene_corpus` | sink-level corpus: nested/disjoint clip stacks, translate vs rotation AABB, rounded-rect bounds gap, damage-scissored replay == full redraw, negative control |
@@ -339,6 +340,18 @@ Implemented for the batched2d proof:
   tests/golden/baseline/batched2d/dashboard_image_cpu.png`, inspect the PNG, confirm two runs are
   byte-identical, then commit it with the behavior/test change. Contract and measurements:
   [design/thorvg-spike/12-image-assets.md](../design/thorvg-spike/12-image-assets.md).
+- `cpu_wide_golden` is a Vulkan-free executable (`tests/gpu/cpu_wide_golden_tests.cpp`, registered
+  from `tests/gpu/CMakeLists.txt`) that paints three scene graphs through `ui::paint::paint_scene`
+  and `CpuPaintSink`/`CpuCanvas`: `borders` (four differently sized/coloured border sides, a
+  uniform square border, and a borderless rounded card that pins the documented bounds
+  approximation), `clips` (three nested `overflow: hidden` clips, an outer clip that starts
+  off-canvas, and a disjoint clip whose child must paint nothing), and `gradients` (a vertical
+  three-stop and a horizontal two-stop linear ramp sampled by the sink's shared
+  `sample_linear_gradient`, plus a gradient cut by two nested clips). It asserts a byte-identical
+  repeat, then compares `tests/golden/baseline/cpu_wide/{borders,clips,gradients}.png` bit-exactly
+  (tolerance 0, zero mismatched pixels). Regenerate deliberately from the CPU path only:
+  `./build/<dir>/tests/gpu/cpu_wide_golden_tests --update-goldens`, inspect the PNGs, confirm a
+  second run changes no byte, then commit them with the behavior/test change.
 - `batched2d_windowed_smoke` creates a hidden platform window, a Vulkan swapchain, renders the
   dashboard into acquired images, presents three frames, and uses `wait_for_next_frame` for
   pacing while `RuntimeLoop` decides whether each iteration renders. The test requires the
@@ -359,8 +372,9 @@ Implemented for the batched2d proof:
 
 `CpuCanvas` (`src/rendering/software/`) is the deterministic software reference used by the CPU
 goldens (`dashboard_cpu.png`, `dashboard_text_cpu.png`, `dashboard_vector_cpu.png`,
-`dashboard_image_cpu.png`). Its contract, and the exact list of what it does and does not draw,
-lives in [golden-tests-v1.md, section 1.2](../specs/golden-tests-v1.md#12-software-cpu-canvas-corpus).
+`dashboard_image_cpu.png`) and by the wider `tests/golden/baseline/cpu_wide/` set. Its contract,
+and the exact list of what it does and does not draw, lives in
+[golden-tests-v1.md, section 1.2](../specs/golden-tests-v1.md#12-software-cpu-canvas-corpus).
 The two Vulkan-free suites next to `cpu_canvas` pin it on exact RGBA8 bytes, so widening the
 backend cannot silently change pixels:
 
@@ -374,6 +388,13 @@ backend cannot silently change pixels:
   empty intersection paints nothing), translate-only transforms (exact), rounded-rect backgrounds,
   and damage-scissored replays (`ClippedPaintSink` per disjoint region must equal a full redraw
   byte for byte, with an undersized-region negative control).
+- `cpu_wide_golden` commits the wider paint corpus as image baselines: `borders` (all four border
+  sides with distinct widths and colours over a rounded background, a uniform square border, and a
+  borderless rounded card that pins the bounds approximation), `clips` (three nested clips, a clip
+  that starts off-canvas, and a disjoint clip that must paint nothing), and `gradients` (vertical
+  and horizontal linear ramps plus a gradient cut by nested clips). The three PNGs under
+  `tests/golden/baseline/cpu_wide/` are generated on the CPU path only and compared at tolerance 0,
+  so they must be byte-identical on Windows and Linux.
 
 Documented gaps, kept explicit instead of faked: no rounded/SDF rasterizer (a rounded rect paints
 its bounds, corners stay square), no rotation/scale/skew rasterizer (a transformed node paints its
@@ -400,8 +421,8 @@ Both suites are deterministic and fast: no GPU, lavapipe, font, clock, random id
   GPU smoke checks; GPU runs never update baselines.
 - `rendering/golden/image_diff.hpp` compares RGBA8 images and reports mismatched pixels, max/mean
   channel delta, and the first mismatch.
-- Not implemented yet: CPU-rasterizer goldens, the wider corpus, and the
-  corpus beyond batched2d. See [`golden-tests-v1.md`](../specs/golden-tests-v1.md) and
+- Not implemented yet: a golden corpus beyond batched2d. See
+  [`golden-tests-v1.md`](../specs/golden-tests-v1.md) and
   [`design/testing.md`](../design/testing.md).
 
 ## 5. Deterministic mode

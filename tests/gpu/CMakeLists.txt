@@ -161,6 +161,23 @@ if (TARGET batched2d_poc)
             ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_text_cpu.png)
 endif()
 
+# Wider CPU paint corpus: borders, nested clips and linear gradients painted by the shared paint pass
+# into the deterministic CPU sink. Vulkan-free, so it runs on every platform; the committed baselines
+# under tests/golden/baseline/cpu_wide/ are compared bit-exactly and regenerated only through
+# `cpu_wide_golden_tests --update-goldens` on the CPU path.
+add_executable(cpu_wide_golden_tests
+    cpu_wide_golden_tests.cpp)
+target_include_directories(cpu_wide_golden_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+target_compile_definitions(cpu_wide_golden_tests PRIVATE
+    TESSERA_CPU_WIDE_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/baseline/cpu_wide")
+target_link_libraries(cpu_wide_golden_tests PRIVATE
+    tessera_paint
+    tessera_software
+    tessera_golden
+    tessera_stb)
+add_test(NAME cpu_wide_golden COMMAND cpu_wide_golden_tests)
+
 if (UNIX AND TARGET batched2d_poc)
     find_file(TESSERA_LAVAPIPE_ICD
         NAMES lvp_icd.x86_64.json lvp_icd.json
