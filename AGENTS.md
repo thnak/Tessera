@@ -632,9 +632,12 @@ through the same path; the sample is a thin CLI over both (windowless `--capture
 `--windowed [--hidden --frames N]`). Tests `app_window` (capture parity + hidden-window smoke), `app_input` (pointer move -> `:hover`,
 press -> `:active`, release -> generated Click, focus + typed text -> generated onChange through the
 `InputPump`) and `click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next
-for this lane: generated controlled `TextInput` caret/selection decoration (the editor owns the
-offsets but codegen does not publish them into PaintData yet), platform cursor shape once the HAL
-grows a cursor API. The window input path is covered: `WindowHost::post_input` feeds normalized
+for this lane: caret blinking (paint keeps its default phase until a host-owned `CaretBlink` is
+wired; Focus/Blur would need a free binding slot or a focus notification seam), platform cursor
+shape once the HAL grows a cursor API. Generated controlled `TextInput`s publish
+caret/selection/preedit decoration from `TextInputRuntime::publish_decoration` (after each handled
+event and at the end of `apply_state`), shown by `click_demo --click --type Ada`
+(`docs/images/click-demo-typed.png`). The window input path is covered: `WindowHost::post_input` feeds normalized
 events into the same InputPump/InputRouter as OS input, and `tests/gpu/app_window_input_tests.cpp`
 drives click -> generated state and pointer focus + typed text -> generated onChange on a real hidden
 window + swapchain; `WindowHost::apply_metrics` feeds a metrics snapshot through the resize/DPI path

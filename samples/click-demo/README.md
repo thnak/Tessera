@@ -6,11 +6,15 @@ Yoga, painted through the Batched2D Vulkan backend, driven by `tessera_app::AppH
 
 ![before](../../docs/images/click-demo-before.png)
 ![after a click](../../docs/images/click-demo-after.png)
+![after a click and typed text](../../docs/images/click-demo-typed.png)
 
 The second image is the same scene after a real pointer click on the generated `Button`: the
 generated handler increments `count`, the interpolated `Count: 1` text repaints and the conditional
 `Positive` child attaches with a Yoga reflow. The click goes through `ui::InputRouter` (pointer
-down/up → click synthesis), the same path the window's `InputPump` uses.
+down/up → click synthesis), the same path the window's `InputPump` uses. The third image adds typed
+text: the `TextInput` is focused by a pointer press, an `EditText` commit reaches the generated
+`onChange`, `Name: Ada` becomes controlled state and the field paints `Ada` with caret decoration
+(selection/preedit use the same `PaintData::decoration`).
 
 ## Run
 
@@ -18,6 +22,7 @@ down/up → click synthesis), the same path the window's `InputPump` uses.
 # Offscreen capture (no window; any Vulkan device, including lavapipe in CI)
 click_demo --capture before.png
 click_demo --click --capture after.png
+click_demo --click --type Ada --capture typed.png
 
 # Visible window, real mouse input
 click_demo --windowed
@@ -48,5 +53,6 @@ click_demo --windowed --hidden --frames 5
 - The window's damage-clipped path is not used for presentation yet: a frame that happens is
   painted in full (the damage plan decides *whether* to paint), matching the batched2d POC.
 - `:hover` and `:active` are styled and driven by `InputPump` → `InputRouter`; the cursor *shape*
-  is not set (the HAL has no cursor-shape API yet), and `TextInput` focus/IME in the window path
-  arrives with the input slice.
+  is not set (the HAL has no cursor-shape API yet). `TextInput` focus/typing works through the pump
+  and the generated `TextInputRuntime` publishes caret/selection/preedit decoration; caret blinking
+  is still the paint-default phase (a host-owned `CaretBlink` is the follow-up).

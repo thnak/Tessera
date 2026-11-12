@@ -53,7 +53,16 @@ void TextInputRuntime::attach(Node* node) {
 }
 
 bool TextInputRuntime::handle_event(Event& event) {
-    if (target_ == nullptr || !is_text_input_event(event.type)) {
+    if (target_ == nullptr) {
+        return false;
+    }
+    // Focus/Blur are not part of the text-input event family, but an owner that binds them still
+    // wants the caret to appear/disappear: publish and stay passive (never consume).
+    if (event.type == EventType::Focus || event.type == EventType::Blur) {
+        publish_decoration();
+        return false;
+    }
+    if (!is_text_input_event(event.type)) {
         return false;
     }
     // Text/IME/key events only reach a focused field; the scene routes them to the focused node,
@@ -70,7 +79,40 @@ bool TextInputRuntime::handle_event(Event& event) {
         seen_committed_edits_ = edits;
         emit_change();
     }
+    // Caret/selection/preedit follows every event (typing, caret moves, IME updates) so paint never
+    // shows a stale caret. A change handler may run apply_state (which rebuilds PaintData and calls
+    // back into publish_decoration), so this runs after the change dispatch.
+    publish_decoration();
     return consumed;
+}
+
+void TextInputRuntime::publish_decoration() {
+    if (target_ == nullptr) {
+        return;
+    }
+    std::optional<PaintData> data = target_->paint_data();
+    if (!data.has_value() || data->kind != PaintKind::Text) {
+        return;
+    }
+    const EditBuffer& buffer = controller_->buffer();
+    const bool focused = style::has_state(target_->pseudo_state(), style::PseudoState::Focus);
+    TextDecoration decoration;
+    decoration.caret_byte_offset = static_cast<std::size_t>(buffer.caret());
+    decoration.selection_begin = static_cast<std::size_t>(buffer.selection_start());
+    decoration.selection_end = static_cast<std::size_t>(buffer.selection_end());
+    decoration.caret_visible = controller_->caret_blink_active(focused);
+    const EditController::PreeditRange preedit = controller_->preedit_range();
+    if (preedit.active) {
+        decoration.composition_active = true;
+        decoration.preedit_begin = static_cast<std::size_t>(preedit.begin);
+        decoration.preedit_end = static_cast<std::size_t>(preedit.end);
+        decoration.preedit_text.assign(preedit.text);
+    }
+    if (data->decoration == decoration) {
+        return;
+    }
+    data->decoration = std::move(decoration);
+    target_->set_paint_data(std::move(*data));
 }
 
 void TextInputRuntime::emit_change() {

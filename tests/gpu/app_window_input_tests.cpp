@@ -134,7 +134,11 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
     if (!expect(demo.state_name_ == "Ada", "typed text reached the generated onChange") ||
         !expect(input->paint_data().has_value() && input->paint_data()->kind == PaintKind::Text &&
                     input->paint_data()->text == "Ada",
-                "the controlled TextInput paints the typed value")) {
+                "the controlled TextInput paints the typed value") ||
+        !expect(input->paint_data()->decoration.has_value() &&
+                    input->paint_data()->decoration->caret_byte_offset == 3 &&
+                    input->paint_data()->decoration->caret_visible,
+                "the window path publishes caret decoration too")) {
         return 3;
     }
 
