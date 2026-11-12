@@ -57,6 +57,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-045](ADR-045-browser-hosted-studio.md) | Browser-hosted designer studio on GitHub Pages (page as host, HTML shell, data-driven skins) and a stdio MCP adapter of the same engine | Accepted |
 | [ADR-046](ADR-046-web-target-for-demos.md) | Web (Wasm + WebGPU) as a secondary target for running apps in the browser (amends ADR-024 and ADR-002) | Accepted |
 | [ADR-047](ADR-047-component-library-layers-and-design-language.md) | Component library layers, theme versioning, "Instrument" design language, catalog and stages (amends ADR-032) | Accepted |
+| [ADR-048](ADR-048-precompiled-embedded-stylesheets.md) | Precompiled stylesheets embedded as versioned blobs (prepare/resolve split), import-graph cascade order, library CSS in `@layer` | Proposed |
 
 ## Dependency overview
 
@@ -94,6 +95,7 @@ ADR-034 interaction/overscroll animation (visual state, platform profiles, sprin
 ADR-041 layout observation (accepted) ── ADR-020 resize, ADR-018 dirty rendering, ADR-016 stylesheet
 ADR-046 web target for demos ── ADR-002 WebGPU, ADR-024 boundaries, ADR-037 designer
 ADR-047 component library layers/design language ── ADR-032 component library, ADR-016 stylesheet
+ADR-048 precompiled stylesheets (proposed) ── ADR-016 stylesheet, ADR-047 component library, ADR-046 web target
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.
