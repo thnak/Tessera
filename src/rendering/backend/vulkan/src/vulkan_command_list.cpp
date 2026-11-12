@@ -89,12 +89,15 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     // acquisition. Synchronization validation reports that as WRITE_AFTER_READ; a barrier scoped to
     // the stage the wait covers is the execution dependency that fixes it.
     const bool waits_for_acquire = present && vulkan_target->frame_sync_pending();
+    // The cast keeps both arms the same VkPipelineStageFlags type; mixing the enumerator with the
+    // flags mask is -Wextra on GCC and warnings are errors.
+    const VkPipelineStageFlags acquire_stage =
+        static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     record_image_transition(
         buffer_, vulkan_target->image(), previous_layout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         multisampled ? (preserving_existing ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0)
                      : (preserving_existing && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0),
-        color_access,
-        waits_for_acquire ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : source_stage,
+        color_access, waits_for_acquire ? acquire_stage : source_stage,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     if (multisampled) {
         record_image_transition(
