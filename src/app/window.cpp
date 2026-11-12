@@ -35,6 +35,9 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     // No field owns focus until the app says so. An inactive blink is not ticked, so a window that
     // never gains an editable field never requests a caret frame (ADR-019: static UI idles).
     (void)caret.set_active(false, caret_now_seconds());
+    // The runtime config's lifecycle keys are mapped here, once: the pause policy owns occlusion
+    // and minimization, and the pipeline config owns paint interpolation.
+    pause_policy = window_pause_policy(options.runtime);
     hal::WindowDesc desc;
     desc.title = options.title;
     desc.width = options.width;
@@ -65,6 +68,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.dpi_scale = metrics.dpi_scale;
     config.text_measurer = options.text_measurer;
     config.reduced_motion = system_prefers_reduced_motion();
+    config.pipeline = window_pipeline_config(options.runtime);
     motion = MotionPreference(config.reduced_motion);
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     if (scheduler != nullptr) {
@@ -72,8 +76,9 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     }
     window->set_input_queue(&pump.queue());
     // A platform can create the window already occluded or minimized; start paused in that case so
-    // the first iteration does not acquire and present a frame the user cannot see.
-    metrics_paused_ = metrics.occluded || metrics.minimized;
+    // the first iteration does not acquire and present a frame the user cannot see. The policy can
+    // disable that pause (`pauseWhenOccluded=false`), in which case the window keeps rendering.
+    metrics_paused_ = pause_policy.pauses(metrics.occluded, metrics.minimized);
     paused_ = metrics_paused_;
     last_tick_seconds_ = hal::steady_now_seconds();
     available = true;
@@ -222,13 +227,14 @@ void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
     if (!available) {
         return;
     }
-    metrics_paused_ = metrics.occluded || metrics.minimized;
+    metrics_paused_ = pause_policy.pauses(metrics.occluded, metrics.minimized);
     update_pause_state();
-    if (!metrics_paused_) {
-        // An occluded/minimized window can report a zero client area (a minimized Win32 window
-        // does); resizing the target or re-laying out at 0x0 is skipped, and the scene tree stays
-        // intact (docs/design/window-resize.md section 2 rule 6). The restore's metrics apply the
-        // real size.
+    // An occluded/minimized window can report a zero client area (a minimized Win32 window does);
+    // resizing the target or re-laying out at 0x0 is skipped whenever the metrics say invisible,
+    // even when the pause policy keeps rendering (`pauseWhenOccluded=false`). The scene tree stays
+    // intact (docs/design/window-resize.md section 2 rule 6); the restore's metrics apply the real
+    // size.
+    if (!metrics.occluded && !metrics.minimized) {
         if (swapchain != nullptr) {
             swapchain->resize({metrics.physical_width, metrics.physical_height});
         }

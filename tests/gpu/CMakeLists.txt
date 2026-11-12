@@ -489,6 +489,19 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_occluded PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # Runtime-config pause wiring: the same hidden-window pump_once seam driven twice, first with
+    # the default `pauseWhenOccluded=true` (nothing presents while occluded) and then with
+    # `WindowOptions::runtime.pauseWhenOccluded=false` (the occluded/minimized window keeps
+    # presenting). The disabled-policy arm is also covered at the unit level without a GPU.
+    add_executable(app_window_occluded_config_tests
+        app_window_occluded_config_tests.cpp)
+    target_compile_definitions(app_window_occluded_config_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_occluded_config_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_occluded_config COMMAND app_window_occluded_config_tests)
+    set_tests_properties(app_window_occluded_config PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     # Host-owned caret blink: a ManualClock injected through WindowOptions::clock drives the blink
     # on a real hidden window through the single-iteration seam. One frame per visibility flip, no
     # frames while the caret is inactive or the window is paused.

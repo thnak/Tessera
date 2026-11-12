@@ -260,6 +260,20 @@ target_link_libraries(app_host_theme_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host_theme COMMAND app_host_theme_tests)
 
+# The window driver's runtime-config mapping (docs/specs/runtime-config-v1.md section 6.2): the two
+# wired keys map onto the frame pipeline's interpolation switch and the occluded/minimized pause
+# policy, the mapped defaults match RuntimeConfig{} field by field, and the mapped pipeline config is
+# driven through the paint seam. Pure CPU: no GPU, window or font.
+add_executable(window_config_tests
+    window_config_tests.cpp)
+
+target_include_directories(window_config_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app)
+
+target_link_libraries(window_config_tests PRIVATE tessera_app tessera_frame tessera_runtime)
+
+add_test(NAME window_config COMMAND window_config_tests)
+
 # The window driver stops after a bounded run of frame failures instead of spinning or hanging.
 add_executable(app_frame_guard_tests
     app_frame_guard_tests.cpp)
