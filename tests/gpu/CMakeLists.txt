@@ -46,14 +46,30 @@ set(TESSERA_BIDI_FONT_FIXTURE
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSansHebrew-Regular.ttf")
 get_filename_component(TESSERA_BIDI_FONT_FIXTURE "${TESSERA_BIDI_FONT_FIXTURE}" REALPATH)
 
-# ADR-049 drift guard: the batched2d GLSL (read as text, no glslc needed) and the embedded WGSL
-# twin declare the same interface. Runs in every build; the tool-backed checks are opt-in
-# (TESSERA_SHADER_CROSS, tools/shaders).
+# ADR-049 drift guard: the batched2d GLSL (embedded as text, no glslc needed) and the embedded WGSL
+# twin declare the same interface. Runs in every build, Android included, because the GLSL is read
+# on the host at configure time and shipped in the executable: the test reads no source-tree paths
+# (issue #92). The tool-backed checks are opt-in (TESSERA_SHADER_CROSS, tools/shaders).
 add_executable(shader_parity_tests
     shaders/shader_parity_tests.cpp)
 target_link_libraries(shader_parity_tests PRIVATE tessera_gpu tessera_webgpu_mapping)
-target_compile_definitions(shader_parity_tests PRIVATE
-    TESSERA_VULKAN_SHADER_DIR="${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders")
+
+# Embed the authored GLSL at configure time. configure_file re-runs automatically when either
+# shader changes (CMAKE_CONFIGURE_DEPENDS), so the embedded copy cannot drift from the sources.
+set(TESSERA_BATCHED2D_GLSL_DIR
+    "${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders")
+file(READ "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.vert" TESSERA_BATCHED2D_VERT_GLSL)
+file(READ "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.frag" TESSERA_BATCHED2D_FRAG_GLSL)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.vert"
+    "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.frag")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+# LF output so the embedded text is byte-identical to the authored files (the repo stores shaders
+# with LF, .gitattributes `eol=lf`) and the generated header is the same on every host.
+configure_file(shaders/batched2d_glsl_sources.hpp.in
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/batched2d_glsl_sources.hpp" @ONLY NEWLINE_STYLE LF)
+target_include_directories(shader_parity_tests PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
 if (TARGET tessera_rhi_vulkan)
     target_link_libraries(shader_parity_tests PRIVATE tessera_rhi_vulkan)
     target_compile_definitions(shader_parity_tests PRIVATE TESSERA_TEST_HAS_VULKAN)

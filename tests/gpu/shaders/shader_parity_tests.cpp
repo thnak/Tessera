@@ -2,12 +2,14 @@
 
 // Drift guard between the authored batched2d sources (ADR-011, ADR-049): the GLSL that glslc
 // compiles for Vulkan and the WGSL twin embedded for WebGPU must declare the same interface. Runs
-// in every build without shader tools; it reads the GLSL as text, selects the
-// TESSERA_SHADER_PORTABLE branch (the interface translators and WebGPU share), and compares:
-// vertex inputs, stage varyings and their interpolation, the uniform block members and their
-// std140/WGSL-uniform size, and the group-0 bindings. Semantics (the function bodies) are covered
-// by goldens once a WebGPU pixel lane exists.
+// in every build without shader tools and without host paths: the GLSL is embedded at configure
+// time (issue #92) and parsed through the TESSERA_SHADER_PORTABLE branch (the interface translators
+// and WebGPU share) to compare: vertex inputs, stage varyings and their interpolation, the uniform
+// block members and their std140/WGSL-uniform size, and the group-0 bindings. Semantics (the
+// function bodies) are covered by goldens once a WebGPU pixel lane exists.
 
+// Generated from the authored GLSL by tests/gpu/CMakeLists.txt (ADR-049 drift guard, issue #92).
+#include "batched2d_glsl_sources.hpp"
 #include "tessera/rendering/gpu/shader_ids.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/rhi/types.hpp"
@@ -20,7 +22,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <fstream>
 #include <iostream>
 #include <map>
 #include <regex>
@@ -42,13 +43,6 @@ void expect(bool condition, const std::string& message) {
         std::cerr << "shader_parity: " << message << "\n";
         ++g_failures;
     }
-}
-
-std::string read_file(const std::string& path) {
-    std::ifstream file(path, std::ios::binary);
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
 }
 
 // Lines without `//` comments; GLSL lines are filtered through the TESSERA_SHADER_PORTABLE branch.
@@ -244,10 +238,10 @@ std::map<std::uint32_t, std::string> glsl_bindings(const std::vector<std::string
 }
 
 void test_batched2d_parity() {
-    const std::string dir = TESSERA_VULKAN_SHADER_DIR;
-    const std::string vert_text = read_file(dir + "/batched2d.vert");
-    const std::string frag_text = read_file(dir + "/batched2d.frag");
-    expect(!vert_text.empty() && !frag_text.empty(), "GLSL sources readable from " + dir);
+    const std::string vert_text(kBatched2dVertGlsl);
+    const std::string frag_text(kBatched2dFragGlsl);
+    expect(!vert_text.empty() && !frag_text.empty(),
+           "GLSL sources embedded at configure time are non-empty");
     const auto vert = code_lines(vert_text, true);
     const auto frag = code_lines(frag_text, true);
     const auto wgsl = code_lines(std::string(wg::batched2d_wgsl_program().source), false);
