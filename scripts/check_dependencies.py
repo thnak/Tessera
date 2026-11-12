@@ -77,6 +77,8 @@ STATUS_FAMILY: Dict[str, str] = {
     "build-time": "tooling",
     # Design-time only (Wasm/browser toolchain), never in the native link line.
     "v1 hard for design-time": "design-time",
+    "v1 design-time": "design-time",
+    "design-time tooling only": "tooling",
     # Platform APIs and OS system components: dynamic by necessity, not third-party code.
     "v1": "platform",
     "system": "platform",
