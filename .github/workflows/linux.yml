@@ -86,12 +86,6 @@ jobs:
   icu-text:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    env:
-      # The host tools built from the pinned sources link the shared ICU libraries out of the
-      # build tree (nothing is installed), so every invocation of icupkg/genccode — including the
-      # reduced-data step inside the Tessera build — needs that directory on the loader path.
-      # lib64 is included because ICU's configure picks it on some 64-bit platforms.
-      LD_LIBRARY_PATH: ${{ runner.temp }}/icu/source/lib:${{ runner.temp }}/icu/source/lib64
 
     steps:
       - uses: actions/checkout@v4
@@ -116,6 +110,13 @@ jobs:
           test -x bin/icupkg
           test -x bin/genccode
           test -f data/in/icudt76l.dat
+          # The tools are built but not installed, so they link the shared ICU libraries out of
+          # this build tree; later steps (including the reduced-data step inside the Tessera build)
+          # need that directory on the loader path. lib64 covers platforms whose configure picks
+          # it. Exported through GITHUB_ENV because the `runner` context is not available in
+          # job-level `env` (using it there makes the workflow file invalid).
+          export LD_LIBRARY_PATH="$RUNNER_TEMP/icu/source/lib:$RUNNER_TEMP/icu/source/lib64"
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
           bin/icupkg --help > /dev/null
 
       - uses: ./.github/actions/ccache
