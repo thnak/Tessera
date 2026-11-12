@@ -389,40 +389,40 @@ through the pure mapping layer `src/app/window_config.hpp`:
 |---|---|---|
 | `animationInterpolation` | `FramePipelineConfig::interpolation` | `false`: the pipeline never creates an `InterpolationPaintView`, so paint uses the authoritative scene/style state instead of blending the previous and current tick samples. Default `true`. |
 | `pauseWhenOccluded` | `WindowPausePolicy` (`pause_when_occluded`, `pause_when_minimized`) | `false`: an occluded or minimized window keeps rendering; `true` (default) pauses both. Focus/blur is never part of the policy. |
-| `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) -> the render target sized by [`src/ui/scale/render_target_extent.hpp`](../../include/tessera/ui/scale/render_target_extent.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1 plus its step-2 consumer. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
+| `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) -> the render target sized by [`src/ui/scale/render_target_extent.hpp`](../../include/tessera/ui/scale/render_target_extent.hpp) and the present cap of [`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1 plus its step-2 render-target consumer and its step-3 present cap. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
 
-The adaptive-quality keys reach the **render target**. The host feeds the controller one observed
-frame time per presented frame, reports its decision in `runtime::FrameDiagnostics`, and the window
-driver renders the scene into a target whose extent is the presented (physical) extent times the
-decision, rounded down per axis with a minimum of 1:
+The adaptive-quality keys reach the **render target** and the **present cap**. The host feeds the
+controller one observed frame time per presented frame, reports its decision in
+`runtime::FrameDiagnostics`, and the window driver renders the scene into a target whose extent is
+the presented (physical) extent times the decision, rounded down per axis with a minimum of 1:
 
 - `renderScale` moves **only** that target extent. The window, the swapchain, the layout and the
   glyph atlas keep their size; the device scale (the monitor-derived ladder value of
   [`window-resize.md`](../design/window-resize.md) section 2.3) is not an input, so text is never
   re-rasterized for a quality change.
-- The present resamples the smaller target up to the window's physical size with a filtered blit, in
+- The present resamples the smaller target up to the window physical size with a filtered blit, in
   the same submission as the paint. A scale change applies at the next frame boundary and does not
-  recreate the swapchain.
-- At the default `renderScale` of 1.0 the target extent equals the presented extent, so the frame
-  takes the direct full-size path and the presented image is byte-identical to the frame before this
-  consumer existed. That is the guarantee the committed goldens check.
-- A backend whose swapchain cannot be resampled stays on that direct path. Diagnostics:
-  `WindowFrameStats::render_scale`, `target_extent`, `present_extent`, `scaled_frames`,
-  `scale_fallbacks`.
+  recreate the swapchain; at `renderScale` 1.0 the target extent equals the presented extent, so
+  the frame is byte-identical to today. Diagnostics: `WindowFrameStats::render_scale`,
+  `target_extent`, `present_extent`, `scaled_frames`, `scale_fallbacks`.
+
+**Step 3, the present cap.** Each downgrade also lowers the present cap to the next refresh
+divisor below the previous step effective rate (`refresh/2`, `refresh/3`, ...), never below a
+10 Hz floor; an upgrade restores the previous divisor. The rule is a pure function of (display
+refresh, `maxFps`, quality step) in [`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp):
+step 0 is the configured `maxFps` unchanged, `maxFps` is a hard ceiling (`min(maxFps, refresh)` when
+`maxFps` is non-zero, else the refresh), and a cap already on a divisor moves to the next one. With no
+reported refresh (`refresh_hz == 0`) there is no divisor, so the cap stays at `maxFps` and the
+pacer keeps its documented deadline pacing (section 5.2). The cap reaches the pacer through its
+existing rate-change path (`FramePacer::update`), the same mechanism a scripted refresh change
+uses: it takes effect at the next frame boundary with no blocking wait and no swapchain
+recreation. Diagnostics: `WindowFrameStats::present_cap_hz`, `present_interval_seconds`, `present_cap_changes`.
 
 `adaptiveQuality=false`, or `minRenderScale == renderScale`, leaves the target at `renderScale`
-forever; a `renderScale` above 1.0 renders a larger target, clamped by the field range and the RHI's
-extent ceiling.
-
-`WindowOptions::runtime` is the single entry point for those keys, and its default matches
-`RuntimeConfig{}`, so every existing caller keeps today's behaviour. Every other key is still
-unwired: `fixedTimestepHz`, `maxFps`, `vsync`, `dynamicRefreshRate`, `preferredRefreshRate`,
-`framePacing`, `latencyFrames`, `allowTearing`, `maxFrameDeltaMs`, `maxUpdatesPerFrame`,
-`renderOnDemand`, `pauseWhenUnfocused`, `backgroundMaxFps`, `resizeMode`, `resizeDebounceMs`,
-`swapchainRecreateDelayMs`, `maxPendingResizes`, `layoutObservationMaxRounds`, the `async*` keys,
-the dirty/damage/cache keys, `gpuFramesInFlight` and `deterministic`. Setting one of them changes
-nothing yet; the driver keeps its built-in behaviour
-([`window-resize.md`](../design/window-resize.md) section 8.2).
+and the cap at `maxFps` forever; a `renderScale` above 1.0 renders a larger target, clamped by
+the field range and the RHI extent ceiling. `WindowOptions::runtime` is the single entry point
+and defaults to `RuntimeConfig{}`; the display refresh comes from
+`WindowOptions::refresh_hz` (0 = unknown). Every key not mapped above is still unwired.
 
 ## 7. Platform support
 

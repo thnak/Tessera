@@ -13,15 +13,19 @@ namespace tessera::runtime {
 // the latest one and counts changes.
 //
 // `render_scale` is the scale the frame should be rendered at, inside
-// [`minRenderScale`, `renderScale`]; `quality_step` is its ladder index, 0 = full quality. As of
-// this slice nothing consumes it: the render target is not resized, so the value is a report, not a
-// visual change (runtime-config-v1.md section 6.2). `changed` is true only on the observation that
-// produced a change; `downgrade` gives that change's direction.
+// [`minRenderScale`, `renderScale`]; `quality_step` is its ladder index, 0 = full quality.
+// `present_cap_hz` is the present cap for that step (docs/design/performance.md section 6, step 3):
+// the configured `maxFps` at step 0, the next refresh divisor below the previous step's effective
+// rate after each downgrade, and never below kAdaptivePresentCapFloorHz. 0 means uncapped, which is
+// also what an unknown display refresh leaves in place (no divisor exists, so the pacer keeps its
+// deadline pacing). `changed` is true only on the observation that produced a change; `downgrade`
+// gives that change's direction.
 struct AdaptiveQualitySample {
     float render_scale = 1.0f;
     std::uint32_t quality_step = 0;
     bool changed = false;
     bool downgrade = false;
+    double present_cap_hz = 0.0;
 
     [[nodiscard]] bool operator==(const AdaptiveQualitySample&) const = default;
 };
@@ -60,6 +64,11 @@ public:
     [[nodiscard]] std::uint64_t adaptive_quality_downgrades() const noexcept {
         return adaptive_quality_downgrades_;
     }
+    // Changes that actually moved the present cap (step 3). A step whose cap is already at the
+    // floor changes the scale but not the cap, so this counter can lag adaptive_quality_changes().
+    [[nodiscard]] std::uint64_t adaptive_present_cap_changes() const noexcept {
+        return adaptive_present_cap_changes_;
+    }
     [[nodiscard]] std::uint64_t frames() const {
         return frames_;
     }
@@ -94,6 +103,7 @@ private:
     std::uint64_t full_redraw_frames_ = 0;
     std::uint64_t adaptive_quality_changes_ = 0;
     std::uint64_t adaptive_quality_downgrades_ = 0;
+    std::uint64_t adaptive_present_cap_changes_ = 0;
 };
 
 } // namespace tessera::runtime

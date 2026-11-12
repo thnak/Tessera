@@ -120,6 +120,8 @@ runtime::AdaptiveQualityConfig quality_controller_config(const AdaptiveQualityPo
     config.min_render_scale = policy.min_render_scale;
     config.frame_budget_ms = policy.frame_budget_ms;
     config.target_fps = policy.target_fps;
+    config.max_fps = policy.max_fps;
+    config.refresh_hz = policy.refresh_hz;
     return config;
 }
 

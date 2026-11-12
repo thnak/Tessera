@@ -6,12 +6,13 @@
 // One frame observation in, one decision out: no clock, no RNG, no locale, no allocation (not even
 // at construction). This file is the only hysteresis authority: the render-target consumer
 // (src/ui/scale/render_target_extent.hpp, driven by the app window) reads the decision and never
-// re-implements a threshold or a step. The decision moves the adaptive render scale only; the
-// monitor-derived device scale, layout and glyph rasterization are separate values and do not
-// change with it.
+// re-implements a threshold or a step. The decision moves the adaptive render scale and the present
+// cap; the monitor-derived device scale, layout and glyph rasterization are separate values and do
+// not change with it.
 
 #pragma once
 
+#include "present_cap.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/runtime/diagnostics.hpp"
 
@@ -54,6 +55,12 @@ struct AdaptiveQualityConfig {
     // The effective present rate used to derive the budget when `frame_budget_ms` is 0. 0 means no
     // budget, so there is no evidence and the controller never changes anything.
     double target_fps = 60.0;
+    // `maxFps`: the configured present cap and the hard ceiling of the adaptive cap (step 3). 0
+    // means uncapped, in which case the display refresh is the ceiling.
+    double max_fps = 0.0;
+    // The display refresh in Hz; 0 = unknown. With no refresh there is no divisor, so the adaptive
+    // cap stays at `max_fps` and the pacer keeps its documented deadline pacing.
+    double refresh_hz = 0.0;
 };
 
 // A small hysteresis state machine fed one frame observation at a time.
@@ -92,6 +99,12 @@ public:
     // else 0 (no budget).
     [[nodiscard]] double budget_ms() const noexcept {
         return budget_ms_;
+    }
+    // The present cap for a quality step: the pure divisor rule of present_cap.hpp, fed with this
+    // controller's `refresh_hz` and `max_fps`. Exposed so a consumer (and a test) can ask what the
+    // cap would be at any step without driving the state machine.
+    [[nodiscard]] double present_cap_for_step(std::uint32_t step) const noexcept {
+        return adaptive_present_cap_hz(config_.refresh_hz, config_.max_fps, step);
     }
     [[nodiscard]] std::uint32_t misses() const noexcept {
         return misses_;

@@ -32,10 +32,11 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     : root(root),
       options(std::move(window_options)),
       scheduler(update_scheduler),
-      pacer(runtime::FramePacerConfig{options.max_fps}) {
+      pacer(runtime::FramePacerConfig{options.max_fps, options.refresh_hz, false}) {
     // No field owns focus until the app says so. An inactive blink is not ticked, so a window that
     // never gains an editable field never requests a caret frame (ADR-019: static UI idles).
     (void)caret.set_active(false, caret_now_seconds());
+    applied_present_cap_hz = options.max_fps;
     // The runtime config's lifecycle keys are mapped here, once: the pause policy owns occlusion
     // and minimization, and the pipeline config owns paint interpolation.
     pause_policy = window_pause_policy(options.runtime);
@@ -70,7 +71,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.text_measurer = options.text_measurer;
     config.reduced_motion = system_prefers_reduced_motion();
     config.pipeline = window_pipeline_config(options.runtime);
-    config.adaptive_quality = window_adaptive_quality_policy(options.runtime);
+    config.adaptive_quality = window_adaptive_quality_policy(options.runtime, options.refresh_hz);
     motion = MotionPreference(config.reduced_motion);
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     if (scheduler != nullptr) {
@@ -437,6 +438,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         // It is the frame's CPU cost; GPU timestamps are the follow-up in section 7. A skipped
         // attempt returned above and is not an observation.
         host->observe_frame_time_ms((hal::steady_now_seconds() - now) * 1000.0);
+        apply_present_cap(hal::steady_now_seconds());
         host->end_frame();
         loop->clear_render_dirty();
         if (force_frames && stats.frames >= max_frames) {
@@ -459,6 +461,9 @@ WindowHost::WindowHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, Wind
     // member initializer where the message is opaque.
     if (!std::isfinite(options.max_fps) || options.max_fps < 0.0) {
         throw std::invalid_argument("tessera app window: max_fps must be finite and non-negative");
+    }
+    if (!std::isfinite(options.refresh_hz) || options.refresh_hz < 0.0) {
+        throw std::invalid_argument("tessera app window: refresh_hz must be finite and >= 0");
     }
     impl_ = std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler);
 }

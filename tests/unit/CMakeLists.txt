@@ -624,6 +624,21 @@ target_link_libraries(frame_pacer_tests PRIVATE tessera_runtime)
 
 add_test(NAME frame_pacer COMMAND frame_pacer_tests)
 
+# The adaptive present cap (docs/design/performance.md section 6, step 3; runtime-config-v1.md 5.2
+# and 5.7): the pure refresh-divisor rule - exact divisors, the documented floor, the maxFps
+# ceiling, an unknown refresh (no divisor) and step 0 as identity - the controller's documented cap
+# sequence and its disabled paths, and the proof that the decided cap reaches the pacer through its
+# existing scripted-rate-change path. Pure CPU: no GPU, window or wall clock.
+add_executable(present_cap_tests
+    present_cap_tests.cpp)
+
+target_include_directories(present_cap_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/runtime)
+
+target_link_libraries(present_cap_tests PRIVATE tessera_runtime)
+
+add_test(NAME present_cap COMMAND present_cap_tests)
+
 # The `runtime` object of tessera.json (docs/specs/runtime-config-v1.md): the model defaults, the
 # field table's clamp-vs-error split, enum strings, typed errors and unknown-key warnings.
 add_executable(runtime_config_tests

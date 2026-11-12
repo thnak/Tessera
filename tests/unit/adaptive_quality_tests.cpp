@@ -73,9 +73,17 @@ AdaptiveQualityConfig base_config() {
     return config;
 }
 
+AdaptiveQualityConfig capped_config() {
+    AdaptiveQualityConfig config = base_config();
+    config.max_fps = 0.0;
+    config.refresh_hz = 60.0;
+    return config;
+}
+
 bool same_sample(const AdaptiveQualitySample& lhs, const AdaptiveQualitySample& rhs) {
     return lhs.render_scale == rhs.render_scale && lhs.quality_step == rhs.quality_step &&
-           lhs.changed == rhs.changed && lhs.downgrade == rhs.downgrade;
+           lhs.changed == rhs.changed && lhs.downgrade == rhs.downgrade &&
+           lhs.present_cap_hz == rhs.present_cap_hz;
 }
 
 // --- 1. Thresholds and cooldown ---------------------------------------------------------------
@@ -222,12 +230,14 @@ bool equal_bounds_never_change() {
 
 bool disabled_paths_never_change() {
     bool ok = true;
-    AdaptiveQualityConfig off = base_config();
+    AdaptiveQualityConfig off = capped_config();
+    off.max_fps = 60.0;
     off.adaptive_quality = false;
     AdaptiveQualityController off_controller(off);
     ok = expect(!off_controller.active(), "adaptiveQuality=false deactivates the controller") && ok;
 
-    AdaptiveQualityConfig benchmark = base_config();
+    AdaptiveQualityConfig benchmark = capped_config();
+    benchmark.max_fps = 60.0;
     benchmark.power_policy = PowerPolicy::Benchmark;
     AdaptiveQualityController benchmark_controller(benchmark);
     ok = expect(!benchmark_controller.active(),
@@ -239,6 +249,9 @@ bool disabled_paths_never_change() {
         const AdaptiveQualitySample benchmark_sample = benchmark_controller.observe(kMissMs);
         ok = expect(!off_sample.changed && off_sample.quality_step == 0,
                     "a disabled controller never changes") &&
+             ok;
+        ok = expect(off_sample.present_cap_hz == off.max_fps,
+                    "a disabled controller never changes the present cap") &&
              ok;
         ok = expect(off_sample.render_scale == off.render_scale,
                     "a disabled controller stays at the configured scale") &&
@@ -333,7 +346,30 @@ bool identical_sequences_decide_identically() {
     return ok;
 }
 
-// --- 6. Wiring: the host observes frames and diagnostics record the change ---------------------
+// --- 6. The present-cap component (step 3) ------------------------------------------------------
+
+bool the_decision_carries_the_present_cap() {
+    bool ok = true;
+    AdaptiveQualityController controller(capped_config());
+    ok = expect(controller.decision().present_cap_hz == 0.0,
+                "step 0 keeps the configured cap (uncapped)") &&
+         ok;
+    for (std::uint32_t frame = 0; frame < kAdaptiveQualityDowngradeMisses; ++frame) {
+        (void)controller.observe(kMissMs);
+    }
+    const AdaptiveQualitySample downgraded = controller.decision();
+    ok = expect(downgraded.downgrade && downgraded.quality_step == 1 &&
+                    downgraded.present_cap_hz == 30.0,
+                "the cap moves to refresh/2 with the scale") &&
+         ok;
+    // The rule is a pure function of the step: a consumer can ask without driving the machine.
+    ok = expect(controller.present_cap_for_step(0) == 0.0, "step 0 asks for the configured cap") &&
+         ok;
+    ok = expect(controller.present_cap_for_step(2) == 20.0, "step 2 asks for refresh/3") && ok;
+    return ok;
+}
+
+// --- 7. Wiring: the host observes frames and diagnostics record the change ---------------------
 
 class RecordingSink final : public tessera::ui::paint::PaintSink {
 public:
@@ -453,6 +489,7 @@ int main() {
     ok = disabled_paths_never_change() && ok;
     ok = alternating_frames_never_change() && ok;
     ok = identical_sequences_decide_identically() && ok;
+    ok = the_decision_carries_the_present_cap() && ok;
     ok = host_observes_frames_and_records_the_change() && ok;
     if (!ok) {
         std::cerr << "adaptive_quality: FAILED\n";

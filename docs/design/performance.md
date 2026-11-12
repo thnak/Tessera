@@ -198,18 +198,20 @@ Never:
 
 All adaptive changes must be reversible and visible in diagnostics.
 
-### 6.1 Implemented decision layer and its render-target consumer (step 2)
+### 6.1 Implemented decision layer, its render-target consumer (step 2) and the present cap (step 3)
 
-The decision layer and the step-2 consumer are implemented. A downgrade now changes pixels: the
-window renders the scene into a smaller target and resamples it up on present. Step 1 (effects) and
-step 3 (present cap) are not implemented; step 5 (report) is.
+The decision layer, the step-2 render-target consumer and the step-3 present cap are implemented. A
+downgrade now changes pixels and the present rate: the window renders the scene into a smaller target,
+resamples it up on present, and lowers the pacer's cap to the next refresh divisor. Step 1 (effects)
+and step 4 (pause non-essential animations) are not implemented; step 5 (report) is.
 
 `src/runtime/adaptive_quality.hpp` is a pure state machine fed one frame observation at a time
-(frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale` and
-`frameBudgetMs` fields). It is deterministic — no clock, no RNG, no locale, no allocation, not even
-at construction (the type is trivially copyable) — so an observation sequence always yields the same
-decision sequence. It stays the **only** hysteresis authority: the consumer reads
-`AdaptiveQualitySample::render_scale` and never re-implements a threshold, a step or a cooldown.
+(frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`,
+`frameBudgetMs`, `maxFps` and display-refresh fields). It is deterministic — no clock, no RNG, no
+locale, no allocation, not even at construction (the type is trivially copyable) — so an observation
+sequence always yields the same decision sequence. It stays the **only** hysteresis authority: the
+consumers read `AdaptiveQualitySample::render_scale` and `AdaptiveQualitySample::present_cap_hz` and
+never re-implement a threshold, a step or a cooldown.
 
 | Constant | Value | Why |
 |---|---|---|
@@ -217,6 +219,7 @@ decision sequence. It stays the **only** hysteresis authority: the consumer read
 | Upgrade run | 12 consecutive met budgets | recovery is deliberately slower than the downgrade, so a borderline machine does not ping-pong |
 | Cooldown | 8 observed frames after a change | no two changes within it: at most one step per ~133 ms at 60 Hz |
 | Ladder | 4 steps from `renderScale` (step 0) to `minRenderScale` (step 4) | bounded, evenly spaced steps; no fractional creep |
+| Present-cap floor | 10 Hz | below it an interactive UI stops being interactive; step 4 is the right lever there |
 
 Each change moves exactly one ladder step, clamped to `[minRenderScale, renderScale]`;
 `minRenderScale == renderScale` leaves no room to move, so it never changes. `adaptiveQuality=false`
@@ -227,8 +230,42 @@ alternating miss/met sequence changes nothing.
 The frame path feeds one observation per presented frame: `AppHost::observe_frame_time_ms`, called
 by `WindowHost` with the frame's CPU cost through present (GPU timestamps are section 7's
 follow-up). A change is recorded in `runtime::FrameDiagnostics` (`adaptive_quality()`,
-`adaptive_quality_changes()`, `adaptive_quality_downgrades()`), so a downgrade is visible without
-sampling frame time, and it survives `AppHost::resize()`, which only re-creates the pipeline.
+`adaptive_quality_changes()`, `adaptive_quality_downgrades()`, `adaptive_present_cap_changes()`), so
+a downgrade is visible without sampling frame time, and it survives `AppHost::resize()`, which only
+re-creates the pipeline.
+
+**The present cap (step 3).** `src/runtime/present_cap.hpp` is the pure rule, separate from the
+hysteresis state machine so it is testable without a window, a pacer or a clock:
+
+```
+cap(refresh, maxFps, step) =
+    step 0        -> maxFps                                  (unchanged)
+    refresh <= 0  -> maxFps                                  (no divisor exists)
+    otherwise     -> the next refresh divisor below the previous step's effective rate,
+                     holding at the last divisor that is >= 10 Hz
+```
+
+The effective rate at step 0 is `min(maxFps, refresh)` when `maxFps` is non-zero, else the refresh
+itself, so a step never raises the rate above `maxFps` (the hard ceiling of
+[`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 5.2) or above the display refresh.
+A cap that is already a divisor moves to the *next* one (`refresh/2` -> `refresh/3`), never to
+itself. On a 60 Hz display with no cap the sequence is 60, 30, 20, 15, 12 Hz; on 144 Hz it is 144,
+72, 48, 36, 28.8 Hz. The floor stops the walk rather than clamping to a rate the display cannot hit,
+so every value after a downgrade is a real `refresh/k`. An upgrade restores the previous step's cap
+because the cap is the same pure function of the step — there is no separate "previous divisor"
+state that could drift from the ladder.
+
+**How it is applied.** `WindowHost` calls `apply_present_cap()` after each frame observation, which
+feeds the decided cap to `FramePacer::update()` — the pacer's existing rate-change path, the same
+mechanism a scripted refresh change uses. `update()` resyncs the next deadline to one new interval
+after the change instant, so the cap takes effect at the next frame boundary with no burst of
+catch-up frames, no stall at the old cadence, no blocking wait and no swapchain recreation. A cap
+that did not move is a no-op, so the running deadline is untouched. The display refresh comes from
+`WindowOptions::refresh_hz` (the HAL has no refresh query yet; 0 = unknown). With no refresh there is
+no divisor, so the cap stays at `maxFps` and the pacer keeps its documented deadline pacing
+([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 5.2) — the fallback is the existing
+behaviour, not a new one. Diagnostics: `WindowFrameStats::present_cap_hz`,
+`present_interval_seconds` and `present_cap_changes`.
 
 **What the consumer scales.** One value: the extent of the target the scene renders into. With the
 window's presented (physical) pixel extent `P` and the decision `s = renderScale`, the target is

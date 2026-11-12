@@ -43,6 +43,11 @@ struct WindowPausePolicy {
 // `maxFps` when it is capped, else `preferredRefreshRate` when requested, else the 60 Hz baseline
 // the framework's default fixed timestep uses (the pacer still follows the real display; feeding it
 // a later measured rate is a follow-up, not part of this slice).
-[[nodiscard]] AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtime);
+//
+// `refresh_hz` is the display refresh the platform reported (0 = unknown). It is the divisor base
+// of the step-3 present cap and the ceiling the cap may never exceed; with 0 there is no divisor,
+// so the cap stays at `maxFps` and the pacer keeps its documented deadline pacing.
+[[nodiscard]] AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtime,
+                                                                   double refresh_hz = 0.0);
 
 } // namespace tessera::app
