@@ -69,6 +69,12 @@ std::string_view ManifestScene::stylesheet() noexcept {
            "VirtualGrid { width: 200px; height: 80px; background-color: #111827; }\n";
 }
 
+std::string ManifestScene::stylesheet(const AppManifest& manifest) {
+    std::string sheet(stylesheet());
+    sheet += manifest.stylesheet;
+    return sheet;
+}
+
 NodeAnnotations annotations_from_manifest(const AppManifest& manifest) {
     NodeAnnotations annotations;
     annotations.reserve(manifest.nodes.size());

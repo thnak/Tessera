@@ -26,6 +26,8 @@ public:
 
     // Default styling so every kind gets a hit-testable size; the caller compiles it.
     [[nodiscard]] static std::string_view stylesheet() noexcept;
+    // The default sheet followed by the project's own `ui.styles`, so author rules win ties.
+    [[nodiscard]] static std::string stylesheet(const AppManifest& manifest);
 };
 
 // Path and component id of every manifest node by `uiId`, for EngineAutomationHost::Config so a

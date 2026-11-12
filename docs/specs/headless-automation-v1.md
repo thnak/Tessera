@@ -49,13 +49,15 @@ headless golden tests). `gpu-smoke` never updates baselines.
     last segment; component roots attach to the scene root). It is a structural description, not
     the compiled app: Buttons are focusable, TextInput/TextArea accept `type`, Scroll/VirtualList
     scroll, other kinds are inert, and the app's event handlers do not run. Default sizes come
-    from a built-in stylesheet. Snapshots report each node's manifest `path` and `componentId`
+    from a built-in stylesheet, followed by the project's own `ui.styles` CSS files
+    ([`project-config-v1.md`](project-config-v1.md)). Snapshots report each node's manifest `path` and `componentId`
     (`annotations_from_manifest` feeds `EngineAutomationHost::Config`), not the live-tree path;
     a node with a static `aria-label`, `label` prop or literal text has an optional manifest `name`, which the scene node carries as
     its `aria-label` so snapshots report it as `name` (dynamic labels are omitted). A missing or invalid config or manifest is exit `2` with a
     deterministic `tessera <command>: <Code>: <message>` line (`ConfigUnreadable`, `ConfigTooLarge`,
     `ConfigInvalid`, `ManifestMissing`, `ManifestTooLarge`, `ManifestInvalid`,
-    `ManifestUnsupportedVersion`, `ManifestTooManyNodes`, `ManifestDuplicateId`).
+    `ManifestUnsupportedVersion`, `ManifestTooManyNodes`, `ManifestDuplicateId`, `StyleInvalid`,
+    `StyleUnreadable`, `StyleTooLarge`).
   - The stdio `headless` serve lane takes `--app <tessera.json>` for the same manifest scene (the
     flag is rejected together with `--script`, which names `app.config` itself). Not yet: snapshots
     do not add manifest names/paths to nodes.

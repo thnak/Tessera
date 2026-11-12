@@ -41,8 +41,9 @@ int run_headless_serve(LineTransport& transport, std::string_view output_directo
     } else {
         fixture.emplace(root);
     }
-    const std::string_view stylesheet = app != nullptr ? automation::ManifestScene::stylesheet()
-                                                       : automation::FixtureScene::stylesheet();
+    const std::string stylesheet = app != nullptr
+                                       ? automation::ManifestScene::stylesheet(*app)
+                                       : std::string(automation::FixtureScene::stylesheet());
 
     runtime::ManualClock clock;
     runtime::RuntimeLoop loop(clock);

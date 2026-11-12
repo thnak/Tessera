@@ -75,6 +75,7 @@ paths are rejected.
 | `limits.maxNestingDepth` | integer | no | `128` | Front-end limit: nesting of parentheses, JSX elements and expressions; greater than 0 |
 | `limits.maxDiagnostics` | integer | no | `100` | Front-end limit: diagnostics reported per file; greater than 0 |
 | `limits.maxComponents` | integer | no | `64` | Front-end limit: components per file; greater than 0 |
+| `styles` | string[] | no | `[]` | CSS files, relative to `tessera.json`, safe `.css` paths, at most 16, 256 KiB each and 1 MiB in all. Applied in order after the built-in default sheet, so author rules win ties. The headless harness loads them for an `--app` run (errors `StyleInvalid`, `StyleUnreadable`, `StyleTooLarge`, exit 2) |
 | `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids tying JSX logic to protected C++ regions, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
 | `bindings.manifest` | string | no | `generated/bindings.json` | Must stay inside `codegen.outDir` |
 

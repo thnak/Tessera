@@ -78,6 +78,44 @@ std::string join(const std::string& directory, std::string_view name) {
     return directory.empty() ? std::string(name) : directory + "/" + std::string(name);
 }
 
+// Reads the `ui.styles` list of the config into one stylesheet text. The files are untrusted
+// project input, so every path, count and size is bounded before anything is compiled.
+std::expected<std::string, AppConfigError> load_styles(const JsonValue& config,
+                                                       const std::string& config_dir) {
+    const JsonValue* ui = config.find("ui");
+    const JsonValue* styles = ui == nullptr ? nullptr : ui->find("styles");
+    if (styles == nullptr) {
+        return std::string{};
+    }
+    const JsonValue::Array* list = styles->as_array();
+    if (list == nullptr || list->size() > kMaxStyleFiles) {
+        return fail(AppConfigErrorCode::StyleInvalid,
+                    "ui.styles must be an array of at most 16 paths");
+    }
+    std::string combined;
+    for (const JsonValue& entry : *list) {
+        const auto path = entry.as_string();
+        if (!path.has_value() || !harness::is_safe_artifact_path(*path) ||
+            !path->ends_with(".css")) {
+            return fail(AppConfigErrorCode::StyleInvalid,
+                        "ui.styles entries must be safe relative .css paths");
+        }
+        const std::string file = join(config_dir, *path);
+        bool too_large = false;
+        const auto text = read_file(file, kMaxStyleFileBytes, too_large);
+        if (too_large ||
+            (text.has_value() && combined.size() + text->size() > kMaxStyleTotalBytes)) {
+            return fail(AppConfigErrorCode::StyleTooLarge, "'" + file + "' exceeds the size cap");
+        }
+        if (!text.has_value()) {
+            return fail(AppConfigErrorCode::StyleUnreadable, "cannot read '" + file + "'");
+        }
+        combined += *text;
+        combined.push_back('\n');
+    }
+    return combined;
+}
+
 } // namespace
 
 std::string_view to_string(AppConfigErrorCode code) noexcept {
@@ -100,6 +138,12 @@ std::string_view to_string(AppConfigErrorCode code) noexcept {
         return "ManifestTooManyNodes";
     case AppConfigErrorCode::ManifestDuplicateId:
         return "ManifestDuplicateId";
+    case AppConfigErrorCode::StyleInvalid:
+        return "StyleInvalid";
+    case AppConfigErrorCode::StyleUnreadable:
+        return "StyleUnreadable";
+    case AppConfigErrorCode::StyleTooLarge:
+        return "StyleTooLarge";
     }
     return "ConfigInvalid";
 }
@@ -248,7 +292,16 @@ std::expected<AppManifest, AppConfigError> load_app_manifest(std::string_view co
         return fail(AppConfigErrorCode::ManifestMissing,
                     "cannot read '" + manifest_file + "'; run the code generator first");
     }
-    return parse_manifest(*manifest_text);
+    auto manifest = parse_manifest(*manifest_text);
+    if (!manifest.has_value()) {
+        return manifest;
+    }
+    auto styles = load_styles(*config, parent_directory(config_file));
+    if (!styles.has_value()) {
+        return std::unexpected(std::move(styles.error()));
+    }
+    manifest->stylesheet = std::move(*styles);
+    return manifest;
 }
 
 } // namespace tessera::automation

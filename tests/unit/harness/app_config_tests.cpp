@@ -171,6 +171,43 @@ int main() {
     expect(load("../tessera.json").error().code == AppConfigErrorCode::ConfigInvalid,
            "a parent-relative config path is rejected");
 
+    // `ui.styles`: ordered CSS files, each a safe relative .css path below the config directory.
+    const auto styled = [&](const std::string& name, const std::string& styles) {
+        write_file(work / name / "tessera.json",
+                   R"({"schemaVersion":1,"app":{},"ui":{"styles":)" + styles + "}}");
+        write_file(work / name / "generated/automation.manifest.json", fixture_manifest);
+        return load("app_config_scratch/" + name + "/tessera.json");
+    };
+    write_file(work / "css/s/a.css", "Button { width: 1px; }");
+    write_file(work / "css/s/b.css", "Button { width: 2px; }");
+    const auto two = styled("css", R"(["s/a.css","s/b.css"])");
+    expect(two.has_value() && two->stylesheet == "Button { width: 1px; }\nButton { width: 2px; }\n",
+           "ui.styles concatenates the files in order");
+    expect(loaded.has_value() && loaded->stylesheet.empty(), "no ui.styles leaves the sheet empty");
+    const auto code_of = [](const auto& result) {
+        return result.has_value() ? AppConfigErrorCode::ConfigInvalid : result.error().code;
+    };
+    expect(code_of(styled("cssesc", R"(["../a.css"])")) == AppConfigErrorCode::StyleInvalid,
+           "an escaping style path is StyleInvalid");
+    expect(code_of(styled("cssext", R"(["s/a.txt"])")) == AppConfigErrorCode::StyleInvalid,
+           "a non-.css style path is StyleInvalid");
+    expect(code_of(styled("cssnum", "[1]")) == AppConfigErrorCode::StyleInvalid,
+           "a non-string style entry is StyleInvalid");
+    expect(code_of(styled("cssobj", "{}")) == AppConfigErrorCode::StyleInvalid,
+           "a non-array styles value is StyleInvalid");
+    expect(code_of(styled("cssmiss", R"(["nope.css"])")) == AppConfigErrorCode::StyleUnreadable,
+           "a missing style file is StyleUnreadable");
+    write_file(work / "cssbig/big.css", std::string(kMaxStyleFileBytes + 1, ' '));
+    expect(code_of(styled("cssbig", R"(["big.css"])")) == AppConfigErrorCode::StyleTooLarge,
+           "an oversized style file is StyleTooLarge");
+    std::string many_files = "[";
+    for (std::size_t i = 0; i <= kMaxStyleFiles; ++i) {
+        many_files += (i == 0 ? "" : ",") + std::string(R"("a.css")");
+    }
+    write_file(work / "cssmany/a.css", "");
+    expect(code_of(styled("cssmany", many_files + "]")) == AppConfigErrorCode::StyleInvalid,
+           "too many style files is StyleInvalid");
+
     fs::remove_all(work, ignored);
     return failures == 0 ? 0 : 1;
 }

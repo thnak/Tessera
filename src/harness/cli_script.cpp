@@ -111,8 +111,9 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
     } else {
         fixture.emplace(root);
     }
-    const std::string_view stylesheet = app != nullptr ? automation::ManifestScene::stylesheet()
-                                                       : automation::FixtureScene::stylesheet();
+    const std::string stylesheet = app != nullptr
+                                       ? automation::ManifestScene::stylesheet(*app)
+                                       : std::string(automation::FixtureScene::stylesheet());
 
     runtime::ManualClock clock;
     runtime::RuntimeLoop loop(clock);

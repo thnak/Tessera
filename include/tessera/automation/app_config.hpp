@@ -17,6 +17,9 @@ inline constexpr std::size_t kMaxManifestBytes = std::size_t{8} << 20U;    // 8 
 inline constexpr std::size_t kMaxManifestNodes = 20'000;
 inline constexpr std::size_t kMaxManifestComponents = 1'024;
 inline constexpr std::size_t kMaxManifestStringBytes = 512;
+inline constexpr std::size_t kMaxStyleFiles = 16;
+inline constexpr std::size_t kMaxStyleFileBytes = std::size_t{256} << 10U; // 256 KiB each
+inline constexpr std::size_t kMaxStyleTotalBytes = std::size_t{1} << 20U;  // 1 MiB overall
 inline constexpr int kSupportedManifestVersion = 1;
 inline constexpr std::string_view kManifestFileName = "automation.manifest.json";
 
@@ -30,6 +33,9 @@ enum class AppConfigErrorCode {
     ManifestUnsupportedVersion,
     ManifestTooManyNodes,
     ManifestDuplicateId,
+    StyleInvalid,
+    StyleUnreadable,
+    StyleTooLarge,
 };
 
 [[nodiscard]] std::string_view to_string(AppConfigErrorCode code) noexcept;
@@ -63,6 +69,10 @@ struct AppManifest {
     std::string project_salt;
     std::vector<ManifestComponent> components;
     std::vector<ManifestNode> nodes;
+    // `ui.styles` files of tessera.json, concatenated in order with a newline after each; empty
+    // when the project lists none. `parse_manifest` never fills it: only the loader knows the
+    // config directory.
+    std::string stylesheet;
 };
 
 // Parses and validates manifest text: version, bounded sizes, decimal non-zero unique ids, unique
@@ -71,7 +81,8 @@ struct AppManifest {
 
 // Reads `config_path` (the script's `app.config`, a relative path to a `tessera.json`), validates
 // the fields the harness needs (`schemaVersion` 1, an `app` object, optional `codegen.outDir`),
-// then loads `<config dir>/<outDir, default "generated">/automation.manifest.json`.
+// then loads `<config dir>/<outDir, default "generated">/automation.manifest.json` and the
+// optional `ui.styles` CSS files (safe `.css` paths relative to the config directory).
 [[nodiscard]] std::expected<AppManifest, AppConfigError>
 load_app_manifest(std::string_view config_path);
 

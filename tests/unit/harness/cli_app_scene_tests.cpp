@@ -128,6 +128,30 @@ int main() {
              "cli_app_out"});
     expect(fixture_id.code == 0, "no app.config keeps the fixture default");
 
+    // A project stylesheet from `ui.styles` reaches the scene: this rule changes the Button width,
+    // which a snapshot reports as a bound.
+    {
+        std::ofstream config(project / "tessera.json");
+        config
+            << R"({"schemaVersion":1,"app":{"namespace":"factory"},"ui":{"styles":["app.css"]}})";
+        std::ofstream css(project / "app.css");
+        css << "Button { width: 222px; }\n";
+    }
+    fs::remove_all("cli_app_out", ignored);
+    const Outcome styled_run = run({"test", "--script", script, "--out", "cli_app_out"});
+    bool saw_width = false;
+    for (const auto& entry : fs::directory_iterator("cli_app_out")) {
+        if (entry.is_regular_file()) {
+            saw_width = saw_width || contains(read_file(entry.path()), "\"width\":222");
+        }
+    }
+    expect(styled_run.code == 0 && saw_width, "ui.styles rules reach the manifest scene");
+    fs::remove(project / "app.css");
+    expect(run({"test", "--script", script, "--out", "cli_app_out"}).code == 2,
+           "a listed but missing style file is exit 2");
+    fs::copy_file(source / "app/tessera.json", project / "tessera.json",
+                  fs::copy_options::overwrite_existing);
+
     fs::remove(project / "generated/automation.manifest.json");
     const Outcome missing = run({"test", "--script", script, "--out", "cli_app_out"});
     expect(missing.code == 2, "a missing manifest is exit 2");
