@@ -206,18 +206,34 @@ A wake source must be edge-triggered; the loop must not poll devices or the file
 
 ### 4.1 `maxFps`
 
-- `0` = uncapped. The display/vsync remains the practical limit.
+- `0` = uncapped when the display refresh is unknown. When `refresh_hz` is known the pacer
+  presents at the display cadence instead (60 Hz -> 16.667 ms); with VRR active it presents when
+  the content is ready and the display follows.
 - `N > 0` = never present more than `N` frames per second.
-- If `vsync` is on and `N < refresh`, the pacer uses a **refresh divisor** when possible
-  (for example 144 Hz display, `maxFps=72` -> present every second refresh).
-- If `N` is not a divisor, the pacer uses a deadline schedule and accepts occasional jitter.
-  The schedule keeps its cadence when a frame finishes a little after its deadline (the next
-  deadline is one interval after the old one); it only resyncs to `now` after a whole interval
-  was missed. Resyncing on any lateness made every period `interval + render time`, so a 60 fps
-  cap ran at about 50 fps. On Windows the bounded wait uses a high-resolution waitable timer, so
-  a frame-sized wait does not round up to the 15.6 ms system tick.
+- Without VRR, a cap that is (within a small tolerance) `refresh / k` for an integer `k >= 1`
+  uses the **refresh divisor**: `interval = k / refresh`, so deadlines stay on the display grid
+  (144 Hz display, `maxFps=72` -> present every second refresh, 13.888 ms; 60 Hz, `maxFps=30` ->
+  `2/60`). Any other cap uses `1/N`.
+- If `N` is not a divisor (or is above the refresh), the pacer uses a deadline schedule and
+  accepts occasional jitter. The schedule keeps its cadence when a frame finishes a little after
+  its deadline (the next deadline is one interval after the old one); it only resyncs to `now`
+  after a whole interval was missed. Resyncing on any lateness made every period
+  `interval + render time`, so a 60 fps cap ran at about 50 fps. On Windows the bounded wait uses
+  a high-resolution waitable timer, so a frame-sized wait does not round up to the 15.6 ms system
+  tick.
 - `maxFps` must not be implemented with a busy-wait. Use the platform waitable timer /
   `vkWaitForPresentKHR` / display-link callback / `sleep_until` with a margin.
+
+The derived present interval of the pacer:
+
+```text
+vrr_active:                          interval = maxFps > 0 ? 1/maxFps : 0
+maxFps == 0, refresh unknown:        interval = 0
+maxFps == 0, refresh known:          interval = 1/refresh
+maxFps > 0, refresh > 0, not VRR:    interval = k/refresh when maxFps ~= refresh/k, else 1/maxFps
+maxFps > 0, refresh unknown:         interval = 1/maxFps
+interval == 0:                       present when ready (render_now, no wait, never late)
+```
 
 Effective present rate:
 
@@ -250,6 +266,12 @@ deadline_n = start + n / R
 sleep until deadline_n - safety_margin
 render and present
 ```
+
+A policy change (cap, display refresh, or VRR availability) may arrive at any time through
+`FramePacer::update(config, now)`. While the pacer is started it recomputes the interval and
+resyncs the next deadline to `now + interval`, so a faster policy takes effect immediately instead
+of waiting out an old slower deadline, and a slower policy does not replay slots the new cadence
+does not have. A change that leaves the derived interval unchanged keeps the running deadline.
 
 The pacer measures present latency and adjusts the margin. It reports:
 
@@ -320,7 +342,8 @@ Policy:
 2. Query surface present modes.
 3. If VRR is available and `dynamicRefreshRate=auto`:
    - use `mailbox` or `FIFO_RELAXED` as the pacing mode;
-   - present when the frame is ready;
+   - present when the frame is ready: with `vrr_active` the pacer derives a zero interval unless a
+     non-zero `maxFps` caps it;
    - do not add a fixed-rate sleep that fights VRR;
    - still honor `maxFps` if it is non-zero.
 4. If VRR is not available:
