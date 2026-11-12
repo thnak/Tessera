@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 
+#include "paint_cache_internal.hpp"
 #include "paint_image.hpp"
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
 #include "paint_text.hpp"
 #include "paint_vector.hpp"
+#include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/scene/z_order.hpp"
 
 #include <algorithm>
@@ -215,19 +218,12 @@ struct PaintScope {
 };
 
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
-                const PaintContext& context, Frame frame, const PaintScope& scope) {
+                const PaintContext& context, Frame frame, const PaintScope& scope,
+                const detail::ClipScope& clip_scope, const detail::PassState& pass) {
     if (!node.visible()) {
         ++stats.hidden_subtrees;
         return;
     }
-
-    style::ComputedStyle style = styles.compute(node);
-    if (context.view != nullptr) {
-        // Paint-only: the override is applied to this local copy, never to the scene or the
-        // caller's style provider.
-        context.view->overlay_style(node.id(), style);
-    }
-    ++stats.nodes;
 
     // The view may replace the node's own transform; inside an overridden subtree descendants must
     // compose from the painted ancestor matrix instead of their authoritative world_transform().
@@ -243,31 +239,103 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         painted_world = node.world_transform();
     }
 
-    // A node with its own transform opens a new local frame when the sink can apply the matrix.
-    bool pushed_transform = false;
+    // A node with its own transform opens a new local frame when the sink can apply the matrix. The
+    // decision is taken before any emission so a cache hit can replay the recorded push instead of
+    // emitting one twice.
+    Frame painted_frame = frame;
+    bool open_frame = false;
     if (!is_identity(local) && sink.supports_transform()) {
         Frame opened;
         if (painted_world.try_inverse(opened.inverse)) {
             opened.active = true;
             opened.world = painted_world;
-            sink.push_transform(frame.active ? frame.inverse * painted_world : painted_world);
-            ++stats.transforms;
-            pushed_transform = true;
-            frame = opened;
+            open_frame = true;
+            painted_frame = opened;
         }
     }
 
-    const rhi::Rect rect = paint_rect(node, frame, interpolated, painted_world);
+    const rhi::Rect rect = paint_rect(node, painted_frame, interpolated, painted_world);
+
+    PaintScope child_scope;
+    child_scope.interpolated = interpolated;
+    if (interpolated) {
+        child_scope.content_world =
+            painted_world * rhi::Mat3::translation(-node.scroll_x(), -node.scroll_y());
+    }
+
+    if (pass.cache != nullptr && context.view != nullptr) {
+        // A PaintView can change colors, opacity and transforms per frame in a way the key cannot
+        // fingerprint, so every node of such a paint takes the uncached path.
+        pass.cache->note_bypass();
+    }
+
+    // Per-node paint cache. A hit skips style resolution, text measurement and re-emission for this
+    // node; children are always walked because their records are their own. A node marked dirty
+    // since the paint that recorded it may have a different computed style, which the style-free
+    // key cannot see, so it never hits: it re-records and replaces its entry.
+    std::optional<PaintCacheSignature> signature;
+    if (pass.cacheable) {
+        signature = detail::make_paint_cache_signature(node, painted_world, painted_frame.inverse,
+                                                       open_frame, rect, interpolated,
+                                                       sink.supports_transform(), clip_scope, pass);
+        if (node.dirty() != Dirty::Clean) {
+            pass.cache->note_miss();
+        } else if (const PaintRecord* record = pass.cache->find(*signature, node.paint_data())) {
+            const PaintCounts counts = record->counts;
+            const bool pushed_clip = record->pushed_clip;
+            const RoundedClip clip = record->clip;
+            replay_paint_ops(record->ops, sink);
+            const detail::ClipScope child_clip =
+                pushed_clip ? detail::pushed_clip_scope(clip_scope, clip) : clip_scope;
+            for_each_by_z(node.children(), false, [&](const Node& child) {
+                paint_node(child, styles, sink, stats, context, painted_frame, child_scope,
+                           child_clip, pass);
+                return false;
+            });
+            if (pushed_clip) {
+                sink.pop_clip();
+            }
+            if (open_frame) {
+                sink.pop_transform();
+            }
+            detail::add_paint_counts(stats, counts);
+            return;
+        }
+    }
+
+    style::ComputedStyle style = styles.compute(node);
+    if (context.view != nullptr) {
+        // Paint-only: the override is applied to this local copy, never to the scene or the
+        // caller's style provider.
+        context.view->overlay_style(node.id(), style);
+    }
+    ++stats.nodes;
+
+    // On a miss the node's own emission is captured while it is forwarded to the real sink.
+    std::optional<PaintCache::Recorder> recording;
+    PaintSink* own = &sink;
+    if (signature.has_value()) {
+        recording.emplace(sink);
+        own = &*recording;
+    }
+    const PaintStats before = stats;
+
+    // A node with its own transform opens a new local frame when the sink can apply the matrix.
+    if (open_frame) {
+        own->push_transform(frame.active ? frame.inverse * painted_world : painted_world);
+        ++stats.transforms;
+    }
+
     if (rect.width > 0.0f && rect.height > 0.0f) {
         const float opacity = detail::opacity_value(style);
         const rhi::Color current = detail::current_color(style);
         // The shadow sits beneath the node's own background, borders and content.
         const std::optional<float> shadow_radius = detail::uniform_radius(style);
-        detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), opacity, current, sink,
+        detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), opacity, current, *own,
                                   stats);
-        paint_background(style, rect, opacity, current, sink, stats);
-        paint_linear_gradient(node, style, rect, opacity, sink, stats);
-        paint_borders(style, rect, opacity, current, sink, stats);
+        paint_background(style, rect, opacity, current, *own, stats);
+        paint_linear_gradient(node, style, rect, opacity, *own, stats);
+        paint_borders(style, rect, opacity, current, *own, stats);
     }
 
     // `overflow` clipping applies to the children (the element's own background/border are painted
@@ -279,37 +347,49 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     const bool clip_children =
         (detail::clips_children(style) || scroll_clips) && rect.width > 0.0f && rect.height > 0.0f;
     bool pushed_clip = false;
+    RoundedClip pushed_clip_value;
     if (clip_children) {
         const std::optional<rhi::Rect> clip_rect =
             scroll_clips ? scrollport_clip(node, style, rect) : detail::padding_box(style, rect);
         if (clip_rect) {
-            if (const auto clip = device_clip(detail::corner_clip(style, *clip_rect), frame)) {
-                sink.push_clip(*clip);
+            if (const auto clip =
+                    device_clip(detail::corner_clip(style, *clip_rect), painted_frame)) {
+                own->push_clip(*clip);
                 ++stats.clips;
                 pushed_clip = true;
+                pushed_clip_value = *clip;
             }
         }
     }
     // Text and vector runs are content: paint them after the element's own background/borders and
     // inside its own overflow/scroll clip, before the children (paint order). PaintKind selects one
     // active payload; the other is ignored.
-    detail::paint_text_lines(node, style, rect, sink, stats, context);
-    detail::paint_vector_content(node, style, rect, sink, stats);
-    detail::paint_image_content(node, style, rect, sink, stats);
-    PaintScope child_scope;
-    child_scope.interpolated = interpolated;
-    if (interpolated) {
-        child_scope.content_world =
-            painted_world * rhi::Mat3::translation(-node.scroll_x(), -node.scroll_y());
+    detail::paint_text_lines(node, style, rect, *own, stats, context);
+    detail::paint_vector_content(node, style, rect, *own, stats);
+    detail::paint_image_content(node, style, rect, *own, stats);
+
+    // The record is complete here: pops are stored as flags, so the entry never holds child ops and
+    // can be committed before the child walk (a child insert may evict this very entry).
+    if (recording.has_value()) {
+        PaintRecord record = recording->finish();
+        record.counts = detail::paint_counts_since(stats, before);
+        record.pushed_clip = pushed_clip;
+        record.clip = pushed_clip_value;
+        pass.cache->insert(std::move(*signature), node.paint_data(), std::move(record));
+        signature.reset();
     }
+
+    const detail::ClipScope child_clip =
+        pushed_clip ? detail::pushed_clip_scope(clip_scope, pushed_clip_value) : clip_scope;
     for_each_by_z(node.children(), false, [&](const Node& child) {
-        paint_node(child, styles, sink, stats, context, frame, child_scope);
+        paint_node(child, styles, sink, stats, context, painted_frame, child_scope, child_clip,
+                   pass);
         return false;
     });
     if (pushed_clip) {
         sink.pop_clip();
     }
-    if (pushed_transform) {
+    if (open_frame) {
         sink.pop_transform();
     }
 }
@@ -328,7 +408,16 @@ style::ComputedStyle SceneStyleProvider::compute(const Node& node) {
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                        const PaintContext& context) {
     PaintStats stats;
-    paint_node(root, styles, sink, stats, context, Frame{}, PaintScope{});
+    detail::PassState pass;
+    pass.cache = context.paint_cache;
+    pass.cacheable =
+        context.paint_cache != nullptr && context.paint_cache->enabled() && context.view == nullptr;
+    pass.metrics_source_id = context.text_metrics_source != nullptr
+                                 ? context.text_metrics_source->id()
+                                 : kStubTextMetricsId;
+    pass.device_scale_bits = detail::float_bits(context.device_scale);
+    paint_node(root, styles, sink, stats, context, Frame{}, PaintScope{}, detail::ClipScope{},
+               pass);
     return stats;
 }
 

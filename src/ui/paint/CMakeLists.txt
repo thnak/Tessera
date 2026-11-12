@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_paint STATIC
+    paint_cache.cpp
     paint_pass.cpp
     paint_image.cpp
     paint_properties.cpp
@@ -94,6 +95,15 @@ if (TESSERA_BUILD_TESTS)
         tessera_paint
         tessera_rhi_null)
     add_test(NAME paint_image COMMAND paint_image_tests)
+
+    # Per-node paint cache: byte-identical replay, clean-subtree zero re-record, invalidation matrix,
+    # bounds/LRU/byte budgets and determinism. Registered here, not in the shared tests/unit registry,
+    # for the same lane-isolation reason as the other paint tests above.
+    add_executable(paint_cache_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/paint_cache_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/paint_cache_bounds_tests.cpp)
+    target_link_libraries(paint_cache_tests PRIVATE tessera_paint)
+    add_test(NAME paint_cache COMMAND paint_cache_tests)
 
     # Vulkan-free CPU raster-image golden: embedded PNG -> decode cache -> textured blit, compared
     # against the committed baseline at tolerance 0. JPEG is decode-tested only (cross-compiler IDCT

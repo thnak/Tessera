@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -36,7 +37,7 @@ private:
 };
 
 struct PaintStats {
-    std::size_t nodes = 0;           // visible nodes visited (style resolved)
+    std::size_t nodes = 0;           // visible nodes whose style was resolved (cache hits excluded)
     std::size_t backgrounds = 0;     // background quads emitted
     std::size_t borders = 0;         // border edge quads emitted
     std::size_t hidden_subtrees = 0; // invisible roots skipped (their subtrees are not visited)
@@ -71,14 +72,19 @@ public:
     virtual void overlay_style(NodeId node, style::ComputedStyle& style) const = 0;
 };
 
-// Optional per-paint context. The cache is caller-owned (paint frame/sink) and deliberately not a
-// global singleton: pass the same instance across frames to reuse wrapped line boxes. Null means
-// every paint recomputes text layout (the uncached path). `text_metrics_source` selects the wrap
-// measurement source: null = the deterministic stub (existing goldens/tests byte-identical), or a
-// caller-owned `PaintTextMetricsSource` (for example `FontPaintTextMetrics` for real FreeType
-// metrics + HarfBuzz advances). Its id is part of the cache key, so sources never mix.
+// Optional per-paint context. Both caches are caller-owned (paint frame/sink) and deliberately not
+// global singletons: pass the same instances across frames to reuse wrapped line boxes and per-node
+// paint records. Null means every paint recomputes text layout / re-emits every node (the uncached
+// path, byte-identical to the pre-cache pass). `text_metrics_source` selects the wrap measurement
+// source: null = the deterministic stub (existing goldens/tests byte-identical), or a caller-owned
+// `PaintTextMetricsSource` (for example `FontPaintTextMetrics` for real FreeType metrics + HarfBuzz
+// advances). Its id is part of both cache keys, so sources never mix. `paint_cache` records one
+// node's own sink calls and replays them while the node is clean and its sink-space mapping,
+// payload, clip stack and context are unchanged (see paint_cache.hpp); it is bypassed entirely when
+// `view` is set.
 struct PaintContext {
     TextLayoutCache* text_layout_cache = nullptr;
+    PaintCache* paint_cache = nullptr;
     const PaintTextMetricsSource* text_metrics_source = nullptr;
     // Device scale used for caret width (1 px at scale 1, 2 px at scale >= 2) and future
     // decoration metrics. Defaults to 1 so tests/goldens are unchanged.
