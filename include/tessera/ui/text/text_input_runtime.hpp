@@ -62,6 +62,14 @@ public:
     // `Node::on_event` uses `bind_text_input_events` below instead of this call directly.
     bool handle_event(const Event& event);
 
+    // Publishes the controller's caret/selection/preedit state into the attached node's
+    // `PaintData::decoration` (Text-kind payload only). Generated controlled fields call this at
+    // the end of `apply_state` because that rebuilds the PaintData, and the runtime calls it after
+    // every handled event, so paint sees the caret without a timer. Caret visibility follows focus
+    // (`EditController::caret_blink_active`); `blink_phase` keeps the paint default until a host
+    // wires `CaretBlink`. No-op without a target or a Text-kind payload.
+    void publish_decoration();
+
     // Number of `TextChange` events emitted since construction (diagnostics/tests).
     [[nodiscard]] std::size_t change_events() const {
         return change_events_;

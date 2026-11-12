@@ -19,6 +19,7 @@
 #include "tessera/app/window.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -41,6 +42,7 @@ using tessera::ui::Node;
 struct Args {
     std::string capture;
     std::string font = TESSERA_SAMPLE_FONT;
+    std::string type;
     bool click = false;
     bool windowed = false;
     bool hidden = false;
@@ -75,7 +77,7 @@ InputEvent pointer_event(InputEventType type, float x, float y) {
     event.type = type;
     event.x = x;
     event.y = y;
-    event.pointer_id = 1;
+    event.pointer_id = 0;
     event.pointer_kind = tessera::ui::PointerKind::Mouse;
     event.button = tessera::ui::PointerButton::Left;
     event.is_primary = true;
@@ -101,6 +103,31 @@ bool click_generated_button(Node& root) {
     return true;
 }
 
+// Focuses the generated TextInput with a real pointer press, then commits typed text through the
+// router's EditText path, so the capture shows the controlled value plus caret decoration.
+bool type_into_text_input(Node& root, std::string_view text) {
+    Node* input = find_kind(root, "TextInput");
+    if (input == nullptr) {
+        return false;
+    }
+    const rhi::Rect box = input->world_bounds();
+    if (box.width <= 0.0f || box.height <= 0.0f) {
+        return false;
+    }
+    tessera::ui::InputRouter router;
+    const float x = box.x + box.width * 0.5f;
+    const float y = box.y + box.height * 0.5f;
+    (void)router.dispatch(root, pointer_event(InputEventType::PointerDown, x, y));
+    (void)router.dispatch(root, pointer_event(InputEventType::PointerUp, x, y));
+    InputEvent edit;
+    edit.type = InputEventType::EditText;
+    const std::size_t size = std::min<std::size_t>(text.size(), edit.text.size());
+    std::copy_n(text.data(), size, edit.text.begin());
+    edit.text_size = static_cast<std::uint32_t>(size);
+    (void)router.dispatch(root, edit);
+    return size == text.size();
+}
+
 bool write_png(const std::string& path, const tessera::app::CapturedFrame& frame) {
     return stbi_write_png(path.c_str(), static_cast<int>(frame.width),
                           static_cast<int>(frame.height), 4, frame.rgba.data(),
@@ -118,6 +145,9 @@ int run_capture(const Args& args, click_demo::DemoScene& scene) {
             if (args.click && !click_generated_button(scene.root)) {
                 std::cerr << "click-demo: no generated Button to click\n";
             }
+            if (!args.type.empty() && !type_into_text_input(scene.root, args.type)) {
+                std::cerr << "click-demo: no generated TextInput to type into\n";
+            }
         });
     if (!frame) {
         std::cout << "click-demo: skipped (Vulkan device unavailable)\n";
@@ -128,7 +158,8 @@ int run_capture(const Args& args, click_demo::DemoScene& scene) {
         return 4;
     }
     std::cout << "click-demo: captured " << args.capture << " (" << frame->width << "x"
-              << frame->height << ", click=" << (args.click ? "yes" : "no") << ")\n";
+              << frame->height << ", click=" << (args.click ? "yes" : "no")
+              << ", typed=" << (args.type.empty() ? "no" : "yes") << ")\n";
     return 0;
 }
 
@@ -171,6 +202,8 @@ Args parse_args(int argc, char** argv) {
             args.height = std::stoi(argv[++index]);
         } else if (arg == "--frames" && index + 1 < argc) {
             args.frames = std::stoi(argv[++index]);
+        } else if (arg == "--type" && index + 1 < argc) {
+            args.type = argv[++index];
         } else if (arg == "--click") {
             args.click = true;
         } else if (arg == "--windowed") {
@@ -178,8 +211,9 @@ Args parse_args(int argc, char** argv) {
         } else if (arg == "--hidden") {
             args.hidden = true;
         } else if (arg == "--help" || arg == "-h") {
-            std::cout << "usage: click_demo [--capture out.png] [--click] [--windowed] [--hidden]\n"
-                         "                 [--frames N] [--width N] [--height N] [--font path]\n";
+            std::cout << "usage: click_demo [--capture out.png] [--click] [--type TEXT]\n"
+                         "                 [--windowed] [--hidden] [--frames N] [--width N]\n"
+                         "                 [--height N] [--font path]\n";
             std::exit(0);
         } else {
             std::cerr << "click-demo: unknown argument " << arg << "\n";

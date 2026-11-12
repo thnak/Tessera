@@ -193,6 +193,7 @@ namespace demo {
       if (input_5_editor_.buffer().text() != text_node_5_value_) {
           input_5_editor_.set_text(text_node_5_value_);
       }
+      this->input_5_runtime_.publish_decoration();
     }
     
     void Demo::apply_children_1() {

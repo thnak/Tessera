@@ -189,6 +189,11 @@ void emit_controlled_apply(CppWriter& writer, const std::vector<ControlledInput>
         --writer.indent;
         writer.close("");
     }
+    // The PaintData rebuild above drops the caret/selection decoration; re-publish it from the
+    // controller so a focused field keeps its caret across state updates.
+    for (const ControlledInput& input : inputs) {
+        writer.line("this->" + input.runtime_member + ".publish_decoration();");
+    }
 }
 
 void emit_controlled_accessors(CppWriter& writer, const ir::Component& component,

@@ -11,6 +11,7 @@
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/input_pump.hpp"
+#include "tessera/ui/key_code.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
@@ -236,6 +237,31 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
                     input->paint_data()->text == "Ada",
                 "the controlled TextInput paints the typed value")) {
         return 7;
+    }
+    auto decoration = input->paint_data()->decoration;
+    if (!expect(decoration.has_value(), "the focused field carries caret decoration") ||
+        !expect(decoration->caret_byte_offset == 3, "the caret sits after the typed text") ||
+        !expect(decoration->caret_visible, "the caret is visible while focused") ||
+        !expect(!decoration->has_selection(), "typing leaves a collapsed selection")) {
+        return 8;
+    }
+
+    // Shift+Left moves the caret and extends the selection without a text change: decoration
+    // follows every handled input event, not only TextChange.
+    tessera::ui::InputEvent shift_left;
+    shift_left.type = InputEventType::KeyDown;
+    shift_left.key = tessera::ui::key::kArrowLeft;
+    shift_left.modifiers = tessera::ui::Modifier::Shift;
+    (void)pump.queue().push(shift_left);
+    (void)pump.pump(root, loop);
+    (void)host.begin_frame(1.0 / 60.0);
+    decoration = input->paint_data()->decoration;
+    if (!expect(decoration.has_value() && decoration->has_selection(),
+                "shift+left publishes a selection") ||
+        !expect(decoration->selection_begin == 2 && decoration->selection_end == 3,
+                "the selection covers the last character") ||
+        !expect(!decoration->caret_visible, "a non-collapsed selection hides the caret")) {
+        return 9;
     }
 
     std::cout << "app_input: ok\n";
