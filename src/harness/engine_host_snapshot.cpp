@@ -128,7 +128,7 @@ EngineAutomationHost::canonical_snapshot(bool include_hidden) {
 
     std::size_t count = 0;
     auto source = build_source_node(root_, "root", true, 0, config_.max_snapshot_nodes, count,
-                                     config_.annotations);
+                                    config_.annotations);
     if (!source.has_value()) {
         return std::unexpected(std::move(source.error()));
     }
