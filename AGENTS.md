@@ -208,8 +208,11 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tests/gpu/app_window_occluded_tests.cpp`); `pauseWhenOccluded` is wired through
       `WindowOptions::runtime` (`src/app/window_config.cpp`); the adaptive-quality controller
       `src/runtime/adaptive_quality.cpp` reports a clamped render-scale decision with hysteresis
-      (`tests/unit/adaptive_quality_tests.cpp`), but no render-target consumer reads it yet and
-      the effect/present-cap steps of the design order are still missing.
+      (`tests/unit/adaptive_quality_tests.cpp`) and the host consumes it
+      (`src/ui/scale/render_target_extent.cpp`, `tests/gpu/app_window_render_scale_tests.cpp`):
+      a downgrade renders into a smaller target and blits it up, while scale 1.0 keeps the
+      direct path and every golden unchanged. Still missing: the effect and present-cap steps
+      of the design order, and GPU timestamps as the frame-time signal.
 - [x] **B2:** Multi-frame sync: timeline semaphores (two frames in flight already work) — smoke
       test validation-clean — `src/rendering/backend/vulkan/src/vulkan_swapchain_present.cpp`,
       `tests/gpu/vulkan_timeline_frame_tests.cpp`.
