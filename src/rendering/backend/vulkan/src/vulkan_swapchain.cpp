@@ -287,7 +287,15 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
     create_info.imageColorSpace = surface_format.colorSpace;
     create_info.imageExtent = {chosen_extent.width, chosen_extent.height};
     create_info.imageArrayLayers = 1;
-    create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    // TRANSFER_DST lets a smaller render target be resampled into the presented image (the adaptive
+    // render-scale present path, docs/design/performance.md section 6). It is requested only when
+    // the surface reports it so a surface without it still creates a swapchain; the capability is
+    // published as supports_scaled_present() and the consumer stays on its direct path when false.
+    const bool transfer_dst =
+        (capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) != 0;
+    create_info.imageUsage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        (transfer_dst ? static_cast<VkImageUsageFlags>(VK_IMAGE_USAGE_TRANSFER_DST_BIT) : 0U);
     create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     create_info.preTransform = capabilities.currentTransform;
     create_info.compositeAlpha = choose_composite_alpha(capabilities);
@@ -295,7 +303,16 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
     create_info.clipped = VK_TRUE;
     create_info.oldSwapchain = swapchain_;
 
+    VkFormatProperties format_properties{};
+    vkGetPhysicalDeviceFormatProperties(physical_device_, surface_format.format,
+                                        &format_properties);
+    constexpr VkFormatFeatureFlags kBlitFeatures =
+        VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
+    scaled_present_supported_ =
+        transfer_dst && (format_properties.optimalTilingFeatures & kBlitFeatures) == kBlitFeatures;
+
     VkSwapchainKHR new_swapchain = VK_NULL_HANDLE;
+
     const VkResult result = vkCreateSwapchainKHR(device_, &create_info, nullptr, &new_swapchain);
     if (result == VK_ERROR_SURFACE_LOST_KHR) {
         return std::unexpected(rhi::SwapchainError::SurfaceLost);

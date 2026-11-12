@@ -3,6 +3,7 @@
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
@@ -105,6 +106,8 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     rebuild_clip_state();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
+    content_scale_x_ = 1.0f;
+    content_scale_y_ = 1.0f;
     vertices_.clear();
     batches_.clear();
     current_texture_ = white_texture_;
@@ -176,7 +179,22 @@ void Batched2DRenderer::push_clip(const clip::RoundedRect& input) {
     if (!in_frame_) {
         return;
     }
-    const clip::RoundedRect clamped = clip::clamp_radii(input);
+    // Clips are tested in target-pixel space (gl_FragCoord), so they take the same global content
+    // scale as the positions they guard. Radii use the mean of the two axes: they are exact for the
+    // uniform scale a render-target downgrade uses, and only an approximation otherwise.
+    clip::RoundedRect scaled = input;
+    if (content_scale_x_ != 1.0f || content_scale_y_ != 1.0f) {
+        const float radius_scale = (content_scale_x_ + content_scale_y_) * 0.5f;
+        scaled.rect.x *= content_scale_x_;
+        scaled.rect.y *= content_scale_y_;
+        scaled.rect.width *= content_scale_x_;
+        scaled.rect.height *= content_scale_y_;
+        scaled.top_left *= radius_scale;
+        scaled.top_right *= radius_scale;
+        scaled.bottom_right *= radius_scale;
+        scaled.bottom_left *= radius_scale;
+    }
+    const clip::RoundedRect clamped = clip::clamp_radii(scaled);
     clip_scissor_stack_.push_back(scissor_);
     if (clip_stack_.size() < clip::kMaxClipDepth) {
         clip_stack_.push_back(clamped);
@@ -212,6 +230,18 @@ void Batched2DRenderer::pop_clip() {
 
 void Batched2DRenderer::set_transform(const rhi::Mat3& transform) {
     transform_ = transform;
+}
+
+void Batched2DRenderer::set_content_scale(float x, float y) {
+    // A non-finite or non-positive factor would collapse or mirror the frame; ignore it and keep
+    // the full-quality mapping so a bad caller cannot blank the window.
+    if (!std::isfinite(x) || !std::isfinite(y) || x <= 0.0f || y <= 0.0f) {
+        content_scale_x_ = 1.0f;
+        content_scale_y_ = 1.0f;
+        return;
+    }
+    content_scale_x_ = x;
+    content_scale_y_ = y;
 }
 
 void Batched2DRenderer::push_transform(const rhi::Mat3& transform) {
@@ -380,6 +410,8 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         float px = 0;
         float py = 0;
         transform_.transform_point(positions[index][0], positions[index][1], px, py);
+        px *= content_scale_x_;
+        py *= content_scale_y_;
 
         Vertex2D vertex;
         vertex.x = px;

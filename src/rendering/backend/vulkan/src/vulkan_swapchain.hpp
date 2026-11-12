@@ -61,6 +61,12 @@ public:
     void resize(rhi::Extent2D extent) override;
     [[nodiscard]] rhi::RenderTarget* image_target(std::uint32_t index) override;
     [[nodiscard]] rhi::SwapchainFrameSync frame_sync() const override;
+    // True when the surface/format this swapchain was created with supports a filtered blit into
+    // its images (a transfer-destination usage plus BLIT_SRC/BLIT_DST on the format). Computed once
+    // when the swapchain is created and kept across a recreation.
+    [[nodiscard]] bool supports_scaled_present() const override {
+        return scaled_present_supported_;
+    }
 
     [[nodiscard]] const VulkanSwapchainStats& stats() const {
         return stats_;
@@ -127,6 +133,7 @@ private:
     bool resize_requested_ = false;
     bool present_submitted_ = false;
     bool drain_pending_ = false;
+    bool scaled_present_supported_ = false;
     VulkanSwapchainStats stats_;
 };
 

@@ -85,6 +85,15 @@ public:
     // recreated; re-acquire after OutOfDate. Returns nullptr when the backend cannot present.
     [[nodiscard]] virtual RenderTarget* image_target(std::uint32_t index) = 0;
 
+    // True when a smaller render target can be resampled into this swapchain's images with
+    // CommandList::blit_target, which is what the adaptive render scale (docs/design/performance.md
+    // section 6) presents through. It is a creation-time capability of the images themselves (a
+    // surface/format transfer-destination and blit support), so a consumer queries it once and
+    // keeps every frame on the full-size direct path when it is false.
+    [[nodiscard]] virtual bool supports_scaled_present() const {
+        return false;
+    }
+
     // Completion counter snapshot for the frame-pacing gate. It is a plain host query (no GPU
     // sync), so a driver may sample it once per iteration to prove multi-frame overlap; backends
     // without timeline pacing answer a zeroed snapshot.

@@ -56,6 +56,15 @@ public:
     void push_scissor(const rhi::Scissor& scissor);
     void pop_scissor();
 
+    // Global output scale applied to every emitted position and every clip rect, per axis. It lets
+    // one scene - laid out and painted in the window's presented pixel coordinates - be rendered
+    // into a smaller target (the adaptive render scale of docs/design/performance.md section 6) and
+    // resampled back up on present. It is not a device/render-scale change: glyphs keep the atlas
+    // raster they were shaped at, and the SDF/AA radii stay in local (pre-scale) units, so a
+    // downgrade only resamples pixels. `begin()` resets it to (1, 1), which is the byte-identical
+    // full-quality path.
+    void set_content_scale(float x, float y);
+
     // Rounded-rect clip stack. The scissor is still intersected with each clip rect (fast path),
     // and the up-to-`clip::kMaxShaderClips` active clips are folded into push-constant uniforms for
     // the analytic fragment test. Rect-only clips keep the scissor-only path. Deeper nesting (up to
@@ -142,6 +151,10 @@ private:
 
     rhi::Mat3 transform_;
     std::vector<rhi::Mat3> transform_stack_;
+    // Presented-pixel -> target-pixel factor for this frame; (1, 1) unless a caller downgraded the
+    // render target. See set_content_scale().
+    float content_scale_x_ = 1.0f;
+    float content_scale_y_ = 1.0f;
 
     // Vertex memory for one in-flight frame. A frame normally uses a single buffer; when it runs
     // out of room it continues in a larger one, because draws already recorded this frame still

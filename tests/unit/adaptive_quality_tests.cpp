@@ -8,7 +8,8 @@
 // paths, its hysteresis and its determinism. The last case drives a real AppHost frame loop with a
 // ManualClock (never a wall clock) and proves that one observation per frame reaches the host and
 // that a change - not the raw frame time - is what lands in the frame diagnostics. It also proves
-// the honest limit of this slice: a downgrade changes a reported number, not the render target.
+// that the decision leaves the host's own geometry alone: the render-target consumer is the window
+// driver (tests/gpu/app_window_render_scale_tests.cpp), so layout and damage stay independent.
 
 #include "adaptive_quality.hpp"
 #include "tessera/app/host.hpp"
@@ -403,12 +404,15 @@ bool host_observes_frames_and_records_the_change() {
                 "the change is recorded as a downgrade") &&
          ok;
 
-    // The honest limit of this slice: the decision changes; the target, the damage extent and the
-    // paint do not. Nothing scales pixels yet (runtime-config-v1.md section 6.2).
+    // The host's own render geometry is unchanged: the damage target, the layout and the paint
+    // commands stay in the window's presented pixel space. The render-target consumer is the window
+    // driver (WindowHost), which renders those same commands into a smaller target and resamples it
+    // up; see tests/gpu/app_window_render_scale_tests.cpp. Keeping this state independent is what
+    // lets the adaptive multiplier change without touching layout or the glyph atlas.
     const Extent2D extent_after = host.target_extent();
     ok = expect(extent_after.width == extent_before.width &&
                     extent_after.height == extent_before.height,
-                "a downgrade does not resize the render target") &&
+                "a downgrade does not resize the host's damage target") &&
          ok;
     host.request_full_repaint();
     run_frame(kMetMs);

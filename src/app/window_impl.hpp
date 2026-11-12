@@ -86,6 +86,15 @@ struct WindowHost::Impl {
     // One bounded iteration shared by pump_once(): events -> input -> pause -> tick -> one frame.
     bool pump_once();
 
+    // --- adaptive render scale (docs/design/performance.md section 6.1) ----------------------
+    // Ensures the offscreen target `slot` renders into when the controller's renderScale is below
+    // full quality is the requested extent. One target per frame slot, because a target may still
+    // be read by the frame slot's in-flight blit: reusing a single image across two frames in
+    // flight would be a cross-submission read/write hazard. Returns false when the backend refuses,
+    // in which case the frame stays on the direct full-size path rather than dropping. Called at a
+    // frame boundary and only when the decided extent changed, so a downgrade allocates one image.
+    bool ensure_scaled_target(std::size_t slot, rhi::Extent2D extent);
+
     // --- host-owned caret blink (window_lifecycle.cpp) --------------------------------------
     // The clock the caret ticks against: the borrowed WindowOptions::clock when set (tests inject a
     // ManualClock), else the HAL monotonic clock. Rendering dt/pacing never use this.
@@ -126,6 +135,15 @@ struct WindowHost::Impl {
     std::unique_ptr<hal::Window> window;
     std::unique_ptr<rhi::Device> device;
     std::unique_ptr<rhi::Swapchain> swapchain;
+    // Adaptive render-scale targets (docs/design/performance.md section 6.1): allocated only while
+    // the controller reports a scale below full quality, at the decided extent, and never at the
+    // window's physical size. One per frame slot, like the renderer's vertex-buffer slots: the slot
+    // gate (see kFramesInFlight) is what proves the previous read of that image completed.
+    // `scaled_present_supported` is the swapchain generation's fixed answer to whether a smaller
+    // target can be resampled into its images.
+    std::array<std::unique_ptr<rhi::RenderTarget>, detail::kFramesInFlight> scaled_targets;
+    std::array<rhi::Extent2D, detail::kFramesInFlight> scaled_target_extents{};
+    bool scaled_present_supported = false;
     std::unique_ptr<rhi::Pipeline> pipeline;
     std::unique_ptr<rhi::Texture> white;
     std::unique_ptr<rendering::gpu::Batched2DRenderer> renderer;

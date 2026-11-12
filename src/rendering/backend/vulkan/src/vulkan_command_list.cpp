@@ -286,6 +286,97 @@ void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, vulkan_buffer->handle(), 1, &copy);
 }
 
+void VulkanCommandList::blit_target(const rhi::RenderTarget& source,
+                                    const rhi::RenderTarget& destination, rhi::Filter filter) {
+    if (!usable()) {
+        return;
+    }
+    const auto* vulkan_source = &vulkan_cast<const VulkanRenderTarget>(source);
+    const auto* vulkan_destination = &vulkan_cast<const VulkanRenderTarget>(destination);
+    if (vulkan_source->sample_count() != 1 || vulkan_destination->sample_count() != 1) {
+        throw std::runtime_error("blit_target: multisampled targets are not supported");
+    }
+    if (vulkan_source->presentable()) {
+        throw std::runtime_error("blit_target: swapchain images are not a blit source");
+    }
+    if (!vulkan_source->content_initialized()) {
+        // The source has never been rendered, so there is nothing to resample and its image is
+        // still in UNDEFINED layout.
+        throw std::runtime_error("blit_target: the source target has no rendered content");
+    }
+
+    if (!recording_) {
+        VkCommandBufferBeginInfo begin_info{};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        check_vk(vkBeginCommandBuffer(buffer_, &begin_info), "vkBeginCommandBuffer(blit)");
+        recording_ = true;
+    }
+    if (render_pass_active_) {
+        throw std::runtime_error("blit_target: render pass is still active");
+    }
+
+    // end_render_pass() left the offscreen source in TRANSFER_SRC_OPTIMAL with its color write made
+    // available to a transfer read, so only the destination needs a barrier. The destination was
+    // presented before (PRESENT_SRC) or is a fresh swapchain image (UNDEFINED).
+    const bool destination_presentable = vulkan_destination->presentable();
+    const bool destination_has_content = vulkan_destination->content_initialized();
+    const bool waits_for_acquire =
+        destination_presentable && vulkan_destination->frame_sync_pending();
+    // A previously written destination is in the layout the last write left it in: PRESENT_SRC for
+    // a swapchain image, TRANSFER_SRC for an offscreen target (end_render_pass's post-render
+    // layout).
+    const VkImageLayout destination_previous = !destination_has_content ? VK_IMAGE_LAYOUT_UNDEFINED
+                                               : destination_presentable
+                                                   ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                                   : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    // The submission waits on the acquire semaphore at TRANSFER (see submit_async), so the layout
+    // transition that first writes the acquired image must be scoped to that stage as well.
+    const VkPipelineStageFlags acquire_stage =
+        static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TRANSFER_BIT);
+    record_image_transition(
+        buffer_, vulkan_destination->image(), destination_previous,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
+        waits_for_acquire ? acquire_stage
+                          : static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT),
+        VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    VkImageBlit region{};
+    region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.srcSubresource.mipLevel = 0;
+    region.srcSubresource.baseArrayLayer = 0;
+    region.srcSubresource.layerCount = 1;
+    region.srcOffsets[0] = {0, 0, 0};
+    region.srcOffsets[1] = {static_cast<std::int32_t>(vulkan_source->extent().width),
+                            static_cast<std::int32_t>(vulkan_source->extent().height), 1};
+    region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.dstSubresource.mipLevel = 0;
+    region.dstSubresource.baseArrayLayer = 0;
+    region.dstSubresource.layerCount = 1;
+    region.dstOffsets[0] = {0, 0, 0};
+    region.dstOffsets[1] = {static_cast<std::int32_t>(vulkan_destination->extent().width),
+                            static_cast<std::int32_t>(vulkan_destination->extent().height), 1};
+    vkCmdBlitImage(buffer_, vulkan_source->readback_image(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   vulkan_destination->image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
+                   filter == rhi::Filter::Linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST);
+
+    record_image_transition(
+        buffer_, vulkan_destination->image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        destination_presentable ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        VK_ACCESS_TRANSFER_WRITE_BIT, destination_presentable ? 0 : VK_ACCESS_TRANSFER_READ_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        destination_presentable ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+                                : VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    // The submission is now a present of this destination: submit_async() derives the acquire wait
+    // and the present semaphore from the target that was written, exactly as it does after a render
+    // pass into a swapchain image.
+    current_target_ = vulkan_destination;
+    present_written_by_transfer_ = destination_presentable;
+    vulkan_destination->mark_content_initialized();
+}
+
 void VulkanCommandList::submit_async() {
     if (!recording_ || submitted_) {
         return;
@@ -334,9 +425,14 @@ void VulkanCommandList::submit_async() {
     if (presentable && current_target_->frame_sync_pending()) {
         const FrameSyncBinding& binding = current_target_->frame_sync();
         if (binding.acquire != VK_NULL_HANDLE) {
-            // The acquisition is waited for before the pass writes color: that is the first point
-            // the render submission touches the image, so no earlier stage needs the image.
-            wait_stages[wait_count] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            // The acquisition is waited for before the (first) write to the image: the color
+            // attachment output of a render pass, or the transfer stage of a resample blit. No
+            // earlier stage touches the image.
+            wait_stages[wait_count] =
+                present_written_by_transfer_
+                    ? static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TRANSFER_BIT)
+                    : static_cast<VkPipelineStageFlags>(
+                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
             wait_semaphores[wait_count++] = binding.acquire;
         }
         if (binding.timeline != VK_NULL_HANDLE) {

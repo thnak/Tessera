@@ -9,6 +9,7 @@
 #include "tessera/rendering/rhi/swapchain.hpp"
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scale/render_target_extent.hpp"
 #include "window_impl.hpp"
 
 #include <array>
@@ -138,6 +139,35 @@ void WindowHost::Impl::recreate_swapchain() {
     swapchain->resize({current.physical_width, current.physical_height});
 }
 
+// The offscreen target a downgraded frame renders into. It is created on the first frame of a new
+// decided extent and reused while that extent lasts, so a held downgrade costs one image per frame
+// slot and no per-frame allocation; an upgrade to full quality stops using it (and the next
+// downgrade at the same extent reuses it). A backend refusal is a value, not a failure: the frame
+// presents at full quality instead (ADR-025 boundary, and a lost frame would be worse than a sharp
+// one).
+bool WindowHost::Impl::ensure_scaled_target(std::size_t slot, rhi::Extent2D extent) {
+    if (swapchain == nullptr || slot >= scaled_targets.size() || extent.width == 0 ||
+        extent.height == 0) {
+        return false;
+    }
+    const rhi::TextureFormat format = swapchain->format();
+    rhi::RenderTarget* existing = scaled_targets[slot].get();
+    if (existing != nullptr && scaled_target_extents[slot].width == extent.width &&
+        scaled_target_extents[slot].height == extent.height && existing->format() == format) {
+        return true;
+    }
+    try {
+        scaled_targets[slot] = device->create_render_target(detail::target_desc(extent, format));
+        scaled_target_extents[slot] = extent;
+        return scaled_targets[slot] != nullptr;
+    } catch (const std::exception&) {
+        scaled_targets[slot].reset();
+        scaled_target_extents[slot] = {};
+        ++stats.scale_fallbacks;
+        return false;
+    }
+}
+
 // One rendered frame: reuse a free slot, acquire, paint the whole scene, submit async and present.
 // `full_repaint` is the plan's verdict from the host frame; it is recorded so a caller can prove a
 // resume repainted the whole target.
@@ -180,15 +210,47 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         return FrameResult::Skipped;
     }
 
-    const rhi::RenderTargetDesc desc =
-        detail::target_desc(swapchain->extent(), swapchain->format());
+    // Adaptive render scale (docs/design/performance.md section 6, step 2): the scene renders into
+    // a target of the presented pixel grid times the controller's renderScale, and the present
+    // resamples it up. The multiplier is read from the decision in force, so a change lands at this
+    // frame boundary - never mid-frame and never per pixel. At scale 1.0 the extents are equal and
+    // the frame takes the direct path below, byte for byte today's full-quality frame.
+    const rhi::Extent2D presented = swapchain->extent();
+    const ui::scale::AdaptiveTargetExtent adaptive =
+        ui::scale::adaptive_target_extent(presented, host->adaptive_quality().render_scale);
+    // A backend whose swapchain images cannot be resampled keeps the direct path instead of
+    // dropping frames; the capability is fixed for this swapchain generation.
+    const bool scaled =
+        adaptive.scaled && scaled_present_supported && ensure_scaled_target(slot, adaptive.extent);
+    rhi::RenderTarget* paint_target = target;
+    rhi::RenderTargetDesc desc = detail::target_desc(presented, swapchain->format());
+    if (scaled) {
+        paint_target = scaled_targets[slot].get();
+        desc = detail::target_desc(paint_target->extent(), swapchain->format());
+    }
     auto commands = device->create_command_list();
-    renderer->begin(*commands, *target, desc);
+    renderer->begin(*commands, *paint_target, desc);
+    if (scaled) {
+        // Presented pixels -> target pixels. Positions and clip rects scale; layout, glyph raster
+        // and the atlas do not (the atlas is keyed by font pixel size, never by this factor).
+        renderer->set_content_scale(adaptive.content_scale_x, adaptive.content_scale_y);
+    }
     sink->begin_text_frame();
     // Swapchain images are not preserved across presents, so a presented frame is a full redraw;
     // the damage plan only decided whether this frame happens at all.
     ui::paint::paint_scene(root, host->styles(), *sink);
     renderer->end();
+    if (scaled) {
+        // The same submission records the resample into the acquired image, so it carries the
+        // acquire wait and the present semaphore exactly like a render pass into that image would.
+        commands->blit_target(*scaled_targets[slot], *target, rhi::Filter::Linear);
+    }
+    stats.render_scale = host->adaptive_quality().render_scale;
+    stats.present_extent = presented;
+    stats.target_extent = paint_target->extent();
+    if (scaled) {
+        ++stats.scaled_frames;
+    }
     commands->submit_async();
     in_flight[slot] = std::move(commands);
     slot = (slot + 1) % detail::kFramesInFlight;

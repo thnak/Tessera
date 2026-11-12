@@ -26,6 +26,8 @@ struct NullCommandStats {
     std::uint32_t scissor_changes = 0;
     std::uint32_t draws = 0;
     std::uint32_t vertices = 0;
+    // blit_target() calls recorded (the null backend resamples nothing; it counts the request).
+    std::uint32_t blits = 0;
     // Sample count of the most recent begin_render_pass target (1 or 4).
     std::uint32_t last_render_pass_sample_count = 0;
     // One entry per draw, in recording order; `scissor` is the state active at draw time.
@@ -45,6 +47,8 @@ public:
     void push_constants(const void* data, std::size_t size) override;
     void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) override;
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override;
+    void blit_target(const rhi::RenderTarget& source, const rhi::RenderTarget& destination,
+                     rhi::Filter filter) override;
     void submit() override;
     void submit_async() override;
     [[nodiscard]] bool is_complete() const override;

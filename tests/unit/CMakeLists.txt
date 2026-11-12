@@ -1903,3 +1903,14 @@ target_link_libraries(frame_paint_cache_tests PRIVATE
     tessera_runtime)
 
 add_test(NAME frame_paint_cache COMMAND frame_paint_cache_tests)
+
+# The adaptive render-scale extent consumer (docs/design/performance.md 6.1): the presented extent,
+# the quantized device (glyph) scale and the controller's adaptive multiplier turn into the render
+# target extent, with fractional rounding, the 1-pixel floor and exact identity at scale 1.0. Pure
+# CPU: no GPU, window or clock.
+add_executable(render_target_extent_tests
+    render_target_extent_tests.cpp)
+
+target_link_libraries(render_target_extent_tests PRIVATE tessera_scale)
+
+add_test(NAME render_target_extent COMMAND render_target_extent_tests)

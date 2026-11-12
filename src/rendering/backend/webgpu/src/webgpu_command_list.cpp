@@ -147,6 +147,15 @@ public:
         wgpuCommandEncoderCopyTextureToBuffer(encoder_, &src, &dst, &size);
     }
 
+    // WebGPU exposes no filtered image blit on a command encoder; a resample is a textured draw.
+    // The adaptive render scale reports `supports_blit() == false` on this backend (the default of
+    // rhi::Device), so this path is never reached by a frame; it throws instead of silently
+    // presenting an unscaled image if a caller ignores the capability query.
+    void blit_target(const rhi::RenderTarget&, const rhi::RenderTarget&, rhi::Filter) override {
+        throw std::logic_error(
+            "WebGpuCommandList: blit_target is unavailable; check Device::supports_blit()");
+    }
+
     // A browser cannot block on the GPU; use submit_async() and poll is_complete().
     void submit() override {
         throw std::logic_error(

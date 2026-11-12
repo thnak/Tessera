@@ -198,18 +198,18 @@ Never:
 
 All adaptive changes must be reversible and visible in diagnostics.
 
-### 6.1 Implemented decision layer (step 2 reports only)
+### 6.1 Implemented decision layer and its render-target consumer (step 2)
 
-The decision layer is implemented. **It does not scale pixels yet**: `renderScale` still has no
-render-target consumer, so a downgrade changes a reported number, never the resolution
-([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 6.2). Step 1 (effects) and step 3
-(present cap) are not implemented either; step 5 (report) is.
+The decision layer and the step-2 consumer are implemented. A downgrade now changes pixels: the
+window renders the scene into a smaller target and resamples it up on present. Step 1 (effects) and
+step 3 (present cap) are not implemented; step 5 (report) is.
 
 `src/runtime/adaptive_quality.hpp` is a pure state machine fed one frame observation at a time
 (frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale` and
 `frameBudgetMs` fields). It is deterministic — no clock, no RNG, no locale, no allocation, not even
 at construction (the type is trivially copyable) — so an observation sequence always yields the same
-decision sequence.
+decision sequence. It stays the **only** hysteresis authority: the consumer reads
+`AdaptiveQualitySample::render_scale` and never re-implements a threshold, a step or a cooldown.
 
 | Constant | Value | Why |
 |---|---|---|
@@ -229,6 +229,44 @@ by `WindowHost` with the frame's CPU cost through present (GPU timestamps are se
 follow-up). A change is recorded in `runtime::FrameDiagnostics` (`adaptive_quality()`,
 `adaptive_quality_changes()`, `adaptive_quality_downgrades()`), so a downgrade is visible without
 sampling frame time, and it survives `AppHost::resize()`, which only re-creates the pipeline.
+
+**What the consumer scales.** One value: the extent of the target the scene renders into. With the
+window's presented (physical) pixel extent `P` and the decision `s = renderScale`, the target is
+
+```
+target = max(1, floor(P * s)) per axis
+```
+
+and the present resamples that target up to `P` with a filtered blit. `P` is the window's logical
+extent times the device scale, rounded up to whole pixels, so the adaptive multiplier is a resample
+of exactly what the window already presented. The base is the *presented* extent rather than the
+unrounded logical × device product on purpose: the physical grid is a whole number of pixels, and
+using it makes `s = 1.0` exactly identity on every DPI, including fractional ones. The two axes are
+computed (and can round) independently, and the content transform the paint uses is the exact
+extent ratio `target / P`, so the resample always covers the whole image.
+
+**What it never touches.** The device scale (the monitor-derived value quantized onto the render-scale
+ladder, [`window-resize.md`](window-resize.md) §2.3), and therefore everything keyed by it: glyph
+rasterization, the text atlas, and caret/metrics values. Layout does not change either — the scene is
+laid out, style-resolved and painted in the presented pixel space exactly as before; only the
+mapping from those coordinates to the smaller target changes. The window and its swapchain keep the
+physical size, so a quality change never resizes the OS window or recreates the swapchain.
+
+**When it applies.** At the next frame boundary: the multiplier is read from the decision in force
+when the frame begins, the target is (re)created only when the decided extent changed, and the
+resample is recorded in the same submission as the paint. There is no mid-frame change, no per-frame
+allocation in the steady state, and no GPU wait.
+
+**The bit-identical guarantee at scale 1.0.** When `s = 1.0` the target extent equals `P`, so the
+frame takes the existing direct path — no offscreen target is created and no resample runs — and the
+presented image is byte-for-byte the full-quality frame the tree produced before this consumer
+existed. The committed goldens and the frame-pipeline/app-window-capture tests therefore pass
+unchanged, and they are the acceptance for this slice.
+
+The decision is also observable per frame: `WindowFrameStats::render_scale`, `target_extent`,
+`present_extent`, `scaled_frames` and `scale_fallbacks` in [`window.hpp`](../../include/tessera/app/window.hpp).
+A backend whose swapchain images cannot be resampled reports `supports_scaled_present() == false` and
+the driver stays on the direct path instead of dropping frames.
 
 ## 7. GPU utilization and platform metrics
 

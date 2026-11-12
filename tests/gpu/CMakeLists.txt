@@ -514,6 +514,22 @@ if (TARGET tessera_app_window)
     set_tests_properties(caret_blink_host PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # The adaptive render-scale consumer (docs/design/performance.md 6.1): a real hidden window and
+    # swapchain prove that scale 1.0 keeps the direct full-size path, a forced downgrade renders into
+    # the smaller target and presents through the resample without recreating the swapchain, and the
+    # recovery returns the target extent - all validation-clean.
+    add_executable(app_window_render_scale_tests
+        app_window_render_scale_tests.cpp)
+    target_compile_definitions(app_window_render_scale_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_render_scale_tests PRIVATE
+        tessera_app_window
+        tessera_scale)
+    add_test(NAME app_window_render_scale COMMAND app_window_render_scale_tests)
+    set_tests_properties(app_window_render_scale PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # Window-path input: real hidden window + swapchain, normalized events posted through
     # WindowHost::post_input, generated click/typing handlers. The generated demo is host-only.
     if (TARGET tessera_compiler_demo)

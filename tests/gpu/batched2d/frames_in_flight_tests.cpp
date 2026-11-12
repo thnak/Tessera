@@ -107,6 +107,10 @@ public:
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override {
         inner_->copy_target_to_buffer(target, buffer);
     }
+    void blit_target(const rhi::RenderTarget& source, const rhi::RenderTarget& destination,
+                     rhi::Filter filter) override {
+        inner_->blit_target(source, destination, filter);
+    }
     void submit() override {
         inner_->submit();
     }
