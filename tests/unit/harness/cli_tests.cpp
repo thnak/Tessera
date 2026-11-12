@@ -6,6 +6,9 @@
 
 #include "tessera/harness/cli.hpp"
 
+#include <chrono>
+#include <cstddef>
+#include <expected>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -48,6 +51,47 @@ bool contains(const std::string& text, std::string_view needle) {
     return text.find(needle) != std::string::npos;
 }
 
+// Idles for `idle_waits` readiness waits, then delivers its lines and EOF.
+class ScriptedTransport final : public tessera::harness::LineTransport {
+public:
+    using Error = tessera::harness::TransportError;
+    using Code = tessera::harness::TransportErrorCode;
+
+    [[nodiscard]] std::expected<std::string, Error> read_line() override {
+        if (waits >= idle_waits) {
+            if (next < inbound.size()) {
+                return inbound[next++];
+            }
+            return std::unexpected(Error{Code::Closed, "eof"});
+        }
+        return std::unexpected(Error{Code::WouldBlock, "idle"});
+    }
+    [[nodiscard]] std::expected<void, Error> write_line(std::string_view line) override {
+        outbound.emplace_back(line);
+        return {};
+    }
+    [[nodiscard]] bool wait_readable(std::chrono::milliseconds) override {
+        ++waits;
+        return waits >= idle_waits;
+    }
+    [[nodiscard]] std::size_t max_line_bytes() const noexcept override {
+        return 1U << 20U;
+    }
+    [[nodiscard]] bool closed() const noexcept override {
+        return closed_state;
+    }
+    void close() noexcept override {
+        closed_state = true;
+    }
+
+    std::vector<std::string> inbound;
+    std::vector<std::string> outbound;
+    std::size_t next = 0;
+    std::size_t idle_waits = 0;
+    std::size_t waits = 0;
+    bool closed_state = false;
+};
+
 std::string fixture(std::string_view name) {
     return std::string(kFixtureDirectory) + "/" + std::string(name);
 }
@@ -76,6 +120,25 @@ int main() {
                "version is accepted after a subcommand");
     }
 
+    // `headless` without --script serves the protocol on the injected transport until EOF, with
+    // one bounded wait per idle iteration and exit code 0.
+    {
+        ScriptedTransport transport;
+        transport.inbound = {R"({"protocolVersion":1,"id":1,"cmd":"snapshot"})"};
+        transport.idle_waits = 2;
+        std::ostringstream out;
+        std::ostringstream err;
+        const std::vector<std::string_view> args{"headless", "--mode", "structural"};
+        const int code = tessera::harness::run_cli(args, out, err, &transport);
+        expect(code == 0, "headless serve exits 0 on EOF");
+        expect(transport.outbound.size() == 1, "one request, one response");
+        expect(!transport.outbound.empty() &&
+                   contains(transport.outbound.front(), "\"id\":\"1\"") &&
+                   contains(transport.outbound.front(), "\"ok\":true"),
+               "the snapshot request was answered against the fixture host");
+        expect(transport.waits == 2, "idle iterations waited instead of spinning");
+    }
+
     // No subcommand is invalid input, not a silent success.
     {
         const Outcome none = run({});
@@ -90,9 +153,8 @@ int main() {
         const Outcome headless = run({"headless"});
         expect(headless.code == 2 && contains(headless.err, "--mode is required"),
                "headless requires a mode");
-        const Outcome headless_no_script = run({"headless", "--mode", "structural"});
-        expect(headless_no_script.code == 2 && contains(headless_no_script.err, "--script"),
-               "headless requires a script");
+        expect(run({"headless", "--mode", "structural", "--out", "../escape"}).code == 2,
+               "serve mode still validates --out");
         expect(run({"test", "--mode", "bogus", "--script", "x"}).code == 2,
                "unknown mode rejected");
         expect(run({"test", "--bogus"}).code == 2, "unknown option rejected");

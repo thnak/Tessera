@@ -8,11 +8,13 @@
 #include "tessera/harness/artifact_sink.hpp"
 #include "tessera/harness/cli.hpp"
 #include "tessera/harness/harness_handler.hpp"
+#include "tessera/harness/headless_serve.hpp"
 #include "tessera/harness/json_write.hpp"
 #include "tessera/harness/protocol.hpp"
 #include "tessera/harness/script.hpp"
 #include "tessera/harness/script_runner.hpp"
 #include "tessera/harness/session.hpp"
+#include "tessera/harness/stdio_transport.hpp"
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -23,6 +25,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <span>
@@ -224,6 +227,11 @@ std::string_view cli_usage() noexcept {
 }
 
 int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+    return run_cli(args, out, err, nullptr);
+}
+
+int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
+            LineTransport* serve_transport) {
     if (args.empty()) {
         err << cli_usage();
         return 2;
@@ -331,10 +339,6 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
         err << "tessera test: --script is required\n";
         return 2;
     }
-    if (command == "headless" && !script.has_value()) {
-        err << "tessera headless: --script is required (no app-config loader yet)\n";
-        return 2;
-    }
 
     // Only the structural lane exists: scripts drive the fixture scene without a GPU. Golden and
     // gpu-smoke runs need the offscreen renderer, so they are rejected instead of pretending to
@@ -364,6 +368,18 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
     if (!is_safe_artifact_path(report_path)) {
         err << "tessera: --report must be a safe relative path below the working directory\n";
         return 2;
+    }
+
+    if (!script.has_value()) {
+        // `headless` without a script serves the stdio protocol until EOF. The fixture host stays
+        // the scene until the app-config loader exists.
+        std::unique_ptr<StdioTransport> owned;
+        if (serve_transport == nullptr) {
+            owned = std::make_unique<StdioTransport>(make_process_stdio_stream());
+            serve_transport = owned.get();
+        }
+        return run_headless_serve(*serve_transport, directory, mode == CliMode::Audit, nullptr,
+                                  err);
     }
 
     const auto text = read_script_file(*script);

@@ -24,6 +24,7 @@ add_library(tessera_harness STATIC
     script.cpp
     script_runner.cpp
     script_step.cpp
+    serve.cpp
     session.cpp
     stdio_transport.cpp
     utf8.cpp)
@@ -39,6 +40,7 @@ target_compile_features(tessera_harness PUBLIC cxx_std_23)
 # whatever the host needs.
 add_library(tessera_automation_host STATIC
     cli.cpp
+    headless_serve.cpp
     engine_host.cpp
     engine_host_diagnostics.cpp
     engine_host_snapshot.cpp
