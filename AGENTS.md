@@ -548,17 +548,26 @@ live in one place and are linked, not copied.
 ## Current focus
 
 **Implemented on `main`:** the B1 renderer (RHI, null and Vulkan backends, batched 2D, scene
-graph); the B2 runtime (fixed-step loop, clocks, pacer, async executors and tasks, input with focus
-and capture, dirty flags, damage and redraw plans, the stylesheet engine with layers/media/supports,
-Yoga layout, the FreeType/HarfBuzz/SheenBidi text stack with an opt-in ICU, the animation and
-transition runtime with springs and end events, structured diagnostics, lavapipe and CPU goldens,
-virtualization, automation ids and the headless harness); B3 windows and swapchains on Win32 and
-X11 with device-loss recovery; the Big Step C compiler (TSX front end, IR, codegen CLI, forms,
-virtual lists, animated values); in-tree UIA and AT-SPI2 bridges not yet installed in a host; the
-stylesheet blob serializer of ADR-048; and the first WebGPU slice (unbuilt on host).
+graph); the B2 runtime (fixed-step loop, clocks, pacer with scripted refresh changes, async
+executors and tasks, input with focus and capture, dirty flags, damage and redraw plans, per-node
+paint caches, the stylesheet engine with layers/media/supports, Yoga layout, the
+FreeType/HarfBuzz/SheenBidi text stack with an opt-in ICU, the animation and transition runtime with
+springs and end events, structured diagnostics, lavapipe and CPU goldens, virtualization with a
+scene-side scroll event, automation ids and the headless harness); B3 windows and swapchains on
+Win32 and X11 with device-loss recovery, host-owned caret blink, occluded/minimized pause and a
+single timeline semaphore pacing frame submits; the Big Step C compiler (TSX front end, IR, codegen
+CLI, forms, virtual lists, animated values, cross-file props type aliases, stable component identity);
+both ADR-048 blob artifacts (compiled stylesheets registered in import-graph order under
+`@layer tessera-ui`, and the embedded theme asset loaded without parsing); in-tree UIA and AT-SPI2
+bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
-**Farm order:** V1-M1 and V1-M2 first (all items are unblocked). V1-M3 and V1-M5 wait for their
-design PRs (#83/#84 ADR-049 and shader chain, #85 ADR-050) to be accepted; only ADR-050 AF1 may
+**Farm order:** V1-M1 and V1-M2 first. Remaining unblocked M2 slices: dynamic
+`orientation`/`columns`/`overscan` on virtual collections, codegen vector payloads, and ADR-040
+generated-base migration; the last #70 leftover (object-literal prop defaults) is blocked on an IR
+record type. Remaining M1 slices: `scrollIntoView` for an unrealized virtual item, adaptive quality
+plus the `pauseWhenOccluded` / `animationInterpolation` keys (both need a runtime-config loader that
+does not exist yet — build that first), and the B3 Wayland/XInput2/OS-event items. V1-M3 and V1-M5
+wait for their design PRs (#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may
 start now. V1-M4, V1-M6, V1-M7 and V1-M8 come later.
 
 The detailed history of what landed and why is in
