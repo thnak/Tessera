@@ -81,6 +81,8 @@ if (NOT CMAKE_CROSSCOMPILING)
     # The generator executable: the ordinary codegen CLI sources plus the C++ IR writer, linked
     # against the lowering core only. It is deliberately not `tessera_lowering` (which owns the
     # generated data) so the generated source can depend on the generator without a build cycle.
+    # `tessera_style` comes with the CLI: it compiles CSS into the blobs codegen embeds (issue #81),
+    # and this executable links the same driver sources as `tessera_codegen_cli`.
     add_executable(tessera_library_ir_gen
         ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
@@ -94,7 +96,8 @@ if (NOT CMAKE_CROSSCOMPILING)
         tessera_ir_ids
         tessera_lowering_core
         tessera_lowering_bootstrap
-        tessera_merger)
+        tessera_merger
+        tessera_style)
 
     set(_tessera_library_generated_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
     set(_tessera_library_generated_cpp

@@ -240,8 +240,10 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `SpringRuntime` in the frame pipeline — `src/ui/animation/`, commits `a76165f`, `a075170`.
 - [ ] ADR-040: emit `gen::<Component>Base<Self>` + developer class — `compiler-demo` regenerates
       with its developer class untouched.
-- [ ] #81/ADR-048: embed the compiled stylesheet blob as a `constexpr` array (serializer/loader
-      landed) — no `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` for embedded sheets.
+- [x] #81/ADR-048: embed the compiled stylesheet blob as a `constexpr` array (serializer/loader
+      landed) — no `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` for embedded sheets —
+      `src/compiler/codegen/src/emit_stylesheet_embed.cpp`,
+      `tests/unit/codegen_stylesheet_embed_tests.cpp`.
 - [ ] #81/ADR-048: `AppHost` registers embedded sheets in import-graph order, library CSS in
       `@layer tessera-ui` — cascade-order test.
 - [ ] #81/ADR-048: embed the theme asset through the same blob — loads without parsing.

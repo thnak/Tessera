@@ -4,7 +4,9 @@
 
 #include "tessera/compiler/ir/module.hpp"
 
+#include <cstdint>
 #include <expected>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -13,8 +15,18 @@
 namespace tessera::compiler::codegen {
 
 struct GeneratedFile {
-    std::string path; // deterministic, `<Component>.hpp` / `<Component>.cpp`
+    // Deterministic: `<Component>.hpp` / `<Component>.cpp`, plus `<module.name>_stylesheets.hpp`
+    // when the module has embedded stylesheet blobs.
+    std::string path;
     std::string text;
+};
+
+// One compiled stylesheet of the module (issue #81, ADR-048): the serializer output of
+// `tessera::ui::style::serialize_stylesheet`. Codegen never compiles CSS itself; the caller (the
+// CLI) owns that, so the library keeps its IR-only dependency (AGENTS.md non-negotiable 4).
+struct StylesheetEmbed {
+    std::string path;                // must equal an ir::StylesheetRef::path
+    std::vector<std::uint8_t> bytes; // serialize_stylesheet() output
 };
 
 // One `TESSERA_CODEGEN_*` error. Lowering/codegen stops at the first unsupported construct; no
@@ -24,11 +36,20 @@ using CodegenResult = std::expected<std::vector<GeneratedFile>, CodegenErrors>;
 
 // Generates the C++ files of every component of `module`, sorted by component name. The module name
 // becomes the C++ namespace root of the generated structs.
-[[nodiscard]] CodegenResult generate(const ir::IrModule& module);
+//
+// When at least one stylesheet of `module` has a blob in `embeds`, exactly one extra file
+// `<module.name>_stylesheets.hpp` is appended (see docs/specs/compiled-stylesheet-v1.md section 9):
+// the blobs as `inline constexpr` byte arrays plus the `kEmbeddedStylesheets` table, in
+// `module.stylesheets` order. A sheet without a blob is skipped and keeps its warning. An embed
+// whose `path` is not a stylesheet of the module is a `TESSERA_CODEGEN_STYLESHEET_UNKNOWN` error.
+[[nodiscard]] CodegenResult generate(const ir::IrModule& module,
+                                     std::span<const StylesheetEmbed> embeds = {});
 
 // Non-fatal findings for `module`, one `TESSERA_CG_*: ...` string each, in a deterministic order.
-// Today: every stylesheet the IR lists is `TESSERA_CG_STYLESHEET_NOT_EMBEDDED`, because generated
-// code does not yet deliver CSS to the app (issue #80; embedding is issue #81).
-[[nodiscard]] std::vector<std::string> codegen_warnings(const ir::IrModule& module);
+// Today: a stylesheet of the module that the caller supplied no blob for is
+// `TESSERA_CG_STYLESHEET_NOT_EMBEDDED`, because generated code has no other way to deliver its CSS
+// (issue #80/#81); an embedded sheet never warns.
+[[nodiscard]] std::vector<std::string>
+codegen_warnings(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds = {});
 
 } // namespace tessera::compiler::codegen

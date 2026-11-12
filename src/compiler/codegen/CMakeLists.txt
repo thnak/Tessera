@@ -16,6 +16,7 @@ add_library(tessera_codegen STATIC
     src/emit_layout_observe.cpp
     src/emit_schedule.cpp
     src/emit_snapshot.cpp
+    src/emit_stylesheet_embed.cpp
     src/form_binding.cpp
     src/emit_header.cpp
     src/emit_lifecycle.cpp
@@ -58,7 +59,9 @@ target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_harness
     tessera_ir_ids
     tessera_lowering
-    tessera_merger)
+    tessera_merger
+    # The CLI compiles CSS into the blobs codegen embeds (issue #81, ADR-048); the library does not.
+    tessera_style)
 set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen)
 
 # Generated sample compiled by the build: the golden below is written by `codegen_tests --write`
@@ -167,6 +170,23 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler")
 
     add_test(NAME codegen_layering COMMAND codegen_layering_tests)
+
+    # Embedded stylesheet blobs (issue #81, ADR-048): the `_stylesheets.hpp` file codegen emits for a
+    # module with blobs, the warning/error matrix, and the CLI path that compiles CSS and feeds them.
+    # The CLI part needs subprocess execution and skips where the platform does not have it.
+    add_executable(codegen_stylesheet_embed_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_stylesheet_embed_tests.cpp)
+
+    target_link_libraries(codegen_stylesheet_embed_tests PRIVATE
+        tessera_codegen
+        tessera_style)
+
+    if (CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        target_compile_definitions(codegen_stylesheet_embed_tests PRIVATE TESSERA_NO_SUBPROCESS=1)
+    endif ()
+
+    add_test(NAME codegen_stylesheet_embed
+        COMMAND codegen_stylesheet_embed_tests $<TARGET_FILE:tessera_codegen_cli>)
 
     # End-to-end proof: build the generated sample and inspect the attached metadata, children,
     # focusability and text through the real scene API (no GPU).

@@ -9,6 +9,7 @@
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/compiler/ir/node.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -195,5 +196,22 @@ struct DynamicMetadata {
 // Appends `<Component>.hpp` and `<Component>.cpp` to `files`, or sets `error` and returns false.
 [[nodiscard]] bool emit_component(const ir::Component& component, const ir::IrModule& module,
                                   std::vector<GeneratedFile>& files, std::string& error);
+
+// One stylesheet of the module that the caller supplied a blob for, in `module.stylesheets` order.
+struct ResolvedStylesheet {
+    std::string_view id;
+    std::string_view path;
+    std::span<const std::uint8_t> bytes;
+};
+
+// The C++ identifier suffix of a `StylesheetRef::id` (`css::ui/app` -> `css_ui_app`): every run of
+// non-alphanumeric characters becomes one `_` (emit_stylesheet_embed.cpp).
+[[nodiscard]] std::string stylesheet_identifier(std::string_view id);
+
+// Emits `<module.name>_stylesheets.hpp` (docs/specs/compiled-stylesheet-v1.md section 9): one
+// `inline constexpr` array per resolved sheet, then the `EmbeddedStylesheet` record and the
+// `kEmbeddedStylesheets` table, in `sheets` order. Deterministic: same sheets, same bytes.
+[[nodiscard]] std::string emit_stylesheet_header(std::string_view module_name,
+                                                 std::span<const ResolvedStylesheet> sheets);
 
 } // namespace tessera::compiler::codegen::internal
