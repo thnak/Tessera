@@ -1,11 +1,12 @@
 # App-framework gap audit v1
 
 Status: analysis (docs-only, 2026-11-12). Decision proposed in
-[ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) (opt-in application-framework
-layer). This document records what Tessera specifies and implements for the concerns that C++ UI
-toolkits such as Qt and JUCE treat as *application framework* (lifecycle, services, threading,
-dependency provisioning, app state, storage, navigation, and so on), where the documents contradict
-each other or the code, and how other toolkits draw the line. It does not change any spec.
+[ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) (application-framework layer,
+revised with owner decisions). This document records what Tessera specifies and implements for
+the concerns that C++ UI toolkits such as Qt and JUCE treat as *application framework*
+(lifecycle, services, threading, dependency provisioning, app state, storage, navigation, and so
+on), where the documents contradict each other or the code, and how other toolkits draw the line. It does
+not change any spec.
 
 Terms: **specified** = a normative spec or design note defines the behavior; **implemented** = code
 and tests exist on `main`; **missing** = neither a contract nor code exists; **contradictory** = two
