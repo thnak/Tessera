@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
 //
 // Harness frame capture: the software-device capability rule (no device needed), and an offscreen
-// render of a small scene compared against a baseline made from itself. Skips the render when the
-// mode's device is unavailable (no Vulkan; golden without lavapipe) instead of failing.
+// render of a small scene compared against the committed baseline in
+// `tests/golden/baseline/harness/` (golden mode, so a lavapipe CI run compares against a reviewed
+// image) or against itself (gpu-smoke, whose baseline would be hardware-dependent). Skips the
+// render when the mode's device is unavailable (no Vulkan; golden without lavapipe) instead of
+// failing. Regenerate the committed baseline on a software device only, through the same ADR-009
+// rule the CLI uses:
+//
+//     harness_frame_capture_tests --update-goldens
 
 #include "tessera/harness/frame_capture.hpp"
 #include "tessera/harness/frame_check.hpp"
@@ -22,11 +28,19 @@
 #error "TESSERA_TEST_FONT must point at the repository test font"
 #endif
 
+#ifndef TESSERA_HARNESS_GOLDEN_DIR
+#error "TESSERA_HARNESS_GOLDEN_DIR must point at tests/golden/baseline/harness"
+#endif
+
 namespace {
 
 using namespace tessera::harness;
 
 int failures = 0;
+
+// `--update-goldens` rewrites the committed golden baseline from the software path only (ADR-009: a
+// gpu-smoke run never produces or updates a baseline). The ctest entry never passes it.
+bool update_goldens = false;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -82,6 +96,9 @@ void test_capability_rules() {
            "gpu-smoke accepts any device");
 }
 
+// The committed baseline is a reviewed lavapipe image, so the golden run proves the harness capture
+// path against it instead of against itself. gpu-smoke may use any device (hardware included), so
+// its baseline would not be portable: it keeps the self-comparison that only proves the check path.
 void test_render(CompareMode mode) {
     tessera::ui::Node root(1);
     build_scene(root);
@@ -110,14 +127,26 @@ void test_render(CompareMode mode) {
     }
     expect(painted, "the scene painted over the clear color");
 
-    const auto dir = std::filesystem::temp_directory_path() / "tessera_harness_capture_tests";
+    const bool golden = mode == CompareMode::Golden;
+    const bool update = golden && update_goldens;
+
+    std::filesystem::path baseline;
+    std::filesystem::path temporary;
     std::error_code ec;
-    std::filesystem::create_directories(dir, ec);
-    const auto baseline = dir / (std::string(to_string(mode)) + ".png");
-    const auto png = encode_png(*first);
-    {
-        std::ofstream out(baseline, std::ios::binary | std::ios::trunc);
-        out.write(png->data(), static_cast<std::streamsize>(png->size()));
+    if (golden) {
+        baseline = std::filesystem::path(TESSERA_HARNESS_GOLDEN_DIR) / "fixture_golden.png";
+        if (!update) {
+            expect(std::filesystem::exists(baseline), "the committed golden baseline exists");
+        }
+    } else {
+        temporary = std::filesystem::temp_directory_path() / "tessera_harness_capture_tests";
+        std::filesystem::create_directories(temporary, ec);
+        baseline = temporary / (std::string(to_string(mode)) + ".png");
+        const auto png = encode_png(*first);
+        if (png) {
+            std::ofstream out(baseline, std::ios::binary | std::ios::trunc);
+            out.write(png->data(), static_cast<std::streamsize>(png->size()));
+        }
     }
 
     const auto second = capture_scene_frame(mode, root, kSheet, options);
@@ -127,16 +156,39 @@ void test_render(CompareMode mode) {
         FrameCheckRequest request;
         request.mode = mode;
         request.baseline_path = baseline.string();
+        request.update_baseline = update;
         const auto checked = check_frame(*second, request, sink);
-        expect(checked && checked->ok() && sink.files.count("frame.png") == 1,
-               "a repeat capture matches its own baseline under the mode's policy");
+        expect(sink.files.count("frame.png") == 1, "the frame artifact was written");
+        if (!checked) {
+            std::cerr << "harness_frame_capture: frame check failed: " << checked.error().message
+                      << "\n";
+            ++failures;
+        } else if (update) {
+            expect(checked->baseline_updated, "the golden run rewrote the committed baseline");
+        } else {
+            if (!expect(checked->ok(),
+                        "the capture matches its baseline under the mode's policy")) {
+                std::cerr << "harness_frame_capture: outcome "
+                          << to_string(checked->compare.outcome) << "\n";
+            }
+        }
     }
-    std::filesystem::remove_all(dir, ec);
+    if (!temporary.empty()) {
+        std::filesystem::remove_all(temporary, ec);
+    }
 }
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    for (int index = 1; index < argc; ++index) {
+        if (std::string_view(argv[index]) == "--update-goldens") {
+            update_goldens = true;
+            continue;
+        }
+        std::cerr << "harness_frame_capture: unknown argument " << argv[index] << "\n";
+        return 2;
+    }
     test_capability_rules();
     test_render(CompareMode::GpuSmoke);
     test_render(CompareMode::Golden);

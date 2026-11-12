@@ -500,7 +500,8 @@ if (TARGET tessera_harness_capture)
     add_executable(harness_frame_capture_tests
         harness_frame_capture_tests.cpp)
     target_compile_definitions(harness_frame_capture_tests PRIVATE
-        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf"
+        TESSERA_HARNESS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/baseline/harness")
     target_link_libraries(harness_frame_capture_tests PRIVATE tessera_harness_capture)
     add_test(NAME harness_frame_capture COMMAND harness_frame_capture_tests)
     set_tests_properties(harness_frame_capture PROPERTIES
