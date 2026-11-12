@@ -261,6 +261,8 @@ This page is the map and reading order for the framework.
   artifact names, manual signing/notarization
 - [`guides/debugging.md`](guides/debugging.md) — validation, GPU tools, common failures
 - [`guides/tunables.md`](guides/tunables.md) — expose a few buffer/runtime knobs to users
+- [`guides/runtime-config-examples.md`](guides/runtime-config-examples.md) — worked
+  `runtime` blocks per target with the resulting frame-cap behaviour
 - [`guides/loading-matrix.md`](guides/loading-matrix.md) — choose startup/loading/auth/resource
   strategy by app profile
 - [`guides/deep-linking.md`](guides/deep-linking.md) — declare schemes/hosts/routes and test
