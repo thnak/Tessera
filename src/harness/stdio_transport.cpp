@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <string_view>
 #include <utility>
 
@@ -112,6 +113,43 @@ public:
         return {StdioIoStatus::Ok, static_cast<std::size_t>(read)};
     }
 
+    [[nodiscard]] bool wait_readable(std::chrono::milliseconds timeout) override {
+        HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+        if (input == nullptr || input == INVALID_HANDLE_VALUE) {
+            return true; // read_some reports the error
+        }
+        const DWORD type = GetFileType(input);
+        if (type == FILE_TYPE_DISK) {
+            return true;
+        }
+        if (type != FILE_TYPE_PIPE) {
+            const DWORD wait = WaitForSingleObject(
+                input, static_cast<DWORD>(std::max<std::chrono::milliseconds::rep>(
+                           0, std::min<std::chrono::milliseconds::rep>(timeout.count(), 60'000))));
+            return wait != WAIT_TIMEOUT;
+        }
+        // Pipes: bounded sleep slices between peeks. 2 ms caps the added latency and the CPU use
+        // (about 500 wakeups/s only while the peer is silent and a wait is requested).
+        constexpr auto kSlice = std::chrono::milliseconds(2);
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        for (;;) {
+            DWORD available = 0;
+            if (PeekNamedPipe(input, nullptr, 0, nullptr, &available, nullptr) == 0 ||
+                available > 0) {
+                return true; // data, or a broken pipe that read_some reports as EOF/error
+            }
+            const auto now = std::chrono::steady_clock::now();
+            if (now >= deadline) {
+                return false;
+            }
+            Sleep(static_cast<DWORD>(
+                std::min<std::chrono::milliseconds>(
+                    kSlice, std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now) +
+                                std::chrono::milliseconds(1))
+                    .count()));
+        }
+    }
+
     [[nodiscard]] StdioIoResult write_some(std::string_view bytes) override {
         HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
         if (output == nullptr || output == INVALID_HANDLE_VALUE) {
@@ -174,6 +212,28 @@ public:
                 return {StdioIoStatus::WouldBlock, 0};
             }
             return {StdioIoStatus::Error, 0};
+        }
+    }
+
+    [[nodiscard]] bool wait_readable(std::chrono::milliseconds timeout) override {
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        for (;;) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto remaining =
+                now >= deadline
+                    ? std::chrono::milliseconds(0)
+                    : std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now) +
+                          std::chrono::milliseconds(1);
+            pollfd descriptor{STDIN_FILENO, POLLIN, 0};
+            const int ready = ::poll(
+                &descriptor, 1, static_cast<int>(std::min<long long>(remaining.count(), 60'000)));
+            if (ready < 0 && errno == EINTR) {
+                if (now >= deadline) {
+                    return false;
+                }
+                continue; // retry with the recomputed remainder
+            }
+            return ready != 0; // data, hangup, or an error that read_some reports
         }
     }
 
@@ -288,6 +348,13 @@ std::expected<std::string, TransportError> StdioTransport::read_line() {
         }
         }
     }
+}
+
+bool StdioTransport::wait_readable(std::chrono::milliseconds timeout) {
+    if (closed_ || input_eof_ || framer_.ready()) {
+        return true;
+    }
+    return stream_->wait_readable(timeout);
 }
 
 std::expected<void, TransportError> StdioTransport::flush_once() {

@@ -4,6 +4,7 @@
 
 #include "tessera/harness/line_framing.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <expected>
 #include <string>
@@ -57,6 +58,16 @@ public:
     // delivers synchronously (the in-process pair) has nothing to flush.
     [[nodiscard]] virtual std::expected<void, TransportError> flush() {
         return {};
+    }
+
+    // Bounded readiness wait for a serve loop that has nothing else to do. Returns true when
+    // read_line() can make progress (a line, a framing error, EOF, or a closed transport) and
+    // false when the timeout elapsed first. It never consumes input and never waits longer than
+    // `timeout`, so the caller stays interruptible. The default reports "ready" at once, which is
+    // correct for transports that deliver synchronously and never return WouldBlock.
+    [[nodiscard]] virtual bool wait_readable(std::chrono::milliseconds timeout) {
+        (void)timeout;
+        return true;
     }
 
     [[nodiscard]] virtual std::size_t max_line_bytes() const noexcept = 0;

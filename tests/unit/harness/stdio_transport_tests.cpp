@@ -3,6 +3,7 @@
 #include "tessera/harness/stdio_transport.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -67,6 +68,12 @@ public:
         return {StdioIoStatus::Ok, count};
     }
 
+    [[nodiscard]] bool wait_readable(std::chrono::milliseconds timeout) override {
+        ++wait_calls;
+        last_wait = timeout;
+        return wait_result;
+    }
+
     void append_input(std::string_view bytes) {
         input.append(bytes);
     }
@@ -78,6 +85,9 @@ public:
     bool input_closed = false;
     bool read_error = false;
     std::size_t read_calls = 0;
+    std::size_t wait_calls = 0;
+    std::chrono::milliseconds last_wait{-1};
+    bool wait_result = false;
 
     std::string written;
     std::size_t write_chunk = 4096;
@@ -286,6 +296,52 @@ int main() {
         fixture.transport.close();
         expect(fixture.transport.closed(), "close is idempotent");
         expect(fixture->written.empty(), "dropped bytes never reached the stream");
+    }
+
+    // wait_readable delegates to the stream only when the transport itself has nothing to read,
+    // forwards the timeout unchanged, and reports a timeout without consuming input.
+    {
+        Fixture fixture;
+        fixture->input_complete = false;
+        using std::chrono::milliseconds;
+        expect(!fixture.transport.wait_readable(milliseconds(7)), "idle wait times out");
+        expect(fixture->wait_calls == 1 && fixture->last_wait == milliseconds(7),
+               "idle wait reaches the stream with the caller's timeout");
+        expect(fixture->read_calls == 0, "waiting never reads");
+        fixture->wait_result = true;
+        expect(fixture.transport.wait_readable(milliseconds(1)), "stream readiness is reported");
+    }
+
+    // Lines already buffered by the framer are ready without asking the stream; a partial line is
+    // not, so a serve loop cannot spin on a half-delivered frame.
+    {
+        Fixture fixture;
+        fixture->input_complete = false;
+        fixture->append_input("{\"id\":1}\n{\"id\":2}\n{\"par");
+        expect(read_or(fixture, "first buffered line") == "{\"id\":1}", "first line");
+        const std::size_t waits = fixture->wait_calls;
+        expect(fixture.transport.wait_readable(std::chrono::milliseconds(5)),
+               "a buffered complete line is ready");
+        expect(fixture->wait_calls == waits, "buffered readiness does not consult the stream");
+        expect(read_or(fixture, "second buffered line") == "{\"id\":2}", "second line");
+        expect(fixture.transport.read_line().error().code == TransportErrorCode::WouldBlock,
+               "partial tail is WouldBlock");
+        expect(!fixture.transport.wait_readable(std::chrono::milliseconds(5)),
+               "a partial line is not ready");
+        expect(fixture->wait_calls == waits + 1, "partial tail waits on the stream");
+    }
+
+    // EOF and a closed transport are ready immediately so the loop observes them.
+    {
+        Fixture fixture;
+        expect(fixture.transport.read_line().error().code == TransportErrorCode::Closed,
+               "EOF reported");
+        expect(fixture.transport.wait_readable(std::chrono::milliseconds(5)), "EOF is ready");
+        Fixture closed;
+        closed.transport.close();
+        expect(closed.transport.wait_readable(std::chrono::milliseconds(5)),
+               "closed transport is ready");
+        expect(closed->wait_calls == 0, "closed transport never consults the stream");
     }
 
     if (failures != 0) {

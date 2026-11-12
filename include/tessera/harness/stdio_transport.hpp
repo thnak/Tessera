@@ -4,6 +4,7 @@
 
 #include "tessera/harness/line_transport.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <expected>
 #include <memory>
@@ -46,6 +47,18 @@ public:
 
     [[nodiscard]] virtual StdioIoResult read_some(std::span<char> buffer) = 0;
     [[nodiscard]] virtual StdioIoResult write_some(std::string_view bytes) = 0;
+
+    // Waits up to `timeout` for read_some to be able to make progress (bytes, EOF, or an error
+    // that read_some will report). Never reads. The default says "ready", so a stream without a
+    // wait primitive degrades to the caller's own bounded retry rather than blocking.
+    // POSIX uses poll(2) with the timeout. Windows cannot reliably wait on a pipe or file
+    // handle, so it sleeps in short bounded slices between PeekNamedPipe probes (no reader
+    // thread, hence nothing to join); a console handle uses WaitForSingleObject and a disk file
+    // is always ready.
+    [[nodiscard]] virtual bool wait_readable(std::chrono::milliseconds timeout) {
+        (void)timeout;
+        return true;
+    }
 };
 
 // stdin/stdout in binary mode. Handles are owned by the process, not by the returned stream.
@@ -83,6 +96,7 @@ public:
 
     [[nodiscard]] std::expected<std::string, TransportError> read_line() override;
     [[nodiscard]] std::expected<void, TransportError> write_line(std::string_view line) override;
+    [[nodiscard]] bool wait_readable(std::chrono::milliseconds timeout) override;
     [[nodiscard]] std::size_t max_line_bytes() const noexcept override;
     [[nodiscard]] bool closed() const noexcept override;
     void close() noexcept override;
