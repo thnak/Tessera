@@ -145,6 +145,9 @@ void check_rejections() {
            "setValue requires value");
     expect(decode_flat("setValue", R"("uiId":1,"value":5)") == ProtocolErrorCode::InvalidArgument,
            "setValue value must be a string");
+    expect(decode_flat("scrollIntoView", R"("uiId":1,"dx":1)") ==
+               ProtocolErrorCode::InvalidArgument,
+           "scrollIntoView takes no offsets");
     expect(decode_flat("scroll", R"("uiId":1,"dx":1)") == ProtocolErrorCode::InvalidArgument,
            "scroll requires dy");
     expect(decode_flat("scroll", R"("uiId":1,"dx":"1","dy":2)") ==
@@ -254,8 +257,9 @@ void check_names() {
     expect(to_string(ActionKind::SetValue) == "setValue", "setValue name");
     expect(to_string(ActionKind::Focus) == "focus", "focus name");
     expect(to_string(ActionKind::Scroll) == "scroll", "scroll name");
-    for (const ActionKind kind :
-         {ActionKind::Click, ActionKind::SetValue, ActionKind::Focus, ActionKind::Scroll}) {
+    expect(to_string(ActionKind::ScrollIntoView) == "scrollIntoView", "scrollIntoView name");
+    for (const ActionKind kind : {ActionKind::Click, ActionKind::SetValue, ActionKind::Focus,
+                                  ActionKind::Scroll, ActionKind::ScrollIntoView}) {
         expect(action_kind_from_string(to_string(kind)) == std::optional<ActionKind>{kind},
                "action kind round-trip");
     }

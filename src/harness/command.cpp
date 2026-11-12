@@ -41,6 +41,7 @@ decode_action(ActionKind kind, const JsonValue& arguments) {
     switch (kind) {
     case ActionKind::Click:
     case ActionKind::Focus:
+    case ActionKind::ScrollIntoView:
         if (auto error = reject_unknown(arguments, {"uiId", "itemKey"}); error.has_value()) {
             return std::unexpected(std::move(*error));
         }
@@ -229,6 +230,8 @@ std::string_view to_string(ActionKind kind) noexcept {
         return kFocusCommand;
     case ActionKind::Scroll:
         return kScrollCommand;
+    case ActionKind::ScrollIntoView:
+        return kScrollIntoViewCommand;
     }
     return kClickCommand;
 }
@@ -245,6 +248,9 @@ std::optional<ActionKind> action_kind_from_string(std::string_view text) noexcep
     }
     if (text == kScrollCommand) {
         return ActionKind::Scroll;
+    }
+    if (text == kScrollIntoViewCommand) {
+        return ActionKind::ScrollIntoView;
     }
     return std::nullopt;
 }

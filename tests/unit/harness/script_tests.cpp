@@ -156,6 +156,8 @@ int main() {
         expect(is_spec_script_action("navigate") && !is_spec_script_action("setValue"),
                "spec action table is narrow");
         expect(script_action_from_string("type") == ScriptAction::Type, "type action spelling");
+        expect(script_action_from_string("scrollIntoView") == ScriptAction::ScrollIntoView,
+               "scrollIntoView action spelling");
     }
 
     // Malformed steps are rejected whole, with a stable code and the step index.
@@ -180,6 +182,9 @@ int main() {
         expect(parse_error(step_document(R"({"action":"type","uiId":"7"})")) ==
                    ScriptErrorCode::InvalidStep,
                "type requires text");
+        expect(parse_error(step_document(R"({"action":"scrollIntoView","uiId":"5","dx":0})")) ==
+                   ScriptErrorCode::InvalidStep,
+               "scrollIntoView rejects offsets");
         expect(parse_error(step_document(R"({"action":"scroll","uiId":"5","dx":0})")) ==
                    ScriptErrorCode::InvalidStep,
                "scroll requires dy");

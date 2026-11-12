@@ -137,6 +137,7 @@ private:
     [[nodiscard]] std::expected<void, harness::ProtocolError> focus(ui::Node& target);
     [[nodiscard]] std::expected<void, harness::ProtocolError> scroll(ui::Node& target, double dx,
                                                                      double dy);
+    [[nodiscard]] std::expected<void, harness::ProtocolError> scroll_into_view(ui::Node& target);
 
     // Applies at most one frame when the dispatched input made one due (and no frame otherwise).
     void settle();

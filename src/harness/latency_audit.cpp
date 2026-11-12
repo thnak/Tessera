@@ -25,7 +25,8 @@ JsonValue integer(std::uint64_t value) {
 
 bool is_input_action(ScriptAction action) noexcept {
     return action == ScriptAction::Click || action == ScriptAction::Type ||
-           action == ScriptAction::Focus || action == ScriptAction::Scroll;
+           action == ScriptAction::Focus || action == ScriptAction::Scroll ||
+           action == ScriptAction::ScrollIntoView;
 }
 
 // Nearest rank: the smallest value with at least `percent` percent of samples at or below it.

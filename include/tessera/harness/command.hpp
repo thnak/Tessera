@@ -24,6 +24,7 @@ inline constexpr std::string_view kClickCommand = "click";
 inline constexpr std::string_view kSetValueCommand = "setValue";
 inline constexpr std::string_view kFocusCommand = "focus";
 inline constexpr std::string_view kScrollCommand = "scroll";
+inline constexpr std::string_view kScrollIntoViewCommand = "scrollIntoView";
 inline constexpr std::string_view kTraceCommand = "trace";
 inline constexpr std::string_view kAuditCommand = "audit";
 
@@ -37,6 +38,7 @@ enum class ActionKind {
     SetValue,
     Focus,
     Scroll,
+    ScrollIntoView, // reveals the target in its scroll containers; takes no offsets
 };
 
 // Wire spellings of the action kinds; also the `cmd` names.

@@ -41,6 +41,7 @@ enum class ScriptAction {
     Type, // the section 4 spelling; dispatched as the `setValue` command
     Focus,
     Scroll,
+    ScrollIntoView,
     Snapshot,
     Trace,
     Audit,

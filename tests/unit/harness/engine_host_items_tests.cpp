@@ -5,6 +5,7 @@
 // Unknown, malformed, hidden and mismatched keys fail with documented codes.
 
 #include "engine_host_support.hpp"
+#include "tessera/ui/scene/scroll.hpp"
 
 #include <cstddef>
 #include <iostream>
@@ -129,11 +130,46 @@ void failures_are_clear() {
     }
 }
 
+void scroll_into_view_reveals_item() {
+    testing::HostFixture scene;
+    ui::Node* list = testing::find_node(scene.root, automation::kFixtureListId);
+    ui::Node* row = row_node(scene.root, 101);
+    if (!expect(list != nullptr && row != nullptr, "list and row 101 exist")) {
+        return;
+    }
+    // Push the list to its end so the first row sits above the scrollport.
+    (void)ui::scroll_to(*list, 0.0f, ui::max_scroll_y(*list));
+    const float scrolled_away = list->scroll_y();
+    if (!expect(scrolled_away > 0.0f, "the fixture list can scroll")) {
+        return;
+    }
+    const float row_top_before = row->world_bounds().y;
+
+    auto reveal = scene.automation.dispatch_action(
+        action(harness::ActionKind::ScrollIntoView, automation::kFixtureRowId, "101"));
+    expect(reveal.has_value(), "scrollIntoView by (uiId, itemKey) succeeds");
+    expect(list->scroll_y() < scrolled_away, "the list scrolled back toward the item");
+    expect(row->world_bounds().y > row_top_before, "the item moved into the viewport");
+    expect(row->world_bounds().y >= list->world_bounds().y, "the item top is inside the list");
+
+    // Already visible: idempotent success with no offset change.
+    const float settled = list->scroll_y();
+    auto again = scene.automation.dispatch_action(
+        action(harness::ActionKind::ScrollIntoView, automation::kFixtureRowId, "101"));
+    expect(again.has_value() && list->scroll_y() == settled, "scrollIntoView is idempotent");
+
+    auto missing = scene.automation.dispatch_action(
+        action(harness::ActionKind::ScrollIntoView, automation::kFixtureRowId, "999"));
+    expect(!missing.has_value() && missing.error().code == harness::ProtocolErrorCode::UiIdNotFound,
+           "an unknown item is uiIdNotFound");
+}
+
 } // namespace
 
 int main() {
     snapshot_exposes_keys();
     actions_resolve_items();
     failures_are_clear();
+    scroll_into_view_reveals_item();
     return failures == 0 ? 0 : 1;
 }

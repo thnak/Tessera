@@ -22,6 +22,8 @@ std::string_view to_string(ScriptAction action) noexcept {
         return kFocusCommand;
     case ScriptAction::Scroll:
         return kScrollCommand;
+    case ScriptAction::ScrollIntoView:
+        return kScrollIntoViewCommand;
     case ScriptAction::Snapshot:
         return kSnapshotCommand;
     case ScriptAction::Trace:
@@ -44,6 +46,9 @@ std::optional<ScriptAction> script_action_from_string(std::string_view text) noe
     }
     if (text == kScrollCommand) {
         return ScriptAction::Scroll;
+    }
+    if (text == kScrollIntoViewCommand) {
+        return ScriptAction::ScrollIntoView;
     }
     if (text == kSnapshotCommand) {
         return ScriptAction::Snapshot;

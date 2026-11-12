@@ -152,6 +152,8 @@ EngineAutomationHost::dispatch_action(const harness::ActionCommand& action) {
         return focus(*target);
     case harness::ActionKind::Scroll:
         return scroll(*target, action.scroll_dx, action.scroll_dy);
+    case harness::ActionKind::ScrollIntoView:
+        return scroll_into_view(*target);
     }
     return unexpected(error(harness::ProtocolErrorCode::InvalidArgument, "unknown action kind"));
 }
@@ -264,6 +266,21 @@ std::expected<void, harness::ProtocolError> EngineAutomationHost::scroll(ui::Nod
     (void)pump_.pump(root_, loop_);
     settle();
     record("automation.scroll", diagnostics::TraceCategory::Input);
+    return {};
+}
+
+std::expected<void, harness::ProtocolError>
+EngineAutomationHost::scroll_into_view(ui::Node& target) {
+    if (!finite_bounds(target.world_bounds())) {
+        return unexpected(error(harness::ProtocolErrorCode::Internal,
+                                "scrollIntoView target has non-finite bounds", "bounds"));
+    }
+    // Unlike a wheel step this moves the scroll containers directly, the way focus does: it is the
+    // reveal an assistive technology would request. Already-visible targets change nothing, so the
+    // action is idempotent and still succeeds.
+    (void)ui::scroll_into_view(target);
+    settle();
+    record("automation.scrollIntoView", diagnostics::TraceCategory::Input);
     return {};
 }
 

@@ -108,12 +108,14 @@ bool ScriptRunner::execute(const ScriptStep& step, std::uint64_t start_us,
     case ScriptAction::Click:
     case ScriptAction::Type:
     case ScriptAction::Focus:
-    case ScriptAction::Scroll: {
+    case ScriptAction::Scroll:
+    case ScriptAction::ScrollIntoView: {
         ActionCommand action;
-        action.kind = step.action == ScriptAction::Click   ? ActionKind::Click
-                      : step.action == ScriptAction::Type  ? ActionKind::SetValue
-                      : step.action == ScriptAction::Focus ? ActionKind::Focus
-                                                           : ActionKind::Scroll;
+        action.kind = step.action == ScriptAction::Click    ? ActionKind::Click
+                      : step.action == ScriptAction::Type   ? ActionKind::SetValue
+                      : step.action == ScriptAction::Focus  ? ActionKind::Focus
+                      : step.action == ScriptAction::Scroll ? ActionKind::Scroll
+                                                            : ActionKind::ScrollIntoView;
         action.ui_id = step.ui_id.value_or(0);
         action.item_key = step.item_key;
         action.value = step.text;

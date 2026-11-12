@@ -160,7 +160,8 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
     }
 
     const bool has_ui_id = *action == ScriptAction::Click || *action == ScriptAction::Type ||
-                           *action == ScriptAction::Focus || *action == ScriptAction::Scroll;
+                           *action == ScriptAction::Focus || *action == ScriptAction::Scroll ||
+                           *action == ScriptAction::ScrollIntoView;
     const bool has_text = *action == ScriptAction::Type;
     const bool has_scroll = *action == ScriptAction::Scroll;
     const bool has_path = *action == ScriptAction::Snapshot || *action == ScriptAction::Trace ||

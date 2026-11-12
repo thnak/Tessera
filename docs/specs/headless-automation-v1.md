@@ -190,7 +190,7 @@ code (the section 9 boundary).
   `malformedRequest`, `unsupportedVersion`, `unknownCommand`, `invalidArgument`, `uiIdNotFound`,
   `timeout`, `internal`; a failure envelope echoes a recovered `id` when the request had one.
 - **Commands** (`command.hpp`, `command_result.hpp`): `snapshot` (`includeHidden`); `click`,
-  `setValue` (`value`), `focus`, and `scroll` (`dx`, `dy`), all taking `uiId` (decimal string) and an
+  `setValue` (`value`), `focus`, `scroll` (`dx`, `dy`), and `scrollIntoView`, all taking `uiId` (decimal string) and an
   optional `itemKey`; `trace` (`path`); `audit` (`profile`, optional `path`). Unknown command names
   and unknown parameters are rejected, not ignored. The snapshot result carries the canonical
   snapshot object from [`automation-ids-v1.md`](automation-ids-v1.md) section 5.2 as an embedded
@@ -297,7 +297,7 @@ structural|audit]`, plus the `headless` equivalent.
   (`config` is a safe relative path), and required `steps` (at most 256). A script is untrusted
   input: parsing is all-or-nothing, so a bad step rejects the document before the first host
   command runs.
-- **Steps.** v1 executes `click`, `type`, `focus`, `scroll`, `snapshot`, `trace`, and `audit`.
+- **Steps.** v1 executes `click`, `type`, `focus`, `scroll`, `scrollIntoView`, `snapshot`, `trace`, and `audit`.
   `type` is the section 4 name for the `setValue` command. `uiId` must be a canonical decimal
   string (the protocol's small-integer convenience is not accepted for script input) and `itemKey`
   an optional non-empty string of at most 256 bytes. `timeoutMs` is 1..60000. Unknown members are
@@ -377,7 +377,10 @@ separate target (`tessera_automation_host`), because the protocol library itself
   targetable: it, an unknown key, a key under the wrong `uiId` and a hidden item are all
   `uiIdNotFound` (detail `<uiId>/<itemKey>`; no new error code). A key that is not canonical decimal
   (sign, leading zero, whitespace, overflow, text) is `invalidArgument`. `scroll` with an `itemKey`
-  wheels at that row's center (bubbling to its scroller); there is no bring-into-view yet.
+  wheels at that row's center (bubbling to its scroller). `scrollIntoView` (same `uiId`/`itemKey`
+  targeting, no offsets) reveals the realized target through `ui::scroll_into_view`, adjusting every
+  scrollable ancestor like a focus reveal; an already visible target is an idempotent success.
+  Revealing an unrealized virtual item is not available: it is `uiIdNotFound`.
 - **Trace and audit.** `AutomationDiagnostics` attaches the existing
   `diagnostics::TraceRecorder` and `diagnostics::MetricsRegistry`; `enabled` gates all of it.
   Enabled, each command records one instant span and `trace` returns `to_chrome_trace_json`; `audit`
