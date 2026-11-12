@@ -117,7 +117,7 @@ int main() {
             ]
         })");
         expect(parsed.has_value(), "the script parses");
-        harness::ScriptRunner runner(std::move(*parsed), lane.handler, lane.sink, lane.clock);
+        harness::ScriptRunner runner(*parsed, lane.handler, lane.sink, lane.clock);
         drain(runner);
         const auto& report = runner.report();
         expect(!report.passed && report.steps.size() == 1, "the run stops on the bad target");
@@ -135,7 +135,7 @@ int main() {
             "scriptVersion": 1,
             "steps": [{"action": "click", "uiId": "9003"}, {"action": "click", "uiId": "9003"}]
         })");
-        harness::ScriptRunner runner(std::move(*parsed), lane.handler, lane.sink, lane.clock,
+        harness::ScriptRunner runner(*parsed, lane.handler, lane.sink, lane.clock,
                                      budget_with(1, 5'000'000, 0));
         drain(runner);
         const auto& report = runner.report();
@@ -153,7 +153,7 @@ int main() {
             "scriptVersion": 1,
             "steps": [{"action": "click", "uiId": "9003"}, {"action": "click", "uiId": "9003"}]
         })");
-        harness::ScriptRunner runner(std::move(*parsed), lane.handler, lane.sink, lane.clock,
+        harness::ScriptRunner runner(*parsed, lane.handler, lane.sink, lane.clock,
                                      budget_with(harness::kMaxScriptSteps, 5'000'000, 1000));
         expect(runner.pump(), "the first step runs");
         lane.clock.advance_us(2000);
@@ -170,7 +170,7 @@ int main() {
         Lane lane;
         const auto parsed = harness::parse_script(
             R"({"scriptVersion":1,"steps":[{"action":"click","uiId":"9003"}]})");
-        harness::ScriptRunner runner(std::move(*parsed), lane.handler, lane.sink, lane.clock,
+        harness::ScriptRunner runner(*parsed, lane.handler, lane.sink, lane.clock,
                                      budget_with(harness::kMaxScriptSteps, 0, 0));
         drain(runner);
         const auto& report = runner.report();
