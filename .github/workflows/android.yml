@@ -58,7 +58,31 @@ jobs:
       - name: ccache statistics
         run: ccache --show-stats
 
+      # The hosted runner occasionally loses its adb server before the emulator starts
+      # ("Unable to connect to adb daemon on port: 5037"); starting it explicitly keeps that
+      # failure inside the emulator step instead of the action's setup.
+      - name: Start adb server
+        run: |
+          adb start-server || true
+          adb devices
+
       - name: Run unit and null-GPU tests on emulator
+        id: emulator_tests
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash scripts/ci/android_emulator_tests.sh
+
+      # Runner infrastructure, not this repo, fails the first attempt; retry exactly once so a
+      # real test failure still fails the job while an adb/emulator flake does not turn main red.
+      - name: Retry emulator tests once (adb/emulator infrastructure flake)
+        if: steps.emulator_tests.outcome == 'failure'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
