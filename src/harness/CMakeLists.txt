@@ -41,6 +41,7 @@ add_library(tessera_automation_host STATIC
     cli.cpp
     engine_host.cpp
     engine_host_diagnostics.cpp
+    engine_host_items.cpp
     engine_host_snapshot.cpp
     fixture_scene.cpp)
 

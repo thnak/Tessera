@@ -82,6 +82,9 @@ build_source_node(const ui::Node& node, std::string_view path, bool parent_visib
     source.kind = std::string(debug_kind(node));
     source.path = std::string(path);
     source.name = std::string(accessible_name(node));
+    if (const auto key = node.item_key(); key.has_value()) {
+        source.item_key = std::to_string(*key); // canonical decimal, matches resolve_target
+    }
     const auto& paint = node.paint_data();
     if (paint.has_value() && paint->kind == ui::PaintKind::Text) {
         source.text = paint->text;

@@ -322,8 +322,15 @@ separate target (`tessera_automation_host`), because the protocol library itself
   `kPixelsPerWheelUnit`, so the scroll default action clamps like real wheel input. After an action
   the host runs at most one settle frame, and only when the input made a frame due.
 - **Targets.** The first visible preorder node whose `automation_id` matches is the target; an
-  absent or hidden target is `uiIdNotFound`. `itemKey` is `invalidArgument` (no list-item identity
-  in the scene graph yet).
+  absent or hidden target is `uiIdNotFound`. With `itemKey`, the target is the first visible
+  preorder node carrying both that `uiId` and that item key (`ui::Node::item_key()`, the
+  `(UiId, ItemKey)` identity of automation-ids-v1 section 1). Snapshots emit the key as canonical
+  decimal text (`itemKey`, empty for non-items) in document order, bounded by the existing node,
+  depth and path caps. Only realized items have scene nodes, so an unrealized item is not
+  targetable: it, an unknown key, a key under the wrong `uiId` and a hidden item are all
+  `uiIdNotFound` (detail `<uiId>/<itemKey>`; no new error code). A key that is not canonical decimal
+  (sign, leading zero, whitespace, overflow, text) is `invalidArgument`. `scroll` with an `itemKey`
+  wheels at that row's center (bubbling to its scroller); there is no bring-into-view yet.
 - **Trace and audit.** `AutomationDiagnostics` attaches the existing
   `diagnostics::TraceRecorder` and `diagnostics::MetricsRegistry`; `enabled` gates all of it.
   Enabled, each command records one instant span and `trace` returns `to_chrome_trace_json`; `audit`
@@ -337,12 +344,14 @@ separate target (`tessera_automation_host`), because the protocol library itself
 Until the app-config loader lands, `tessera test --script` runs against the deterministic fixture
 scene in `include/tessera/automation/fixture_scene.hpp`: a card `View` (id `9001`) with a counter
 `Text` (id `9002`) and a focusable `Button` (id `9003`) that bumps it, a focusable `TextInput`
-(id `9004`) that mirrors committed text, and a scroll list (id `9005`) with one item (id `9006`).
+(id `9004`) that mirrors committed text, and a scroll list (id `9005`) with one item (id `9006`) and three keyed rows sharing id `9010`
+with item keys `101`, `102`, `103`.
 A script written for another app fails with `uiIdNotFound` until config loading exists.
 
 Wired coverage (`tests/unit/harness/`): `harness_engine_host` (every action against a real scene,
 plus byte-identical reruns), `harness_engine_host_failure` (`unsupportedAction`/`unknownAction`,
-`uiIdNotFound`, step cap, both timeouts, non-focusable/`itemKey`/hidden targets),
+`uiIdNotFound`, step cap, both timeouts, non-focusable/hidden targets), `harness_engine_host_items` (`(uiId, itemKey)` snapshot keys and
+click/focus/scroll resolution, unknown/malformed/hidden keys),
 `harness_diagnostics_cost` (a disabled seam matches a seam-free run byte for byte), and
 `harness_cli_integration` (exit codes, artifacts, deterministic reruns).
 

@@ -145,6 +145,13 @@ target_link_libraries(harness_engine_host_failure_tests PRIVATE tessera_automati
 
 add_test(NAME harness_engine_host_failure COMMAND harness_engine_host_failure_tests)
 
+add_executable(harness_engine_host_items_tests
+    engine_host_items_tests.cpp)
+
+target_link_libraries(harness_engine_host_items_tests PRIVATE tessera_automation_host)
+
+add_test(NAME harness_engine_host_items COMMAND harness_engine_host_items_tests)
+
 add_executable(harness_diagnostics_cost_tests
     diagnostics_cost_tests.cpp)
 

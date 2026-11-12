@@ -78,6 +78,16 @@ FixtureScene::FixtureScene(Node& root)
     item.set_element_kind("Text");
     item.set_automation_id(kFixtureListItemId);
     item.set_paint_data(text_paint("Item"));
+
+    std::uint64_t node_id = 8;
+    for (const std::uint64_t key : kFixtureRowKeys) {
+        Node& row = list.add_child(std::make_unique<Node>(node_id++));
+        row.set_element_kind("Text");
+        row.set_automation_id(kFixtureRowId);
+        row.set_item_key(key);
+        row.set_focusable(true);
+        row.set_paint_data(text_paint("Row " + std::to_string(key)));
+    }
 }
 
 FixtureScene::~FixtureScene() {
