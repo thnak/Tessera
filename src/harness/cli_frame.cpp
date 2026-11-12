@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/harness/cli_frame.hpp"
-
 #include "tessera/harness/frame_check.hpp"
 #ifdef TESSERA_HARNESS_HAS_CAPTURE
 #include "tessera/harness/frame_capture.hpp"
@@ -22,7 +21,8 @@ int run_cli_frame_check(const CliFrameRequest& request, ui::Node& root, std::str
     options.height = request.height;
     options.dpi_scale = request.dpi_scale;
 #ifdef TESSERA_HARNESS_DEFAULT_FONT
-    options.font_path = request.font_path.empty() ? TESSERA_HARNESS_DEFAULT_FONT : request.font_path;
+    options.font_path =
+        request.font_path.empty() ? TESSERA_HARNESS_DEFAULT_FONT : request.font_path;
 #else
     options.font_path = request.font_path;
 #endif
