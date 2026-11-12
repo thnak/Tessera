@@ -156,7 +156,11 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
 
     diagnostics::TraceRecorder trace;
     diagnostics::MetricsRegistry metrics;
-    automation::EngineAutomationHost automation_host(root, host, loop);
+    automation::EngineAutomationHost::Config host_config;
+    if (app != nullptr) {
+        host_config.annotations = automation::annotations_from_manifest(*app);
+    }
+    automation::EngineAutomationHost automation_host(root, host, loop, std::move(host_config));
     automation::AutomationDiagnostics hooks;
     hooks.trace = &trace;
     hooks.metrics = &metrics;

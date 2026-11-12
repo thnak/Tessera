@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/app/host.hpp"
+#include "tessera/automation/node_annotation.hpp"
 #include "tessera/harness/automation_host.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/input_pump.hpp"
@@ -59,6 +60,7 @@ public:
     struct Config {
         AutomationDiagnostics diagnostics{};
         std::size_t max_snapshot_nodes = kMaxSnapshotNodes;
+        NodeAnnotations annotations{};
     };
 
     EngineAutomationHost(ui::Node& root, app::AppHost& host, runtime::RuntimeLoop& loop,

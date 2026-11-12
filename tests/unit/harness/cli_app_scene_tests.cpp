@@ -102,6 +102,19 @@ int main() {
     expect(contains(report, "\"kind\":\"Button\"") || contains(report, "Button"),
            "the snapshot carries the manifest kind");
 
+    // Snapshot artifacts report the manifest's structural paths, not the live tree's.
+    bool saw_manifest_path = false;
+    bool saw_tree_path = false;
+    for (const auto& entry : fs::directory_iterator("cli_app_out")) {
+        if (entry.is_regular_file()) {
+            const std::string text = read_file(entry.path());
+            saw_manifest_path = saw_manifest_path || contains(text, "Counter/root[0]/Button[1]");
+            saw_tree_path = saw_tree_path || contains(text, "root/View[0]");
+        }
+    }
+    expect(saw_manifest_path, "snapshots carry the manifest structural path");
+    expect(!saw_tree_path, "snapshots do not fall back to the live-tree path for manifest nodes");
+
     const Outcome again = run({"test", "--script", script, "--out", "cli_app_out"});
     expect(again.code == 0 && read_file("cli_app_out/report.json") == report,
            "app runs are byte-identical");

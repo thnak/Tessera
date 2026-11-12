@@ -49,7 +49,9 @@ headless golden tests). `gpu-smoke` never updates baselines.
     last segment; component roots attach to the scene root). It is a structural description, not
     the compiled app: Buttons are focusable, TextInput/TextArea accept `type`, Scroll/VirtualList
     scroll, other kinds are inert, and the app's event handlers do not run. Default sizes come
-    from a built-in stylesheet. A missing or invalid config or manifest is exit `2` with a
+    from a built-in stylesheet. Snapshots report each node's manifest `path` and `componentId`
+    (`annotations_from_manifest` feeds `EngineAutomationHost::Config`), not the live-tree path;
+    the manifest carries no accessible names. A missing or invalid config or manifest is exit `2` with a
     deterministic `tessera <command>: <Code>: <message>` line (`ConfigUnreadable`, `ConfigTooLarge`,
     `ConfigInvalid`, `ManifestMissing`, `ManifestTooLarge`, `ManifestInvalid`,
     `ManifestUnsupportedVersion`, `ManifestTooManyNodes`, `ManifestDuplicateId`).

@@ -69,6 +69,15 @@ std::string_view ManifestScene::stylesheet() noexcept {
            "VirtualGrid { width: 200px; height: 80px; background-color: #111827; }\n";
 }
 
+NodeAnnotations annotations_from_manifest(const AppManifest& manifest) {
+    NodeAnnotations annotations;
+    annotations.reserve(manifest.nodes.size());
+    for (const ManifestNode& entry : manifest.nodes) {
+        annotations.emplace(entry.ui_id, NodeAnnotation{entry.path, entry.component_id});
+    }
+    return annotations;
+}
+
 ManifestScene::ManifestScene(Node& root, const AppManifest& manifest) {
     // Manifest order is document order, so a parent precedes its children; a node whose parent
     // path is absent (a component root) attaches to the scene root.

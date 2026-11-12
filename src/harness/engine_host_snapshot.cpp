@@ -65,7 +65,8 @@ std::string path_for(std::string_view parent, const ui::Node& node, std::size_t 
 
 std::expected<ui::automation::SnapshotSourceNode, harness::ProtocolError>
 build_source_node(const ui::Node& node, std::string_view path, bool parent_visible,
-                  std::size_t depth, std::size_t cap, std::size_t& count) {
+                  std::size_t depth, std::size_t cap, std::size_t& count,
+                  const NodeAnnotations& annotations) {
     if (depth > kMaxSnapshotDepth) {
         return unexpected(error(harness::ProtocolErrorCode::Internal,
                                 "snapshot tree exceeds the depth cap",
@@ -78,9 +79,15 @@ build_source_node(const ui::Node& node, std::string_view path, bool parent_visib
 
     ui::automation::SnapshotSourceNode source;
     source.ui_id = node.automation_id();
-    source.component_id = 0; // the scene carries no component id yet
+    source.component_id = 0; // the scene carries no component id; annotations supply it
     source.kind = std::string(debug_kind(node));
     source.path = std::string(path);
+    if (const auto found = annotations.find(node.automation_id()); found != annotations.end()) {
+        source.component_id = found->second.component_id;
+        if (!found->second.path.empty()) {
+            source.path = found->second.path.substr(0, kMaxSnapshotPathBytes);
+        }
+    }
     source.name = std::string(accessible_name(node));
     if (const auto key = node.item_key(); key.has_value()) {
         source.item_key = std::to_string(*key); // canonical decimal, matches resolve_target
@@ -104,7 +111,7 @@ build_source_node(const ui::Node& node, std::string_view path, bool parent_visib
     for (std::size_t index = 0; index < node.children().size(); ++index) {
         const ui::Node& child = *node.children()[index];
         auto built = build_source_node(child, path_for(path, child, index), source.visible,
-                                       depth + 1, cap, count);
+                                       depth + 1, cap, count, annotations);
         if (!built.has_value()) {
             return std::unexpected(std::move(built.error()));
         }
@@ -120,7 +127,8 @@ EngineAutomationHost::canonical_snapshot(bool include_hidden) {
     settle();
 
     std::size_t count = 0;
-    auto source = build_source_node(root_, "root", true, 0, config_.max_snapshot_nodes, count);
+    auto source = build_source_node(root_, "root", true, 0, config_.max_snapshot_nodes, count,
+                                     config_.annotations);
     if (!source.has_value()) {
         return std::unexpected(std::move(source.error()));
     }
