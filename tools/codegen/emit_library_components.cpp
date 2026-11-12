@@ -30,11 +30,11 @@ namespace ir = tessera::compiler::ir;
 using internal::expr_source;
 using internal::is_project_relative;
 
-// `std::quoted` (declared by <iomanip>, which some platforms pull in transitively) has defaulted
-// delimiter/escape arguments, so an unqualified call with a std::string argument would prefer it
-// over the string_view overload and return a stream proxy. Keep a local wrapper so the call is
-// unambiguous on every toolchain.
-[[nodiscard]] std::string quoted(std::string_view text) {
+// `std::quoted` (declared by <iomanip>, which the Android NDK pulls in transitively) is a better
+// match for a std::string argument than a string_view overload, so an unqualified call would return
+// a stream proxy instead of std::string. This non-template overload wins overload resolution over
+// the std::quoted template and forwards to the internal escaper.
+[[nodiscard]] std::string quoted(const std::string& text) {
     return internal::quoted(text);
 }
 
