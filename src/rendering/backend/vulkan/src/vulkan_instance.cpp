@@ -351,6 +351,40 @@ void VulkanDevice::create_device() {
     check_vk(vkCreateDevice(physical_device_, &create_info, nullptr, &device_), "vkCreateDevice");
     volkLoadDevice(device_);
     vkGetDeviceQueue(device_, queue_family_, 0, &queue_);
+
+    // GPU timestamp probe (docs/design/performance.md section 6.1): validity of timestamps on the
+    // frame-submission queue family, that family's graphics capability, and a usable period. The
+    // pool is a bounded ring allocated once; a failure to create it downgrades the probe answer to
+    // "unusable" instead of letting a consumer guess.
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(physical_device_, &properties);
+    std::uint32_t family_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &family_count, nullptr);
+    std::vector<VkQueueFamilyProperties> families(family_count);
+    if (family_count > 0) {
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &family_count, families.data());
+    }
+    rhi::GpuTimestampCapability capability;
+    capability.period_ns = properties.limits.timestampPeriod;
+    if (static_cast<std::size_t>(queue_family_) < families.size()) {
+        const VkQueueFamilyProperties& family = families[queue_family_];
+        capability.queries_supported = family.timestampValidBits > 0;
+        capability.queue_supported = (family.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
+    }
+    timestamp_query_pool_ = VK_NULL_HANDLE;
+    if (capability.usable()) {
+        VkQueryPoolCreateInfo pool_info{};
+        pool_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        pool_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        pool_info.queryCount = 2 * kGpuTimestampSlots;
+        VkQueryPool pool = VK_NULL_HANDLE;
+        if (vkCreateQueryPool(device_, &pool_info, nullptr, &pool) == VK_SUCCESS) {
+            timestamp_query_pool_ = pool;
+        } else {
+            capability = rhi::GpuTimestampCapability{};
+        }
+    }
+    timestamp_capability_ = capability;
 }
 
 void VulkanDevice::create_allocator() {

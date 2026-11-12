@@ -2,6 +2,7 @@
 
 #include "host_impl.hpp"
 #include "tessera/app/host.hpp"
+#include "tessera/runtime/frame_time_source.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
@@ -313,11 +314,22 @@ void AppHost::end_frame() {
 }
 
 void AppHost::observe_frame_time_ms(double frame_time_ms) {
+    observe_frame_time_sample(frame_time_ms, std::nullopt);
+}
+
+void AppHost::observe_frame_time_sample(double cpu_frame_time_ms,
+                                        std::optional<double> gpu_frame_time_ms) {
     Impl& state = *impl_;
-    // The controller returns the decision in force with this frame's change flags; recording it
-    // always keeps the latest scale readable and only counts the frames that changed something.
+    // The pure rule (frame_time_source.hpp) picks the signal; the capability decision was already
+    // made by the device probe, so the worst case here is a CPU fallback, never a guessed GPU
+    // number. The controller returns the decision in force with this frame's change flags;
+    // recording it always keeps the latest scale readable and only counts the frames that changed
+    // something.
+    const runtime::FrameTimeSample sample =
+        runtime::select_frame_time(cpu_frame_time_ms, gpu_frame_time_ms);
+    state.frame_diagnostics.record_frame_time_source(sample.source);
     state.frame_diagnostics.record_adaptive_quality(
-        state.quality_controller.observe(frame_time_ms));
+        state.quality_controller.observe(sample.frame_time_ms));
 }
 
 const runtime::AdaptiveQualitySample& AppHost::adaptive_quality() const {

@@ -51,6 +51,7 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     check_vk(vkBeginCommandBuffer(buffer_, &begin_info), "vkBeginCommandBuffer");
     recording_ = true;
+    record_timestamp_begin();
     current_target_ = vulkan_target;
 
     // end_render_pass leaves offscreen targets in TRANSFER_SRC for readback and swapchain
@@ -270,6 +271,7 @@ void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         check_vk(vkBeginCommandBuffer(buffer_, &begin_info), "vkBeginCommandBuffer(copy)");
         recording_ = true;
+        record_timestamp_begin();
     }
 
     VkBufferImageCopy copy{};
@@ -311,6 +313,7 @@ void VulkanCommandList::blit_target(const rhi::RenderTarget& source,
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         check_vk(vkBeginCommandBuffer(buffer_, &begin_info), "vkBeginCommandBuffer(blit)");
         recording_ = true;
+        record_timestamp_begin();
     }
     if (render_pass_active_) {
         throw std::runtime_error("blit_target: render pass is still active");
@@ -387,6 +390,15 @@ void VulkanCommandList::submit_async() {
     }
     if (render_pass_active_) {
         throw std::runtime_error("submit: render pass is still active");
+    }
+    // Close the frame's GPU interval before ending the buffer. ALL_COMMANDS makes the end value
+    // wait for every recorded command (a TOP_OF_PIPE/BOTTOM_OF_PIPE pair can be observed before
+    // the work on some implementations), and the begin value was recorded at the first command.
+    if (timestamp_pair_ != kNoTimestampPair && owner_.timestamp_query_pool() != VK_NULL_HANDLE) {
+        record_timestamp_begin();
+        vkCmdWriteTimestamp(buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                            owner_.timestamp_query_pool(), timestamp_pair_ * 2 + 1);
+        timestamp_recorded_ = true;
     }
     if (owner_.consume_injected_fault(InjectedDeviceFault::DeviceLostOnSubmit)) {
         owner_.mark_device_lost();
@@ -556,6 +568,43 @@ bool VulkanCommandList::wait(std::uint64_t timeout_ms) {
     }
     complete_ = result == VK_SUCCESS;
     return complete_;
+}
+
+bool VulkanCommandList::begin_gpu_timestamps(std::uint32_t slot) {
+    // Must be armed before the first command: the begin timestamp has to precede the frame's work
+    // to measure it, and a query reset cannot be recorded inside a render pass.
+    if (!usable() || recording_ || submitted_) {
+        return false;
+    }
+    if (owner_.timestamp_query_pool() == VK_NULL_HANDLE ||
+        !owner_.timestamp_capability().usable()) {
+        return false;
+    }
+    timestamp_pair_ = slot % VulkanDevice::kGpuTimestampSlots;
+    timestamp_begin_pending_ = true;
+    return true;
+}
+
+void VulkanCommandList::record_timestamp_begin() {
+    if (!timestamp_begin_pending_) {
+        return;
+    }
+    timestamp_begin_pending_ = false;
+    const VkQueryPool pool = owner_.timestamp_query_pool();
+    if (timestamp_pair_ == kNoTimestampPair || pool == VK_NULL_HANDLE) {
+        return;
+    }
+    vkCmdResetQueryPool(buffer_, pool, timestamp_pair_ * 2, 2);
+    vkCmdWriteTimestamp(buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, pool, timestamp_pair_ * 2);
+}
+
+bool VulkanCommandList::gpu_frame_time_ms(double& out_ms) const {
+    // The caller has already observed is_complete(); without WAIT_BIT this is a plain host query
+    // of a query pair the GPU finished writing (a zero timeout, never a wait).
+    if (!timestamp_recorded_ || !usable()) {
+        return false;
+    }
+    return owner_.read_timestamp_pair(timestamp_pair_, out_ms);
 }
 
 } // namespace tessera::rendering::vulkan

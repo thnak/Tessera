@@ -26,6 +26,21 @@ public:
     }
     [[nodiscard]] bool supports_sample_count(rhi::TextureFormat format,
                                              std::uint32_t sample_count) const override;
+    // The RHI timestamp probe: the selected queue family's timestampValidBits, that family's
+    // graphics capability, and the device's timestampPeriod (docs/design/performance.md 6.1).
+    [[nodiscard]] rhi::GpuTimestampCapability timestamp_capability() const override {
+        return timestamp_capability_;
+    }
+    // Bounded ring of timestamp pairs, allocated once with the device. A pair is reused only after
+    // the submission that recorded it completed (the caller owns that slot contract), so a reset
+    // never races GPU work still reading the pair.
+    static constexpr std::uint32_t kGpuTimestampSlots = 8;
+    [[nodiscard]] VkQueryPool timestamp_query_pool() const {
+        return timestamp_query_pool_;
+    }
+    // Reads a completed timestamp pair; false when it is not ready or its interval is unusable.
+    // Never waits: no VK_QUERY_RESULT_WAIT_BIT and no fence.
+    bool read_timestamp_pair(std::uint32_t pair, double& out_ms) const;
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override;
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override;
     std::unique_ptr<rhi::Pipeline> create_pipeline(const rhi::PipelineDesc& desc) override;
@@ -178,6 +193,8 @@ private:
     std::size_t live_resources_ = 0;
     std::int64_t buffer_bytes_ = 0;
     std::int64_t image_bytes_ = 0;
+    rhi::GpuTimestampCapability timestamp_capability_{};
+    VkQueryPool timestamp_query_pool_ = VK_NULL_HANDLE;
 
     void account(std::int64_t& counter, std::int64_t delta, std::uint32_t epoch) {
         if (epoch == epoch_) {

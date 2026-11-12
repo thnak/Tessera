@@ -27,6 +27,11 @@ bool WindowHost::Impl::create_presentation() {
         return false;
     }
     const hal::WindowMetrics metrics = window->metrics();
+    // The RHI probe is the only authority on the GPU frame-time signal (docs/design/performance.md
+    // section 6.1). It is resolved once per presentation generation; a device without timestamp
+    // queries, a zero period or a non-graphics queue leaves the CPU fallback in place.
+    gpu_timestamps_usable = device->timestamp_capability().usable();
+    pending_gpu_frame_time_ms.reset();
     rhi::SwapchainDesc swap_desc;
     swap_desc.extent = {metrics.physical_width, metrics.physical_height};
     swap_desc.image_count = 2;
@@ -79,6 +84,8 @@ void WindowHost::Impl::release_presentation() {
         scaled_target_extents[slot] = {};
     }
     scaled_present_supported = false;
+    gpu_timestamps_usable = false;
+    pending_gpu_frame_time_ms.reset();
     pipeline.reset();
     swapchain.reset();
     for (auto& commands : in_flight) {

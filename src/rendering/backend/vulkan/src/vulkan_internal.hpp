@@ -503,9 +503,21 @@ public:
     [[nodiscard]] bool is_complete() const override;
     [[nodiscard]] bool wait(std::uint64_t timeout_ms) override;
 
+    // GPU frame-time signal (docs/design/performance.md section 6.1). See the RHI contract in
+    // device.hpp: the pair is recorded in this submission's command buffer and read only after
+    // is_complete(). The device ring index is `slot`, and the caller must not reuse a slot whose
+    // previous submission is still in flight.
+    bool begin_gpu_timestamps(std::uint32_t slot) override;
+    [[nodiscard]] bool gpu_frame_time_ms(double& out_ms) const override;
+
 private:
     [[nodiscard]] bool usable() const;
     void require_usable(const char* what) const;
+    // Records the pair's reset and begin timestamp at the first recording opportunity (a query
+    // reset cannot be recorded inside a render pass, and the begin must precede every command).
+    void record_timestamp_begin();
+
+    static constexpr std::uint32_t kNoTimestampPair = 0xFFFFFFFFU;
 
     VulkanDevice& owner_;
     std::uint32_t epoch_ = 0;
@@ -522,6 +534,9 @@ private:
     bool recording_ = false;
     bool render_pass_active_ = false;
     bool submitted_ = false;
+    std::uint32_t timestamp_pair_ = kNoTimestampPair;
+    bool timestamp_begin_pending_ = false;
+    bool timestamp_recorded_ = false;
     // Cached completion so a finished list stops querying the fence.
     mutable bool complete_ = false;
 };

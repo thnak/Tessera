@@ -228,11 +228,37 @@ the next run, so a sustained overload waits out the cooldown and then a full dow
 alternating miss/met sequence changes nothing.
 
 The frame path feeds one observation per presented frame: `AppHost::observe_frame_time_ms`, called
-by `WindowHost` with the frame's CPU cost through present (GPU timestamps are section 7's
-follow-up). A change is recorded in `runtime::FrameDiagnostics` (`adaptive_quality()`,
+by `WindowHost`. The sample's source is the device's GPU timestamp probe: when
+`rhi::Device::timestamp_capability()` reports timestamps usable on the frame-submission queue
+family, the controller sees the GPU interval of a completed submission; otherwise (the null
+backend, a device without timestamp queries, a zero or non-finite period) it sees the frame's CPU
+cost through present. The probe is the only authority — no layer above the RHI infers the answer
+from a backend name. A change is recorded in `runtime::FrameDiagnostics` (`adaptive_quality()`,
 `adaptive_quality_changes()`, `adaptive_quality_downgrades()`, `adaptive_present_cap_changes()`), so
 a downgrade is visible without sampling frame time, and it survives `AppHost::resize()`, which only
 re-creates the pipeline.
+
+**The GPU frame-time signal.** `AppHost::observe_frame_time_sample(cpu_ms, gpu_ms)` keeps a single
+observation path: `observe_frame_time_ms()` is the CPU-only entry point and delegates with no GPU
+value, so every existing caller and test is unchanged. The interval is recorded in the frame's own
+command buffer (`TOP_OF_PIPE` at the first command, `ALL_COMMANDS` just before it ends). The
+Vulkan device owns one bounded ring of timestamp pairs (`kGpuTimestampSlots = 8`) allocated once
+with the device; a submission uses `slot % 8`, and `WindowHost` reuses a frame slot only after the
+previous submission on it reported completion through the existing non-blocking
+`CommandList::is_complete()` poll. The pair is therefore read only for a completed submission,
+with `vkGetQueryPoolResults` and no `WAIT_BIT` — a host query, never a fence wait or
+`vkDeviceWaitIdle` (ADR-021). A value is unreadable until its submission completes, so the sample
+lags at most two frames; `CommandList::gpu_frame_time_ms()` converts it with the device's
+`timestampPeriod` and rejects a zero, a 64-bit wrap and an absurd (> 10 s) delta. The selection
+rule is pure and tested with a fake capability (`tessera/runtime/frame_time_source.hpp`): a
+present and plausible GPU interval wins, anything else keeps the CPU time.
+
+`FrameDiagnostics` records the source of every observation — `frame_time_source()`,
+`gpu_frame_time_samples()`, `cpu_frame_time_samples()` — and `WindowFrameStats` reports
+`frame_time_source`, `gpu_frame_time_samples` and `gpu_frame_time_fallbacks`, so the first frames
+after startup and any skipped or stale read are visible as fallbacks instead of being silently
+reported as GPU numbers. The controller's thresholds, ladder and actions are unchanged; only the
+number it compares moved.
 
 **The present cap (step 3).** `src/runtime/present_cap.hpp` is the pure rule, separate from the
 hysteresis state machine so it is testable without a window, a pacer or a clock:

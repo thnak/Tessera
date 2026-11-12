@@ -7,6 +7,12 @@
 
 namespace tessera::runtime {
 
+// Which signal produced one adaptive-quality observation (docs/design/performance.md section 6.1).
+// `Gpu` means the sample came from the RHI timestamp probe's completed submission interval; `Cpu`
+// is the always-available fallback (also the source for the null backend and the first frame,
+// because a GPU interval is only readable after its submission completed).
+enum class FrameTimeSource { Cpu, Gpu };
+
 // One frame's adaptive-quality state (docs/design/performance.md section 6; the policy keys are
 // `adaptiveQuality`, `minRenderScale`, `renderScale` and `frameBudgetMs` in
 // docs/specs/runtime-config-v1.md section 3). The controller produces it, `FrameDiagnostics` keeps
@@ -52,6 +58,11 @@ public:
     // never observe a frame leave every field at its full-quality default.
     void record_adaptive_quality(const AdaptiveQualitySample& sample) noexcept;
 
+    // Records which signal produced one adaptive-quality observation. `last_` is what the most
+    // recent observation used; the two counters make a fallback explicable instead of letting a
+    // stale or missing timestamp pass for a GPU number (docs/design/performance.md section 6.1).
+    void record_frame_time_source(FrameTimeSource source) noexcept;
+
     [[nodiscard]] const FrameDiagnosticsSample& last() const {
         return last_;
     }
@@ -68,6 +79,15 @@ public:
     // floor changes the scale but not the cap, so this counter can lag adaptive_quality_changes().
     [[nodiscard]] std::uint64_t adaptive_present_cap_changes() const noexcept {
         return adaptive_present_cap_changes_;
+    }
+    [[nodiscard]] FrameTimeSource frame_time_source() const noexcept {
+        return frame_time_source_;
+    }
+    [[nodiscard]] std::uint64_t gpu_frame_time_samples() const noexcept {
+        return gpu_frame_time_samples_;
+    }
+    [[nodiscard]] std::uint64_t cpu_frame_time_samples() const noexcept {
+        return cpu_frame_time_samples_;
     }
     [[nodiscard]] std::uint64_t frames() const {
         return frames_;
@@ -104,6 +124,9 @@ private:
     std::uint64_t adaptive_quality_changes_ = 0;
     std::uint64_t adaptive_quality_downgrades_ = 0;
     std::uint64_t adaptive_present_cap_changes_ = 0;
+    FrameTimeSource frame_time_source_ = FrameTimeSource::Cpu;
+    std::uint64_t gpu_frame_time_samples_ = 0;
+    std::uint64_t cpu_frame_time_samples_ = 0;
 };
 
 } // namespace tessera::runtime

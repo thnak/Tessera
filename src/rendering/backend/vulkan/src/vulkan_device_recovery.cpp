@@ -49,6 +49,11 @@ bool VulkanDevice::consume_injected_fault(InjectedDeviceFault fault) {
 }
 
 void VulkanDevice::destroy_device_objects() {
+    if (timestamp_query_pool_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
+        vkDestroyQueryPool(device_, timestamp_query_pool_, nullptr);
+    }
+    timestamp_query_pool_ = VK_NULL_HANDLE;
+    timestamp_capability_ = rhi::GpuTimestampCapability{};
     if (descriptor_pool_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
     }

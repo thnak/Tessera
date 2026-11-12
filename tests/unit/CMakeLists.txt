@@ -290,6 +290,23 @@ target_link_libraries(adaptive_quality_tests PRIVATE
 
 add_test(NAME adaptive_quality COMMAND adaptive_quality_tests)
 
+# GPU frame-time signal (docs/design/performance.md section 6.1): the timestamp interval arithmetic
+# (period, 64-bit wraparound, zero/absurd delta and unusable period), the capability gate with a fake
+# probe (usable -> GPU, any missing fact -> CPU), and the host wiring that feeds the controller the
+# GPU interval when present and the CPU time otherwise while recording which source ran. Pure CPU:
+# no GPU, window or wall clock. The real Vulkan query pair needs a device and is unverified here.
+add_executable(gpu_frame_time_tests
+    gpu_frame_time_tests.cpp)
+
+target_include_directories(gpu_frame_time_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/runtime)
+
+target_link_libraries(gpu_frame_time_tests PRIVATE
+    tessera_app
+    tessera_runtime)
+
+add_test(NAME gpu_frame_time COMMAND gpu_frame_time_tests)
+
 # The window driver stops after a bounded run of frame failures instead of spinning or hanging.
 add_executable(app_frame_guard_tests
     app_frame_guard_tests.cpp)

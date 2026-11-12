@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/swapchain.hpp"
+#include "tessera/rendering/rhi/timestamp.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 
 #include <cstddef>
@@ -112,6 +113,25 @@ public:
     // Waits at most `timeout_ms` for completion; returns whether the list is complete. A zero
     // timeout polls.
     [[nodiscard]] virtual bool wait(std::uint64_t timeout_ms) = 0;
+
+    // --- GPU frame-time signal (optional; docs/design/performance.md section 6.1) --------------
+    // Arms this submission to record a GPU timestamp pair into the device's bounded ring at
+    // `slot`. Must be called before the first command is recorded. Returns false when the device
+    // reports no usable timestamps (Device::timestamp_capability()), so the caller keeps the CPU
+    // frame-time signal; the default implementation is that fallback. The caller owns slot reuse:
+    // it may reuse `slot` only after the previous submission that used it has completed (poll
+    // is_complete()), which is what keeps the ring read non-blocking.
+    virtual bool begin_gpu_timestamps(std::uint32_t /*slot*/) {
+        return false;
+    }
+
+    // The submitted frame's GPU interval in milliseconds. Only valid after is_complete() returned
+    // true for this list; it reads an already-completed timestamp query and never waits. False
+    // when no timestamps were recorded or the values are unusable (zero/absurd delta), in which
+    // case the caller falls back to the CPU sample.
+    virtual bool gpu_frame_time_ms(double& /*out_ms*/) const {
+        return false;
+    }
 };
 
 // Device health for the D7 production policy. A loss is recoverable backend state, not an
@@ -180,6 +200,14 @@ public:
     [[nodiscard]] virtual bool supports_sample_count(TextureFormat /*format*/,
                                                      std::uint32_t sample_count) const {
         return sample_count == 1;
+    }
+
+    // The device's GPU-timestamp probe (docs/design/performance.md section 6.1). This is the only
+    // authority on whether a GPU frame-time sample exists; consumers must not infer it from the
+    // backend name or any other device fact. The default is the CPU fallback every backend without
+    // timestamp queries (null, software, WebGPU today) keeps.
+    [[nodiscard]] virtual GpuTimestampCapability timestamp_capability() const {
+        return {};
     }
 
     // Current health. Losses are detected by the backend on submit/acquire/present/fence waits and

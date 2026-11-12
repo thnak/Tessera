@@ -13,8 +13,10 @@
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
+#include "tessera/rendering/rhi/timestamp.hpp"
 #include "tessera/runtime/device_recovery.hpp"
 #include "tessera/runtime/frame_pacer.hpp"
+#include "tessera/runtime/frame_time_source.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/input_pump.hpp"
@@ -26,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace tessera::app {
 
@@ -102,6 +105,21 @@ struct WindowHost::Impl {
     // in which case the frame stays on the direct full-size path rather than dropping. Called at a
     // frame boundary and only when the decided extent changed, so a downgrade allocates one image.
     bool ensure_scaled_target(std::size_t slot, rhi::Extent2D extent);
+
+    // --- GPU frame-time signal (docs/design/performance.md section 6.1) ----------------------
+    // The device probe's answer, resolved once per presentation generation. False (null backend,
+    // no timestamp queries, a bad period) keeps the CPU frame time for every observation.
+    bool gpu_timestamps_usable = false;
+    // The GPU interval of a submission whose slot completed, waiting to be fed to the one
+    // observation of a presented frame. It is at most two frames old because a timestamp value is
+    // only readable after its submission completed; a frame that observes before a new interval
+    // exists falls back to the CPU time and counts the fallback.
+    std::optional<double> pending_gpu_frame_time_ms;
+    // Takes the pending GPU interval (and clears it). The one place both driver paths consume it.
+    std::optional<double> take_gpu_frame_time_ms();
+    // Selects the frame-time source, records it in stats, and feeds the host. `cpu_frame_time_ms`
+    // is the frame's CPU cost through present, which stays the fallback.
+    runtime::FrameTimeSample observe_frame_time(double cpu_frame_time_ms);
 
     // --- host-owned caret blink (window_lifecycle.cpp) --------------------------------------
     // The clock the caret ticks against: the borrowed WindowOptions::clock when set (tests inject a

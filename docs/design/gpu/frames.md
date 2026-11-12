@@ -137,6 +137,33 @@ allowed to wait (ADR-021 is about the UI thread).
   frames were ever in flight, and the Vulkan validation message counter is zero after teardown with
   synchronization validation enabled.
 
+### 5.2 GPU frame-time signal (timestamp queries)
+
+The adaptive-quality controller needs a frame-time signal, and section 6.1 of
+[`performance.md`](../performance.md#61-implemented-decision-layer-its-render-target-consumer-step-2-and-the-present-cap-step-3)
+makes it the GPU interval when the device can measure one. The measurement rides the same slot
+gate as presentation instead of adding a second one:
+
+- **Probe.** `rhi::Device::timestamp_capability()` is the only authority. Vulkan fills it from the
+  selected frame-submission queue family: `timestampValidBits != 0`, the graphics bit, and
+  `VkPhysicalDeviceLimits::timestampPeriod` (finite and nonzero). A pool failure downgrades the
+  answer to unusable; the default answer is unusable (the null backend, and any backend that has
+  not implemented the query).
+- **Recording.** A pair is recorded in the frame's own command buffer: a `TOP_OF_PIPE` timestamp
+  at the first recorded command, an `ALL_COMMANDS` timestamp just before the buffer ends. The
+  device owns one bounded ring of pairs (`VulkanDevice::kGpuTimestampSlots = 8`), allocated once
+  with the device; a submission uses `slot % 8`, and `VulkanCommandList` resets then writes that
+  pair (a query reset cannot be recorded inside a render pass, so it is deferred to the first
+  recording opportunity).
+- **Reading.** `CommandList::gpu_frame_time_ms()` is valid only after `is_complete()` reports the
+  submission finished. It calls `vkGetQueryPoolResults` without `WAIT_BIT` — a host query, never a
+  fence wait or `vkDeviceWaitIdle` (ADR-021). `WindowHost` reads the completed slot before reusing
+  it, converts with the timestamp period, and rejects a zero, wrapped or absurd (> 10 s) delta, so
+  the sample lags at most two frames and a stale or missing value falls back to the CPU time.
+- **Diagnostics.** `FrameDiagnostics` records which source produced each observation, and
+  `WindowFrameStats` reports the source plus GPU-sample and fallback counters; a fallback is never
+  reported as a GPU number.
+
 ## 6. Uploads and readbacks
 
 - Target: uploads use a per-slot staging ring; no per-texture command list or submit. Today each
