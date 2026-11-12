@@ -18,6 +18,10 @@ inline constexpr std::uint64_t kFixtureButtonId = 9003;
 inline constexpr std::uint64_t kFixtureFieldId = 9004;
 inline constexpr std::uint64_t kFixtureListId = 9005;
 inline constexpr std::uint64_t kFixtureListItemId = 9006;
+// Three realized virtual-list rows under the list. They share the template id and are told apart
+// by item key (decimal text 101, 102, 103), as in automation-ids-v1 section 1.
+inline constexpr std::uint64_t kFixtureRowId = 9010;
+inline constexpr std::uint64_t kFixtureRowKeys[] = {101, 102, 103};
 
 // The deterministic headless demo scene `tessera test --script` runs against until the app-config
 // loader lands. `root` must outlive this object. The fixture owns the event handlers (a click on

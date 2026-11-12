@@ -134,20 +134,11 @@ void EngineAutomationHost::settle() {
 std::expected<void, harness::ProtocolError>
 EngineAutomationHost::dispatch_action(const harness::ActionCommand& action) {
     ++stats_.actions;
-    if (action.item_key.has_value()) {
-        // The scene graph has no list-item identity yet, so narrowing by itemKey would either
-        // target the wrong instance or silently ignore the field. Reject it instead.
-        return unexpected(error(harness::ProtocolErrorCode::InvalidArgument,
-                                "itemKey targeting is not available on the scene graph",
-                                *action.item_key));
+    const auto resolved = resolve_target(action.ui_id, action.item_key);
+    if (!resolved.has_value()) {
+        return std::unexpected(resolved.error());
     }
-    const harness::UiId ui_id = action.ui_id;
-    ui::Node* target = find_target(ui_id);
-    if (target == nullptr) {
-        return unexpected(error(harness::ProtocolErrorCode::UiIdNotFound,
-                                "no visible node matches the automation id",
-                                std::to_string(ui_id)));
-    }
+    ui::Node* target = *resolved;
     switch (action.kind) {
     case harness::ActionKind::Click:
         return click(*target);

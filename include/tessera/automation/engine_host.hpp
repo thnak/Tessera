@@ -11,6 +11,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <optional>
+#include <string>
 #include <string_view>
 
 namespace tessera::diagnostics {
@@ -114,6 +116,13 @@ private:
     // First visible node (preorder) whose automation id is `ui_id`; nullptr when absent. An
     // invisible subtree is not targetable, matching the snapshot's hidden-node policy.
     [[nodiscard]] ui::Node* find_target(harness::UiId ui_id) const;
+
+    // Target of an action: `find_target` when `item_key` is empty, otherwise the first visible
+    // realized node (preorder) carrying both `ui_id` and that key (engine_host_items.cpp). Errors
+    // are `uiIdNotFound` for an absent/hidden/unrealized item and `invalidArgument` for a key that
+    // is not canonical decimal text.
+    [[nodiscard]] std::expected<ui::Node*, harness::ProtocolError>
+    resolve_target(harness::UiId ui_id, const std::optional<std::string>& item_key) const;
 
     [[nodiscard]] std::expected<void, harness::ProtocolError> click(ui::Node& target);
     [[nodiscard]] std::expected<void, harness::ProtocolError> type_text(ui::Node& target,

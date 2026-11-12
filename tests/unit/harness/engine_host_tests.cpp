@@ -159,14 +159,14 @@ int main() {
     expect(stats.settle_frames >= 1, "a dispatched input settled a frame at least once");
     expect(stats.settle_frames <= stats.actions + stats.snapshots,
            "at most one settle frame per command");
-    expect(stats.emitted_nodes == 7, "the fixture tree has seven nodes");
+    expect(stats.emitted_nodes == 10, "the fixture tree has ten nodes");
 
     // Step 0: the canonical snapshot over the live scene.
     const harness::JsonValue before = snapshot_of(report.steps[0]);
     const harness::JsonValue* nodes = before.find("nodes");
     expect(nodes != nullptr && nodes->as_array() != nullptr, "snapshot carries a node array");
-    expect(nodes != nullptr && nodes->as_array() != nullptr && nodes->as_array()->size() == 7,
-           "all seven nodes are emitted");
+    expect(nodes != nullptr && nodes->as_array() != nullptr && nodes->as_array()->size() == 10,
+           "all ten nodes are emitted");
     const harness::JsonValue* version = before.find("snapshotVersion");
     expect(version != nullptr && version->as_integer() == 1, "snapshot version is 1");
     const harness::JsonValue* sequence = before.find("sequence");

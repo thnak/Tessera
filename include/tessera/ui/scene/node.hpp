@@ -231,6 +231,19 @@ public:
     [[nodiscard]] std::uint64_t automation_id() const {
         return automation_id_;
     }
+    // List/grid instance identity (automation-ids-v1 section 1): a realized virtual item keeps its
+    // template `automation_id` and carries the data-lifetime key here. Absent for plain nodes.
+    void set_item_key(std::uint64_t item_key) noexcept {
+        item_key_ = item_key;
+        has_item_key_ = true;
+    }
+    void clear_item_key() noexcept {
+        item_key_ = 0;
+        has_item_key_ = false;
+    }
+    [[nodiscard]] std::optional<std::uint64_t> item_key() const noexcept {
+        return has_item_key_ ? std::optional<std::uint64_t>(item_key_) : std::nullopt;
+    }
     void set_role(std::string_view role);
     void clear_role();
     [[nodiscard]] std::string_view role() const {
@@ -338,6 +351,8 @@ private:
     std::string_view class_name_;
     std::string_view role_;
     std::uint64_t automation_id_ = 0;
+    std::uint64_t item_key_ = 0;
+    bool has_item_key_ = false;
     std::unique_ptr<AriaTable> aria_;
     std::unique_ptr<InlineStyleTable> inline_style_;
     std::unique_ptr<BindingTable> event_bindings_;
