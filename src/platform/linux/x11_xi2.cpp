@@ -11,14 +11,14 @@
 namespace tessera::hal {
 namespace {
 
-float sanitize_scale(float scale) {
-    return scale > 0.0F ? scale : 1.0F;
-}
-
 #if defined(TESSERA_X11_XI2)
 // Xlib's default error handler terminates the process. XI2 setup requests can legitimately be
 // refused (an old server rejecting a touch mask, a device that vanished between queries), so the
 // requests are issued under a scoped trap that records the protocol error instead.
+float sanitize_scale(float scale) {
+    return scale > 0.0F ? scale : 1.0F;
+}
+
 int g_trapped_error = 0;
 
 int trap_error(Display* /*display*/, XErrorEvent* event) {
