@@ -34,7 +34,9 @@ jobs:
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
-        run: cmake --build build/ios --parallel
+        # Cap the job count: the macOS runners hit their process limit with an unbounded
+        # `--parallel`, failing compiles with "posix_spawn failed: Resource temporarily unavailable".
+        run: cmake --build build/ios --parallel 4
 
       # Simulator binaries run on the arm64 macOS runner; no device provisioning is required.
       - name: Configure simulator tests
@@ -52,7 +54,7 @@ jobs:
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build simulator tests
-        run: cmake --build build/ios-tests --parallel
+        run: cmake --build build/ios-tests --parallel 4
 
       - name: ccache statistics
         run: ccache --show-stats
