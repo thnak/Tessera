@@ -463,3 +463,16 @@ if (TARGET tessera_app_window)
     endif()
 endif()
 
+
+# Harness golden/gpu-smoke frame capture: capability gating (no device) plus an offscreen render of
+# the fixture scene and a comparison against itself. Skips where Vulkan or lavapipe is unavailable.
+if (TARGET tessera_harness_capture)
+    add_executable(harness_frame_capture_tests
+        harness_frame_capture_tests.cpp)
+    target_compile_definitions(harness_frame_capture_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(harness_frame_capture_tests PRIVATE tessera_harness_capture)
+    add_test(NAME harness_frame_capture COMMAND harness_frame_capture_tests)
+    set_tests_properties(harness_frame_capture PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+endif()

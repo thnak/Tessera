@@ -70,3 +70,30 @@ add_executable(tessera_harness_cli
     cli_main.cpp)
 
 target_link_libraries(tessera_harness_cli PRIVATE tessera_automation_host)
+
+# Offscreen frame comparison for `--mode golden` / `--mode gpu-smoke` (slice D core). The image
+# half is pure CPU (PNG codec, diff, baseline policy) and builds everywhere; the capture half needs
+# the Vulkan app-window library, so it exists only where that target does.
+add_library(tessera_harness_image STATIC
+    frame_check.cpp
+    image_compare.cpp
+    image_png.cpp)
+
+target_link_libraries(tessera_harness_image PUBLIC
+    tessera_golden
+    tessera_harness
+    tessera_stb)
+
+target_compile_features(tessera_harness_image PUBLIC cxx_std_23)
+
+if (TARGET tessera_app_window)
+    add_library(tessera_harness_capture STATIC
+        frame_capture.cpp)
+
+    target_link_libraries(tessera_harness_capture PUBLIC
+        tessera_app_window
+        tessera_harness_image
+        tessera_style)
+
+    target_compile_features(tessera_harness_capture PUBLIC cxx_std_23)
+endif()
