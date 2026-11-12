@@ -45,11 +45,13 @@ struct WindowOptions {
     // A non-zero cap makes the loop park on the pacer deadline instead of presenting early.
     // Negative or non-finite values are rejected by the WindowHost constructor.
     double max_fps = 0.0;
-    // The display refresh the platform reported, in Hz; 0 = unknown. The HAL has no refresh query
-    // yet, so a caller that knows it (a platform host, a test) supplies it. It is the divisor base
-    // of the adaptive present cap (docs/design/performance.md section 6, step 3) and the ceiling
-    // that cap may never exceed; with 0 there is no divisor, so the adaptive cap stays at `max_fps`
-    // and the pacer keeps its documented deadline pacing (runtime-config-v1.md section 5.2).
+    // The display refresh, in Hz; 0 = unknown. A caller normally leaves this at 0: the host
+    // resolves it once from the platform (`hal::Window::display_refresh_hz()`: the window's monitor
+    // on Windows, the active RandR CRTC on X11/Xvfb, unknown elsewhere) and an explicit non-zero
+    // value always wins over that query. It is the divisor base of the adaptive present cap
+    // (docs/design/performance.md section 6, step 3) and the ceiling that cap may never exceed;
+    // with 0 there is no divisor, so the adaptive cap stays at `max_fps` and the pacer keeps its
+    // documented deadline pacing (runtime-config-v1.md section 5.2).
     double refresh_hz = 0.0;
     std::string font_path;
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;

@@ -639,6 +639,23 @@ target_link_libraries(present_cap_tests PRIVATE tessera_runtime)
 
 add_test(NAME present_cap COMMAND present_cap_tests)
 
+# The display-refresh source behind that cap (docs/specs/runtime-config-v1.md 5.2 and 6.2): the
+# pure validation/mapping table (0, negative, NaN, huge, 60, 144, 59.94), "unknown stays unknown",
+# "an explicit option wins", the X11 RandR mode math, and the hand-off through
+# window_adaptive_quality_policy to the step-3 divisor. The platform reads themselves (Win32
+# DEVMODE, X11 RandR) are exercised by the window tests; no display is needed here.
+add_executable(refresh_rate_tests
+    refresh_rate_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/hal/window/refresh_rate.cpp)
+
+target_include_directories(refresh_rate_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app
+    ${PROJECT_SOURCE_DIR}/src/runtime)
+
+target_link_libraries(refresh_rate_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME refresh_rate COMMAND refresh_rate_tests)
+
 # The `runtime` object of tessera.json (docs/specs/runtime-config-v1.md): the model defaults, the
 # field table's clamp-vs-error split, enum strings, typed errors and unknown-key warnings.
 add_executable(runtime_config_tests

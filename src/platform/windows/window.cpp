@@ -98,6 +98,7 @@ public:
     bool create(const WindowDesc& desc);
 
     [[nodiscard]] WindowMetrics metrics() const override;
+    [[nodiscard]] double display_refresh_hz() const noexcept override;
     [[nodiscard]] NativeWindowHandle native_handle() const override {
         return {nullptr, hwnd_};
     }
@@ -263,6 +264,37 @@ WindowMetrics Win32Window::metrics() const {
     metrics.focused = focused_;
     metrics.minimized = IsIconic(hwnd_) != FALSE;
     return metrics;
+}
+
+double Win32Window::display_refresh_hz() const noexcept {
+    if (hwnd_ == nullptr) {
+        return kUnknownRefreshHz;
+    }
+    // The monitor the window is on, not the primary one: a multi-monitor desktop can mix rates and
+    // the present cap must follow the display the user actually sees. The display-mode API is
+    // chosen over DwmGetCompositionTimingInfo because the latter describes the compositor's timing
+    // for the whole desktop (and needs an active composition), while EnumDisplaySettingsExW reports
+    // this monitor's current mode.
+    const HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
+    if (monitor == nullptr) {
+        return kUnknownRefreshHz;
+    }
+    MONITORINFOEXW info{};
+    info.cbSize = sizeof(info);
+    if (GetMonitorInfoW(monitor, &info) == FALSE) {
+        return kUnknownRefreshHz;
+    }
+    DEVMODEW mode{};
+    mode.dmSize = static_cast<WORD>(sizeof(mode));
+    if (EnumDisplaySettingsExW(info.szDevice, ENUM_CURRENT_SETTINGS, &mode, 0) == FALSE) {
+        return kUnknownRefreshHz;
+    }
+    // DEVMODE documents 0 ("hardware default") and 1 ("default") as frequency sentinels, never as
+    // a real rate; the pure sanitizer would accept 1 Hz, so reject both here.
+    if (mode.dmDisplayFrequency <= 1) {
+        return kUnknownRefreshHz;
+    }
+    return sanitize_display_refresh_hz(static_cast<double>(mode.dmDisplayFrequency));
 }
 
 void Win32Window::enqueue(WindowEventType type) {

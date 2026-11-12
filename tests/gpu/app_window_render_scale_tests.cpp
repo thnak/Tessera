@@ -26,10 +26,12 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #ifndef TESSERA_TEST_FONT
@@ -70,7 +72,11 @@ void set_label(Node& label, std::uint32_t iteration) {
 }
 
 // Pumps until one more frame was presented (or the budget is spent), so every assertion below reads
-// stats of a frame that really reached the swapchain.
+// stats of a frame that really reached the swapchain. The driver now learns the display refresh
+// from the platform, so the forced downgrade below also lowers the present cap to a real refresh
+// divisor: the next frame is not due until that deadline. This test is about render scale, not
+// pacing, so the pump waits out the cap in bounded one-millisecond steps instead of spinning past
+// it.
 bool pump_until_presented(WindowHost& host, std::uint32_t presented_before, Node& label,
                           std::uint32_t& iteration) {
     for (std::uint32_t attempt = 0; attempt < kMaxIterations; ++attempt) {
@@ -79,6 +85,7 @@ bool pump_until_presented(WindowHost& host, std::uint32_t presented_before, Node
         if (host.stats().presented > presented_before) {
             return true;
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return false;
 }

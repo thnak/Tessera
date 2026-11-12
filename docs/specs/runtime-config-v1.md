@@ -361,20 +361,17 @@ Rules applied by the loader:
   rather than clamps. `preferredRefreshRate` accepts `0` or `24..1000` and rejects `1..23`.
 - **Integer strictness.** An `integer` field needs a JSON integer literal; `60.0` and `1e2` are
   `InvalidType`, because the table types them as integers.
-- **Cross-field.** `minRenderScale <= renderScale` is checked after clamping, so
-  `renderScale=10, minRenderScale=1` is valid (10 clamps to 4) while an inverted pair is a
-  `CrossField` error naming both keys. Consequence: lowering `renderScale` below the default
-  `minRenderScale=0.6` without also lowering `minRenderScale` is an error, as rule 13 requires.
+- **Cross-field.** `minRenderScale <= renderScale` is checked after clamping, so `renderScale=10,
+  minRenderScale=1` is valid (10 clamps to 4) while an inverted pair is a `CrossField` error naming
+  both keys; lowering `renderScale` below the default `minRenderScale=0.6` alone is also an error.
 - **Non-finite.** A number that is not finite (`1e400`, `-1e400`) is `NonFinite`. JSON has no
   `NaN`/`inf` spelling, so those tokens are `MalformedJson`.
 - **Unknown keys** in the `runtime` object are an `UnknownField` error (section 4 rule 11: strict
-  schema), naming the first unknown key in document order. There is no tolerant mode: a project
-  file written for a newer runtime must be read by that newer runtime, and a typo must not be
-  silently ignored.
-- **Determinism.** The first error in table order wins (unknown keys are checked first, in
-  document order), no clock/RNG/locale is consulted, and the returned `RuntimeConfig` owns no
-  allocation. The loader
-  prints nothing; diagnostics are values.
+  schema), naming the first unknown key in document order. There is no tolerant mode: a project file
+  written for a newer runtime must be read by that newer runtime, and a typo is never ignored.
+- **Determinism.** The first error in table order wins (unknown keys are checked first, in document
+  order), no clock/RNG/locale is consulted, and the returned `RuntimeConfig` owns no allocation.
+  The loader prints nothing; diagnostics are values.
 
 Section 6's code block above omits `layoutObservationMaxRounds`, which section 3 and
 [`layout-observation.md`](../design/layout-observation.md) section 5.3 define; the header includes
@@ -406,23 +403,26 @@ the presented (physical) extent times the decision, rounded down per axis with a
   the frame is byte-identical to today. Diagnostics: `WindowFrameStats::render_scale`,
   `target_extent`, `present_extent`, `scaled_frames`, `scale_fallbacks`.
 
-**Step 3, the present cap.** Each downgrade also lowers the present cap to the next refresh
-divisor below the previous step effective rate (`refresh/2`, `refresh/3`, ...), never below a
-10 Hz floor; an upgrade restores the previous divisor. The rule is a pure function of (display
-refresh, `maxFps`, quality step) in [`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp):
-step 0 is the configured `maxFps` unchanged, `maxFps` is a hard ceiling (`min(maxFps, refresh)` when
-`maxFps` is non-zero, else the refresh), and a cap already on a divisor moves to the next one. With no
-reported refresh (`refresh_hz == 0`) there is no divisor, so the cap stays at `maxFps` and the
-pacer keeps its documented deadline pacing (section 5.2). The cap reaches the pacer through its
-existing rate-change path (`FramePacer::update`), the same mechanism a scripted refresh change
-uses: it takes effect at the next frame boundary with no blocking wait and no swapchain
-recreation. Diagnostics: `WindowFrameStats::present_cap_hz`, `present_interval_seconds`, `present_cap_changes`.
+**Step 3, the present cap.** Each downgrade lowers the cap to the next refresh divisor below the
+previous step's effective rate (`refresh/2`, `refresh/3`, ...), never below the 10 Hz floor; an
+upgrade restores the previous divisor. The rule is pure in
+[`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp): step 0 keeps `maxFps`, which is
+a hard ceiling, and a cap already on a divisor moves to the next one; `FramePacer::update()`
+applies it at the next frame boundary with no blocking wait or swapchain recreation. Diagnostics:
+`WindowFrameStats::present_cap_hz`, `present_interval_seconds`, `present_cap_changes`. Its divisor
+base is `hal::Window::display_refresh_hz()`, validated by the pure
+[`refresh_rate.hpp`](../../include/tessera/hal/refresh_rate.hpp): Windows reads the current mode of
+the window's monitor (`MonitorFromWindow`/`GetMonitorInfoW`/`EnumDisplaySettingsExW`), Linux/X11 the
+active RandR CRTC mode when the extension is present (unknown otherwise or without mode timing, as
+on Xvfb), other platforms unknown. 0 = unknown (a failed query, non-finite, or outside 1..1000 Hz),
+never a guess and never a throw. `WindowHost` reads it once at creation into
+`WindowOptions::refresh_hz` (an explicit non-zero value wins); with no refresh the cap stays at
+`maxFps` and the pacer keeps deadline pacing (section 5.2).
 
-`adaptiveQuality=false`, or `minRenderScale == renderScale`, leaves the target at `renderScale`
-and the cap at `maxFps` forever; a `renderScale` above 1.0 renders a larger target, clamped by
-the field range and the RHI extent ceiling. `WindowOptions::runtime` is the single entry point
-and defaults to `RuntimeConfig{}`; the display refresh comes from
-`WindowOptions::refresh_hz` (0 = unknown). Every key not mapped above is still unwired.
+`adaptiveQuality=false` or `minRenderScale == renderScale` leaves the target at `renderScale` and
+the cap at `maxFps` forever; `renderScale` above 1.0 renders a larger target, clamped by the field
+range and the RHI extent ceiling. `WindowOptions::runtime` is the single entry point (default
+`RuntimeConfig{}`); every key not mapped above is still unwired.
 
 ## 7. Platform support
 

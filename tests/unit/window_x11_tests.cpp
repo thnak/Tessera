@@ -152,6 +152,19 @@ int main() {
         return 4;
     }
 
+    // RandR reports the active CRTC mode when the extension is present, and "unknown" when it is
+    // absent or the mode has no usable timing (Xvfb's synthetic modes report a zero dot clock).
+    // Both are valid answers; the query must never invent a rate or throw.
+    const double refresh_hz = window->display_refresh_hz();
+    if (!expect(refresh_hz == tessera::hal::kUnknownRefreshHz ||
+                    (refresh_hz >= tessera::hal::kMinDisplayRefreshHz &&
+                     refresh_hz <= tessera::hal::kMaxDisplayRefreshHz),
+                "display refresh is unknown or a sane rate")) {
+        XCloseDisplay(display);
+        return 15;
+    }
+    std::cout << "window_x11: display refresh " << refresh_hz << " Hz\n";
+
     // Resizing the hidden window from an external client produces a ConfigureNotify that the HAL
     // normalizes into one coalesced Resize event carrying the new metrics.
     XResizeWindow(display, native, 480, 320);

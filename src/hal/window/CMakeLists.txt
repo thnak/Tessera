@@ -7,6 +7,12 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/src/hal/clipboard ${CMAKE_BINARY_DIR}/src
 
 add_library(tessera_hal_window STATIC)
 
+# The pure display-refresh value rules (validation, "unknown", explicit-option precedence and the
+# X11 mode math) live here on every platform, so the platform files only read the OS value and hand
+# it over. Tests compile this file directly, without a window or a display.
+target_sources(tessera_hal_window PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/refresh_rate.cpp)
+
 # Private shared implementation header (normalized event ring).
 target_include_directories(tessera_hal_window PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR})
@@ -50,6 +56,20 @@ elseif (TESSERA_X11_FOUND)
         message(STATUS "XInput2 found: Linux smooth scroll, touch and pen input enabled")
     else()
         message(STATUS "XInput2 not found: Linux input keeps the core-protocol path")
+    endif()
+    # The display-refresh query reads the active CRTC mode through RandR. Without the headers or
+    # the library the window compiles the documented "unknown" path instead (no divisor exists),
+    # which is also what a server without the extension reports at runtime.
+    find_path(TESSERA_XRANDR_INCLUDE_DIR X11/extensions/Xrandr.h)
+    find_library(TESSERA_XRANDR_LIBRARY NAMES Xrandr)
+    if (TESSERA_XRANDR_INCLUDE_DIR AND TESSERA_XRANDR_LIBRARY)
+        target_sources(tessera_hal_window PRIVATE
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_randr.cpp)
+        target_compile_definitions(tessera_hal_window PRIVATE TESSERA_X11_RANDR=1)
+        target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_XRANDR_LIBRARY})
+        message(STATUS "Xrandr found: Linux display-refresh query enabled")
+    else()
+        message(STATUS "Xrandr not found: Linux reports the unknown display refresh")
     endif()
 else()
     target_sources(tessera_hal_window PRIVATE

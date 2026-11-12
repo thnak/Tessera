@@ -112,6 +112,18 @@ int main() {
         return 4;
     }
 
+    // The display-refresh query is a per-monitor OS read: it reports either a real rate inside the
+    // documented sane bounds or the documented "unknown" value (a virtual/RDP session may show no
+    // mode), never a throw and never a guessed rate.
+    const double refresh_hz = window->display_refresh_hz();
+    if (!expect(refresh_hz == tessera::hal::kUnknownRefreshHz ||
+                    (refresh_hz >= tessera::hal::kMinDisplayRefreshHz &&
+                     refresh_hz <= tessera::hal::kMaxDisplayRefreshHz),
+                "display refresh is unknown or a sane rate")) {
+        return 12;
+    }
+    std::cout << "window_win32: display refresh " << refresh_hz << " Hz\n";
+
     // Resizing the hidden window must produce one coalesced Resize carrying the new metrics.
     if (!expect(resize_client(hwnd, 480, 320), "SetWindowPos resize succeeds")) {
         return 5;
