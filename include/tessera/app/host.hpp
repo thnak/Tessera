@@ -99,6 +99,13 @@ public:
     // full redraw (the old target's damage rectangles are meaningless at the new size).
     void resize(float width, float height, float dpi_scale);
 
+    // Latches a full-target repaint for the next begin_frame(). Use it when the damage/redraw state
+    // cannot be trusted to describe what is on screen (the first frame after a pause, an occlusion
+    // or a display switch): the next frame's plan is a full redraw regardless of the damage
+    // accumulated since, so the paint covers every pixel. The latch is one-shot and survives no
+    // frame that paints; the runtime loop is woken so the frame is produced on demand.
+    void request_full_repaint();
+
     // Installs the per-window update scheduler. Its flush runs before animation, style and layout
     // of every begin_frame(), so generated components' schedule_update() tickets apply in the frame
     // that asked for them. Pass nullptr to uninstall; the scheduler must outlive the host or be

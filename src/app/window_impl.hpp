@@ -60,9 +60,26 @@ struct WindowHost::Impl {
     // device never completes its fences, so its generation is closed out without polling.
     void release_in_flight(double budget_seconds);
     void recreate_swapchain();
-    FrameResult render_and_present();
+    FrameResult render_and_present(bool full_repaint);
     void apply_metrics(const hal::WindowMetrics& metrics);
     WindowFrameStats run(std::uint32_t max_frames);
+
+    // --- lifecycle, pause and the single-iteration seam (window_lifecycle.cpp) ---------------
+    // True while the platform reports the window as occluded/minimized: no frame may be acquired,
+    // painted or presented, and the frame pipeline/animation runtime must not tick.
+    [[nodiscard]] bool paused() const noexcept {
+        return paused_;
+    }
+    // Folds one normalized platform event into the driver state. True means the window asked to
+    // close (the caller ends the run).
+    bool handle_window_event(const hal::WindowEvent& event);
+    // Drains queued input through the pump and marks the render dirty when the scene went dirty.
+    void pump_input();
+    // Recomputes `paused_` from the lifecycle flags and the latest metrics; a pause -> resume edge
+    // latches a full repaint so nothing on screen can be stale.
+    void update_pause_state();
+    // One bounded iteration shared by pump_once(): events -> input -> pause -> tick -> one frame.
+    bool pump_once();
 
     // --- device-loss recovery (window_recovery.cpp) -----------------------------------------
     // Creates the swapchain, 2D pipeline, renderer, text stack and sink on `device` at the window's
@@ -110,6 +127,17 @@ struct WindowHost::Impl {
     WindowFrameStats stats;
     std::array<std::unique_ptr<rhi::CommandList>, detail::kFramesInFlight> in_flight;
     std::size_t slot = 0;
+
+    // Pause state: `lifecycle_paused_` comes from the platform's Minimized/Occluded events (cleared
+    // by Restored), `metrics_paused_` from the latest hal::WindowMetrics (occluded || minimized),
+    // and `paused_` is their union. Focus/blur never contributes (a visible background window
+    // keeps painting). A true->false edge is the resume that requests a full repaint.
+    bool lifecycle_paused_ = false;
+    bool metrics_paused_ = false;
+    bool paused_ = false;
+    // Last frame time shared by run() and pump_once(), so a resume gets a normal dt instead of the
+    // whole pause duration (and paused iterations refresh it).
+    double last_tick_seconds_ = 0.0;
 };
 
 } // namespace tessera::app

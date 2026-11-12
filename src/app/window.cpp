@@ -24,10 +24,6 @@ namespace {
 namespace hal = tessera::hal;
 namespace rhi = tessera::rendering::rhi;
 
-bool subtree_dirty(const ui::Node& root) {
-    return root.subtree_dirty() != ui::Dirty::Clean || root.dirty() != ui::Dirty::Clean;
-}
-
 } // namespace
 
 WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
@@ -72,6 +68,11 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
         host->set_update_scheduler(scheduler);
     }
     window->set_input_queue(&pump.queue());
+    // A platform can create the window already occluded or minimized; start paused in that case so
+    // the first iteration does not acquire and present a frame the user cannot see.
+    metrics_paused_ = metrics.occluded || metrics.minimized;
+    paused_ = metrics_paused_;
+    last_tick_seconds_ = hal::steady_now_seconds();
     available = true;
 }
 
@@ -129,7 +130,9 @@ void WindowHost::Impl::recreate_swapchain() {
 }
 
 // One rendered frame: reuse a free slot, acquire, paint the whole scene, submit async and present.
-WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present() {
+// `full_repaint` is the plan's verdict from the host frame; it is recorded so a caller can prove a
+// resume repainted the whole target.
+WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_repaint) {
     if (device == nullptr || swapchain == nullptr) {
         return FrameResult::Skipped;
     }
@@ -184,6 +187,9 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present() {
     const auto present = swapchain->present(*image);
     if (present || present.error() == rhi::SwapchainError::Suboptimal) {
         ++stats.presented;
+        if (full_repaint) {
+            ++stats.full_repaints;
+        }
     } else if (present.error() == rhi::SwapchainError::OutOfDate) {
         recreate_swapchain();
     } else if (present.error() == rhi::SwapchainError::DeviceLost) {
@@ -192,15 +198,26 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present() {
     return FrameResult::Presented;
 }
 
+// Applies one metrics snapshot. Occlusion has no Win32/X11 event yet, so the snapshot's
+// `occluded`/`minimized` flags are the channel a platform (and a test) reports the lifecycle
+// through: they own the metrics half of the pause state.
 void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
     if (!available) {
         return;
     }
-    if (swapchain != nullptr) {
-        swapchain->resize({metrics.physical_width, metrics.physical_height});
+    metrics_paused_ = metrics.occluded || metrics.minimized;
+    update_pause_state();
+    if (!metrics_paused_) {
+        // An occluded/minimized window can report a zero client area (a minimized Win32 window
+        // does); resizing the target or re-laying out at 0x0 is skipped, and the scene tree stays
+        // intact (docs/design/window-resize.md section 2 rule 6). The restore's metrics apply the
+        // real size.
+        if (swapchain != nullptr) {
+            swapchain->resize({metrics.physical_width, metrics.physical_height});
+        }
+        host->resize(static_cast<float>(metrics.logical_width),
+                     static_cast<float>(metrics.logical_height), metrics.dpi_scale);
     }
-    host->resize(static_cast<float>(metrics.logical_width),
-                 static_cast<float>(metrics.logical_height), metrics.dpi_scale);
     loop->mark_render_dirty();
 }
 
@@ -221,7 +238,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
     RecoveryPolicy recovery_policy;
 
     bool closed = false;
-    double last_tick = hal::steady_now_seconds();
+    last_tick_seconds_ = hal::steady_now_seconds();
     // A frame that keeps failing (a device that never recovers, a slot that never completes, a
     // swapchain that never yields an image) stops the run instead of spinning (ADR-021).
     FrameFailureGuard failures;
@@ -232,36 +249,29 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
     while (!closed) {
         const std::size_t event_count = window->poll_events(events);
         for (std::size_t index = 0; index < event_count; ++index) {
-            switch (events[index].type) {
-            case hal::WindowEventType::Close:
-                closed = true;
-                break;
-            case hal::WindowEventType::Resize:
-            case hal::WindowEventType::DpiChange:
-                apply_metrics(window->metrics());
-                break;
-            case hal::WindowEventType::SystemSettingsChanged:
-                if (motion.update(system_prefers_reduced_motion())) {
-                    host->set_reduced_motion(motion.reduced());
-                    // In-flight animations must finish (or snap) even if the scene was idle.
-                    loop->mark_render_dirty();
-                }
-                break;
-            default:
-                break;
-            }
+            closed = handle_window_event(events[index]) || closed;
         }
         if (closed) {
             break;
         }
 
-        const ui::InputPumpStats pumped = pump.pump(root, *loop);
-        stats.input_events += static_cast<std::uint32_t>(pumped.consumed);
-        if (subtree_dirty(root)) {
-            loop->mark_render_dirty();
-        }
+        pump_input();
         if (force_frames && stats.frames < max_frames) {
             loop->mark_render_dirty();
+        }
+
+        // A paused window (occluded, minimized or hidden by the platform) produces no frame: no
+        // acquire, submit or present and no style/layout/paint or animation tick. The loop keeps
+        // pumping events and input and parks on the same bounded platform wait, so a close, a
+        // resize/metrics change or a restore wakes it. The pause wins over the forced-frame path:
+        // run(max_frames) waits for the window to become visible again or to close.
+        if (paused()) {
+            ++stats.paused_iterations;
+            // Drop the paused wall time so the first frame after resume gets a normal dt instead
+            // of the whole pause duration.
+            last_tick_seconds_ = hal::steady_now_seconds();
+            idle(idle_wait_seconds(pacer.ready(last_tick_seconds_)));
+            continue;
         }
 
         const runtime::RuntimeTick tick = loop->tick();
@@ -297,8 +307,8 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
             continue;
         }
 
-        const double dt = now - last_tick;
-        last_tick = now;
+        const double dt = now - last_tick_seconds_;
+        last_tick_seconds_ = now;
         const HostFrame frame = host->begin_frame(dt, tick.alpha);
         const bool has_damage = !frame.render.redraw_plan.scissors.empty();
         if (!should_present(frame.frame_due, has_damage, force_frames)) {
@@ -312,7 +322,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
             continue;
         }
 
-        const FrameResult outcome = render_and_present();
+        const FrameResult outcome = render_and_present(frame.render.full_redraw);
         if (outcome != FrameResult::Presented) {
             ++stats.idle_waits;
             // The backend recorded a loss on this frame; the next tick's controller reports it
@@ -365,6 +375,10 @@ bool WindowHost::available() const {
 
 WindowFrameStats WindowHost::run(std::uint32_t max_frames) {
     return impl_->run(max_frames);
+}
+
+bool WindowHost::pump_once() {
+    return impl_->pump_once();
 }
 
 bool WindowHost::post_input(const ui::InputEvent& event) {

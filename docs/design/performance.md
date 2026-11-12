@@ -156,8 +156,10 @@ Rules:
 - **Static scene**: after the last dirty frame, no present and no GPU submission. CPU waits on
   the next wake source.
 - **Input**: a pointer/key event wakes exactly one frame (or, during a drag or active animation, consecutive frames until it ends; the burst length is not specified).
-- **Occluded/minimized**: `pauseWhenOccluded=true` stops rendering and active animations.
-  Restoring the window marks the target dirty and renders one frame.
+- **Occluded/minimized**: `pauseWhenOccluded=true` stops rendering and animation ticks; the loop
+  keeps pumping events/input and parks on the bounded event wait, and the resume edge repaints the
+  full target (implemented in `WindowHost`,
+  [`window-resize.md`](window-resize.md#8-occludedminimized-pause-b2-power-slice)).
 - **Unfocused but visible**: optional `backgroundMaxFps` (default `0`); `0` means use `maxFps`.
 - **VRR**: in on-demand mode, the display idles between frames; do not present empty frames to
   "keep VRR alive".
