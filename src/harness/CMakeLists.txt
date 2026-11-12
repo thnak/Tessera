@@ -42,6 +42,7 @@ target_compile_features(tessera_harness PUBLIC cxx_std_23)
 # whatever the host needs.
 add_library(tessera_automation_host STATIC
     cli.cpp
+    cli_script.cpp
     cli_frame.cpp
     headless_serve.cpp
     engine_host.cpp
