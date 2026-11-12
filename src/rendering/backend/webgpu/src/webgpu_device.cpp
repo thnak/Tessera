@@ -154,14 +154,12 @@ std::unique_ptr<rhi::Device> create_device(void* wgpu_device, void* wgpu_queue) 
     return std::make_unique<WebGpuDevice>(std::move(context));
 }
 
-bool register_shader(rhi::Device& device, const std::uint32_t* spirv_key,
-                     const WgslProgram& program) {
+bool register_shader(rhi::Device& device, std::string_view shader_id, const WgslProgram& program) {
     if (device.backend() != rhi::Backend::WebGpu) {
         return false;
     }
     // Backend tag checked above; the repo avoids RTTI, so no dynamic_cast.
-    static_cast<WebGpuDevice&>(device).context().shaders.add(spirv_key, program);
-    return true;
+    return static_cast<WebGpuDevice&>(device).context().shaders.add(shader_id, program);
 }
 
 } // namespace tessera::rendering::webgpu

@@ -21,7 +21,8 @@ namespace tessera::rendering::webgpu {
 struct WebGpuContext {
     WGPUDevice device = nullptr;
     WGPUQueue queue = nullptr;
-    ShaderRegistry shaders;
+    // Keyed by `PipelineDesc::shader_id`; starts with the built-in programs.
+    ShaderRegistry shaders = builtin_shader_registry();
     bool lost = false;
 
     WebGpuContext() = default;

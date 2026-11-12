@@ -5,8 +5,8 @@
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/webgpu/shader_registry.hpp"
 
-#include <cstdint>
 #include <memory>
+#include <string_view>
 
 namespace tessera::rendering::webgpu {
 
@@ -17,9 +17,9 @@ namespace tessera::rendering::webgpu {
 // Only available when the `tessera_webgpu` target is built (Emscripten, or TESSERA_BUILD_WEBGPU).
 [[nodiscard]] std::unique_ptr<rhi::Device> create_device(void* wgpu_device, void* wgpu_queue);
 
-// Registers the WGSL for the SPIR-V identity a `PipelineDesc` will carry. `device` must come from
-// `create_device`. Returns false for any other device.
-bool register_shader(rhi::Device& device, const std::uint32_t* spirv_key,
-                     const WgslProgram& program);
+// Registers WGSL under the `shader_id` a `PipelineDesc` will carry (built-in ids are already
+// registered). `device` must come from `create_device`. Returns false for any other device or an
+// empty id.
+bool register_shader(rhi::Device& device, std::string_view shader_id, const WgslProgram& program);
 
 } // namespace tessera::rendering::webgpu

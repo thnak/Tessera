@@ -22,10 +22,11 @@ WebGpuPipeline::WebGpuPipeline(std::shared_ptr<WebGpuContext> context,
     if (validate_vertex_layout(desc.vertex_layout) != VertexLayoutError::None) {
         throw std::invalid_argument("WebGpuPipeline: invalid vertex layout");
     }
-    // The vertex and fragment stages share one WGSL module keyed by the vertex SPIR-V identity.
-    const WgslProgram* program = context_->shaders.find(desc.vertex_spirv);
+    // The vertex and fragment stages share one WGSL module named by the manifest shader id; the
+    // SPIR-V words are Vulkan's and are ignored here (ADR-049).
+    const WgslProgram* program = context_->shaders.find(desc.shader_id);
     if (program == nullptr) {
-        throw std::invalid_argument("WebGpuPipeline: no WGSL registered for this shader key");
+        throw std::invalid_argument("WebGpuPipeline: empty or unknown shader_id");
     }
 
     WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
