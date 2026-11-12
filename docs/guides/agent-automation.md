@@ -17,6 +17,13 @@ This is how an agent finds, drives, traces, and audits the UI without brittle co
 
 Manifest gives you `uiId -> component/kind/source path`. Read it instead of guessing.
 
+To drive your app instead of the built-in fixture, put `"app": { "config": "tessera.json" }` in
+the script (path relative to the working directory). `tessera test --script` then loads that
+`tessera.json` and `generated/automation.manifest.json` (or `codegen.outDir`), builds a scene with
+one node per manifest node, and resolves the script's `uiId`s against it. The scene is structural
+(kinds, tree, focus, typing, scrolling); app event handlers do not run. A missing, oversized or
+invalid config/manifest exits `2`.
+
 ## 2. Launch headless
 
 ```bash
