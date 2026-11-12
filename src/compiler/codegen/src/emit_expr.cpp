@@ -405,6 +405,18 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
             if (!action.animate) {
                 body +=
                     "tessera::ui::animation::ScalarOptions options;\noptions.animate = false;\n";
+            } else if (action.spring.has_value()) {
+                const ir::SpringTiming& spring = *action.spring;
+                body += "tessera::ui::animation::ScalarOptions options;\n"
+                        "options.spring = tessera::ui::animation::SpringConfig{};\n"
+                        "options.spring->stiffness = static_cast<float>(" +
+                        literal_text(spring.stiffness) +
+                        ");\n"
+                        "options.spring->damping = static_cast<float>(" +
+                        literal_text(spring.damping) +
+                        ");\n"
+                        "options.spring->mass = static_cast<float>(" +
+                        literal_text(spring.mass) + ");\n";
             } else if (action.duration_ms.has_value() || !action.easing.empty()) {
                 body += "tessera::ui::animation::ScalarOptions options;\n";
                 if (action.duration_ms.has_value()) {

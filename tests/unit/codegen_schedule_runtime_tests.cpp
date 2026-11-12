@@ -116,6 +116,28 @@ int main() {
         scheduler.flush();
     }
 
+    // A spring-driven set (handler 3: stiffness 300, damping 12) moves by physics, overshoots its
+    // target 0.25 from 1.0, settles exactly on it, and keeps ticking through the scheduler.
+    {
+        sample.handler_3(tessera::ui::ClickEvent{});
+        check(sample.anim_opacity_ == 1.0 && sample.anim_opacity_scalar_.active(),
+              "a spring set starts without jumping");
+        scheduler.flush();
+        double lowest = sample.anim_opacity_;
+        int frames = 0;
+        while (scheduler.tick(1.0 / 60.0) && frames++ < 600) {
+            lowest = lowest < sample.anim_opacity_ ? lowest : sample.anim_opacity_;
+            scheduler.flush();
+        }
+        check(frames < 600, "the spring settles under the scheduler");
+        check(lowest < 0.25, "an underdamped spring overshoots below its target");
+        check(sample.anim_opacity_ == 0.25, "the spring lands exactly on the target");
+        scheduler.flush();
+        sample.handler_2(tessera::ui::TextChangeEvent{});
+        scheduler.flush();
+        check(sample.anim_opacity_ == 1.0, "back to the snapped baseline");
+    }
+
     // Reduced motion snaps in-flight and future animated sets, and a component attached while it is
     // on never animates.
     {

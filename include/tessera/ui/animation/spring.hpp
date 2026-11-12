@@ -16,6 +16,10 @@ class Spring {
 public:
     explicit Spring(SpringConfig config = {});
 
+    // Replaces the coefficients; position, velocity and target are kept, so a retarget with a
+    // different feel does not jump. Throws like the constructor on an invalid config.
+    void set_config(SpringConfig config);
+
     void set_target(float target);
     void snap_to(float position);
 

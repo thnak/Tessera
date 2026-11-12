@@ -7,15 +7,28 @@
 
 namespace tessera::ui::animation {
 
-Spring::Spring(SpringConfig config)
-    : config_(config) {
-    if (!std::isfinite(config_.stiffness) || config_.stiffness < 0.0f ||
-        !std::isfinite(config_.damping) || config_.damping < 0.0f || !std::isfinite(config_.mass) ||
-        config_.mass <= 0.0f || !std::isfinite(config_.position_epsilon) ||
-        config_.position_epsilon < 0.0f || !std::isfinite(config_.velocity_epsilon) ||
-        config_.velocity_epsilon < 0.0f) {
+namespace {
+
+void validate(const SpringConfig& config) {
+    if (!std::isfinite(config.stiffness) || config.stiffness < 0.0f ||
+        !std::isfinite(config.damping) || config.damping < 0.0f || !std::isfinite(config.mass) ||
+        config.mass <= 0.0f || !std::isfinite(config.position_epsilon) ||
+        config.position_epsilon < 0.0f || !std::isfinite(config.velocity_epsilon) ||
+        config.velocity_epsilon < 0.0f) {
         throw std::invalid_argument("invalid spring config");
     }
+}
+
+} // namespace
+
+Spring::Spring(SpringConfig config)
+    : config_(config) {
+    validate(config_);
+}
+
+void Spring::set_config(SpringConfig config) {
+    validate(config);
+    config_ = config;
 }
 
 void Spring::set_target(float target) {

@@ -91,6 +91,18 @@ inline ir::IrModule make_sample_module() {
     change.actions.push_back(std::move(reset));
     sample.handlers.push_back(std::move(change));
 
+    ir::Handler spring;
+    spring.id = "handler::3";
+    spring.source = span(28, 10, 3, 3);
+    spring.params.push_back({"event", "ClickEvent"});
+    ir::Action bounce;
+    bounce.kind = ir::ActionKind::AnimSet;
+    bounce.target = "anim::opacity";
+    bounce.value = ir::make_literal(0.25);
+    bounce.spring = ir::SpringTiming{300.0, 12.0, 1.0};
+    spring.actions.push_back(std::move(bounce));
+    sample.handlers.push_back(std::move(spring));
+
     sample.effects.push_back(
         {"effect::sync", {"state::count"}, "bind::sync", "bind::sync_cleanup", span(30, 8, 3, 3)});
 

@@ -111,6 +111,7 @@ namespace demo {
       [[nodiscard]] tessera::ui::StateSnapshot snapshot_state() const;
       void handler_1(const tessera::ui::ClickEvent& event);
       void handler_2(const tessera::ui::TextChangeEvent& e);
+      void handler_3(const tessera::ui::ClickEvent& event);
       void on_click(const tessera::ui::ClickEvent& event);
       void sync();
       void sync_cleanup();

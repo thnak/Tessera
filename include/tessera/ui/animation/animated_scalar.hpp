@@ -3,6 +3,9 @@
 #pragma once
 
 #include "tessera/ui/animation/easing.hpp"
+#include "tessera/ui/animation/spring.hpp"
+
+#include <optional>
 
 namespace tessera::ui::animation {
 
@@ -12,6 +15,9 @@ struct ScalarOptions {
     double duration_s = 0.2;
     Easing easing = Easing{EasingKind::CubicBezier, 0.0f, 0.0f, 0.58f, 1.0f};
     bool animate = true;
+    // A spring driver instead of the timed tween (`duration_s` and `easing` are then unused). The
+    // value overshoots and settles by physics, and a retarget mid-flight keeps its velocity.
+    std::optional<SpringConfig> spring;
 };
 
 // The scalar behind `useAnimatedValue` (docs/design/animation.md section 6): a number a component
@@ -52,6 +58,8 @@ private:
     double elapsed_s_ = 0.0;
     double duration_s_ = 0.0;
     Easing easing_{};
+    Spring spring_;
+    bool spring_mode_ = false;
     bool active_ = false;
     bool reduced_motion_ = false;
 };

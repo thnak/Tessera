@@ -374,6 +374,23 @@ namespace demo {
       apply_state();
     }
     
+    void Sample::handler_3(const tessera::ui::ClickEvent& event) {
+      (void)event;
+      {
+      tessera::ui::animation::ScalarOptions options;
+      options.spring = tessera::ui::animation::SpringConfig{};
+      options.spring->stiffness = static_cast<float>(300.0);
+      options.spring->damping = static_cast<float>(12.0);
+      options.spring->mass = static_cast<float>(1.0);
+      anim_opacity_scalar_.set(static_cast<double>(0.25), options);
+      anim_opacity_ = anim_opacity_scalar_.value();
+      if (anim_opacity_scalar_.active()) {
+      schedule_update();
+      }
+      }
+      apply_state();
+    }
+    
     void Sample::on_click(const tessera::ui::ClickEvent& event) {
       // [DEVELOPER_LOGIC_START: bind::on_click]
         // TODO(tessera-codegen): implement the developer body for bind::on_click.
