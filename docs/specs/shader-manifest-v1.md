@@ -30,12 +30,16 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
 
 ## 2. Schema
 
+The authored manifest `tools/shaders/manifest.json` is the canonical example (it is validated by
+`tessera_shader_manifest_check` before every `glslc` rule, section 5). Its `batched2d` entry:
+
 ```json
 {
   "manifestVersion": 1,
   "shaders": [
     {
       "name": "batched2d",
+      "kind": "element",
       "stages": ["vertex", "fragment"],
       "entry": { "vertex": "main", "fragment": "main" },
       "sources": {
@@ -52,27 +56,40 @@ Generated SPIR-V/WGSL is build output; never commit `.spv`.
         { "location": 6, "format": "float", "semantic": "mode" }
       ],
       "bindings": [
-        { "group": 0, "binding": 0, "type": "uniform_buffer", "name": "push" },
-        { "group": 0, "binding": 1, "type": "sampler", "name": "samp" },
-        { "group": 0, "binding": 2, "type": "sampled_texture", "name": "tex" }
+        { "group": 0, "binding": 0, "type": "uniform_buffer", "name": "pc" },
+        { "group": 0, "binding": 1, "type": "sampled_texture", "name": "u_texture" },
+        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" }
       ],
       "pushConstants": {
-        "size": 16,
+        "size": 112,
         "fields": [
-          { "name": "viewport_width", "type": "float", "offset": 0 },
-          { "name": "viewport_height", "type": "float", "offset": 4 },
+          { "name": "viewport", "type": "float2", "offset": 0 },
           { "name": "aa_radius", "type": "float", "offset": 8 },
-          { "name": "pad", "type": "float", "offset": 12 }
+          { "name": "clip_count", "type": "uint", "offset": 12 },
+          { "name": "clips[0].rect", "type": "float4", "offset": 16 },
+          { "name": "clips[0].radii", "type": "float4", "offset": 32 },
+          { "name": "clips[1].rect", "type": "float4", "offset": 48 },
+          { "name": "clips[1].radii", "type": "float4", "offset": 64 },
+          { "name": "clips[2].rect", "type": "float4", "offset": 80 },
+          { "name": "clips[2].radii", "type": "float4", "offset": 96 }
         ]
       },
       "tests": [
-        { "name": "solid_quad", "golden": "tests/golden/gpu/shaders/batched2d_solid.png" },
-        { "name": "sdf_rounded", "golden": "tests/golden/gpu/shaders/batched2d_sdf.png" }
+        { "name": "dashboard_smoke" },
+        { "name": "dashboard", "golden": "tests/golden/baseline/batched2d/dashboard.png" },
+        { "name": "dashboard_shapes",
+          "golden": "tests/golden/baseline/batched2d/dashboard_shapes.png" }
       ]
     }
   ]
 }
 ```
+
+The entry records the portable interface, not one backend's descriptor layout: `pushConstants` has
+no array field type, so the three Vulkan clip slots are written as their six `float4` members, and
+the Vulkan fragment shader's combined `sampler2D` at binding 0 is recorded as the portable
+sampled-texture/sampler split at bindings 1 and 2 (section 3, section 8).
+
 
 ## 3. Fields
 
@@ -191,6 +208,14 @@ manifest.json
   it with `compute_stage_unsupported` until a core compute consumer exists (section 9).
 - Reflection for WGSL in the browser build.
 - Shader variant matrix (quality/power modes).
+- Per-backend entry names. The schema has one `entry` map per stage, but the batched2d WGSL twin
+  exports `vs_main`/`fs_main` while the Vulkan GLSL exports `main`; the authored manifest records
+  the GLSL interface and the WebGPU registry keeps its explicit names. A real per-backend entry
+  name (or a rename of the WGSL functions) is a schema decision, not a data fix.
+- Literal Vulkan descriptor layout. The default Vulkan fragment shader declares a combined
+  `sampler2D` at binding 0, which the binding-type enum cannot express; the manifest records the
+  portable split plus the Vulkan push block (section 2). A backend-specific descriptor section
+  would be needed to validate a literal Vulkan layout.
 
 ## 9. Validation
 
