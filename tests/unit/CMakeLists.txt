@@ -1717,3 +1717,10 @@ add_executable(ir_ids_tests
 target_link_libraries(ir_ids_tests PRIVATE tessera_ir_ids)
 
 add_test(NAME ir_ids COMMAND ir_ids_tests)
+
+add_executable(animation_event_tests
+    animation_event_tests.cpp)
+
+target_link_libraries(animation_event_tests PRIVATE tessera_animation)
+
+add_test(NAME animation_event COMMAND animation_event_tests)

@@ -229,6 +229,26 @@ guarantees:
 Callback order follows finished-entry order. Each callback receives the id that finished. Do not
 destroy the runtime from inside a callback; use `clear()` or `stop` instead.
 
+### Completion events (animationend / transitionend)
+
+`AnimationInput::on_complete` runs inside `tick`. Host and app code should instead register an
+`AnimationEventListener` with `add_event_listener` (remove with `remove_event_listener`). `tick`
+only queues an `AnimationEvent` for each naturally finished entry (`id`, `target`, `kind`,
+`name`, `property`, `elapsed`); nothing is invoked from the tick loop's mutation.
+`FramePipeline::tick` calls `dispatch_events()` after style/dirty collection, and requests a frame
+when a listener left animations running.
+
+- `name` is the `@keyframes` name for `AnimationKind::Animation` and the property for
+  `AnimationKind::Transition` (set by `start_transition*`); `elapsed` is the active time
+  (`duration * iterations`, delay excluded, the reduced-motion clamped value when clamped).
+- Events fire once, in finished-entry order. `stop*`, `clear` and supersession (same
+  target/property transition, same name animation) never produce an event, because the entry
+  never finishes; an event already queued by a finished entry still dispatches.
+- Reduced motion clamps timing at start, so a clamped animation still fires.
+- Dispatch swaps the queue out and snapshots the listeners, so a listener may start, stop or
+  restart animations and add/remove listeners; a listener removed earlier in the same dispatch
+  is skipped. New animations are ticked next frame.
+
 ## 13. Overlay and dirty domains
 
 `apply_animation_result(style, result, target)` applies samples for one target. Later declarations
@@ -257,6 +277,7 @@ The tick result already contains the union of dirty domains from the post-callba
 | `animation_loop` | frame requests for active/finishing work, sleep for paused/fill/idle |
 | `animation_callback` | callbacks see fills, clear/stop wins, same-name/property supersedes |
 | `animation_tick_reentrancy` | post-callback samples and dirty domains |
+| `animation_event` | queued/dispatched end events, no stop/supersede events, reduced motion, reentrant listeners |
 | `animation_reduced_motion` | opacity clamp, instant non-opacity, spring snap |
 | `animation_pipeline` | parse -> lookup -> start -> tick -> overlay |
 | `animation_style` | longhands, shorthand fallback, paused starts, invalid input |
