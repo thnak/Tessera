@@ -130,6 +130,13 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
         if (action.kind == ActionKind::AnimSet && !action.easing.empty()) {
             json.set("easing", JsonValue::string(action.easing));
         }
+        if (action.kind == ActionKind::AnimSet && action.spring.has_value()) {
+            JsonValue spring = JsonValue::object();
+            spring.set("stiffness", JsonValue::number(action.spring->stiffness));
+            spring.set("damping", JsonValue::number(action.spring->damping));
+            spring.set("mass", JsonValue::number(action.spring->mass));
+            json.set("spring", std::move(spring));
+        }
         list.push(std::move(json));
     }
     return list;

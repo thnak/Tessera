@@ -103,6 +103,8 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Generated C++ owns the `AnimationController`; the component reads the sampled value.
 - Setting the value starts/retargets the animation; `set(value, { animate: false })` snaps. `set(value, { duration, easing })`
   carries literal timing through the IR (`animSet.durationMs`/`easing`); without it the default is 200 ms `ease-out`.
+  `set(value, { spring: true | { stiffness, damping, mass } })` carries a literal spring (`animSet.spring`, exclusive with
+  duration/easing); codegen wiring of springs is separate.
 - Animated values can drive style properties, transforms, or chart data.
 - Implemented: `ui::animation::AnimatedScalar` (`include/tessera/ui/animation/animated_scalar.hpp`) is a clock-free scalar
   the owner ticks with the frame delta. `set(v, {duration, easing, animate})` retargets from the current value (no jump),

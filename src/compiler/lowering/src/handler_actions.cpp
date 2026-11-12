@@ -29,14 +29,57 @@ const rules::Symbol* state_for_setter(const rules::ComponentAnalysis& analysis,
     return nullptr;
 }
 
+// The `spring` option: `true` (all defaults) or an object literal of optional number-literal
+// `stiffness`, `damping` and `mass`. Ranges are the IR validator's job.
+bool spring_option(const jsx::Expr& value, ir::SpringTiming& spring) {
+    if (value.kind == jsx::ExprKind::Boolean) {
+        return value.boolean;
+    }
+    if (value.kind != jsx::ExprKind::Object) {
+        return false;
+    }
+    bool seen_stiffness = false;
+    bool seen_damping = false;
+    bool seen_mass = false;
+    for (const jsx::ObjectProperty& property : value.properties) {
+        const jsx::Expr* number = property.value.get();
+        if (number == nullptr || number->kind != jsx::ExprKind::Number ||
+            !std::isfinite(number->number)) {
+            return false;
+        }
+        bool* seen = nullptr;
+        double* field = nullptr;
+        if (property.key == "stiffness") {
+            seen = &seen_stiffness;
+            field = &spring.stiffness;
+        } else if (property.key == "damping") {
+            seen = &seen_damping;
+            field = &spring.damping;
+        } else if (property.key == "mass") {
+            seen = &seen_mass;
+            field = &spring.mass;
+        } else {
+            return false;
+        }
+        if (*seen) {
+            return false;
+        }
+        *seen = true;
+        *field = number->number;
+    }
+    return true;
+}
+
 // The options of an animated-value setter (jsx-subset-v1.md section 7): `animate` (boolean),
-// `duration` (a non-negative number literal, milliseconds) and `easing` (a string literal). They
+// `duration` (a non-negative number literal, milliseconds), `easing` (a string literal) and
+// `spring` (`true` or an object of number literals). They
 // are literals so the IR stays static; anything else is rejected rather than ignored. Whether the
 // easing text is valid and whether the combination makes sense is the IR validator's job.
 bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& action) {
     constexpr const char* kShape =
-        "the options of an animated-value setter are `{ animate, duration, easing }` with a "
-        "boolean, a non-negative number literal (ms) and a string literal";
+        "the options of an animated-value setter are `{ animate, duration, easing, spring }` with "
+        "a boolean, a non-negative number literal (ms), a string literal and `true` or an "
+        "object literal of `stiffness`, `damping` and `mass` number literals";
     if (options.kind != jsx::ExprKind::Object) {
         fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, options.span);
         return false;
@@ -44,6 +87,7 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
     bool seen_animate = false;
     bool seen_duration = false;
     bool seen_easing = false;
+    bool seen_spring = false;
     for (const jsx::ObjectProperty& property : options.properties) {
         const jsx::Expr* value = property.value.get();
         if (value == nullptr) {
@@ -53,6 +97,7 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
         const bool is_animate = property.key == "animate" && !seen_animate;
         const bool is_duration = property.key == "duration" && !seen_duration;
         const bool is_easing = property.key == "easing" && !seen_easing;
+        const bool is_spring = property.key == "spring" && !seen_spring;
         if (is_animate && value->kind == jsx::ExprKind::Boolean) {
             seen_animate = true;
             action.animate = value->boolean;
@@ -63,6 +108,8 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
         } else if (is_easing && value->kind == jsx::ExprKind::String) {
             seen_easing = true;
             action.easing = value->text;
+        } else if (is_spring && spring_option(*value, action.spring.emplace())) {
+            seen_spring = true;
         } else {
             fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, value->span);
             return false;
@@ -97,12 +144,12 @@ std::optional<ir::Action> lower_setter_call(HookState& state, const jsx::Expr& c
 
 std::optional<ir::Action> lower_animated_set(HookState& state, const jsx::Expr& call,
                                              const jsx::Expr& callee, const ComponentNames& names) {
-    // `v.set(value)` or `v.set(value, { animate, duration, easing })`.
+    // `v.set(value)` or `v.set(value, { animate, duration, easing, spring })`.
     if (call.operands.size() < 2 || call.operands.size() > 3 || !callee.operands[0]) {
-        fail_hook(
-            state, "TESSERA_IR_UNSUPPORTED",
-            "an animated-value setter takes a value and optional `{ animate, duration, easing }`",
-            call.span, kBodyRule);
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                  "an animated-value setter takes a value and optional `{ animate, duration, "
+                  "easing, spring }`",
+                  call.span, kBodyRule);
         return std::nullopt;
     }
     const jsx::Expr& receiver = *callee.operands[0];

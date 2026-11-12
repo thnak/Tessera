@@ -199,6 +199,50 @@ void test_references() {
     expect(
         "timing on a plain set",
         [](auto& m) { list(m).handlers[0].actions[0].duration_ms = 100.0; }, kAnimation);
+
+    const auto spring = [](auto& m, ir::SpringTiming timing) {
+        ir::Action& action = list(m).handlers[0].actions[1];
+        action.animate = true;
+        action.spring = timing;
+    };
+    expect("animSet spring is valid", [&](auto& m) { spring(m, {300.0, 0.0, 2.0}); }, "");
+    expect(
+        "spring with a duration",
+        [&](auto& m) {
+            spring(m, {});
+            list(m).handlers[0].actions[1].duration_ms = 100.0;
+        },
+        kAnimation);
+    expect(
+        "spring with an easing",
+        [&](auto& m) {
+            spring(m, {});
+            list(m).handlers[0].actions[1].easing = "linear";
+        },
+        kAnimation);
+    expect(
+        "spring with animate false",
+        [&](auto& m) {
+            spring(m, {});
+            list(m).handlers[0].actions[1].animate = false;
+        },
+        kAnimation);
+    expect(
+        "spring on a plain set",
+        [](auto& m) { list(m).handlers[0].actions[0].spring = ir::SpringTiming{}; }, kAnimation);
+    expect("spring stiffness zero", [&](auto& m) { spring(m, {0.0, 20.0, 1.0}); }, kAnimation);
+    expect(
+        "spring stiffness too large", [&](auto& m) { spring(m, {100001.0, 20.0, 1.0}); },
+        kAnimation);
+    expect("spring damping negative", [&](auto& m) { spring(m, {180.0, -1.0, 1.0}); }, kAnimation);
+    expect(
+        "spring damping too large", [&](auto& m) { spring(m, {180.0, 10001.0, 1.0}); }, kAnimation);
+    expect("spring mass zero", [&](auto& m) { spring(m, {180.0, 20.0, 0.0}); }, kAnimation);
+    expect("spring mass too large", [&](auto& m) { spring(m, {180.0, 20.0, 1001.0}); }, kAnimation);
+    expect(
+        "spring stiffness not finite",
+        [&](auto& m) { spring(m, {std::numeric_limits<double>::infinity(), 20.0, 1.0}); },
+        kAnimation);
 }
 
 void test_events_and_bindings() {

@@ -164,6 +164,11 @@ inline std::string action_text(const ir::Action& action) {
         if (!action.easing.empty()) {
             out += " easing=" + action.easing;
         }
+        if (action.spring.has_value()) {
+            out += " spring=" + std::to_string(action.spring->stiffness) + "/" +
+                   std::to_string(action.spring->damping) + "/" +
+                   std::to_string(action.spring->mass);
+        }
     }
     return out;
 }

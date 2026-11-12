@@ -328,6 +328,31 @@ void test_animated_set_timing() {
              "animate:false stays valid");
 }
 
+void test_animated_set_spring() {
+    const auto fixture = parse(
+        component("  const v = useAnimatedValue(0);\n"
+                  "  const a = () => { v.set(1, { spring: true }); };\n"
+                  "  const b = () => { v.set(2, { spring: { stiffness: 300, mass: 2 } }); };\n"
+                  "  const c = () => { v.set(3, { spring: {} }); };\n"));
+    auto result = lower(*fixture);
+    check(result.has_value(), "spring options lower: " + describe_errors(*fixture, result));
+    if (!result || result->handlers.size() != 3) {
+        return;
+    }
+    check_eq(action_text(result->handlers[0].actions[0]),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":1} animate "
+             "spring=180.000000/20.000000/1.000000",
+             "spring:true carries the defaults");
+    check_eq(action_text(result->handlers[1].actions[0]),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":2} animate "
+             "spring=300.000000/20.000000/2.000000",
+             "partial keys keep the other defaults");
+    check_eq(action_text(result->handlers[2].actions[0]),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":3} animate "
+             "spring=180.000000/20.000000/1.000000",
+             "an empty spring object is all defaults");
+}
+
 } // namespace
 
 int main() {
@@ -340,5 +365,6 @@ int main() {
     test_native_preview_bodies();
     test_empty_component();
     test_animated_set_timing();
+    test_animated_set_spring();
     return finish("lowering hooks tests");
 }

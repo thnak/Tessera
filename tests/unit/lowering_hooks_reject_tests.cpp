@@ -152,9 +152,20 @@ void test_animated_set_options_are_bounded() {
 
 // Timing options must be literals of the right type, each given once.
 void test_animated_set_timing_is_literal() {
-    const char* const bad[] = {
-        "{ duration: -5 }",  "{ duration: \"fast\" }",       "{ duration: speed }", "{ easing: 3 }",
-        "{ easing: curve }", "{ duration: 1, duration: 2 }", "{ animate: 1 }",      "{ other: 1 }"};
+    const char* const bad[] = {"{ duration: -5 }",
+                               "{ duration: \"fast\" }",
+                               "{ duration: speed }",
+                               "{ easing: 3 }",
+                               "{ easing: curve }",
+                               "{ duration: 1, duration: 2 }",
+                               "{ animate: 1 }",
+                               "{ other: 1 }",
+                               "{ spring: false }",
+                               "{ spring: { unknown: 1 } }",
+                               "{ spring: { stiffness: x } }",
+                               "{ spring: 3 }",
+                               "{ spring: { mass: 1, mass: 2 } }",
+                               "{ spring: true, spring: true }"};
     for (const char* options : bad) {
         const auto fixture = parse(
             component("  const v = useAnimatedValue(1.0);\n",

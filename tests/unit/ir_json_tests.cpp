@@ -186,6 +186,25 @@ void test_new_v1_fields() {
               timed.find("\"easing\": \"ease-out\"") != std::string::npos,
           "animSet timing is written");
     check(timed.find("99") == std::string::npos, "a plain set never writes timing");
+    check(timed.find("\"spring\"") == std::string::npos, "spring is omitted when absent");
+
+    // A spring is written with all three fields; a plain set never writes one.
+    module.components[0].handlers[0].actions[1].spring = ir::SpringTiming{300.0, 20.0, 2.0};
+    module.components[0].handlers[0].actions[0].spring = ir::SpringTiming{7.0, 7.0, 7.0};
+    const std::string sprung = ir::write_ir_json(module);
+    const std::size_t easing_at = sprung.find("\"easing\"");
+    const std::size_t spring_at = sprung.find("\"spring\"");
+    const std::size_t stiffness_at = sprung.find("\"stiffness\": 300");
+    const std::size_t damping_at = sprung.find("\"damping\": 20");
+    const std::size_t mass_at = sprung.find("\"mass\": 2");
+    // The writer sorts object keys, so the order is alphabetical and deterministic.
+    check(easing_at < spring_at && spring_at < damping_at && damping_at < mass_at &&
+              mass_at < stiffness_at && stiffness_at != std::string::npos,
+          "spring is written with all three fields, in sorted key order");
+    check(sprung.find("\"spring\"", spring_at + 1) == std::string::npos,
+          "a plain set never writes a spring");
+    module.components[0].handlers[0].actions[1].spring.reset();
+    module.components[0].handlers[0].actions[0].spring.reset();
 
     // `index` appears only when the loop has one.
     auto& row = module.components[0].root.children[0];

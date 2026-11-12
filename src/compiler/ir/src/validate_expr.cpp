@@ -201,22 +201,47 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
     }
 }
 
+bool in_range(double value, double low, double high, bool low_inclusive) {
+    return std::isfinite(value) && value <= high && (low_inclusive ? value >= low : value > low);
+}
+
+void validate_spring(ValidationContext& context, const SpringTiming& spring, const Action& action,
+                     const SourceSpan& where) {
+    if (action.duration_ms.has_value() || !action.easing.empty()) {
+        context.report("TESSERA_IR_ANIMATION", "a spring cannot take a duration or easing", where);
+    }
+    if (!in_range(spring.stiffness, 0.0, 100000.0, false)) {
+        context.report("TESSERA_IR_ANIMATION", "spring stiffness must be in (0, 100000]", where);
+    }
+    if (!in_range(spring.damping, 0.0, 10000.0, true)) {
+        context.report("TESSERA_IR_ANIMATION", "spring damping must be in [0, 10000]", where);
+    }
+    if (!in_range(spring.mass, 0.0, 1000.0, false)) {
+        context.report("TESSERA_IR_ANIMATION", "spring mass must be in (0, 1000]", where);
+    }
+}
+
 // Timing options exist on `animSet` only, are meaningless when `animate` is false, and are bounded
 // so a generated tween always finishes (ir-v1.md section 2.1).
 void validate_animation_options(ValidationContext& context, const Action& action,
                                 const SourceSpan& where) {
-    const bool has_timing = action.duration_ms.has_value() || !action.easing.empty();
+    const bool has_timing =
+        action.duration_ms.has_value() || !action.easing.empty() || action.spring.has_value();
     if (!has_timing) {
         return;
     }
     if (action.kind != ActionKind::AnimSet) {
-        context.report("TESSERA_IR_ANIMATION", "only an `animSet` action takes duration or easing",
-                       where);
+        context.report("TESSERA_IR_ANIMATION",
+                       "only an `animSet` action takes duration, easing or spring", where);
         return;
     }
     if (!action.animate) {
         context.report("TESSERA_IR_ANIMATION",
-                       "`animate: false` snaps, so it cannot take a duration or easing", where);
+                       "`animate: false` snaps, so it cannot take a duration, easing or spring",
+                       where);
+    }
+    if (action.spring.has_value()) {
+        validate_spring(context, *action.spring, action, where);
     }
     if (action.duration_ms.has_value() &&
         (!std::isfinite(*action.duration_ms) || *action.duration_ms < 0.0 ||
