@@ -206,7 +206,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [ ] **B2:** Power: adaptive quality and occluded/background pause — occluded window presents
       nothing (overlaps ADR-050 AF3) — pause landed (`src/app/window_lifecycle.cpp`,
       `tests/gpu/app_window_occluded_tests.cpp`); `pauseWhenOccluded` is wired through
-      `WindowOptions::runtime` (`src/app/window_config.cpp`); still to do: adaptive quality.
+      `WindowOptions::runtime` (`src/app/window_config.cpp`); the adaptive-quality controller
+      `src/runtime/adaptive_quality.cpp` reports a clamped render-scale decision with hysteresis
+      (`tests/unit/adaptive_quality_tests.cpp`), but no render-target consumer reads it yet and
+      the effect/present-cap steps of the design order are still missing.
 - [x] **B2:** Multi-frame sync: timeline semaphores (two frames in flight already work) — smoke
       test validation-clean — `src/rendering/backend/vulkan/src/vulkan_swapchain_present.cpp`,
       `tests/gpu/vulkan_timeline_frame_tests.cpp`.

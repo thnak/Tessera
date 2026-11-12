@@ -14,6 +14,11 @@ add_library(tessera_app STATIC
 target_include_directories(tessera_app PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
+# The adaptive-quality controller is private runtime state (src/runtime/adaptive_quality.hpp, like
+# this module's own window_config.hpp); the host owns it but app code never sees the type.
+target_include_directories(tessera_app PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/runtime)
+
 target_link_libraries(tessera_app PUBLIC
     tessera_frame
     tessera_layout

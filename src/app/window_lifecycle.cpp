@@ -209,6 +209,9 @@ bool WindowHost::Impl::pump_once() {
         return false;
     }
     pacer.present(hal::steady_now_seconds());
+    // Same one-frame adaptive-quality observation as run(): `now` is this frame's start (the
+    // pacer check above returned without waiting), the delta is its CPU cost through present.
+    host->observe_frame_time_ms((hal::steady_now_seconds() - now) * 1000.0);
     host->end_frame();
     loop->clear_render_dirty();
     return stats.presented > presented;

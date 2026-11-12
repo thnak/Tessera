@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/runtime/config.hpp"
+#include "tessera/runtime/diagnostics.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/animation/runtime.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
@@ -32,6 +34,25 @@ class TextMeasurer;
 
 namespace tessera::app {
 
+// The adaptive-quality policy of one host window, a plain mirror of the runtime-config keys
+// (`adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs`) in
+// docs/specs/runtime-config-v1.md sections 3, 5.6 and 5.7. The decision layer itself lives in the
+// runtime library; the host builds it from these fields once, at construction.
+//
+// `render_scale` is the full-quality scale and `min_render_scale` the floor of the adaptive
+// ladder. `target_fps` is the effective present rate used to derive the budget when
+// `frame_budget_ms` is 0 (0 = no budget, so nothing is ever observed as slow).
+struct AdaptiveQualityPolicy {
+    bool adaptive_quality = true;
+    PowerPolicy power_policy = PowerPolicy::Adaptive;
+    float render_scale = 1.0f;
+    float min_render_scale = 0.6f;
+    double frame_budget_ms = 0.0;
+    double target_fps = 60.0;
+
+    [[nodiscard]] bool operator==(const AdaptiveQualityPolicy&) const = default;
+};
+
 // Size and pacing knobs for one window host. Logical width/height are the window's client area in
 // CSS pixels; `dpi_scale` converts them to the physical damage target. The root node is sized from
 // `width`/`height` through host-owned inline style, so the stylesheet cannot resize the window.
@@ -48,6 +69,9 @@ struct HostConfig {
     // generated components' animated values.
     bool reduced_motion = false;
     ui::frame::FramePipelineConfig pipeline{};
+    // Adaptive quality (docs/design/performance.md section 6). The defaults match
+    // RuntimeConfig{}, so a host that never configures it behaves exactly like one that does.
+    AdaptiveQualityPolicy adaptive_quality{};
 };
 
 // What one begin_frame() decided and did. `frame_due` mirrors FramePipeline: paint only when it is
@@ -101,6 +125,27 @@ public:
     // Step 8: clears every dirty domain on the scene after a painted frame. Safe to call after a
     // skipped frame too (nothing is dirty then).
     void end_frame();
+
+    // --- Adaptive quality (docs/design/performance.md section 6) ------------------------------
+    // Feeds one rendered frame's measured CPU time in milliseconds to the deterministic controller
+    // and records the decision in the host's frame diagnostics. The driver calls it once per frame
+    // it actually presented, after the present; a frame that was skipped is not an observation. A
+    // non-finite or non-positive time carries no measurement and is ignored. The call allocates
+    // nothing and is one state-machine step, so it belongs on the frame path.
+    //
+    // What it does NOT do: it never resizes a render target, never changes the damage extent and
+    // never touches paint. The scene is rendered at the window's physical size exactly as before;
+    // `adaptive_quality().render_scale` is a reported decision whose render-target consumer is a
+    // follow-up slice (docs/specs/runtime-config-v1.md section 6.2).
+    void observe_frame_time_ms(double frame_time_ms);
+
+    // The adaptive-quality decision in force (full quality until a policy actually changes it).
+    [[nodiscard]] const runtime::AdaptiveQualitySample& adaptive_quality() const;
+
+    // Frame diagnostics accumulated by this host: the latest adaptive-quality sample plus the
+    // change/downgrade counters. Reset only by constructing a new host; a downgrade stays visible
+    // for the host's lifetime instead of disappearing after one frame.
+    [[nodiscard]] const runtime::FrameDiagnostics& frame_diagnostics() const;
 
     // Cumulative counters of the pipeline-owned per-node paint cache. begin_frame() invalidates the
     // cache whenever it rebuilds the selector tree (`HostFrame::style_rebuilt`, i.e. every frame

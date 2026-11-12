@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 //
 // The window driver's runtime-config mapping (docs/specs/runtime-config-v1.md section 6.2). This
-// slice wires exactly two keys:
+// slice wires three groups of keys:
 //   - `animationInterpolation` -> FramePipelineConfig::interpolation;
-//   - `pauseWhenOccluded`      -> WindowPausePolicy for occluded and minimized windows.
+//   - `pauseWhenOccluded`      -> WindowPausePolicy for occluded and minimized windows;
+//   - the adaptive-quality keys -> AdaptiveQualityPolicy (the controller itself is tested in
+//     adaptive_quality_tests.cpp).
 //
 // The mapping layer is pure, so it is tested without a GPU or a window. The last case drives the
 // mapped FramePipelineConfig through FramePipeline's paint seam: with the key off the painted
@@ -23,7 +25,10 @@
 
 namespace {
 
+using tessera::PowerPolicy;
 using tessera::RuntimeConfig;
+using tessera::app::AdaptiveQualityPolicy;
+using tessera::app::window_adaptive_quality_policy;
 using tessera::app::window_pause_policy;
 using tessera::app::window_pipeline_config;
 using tessera::app::WindowPausePolicy;
@@ -237,6 +242,62 @@ bool mapped_interpolation_reaches_the_paint_seam() {
     return ok;
 }
 
+// --- Adaptive quality policy ----------------------------------------------------------------
+
+bool adaptive_quality_keys_map_to_the_policy() {
+    const AdaptiveQualityPolicy defaults = window_adaptive_quality_policy(RuntimeConfig{});
+    bool ok = expect(defaults == AdaptiveQualityPolicy{},
+                     "the mapped default policy equals AdaptiveQualityPolicy{}");
+    ok = expect(defaults.adaptive_quality, "default adaptiveQuality is on") && ok;
+    ok =
+        expect(defaults.power_policy == PowerPolicy::Adaptive, "default powerPolicy is adaptive") &&
+        ok;
+    ok = expect(defaults.render_scale == 1.0f, "default renderScale is 1") && ok;
+    ok = expect(defaults.min_render_scale == 0.6f, "default minRenderScale is 0.6") && ok;
+    ok = expect(defaults.frame_budget_ms == 0.0, "default frameBudgetMs is 0 (derive)") && ok;
+    ok =
+        expect(defaults.target_fps == 60.0, "an unknown rate uses the documented 60 Hz baseline") &&
+        ok;
+
+    RuntimeConfig runtime;
+    runtime.adaptive_quality = false;
+    runtime.power_policy = PowerPolicy::Benchmark;
+    runtime.render_scale = 2.0f;
+    runtime.min_render_scale = 0.75f;
+    runtime.frame_budget_ms = 8.5;
+    const AdaptiveQualityPolicy explicit_policy = window_adaptive_quality_policy(runtime);
+    ok = expect(!explicit_policy.adaptive_quality, "adaptiveQuality=false is mapped") && ok;
+    ok = expect(explicit_policy.power_policy == PowerPolicy::Benchmark,
+                "powerPolicy is mapped verbatim") &&
+         ok;
+    ok = expect(explicit_policy.render_scale == 2.0f && explicit_policy.min_render_scale == 0.75f,
+                "the scale pair is mapped verbatim") &&
+         ok;
+    ok = expect(explicit_policy.frame_budget_ms == 8.5, "frameBudgetMs is mapped verbatim") && ok;
+
+    // The derived rate: a present cap wins over a requested refresh, which wins over the baseline.
+    RuntimeConfig capped;
+    capped.max_fps = 30;
+    capped.preferred_refresh_rate = 144;
+    ok = expect(window_adaptive_quality_policy(capped).target_fps == 30.0,
+                "maxFps derives the target rate") &&
+         ok;
+    RuntimeConfig preferred;
+    preferred.preferred_refresh_rate = 144;
+    ok = expect(window_adaptive_quality_policy(preferred).target_fps == 144.0,
+                "preferredRefreshRate derives the target rate when maxFps is 0") &&
+         ok;
+
+    // The policy must not move any other mapped field.
+    const FramePipelineConfig enabled_pipeline = window_pipeline_config(RuntimeConfig{});
+    const FramePipelineConfig other_keys = window_pipeline_config(runtime);
+    ok = expect(enabled_pipeline.interpolation == other_keys.interpolation &&
+                    enabled_pipeline.paint_cache == other_keys.paint_cache,
+                "the adaptive-quality keys change no pipeline field") &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -244,6 +305,7 @@ int main() {
     ok = defaults_match_runtime_config_defaults() && ok;
     ok = interpolation_key_maps_to_the_pipeline_config() && ok;
     ok = pause_key_maps_to_the_lifecycle_policy() && ok;
+    ok = adaptive_quality_keys_map_to_the_policy() && ok;
     ok = mapped_interpolation_reaches_the_paint_seam() && ok;
     if (!ok) {
         std::cerr << "window_config: FAILED\n";

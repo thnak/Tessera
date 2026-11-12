@@ -198,6 +198,38 @@ Never:
 
 All adaptive changes must be reversible and visible in diagnostics.
 
+### 6.1 Implemented decision layer (step 2 reports only)
+
+The decision layer is implemented. **It does not scale pixels yet**: `renderScale` still has no
+render-target consumer, so a downgrade changes a reported number, never the resolution
+([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 6.2). Step 1 (effects) and step 3
+(present cap) are not implemented either; step 5 (report) is.
+
+`src/runtime/adaptive_quality.hpp` is a pure state machine fed one frame observation at a time
+(frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale` and
+`frameBudgetMs` fields). It is deterministic — no clock, no RNG, no locale, no allocation, not even
+at construction (the type is trivially copyable) — so an observation sequence always yields the same
+decision sequence.
+
+| Constant | Value | Why |
+|---|---|---|
+| Downgrade run | 4 consecutive missed budgets | one slow frame is noise; four at 60 Hz is ~66 ms of sustained overrun |
+| Upgrade run | 12 consecutive met budgets | recovery is deliberately slower than the downgrade, so a borderline machine does not ping-pong |
+| Cooldown | 8 observed frames after a change | no two changes within it: at most one step per ~133 ms at 60 Hz |
+| Ladder | 4 steps from `renderScale` (step 0) to `minRenderScale` (step 4) | bounded, evenly spaced steps; no fractional creep |
+
+Each change moves exactly one ladder step, clamped to `[minRenderScale, renderScale]`;
+`minRenderScale == renderScale` leaves no room to move, so it never changes. `adaptiveQuality=false`
+and `powerPolicy=benchmark` disable the controller completely. Cooldown frames are not evidence for
+the next run, so a sustained overload waits out the cooldown and then a full downgrade run, and an
+alternating miss/met sequence changes nothing.
+
+The frame path feeds one observation per presented frame: `AppHost::observe_frame_time_ms`, called
+by `WindowHost` with the frame's CPU cost through present (GPU timestamps are section 7's
+follow-up). A change is recorded in `runtime::FrameDiagnostics` (`adaptive_quality()`,
+`adaptive_quality_changes()`, `adaptive_quality_downgrades()`), so a downgrade is visible without
+sampling frame time, and it survives `AppHost::resize()`, which only re-creates the pipeline.
+
 ## 7. GPU utilization and platform metrics
 
 - Vulkan: timestamp queries, `VK_EXT_calibrated_timestamps`, present wait.

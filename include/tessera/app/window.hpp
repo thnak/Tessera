@@ -53,11 +53,12 @@ struct WindowOptions {
     // 12). Null keeps the HAL monotonic clock; tests inject a ManualClock so blink phases are
     // deterministic. It is the caret tick clock only: frame dt and pacing stay on the system clock.
     runtime::Clock* clock = nullptr;
-    // The project's `runtime` object (docs/specs/runtime-config-v1.md). Only
-    // `animationInterpolation` (pipeline paint interpolation) and `pauseWhenOccluded`
-    // (occluded/minimized pause) are consumed in this slice; section 6.2 lists the keys still
-    // unwired. The defaults match RuntimeConfig{} exactly, so a caller that does not set it keeps
-    // today's behaviour: pause on occlusion and interpolation both on.
+    // The project's `runtime` object (docs/specs/runtime-config-v1.md). Consumed in this slice:
+    // `animationInterpolation` (pipeline paint interpolation), `pauseWhenOccluded`
+    // (occluded/minimized pause) and the adaptive-quality keys `adaptiveQuality`, `powerPolicy`,
+    // `renderScale`, `minRenderScale` and `frameBudgetMs` (the decision layer; the render target is
+    // not resized yet). Section 6.2 lists the keys still unwired. The defaults match
+    // RuntimeConfig{} exactly, so a caller that does not set it keeps today's behaviour.
     tessera::RuntimeConfig runtime;
 };
 
