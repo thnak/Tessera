@@ -35,6 +35,12 @@ AdaptiveQualityController::AdaptiveQualityController(const AdaptiveQualityConfig
     if (!std::isfinite(config_.target_fps) || config_.target_fps <= 0.0) {
         config_.target_fps = 0.0;
     }
+    if (!std::isfinite(config_.max_fps) || config_.max_fps < 0.0) {
+        config_.max_fps = 0.0;
+    }
+    if (!std::isfinite(config_.refresh_hz) || config_.refresh_hz < 0.0) {
+        config_.refresh_hz = 0.0;
+    }
     budget_ms_ = config_.frame_budget_ms > 0.0
                      ? config_.frame_budget_ms
                      : (config_.target_fps > 0.0 ? 1000.0 / config_.target_fps : 0.0);
@@ -43,7 +49,8 @@ AdaptiveQualityController::AdaptiveQualityController(const AdaptiveQualityConfig
     // equal values valid).
     active_ = config_.adaptive_quality && config_.power_policy != PowerPolicy::Benchmark &&
               config_.min_render_scale < config_.render_scale && budget_ms_ > 0.0;
-    decision_ = AdaptiveQualitySample{config_.render_scale, 0, false, false};
+    decision_ =
+        AdaptiveQualitySample{config_.render_scale, 0, false, false, present_cap_for_step(0)};
 }
 
 AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) noexcept {
@@ -70,6 +77,7 @@ AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) n
             cooldown_ = kAdaptiveQualityCooldownFrames;
             decision_.render_scale = scale_for_step(step_);
             decision_.quality_step = step_;
+            decision_.present_cap_hz = present_cap_for_step(step_);
             decision_.changed = true;
             decision_.downgrade = true;
         }
@@ -83,6 +91,9 @@ AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) n
         cooldown_ = kAdaptiveQualityCooldownFrames;
         decision_.render_scale = scale_for_step(step_);
         decision_.quality_step = step_;
+        // An upgrade restores the previous step's cap, which is the same pure function of the step:
+        // no separate "previous divisor" state can drift from the ladder.
+        decision_.present_cap_hz = present_cap_for_step(step_);
         decision_.changed = true;
     }
     return decision_;
@@ -93,7 +104,8 @@ void AdaptiveQualityController::reset() noexcept {
     misses_ = 0;
     hits_ = 0;
     cooldown_ = 0;
-    decision_ = AdaptiveQualitySample{config_.render_scale, 0, false, false};
+    decision_ =
+        AdaptiveQualitySample{config_.render_scale, 0, false, false, present_cap_for_step(0)};
 }
 
 float AdaptiveQualityController::scale_for_step(std::uint32_t step) const noexcept {

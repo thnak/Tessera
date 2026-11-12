@@ -11,6 +11,7 @@ add_library(tessera_runtime STATIC
     fixed_step.cpp
     frame_pacer.cpp
     io_executor.cpp
+    present_cap.cpp
     runtime_loop.cpp
     task.cpp
     worker_executor.cpp

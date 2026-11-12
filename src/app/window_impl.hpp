@@ -86,6 +86,14 @@ struct WindowHost::Impl {
     // One bounded iteration shared by pump_once(): events -> input -> pause -> tick -> one frame.
     bool pump_once();
 
+    // --- adaptive present cap (docs/design/performance.md section 6, step 3) ------------------
+    // Applies the controller's decided present cap to the pacer through the pacer's existing
+    // rate-change path (FramePacer::update), which is the same mechanism a scripted refresh change
+    // uses: the new interval takes effect at the next frame boundary, with no blocking wait and no
+    // swapchain recreation. Called after each frame observation; a cap that did not move is a no-op
+    // so the running deadline is not resynced for nothing.
+    void apply_present_cap(double now_seconds);
+
     // --- adaptive render scale (docs/design/performance.md section 6.1) ----------------------
     // Ensures the offscreen target `slot` renders into when the controller's renderScale is below
     // full quality is the requested extent. One target per frame slot, because a target may still
@@ -156,6 +164,10 @@ struct WindowHost::Impl {
     std::unique_ptr<runtime::RuntimeLoop> loop = std::make_unique<runtime::RuntimeLoop>(clock);
     // Present-rate cap and deadline source for the idle paths (0 = uncapped).
     runtime::FramePacer pacer;
+    // The cap the pacer is currently applying (0 = uncapped). Starts at the configured `maxFps`,
+    // which is what the pacer was constructed with, so the first observation only calls update()
+    // when the controller actually moved the cap.
+    double applied_present_cap_hz = 0.0;
     std::unique_ptr<AppHost> host;
     // Last OS reduced-motion value pushed to `host`; a SystemSettingsChanged event re-queries it.
     MotionPreference motion;

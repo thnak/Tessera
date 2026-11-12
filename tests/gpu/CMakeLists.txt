@@ -530,6 +530,21 @@ if (TARGET tessera_app_window)
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # The adaptive present cap on the real window path (docs/design/performance.md section 6, step
+    # 3): a downgrade lowers the pacer's cap to the next refresh divisor, so the effective present
+    # interval doubles at the next frame boundary and returns on upgrade - through the pacer's
+    # existing rate-change path, with no swapchain recreation.
+    add_executable(app_window_present_cap_tests
+        app_window_present_cap_tests.cpp)
+    target_compile_definitions(app_window_present_cap_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_present_cap_tests PRIVATE
+        tessera_app_window)
+    add_test(NAME app_window_present_cap COMMAND app_window_present_cap_tests)
+    set_tests_properties(app_window_present_cap PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # Window-path input: real hidden window + swapchain, normalized events posted through
     # WindowHost::post_input, generated click/typing handlers. The generated demo is host-only.
     if (TARGET tessera_compiler_demo)

@@ -45,6 +45,12 @@ struct WindowOptions {
     // A non-zero cap makes the loop park on the pacer deadline instead of presenting early.
     // Negative or non-finite values are rejected by the WindowHost constructor.
     double max_fps = 0.0;
+    // The display refresh the platform reported, in Hz; 0 = unknown. The HAL has no refresh query
+    // yet, so a caller that knows it (a platform host, a test) supplies it. It is the divisor base
+    // of the adaptive present cap (docs/design/performance.md section 6, step 3) and the ceiling
+    // that cap may never exceed; with 0 there is no divisor, so the adaptive cap stays at `max_fps`
+    // and the pacer keeps its documented deadline pacing (runtime-config-v1.md section 5.2).
+    double refresh_hz = 0.0;
     std::string font_path;
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
     // Creates the backend device with the Khronos validation layer (and synchronization validation)
@@ -117,6 +123,14 @@ struct WindowFrameStats {
     // frames that stayed at full quality because the backend refused the extra target.
     std::uint32_t scaled_frames = 0;
     std::uint32_t scale_fallbacks = 0;
+    // Adaptive present cap (docs/design/performance.md section 6, step 3): the cap the pacer is
+    // currently applying (0 = uncapped), the present interval that cap derives (0 = present when
+    // ready), and how many times a quality change moved the cap. The cap is applied through the
+    // pacer's existing rate-change path, so a downgrade takes effect at the next frame boundary
+    // without a blocking wait or a swapchain recreation.
+    double present_cap_hz = 0.0;
+    double present_interval_seconds = 0.0;
+    std::uint32_t present_cap_changes = 0;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the

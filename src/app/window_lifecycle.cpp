@@ -74,6 +74,22 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
     return false;
 }
 
+// Step 3 of the design order: the controller's decided present cap reaches the pacer through the
+// pacer's existing rate-change path. `update()` resyncs the next deadline to one new interval after
+// `now_seconds`, so the change lands at the next frame boundary - no burst of catch-up frames, no
+// stall at the old cadence, no blocking wait and no swapchain recreation. A cap that did not move
+// skips the update() (the running deadline stays untouched) but still refreshes the report.
+void WindowHost::Impl::apply_present_cap(double now_seconds) {
+    const double decided = host->adaptive_quality().present_cap_hz;
+    if (decided != applied_present_cap_hz) {
+        applied_present_cap_hz = decided;
+        pacer.update(runtime::FramePacerConfig{decided, options.refresh_hz, false}, now_seconds);
+        ++stats.present_cap_changes;
+    }
+    stats.present_cap_hz = decided;
+    stats.present_interval_seconds = pacer.interval_seconds();
+}
+
 void WindowHost::Impl::pump_input() {
     const ui::InputPumpStats pumped = pump.pump(root, *loop);
     stats.input_events += static_cast<std::uint32_t>(pumped.consumed);
@@ -212,6 +228,9 @@ bool WindowHost::Impl::pump_once() {
     // Same one-frame adaptive-quality observation as run(): `now` is this frame's start (the
     // pacer check above returned without waiting), the delta is its CPU cost through present.
     host->observe_frame_time_ms((hal::steady_now_seconds() - now) * 1000.0);
+    // Step 3: the decided present cap reaches the pacer at this frame boundary (single-iteration
+    // twin of the call in run()).
+    apply_present_cap(hal::steady_now_seconds());
     host->end_frame();
     loop->clear_render_dirty();
     return stats.presented > presented;

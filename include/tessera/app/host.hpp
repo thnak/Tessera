@@ -42,6 +42,11 @@ namespace tessera::app {
 // `render_scale` is the full-quality scale and `min_render_scale` the floor of the adaptive
 // ladder. `target_fps` is the effective present rate used to derive the budget when
 // `frame_budget_ms` is 0 (0 = no budget, so nothing is ever observed as slow).
+//
+// `max_fps` and `refresh_hz` feed the present-cap component (step 3): the cap is the configured
+// `max_fps` at step 0 and the next refresh divisor below the previous step's effective rate after
+// each downgrade. `max_fps` is a hard ceiling, so the adaptive cap can only lower the rate; a
+// `refresh_hz` of 0 (unknown display) leaves the cap at `max_fps` and the pacer on deadlines.
 struct AdaptiveQualityPolicy {
     bool adaptive_quality = true;
     PowerPolicy power_policy = PowerPolicy::Adaptive;
@@ -49,6 +54,8 @@ struct AdaptiveQualityPolicy {
     float min_render_scale = 0.6f;
     double frame_budget_ms = 0.0;
     double target_fps = 60.0;
+    double max_fps = 0.0;
+    double refresh_hz = 0.0;
 
     [[nodiscard]] bool operator==(const AdaptiveQualityPolicy&) const = default;
 };

@@ -2,6 +2,8 @@
 
 #include "window_config.hpp"
 
+#include <cmath>
+
 namespace tessera::app {
 
 ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runtime) {
@@ -19,7 +21,8 @@ WindowPausePolicy window_pause_policy(const RuntimeConfig& runtime) {
     return policy;
 }
 
-AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtime) {
+AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtime,
+                                                     double refresh_hz) {
     AdaptiveQualityPolicy policy;
     policy.adaptive_quality = runtime.adaptive_quality;
     policy.power_policy = runtime.power_policy;
@@ -35,6 +38,10 @@ AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtim
     } else {
         policy.target_fps = 60.0;
     }
+    // The step-3 present cap: `maxFps` is the configured cap and the hard ceiling, and the display
+    // refresh is the divisor base. A non-finite or negative report is "unknown", never a rate.
+    policy.max_fps = static_cast<double>(runtime.max_fps);
+    policy.refresh_hz = std::isfinite(refresh_hz) && refresh_hz > 0.0 ? refresh_hz : 0.0;
     return policy;
 }
 
