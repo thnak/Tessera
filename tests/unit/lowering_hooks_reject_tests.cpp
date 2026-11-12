@@ -185,6 +185,28 @@ void test_animated_set_timing_is_literal() {
     }
 }
 
+// `onComplete` must name a parameterless inline handler declared in the component.
+void test_animated_set_on_complete_is_a_handler() {
+    const char* const bad[] = {"{ onComplete: nope }",   "{ onComplete: withParam }",
+                               "{ onComplete: go }",     "{ onComplete: setX }",
+                               "{ onComplete: v }",      "{ onComplete: \"done\" }",
+                               "{ onComplete: done() }", "{ onComplete: () => { setX(1); } }",
+                               "{ onComplete: 3 }",      "{ onComplete: done, onComplete: done }"};
+    for (const char* options : bad) {
+        const auto fixture = parse(component("  const [x, setX] = useState<int>(0);\n"
+                                             "  const v = useAnimatedValue(0);\n"
+                                             "  const done = () => { setX(0); };\n"
+                                             "  const withParam = (n: int) => { setX(n); };\n"
+                                             "  // Note: bind::go\n"
+                                             "  const go = () => { setX(1); };\n"
+                                             "  const run = () => { v.set(1, " +
+                                             std::string(options) + "); };\n"));
+        const auto result = lower(*fixture);
+        check(!result.has_value(), std::string("rejected: ") + options);
+        check_eq(first_code(result), "TESSERA_IR_UNSUPPORTED", std::string("code of ") + options);
+    }
+}
+
 void test_first_error_only_and_no_partial_ir() {
     const auto fixture = parse(component("  useEffect(() => { go(); }, []);\n"
                                          "  const [x, setX] = useState<{ a: int }>(null);\n"));
@@ -234,6 +256,7 @@ int main() {
     test_event_arrow_body_rule();
     test_animated_set_options_are_bounded();
     test_animated_set_timing_is_literal();
+    test_animated_set_on_complete_is_a_handler();
     test_first_error_only_and_no_partial_ir();
     test_analysis_failure_is_not_lowered();
     test_mismatched_analysis_is_rejected();

@@ -107,6 +107,10 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
   duration/easing). `AnimatedScalar` runs it with the `Spring` integrator, sub-stepped for stability (stiff springs stay
   stable at 60 Hz, a stalled frame is capped at 0.25 s), keeps velocity across a retarget, and settles on a relative bound
   for large travel; codegen emits `options.spring` from the IR.
+- `set(value, { onComplete: done })` names a parameterless inline setter handler of the same component (declared before or
+  after the call; [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 9.2) and lowers to `animSet.onComplete`, its `handler::N`
+  id (validated: same component, no parameters). The handler runs once when the value reaches that set's target, and a snap
+  completes immediately. A handler may complete into itself; the runtime bounds that, lowering only copies ids.
 - Animated values can drive style properties, transforms, or chart data.
 - Implemented: `ui::animation::AnimatedScalar` (`include/tessera/ui/animation/animated_scalar.hpp`) is a clock-free scalar
   the owner ticks with the frame delta. `set(v, {duration, easing, animate})` retargets from the current value (no jump),
@@ -123,7 +127,7 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
   (`app::system_prefers_reduced_motion`, `SPI_GETCLIENTAREAANIMATION`); other platforms report false for now.
 - Not yet: reacting to a setting change while the app runs, the macOS/Linux/Android queries, `SpringRuntime` (springs on
   style properties still has no owner in the host), and a completion callback for animated values.
-- Completion callbacks are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
+- Completion callbacks (including a generated component's `onComplete` handlers, delivered from the scheduler tick) are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 
 ## 7. Scheduling and power

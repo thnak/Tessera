@@ -237,6 +237,37 @@ void test_references() {
     expect("spring damping negative", [&](auto& m) { spring(m, {180.0, -1.0, 1.0}); }, kAnimation);
     expect(
         "spring damping too large", [&](auto& m) { spring(m, {180.0, 10001.0, 1.0}); }, kAnimation);
+    const auto complete = [](auto& m, std::string target, bool with_param) {
+        ir::Component& component = list(m);
+        ir::Handler done;
+        done.id = "handler::2";
+        done.source = component.handlers[0].source;
+        if (with_param) {
+            done.params.push_back({"p", "int"});
+        }
+        component.handlers.push_back(std::move(done));
+        ir::Action& action = component.handlers[0].actions[1];
+        action.animate = true;
+        action.on_complete = std::move(target);
+    };
+    expect(
+        "onComplete of a parameterless handler", [&](auto& m) { complete(m, "handler::2", false); },
+        "");
+    expect(
+        "onComplete of the handler that takes a parameter",
+        [&](auto& m) { complete(m, "handler::1", false); }, "TESSERA_IR_ANIMATION;");
+    expect(
+        "onComplete of an unknown handler", [&](auto& m) { complete(m, "handler::9", false); },
+        kUnresolved);
+    expect(
+        "onComplete of a native binding", [&](auto& m) { complete(m, "bind::none", false); },
+        kUnresolved);
+    expect(
+        "onComplete handler with parameters", [&](auto& m) { complete(m, "handler::2", true); },
+        kAnimation);
+    expect(
+        "onComplete on a plain set",
+        [](auto& m) { list(m).handlers[0].actions[0].on_complete = "handler::1"; }, kAnimation);
     expect("spring mass zero", [&](auto& m) { spring(m, {180.0, 20.0, 0.0}); }, kAnimation);
     expect("spring mass too large", [&](auto& m) { spring(m, {180.0, 20.0, 1001.0}); }, kAnimation);
     expect(

@@ -115,8 +115,8 @@ it is an IR record of its own, referenced from `events`:
   animated-value `.set(...)`, with `animate` defaulting to `true`. Values are pure Expressions that may
   read `params`.
 - An `animSet` may carry literal timing, omitted when absent (default 200 ms `ease-out`): `durationMs`
-  (0..60000), `easing` (a CSS keyword or `cubic-bezier(x1, y1, x2, y2)` with x in [0, 1]) or, exclusive
-  with both and with `animate: false`, `spring` `{stiffness, damping, mass}` in (0, 1e5], [0, 1e4], (0, 1000]. Additive; invalid timing is `TESSERA_IR_ANIMATION`.
+  (0..60000), `easing` (a CSS keyword or `cubic-bezier(x1, y1, x2, y2)` with x in [0, 1]) or, exclusive with both and with `animate: false`, `spring` `{stiffness, damping, mass}` in (0, 1e5], [0, 1e4], (0, 1000]; invalid timing is `TESSERA_IR_ANIMATION`.
+  `onComplete` (additive) is the `handler::N` of a parameterless handler of the component, run once when the value reaches that set's target (a snap completes at once); unknown: `TESSERA_IR_UNRESOLVED`, with parameters or on a `set`: `TESSERA_IR_ANIMATION`.
 - A handler declared once and used by several event props is one record with several references.
 
 ## 3. Node

@@ -137,6 +137,9 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
             spring.set("mass", JsonValue::number(action.spring->mass));
             json.set("spring", std::move(spring));
         }
+        if (action.kind == ActionKind::AnimSet && !action.on_complete.empty()) {
+            json.set("onComplete", JsonValue::string(action.on_complete));
+        }
         list.push(std::move(json));
     }
     return list;

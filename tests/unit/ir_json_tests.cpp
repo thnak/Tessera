@@ -206,6 +206,18 @@ void test_new_v1_fields() {
     module.components[0].handlers[0].actions[1].spring.reset();
     module.components[0].handlers[0].actions[0].spring.reset();
 
+    // `onComplete` is written for animSet only and omitted when empty.
+    check(sprung.find("onComplete") == std::string::npos, "onComplete is omitted when empty");
+    module.components[0].handlers[0].actions[1].on_complete = "handler::2";
+    module.components[0].handlers[0].actions[0].on_complete = "handler::3";
+    const std::string completing = ir::write_ir_json(module);
+    check(completing.find("\"onComplete\": \"handler::2\"") != std::string::npos,
+          "animSet writes onComplete");
+    check(completing.find("handler::3") == std::string::npos,
+          "a plain set never writes onComplete");
+    module.components[0].handlers[0].actions[1].on_complete.clear();
+    module.components[0].handlers[0].actions[0].on_complete.clear();
+
     // `index` appears only when the loop has one.
     auto& row = module.components[0].root.children[0];
     row.loop->index.clear();

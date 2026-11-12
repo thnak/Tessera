@@ -5,6 +5,7 @@
 
 #include "hook_lowering_internal.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <string>
@@ -70,16 +71,48 @@ bool spring_option(const jsx::Expr& value, ir::SpringTiming& spring) {
     return true;
 }
 
+// The `handler::N` of the parameterless inline handler `name` declared in this component, or
+// nullopt for anything else (undeclared, native `bind::`, with parameters, not an arrow). The id
+// is derived from the declaration order exactly as `lower_hooks` numbers inline handlers, so a
+// handler declared after the setter call resolves without lowering it first, and a handler that
+// completes into itself needs no recursion.
+std::optional<std::string> declared_inline_handler_id(const HookState& state,
+                                                      const std::string& name) {
+    unsigned number = 0;
+    for (const jsx::Statement& statement : state.context.component.body) {
+        if (!statement.init || statement.init->kind != jsx::ExprKind::Arrow ||
+            statement.names.empty() || !statement.bind_id.empty()) {
+            continue;
+        }
+        const rules::ArrowInfo* info = state.context.analysis.find_arrow(statement.init.get());
+        if (info == nullptr || info->role != rules::ArrowRole::InlineHandler) {
+            continue;
+        }
+        ++number;
+        const bool named = std::find(statement.names.begin(), statement.names.end(), name) !=
+                           statement.names.end();
+        if (named) {
+            if (!statement.init->params.empty()) {
+                return std::nullopt;
+            }
+            return "handler::" + std::to_string(number);
+        }
+    }
+    return std::nullopt;
+}
+
 // The options of an animated-value setter (jsx-subset-v1.md section 7): `animate` (boolean),
-// `duration` (a non-negative number literal, milliseconds), `easing` (a string literal) and
-// `spring` (`true` or an object of number literals). They
-// are literals so the IR stays static; anything else is rejected rather than ignored. Whether the
-// easing text is valid and whether the combination makes sense is the IR validator's job.
+// `duration` (a non-negative number literal, milliseconds), `easing` (a string literal),
+// `spring` (`true` or an object of number literals) and `onComplete` (the name of a parameterless
+// inline handler of the component). They are literals or names so the IR stays static; anything
+// else is rejected rather than ignored. Whether the easing text is valid and whether the
+// combination makes sense is the IR validator's job.
 bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& action) {
     constexpr const char* kShape =
-        "the options of an animated-value setter are `{ animate, duration, easing, spring }` with "
-        "a boolean, a non-negative number literal (ms), a string literal and `true` or an "
-        "object literal of `stiffness`, `damping` and `mass` number literals";
+        "the options of an animated-value setter are `{ animate, duration, easing, spring, "
+        "onComplete }` with a boolean, a non-negative number literal (ms), a string literal, "
+        "`true` or an object literal of `stiffness`, `damping` and `mass` number literals, and "
+        "the name of a parameterless inline handler declared in this component";
     if (options.kind != jsx::ExprKind::Object) {
         fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, options.span);
         return false;
@@ -88,6 +121,7 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
     bool seen_duration = false;
     bool seen_easing = false;
     bool seen_spring = false;
+    bool seen_on_complete = false;
     for (const jsx::ObjectProperty& property : options.properties) {
         const jsx::Expr* value = property.value.get();
         if (value == nullptr) {
@@ -98,6 +132,7 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
         const bool is_duration = property.key == "duration" && !seen_duration;
         const bool is_easing = property.key == "easing" && !seen_easing;
         const bool is_spring = property.key == "spring" && !seen_spring;
+        const bool is_on_complete = property.key == "onComplete" && !seen_on_complete;
         if (is_animate && value->kind == jsx::ExprKind::Boolean) {
             seen_animate = true;
             action.animate = value->boolean;
@@ -110,6 +145,17 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
             action.easing = value->text;
         } else if (is_spring && spring_option(*value, action.spring.emplace())) {
             seen_spring = true;
+        } else if (is_on_complete && value->kind == jsx::ExprKind::Identifier) {
+            std::optional<std::string> id = declared_inline_handler_id(state, value->text);
+            if (!id) {
+                fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                          "onComplete `" + value->text +
+                              "` is not a parameterless inline handler declared in this component",
+                          value->span, kShape);
+                return false;
+            }
+            seen_on_complete = true;
+            action.on_complete = std::move(*id);
         } else {
             fail_hook(state, "TESSERA_IR_UNSUPPORTED", kShape, value->span);
             return false;
@@ -144,11 +190,11 @@ std::optional<ir::Action> lower_setter_call(HookState& state, const jsx::Expr& c
 
 std::optional<ir::Action> lower_animated_set(HookState& state, const jsx::Expr& call,
                                              const jsx::Expr& callee, const ComponentNames& names) {
-    // `v.set(value)` or `v.set(value, { animate, duration, easing, spring })`.
+    // `v.set(value)` or `v.set(value, { animate, duration, easing, spring, onComplete })`.
     if (call.operands.size() < 2 || call.operands.size() > 3 || !callee.operands[0]) {
         fail_hook(state, "TESSERA_IR_UNSUPPORTED",
                   "an animated-value setter takes a value and optional `{ animate, duration, "
-                  "easing, spring }`",
+                  "easing, spring, onComplete }`",
                   call.span, kBodyRule);
         return std::nullopt;
     }

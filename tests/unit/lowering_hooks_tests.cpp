@@ -353,6 +353,42 @@ void test_animated_set_spring() {
              "an empty spring object is all defaults");
 }
 
+// `onComplete` names a parameterless inline handler of the component; ids follow the declaration
+// order, so a handler declared after the setter call resolves too.
+void test_animated_set_on_complete() {
+    const auto fixture = parse(
+        component("  const [n, setN] = useState<int>(0);\n"
+                  "  const v = useAnimatedValue(0);\n"
+                  "  const first = () => { v.set(1, { onComplete: later }); };\n"
+                  "  const later = () => { setN(0); };\n"
+                  "  const again = () => { v.set(2, { duration: 100, onComplete: first }); };\n"
+                  "  const self = () => { v.set(3, { spring: true, onComplete: self }); };\n"
+                  "  const snap = () => { v.set(4, { animate: false, onComplete: later }); };\n"));
+    auto result = lower(*fixture);
+    check(result.has_value(), "onComplete lowers: " + describe_errors(*fixture, result));
+    if (!result || result->handlers.size() != 5) {
+        return;
+    }
+    const auto text = [&](std::size_t index) {
+        return action_text(result->handlers[index].actions[0]);
+    };
+    check_eq(text(0),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":1} animate onComplete=handler::2",
+             "a forward reference resolves to the later handler");
+    check_eq(text(2),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":2} animate duration=100.000000 "
+             "onComplete=handler::1",
+             "a backward reference combines with duration");
+    check_eq(text(3),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":3} animate "
+             "spring=180.000000/20.000000/1.000000 onComplete=handler::4",
+             "a handler may complete into itself");
+    check_eq(text(4),
+             "animSet anim::v = {\"kind\":\"literal\",\"value\":4} animate=false "
+             "onComplete=handler::2",
+             "a snap may carry onComplete");
+}
+
 } // namespace
 
 int main() {
@@ -366,5 +402,6 @@ int main() {
     test_empty_component();
     test_animated_set_timing();
     test_animated_set_spring();
+    test_animated_set_on_complete();
     return finish("lowering hooks tests");
 }

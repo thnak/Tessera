@@ -256,6 +256,37 @@ void validate_animation_options(ValidationContext& context, const Action& action
     }
 }
 
+// `onComplete` is the `handler::N` of a parameterless handler of the same component; only an
+// `animSet` completes. A handler that completes into itself is allowed: the runtime bounds it.
+void validate_on_complete(ValidationContext& context, const ComponentScope& scope,
+                          const Action& action, const SourceSpan& where) {
+    if (action.on_complete.empty()) {
+        return;
+    }
+    if (action.kind != ActionKind::AnimSet) {
+        context.report("TESSERA_IR_ANIMATION", "only an `animSet` action takes onComplete", where);
+        return;
+    }
+    const Handler* target = nullptr;
+    if (scope.component != nullptr) {
+        for (const auto& handler : scope.component->handlers) {
+            if (handler.id == action.on_complete) {
+                target = &handler;
+                break;
+            }
+        }
+    }
+    if (target == nullptr) {
+        context.report("TESSERA_IR_UNRESOLVED",
+                       "onComplete `" + action.on_complete + "` is not a handler of this component",
+                       where);
+    } else if (!target->params.empty()) {
+        context.report("TESSERA_IR_ANIMATION",
+                       "onComplete handler `" + action.on_complete + "` must take no parameters",
+                       where);
+    }
+}
+
 void validate_actions(ValidationContext& context, const ComponentScope& scope,
                       const LocalNames& locals, const std::vector<Action>& actions,
                       const SourceSpan& where) {
@@ -270,6 +301,7 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
         }
         require_expr(context, scope, locals, action.value.get(), where, "an action value");
         validate_animation_options(context, action, where);
+        validate_on_complete(context, scope, action, where);
     }
 }
 

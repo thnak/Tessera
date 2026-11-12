@@ -169,6 +169,9 @@ inline std::string action_text(const ir::Action& action) {
                    std::to_string(action.spring->damping) + "/" +
                    std::to_string(action.spring->mass);
         }
+        if (!action.on_complete.empty()) {
+            out += " onComplete=" + action.on_complete;
+        }
     }
     return out;
 }
