@@ -548,8 +548,8 @@ runs the script structurally, renders the final scene (`cli_frame.cpp`), writes
 `frame.png`/diff/`frame.compare.json` and a `frame` report object, and exits 0 match / 1 mismatch or
 missing baseline / 2 mode unavailable (golden needs lavapipe via `VK_ICD_FILENAMES`).
 `--update-goldens` is golden-only (ADR-009). Next for this lane: commit real baselines under
-`tests/golden/baseline/harness/` and run them on lavapipe CI, make `serve` use `app.config`, put
-manifest names/paths into snapshots, true scroll-to-item, and run the latency profile thresholds on
+`tests/golden/baseline/harness/` and run them on lavapipe CI, put
+manifest names/paths (`serve` already takes `--app`) into snapshots, true scroll-to-item, and run the latency profile thresholds on
 a real clock. The POSIX `poll` path is not yet compiled anywhere. `tessera_accessibility`
 now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Transport` seam with a
 loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface

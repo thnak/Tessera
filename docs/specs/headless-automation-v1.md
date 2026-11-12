@@ -53,8 +53,9 @@ headless golden tests). `gpu-smoke` never updates baselines.
     deterministic `tessera <command>: <Code>: <message>` line (`ConfigUnreadable`, `ConfigTooLarge`,
     `ConfigInvalid`, `ManifestMissing`, `ManifestTooLarge`, `ManifestInvalid`,
     `ManifestUnsupportedVersion`, `ManifestTooManyNodes`, `ManifestDuplicateId`).
-  - Not yet: the stdio `headless` serve lane still hosts the fixture, and snapshots do not add
-    manifest names/paths to nodes.
+  - The stdio `headless` serve lane takes `--app <tessera.json>` for the same manifest scene (the
+    flag is rejected together with `--script`, which names `app.config` itself). Not yet: snapshots
+    do not add manifest names/paths to nodes.
 
 ## 3. CLI
 
@@ -267,7 +268,7 @@ section 3 invocations: `tessera test --script FILE [--out DIR] [--report PATH] [
 structural|audit]`, plus the `headless` equivalent.
 
 - `tessera test` requires `--script`. `tessera headless --mode <m>` without `--script` serves the
-  stdio protocol (section 6.2) against the fixture host until EOF on stdin, one `RuntimeLoop` tick
+  stdio protocol (section 6.2) against the fixture host (or the `--app` manifest scene) until EOF on stdin, one `RuntimeLoop` tick
   per loop iteration, idling in `wait_readable` (`serve.hpp`; default slice 50 ms, which also
   bounds how fast a stop flag is observed). It exits `0` on EOF; a closed stdout ends the session
   the same way. The v1 protocol has no shutdown command, so EOF (or the host's stop flag) is the

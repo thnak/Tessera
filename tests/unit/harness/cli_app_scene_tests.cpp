@@ -5,6 +5,7 @@
 // Without `app.config` the fixture scene (ids 9001-9010) is still the default.
 
 #include "tessera/harness/cli.hpp"
+#include "tessera/harness/in_process_transport.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -70,6 +71,28 @@ int main() {
     fs::copy_file(source / "app/generated/automation.manifest.json",
                   project / "generated/automation.manifest.json");
     const std::string script = (source / "app-smoke.json").string();
+
+    // Serving with --app builds the manifest scene; an immediately closed transport ends cleanly.
+    {
+        tessera::harness::InProcessPair pair = tessera::harness::make_in_process_pair();
+        pair.second->close();
+        std::vector<std::string_view> serve_args{"headless", "--mode", "structural", "--app",
+                                                 "harness_app_fixture/tessera.json"};
+        std::ostringstream out;
+        std::ostringstream err;
+        const int code = tessera::harness::run_cli(serve_args, out, err, pair.first.get());
+        expect(code == 0, "serving the manifest scene ends cleanly on EOF");
+        std::vector<std::string_view> bad_args{"headless", "--mode", "structural", "--app",
+                                               "nope/tessera.json"};
+        tessera::harness::InProcessPair other = tessera::harness::make_in_process_pair();
+        other.second->close();
+        std::ostringstream bad_err;
+        expect(tessera::harness::run_cli(bad_args, out, bad_err, other.first.get()) == 2 &&
+                   contains(bad_err.str(), "ConfigUnreadable"),
+               "a missing --app config is exit 2");
+    }
+    expect(run({"test", "--script", script, "--app", "harness_app_fixture/tessera.json"}).code == 2,
+           "--app is rejected together with --script");
 
     const Outcome first = run({"test", "--script", script, "--out", "cli_app_out"});
     expect(first.code == 0, "the app script passes against the manifest scene");
