@@ -176,10 +176,19 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
 `stdio_transport.hpp` adapts the framer to the process's stdin/stdout, or to any injected
 `StdioStream`, and is the v1 transport.
 
-- **Reads never wait.** The OS stream probes readiness with a zero-timeout `poll` (POSIX) or a
-  zero-timeout wait/peek (Windows) and reports `wouldBlock` otherwise; it never flips a blocking
+- **`read_line` never waits.** The OS stream probes readiness with a zero-timeout `poll` (POSIX) or
+  a zero-timeout wait/peek (Windows) and reports `wouldBlock` otherwise; it never flips a blocking
   handle into non-blocking mode. An interactive console in line-input mode may itself wait for a
   complete line, which is why the CLI is normally driven by a pipe; a pipe or a file never waits.
+- **Bounded blocking wait.** `LineTransport::wait_readable(timeout)` is the only place a serve loop
+  idles: it returns true when `read_line` can make progress (a buffered line, a framing error, EOF,
+  or a closed transport) and false when `timeout` elapsed first. It never reads and never exceeds
+  the timeout. POSIX uses `poll(2)` with the timeout. Windows cannot reliably wait on a pipe or
+  file handle, so a pipe is peeked with `PeekNamedPipe` between `Sleep` slices of at most 2 ms (no
+  reader thread, so nothing to join and no queue to bound), a console uses
+  `WaitForSingleObject`, and a disk file is always ready. A partial buffered line is not ready, so
+  a half-delivered frame cannot make the loop spin. Transports without an override (the in-process
+  pair) report ready at once and are for single-threaded tests only.
 - **Clean EOF.** A final unterminated line is delivered, then the transport reports `Closed`.
   Framing rejections (over-long, invalid UTF-8, empty) are typed and framing resumes at the next
   LF. A streaming rejection keeps its position: a line that arrived after the rejected one cannot
@@ -229,8 +238,12 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
 section 3 invocations: `tessera test --script FILE [--out DIR] [--report PATH] [--mode
 structural|audit]`, plus the `headless` equivalent.
 
-- `--script` is required for both commands (`headless` without one exits `2`: no app-config loader
-  yet). `--mode` accepts `structural` and `audit` (both run the script; `audit` also enables the
+- `tessera test` requires `--script`. `tessera headless --mode <m>` without `--script` serves the
+  stdio protocol (section 6.2) against the fixture host until EOF on stdin, one `RuntimeLoop` tick
+  per loop iteration, idling in `wait_readable` (`serve.hpp`; default slice 50 ms, which also
+  bounds how fast a stop flag is observed). It exits `0` on EOF; a closed stdout ends the session
+  the same way. The v1 protocol has no shutdown command, so EOF (or the host's stop flag) is the
+  end of a session. The serve loop creates no thread. `--mode` accepts `structural` and `audit` (both run the script; `audit` also enables the
   diagnostics seams); `golden`/`gpu-smoke` parse but exit `2` as not implemented.
 - One `RuntimeLoop` tick per pump: the driver advances a `ManualClock` by one fixed step, ticks the
   loop, then calls `ScriptRunner::pump()` once (hard guard `kMaxScriptSteps + 1`). Time comes from

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/harness/line_transport.hpp"
+
 #include <iosfwd>
 #include <span>
 #include <string_view>
@@ -20,5 +22,11 @@ inline constexpr std::string_view kHarnessCliVersion = "0.1.0";
 // lands; it never touches a runtime.
 [[nodiscard]] int run_cli(std::span<const std::string_view> args, std::ostream& out,
                           std::ostream& err);
+
+// Same, but `tessera headless` without --script serves the stdio protocol on `serve_transport`
+// instead of the process's stdin/stdout. Tests inject an in-process transport here; the overload
+// above uses a StdioTransport over the real handles. `--script` runs ignore the transport.
+[[nodiscard]] int run_cli(std::span<const std::string_view> args, std::ostream& out,
+                          std::ostream& err, LineTransport* serve_transport);
 
 } // namespace tessera::harness

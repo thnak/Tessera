@@ -70,6 +70,11 @@ public:
     [[nodiscard]] bool drained() const noexcept {
         return drained_;
     }
+    // True when next() can make progress without more bytes: a complete line or a rejection is
+    // buffered, or finish() left an unconsumed tail or the end-of-stream event.
+    [[nodiscard]] bool ready() const noexcept {
+        return line_start_ > 0 || rejection_.has_value() || (finished_ && !drained_);
+    }
 
 private:
     // Number of extra bytes a terminator (LF, or CRLF) may add beyond the payload cap.
