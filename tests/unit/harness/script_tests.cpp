@@ -140,13 +140,30 @@ int main() {
     // A section 4 action the v1 runner cannot execute is rejected as such, not as a typo.
     {
         std::size_t step = kNoScriptStep;
-        expect(parse_error(step_document(R"({"action":"waitFor","uiId":"1"})"), &step) ==
+        expect(parse_error(step_document(R"({"action":"screenshot","path":"a.png"})"), &step) ==
                    ScriptErrorCode::UnsupportedAction,
-               "waitFor is known but unsupported");
+               "screenshot is known but unsupported");
         expect(step == 0, "unsupported action carries the step index");
         expect(parse_error(step_document(R"({"action":"assert","uiId":"1"})")) ==
-                   ScriptErrorCode::UnsupportedAction,
-               "assert is known but unsupported");
+                   ScriptErrorCode::InvalidStep,
+               "assert needs an expectation");
+        expect(parse_error(step_document(R"({"action":"assert","uiId":"1","visible":"yes"})")) ==
+                   ScriptErrorCode::InvalidStep,
+               "assert flag must be boolean");
+        expect(parse_error(step_document(R"({"action":"waitFor","uiId":"1","state":"gone"})")) ==
+                   ScriptErrorCode::InvalidStep,
+               "waitFor state is a closed set");
+        {
+            const auto parsed = parse_script(step_document(
+                R"({"action":"assert","uiId":"3","itemKey":"k","text":"Hi","enabled":true})"));
+            expect(parsed.has_value() && parsed->steps[0].action == ScriptAction::Assert &&
+                       parsed->steps[0].expect_text == "Hi" &&
+                       parsed->steps[0].expect_enabled == true && parsed->steps[0].item_key == "k",
+                   "assert expectations decode");
+            const auto wait = parse_script(step_document(R"({"action":"waitFor","uiId":"3"})"));
+            expect(wait.has_value() && wait->steps[0].expect_visible == true,
+                   "waitFor defaults to visible");
+        }
         expect(parse_error(step_document(R"({"action":"frobnicate"})")) ==
                    ScriptErrorCode::UnknownAction,
                "unknown action");

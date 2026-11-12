@@ -30,6 +30,10 @@ std::string_view to_string(ScriptAction action) noexcept {
         return kTraceCommand;
     case ScriptAction::Audit:
         return kAuditCommand;
+    case ScriptAction::Assert:
+        return "assert";
+    case ScriptAction::WaitFor:
+        return "waitFor";
     }
     return kClickCommand;
 }
@@ -59,6 +63,12 @@ std::optional<ScriptAction> script_action_from_string(std::string_view text) noe
     if (text == kAuditCommand) {
         return ScriptAction::Audit;
     }
+    if (text == "assert") {
+        return ScriptAction::Assert;
+    }
+    if (text == "waitFor") {
+        return ScriptAction::WaitFor;
+    }
     return std::nullopt;
 }
 
@@ -87,6 +97,8 @@ std::string_view to_string(ScriptErrorCode code) noexcept {
         return "unknownAction";
     case ScriptErrorCode::UnsupportedAction:
         return "unsupportedAction";
+    case ScriptErrorCode::AssertionFailed:
+        return "assertionFailed";
     case ScriptErrorCode::InvalidStep:
         return "invalidStep";
     case ScriptErrorCode::ScriptTooLarge:

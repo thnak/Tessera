@@ -23,6 +23,7 @@ add_library(tessera_harness STATIC
     line_framing.cpp
     protocol.cpp
     script.cpp
+    script_assert.cpp
     script_runner.cpp
     script_step.cpp
     serve.cpp

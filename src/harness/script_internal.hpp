@@ -28,6 +28,11 @@ reject_unknown(const JsonValue& value, std::initializer_list<std::string_view> a
 
 [[nodiscard]] std::optional<std::string> read_string(const JsonValue* value, std::size_t max_bytes);
 
+// Checks an assert/waitFor step against a snapshot document (hidden nodes included). Returns the
+// failure detail, or nullopt when every expectation holds.
+[[nodiscard]] std::optional<std::string> evaluate_assertion(const ScriptStep& step,
+                                                            const JsonValue& snapshot);
+
 [[nodiscard]] std::expected<ScriptProfile, ScriptError>
 parse_script_profile(const JsonValue& value);
 [[nodiscard]] std::expected<std::string, ScriptError> parse_script_app(const JsonValue& value);

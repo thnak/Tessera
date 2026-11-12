@@ -345,6 +345,58 @@ int main() {
         expect(runner.report().steps_executed == 1, "one step recorded");
     }
 
+    // assert and waitFor read the snapshot (hidden nodes included) and fail the run with
+    // assertionFailed when an expectation does not hold.
+    {
+        const auto node = [](std::string_view id, std::string_view key, bool visible,
+                             std::string_view text) {
+            return JsonValue::object({{"uiId", JsonValue::string(std::string(id))},
+                                      {"itemKey", JsonValue::string(std::string(key))},
+                                      {"name", JsonValue::string("Save")},
+                                      {"text", JsonValue::string(std::string(text))},
+                                      {"visible", JsonValue::boolean(visible)},
+                                      {"enabled", JsonValue::boolean(true)},
+                                      {"focused", JsonValue::boolean(false)},
+                                      {"selected", JsonValue::boolean(false)}});
+        };
+        const auto run = [&](std::string_view steps) {
+            Fixture fixture;
+            fixture.host.snapshot =
+                JsonValue::object({{"nodes", JsonValue::array({node("5", "", true, "Hello"),
+                                                               node("6", "row-2", false, "")})}});
+            const auto parsed =
+                parse_script(R"({"scriptVersion":1,"steps":[)" + std::string(steps) + "]}");
+            expect(parsed.has_value(), "assert script parses");
+            ScriptRunner runner(*parsed, fixture.handler, fixture.sink, fixture.clock);
+            drain(runner);
+            return runner.report();
+        };
+        expect(run(R"({"action":"assert","uiId":"5","text":"Hello","name":"Save","visible":true})")
+                   .passed,
+               "matching assert passes");
+        expect(run(R"({"action":"waitFor","uiId":"5","state":"enabled"})").passed,
+               "waitFor on a settled state passes");
+        expect(run(R"({"action":"assert","uiId":"6","itemKey":"row-2","visible":false})").passed,
+               "hidden node is checkable");
+        expect(run(R"({"action":"assert","uiId":"9","exists":false})").passed,
+               "absent node satisfies exists:false");
+        const auto bad_text = run(R"({"action":"assert","uiId":"5","text":"Bye"},
+                                    {"action":"click","uiId":"1"})");
+        expect(!bad_text.passed && bad_text.steps_executed == 1 &&
+                   bad_text.steps[0].error.code == ScriptErrorCode::AssertionFailed &&
+                   bad_text.steps[0].error.detail.find("Hello") != std::string::npos,
+               "text mismatch fails fast with detail");
+        const auto missing = run(R"({"action":"waitFor","uiId":"9"})");
+        expect(!missing.passed && missing.steps[0].error.code == ScriptErrorCode::AssertionFailed,
+               "missing node fails waitFor");
+        expect(!run(R"({"action":"assert","uiId":"6","itemKey":"row-2","visible":true})").passed,
+               "hidden node is not visible");
+        expect(!run(R"({"action":"assert","uiId":"5","exists":false})").passed,
+               "present node fails exists:false");
+        expect(!run(R"({"action":"assert","uiId":"5","itemKey":"nope","exists":true})").passed,
+               "itemKey narrows the match");
+    }
+
     if (failures != 0) {
         std::cerr << "script_runner: " << failures << " failure(s)\n";
         return 1;

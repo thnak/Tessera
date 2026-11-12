@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "script_internal.hpp"
 #include "tessera/harness/command_result.hpp"
 #include "tessera/harness/json_write.hpp"
 #include "tessera/harness/script_runner.hpp"
@@ -133,6 +134,11 @@ bool ScriptRunner::execute(const ScriptStep& step, std::uint64_t start_us,
     case ScriptAction::Audit:
         command = AuditCommand{step.profile, step.path};
         break;
+    case ScriptAction::Assert:
+    case ScriptAction::WaitFor:
+        // Hidden nodes stay in the document so `visible:false` and `exists:false` differ.
+        command = SnapshotCommand{true};
+        break;
     }
 
     ScriptStepReport step_report;
@@ -170,6 +176,24 @@ bool ScriptRunner::execute(const ScriptStep& step, std::uint64_t start_us,
         return false;
     }
     step_report.result = std::move(*encoded);
+
+    if (step.action == ScriptAction::Assert || step.action == ScriptAction::WaitFor) {
+        const auto& snapshot = std::get<SnapshotResult>(*outcome);
+        if (auto failure = detail::evaluate_assertion(step, snapshot.snapshot);
+            failure.has_value()) {
+            // Only the verdict is reported: embedding the whole snapshot per assertion would bloat
+            // the report without helping the reader.
+            step_report.result = JsonValue::object({});
+            step_report.error = make_step_error(ScriptErrorCode::AssertionFailed,
+                                                "assertion failed", std::move(*failure), index);
+            record_step(std::move(step_report));
+            return false;
+        }
+        step_report.result = JsonValue::object({});
+        step_report.ok = true;
+        record_step(std::move(step_report));
+        return true;
+    }
 
     if (step.action == ScriptAction::Snapshot) {
         const auto& snapshot = std::get<SnapshotResult>(*outcome);

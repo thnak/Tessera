@@ -161,7 +161,10 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
 
     const bool has_ui_id = *action == ScriptAction::Click || *action == ScriptAction::Type ||
                            *action == ScriptAction::Focus || *action == ScriptAction::Scroll ||
-                           *action == ScriptAction::ScrollIntoView;
+                           *action == ScriptAction::ScrollIntoView ||
+                           *action == ScriptAction::Assert || *action == ScriptAction::WaitFor;
+    const bool is_assert = *action == ScriptAction::Assert;
+    const bool is_wait = *action == ScriptAction::WaitFor;
     const bool has_text = *action == ScriptAction::Type;
     const bool has_scroll = *action == ScriptAction::Scroll;
     const bool has_path = *action == ScriptAction::Snapshot || *action == ScriptAction::Trace ||
@@ -176,7 +179,11 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
                            (has_text && key == "text") ||
                            (has_scroll && (key == "dx" || key == "dy")) ||
                            (has_path && key == "path") || (has_profile && key == "profile") ||
-                           (*action == ScriptAction::Snapshot && key == "includeHidden");
+                           (*action == ScriptAction::Snapshot && key == "includeHidden") ||
+                           (is_wait && key == "state") ||
+                           (is_assert && (key == "exists" || key == "visible" || key == "enabled" ||
+                                          key == "focused" || key == "selected" || key == "text" ||
+                                          key == "name"));
         if (!known) {
             return unexpected(script_error(ScriptErrorCode::InvalidStep,
                                            "step has an unknown member", std::string(key), index));
@@ -217,6 +224,77 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
                 "step.text is required and must be a string of at most 64 KiB", "text", index));
         }
         step.text = std::move(*parsed);
+    }
+
+    if (is_wait) {
+        const JsonValue* state_value = value.find("state");
+        std::string state = "visible";
+        if (state_value != nullptr) {
+            const auto parsed = read_string(state_value, 16);
+            if (!parsed.has_value()) {
+                return unexpected(script_error(ScriptErrorCode::InvalidStep,
+                                               "step.state must be a string", "state", index));
+            }
+            state = *parsed;
+        }
+        if (state == "exists") {
+            step.expect_exists = true;
+        } else if (state == "visible") {
+            step.expect_visible = true;
+        } else if (state == "enabled") {
+            step.expect_enabled = true;
+        } else if (state == "focused") {
+            step.expect_focused = true;
+        } else if (state == "selected") {
+            step.expect_selected = true;
+        } else {
+            return unexpected(
+                script_error(ScriptErrorCode::InvalidStep,
+                             "step.state must be exists, visible, enabled, focused or selected",
+                             "state", index));
+        }
+    }
+
+    if (is_assert) {
+        const std::pair<std::string_view, std::optional<bool>*> flags[] = {
+            {"exists", &step.expect_exists},
+            {"visible", &step.expect_visible},
+            {"enabled", &step.expect_enabled},
+            {"focused", &step.expect_focused},
+            {"selected", &step.expect_selected}};
+        for (const auto& [name, target] : flags) {
+            if (const JsonValue* flag = value.find(name); flag != nullptr) {
+                const auto parsed = flag->as_bool();
+                if (!parsed.has_value()) {
+                    return unexpected(script_error(ScriptErrorCode::InvalidStep,
+                                                   "assert expectation must be a boolean",
+                                                   std::string(name), index));
+                }
+                *target = *parsed;
+            }
+        }
+        const std::pair<std::string_view, std::optional<std::string>*> texts[] = {
+            {"text", &step.expect_text}, {"name", &step.expect_name}};
+        for (const auto& [name, target] : texts) {
+            if (const JsonValue* member = value.find(name); member != nullptr) {
+                auto parsed = read_string(member, kMaxScriptTextBytes);
+                if (!parsed.has_value()) {
+                    return unexpected(
+                        script_error(ScriptErrorCode::InvalidStep,
+                                     "assert text/name must be a string of at most 64 KiB",
+                                     std::string(name), index));
+                }
+                *target = std::move(*parsed);
+            }
+        }
+        const bool any = step.expect_exists || step.expect_visible || step.expect_enabled ||
+                         step.expect_focused || step.expect_selected || step.expect_text ||
+                         step.expect_name;
+        if (!any) {
+            return unexpected(script_error(ScriptErrorCode::InvalidStep,
+                                           "assert needs at least one expectation", "assert",
+                                           index));
+        }
     }
 
     if (has_scroll) {

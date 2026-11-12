@@ -45,6 +45,8 @@ enum class ScriptAction {
     Snapshot,
     Trace,
     Audit,
+    Assert,  // reads a snapshot; fails with AssertionFailed when an expectation does not hold
+    WaitFor, // same check as Assert, named by the section 4 `state`; the host is already settled
 };
 
 [[nodiscard]] std::string_view to_string(ScriptAction action) noexcept;
@@ -62,6 +64,7 @@ enum class ScriptErrorCode {
     UnsupportedVersion, // scriptVersion is not 1
     UnknownAction,      // action is not in the section 4 list at all
     UnsupportedAction,  // action is in the list but v1 cannot execute it
+    AssertionFailed,    // an assert/waitFor expectation did not hold
     InvalidStep,        // step is not an object, an unknown/ill-typed/missing step field
     ScriptTooLarge,     // document exceeds kMaxScriptBytes
     StepCapExceeded,    // the step count cap (parse or budget) was hit
@@ -111,6 +114,14 @@ struct ScriptStep {
     std::string path;    // snapshot/trace/audit artifact target, empty means "document default"
     std::string profile; // audit profile
     bool include_hidden = false;
+    // assert/waitFor expectations; at least one is set. `exists:false` expects the node absent.
+    std::optional<bool> expect_exists;
+    std::optional<bool> expect_visible;
+    std::optional<bool> expect_enabled;
+    std::optional<bool> expect_focused;
+    std::optional<bool> expect_selected;
+    std::optional<std::string> expect_text;
+    std::optional<std::string> expect_name;
     std::uint64_t timeout_us = 0; // 0 = use the runner budget
 
     friend bool operator==(const ScriptStep&, const ScriptStep&) = default;

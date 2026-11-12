@@ -298,13 +298,18 @@ structural|audit]`, plus the `headless` equivalent.
   (`config` is a safe relative path), and required `steps` (at most 256). A script is untrusted
   input: parsing is all-or-nothing, so a bad step rejects the document before the first host
   command runs.
-- **Steps.** v1 executes `click`, `type`, `focus`, `scroll`, `scrollIntoView`, `snapshot`, `trace`, and `audit`.
+- **Steps.** v1 executes `click`, `type`, `focus`, `scroll`, `scrollIntoView`, `waitFor`, `assert`, `snapshot`, `trace`, and `audit`.
   `type` is the section 4 name for the `setValue` command. `uiId` must be a canonical decimal
   string (the protocol's small-integer convenience is not accepted for script input) and `itemKey`
   an optional non-empty string of at most 256 bytes. `timeoutMs` is 1..60000. Unknown members are
   rejected, not ignored. `snapshot` takes optional `includeHidden` and `path`; `trace`/`audit` take
-  an optional `path`, where empty means the section 5 default name; `audit` requires `profile`. The
-  other section 4 actions (lifecycle, `waitFor`, `assert*`, `screenshot`, custom-element,
+  an optional `path`, where empty means the section 5 default name; `audit` requires `profile`. `assert` takes `uiId`,
+  optional `itemKey`, and at least one of boolean `exists`/`visible`/`enabled`/`focused`/`selected` or
+  string `text`/`name`; `waitFor` takes `state` (default `visible`). Both run the `snapshot` command
+  with hidden nodes included, so `visible:false` and `exists:false` differ, and a mismatch fails the
+  run with `assertionFailed` (detail names the field). `waitFor` does not poll: the host settles
+  after every action, so it is a one-shot check of an already-settled state. The
+  other section 4 actions (lifecycle, `assertText`/`assertCustom`/`assertRoute`/`assertSelection`, `screenshot`, custom-element,
   navigation, and overlay actions) parse as `unsupportedAction` because `AutomationHost` does not
   expose the capabilities they need; they are never skipped silently.
 - **Execution.** `ScriptRunner::pump()` makes at most one synchronous `CommandHandler::handle` call,
@@ -317,7 +322,7 @@ structural|audit]`, plus the `headless` equivalent.
   `stepTimeout` without a handler call, and a handler whose simulated elapsed time overruns the
   budget has its result replaced with `stepTimeout`, mirroring 6.3. `cancel()` stops at the next
   pump. Stable codes: `malformedScript`, `unsupportedVersion`, `unknownAction`,
-  `unsupportedAction`, `invalidStep`, `scriptTooLarge`, `stepCapExceeded`, `stepTimeout`,
+  `unsupportedAction`, `assertionFailed`, `invalidStep`, `scriptTooLarge`, `stepCapExceeded`, `stepTimeout`,
   `runTimeout`, `cancelled`, `handlerError`, `artifactError`, and `internal`; a handler failure also
   carries its protocol error code.
 - **Artifacts.** A `snapshot` step with a `path` writes the canonical snapshot object through the
