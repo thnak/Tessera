@@ -532,29 +532,29 @@ Decided (2026-11-12, see Owner decisions):
 - **Resolution mechanism**: frozen registry, resolve once at mount, never in the frame path
   (section 3).
 
-### Proposed answers to open questions
+### Answers to open questions (accepted by the owner, 2026-11-12)
 
-Still open. Each item gives the question and the **proposed answer** (not decided; options,
+Accepted as proposed. Each item gives the question and the **answer** (options,
 trade-offs, seams, risks, revisit triggers and the spec contradictions to fix are in
 [`app-framework-open-questions.md`](../docs/design/app-framework-open-questions.md)):
 
-1. **OS-scheduled background work; tray apps.** Proposed: WorkManager/BGTaskScheduler later (Big
+1. **OS-scheduled background work; tray apps.** Accepted: WorkManager/BGTaskScheduler later (Big
    Step F); tray-resident desktop apps in V1 (`Hidden` with zero windows); seams: window-less
    `Application` start and a `BackgroundTask` interface.
-2. **Route-scoped services.** Proposed: app and window scopes only; per-route state in
+2. **Route-scoped services.** Accepted: app and window scopes only; per-route state in
    `NavEntry.state`; scopes built as a parent chain so a route level is additive.
-3. **Multi-window.** Proposed: yes on desktop in V1, as its own slice after one loop and one device
+3. **Multi-window.** Accepted: yes on desktop in V1, as its own slice after one loop and one device
    per `Application` replace today's per-window device, loop and blocking `run()`.
-4. **Database.** Proposed: in-tree opt-in SQLite module (vendored amalgamation, I/O executor only),
+4. **Database.** Accepted: in-tree opt-in SQLite module (vendored amalgamation, I/O executor only),
    not default-linked; ORMs and other engines community.
-5. **Networking.** Proposed: platform stacks in-tree (WinHTTP, NSURLSession, `fetch`, Android
+5. **Networking.** Accepted: platform stacks in-tree (WinHTTP, NSURLSession, `fetch`, Android
    later), libcurl only on Linux, one contract suite.
-6. **State model.** Proposed: plain observables plus a debug change trace, no action log; TSX reads
+6. **State model.** Accepted: plain observables plus a debug change trace, no action log; TSX reads
    observables in render only via `useObservable(svc.member)`, a mount-time subscription.
-7. **Startup spec.** Proposed: `Application` owns P1-P5; C++ lifecycle API in V1; JSX reads a
+7. **Startup spec.** Accepted: `Application` owns P1-P5; C++ lifecycle API in V1; JSX reads a
    built-in `AppLifecycle` service instead of new lifecycle hooks; `Launching` ends with P1.
-8. **Default modules.** Proposed: `storage`, `navigation`, `restore`, `i18n`; `data` opt-in.
-9. **Native surfaces.** Proposed: no worker rendering or OS sub-surfaces in V1; restrict
+8. **Default modules.** Accepted: `storage`, `navigation`, `restore`, `i18n`; `data` opt-in.
+9. **Native surfaces.** Accepted: no worker rendering or OS sub-surfaces in V1; restrict
    `on_render` now so it can move to a worker later.
 
 ## Follow-up (if accepted)

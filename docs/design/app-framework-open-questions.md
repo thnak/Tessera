@@ -1,6 +1,7 @@
 # App framework: proposed answers to the ADR-050 open questions
 
-Status: proposal (docs-only, 2026-11-12). Recommendations for the nine open questions of
+Status: all nine answers accepted by the owner on 2026-11-12 (the text below keeps the original
+reasoning). Recommendations for the nine open questions of
 [ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) ("Questions for the owner",
 "Still open"), written for the owner to accept or change. Nothing here is decided until the owner
 says so; ADR-050 stays Proposed. Each answer gives the options, a recommendation, the trade-off
