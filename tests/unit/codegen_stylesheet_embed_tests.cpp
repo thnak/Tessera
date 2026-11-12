@@ -184,8 +184,7 @@ void test_embedded_header_is_pinned() {
         "#pragma once\n"
         "#include <array>\n"
         "#include <cstdint>\n"
-        "#include <span>\n"
-        "#include <string_view>\n"
+        "#include \"tessera/ui/style/stylesheet_blob.hpp\"\n"
         "namespace demo {\n"
         "  inline constexpr std::array<std::uint8_t, 4> kStylesheetBlob_css_ui_app = {\n"
         "    0x00, 0x01, 0xfe, 0xff,\n"
@@ -196,11 +195,8 @@ void test_embedded_header_is_pinned() {
         "    0x0c, 0x0d,\n"
         "  };\n"
         "\n"
-        "  struct EmbeddedStylesheet {\n"
-        "    std::string_view path;\n"
-        "    std::span<const std::uint8_t> bytes;\n"
-        "  };\n"
-        "  inline constexpr std::array<EmbeddedStylesheet, 2> kEmbeddedStylesheets = {{\n"
+        "  inline constexpr std::array<tessera::ui::style::EmbeddedStylesheet, 2> "
+        "kEmbeddedStylesheets = {{\n"
         "    { \"ui/app.css\", kStylesheetBlob_css_ui_app },\n"
         "    { \"ui/sub/card.css\", kStylesheetBlob_css_ui_sub_card },\n"
         "  }};\n"
@@ -238,8 +234,8 @@ void test_partial_embeds_keep_the_warning() {
           "a sheet without a blob is absent from the arrays");
     check(header->text.find("kStylesheetBlob_css_ui_sub_card") != std::string::npos,
           "the embedded sheet is present");
-    check(header->text.find("std::array<EmbeddedStylesheet, 1> kEmbeddedStylesheets") !=
-              std::string::npos,
+    check(header->text.find("std::array<tessera::ui::style::EmbeddedStylesheet, 1> "
+                            "kEmbeddedStylesheets") != std::string::npos,
           "the table holds only the embedded sheet");
     check(header->text.find("{ \"ui/sub/card.css\", kStylesheetBlob_css_ui_sub_card }") !=
               std::string::npos,

@@ -39,6 +39,12 @@ bool matches(const SelectorList& selectors, const StyleNode& node);
 
 class SelectorIndex {
 public:
+    struct Entry {
+        ComplexSelector selector;
+        std::size_t value = 0;
+        Specificity specificity;
+    };
+
     void add(const ComplexSelector& selector, std::size_t value);
     void add(const SelectorList& selectors, std::size_t value);
     void clear();
@@ -47,14 +53,13 @@ public:
     [[nodiscard]] std::size_t size() const {
         return entries_.size();
     }
+    // The indexed selectors in insertion order; `value` is the caller's rule handle. A combination
+    // re-adds these entries against the shifted rule indices of its own sheet.
+    [[nodiscard]] const std::vector<Entry>& entries() const {
+        return entries_;
+    }
 
 private:
-    struct Entry {
-        ComplexSelector selector;
-        std::size_t value = 0;
-        Specificity specificity;
-    };
-
     void add_entry(Entry entry);
 
     std::vector<Entry> entries_;

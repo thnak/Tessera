@@ -121,9 +121,9 @@ padding, no pointers, no hash-map iteration, no timestamps or paths in the blob.
 
 ## 8. Not covered by v1
 
-The theme asset section, the `AppHost` registration of several blobs and their import-graph order
-are defined by ADR-048 and land in later slices; they will extend this document (a new section kind
-needs a `format_version` bump).
+The theme asset section is defined by ADR-048 decision 7 and lands in a later slice; it will extend
+this document (a new section kind needs a `format_version` bump). Ordered combination of several
+sheets and the `AppHost` registration API are section 10.
 
 ## 9. Embedding in generated C++
 
@@ -136,16 +136,17 @@ IR-only dependency ([`ir-v1.md`](ir-v1.md), AGENTS.md non-negotiable 4). The CLI
 file to the component files it emits: `<module.name>_stylesheets.hpp`, next to `<Component>.hpp`.
 The root namespace of the module is the C++ namespace of the file.
 
-**Symbols.** One byte array per embedded sheet, then the record and the registration table:
+**Symbols.** One byte array per embedded sheet, then the registration table. The record type is
+`tessera::ui::style::EmbeddedStylesheet` from
+`include/tessera/ui/style/stylesheet_blob.hpp`, so the generated file includes that header and names
+the type fully qualified (generated code is built into an app that links the engine):
 
 ```cpp
+#include "tessera/ui/style/stylesheet_blob.hpp"
+
 namespace <module.name> {
   inline constexpr std::array<std::uint8_t, N> kStylesheetBlob_<id> = { /* N bytes */ };
-  struct EmbeddedStylesheet {
-      std::string_view path;
-      std::span<const std::uint8_t> bytes;
-  };
-  inline constexpr std::array<EmbeddedStylesheet, K> kEmbeddedStylesheets = {{
+  inline constexpr std::array<tessera::ui::style::EmbeddedStylesheet, K> kEmbeddedStylesheets = {{
       { "<path>", kStylesheetBlob_<id> },
   }};
 }
@@ -164,13 +165,12 @@ namespace <module.name> {
   `TESSERA_CODEGEN_STYLESHEET_UNKNOWN`, naming the first unknown path in sorted order (independent
   of the caller's embed order).
 
-**Startup.** The app loads each table entry without parsing:
+**Startup.** The app hands the table to its host once, before the first frame; the host loads each
+entry without parsing and combines them in table order (section 10):
 
 ```cpp
-for (const auto& sheet : <module.name>::kEmbeddedStylesheets) {
-    const auto prepared = tessera::ui::style::load_stylesheet_blob(sheet.bytes);
-    // a BlobError (format/engine schema, hash, corruption) is a build mismatch, not a CSS error
-}
+tessera::app::AppHost host(root, base_sheet, loop, config);
+host.register_embedded_stylesheets(<module.name>::kEmbeddedStylesheets);
 ```
 
 **Build-time CSS diagnostics.** The CLI compiles every read stylesheet before codegen runs. The
@@ -178,3 +178,43 @@ parser is tolerant by design (section 10 of [`stylesheet-v1.md`](stylesheet-v1.m
 build-time failure it proves is a lexical one: an unterminated string is
 `TESSERA_CSS_SYNTAX` with `path:line:column`, and an existing stylesheet the CLI cannot read is
 `TESSERA_CSS_READ`. A missing file keeps the import's `TESSERA_IR_STYLESHEET_MISSING` error.
+
+## 10. Ordered combination and `AppHost` registration
+
+Several prepared sheets become one cascade in **import-graph order** (ADR-048 decisions 5-6). The
+ordering key itself is [`stylesheet-v1.md`](stylesheet-v1.md) section 7.2; this section defines how
+the per-file values are produced.
+
+- **One global source order.** Rules are concatenated in sheet order and every declaration gets the
+  next value of a single, monotonically increasing `source_order`; it never restarts at a sheet
+  boundary. Equal origin, importance, layer and specificity are therefore broken by the later
+  sheet, which is the web import rule.
+- **Layer remapping.** Each sheet's flat layer indices are remapped into one global name table. A
+  named layer is the same layer across sheets (`@layer base` in two files merges into one slot and
+  takes the order of its first appearance); an anonymous layer keeps its position under a fresh
+  unnamed slot. `CompiledStyleSheet(std::span<const StylesheetSource>)` combines library sources
+  before app sources, so every library layer sorts below every app layer; `append_sheet()` is the
+  incremental form the host uses.
+- **`@layer tessera-ui` for library sheets.** A `StylesheetSource` with `library = true` puts every
+  rule of that sheet in `@layer tessera-ui`: its unlayered rules land in `tessera-ui` itself and its
+  named layers nest under it (`@layer base` -> `tessera-ui.base`). Unlayered app CSS therefore beats
+  library defaults regardless of specificity or import order, and library CSS only orders itself
+  against earlier library layers. A library sheet that already writes its CSS inside
+  `@layer tessera-ui` keeps that name instead of nesting it twice.
+- **Keyframes, containers, diagnostics.** The first definition of a keyframes name wins across
+  sheets; later definitions of that name are dropped, new names append in sheet order. Container
+  queries and diagnostics concatenate in sheet order.
+- **`AppHost`.** `AppHost::register_embedded_stylesheets(std::span<const EmbeddedStylesheet>)` loads
+  each blob with `load_stylesheet_blob` — no CSS parsing — and combines it with the host's
+  constructor sheet, which keeps the lowest source order, in table order. It replaces the host's
+  compiled sheet and marks style, layout, paint and render dirty, so the next `begin_frame()`
+  rebuilds the selector tree; `begin_frame()` itself never parses CSS. The host keeps the
+  constructor sheet, so calling the method again replaces the previous registration instead of
+  stacking on it. Library CSS reaches the host already layered: construct the constructor sheet
+  from `StylesheetSource` with `library = true`.
+- **A blob that does not load** (format version, engine schema, hash or corruption) is never applied
+  and never throws. The sheet is skipped, the remaining sheets still register, one
+  `TESSERA_CSS_BLOB_INVALID: <path>: <code>: <message>` line is written to stderr, and
+  `AppHost::rejected_stylesheet_count()` reports how many were skipped. The cascade is always built
+  from the sheets that did load plus the constructor sheet, never a partly applied sheet and never
+  a previous registration.

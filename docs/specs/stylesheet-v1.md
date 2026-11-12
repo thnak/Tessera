@@ -194,6 +194,14 @@ For each declaration:
 - Equal keys are resolved by source order; the later declaration wins.
 - Build-time and runtime must use the same stable source ordering.
 
+Sheets from several files enter one cascade in **import-graph order**: depth-first from the app
+root, imports visited in source order, each file placed at its first occurrence (post-order). The
+sheet order is the high part of `source_order` and the declaration order inside a file is the low
+part, so a later sheet wins an otherwise equal key. First-party library CSS is registered inside
+`@layer tessera-ui`, so unlayered app CSS beats it regardless of specificity; the combination
+algorithm, layer remapping and the `AppHost` registration API are specified in
+[`compiled-stylesheet-v1.md`](compiled-stylesheet-v1.md) section 10.
+
 ### 7.3 Inheritance
 
 - Inherited by default: `color`, `font-*`, `line-height`, `letter-spacing`, `word-spacing`,
