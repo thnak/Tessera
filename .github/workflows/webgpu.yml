@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: MIT
+
+# WebGPU backend lane (ADR-049 section 4 promotion conditions): build `tessera_webgpu` with
+# Emscripten and the emdawnwebgpu port, load it under Node, and validate the authored WGSL.
+
+name: WebGPU
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  wasm-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read emsdk pin
+        run: echo "EMSDK_VERSION=$(cat tools/emsdk-version.txt)" >> "$GITHUB_ENV"
+
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      # The cache holds the SDK and its port cache (the emdawnwebgpu package the port downloads,
+      # verified by the SHA-512 pinned inside that emsdk release).
+      - name: Cache emsdk
+        id: emsdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
+
+      - name: Install emsdk
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$EMSDK_VERSION" \
+            https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
+
+      - name: Activate emsdk
+        run: |
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          echo "EMSDK=$EMSDK" >> "$GITHUB_ENV"
+          echo "$EMSDK" >> "$GITHUB_PATH"
+          echo "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "$(dirname "$EMSDK_NODE")" >> "$GITHUB_PATH"
+          echo "EMSDK_NODE=$EMSDK_NODE" >> "$GITHUB_ENV"
+
+      - name: Configure (wasm-webgpu)
+        run: |
+          emcc --version | head -n1
+          cmake --preset wasm-webgpu
+
+      - name: Build tessera_webgpu
+        run: cmake --build --preset wasm-webgpu --parallel
+
+      - name: Node load smoke
+        run: >
+          "$EMSDK_NODE" build/wasm-webgpu/src/rendering/backend/webgpu/webgpu_wasm_smoke.js
+
+  wgsl-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read naga pin
+        run: echo "NAGA_VERSION=$(cat tools/naga-version.txt)" >> "$GITHUB_ENV"
+
+      - name: Cache naga
+        id: naga-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/naga
+          key: naga-${{ runner.os }}-${{ env.NAGA_VERSION }}
+
+      - name: Install naga-cli
+        if: steps.naga-cache.outputs.cache-hit != 'true'
+        run: cargo install naga-cli --version "$NAGA_VERSION" --locked
+
+      - name: Validate authored WGSL (naga)
+        run: python3 -B scripts/ci/validate_wgsl.py --naga ~/.cargo/bin/naga
