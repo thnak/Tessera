@@ -192,3 +192,10 @@ target_compile_definitions(harness_latency_audit_tests PRIVATE
     TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${TESSERA_HARNESS_FIXTURE_SCRIPTS}")
 
 add_test(NAME harness_latency_audit COMMAND harness_latency_audit_tests)
+
+add_executable(harness_frame_check_tests
+    frame_check_tests.cpp)
+
+target_link_libraries(harness_frame_check_tests PRIVATE tessera_harness_image)
+
+add_test(NAME harness_frame_check COMMAND harness_frame_check_tests)
