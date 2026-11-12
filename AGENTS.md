@@ -548,8 +548,9 @@ runs the script structurally, renders the final scene (`cli_frame.cpp`), writes
 `frame.png`/diff/`frame.compare.json` and a `frame` report object, and exits 0 match / 1 mismatch or
 missing baseline / 2 mode unavailable (golden needs lavapipe via `VK_ICD_FILENAMES`).
 `--update-goldens` is golden-only (ADR-009). Next for this lane: commit real baselines under
-`tests/golden/baseline/harness/` and run them on lavapipe CI, and run the
-latency profile thresholds on a real clock. The `scrollIntoView` action reveals realized items
+`tests/golden/baseline/harness/` and run them on lavapipe CI (Linux only). The `desktop` and
+`mobile` latency profiles pass on a real clock on the Windows dev machine (six-step fixture script:
+p95 3.4 ms desktop, 1.9 ms mobile, 2026-11-12); noisy shared runners should keep using `ci`. The `scrollIntoView` action reveals realized items
 (`ui::scroll_into_view`); revealing an unrealized virtual item through `VirtualRange` is still open. Manifest scenes already report the manifest structural
 path and component id in snapshots (`NodeAnnotations`); the manifest has no accessible names yet. The POSIX `poll` path is not yet compiled anywhere. `tessera_accessibility`
 now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Transport` seam with a
