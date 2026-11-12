@@ -28,7 +28,7 @@ struct AppHost::Impl {
     void rebuild_style_tree();
     void rebuild_cascade();
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
-    void apply_style_generation(ui::Dirty dirty);
+    void apply_style_generation(ui::Dirty dirty_mask);
     void run_layout_pass();
     void register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets);
     void register_embedded_theme(std::span<const std::uint8_t> bytes);
