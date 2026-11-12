@@ -29,7 +29,14 @@ namespace ir = tessera::compiler::ir;
 
 using internal::expr_source;
 using internal::is_project_relative;
-using internal::quoted;
+
+// `std::quoted` (declared by <iomanip>, which some platforms pull in transitively) has defaulted
+// delimiter/escape arguments, so an unqualified call with a std::string argument would prefer it
+// over the string_view overload and return a stream proxy. Keep a local wrapper so the call is
+// unambiguous on every toolchain.
+[[nodiscard]] std::string quoted(std::string_view text) {
+    return internal::quoted(text);
+}
 
 // The stable identity band of the library components. The previous hand-built declarations used
 // these numbers and the committed codegen goldens pin them, so generation keeps the same scheme:
