@@ -121,6 +121,60 @@ padding, no pointers, no hash-map iteration, no timestamps or paths in the blob.
 
 ## 8. Not covered by v1
 
-The theme asset section, the embedding of blobs in generated C++, the `AppHost` registration table
-and import-graph ordering of several blobs are defined by ADR-048 and land in later slices; they
-will extend this document (a new section kind needs a `format_version` bump).
+The theme asset section, the `AppHost` registration of several blobs and their import-graph order
+are defined by ADR-048 and land in later slices; they will extend this document (a new section kind
+needs a `format_version` bump).
+
+## 9. Embedding in generated C++
+
+`tessera_codegen` compiles the CSS it reads into blobs and passes them to codegen as opaque bytes
+(`StylesheetEmbed{path, bytes}`); codegen never parses CSS, and the codegen library keeps its
+IR-only dependency ([`ir-v1.md`](ir-v1.md), AGENTS.md non-negotiable 4). The CLI's bytes are exactly
+`serialize_stylesheet(prepare_stylesheet(source))`; they are never re-encoded.
+
+**When.** When at least one stylesheet of the module has a blob, `generate` appends exactly one
+file to the component files it emits: `<module.name>_stylesheets.hpp`, next to `<Component>.hpp`.
+The root namespace of the module is the C++ namespace of the file.
+
+**Symbols.** One byte array per embedded sheet, then the record and the registration table:
+
+```cpp
+namespace <module.name> {
+  inline constexpr std::array<std::uint8_t, N> kStylesheetBlob_<id> = { /* N bytes */ };
+  struct EmbeddedStylesheet {
+      std::string_view path;
+      std::span<const std::uint8_t> bytes;
+  };
+  inline constexpr std::array<EmbeddedStylesheet, K> kEmbeddedStylesheets = {{
+      { "<path>", kStylesheetBlob_<id> },
+  }};
+}
+```
+
+- **Identifiers.** `<id>` is `StylesheetRef::id` with every run of non-alphanumeric characters
+  replaced by a single `_` (`css::ui/app` -> `css_ui_app`), so the symbol is a valid C++ identifier.
+- **Ordering.** Arrays, table entries and table order follow `IrModule::stylesheets` order, which
+  lowering fills sorted by path; the caller's embed order is irrelevant.
+- **Bytes.** Array sizes are the blob sizes. Elements are lowercase `0xnn` hex, 12 per line, each
+  line ending with a trailing comma, so the file is byte-for-byte deterministic for a given IR and
+  blob set (ADR-009). `--check` covers the file like any other generated file.
+- **A sheet without a blob** keeps its `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` warning and is absent
+  from both the arrays and the table.
+- **An embed whose path is not a stylesheet of the module** is a codegen error,
+  `TESSERA_CODEGEN_STYLESHEET_UNKNOWN`, naming the first unknown path in sorted order (independent
+  of the caller's embed order).
+
+**Startup.** The app loads each table entry without parsing:
+
+```cpp
+for (const auto& sheet : <module.name>::kEmbeddedStylesheets) {
+    const auto prepared = tessera::ui::style::load_stylesheet_blob(sheet.bytes);
+    // a BlobError (format/engine schema, hash, corruption) is a build mismatch, not a CSS error
+}
+```
+
+**Build-time CSS diagnostics.** The CLI compiles every read stylesheet before codegen runs. The
+parser is tolerant by design (section 10 of [`stylesheet-v1.md`](stylesheet-v1.md)), so the
+build-time failure it proves is a lexical one: an unterminated string is
+`TESSERA_CSS_SYNTAX` with `path:line:column`, and an existing stylesheet the CLI cannot read is
+`TESSERA_CSS_READ`. A missing file keeps the import's `TESSERA_IR_STYLESHEET_MISSING` error.

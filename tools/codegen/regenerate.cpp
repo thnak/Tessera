@@ -16,6 +16,9 @@
 #include "tessera/compiler/merger.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
 #include "tessera/harness/json_parse.hpp"
+#include "tessera/ui/style/prepared_stylesheet.hpp"
+#include "tessera/ui/style/stylesheet_blob.hpp"
+#include "tessera/ui/style/tokenizer.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -46,6 +49,7 @@ namespace ir = tessera::compiler::ir;
 namespace jsx = tessera::compiler::jsx;
 namespace lowering = tessera::compiler::lowering;
 namespace rules = tessera::compiler::rules;
+namespace style = tessera::ui::style;
 
 struct SourceFile {
     SourceFile(std::string file_path, std::string file_text)
@@ -88,6 +92,62 @@ std::string ir_diagnostic_text(const ir::IrDiagnostic& diagnostic) {
     return text + diagnostic.code + ": " + diagnostic.message;
 }
 
+// `path:line:column` for a byte offset into a stylesheet: the engine reports offsets, the CLI's
+// contract with the user is file:line:column (docs/guides/developer-workflow.md).
+std::string css_diagnostic_text(std::string_view path, std::string_view text, std::size_t offset,
+                                std::string_view message) {
+    std::size_t line = 1;
+    std::size_t column = 1;
+    const std::size_t end = std::min(offset, text.size());
+    for (std::size_t i = 0; i < end; ++i) {
+        if (text[i] == '\n') {
+            ++line;
+            column = 1;
+        } else {
+            ++column;
+        }
+    }
+    return std::string(path) + ":" + std::to_string(line) + ":" + std::to_string(column) + ": " +
+           std::string(message);
+}
+
+// The stylesheet parser is tolerant by design (stylesheet-v1.md section 10), so a build-time
+// failure can only come from the lexical error it proves: an unterminated string. Everything else
+// prepares, and the prepared sheet carries its own diagnostics for the run time.
+std::optional<std::string> stylesheet_syntax_error(std::string_view path, std::string_view text) {
+    style::Tokenizer tokenizer(text);
+    while (true) {
+        const style::Token token = tokenizer.next();
+        if (token.type == style::TokenType::Eof) {
+            return std::nullopt;
+        }
+        if (token.type == style::TokenType::BadString) {
+            return css_diagnostic_text(path, text, token.offset,
+                                       "TESSERA_CSS_SYNTAX: unterminated string in the stylesheet");
+        }
+    }
+}
+
+// Compiled stylesheet blobs of the module (issue #81, ADR-048): the CLI compiles the CSS it read,
+// so `StylesheetEmbed::bytes` is exactly `serialize_stylesheet()` output and the codegen library
+// never sees a stylesheet engine header.
+std::optional<std::vector<StylesheetEmbed>>
+build_stylesheet_embeds(std::span<const std::string> paths, std::span<const std::string> texts,
+                        Outcome& outcome) {
+    std::vector<StylesheetEmbed> embeds;
+    embeds.reserve(paths.size());
+    for (std::size_t i = 0; i < paths.size(); ++i) {
+        if (const std::optional<std::string> error = stylesheet_syntax_error(paths[i], texts[i])) {
+            report(outcome, true, *error);
+            outcome.exit_code = 1;
+            return std::nullopt;
+        }
+        const style::PreparedStyleSheet prepared = style::prepare_stylesheet(texts[i]);
+        embeds.push_back(StylesheetEmbed{paths[i], style::serialize_stylesheet(prepared)});
+    }
+    return embeds;
+}
+
 bool safe_file_name(std::string_view name) {
     return !name.empty() && name.find('/') == std::string_view::npos &&
            name.find('\\') == std::string_view::npos && name.find("..") == std::string_view::npos;
@@ -115,9 +175,9 @@ std::string derive_module_name(const std::string& input) {
     return name;
 }
 
-bool generate_files(const ir::IrModule& module, std::vector<GeneratedFile>& files, Outcome& outcome,
-                    std::string_view input) {
-    const auto generated = generate(module);
+bool generate_files(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
+                    std::vector<GeneratedFile>& files, Outcome& outcome, std::string_view input) {
+    const auto generated = generate(module, embeds);
     if (!generated) {
         const CodegenErrors& errors = generated.error();
         report(outcome, true,
@@ -127,7 +187,7 @@ bool generate_files(const ir::IrModule& module, std::vector<GeneratedFile>& file
         return false;
     }
     files = *generated;
-    for (const std::string& warning : codegen_warnings(module)) {
+    for (const std::string& warning : codegen_warnings(module, embeds)) {
         report(outcome, false, std::string(input) + ": warning: " + warning);
     }
     return true;
@@ -283,11 +343,27 @@ Outcome run(const Options& options) {
                               : (fs::path(source->path).parent_path() / fs::path(item.source))
                                     .lexically_normal();
             std::optional<std::string> text = read_file(on_disk);
-            if (text) {
-                stylesheet_paths.push_back(std::move(path));
-                stylesheet_texts.push_back(std::move(*text));
+            if (!text) {
+                // A missing file stays lowering's error at the import's span (TESSERA_IR_
+                // STYLESHEET_MISSING); an existing file the CLI cannot read is a build failure.
+                std::error_code exists_error;
+                if (fs::exists(on_disk, exists_error)) {
+                    report(outcome, true,
+                           path + ":1:1: TESSERA_CSS_READ: cannot read the stylesheet `" + path +
+                               "`");
+                    outcome.exit_code = 1;
+                    return outcome;
+                }
+                continue;
             }
+            stylesheet_paths.push_back(std::move(path));
+            stylesheet_texts.push_back(std::move(*text));
         }
+    }
+    const std::optional<std::vector<StylesheetEmbed>> embeds =
+        build_stylesheet_embeds(stylesheet_paths, stylesheet_texts, outcome);
+    if (!embeds) {
+        return outcome;
     }
     std::vector<lowering::StylesheetFile> stylesheet_files;
     stylesheet_files.reserve(stylesheet_paths.size());
@@ -393,7 +469,7 @@ Outcome run(const Options& options) {
     }
 
     std::vector<GeneratedFile> files;
-    if (!generate_files(module, files, outcome, options.inputs.front())) {
+    if (!generate_files(module, *embeds, files, outcome, options.inputs.front())) {
         return outcome;
     }
 

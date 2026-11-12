@@ -106,6 +106,14 @@ systems do not rebuild. Files outside `--out` are never touched, and generated n
 warnings; outside-region edits are drift for `--check` and are overwritten by `--write` (the rule
 below).
 
+A module that imports CSS also gets one `<module>_stylesheets.hpp` next to the component files: the
+compiled style blobs as `constexpr` byte arrays plus the `kEmbeddedStylesheets` table
+([`compiled-stylesheet-v1.md`](../specs/compiled-stylesheet-v1.md) section 9). It has no protected
+regions and is covered by `--check` like every other generated file. A stylesheet the compiler
+cannot read, or whose string literal is unterminated, fails the run with a `file:line:column`
+diagnostic before any C++ is written; a sheet without a blob keeps its
+`TESSERA_CG_STYLESHEET_NOT_EMBEDDED` warning.
+
 The output directory is build output: keep it out of version control. Commit only the `.tsx`
 sources and the developer files that the team owns (the sample's seed lives at
 `tests/golden/codegen/demo/Demo.cpp` and the build regenerates over it).
