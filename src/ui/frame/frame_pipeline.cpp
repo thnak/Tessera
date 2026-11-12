@@ -220,6 +220,19 @@ InterpolationPaintView FramePipeline::interpolation_view() const {
         interpolate_paint_samples(previous_samples_, current_samples_, alpha_));
 }
 
+void FramePipeline::invalidate_paint_cache() {
+    // A style/tree generation change can restyle nodes whose own dirty flags stay Clean (inherited
+    // values, ancestor/sibling selectors, a restyled root, a rebuilt selector tree). The cache key
+    // deliberately cannot see a computed style, so the whole generation goes; re-recording is the
+    // only way to guarantee the next frame is byte-identical to an uncached paint.
+    paint_cache_.invalidate();
+}
+
+const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
+    paint_cache_stats_snapshot_ = paint_cache_.stats();
+    return paint_cache_stats_snapshot_;
+}
+
 paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StyleProvider& styles,
                                                       const FrameTick& tick, bool force) const {
     if (!force && !tick.needs_style && !tick.needs_layout) {
@@ -298,6 +311,9 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     }
     const InterpolationPaintView view = interpolation_view();
     paint::PaintContext context;
+    if (config_.paint_cache) {
+        context.paint_cache = &paint_cache_;
+    }
     if (!view.empty()) {
         context.view = &view;
     }
@@ -315,6 +331,9 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     }
     const InterpolationPaintView view = interpolation_view();
     paint::PaintContext context;
+    if (config_.paint_cache) {
+        context.paint_cache = &paint_cache_;
+    }
     if (!view.empty()) {
         context.view = &view;
     }

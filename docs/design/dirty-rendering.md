@@ -174,11 +174,13 @@ Charts, live data, and animations stream vertices into a per-frame arena:
 - no full-tree rebuild;
 - bounded memory: capacity is part of the chart pipeline contract.
 
-### 5.4 Per-node paint cache (implemented, caller-owned)
+### 5.4 Per-node paint cache (implemented, pipeline-owned)
 
 `ui::paint::PaintCache` (`include/tessera/ui/paint/paint_cache.hpp`,
 `src/ui/paint/paint_cache.cpp`) is the per-node part of the retained hybrid. `paint_scene` consults
 it through `PaintContext::paint_cache`; a null pointer keeps the uncached pass byte-identical.
+`FramePipeline` owns one instance and passes it into both `paint_frame` overloads, so the production
+path replays a settled scene instead of re-emitting it.
 
 - **Owns:** one record per node holding the exact sequence of `PaintSink` calls that node emits for
   itself (background/border/text/vector/image/gradient/shadow draws and its own clip/transform push),
@@ -190,21 +192,39 @@ it through `PaintContext::paint_cache`; a null pointer keeps the uncached pass b
   matrix, painting frame, resolved box, sink transform support), a deterministic FNV-1a fingerprint
   of the inherited clip stack, the `text_metrics_source` id, the device scale, and the exact
   `PaintData` payload compared by value. A record is replayed only while the node's own dirty flags
-  are `Clean`: the dirty bit is the style-generation signal, so a style/cascade/theme change
-  invalidates the record without the cache resolving the style. A bounds, transform or clip change
-  MISSES and re-records at the new coordinates instead of replaying adjusted ones.
+  are `Clean`: a property change that marks the node re-records it. The dirty bit cannot see a
+  computed style, so it is not the only generation signal — see *Generation changes* below. A
+  bounds, transform or clip change MISSES and re-records at the new coordinates instead of
+  replaying adjusted ones.
 - **Never replayed across:** a `PaintView` override (a paint with a view takes the uncached path end
   to end, because the view can override colors/opacity/transform and text metrics per frame), a
   different metrics-source id, a different device scale, or a different inherited clip stack. Box
   shadows need no bypass: their layers derive from the computed style only, not from the sink.
 - **Bounds:** `PaintCacheConfig` caps entries and bytes (defaults 256 / 2 MiB) with deterministic
-  LRU eviction, and `PaintCacheStats` reports hits/misses/evictions/invalidations/replayed_draws/
-  recorded_draws/bypasses. It is caller-owned (no global singleton); one instance belongs to one
-  scene tree, and `invalidate()` follows a style or tree generation change.
+  LRU eviction. The cache is not a global singleton: one instance belongs to one scene tree, which
+  is why `FramePipeline` (one tree per pipeline) owns it. Limits stay at the defaults; the config
+  switch below only enables or bypasses the cache.
+- **Generation changes:** `FramePipeline::invalidate_paint_cache()` drops every record and counts one
+  invalidation. `AppHost::begin_frame` calls it on every style-tree rebuild
+  (`HostFrame::style_rebuilt`), which covers a stylesheet, theme or root-style change: a rebuilt
+  selector tree is a new generation, and a clean node can compute a different style through
+  inheritance, an ancestor/sibling selector or a restyled root without its own dirty flag being set.
+  `AppHost::resize` re-creates the pipeline, so the cache starts cold there. A direct
+  `FramePipeline` user that swaps a style generation must call `invalidate_paint_cache()` itself.
+  An interpolated (`PaintView`) frame bypasses the cache instead of invalidating it, so its records
+  stay valid for the next non-interpolated paint of the same generation.
+- **Config:** `FramePipelineConfig::paint_cache` (default `true`) selects the pipeline-owned cache.
+  When false the paint context gets a null cache and the pass is byte-identical to the pre-cache
+  pipeline.
+- **Stats:** `FramePipeline::paint_cache_stats()` (and `AppHost::paint_cache_stats()`) expose the
+  `PaintCacheStats` counters: hits, misses, evictions, invalidations, replayed/recorded draws,
+  bypasses, entries and bytes. A settled frame that re-recorded nothing shows `hits` equal to the
+  visible node count with a zero `recorded_draws` delta. `PaintStats` keeps its meaning — `nodes`
+  is "styles resolved", so it drops to zero on a full hit while the draw counters replay.
 - **Damage equivalence is unchanged.** A replayed record is the same sink call sequence a cold paint
-  would emit for that node (pinned call-for-call by `paint_cache`'s byte-identical test), so damage,
-  redraw plans and the CPU/GPU equivalence tests are untouched. `FramePipeline` does not pass a cache
-  yet, so existing pipeline behavior is unchanged; wiring the frame-owned instance is the next slice.
+  would emit for that node (pinned call-for-call by `paint_cache`'s byte-identical test and by
+  `tests/unit/frame_paint_cache_tests.cpp` at pipeline and AppHost level), so damage, redraw plans
+  and the CPU/GPU equivalence tests are untouched.
 
 ## 6. Damage and partial redraw
 

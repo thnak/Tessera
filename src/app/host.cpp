@@ -207,6 +207,12 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
     const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;
     if (geometry_work) {
         state.rebuild_style_tree();
+        // A rebuilt selector tree is a new style generation. The paint cache key holds a node's own
+        // dirty flags, not its computed style, so a node that stayed Clean can still resolve a
+        // different style now (an inherited value, an ancestor/sibling selector, a restyled root or
+        // a new theme). Dropping every record is the only sound answer; replaying one would paint
+        // the previous generation and differ from a cold full paint.
+        state.pipeline->invalidate_paint_cache();
         frame.style_rebuilt = true;
         state.run_layout_pass();
         frame.layout = state.last_applied;
@@ -232,6 +238,10 @@ ui::frame::FramePaint AppHost::paint(ui::paint::PaintSink& sink, bool force) {
 
 void AppHost::end_frame() {
     impl_->dirty.clear(impl_->root, ui::Dirty::All);
+}
+
+const ui::paint::PaintCacheStats& AppHost::paint_cache_stats() const {
+    return impl_->pipeline->paint_cache_stats();
 }
 
 void AppHost::resize(float width, float height, float dpi_scale) {

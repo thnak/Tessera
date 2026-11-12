@@ -8,6 +8,7 @@
 #include "tessera/ui/animation/spring_runtime.hpp"
 #include "tessera/ui/frame_interpolation.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
+#include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
@@ -29,6 +30,12 @@ struct FramePipelineConfig {
     // default, like the runtime config; a render that coincides with a tick (alpha 0) paints the
     // previous sample, and renders between ticks blend toward the current one.
     bool interpolation = true;
+    // Per-node paint cache (docs/design/dirty-rendering.md section 5.4). On by default: the
+    // pipeline owns one `paint::PaintCache` and passes it to both paint_frame overloads, so a
+    // clean node's recorded sink calls are replayed instead of re-emitted. When false the context
+    // gets a null cache and the paint pass is byte-identical to the pre-cache pipeline. Cache
+    // limits stay at `PaintCacheConfig`'s defaults; this switch only enables or bypasses it.
+    bool paint_cache = true;
 };
 
 struct FrameTick {
@@ -96,6 +103,34 @@ public:
     FramePaint paint_frame(const Node& root, paint::StyleProvider& styles, paint::PaintSink& sink,
                            const rendering::RedrawPlan& plan, bool force = false) const;
 
+    // --- Per-node paint cache (docs/design/dirty-rendering.md section 5.4) ----------------------
+    // The pipeline owns the cache (`FramePipelineConfig::paint_cache`) and passes it into both
+    // paint_frame overloads; painting is its only reader and writer. The cache is keyed by node id
+    // and stores one node's own sink calls, so one pipeline must paint one scene tree.
+    //
+    // Invalidation points. A record is replayed only while every input it was recorded under is
+    // unchanged (see paint_cache.hpp), and a replay is byte-identical to re-emitting the node:
+    //   - a node's own dirty flags are part of the lookup: a style/property change that marks the
+    //     node re-records it, so no call is needed here for a normal property edit;
+    //   - invalidate_paint_cache(): required whenever a node's computed style can change while its
+    //     own dirty flags stay Clean - a rebuilt selector/style tree, a new stylesheet, theme or
+    //     root-style generation, a swapped StyleProvider, or a restyle whose effect is inherited
+    //     into clean descendants. AppHost calls it from begin_frame() on every style-tree rebuild
+    //     (see HostFrame::style_rebuilt); a caller that swaps a style generation and cannot prove
+    //     every affected node was marked must call it too;
+    //   - a `PaintView` (interpolation) bypasses the cache instead of invalidating it: such a paint
+    //     walks the uncached path and leaves the records alone, so they stay valid for the next
+    //     non-interpolated paint of the same generation;
+    //   - re-creating the pipeline (AppHost::resize does) drops the cache with it; a cold cache is
+    //     always safe. Over-invalidating costs hit rate only, under-invalidating replays stale
+    //     output, so any doubt resolves to an invalidate call.
+    void invalidate_paint_cache();
+
+    // Cumulative counters of the pipeline-owned cache. After a paint that re-recorded nothing,
+    // `hits` equals the visible node count and the `recorded_draws` delta is zero. The returned
+    // reference is owned by the pipeline and refreshed by every call; read it after paint_frame().
+    [[nodiscard]] const paint::PaintCacheStats& paint_cache_stats() const;
+
     // True when the most recent finish_frame() reported should_render and tick() has not run since.
     [[nodiscard]] bool frame_due() const {
         return frame_due_;
@@ -157,6 +192,9 @@ private:
     animation::SpringRuntime springs_;
     FramePipelineConfig config_;
     bool frame_due_ = false;
+    // Paint records for the tree this pipeline paints; mutable because painting is const.
+    mutable paint::PaintCache paint_cache_;
+    mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
     PaintSamples previous_samples_;
     PaintSamples current_samples_;
     double alpha_ = 0.0;
