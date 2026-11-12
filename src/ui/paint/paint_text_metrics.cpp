@@ -4,6 +4,8 @@
 #include "tessera/ui/text/freetype_metrics.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace tessera::ui::paint {
@@ -45,9 +47,19 @@ text::FontMetrics FontPaintTextMetrics::metrics(const text::TextStyle& style) co
 float FontPaintTextMetrics::advance(std::string_view text, const text::TextStyle& style) const {
     // Raw HarfBuzz advance plus the `word-spacing` the wrap added per separator: the painted cursor
     // and the laid-out line use the same additive rule, so their sums agree.
+    //
+    // `text-transform` is applied before shaping so the advance is the width of the glyphs paint is
+    // about to emit (uppercase advances can differ from lowercase in a real face). The mapping is
+    // 1:1 in bytes, so callers' source offsets are unchanged.
+    std::string transformed;
+    std::string_view measured = text;
+    if (style.text_transform != text::TextTransform::None) {
+        transformed = text::apply_text_transform(text, style.text_transform);
+        measured = transformed;
+    }
     const float spacing = style.word_spacing > 0.0f ? style.word_spacing : 0.0f;
-    return impl_->shaper.shape(text, style).advance +
-           spacing * static_cast<float>(text::word_separator_count(text));
+    return impl_->shaper.shape(measured, style).advance +
+           spacing * static_cast<float>(text::word_separator_count(measured));
 }
 
 text::TextLayout FontPaintTextMetrics::layout(std::string_view text, const text::TextStyle& style,

@@ -364,7 +364,15 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         }
         TextDraw run;
         run.rect = {content_x, content_y, content_width, content_height};
-        run.text = data->text;
+        // The whole line paints as one run: emit the transformed bytes, exactly what the measured
+        // wrap used, so the painted sequence matches the (transformed) line width.
+        std::string transformed;
+        std::string_view painted = data->text;
+        if (text_style.text_transform != text::TextTransform::None) {
+            transformed = text::apply_text_transform(data->text, text_style.text_transform);
+            painted = transformed;
+        }
+        run.text = painted;
         run.font_size = text_style.font_size;
         run.font_weight = text_style.font_weight;
         run.color = color;

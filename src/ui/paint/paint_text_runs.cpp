@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace tessera::ui::paint::detail {
@@ -45,9 +46,21 @@ void emit_range_segments(std::string_view text, const text::TextLine& line, std:
     const bool single = !has_second && first.source_begin == begin && first.source_end == end;
 
     const auto emit = [&](const text::PaintedSegment& segment, float width) {
+        // `text-transform` is applied to the emitted bytes as well as to `PaintTextMetricsSource::
+        // advance`, so the painted glyph sequence and the advance the cursor uses are the same
+        // bytes. The mapping is 1:1 (ASCII only), so the segment's source offsets and the line's
+        // width are untouched, and a line's segment advances still sum to its laid-out width. V1
+        // cost: one transformed copy per emitted segment while a transform is active; hoisting that
+        // into a caller-owned scratch buffer is a follow-up if a transformed hot scene needs it.
+        std::string transformed;
+        std::string_view painted = segment.source;
+        if (text_style.text_transform != text::TextTransform::None) {
+            transformed = text::apply_text_transform(segment.source, text_style.text_transform);
+            painted = transformed;
+        }
         TextDraw run;
         run.rect = {std::round(x), std::round(line_top), width, line.height};
-        run.text = segment.source;
+        run.text = painted;
         run.font_size = text_style.font_size;
         run.font_weight = text_style.font_weight;
         run.color = color;

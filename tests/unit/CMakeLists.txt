@@ -1043,6 +1043,19 @@ target_link_libraries(text_overflow_tests PRIVATE tessera_paint tessera_text)
 
 add_test(NAME text_overflow COMMAND text_overflow_tests)
 
+# CSS `text-transform` (docs/design/text.md section 6.5): the computed-value mapping, the shared
+# ASCII 1:1 transform, the layout/measure seam, hit testing, both cache keys, and the end-to-end
+# painted output. `text_wrap.hpp` is internal to the text module.
+add_executable(text_transform_tests
+    text_transform_tests.cpp)
+
+target_link_libraries(text_transform_tests PRIVATE tessera_paint tessera_text)
+
+target_include_directories(text_transform_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/ui/text)
+
+add_test(NAME text_transform COMMAND text_transform_tests)
+
 add_executable(text_bidi_tests
     text_bidi_tests.cpp)
 

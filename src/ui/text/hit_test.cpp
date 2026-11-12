@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <string>
 #include <string_view>
 
 namespace tessera::ui::text {
@@ -16,11 +17,26 @@ float stub_advance(std::string_view run, const TextStyle& style, void* user) {
     const auto* metrics = static_cast<const FontMetrics*>(user);
     // The advance seam is literal: hit testing measures one cluster at a time, so a space cluster
     // must advance one space even when the line's mode collapses or trims separator runs. The wrap
-    // adds `word-spacing` itself; including it here too would double-count it.
+    // adds `word-spacing` itself; including it here too would double-count it. The transform is
+    // applied by the caller of this seam (the cluster walk below / the wrap's measure_run), so it
+    // is cleared here or `capitalize` would run twice.
     TextStyle literal = style;
     literal.white_space = WhiteSpace::Pre;
     literal.word_spacing = 0.0f;
+    literal.text_transform = TextTransform::None;
     return layout_text(run, literal, *metrics, TextConstraints{}).width;
+}
+
+// One cluster measured through the caller's advance seam. The seam is the one that sees the bytes
+// (paint passes its metrics source; hit testing defaults to the stub above), so the ASCII 1:1
+// transform is applied here before the callback.
+float measure_cluster(std::string_view run, const TextStyle& style, TextAdvanceMeasure measure,
+                      void* user) {
+    if (style.text_transform == TextTransform::None) {
+        return measure(run, style, user);
+    }
+    const std::string transformed = apply_text_transform(run, style.text_transform);
+    return measure(transformed, style, user);
 }
 
 struct Cursor {
@@ -37,7 +53,7 @@ std::vector<Cursor> boundaries(std::string_view text, const TextLine& line, cons
     result.push_back(Cursor{offset, x});
     while (offset < line.end) {
         const std::size_t next = edit_detail::next_cluster(text, offset);
-        x += measure(text.substr(offset, next - offset), style, user);
+        x += measure_cluster(text.substr(offset, next - offset), style, measure, user);
         result.push_back(Cursor{next, x});
         offset = next;
     }
@@ -115,7 +131,8 @@ TextHit hit_test_point(std::string_view text, const TextStyle& style,
     float run_x = 0.0f;
     for (std::size_t index = 0; index < line.visual_runs.size(); ++index) {
         const BidiVisualRun& run = line.visual_runs[index];
-        const float run_width = measure(text.substr(run.begin, run.end - run.begin), style, user);
+        const float run_width =
+            measure_cluster(text.substr(run.begin, run.end - run.begin), style, measure, user);
         const float run_right = run_x + run_width;
         if (line_x <= run_right || index + 1 == line.visual_runs.size()) {
             if (index > 0 && line_x == run_x) {

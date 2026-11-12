@@ -272,8 +272,7 @@ line boxes, plus the em-dash BA difference for every narrowing mode.
 
 Remaining contract, not implemented in this slice:
 
-- `text-transform` (upper/lower/capitalize): it changes the painted bytes themselves, which the
-  whitespace mapping of section 6.2 does not own. (`word-spacing` is implemented; see section 6.4.)
+- Full Unicode/ICU `text-transform` casing: V1 maps ASCII only (section 6.5).
 - `HitTest`/caret mapping by point still sums literal per-cluster advances; paint's own caret and
   selection already walk the painted segments, so collapsing a point-to-caret map is a follow-up.
 - `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
@@ -366,6 +365,21 @@ white-space processing: tabs, form feeds, CR/LF, fixed-width spaces and non-ASCI
 separators. A collapsed tab run still gains the spacing of the one space it paints. The behavior is
 pinned in `tests/unit/word_spacing_tests.cpp`, including the paint-sum equality with and without
 spacing.
+
+### 6.5 `text-transform`
+
+`text-transform` is inherited with initial `none`; `text_style_from()` maps `uppercase`, `lowercase`
+and `capitalize` to `TextStyle::text_transform`, everything else to `None`. V1 is an ASCII 1:1
+mapping (`text::apply_text_transform()`, `src/ui/text/text_transform.cpp`): `A-Z`/`a-z` change case
+byte by byte and non-ASCII bytes are copied unchanged, so a transformed run keeps the source length
+and every byte offset stays valid. `capitalize` uppercases the first ASCII letter of a word (run
+start, or after an ASCII space, tab or newline), skipping leading digits, punctuation and non-ASCII;
+full Unicode/ICU casing and IME preedit are later slices.
+
+The mapping is applied where bytes are measured or painted (the wrap's `measure_run`, both `advance`
+implementations, paint emission and the hit-test cluster seam), so measured, painted and caret
+advances agree. Offsets keep indexing the source string; the separator count runs on the transformed
+bytes; `text_transform` is part of both cache keys and of the layout signature.
 
 ## 7. Caches
 

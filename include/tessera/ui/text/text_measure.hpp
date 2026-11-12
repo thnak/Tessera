@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <string>
 #include <string_view>
 
 namespace tessera::ui::text {
@@ -68,6 +69,18 @@ enum class TextOverflow {
     Ellipsis,
 };
 
+// CSS `text-transform` (docs/design/text.md section 6.5). V1 is a byte-preserving ASCII mapping, so
+// every offset computed on the original text still addresses the transformed run: `A-Z`/`a-z` only,
+// one byte to one byte, and non-ASCII bytes are copied unchanged. Full Unicode/ICU casing (and the
+// locale-sensitive Turkic forms) is a later slice. It changes the measured glyphs, so it is part of
+// both cache keys and the layout signature.
+enum class TextTransform {
+    None,
+    Uppercase,
+    Lowercase,
+    Capitalize,
+};
+
 struct TextStyle {
     float font_size = 16.0f;
     float line_height = 0.0f;
@@ -81,6 +94,7 @@ struct TextStyle {
     int font_weight = 400;
     bool italic = false;
     WhiteSpace white_space = WhiteSpace::Normal;
+    TextTransform text_transform = TextTransform::None;
     // Paint-only: the measure cache key deliberately omits it, because it changes no glyph advance.
     TextOverflow text_overflow = TextOverflow::Clip;
 };
@@ -118,6 +132,17 @@ private:
 };
 
 TextStyle text_style_from(const style::ComputedStyle& style);
+
+// The one `text-transform` mapping, shared by the layout/measure seams, both `advance`
+// implementations, paint emission and hit testing so every path paints the same bytes.
+//
+// V1 maps ASCII only, 1:1 in bytes (`A-Z`/`a-z`), so a transformed run has exactly the original
+// length and every byte offset computed on the source text stays valid; non-ASCII bytes are copied
+// unchanged. `Capitalize` uppercases the first ASCII letter of a word, where a word starts at the
+// beginning of the run or immediately after an ASCII space, tab or newline; leading digits and
+// punctuation are skipped and never transformed. The function is idempotent for Uppercase and
+// Lowercase (and for the same Capitalize input), so a seam may safely re-apply it.
+[[nodiscard]] std::string apply_text_transform(std::string_view run, TextTransform transform);
 
 // Number of word separators in `run`: V1 counts the ASCII space (U+0020) only, so tabs, hard line
 // breaks and non-ASCII word separators (U+00A0 and friends) are not widened. Layout, paint and the

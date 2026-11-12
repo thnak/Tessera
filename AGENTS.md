@@ -190,7 +190,8 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tests/gpu/CMakeLists.txt`.
 - [x] **B2:** Stylesheet: `var()` substitution with inheritance, fallback and cycle detection —
       `src/ui/style/var_resolve.cpp`, `tests/unit/cascade_tests.cpp`, `tests/unit/style_var_tests.cpp`.
-- [ ] **B2:** Stylesheet: `text-transform` (`uppercase`/`lowercase`/`capitalize`) — text paint test.
+- [x] **B2:** Stylesheet: `text-transform` (`uppercase`/`lowercase`/`capitalize`) — text paint
+      test — `src/ui/text/text_transform.cpp`, `tests/unit/text_transform_tests.cpp`.
 - [x] **B2:** Stylesheet: `word-spacing` — `src/ui/text/text_wrap.cpp`,
       `tests/unit/word_spacing_tests.cpp`.
 - [x] **B2:** Text stack done except ICU in CI: add the `icu-text` job

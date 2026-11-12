@@ -22,7 +22,7 @@ constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 // Exactly the computed properties read by `detail::apply_style` (src/ui/layout/layout_style.cpp)
 // and `text::text_style_from` (src/ui/text/text_measure.cpp), except the paint-only
 // `text-overflow`. Sorted by byte value so binary search and a compile-time order check apply.
-constexpr std::array<std::string_view, 51> kLayoutProperties = {{
+constexpr std::array<std::string_view, 52> kLayoutProperties = {{
     "align-content",
     "align-items",
     "align-self",
@@ -70,6 +70,7 @@ constexpr std::array<std::string_view, 51> kLayoutProperties = {{
     "position",
     "right",
     "row-gap",
+    "text-transform",
     "top",
     "white-space",
     "width",
