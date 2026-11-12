@@ -29,8 +29,8 @@ namespace tessera::ui {
 // Everything here is trivially copyable and allocation-free. String fields are borrowed views into
 // the `Event`'s storage (or empty), so a payload is only valid for the duration of the dispatch.
 // Fields the scene `Event` does not carry yet are documented as zero/empty: `KeyEventInfo::code`
-// is 0, `ScrollEventInfo` viewport/content sizes are 0, `ErrorInfo` is empty, and
-// `TextChangeEvent::selection_*` come from the scene event's UTF-16 range.
+// is 0, `ErrorInfo` is empty, and `TextChangeEvent::selection_*` come from the scene event's UTF-16
+// range.
 
 struct PointerEventInfo {
     float x = 0.0f;
@@ -101,6 +101,11 @@ struct CompositionEvent {
     std::uint32_t end = 0;
 };
 
+// Scene scroll payload (EventType::Scroll): `offset_*` are the container's absolute scroll offsets
+// after the applied move; the viewport is the scrollport (border box inset by the container's
+// `scrollport_insets`) and the content extents come from the node's content size. The applied delta
+// itself is `Event::scroll_x`/`scroll_y`, not part of this record (the schema row has offsets
+// only).
 struct ScrollEventInfo {
     float offset_x = 0.0f;
     float offset_y = 0.0f;
@@ -228,7 +233,9 @@ inline CompositionEvent composition_event(const Event& event) {
 }
 
 inline ScrollEventInfo scroll_event_info(const Event& event) {
-    return ScrollEventInfo{event.scroll_x, event.scroll_y, 0.0f, 0.0f, 0.0f, 0.0f};
+    return ScrollEventInfo{event.scroll_offset_x,       event.scroll_offset_y,
+                           event.scroll_viewport_width, event.scroll_viewport_height,
+                           event.scroll_content_width,  event.scroll_content_height};
 }
 
 inline ErrorInfo error_info(const Event&) {

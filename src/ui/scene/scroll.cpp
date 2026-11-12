@@ -4,12 +4,83 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace tessera::ui {
 namespace {
 
 float finite(float value) {
     return std::isfinite(value) ? value : 0.0f;
+}
+
+// Re-entrancy guard for Scroll emission. The dispatcher itself has no dispatch-in-progress state,
+// so a handler that calls `scroll_by` on the same container would otherwise synthesize another
+// Scroll event for every nested move and recurse without bound. The nested move still applies; only
+// its event is suppressed. Entries are per node, so a handler may scroll a different container and
+// get that container's event. Bounded and allocation-free like the dispatcher; UI-thread only.
+constexpr std::size_t kMaxScrollEventDepth = 8;
+Node* g_scroll_event_stack[kMaxScrollEventDepth] = {};
+std::size_t g_scroll_event_depth = 0;
+
+bool scroll_event_active(const Node& node) {
+    for (std::size_t i = 0; i < g_scroll_event_depth; ++i) {
+        if (g_scroll_event_stack[i] == &node) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Pops the guard on scope exit, including an exception thrown by a user handler (error boundaries
+// catch those, but the guard must not stay armed).
+class ScrollEventScope {
+public:
+    explicit ScrollEventScope(Node& node)
+        : pushed_(g_scroll_event_depth < kMaxScrollEventDepth) {
+        if (pushed_) {
+            g_scroll_event_stack[g_scroll_event_depth++] = &node;
+        }
+    }
+    ~ScrollEventScope() {
+        if (pushed_) {
+            --g_scroll_event_depth;
+        }
+    }
+    ScrollEventScope(const ScrollEventScope&) = delete;
+    ScrollEventScope& operator=(const ScrollEventScope&) = delete;
+
+    [[nodiscard]] bool pushed() const {
+        return pushed_;
+    }
+
+private:
+    bool pushed_;
+};
+
+// Emits the scene Scroll event for one applied movement. The container is the dispatch target, so
+// its ancestors see the capture and bubble phases; the payload is filled from the node's real
+// scrollport/content metrics.
+void emit_scroll_event(Node& node, float delta_x, float delta_y) {
+    if (scroll_event_active(node)) {
+        return;
+    }
+    ScrollEventScope scope(node);
+    if (!scope.pushed()) {
+        // Nested past the bound: the movement is already applied and the event is dropped rather
+        // than growing the guard.
+        return;
+    }
+    Event event;
+    event.type = EventType::Scroll;
+    event.scroll_x = delta_x;
+    event.scroll_y = delta_y;
+    event.scroll_offset_x = node.scroll_x();
+    event.scroll_offset_y = node.scroll_y();
+    event.scroll_viewport_width = scrollport_width(node);
+    event.scroll_viewport_height = scrollport_height(node);
+    event.scroll_content_width = node.content_width();
+    event.scroll_content_height = node.content_height();
+    dispatch_event_to(node, event);
 }
 
 float clamp_axis(bool scrollable, float content, float viewport, float value) {
@@ -65,11 +136,20 @@ float max_scroll_y(const Node& node) {
 }
 
 bool scroll_to(Node& node, float x, float y) {
+    const float before_x = node.scroll_x();
+    const float before_y = node.scroll_y();
     const float next_x =
         clamp_axis(node.scrollable_x(), node.content_width(), scrollport_width(node), x);
     const float next_y =
         clamp_axis(node.scrollable_y(), node.content_height(), scrollport_height(node), y);
-    return node.set_scroll_offset(next_x, next_y);
+    if (!node.set_scroll_offset(next_x, next_y)) {
+        return false;
+    }
+    // Exactly one event per applied movement; the delta is what the container actually applied
+    // after clamping, so a request that only clamps emits nothing (set_scroll_offset returned
+    // false above).
+    emit_scroll_event(node, node.scroll_x() - before_x, node.scroll_y() - before_y);
+    return true;
 }
 
 bool scroll_by(Node& node, float dx, float dy) {

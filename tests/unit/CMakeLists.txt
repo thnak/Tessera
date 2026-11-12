@@ -316,6 +316,13 @@ target_link_libraries(scene_event_binding_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_event_binding COMMAND scene_event_binding_tests)
 
+add_executable(scene_scroll_event_tests
+    scene_scroll_event_tests.cpp)
+
+target_link_libraries(scene_scroll_event_tests PRIVATE tessera_scene)
+
+add_test(NAME scene_scroll_event COMMAND scene_scroll_event_tests)
+
 add_executable(dirty_pass_tests
     dirty_pass_tests.cpp)
 

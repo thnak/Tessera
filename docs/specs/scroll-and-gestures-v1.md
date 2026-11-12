@@ -109,6 +109,15 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   `dy` scrolls content down). A wheel over a non-scrollable chain dispatches exactly as before and
   changes nothing. Nested containers: the innermost scrollable ancestor consumes the wheel; there is
   no chaining to outer containers when it reaches a clamped edge (deferred).
+- Scene event: every applied move emits exactly one `EventType::Scroll` to the container (wheel
+  default action, `scroll_to`/`scroll_by`, gesture pan, and `scroll_into_view` when it moves a
+  container), dispatched through the normal capture/target/bubble path with the container as the
+  target. `Event::scroll_x`/`scroll_y` carry the delta the container applied (web sign) and
+  `ScrollEventInfo` the resulting `offset_x`/`offset_y` plus the scrollport viewport and content
+  extents. A clamped-to-zero, non-scrollable, or unchanged request emits nothing; `prevent_default`
+  is advisory and cannot undo an already-applied move, and a handler that scrolls the same container
+  again applies that move without emitting a second event (bounded re-entrancy guard). The platform
+  never produces `Scroll`; it is synthesized by the scene.
 - Gesture pan: with the `InputPump` gesture pipeline enabled, a `Drag` claim whose PointerDown target
   has a scrollable ancestor pans the innermost container with the per-move pointer delta (logical
   pixels, clamped every move). See section 5.2 for the handoff rules, the edge behaviour, and the

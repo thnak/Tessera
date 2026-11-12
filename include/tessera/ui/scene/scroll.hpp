@@ -28,6 +28,11 @@ inline constexpr float kPixelsPerWheelUnit = 40.0f;
 // Requests an offset. Clamps to [0, max] and returns true only when the offset changed. A
 // non-scrollable axis clamps to 0 and never mutates; NaN/infinity are sanitized to 0. Changing the
 // offset marks Dirty::Paint | Dirty::Render and never Layout (see Node::set_scroll_offset).
+// A call that actually moves the container emits exactly one EventType::Scroll to it (capture ->
+// target -> bubble) with the applied delta and the resulting offsets/metrics; a clamped-to-zero,
+// non-scrollable, or no-op request emits nothing. `scroll_by` delegates to `scroll_to`, so both
+// emit once. The raw `Node::set_scroll_offset` setter (re-clamping, recycling) does not emit: it is
+// the state-only path.
 bool scroll_to(Node& node, float x, float y);
 bool scroll_by(Node& node, float dx, float dy);
 
@@ -49,8 +54,9 @@ bool apply_wheel_scroll(Node& target, float wheel_x, float wheel_y);
 // Minimal scroll-into-view: walks the scrollable ancestors (inner to outer) and adjusts each one so
 // the node's world rect is inside that ancestor's scrollport (border box inset by its
 // scrollport_insets). Already-visible axes are untouched and an oversized node aligns to the start
-// edge, so the call is idempotent. Returns true when any offset changed. Wired into
-// FocusManager::request_focus (see spec section 2.1).
+// edge, so the call is idempotent. Returns true when any offset changed. Each ancestor that moved
+// emits one EventType::Scroll through `scroll_to`; a call that finds the node already visible emits
+// nothing. Wired into FocusManager::request_focus (see spec section 2.1).
 bool scroll_into_view(Node& node);
 
 } // namespace tessera::ui

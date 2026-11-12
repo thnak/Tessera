@@ -475,12 +475,12 @@ distance-based, so no wall clock is involved; `virtual_<n>_end_armed_`/`_end_fir
 `_end_fires_`/`_end_throttled_` hold the state. Order per call: re-seed, measure/refine, re-anchor,
 window apply, `onScroll`, `onEndReached`.
 
-The scene has no scroll `EventType` yet, so the driver is a host entry point rather than a scene
-binding: the host owns the offset (and adopts the re-anchored value from the argument) and calls the
-method from its scroll handling. Rejected loudly: an `onScroll` payload other than `ScrollEvent`, a
-multi-parameter collection handler, an `onEndReached` payload, a collection event binding with a
-return value, and a grid collection event without a fixed `columns`. A source past the geometry cap
-returns false and realizes nothing; `columnWidth` grids stay host-driven through `apply_virtual_<n>`.
+The scene now has `EventType::Scroll` (applied delta plus `ScrollEventInfo`), but a generated
+virtual collection still drives scrolling through that host entry point: the host owns the offset
+and calls the method from its scroll handling; mapping a generated `onScroll` to the scene event is
+the next slice. Rejected loudly: a non-`ScrollEvent` payload, a multi-parameter handler, an
+`onEndReached` payload, a return value, and a grid event without a fixed `columns`. A source past
+the geometry cap returns false; `columnWidth` grids stay host-driven through `apply_virtual_<n>`.
 
 The goldens `tests/golden/codegen/VirtualDemo.*` come from `codegen_virtual_tests --write`; the
 build compiles them as `tessera_codegen_virtual_sample`. `codegen_virtual_runtime` scripts a scroll

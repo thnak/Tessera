@@ -43,7 +43,18 @@ enum class EventType {
     // Synthesized activation (issue #6): same-target pointer press and release, Enter/Space on a
     // focused button, or an accessibility invoke. Produced by the InputRouter, never by a
     // platform; `Event::click_source` records which path fired it. Bubbles like a pointer event.
-    Click
+    Click,
+    // Emitted by the scene to a scroll container whose offset actually changed (wheel scrolling,
+    // `scroll_to`/`scroll_by`, `scroll_into_view`) and dispatched in the normal
+    // capture -> target -> bubble order. It is a scene event, not an OS event: the platform never
+    // produces it, and a wheel event still precedes it (see wheel_dispatch.cpp). `scroll_x`/
+    // `scroll_y` carry the delta the container applied with the web sign (positive `scroll_y`
+    // scrolls content down), while `ScrollEventInfo` carries the resulting offsets and the
+    // container's viewport/content metrics. `handled` is recorded normally; `prevent_default` is
+    // advisory and cannot retroactively undo an applied scroll in V1 (pre-checking/clamping before
+    // the move is a later slice). A handler that scrolls the same container again applies that move
+    // and does not re-emit (bounded re-entrancy guard in scroll.cpp).
+    Scroll
 };
 
 enum class ClickSource : std::uint8_t { Pointer, Keyboard, Accessibility };
@@ -52,9 +63,11 @@ enum class EventPhase { Capture, Target, Bubble };
 
 // A scene-level event. `handled` and `prevent_default` are advisory flags: `handled` records that
 // a handler consumed the event, `prevent_default` asks the dispatcher to skip its default action
-// (V1: Tab focus traversal). Pointer fields are meaningful for pointer and wheel events; wheel
-// deltas use the web sign (positive scroll_y scrolls content down). `pointer_kind` mirrors the
-// normalized device kind and defaults to mouse, so handlers that do not care see the old behavior.
+// (V1: Tab focus traversal, the wheel scroll). Pointer fields are meaningful for pointer and wheel
+// events; `scroll_x`/`scroll_y` are the platform wheel delta on a Wheel event and the applied
+// scroll delta on a Scroll event. Both use the web sign (positive scroll_y scrolls content down).
+// `pointer_kind` mirrors the normalized device kind and defaults to mouse, so handlers that do not
+// care see the old behavior.
 struct Event {
     EventType type = EventType::PointerDown;
     float x = 0;
@@ -71,6 +84,15 @@ struct Event {
     PointerKind pointer_kind = PointerKind::Mouse;
     float scroll_x = 0;
     float scroll_y = 0;
+    // Scroll payload, meaningful for EventType::Scroll only: the container's resulting offset and
+    // the viewport/content metrics captured when the scene emitted the event. `scroll_event_info`
+    // maps them to the generated `ScrollEventInfo` record. Zero for every other event type.
+    float scroll_offset_x = 0;
+    float scroll_offset_y = 0;
+    float scroll_viewport_width = 0;
+    float scroll_viewport_height = 0;
+    float scroll_content_width = 0;
+    float scroll_content_height = 0;
     float pressure = 0;
     double timestamp_s = 0;
     bool is_primary = false;
