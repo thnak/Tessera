@@ -25,6 +25,18 @@ struct SwapchainDesc {
     void* native_display = nullptr;
 };
 
+// Frame-pacing counters of a swapchain that gates slot reuse on GPU completion (see
+// docs/design/gpu/frames.md section 5.1). They are optional: a backend that does not implement
+// timeline pacing leaves the default zeroed snapshot, so the RHI contract does not require it to
+// change. `timeline_value` is the completion value the GPU has reached, `frames_in_flight` counts
+// submitted frames whose value is not reached yet, and `slots_skipped` counts acquires that found
+// no reusable slot and reported Timeout instead of waiting.
+struct SwapchainFrameSync {
+    std::uint64_t timeline_value = 0;
+    std::uint32_t frames_in_flight = 0;
+    std::uint32_t slots_skipped = 0;
+};
+
 enum class SwapchainError {
     OutOfDate,
     Timeout,
@@ -53,7 +65,8 @@ public:
     // Returns the index of an image ready to render. timeout_ms == 0 polls; real backends clamp
     // larger values to a bounded internal wait so the UI thread never blocks indefinitely, and
     // report Timeout. The null backend never blocks. On Timeout the caller retries on a later
-    // tick.
+    // tick. A backend that paces frames with a completion counter reports Timeout when every frame
+    // slot is still in flight, so the UI thread skips that tick instead of waiting for the GPU.
     [[nodiscard]] virtual std::expected<std::uint32_t, SwapchainError>
     acquire_next_image(std::uint64_t timeout_ms) = 0;
 
@@ -71,6 +84,13 @@ public:
     // Render target for a swapchain image. The pointer stays valid until the swapchain is
     // recreated; re-acquire after OutOfDate. Returns nullptr when the backend cannot present.
     [[nodiscard]] virtual RenderTarget* image_target(std::uint32_t index) = 0;
+
+    // Completion counter snapshot for the frame-pacing gate. It is a plain host query (no GPU
+    // sync), so a driver may sample it once per iteration to prove multi-frame overlap; backends
+    // without timeline pacing answer a zeroed snapshot.
+    [[nodiscard]] virtual SwapchainFrameSync frame_sync() const {
+        return {};
+    }
 };
 
 } // namespace tessera::rendering::rhi

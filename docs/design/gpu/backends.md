@@ -56,13 +56,16 @@ A missing optional capability uses the documented fallback or fails at creation.
   its set, so create/destroy churn does not exhaust the pool.
 - Swapchain present waits on a per-image render-finished semaphore signaled by `submit_async`, so
   the CPU does not wait for the GPU between render and present.
+- Frame pacing on the swapchain path is one timeline semaphore per device generation: each submit
+  signals the next value, `vkGetSemaphoreCounterValue` decides slot reuse, and image acquisition
+  waits on the GPU through per-slot binary acquire semaphores (no UI-thread wait). Details and
+  teardown bounds are in [frames.md](frames.md) section 5.1.
 - With `validation` on, synchronization validation is enabled whenever the layer supports it.
 - Targets: `COLOR_ATTACHMENT | TRANSFER_SRC`; textures: `SAMPLED | TRANSFER_DST` uploaded through
   staging and transitioned to shader-read.
 - Readback: copy target to a `TRANSFER_DST` host-random-access buffer, fence-wait, map/read.
 - Validation layers opt-in (`--validation`) and mandatory in debug/CI GPU runs.
-- B2 adds timeline semaphores, device loss, and persistent pipeline cache. Binary fences and
-  per-image semaphores are what exist today.
+- B2 still owes a persistent pipeline cache; device loss and timeline semaphores are implemented.
 
 ### Color formats and sRGB (D2)
 

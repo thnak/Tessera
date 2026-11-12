@@ -75,6 +75,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_upload.cpp
     src/vulkan_texture.cpp
     src/vulkan_pipeline.cpp
+    src/vulkan_validation.cpp
     src/vma_impl.cpp
     src/batched2d_pipeline.cpp
     ${TESSERA_BATCHED2D_VERT_SPV}

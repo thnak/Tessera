@@ -62,6 +62,9 @@ struct WindowHost::Impl {
     void release_in_flight(double budget_seconds);
     void recreate_swapchain();
     FrameResult render_and_present(bool full_repaint);
+    // Copies the swapchain's frame-pacing counters into stats(). A host counter query, never a
+    // wait, so it is cheap enough to sample around each frame attempt.
+    void sample_frame_sync();
     void apply_metrics(const hal::WindowMetrics& metrics);
     WindowFrameStats run(std::uint32_t max_frames);
 

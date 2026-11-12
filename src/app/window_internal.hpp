@@ -64,10 +64,12 @@ private:
 };
 
 // Vulkan device, or null when the machine has no usable device (tests/tools then skip).
-inline std::unique_ptr<rhi::Device> create_device() {
+// `validation` turns the Khronos validation layer (plus synchronization validation) on for this
+// device; a GPU test reads the backend's validation_message_count() to assert a run was clean.
+inline std::unique_ptr<rhi::Device> create_device(bool validation = false) {
     rhi::DeviceDesc desc;
     desc.backend = rhi::Backend::Vulkan;
-    desc.validation = false;
+    desc.validation = validation;
     desc.device_index = -1;
     try {
         return tessera::rendering::vulkan::create_vulkan_device(desc);

@@ -41,8 +41,9 @@ The B3 seams now have real Windows and Linux/X11 implementations:
   The Win32 path uses `vkCreateWin32SurfaceKHR`; the X11 path uses `vkCreateXlibSurfaceKHR` with
   `native_display` (`Display*`) and `native_window` (`Window`) and queries
   `vkGetPhysicalDeviceXlibPresentationSupportKHR` for queue selection. Both create image views,
-  acquire with a bounded fence, present, and retire the old swapchain (`oldSwapchain` plus a
-  bounded empty-submit drain **before** destroying the retired images/views). Both swapchain
+  acquire through a per-slot binary semaphore (the submission waits on the GPU, never the CPU),
+  present, and retire the old swapchain (`oldSwapchain` plus a bounded timeline wait and
+  empty-submit drain **before** destroying the retired images/views). Both swapchain
   smoke tests now render a real frame through `Batched2DRenderer` into the acquired image and
   present it, exercising the image-target bridge rather than presenting an empty image. Both
   also run a 12-frame `submit_async` loop with two frames in flight (present queued right behind
@@ -80,9 +81,11 @@ Known Linux/X11 limitations of this slice (the Mac/Windows rules in §4 describe
   [`hal.md`](hal.md)), so an X11 window never pauses through §8. The window driver honours the
   flags whenever a platform (or a synthetic metrics snapshot) reports them. No window manager is
   required or spoken to beyond `WM_DELETE_WINDOW`.
-- **No frames in flight.** Acquire/present are bounded (100 ms clamp) and presentation is
-  drained at recreation, but there is no per-image fence/semaphore set and no render-target
-  wrapper yet; images must be fully rendered before `present`.
+- **Frames in flight.** The swapchain path paces two frames with one timeline semaphore: each
+  submit signals the next value, a slot is reusable once `vkGetSemaphoreCounterValue` reaches it,
+  and image acquisition uses per-slot binary semaphores the GPU waits on. Acquire/present stay
+  bounded (100 ms clamp) and presentation is drained at recreation, so the UI thread never waits on
+  the GPU (details in [`gpu/frames.md`](gpu/frames.md) section 5.1).
 - **CI is Xvfb + lavapipe.** Linux tests run under `xvfb-run` with the lavapipe ICD; the overlay
   and text goldens are bit-exact against a specific Mesa/LLVM build and can drift by a few
   pixels on a newer software driver (the same drift exists at the base commit).

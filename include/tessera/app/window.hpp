@@ -45,6 +45,9 @@ struct WindowOptions {
     double max_fps = 0.0;
     std::string font_path;
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
+    // Creates the backend device with the Khronos validation layer (and synchronization validation)
+    // enabled. Off in production; GPU tests turn it on to prove a frame run is validation-clean.
+    bool validation = false;
     // Borrowed time source for the host-owned caret blink (docs/specs/text-editing-v1.md section
     // 12). Null keeps the HAL monotonic clock; tests inject a ManualClock so blink phases are
     // deterministic. It is the caret tick clock only: frame dt and pacing stay on the system clock.
@@ -85,6 +88,13 @@ struct WindowFrameStats {
     std::uint32_t recovered = 0;
     std::uint32_t recovery_attempts = 0;
     WindowDeviceState device_state = WindowDeviceState::Unavailable;
+    // Swapchain frame pacing (docs/design/gpu/frames.md section 5.1), sampled once per frame
+    // attempt from a host counter query: the completion value the GPU reached, how many frame slots
+    // are still in flight (0..2), and how many acquires skipped the tick because no slot was
+    // reusable. All zero on backends without timeline pacing.
+    std::uint64_t timeline_value = 0;
+    std::uint32_t frames_in_flight = 0;
+    std::uint32_t slots_skipped = 0;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the

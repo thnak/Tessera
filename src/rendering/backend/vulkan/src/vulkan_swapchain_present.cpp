@@ -33,7 +33,22 @@ std::uint64_t bounded_timeout_ns(std::uint64_t timeout_ms) {
 
 } // namespace
 
+// Teardown and swapchain retirement only, never per frame. The timeline wait covers the last render
+// submission; the empty-submit fence that follows still orders after a queued present, which the
+// timeline value (signaled by the render submission) does not observe.
 void VulkanSwapchain::wait_for_present_bounded() {
+    if (timeline_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
+        const std::uint64_t last_issued = timeline_next_ - 1;
+        if (last_issued > timeline_completed_) {
+            VkSemaphoreWaitInfo wait_info{};
+            wait_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+            wait_info.semaphoreCount = 1;
+            wait_info.pSemaphores = &timeline_;
+            wait_info.pValues = &last_issued;
+            (void)vkWaitSemaphores(device_, &wait_info, kMaxWaitNs);
+            refresh_slots();
+        }
+    }
     if (!present_submitted_ && !drain_pending_) {
         return;
     }
@@ -69,11 +84,7 @@ void VulkanSwapchain::destroy() {
     if (owner_ == nullptr || owner_->destroyable_epoch(epoch_)) {
         wait_for_present_bounded();
         destroy_swapchain_resources();
-        // Never destroy a fence that may still be owned by a pending queue operation.
-        if (acquire_fence_ != VK_NULL_HANDLE && !acquire_pending_) {
-            vkDestroyFence(device_, acquire_fence_, nullptr);
-        }
-        acquire_fence_ = VK_NULL_HANDLE;
+        destroy_frame_sync();
         if (drain_fence_ != VK_NULL_HANDLE && !drain_pending_) {
             vkDestroyFence(device_, drain_fence_, nullptr);
         }
@@ -86,9 +97,13 @@ void VulkanSwapchain::destroy() {
         views_.clear();
         images_.clear();
         image_acquired_.clear();
-        acquire_fence_ = VK_NULL_HANDLE;
+        for (FrameSlot& slot : slots_) {
+            slot = FrameSlot{};
+        }
+        timeline_ = VK_NULL_HANDLE;
+        timeline_next_ = 1;
+        timeline_completed_ = 0;
         drain_fence_ = VK_NULL_HANDLE;
-        acquire_pending_ = false;
         present_submitted_ = false;
         drain_pending_ = false;
     }
@@ -119,62 +134,39 @@ VulkanSwapchain::acquire_next_image(std::uint64_t timeout_ms) {
         ++stats_.out_of_date;
         return std::unexpected(rhi::SwapchainError::OutOfDate);
     }
-
-    if (acquire_pending_) {
-        const VkResult status = vkGetFenceStatus(device_, acquire_fence_);
-        if (status == VK_NOT_READY) {
-            ++stats_.timeouts;
-            return std::unexpected(rhi::SwapchainError::Timeout);
-        }
-        if (status != VK_SUCCESS) {
-            acquire_pending_ = false;
-            if (status == VK_ERROR_DEVICE_LOST) {
-                if (owner_ != nullptr) {
-                    owner_->mark_device_lost();
-                }
-                return std::unexpected(rhi::SwapchainError::DeviceLost);
-            }
-            return std::unexpected(rhi::SwapchainError::SurfaceLost);
-        }
-        (void)vkResetFences(device_, 1, &acquire_fence_);
-        acquire_pending_ = false;
-        if (pending_acquire_index_ >= image_acquired_.size()) {
-            return std::unexpected(rhi::SwapchainError::NotSupported);
-        }
-        image_acquired_[pending_acquire_index_] = 1;
-        ++stats_.acquires;
-        return pending_acquire_index_;
-    }
-
-    ensure_acquire_fence();
-    if (acquire_fence_ == VK_NULL_HANDLE) {
+    if (timeline_ == VK_NULL_HANDLE) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
 
+    // Slot reuse is decided by a counter query, not by waiting: a slot whose submission value the
+    // GPU reached is free, and when neither is the frame is skipped (the caller retries on a later
+    // tick) so the UI thread never blocks on the GPU (ADR-021).
+    refresh_slots();
+    const std::uint32_t slot = reusable_slot();
+    if (slot == kNoSlot) {
+        ++stats_.slots_skipped;
+        ++stats_.timeouts;
+        return std::unexpected(rhi::SwapchainError::Timeout);
+    }
+
+    const std::uint64_t value = timeline_next_;
     std::uint32_t image = 0;
     const VkResult result =
-        vkAcquireNextImageKHR(device_, swapchain_, bounded_timeout_ns(timeout_ms), VK_NULL_HANDLE,
-                              acquire_fence_, &image);
+        vkAcquireNextImageKHR(device_, swapchain_, bounded_timeout_ns(timeout_ms),
+                              slots_[slot].acquire, VK_NULL_HANDLE, &image);
     if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
-        const VkResult waited = vkWaitForFences(device_, 1, &acquire_fence_, VK_TRUE, kMaxWaitNs);
-        if (waited != VK_SUCCESS) {
-            acquire_pending_ = true;
-            pending_acquire_index_ = image;
-            if (waited == VK_ERROR_DEVICE_LOST) {
-                if (owner_ != nullptr) {
-                    owner_->mark_device_lost();
-                }
-                return std::unexpected(rhi::SwapchainError::DeviceLost);
-            }
-            ++stats_.timeouts;
-            return std::unexpected(rhi::SwapchainError::Timeout);
-        }
-        (void)vkResetFences(device_, 1, &acquire_fence_);
         if (image >= image_acquired_.size()) {
             return std::unexpected(rhi::SwapchainError::NotSupported);
         }
+        // The value is handed to this frame only now: a failed acquisition leaves no gap, and a
+        // submission that never reaches the queue leaves one the next value legally skips.
+        ++timeline_next_;
+        slots_[slot].value = value;
+        slots_[slot].in_flight = true;
         image_acquired_[image] = 1;
         ++stats_.acquires;
+        image_targets_[image]->set_frame_sync(
+            FrameSyncBinding{slots_[slot].acquire, timeline_, value});
         if (result == VK_SUBOPTIMAL_KHR) {
             ++stats_.suboptimal;
         }
@@ -227,11 +219,31 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::present(std::uint32_t 
 
     // Wait for the GPU to finish rendering this image (signaled by the render submission), not
     // the CPU. An image presented without being rendered has nothing to wait for.
-    const VulkanRenderTarget& target = *image_targets_[image];
-    VkSemaphore wait_semaphore = target.render_finished_semaphore();
+    VulkanRenderTarget& target = *image_targets_[image];
+    const VkSemaphore wait_semaphore = target.render_finished_semaphore();
     if (target.render_pending() && wait_semaphore != VK_NULL_HANDLE) {
         present_info.waitSemaphoreCount = 1;
         present_info.pWaitSemaphores = &wait_semaphore;
+    }
+
+    // The slot's acquire semaphore is consumed by the render submission that waits on it. An image
+    // acquired but never rendered (no submission) leaves that signal pending, and a binary
+    // semaphore must be unsignaled before the slot can acquire with it again: consume it with an
+    // empty submit that only waits on it. Queue order puts this before the present below.
+    if (target.frame_sync_pending()) {
+        const VkSemaphore acquire = target.frame_sync().acquire;
+        if (acquire != VK_NULL_HANDLE) {
+            // No command buffers: the submission exists only to consume the acquisition signal, so
+            // no stage has to wait for anything.
+            const VkPipelineStageFlags stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            VkSubmitInfo consume_info{};
+            consume_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            consume_info.waitSemaphoreCount = 1;
+            consume_info.pWaitSemaphores = &acquire;
+            consume_info.pWaitDstStageMask = &stage;
+            (void)vkQueueSubmit(queue_, 1, &consume_info, VK_NULL_HANDLE);
+        }
+        target.mark_frame_submitted();
     }
 
     const VkResult result = vkQueuePresentKHR(queue_, &present_info);

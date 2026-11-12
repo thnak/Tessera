@@ -20,6 +20,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverityFlagBit
                                               void*) {
     if (severity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
                     VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
+        // Cheap enough to count every message, and only reached when validation is on, so a GPU
+        // test can assert a run was clean instead of scraping stderr.
+        record_validation_message();
         std::cerr << "[vulkan] " << data->pMessage << "\n";
     }
     return VK_FALSE;
@@ -171,6 +174,7 @@ void VulkanDevice::create_instance() {
         check_vk(
             vkCreateDebugUtilsMessengerEXT(instance_, &messenger_info, nullptr, &debug_messenger_),
             "vkCreateDebugUtilsMessengerEXT");
+        mark_validation_active();
     }
 }
 
@@ -290,6 +294,9 @@ void VulkanDevice::pick_device() {
 void VulkanDevice::create_device() {
     VkPhysicalDeviceVulkan13Features supported_13{};
     supported_13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    VkPhysicalDeviceVulkan12Features supported_12{};
+    supported_12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    supported_13.pNext = &supported_12;
 
     VkPhysicalDeviceFeatures2 supported_2{};
     supported_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -299,9 +306,19 @@ void VulkanDevice::create_device() {
     if (supported_13.dynamicRendering == VK_FALSE) {
         throw std::runtime_error("device does not support Vulkan 1.3 dynamic rendering");
     }
+    // Frame pacing on the swapchain path is a timeline semaphore (docs/design/gpu/frames.md section
+    // 5.1). Vulkan 1.3 mandates the feature, so a device without it is a broken driver or a lie
+    // about its version: fail loudly instead of silently falling back to fence-per-slot pacing.
+    if (supported_12.timelineSemaphore == VK_FALSE) {
+        throw std::runtime_error("device does not support Vulkan 1.2 timeline semaphores");
+    }
     VkPhysicalDeviceVulkan13Features enabled_13{};
     enabled_13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     enabled_13.dynamicRendering = VK_TRUE;
+    VkPhysicalDeviceVulkan12Features enabled_12{};
+    enabled_12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    enabled_12.timelineSemaphore = VK_TRUE;
+    enabled_13.pNext = &enabled_12;
 
     VkPhysicalDeviceFeatures2 enabled_2{};
     enabled_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;

@@ -96,7 +96,7 @@ bool WindowHost::Impl::replace_device() {
     recovery.reset();
     release_in_flight(detail::kRecoveryDrainBudgetSeconds);
     release_presentation();
-    device = detail::create_device();
+    device = detail::create_device(options.validation);
     if (device == nullptr) {
         return false;
     }
