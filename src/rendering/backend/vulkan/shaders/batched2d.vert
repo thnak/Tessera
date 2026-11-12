@@ -14,7 +14,14 @@ struct ClipUniform {
 };
 
 // Must match Batched2DPushConstants (112 bytes: 2 floats + 1 float + 1 uint + 3 * 32-byte clips).
+// TESSERA_SHADER_PORTABLE selects the cross-compilation interface (ADR-049): the same block as a
+// std140 uniform buffer at set 0, binding 0, the layout WebGPU, Metal and D3D12 use. The Vulkan
+// build never defines it, so its SPIR-V is unchanged.
+#ifdef TESSERA_SHADER_PORTABLE
+layout(set = 0, binding = 0, std140) uniform PushConstants {
+#else
 layout(push_constant) uniform PushConstants {
+#endif
     vec2 viewport;
     float aa_radius;
     uint clip_count;

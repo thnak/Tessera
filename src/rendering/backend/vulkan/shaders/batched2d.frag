@@ -7,7 +7,18 @@ layout(location = 3) in vec2 v_half_size;
 layout(location = 4) in float v_radius;
 layout(location = 5) flat in float v_mode;
 
+// TESSERA_SHADER_PORTABLE selects the cross-compilation interface (ADR-049): the push-constant
+// block becomes a std140 uniform buffer at binding 0 and the combined image sampler splits into a
+// texture at binding 1 and a sampler at binding 2, the layout WebGPU, Metal and D3D12 use. The
+// Vulkan build never defines it, so its SPIR-V is unchanged.
+#ifdef TESSERA_SHADER_PORTABLE
+layout(set = 0, binding = 1) uniform texture2D u_texture;
+layout(set = 0, binding = 2) uniform sampler u_sampler;
+#define TESSERA_SAMPLE(uv) texture(sampler2D(u_texture, u_sampler), (uv))
+#else
 layout(set = 0, binding = 0) uniform sampler2D u_texture;
+#define TESSERA_SAMPLE(uv) texture(u_texture, (uv))
+#endif
 
 struct ClipUniform {
     vec4 rect;  // xy = origin, zw = size in target pixels
@@ -15,7 +26,11 @@ struct ClipUniform {
 };
 
 // Must match Batched2DPushConstants (112 bytes: 2 floats + 1 float + 1 uint + 3 * 32-byte clips).
+#ifdef TESSERA_SHADER_PORTABLE
+layout(set = 0, binding = 0, std140) uniform PushConstants {
+#else
 layout(push_constant) uniform PushConstants {
+#endif
     vec2 viewport;
     float aa_radius;
     uint clip_count;
@@ -71,6 +86,14 @@ void main() {
     }
 
     vec4 color = v_color;
+#ifdef TESSERA_SHADER_PORTABLE
+    // WGSL allows implicit-derivative sampling only in uniform control flow, so the portable
+    // variant samples before branching on the per-primitive mode, as batched2d.wgsl does.
+    const vec4 texel = TESSERA_SAMPLE(v_uv);
+#define TESSERA_TEXEL texel
+#else
+#define TESSERA_TEXEL TESSERA_SAMPLE(v_uv)
+#endif
 
     if (v_mode > 0.5 && v_mode < 1.5) {
         float d = sd_round_box(v_local, v_half_size, v_radius);
@@ -82,7 +105,7 @@ void main() {
         }
         color.a *= alpha;
     } else if (v_mode > 1.5) {
-        color *= texture(u_texture, v_uv);
+        color *= TESSERA_TEXEL;
     }
 
     color.a *= clip_alpha;
