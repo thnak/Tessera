@@ -17,6 +17,16 @@ struct Param {
 
 enum class ActionKind { Set, AnimSet };
 
+// The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
+// are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).
+struct SpringTiming {
+    double stiffness = 180.0;
+    double damping = 20.0;
+    double mass = 1.0;
+
+    friend bool operator==(const SpringTiming&, const SpringTiming&) = default;
+};
+
 // One step of an inline handler or of a preview body.
 struct Action {
     ActionKind kind = ActionKind::Set;
@@ -29,6 +39,8 @@ struct Action {
     // warning-free (-Wmissing-field-initializers).
     std::optional<double> duration_ms{};
     std::string easing{}; // CSS easing text, empty when absent
+    // AnimSet only, exclusive with `duration_ms`/`easing` and with `animate: false`.
+    std::optional<SpringTiming> spring{};
 };
 
 } // namespace tessera::compiler::ir
