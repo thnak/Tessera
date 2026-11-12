@@ -206,12 +206,13 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [ ] **B2:** Power: adaptive quality and occluded/background pause — occluded window presents
       nothing (overlaps ADR-050 AF3) — pause landed (`src/app/window_lifecycle.cpp`,
       `tests/gpu/app_window_occluded_tests.cpp`); still to do: adaptive quality and a
-      `pauseWhenOccluded` runtime-config key (no runtime-config loader exists yet).
+      `pauseWhenOccluded` runtime-config key (the loader now exists at `include/tessera/runtime/config.hpp`; wiring it into the window/loop is what is left).
 - [x] **B2:** Multi-frame sync: timeline semaphores (two frames in flight already work) — smoke
       test validation-clean — `src/rendering/backend/vulkan/src/vulkan_swapchain_present.cpp`,
       `tests/gpu/vulkan_timeline_frame_tests.cpp`.
-- [ ] **B2:** Interpolation alpha wake threshold + `animationInterpolation` config key — static
-      scene still idles.
+- [ ] **B2:** Interpolation alpha wake threshold + `animationInterpolation` config key —
+      the wake threshold is still missing; the loader already exposes the key
+      (`include/tessera/runtime/config.hpp`).
 - [x] **B2:** Call the shader manifest validator before `glslc` — bad manifest fails the build —
       `tools/shaders/manifest.json`, `tools/shaders/manifest_check.cpp`,
       `src/rendering/backend/vulkan/CMakeLists.txt`,
@@ -567,8 +568,8 @@ bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host
 `orientation`/`columns`/`overscan` on virtual collections, codegen vector payloads, and ADR-040
 generated-base migration; the last #70 leftover (object-literal prop defaults) is blocked on an IR
 record type. Remaining M1 slices: `scrollIntoView` for an unrealized virtual item, adaptive quality
-plus the `pauseWhenOccluded` / `animationInterpolation` keys (both need a runtime-config loader that
-does not exist yet — build that first), and the B3 Wayland/XInput2/OS-event items. V1-M3 and V1-M5
+plus the `pauseWhenOccluded` / `animationInterpolation` keys (both need a runtime-config loader, which now
+exists: wiring those keys into the window/loop is what remains), and the B3 Wayland/XInput2/OS-event items. V1-M3 and V1-M5
 wait for their design PRs (#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may
 start now. V1-M4, V1-M6, V1-M7 and V1-M8 come later.
 

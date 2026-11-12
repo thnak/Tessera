@@ -578,6 +578,15 @@ target_link_libraries(frame_pacer_tests PRIVATE tessera_runtime)
 
 add_test(NAME frame_pacer COMMAND frame_pacer_tests)
 
+# The `runtime` object of tessera.json (docs/specs/runtime-config-v1.md): the model defaults, the
+# field table's clamp-vs-error split, enum strings, typed errors and unknown-key warnings.
+add_executable(runtime_config_tests
+    runtime_config_tests.cpp)
+
+target_link_libraries(runtime_config_tests PRIVATE tessera_runtime)
+
+add_test(NAME runtime_config COMMAND runtime_config_tests)
+
 add_executable(input_tests
     input_tests.cpp)
 

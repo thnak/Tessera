@@ -319,6 +319,69 @@ struct RuntimeConfig {
 }
 ```
 
+### 6.1 Loader
+
+[`include/tessera/runtime/config.hpp`](../../include/tessera/runtime/config.hpp) and
+[`src/runtime/config.cpp`](../../src/runtime/config.cpp) implement the mirror above. The loader
+takes the **whole** `tessera.json` text and reads its optional `runtime` member; an absent member,
+`"runtime": null` and `{}` all yield the section 3 defaults. Only a `std::string_view` overload is
+exposed (no harness JSON type): `tessera_runtime` sits below the harness in the link graph.
+
+```cpp
+namespace tessera {
+
+enum class RuntimeConfigErrorCode {
+    MalformedJson, // not JSON, duplicate key, invalid UTF-8/escape, nesting too deep
+    InvalidType,   // wrong JSON type, including an integer field written as `60.0` or `1e2`
+    InvalidValue,  // enum string outside the documented set (message lists the set)
+    OutOfRange,    // outside a range the table does not clamp
+    NonFinite,     // NaN/+-inf, including a literal that overflows double (`1e400`)
+    CrossField,    // minRenderScale > renderScale
+    UnknownField,  // a key that is not a runtime-config field (section 4 rule 11)
+};
+
+struct RuntimeConfigError {
+    RuntimeConfigErrorCode code;
+    std::string field;   // JSON key; empty for a document-level error
+    std::string message; // names the field, the allowed enum values, or both cross-field keys
+    std::size_t offset;  // byte offset of the offending value or syntax error
+};
+
+std::expected<RuntimeConfig, RuntimeConfigError>
+parse_runtime_config(std::string_view project_json);
+
+}
+```
+
+Rules applied by the loader:
+
+- **Clamp vs error.** Exactly two fields clamp, matching the table's own wording: `renderScale`
+  (`0.25..4.0`, section 4 rule 7) and `layoutObservationMaxRounds` (`1..16`, "Out-of-range values
+  clamp"). Every other range is an error: where the table gives no clamp rule, the loader rejects
+  rather than clamps. `preferredRefreshRate` accepts `0` or `24..1000` and rejects `1..23`.
+- **Integer strictness.** An `integer` field needs a JSON integer literal; `60.0` and `1e2` are
+  `InvalidType`, because the table types them as integers.
+- **Cross-field.** `minRenderScale <= renderScale` is checked after clamping, so
+  `renderScale=10, minRenderScale=1` is valid (10 clamps to 4) while an inverted pair is a
+  `CrossField` error naming both keys. Consequence: lowering `renderScale` below the default
+  `minRenderScale=0.6` without also lowering `minRenderScale` is an error, as rule 13 requires.
+- **Non-finite.** A number that is not finite (`1e400`, `-1e400`) is `NonFinite`. JSON has no
+  `NaN`/`inf` spelling, so those tokens are `MalformedJson`.
+- **Unknown keys** in the `runtime` object are an `UnknownField` error (section 4 rule 11: strict
+  schema), naming the first unknown key in document order. There is no tolerant mode: a project
+  file written for a newer runtime must be read by that newer runtime, and a typo must not be
+  silently ignored.
+- **Determinism.** The first error in table order wins (unknown keys are checked first, in
+  document order), no clock/RNG/locale is consulted, and the returned `RuntimeConfig` owns no
+  allocation. The loader
+  prints nothing; diagnostics are values.
+
+Section 6's code block above omits `layoutObservationMaxRounds`, which section 3 and
+[`layout-observation.md`](../design/layout-observation.md) section 5.3 define; the header includes
+it with default `4`. This is model-only: no window, loop or pipeline code consumes `RuntimeConfig`
+in this slice, so `pauseWhenOccluded`, `adaptiveQuality` and `animationInterpolation` remain
+unwired.
+
 ## 7. Platform support
 
 | Capability | Windows | Linux/X11 | Linux/Wayland | Android | macOS |

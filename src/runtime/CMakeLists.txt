@@ -3,6 +3,8 @@
 add_library(tessera_runtime STATIC
     async.cpp
     clock.cpp
+    config.cpp
+    config_json.cpp
     device_recovery.cpp
     diagnostics.cpp
     fixed_step.cpp
