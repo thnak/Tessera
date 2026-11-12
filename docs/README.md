@@ -19,6 +19,9 @@ This page is the map and reading order for the framework.
   — cross-check, canonical ownership, gap register, open questions
 - [`architecture/app-completeness-gap-resolutions-v1.md`](architecture/app-completeness-gap-resolutions-v1.md)
   — resolved/deferred decisions for gaps G-01..G-28 and open questions Q-01..Q-26 (defined in the cross-check above)
+- [`architecture/app-framework-gap-audit-v1.md`](architecture/app-framework-gap-audit-v1.md)
+  — app-framework concerns (lifecycle, services, provisioning, app state, storage, background work)
+  specified vs implemented, contradictions, and a Qt/JUCE/Flutter/Compose comparison (ADR-050)
 - [`architecture/doc-contradiction-resolutions-v1.md`](architecture/doc-contradiction-resolutions-v1.md)
   — contradictions found between documents, the rule used to resolve each, and what is still undecided
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
@@ -59,6 +62,7 @@ This page is the map and reading order for the framework.
 - [ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) — own JSX/TSX front end; React-like model
 - [ADR-037](../decisions/ADR-037-self-contained-wasm-designer.md) — self-contained Wasm (WebAssembly) designer engine
 - [ADR-039](../decisions/ADR-039-lowercase-html-tags-accepted.md) — lowercase HTML tags accepted as intrinsic aliases
+- [ADR-050](../decisions/ADR-050-opt-in-app-framework-layer.md) — application-framework layer (lifecycle, services resolved at mount, `useService<Interface>()`, task scopes, app state, native render surfaces); proposed
 
 ## 3. Specs (normative)
 
@@ -224,6 +228,16 @@ This page is the map and reading order for the framework.
 - [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
 - [`design/services.md`](design/services.md) — i18n (internationalization), navigation, storage, networking,
   notifications
+- [`design/native-render-surfaces.md`](design/native-render-surfaces.md) — typed refs to native
+  render surfaces drawn through the RHI: lifecycle, threading, dirty/idle rules (ADR-050 section 7)
+- [`design/service-resolve-benchmark.md`](design/service-resolve-benchmark.md) — measured cost of
+  resolving app services (per call, per mount, cache effects, virtual vs static dispatch) behind
+  ADR-050's resolve-at-mount rule
+- [`design/app-framework-open-questions.md`](design/app-framework-open-questions.md) — proposed
+  answers to ADR-050's open questions (background work, scopes, multi-window, SQLite, HTTP, state,
+  startup, default modules, surfaces) and the spec contradictions they would fix
+- [`design/reference-equantic-ui.md`](design/reference-equantic-ui.md) — reference study of
+  eQuantic.UI (C# web + native GPU engine): architecture, maturity, lessons, playground slice plan
 - [`design/security.md`](design/security.md) — threat model, compiler/runtime/designer,
   supply chain, privacy
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI
