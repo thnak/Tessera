@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 namespace tessera::rendering::rhi {
 
@@ -255,6 +256,11 @@ struct PipelineDesc {
     std::uint32_t push_constant_size = 0;
     // MSAA sample count; must match the render target's sample count at draw time (1 or 4).
     std::uint32_t sample_count = 1;
+    // Stable logical shader name from the shader manifest (for example "batched2d"; ADR-049).
+    // Backends that do not consume SPIR-V resolve it against a shader table built at compile time.
+    // Empty means "use the SPIR-V words above"; Vulkan and null ignore it. The view must point at
+    // storage that outlives pipeline creation (a string literal or a constant in practice).
+    std::string_view shader_id;
 };
 
 // Supported MSAA sample counts for the 1-sample-first RHI. Values outside this set are rejected at
