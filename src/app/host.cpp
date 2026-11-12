@@ -183,11 +183,11 @@ void AppHost::Impl::rebuild_cascade() {
 // chooses whether layout is marked: a stylesheet can change any property, while a theme switch
 // only changes tokens (a token used by a layout property still re-resolves because begin_frame()
 // runs the layout pass whenever style work is due).
-void AppHost::Impl::apply_style_generation(ui::Dirty dirty) {
+void AppHost::Impl::apply_style_generation(ui::Dirty dirty_mask) {
     rebuild_cascade();
     rebuild_style_tree();
     pipeline->invalidate_paint_cache();
-    mark_subtree(root, dirty);
+    mark_subtree(root, dirty_mask);
     loop.mark_render_dirty();
 }
 
