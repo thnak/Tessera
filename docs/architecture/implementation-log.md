@@ -399,3 +399,46 @@ Two slices had to correct their own brief: the config loader first shipped unkno
 (the spec says errors) and the Android workflow gained an `adb` pre-step that ran before the SDK was
 on `PATH` and made the lane red earlier than the flake it targeted. Both were reverted before merge;
 the spec and the failing run each beat the plan.
+
+## 2026-11-13 early hours: power, vector payloads and the Linux input stack
+
+The second half of the same unattended run. Same protocol: one slice per PR from `origin/main`, the
+Windows gate locally, the GCC build on lab-02 for anything platform-specific.
+
+- **Adaptive quality, end to end** (#131, #136, #139): the controller reports a clamped
+  render-scale decision with hysteresis; the host consumes it by rendering a downgraded frame into a
+  smaller offscreen target and blitting it into the acquired swapchain image in the same submission,
+  with one target per frame slot; and step 3 lowers the present cap to the next refresh divisor
+  through the pacer's existing rate-change path. Scale 1.0 takes the unchanged direct path, so no
+  golden moved and `set_content_scale` is never called. Device scale stays independent by
+  construction — `glyph_raster_scale` takes only the reported device scale, so no call site can key
+  the glyph atlas by the quality decision. The item stays open: step 1 (effect reduction) and step 4
+  (pausing non-essential animations) do not exist, and a real display-refresh query is still missing,
+  which is why `WindowOptions::refresh_hz` defaults to unknown.
+- **Vector payloads** (#140): codegen synthesizes the SVG for a `Path` from its literal props,
+  embeds it as an asset and emits a `PaintKind::Vector` payload pointing at it, so the existing
+  asset → decode → path-rasterizer chain paints it with no new payload kind, no new build step and no
+  new dependency. Asset names derive from the stable identity scheme, so inserting a node does not
+  rename an existing asset; non-literal `d`/`viewBox`/`fill`/`stroke`/`strokeWidth`/`label` are typed
+  errors instead of silent defaults.
+- **Linux input stack** (#133, #134, #135): XInput2 valuator scroll, touch and pen translation plus
+  an IME pre-edit state machine, with the pump selecting XI2 when present and falling back to the
+  unchanged core path. Two follow-ups were needed before the configuration was honest: the helpers
+  that exist only for the XI2 build had to move inside the `TESSERA_X11_XI2` guard, because the
+  fallback configuration on the GitHub runner builds without `libxi` and rejected them as unused
+  functions; then GCC 13 rejected the pre-edit splice as `stringop-overflow` for a `spliced[size++]`
+  loop whose break guard it could not use, so the splice copies each segment as
+  `min(room, available)` instead. g++ 15 on lab-02 accepted both original forms.
+
+Three lessons, all now in `.claude/team-memory.md`:
+
+1. **A gate machine is only a gate for what it can build.** lab-02 reported `X11 found` and
+   `XInput2 found` after its packages were installed, so it could not exercise the fallback
+   configuration the GitHub runner actually compiles. The opposite is also true: lab-02 has no
+   ThorVG, so the vector paint golden ran on Windows only and the Linux pixel check had to wait for
+   CI. State which configuration a gate proves, or it proves nothing.
+2. **Compiler versions disagree, so both compilers have to run.** Three portability failures in one
+   night — two MSVC shadowing errors and one GCC 13 range-analysis false positive — against code that
+   clang accepted with `-Wall -Wextra -Wpedantic -Werror`.
+3. **Write the bound the compiler cannot infer.** The fix for the GCC 13 warning was not a
+   suppression but restating the loop as a bulk copy; the same shape is safer for the next reader.
