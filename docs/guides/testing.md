@@ -111,6 +111,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_overlay_golden` | lavapipe overlay baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
+| `harness_frame_capture` | software-device capability rule, offscreen harness capture vs the committed `tests/golden/baseline/harness/` baseline (1 LSB + 0.1% budget, lavapipe only; gpu-smoke self-comparison elsewhere; `--update-goldens` regenerates) |
 | `batched2d_windowed_smoke` | window + swapchain render/present + pacer wait for 3 frames |
 | `window_win32_input` | Win32 mouse, wheel, key and character translation into `InputEvent` (Windows only) |
 | `batched2d_on_demand` | scene-driven render-on-demand: renders only for startup and scene changes, idles between |
@@ -359,7 +360,7 @@ Implemented for the batched2d proof:
 `CpuCanvas` (`src/rendering/software/`) is the deterministic software reference used by the CPU
 goldens (`dashboard_cpu.png`, `dashboard_text_cpu.png`, `dashboard_vector_cpu.png`,
 `dashboard_image_cpu.png`). Its contract, and the exact list of what it does and does not draw,
-lives in [golden-tests-v1.md, section 1.1](../specs/golden-tests-v1.md#11-software-cpu-canvas-corpus).
+lives in [golden-tests-v1.md, section 1.2](../specs/golden-tests-v1.md#12-software-cpu-canvas-corpus).
 The two Vulkan-free suites next to `cpu_canvas` pin it on exact RGBA8 bytes, so widening the
 backend cannot silently change pixels:
 

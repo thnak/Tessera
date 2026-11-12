@@ -157,6 +157,12 @@ void test_render(CompareMode mode) {
         request.mode = mode;
         request.baseline_path = baseline.string();
         request.update_baseline = update;
+        if (golden) {
+            // The fixture paints text, and glyph antialiasing rounds differently across lavapipe/
+            // LLVM revisions, so the committed baseline uses the same small budget the batched2d
+            // text goldens use (docs/specs/golden-tests-v1.md section 1) instead of bit-exact.
+            request.policy = ComparePolicy{1, 0.001};
+        }
         const auto checked = check_frame(*second, request, sink);
         expect(sink.files.count("frame.png") == 1, "the frame artifact was written");
         if (!checked) {
