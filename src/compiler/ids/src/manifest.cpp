@@ -6,11 +6,40 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
 namespace tessera::compiler::ids {
+namespace {
+
+const std::string* literal_text(const ir::ExprPtr& expr) {
+    if (expr == nullptr || expr->kind != ir::ExprKind::Literal) {
+        return nullptr;
+    }
+    const auto* text = std::get_if<std::string>(&expr->literal);
+    return text != nullptr && !text->empty() ? text : nullptr;
+}
+
+// The static accessible name: an explicit aria-label, else the `label` prop (button text), else the
+// node's own literal text. Dynamic values are unknown to a harness that never runs the app, so they
+// are omitted rather than guessed.
+const std::string* static_name(const ir::Node& node) {
+    for (const char* key : {"aria-label", "label"}) {
+        if (const auto found = node.props.find(key); found != node.props.end()) {
+            if (const std::string* text = literal_text(found->second); text != nullptr) {
+                return text;
+            }
+            if (std::string_view(key) == "aria-label") {
+                return nullptr; // a dynamic aria-label hides the fallbacks too
+            }
+        }
+    }
+    return literal_text(node.text);
+}
+
+} // namespace
 
 std::string write_manifest(const ir::IrModule& module, std::string_view salt) {
     ir::JsonValue components = ir::JsonValue::array();
@@ -34,15 +63,8 @@ std::string write_manifest(const ir::IrModule& module, std::string_view salt) {
             node.set("componentId", ir::JsonValue::string(component.component_id));
             node.set("kind",
                      ir::JsonValue::string(std::string(ir::node_kind_name(slot.node->kind))));
-            // A static aria-label is the node's accessible name; dynamic ones are unknown to a
-            // harness that never runs the app, so they are omitted rather than guessed.
-            if (const auto label = slot.node->props.find("aria-label");
-                label != slot.node->props.end() && label->second != nullptr &&
-                label->second->kind == ir::ExprKind::Literal) {
-                if (const auto* text = std::get_if<std::string>(&label->second->literal);
-                    text != nullptr && !text->empty()) {
-                    node.set("name", ir::JsonValue::string(*text));
-                }
+            if (const std::string* name = static_name(*slot.node); name != nullptr) {
+                node.set("name", ir::JsonValue::string(*name));
             }
             node.set("path", ir::JsonValue::string(slot.path));
             node.set("source", std::move(source));

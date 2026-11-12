@@ -85,7 +85,9 @@ Manifest (`generated/automation.manifest.json`; the codegen CLI writes it as `au
 }
 ```
 
-- `name` is optional and present only for a static string `aria-label`; a node without one omits it.
+- `name` is optional: a static string `aria-label`, else a static `label` prop (button text), else the
+  node's own literal text. A dynamic `aria-label` hides the fallbacks, and a node with no static
+  source omits it.
 - Manifest is deterministic and reviewed like generated code.
 - `uiId`/`componentId` map to debug path/name/source for agents and traces.
 - The manifest is the source of truth for automation; no runtime discovery of string paths.

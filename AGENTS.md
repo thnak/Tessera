@@ -552,7 +552,7 @@ missing baseline / 2 mode unavailable (golden needs lavapipe via `VK_ICD_FILENAM
 `mobile` latency profiles pass on a real clock on the Windows dev machine (six-step fixture script:
 p95 3.4 ms desktop, 1.9 ms mobile, 2026-11-12); noisy shared runners should keep using `ci`. The `scrollIntoView` action reveals realized items
 (`ui::scroll_into_view`); revealing an unrealized virtual item through `VirtualRange` is still open. Manifest scenes already report the manifest structural
-path and component id in snapshots (`NodeAnnotations`); a static `aria-label` is carried as the manifest `name` and reported as the snapshot `name`. The POSIX `poll` path is not yet compiled anywhere. `tessera_accessibility`
+path and component id in snapshots (`NodeAnnotations`); a static `aria-label` (else `label`, else literal text) is carried as the manifest `name` and reported as the snapshot `name`. The POSIX `poll` path is not yet compiled anywhere. `tessera_accessibility`
 now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Transport` seam with a
 loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface
 mapping, and Accessible/Application/Action/Component/Text/Value dispatch with a bounded action

@@ -212,7 +212,23 @@ int main() {
                     std::string::npos,
                 "a dynamic aria-label is omitted") &&
          ok;
+    module.components[0].root.children[1].props["label"] = ir::make_literal(std::string("Go"));
+    ok =
+        expect(ids::write_manifest(module, "factory").find("\"name\": \"Go\"") == std::string::npos,
+               "a dynamic aria-label hides the label fallback") &&
+        ok;
     module.components[0].root.children[1].props.erase("aria-label");
+    ok =
+        expect(ids::write_manifest(module, "factory").find("\"name\": \"Go\"") != std::string::npos,
+               "the literal label prop is the fallback name") &&
+        ok;
+    module.components[0].root.children[1].props.erase("label");
+    module.components[0].root.children[1].text = ir::make_literal(std::string("Body"));
+    ok = expect(ids::write_manifest(module, "factory").find("\"name\": \"Body\"") !=
+                    std::string::npos,
+                "a literal node text is the last fallback") &&
+         ok;
+    module.components[0].root.children[1].text = nullptr;
     ok = expect(manifest.find("\"manifestVersion\": 1") != std::string::npos &&
                     manifest.find("\"projectSalt\": \"factory\"") != std::string::npos,
                 "the manifest names its version and salt") &&

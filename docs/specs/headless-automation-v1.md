@@ -51,7 +51,7 @@ headless golden tests). `gpu-smoke` never updates baselines.
     scroll, other kinds are inert, and the app's event handlers do not run. Default sizes come
     from a built-in stylesheet. Snapshots report each node's manifest `path` and `componentId`
     (`annotations_from_manifest` feeds `EngineAutomationHost::Config`), not the live-tree path;
-    a node with a static `aria-label` has an optional manifest `name`, which the scene node carries as
+    a node with a static `aria-label`, `label` prop or literal text has an optional manifest `name`, which the scene node carries as
     its `aria-label` so snapshots report it as `name` (dynamic labels are omitted). A missing or invalid config or manifest is exit `2` with a
     deterministic `tessera <command>: <Code>: <message>` line (`ConfigUnreadable`, `ConfigTooLarge`,
     `ConfigInvalid`, `ManifestMissing`, `ManifestTooLarge`, `ManifestInvalid`,
