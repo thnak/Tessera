@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/automation/app_config.hpp"
+#include "tessera/automation/node_annotation.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <string_view>
@@ -26,5 +27,9 @@ public:
     // Default styling so every kind gets a hit-testable size; the caller compiles it.
     [[nodiscard]] static std::string_view stylesheet() noexcept;
 };
+
+// Path and component id of every manifest node by `uiId`, for EngineAutomationHost::Config so a
+// snapshot reports the manifest's structural paths instead of the ones derived from the live tree.
+[[nodiscard]] NodeAnnotations annotations_from_manifest(const AppManifest& manifest);
 
 } // namespace tessera::automation

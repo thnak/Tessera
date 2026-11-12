@@ -156,7 +156,11 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
 
     diagnostics::TraceRecorder trace;
     diagnostics::MetricsRegistry metrics;
-    automation::EngineAutomationHost automation_host(root, host, loop);
+    automation::EngineAutomationHost::Config host_config;
+    if (app != nullptr) {
+        host_config.annotations = automation::annotations_from_manifest(*app);
+    }
+    automation::EngineAutomationHost automation_host(root, host, loop, std::move(host_config));
     automation::AutomationDiagnostics hooks;
     hooks.trace = &trace;
     hooks.metrics = &metrics;
@@ -269,6 +273,7 @@ std::string_view cli_usage() noexcept {
            "  tessera test --script <path> [--mode structural|audit] [--out <dir>] [--report "
            "<path>]\n"
            "  tessera headless --mode <mode> --script <path> [--out <dir>] [--report <path>]\n"
+           "  tessera headless --mode <mode> [--app <tessera.json>]   (serve the stdio protocol)\n"
            "  tessera test --script <path> --mode golden|gpu-smoke --baseline <png> "
            "[--update-goldens] [--font <ttf>]\n"
            "  tessera --help | --version\n"
@@ -329,6 +334,7 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
     std::optional<std::string_view> profile;
     std::optional<std::string_view> baseline;
     std::optional<std::string_view> font;
+    std::optional<std::string_view> app_path;
     bool update_goldens = false;
 
     for (std::size_t index = 1; index < args.size(); ++index) {
@@ -379,6 +385,12 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
                 return 2;
             }
             baseline = *value;
+        } else if (argument == "--app") {
+            const auto value = take_value(argument);
+            if (!value.has_value()) {
+                return 2;
+            }
+            app_path = *value;
         } else if (argument == "--font") {
             const auto value = take_value(argument);
             if (!value.has_value()) {
@@ -485,10 +497,25 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
             owned = std::make_unique<StdioTransport>(make_process_stdio_stream());
             serve_transport = owned.get();
         }
-        return run_headless_serve(*serve_transport, directory, mode == CliMode::Audit, nullptr,
-                                  err);
+        std::optional<automation::AppManifest> serve_app;
+        if (app_path.has_value()) {
+            auto loaded = automation::load_app_manifest(artifact_path(*app_path));
+            if (!loaded.has_value()) {
+                err << "tessera " << command << ": " << automation::to_string(loaded.error().code)
+                    << ": " << loaded.error().message << "\n";
+                return 2;
+            }
+            serve_app = std::move(*loaded);
+        }
+        return run_headless_serve(*serve_transport, directory, mode == CliMode::Audit, nullptr, err,
+                                  serve_app.has_value() ? &*serve_app : nullptr);
     }
 
+    if (app_path.has_value()) {
+        err << "tessera " << command << ": --app applies to serving without --script; scripts name "
+            << "app.config themselves\n";
+        return 2;
+    }
     const auto text = read_script_file(*script);
     if (!text.has_value()) {
         err << "tessera " << command << ": cannot read script '" << *script << "'\n";

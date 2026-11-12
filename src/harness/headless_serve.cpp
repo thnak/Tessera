@@ -3,6 +3,7 @@
 #include "tessera/app/host.hpp"
 #include "tessera/automation/engine_host.hpp"
 #include "tessera/automation/fixture_scene.hpp"
+#include "tessera/automation/manifest_scene.hpp"
 #include "tessera/diagnostics/metrics.hpp"
 #include "tessera/diagnostics/trace.hpp"
 #include "tessera/harness/artifact_sink.hpp"
@@ -15,8 +16,10 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <optional>
 #include <ostream>
 #include <string>
+#include <utility>
 
 namespace tessera::harness {
 namespace {
@@ -26,11 +29,20 @@ constexpr double kTickSeconds = 1.0 / 60.0;
 } // namespace
 
 int run_headless_serve(LineTransport& transport, std::string_view output_directory,
-                       bool diagnostics_enabled, const std::atomic<bool>* stop, std::ostream& err) {
+                       bool diagnostics_enabled, const std::atomic<bool>* stop, std::ostream& err,
+                       const automation::AppManifest* app) {
     (void)err;
     const ScriptProfile profile;
     ui::Node root(1);
-    automation::FixtureScene fixture(root);
+    std::optional<automation::FixtureScene> fixture;
+    std::optional<automation::ManifestScene> manifest_scene;
+    if (app != nullptr) {
+        manifest_scene.emplace(root, *app);
+    } else {
+        fixture.emplace(root);
+    }
+    const std::string_view stylesheet = app != nullptr ? automation::ManifestScene::stylesheet()
+                                                       : automation::FixtureScene::stylesheet();
 
     runtime::ManualClock clock;
     runtime::RuntimeLoop loop(clock);
@@ -38,14 +50,18 @@ int run_headless_serve(LineTransport& transport, std::string_view output_directo
     config.width = static_cast<float>(profile.width);
     config.height = static_cast<float>(profile.height);
     config.dpi_scale = static_cast<float>(profile.scale);
-    app::AppHost host(root, ui::style::compile_stylesheet(automation::FixtureScene::stylesheet()),
+    app::AppHost host(root, ui::style::compile_stylesheet(stylesheet),
                       loop, config);
     (void)host.begin_frame(0.0);
     host.end_frame();
 
     diagnostics::TraceRecorder trace;
     diagnostics::MetricsRegistry metrics;
-    automation::EngineAutomationHost automation_host(root, host, loop);
+    automation::EngineAutomationHost::Config host_config;
+    if (app != nullptr) {
+        host_config.annotations = automation::annotations_from_manifest(*app);
+    }
+    automation::EngineAutomationHost automation_host(root, host, loop, std::move(host_config));
     automation::AutomationDiagnostics hooks;
     hooks.trace = &trace;
     hooks.metrics = &metrics;
