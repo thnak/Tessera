@@ -197,7 +197,8 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       (`TESSERA_ICU_REDUCED_DATA=ON`, filtered text ctest).
 - [ ] **B2:** Dirty rendering done except per-node paint caches — clean subtrees are not
       re-recorded; damage equivalence still passes.
-- [ ] **B2:** Pacing done except dynamic refresh/VRR — pacer follows a scripted rate change.
+- [x] **B2:** Pacing done except dynamic refresh/VRR — pacer follows a scripted rate change —
+      `src/runtime/frame_pacer.cpp`, `tests/unit/frame_pacer_tests.cpp`.
 - [ ] **B2:** Power: adaptive quality and occluded/background pause — occluded window presents
       nothing (overlaps ADR-050 AF3).
 - [ ] **B2:** Multi-frame sync: timeline semaphores (two frames in flight already work) — smoke

@@ -152,8 +152,9 @@ Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
   damage and dirty caches/layers remain later work.
 - `Batched2DRenderer` supports `frames_in_flight > 1` and the swapchain path submits over a two-slot
   ring; there is no timeline-semaphore frame object yet.
-- `FramePacer` and vsync/present-mode selection exist; dynamic refresh/VRR and present-path damage
-  are pending.
+- `FramePacer` and vsync/present-mode selection exist; the pacer follows a scripted rate change
+  (`FramePacer::update`: cap, display refresh and VRR availability, with refresh-divisor cadence).
+  Platform display-refresh/VRR queries and present-path damage are pending.
 - Yoga layout, FreeType/HarfBuzz shaping and the glyph atlas are implemented in B2.
 - No vector path rasterizer ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buy vector-path rasterization).
 - No sRGB/color-management policy: not scheduled; no decision yet (see [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
