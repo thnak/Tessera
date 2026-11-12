@@ -174,6 +174,38 @@ Charts, live data, and animations stream vertices into a per-frame arena:
 - no full-tree rebuild;
 - bounded memory: capacity is part of the chart pipeline contract.
 
+### 5.4 Per-node paint cache (implemented, caller-owned)
+
+`ui::paint::PaintCache` (`include/tessera/ui/paint/paint_cache.hpp`,
+`src/ui/paint/paint_cache.cpp`) is the per-node part of the retained hybrid. `paint_scene` consults
+it through `PaintContext::paint_cache`; a null pointer keeps the uncached pass byte-identical.
+
+- **Owns:** one record per node holding the exact sequence of `PaintSink` calls that node emits for
+  itself (background/border/text/vector/image/gradient/shadow draws and its own clip/transform push),
+  the pop flags that bracket its children, and the draw counters that emission produced. It owns no
+  child draws, no pixels and no scene state; each child hits or records its own entry, so a dirty
+  descendant can never be masked by a clean ancestor.
+- **Key and invalidation rule:** node id, the paint-relevant node state read without resolving style
+  (bounds, transform, scroll offset/axes, scrollport insets), the sink-space mapping (painted world
+  matrix, painting frame, resolved box, sink transform support), a deterministic FNV-1a fingerprint
+  of the inherited clip stack, the `text_metrics_source` id, the device scale, and the exact
+  `PaintData` payload compared by value. A record is replayed only while the node's own dirty flags
+  are `Clean`: the dirty bit is the style-generation signal, so a style/cascade/theme change
+  invalidates the record without the cache resolving the style. A bounds, transform or clip change
+  MISSES and re-records at the new coordinates instead of replaying adjusted ones.
+- **Never replayed across:** a `PaintView` override (a paint with a view takes the uncached path end
+  to end, because the view can override colors/opacity/transform and text metrics per frame), a
+  different metrics-source id, a different device scale, or a different inherited clip stack. Box
+  shadows need no bypass: their layers derive from the computed style only, not from the sink.
+- **Bounds:** `PaintCacheConfig` caps entries and bytes (defaults 256 / 2 MiB) with deterministic
+  LRU eviction, and `PaintCacheStats` reports hits/misses/evictions/invalidations/replayed_draws/
+  recorded_draws/bypasses. It is caller-owned (no global singleton); one instance belongs to one
+  scene tree, and `invalidate()` follows a style or tree generation change.
+- **Damage equivalence is unchanged.** A replayed record is the same sink call sequence a cold paint
+  would emit for that node (pinned call-for-call by `paint_cache`'s byte-identical test), so damage,
+  redraw plans and the CPU/GPU equivalence tests are untouched. `FramePipeline` does not pass a cache
+  yet, so existing pipeline behavior is unchanged; wiring the frame-owned instance is the next slice.
+
 ## 6. Damage and partial redraw
 
 ### 6.1 Damage rectangles
