@@ -19,6 +19,9 @@ This page is the map and reading order for the framework.
   — cross-check, canonical ownership, gap register, open questions
 - [`architecture/app-completeness-gap-resolutions-v1.md`](architecture/app-completeness-gap-resolutions-v1.md)
   — resolved/deferred decisions for gaps G-01..G-28 and open questions Q-01..Q-26 (defined in the cross-check above)
+- [`architecture/app-framework-gap-audit-v1.md`](architecture/app-framework-gap-audit-v1.md)
+  — app-framework concerns (lifecycle, services, provisioning, app state, storage, background work)
+  specified vs implemented, contradictions, and a Qt/JUCE/Flutter/Compose comparison (ADR-050)
 - [`architecture/doc-contradiction-resolutions-v1.md`](architecture/doc-contradiction-resolutions-v1.md)
   — contradictions found between documents, the rule used to resolve each, and what is still undecided
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
@@ -57,6 +60,7 @@ This page is the map and reading order for the framework.
 - [ADR-036](../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) — own JSX/TSX front end; React-like model
 - [ADR-037](../decisions/ADR-037-self-contained-wasm-designer.md) — self-contained Wasm (WebAssembly) designer engine
 - [ADR-039](../decisions/ADR-039-lowercase-html-tags-accepted.md) — lowercase HTML tags accepted as intrinsic aliases
+- [ADR-050](../decisions/ADR-050-opt-in-app-framework-layer.md) — opt-in app-framework layer (lifecycle, services, task scopes, app state); proposed
 
 ## 3. Specs (normative)
 
