@@ -54,6 +54,8 @@ endif()
 option(TESSERA_BUILD_POC "Build Phase 0 proof-of-concept tools" ON)
 option(TESSERA_BUILD_TESTS "Build unit tests" ON)
 option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)
+option(TESSERA_BUILD_WEBGPU
+    "Build the WebGPU device backend against a native webgpu.h (always built under Emscripten)" OFF)
 option(TESSERA_ENABLE_THORVG
     "Build the ThorVG-backed vector path rasterizer (D1, ADR-004)" OFF)
 
@@ -122,6 +124,10 @@ endif()
 if (TESSERA_BUILD_POC AND TARGET tessera_app_window)
     add_subdirectory(tools/poc/design_mock)
 endif()
+
+# WebGPU mapping tables and the WGSL registry are API-free and always built; the device itself is
+# gated inside (Emscripten or TESSERA_BUILD_WEBGPU).
+add_subdirectory(src/rendering/backend/webgpu)
 
 if (TESSERA_BUILD_VULKAN)
     add_subdirectory(src/rendering/backend/vulkan)

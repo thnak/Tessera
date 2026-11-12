@@ -1738,3 +1738,10 @@ add_executable(frame_pipeline_spring_tests
 target_link_libraries(frame_pipeline_spring_tests PRIVATE tessera_frame tessera_runtime)
 
 add_test(NAME frame_pipeline_spring COMMAND frame_pipeline_spring_tests)
+
+add_executable(webgpu_mapping_tests
+    webgpu_mapping_tests.cpp)
+
+target_link_libraries(webgpu_mapping_tests PRIVATE tessera_webgpu_mapping)
+
+add_test(NAME webgpu_mapping COMMAND webgpu_mapping_tests)
