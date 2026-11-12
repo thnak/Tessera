@@ -117,8 +117,8 @@ int main() {
     expect(fs::exists("cli_it_custom/report.json"), "the custom report path is honoured");
 
     // `tessera headless --mode audit` runs the same script and enables the diagnostics seams.
-    const Outcome headless =
-        run({"headless", "--mode", "audit", "--script", smoke, "--out", "cli_it_headless"});
+    const Outcome headless = run({"headless", "--mode", "audit", "--profile", "ci", "--script",
+                                  smoke, "--out", "cli_it_headless"});
     expect(headless.code == 0, "headless audit mode passes");
     expect(fs::exists("cli_it_headless/trace.json") && fs::exists("cli_it_headless/audit.json"),
            "headless wrote the diagnostics artifacts");

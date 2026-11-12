@@ -230,7 +230,7 @@ section 3 invocations: `tessera test --script FILE [--out DIR] [--report PATH] [
 structural|audit]`, plus the `headless` equivalent.
 
 - `--script` is required for both commands (`headless` without one exits `2`: no app-config loader
-  yet). `--mode` accepts `structural` and `audit` (both run the script; `audit` also enables the
+  yet). `--mode` accepts `structural` and `audit` (both run the script; `audit` also adds the section 6.10 latency gate and enables the
   diagnostics seams); `golden`/`gpu-smoke` parse but exit `2` as not implemented.
 - One `RuntimeLoop` tick per pump: the driver advances a `ManualClock` by one fixed step, ticks the
   loop, then calls `ScriptRunner::pump()` once (hard guard `kMaxScriptSteps + 1`). Time comes from
@@ -331,6 +331,29 @@ separate target (`tessera_automation_host`), because the protocol library itself
   `100 * passed / checks` and passing at >= 90. Disabled, the host calls neither seam, answers
   `trace` with the empty Chrome document (`[]`), and answers `audit` with an `internal` diagnostic
   instead of a fabricated score; the cost is one branch per command.
+
+### 6.10 Latency audit (implemented)
+
+`tessera headless --mode audit --profile NAME --script FILE` adds a latency gate on top of the
+section 6.8 structural audit. It is the only mode that reads a real clock (section 7).
+
+- **Clock.** Audit mode runs `ScriptRunner` on `SteadySessionClock` (monotonic); structural mode
+  keeps the simulated tick clock, so its reports stay byte-identical. `run_cli_with_audit_clock`
+  injects a fake clock for tests, so threshold pass/fail never depends on the wall clock.
+- **Samples.** Each successful `click`/`type`/`focus`/`scroll` step contributes its elapsed
+  microseconds (dispatch, input delivery, settle frame). A run with no sample fails with
+  `no-samples` instead of passing vacuously.
+- **Profile.** `--profile` (default `desktop`) is a built-in name or a path ending in `.json`.
+  Built-ins (p50/p95/max step us): `desktop` 8000/16000/50000, `mobile` 16000/33000/100000, `ci`
+  unchecked/250000/1000000. Custom document: `{"latencyProfileVersion":1,"name":"x",
+  "p50StepUs":N,"p95StepUs":N,"maxStepUs":N}`; thresholds are optional positive integers, at least
+  one is required, unknown members are rejected. An unknown profile is exit `2`.
+- **Output.** `<out>/latency-audit.json` (`auditVersion`, `kind:"latency"`, `profile`, `passed`,
+  `samples`, `thresholds`, nearest-rank `stats` min/p50/p95/max, `violations` with `id`/`limitUs`/
+  `actualUs`, per-step `steps`) and the same object under `latencyAudit` in `report.json`. Any
+  violation exits `1`; the report is still written.
+- Tests: `harness_latency_audit`. The disabled-diagnostics invariant stays proven by
+  `harness_diagnostics_cost`.
 
 ### 6.9 Built-in fixture and wired tests (implemented)
 
