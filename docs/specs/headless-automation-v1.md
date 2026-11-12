@@ -211,9 +211,10 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
 `StdioStream`, and is the v1 transport.
 
 - **`read_line` never waits.** The OS stream probes readiness with a zero-timeout `poll` (POSIX) or
-  a zero-timeout wait/peek (Windows) and reports `wouldBlock` otherwise; it never flips a blocking
-  handle into non-blocking mode. An interactive console in line-input mode may itself wait for a
-  complete line, which is why the CLI is normally driven by a pipe; a pipe or a file never waits.
+  a zero-timeout wait/peek (Windows) and reports `wouldBlock` otherwise; the read path never flips a
+  blocking handle into non-blocking mode. An interactive console in line-input mode may itself wait
+  for a complete line, which is why the CLI is normally driven by a pipe; a pipe or a file never
+  waits.
 - **Bounded blocking wait.** `LineTransport::wait_readable(timeout)` is the only place a serve loop
   idles: it returns true when `read_line` can make progress (a buffered line, a framing error, EOF,
   or a closed transport) and false when `timeout` elapsed first. It never reads and never exceeds
@@ -231,6 +232,11 @@ real runtime, and the `tessera test` / `tessera headless` CLIs.
   default, clamped to at least one maximum frame). `write_line` succeeds once the line is queued;
   a partial OS write keeps the remainder queued and `flush()` resumes it in order. A full queue
   reports `queueFull` and writes nothing, so retrying the same line cannot duplicate bytes.
+  Writing to a peer that stopped draining stdout is not allowed to wait: on POSIX the write is
+  issued with `O_NONBLOCK` raised for that one call and restored afterwards, so a full pipe reports
+  `wouldBlock` and the frame stays queued. Windows cannot change an already-open synchronous pipe
+  handle, so a peer that leaves the pipe full delays a `WriteFile` until it drains; the serve loop
+  itself still only idles on `wait_readable`.
 - No socket, token, or auth code: the protocol is local-only (section 9).
 
 ### 6.3 Session executor (implemented)

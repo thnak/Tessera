@@ -35,6 +35,9 @@ struct StdioIoResult {
 // read_some never waits: the OS implementation probes readiness with a zero-timeout poll (POSIX)
 // or a zero-timeout wait/peek (Windows) before touching the handle. It also never changes the
 // handle's blocking mode; a caller that opened stdin non-blocking keeps ownership of that flag.
+// write_some may raise O_NONBLOCK for the duration of one call (POSIX only) so that it can report
+// WouldBlock instead of waiting for a stalled peer; it restores the caller's flags before
+// returning (see the StdioTransport write contract below).
 // One limitation is inherent to an interactive console in line-input mode: the OS itself may wait
 // for a complete line once it has been asked for input, which is why the harness CLI is normally
 // driven by a pipe. A pipe or a file never waits here.
@@ -82,6 +85,14 @@ inline constexpr std::size_t kStdioWriteQueueBytes = std::size_t{2} << 20U;
 // clamped to at least max_line_bytes + 2 so one valid frame always fits. When the queue is full,
 // write_line fails with QueueFull and writes nothing, so a caller can retry the same line
 // without duplicating bytes.
+//
+// Only the write path changes a descriptor's mode, and only for the duration of one call: POSIX
+// raises O_NONBLOCK, issues the write, and restores the previous flags, so a full pipe reports
+// WouldBlock instead of waiting and a caller that opened stdout non-blocking keeps that flag.
+// Windows cannot change an already-open synchronous stdio handle, and a pipe handle inherits the
+// peer's synchronous mode, so a peer that stops draining stdout can delay a write until it drains.
+// A harness peer that stops reading is a stalled session rather than a slow one, which is why the
+// queue and its failure codes exist; the serve loop still only idles on wait_readable().
 class StdioTransport final : public LineTransport {
 public:
     static constexpr std::size_t kDefaultWriteQueueBytes = kStdioWriteQueueBytes;
