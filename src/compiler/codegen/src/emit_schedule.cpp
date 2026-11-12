@@ -40,6 +40,11 @@ bool emit_schedule_declarations(CppWriter& writer, const ir::Component& componen
     writer.line("void attach_scheduler(tessera::ui::UpdateScheduler& scheduler);");
     writer.line("void detach_scheduler(tessera::ui::UpdateScheduler& scheduler);");
     writer.line("void schedule_update();");
+    if (!component.animated_values.empty()) {
+        writer.line(
+            "// Advances the animated values by dt seconds; true while any is still moving.");
+        writer.line("bool tick_animations(double dt);");
+    }
     for (const ir::State& state : component.state) {
         if (!plain_identifier(state.name)) {
             continue;
@@ -65,6 +70,13 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
     writer.line("static_cast<" + component.name + "*>(context)->update();");
     --writer.indent;
     writer.line("};");
+    if (!component.animated_values.empty()) {
+        writer.line("update_ticket_.tick = [](void* context, double dt) {");
+        ++writer.indent;
+        writer.line("return static_cast<" + component.name + "*>(context)->tick_animations(dt);");
+        --writer.indent;
+        writer.line("};");
+    }
     writer.line("scheduler.attach(update_ticket_);");
     for (const ComponentInstance& instance : instances) {
         writer.line(instance_member(instance.ordinal) + ".attach_scheduler(scheduler);");
@@ -85,6 +97,26 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
     writer.line("update_ticket_.schedule();");
     writer.close("");
     writer.line("");
+
+    if (!component.animated_values.empty()) {
+        writer.open("bool " + component.name + "::tick_animations(double dt)");
+        writer.line("bool moving = false;");
+        writer.line("bool changed = false;");
+        for (const ir::AnimatedValue& value : component.animated_values) {
+            const std::string controller = animated_controller_name(value.id);
+            writer.line("moving = " + controller + ".tick(dt) || moving;");
+            writer.open("if (" + member_name(value.id) + " != " + controller + ".value())");
+            writer.line(member_name(value.id) + " = " + controller + ".value();");
+            writer.line("changed = true;");
+            writer.close("");
+        }
+        writer.open("if (changed)");
+        writer.line("schedule_update();");
+        writer.close("");
+        writer.line("return moving;");
+        writer.close("");
+        writer.line("");
+    }
 
     for (const ir::State& state : component.state) {
         if (!plain_identifier(state.name)) {

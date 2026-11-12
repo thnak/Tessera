@@ -104,12 +104,17 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Setting the value starts/retargets the animation; `set(value, { animate: false })` snaps. `set(value, { duration, easing })`
   carries literal timing through the IR (`animSet.durationMs`/`easing`); without it the default is 200 ms `ease-out`.
 - Animated values can drive style properties, transforms, or chart data.
-- Implemented core: `ui::animation::AnimatedScalar` (`include/tessera/ui/animation/animated_scalar.hpp`). It is a
-  clock-free scalar the owner ticks with the frame delta: `set(v, {duration, easing, animate})` retargets from the
-  current value (no jump), defaults to CSS `ease-out` over 200 ms, snaps for `animate:false`, a zero duration or
-  reduced motion, and `tick` returns whether another frame is needed. Not yet wired: the `AppHost` registry that
-  ticks scalars and wakes the loop, the generated-component handle, and codegen for `AnimSet` (it still emits a
-  plain assignment). Springs as a scalar driver also wait on `SpringRuntime` gaining an owner.
+- Implemented: `ui::animation::AnimatedScalar` (`include/tessera/ui/animation/animated_scalar.hpp`) is a clock-free scalar
+  the owner ticks with the frame delta. `set(v, {duration, easing, animate})` retargets from the current value (no jump),
+  defaults to 200 ms `ease-out`, snaps for `animate:false`, a zero duration or reduced motion, and `tick` returns whether
+  another frame is needed.
+- Generated components hold one `AnimatedScalar` per animated value next to the plain `anim_x_` field that every read
+  uses. `v.set(x, {duration, easing})` lowers to `animSet.durationMs`/`easing` in the IR and emits `controller.set(...)`.
+  The component's `UpdateTicket::tick` calls `tick_animations(dt)`, which copies the sampled value into the field and
+  schedules the component; `UpdateScheduler::tick(dt)` runs before `flush()` in `FramePipeline`, so a moved value is
+  applied in the same frame, and the scheduler wakes the loop while any value still moves (an idle UI requests no frame).
+- Not yet: wiring the platform reduced-motion setting to `AnimatedScalar::set_reduced_motion`, springs as a scalar
+  driver (`SpringRuntime` still has no owner), and a completion callback for animated values.
 - Completion callbacks are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 

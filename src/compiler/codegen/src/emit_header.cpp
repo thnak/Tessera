@@ -66,6 +66,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("");
     writer.line("#include \"tessera/ui/scene/component_lifecycle.hpp\"");
     writer.line("#include \"tessera/ui/scene/update_scheduler.hpp\"");
+    if (!component.animated_values.empty()) {
+        writer.line("#include \"tessera/ui/animation/animated_scalar.hpp\"");
+    }
     writer.line("#include \"tessera/ui/scene/event_payloads.hpp\"");
     writer.line("#include \"tessera/ui/scene/state_snapshot.hpp\"");
     if (!controlled_inputs.empty()) {
@@ -176,8 +179,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
             return fail(error, initial.error);
         }
         writer.line("// useAnimatedValue `" + value.name +
-                    "` (a plain field until the animation controller API exists).");
+                    "`: the sampled value every read uses, and its controller (ticked by the");
+        writer.line("// host's UpdateScheduler; see tick_animations).");
         writer.line(*type + " " + member_name(value.id) + " = " + initial.text + ";");
+        writer.line("tessera::ui::animation::AnimatedScalar " + animated_controller_name(value.id) +
+                    "{" + member_name(value.id) + "};");
     }
     for (const ComponentInstance& instance : instances) {
         writer.line("// Component instance `" + instance.component_id +

@@ -130,6 +130,7 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     // Scheduled component updates land before animation, style and layout, so a state change made
     // since the last tick is part of this frame (an effect or animation they start ticks now).
     if (scheduler_ != nullptr) {
+        (void)scheduler_->tick(dt);
         (void)scheduler_->flush();
     }
 

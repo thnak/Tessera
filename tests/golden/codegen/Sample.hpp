@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/animation/animated_scalar.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/text/text_input_runtime.hpp"
@@ -29,8 +30,10 @@ namespace demo {
       std::string state_name_ = "";
       // useRef `box` (assigned in build() to its target node).
       tessera::ui::Node* ref_box_ = nullptr;
-      // useAnimatedValue `opacity` (a plain field until the animation controller API exists).
+      // useAnimatedValue `opacity`: the sampled value every read uses, and its controller (ticked by the
+      // host's UpdateScheduler; see tick_animations).
       double anim_opacity_ = 1.0;
+      tessera::ui::animation::AnimatedScalar anim_opacity_scalar_{anim_opacity_};
       // Interpolated text for the node with pre-order index 3 (PaintData only; never a layout input).
       tessera::ui::Node* text_node_3_ = nullptr;
       std::string text_node_3_value_;
@@ -98,6 +101,8 @@ namespace demo {
       void attach_scheduler(tessera::ui::UpdateScheduler& scheduler);
       void detach_scheduler(tessera::ui::UpdateScheduler& scheduler);
       void schedule_update();
+      // Advances the animated values by dt seconds; true while any is still moving.
+      bool tick_animations(double dt);
       void set_count(int value);
       void set_name(std::string value);
       // Every state and animated cell by IR id, in declaration order (tests, parity).

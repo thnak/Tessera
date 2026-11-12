@@ -16,9 +16,15 @@ class UpdateScheduler;
 // `detach` (generated components are built in place and never moved while mounted).
 struct UpdateTicket {
     using UpdateFn = void (*)(void* context);
+    // Per-frame animation step (`useAnimatedValue`): advances the owner's animated values by `dt`
+    // seconds and returns true while any is still moving. Optional; a component without animated
+    // values leaves it null and costs nothing per frame.
+    using TickFn = bool (*)(void* context, double dt);
 
     UpdateFn update = nullptr;
     void* context = nullptr;
+    // Declared after `context` so `UpdateTicket{update, context}` keeps meaning what it did.
+    TickFn tick = nullptr;
 
     // Marks the owner dirty. A no-op while detached, so headless tests that call `update()`
     // by hand keep working. UI-thread only (asserted in debug builds).
@@ -75,6 +81,12 @@ public:
     // UI-thread operations. Detach every ticket before the scheduler or the component dies.
     void attach(UpdateTicket& ticket);
     void detach(UpdateTicket& ticket);
+
+    // Steps every attached ticket's animations by `dt` seconds, in attach order. The host calls
+    // this once per tick before `flush()`, so an animated value that moved (its tick schedules the
+    // owner) is applied in the same frame. Returns true, and wakes the loop, while any ticket is
+    // still animating so the next frame is requested. Non-finite or negative `dt` is ignored.
+    bool tick(double dt);
 
     // Runs each queued ticket's `update()` in attach order, repeating while updates re-dirty
     // tickets, up to the pass budget.

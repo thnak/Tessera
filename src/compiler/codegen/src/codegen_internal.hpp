@@ -39,6 +39,10 @@ struct CppWriter {
 // The generated member name for a reference id (`state::count` -> `state_count_`).
 [[nodiscard]] std::string member_name(std::string_view ir_id);
 
+// The `AnimatedScalar` controller behind an animated cell (`anim::x` -> `anim_x_scalar_`). The
+// plain `anim_x_` field keeps the sampled value every expression reads.
+[[nodiscard]] std::string animated_controller_name(std::string_view ir_id);
+
 // One loop local (`item`, `index`) visible inside a generated list-item builder: the IR reference
 // id the template expressions use, the C++ expression that names the value, and its IR element
 // type. Generated item bodies bind the item by `const T&` and the index as `std::size_t`; the C++

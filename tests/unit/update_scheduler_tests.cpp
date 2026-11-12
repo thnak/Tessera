@@ -169,7 +169,45 @@ bool detach_during_flush() {
 
 } // namespace
 
+// tick(): steps only the tickets that animate, returns whether any still moves, and wakes the loop
+// while one does so the next frame is requested.
+bool tick_steps_animating_tickets() {
+    struct Mover {
+        UpdateTicket ticket;
+        double total = 0.0;
+        int remaining = 2;
+    };
+    UpdateScheduler scheduler;
+    WakeCounter wakes;
+    scheduler.set_wake(&wake, &wakes);
+    Mover mover;
+    mover.ticket.context = &mover;
+    mover.ticket.tick = [](void* context, double dt) {
+        auto* self = static_cast<Mover*>(context);
+        self->total += dt;
+        return --self->remaining > 0;
+    };
+    UpdateTicket plain;
+    scheduler.attach(plain);
+    scheduler.attach(mover.ticket);
+
+    bool ok = expect(scheduler.tick(0.25), "an animating ticket keeps the scheduler animating");
+    ok = expect(wakes.wakes == 1, "an animating tick wakes the loop") && ok;
+    ok = expect(!scheduler.tick(0.25), "the last step reports it is done") && ok;
+    ok = expect(wakes.wakes == 1, "a finished tick does not wake again") && ok;
+    ok = expect(mover.total == 0.5, "each tick delivered its dt") && ok;
+    ok = expect(!scheduler.tick(-1.0) && mover.total == 0.5, "a negative dt is ignored") && ok;
+    scheduler.detach(mover.ticket);
+    mover.remaining = 5;
+    ok = expect(!scheduler.tick(0.25) && mover.total == 0.5, "a detached ticket is not ticked") &&
+         ok;
+    return ok;
+}
+
 int main() {
+    if (!tick_steps_animating_tickets()) {
+        return 7;
+    }
     if (!detached_is_noop()) {
         return 1;
     }

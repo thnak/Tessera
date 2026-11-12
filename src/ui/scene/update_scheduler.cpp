@@ -77,6 +77,25 @@ void UpdateScheduler::mark(UpdateTicket& ticket) {
     }
 }
 
+bool UpdateScheduler::tick(double dt) {
+    assert(on_owner_thread() && "UpdateScheduler::tick must run on the UI thread");
+    if (!(dt >= 0.0) || flushing_) {
+        return false;
+    }
+    bool animating = false;
+    // Index loop, like flush(): a tick may schedule its owner but never attaches or detaches.
+    for (std::size_t i = 0; i < tickets_.size(); ++i) {
+        const UpdateTicket* ticket = tickets_[i];
+        if (ticket != nullptr && ticket->tick != nullptr) {
+            animating = ticket->tick(ticket->context, dt) || animating;
+        }
+    }
+    if (animating && wake_ != nullptr) {
+        wake_(wake_context_);
+    }
+    return animating;
+}
+
 UpdateFlushStats UpdateScheduler::flush() {
     assert(on_owner_thread() && "UpdateScheduler::flush must run on the UI thread");
     UpdateFlushStats stats;

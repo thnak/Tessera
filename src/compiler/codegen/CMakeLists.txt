@@ -69,7 +69,8 @@ if (EXISTS ${_tessera_codegen_golden_dir}/Sample.cpp)
     add_library(tessera_codegen_sample STATIC
         ${_tessera_codegen_golden_dir}/Sample.cpp)
     target_include_directories(tessera_codegen_sample PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_sample PRIVATE tessera_scene tessera_text_edit)
+    target_link_libraries(tessera_codegen_sample PRIVATE tessera_scene tessera_text_edit
+        tessera_animation)
     target_compile_features(tessera_codegen_sample PUBLIC cxx_std_23)
 endif ()
 
@@ -136,7 +137,8 @@ add_custom_command(
 
 add_library(tessera_compiler_demo STATIC ${_tessera_codegen_demo_dir}/Demo.cpp)
 target_include_directories(tessera_compiler_demo PRIVATE ${_tessera_codegen_demo_dir})
-target_link_libraries(tessera_compiler_demo PRIVATE tessera_scene tessera_text_edit)
+target_link_libraries(tessera_compiler_demo PRIVATE tessera_scene tessera_text_edit
+    tessera_animation)
 endif ()
 
 if (TESSERA_BUILD_TESTS)

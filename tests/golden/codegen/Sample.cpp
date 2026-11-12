@@ -258,6 +258,9 @@ namespace demo {
       update_ticket_.update = [](void* context) {
         static_cast<Sample*>(context)->update();
       };
+      update_ticket_.tick = [](void* context, double dt) {
+        return static_cast<Sample*>(context)->tick_animations(dt);
+      };
       scheduler.attach(update_ticket_);
     }
     
@@ -267,6 +270,20 @@ namespace demo {
     
     void Sample::schedule_update() {
       update_ticket_.schedule();
+    }
+    
+    bool Sample::tick_animations(double dt) {
+      bool moving = false;
+      bool changed = false;
+      moving = anim_opacity_scalar_.tick(dt) || moving;
+      if (anim_opacity_ != anim_opacity_scalar_.value()) {
+        anim_opacity_ = anim_opacity_scalar_.value();
+        changed = true;
+      }
+      if (changed) {
+        schedule_update();
+      }
+      return moving;
     }
     
     void Sample::set_count(int value) {
@@ -312,12 +329,33 @@ namespace demo {
     void Sample::handler_1(const tessera::ui::ClickEvent& event) {
       (void)event;
       state_count_ = 1;
+      {
+      tessera::ui::animation::ScalarOptions options;
+      options.duration_s = 0.3;
+      static const tessera::ui::animation::Easing easing =
+      tessera::ui::animation::parse_easing("ease-in-out").easing;
+      options.easing = easing;
+      anim_opacity_scalar_.set(static_cast<double>(0.5), options);
+      anim_opacity_ = anim_opacity_scalar_.value();
+      if (anim_opacity_scalar_.active()) {
+      schedule_update();
+      }
+      }
       apply_state();
     }
     
     void Sample::handler_2(const tessera::ui::TextChangeEvent& e) {
       (void)e;
       state_name_ = std::string(e.value);
+      {
+      tessera::ui::animation::ScalarOptions options;
+      options.animate = false;
+      anim_opacity_scalar_.set(static_cast<double>(1.0), options);
+      anim_opacity_ = anim_opacity_scalar_.value();
+      if (anim_opacity_scalar_.active()) {
+      schedule_update();
+      }
+      }
       apply_state();
     }
     

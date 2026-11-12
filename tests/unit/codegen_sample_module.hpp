@@ -65,6 +65,13 @@ inline ir::IrModule make_sample_module() {
     set.target = "state::count";
     set.value = integer(1);
     handler.actions.push_back(std::move(set));
+    ir::Action fade;
+    fade.kind = ir::ActionKind::AnimSet;
+    fade.target = "anim::opacity";
+    fade.value = ir::make_literal(0.5);
+    fade.duration_ms = 300.0;
+    fade.easing = "ease-in-out";
+    handler.actions.push_back(std::move(fade));
     sample.handlers.push_back(std::move(handler));
 
     ir::Handler change;
@@ -76,6 +83,12 @@ inline ir::IrModule make_sample_module() {
     set_name.target = "state::name";
     set_name.value = ir::make_ref("e.value");
     change.actions.push_back(std::move(set_name));
+    ir::Action reset;
+    reset.kind = ir::ActionKind::AnimSet;
+    reset.target = "anim::opacity";
+    reset.value = ir::make_literal(1.0);
+    reset.animate = false;
+    change.actions.push_back(std::move(reset));
     sample.handlers.push_back(std::move(change));
 
     sample.effects.push_back(

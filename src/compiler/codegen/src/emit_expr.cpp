@@ -110,6 +110,14 @@ std::string literal_text(const ir::LiteralValue& literal) {
     return "nullptr";
 }
 
+std::string animated_controller_name(std::string_view ir_id) {
+    std::string name = member_name(ir_id);
+    if (!name.empty() && name.back() == '_') {
+        name.pop_back();
+    }
+    return name + "_scalar_";
+}
+
 std::string member_name(std::string_view ir_id) {
     const std::size_t split = ir_id.find("::");
     if (split == std::string_view::npos) {
@@ -389,8 +397,31 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
             continue;
         }
         if (action.kind == ir::ActionKind::AnimSet && target.rfind(kAnim, 0) == 0) {
-            body += member_name(target) + " = " + value.text +
-                    "; // TODO(tessera-codegen): animate through the animation controller API\n";
+            // The controller moves the sampled field toward the value over the frame ticks; a snap
+            // (`animate: false`, a zero duration) lands in the field at once. Timing is literal in
+            // the IR, so the easing is parsed once per call site.
+            const std::string controller = animated_controller_name(target);
+            body += "{\n";
+            if (!action.animate) {
+                body +=
+                    "tessera::ui::animation::ScalarOptions options;\noptions.animate = false;\n";
+            } else if (action.duration_ms.has_value() || !action.easing.empty()) {
+                body += "tessera::ui::animation::ScalarOptions options;\n";
+                if (action.duration_ms.has_value()) {
+                    body += "options.duration_s = " + literal_text(*action.duration_ms / 1000.0) +
+                            ";\n";
+                }
+                if (!action.easing.empty()) {
+                    body += "static const tessera::ui::animation::Easing easing =\n"
+                            "tessera::ui::animation::parse_easing(\"" +
+                            action.easing + "\").easing;\noptions.easing = easing;\n";
+                }
+            } else {
+                body += "const tessera::ui::animation::ScalarOptions options;\n";
+            }
+            body += controller + ".set(static_cast<double>(" + value.text + "), options);\n" +
+                    member_name(target) + " = " + controller + ".value();\n" + "if (" + controller +
+                    ".active()) {\nschedule_update();\n}\n}\n";
             continue;
         }
         error = "unsupported action target `" + action.target + "`";

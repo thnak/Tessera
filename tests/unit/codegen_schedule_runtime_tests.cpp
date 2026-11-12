@@ -89,6 +89,33 @@ int main() {
     check(label_text(root) == "Count: 9",
           "an async state change repaints on the next frame without a manual update()");
 
+    // An animated value moves toward its target over scheduler ticks instead of jumping. Click
+    // starts a 300 ms ease-in-out tween from 1.0 to 0.5.
+    {
+        const int wakes_before = wakes.count;
+        sample.handler_1(tessera::ui::ClickEvent{});
+        check(sample.anim_opacity_ == 1.0, "an animated set does not jump");
+        check(scheduler.pending() && wakes.count > wakes_before,
+              "an active tween schedules the component and wakes the loop");
+        scheduler.flush();
+        check(scheduler.tick(0.15), "the tween is still moving halfway");
+        check(sample.anim_opacity_ < 1.0 && sample.anim_opacity_ > 0.5,
+              "the sampled value is between start and target");
+        check(scheduler.pending(), "a moved value schedules an update for the same frame");
+        scheduler.flush();
+        check(!scheduler.tick(0.2), "the tween finishes");
+        check(sample.anim_opacity_ == 0.5, "the sampled value lands on the target");
+        scheduler.flush();
+        check(!scheduler.tick(0.016) && !scheduler.pending(), "an idle component costs no frame");
+        // `animate: false` snaps and never schedules a tween.
+        sample.handler_2(tessera::ui::TextChangeEvent{});
+        check(sample.anim_opacity_ == 1.0, "animate:false snaps to the value");
+        check(!sample.anim_opacity_scalar_.active(), "a snap leaves no active tween");
+        scheduler.flush();
+        sample.set_count(9);
+        scheduler.flush();
+    }
+
     // Detached components keep the manual contract: schedule_update is a harmless no-op.
     sample.detach_scheduler(scheduler);
     sample.set_count(11);

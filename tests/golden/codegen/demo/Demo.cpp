@@ -269,6 +269,9 @@ namespace demo {
       update_ticket_.update = [](void* context) {
         static_cast<Demo*>(context)->update();
       };
+      update_ticket_.tick = [](void* context, double dt) {
+        return static_cast<Demo*>(context)->tick_animations(dt);
+      };
       scheduler.attach(update_ticket_);
     }
     
@@ -278,6 +281,20 @@ namespace demo {
     
     void Demo::schedule_update() {
       update_ticket_.schedule();
+    }
+    
+    bool Demo::tick_animations(double dt) {
+      bool moving = false;
+      bool changed = false;
+      moving = anim_fade_scalar_.tick(dt) || moving;
+      if (anim_fade_ != anim_fade_scalar_.value()) {
+        anim_fade_ = anim_fade_scalar_.value();
+        changed = true;
+      }
+      if (changed) {
+        schedule_update();
+      }
+      return moving;
     }
     
     void Demo::set_count(int value) {
