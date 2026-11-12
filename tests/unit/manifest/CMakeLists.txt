@@ -37,3 +37,19 @@ add_executable(manifest_errors_tests
 target_link_libraries(manifest_errors_tests PRIVATE tessera_schema)
 
 add_test(NAME manifest_errors COMMAND manifest_errors_tests)
+
+# The build-step contract: the repository manifest loads, a broken copy fails with the typed
+# error, and the batched2d entry matches Vertex2D and the authored GLSL (section 5/9).
+add_executable(manifest_build_step_tests
+    manifest_build_step_tests.cpp)
+
+target_link_libraries(manifest_build_step_tests PRIVATE tessera_schema)
+
+target_include_directories(manifest_build_step_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_definitions(manifest_build_step_tests PRIVATE
+    TESSERA_SHADER_MANIFEST_PATH="${PROJECT_SOURCE_DIR}/tools/shaders/manifest.json"
+    TESSERA_SHADER_GLSL_DIR="${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders")
+
+add_test(NAME manifest_build_step COMMAND manifest_build_step_tests)

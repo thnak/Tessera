@@ -68,10 +68,11 @@ function(tessera_cross_compile_shader shader_id)
         set(base ${out_dir}/${shader_id}.${stage})
 
         add_custom_command(OUTPUT ${base}.portable.spv
+            COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
             COMMAND ${TESSERA_CROSS_GLSLC} --target-env=vulkan1.3 -DTESSERA_SHADER_PORTABLE=1
                     ${source} -o ${base}.portable.spv
-            DEPENDS ${source}
-            COMMENT "glslc (portable) ${shader_id}.${stage}"
+            DEPENDS ${source} ${TESSERA_SHADER_MANIFEST}
+            COMMENT "validate shader manifest; glslc (portable) ${shader_id}.${stage}"
             VERBATIM)
         list(APPEND outputs ${base}.portable.spv)
         if (TESSERA_SPIRV_VAL AND TESSERA_BUILD_TESTS)

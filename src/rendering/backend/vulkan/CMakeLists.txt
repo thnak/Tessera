@@ -27,12 +27,17 @@ function(tessera_add_spv_c shader out_var)
     get_filename_component(name ${shader} NAME)
     string(REPLACE "." "_" name ${name})
     set(output ${TESSERA_SHADER_GEN_DIR}/${name}_spv.h)
+    # docs/specs/shader-manifest-v1.md section 5: validate the manifest first in the same rule, so
+    # a bad manifest stops this output before glslc starts. This covers both the
+    # Vulkan_GLSLC_EXECUTABLE and find_program cases because the check is independent of glslc.
+    # The manifest is a dependency so editing it reruns glslc and the check, not just the check.
     add_custom_command(
         OUTPUT ${output}
+        COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
         COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3
                 ${TESSERA_SHADER_DIR}/${shader} -o ${output}
-        DEPENDS ${TESSERA_SHADER_DIR}/${shader}
-        COMMENT "glslc ${shader} -> ${output}"
+        DEPENDS ${TESSERA_SHADER_DIR}/${shader} ${TESSERA_SHADER_MANIFEST}
+        COMMENT "validate shader manifest; glslc ${shader} -> ${output}"
         VERBATIM)
     set(${out_var} ${output} PARENT_SCOPE)
 endfunction()

@@ -17,9 +17,9 @@ shared manifest describes each shader's interface so the two versions cannot sil
 
 ## 1. File
 
-`tools/shaders/manifest.json` or `src/rendering/shaders/manifest.json` (which of the two is the
-location is not decided; no decision is recorded). One entry per logical
-shader. Backend-specific sources live under:
+The manifest lives at `tools/shaders/manifest.json`, next to its build-time checker
+(`tools/shaders/manifest_check.cpp`): it is a repository build input shared by both backend trees,
+not a per-backend source file. One entry per logical shader. Backend-specific sources live under:
 
 ```text
 src/rendering/backend/vulkan/shaders/
@@ -153,7 +153,11 @@ manifest.json
 
 - `glslc` version is pinned.
 - The manifest is validated by `tessera_schema` before `glslc` runs (section 9); a validation
-  error fails the build with a stable code and field path.
+  error fails the build with a stable code and field path. Every `tessera_add_spv_c` rule in
+  `src/rendering/backend/vulkan/CMakeLists.txt` runs `tessera_shader_manifest_check` as its first
+  command, and `cmake/TesseraShaderCross.cmake` does the same before its portable `glslc`. Both
+  rules also depend on the manifest file, so editing it revalidates, and a bad manifest stops the
+  build before `glslc` starts.
 - Every shader has at least one smoke test; shared shaders have a golden.
 - A manifest/source mismatch fails the build.
 - Shader changes require a golden update or a documented tolerance (case-file tolerance is the `compare.tolerance` field in

@@ -123,6 +123,15 @@ add_subdirectory(src/compiler/lowering)
 add_subdirectory(src/compiler/codegen)
 add_subdirectory(tools/schema_dump)
 
+# docs/specs/shader-manifest-v1.md sections 1 and 5: the manifest is a repository build input and
+# `tessera_schema` validates it before glslc. The checker target must exist before the Vulkan
+# shader rules reference it, so it is defined here; the cross-compile rules (and their ctest
+# checks) are added after enable_testing() below.
+set(TESSERA_SHADER_MANIFEST "${PROJECT_SOURCE_DIR}/tools/shaders/manifest.json")
+if (TESSERA_BUILD_VULKAN OR TESSERA_SHADER_CROSS)
+    add_subdirectory(tools/shaders)
+endif()
+
 if (TESSERA_BUILD_POC)
     add_subdirectory(tools/poc/merger)
 endif()
@@ -175,7 +184,7 @@ endif()
 # ADR-049: translate the portable SPIR-V to MSL/HLSL/WGSL in the build directory and validate it.
 # After enable_testing() so its tool checks register with ctest.
 if (TESSERA_SHADER_CROSS)
-    add_subdirectory(tools/shaders)
+    add_subdirectory(tools/shaders/cross)
 endif()
 
 # Ship the project license, third-party notices and the generated license bundle with an install.
