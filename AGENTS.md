@@ -132,12 +132,13 @@ part is independently reviewable or independently revertible. Before every commi
 verification that matches the change (format, build with warnings as errors, `ctest`, and the
 relative-link/index checks for docs); a docs-only batch still needs the format and link checks.
 
-### Command Code context checkpoint
+### Context compaction
 
-When working in a Command Code session, treat 50% context usage as a manual checkpoint: finish
-the current coherent batch, run `/compact`, then continue. `compact-mode=fast` trims stale tool
-output at its own thresholds between manual compactions. This is a tooling workflow note for
-Command Code sessions, not a Tessera runtime feature or configuration key.
+Context compaction is automatic: the harness compacts the session in place at its configured
+threshold and the run continues. Do not track a manual context-percentage checkpoint, stop to run
+`/compact`, or ask the owner to compact; finish the current coherent batch, keep the tree green,
+and continue. Re-read Current focus and the task board after a compaction before picking work.
+This is a tooling workflow note, not a Tessera runtime feature or configuration key.
 
 ## Big Steps (group work, don't micro-step)
 
