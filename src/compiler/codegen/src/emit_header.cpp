@@ -184,6 +184,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line(*type + " " + member_name(value.id) + " = " + initial.text + ";");
         writer.line("tessera::ui::animation::AnimatedScalar " + animated_controller_name(value.id) +
                     "{" + member_name(value.id) + "};");
+        if (animated_has_completion(component, value.id)) {
+            writer.line("// 1-based index of the handler the current set runs when it completes (0 "
+                        "= none).");
+            writer.line("int " + animated_on_complete_name(value.id) + " = 0;");
+        }
     }
     for (const ComponentInstance& instance : instances) {
         writer.line("// Component instance `" + instance.component_id +

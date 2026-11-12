@@ -53,11 +53,13 @@ void AnimatedScalar::set(double target, const ScalarOptions& options) noexcept {
                       (!options.spring.has_value() &&
                        (!std::isfinite(options.duration_s) || options.duration_s <= 0.0));
     target_ = target;
+    completed_ = false;
     if (snap) {
         value_ = target;
         from_ = target;
         active_ = false;
         spring_mode_ = false;
+        completed_ = true;
         return;
     }
     if (options.spring.has_value()) {
@@ -112,6 +114,7 @@ bool AnimatedScalar::tick(double dt) noexcept {
         if (!moving) {
             value_ = target_;
             active_ = false;
+            completed_ = true;
             return false;
         }
         value_ = static_cast<double>(spring_.position());
@@ -121,6 +124,7 @@ bool AnimatedScalar::tick(double dt) noexcept {
     if (elapsed_s_ >= duration_s_) {
         value_ = target_;
         active_ = false;
+        completed_ = true;
         return false;
     }
     const auto progress = static_cast<float>(elapsed_s_ / duration_s_);
@@ -134,6 +138,7 @@ void AnimatedScalar::set_reduced_motion(bool enabled) noexcept {
         value_ = target_;
         active_ = false;
         spring_mode_ = false;
+        completed_ = true;
     }
 }
 

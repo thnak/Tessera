@@ -100,8 +100,19 @@ inline ir::IrModule make_sample_module() {
     bounce.target = "anim::opacity";
     bounce.value = ir::make_literal(0.25);
     bounce.spring = ir::SpringTiming{300.0, 12.0, 1.0};
+    bounce.on_complete = "handler::4";
     spring.actions.push_back(std::move(bounce));
     sample.handlers.push_back(std::move(spring));
+
+    ir::Handler done;
+    done.id = "handler::4";
+    done.source = span(31, 10, 3, 3);
+    ir::Action finish;
+    finish.kind = ir::ActionKind::Set;
+    finish.target = "state::count";
+    finish.value = integer(7);
+    done.actions.push_back(std::move(finish));
+    sample.handlers.push_back(std::move(done));
 
     sample.effects.push_back(
         {"effect::sync", {"state::count"}, "bind::sync", "bind::sync_cleanup", span(30, 8, 3, 3)});

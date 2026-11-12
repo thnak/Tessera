@@ -34,6 +34,8 @@ namespace demo {
       // host's UpdateScheduler; see tick_animations).
       double anim_opacity_ = 1.0;
       tessera::ui::animation::AnimatedScalar anim_opacity_scalar_{anim_opacity_};
+      // 1-based index of the handler the current set runs when it completes (0 = none).
+      int anim_opacity_on_complete_ = 0;
       // Interpolated text for the node with pre-order index 3 (PaintData only; never a layout input).
       tessera::ui::Node* text_node_3_ = nullptr;
       std::string text_node_3_value_;
@@ -112,6 +114,7 @@ namespace demo {
       void handler_1(const tessera::ui::ClickEvent& event);
       void handler_2(const tessera::ui::TextChangeEvent& e);
       void handler_3(const tessera::ui::ClickEvent& event);
+      void handler_4(const tessera::ui::Event& event);
       void on_click(const tessera::ui::ClickEvent& event);
       void sync();
       void sync_cleanup();

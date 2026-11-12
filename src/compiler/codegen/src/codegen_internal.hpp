@@ -43,6 +43,13 @@ struct CppWriter {
 // plain `anim_x_` field keeps the sampled value every expression reads.
 [[nodiscard]] std::string animated_controller_name(std::string_view ir_id);
 
+// The member that remembers which handler to run when the animated cell's current set completes
+// (`anim::x` -> `anim_x_on_complete_`): the 1-based index into `Component::handlers`, 0 for none.
+[[nodiscard]] std::string animated_on_complete_name(std::string_view ir_id);
+
+// True when any handler action of `component` carries an `onComplete` for the animated cell.
+[[nodiscard]] bool animated_has_completion(const ir::Component& component, std::string_view ir_id);
+
 // One loop local (`item`, `index`) visible inside a generated list-item builder: the IR reference
 // id the template expressions use, the C++ expression that names the value, and its IR element
 // type. Generated item bodies bind the item by `const T&` and the index as `std::size_t`; the C++

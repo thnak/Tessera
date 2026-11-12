@@ -48,6 +48,18 @@ public:
         return active_;
     }
 
+    // Completion: a set reaches its target (a tween or spring lands, a snap, or reduced motion
+    // finishes it). `take_completed()` reports that once and clears it. A later `set` before the
+    // owner took it drops it, so a superseded animation never completes.
+    [[nodiscard]] bool completion_pending() const noexcept {
+        return completed_;
+    }
+    [[nodiscard]] bool take_completed() noexcept {
+        const bool completed = completed_;
+        completed_ = false;
+        return completed;
+    }
+
     // Reduced motion snaps every set and finishes an in-flight tween at its target.
     void set_reduced_motion(bool enabled) noexcept;
 
@@ -61,6 +73,7 @@ private:
     Spring spring_;
     bool spring_mode_ = false;
     bool active_ = false;
+    bool completed_ = false;
     bool reduced_motion_ = false;
 };
 

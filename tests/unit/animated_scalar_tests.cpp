@@ -240,5 +240,47 @@ int main() {
         expect(near(scalar.value(), 3.0) && !scalar.active(), "and snaps a new spring set");
     }
 
+    // Completion is reported once when a set reaches its target, and a superseded set never
+    // completes.
+    {
+        AnimatedScalar scalar(0.0);
+        expect(!scalar.completion_pending() && !scalar.take_completed(), "nothing completed yet");
+        scalar.set(10.0, linear(1.0));
+        scalar.tick(0.5);
+        expect(!scalar.take_completed(), "a tween in flight has not completed");
+        scalar.set(4.0, linear(1.0));
+        scalar.tick(2.0);
+        expect(scalar.completion_pending(), "landing on the target completes the set");
+        expect(scalar.take_completed() && !scalar.take_completed(), "reported exactly once");
+
+        scalar.set(8.0, linear(1.0));
+        scalar.tick(0.5);
+        scalar.set(1.0, linear(1.0));
+        scalar.tick(2.0);
+        expect(scalar.take_completed() && !scalar.take_completed(),
+               "a superseded tween completes once, for its replacement");
+
+        ScalarOptions snap;
+        snap.animate = false;
+        scalar.set(3.0, snap);
+        expect(scalar.completion_pending(), "a snap completes immediately");
+        scalar.set(9.0, linear(1.0));
+        expect(!scalar.completion_pending(), "a new animated set drops an untaken completion");
+        scalar.tick(2.0);
+        (void)scalar.take_completed();
+
+        scalar.set(20.0, spring_options(180.0f, 20.0f));
+        settle(scalar);
+        expect(scalar.take_completed(), "a spring completes when it settles");
+
+        scalar.set(30.0, linear(1.0));
+        scalar.tick(0.1);
+        scalar.set_reduced_motion(true);
+        expect(scalar.take_completed() && near(scalar.value(), 30.0),
+               "reduced motion finishes the set and completes it");
+        scalar.set(31.0, linear(1.0));
+        expect(scalar.take_completed(), "a snapped set under reduced motion completes");
+    }
+
     return failures == 0 ? 0 : 1;
 }

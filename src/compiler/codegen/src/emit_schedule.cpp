@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "emit_events.hpp"
 #include "emit_schedule.hpp"
 
 #include <cctype>
@@ -26,6 +27,38 @@ bool plain_identifier(std::string_view name) {
 
 std::string setter_name(const ir::State& state) {
     return "set_" + state.name;
+}
+
+// Runs the handler recorded by the set that just completed (`onComplete`), once. The member is
+// cleared before the call so a handler that sets the same value again records its own callback.
+void emit_completion_dispatch(CppWriter& writer, const ir::Component& component,
+                              const ir::AnimatedValue& value) {
+    if (!animated_has_completion(component, value.id)) {
+        return;
+    }
+    const std::string controller = animated_controller_name(value.id);
+    const std::string member = animated_on_complete_name(value.id);
+    writer.open("if (" + controller + ".take_completed())");
+    writer.line("const int on_complete = " + member + ";");
+    writer.line(member + " = 0;");
+    writer.open("switch (on_complete)");
+    for (std::size_t i = 0; i < component.handlers.size(); ++i) {
+        const ir::Handler& handler = component.handlers[i];
+        bool used = false;
+        for (const ir::Handler& source : component.handlers) {
+            for (const ir::Action& action : source.actions) {
+                used = used || (action.kind == ir::ActionKind::AnimSet &&
+                                action.target == value.id && action.on_complete == handler.id);
+            }
+        }
+        if (used) {
+            writer.line("case " + std::to_string(i + 1) + ": " + method_name(handler.id) +
+                        "(tessera::ui::Event{}); break;");
+        }
+    }
+    writer.line("default: break;");
+    writer.close("");
+    writer.close("");
 }
 
 } // namespace
@@ -118,6 +151,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
             writer.line(member_name(value.id) + " = " + controller + ".value();");
             writer.line("changed = true;");
             writer.close("");
+            emit_completion_dispatch(writer, component, value);
         }
         writer.open("if (changed)");
         writer.line("schedule_update();");
@@ -131,7 +165,9 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
         for (const ir::AnimatedValue& value : component.animated_values) {
             const std::string controller = animated_controller_name(value.id);
             writer.line(controller + ".set_reduced_motion(reduced);");
-            writer.open("if (" + member_name(value.id) + " != " + controller + ".value())");
+            // A tween finished by reduced motion still completes: the next tick delivers it.
+            writer.open("if (" + member_name(value.id) + " != " + controller + ".value() || " +
+                        controller + ".completion_pending())");
             writer.line(member_name(value.id) + " = " + controller + ".value();");
             writer.line("changed = true;");
             writer.close("");

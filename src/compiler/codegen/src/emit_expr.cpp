@@ -118,6 +118,26 @@ std::string animated_controller_name(std::string_view ir_id) {
     return name + "_scalar_";
 }
 
+std::string animated_on_complete_name(std::string_view ir_id) {
+    std::string name = member_name(ir_id);
+    if (!name.empty() && name.back() == '_') {
+        name.pop_back();
+    }
+    return name + "_on_complete_";
+}
+
+bool animated_has_completion(const ir::Component& component, std::string_view ir_id) {
+    for (const ir::Handler& handler : component.handlers) {
+        for (const ir::Action& action : handler.actions) {
+            if (action.kind == ir::ActionKind::AnimSet && action.target == ir_id &&
+                !action.on_complete.empty()) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::string member_name(std::string_view ir_id) {
     const std::size_t split = ir_id.find("::");
     if (split == std::string_view::npos) {
@@ -402,6 +422,23 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
             // the IR, so the easing is parsed once per call site.
             const std::string controller = animated_controller_name(target);
             body += "{\n";
+            if (animated_has_completion(component, target)) {
+                // Which handler runs when THIS set completes; a set without one clears it, so a
+                // superseded animation never fires the old callback.
+                std::size_t handler_index = 0;
+                for (std::size_t i = 0; i < component.handlers.size(); ++i) {
+                    if (!action.on_complete.empty() &&
+                        component.handlers[i].id == action.on_complete) {
+                        handler_index = i + 1;
+                    }
+                }
+                if (!action.on_complete.empty() && handler_index == 0) {
+                    error = "onComplete handler `" + action.on_complete + "` is not declared";
+                    return std::nullopt;
+                }
+                body += animated_on_complete_name(target) + " = " + std::to_string(handler_index) +
+                        ";\n";
+            }
             if (!action.animate) {
                 body +=
                     "tessera::ui::animation::ScalarOptions options;\noptions.animate = false;\n";
@@ -433,7 +470,8 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
             }
             body += controller + ".set(static_cast<double>(" + value.text + "), options);\n" +
                     member_name(target) + " = " + controller + ".value();\n" + "if (" + controller +
-                    ".active()) {\nschedule_update();\n}\n}\n";
+                    ".active() || " + controller +
+                    ".completion_pending()) {\nschedule_update();\n}\n}\n";
             continue;
         }
         error = "unsupported action target `" + action.target + "`";

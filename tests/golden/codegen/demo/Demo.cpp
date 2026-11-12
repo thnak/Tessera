@@ -303,7 +303,7 @@ namespace demo {
     void Demo::apply_reduced_motion(bool reduced) {
       bool changed = false;
       anim_fade_scalar_.set_reduced_motion(reduced);
-      if (anim_fade_ != anim_fade_scalar_.value()) {
+      if (anim_fade_ != anim_fade_scalar_.value() || anim_fade_scalar_.completion_pending()) {
         anim_fade_ = anim_fade_scalar_.value();
         changed = true;
       }

@@ -283,6 +283,14 @@ namespace demo {
         anim_opacity_ = anim_opacity_scalar_.value();
         changed = true;
       }
+      if (anim_opacity_scalar_.take_completed()) {
+        const int on_complete = anim_opacity_on_complete_;
+        anim_opacity_on_complete_ = 0;
+        switch (on_complete) {
+          case 4: handler_4(tessera::ui::Event{}); break;
+          default: break;
+        }
+      }
       if (changed) {
         schedule_update();
       }
@@ -292,7 +300,7 @@ namespace demo {
     void Sample::apply_reduced_motion(bool reduced) {
       bool changed = false;
       anim_opacity_scalar_.set_reduced_motion(reduced);
-      if (anim_opacity_ != anim_opacity_scalar_.value()) {
+      if (anim_opacity_ != anim_opacity_scalar_.value() || anim_opacity_scalar_.completion_pending()) {
         anim_opacity_ = anim_opacity_scalar_.value();
         changed = true;
       }
@@ -345,6 +353,7 @@ namespace demo {
       (void)event;
       state_count_ = 1;
       {
+      anim_opacity_on_complete_ = 0;
       tessera::ui::animation::ScalarOptions options;
       options.duration_s = 0.3;
       static const tessera::ui::animation::Easing easing =
@@ -352,7 +361,7 @@ namespace demo {
       options.easing = easing;
       anim_opacity_scalar_.set(static_cast<double>(0.5), options);
       anim_opacity_ = anim_opacity_scalar_.value();
-      if (anim_opacity_scalar_.active()) {
+      if (anim_opacity_scalar_.active() || anim_opacity_scalar_.completion_pending()) {
       schedule_update();
       }
       }
@@ -363,11 +372,12 @@ namespace demo {
       (void)e;
       state_name_ = std::string(e.value);
       {
+      anim_opacity_on_complete_ = 0;
       tessera::ui::animation::ScalarOptions options;
       options.animate = false;
       anim_opacity_scalar_.set(static_cast<double>(1.0), options);
       anim_opacity_ = anim_opacity_scalar_.value();
-      if (anim_opacity_scalar_.active()) {
+      if (anim_opacity_scalar_.active() || anim_opacity_scalar_.completion_pending()) {
       schedule_update();
       }
       }
@@ -377,6 +387,7 @@ namespace demo {
     void Sample::handler_3(const tessera::ui::ClickEvent& event) {
       (void)event;
       {
+      anim_opacity_on_complete_ = 4;
       tessera::ui::animation::ScalarOptions options;
       options.spring = tessera::ui::animation::SpringConfig{};
       options.spring->stiffness = static_cast<float>(300.0);
@@ -384,10 +395,16 @@ namespace demo {
       options.spring->mass = static_cast<float>(1.0);
       anim_opacity_scalar_.set(static_cast<double>(0.25), options);
       anim_opacity_ = anim_opacity_scalar_.value();
-      if (anim_opacity_scalar_.active()) {
+      if (anim_opacity_scalar_.active() || anim_opacity_scalar_.completion_pending()) {
       schedule_update();
       }
       }
+      apply_state();
+    }
+    
+    void Sample::handler_4(const tessera::ui::Event& event) {
+      (void)event;
+      state_count_ = 7;
       apply_state();
     }
     

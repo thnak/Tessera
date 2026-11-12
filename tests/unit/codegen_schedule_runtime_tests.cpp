@@ -138,6 +138,54 @@ int main() {
         check(sample.anim_opacity_ == 1.0, "back to the snapped baseline");
     }
 
+    // `onComplete` (handler 4 sets the count to 7): it runs once, from the scheduler tick, when the
+    // set reaches its target; a superseding set without a callback drops it.
+    {
+        sample.set_count(1);
+        scheduler.flush();
+        sample.handler_3(tessera::ui::ClickEvent{});
+        scheduler.flush();
+        int frames = 0;
+        while (scheduler.tick(1.0 / 60.0) && frames++ < 600) {
+            check(sample.state_count_ == 1, "the callback waits for the animation to finish");
+            scheduler.flush();
+        }
+        check(sample.state_count_ == 7, "the completion handler ran when the spring settled");
+        sample.set_count(1);
+        scheduler.flush();
+        scheduler.tick(1.0 / 60.0);
+        check(sample.state_count_ == 1, "the completion handler runs once");
+
+        sample.handler_2(
+            tessera::ui::TextChangeEvent{}); // baseline 1.0, so the spring really moves
+        scheduler.tick(1.0 / 60.0);
+        scheduler.flush();
+        sample.handler_3(tessera::ui::ClickEvent{});
+        scheduler.flush();
+        scheduler.tick(1.0 / 60.0);
+        sample.handler_2(tessera::ui::TextChangeEvent{});
+        scheduler.flush();
+        for (int i = 0; i < 4; ++i) {
+            scheduler.tick(1.0 / 60.0);
+        }
+        check(sample.state_count_ == 1, "a superseding set without a callback drops it");
+
+        sample.handler_2(tessera::ui::TextChangeEvent{});
+        scheduler.tick(1.0 / 60.0);
+        scheduler.flush();
+        sample.handler_3(tessera::ui::ClickEvent{});
+        scheduler.flush();
+        scheduler.set_reduced_motion(true);
+        scheduler.flush();
+        scheduler.tick(1.0 / 60.0);
+        check(sample.state_count_ == 7,
+              "reduced motion finishes the set and delivers the callback");
+        scheduler.set_reduced_motion(false);
+        sample.handler_2(tessera::ui::TextChangeEvent{});
+        sample.set_count(9);
+        scheduler.flush();
+    }
+
     // Reduced motion snaps in-flight and future animated sets, and a component attached while it is
     // on never animates.
     {
