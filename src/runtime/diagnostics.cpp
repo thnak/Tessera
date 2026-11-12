@@ -37,9 +37,21 @@ void FrameDiagnostics::record_adaptive_quality(const AdaptiveQualitySample& samp
     }
 }
 
+void FrameDiagnostics::record_frame_time_source(FrameTimeSource source) noexcept {
+    frame_time_source_ = source;
+    if (source == FrameTimeSource::Gpu) {
+        ++gpu_frame_time_samples_;
+    } else {
+        ++cpu_frame_time_samples_;
+    }
+}
+
 void FrameDiagnostics::reset() {
     last_ = FrameDiagnosticsSample{};
     adaptive_quality_ = AdaptiveQualitySample{};
+    frame_time_source_ = FrameTimeSource::Cpu;
+    gpu_frame_time_samples_ = 0;
+    cpu_frame_time_samples_ = 0;
     frames_ = 0;
     total_steps_ = 0;
     total_completions_ = 0;

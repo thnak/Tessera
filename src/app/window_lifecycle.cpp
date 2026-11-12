@@ -226,8 +226,9 @@ bool WindowHost::Impl::pump_once() {
     }
     pacer.present(hal::steady_now_seconds());
     // Same one-frame adaptive-quality observation as run(): `now` is this frame's start (the
-    // pacer check above returned without waiting), the delta is its CPU cost through present.
-    host->observe_frame_time_ms((hal::steady_now_seconds() - now) * 1000.0);
+    // pacer check above returned without waiting); the source is the GPU interval when the RHI
+    // probe reported it usable and a completed submission produced one, else this frame's CPU cost.
+    (void)observe_frame_time((hal::steady_now_seconds() - now) * 1000.0);
     // Step 3: the decided present cap reaches the pacer at this frame boundary (single-iteration
     // twin of the call in run()).
     apply_present_cap(hal::steady_now_seconds());

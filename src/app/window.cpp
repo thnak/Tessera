@@ -8,6 +8,7 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window_wait.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
+#include "tessera/runtime/frame_time_source.hpp"
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scale/render_target_extent.hpp"
@@ -199,7 +200,17 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         return device->status() == rhi::DeviceStatus::Lost ? FrameResult::DeviceLost
                                                            : FrameResult::Skipped;
     }
-    in_flight[slot].reset();
+    // The slot's GPU work has completed (a non-blocking is_complete() poll above), so its recorded
+    // timestamp pair can be read without waiting (ADR-021). The interval is consumed at this
+    // frame's observation and is at most two frames old: a value is only readable after its
+    // submission completed, which is what keeps the read a host query instead of a wait.
+    if (in_flight[slot]) {
+        double gpu_frame_time_ms = 0.0;
+        if (in_flight[slot]->gpu_frame_time_ms(gpu_frame_time_ms)) {
+            pending_gpu_frame_time_ms = gpu_frame_time_ms;
+        }
+        in_flight[slot].reset();
+    }
 
     std::optional<std::uint32_t> image;
     for (int attempt = 0; attempt < 4 && !image; ++attempt) {
@@ -245,6 +256,10 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         desc = detail::target_desc(paint_target->extent(), swapchain->format());
     }
     auto commands = device->create_command_list();
+    // Arm the GPU timestamp pair before the first command is recorded. A false return (the probe
+    // says timestamps are unusable, or the backend does not implement them) costs nothing and the
+    // frame keeps the CPU signal.
+    (void)commands->begin_gpu_timestamps(static_cast<std::uint32_t>(slot));
     renderer->begin(*commands, *paint_target, desc);
     if (scaled) {
         // Presented pixels -> target pixels. Positions and clip rects scale; layout, glyph raster
@@ -297,6 +312,33 @@ void WindowHost::Impl::sample_frame_sync() {
     stats.timeline_value = sync.timeline_value;
     stats.frames_in_flight = sync.frames_in_flight;
     stats.slots_skipped = sync.slots_skipped;
+}
+
+std::optional<double> WindowHost::Impl::take_gpu_frame_time_ms() {
+    if (!pending_gpu_frame_time_ms) {
+        return std::nullopt;
+    }
+    const double milliseconds = *pending_gpu_frame_time_ms;
+    pending_gpu_frame_time_ms.reset();
+    return milliseconds;
+}
+
+runtime::FrameTimeSample WindowHost::Impl::observe_frame_time(double cpu_frame_time_ms) {
+    // The selection rule is pure (tessera/runtime/frame_time_source.hpp); the capability decision
+    // was made once by the RHI probe. A capability that is usable but has no fresh interval (the
+    // first frames, a skipped read, an unusable value) falls back to the CPU time and is counted,
+    // so a reader can tell a real GPU number from a fallback.
+    const std::optional<double> gpu_frame_time_ms = take_gpu_frame_time_ms();
+    const runtime::FrameTimeSample sample =
+        runtime::select_frame_time(cpu_frame_time_ms, gpu_frame_time_ms);
+    stats.frame_time_source = sample.source;
+    if (sample.source == runtime::FrameTimeSource::Gpu) {
+        ++stats.gpu_frame_time_samples;
+    } else if (gpu_timestamps_usable) {
+        ++stats.gpu_frame_time_fallbacks;
+    }
+    host->observe_frame_time_sample(cpu_frame_time_ms, gpu_frame_time_ms);
+    return sample;
 }
 
 // Applies one metrics snapshot. Occlusion has no Win32/X11 event yet, so the snapshot's
@@ -449,10 +491,10 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         failures.succeeded();
         pacer.present(hal::steady_now_seconds());
         // Adaptive quality (docs/design/performance.md section 6): the one frame observation, fed
-        // with the time this frame took from the pacer decision (`now`) to the completed present.
-        // It is the frame's CPU cost; GPU timestamps are the follow-up in section 7. A skipped
-        // attempt returned above and is not an observation.
-        host->observe_frame_time_ms((hal::steady_now_seconds() - now) * 1000.0);
+        // from the GPU interval of the most recent completed submission when the device's
+        // timestamp probe reported it usable, else from this frame's CPU cost through present. A
+        // skipped attempt returned above and is not an observation.
+        (void)observe_frame_time((hal::steady_now_seconds() - now) * 1000.0);
         apply_present_cap(hal::steady_now_seconds());
         host->end_frame();
         loop->clear_render_dirty();

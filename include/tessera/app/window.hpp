@@ -6,6 +6,7 @@
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
+#include "tessera/runtime/diagnostics.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -133,6 +134,14 @@ struct WindowFrameStats {
     double present_cap_hz = 0.0;
     double present_interval_seconds = 0.0;
     std::uint32_t present_cap_changes = 0;
+    // GPU frame-time signal (docs/design/performance.md section 6.1): which source produced the
+    // last adaptive-quality observation, how many observations used a completed submission's GPU
+    // interval, and how many fell back to the CPU time even though the device reported usable
+    // timestamps (the first frame after startup, a skipped read, a missing interval). A fallback is
+    // counted, never reported as a GPU number.
+    runtime::FrameTimeSource frame_time_source = runtime::FrameTimeSource::Cpu;
+    std::uint32_t gpu_frame_time_samples = 0;
+    std::uint32_t gpu_frame_time_fallbacks = 0;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the

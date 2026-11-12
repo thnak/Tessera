@@ -146,6 +146,15 @@ public:
     // follow-up slice (docs/specs/runtime-config-v1.md section 6.2).
     void observe_frame_time_ms(double frame_time_ms);
 
+    // GPU-aware observation (docs/design/performance.md section 6.1). `gpu_frame_time_ms` is the
+    // completed submission's GPU interval from the RHI timestamp probe; when it is present and
+    // plausible the controller and diagnostics use it, otherwise the CPU sample is used exactly as
+    // observe_frame_time_ms() does. Which source produced the observation is recorded in
+    // FrameDiagnostics. Callers must not invent a GPU number: only a value read through
+    // CommandList::gpu_frame_time_ms() after the slot completed belongs here.
+    void observe_frame_time_sample(double cpu_frame_time_ms,
+                                   std::optional<double> gpu_frame_time_ms);
+
     // The adaptive-quality decision in force (full quality until a policy actually changes it).
     [[nodiscard]] const runtime::AdaptiveQualitySample& adaptive_quality() const;
 

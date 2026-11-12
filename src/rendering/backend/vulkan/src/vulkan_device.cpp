@@ -5,6 +5,8 @@
 #include "vulkan_scope_guard.hpp"
 #include "vulkan_swapchain.hpp"
 
+#include <array>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -33,6 +35,29 @@ bool VulkanDevice::supports_sample_count(rhi::TextureFormat format,
     const VkSampleCountFlags requested =
         sample_count == 4 ? VK_SAMPLE_COUNT_4_BIT : VK_SAMPLE_COUNT_1_BIT;
     return (properties.sampleCounts & requested) != 0;
+}
+
+bool VulkanDevice::read_timestamp_pair(std::uint32_t pair, double& out_ms) const {
+    if (device_ == VK_NULL_HANDLE || timestamp_query_pool_ == VK_NULL_HANDLE ||
+        !timestamp_capability_.usable() || pair >= kGpuTimestampSlots) {
+        return false;
+    }
+    std::array<std::uint64_t, 2> values{};
+    // No VK_QUERY_RESULT_WAIT_BIT: a pair whose submission has not completed reports
+    // VK_NOT_READY, and the caller keeps its CPU fallback rather than waiting (ADR-021).
+    const VkResult result =
+        vkGetQueryPoolResults(device_, timestamp_query_pool_, pair * 2, 2, sizeof(values),
+                              values.data(), sizeof(std::uint64_t), VK_QUERY_RESULT_64_BIT);
+    if (result != VK_SUCCESS) {
+        return false;
+    }
+    const std::optional<double> interval =
+        rhi::timestamp_interval_ms(values[0], values[1], timestamp_capability_.period_ns);
+    if (!interval) {
+        return false;
+    }
+    out_ms = *interval;
+    return true;
 }
 
 VulkanDevice::VulkanDevice(const rhi::DeviceDesc& desc)
