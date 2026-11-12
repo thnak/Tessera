@@ -64,6 +64,7 @@ This page is the map and reading order for the framework.
 - [`specs/runtime-config-v1.md`](specs/runtime-config-v1.md) — FPS cap, vsync/VRR, pacing,
   dirty rendering, resize, async, deterministic mode
 - [`specs/stylesheet-v1.md`](specs/stylesheet-v1.md) — full CSS syntax + semantic matrix
+- [`specs/compiled-stylesheet-v1.md`](specs/compiled-stylesheet-v1.md) — precompiled stylesheet blob format (prepare/resolve split, ADR-048)
 - [`specs/diagnostics-config-v1.md`](specs/diagnostics-config-v1.md) — logging, tracing,
   profiling, crash, overlay
 - [`specs/os-events-v1.md`](specs/os-events-v1.md) — normalized OS events, display

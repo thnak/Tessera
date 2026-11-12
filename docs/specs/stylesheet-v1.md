@@ -400,7 +400,8 @@ Unsupported declarations (recognized CSS that V1 does not implement; distinct fr
 - **Scrolling**: `overflow`, `scroll-behavior`, `overscroll-behavior`, `overscroll-effect`, and
   `scrollbar-gutter` feed the scroll runtime; overscroll stretch/spring-back is visual only and
   never changes offset/layout. See [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md).
-- **Compiler**: build-time CSS is precompiled to the same `StyleSheet` representation; generated
+- **Compiler**: build-time CSS is prepared (media-independent) and serialized as a blob, see
+  [`compiled-stylesheet-v1.md`](compiled-stylesheet-v1.md); generated
   C++ references compiled rule ids, not a second parser.
 
 ## 13. Determinism
@@ -472,7 +473,7 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 
 ## 17. Open questions
 
-- Build-time precompilation format: binary AST vs generated C++ tables.
+- ~~Build-time precompilation format~~ decided by [ADR-048](../../decisions/ADR-048-precompiled-embedded-stylesheets.md): versioned binary blob, see [`compiled-stylesheet-v1.md`](compiled-stylesheet-v1.md).
 - Whether to adopt a mature parser (for example `libcss`) behind `CssParser` if full syntax
   coverage becomes a maintenance burden. Decision must be recorded in a follow-up ADR.
 - CSS nesting, `@scope`, `@container`, `:has()` evaluation order and invalidation.

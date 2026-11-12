@@ -621,6 +621,13 @@ target_link_libraries(compiled_stylesheet_tests PRIVATE tessera_style)
 
 add_test(NAME compiled_stylesheet COMMAND compiled_stylesheet_tests)
 
+add_executable(stylesheet_blob_tests
+    stylesheet_blob_tests.cpp)
+
+target_link_libraries(stylesheet_blob_tests PRIVATE tessera_style)
+
+add_test(NAME stylesheet_blob COMMAND stylesheet_blob_tests)
+
 add_executable(property_registry_tests
     property_registry_tests.cpp)
 
