@@ -37,11 +37,15 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         apply_metrics(window->metrics());
         break;
     case hal::WindowEventType::Minimized:
+        // The window is not visible: the configured pause policy decides whether a frame may be
+        // acquired, painted or presented until the platform reports it back. Win32 emits Minimized;
+        // Occluded is the normalized value a platform with occlusion support (and the synthetic
+        // seams) report.
+        lifecycle_paused_ = pause_policy.pause_when_minimized;
+        update_pause_state();
+        break;
     case hal::WindowEventType::Occluded:
-        // The window is not visible: no frame may be acquired, painted or presented until the
-        // platform reports it back. Win32 emits Minimized; Occluded is the normalized value a
-        // platform with occlusion support (and the synthetic seams) report.
-        lifecycle_paused_ = true;
+        lifecycle_paused_ = pause_policy.pause_when_occluded;
         update_pause_state();
         break;
     case hal::WindowEventType::Restored: {
@@ -50,7 +54,7 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         // occluded state stays paused.
         lifecycle_paused_ = false;
         const hal::WindowMetrics current = window->metrics();
-        metrics_paused_ = current.occluded || current.minimized;
+        metrics_paused_ = pause_policy.pauses(current.occluded, current.minimized);
         update_pause_state();
         break;
     }

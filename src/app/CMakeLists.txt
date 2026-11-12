@@ -7,7 +7,9 @@ add_library(tessera_app STATIC
     host.cpp
     host_impl.hpp
     host_theme.cpp
-    system_motion.cpp)
+    system_motion.cpp
+    window_config.cpp
+    window_config.hpp)
 
 target_include_directories(tessera_app PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

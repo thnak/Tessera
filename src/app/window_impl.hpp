@@ -19,6 +19,7 @@
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/text/caret_blink.hpp"
+#include "window_config.hpp"
 #include "window_internal.hpp"
 
 #include <array>
@@ -143,6 +144,9 @@ struct WindowHost::Impl {
 
     ui::InputPump pump;
     WindowFrameStats stats;
+    // Which lifecycle states pause, mapped once from WindowOptions::runtime (window_config.hpp).
+    // Focus/blur is not in this policy, so it can never contribute.
+    WindowPausePolicy pause_policy;
     // The window's one caret blink (500/500 ms defaults), host-owned so every driver path - run(),
     // pump_once(), pause - sees the same state. Starts inactive: no field owns focus until the app
     // calls set_caret_active(true), so a fresh window requests nothing for the caret.

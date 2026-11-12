@@ -378,9 +378,28 @@ Rules applied by the loader:
 
 Section 6's code block above omits `layoutObservationMaxRounds`, which section 3 and
 [`layout-observation.md`](../design/layout-observation.md) section 5.3 define; the header includes
-it with default `4`. This is model-only: no window, loop or pipeline code consumes `RuntimeConfig`
-in this slice, so `pauseWhenOccluded`, `adaptiveQuality` and `animationInterpolation` remain
-unwired.
+it with default `4`. This is model-only unless the key appears in section 6.2.
+
+### 6.2 Consumed keys (wiring status)
+
+The loader lands first; consumers wire one key at a time. Exactly two keys reach runtime code today,
+through the pure mapping layer `src/app/window_config.hpp`:
+
+| Key | Consumer | Effect |
+|---|---|---|
+| `animationInterpolation` | `FramePipelineConfig::interpolation` | `false`: the pipeline never creates an `InterpolationPaintView`, so paint uses the authoritative scene/style state instead of blending the previous and current tick samples. Default `true`. |
+| `pauseWhenOccluded` | `WindowPausePolicy` (`pause_when_occluded`, `pause_when_minimized`) | `false`: an occluded or minimized window keeps rendering; `true` (default) pauses both. Focus/blur is never part of the policy. |
+
+`WindowOptions::runtime` is the single entry point for those keys, and its default matches
+`RuntimeConfig{}`, so every existing caller keeps today's behaviour. Every other key is still
+unwired: `fixedTimestepHz`, `maxFps`, `vsync`, `dynamicRefreshRate`, `preferredRefreshRate`,
+`framePacing`, `latencyFrames`, `allowTearing`, `maxFrameDeltaMs`, `maxUpdatesPerFrame`,
+`renderScale`, `renderOnDemand`, `powerPolicy`, `adaptiveQuality`, `minRenderScale`,
+`frameBudgetMs`, `pauseWhenUnfocused`, `backgroundMaxFps`, `resizeMode`, `resizeDebounceMs`,
+`swapchainRecreateDelayMs`, `maxPendingResizes`, `layoutObservationMaxRounds`, the `async*` keys,
+the dirty/damage/cache keys, `gpuFramesInFlight` and `deterministic`. Setting one of them changes
+nothing yet; the driver keeps its built-in behaviour
+([`window-resize.md`](../design/window-resize.md) section 8.2).
 
 ## 7. Platform support
 

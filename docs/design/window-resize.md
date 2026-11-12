@@ -575,3 +575,25 @@ paint is timer-free, so the window driver owns one blink per window. Implemented
   half-period, no frame at a repeated timestamp, no frames or ticks while the caret is inactive or
   the window is paused, and the resume catch-up. It skips without a window backend or presentation
   surface.
+
+### 8.2 Runtime-config wiring
+
+`WindowOptions::runtime` ([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 6.2) feeds
+two pause/interpolation knobs through `src/app/window_config.hpp`, a pure mapping layer:
+
+- `pauseWhenOccluded` -> `WindowPausePolicy` (`pause_when_occluded`, `pause_when_minimized`). It is
+  mapped once in the `WindowHost` constructor and consulted by every pause source above: the
+  `Minimized`/`Occluded` events, the constructor's initial metrics, `apply_metrics()` and the
+  `Restored` metrics re-read. With `false` both lifecycle states keep the driver unpaused (frames,
+  input and the caret keep running) while the zero-client-area resize skip above still applies;
+  focus/blur is not part of the policy and never changes.
+- `animationInterpolation` -> `FramePipelineConfig::interpolation`, part of the `HostConfig` the
+  `AppHost` is built and rebuilt with (so a resize keeps the setting). With `false` the pipeline
+  returns an empty `interpolation_view()`, so `paint_frame()` paints the authoritative tick state
+  instead of blending the previous and current tick samples.
+- Everything else in `RuntimeConfig` stays unwired. The mapping is allocation-free and runs once per
+  host; `WindowPausePolicy::pauses()` is a two-flag test on the lifecycle path.
+- **Evidence.** `tests/unit/window_config_tests.cpp` (ctest `window_config`) asserts the mapping
+  defaults field by field, both keys, and the mapped pipeline config at the paint seam;
+  `tests/gpu/app_window_occluded_config_tests.cpp` (ctest `app_window_occluded_config`) drives the
+  default and keep-rendering arms on hidden windows. Both skip cleanly without a window/GPU.

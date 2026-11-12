@@ -205,14 +205,14 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `src/runtime/frame_pacer.cpp`, `tests/unit/frame_pacer_tests.cpp`.
 - [ ] **B2:** Power: adaptive quality and occluded/background pause — occluded window presents
       nothing (overlaps ADR-050 AF3) — pause landed (`src/app/window_lifecycle.cpp`,
-      `tests/gpu/app_window_occluded_tests.cpp`); still to do: adaptive quality and a
-      `pauseWhenOccluded` runtime-config key (the loader now exists at `include/tessera/runtime/config.hpp`; wiring it into the window/loop is what is left).
+      `tests/gpu/app_window_occluded_tests.cpp`); `pauseWhenOccluded` is wired through
+      `WindowOptions::runtime` (`src/app/window_config.cpp`); still to do: adaptive quality.
 - [x] **B2:** Multi-frame sync: timeline semaphores (two frames in flight already work) — smoke
       test validation-clean — `src/rendering/backend/vulkan/src/vulkan_swapchain_present.cpp`,
       `tests/gpu/vulkan_timeline_frame_tests.cpp`.
 - [ ] **B2:** Interpolation alpha wake threshold + `animationInterpolation` config key —
-      the wake threshold is still missing; the loader already exposes the key
-      (`include/tessera/runtime/config.hpp`).
+      `animationInterpolation` is wired through `WindowOptions::runtime`
+      (`src/app/window_config.cpp`); the alpha wake threshold is still missing.
 - [x] **B2:** Call the shader manifest validator before `glslc` — bad manifest fails the build —
       `tools/shaders/manifest.json`, `tools/shaders/manifest_check.cpp`,
       `src/rendering/backend/vulkan/CMakeLists.txt`,
