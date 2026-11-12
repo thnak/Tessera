@@ -209,6 +209,11 @@ passes string literals only and rejects dynamic `id`/`className`/`role`/`aria-*`
 `TESSERA_CODEGEN_UNSUPPORTED`. Inline style values have no runtime API yet and remain deterministic
 `// node::N style.x=...` comments.
 
+**`Path` vector payloads (implemented).** `PaintVectorStyle::asset` names an embedded asset while
+the intrinsic carries inline `d`/`viewBox`, so codegen synthesizes an SVG document per `Path` node,
+embeds it as a generated bundle and emits `PaintData{kind = Vector}` naming it. Byte form, naming
+and rejected forms: [`thorvg-spike/10-paint-integration.md`](thorvg-spike/10-paint-integration.md).
+
 Events: for every `node.events` entry codegen emits an anonymous-namespace adapter
 `void event_adapter_<N>_<onName>(void* context, const tessera::ui::Event& event)` that casts the
 component context, converts the scene event with the payload-record converter, and calls the
@@ -518,11 +523,9 @@ renders. It also asserts the generated `{count > 0 && <Text>Positive</Text>}` br
 and starts detached (so the before frame and its layout are unchanged), attaches at its source
 position after the click, marks the parent `Layout`, and is laid out by a second reflow before the
 after frame. Run it with `ctest -R generated_ui`; regenerate the goldens with
-`generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui`. The demo is registered
-from `tests/unit/CMakeLists.txt` because the root CMakeLists (Lead-owned) does not add
-`tests/integration` yet. The demo drives the repaint through the generated `apply_state()`/`update()`
-path (no manual interpolation): the click sets `Count: 1`, the committed EditText sets
-`Name: Ada`, and `update()` runs the generated effect.
+`generated_ui_tests --write <font.ttf> tests/golden/baseline/generated_ui`. Registered from
+`tests/unit/CMakeLists.txt` (the root CMakeLists does not add `tests/integration`); the repaint runs
+through the generated `apply_state()`/`update()` (click -> `Count: 1`, EditText -> `Name: Ada`).
 The editable-field frame is the text-editing integration: the demo focuses the generated
 `TextInput`, runs a scripted edit sequence through `tessera_text_edit` (typing, Home/End/arrows,
 Shift-selection, select-all, delete-selection), and publishes the controller's caret and half-open
@@ -531,28 +534,25 @@ demo - see the gap below). Paint consumes only byte offsets and resolves them in
 rectangles; the demo asserts the caret/selection rects are inside the input's content box, that the
 caret sits at the right edge of the selection, that a later caret is to the right of an earlier one,
 and that deleting the selection removes the highlight and collapses the caret. All frames are
-painted with `FontPaintTextMetrics` (real face metrics + HarfBuzz advances) so decoration geometry
-matches the CPU glyph renderer; the `editing.png` golden covers text + selection highlight + caret.
+painted with `FontPaintTextMetrics` (real face metrics + HarfBuzz advances), so decoration geometry
+matches the CPU glyph renderer; `editing.png` covers text + selection highlight + caret.
 
 **Controlled text input contract (implemented):** the generated `TextInput`/`TextArea` have
 controlled `value`/`onChange` wiring (`emit_controlled.cpp`, `emit_events.cpp`); the summary of what
 is generated is in the controlled-field paragraph above. This section records the contract those
 emitters follow:
 
-- **Event record** `TextChangeEvent` (already defined in
-  `include/tessera/ui/scene/event_payloads.hpp`; IR/schema record of the same name, primary member
-  `value`): `value`/`target_value` are the new full UTF-8 text (borrowed for the dispatch),
-  `selection_start`/`selection_end` are the selection range. Units must be fixed to **half-open
-  UTF-8 byte offsets** (the units `PaintData::TextDecoration` consumes); the schema
-  `TextSelection` row currently says grapheme offsets and must be aligned in the same slice.
-- **Generated member** `void on_change(const tessera::ui::TextChangeEvent& event)` with a payload
-  adapter bound to `EventType::EditText` (and to the runtime edit-controller commit for key edits),
-  replacing the current generic-`Event` binding for `onChange`. Inline `onChange={setName}` lowers to
-  a setter handler that assigns `state_name_` from `event.value` and calls `apply_state()`.
-- **Timing**: fire once per committed edit - an EditText commit, a key-driven edit
-  (Backspace/Delete/paste) or a composition commit - and never for preedit
-  `CompositionUpdate`s or per-repeat keystrokes (the schema's `onChange` row already says "not while
-  composing; the commit fires once").
+- **Event record** `TextChangeEvent` (`event_payloads.hpp`; IR/schema record of the same name,
+  primary member `value`): `value`/`target_value` are the new full UTF-8 text (borrowed for the
+  dispatch), `selection_start`/`selection_end` the selection range in **half-open UTF-8 byte
+  offsets** (what `PaintData::TextDecoration` consumes); the schema `TextSelection` row currently
+  says grapheme offsets and must be aligned in the same slice.
+- **Generated member** `void on_change(const tessera::ui::TextChangeEvent& event)` with an
+  `EventType::EditText` adapter (plus the runtime edit-controller commit for key edits) replacing
+  the generic `Event` binding; inline `onChange={setName}` assigns `state_name_` and calls
+  `apply_state()`.
+- **Timing**: once per committed edit (EditText commit, key-driven edit or composition commit),
+  never for preedit `CompositionUpdate`s or key repeats.
 - **Value feed**: lowering seeds `PaintData::text` from the `value`/`defaultValue` prop;
   `apply_state()` writes `state_<name>_` back into the TextInput's `PaintData::text` (controlled
   value), marking `Paint|Render` and never `Layout` for same-box text. The caret/selection stay

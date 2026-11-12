@@ -221,4 +221,12 @@ struct ResolvedStylesheet {
 [[nodiscard]] std::string emit_theme_header(std::string_view module_name,
                                             std::span<const std::uint8_t> bytes);
 
+// `Path` -> `PaintKind::Vector` (emit_vector.hpp): the synthesized SVG asset of every `Path` node
+// and the `<module.name>_vector_assets.hpp` file that embeds them as an `AssetBundle`.
+struct VectorAsset;
+[[nodiscard]] bool collect_vector_assets(const ir::IrModule& module,
+                                         std::vector<VectorAsset>& assets, std::string& error);
+[[nodiscard]] std::string emit_vector_assets_header(std::string_view module_name,
+                                                    std::span<const VectorAsset> assets);
+
 } // namespace tessera::compiler::codegen::internal

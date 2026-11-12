@@ -18,6 +18,7 @@ add_library(tessera_codegen STATIC
     src/emit_snapshot.cpp
     src/emit_stylesheet_embed.cpp
     src/emit_theme_embed.cpp
+    src/emit_vector.cpp
     src/form_binding.cpp
     src/emit_header.cpp
     src/emit_lifecycle.cpp
@@ -427,6 +428,64 @@ if (TESSERA_BUILD_TESTS)
             tessera_codegen_dynamic_virtual_sample
             tessera_scene
             tessera_virtual)
+    endif ()
+
+    # `Path` -> `PaintKind::Vector`: codegen synthesizes an SVG document from the literal props,
+    # embeds it as a generated `AssetBundle` and names that asset in the payload. The golden under
+    # `vector/` is compiled by the sample library; `codegen_vector_payload_tests --write` owns it.
+    add_executable(codegen_vector_payload_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_vector_payload_tests.cpp)
+
+    target_link_libraries(codegen_vector_payload_tests PRIVATE
+        tessera_codegen
+        tessera_assets
+        tessera_asset_svg)
+
+    target_compile_definitions(codegen_vector_payload_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_vector_payload COMMAND codegen_vector_payload_tests)
+
+    if (EXISTS ${_tessera_codegen_golden_dir}/vector/VectorIcon.cpp)
+        add_library(tessera_codegen_vector_sample STATIC
+            ${_tessera_codegen_golden_dir}/vector/VectorIcon.cpp)
+        target_include_directories(tessera_codegen_vector_sample
+            PRIVATE ${_tessera_codegen_golden_dir}/vector)
+        target_link_libraries(tessera_codegen_vector_sample PRIVATE tessera_scene)
+        target_compile_features(tessera_codegen_vector_sample PUBLIC cxx_std_23)
+
+        target_compile_definitions(codegen_vector_payload_tests PRIVATE
+            TESSERA_VECTOR_SAMPLE=1)
+        target_include_directories(codegen_vector_payload_tests
+            PRIVATE ${_tessera_codegen_golden_dir}/vector)
+        target_link_libraries(codegen_vector_payload_tests PRIVATE
+            tessera_codegen_vector_sample
+            tessera_scene)
+    endif ()
+
+    # CPU paint golden for a synthesized payload: the generated component -> payload asset name ->
+    # generated bundle -> SVG decode -> ThorVG raster -> textured blit, compared with a committed
+    # baseline at tolerance 0. Skips cleanly without ThorVG.
+    if (EXISTS ${_tessera_codegen_golden_dir}/vector/VectorIcon.cpp AND
+        TESSERA_ENABLE_THORVG)
+        add_executable(codegen_vector_paint_golden_tests
+            ${CMAKE_SOURCE_DIR}/tests/gpu/codegen_vector_paint_golden_tests.cpp)
+        target_include_directories(codegen_vector_paint_golden_tests
+            PRIVATE
+                ${PROJECT_SOURCE_DIR}/tools/poc/batched2d
+                ${_tessera_codegen_golden_dir}/vector)
+        target_link_libraries(codegen_vector_paint_golden_tests PRIVATE
+            tessera_codegen_vector_sample
+            tessera_paint
+            tessera_scene
+            tessera_software
+            tessera_path
+            tessera_asset_svg
+            tessera_golden
+            tessera_stb)
+        add_test(NAME codegen_vector_paint_golden
+            COMMAND codegen_vector_paint_golden_tests
+                ${PROJECT_SOURCE_DIR}/tests/golden/baseline/codegen/vector_payload_cpu.png)
     endif ()
 
     # `Field` as a library component on the ordinary component path: a framework import names the
