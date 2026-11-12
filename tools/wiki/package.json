@@ -3,13 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Static documentation client for docs/ and decisions/, styled with a Tessera stylesheet",
+  "description": "Static client for the Tessera GitHub Wiki (guides with examples), styled with a Tessera stylesheet",
   "scripts": {
+    "sync": "node scripts/sync-wiki.mjs",
     "manifest": "node scripts/build-manifest.mjs",
     "check:theme": "node scripts/check-theme.mjs",
-    "predev": "npm run manifest",
+    "predev": "npm run sync && npm run manifest",
     "dev": "vite",
-    "prebuild": "npm run manifest && npm run check:theme",
+    "prebuild": "npm run sync && npm run manifest && npm run check:theme",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },

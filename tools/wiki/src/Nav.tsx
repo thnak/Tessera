@@ -1,19 +1,17 @@
 import { useMemo, useState } from "react";
-import { manifest } from "./content";
-import { docHref } from "./Markdown";
+import { manifest, repoUrl } from "./content";
+import { pageHref } from "./Markdown";
 
 export function Nav({ current }: { current: string | null }) {
   const [query, setQuery] = useState("");
   const sections = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const groups = new Map<string, typeof manifest>();
-    for (const entry of manifest) {
-      if (needle && !`${entry.title} ${entry.path}`.toLowerCase().includes(needle)) continue;
-      const list = groups.get(entry.section) ?? [];
-      list.push(entry);
-      groups.set(entry.section, list);
-    }
-    return [...groups.entries()];
+    return manifest.sections
+      .map((section) => ({
+        title: section.title,
+        pages: section.pages.filter((page) => !needle || `${page.title} ${page.name}`.toLowerCase().includes(needle)),
+      }))
+      .filter((section) => section.pages.length > 0);
   }, [query]);
 
   return (
@@ -22,25 +20,34 @@ export function Nav({ current }: { current: string | null }) {
       <input
         className="search"
         type="search"
-        placeholder="Search titles and paths"
+        placeholder="Search pages"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
-      {sections.map(([section, entries]) => (
-        <div className="nav-section" key={section}>
-          <div className="nav-section-title">{section}</div>
-          {entries.map((entry) => (
+      {sections.map((section) => (
+        <div className="nav-section" key={section.title}>
+          <div className="nav-section-title">{section.title}</div>
+          {section.pages.map((page) => (
             <a
-              key={entry.path}
-              className={entry.path === current ? "nav-link active" : "nav-link"}
-              href={docHref(entry.path)}
+              key={page.name}
+              className={page.name === current ? "nav-link active" : "nav-link"}
+              href={pageHref(page.name)}
             >
-              {entry.title}
+              {page.title}
             </a>
           ))}
         </div>
       ))}
       {sections.length === 0 && <div className="status">No matches.</div>}
+      <div className="nav-section">
+        <div className="nav-section-title">Source</div>
+        <a className="nav-link" href={`${repoUrl}/tree/main/docs`} target="_blank" rel="noreferrer">
+          Design docs and specs
+        </a>
+        <a className="nav-link" href={`${repoUrl}/tree/main/decisions`} target="_blank" rel="noreferrer">
+          Decisions (ADRs)
+        </a>
+      </div>
     </nav>
   );
 }

@@ -1,34 +1,27 @@
 import { useEffect, useState } from "react";
-import { loadDoc, manifest } from "./content";
+import { findPage, loadPage, manifest, repoUrl } from "./content";
 import { Markdown } from "./Markdown";
 import { Nav } from "./Nav";
 import { useRoute } from "./route";
 
-const defaultDoc = manifest.find((entry) => entry.path === "docs/README.md")?.path ?? manifest[0]?.path ?? null;
-
 export function App() {
   const route = useRoute();
-  const path = route.path ?? defaultDoc;
+  const requested = route.page ?? manifest.home;
+  const page = requested === null ? undefined : findPage(requested);
   const [source, setSource] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     setSource(null);
-    setFailed(false);
-    const pending = path === null ? undefined : loadDoc(path);
-    if (pending === undefined) {
-      setFailed(true);
-      return;
-    }
+    const pending = page === undefined ? undefined : loadPage(page);
+    if (pending === undefined) return;
     let cancelled = false;
-    pending.then(
-      (text) => !cancelled && setSource(text),
-      () => !cancelled && setFailed(true),
-    );
+    void pending.then((text) => {
+      if (!cancelled) setSource(text);
+    });
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [page]);
 
   useEffect(() => {
     if (source === null) return;
@@ -39,12 +32,22 @@ export function App() {
 
   return (
     <div className="app">
-      <Nav current={path} />
+      <Nav current={page ?? null} />
       <main className="main">
         <article className="article">
-          {failed && <p className="status">Document not found: {path}</p>}
-          {!failed && source === null && <p className="status">Loading...</p>}
-          {source !== null && path !== null && <Markdown source={source} from={path} />}
+          {requested === null && <p className="status">The wiki has no pages yet.</p>}
+          {requested !== null && page === undefined && <p className="status">Page not found: {requested}</p>}
+          {page !== undefined && source === null && <p className="status">Loading...</p>}
+          {page !== undefined && source !== null && (
+            <>
+              <Markdown source={source} from={page} />
+              <p className="status edit-link">
+                <a href={`${repoUrl}/wiki/${encodeURI(page)}/_edit`} target="_blank" rel="noreferrer">
+                  Edit this page on GitHub
+                </a>
+              </p>
+            </>
+          )}
         </article>
       </main>
     </div>

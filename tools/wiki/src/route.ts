@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 
 export interface Route {
-  path: string | null;
+  page: string | null;
   anchor: string | null;
 }
 
 export function parseHash(hash: string): Route {
-  const match = /^#\/doc\/([^?]+)(?:\?h=(.*))?$/.exec(hash);
-  if (match === null) return { path: null, anchor: null };
-  return { path: decodeURI(match[1] ?? ""), anchor: match[2] ? decodeURIComponent(match[2]) : null };
+  const match = /^#\/page\/([^?]+)(?:\?h=(.*))?$/.exec(hash);
+  if (match === null) return { page: null, anchor: null };
+  return { page: decodeURI(match[1] ?? ""), anchor: match[2] ? decodeURIComponent(match[2]) : null };
 }
 
 export function useRoute(): Route {
