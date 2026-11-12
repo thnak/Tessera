@@ -3,8 +3,8 @@
 Status: all nine answers accepted by the owner on 2026-11-12 (the text below keeps the original
 reasoning). Recommendations for the nine open questions of
 [ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) ("Questions for the owner",
-"Still open"), written for the owner to accept or change. Nothing here is decided until the owner
-says so; ADR-050 stays Proposed. Each answer gives the options, a recommendation, the trade-off
+"Still open"), written for the owner to accept or change. The answers are accepted; ADR-050 as a whole
+stays Proposed until the owner accepts it. Each answer gives the options, a recommendation, the trade-off
 accepted, the seam to leave now, the risk and a trigger for revisiting. Section 10 lists the
 contradictions with existing documents that the recommendations would require fixing.
 
