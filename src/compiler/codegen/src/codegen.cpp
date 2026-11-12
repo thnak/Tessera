@@ -3,6 +3,7 @@
 // Entry point and deterministic writer of the first C++ codegen slice.
 
 #include "codegen_internal.hpp"
+#include "emit_vector.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -137,6 +138,13 @@ CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmb
     if (internal::reject_component_cycle(module, cycle_error)) {
         return std::unexpected(single(std::move(cycle_error)));
     }
+    // Synthesized `Path` vector assets first: their diagnostics win over per-component emission,
+    // and a rejected prop must produce no partial file set (docs/design/compiler.md section 11).
+    std::vector<internal::VectorAsset> vector_assets;
+    std::string vector_error;
+    if (!internal::collect_vector_assets(module, vector_assets, vector_error)) {
+        return std::unexpected(single(std::move(vector_error)));
+    }
     for (const ir::Component* component : components) {
         std::string error;
         if (!internal::emit_component(*component, module, files, error)) {
@@ -160,6 +168,11 @@ CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmb
     if (theme.has_value()) {
         files.push_back(GeneratedFile{module.name + "_theme.hpp",
                                       internal::emit_theme_header(module.name, theme->bytes)});
+    }
+    if (!vector_assets.empty()) {
+        files.push_back(
+            GeneratedFile{module.name + "_vector_assets.hpp",
+                          internal::emit_vector_assets_header(module.name, vector_assets)});
     }
     return files;
 }

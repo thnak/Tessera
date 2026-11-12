@@ -20,6 +20,11 @@ lowering and the cases that section does not state.
 - `Image.alt` is an E value of type `string` but must still be present; `alt` absent is
   `TESSERA_JSX_IMAGE_ALT` (11.1).
 - All three lower to leaf nodes; any child is `TESSERA_JSX_CHILDREN_NOT_ALLOWED`.
+- `Path` lowers to the six `props.*` values above; codegen then synthesizes one SVG document per
+  node from those literals, embeds it as an asset named by the node's stable identity, and emits a
+  `PaintKind::Vector` payload naming it ([`compiler.md`](../../design/compiler.md) section 11). The
+  synthesized document is the only paint source, so `fill`/`stroke` must be colors a document can
+  carry: a `var(--name)` value is rejected at codegen (there is no stylesheet in the document).
 - `Spacer.size` as a number lowers to the bare number (dp); as a string it keeps the unit text.
 - Aliases that map here: `img` ([`html-aliases.md`](html-aliases.md)).
 

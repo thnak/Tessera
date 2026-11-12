@@ -106,6 +106,44 @@ now has a bit-exact CPU baseline (`batched2d_cpu_vector_golden`, tolerance 0) th
 platform, and Linux CI enables ThorVG so it actually executes. Contract, scene and measurements:
 [CPU vector paint golden](11-cpu-vector-golden.md).
 
+## Codegen-synthesized assets (`Path`, implemented)
+
+The `Path` intrinsic carries inline `d`/`viewBox` while the payload names an embedded asset, so
+codegen **synthesizes** the document instead of asking the project for one
+([`compiler.md`](../compiler.md) section 11):
+
+```text
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4 L20 4 L20 20 Z" fill="#2e8b57" stroke="#102030" stroke-width="2"/></svg>
+```
+
+- One document per `Path` node from its **literal** `d`/`viewBox`/`fill`/`stroke`/`strokeWidth`.
+  Defaults follow jsx-subset-v1 section 11.1 (`fill`/`stroke` `"none"`, `strokeWidth` `1`), the
+  attribute order is fixed, values are XML-escaped, `strokeWidth` uses the shortest round-trip
+  number text, and the document is one line with no trailing newline: the bytes are a pure function
+  of the IR (no timestamp, locale or map order).
+- Asset name `vector/<Component>/<identity>.svg`, where `identity` is the node's stable `uiId` (the
+  salt-derived identity from `src/compiler/ids/`, so inserting an unrelated node does not rename it)
+  or the pre-order ordinal when the module was generated without a salt.
+- The module gets one extra generated file `<module>_vector_assets.hpp`
+  (`<module>::gen::vector_assets`) with the concatenated `kAssetData` blob, the `AssetEntry` table
+  sorted by normalized name and `bundle()` — the same table/blob shape
+  [`cmake/embed_assets.cmake`](../../../cmake/embed_assets.cmake) emits, so the runtime path is the
+  unchanged bundle lookup. The node then emits `PaintData{kind = Vector, vector.asset = "<name>"}`.
+- `label` becomes `aria-label` (an explicit `aria-label` wins the name precedence).
+- Rejected loudly with `TESSERA_CODEGEN_UNSUPPORTED` naming the prop: a non-literal
+  `d`/`viewBox`/`fill`/`stroke`/`strokeWidth`/`label`, a `viewBox` that is not four numbers with
+  positive width and height, an empty `d`, and a `var(--name)` colour (a standalone SVG document
+  has no stylesheet to resolve it against).
+
+Known limits: the generated bundle is a second `AssetBundle` and `VectorPaintConfig::bundle` takes
+one, so a project that also embeds a manifest bundle needs a composition helper (follow-up); the
+paint pass maps the whole document into the content box, so a document aspect that differs from the
+box is stretched rather than letterboxed (the pre-existing payload contract, not a codegen choice);
+a `Path` without `label` keeps the schema's implied `img` role and is not emitted as
+`presentation` — the "otherwise decorative" half of the intrinsic rule belongs to the accessibility
+layer, which has no element-kind conditional today. The document declares `xmlns`, carries no
+`width`/`height` (the decoded document size comes from the `viewBox`) and is one line of bytes.
+
 ## Tests
 
 - `paint_vector` (unit): payload precedence (one kind only), emission order after background/before
@@ -123,8 +161,7 @@ platform, and Linux CI enables ThorVG so it actually executes. Contract, scene a
 - Image formats beyond SVG (PNG/JPEG/WebP need the image stack; the bundle is byte-agnostic).
 - Per-node `viewBox`/preserveAspectRatio, nine-slice scaling, and explicit tint gradients: the
   current contract is "document scaled into the content box, uniform tint".
-- Vector animation (animated SVG), per-node vector hit-testing/alpha masks, and vector authoring
-  hooks from the compiler: codegen can set `PaintData` later; nothing in the compiler emits vectors
-  yet.
+- Vector animation (animated SVG), per-node vector hit-testing/alpha masks, and dynamic (non-literal)
+  `Path` props: codegen accepts literal props only and synthesizes the document at build time.
 - Per-frame texture pinning for multi-frame-in-flight uses (see the cache lifetime rule above) and
   an async upload path; both are cache/scheduler work, not paint-contract changes.

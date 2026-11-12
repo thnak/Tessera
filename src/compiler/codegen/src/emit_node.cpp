@@ -11,6 +11,7 @@
 
 #include "emit_layout_observe.hpp"
 #include "emit_node.hpp"
+#include "emit_vector.hpp"
 #include "emit_virtual.hpp"
 #include "interpolation.hpp"
 
@@ -166,6 +167,14 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         if (name == "id" || name == "className" || name == "role" || name.rfind("aria-", 0) == 0) {
             continue;
         }
+        // The `Path` vector payload owns these props (emit_vector.cpp) and rejects a non-literal
+        // value with a diagnostic that names the prop; validating them here would report the
+        // generic expression error first.
+        if (node.kind == ir::NodeKind::Path &&
+            (name == "d" || name == "viewBox" || name == "fill" || name == "stroke" ||
+             name == "strokeWidth" || name == "label")) {
+            continue;
+        }
         if (value) {
             const ExprEmission emission = emit_expr(*value, state.component);
             if (!emission.error.empty()) {
@@ -282,6 +291,13 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
                         literal_text(ir::LiteralValue{std::string(*text)}) + ");");
         } else if (!is_dynamic_metadata(MetadataField::Aria, name)) {
             return fail(error, name + ": a dynamic aria value has no printable type");
+        }
+    }
+    if (node.kind == ir::NodeKind::Path) {
+        // `Path.label` is the accessible name; `aria-label` is the channel the accessibility tree
+        // resolves it from (accessibility-v1 section 2 name precedence).
+        if (!emit_vector_label(writer, node, variable, error)) {
+            return false;
         }
     }
     const ControlledInput* controlled_input = nullptr;
@@ -403,6 +419,14 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
     } else if (dynamic) {
         const std::string suffix = std::to_string(node_ordinal);
         writer.line("this->text_node_" + suffix + "_ = " + variable + ".get();");
+    }
+    if (node.kind == ir::NodeKind::Path) {
+        // Vector payload: the inline `d`/`viewBox` are synthesized into an embedded SVG asset,
+        // which the paint pass decodes and rasterizes through the existing vector chain
+        // (docs/design/compiler.md section 11).
+        if (!emit_vector_paint(writer, node, state.component.name, node_ordinal, variable, error)) {
+            return false;
+        }
     }
     if (state.plan != nullptr) {
         const DynamicGroup* group = state.plan->group(node_ordinal);
