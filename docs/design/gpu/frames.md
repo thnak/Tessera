@@ -1,8 +1,8 @@
 # Frame execution and synchronization
 
 Status: B1 synchronous path implemented; `Batched2DRenderer` frame-slot (`frames_in_flight`)
-support and the two-frame swapchain submit ring are implemented; a device-level frame object with
-timeline semaphores is still proposed. Frame pacing policy is in
+support and the two-frame swapchain submit ring are implemented, and the swapchain path now paces
+those frames with one timeline semaphore (section 5.1). Frame pacing policy is in
 [`../game-loop.md`](../game-loop.md); dirty work in [`../dirty-rendering.md`](../dirty-rendering.md);
 resize in [`../window-resize.md`](../window-resize.md).
 
@@ -50,7 +50,8 @@ The frame-slot idea is implemented by `Batched2DRenderer`, not yet by a device-l
   draws are never destroyed until the slot is next reused.
 - Reference loop: the windowed mode of `tools/poc/batched2d` uses two slots, `submit_async`, a
   bounded wait on the slot's previous list (a timeout skips the frame), and one `wait_idle` at
-  shutdown. This is the shape a real loop should follow.
+  shutdown. This is the shape a real loop should follow. The production `WindowHost` loop instead
+  gates the swapchain slots on the timeline counter (section 5.1) and never waits.
 
 ## 3. Frame slots
 
@@ -89,10 +90,52 @@ Rules:
   upload/copy boundaries.
 - Uploads complete before sampling; target transitions happen before rendering and before copy.
 - Frames in flight use per-slot fences/timeline values; resources carry the last value that uses
-  them and retire after that value completes.
+  them and retire after that value completes. The swapchain path uses one timeline semaphore, see
+  section 5.1.
 - The UI thread never waits on a GPU fence in the steady state; waits happen on the render thread
   or through the scheduler with a bounded timeout.
 - Deterministic mode waits after each frame; no overlap.
+
+### 5.1 Swapchain frame pacing (timeline semaphore)
+
+The window/swapchain path owns one timeline semaphore per device generation
+(`VulkanSwapchain::timeline_`). Everything below is implemented in
+`src/rendering/backend/vulkan/src/vulkan_swapchain*.cpp` and `vulkan_command_list.cpp`; the
+offscreen/readback path deliberately keeps its blocking fence submit, because offscreen work is
+allowed to wait (ADR-021 is about the UI thread).
+
+- **Creation.** The device enables `VkPhysicalDeviceVulkan12Features::timelineSemaphore` when it is
+  created (`vulkan_instance.cpp`) and fails device creation loudly if the physical device does not
+  report it: Vulkan 1.3 mandates the feature, so a device without it is broken, not a reason to fall
+  back silently. The semaphore itself is created with
+  `VkSemaphoreTypeCreateInfo{VK_SEMAPHORE_TYPE_TIMELINE, initialValue = 0}` at the first swapchain
+  creation for that device generation.
+- **Values per submit.** An acquire hands the frame the next value (`timeline_next_`); the render
+  submission that targets the acquired image waits on the slot's binary acquire semaphore and
+  signals that timeline value through `VkTimelineSemaphoreSubmitInfo`. One painted frame consumes
+  exactly one value. A value handed out for a submission that never reaches the queue is skipped
+  rather than reused, which timeline semaphores allow because values only have to increase.
+- **Slot reuse by counter query.** `vkGetSemaphoreCounterValue` reports the highest value the GPU
+  reached. A slot whose value is reached is free; if neither of the two slots is free, acquire
+  returns `SwapchainError::Timeout` and the UI thread skips that tick instead of waiting. The
+  counter is also what `Swapchain::frame_sync()` samples (`timeline_value`, `frames_in_flight`,
+  `slots_skipped`) and what `WindowFrameStats` reports.
+- **No UI-thread wait.** There is no `vkWaitSemaphores`/`vkWaitForFences` in the per-frame path. The
+  binary acquire semaphore stays per slot because image acquisition needs one, but it is waited on
+  by the GPU inside the submission, never by the CPU. The per-image render-finished semaphore still
+  orders present after rendering.
+- **Recovery and teardown.** A new device generation (loss or recovery) creates a new timeline with
+  the value bookkeeping reset to zero, and the old generation's handles stay destroyable under the
+  existing epoch rules. Teardown and swapchain retirement drain with a bounded wait: the timeline
+  wait for the last submitted value uses the same `kMaxWaitNs` (100 ms) bound as acquire/present,
+  and an empty-submit fence still orders after a queued present, which the timeline value does not
+  observe. Neither drain runs per frame.
+- **What the smoke test asserts.** `tests/gpu/vulkan_timeline_frame_tests.cpp` (ctest
+  `vulkan_timeline_frames`) pumps at least eight frames through `WindowHost::pump_once()` and checks
+  that presents grew, the device stayed healthy, no frame failed, the timeline is monotonic, it
+  never runs ahead of a submit, at most two submitted values were still in flight, at most two
+  frames were ever in flight, and the Vulkan validation message counter is zero after teardown with
+  synchronization validation enabled.
 
 ## 6. Uploads and readbacks
 

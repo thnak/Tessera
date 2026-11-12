@@ -462,6 +462,21 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_smoke PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # Multi-frame sync: two frames in flight paced by one timeline semaphore on the swapchain path,
+    # driven through the single-iteration seam, with the backend's validation counter proving the
+    # run (including teardown) is validation-clean.
+    add_executable(vulkan_timeline_frame_tests
+        vulkan_timeline_frame_tests.cpp)
+    target_compile_definitions(vulkan_timeline_frame_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(vulkan_timeline_frame_tests PRIVATE tessera_app_window)
+    add_test(NAME vulkan_timeline_frames COMMAND vulkan_timeline_frame_tests)
+    set_tests_properties(vulkan_timeline_frames PROPERTIES
+        # ": skipped" only: the success line reports a slot_skips counter, which a bare "skipped"
+        # pattern would misread as a skipped test.
+        SKIP_REGULAR_EXPRESSION ": skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # Occluded/minimized pause: the single-iteration seam (WindowHost::pump_once) with metrics
     # snapshots that report the lifecycle, so the pause, the input-draining park and the full
     # repaint on resume are deterministic and need no real OS focus/occlusion change.

@@ -44,7 +44,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     if (window == nullptr) {
         return;
     }
-    device = detail::create_device();
+    device = detail::create_device(options.validation);
     if (device == nullptr) {
         window.reset();
         return;
@@ -139,6 +139,7 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     if (device == nullptr || swapchain == nullptr) {
         return FrameResult::Skipped;
     }
+    sample_frame_sync();
     // A slot whose GPU work is still running is skipped, never waited on: the UI thread must not
     // block on the GPU (ADR-021). The frame is retried on the next tick.
     if (in_flight[slot] && !in_flight[slot]->is_complete()) {
@@ -198,7 +199,20 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     } else if (present.error() == rhi::SwapchainError::DeviceLost) {
         return FrameResult::DeviceLost;
     }
+    // Sample after the submit so the reported timeline value includes this frame's signal; the
+    // GPU may still be running it, which is exactly what frames_in_flight reports.
+    sample_frame_sync();
     return FrameResult::Presented;
+}
+
+void WindowHost::Impl::sample_frame_sync() {
+    if (swapchain == nullptr) {
+        return;
+    }
+    const rhi::SwapchainFrameSync sync = swapchain->frame_sync();
+    stats.timeline_value = sync.timeline_value;
+    stats.frames_in_flight = sync.frames_in_flight;
+    stats.slots_skipped = sync.slots_skipped;
 }
 
 // Applies one metrics snapshot. Occlusion has no Win32/X11 event yet, so the snapshot's

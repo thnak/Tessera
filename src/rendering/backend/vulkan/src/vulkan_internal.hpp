@@ -36,6 +36,11 @@ namespace tessera::rendering::vulkan {
 
 class VulkanDevice;
 
+// Validation message counter plumbing (vulkan_validation.cpp; public accessors in
+// tessera/rendering/vulkan/vulkan_validation.hpp). Only the debug callback writes it.
+void record_validation_message() noexcept;
+void mark_validation_active() noexcept;
+
 // Test seam (compiled in when TESSERA_VULKAN_TEST_HOOKS is defined) that reports a loss from the
 // next matching operation instead of waiting for a real GPU reset. The "no fault" enumerator is
 // `NoFault`, not `None`: X11's X.h defines `None` as a macro, so `None` would break this header on
@@ -322,6 +327,16 @@ private:
     std::uint32_t sample_count_ = 1;
 };
 
+// Frame-pacing binding a swapchain publishes on an acquired image target (docs/design/gpu/frames.md
+// section 5.1). The submission that renders the image waits on the slot's binary acquire semaphore
+// and signals the swapchain's timeline value, so the swapchain can decide slot reuse by a counter
+// query instead of a fence wait. Targets that are not swapchain images leave it empty.
+struct FrameSyncBinding {
+    VkSemaphore acquire = VK_NULL_HANDLE;
+    VkSemaphore timeline = VK_NULL_HANDLE;
+    std::uint64_t value = 0;
+};
+
 class VulkanRenderTarget final : public rhi::RenderTarget {
 public:
     VulkanRenderTarget(VulkanDevice* owner, std::uint32_t epoch, VkDevice device,
@@ -395,6 +410,24 @@ public:
         return render_pending_;
     }
 
+    // Timeline-pacing binding of the frame this image was acquired for: the slot's binary acquire
+    // semaphore plus the swapchain timeline value the render submission must signal. `pending` is
+    // the "not submitted yet" half of the same contract render_pending() has for the present
+    // semaphore, so a second render to one image before present cannot signal a value twice.
+    void set_frame_sync(const FrameSyncBinding& binding) const {
+        frame_sync_ = binding;
+        frame_sync_pending_ = binding.timeline != VK_NULL_HANDLE;
+    }
+    [[nodiscard]] const FrameSyncBinding& frame_sync() const {
+        return frame_sync_;
+    }
+    [[nodiscard]] bool frame_sync_pending() const {
+        return frame_sync_pending_;
+    }
+    void mark_frame_submitted() const {
+        frame_sync_pending_ = false;
+    }
+
     // True once this render target has been rendered to at least once since creation. A fresh
     // target image is UNDEFINED, so a preserving (LoadOp::Load) pass must transition from
     // UNDEFINED instead of assuming the layout the target would have after a first render
@@ -427,6 +460,8 @@ private:
     VkSemaphore render_finished_ = VK_NULL_HANDLE;
     mutable bool render_pending_ = false;
     mutable bool content_initialized_ = false;
+    mutable FrameSyncBinding frame_sync_;
+    mutable bool frame_sync_pending_ = false;
 };
 
 // Command pool, buffer and completion fence for one submission. The device recycles these instead

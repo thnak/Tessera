@@ -2,6 +2,7 @@
 
 #include "vulkan_internal.hpp"
 
+#include <array>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -76,16 +77,24 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     const bool preserving_existing = preserve && had_content;
     const VkAccessFlags color_access =
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | (preserve ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
+    const VkPipelineStageFlags source_stage =
+        multisampled ? (preserving_existing ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)
+                     : (preserving_existing ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+                                                       : VK_PIPELINE_STAGE_TRANSFER_BIT)
+                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+    // The submission that renders an acquired swapchain image waits on its acquire semaphore at
+    // COLOR_ATTACHMENT_OUTPUT (vulkan_command_list.cpp submit_async), so anything that executes
+    // earlier in that submission - including this layout transition - is not ordered after the
+    // acquisition. Synchronization validation reports that as WRITE_AFTER_READ; a barrier scoped to
+    // the stage the wait covers is the execution dependency that fixes it.
+    const bool waits_for_acquire = present && vulkan_target->frame_sync_pending();
     record_image_transition(
         buffer_, vulkan_target->image(), previous_layout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         multisampled ? (preserving_existing ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0)
                      : (preserving_existing && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0),
         color_access,
-        multisampled ? (preserving_existing ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)
-                     : (preserving_existing ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
-                                                       : VK_PIPELINE_STAGE_TRANSFER_BIT)
-                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT),
+        waits_for_acquire ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : source_stage,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     if (multisampled) {
         record_image_transition(
@@ -304,18 +313,65 @@ void VulkanCommandList::submit_async() {
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &buffer_;
 
-    // Rendering to a swapchain image signals that image's semaphore so present can wait for the
-    // GPU instead of the CPU. A second render to the same image before present must not signal
-    // again (a binary semaphore cannot be signaled twice without a wait in between).
-    VkSemaphore signal = VK_NULL_HANDLE;
-    if (current_target_ != nullptr && current_target_->presentable() &&
-        !current_target_->render_pending()) {
-        signal = current_target_->render_finished_semaphore();
+    // Rendering to a swapchain image participates in the swapchain's frame pacing: the submission
+    // waits on the slot's binary acquire semaphore (image acquisition never blocks the CPU) and
+    // signals the timeline value that makes the slot reusable by a counter query
+    // (docs/design/gpu/frames.md section 5.1). Offscreen targets publish no binding and keep the
+    // blocking fence path.
+    const bool presentable = current_target_ != nullptr && current_target_->presentable();
+    std::array<VkSemaphore, 2> wait_semaphores{};
+    std::array<VkPipelineStageFlags, 2> wait_stages{};
+    std::array<std::uint64_t, 2> wait_values{};
+    std::array<VkSemaphore, 2> signal_semaphores{};
+    std::array<std::uint64_t, 2> signal_values{};
+    std::uint32_t wait_count = 0;
+    std::uint32_t signal_count = 0;
+
+    bool timeline_signaled = false;
+    if (presentable && current_target_->frame_sync_pending()) {
+        const FrameSyncBinding& binding = current_target_->frame_sync();
+        if (binding.acquire != VK_NULL_HANDLE) {
+            // The acquisition is waited for before the pass writes color: that is the first point
+            // the render submission touches the image, so no earlier stage needs the image.
+            wait_stages[wait_count] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            wait_semaphores[wait_count++] = binding.acquire;
+        }
+        if (binding.timeline != VK_NULL_HANDLE) {
+            signal_semaphores[signal_count] = binding.timeline;
+            signal_values[signal_count] = binding.value;
+            ++signal_count;
+            timeline_signaled = true;
+        }
     }
-    if (signal != VK_NULL_HANDLE) {
-        submit_info.signalSemaphoreCount = 1;
-        submit_info.pSignalSemaphores = &signal;
+    // A second render to the same image before present must not signal its binary semaphore again.
+    const VkSemaphore render_finished = presentable && !current_target_->render_pending()
+                                            ? current_target_->render_finished_semaphore()
+                                            : VK_NULL_HANDLE;
+    if (render_finished != VK_NULL_HANDLE) {
+        signal_semaphores[signal_count++] = render_finished;
     }
+
+    VkTimelineSemaphoreSubmitInfo timeline_info{};
+    if (timeline_signaled) {
+        timeline_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+        // Binary semaphores in the same submission ignore their value entry, so the zeroed waits
+        // are the documented encoding for them.
+        timeline_info.waitSemaphoreValueCount = wait_count;
+        timeline_info.pWaitSemaphoreValues = wait_count > 0 ? wait_values.data() : nullptr;
+        timeline_info.signalSemaphoreValueCount = signal_count;
+        timeline_info.pSignalSemaphoreValues = signal_values.data();
+        submit_info.pNext = &timeline_info;
+    }
+    if (wait_count > 0) {
+        submit_info.waitSemaphoreCount = wait_count;
+        submit_info.pWaitSemaphores = wait_semaphores.data();
+        submit_info.pWaitDstStageMask = wait_stages.data();
+    }
+    if (signal_count > 0) {
+        submit_info.signalSemaphoreCount = signal_count;
+        submit_info.pSignalSemaphores = signal_semaphores.data();
+    }
+
     const VkResult submit_result = vkQueueSubmit(queue_, 1, &submit_info, resources_.fence);
     if (submit_result == VK_ERROR_DEVICE_LOST) {
         // D7: loss is state, not an exception. The caller polls Device::status() and recovers.
@@ -324,8 +380,12 @@ void VulkanCommandList::submit_async() {
         return;
     }
     check_vk(submit_result, "vkQueueSubmit");
-    if (signal != VK_NULL_HANDLE) {
+    if (render_finished != VK_NULL_HANDLE) {
         current_target_->set_render_pending(true);
+    }
+    if (timeline_signaled) {
+        // The value is now on the queue; the swapchain frees the slot when the counter reaches it.
+        current_target_->mark_frame_submitted();
     }
 
     submitted_ = true;

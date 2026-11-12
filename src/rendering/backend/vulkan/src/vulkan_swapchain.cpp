@@ -216,6 +216,12 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
     }
     if (recreate) {
         wait_for_present_bounded();
+        refresh_slots();
+    }
+    // The timeline semaphore outlives a swapchain recreation (its values stay monotonic for the
+    // device generation); a new device generation gets a fresh one.
+    if (const auto frame_sync = create_frame_sync(); !frame_sync) {
+        return frame_sync;
     }
 
     VkSurfaceCapabilitiesKHR capabilities{};
@@ -331,19 +337,8 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
         views_.push_back(view);
     }
 
-    if (acquire_pending_) {
-        // An acquire from the retired swapchain may still be in flight. A fence that is already
-        // signaled can be recycled; otherwise abandon the handle rather than reset it in use.
-        if (acquire_fence_ != VK_NULL_HANDLE &&
-            vkGetFenceStatus(device_, acquire_fence_) == VK_SUCCESS) {
-            (void)vkResetFences(device_, 1, &acquire_fence_);
-        } else {
-            acquire_fence_ = VK_NULL_HANDLE;
-        }
-        acquire_pending_ = false;
-    }
-    ensure_acquire_fence();
-
+    // Image acquisition is paced by the per-slot binary semaphores now, so no acquire fence of the
+    // retired swapchain is left behind to recycle here.
     image_acquired_.assign(images_.size(), 0);
     format_ = rhi_format;
     extent_ = chosen_extent;
@@ -388,15 +383,104 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::recreate_pending() {
     return {};
 }
 
-void VulkanSwapchain::ensure_acquire_fence() {
-    if (acquire_fence_ != VK_NULL_HANDLE) {
+// One timeline semaphore per device generation owns frame pacing. Its values are monotonic for the
+// generation, so a swapchain recreation keeps it; only a new VkDevice (device loss/recovery)
+// creates a new one, and `create()` starts the new generation's bookkeeping at zero.
+std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_frame_sync() {
+    if (timeline_ != VK_NULL_HANDLE) {
+        return {};
+    }
+    VkSemaphoreTypeCreateInfo type_info{};
+    type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    type_info.initialValue = 0;
+    VkSemaphoreCreateInfo timeline_info{};
+    timeline_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    timeline_info.pNext = &type_info;
+    VkSemaphore timeline = VK_NULL_HANDLE;
+    if (vkCreateSemaphore(device_, &timeline_info, nullptr, &timeline) != VK_SUCCESS) {
+        return std::unexpected(rhi::SwapchainError::NotSupported);
+    }
+    timeline_ = timeline;
+    timeline_next_ = 1;
+    timeline_completed_ = 0;
+
+    // Binary acquire semaphores stay per slot: vkAcquireNextImageKHR needs one and the submission
+    // that renders the image waits on it on the GPU, so acquisition never blocks the UI thread.
+    for (FrameSlot& slot : slots_) {
+        slot = FrameSlot{};
+        VkSemaphoreCreateInfo acquire_info{};
+        acquire_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        if (vkCreateSemaphore(device_, &acquire_info, nullptr, &slot.acquire) != VK_SUCCESS) {
+            destroy_frame_sync();
+            return std::unexpected(rhi::SwapchainError::NotSupported);
+        }
+    }
+    return {};
+}
+
+void VulkanSwapchain::destroy_frame_sync() {
+    for (FrameSlot& slot : slots_) {
+        if (slot.acquire != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device_, slot.acquire, nullptr);
+        }
+        slot = FrameSlot{};
+    }
+    if (timeline_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
+        vkDestroySemaphore(device_, timeline_, nullptr);
+    }
+    timeline_ = VK_NULL_HANDLE;
+    timeline_next_ = 1;
+    timeline_completed_ = 0;
+}
+
+void VulkanSwapchain::refresh_slots() {
+    if (timeline_ == VK_NULL_HANDLE || device_ == VK_NULL_HANDLE) {
         return;
     }
-    VkFenceCreateInfo fence_info{};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    if (vkCreateFence(device_, &fence_info, nullptr, &acquire_fence_) != VK_SUCCESS) {
-        acquire_fence_ = VK_NULL_HANDLE;
+    std::uint64_t completed = timeline_completed_;
+    if (vkGetSemaphoreCounterValue(device_, timeline_, &completed) != VK_SUCCESS) {
+        return;
     }
+    timeline_completed_ = completed;
+    for (FrameSlot& slot : slots_) {
+        // A value that was never signaled (a submission that failed before it reached the queue)
+        // is skipped by the next one: timeline values may be signaled out of sequence, so the slot
+        // frees as soon as a later value lands.
+        if (slot.in_flight && slot.value <= timeline_completed_) {
+            slot.in_flight = false;
+        }
+    }
+}
+
+std::uint32_t VulkanSwapchain::reusable_slot() {
+    for (std::uint32_t index = 0; index < slots_.size(); ++index) {
+        if (!slots_[index].in_flight) {
+            return index;
+        }
+    }
+    return kNoSlot;
+}
+
+rhi::SwapchainFrameSync VulkanSwapchain::frame_sync() const {
+    rhi::SwapchainFrameSync snapshot;
+    snapshot.slots_skipped = stats_.slots_skipped;
+    if (timeline_ == VK_NULL_HANDLE || device_ == VK_NULL_HANDLE) {
+        return snapshot;
+    }
+    // vkGetSemaphoreCounterValue is a plain host query: it reads the counter without waiting for
+    // the device, so sampling it per iteration keeps the UI thread non-blocking.
+    std::uint64_t completed = timeline_completed_;
+    if (vkGetSemaphoreCounterValue(device_, timeline_, &completed) == VK_SUCCESS) {
+        timeline_completed_ = completed;
+    }
+    snapshot.timeline_value = timeline_completed_;
+    for (const FrameSlot& slot : slots_) {
+        if (slot.in_flight && slot.value > timeline_completed_) {
+            ++snapshot.frames_in_flight;
+        }
+    }
+    return snapshot;
 }
 
 void VulkanSwapchain::destroy_swapchain_resources() {

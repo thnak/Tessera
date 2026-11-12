@@ -151,7 +151,8 @@ Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 - B1 full-redraws; the offscreen `begin_damaged` scissor replay is implemented. Swapchain/present-path
   damage and dirty caches/layers remain later work.
 - `Batched2DRenderer` supports `frames_in_flight > 1` and the swapchain path submits over a two-slot
-  ring; there is no timeline-semaphore frame object yet.
+  ring paced by one timeline semaphore (a counter query decides slot reuse; the UI thread never
+  waits). See [`gpu/frames.md`](gpu/frames.md) section 5.1.
 - `FramePacer` and vsync/present-mode selection exist; the pacer follows a scripted rate change
   (`FramePacer::update`: cap, display refresh and VRR availability, with refresh-divisor cadence).
   Platform display-refresh/VRR queries and present-path damage are pending.
