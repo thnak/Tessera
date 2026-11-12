@@ -78,6 +78,23 @@ TextOverflow parse_text_overflow(std::string_view value) {
     return lower(trim(value)) == "ellipsis" ? TextOverflow::Ellipsis : TextOverflow::Clip;
 }
 
+// CSS `text-transform` keyword to the V1 ASCII mapping (docs/design/text.md section 6.5). `none`,
+// an unsupported keyword (`full-width`, `math-auto`, ...) and garbage all stay `None`, like the
+// other tolerant computed-value readers here.
+TextTransform parse_text_transform(std::string_view value) {
+    const std::string token = lower(trim(value));
+    if (token == "uppercase") {
+        return TextTransform::Uppercase;
+    }
+    if (token == "lowercase") {
+        return TextTransform::Lowercase;
+    }
+    if (token == "capitalize") {
+        return TextTransform::Capitalize;
+    }
+    return TextTransform::None;
+}
+
 float parse_length(std::string_view value, float relative_to) {
     const std::string token = lower(trim(value));
     if (token.empty() || token == "normal") {
@@ -171,6 +188,9 @@ TextStyle text_style_from(const style::ComputedStyle& computed) {
     }
     if (const std::string* white_space = computed.find("white-space")) {
         result.white_space = parse_white_space(*white_space);
+    }
+    if (const std::string* transform = computed.find("text-transform")) {
+        result.text_transform = parse_text_transform(*transform);
     }
     if (const std::string* overflow = computed.find("text-overflow")) {
         result.text_overflow = parse_text_overflow(*overflow);

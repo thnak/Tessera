@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 
 namespace tessera::ui::paint {
@@ -55,14 +56,25 @@ public:
         // `advance(" ")` for a collapsed run and paint measures that same one-space segment with
         // this call. `word-spacing` is the one addition the wrap and the painted cursor share, so a
         // painted segment sequence sums to the line width; zero it for the literal measure.
+        //
+        // `text-transform` is applied here, before measuring, so paint advances the transformed
+        // glyphs; the literal layout then runs with the transform cleared (the wrap would otherwise
+        // apply it a second time) and the separator count uses the same transformed bytes.
         text::TextStyle literal = style;
         literal.white_space = text::WhiteSpace::Pre;
         literal.word_spacing = 0.0f;
+        literal.text_transform = text::TextTransform::None;
+        std::string transformed;
+        std::string_view measured = text;
+        if (style.text_transform != text::TextTransform::None) {
+            transformed = text::apply_text_transform(text, style.text_transform);
+            measured = transformed;
+        }
         text::TextConstraints no_wrap;
         no_wrap.wrap = false;
-        const float raw = layout(text, literal, no_wrap).width;
+        const float raw = layout(measured, literal, no_wrap).width;
         const float spacing = style.word_spacing > 0.0f ? style.word_spacing : 0.0f;
-        return raw + spacing * static_cast<float>(text::word_separator_count(text));
+        return raw + spacing * static_cast<float>(text::word_separator_count(measured));
     }
     [[nodiscard]] text::TextLayout layout(std::string_view text, const text::TextStyle& style,
                                           const text::TextConstraints& constraints) const override {

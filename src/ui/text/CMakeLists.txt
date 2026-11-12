@@ -17,6 +17,7 @@ add_library(tessera_text STATIC
     text_measure.cpp
     text_measure_cache.cpp
     text_paint.cpp
+    text_transform.cpp
     text_wrap.cpp)
 
 target_include_directories(tessera_text PUBLIC

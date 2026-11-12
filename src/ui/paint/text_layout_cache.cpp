@@ -51,6 +51,7 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
                        style.italic,
                        wrap,
                        style.white_space,
+                       style.text_transform,
                        max_lines,
                        source.id()};
 
@@ -70,9 +71,11 @@ const text::TextLayout& TextLayoutCache::get(std::string_view text, const text::
 
     ++counters_.misses;
     text::TextLayout layout = build(text, style, constraints, source, max_lines);
-    Key key{std::string(text), view.width,       view.font_size,   view.letter_spacing,
-            view.word_spacing, view.line_height, view.font_weight, view.italic,
-            view.wrap,         view.white_space, view.max_lines,   view.metrics_source_id};
+    Key key{std::string(text),     view.width,          view.font_size,
+            view.letter_spacing,   view.word_spacing,   view.line_height,
+            view.font_weight,      view.italic,         view.wrap,
+            view.white_space,      view.text_transform, view.max_lines,
+            view.metrics_source_id};
     const std::size_t bytes = entry_bytes(key, layout);
     if (bytes > config_.max_bytes) {
         // The entry alone exceeds the byte budget: return it through scratch instead of breaking

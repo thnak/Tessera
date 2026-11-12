@@ -250,6 +250,7 @@ int main() {
         {"font-size", "20px", true},
         {"white-space", "break-spaces", true},
         {"word-spacing", "4px", true},
+        {"text-transform", "uppercase", true},
         {"field-sizing", "fixed", true},
         {"border-top-style", "none", true},
         {"direction", "ltr", true},

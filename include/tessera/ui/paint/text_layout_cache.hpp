@@ -36,8 +36,9 @@ struct TextLayoutCacheStats {
 
 // Caller-owned bounded LRU cache for wrapped paint text line boxes. Deterministic key: text bytes,
 // content-box wrap width, font size/weight/italic/letter-spacing/word-spacing/line-height, wrap
-// mode, the `white-space` mode (it changes collapsing and break-spaces units), max_lines, and the
-// metrics-source id. Float key fields are compared with exact IEEE equality (no epsilon).
+// mode, the `white-space` mode (it changes collapsing and break-spaces units), the `text-transform`
+// mapping (it changes the measured glyphs), max_lines, and the metrics-source id. Float key fields
+// are compared with exact IEEE equality (no epsilon).
 //
 // A returned reference is stable until the next call that inserts or evicts (or invalidate/clear):
 // a hit performs no allocation and only refreshes the LRU position. There is no global singleton;
@@ -79,6 +80,7 @@ private:
         bool italic = false;
         bool wrap = false;
         text::WhiteSpace white_space = text::WhiteSpace::Normal;
+        text::TextTransform text_transform = text::TextTransform::None;
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
     };
@@ -94,6 +96,7 @@ private:
         bool italic = false;
         bool wrap = false;
         text::WhiteSpace white_space = text::WhiteSpace::Normal;
+        text::TextTransform text_transform = text::TextTransform::None;
         std::uint32_t max_lines = 0;
         std::uint32_t metrics_source_id = 0;
     };
@@ -135,6 +138,11 @@ private:
             // layouts that share every other field.
             if (lhs.white_space != rhs.white_space) {
                 return static_cast<int>(lhs.white_space) < static_cast<int>(rhs.white_space);
+            }
+            // `text-transform` changes the measured glyphs, so entries that differ only in it must
+            // never share a slot.
+            if (lhs.text_transform != rhs.text_transform) {
+                return static_cast<int>(lhs.text_transform) < static_cast<int>(rhs.text_transform);
             }
             if (lhs.font_weight != rhs.font_weight) {
                 return lhs.font_weight < rhs.font_weight;

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -193,8 +194,19 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
     // whole-run measure. Trimming already removed the line edges, so a space that is not painted
     // never widens anything, and tabs and hard newlines are never counted (word_separator_count).
     const float word_spacing = style.word_spacing > 0.0f ? style.word_spacing : 0.0f;
+    // `text-transform` is applied to the bytes this seam measures, never to the source text: the V1
+    // mapping is 1:1 in bytes, so the segment/line ranges computed above still address the original
+    // string. Both the callback (HarfBuzz in paint) and the deterministic stub see transformed
+    // bytes, which is what makes a painted segment's advance equal what the wrap measured for it.
+    // The separator count runs on the transformed run for the same reason (the mapping never
+    // touches a space, but counting the measured bytes keeps the rule single-sourced).
     const auto measure_run = [&](std::string_view run) {
-        return measure(run) + word_spacing * static_cast<float>(word_separator_count(run));
+        if (style.text_transform == TextTransform::None) {
+            return measure(run) + word_spacing * static_cast<float>(word_separator_count(run));
+        }
+        const std::string transformed = apply_text_transform(run, style.text_transform);
+        return measure(transformed) +
+               word_spacing * static_cast<float>(word_separator_count(transformed));
     };
 
     auto add_line = [&](float width, std::size_t begin, std::size_t end) {
