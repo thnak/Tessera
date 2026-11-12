@@ -245,7 +245,9 @@ structural|audit]`, plus the `headless` equivalent.
   the same way. The v1 protocol has no shutdown command, so EOF (or the host's stop flag) is the
   end of a session. The serve loop creates no thread. `--mode` accepts `structural` and `audit`
   (both run the script; `audit` also adds the section 6.10 latency gate and enables the
-  diagnostics seams); `golden`/`gpu-smoke` parse but exit `2` as not implemented.
+  diagnostics seams); `golden`/`gpu-smoke` parse but exit `2` as not implemented (the offscreen capture and
+  baseline-compare core exists in `tessera_harness_image`/`tessera_harness_capture`, see
+  [`golden-tests-v1.md`](golden-tests-v1.md) section 1.2; CLI wiring is a later slice).
 - One `RuntimeLoop` tick per pump: the driver advances a `ManualClock` by one fixed step, ticks the
   loop, then calls `ScriptRunner::pump()` once (hard guard `kMaxScriptSteps + 1`). Time comes from
   an injected tick clock (1/60 s per tick), never the wall clock.

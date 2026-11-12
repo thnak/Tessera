@@ -75,6 +75,23 @@ the lavapipe side):
 Those shapes remain on the lavapipe corpus (`dashboard_shapes.png`, text cases with tolerance),
 which stays the full-fidelity software path.
 
+### 1.2 Harness frame check (`--mode golden` / `--mode gpu-smoke` core)
+
+`include/tessera/harness/{frame_capture,frame_check,image_compare}.hpp` (`src/harness/`) hold the
+harness-side core; the CLI does not call it yet.
+
+- `capture_scene_frame` renders one frame offscreen (no swapchain) through `app::capture_frame`
+  and returns RGBA8. `check_frame` writes `frame.png`, compares it to a baseline PNG, and writes
+  `frame.diff.png` (on mismatch) and `frame.compare.json` through the `ArtifactSink`.
+- Golden policy is exact (0 channel delta, 0 mismatched pixels); gpu-smoke uses a per-channel
+  tolerance (8) and a 2% pixel budget. SSIM/deltaE is not implemented; the budget approximates it.
+- Golden requires the software path. The RHI does not report device type, so
+  `capture_capability` accepts golden only when `VK_ICD_FILENAMES`/`VK_DRIVER_FILES` names only
+  lavapipe; otherwise it returns a typed `NoSoftwareDevice` error (unavailable, not a failure).
+- gpu-smoke never writes a baseline: `update_baseline` with it is rejected before anything is
+  written. Golden updates only through `FrameCheckRequest::update_baseline`; the
+  `--update-goldens` CLI/env exposure (ADR-009) is a later slice.
+
 ## 2. Directory layout
 
 ```text
