@@ -1,6 +1,6 @@
 # ADR-050: Application-framework layer above the UI runtime (lifecycle, services, task scopes, app state, native render surfaces)
 
-- Status: Proposed (revised 2026-11-12 with the owner decisions below)
+- Status: Accepted (2026-11-12, owner; revised the same day with the owner decisions below)
 - Date: 2026-11-12
 - File name: kept as `ADR-050-opt-in-app-framework-layer.md` so existing links stay valid; the
   layer is no longer "opt-in" in the product sense (owner decision 1).

@@ -110,9 +110,8 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
 - **Pick:** the first unchecked item of the lowest-numbered open milestone in
   [Big Steps](#big-steps-group-work-dont-micro-step) that is not blocked by an open ADR PR and is
   not already claimed by an open PR (`gh pr list --search "<item words>"`).
-- **Blocked by ADR:** do not start items that depend on a Proposed ADR (ADR-049 in PR #83, the
-  shader chain in PR #84, ADR-050 in PR #85) until it is Accepted on `main`. The one exception is
-  ADR-050 AF1, which adds only a new headless `tessera_appfw_core` library and its unit tests.
+- **Blocked by ADR:** ADR-049 and ADR-050 are Accepted (2026-11-12), so their items are open. If an
+  item depends on a Proposed ADR, wait until it is Accepted on `main`.
 - **One item per PR**, branched from `origin/main`; attach the milestone
   (`gh pr create --milestone "V1-M1 Core runtime"`) and tick the item's checkbox in this file in
   the same PR (`[x]` plus the evidence path).
@@ -214,7 +213,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
 - [ ] Codegen emission of vector payloads (`PaintKind::Vector`) — generated golden.
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))
-ADR-049 is proposed in PR #83, the shader chain in PR #84; open items wait for acceptance.
+ADR-049 is Accepted and the shader chain is on `main`; WebGPU stays Tier 2 until its CI lane is green on GitHub.
 
 - [x] WebGPU first slice (mapping tables, WGSL registry, unbuilt skeleton) —
       `src/rendering/backend/webgpu/`, `tests/unit/webgpu_mapping_tests.cpp`.
@@ -226,7 +225,7 @@ ADR-049 is proposed in PR #83, the shader chain in PR #84; open items wait for a
 
 ### V1-M4 Design-time preview and playground ([milestone 4](https://github.com/thnak/Tessera/milestone/4)) — Big Step D
 Acceptance: a screen previews in a browser and matches native output within the golden tolerance.
-Stages P0-P7 are proposed in PR #85 (`docs/design/reference-equantic-ui.md`).
+Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 
 - [ ] P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
       `samples/parity-demo/Counter.tsx`.
@@ -238,7 +237,7 @@ Stages P0-P7 are proposed in PR #85 (`docs/design/reference-equantic-ui.md`).
 - [ ] `tessera-mcp` stdio adapter over the harness session, compile-only first.
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
-ADR-050 is proposed in PR #85 (roadmap AF1-AF8); only AF1 may start before acceptance.
+ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 
 - [ ] AF1: `ServiceContext` + `Service` state machine, ordered async start/stop, deadlines — new
       `tessera_appfw_core`, tests under `ManualClock`/`ManualExecutor`.
