@@ -4,6 +4,7 @@
 #include "tessera/app/idle_policy.hpp"
 #include "tessera/app/recovery_policy.hpp"
 #include "tessera/app/system_motion.hpp"
+#include "tessera/hal/refresh_rate.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window_wait.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
@@ -49,6 +50,20 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     if (window == nullptr) {
         return;
     }
+    // Resolve the display refresh now that the platform window exists: the platform query fills in
+    // WindowOptions::refresh_hz when the caller left it at 0 (unknown), and an explicit non-zero
+    // value still wins. No query runs on the explicit path.
+    //
+    // The pacer is deliberately not reconfigured here. Its uncapped interval would become one
+    // display refresh, which would gate the deterministic single-iteration seam (pump_once) on the
+    // wall clock: an automation caller that changes the scene and pumps once must still present,
+    // and a settled default window keeps the documented present-when-ready behaviour. When the
+    // adaptive present cap actually applies a divisor, apply_present_cap() hands the pacer both
+    // that cap and this refresh through its normal rate-change path, so the divisor grid engages
+    // exactly when there is a cap to place on it. An explicit refresh keeps its existing pacing.
+    const double reported_refresh_hz =
+        options.refresh_hz == 0.0 ? window->display_refresh_hz() : hal::kUnknownRefreshHz;
+    options.refresh_hz = hal::resolve_display_refresh_hz(options.refresh_hz, reported_refresh_hz);
     device = detail::create_device(options.validation);
     if (device == nullptr) {
         window.reset();

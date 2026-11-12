@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/hal/refresh_rate.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -103,6 +105,20 @@ public:
     virtual ~Window() = default;
 
     [[nodiscard]] virtual WindowMetrics metrics() const = 0;
+
+    // The refresh rate of the display the window is on, in Hz, as the platform currently reports
+    // it. `kUnknownRefreshHz` (0) is the documented "unknown" answer: no display, a platform or
+    // server that cannot answer, a failed query, or a report outside the sane bounds of
+    // tessera/hal/refresh_rate.hpp. It never guesses and never throws.
+    //
+    // It is not a per-frame query: the app window host reads it once, when the window is created,
+    // to resolve WindowOptions::refresh_hz (an explicit option still wins). A monitor change is not
+    // tracked in this slice; the OS-event display-capabilities item owns that. Must be called on
+    // the thread that created the window. The default returns the unknown value, for platforms
+    // that have no display-refresh source.
+    [[nodiscard]] virtual double display_refresh_hz() const noexcept {
+        return kUnknownRefreshHz;
+    }
 
     // Copies pending events oldest first into `events` and returns the count written. Events that
     // do not fit stay queued for the next poll. Never blocks and never calls user code.

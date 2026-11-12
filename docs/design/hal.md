@@ -99,6 +99,22 @@ sees; editable text never calls an OS API directly:
   chords; the copy/cut/paste commands take a `Clipboard&`), so tests and headless hosts inject the
   in-memory backend.
 
+### 1.4 Display refresh query (implemented, Windows and Linux/X11)
+
+`hal::Window::display_refresh_hz()` is the window's only display-refresh source (runtime-config-v1.md
+section 6.2). It returns Hz, or the documented "unknown" value `kUnknownRefreshHz` (0): a platform
+without a query, a failed OS call, or a value outside the sane bounds of
+[`refresh_rate.hpp`](../../include/tessera/hal/refresh_rate.hpp) is unknown, never a guess, and the
+call never throws. The value handling, the sane bounds and the explicit-option precedence are pure
+functions in that header, so tests cover them without a display; a window's implementation is only
+the OS read. Windows reads the current mode of the monitor the window is on
+(`MonitorFromWindow`/`GetMonitorInfoW`/`EnumDisplaySettingsExW`), Linux/X11 reads the active RandR
+CRTC mode when the extension is present (`TESSERA_X11_RANDR`; a build without libXrandr compiles the
+unknown path), and every other platform reports unknown. It is not a per-frame query: the app window
+host reads it once at creation, and an explicit `WindowOptions::refresh_hz` wins over it. Monitor
+changes are not tracked in this slice; the OS-event display-capabilities item in
+[`os-events-v1.md`](../specs/os-events-v1.md) owns that.
+
 ## 2. Core types
 
 ```cpp

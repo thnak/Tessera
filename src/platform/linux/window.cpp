@@ -5,6 +5,9 @@
 #include "window_event_queue.hpp"
 #include "x11_input.hpp"
 #include "x11_xi2.hpp"
+#if defined(TESSERA_X11_RANDR)
+#include "x11_randr.hpp"
+#endif
 
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
@@ -90,6 +93,7 @@ public:
     bool create(const WindowDesc& desc);
 
     [[nodiscard]] WindowMetrics metrics() const override;
+    [[nodiscard]] double display_refresh_hz() const noexcept override;
     [[nodiscard]] NativeWindowHandle native_handle() const override {
         return {display_, reinterpret_cast<void*>(window_)};
     }
@@ -242,6 +246,19 @@ WindowMetrics X11Window::metrics() const {
     // X11 has no portable occlusion/minimize signal without a window manager (WM_STATE and
     // _NET_WM_STATE are WM-specific); this backend reports both as false.
     return metrics;
+}
+
+double X11Window::display_refresh_hz() const noexcept {
+#if defined(TESSERA_X11_RANDR)
+    if (display_ == nullptr || window_ == 0 || std::this_thread::get_id() != owner_thread_) {
+        return kUnknownRefreshHz;
+    }
+    return detail::query_x11_display_refresh_hz(display_, window_, root_);
+#else
+    // Built without libXrandr: this window has no display-refresh source, so no divisor exists and
+    // the present cap keeps its configured value.
+    return kUnknownRefreshHz;
+#endif
 }
 
 void X11Window::enqueue(WindowEventType type) {

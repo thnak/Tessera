@@ -261,7 +261,9 @@ mechanism a scripted refresh change uses. `update()` resyncs the next deadline t
 after the change instant, so the cap takes effect at the next frame boundary with no burst of
 catch-up frames, no stall at the old cadence, no blocking wait and no swapchain recreation. A cap
 that did not move is a no-op, so the running deadline is untouched. The display refresh comes from
-`WindowOptions::refresh_hz` (the HAL has no refresh query yet; 0 = unknown). With no refresh there is
+the HAL query (`hal::Window::display_refresh_hz()`, resolved once into
+`WindowOptions::refresh_hz`; an explicit non-zero option wins, 0 = unknown), as specified in
+[`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 6.2. With no refresh there is
 no divisor, so the cap stays at `maxFps` and the pacer keeps its documented deadline pacing
 ([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 5.2) — the fallback is the existing
 behaviour, not a new one. Diagnostics: `WindowFrameStats::present_cap_hz`,
