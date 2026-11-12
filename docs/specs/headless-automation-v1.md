@@ -69,8 +69,12 @@ Exit codes: `0` pass, `1` assertion/audit failure, `2` invalid script/config.
 Status: `tessera test --script FILE` and `tessera headless --mode structural|audit --script FILE`
 run the script against the built-in windowless fixture (section 6.8) or, when the script names
 `app.config`, the manifest scene (section 2), write `out/report.json`, and
-return the section 3 exit codes. `--mode golden` and `--mode gpu-smoke` parse but exit `2` until the
-offscreen rendering lane lands. `--help` and `--version` work. See section 6.5.
+return the section 3 exit codes. `--mode golden|gpu-smoke` run the same script, then render the final scene offscreen and compare it
+with `--baseline <png>` (`--update-goldens` rewrites it from the software path only; `--font <ttf>`
+overrides the repository test font). Exit `0` match, `1` mismatch or missing baseline, `2` the mode
+cannot run here (golden needs lavapipe via `VK_ICD_FILENAMES`, ADR-009). The report gains a `frame`
+object and the sink gets `frame.png`, the diff image and `frame.compare.json`. Transient input state
+(hover, focus ring) is not replayed into the capture. `--help` and `--version` work. See section 6.5.
 
 ## 4. Script schema
 
@@ -269,9 +273,9 @@ structural|audit]`, plus the `headless` equivalent.
   the same way. The v1 protocol has no shutdown command, so EOF (or the host's stop flag) is the
   end of a session. The serve loop creates no thread. `--mode` accepts `structural` and `audit`
   (both run the script; `audit` also adds the section 6.10 latency gate and enables the
-  diagnostics seams); `golden`/`gpu-smoke` parse but exit `2` as not implemented (the offscreen capture and
-  baseline-compare core exists in `tessera_harness_image`/`tessera_harness_capture`, see
-  [`golden-tests-v1.md`](golden-tests-v1.md) section 1.2; CLI wiring is a later slice).
+  diagnostics seams); `golden`/`gpu-smoke` add the section 3 frame check (see
+  [`golden-tests-v1.md`](golden-tests-v1.md) section 1.2). `--baseline` is required and
+  `--update-goldens` is rejected outside `golden`; `serve` does not render frames.
 - One `RuntimeLoop` tick per pump: the driver advances a `ManualClock` by one fixed step, ticks the
   loop, then calls `ScriptRunner::pump()` once (hard guard `kMaxScriptSteps + 1`). Time comes from
   an injected tick clock (1/60 s per tick), never the wall clock.

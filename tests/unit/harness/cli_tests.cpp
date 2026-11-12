@@ -169,11 +169,28 @@ int main() {
                "empty report rejected");
     }
 
-    // Only the structural lane exists; the rendering modes are rejected instead of pretending.
+    // The rendering modes validate their flags before any device work (ADR-009 baseline rules).
     for (const char* mode : {"golden", "gpu-smoke"}) {
-        const Outcome outcome = run({"test", "--script", fixture("smoke.json"), "--mode", mode});
-        expect(outcome.code == 2 && contains(outcome.err, "not implemented"),
-               "documented rendering mode parses but is not implemented");
+        const Outcome no_baseline =
+            run({"test", "--script", fixture("smoke.json"), "--mode", mode});
+        expect(no_baseline.code == 2 && contains(no_baseline.err, "--baseline"),
+               "a rendering mode needs a baseline");
+        const Outcome no_script = run({"headless", "--mode", mode, "--baseline", "b.png"});
+        expect(no_script.code == 2 && contains(no_script.err, "needs --script"),
+               "a rendering mode needs a script");
+    }
+    {
+        const Outcome smoke_update = run({"test", "--script", fixture("smoke.json"), "--mode",
+                                          "gpu-smoke", "--baseline", "b.png", "--update-goldens"});
+        expect(smoke_update.code == 2 && contains(smoke_update.err, "only allowed with --mode golden"),
+               "gpu-smoke never updates goldens");
+        const Outcome structural_update =
+            run({"test", "--script", fixture("smoke.json"), "--update-goldens"});
+        expect(structural_update.code == 2 && contains(structural_update.err, "golden or gpu-smoke only"),
+               "baseline flags are rejected outside the rendering modes");
+        const Outcome empty_baseline = run({"test", "--script", fixture("smoke.json"), "--mode",
+                                            "golden", "--baseline", ""});
+        expect(empty_baseline.code == 2, "empty baseline rejected");
     }
     for (const char* mode : {"structural", "audit"}) {
         const Outcome outcome = run({"headless", "--mode", mode, "--script", "missing.json"});

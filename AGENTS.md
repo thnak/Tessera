@@ -538,10 +538,19 @@ when enabled and is proved byte-identical to no seams when disabled. `tessera te
 [--out DIR] [--report PATH] [--mode structural|audit]` and `tessera headless --mode ... --script`
 are promoted, run one `RuntimeLoop` tick per `ScriptRunner::pump` with a `ManualClock` and a tick
 `SessionClock`, write `report.json` plus trace/audit artifacts, and exit 0 pass / 1 run failure /
-2 invalid script; `--out`/`--report` accept Windows separators. Next for this lane: the stdio
-protocol server needs a non-spinning blocking wait before `tessera headless` can serve without
-`--script`, then manifest/app-config loading (scripts currently drive the fixture scene, ids
-9001-9006), `itemKey`/list identity, golden and gpu-smoke modes, and latency audits. `tessera_accessibility`
+2 invalid script; `--out`/`--report` accept Windows separators. Landed since: blocking stdio wait
+(`LineTransport::wait_readable`, `tessera headless` without `--script` serves until EOF),
+`itemKey` list identity, latency audits (`--mode audit --profile`, `latency_audit.hpp`), the
+`app.config` manifest loader and `ManifestScene`, the offscreen golden core
+(`tessera_harness_image`/`tessera_harness_capture`, `check_frame`), and the CLI golden lane:
+`tessera test --script F --mode golden|gpu-smoke --baseline PNG [--update-goldens] [--font TTF]`
+runs the script structurally, renders the final scene (`cli_frame.cpp`), writes
+`frame.png`/diff/`frame.compare.json` and a `frame` report object, and exits 0 match / 1 mismatch or
+missing baseline / 2 mode unavailable (golden needs lavapipe via `VK_ICD_FILENAMES`).
+`--update-goldens` is golden-only (ADR-009). Next for this lane: commit real baselines under
+`tests/golden/baseline/harness/` and run them on lavapipe CI, make `serve` use `app.config`, put
+manifest names/paths into snapshots, true scroll-to-item, and run the latency profile thresholds on
+a real clock. The POSIX `poll` path is not yet compiled anywhere. `tessera_accessibility`
 now carries the in-tree AT-SPI2 client subset: D-Bus address parsing and a `Transport` seam with a
 loopback fake, the bounded wire codec with golden bytes, SASL EXTERNAL, role/state/interface
 mapping, and Accessible/Application/Action/Component/Text/Value dispatch with a bounded action

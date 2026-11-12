@@ -9,6 +9,7 @@
 #include "tessera/diagnostics/trace.hpp"
 #include "tessera/harness/artifact_sink.hpp"
 #include "tessera/harness/cli.hpp"
+#include "tessera/harness/cli_frame.hpp"
 #include "tessera/harness/harness_handler.hpp"
 #include "tessera/harness/headless_serve.hpp"
 #include "tessera/harness/json_write.hpp"
@@ -128,6 +129,7 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
                              std::string_view output_directory, const std::string& report_path,
                              bool diagnostics_enabled, const std::optional<LatencyProfile>& latency,
                              SessionClock& audit_clock, const automation::AppManifest* app,
+                             const std::optional<CliFrameRequest>& frame_request,
                              std::ostream& out, std::ostream& err) {
     ui::Node root(1);
     // The fixture is the default scene; an app manifest (script `app.config`) replaces it.
@@ -206,6 +208,13 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
             return 2;
         }
     }
+    // Golden / gpu-smoke: the script ran structurally above; now render its final scene state and
+    // compare it. A failing script keeps exit 1 and skips the render (the frame would be moot).
+    int frame_exit = 0;
+    if (frame_request.has_value() && report.passed) {
+        frame_exit = run_cli_frame_check(*frame_request, root, stylesheet, output_directory, sink,
+                                         report_json, command, err);
+    }
     auto document = to_json(report_json);
     if (!document.has_value()) {
         err << "tessera " << command << ": report could not be encoded\n";
@@ -234,7 +243,10 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
         }
     }
     if (report.passed) {
-        return latency_audit.has_value() && !latency_audit->passed ? 1 : 0;
+        if (frame_exit == 2) {
+            return 2;
+        }
+        return (latency_audit.has_value() && !latency_audit->passed) || frame_exit != 0 ? 1 : 0;
     }
     if (report.error.has_value()) {
         print_script_error(err, command, *report.error);
@@ -257,12 +269,16 @@ std::string_view cli_usage() noexcept {
            "  tessera test --script <path> [--mode structural|audit] [--out <dir>] [--report "
            "<path>]\n"
            "  tessera headless --mode <mode> --script <path> [--out <dir>] [--report <path>]\n"
+           "  tessera test --script <path> --mode golden|gpu-smoke --baseline <png> "
+           "[--update-goldens] [--font <ttf>]\n"
            "  tessera --help | --version\n"
            "\n"
            "Exit codes: 0 pass, 1 run/audit failure, 2 invalid script/config.\n"
            "The script lane runs against the built-in windowless fixture scene and writes\n"
            "out/report.json (or --report) plus any snapshot/trace/audit artifacts the script asks\n"
-           "for. --mode golden and --mode gpu-smoke need the rendering lanes and are rejected.\n";
+           "for. --mode golden and gpu-smoke then render the final scene and compare it with --baseline;\n"
+           "golden needs the software (lavapipe) Vulkan path, and only golden honours\n"
+           "--update-goldens.\n";
 }
 
 static int run_cli_impl(std::span<const std::string_view> args, std::ostream& out,
@@ -310,6 +326,9 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
     std::optional<std::string_view> out_directory;
     std::optional<std::string_view> report;
     std::optional<std::string_view> profile;
+    std::optional<std::string_view> baseline;
+    std::optional<std::string_view> font;
+    bool update_goldens = false;
 
     for (std::size_t index = 1; index < args.size(); ++index) {
         const std::string_view argument = args[index];
@@ -353,6 +372,20 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
                 return 2;
             }
             report = *value;
+        } else if (argument == "--baseline") {
+            const auto value = take_value(argument);
+            if (!value.has_value()) {
+                return 2;
+            }
+            baseline = *value;
+        } else if (argument == "--font") {
+            const auto value = take_value(argument);
+            if (!value.has_value()) {
+                return 2;
+            }
+            font = *value;
+        } else if (argument == "--update-goldens") {
+            update_goldens = true;
         } else if (argument == "--profile") {
             const auto value = take_value(argument);
             if (!value.has_value()) {
@@ -394,13 +427,32 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
         return 2;
     }
 
-    // Only the structural lane exists: scripts drive the fixture scene without a GPU. Golden and
-    // gpu-smoke runs need the offscreen renderer, so they are rejected instead of pretending to
-    // pass. An audit-mode run enables the diagnostics seams for the script's audit steps.
+    // Structural and audit modes drive the fixture scene without a GPU. Golden and gpu-smoke run
+    // the same script, then render the final scene and compare it with `--baseline` (ADR-009):
+    // `--update-goldens` rewrites the baseline from the software path only, never from gpu-smoke.
+    // An audit-mode run enables the diagnostics seams for the script's audit steps.
     const CliMode mode = mode_text.has_value() ? *parse_mode(*mode_text) : CliMode::Structural;
-    if (mode == CliMode::Golden || mode == CliMode::GpuSmoke) {
-        err << "tessera " << command << ": --mode " << *mode_text
-            << " is not implemented yet (structural and audit run a script)\n";
+    const bool frame_mode = mode == CliMode::Golden || mode == CliMode::GpuSmoke;
+    if (!frame_mode && (baseline.has_value() || update_goldens)) {
+        err << "tessera " << command
+            << ": --baseline and --update-goldens apply to --mode golden or gpu-smoke only\n";
+        return 2;
+    }
+    if (frame_mode && !script.has_value()) {
+        err << "tessera " << command << ": --mode " << *mode_text << " needs --script\n";
+        return 2;
+    }
+    if (frame_mode && !baseline.has_value()) {
+        err << "tessera " << command << ": --mode " << *mode_text << " needs --baseline <png>\n";
+        return 2;
+    }
+    if (baseline.has_value() && baseline->empty()) {
+        err << "tessera: --baseline must not be empty\n";
+        return 2;
+    }
+    if (update_goldens && mode != CliMode::Golden) {
+        err << "tessera " << command
+            << ": --update-goldens is only allowed with --mode golden (ADR-009)\n";
         return 2;
     }
 
@@ -471,11 +523,23 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
         }
         app = std::move(*loaded);
     }
+    std::optional<CliFrameRequest> frame_request;
+    if (frame_mode) {
+        CliFrameRequest request;
+        request.mode = mode == CliMode::Golden ? CompareMode::Golden : CompareMode::GpuSmoke;
+        request.baseline_path = std::string(*baseline);
+        request.update_baseline = update_goldens;
+        request.font_path = std::string(font.value_or(""));
+        request.width = parsed->profile.width;
+        request.height = parsed->profile.height;
+        request.dpi_scale = static_cast<float>(parsed->profile.scale);
+        frame_request = request;
+    }
     SteadySessionClock steady_clock;
     return run_script(*parsed, command, directory, report_path,
                       mode == CliMode::Audit || wants_diagnostics(*parsed), latency,
                       audit_clock != nullptr ? *audit_clock : steady_clock,
-                      app.has_value() ? &*app : nullptr, out, err);
+                      app.has_value() ? &*app : nullptr, frame_request, out, err);
 }
 
 } // namespace tessera::harness

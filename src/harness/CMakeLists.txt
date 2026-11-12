@@ -41,6 +41,7 @@ target_compile_features(tessera_harness PUBLIC cxx_std_23)
 # whatever the host needs.
 add_library(tessera_automation_host STATIC
     cli.cpp
+    cli_frame.cpp
     headless_serve.cpp
     engine_host.cpp
     engine_host_diagnostics.cpp
@@ -98,4 +99,14 @@ if (TARGET tessera_app_window)
         tessera_style)
 
     target_compile_features(tessera_harness_capture PUBLIC cxx_std_23)
+endif()
+
+# The CLI's golden/gpu-smoke lanes: the image half always links; the capture half only where the
+# Vulkan app-window library exists, otherwise `cli_frame.cpp` reports the lane as unavailable.
+target_link_libraries(tessera_automation_host PUBLIC tessera_harness_image)
+if (TARGET tessera_harness_capture)
+    target_link_libraries(tessera_automation_host PUBLIC tessera_harness_capture)
+    target_compile_definitions(tessera_automation_host PRIVATE
+        TESSERA_HARNESS_HAS_CAPTURE=1
+        TESSERA_HARNESS_DEFAULT_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
 endif()
