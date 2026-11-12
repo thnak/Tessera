@@ -215,14 +215,17 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       cap to the next refresh divisor (`src/runtime/present_cap.cpp`,
       `tests/gpu/app_window_present_cap_tests.cpp`), and its divisor base is a real HAL query
       (`hal::Window::display_refresh_hz()`, `src/hal/window/refresh_rate.cpp`: Win32 monitor
-      mode, X11 RandR, unknown elsewhere). Still missing: step 1 (effect reduction), step 4
-      (pausing non-essential animations) and GPU timestamps as the frame-time signal.
+      mode, X11 RandR, unknown elsewhere). Steps 1 (effect reduction) and 4 (pausing
+      non-essential animations) are blocked on a definition of "optional effect" and
+      "non-essential animation" ([#147](https://github.com/thnak/Tessera/issues/147)); GPU
+      timestamps as the frame-time signal are still missing.
 - [x] **B2:** Multi-frame sync: timeline semaphores (two frames in flight already work) — smoke
       test validation-clean — `src/rendering/backend/vulkan/src/vulkan_swapchain_present.cpp`,
       `tests/gpu/vulkan_timeline_frame_tests.cpp`.
 - [ ] **B2:** Interpolation alpha wake threshold + `animationInterpolation` config key —
       `animationInterpolation` is wired through `WindowOptions::runtime`
-      (`src/app/window_config.cpp`); the alpha wake threshold is still missing.
+      (`src/app/window_config.cpp`); the threshold itself is blocked on what it gates
+      ([#148](https://github.com/thnak/Tessera/issues/148)).
 - [x] **B2:** Call the shader manifest validator before `glslc` — bad manifest fails the build —
       `tools/shaders/manifest.json`, `tools/shaders/manifest_check.cpp`,
       `src/rendering/backend/vulkan/CMakeLists.txt`,
@@ -580,17 +583,22 @@ FreeType/HarfBuzz/SheenBidi text stack with an opt-in ICU, the animation and tra
 springs and end events, structured diagnostics, lavapipe and CPU goldens, virtualization with a
 scene-side scroll event, automation ids and the headless harness); B3 windows and swapchains on
 Win32 and X11 with device-loss recovery, host-owned caret blink, occluded/minimized pause and a
-single timeline semaphore pacing frame submits; the Big Step C compiler (TSX front end, IR, codegen
-CLI, forms, virtual lists, animated values, cross-file props type aliases, stable component identity);
+single timeline semaphore pacing frame submits; adaptive quality end to end (controller, render-scale
+consumer with a bit-identical scale-1.0 path, present-cap divisors over a real HAL display-refresh
+query); the Big Step C compiler (TSX front end, IR, codegen, forms, virtual lists, animated values,
+cross-file props type aliases, stable component identity, synthesized vector payloads with a
+composable asset bundle);
 both ADR-048 blob artifacts (compiled stylesheets registered in import-graph order under
 `@layer tessera-ui`, and the embedded theme asset loaded without parsing); in-tree UIA and AT-SPI2
 bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
 **Farm order:** V1-M1 and V1-M2 first. Remaining unblocked M2 slice: the ADR-040 generated-base
 migration (the last #70 leftover, object-literal prop defaults, is blocked on an IR record type).
-Remaining M1 slices: the rest of the power item (effect reduction, pausing non-essential
-animations, GPU timestamps as the frame-time signal), the interpolation alpha wake threshold,
-the B3 Wayland window and the B3 OS-event item. V1-M3 and V1-M5 wait for their design PRs
+Remaining M1 slices, in order of what is actually startable: the B3 Wayland window, GPU
+timestamps as the frame-time signal, then the two items waiting on a definition — the
+remaining power steps ([#147](https://github.com/thnak/Tessera/issues/147)) and the
+interpolation alpha threshold ([#148](https://github.com/thnak/Tessera/issues/148)); the B3
+OS-event item still waits on ADR-023. V1-M3 and V1-M5 wait for their design PRs
 (#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may start now. V1-M4, V1-M6, V1-M7
 and V1-M8 come later.
 
