@@ -296,10 +296,10 @@ button { padding: 1px; }
         // The library source comes second in the array and still sorts below the app sheet.
         const StylesheetSource sources[] = {{"app.css", &app},
                                             {"lib.css", &library, Origin::Author, true}};
-        const CompiledStyleSheet combined(sources);
-        if (!expect(value_is(combined.compute(probe, nullptr), "color", "green"),
+        const CompiledStyleSheet combined_layers(sources);
+        if (!expect(value_is(combined_layers.compute(probe, nullptr), "color", "green"),
                     "unlayered app CSS beats a higher-specificity library rule") ||
-            !expect(combined.layer_order().count("tessera-ui") == 1,
+            !expect(combined_layers.layer_order().count("tessera-ui") == 1,
                     "library CSS lands in @layer tessera-ui")) {
             return 26;
         }
@@ -346,14 +346,14 @@ button { padding: 1px; }
             prepare_stylesheet("@keyframes pulse { from { opacity: 1; } to { opacity: 0; } } "
                                "@keyframes fade { from { opacity: 0; } }");
         const StylesheetSource sources[] = {{"a.css", &first}, {"b.css", &second}};
-        const CompiledStyleSheet combined(sources);
-        if (!expect(combined.keyframes().size() == 2,
+        const CompiledStyleSheet combined_keyframes(sources);
+        if (!expect(combined_keyframes.keyframes().size() == 2,
                     "a repeated name is merged, not duplicated") ||
-            !expect(combined.keyframes()[0].name == "pulse" &&
-                        combined.keyframes()[0].steps.size() == 2 &&
-                        combined.keyframes()[0].steps[0].declarations[0].value == "0",
+            !expect(combined_keyframes.keyframes()[0].name == "pulse" &&
+                        combined_keyframes.keyframes()[0].steps.size() == 2 &&
+                        combined_keyframes.keyframes()[0].steps[0].declarations[0].value == "0",
                     "the first definition of a keyframes name wins") ||
-            !expect(combined.keyframes()[1].name == "fade", "a new name is appended")) {
+            !expect(combined_keyframes.keyframes()[1].name == "fade", "a new name is appended")) {
             return 29;
         }
     }
@@ -370,16 +370,19 @@ button { padding: 1px; }
             prepare_stylesheet(".x { width: 3px; color: blue; not-a-property: 1; }");
         const StylesheetSource sources[] = {
             {"a.css", &first}, {"b.css", &second}, {"c.css", &third}};
-        const CompiledStyleSheet combined(sources);
-        if (!expect(value_is(combined.compute(probe, nullptr), "width", "3px"),
+        const CompiledStyleSheet combined_order(sources);
+        if (!expect(value_is(combined_order.compute(probe, nullptr), "width", "3px"),
                     "the third sheet wins width") ||
-            !expect(value_is(combined.compute(probe, nullptr), "color", "blue"),
+            !expect(value_is(combined_order.compute(probe, nullptr), "color", "blue"),
                     "the third sheet wins color") ||
-            !expect(combined.rules().size() == 3 &&
-                        combined.rules()[0].source_order < combined.rules()[1].source_order &&
-                        combined.rules()[1].source_order < combined.rules()[2].source_order,
+            !expect(combined_order.rules().size() == 3 &&
+                        combined_order.rules()[0].source_order <
+                            combined_order.rules()[1].source_order &&
+                        combined_order.rules()[1].source_order <
+                            combined_order.rules()[2].source_order,
                     "three sheets keep the given order") ||
-            !expect(combined.diagnostics().size() == 1, "diagnostics concatenate across sheets")) {
+            !expect(combined_order.diagnostics().size() == 1,
+                    "diagnostics concatenate across sheets")) {
             return 30;
         }
     }
