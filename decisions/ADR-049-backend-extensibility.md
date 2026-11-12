@@ -1,6 +1,6 @@
 # ADR-049: Backend extensibility: RHI versioning, shader sources for non-Vulkan backends, community backends
 
-- Status: Proposed
+- Status: Accepted (2026-11-12, owner)
 - Date: 2026-11-12 (section 1.1 added the same day after measuring the tools)
 - Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan baseline),
   [ADR-002](ADR-002-webgpu-dawn-for-wasm.md) (WebGPU/Dawn for Wasm),
