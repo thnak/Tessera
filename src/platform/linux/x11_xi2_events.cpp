@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#if defined(TESSERA_X11_XI2)
 namespace tessera::hal {
 namespace {
 
@@ -24,7 +25,6 @@ float logical_coordinate(double physical, float scale) {
 
 } // namespace
 
-#if defined(TESSERA_X11_XI2)
 bool X11Xi2Pump::handle_cookie(const XGenericEventCookie& cookie, float scale) {
     switch (cookie.evtype) {
     case XI_HierarchyChanged:
@@ -333,6 +333,6 @@ void X11Xi2Pump::handle_touch(const XIDeviceEvent& device, int evtype, float sca
     }
 }
 
-#endif // TESSERA_X11_XI2
-
 } // namespace tessera::hal
+
+#endif // TESSERA_X11_XI2
