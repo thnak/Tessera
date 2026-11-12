@@ -30,8 +30,10 @@ public:
 
     [[nodiscard]] virtual std::uint32_t id() const = 0;
     [[nodiscard]] virtual text::FontMetrics metrics(const text::TextStyle& style) const = 0;
-    // Advance of one run in the same units/rounding the line layout uses. Used to place caret and
-    // selection boundaries inside a line box (paint never shapes the full line again).
+    // Advance of one painted run in the same units/rounding the line layout uses, including the
+    // `word-spacing` the wrap added for every separator in the run. Used to place caret and
+    // selection boundaries inside a line box and to emit the painted segment sequence (paint never
+    // shapes the full line again), so summing it over a line's segments equals the line width.
     [[nodiscard]] virtual float advance(std::string_view text,
                                         const text::TextStyle& style) const = 0;
     [[nodiscard]] virtual text::TextLayout
@@ -51,12 +53,16 @@ public:
                                 const text::TextStyle& style) const override {
         // The raw advance seam is literal: it must never trim or collapse, because the wrap adds
         // `advance(" ")` for a collapsed run and paint measures that same one-space segment with
-        // this call.
+        // this call. `word-spacing` is the one addition the wrap and the painted cursor share, so a
+        // painted segment sequence sums to the line width; zero it for the literal measure.
         text::TextStyle literal = style;
         literal.white_space = text::WhiteSpace::Pre;
+        literal.word_spacing = 0.0f;
         text::TextConstraints no_wrap;
         no_wrap.wrap = false;
-        return layout(text, literal, no_wrap).width;
+        const float raw = layout(text, literal, no_wrap).width;
+        const float spacing = style.word_spacing > 0.0f ? style.word_spacing : 0.0f;
+        return raw + spacing * static_cast<float>(text::word_separator_count(text));
     }
     [[nodiscard]] text::TextLayout layout(std::string_view text, const text::TextStyle& style,
                                           const text::TextConstraints& constraints) const override {

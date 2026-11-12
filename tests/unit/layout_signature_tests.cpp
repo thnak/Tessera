@@ -249,6 +249,7 @@ int main() {
         {"display", "none", true},
         {"font-size", "20px", true},
         {"white-space", "break-spaces", true},
+        {"word-spacing", "4px", true},
         {"field-sizing", "fixed", true},
         {"border-top-style", "none", true},
         {"direction", "ltr", true},

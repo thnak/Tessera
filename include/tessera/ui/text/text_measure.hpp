@@ -4,6 +4,7 @@
 
 #include "tessera/ui/style/cascade.hpp"
 
+#include <cstddef>
 #include <limits>
 #include <memory>
 #include <string_view>
@@ -71,6 +72,12 @@ struct TextStyle {
     float font_size = 16.0f;
     float line_height = 0.0f;
     float letter_spacing = 0.0f;
+    // CSS `word-spacing`: extra advance added to every word separator the layout paints — V1 counts
+    // the ASCII space (U+0020) left after white-space processing. It is additive to the space's
+    // glyph advance and never widens a trimmed edge space, a hard line break, a tab, or a non-ASCII
+    // word separator. `normal` (and any invalid or negative computed value) maps to 0. It changes
+    // line boxes, so it is part of both cache keys.
+    float word_spacing = 0.0f;
     int font_weight = 400;
     bool italic = false;
     WhiteSpace white_space = WhiteSpace::Normal;
@@ -111,5 +118,10 @@ private:
 };
 
 TextStyle text_style_from(const style::ComputedStyle& style);
+
+// Number of word separators in `run`: V1 counts the ASCII space (U+0020) only, so tabs, hard line
+// breaks and non-ASCII word separators (U+00A0 and friends) are not widened. Layout, paint and the
+// caches share this one definition so a line's painted advance always sums to its measured width.
+[[nodiscard]] std::size_t word_separator_count(std::string_view run) noexcept;
 
 } // namespace tessera::ui::text

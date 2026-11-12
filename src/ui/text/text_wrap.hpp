@@ -19,8 +19,9 @@
 // makes every preserved space its own unit.
 namespace tessera::ui::text {
 
-// `measure` is the advance seam of TextLayout: nullptr keeps the deterministic stub advance
-// (font-size / 2 + letter spacing per code point), otherwise the callback supplies a run advance.
+// `measure` is the raw advance seam of TextLayout: nullptr keeps the deterministic stub advance
+// (font-size / 2 + letter spacing per code point), otherwise the callback supplies a run advance
+// without `word-spacing`; the wrap adds that per painted separator for both paths.
 [[nodiscard]] TextLayout
 layout_text_with_breaks(std::string_view text, const TextStyle& style, const FontMetrics& metrics,
                         const TextConstraints& constraints, BreakBackend backend,

@@ -35,8 +35,8 @@ struct TextLayoutCacheStats {
 };
 
 // Caller-owned bounded LRU cache for wrapped paint text line boxes. Deterministic key: text bytes,
-// content-box wrap width, font size/weight/italic/letter-spacing/line-height, wrap mode, the
-// `white-space` mode (it changes collapsing and break-spaces units), max_lines, and the
+// content-box wrap width, font size/weight/italic/letter-spacing/word-spacing/line-height, wrap
+// mode, the `white-space` mode (it changes collapsing and break-spaces units), max_lines, and the
 // metrics-source id. Float key fields are compared with exact IEEE equality (no epsilon).
 //
 // A returned reference is stable until the next call that inserts or evicts (or invalidate/clear):
@@ -73,6 +73,7 @@ private:
         float width = 0.0f;
         float font_size = 0.0f;
         float letter_spacing = 0.0f;
+        float word_spacing = 0.0f;
         float line_height = 0.0f;
         int font_weight = 0;
         bool italic = false;
@@ -87,6 +88,7 @@ private:
         float width = 0.0f;
         float font_size = 0.0f;
         float letter_spacing = 0.0f;
+        float word_spacing = 0.0f;
         float line_height = 0.0f;
         int font_weight = 0;
         bool italic = false;
@@ -145,6 +147,11 @@ private:
             }
             if (bits(lhs.letter_spacing) != bits(rhs.letter_spacing)) {
                 return bits(lhs.letter_spacing) < bits(rhs.letter_spacing);
+            }
+            // `word-spacing` changes separator advances and therefore line boxes, so entries that
+            // differ only in it must never share a slot.
+            if (bits(lhs.word_spacing) != bits(rhs.word_spacing)) {
+                return bits(lhs.word_spacing) < bits(rhs.word_spacing);
             }
             if (bits(lhs.line_height) != bits(rhs.line_height)) {
                 return bits(lhs.line_height) < bits(rhs.line_height);

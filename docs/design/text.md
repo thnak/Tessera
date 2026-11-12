@@ -272,8 +272,8 @@ line boxes, plus the em-dash BA difference for every narrowing mode.
 
 Remaining contract, not implemented in this slice:
 
-- `text-transform` (upper/lower/capitalize) and `word-spacing`: they change the painted bytes
-  themselves, which the whitespace mapping of section 6.2 does not own.
+- `text-transform` (upper/lower/capitalize): it changes the painted bytes themselves, which the
+  whitespace mapping of section 6.2 does not own. (`word-spacing` is implemented; see section 6.4.)
 - `HitTest`/caret mapping by point still sums literal per-cluster advances; paint's own caret and
   selection already walk the painted segments, so collapsing a point-to-caret map is a follow-up.
 - `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
@@ -345,6 +345,27 @@ applied and the computed value stays `clip`, and `@supports (text-overflow: ...)
 two one-value keywords. The rules above are pinned in `tests/unit/text_overflow_tests.cpp`
 (registry/cascade, every row of the table, a trailing collapsed run, multi-byte and combining-mark
 clusters, a bidi line, layout invariance, and the end-to-end paint output).
+
+### 6.4 `word-spacing`
+
+`word-spacing` is additive: every painted word separator advances its glyph advance plus one extra
+spacing. `text_style_from()` maps the computed property to `TextStyle::word_spacing` (`normal`, an
+unparsable value and a negative length to 0; positive lengths use the same `parse_length` and
+font-size base as `letter-spacing`). The wrap adds it once per separator through `measure_run`, so
+the deterministic stub advance and the `layout_text_measured` callback path (HarfBuzz in paint)
+follow the same rule, and `PaintTextMetricsSource::advance` adds it to each painted segment. A
+line's painted segment advances therefore still sum to its laid-out `TextLine::width`: a collapsed
+run contributes one (its one painted space), each preserved `pre`/`pre-wrap`/`break-spaces` space
+contributes one, and trimmed or displaced edge spaces contribute none.
+
+Because it changes line boxes and not just painted pixels, `word_spacing` is part of both cache keys
+(`text::TextMeasureCache` and `paint::TextLayoutCache`) and of the layout signature
+(`src/ui/layout/layout_signature.cpp`). V1 widens only the ASCII space (U+0020) left after
+white-space processing: tabs, form feeds, CR/LF, fixed-width spaces and non-ASCII word separators
+(U+00A0 and friends) keep their font advance, even though CSS treats some of them as word
+separators. A collapsed tab run still gains the spacing of the one space it paints. The behavior is
+pinned in `tests/unit/word_spacing_tests.cpp`, including the paint-sum equality with and without
+spacing.
 
 ## 7. Caches
 

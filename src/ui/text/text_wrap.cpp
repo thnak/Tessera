@@ -188,6 +188,14 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
     const float line_height = style.line_height > 0.0f
                                   ? style.line_height
                                   : metrics.ascent + metrics.descent + metrics.line_gap;
+    // `word-spacing` is additive to every separator advance the wrap emits: one per collapsed run
+    // (its one painted space), one per preserved space byte (U+0020), and one per space inside a
+    // whole-run measure. Trimming already removed the line edges, so a space that is not painted
+    // never widens anything, and tabs and hard newlines are never counted (word_separator_count).
+    const float word_spacing = style.word_spacing > 0.0f ? style.word_spacing : 0.0f;
+    const auto measure_run = [&](std::string_view run) {
+        return measure(run) + word_spacing * static_cast<float>(word_separator_count(run));
+    };
 
     auto add_line = [&](float width, std::size_t begin, std::size_t end) {
         result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end, {}});
@@ -200,10 +208,10 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
         // the edges and measure every interior run as one space; `pre`, `pre-wrap` and
         // `break-spaces` keep the previous literal single line.
         if (white_space_collapses(style.white_space)) {
-            const CollapsedLine line = measure_collapsed_line(text, measure);
+            const CollapsedLine line = measure_collapsed_line(text, measure_run);
             add_line(line.width, line.begin, line.end);
         } else {
-            add_line(measure(text), 0, text.size());
+            add_line(measure_run(text), 0, text.size());
         }
         result.height = line_height;
         result.baseline = metrics.ascent;
@@ -230,15 +238,15 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
                 continue;
             }
             const float width =
-                measure(text.substr(segment.core_begin, segment.core_end - segment.core_begin));
+                measure_run(text.substr(segment.core_begin, segment.core_end - segment.core_begin));
             float gap = 0.0f;
             if (has_line) {
                 // Interior separators. `normal` collapses a run to one space advance; `pre-wrap`
                 // advances the run literally. break-spaces has no gaps: its spaces are units.
                 if (collapse_gap) {
-                    gap = segment.core_begin > line_end ? measure(" ") : 0.0f;
+                    gap = segment.core_begin > line_end ? measure_run(" ") : 0.0f;
                 } else {
-                    gap = measure(text.substr(line_end, segment.core_begin - line_end));
+                    gap = measure_run(text.substr(line_end, segment.core_begin - line_end));
                 }
             }
             if (has_line && current + gap + width <= max_width) {
@@ -261,7 +269,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
                     while (low <= high) {
                         const std::size_t middle = low + (high - low) / 2;
                         const float prefix =
-                            measure(remaining.substr(0, byte_offset(remaining, middle)));
+                            measure_run(remaining.substr(0, byte_offset(remaining, middle)));
                         if (prefix <= max_width) {
                             best = middle;
                             low = middle + 1;
@@ -274,7 +282,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
                     const std::size_t fitting = byte_offset(remaining, best);
                     const std::size_t legal = legal_chunk_end(remaining, fitting, backend);
                     const std::size_t chunk_bytes = legal != 0 ? legal : fitting;
-                    add_line(measure(remaining.substr(0, chunk_bytes)), chunk_begin,
+                    add_line(measure_run(remaining.substr(0, chunk_bytes)), chunk_begin,
                              chunk_begin + chunk_bytes);
                     chunk_begin += chunk_bytes;
                 }

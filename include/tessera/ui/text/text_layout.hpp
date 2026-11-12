@@ -35,8 +35,10 @@ struct TextLayout {
 TextLayout layout_text(std::string_view text, const TextStyle& style, const FontMetrics& metrics,
                        const TextConstraints& constraints);
 
-// Advance of one shaped run in pixels. The callback is the metrics seam for measured wrapping: the
-// real-face path passes a HarfBuzz advance, the deterministic stub path uses layout_text directly.
+// Advance of one shaped run in pixels, excluding `word-spacing` (the wrap adds that per separator
+// itself, so the stub and measured paths agree). The callback is the metrics seam for measured
+// wrapping: the real-face path passes a HarfBuzz advance, the deterministic stub path uses
+// layout_text directly.
 using TextAdvanceMeasure = float (*)(std::string_view text, const TextStyle& style, void* user);
 
 // Same greedy line-box algorithm as layout_text, but line widths come from `measure` instead of the

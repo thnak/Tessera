@@ -15,9 +15,11 @@ namespace {
 float stub_advance(std::string_view run, const TextStyle& style, void* user) {
     const auto* metrics = static_cast<const FontMetrics*>(user);
     // The advance seam is literal: hit testing measures one cluster at a time, so a space cluster
-    // must advance one space even when the line's mode collapses or trims separator runs.
+    // must advance one space even when the line's mode collapses or trims separator runs. The wrap
+    // adds `word-spacing` itself; including it here too would double-count it.
     TextStyle literal = style;
     literal.white_space = WhiteSpace::Pre;
+    literal.word_spacing = 0.0f;
     return layout_text(run, literal, *metrics, TextConstraints{}).width;
 }
 

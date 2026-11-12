@@ -43,7 +43,11 @@ text::FontMetrics FontPaintTextMetrics::metrics(const text::TextStyle& style) co
 }
 
 float FontPaintTextMetrics::advance(std::string_view text, const text::TextStyle& style) const {
-    return impl_->shaper.shape(text, style).advance;
+    // Raw HarfBuzz advance plus the `word-spacing` the wrap added per separator: the painted cursor
+    // and the laid-out line use the same additive rule, so their sums agree.
+    const float spacing = style.word_spacing > 0.0f ? style.word_spacing : 0.0f;
+    return impl_->shaper.shape(text, style).advance +
+           spacing * static_cast<float>(text::word_separator_count(text));
 }
 
 text::TextLayout FontPaintTextMetrics::layout(std::string_view text, const text::TextStyle& style,
