@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+
+// Generated at configure time from the authored Vulkan GLSL by tests/gpu/CMakeLists.txt (ADR-049
+// drift guard, issue #92). Do not edit; edit
+// src/rendering/backend/vulkan/shaders/batched2d.{vert,frag} and re-configure instead.
+//
+// The TESSERA_GLSL raw-string delimiter does not occur in either shader, and the sources carry no
+// configure_file substitution tokens, so the embedded text is byte-for-byte the authored GLSL.
+
+#pragma once
+
+inline constexpr char kBatched2dVertGlsl[] =
+    R"TESSERA_GLSL(@TESSERA_BATCHED2D_VERT_GLSL@)TESSERA_GLSL";
+
+inline constexpr char kBatched2dFragGlsl[] =
+    R"TESSERA_GLSL(@TESSERA_BATCHED2D_FRAG_GLSL@)TESSERA_GLSL";
