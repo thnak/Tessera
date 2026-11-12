@@ -125,7 +125,9 @@ Consequences for existing decisions:
    extended to fail when those headers change and `version.hpp` and `CHANGELOG.md` do not
    (follow-up).
 7. While Tessera is pre-1.0, a major bump is allowed at any time, but items 3 to 6 still apply so
-   contributors get the same signals; the deprecation window is waived only when the PR says why.
+   contributors get the same signals. The ninety-day floor of item 5 starts to bind at the first
+   release that promises RHI compatibility to outside backends; before that, the window is waived
+   and the PR only needs to state the version impact and the replacement.
 
 ### 3. Backend conformance suite
 
@@ -159,7 +161,7 @@ Consequences for existing decisions:
 
 | Tier | Meaning | CI | Lives |
 |---|---|---|---|
-| 1 | Maintained by core; releases are blocked on it | Required on every PR (Vulkan on Windows and Linux lavapipe; WebGPU Emscripten compile, plus a Dawn-native or browser pixel lane once it exists; null; software) | in-tree under `src/rendering/` |
+| 1 | Maintained by core; releases are blocked on it | Required on every PR (Vulkan on Windows and Linux lavapipe; null; software; WebGPU joins only once the promotion conditions below hold) | in-tree under `src/rendering/` |
 | 2 | Community maintained, conformance passing for the current RHI major | Optional lane, run on a schedule and on RHI-touching PRs; failures notify the maintainer and do not block merges | in-tree under `src/rendering/backend/<name>/` only if the maintainer accepts the Tier-2 duties; otherwise out-of-tree |
 | 3 | Experimental, may be incomplete | none | out-of-tree, or in-tree behind a CMake option that is OFF by default and in no preset |
 
@@ -167,6 +169,13 @@ Tier-2 duties: a named maintainer; a README stating RHI version, supported platf
 a conformance run attached to each Tessera release candidate; a response within the deprecation
 window when the RHI changes. A backend that misses two consecutive release candidates drops to
 Tier 3. Promotion to Tier 1 needs core maintainer agreement and a CI lane core can operate.
+
+**WebGPU is Tier 2 until it can be checked.** Its device code has never been compiled (no
+Emscripten toolchain or `webgpu.h` was available when it was written) and its WGSL has not passed a
+validator, so a Tier-1 label would promise a CI guarantee nobody can run. It is promoted to Tier 1
+when both hold: a CI lane builds `tessera_webgpu` with Emscripten, and a WGSL validation step runs
+in CI. A Dawn-native or browser pixel lane against the reference scenes is the next step after that,
+not a promotion condition.
 
 **Stays in core** (changes need an ADR or spec change):
 
@@ -231,7 +240,9 @@ Negative and risks:
 - `PipelineDesc` changes; every backend and the batched 2D renderer's pipeline-creation call site
   is updated once (a minor bump: the field is defaulted and appended).
 - The conformance harness refactor touches many existing GPU tests before any new backend benefits.
-- Tolerance values are a guess until two different real backends exist; too loose hides bugs, too
+- Tolerance values are a guess until two different real backends exist; they are accepted as the
+  default and re-tuned after the first measurement on WebGPU, with per-scene overrides in the
+  meantime. Too loose hides bugs, too
   tight makes Tier 2 backends unmaintainable.
 - Optional cross-compilation lets backends diverge in text rendering and gradients unless the scene
   set covers those paths.
@@ -270,5 +281,6 @@ Negative and risks:
 6. Extend `docs/specs/dependencies.md` with a "backend build tools" section (SPIRV-Cross, Naga, Tint,
    DXC), marked not vendored until a backend needs one.
 7. Update ADR-011's status line to point here if this ADR is accepted.
-8. Ask the user to confirm: tolerance starting values, the 90-day deprecation floor, and whether
-   Tier 1 includes WebGPU before the Emscripten lane exists.
+8. Decided in review: the tolerance starting values stand as defaults to be re-tuned after the first
+   WebGPU measurement; the 90-day floor binds only from the first compatibility-promising release;
+   WebGPU stays Tier 2 until the Emscripten build lane and WGSL validation exist.
