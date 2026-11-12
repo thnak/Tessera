@@ -110,7 +110,10 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - `set(value, { onComplete: done })` names a parameterless inline setter handler of the same component (declared before or
   after the call; [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 9.2) and lowers to `animSet.onComplete`, its `handler::N`
   id (validated: same component, no parameters). The handler runs once when the value reaches that set's target, and a snap
-  completes immediately. A handler may complete into itself; the runtime bounds that, lowering only copies ids.
+  completes immediately. `AnimatedScalar` reports completion once (tween or spring landing, snap, reduced motion) and
+  drops it when a later set supersedes the set; the component records the handler per animated cell and
+  `tick_animations` runs it from the scheduler tick, never inside the setter. A handler may complete into itself; that is
+  bounded to one hop per frame, and lowering only copies ids.
 - Animated values can drive style properties, transforms, or chart data.
 - Implemented: `ui::animation::AnimatedScalar` (`include/tessera/ui/animation/animated_scalar.hpp`) is a clock-free scalar
   the owner ticks with the frame delta. `set(v, {duration, easing, animate})` retargets from the current value (no jump),
@@ -126,8 +129,8 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
   including components attached later. The window driver reads the Windows setting once at startup
   (`app::system_prefers_reduced_motion`, `SPI_GETCLIENTAREAANIMATION`); other platforms report false for now.
 - Not yet: reacting to a setting change while the app runs, the macOS/Linux/Android queries, `SpringRuntime` (springs on
-  style properties still has no owner in the host), and a completion callback for animated values.
-- Completion callbacks (including a generated component's `onComplete` handlers, delivered from the scheduler tick) are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
+  style properties still has no owner in the host), and completion callbacks for CSS animations and transitions.
+- Completion callbacks of async work are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 
 ## 7. Scheduling and power
