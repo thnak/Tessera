@@ -67,6 +67,10 @@ int finish(std::string_view name) {
     return 0;
 }
 
+// The CLI round-trip below is the only user of these helpers, and it is compiled out where the
+// test cannot spawn a subprocess (iOS/forbidden environments); defining them there would be an
+// unused-function warning, which is an error under -Werror.
+#if !defined(TESSERA_EMBED_TESTS_NO_SUBPROCESS)
 std::string read_file(const fs::path& path) {
     std::ifstream in(path, std::ios::binary);
     std::ostringstream text;
@@ -79,6 +83,7 @@ void write_file(const fs::path& path, std::string_view text) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     out.write(text.data(), static_cast<std::streamsize>(text.size()));
 }
+#endif // TESSERA_EMBED_TESTS_NO_SUBPROCESS
 
 std::string first_error(const codegen::CodegenResult& result) {
     if (result) {
