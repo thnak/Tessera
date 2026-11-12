@@ -176,6 +176,12 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
         result.needs_style = true;
         result.needs_layout = true;
     }
+
+    // Completion events go out after this frame's state is settled and outside the animation tick,
+    // so a listener may start new animations; wake the loop so they get their first tick.
+    if (animations_->dispatch_events() > 0 && !animations_->empty()) {
+        loop_->request_frame();
+    }
     return result;
 }
 

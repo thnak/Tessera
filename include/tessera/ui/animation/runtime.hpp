@@ -9,12 +9,29 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tessera::ui::animation {
 
 using AnimationId = std::uint64_t;
 using AnimationCallback = std::function<void(AnimationId)>;
+using AnimationListenerId = std::uint64_t;
+
+enum class AnimationKind : std::uint8_t { Animation, Transition };
+
+// animationend / transitionend analogue. `name` is the @keyframes name for an animation and the
+// transitioned property for a transition; `elapsed` is the active time in seconds (delay excluded).
+struct AnimationEvent {
+    AnimationId id = 0;
+    std::uint64_t target = 0;
+    AnimationKind kind = AnimationKind::Animation;
+    std::string name;
+    std::string property;
+    double elapsed = 0.0;
+};
+
+using AnimationEventListener = std::function<void(const AnimationEvent&)>;
 
 struct AnimationInput {
     std::uint64_t target = 0;
@@ -23,6 +40,7 @@ struct AnimationInput {
     AnimationCallback on_complete;
     std::string property;
     bool paused = false;
+    AnimationKind kind = AnimationKind::Animation;
 };
 
 struct AnimationEntry {
@@ -34,6 +52,7 @@ struct AnimationEntry {
     AnimationCallback on_complete;
     std::string property;
     bool paused = false;
+    AnimationKind kind = AnimationKind::Animation;
 };
 
 struct AnimationSample {
@@ -73,6 +92,16 @@ public:
     std::size_t stop_target_property(std::uint64_t target, std::string_view property);
     void clear();
 
+    // Listeners learn about natural completions only (never stop/clear/supersession). tick()
+    // queues events; dispatch_events() delivers them outside the tick mutation, so a listener may
+    // freely start, stop or restart animations or add/remove listeners. Returns events delivered.
+    AnimationListenerId add_event_listener(AnimationEventListener listener);
+    bool remove_event_listener(AnimationListenerId id);
+    std::size_t dispatch_events();
+    [[nodiscard]] std::size_t pending_events() const {
+        return pending_events_.size();
+    }
+
     [[nodiscard]] AnimationNameState target_name_state(std::uint64_t target,
                                                        std::string_view name) const;
 
@@ -101,7 +130,10 @@ public:
 private:
     std::vector<AnimationEntry> entries_;
     std::vector<AnimationEntry> fills_;
+    std::vector<AnimationEvent> pending_events_;
+    std::vector<std::pair<AnimationListenerId, AnimationEventListener>> listeners_;
     AnimationId next_id_ = 1;
+    AnimationListenerId next_listener_id_ = 1;
     bool reduced_motion_ = false;
 };
 

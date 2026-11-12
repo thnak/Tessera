@@ -73,6 +73,7 @@ AnimationId AnimationRuntime::start(AnimationInput input) {
     entry.on_complete = std::move(input.on_complete);
     entry.property = std::move(input.property);
     entry.paused = input.paused;
+    entry.kind = input.kind;
     fills_.erase(std::remove_if(fills_.begin(), fills_.end(),
                                 [&](const AnimationEntry& fill) {
                                     if (fill.target != entry.target) {
@@ -134,6 +135,15 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
     for (AnimationEntry& entry : finished) {
         const AnimationId id = entry.id;
         AnimationCallback callback = entry.on_complete;
+        AnimationEvent event;
+        event.id = id;
+        event.target = entry.target;
+        event.kind = entry.kind;
+        event.name =
+            entry.kind == AnimationKind::Transition ? entry.property : entry.keyframes.name;
+        event.property = entry.property;
+        event.elapsed = entry.timing.duration * entry.timing.iterations;
+        pending_events_.push_back(std::move(event));
         if (entry.timing.fill == FillMode::Forwards || entry.timing.fill == FillMode::Both) {
             fills_.push_back(std::move(entry));
         }
@@ -360,6 +370,45 @@ std::size_t AnimationRuntime::stop_target_property(std::uint64_t target,
 void AnimationRuntime::clear() {
     entries_.clear();
     fills_.clear();
+}
+
+AnimationListenerId AnimationRuntime::add_event_listener(AnimationEventListener listener) {
+    if (!listener) {
+        return 0;
+    }
+    const AnimationListenerId id = next_listener_id_++;
+    listeners_.emplace_back(id, std::move(listener));
+    return id;
+}
+
+bool AnimationRuntime::remove_event_listener(AnimationListenerId id) {
+    const auto found = std::find_if(listeners_.begin(), listeners_.end(),
+                                    [&](const auto& entry) { return entry.first == id; });
+    if (found == listeners_.end()) {
+        return false;
+    }
+    listeners_.erase(found);
+    return true;
+}
+
+std::size_t AnimationRuntime::dispatch_events() {
+    if (pending_events_.empty()) {
+        return 0;
+    }
+    std::vector<AnimationEvent> events;
+    events.swap(pending_events_);
+    const auto snapshot = listeners_;
+    for (const AnimationEvent& event : events) {
+        for (const auto& [id, listener] : snapshot) {
+            // A listener removed by an earlier listener in this dispatch must not run.
+            const bool alive = std::any_of(listeners_.begin(), listeners_.end(),
+                                           [&](const auto& entry) { return entry.first == id; });
+            if (alive) {
+                listener(event);
+            }
+        }
+    }
+    return events.size();
 }
 
 AnimationNameState AnimationRuntime::target_name_state(std::uint64_t target,
