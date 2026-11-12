@@ -231,6 +231,9 @@ This page is the map and reading order for the framework.
 - [`design/service-resolve-benchmark.md`](design/service-resolve-benchmark.md) — measured cost of
   resolving app services (per call, per mount, cache effects, virtual vs static dispatch) behind
   ADR-050's resolve-at-mount rule
+- [`design/app-framework-open-questions.md`](design/app-framework-open-questions.md) — proposed
+  answers to ADR-050's open questions (background work, scopes, multi-window, SQLite, HTTP, state,
+  startup, default modules, surfaces) and the spec contradictions they would fix
 - [`design/security.md`](design/security.md) — threat model, compiler/runtime/designer,
   supply chain, privacy
 - [`design/testing.md`](design/testing.md) — test pyramid, determinism, goldens, CI

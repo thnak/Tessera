@@ -532,26 +532,30 @@ Decided (2026-11-12, see Owner decisions):
 - **Resolution mechanism**: frozen registry, resolve once at mount, never in the frame path
   (section 3).
 
-Still open:
+### Proposed answers to open questions
 
-1. **OS-scheduled background work** (WorkManager, BGTaskScheduler, foreground services): V1 or
-   later? On desktop, is a tray-resident app (`quitOnLastWindowClosed = false`) in scope?
-2. **Route-scoped services**: app and window scopes only in V1, or route scopes too?
-3. **Multi-window**: one `Application` with several `WindowHost`s in V1? (The startup spec defers
-   several windows per App subtree; `app-host.md` expects one host per window.)
-4. **Database**: in-tree SQLite adapter (public domain, statically linkable) or community only?
-5. **Networking stack**: platform HTTP stacks (WinHTTP, NSURLSession, Android) versus a vendored
-   one; this decides whether `net` back ends are in-tree.
-6. **State model**: are plain observables enough, or does devtools time-travel
-   ([`devtools-protocol-v1.md`](../docs/specs/devtools-protocol-v1.md)) require an action log
-   from the start? May TSX read manifest-listed service observables in render (lowered to a mount
-   subscription)?
-7. **Startup spec revision**: agree that `Application` (not the frame-loop `AppHost`) owns P1-P5,
-   that the C++ lifecycle API is part of V1, and when JSX lifecycle hooks arrive?
-8. **Default module set**: is `storage`, `navigation`, `restore`, `data`, `i18n` the right default
-   for the app template?
-9. **Native surfaces**: is worker rendering with texture handoff needed in V1, and is a direct OS
-   sub-surface (overlay plane, child swapchain) in scope?
+Still open. Each item gives the question and the **proposed answer** (not decided; options,
+trade-offs, seams, risks, revisit triggers and the spec contradictions to fix are in
+[`app-framework-open-questions.md`](../docs/design/app-framework-open-questions.md)):
+
+1. **OS-scheduled background work; tray apps.** Proposed: WorkManager/BGTaskScheduler later (Big
+   Step F); tray-resident desktop apps in V1 (`Hidden` with zero windows); seams: window-less
+   `Application` start and a `BackgroundTask` interface.
+2. **Route-scoped services.** Proposed: app and window scopes only; per-route state in
+   `NavEntry.state`; scopes built as a parent chain so a route level is additive.
+3. **Multi-window.** Proposed: yes on desktop in V1, as its own slice after one loop and one device
+   per `Application` replace today's per-window device, loop and blocking `run()`.
+4. **Database.** Proposed: in-tree opt-in SQLite module (vendored amalgamation, I/O executor only),
+   not default-linked; ORMs and other engines community.
+5. **Networking.** Proposed: platform stacks in-tree (WinHTTP, NSURLSession, `fetch`, Android
+   later), libcurl only on Linux, one contract suite.
+6. **State model.** Proposed: plain observables plus a debug change trace, no action log; TSX reads
+   observables in render only via `useObservable(svc.member)`, a mount-time subscription.
+7. **Startup spec.** Proposed: `Application` owns P1-P5; C++ lifecycle API in V1; JSX reads a
+   built-in `AppLifecycle` service instead of new lifecycle hooks; `Launching` ends with P1.
+8. **Default modules.** Proposed: `storage`, `navigation`, `restore`, `i18n`; `data` opt-in.
+9. **Native surfaces.** Proposed: no worker rendering or OS sub-surfaces in V1; restrict
+   `on_render` now so it can move to a worker later.
 
 ## Follow-up (if accepted)
 
