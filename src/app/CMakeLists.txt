@@ -5,6 +5,8 @@
 # device; window runners and headless tests drive it.
 add_library(tessera_app STATIC
     host.cpp
+    host_impl.hpp
+    host_theme.cpp
     system_motion.cpp)
 
 target_include_directories(tessera_app PUBLIC

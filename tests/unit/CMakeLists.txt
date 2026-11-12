@@ -250,6 +250,16 @@ target_link_libraries(app_host_stylesheet_tests PRIVATE tessera_app tessera_runt
 
 add_test(NAME app_host_stylesheet COMMAND app_host_stylesheet_tests)
 
+# Embedded theme asset registration (issue #81, ADR-048): the host loads the generated blob, injects
+# only the active theme's tokens, switches themes and rejects a corrupt blob without losing the
+# current theme. Painting goes through a deterministic CPU sink; no GPU, font or wall clock.
+add_executable(app_host_theme_tests
+    app_host_theme_tests.cpp)
+
+target_link_libraries(app_host_theme_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME app_host_theme COMMAND app_host_theme_tests)
+
 # The window driver stops after a bounded run of frame failures instead of spinning or hanging.
 add_executable(app_frame_guard_tests
     app_frame_guard_tests.cpp)
@@ -651,6 +661,15 @@ add_executable(stylesheet_blob_tests
 target_link_libraries(stylesheet_blob_tests PRIVATE tessera_style)
 
 add_test(NAME stylesheet_blob COMMAND stylesheet_blob_tests)
+
+# Theme asset model (issue #81, ADR-048; stylesheet-v1.md section 9.1): the build-time parse with
+# the spec's typed errors, the token-missing warning, and the deterministic blob round-trip.
+add_executable(theme_asset_tests
+    theme_asset_tests.cpp)
+
+target_link_libraries(theme_asset_tests PRIVATE tessera_style)
+
+add_test(NAME theme_asset COMMAND theme_asset_tests)
 
 add_executable(property_registry_tests
     property_registry_tests.cpp)

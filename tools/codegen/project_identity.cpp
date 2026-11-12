@@ -76,6 +76,41 @@ bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& i
     return true;
 }
 
+// Reads the optional `assets.theme` path: a non-empty project-relative file name (no absolute path,
+// drive letter or `..` escape). Returns false and sets `why` on a malformed entry; an absent
+// `assets`/`assets.theme` is valid and means the project has no theme asset.
+bool read_theme(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
+                std::string& why) {
+    const tessera::harness::JsonValue* assets = config.find("assets");
+    if (assets == nullptr || assets->is_null()) {
+        return true;
+    }
+    if (!assets->is_object()) {
+        why = "`assets` must be an object";
+        return false;
+    }
+    const tessera::harness::JsonValue* theme = assets->find("theme");
+    if (theme == nullptr || theme->is_null()) {
+        return true;
+    }
+    const std::optional<std::string_view> value = theme->as_string();
+    if (!value || value->empty()) {
+        why = "`assets.theme` must be a non-empty project-relative path";
+        return false;
+    }
+    std::string path(*value);
+    std::replace(path.begin(), path.end(), '\\', '/');
+    const bool absolute = path.front() == '/' || (path.size() > 1 && path[1] == ':');
+    const bool escapes = path == ".." || path == "." || path.starts_with("../") ||
+                         path.find("/../") != std::string::npos || path.ends_with("/..");
+    if (absolute || escapes) {
+        why = "theme asset `" + path + "` must be a project-relative file";
+        return false;
+    }
+    identity.theme = std::move(path);
+    return true;
+}
+
 std::optional<fs::path> find_config(const fs::path& start) {
     for (fs::path dir = start;; dir = dir.parent_path()) {
         std::error_code error;
@@ -141,6 +176,10 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
     std::string package_error;
     if (!read_packages(*parsed, identity, package_error)) {
         return fail(package_error);
+    }
+    std::string theme_error;
+    if (!read_theme(*parsed, identity, theme_error)) {
+        return fail(theme_error);
     }
     if (!identity.salt.empty()) {
         return identity;

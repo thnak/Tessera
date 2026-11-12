@@ -304,6 +304,9 @@ pair (section 9.2).
   nothing but its own state; the framework does not link them automatically in V1.
 - The compiler embeds the asset in the generated program; changing it needs a rebuild, and the designer
   reloads it on `asset.update`.
+- The embedded form is the versioned theme asset blob of
+  [`compiled-stylesheet-v1.md`](compiled-stylesheet-v1.md) section 11; the runtime loads it without
+  parsing JSON.
 
 ### 9.2 Reserved chrome tokens
 

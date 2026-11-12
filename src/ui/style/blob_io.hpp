@@ -6,6 +6,7 @@
 #include <cstring>
 #include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -54,6 +55,11 @@ public:
         table_.push_back(value);
         lookup_.emplace(value, index);
         u32(index);
+    }
+    // Length-prefixed UTF-8 bytes, not interned (the theme blob has no string table).
+    void raw_string(std::string_view value) {
+        u32(static_cast<std::uint32_t>(value.size()));
+        body_.insert(body_.end(), value.begin(), value.end());
     }
 
     [[nodiscard]] const std::vector<std::string>& table() const {

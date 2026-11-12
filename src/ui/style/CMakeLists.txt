@@ -17,6 +17,9 @@ add_library(tessera_style STATIC
     supports.cpp
     selector.cpp
     selector_match.cpp
+    theme_asset.cpp
+    theme_asset_blob.cpp
+    theme_stylesheet.cpp
     tokenizer.cpp
     transform.cpp
     var_resolve.cpp)
@@ -25,5 +28,8 @@ target_include_directories(tessera_style PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_link_libraries(tessera_style PUBLIC tessera_scene)
+# The theme asset is parsed at build time with the harness JSON decoder
+# (docs/specs/stylesheet-v1.md section 9.1); the engine never parses it at run time.
+target_link_libraries(tessera_style PRIVATE tessera_harness)
 
 target_compile_features(tessera_style PUBLIC cxx_std_23)

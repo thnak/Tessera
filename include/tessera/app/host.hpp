@@ -16,10 +16,15 @@
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 #include "tessera/ui/style/stylesheet_blob.hpp"
+#include "tessera/ui/style/theme_asset.hpp"
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <span>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace tessera::ui::text {
 class TextMeasurer;
@@ -133,6 +138,29 @@ public:
 
     // Sheets skipped by the most recent register_embedded_stylesheets() call.
     [[nodiscard]] std::size_t rejected_stylesheet_count() const;
+
+    // Installs the project's embedded theme asset (issue #81, ADR-048) once, before frames. The
+    // blob is loaded with `load_theme_asset_blob` — the asset JSON is never parsed at run time —
+    // and the asset's `start` theme becomes active. Calling this again replaces the asset. A blob
+    // that fails to load never throws and never applies: one
+    // `TESSERA_THEME_BLOB_INVALID: <code>: <message>` line goes to stderr, the current theme is
+    // left untouched, and rejected_theme_count() reports it.
+    void register_embedded_theme(std::span<const std::uint8_t> bytes);
+
+    // Activates one theme id of the installed asset; false (and no change) for an unknown id.
+    // Only that theme's tokens are injected: the host rebuilds the cascade with the generated
+    // `:root` rule, marks style, paint and render dirty, rebuilds the selector tree and drops the
+    // paint cache, so the next begin_frame() re-resolves styles. Wakes the runtime loop.
+    bool set_theme(std::string_view id);
+
+    // Theme ids of the installed asset: `default` first, then the `themes` keys in asset order.
+    [[nodiscard]] std::vector<std::string> theme_ids() const;
+    [[nodiscard]] const std::string& active_theme() const;
+    // The value the active theme injects for `name`. A reserved chrome token the theme leaves out
+    // reports the built-in value (stylesheet-v1.md section 9.2); anything else is nullopt.
+    [[nodiscard]] std::optional<std::string_view> theme_token(std::string_view name) const;
+    // Theme blobs rejected by the most recent register_embedded_theme() call.
+    [[nodiscard]] std::size_t rejected_theme_count() const;
 
     // Installs the per-window update scheduler. Its flush runs before animation, style and layout
     // of every begin_frame(), so generated components' schedule_update() tickets apply in the frame
