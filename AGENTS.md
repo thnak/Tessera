@@ -219,8 +219,8 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tests/gpu/harness_frame_capture_tests.cpp`, `tests/golden/baseline/harness/fixture_golden.png`.
 - [x] **B2:** Wider CPU goldens (borders, clips, gradients) — bit-exact on every platform —
       `tests/gpu/cpu_wide_golden_tests.cpp`, `tests/golden/baseline/cpu_wide/`.
-- [ ] **B2:** Host-owned `CaretBlink` in `WindowHost` — toggles under `ManualClock`; idle when
-      unfocused.
+- [x] **B2:** Host-owned `CaretBlink` in `WindowHost` — toggles under `ManualClock`; idle when
+      unfocused — `src/app/window_lifecycle.cpp`, `tests/gpu/app_window_caret_tests.cpp`.
 - [ ] **B2:** `scrollIntoView` reveals an unrealized virtual item via `VirtualRange` — harness
       script.
 - [x] **B2:** Compile the POSIX `poll` path of `LineTransport::wait_readable` — real POSIX stdio

@@ -16,6 +16,10 @@ namespace tessera::rendering::rhi {
 class Device;
 }
 
+namespace tessera::runtime {
+class Clock;
+}
+
 namespace tessera::ui {
 struct InputEvent;
 }
@@ -41,6 +45,10 @@ struct WindowOptions {
     double max_fps = 0.0;
     std::string font_path;
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
+    // Borrowed time source for the host-owned caret blink (docs/specs/text-editing-v1.md section
+    // 12). Null keeps the HAL monotonic clock; tests inject a ManualClock so blink phases are
+    // deterministic. It is the caret tick clock only: frame dt and pacing stay on the system clock.
+    runtime::Clock* clock = nullptr;
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
@@ -65,6 +73,9 @@ struct WindowFrameStats {
     std::uint32_t full_repaints = 0;
     std::uint32_t idle_waits = 0;
     std::uint32_t input_events = 0;
+    // Caret visibility flips produced by a blink tick (two per visible+hidden period). A flip
+    // requests exactly one frame, so this also counts the caret's frames.
+    std::uint32_t caret_blinks = 0;
     // Loop iterations that parked because the window was occluded/minimized. They acquire, paint
     // and present nothing and are not counted as idle_waits (different reason, same no-work rule).
     std::uint32_t paused_iterations = 0;
@@ -101,6 +112,12 @@ struct WindowFrameStats {
 // the swapchain, renderer, glyph atlas and sink for the current window metrics before repainting a
 // full frame. The attempt budget is app/recovery_policy.hpp; when it is spent (or the presentation
 // stack cannot be rebuilt) run() returns with stats.stalled and stats.device_state == Lost.
+//
+// The host owns the window's caret blink (docs/specs/text-editing-v1.md section 12): the app
+// expresses focus/editability/selection through set_caret_active(), a painter reads
+// caret_visible(), and each iteration of run()/pump_once() ticks the blink against the configured
+// clock. A flip requests exactly one frame; while the caret is inactive, or while the window is
+// paused, nothing ticks and the loop stays idle with no presents.
 //
 // One window per host (docs/design/app-host.md section 5). The host is single-threaded and must be
 // created, run and destroyed on the same thread as the window.
@@ -146,6 +163,16 @@ public:
     // is resized, the AppHost re-lays out at the new logical size and the next frame is requested.
     // Tests use it to exercise the resize path without an OS-driven window resize.
     void apply_metrics(const hal::WindowMetrics& metrics);
+
+    // The app's one focus/editability/selection input for the caret: pass `focused && !read_only &&
+    // !has_selection` (EditController::caret_blink_active). Deactivating hides the caret and stops
+    // ticking, so a focused-out window requests no frames at all; activating shows it immediately
+    // and restarts the cycle at the clock's current time, requesting one frame for the showing.
+    void set_caret_active(bool active);
+
+    // What a painter reads: the caret's current visibility (false while inactive). Paint itself
+    // stays timer-free; the driver is the only owner of the blink state.
+    [[nodiscard]] bool caret_visible() const;
 
     [[nodiscard]] const WindowFrameStats& stats() const;
     // The host the driver feeds; expose for tests and late root style changes. Reference is stable

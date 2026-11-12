@@ -475,6 +475,14 @@ publish_caret_visibility(*paint_data.decoration, blink);  // caret_visible + bli
   damage pass keeps the whole text node (it skips its line-box tightening when a caret/selection
   decoration is present), which is conservative for a caret-only change; tighter caret-rect damage
   needs a paint-side caret rect and is deferred.
+- **Window driver ownership (implemented):** `WindowHost` owns one blink per window and ticks it
+  once per `run()`/`pump_once()` iteration against `WindowOptions::clock` (a `ManualClock` in
+  tests). `WindowHost::set_caret_active()` is the focus policy input (`caret_blink_active`) and
+  `caret_visible()` is what a painter reads; each flip requests exactly one frame
+  (`WindowFrameStats::caret_blinks`), while an inactive caret or a paused window ticks nothing and
+  stays idle. The driver contract lives in
+  [`window-resize.md`](../design/window-resize.md) section 8.1 and the test is
+  `tests/gpu/app_window_caret_tests.cpp` (ctest `caret_blink_host`).
 
 Undo/redo history (implemented, task-69): `EditHistory`
 ([`edit_history.hpp`](../../include/tessera/ui/text/edit_history.hpp), library `tessera_text_edit`)
