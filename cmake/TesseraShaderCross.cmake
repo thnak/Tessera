@@ -13,7 +13,8 @@
 # with a status message; only glslc is mandatory. When tests are on, ctest validates every input
 # and output a tool can check: spirv-val, naga (generated and authored WGSL), dxc (HLSL).
 
-set(TESSERA_NAGA_VERSION_PIN "30.0.1")
+# One pin for CMake and scripts/ci/validate_wgsl.py.
+file(STRINGS ${PROJECT_SOURCE_DIR}/tools/naga-version.txt TESSERA_NAGA_VERSION_PIN LIMIT_COUNT 1)
 
 find_program(TESSERA_CROSS_GLSLC NAMES glslc
     HINTS "${Vulkan_GLSLC_EXECUTABLE}" "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin")
