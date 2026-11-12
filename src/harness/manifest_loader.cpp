@@ -170,6 +170,13 @@ std::expected<AppManifest, AppConfigError> parse_manifest(std::string_view text)
         node.component_id = *component_id;
         node.kind = std::move(*kind);
         node.path = std::move(*path);
+        if (const JsonValue* name = entry.find("name"); name != nullptr) {
+            auto label = bounded_string(name, true);
+            if (!label.has_value()) {
+                return fail(AppConfigErrorCode::ManifestInvalid, "node name must be a string");
+            }
+            node.name = std::move(*label);
+        }
         if (const JsonValue* source = entry.find("source"); source != nullptr) {
             auto file = bounded_string(source->find("file"), true);
             if (!file.has_value()) {

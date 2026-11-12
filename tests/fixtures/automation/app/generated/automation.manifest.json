@@ -25,6 +25,7 @@
     {
       "componentId": "5000000000000000001",
       "kind": "Button",
+      "name": "Increment",
       "path": "Counter/root[0]/Button[1]",
       "source": { "column": 5, "file": "ui/Counter.tsx", "line": 7 },
       "uiId": "7000000000000000003"

@@ -70,6 +70,8 @@ int main() {
         expect(good->nodes.size() == 4, "nodes are read in order");
         expect(good->nodes[2].ui_id == 7000000000000000003ULL && good->nodes[2].kind == "Button",
                "ids decode from decimal strings");
+        expect(good->nodes[2].name == "Increment" && good->nodes[1].name.empty(),
+               "a node name is read and is optional");
         expect(good->nodes[3].line == 8 && good->nodes[3].source_file == "ui/Counter.tsx",
                "source positions are read");
     }
@@ -77,6 +79,8 @@ int main() {
                parse_manifest(fixture_manifest)->nodes.size() == good->nodes.size(),
            "parsing is repeatable");
 
+    rejects(manifest_with(R"({"componentId":"11","kind":"View","name":5,"path":"A","uiId":"1"})"),
+            AppConfigErrorCode::ManifestInvalid, "a non-string node name is invalid");
     rejects("not json", AppConfigErrorCode::ManifestInvalid, "garbage is invalid");
     rejects("[]", AppConfigErrorCode::ManifestInvalid, "a non-object is invalid");
     rejects(manifest_with("", "2"), AppConfigErrorCode::ManifestUnsupportedVersion,

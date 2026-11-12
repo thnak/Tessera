@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace tessera::compiler::ids {
@@ -33,6 +34,16 @@ std::string write_manifest(const ir::IrModule& module, std::string_view salt) {
             node.set("componentId", ir::JsonValue::string(component.component_id));
             node.set("kind",
                      ir::JsonValue::string(std::string(ir::node_kind_name(slot.node->kind))));
+            // A static aria-label is the node's accessible name; dynamic ones are unknown to a
+            // harness that never runs the app, so they are omitted rather than guessed.
+            if (const auto label = slot.node->props.find("aria-label");
+                label != slot.node->props.end() && label->second != nullptr &&
+                label->second->kind == ir::ExprKind::Literal) {
+                if (const auto* text = std::get_if<std::string>(&label->second->literal);
+                    text != nullptr && !text->empty()) {
+                    node.set("name", ir::JsonValue::string(*text));
+                }
+            }
             node.set("path", ir::JsonValue::string(slot.path));
             node.set("source", std::move(source));
             nodes.push(std::move(node));

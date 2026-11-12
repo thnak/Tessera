@@ -90,6 +90,9 @@ ManifestScene::ManifestScene(Node& root, const AppManifest& manifest) {
         Node& node = host.add_child(std::make_unique<Node>(node_id++));
         node.set_automation_id(entry.ui_id);
         configure(node, entry.kind);
+        if (!entry.name.empty()) {
+            (void)node.set_aria("aria-label", entry.name);
+        }
         by_path.emplace(entry.path, &node);
     }
 }

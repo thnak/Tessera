@@ -53,6 +53,7 @@ struct ManifestNode {
     std::uint64_t component_id = 0;
     std::string kind;
     std::string path;
+    std::string name; // static aria-label from the compiler; empty when the node has none
     std::string source_file;
     std::int64_t line = 0;
     std::int64_t column = 0;

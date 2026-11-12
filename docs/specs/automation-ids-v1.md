@@ -77,6 +77,7 @@ Manifest (`generated/automation.manifest.json`; the codegen CLI writes it as `au
       "uiId": "987654321098765432",
       "componentId": "1234567890123456789",
       "kind": "Button",
+      "name": "Increment",
       "path": "Counter/root[0]/Button[1]",
       "source": { "file": "ui/Counter.tsx", "line": 12, "column": 5 }
     }
@@ -84,6 +85,7 @@ Manifest (`generated/automation.manifest.json`; the codegen CLI writes it as `au
 }
 ```
 
+- `name` is optional and present only for a static string `aria-label`; a node without one omits it.
 - Manifest is deterministic and reviewed like generated code.
 - `uiId`/`componentId` map to debug path/name/source for agents and traces.
 - The manifest is the source of truth for automation; no runtime discovery of string paths.

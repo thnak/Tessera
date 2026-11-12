@@ -198,6 +198,21 @@ int main() {
     ok = expect(manifest == ids::write_manifest(again, "factory"),
                 "the same input gives a byte-identical manifest") &&
          ok;
+    ok = expect(manifest.find("\"name\": \"Save\"") == std::string::npos,
+                "a node without aria-label has no name") &&
+         ok;
+    module.components[0].root.children[1].props["aria-label"] =
+        ir::make_literal(std::string("Save"));
+    const std::string named = ids::write_manifest(module, "factory");
+    ok = expect(named.find("\"name\": \"Save\"") != std::string::npos,
+                "a static aria-label becomes the manifest name") &&
+         ok;
+    module.components[0].root.children[1].props["aria-label"] = ir::make_ref("ref::label");
+    ok = expect(ids::write_manifest(module, "factory").find("\"name\": \"Save\"") ==
+                    std::string::npos,
+                "a dynamic aria-label is omitted") &&
+         ok;
+    module.components[0].root.children[1].props.erase("aria-label");
     ok = expect(manifest.find("\"manifestVersion\": 1") != std::string::npos &&
                     manifest.find("\"projectSalt\": \"factory\"") != std::string::npos,
                 "the manifest names its version and salt") &&
