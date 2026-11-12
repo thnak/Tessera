@@ -206,8 +206,23 @@ starts:
 - Fill, play state, and easing are preserved.
 
 `SpringRuntime::set_reduced_motion(true)` snaps new springs to their target and snaps on retarget
-instead of integrating. Callers drive both setters from
-`style::MediaContext::prefers_reduced_motion`.
+instead of integrating. Turning it on also snaps springs already running (they finish on the next
+tick). Callers drive the animation runtime's setter from
+`style::MediaContext::prefers_reduced_motion`; the frame pipeline mirrors that flag onto its springs.
+
+### Spring ownership in the frame pipeline
+
+`FramePipeline` owns the `SpringRuntime` (`FramePipeline::springs()`, `AppHost::springs()`); start
+and retarget a style-property spring there with `SpringAnimationInput{target, property, from, to}`.
+Each `tick`, after the CSS animation runtime and before dirty marking, the pipeline:
+
+1. copies `AnimationRuntime::reduced_motion()` onto the springs;
+2. drops springs whose target node is no longer in the tree (no completion callback);
+3. ticks the springs with the same `dt` and merges their samples, `finished` ids, dirty bits and
+   `keep_awake` into `FrameTick::animation`, so dirty mapping (`dirty_for_declarations`) and paint
+   interpolation treat them like any other sample;
+4. calls `RuntimeLoop::request_frame()` while a spring runs and once on the settling tick. A settled
+   spring requests nothing, so static UI still idles with zero presents.
 
 The policy applies at start/retarget time. Changing the preference does not retroactively rewrite
 entries that are already running; restart or re-sync style animations when the preference changes.

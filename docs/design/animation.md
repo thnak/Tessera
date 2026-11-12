@@ -131,8 +131,7 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
   `WM_SETTINGCHANGE` with `SPI_SETCLIENTAREAANIMATION` into the OS-free `hal::WindowEventType::SystemSettingsChanged`,
   the driver re-queries, and `app::MotionPreference` lets `AppHost::set_reduced_motion` run (plus a requested frame so
   in-flight animations finish) only when the value changed. Other platforms report false for now.
-- Not yet: the macOS/Linux/Android queries and live change events, `SpringRuntime` (springs on
-  style properties still has no owner in the host), and completion callbacks for CSS animations and transitions.
+- Not yet: the macOS/Linux/Android queries and live change events, and wiring the CSS animation/transition end events to generated components.
 - Completion callbacks of async work are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 
