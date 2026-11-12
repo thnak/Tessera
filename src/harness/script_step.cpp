@@ -218,26 +218,28 @@ std::expected<ScriptStep, ScriptError> parse_script_step(const JsonValue& value,
         }
         if (is_scroll_into_view) {
             if (const JsonValue* item_index = value.find("itemIndex"); item_index != nullptr) {
-                const auto parsed = item_index->as_integer();
-                if (!parsed.has_value() || *parsed < 0 ||
-                    static_cast<std::uint64_t>(*parsed) > std::numeric_limits<std::size_t>::max()) {
+                const auto item_index_value = item_index->as_integer();
+                if (!item_index_value.has_value() || *item_index_value < 0 ||
+                    static_cast<std::uint64_t>(*item_index_value) >
+                        std::numeric_limits<std::size_t>::max()) {
                     return unexpected(script_error(ScriptErrorCode::InvalidStep,
                                                    "step.itemIndex must be a non-negative integer",
                                                    "itemIndex", index));
                 }
-                step.item_index = static_cast<std::size_t>(*parsed);
+                step.item_index = static_cast<std::size_t>(*item_index_value);
             }
             if (const JsonValue* alignment = value.find("alignment"); alignment != nullptr) {
-                const auto text = read_string(alignment, 16);
-                const auto parsed =
-                    text.has_value() ? scroll_alignment_from_string(*text) : std::nullopt;
-                if (!parsed.has_value()) {
+                const auto alignment_text = read_string(alignment, 16);
+                const auto alignment_value = alignment_text.has_value()
+                                                 ? scroll_alignment_from_string(*alignment_text)
+                                                 : std::nullopt;
+                if (!alignment_value.has_value()) {
                     return unexpected(
                         script_error(ScriptErrorCode::InvalidStep,
                                      "step.alignment must be start, center, end, or nearest",
                                      "alignment", index));
                 }
-                step.alignment = *parsed;
+                step.alignment = *alignment_value;
             }
             if (step.item_key.has_value() && step.item_index.has_value()) {
                 return unexpected(script_error(ScriptErrorCode::InvalidStep,
