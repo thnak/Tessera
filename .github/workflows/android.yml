@@ -58,14 +58,6 @@ jobs:
       - name: ccache statistics
         run: ccache --show-stats
 
-      # The hosted runner occasionally loses its adb server before the emulator starts
-      # ("Unable to connect to adb daemon on port: 5037"); starting it explicitly keeps that
-      # failure inside the emulator step instead of the action's setup.
-      - name: Start adb server
-        run: |
-          adb start-server || true
-          adb devices
-
       - name: Run unit and null-GPU tests on emulator
         id: emulator_tests
         continue-on-error: true
