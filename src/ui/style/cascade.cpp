@@ -218,7 +218,8 @@ bool ComputedStyle::contains(std::string_view property) const {
     return find(property) != nullptr;
 }
 
-ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade) {
+ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,
+                            std::vector<StyleDiagnostic>* diagnostics) {
     ComputedStyle style;
     if (parent != nullptr) {
         for (const auto& [property, value] : parent->properties()) {
@@ -231,6 +232,9 @@ ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cas
     for (const CascadeDeclaration& declaration : cascade.winners()) {
         apply_keyword(style, declaration.property, declaration.value, parent);
     }
+    // var() is resolved at computed-value time (stylesheet-v1 section 9), after inheritance and
+    // the cascade so custom properties from both are visible to every dependent declaration.
+    resolve_variables(style, parent, diagnostics);
     return style;
 }
 

@@ -251,6 +251,13 @@ build-time and runtime.
 - `@property` registration is parsed in V1.1; until then, all custom properties are untyped
   token streams.
 - The tokens of the active theme are injected as a generated `:root` rule with origin `theme` (section 9.1).
+- V1 limit: a shorthand whose value contains `var()` is expanded to longhands before substitution
+  (shorthands are expanded when the sheet is prepared), so the token must resolve to a single
+  component value; write the longhands when the token holds several components. `var()` inside a
+  quoted string is a literal string, never a reference.
+- A reference with no usable value and no fallback follows `unset` semantics and reports
+  `TESSERA_CSS_UNRESOLVED_VAR`; every member of a dependency cycle becomes invalid and reports
+  `TESSERA_CSS_VAR_CYCLE` (section 15).
 
 ### 9.1 Theme asset
 

@@ -150,25 +150,33 @@ ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Nod
 
     AncestorContainers containers(container_size, container_context);
     const bool use_containers = container_size != nullptr && sheet.has_container_queries();
-    ComputedStyle result;
-    const ComputedStyle* parent = nullptr;
+    // Keep every computed style of the chain: the node's parent value is needed to resolve a
+    // `var()` in an inline declaration that ends up invalid at computed-value time.
+    std::vector<ComputedStyle> styles;
+    styles.reserve(chain.size());
     for (std::size_t i = 0; i < chain.size(); ++i) {
-        ComputedStyle next =
-            sheet.compute(*chain[i], parent, use_containers ? &containers : nullptr);
-        result = std::move(next);
-        parent = &result;
+        const ComputedStyle* parent = i == 0 ? nullptr : &styles.back();
+        styles.push_back(sheet.compute(*chain[i], parent, use_containers ? &containers : nullptr));
         if (use_containers && i + 1 < chain.size()) {
-            containers.push(*nodes[i], result);
+            containers.push(*nodes[i], styles.back());
         }
     }
     // Inline declarations win over the cascade (Origin::Inline). They are already bounded and
     // borrowed on the node; the registry expands shorthands into longhands.
+    ComputedStyle result = std::move(styles.back());
+    const bool has_inline = !node.inline_style().empty();
     for (const Node::InlineStyleDeclaration& declaration : node.inline_style()) {
         Declaration parsed{std::string(declaration.name), std::string(declaration.value), false};
         const PropertyExpansionResult expanded = sheet.registry().expand(parsed);
         for (const Declaration& longhand : expanded.declarations) {
             result.set(longhand.property, longhand.value);
         }
+    }
+    if (has_inline) {
+        // Inline declarations may define or override custom properties on this node, so the
+        // substitution runs again with the parent style as the inheritance fallback.
+        const ComputedStyle* parent = styles.size() > 1 ? &styles[styles.size() - 2] : nullptr;
+        resolve_variables(result, parent);
     }
     return result;
 }

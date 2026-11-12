@@ -188,8 +188,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `src/runtime/{async,worker_executor,task,io_executor}.cpp`.
 - [x] **B2:** Pixel goldens via lavapipe/CPU — `batched2d_golden`, `batched2d_cpu_golden` in
       `tests/gpu/CMakeLists.txt`.
-- [ ] **B2:** Stylesheet: `var()` substitution (custom properties parse but never resolve) —
-      cascade tests; then `text-transform`, `word-spacing` as separate slices.
+- [x] **B2:** Stylesheet: `var()` substitution with inheritance, fallback and cycle detection —
+      `src/ui/style/var_resolve.cpp`, `tests/unit/cascade_tests.cpp`, `tests/unit/style_var_tests.cpp`.
+- [ ] **B2:** Stylesheet: `text-transform` (`uppercase`/`lowercase`/`capitalize`) — text paint test.
+- [ ] **B2:** Stylesheet: `word-spacing` — text layout test.
 - [ ] **B2:** Text stack done except ICU in CI: add the `icu-text` job
       (`TESSERA_ICU_REDUCED_DATA=ON`, filtered text ctest).
 - [ ] **B2:** Dirty rendering done except per-node paint caches — clean subtrees are not
