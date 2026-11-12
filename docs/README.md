@@ -170,6 +170,8 @@ This page is the map and reading order for the framework.
   layout, shaders
 - [`design/gpu/backends.md`](design/gpu/backends.md) — Vulkan/WebGPU/null/software parity and
   capabilities
+- [`design/gpu/webgpu-backend.md`](design/gpu/webgpu-backend.md) — WebGPU backend first slice: RHI
+  requirements, mapping tables, WGSL registry, unbuilt device skeleton
 - [`design/gpu/testing.md`](design/gpu/testing.md) — GPU test pyramid/tree, goldens, CI
 - [`design/antialiasing.md`](design/antialiasing.md) — current SDF (signed distance field) AA, text/path/MSAA gaps
 - [`design/startup-and-loading.md`](design/startup-and-loading.md) — startup, loading screen,
