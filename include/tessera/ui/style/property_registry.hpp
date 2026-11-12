@@ -19,22 +19,6 @@ struct PropertyInfo {
     bool inherited = false;
 };
 
-enum class StyleDiagnosticKind : std::uint8_t {
-    UnsupportedProperty,
-    // A recognised property whose value uses a form V1 does not implement (box-shadow `inset`,
-    // 3D transform functions). The declaration is kept; the engine ignores the unsupported part.
-    UnsupportedValue,
-    InvalidShorthand,
-    InvalidAtRule,
-};
-
-struct StyleDiagnostic {
-    StyleDiagnosticKind kind = StyleDiagnosticKind::UnsupportedProperty;
-    std::size_t offset = 0;
-    std::string property;
-    std::string message;
-};
-
 struct PropertyExpansionResult {
     std::vector<Declaration> declarations;
     std::vector<StyleDiagnostic> diagnostics;

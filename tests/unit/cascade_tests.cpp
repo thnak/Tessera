@@ -2,6 +2,7 @@
 
 #include "tessera/ui/style/cascade.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -17,6 +18,8 @@ using tessera::ui::style::ComputedStyle;
 using tessera::ui::style::Declaration;
 using tessera::ui::style::Origin;
 using tessera::ui::style::Specificity;
+using tessera::ui::style::StyleDiagnostic;
+using tessera::ui::style::StyleDiagnosticKind;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -240,6 +243,119 @@ int main() {
     if (!expect(table.winner("color")->value == "layered-important",
                 "layered important beats unlayered important")) {
         return 23;
+    }
+
+    const auto count_kind = [](const std::vector<StyleDiagnostic>& diagnostics,
+                               StyleDiagnosticKind kind) {
+        return std::count_if(
+            diagnostics.begin(), diagnostics.end(),
+            [kind](const StyleDiagnostic& diagnostic) { return diagnostic.kind == kind; });
+    };
+
+    // var(): computed-value substitution covers a bare reference, a fallback, a nested reference,
+    // case-insensitive and whitespace-padded syntax, and never rewrites a quoted string.
+    CascadeTable var_table;
+    var_table.add(decl("--accent", "#ff0000", Origin::Author, 1));
+    var_table.add(decl("--tx", "1px", Origin::Author, 2));
+    var_table.add(decl("--ty", "2px", Origin::Author, 3));
+    var_table.add(decl("--chain", "var(--tx)", Origin::Author, 4));
+    var_table.add(decl("color", "var(--accent)", Origin::Author, 5));
+    var_table.add(decl("border-top-width", "var(--missing, 2px)", Origin::Author, 6));
+    var_table.add(decl("transform", "translate(var(--chain), var(--ty))", Origin::Author, 7));
+    var_table.add(decl("letter-spacing", "VAR( --accent )", Origin::Author, 8));
+    var_table.add(decl("font-family", "\"var(--accent)\"", Origin::Author, 9));
+    std::vector<StyleDiagnostic> var_diagnostics;
+    const ComputedStyle var_resolved = compute_style(nullptr, var_table, &var_diagnostics);
+    if (!expect(value_of(var_resolved, "color") != nullptr &&
+                    *value_of(var_resolved, "color") == "#ff0000",
+                "var resolves to the custom property value") ||
+        !expect(value_of(var_resolved, "border-top-width") != nullptr &&
+                    *value_of(var_resolved, "border-top-width") == "2px",
+                "var fallback applies when the reference is missing") ||
+        !expect(value_of(var_resolved, "transform") != nullptr &&
+                    *value_of(var_resolved, "transform") == "translate(1px, 2px)",
+                "nested var and multiple references substitute") ||
+        !expect(value_of(var_resolved, "letter-spacing") != nullptr &&
+                    *value_of(var_resolved, "letter-spacing") == "#ff0000",
+                "var name is trimmed and matched case-insensitively") ||
+        !expect(value_of(var_resolved, "font-family") != nullptr &&
+                    *value_of(var_resolved, "font-family") == "\"var(--accent)\"",
+                "var inside a quoted string is literal") ||
+        !expect(var_diagnostics.empty(), "successful resolution reports no diagnostic")) {
+        return 24;
+    }
+
+    // Custom properties inherit, so a child resolves a reference to a parent token.
+    ComputedStyle var_parent;
+    var_parent.set("--accent", "blue");
+    var_parent.set("color", "green");
+    CascadeTable inherited_var_table;
+    inherited_var_table.add(decl("color", "var(--accent)", Origin::Author, 1));
+    inherited_var_table.add(decl("width", "var(--gap, 5px)", Origin::Author, 2));
+    const ComputedStyle inherited_var = compute_style(&var_parent, inherited_var_table);
+    if (!expect(value_of(inherited_var, "color") != nullptr &&
+                    *value_of(inherited_var, "color") == "blue",
+                "inherited custom property resolves") ||
+        !expect(value_of(inherited_var, "width") != nullptr &&
+                    *value_of(inherited_var, "width") == "5px",
+                "fallback applies in a child")) {
+        return 25;
+    }
+
+    // Invalid at computed-value time behaves like `unset`: inherited properties keep the parent
+    // value and every other property is dropped for the initial-value pass.
+    ComputedStyle unset_parent;
+    unset_parent.set("color", "green");
+    CascadeTable unresolved_table;
+    unresolved_table.add(decl("color", "var(--missing)", Origin::Author, 1));
+    unresolved_table.add(decl("width", "var(--missing)", Origin::Author, 2));
+    std::vector<StyleDiagnostic> unresolved_diagnostics;
+    const ComputedStyle unresolved =
+        compute_style(&unset_parent, unresolved_table, &unresolved_diagnostics);
+    if (!expect(value_of(unresolved, "color") != nullptr &&
+                    *value_of(unresolved, "color") == "green",
+                "unresolved var inherits the parent value") ||
+        !expect(!unresolved.contains("width"), "unresolved var drops a non-inherited property") ||
+        !expect(count_kind(unresolved_diagnostics, StyleDiagnosticKind::UnresolvedVar) == 2,
+                "each unresolved reference reports once")) {
+        return 26;
+    }
+
+    // A cycle invalidates every member; a consumer falls back instead of inheriting a cycle value.
+    CascadeTable cycle_table;
+    cycle_table.add(decl("--a", "var(--b)", Origin::Author, 1));
+    cycle_table.add(decl("--b", "var(--a)", Origin::Author, 2));
+    cycle_table.add(decl("color", "var(--a, teal)", Origin::Author, 3));
+    std::vector<StyleDiagnostic> cycle_diagnostics;
+    const ComputedStyle cycle = compute_style(nullptr, cycle_table, &cycle_diagnostics);
+    if (!expect(!cycle.contains("--a") && !cycle.contains("--b"), "cycle members are invalid") ||
+        !expect(value_of(cycle, "color") != nullptr && *value_of(cycle, "color") == "teal",
+                "cycle consumer uses the fallback") ||
+        !expect(count_kind(cycle_diagnostics, StyleDiagnosticKind::VarCycle) == 2,
+                "every cycle member reports once")) {
+        return 27;
+    }
+
+    // A self-reference is a cycle too, and a custom property with an unresolved reference is
+    // guaranteed-invalid for its consumers.
+    CascadeTable self_cycle_table;
+    self_cycle_table.add(decl("--self", "var(--self)", Origin::Author, 1));
+    self_cycle_table.add(decl("background-color", "var(--self, orange)", Origin::Author, 2));
+    self_cycle_table.add(decl("--broken", "var(--missing)", Origin::Author, 3));
+    self_cycle_table.add(decl("outline", "var(--broken, 3px)", Origin::Author, 4));
+    std::vector<StyleDiagnostic> self_cycle_diagnostics;
+    const ComputedStyle self_cycle =
+        compute_style(nullptr, self_cycle_table, &self_cycle_diagnostics);
+    if (!expect(!self_cycle.contains("--self"), "self reference is invalid") ||
+        !expect(value_of(self_cycle, "background-color") != nullptr &&
+                    *value_of(self_cycle, "background-color") == "orange",
+                "self-reference consumer uses the fallback") ||
+        !expect(!self_cycle.contains("--broken"), "unresolved custom property is invalid") ||
+        !expect(count_kind(self_cycle_diagnostics, StyleDiagnosticKind::VarCycle) == 1,
+                "self reference reports one cycle") ||
+        !expect(count_kind(self_cycle_diagnostics, StyleDiagnosticKind::UnresolvedVar) == 1,
+                "unresolved custom property reports once")) {
+        return 28;
     }
 
     std::cout << "cascade: ok\n";

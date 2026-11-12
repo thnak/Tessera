@@ -614,6 +614,13 @@ target_link_libraries(cascade_tests PRIVATE tessera_style)
 
 add_test(NAME cascade COMMAND cascade_tests)
 
+add_executable(style_var_tests
+    style_var_tests.cpp)
+
+target_link_libraries(style_var_tests PRIVATE tessera_style)
+
+add_test(NAME style_var COMMAND style_var_tests)
+
 add_executable(compiled_stylesheet_tests
     compiled_stylesheet_tests.cpp)
 
