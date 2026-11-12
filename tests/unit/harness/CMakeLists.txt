@@ -58,6 +58,19 @@ target_link_libraries(harness_stdio_transport_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_stdio_transport COMMAND harness_stdio_transport_tests)
 
+# POSIX-only: the production stream always talks to the process's STDIN_FILENO/STDOUT_FILENO, and
+# the test drives it by pointing those descriptors at pipes with dup2(2). That has no Windows
+# equivalent without a console or named pipe, so the existing fake-stream suite above stays the
+# Windows coverage and this target is not configured there.
+if (UNIX)
+    add_executable(harness_stdio_transport_posix_tests
+        stdio_transport_posix_tests.cpp)
+
+    target_link_libraries(harness_stdio_transport_posix_tests PRIVATE tessera_harness)
+
+    add_test(NAME harness_stdio_transport_posix COMMAND harness_stdio_transport_posix_tests)
+endif ()
+
 add_executable(harness_handler_tests
     harness_handler_tests.cpp)
 

@@ -174,6 +174,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `harness_command_result` | result shapes per command, mismatch rejection, round-trips |
 | `harness_golden` | byte-pinned request/response lines, repeat determinism, 256-node payload |
 | `harness_stdio_transport` | readiness-probed stdio reads, WouldBlock vs EOF tail, bounded write queue, framing rejections keep stream position |
+| `harness_stdio_transport_posix` | real POSIX process stdio over pipes (UNIX only): `poll(2)` readiness and timeout, EOF tail, byte-identical write round trip, EPIPE, transport delegation |
 | `harness_handler` | host seam dispatch for every v1 command, artifact paths/caps, relative-path validation |
 | `harness_session` | bounded session executor: FIFO ordering, back-pressure, per-pump budgets, timeout, ordered shutdown |
 | `harness_session_stream` | full round trip including focus and scroll over a stream pair |
