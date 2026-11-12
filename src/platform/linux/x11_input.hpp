@@ -7,8 +7,18 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <cstdint>
+#include <string_view>
 
 namespace tessera::hal {
+
+// Optional gate for text an input method commits. A commit arrives as a KeyPress with keycode 0;
+// when a gate is installed the committed string is offered to it first. The pre-edit state machine
+// (x11_xi2_ime.cpp) returns true for text it already emitted as one EditText event, so the same
+// commit is never inserted twice.
+struct ImeCommitGate {
+    bool (*consume)(void* context, std::string_view text) = nullptr;
+    void* context = nullptr;
+};
 
 // Translates X11 core pointer, wheel, key and focus events into ui::InputEvent and pushes them into
 // the application's queue, in logical pixels. Everything runs on the window's owning thread, so the
@@ -31,6 +41,11 @@ public:
         context_ = context;
     }
 
+    // Installs the input-method commit gate; pass a null gate to remove it.
+    void set_ime_commit_gate(ImeCommitGate gate) {
+        ime_gate_ = gate;
+    }
+
     // Returns true when `event` was an input event this translator consumed. `scale` is the
     // window's DPI scale (physical / logical pixels). `auto_repeat` marks a KeyPress that the
     // caller identified as the second half of a release/press auto-repeat pair. `filtered` is
@@ -48,11 +63,12 @@ private:
                                                unsigned state, float scale);
     void key_event(const XKeyEvent& key, bool down, bool auto_repeat, bool filtered);
     void push_text(std::uint32_t codepoint, ui::Modifier modifiers) const;
-    void push_typed_text(const XKeyEvent& key, ui::Modifier modifiers);
+    void push_typed_text(const XKeyEvent& key, ui::Modifier modifiers, bool ime_commit);
     void cancel_pointer();
 
     ui::InputQueue* queue_ = nullptr;
     XIC context_ = nullptr;
+    ImeCommitGate ime_gate_{};
     std::uint32_t buttons_down_ = 0;
     float last_x_ = 0.0F;
     float last_y_ = 0.0F;

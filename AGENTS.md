@@ -234,7 +234,13 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       test — `src/harness/stdio_transport.cpp`, `tests/unit/harness/stdio_transport_posix_tests.cpp`.
 - [ ] **B3:** Wayland window + Vulkan surface (Win32/X11 incl. swapchain retirement and device-loss
       recovery done) — smoke test.
-- [ ] **B3:** Linux input: XInput2 scroll/touch/pen, IME pre-edit (#55) — synthetic pump tests.
+- [x] **B3:** Linux input: XInput2 scroll/touch/pen, IME pre-edit (#55) — synthetic pump
+      tests — `src/platform/linux/x11_xi2_translation.cpp` (valuator scroll, touch, pen),
+      `src/platform/linux/x11_ime_composition.cpp` (pre-edit state machine),
+      `tests/unit/x11_input_translation_xi2_tests.cpp`; the pump selects XI2 when present and
+      falls back to the unchanged core path. Touch/pen/XIM were exercised only at the
+      translation layer and on Xvfb (no touch/pen hardware, no IM server), and nothing paints
+      the pre-edit yet because there is no text editor.
 - [ ] **B3:** OS events: display capabilities, fold posture/hinge/occlusion (ADR-023, proposed).
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C
