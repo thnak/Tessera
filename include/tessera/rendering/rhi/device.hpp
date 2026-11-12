@@ -84,6 +84,18 @@ public:
     virtual void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) = 0;
     virtual void copy_target_to_buffer(const RenderTarget& target, Buffer& buffer) = 0;
 
+    // Resamples `source` into `destination`, stretching to cover the destination's whole extent
+    // with `filter`. This is the seam that lets a frame render into a smaller target and present it
+    // at the window's physical size (adaptive render scale, docs/design/performance.md section 6).
+    // `source` must be a rendered, non-presentable target; `destination` may be a swapchain image,
+    // in which case the submission that records the blit also carries the acquire wait and the
+    // present semaphore exactly like a render pass into that image would. Both targets must be
+    // 1-sample and format-compatible (the same format in practice). A backend without a filtered
+    // blit throws here; consumers that present through a swapchain ask
+    // Swapchain::supports_scaled_present() first, so that call never reaches a frame.
+    virtual void blit_target(const RenderTarget& source, const RenderTarget& destination,
+                             Filter filter) = 0;
+
     // Synchronous submit: returns once the GPU has finished. For offscreen rendering, readback
     // and tests only; frame code on the UI thread uses submit_async().
     virtual void submit() = 0;

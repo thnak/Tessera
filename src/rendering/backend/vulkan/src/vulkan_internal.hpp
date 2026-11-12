@@ -496,6 +496,8 @@ public:
     void push_constants(const void* data, std::size_t size) override;
     void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) override;
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override;
+    void blit_target(const rhi::RenderTarget& source, const rhi::RenderTarget& destination,
+                     rhi::Filter filter) override;
     void submit() override;
     void submit_async() override;
     [[nodiscard]] bool is_complete() const override;
@@ -514,6 +516,9 @@ private:
     VkPipelineLayout current_layout_ = VK_NULL_HANDLE;
     std::uint32_t current_pipeline_sample_count_ = 1;
     const VulkanRenderTarget* current_target_ = nullptr;
+    // True when the submission's presentable target was written by blit_target() rather than a
+    // render pass: the acquire semaphore wait must then be scoped to the transfer stage.
+    bool present_written_by_transfer_ = false;
     bool recording_ = false;
     bool render_pass_active_ = false;
     bool submitted_ = false;

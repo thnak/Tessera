@@ -4,9 +4,11 @@
 // docs/specs/runtime-config-v1.md sections 5.6, 5.7 and 6.2).
 //
 // One frame observation in, one decision out: no clock, no RNG, no locale, no allocation (not even
-// at construction). This slice decides and reports; it does NOT scale a render target. The
-// configured `renderScale` has no consumer yet, so a downgrade here changes a reported number,
-// never a pixel. The follow-up slice is the render-target consumer.
+// at construction). This file is the only hysteresis authority: the render-target consumer
+// (src/ui/scale/render_target_extent.hpp, driven by the app window) reads the decision and never
+// re-implements a threshold or a step. The decision moves the adaptive render scale only; the
+// monitor-derived device scale, layout and glyph rasterization are separate values and do not
+// change with it.
 
 #pragma once
 

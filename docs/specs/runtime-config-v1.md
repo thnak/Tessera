@@ -88,7 +88,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `allowTearing` | boolean | `false` | | Required for `vsync=off` on platforms that gate tearing. |
 | `maxFrameDeltaMs` | number | `250` | `1..5000` | Clamp for catch-up after a stall. |
 | `maxUpdatesPerFrame` | integer | `5` | `1..16` | Spiral-of-death guard. |
-| `renderScale` | number | `1.0` | `0.25..4.0` | Offscreen/swapchain resolution scale. |
+| `renderScale` | number | `1.0` | `0.25..4.0` | Render-target resolution scale; the swapchain keeps the window's physical size. |
 | `renderOnDemand` | boolean | `true` | | Render only on dirty/wake events; static UI idles. |
 | `powerPolicy` | string | `adaptive` | `adaptive`, `power-save`, `balanced`, `performance`, `benchmark` | Preset for power/quality behavior. |
 | `adaptiveQuality` | boolean | `true` | | Reduce optional cost when frame budgets are missed. |
@@ -389,14 +389,30 @@ through the pure mapping layer `src/app/window_config.hpp`:
 |---|---|---|
 | `animationInterpolation` | `FramePipelineConfig::interpolation` | `false`: the pipeline never creates an `InterpolationPaintView`, so paint uses the authoritative scene/style state instead of blending the previous and current tick samples. Default `true`. |
 | `pauseWhenOccluded` | `WindowPausePolicy` (`pause_when_occluded`, `pause_when_minimized`) | `false`: an occluded or minimized window keeps rendering; `true` (default) pauses both. Focus/blur is never part of the policy. |
-| `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
+| `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) -> the render target sized by [`src/ui/scale/render_target_extent.hpp`](../../include/tessera/ui/scale/render_target_extent.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1 plus its step-2 consumer. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
 
-The adaptive-quality keys reach a **decision, not the render target**. The host feeds the controller
-one observed frame time per presented frame and reports its decision in `runtime::FrameDiagnostics`
-(`adaptive_quality()`, `adaptive_quality_changes()`, `adaptive_quality_downgrades()`). No code
-consumes that scale for pixels yet: the swapchain and damage target keep the window's physical size,
-so these keys change the reported quality and never the resolution. The render-target consumer is a
-follow-up slice; until it lands, no documentation may claim that a downgrade changes what is drawn.
+The adaptive-quality keys reach the **render target**. The host feeds the controller one observed
+frame time per presented frame, reports its decision in `runtime::FrameDiagnostics`, and the window
+driver renders the scene into a target whose extent is the presented (physical) extent times the
+decision, rounded down per axis with a minimum of 1:
+
+- `renderScale` moves **only** that target extent. The window, the swapchain, the layout and the
+  glyph atlas keep their size; the device scale (the monitor-derived ladder value of
+  [`window-resize.md`](../design/window-resize.md) section 2.3) is not an input, so text is never
+  re-rasterized for a quality change.
+- The present resamples the smaller target up to the window's physical size with a filtered blit, in
+  the same submission as the paint. A scale change applies at the next frame boundary and does not
+  recreate the swapchain.
+- At the default `renderScale` of 1.0 the target extent equals the presented extent, so the frame
+  takes the direct full-size path and the presented image is byte-identical to the frame before this
+  consumer existed. That is the guarantee the committed goldens check.
+- A backend whose swapchain cannot be resampled stays on that direct path. Diagnostics:
+  `WindowFrameStats::render_scale`, `target_extent`, `present_extent`, `scaled_frames`,
+  `scale_fallbacks`.
+
+`adaptiveQuality=false`, or `minRenderScale == renderScale`, leaves the target at `renderScale`
+forever; a `renderScale` above 1.0 renders a larger target, clamped by the field range and the RHI's
+extent ceiling.
 
 `WindowOptions::runtime` is the single entry point for those keys, and its default matches
 `RuntimeConfig{}`, so every existing caller keeps today's behaviour. Every other key is still

@@ -38,6 +38,13 @@ bool WindowHost::Impl::create_presentation() {
         return false;
     }
     swapchain = std::move(*created);
+    // Fixed for this swapchain generation: whether a smaller render target (the adaptive render
+    // scale) can be resampled into the presented images (docs/design/performance.md section 6.1).
+    scaled_present_supported = swapchain->supports_scaled_present();
+    for (std::size_t slot = 0; slot < scaled_targets.size(); ++slot) {
+        scaled_targets[slot].reset();
+        scaled_target_extents[slot] = {};
+    }
 
     pipeline = detail::create_pipeline(*device, swapchain->format());
     if (pipeline == nullptr) {
@@ -61,11 +68,17 @@ bool WindowHost::Impl::create_presentation() {
 
 void WindowHost::Impl::release_presentation() {
     // Destruction order is the dependency order: the sink borrows the renderer and the text
-    // renderer, and the renderer borrows the pipeline and the white texture.
+    // renderer, and the renderer borrows the pipeline and the white texture. The adaptive-scale
+    // target is an independent offscreen image, released before the swapchain it presents through.
     sink.reset();
     renderer.reset();
     text.reset();
     white.reset();
+    for (std::size_t slot = 0; slot < scaled_targets.size(); ++slot) {
+        scaled_targets[slot].reset();
+        scaled_target_extents[slot] = {};
+    }
+    scaled_present_supported = false;
     pipeline.reset();
     swapchain.reset();
     for (auto& commands : in_flight) {

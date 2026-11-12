@@ -59,6 +59,7 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
         tessera_input_pump
         tessera_paint
         tessera_rhi_vulkan
+        tessera_scale
         tessera_text
         tessera_text_edit
         tessera_text_render)

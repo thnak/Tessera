@@ -237,6 +237,14 @@ void NullCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_verte
 
 void NullCommandList::copy_target_to_buffer(const rhi::RenderTarget&, rhi::Buffer&) {}
 
+void NullCommandList::blit_target(const rhi::RenderTarget& source,
+                                  const rhi::RenderTarget& destination, rhi::Filter) {
+    if (source.sample_count() != 1 || destination.sample_count() != 1) {
+        throw std::invalid_argument("null blit_target: multisampled targets are not supported");
+    }
+    ++stats_.blits;
+}
+
 void NullCommandList::submit() {
     submitted_ = true;
 }

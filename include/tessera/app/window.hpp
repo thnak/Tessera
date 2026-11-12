@@ -4,6 +4,7 @@
 
 #include "tessera/app/host.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
 
 #include <cstdint>
@@ -56,9 +57,11 @@ struct WindowOptions {
     // The project's `runtime` object (docs/specs/runtime-config-v1.md). Consumed in this slice:
     // `animationInterpolation` (pipeline paint interpolation), `pauseWhenOccluded`
     // (occluded/minimized pause) and the adaptive-quality keys `adaptiveQuality`, `powerPolicy`,
-    // `renderScale`, `minRenderScale` and `frameBudgetMs` (the decision layer; the render target is
-    // not resized yet). Section 6.2 lists the keys still unwired. The defaults match
-    // RuntimeConfig{} exactly, so a caller that does not set it keeps today's behaviour.
+    // `renderScale`, `minRenderScale` and `frameBudgetMs` (the decision layer plus the
+    // render-target consumer: a downgrade renders the scene into a smaller target and resamples it
+    // up on present, while the window, swapchain, layout and glyph atlas keep their size).
+    // Section 6.2 lists the keys still unwired. The defaults match RuntimeConfig{} exactly, so a
+    // caller that does not set it keeps today's behaviour.
     tessera::RuntimeConfig runtime;
 };
 
@@ -103,6 +106,17 @@ struct WindowFrameStats {
     std::uint64_t timeline_value = 0;
     std::uint32_t frames_in_flight = 0;
     std::uint32_t slots_skipped = 0;
+    // Adaptive render scale (docs/design/performance.md section 6.1): the controller's multiplier
+    // in force for the last frame, the extent the scene actually rendered into, and the swapchain
+    // extent it was presented at. At the default `renderScale` of 1.0 the two extents are equal,
+    // `scaled_frames` stays 0 and the frame is the unchanged full-quality direct path.
+    float render_scale = 1.0f;
+    rendering::rhi::Extent2D target_extent{};
+    rendering::rhi::Extent2D present_extent{};
+    // Frames presented through a resample of the smaller target (a downgrade was in force), and
+    // frames that stayed at full quality because the backend refused the extra target.
+    std::uint32_t scaled_frames = 0;
+    std::uint32_t scale_fallbacks = 0;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the
