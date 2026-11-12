@@ -30,7 +30,7 @@ RHI contract is unchanged; this backend implements it.
 | Topic | WebGPU reality | Decision |
 |---|---|---|
 | Shaders | `PipelineDesc` holds SPIR-V; WebGPU takes WGSL; ADR-011 says WGSL is authored directly (no Tint/Naga at runtime) | `PipelineDesc::shader_id` (ADR-049) names the program; `ShaderRegistry` maps the id to an embedded WGSL module and each device starts with the built-ins (`batched2d`). An empty or unknown id fails pipeline creation with `std::invalid_argument`. The SPIR-V fields are ignored |
-| Push constants | none | Uniform buffer at group 0, binding 0 with a dynamic offset; per command list arena, one 256-byte slice per distinct block (queue writes land before the whole command buffer, so one shared slot would show only the last value) |
+| Push constants | none | Uniform buffer at group 0, binding 0 with a dynamic offset; per command list arena, one 256-byte slice per distinct block (queue writes land before the whole command buffer, so one shared slot would show only the last value). Bind groups are cached per command list by (layout, texture view, sampler) in a 16-entry round-robin table, so a push-constant change only moves the offset |
 | Binding model | bind groups | One group: 0 uniform, 1 texture, 2 sampler (`kBinding*` in the mapping header) |
 | Clip space | y up (Vulkan is y down) | The WGSL vertex stage flips y |
 | `LoadOp::DontCare` | no such op | Maps to `Clear` |
@@ -47,8 +47,9 @@ RHI contract is unchanged; this backend implements it.
 |---|---|---|
 | `include/.../webgpu/webgpu_mapping.hpp`, `src/webgpu_mapping.cpp` | Pure RHI -> WebGPU descriptor tables (formats, usage bits, blend, load/store, vertex formats, topology, alignments, scissor clamp, vertex layout validation); plain enums, no `webgpu.h` | everywhere, host ctest |
 | `include/.../webgpu/shader_registry.hpp`, `src/shader_registry.cpp` | `shader_id` -> WGSL lookup, built-in table, embedded `batched2d.wgsl` | everywhere, host ctest |
-| `shaders/batched2d.wgsl` | WGSL twin of the Vulkan batched 2D shaders, embedded as a raw string at configure time | embedded everywhere; validated by naga 30.0.1 when `TESSERA_SHADER_CROSS=ON` |
-| `src/webgpu_device.cpp`, `webgpu_resources.cpp`, `webgpu_pipeline.cpp`, `webgpu_command_list.cpp`, `webgpu_internal.hpp`, public `webgpu_device.hpp` | Device, buffer, texture, render target, pipeline, command list against `<webgpu/webgpu.h>` | only `EMSCRIPTEN` or `-DTESSERA_BUILD_WEBGPU=ON` (target `tessera_webgpu`); **unbuilt so far** |
+| `shaders/batched2d.wgsl` | WGSL twin of the Vulkan batched 2D shaders, embedded as a raw string at configure time | embedded everywhere; validated by naga 30.0.1 (`scripts/ci/validate_wgsl.py`, and ctest when `TESSERA_SHADER_CROSS=ON`) |
+| `src/webgpu_device.cpp`, `webgpu_resources.cpp`, `webgpu_pipeline.cpp`, `webgpu_command_list.cpp`, `webgpu_internal.hpp`, public `webgpu_device.hpp` | Device, buffer, texture, render target, pipeline, command list against `<webgpu/webgpu.h>` | only `EMSCRIPTEN` (preset `wasm-webgpu`) or `-DTESSERA_BUILD_WEBGPU=ON` (target `tessera_webgpu`) |
+| `smoke/webgpu_wasm_smoke.cpp` | Emscripten-only link and load smoke run under Node (no WebGPU there): null-handle rejection, built-in WGSL registry, mapping tables | `wasm-webgpu` preset |
 
 The `tessera_webgpu_mapping` library is cheap and pure, so it builds in normal host configurations;
 `tessera_webgpu` is never part of a default build. Tests: `webgpu_mapping` in `tests/unit`, and
@@ -75,25 +76,45 @@ Decided in [ADR-049](../../../decisions/ADR-049-backend-extensibility.md) sectio
   is a reference, not shipped; replacing the authored twin with it is a later decision once a
   browser pixel lane compares both.
 
+## Build, validation and CI
+
+- **Toolchain pin:** emsdk `6.0.13` (`tools/emsdk-version.txt`). Its bundled emdawnwebgpu port is
+  `v20260423.175430`, downloaded by emcc on first use and verified against the SHA-512 in that
+  emsdk release. Install emsdk outside the repository (`emsdk install 6.0.13`, `emsdk activate
+  6.0.13`) and set `EMSDK`.
+- **Preset:** `cmake --preset wasm-webgpu` then `cmake --build --preset wasm-webgpu` builds
+  `tessera_webgpu_mapping`, `tessera_webgpu` and `webgpu_wasm_smoke` (Ninja, Release, tests, PoCs
+  and Vulkan off, `-Werror` on). Under Emscripten every target uses `-fwasm-exceptions`, because
+  Emscripten's default turns a C++ throw into an abort and the backend throws at its boundaries.
+  Host presets are unchanged.
+- **Smoke:** `node build/wasm-webgpu/src/rendering/backend/webgpu/webgpu_wasm_smoke.js` prints
+  `webgpu_wasm_smoke: ok`. Linking it resolves every `webgpu.h` import the device code references.
+- **WGSL validation:** `python -B scripts/ci/validate_wgsl.py` runs naga (version pinned in
+  `tools/naga-version.txt`, also read by `TesseraShaderCross.cmake`) on every `src/**/*.wgsl`; also
+  available as the optional `python -B scripts/gates.py --wgsl` gate.
+- **CI:** `.github/workflows/webgpu.yml` has two jobs on every push to `main` and every PR:
+  `wasm-build` (cached emsdk, preset build, Node smoke) and `wgsl-validation` (cached naga, the
+  script above).
+
 ## Status and what remains
 
-Verified on a Windows host: mapping tables, WGSL embedding and id registry (`ctest -R webgpu_mapping`),
-GLSL/WGSL interface parity (`ctest -R shader_parity`), and with `TESSERA_SHADER_CROSS=ON` (Vulkan SDK
-1.4.350.0, naga 30.0.1): `batched2d.wgsl` passes naga validation, the portable SPIR-V passes
-spirv-val, the generated WGSL passes naga, and the generated HLSL compiles with dxc (SM 6.0).
+Verified on a Windows host (2026-11-12): mapping tables, WGSL embedding and id registry
+(`ctest -R webgpu_mapping`), GLSL/WGSL interface parity (`ctest -R shader_parity`), and with
+`TESSERA_SHADER_CROSS=ON` (Vulkan SDK 1.4.350.0, naga 30.0.1) the spirv-val, naga and dxc checks.
+With emsdk 6.0.13 and emdawnwebgpu `v20260423.175430`, `tessera_webgpu` compiles under `-Wall
+-Wextra -Wpedantic -Werror` and links into `webgpu_wasm_smoke`, which runs under Node 24. The
+device code written against the 2025-style `webgpu.h` (`WGPUStringView`, `WGPU_*_INIT`,
+`WGPUTexelCopy*`, callback-info structs, `wgpu*AddRef`) needed no source changes for this port
+revision. `scripts/ci/validate_wgsl.py` passes on `batched2d.wgsl`. The workflow passed actionlint
+1.7.12 but has not run on GitHub yet.
 
-Not verified (no Emscripten or Dawn headers on the authoring machine): everything in
-`tessera_webgpu`. It is written against the current (2025+) `webgpu.h` style (`WGPUStringView`,
-`WGPU_*_INIT` macros, `WGPUTexelCopy*`, callback-info structs, `wgpu*AddRef`); adjust to the
-emdawnwebgpu revision actually pinned. naga validation of `batched2d.wgsl` does not prove that
-Tint (Chrome) accepts it; the browser lane does. MSL output is unvalidated (no Metal toolchain).
-
-To verify in CI: an Emscripten lane (`emcmake cmake -S . -B build/wasm -DTESSERA_BUILD_TESTS=OFF`,
-target `tessera_webgpu`) proves it compiles; a browser or Dawn-native lane then runs the batched 2D
-scene against the null/lavapipe reference.
+Not verified: any call into a real WebGPU device. Node has no `navigator.gpu`, so the smoke never
+creates a buffer, pipeline or pass, and nothing has drawn a pixel; naga accepting `batched2d.wgsl`
+does not prove that Tint (Chrome) or WebKit accepts it. MSL output is unvalidated (no Metal
+toolchain). A browser or Dawn-native lane running the batched 2D scene against the null/lavapipe
+reference is the next step.
 
 Remaining slices: swapchain over the host surface and device-lost callback (`status`/`recover`);
-async readback (map + poll) for `Buffer::read`; bind-group caching (today a bind group is created
-per draw after a state change, a hot-path allocation to remove); 4-byte-unaligned buffer writes via
-staging; manifest-driven parity checks once `manifest.json` exists
-([shader-manifest-v1](../../specs/shader-manifest-v1.md)); a CI lane with `TESSERA_SHADER_CROSS=ON`; dependency entries when emdawnwebgpu or Dawn is actually vendored.
+async readback (map + poll) for `Buffer::read`; 4-byte-unaligned buffer writes via staging; a
+headless browser pixel lane; manifest-driven parity checks once `manifest.json` exists
+([shader-manifest-v1](../../specs/shader-manifest-v1.md)); a CI lane with `TESSERA_SHADER_CROSS=ON`.

@@ -225,12 +225,20 @@ a conformance run attached to each Tessera release candidate; a response within 
 window when the RHI changes. A backend that misses two consecutive release candidates drops to
 Tier 3. Promotion to Tier 1 needs core maintainer agreement and a CI lane core can operate.
 
-**WebGPU is Tier 2 until it can be checked.** Its device code has never been compiled (no
-Emscripten toolchain or `webgpu.h` was available when it was written) and its WGSL has not passed a
-validator, so a Tier-1 label would promise a CI guarantee nobody can run. It is promoted to Tier 1
+**WebGPU is Tier 2 until it can be checked.** When this was decided, its device code had never
+been compiled (no Emscripten toolchain or `webgpu.h` was available when it was written) and no CI
+step validated its WGSL, so a Tier-1 label would promise a CI guarantee nobody can run. It is promoted to Tier 1
 when both hold: a CI lane builds `tessera_webgpu` with Emscripten, and a WGSL validation step runs
 in CI. A Dawn-native or browser pixel lane against the reference scenes is the next step after that,
 not a promotion condition.
+
+Status (2026-11-12): both conditions are implemented and pass locally, but neither has run on GitHub
+yet, so WebGPU stays Tier 2 until the first green run of `.github/workflows/webgpu.yml`. Condition 1:
+the `wasm-webgpu` preset (emsdk 6.0.13, emdawnwebgpu port `v20260423.175430`) compiles and links
+`tessera_webgpu` with `-Werror` and a Node smoke loads it; the CI job `wasm-build` does the same.
+Condition 2: `scripts/ci/validate_wgsl.py` validates every authored WGSL file with naga 30.0.1; the
+CI job `wgsl-validation` runs it. Promotion then still needs the core maintainer agreement above.
+Details: [webgpu-backend.md](../docs/design/gpu/webgpu-backend.md#build-validation-and-ci).
 
 **Stays in core** (changes need an ADR or spec change):
 
@@ -340,4 +348,4 @@ Negative and risks:
 7. Update ADR-011's status line to point here if this ADR is accepted.
 8. Decided in review: the tolerance starting values stand as defaults to be re-tuned after the first
    WebGPU measurement; the 90-day floor binds only from the first compatibility-promising release;
-   WebGPU stays Tier 2 until the Emscripten build lane and WGSL validation exist.
+   WebGPU stays Tier 2 until the Emscripten build lane and WGSL validation exist. Both now exist (`.github/workflows/webgpu.yml`); promotion waits for their first green CI run.
