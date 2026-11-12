@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// UNBUILT on the authoring host; see webgpu_internal.hpp.
+// Built only by the wasm-webgpu preset (Emscripten); see webgpu_internal.hpp.
 
 #include "tessera/rendering/webgpu/webgpu_device.hpp"
 #include "webgpu_internal.hpp"

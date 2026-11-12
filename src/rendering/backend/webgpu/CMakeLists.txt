@@ -36,8 +36,14 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
         src/webgpu_command_list.cpp)
     target_link_libraries(tessera_webgpu PUBLIC tessera_webgpu_mapping)
     if (EMSCRIPTEN)
-        # Dawn's emdawnwebgpu port supplies webgpu/webgpu.h and the browser bindings.
+        # Dawn's emdawnwebgpu port supplies webgpu/webgpu.h and the browser bindings. The port
+        # revision is the one pinned by the emsdk release in tools/emsdk-version.txt.
         target_compile_options(tessera_webgpu PUBLIC "--use-port=emdawnwebgpu")
         target_link_options(tessera_webgpu PUBLIC "--use-port=emdawnwebgpu")
+
+        # Link-and-load smoke run under Node (no WebGPU there; see the source comment).
+        add_executable(webgpu_wasm_smoke smoke/webgpu_wasm_smoke.cpp)
+        target_link_libraries(webgpu_wasm_smoke PRIVATE tessera_webgpu)
+        target_link_options(webgpu_wasm_smoke PRIVATE "-sENVIRONMENT=node")
     endif()
 endif()

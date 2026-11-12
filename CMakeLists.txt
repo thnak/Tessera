@@ -51,6 +51,13 @@ else()
     endif()
 endif()
 
+# Emscripten disables exception catching by default (a throw aborts). Tessera throws at boundaries
+# and catches there, so every translation unit and the link use native Wasm exceptions.
+if (EMSCRIPTEN)
+    add_compile_options(-fwasm-exceptions)
+    add_link_options(-fwasm-exceptions)
+endif()
+
 option(TESSERA_BUILD_POC "Build Phase 0 proof-of-concept tools" ON)
 option(TESSERA_BUILD_TESTS "Build unit tests" ON)
 option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)
