@@ -272,6 +272,9 @@ namespace demo {
       update_ticket_.tick = [](void* context, double dt) {
         return static_cast<Demo*>(context)->tick_animations(dt);
       };
+      update_ticket_.motion = [](void* context, bool reduced) {
+        static_cast<Demo*>(context)->apply_reduced_motion(reduced);
+      };
       scheduler.attach(update_ticket_);
     }
     
@@ -295,6 +298,18 @@ namespace demo {
         schedule_update();
       }
       return moving;
+    }
+    
+    void Demo::apply_reduced_motion(bool reduced) {
+      bool changed = false;
+      anim_fade_scalar_.set_reduced_motion(reduced);
+      if (anim_fade_ != anim_fade_scalar_.value()) {
+        anim_fade_ = anim_fade_scalar_.value();
+        changed = true;
+      }
+      if (changed) {
+        schedule_update();
+      }
     }
     
     void Demo::set_count(int value) {

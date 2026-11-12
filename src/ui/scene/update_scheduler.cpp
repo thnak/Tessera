@@ -40,6 +40,9 @@ void UpdateScheduler::attach(UpdateTicket& ticket) {
     ticket.scheduler_ = this;
     ticket.queued_ = false;
     tickets_.push_back(&ticket);
+    if (reduced_motion_ && ticket.motion != nullptr) {
+        ticket.motion(ticket.context, true);
+    }
 }
 
 void UpdateScheduler::detach(UpdateTicket& ticket) {
@@ -74,6 +77,20 @@ void UpdateScheduler::mark(UpdateTicket& ticket) {
     pending_ = true;
     if (edge && wake_ != nullptr) {
         wake_(wake_context_);
+    }
+}
+
+void UpdateScheduler::set_reduced_motion(bool reduced) {
+    assert(on_owner_thread() && "UpdateScheduler::set_reduced_motion must run on the UI thread");
+    if (reduced_motion_ == reduced) {
+        return;
+    }
+    reduced_motion_ = reduced;
+    for (std::size_t i = 0; i < tickets_.size(); ++i) {
+        const UpdateTicket* ticket = tickets_[i];
+        if (ticket != nullptr && ticket->motion != nullptr) {
+            ticket->motion(ticket->context, reduced);
+        }
     }
 }
 

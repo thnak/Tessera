@@ -204,7 +204,55 @@ bool tick_steps_animating_tickets() {
     return ok;
 }
 
+// set_reduced_motion(): reaches attached tickets on a change, a ticket attached later gets the
+// current value, and an unchanged value is not re-sent.
+bool reduced_motion_reaches_tickets() {
+    struct Listener {
+        UpdateTicket ticket;
+        int calls = 0;
+        bool last = false;
+    };
+    const auto make = [](Listener& listener) {
+        listener.ticket.context = &listener;
+        listener.ticket.motion = [](void* context, bool reduced) {
+            auto* self = static_cast<Listener*>(context);
+            ++self->calls;
+            self->last = reduced;
+        };
+    };
+    UpdateScheduler scheduler;
+    Listener early;
+    make(early);
+    scheduler.attach(early.ticket);
+    UpdateTicket plain;
+    scheduler.attach(plain);
+
+    scheduler.set_reduced_motion(true);
+    bool ok = expect(scheduler.reduced_motion() && early.calls == 1 && early.last,
+                     "an attached ticket hears the change");
+    scheduler.set_reduced_motion(true);
+    ok = expect(early.calls == 1, "an unchanged preference is not re-sent") && ok;
+
+    Listener late;
+    make(late);
+    scheduler.attach(late.ticket);
+    ok = expect(late.calls == 1 && late.last, "a ticket attached later gets the current value") &&
+         ok;
+    scheduler.set_reduced_motion(false);
+    ok = expect(!scheduler.reduced_motion() && early.calls == 2 && !early.last && late.calls == 2,
+                "turning it off reaches every ticket") &&
+         ok;
+    Listener fresh;
+    make(fresh);
+    scheduler.attach(fresh.ticket);
+    ok = expect(fresh.calls == 0, "nothing is sent when the preference is off") && ok;
+    return ok;
+}
+
 int main() {
+    if (!reduced_motion_reaches_tickets()) {
+        return 8;
+    }
     if (!tick_steps_animating_tickets()) {
         return 7;
     }

@@ -35,6 +35,10 @@ struct HostConfig {
     // Layout text measurement. Null keeps the layout engine's deterministic stub (the goldens'
     // behaviour); a real app passes a measurer backed by the loaded font stack.
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
+    // The user's reduced-motion preference (the driver reads it from the OS). Animations snap to
+    // their end value instead of moving; it applies to CSS animations, transitions and the
+    // generated components' animated values.
+    bool reduced_motion = false;
     ui::frame::FramePipelineConfig pipeline{};
 };
 
@@ -100,6 +104,11 @@ public:
     // that asked for them. Pass nullptr to uninstall; the scheduler must outlive the host or be
     // detached first.
     void set_update_scheduler(ui::UpdateScheduler* scheduler);
+
+    // Changes the reduced-motion preference at run time (the OS setting changed). Forwarded to the
+    // animation runtime and the installed scheduler; a scheduler installed later inherits it.
+    void set_reduced_motion(bool reduced);
+    [[nodiscard]] bool reduced_motion() const;
 
     [[nodiscard]] bool frame_due() const;
     [[nodiscard]] const ui::frame::FrameRender& last_render() const;

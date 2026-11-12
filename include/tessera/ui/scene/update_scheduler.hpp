@@ -20,11 +20,14 @@ struct UpdateTicket {
     // seconds and returns true while any is still moving. Optional; a component without animated
     // values leaves it null and costs nothing per frame.
     using TickFn = bool (*)(void* context, double dt);
+    // Applies the host's reduced-motion preference to the owner's animated values (they snap).
+    using MotionFn = void (*)(void* context, bool reduced);
 
     UpdateFn update = nullptr;
     void* context = nullptr;
     // Declared after `context` so `UpdateTicket{update, context}` keeps meaning what it did.
     TickFn tick = nullptr;
+    MotionFn motion = nullptr;
 
     // Marks the owner dirty. A no-op while detached, so headless tests that call `update()`
     // by hand keep working. UI-thread only (asserted in debug builds).
@@ -82,6 +85,14 @@ public:
     void attach(UpdateTicket& ticket);
     void detach(UpdateTicket& ticket);
 
+    // Reduced-motion preference of the window. A change reaches every attached ticket's `motion`
+    // hook, and a ticket attached later receives the current value, so a component mounted while
+    // the preference is on never animates.
+    void set_reduced_motion(bool reduced);
+    [[nodiscard]] bool reduced_motion() const {
+        return reduced_motion_;
+    }
+
     // Steps every attached ticket's animations by `dt` seconds, in attach order. The host calls
     // this once per tick before `flush()`, so an animated value that moved (its tick schedules the
     // owner) is applied in the same frame. Returns true, and wakes the loop, while any ticket is
@@ -114,6 +125,7 @@ private:
     std::uint32_t max_passes_ = kDefaultMaxPasses;
     bool pending_ = false;
     bool flushing_ = false;
+    bool reduced_motion_ = false;
     WakeFn wake_ = nullptr;
     void* wake_context_ = nullptr;
     UpdateFlushStats total_;

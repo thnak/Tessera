@@ -113,8 +113,12 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
   The component's `UpdateTicket::tick` calls `tick_animations(dt)`, which copies the sampled value into the field and
   schedules the component; `UpdateScheduler::tick(dt)` runs before `flush()` in `FramePipeline`, so a moved value is
   applied in the same frame, and the scheduler wakes the loop while any value still moves (an idle UI requests no frame).
-- Not yet: wiring the platform reduced-motion setting to `AnimatedScalar::set_reduced_motion`, springs as a scalar
-  driver (`SpringRuntime` still has no owner), and a completion callback for animated values.
+- Reduced motion: `HostConfig::reduced_motion` / `AppHost::set_reduced_motion` reach the `AnimationRuntime` and, through
+  `UpdateScheduler::set_reduced_motion` and `UpdateTicket::motion`, every generated component (`apply_reduced_motion`),
+  including components attached later. The window driver reads the Windows setting once at startup
+  (`app::system_prefers_reduced_motion`, `SPI_GETCLIENTAREAANIMATION`); other platforms report false for now.
+- Not yet: reacting to a setting change while the app runs, the macOS/Linux/Android queries, springs as a scalar driver
+  (`SpringRuntime` still has no owner), and a completion callback for animated values.
 - Completion callbacks are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 

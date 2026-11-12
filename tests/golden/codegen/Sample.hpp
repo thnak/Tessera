@@ -103,6 +103,8 @@ namespace demo {
       void schedule_update();
       // Advances the animated values by dt seconds; true while any is still moving.
       bool tick_animations(double dt);
+      // Reduced motion: every animated value snaps to its target and stays snapped.
+      void apply_reduced_motion(bool reduced);
       void set_count(int value);
       void set_name(std::string value);
       // Every state and animated cell by IR id, in declaration order (tests, parity).

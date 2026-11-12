@@ -44,6 +44,9 @@ bool emit_schedule_declarations(CppWriter& writer, const ir::Component& componen
         writer.line(
             "// Advances the animated values by dt seconds; true while any is still moving.");
         writer.line("bool tick_animations(double dt);");
+        writer.line(
+            "// Reduced motion: every animated value snaps to its target and stays snapped.");
+        writer.line("void apply_reduced_motion(bool reduced);");
     }
     for (const ir::State& state : component.state) {
         if (!plain_identifier(state.name)) {
@@ -74,6 +77,12 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
         writer.line("update_ticket_.tick = [](void* context, double dt) {");
         ++writer.indent;
         writer.line("return static_cast<" + component.name + "*>(context)->tick_animations(dt);");
+        --writer.indent;
+        writer.line("};");
+        writer.line("update_ticket_.motion = [](void* context, bool reduced) {");
+        ++writer.indent;
+        writer.line("static_cast<" + component.name +
+                    "*>(context)->apply_reduced_motion(reduced);");
         --writer.indent;
         writer.line("};");
     }
@@ -114,6 +123,22 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
         writer.line("schedule_update();");
         writer.close("");
         writer.line("return moving;");
+        writer.close("");
+        writer.line("");
+
+        writer.open("void " + component.name + "::apply_reduced_motion(bool reduced)");
+        writer.line("bool changed = false;");
+        for (const ir::AnimatedValue& value : component.animated_values) {
+            const std::string controller = animated_controller_name(value.id);
+            writer.line(controller + ".set_reduced_motion(reduced);");
+            writer.open("if (" + member_name(value.id) + " != " + controller + ".value())");
+            writer.line(member_name(value.id) + " = " + controller + ".value();");
+            writer.line("changed = true;");
+            writer.close("");
+        }
+        writer.open("if (changed)");
+        writer.line("schedule_update();");
+        writer.close("");
         writer.close("");
         writer.line("");
     }

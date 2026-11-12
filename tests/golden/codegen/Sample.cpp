@@ -261,6 +261,9 @@ namespace demo {
       update_ticket_.tick = [](void* context, double dt) {
         return static_cast<Sample*>(context)->tick_animations(dt);
       };
+      update_ticket_.motion = [](void* context, bool reduced) {
+        static_cast<Sample*>(context)->apply_reduced_motion(reduced);
+      };
       scheduler.attach(update_ticket_);
     }
     
@@ -284,6 +287,18 @@ namespace demo {
         schedule_update();
       }
       return moving;
+    }
+    
+    void Sample::apply_reduced_motion(bool reduced) {
+      bool changed = false;
+      anim_opacity_scalar_.set_reduced_motion(reduced);
+      if (anim_opacity_ != anim_opacity_scalar_.value()) {
+        anim_opacity_ = anim_opacity_scalar_.value();
+        changed = true;
+      }
+      if (changed) {
+        schedule_update();
+      }
     }
     
     void Sample::set_count(int value) {

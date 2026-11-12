@@ -164,6 +164,7 @@ struct AppHost::Impl {
     ui::animation::AnimationRuntime animations;
     std::unique_ptr<ui::frame::FramePipeline> pipeline;
     ui::UpdateScheduler* scheduler = nullptr;
+    bool reduced_motion = false;
 
     ui::layout::LayoutResult last_layout;
     ui::layout::LayoutApplyResult last_applied;
@@ -178,6 +179,8 @@ AppHost::AppHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::R
     config.height = checked_extent(config.height, "height");
     config.dpi_scale = checked_scale(config.dpi_scale);
     impl_ = std::make_unique<Impl>(root, std::move(sheet), loop, config);
+    impl_->reduced_motion = config.reduced_motion;
+    impl_->animations.set_reduced_motion(config.reduced_motion);
 }
 
 AppHost::~AppHost() = default;
@@ -250,6 +253,21 @@ void AppHost::resize(float width, float height, float dpi_scale) {
 void AppHost::set_update_scheduler(ui::UpdateScheduler* scheduler) {
     impl_->scheduler = scheduler;
     impl_->pipeline->set_update_scheduler(scheduler);
+    if (scheduler != nullptr && impl_->reduced_motion) {
+        scheduler->set_reduced_motion(true);
+    }
+}
+
+void AppHost::set_reduced_motion(bool reduced) {
+    impl_->reduced_motion = reduced;
+    impl_->animations.set_reduced_motion(reduced);
+    if (impl_->scheduler != nullptr) {
+        impl_->scheduler->set_reduced_motion(reduced);
+    }
+}
+
+bool AppHost::reduced_motion() const {
+    return impl_->reduced_motion;
 }
 
 bool AppHost::frame_due() const {

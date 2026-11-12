@@ -4,7 +4,8 @@
 # scene sync, damage and paint for one scene root. It never touches a window, swapchain or GPU
 # device; window runners and headless tests drive it.
 add_library(tessera_app STATIC
-    host.cpp)
+    host.cpp
+    system_motion.cpp)
 
 target_include_directories(tessera_app PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -19,6 +20,10 @@ target_link_libraries(tessera_app PUBLIC
     tessera_runtime)
 
 target_compile_features(tessera_app PUBLIC cxx_std_23)
+
+if (WIN32)
+    target_link_libraries(tessera_app PRIVATE user32)
+endif ()
 
 # The window driver: owns the platform window, Vulkan device/swapchain, Batched2D renderer and the
 # font/text stack, and runs the AppHost loop against real input and presentation. Vulkan is the

@@ -3,6 +3,7 @@
 #include "tessera/app/frame_guard.hpp"
 #include "tessera/app/idle_policy.hpp"
 #include "tessera/app/recovery_policy.hpp"
+#include "tessera/app/system_motion.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window_wait.hpp"
 #include "tessera/rendering/rhi/swapchain.hpp"
@@ -64,6 +65,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.height = static_cast<float>(metrics.logical_height);
     config.dpi_scale = metrics.dpi_scale;
     config.text_measurer = options.text_measurer;
+    config.reduced_motion = system_prefers_reduced_motion();
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     if (scheduler != nullptr) {
         host->set_update_scheduler(scheduler);

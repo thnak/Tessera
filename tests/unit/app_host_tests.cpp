@@ -6,6 +6,7 @@
 // runner, so the assertions are deterministic.
 
 #include "tessera/app/host.hpp"
+#include "tessera/app/system_motion.hpp"
 #include "tessera/runtime/clock.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
@@ -273,6 +274,35 @@ Text { font-size: 16px; color: #e2e8f0; }
             !expect(!ticket.queued(), "the flushed ticket is no longer queued")) {
             return 11;
         }
+    }
+
+    // --- 8b. Reduced motion reaches the animation runtime and the update scheduler -----------
+    {
+        Node motion_root(1);
+        tessera::runtime::ManualClock motion_clock;
+        tessera::runtime::RuntimeLoop motion_loop(motion_clock);
+        tessera::app::HostConfig motion_config = config;
+        motion_config.reduced_motion = true;
+        tessera::app::AppHost motion_host(motion_root, compile_stylesheet(""), motion_loop,
+                                          motion_config);
+        tessera::ui::UpdateScheduler scheduler;
+        if (!expect(motion_host.reduced_motion() && motion_host.animations().reduced_motion(),
+                    "the config preference reaches the animation runtime")) {
+            return 13;
+        }
+        motion_host.set_update_scheduler(&scheduler);
+        if (!expect(scheduler.reduced_motion(), "a scheduler installed later inherits it")) {
+            return 13;
+        }
+        motion_host.set_reduced_motion(false);
+        if (!expect(!motion_host.reduced_motion() && !motion_host.animations().reduced_motion() &&
+                        !scheduler.reduced_motion(),
+                    "a runtime change reaches the runtime and the scheduler")) {
+            return 13;
+        }
+        motion_host.set_update_scheduler(nullptr);
+        // The OS query must be callable on every platform; its value depends on the machine.
+        (void)tessera::app::system_prefers_reduced_motion();
     }
 
     // --- 9. A caller-styled root keeps its layout mode -----------------------------------

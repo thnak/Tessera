@@ -116,6 +116,34 @@ int main() {
         scheduler.flush();
     }
 
+    // Reduced motion snaps in-flight and future animated sets, and a component attached while it is
+    // on never animates.
+    {
+        sample.handler_1(tessera::ui::ClickEvent{});
+        scheduler.flush();
+        check(scheduler.tick(0.05) && sample.anim_opacity_ > 0.5 && sample.anim_opacity_ < 1.0,
+              "a tween is in flight before reduced motion");
+        scheduler.set_reduced_motion(true);
+        check(sample.anim_opacity_ == 0.5, "reduced motion finishes the tween at its target");
+        check(scheduler.pending(), "the snapped value schedules an update");
+        scheduler.flush();
+        sample.handler_2(tessera::ui::TextChangeEvent{});
+        check(sample.anim_opacity_ == 1.0 && !scheduler.tick(0.016), "snap with reduced motion on");
+        sample.handler_1(tessera::ui::ClickEvent{});
+        check(sample.anim_opacity_ == 0.5 && !sample.anim_opacity_scalar_.active(),
+              "an animated set does not tween while reduced motion is on");
+        scheduler.flush();
+        scheduler.set_reduced_motion(false);
+        sample.handler_2(tessera::ui::TextChangeEvent{});
+        sample.handler_1(tessera::ui::ClickEvent{});
+        check(sample.anim_opacity_ == 1.0 && sample.anim_opacity_scalar_.active(),
+              "tweens resume after reduced motion is turned off");
+        scheduler.tick(1.0);
+        scheduler.flush();
+        sample.set_count(9);
+        scheduler.flush();
+    }
+
     // Detached components keep the manual contract: schedule_update is a harmless no-op.
     sample.detach_scheduler(scheduler);
     sample.set_count(11);
