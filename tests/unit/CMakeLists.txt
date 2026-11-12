@@ -1025,6 +1025,15 @@ target_link_libraries(text_paint_tests PRIVATE tessera_text)
 
 add_test(NAME text_paint COMMAND text_paint_tests)
 
+# CSS `word-spacing` (docs/design/text.md section 6.4): computed-value mapping, the separator
+# counter, both measure paths, both cache keys, the paint advance sum, and determinism.
+add_executable(word_spacing_tests
+    word_spacing_tests.cpp)
+
+target_link_libraries(word_spacing_tests PRIVATE tessera_paint tessera_text)
+
+add_test(NAME word_spacing COMMAND word_spacing_tests)
+
 # `text-overflow: ellipsis` (docs/design/text.md section 6.3): registry/cascade value, the fit rules
 # at the text layer, layout invariance, and the end-to-end paint path.
 add_executable(text_overflow_tests

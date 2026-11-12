@@ -113,6 +113,19 @@ float parse_length(std::string_view value, float relative_to) {
 
 } // namespace
 
+std::size_t word_separator_count(std::string_view run) noexcept {
+    std::size_t count = 0;
+    for (const char c : run) {
+        // V1 widens the ASCII space only. A tab is not a word separator (CSS leaves its spacing
+        // undefined), a hard line break splits the paragraph, and a non-ASCII separator keeps its
+        // font advance.
+        if (c == ' ') {
+            ++count;
+        }
+    }
+    return count;
+}
+
 TextStyle text_style_from(const style::ComputedStyle& computed) {
     TextStyle result;
     if (const std::string* size = computed.find("font-size")) {
@@ -138,6 +151,14 @@ TextStyle text_style_from(const style::ComputedStyle& computed) {
     }
     if (const std::string* spacing = computed.find("letter-spacing")) {
         result.letter_spacing = parse_length(*spacing, result.font_size);
+    }
+    if (const std::string* spacing = computed.find("word-spacing")) {
+        // CSS `normal`, an unsupported keyword and a negative length all mean "no extra advance".
+        // The computed font size is the base for the font-relative forms, like `letter-spacing`.
+        const float parsed = parse_length(*spacing, result.font_size);
+        if (parsed > 0.0f) {
+            result.word_spacing = parsed;
+        }
     }
     if (const std::string* weight = computed.find("font-weight")) {
         float number = 0.0f;

@@ -23,6 +23,7 @@ struct Key {
         return text == other.text && style.font_size == other.style.font_size &&
                style.line_height == other.style.line_height &&
                style.letter_spacing == other.style.letter_spacing &&
+               style.word_spacing == other.style.word_spacing &&
                style.font_weight == other.style.font_weight && style.italic == other.style.italic &&
                style.white_space == other.style.white_space &&
                constraints.max_width == other.constraints.max_width &&
@@ -44,6 +45,7 @@ struct KeyHash {
         mix(seed, float_bits(key.style.font_size));
         mix(seed, float_bits(key.style.line_height));
         mix(seed, float_bits(key.style.letter_spacing));
+        mix(seed, float_bits(key.style.word_spacing));
         mix(seed, static_cast<std::size_t>(key.style.font_weight));
         mix(seed, static_cast<std::size_t>(key.style.italic));
         mix(seed, static_cast<std::size_t>(key.style.white_space));
