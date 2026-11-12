@@ -344,13 +344,58 @@ wall clock) and generated state. Virtual geometry is dynamic too: `itemSize`/`es
 (`ItemGeometry::reseed`), an estimate/gap change keeps every measured entry while a changed fixed
 extent that seeds the estimate drops them, and the caller's offset is re-anchored with the old/new
 prefix sums and clamped so the first visible key survives (`codegen_virtual_geometry_runtime`).
-`orientation`/`columns`/`overscan`/`columnWidth` stay literal-only and non-numeric values are
-rejected. Collection events are dispatched by that generated host entry point
+`orientation`/`columns`/`overscan`/`columnWidth` accept a literal or a component prop
+(a prop-driven option becomes a mutable member read once per scroll sync; unknown
+orientation falls back to vertical, non-positive columns clamps to column-width mode, and
+computed/state refs stay loud rejects). Collection events are dispatched by that generated host entry point
 rather than a scene binding - there is still no `EventType::Scroll`, which is the deferred scene-side
-step. Test `codegen_virtual_scroll`; docs in compiler.md §11 and virtualization-v1.md §10/§14. Next
-compiler slice: prop defaults (the last pinned gap for #70) and callback binding, then dynamic
-`orientation`/`columns`/`overscan` and a scene-side `EventType::Scroll`.
+step. Test `codegen_virtual_scroll`; docs in compiler.md §11 and virtualization-v1.md §10/§14. The scene-side
+`EventType::Scroll` landed after that, so generated collections no longer need the synthetic
+path. Remaining for #70: object-literal defaults, which needs an IR record type.
 
 B3 adds the window/swapchain path with resize/DPI/OS lifecycle, normalized OS events, and
 mobile/foldable metrics. Keep the B1 RHI, batched 2D renderer, and scene graph stable while doing
 so.
+
+## 2026-11-12/13 night: blobs, identity, aliases, virtualization and the config loader
+
+Landed in one unattended run, each slice its own PR with the local Windows gate plus a remote GCC
+build on lab-02 (CI on GitHub is confirmation only):
+
+- **Stylesheet registration and theme asset** (#114, #119): `AppHost` registers compiled
+  stylesheets in import-graph order, library CSS goes into `@layer tessera-ui`, and a 20-byte `TTHB`
+  blob carries the theme asset so it loads without parsing. Both are ADR-048 artifacts and both keep
+  the no-embedded-sheet diagnostic out of the way for apps that embed them.
+- **MSVC portability** (#116, #122): two `/WX` shadowing errors that clang and GCC accept —
+  C4456 for reused locals and C4458 for a parameter hiding an `Impl` member. Recorded in
+  `.claude/team-memory.md`: clang-clean is not MSVC-clean, so the Windows run after a merge is a
+  real gate, not a formality.
+- **Timeline semaphores** (#117, #120): one timeline semaphore per device generation, a binary
+  acquire semaphore per slot, slot reuse checked with `vkGetSemaphoreCounterValue` and a bounded
+  100 ms drain, so frames in flight are tracked without a fence wait on the UI thread. The lavapipe
+  run then rejected an assumption in the test (`max_in_flight == 0` on software Vulkan), fixed in
+  #120; GCC's `-Wextra` also rejected a mixed enum/flags conditional there, which is the same lesson
+  as the MSVC ones.
+- **Stable component identity** (#118): emitted ids are a function of salt, source path, name and
+  occurrence, so inserting a component keeps every other id and the goldens; library ids use a fixed
+  salt instead of a band.
+- **Cross-file props type aliases** (#121): `import type`, `as` renames, re-export chains and
+  package roots resolve to the same props as an inline alias, with typed diagnostics for unresolved
+  names, cycles and non-alias targets.
+- **Dynamic virtual geometry** (#126): the four geometry options accept a component prop and a prop
+  write re-realizes the window on the next sync while keyed items keep their identity.
+- **Runtime config** (#127, #128): `parse_runtime_config` implements the normative spec (clamp vs
+  error per the field table, strict unknown keys per section 4 rule 11, typed errors with offsets),
+  and `WindowOptions::runtime` then consumes `pauseWhenOccluded` and `animationInterpolation`
+  through a pure mapping layer, with a GPU test proving an occluded window stops presenting only
+  when the key says so. Adaptive quality is the next consumer; the render-target scaling it needs
+  does not exist yet.
+- **Harness `scrollIntoView`** (#129): the action takes an item index and an alignment, drives
+  `VirtualRange::scroll_to_index`, re-realizes and settles a frame, so a script can reveal and then
+  address an item that was outside the realized window. The manifest scene gained a live collection
+  per virtual node because it previously had only a scrollable axis.
+
+Two slices had to correct their own brief: the config loader first shipped unknown keys as warnings
+(the spec says errors) and the Android workflow gained an `adb` pre-step that ran before the SDK was
+on `PATH` and made the lane red earlier than the flake it targeted. Both were reverted before merge;
+the spec and the failing run each beat the plan.
