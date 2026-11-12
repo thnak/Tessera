@@ -17,6 +17,7 @@ add_library(tessera_codegen STATIC
     src/emit_schedule.cpp
     src/emit_snapshot.cpp
     src/emit_stylesheet_embed.cpp
+    src/emit_theme_embed.cpp
     src/form_binding.cpp
     src/emit_header.cpp
     src/emit_lifecycle.cpp
@@ -187,6 +188,23 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME codegen_stylesheet_embed
         COMMAND codegen_stylesheet_embed_tests $<TARGET_FILE:tessera_codegen_cli>)
+
+    # Embedded theme asset (issue #81, ADR-048): the `<module>_theme.hpp` file codegen emits, its
+    # determinism, and the CLI path that parses `assets.theme` and fails with the typed code on a
+    # broken asset. The CLI part needs subprocess execution.
+    add_executable(codegen_theme_embed_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_theme_embed_tests.cpp)
+
+    target_link_libraries(codegen_theme_embed_tests PRIVATE
+        tessera_codegen
+        tessera_style)
+
+    if (CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        target_compile_definitions(codegen_theme_embed_tests PRIVATE TESSERA_NO_SUBPROCESS=1)
+    endif ()
+
+    add_test(NAME codegen_theme_embed
+        COMMAND codegen_theme_embed_tests $<TARGET_FILE:tessera_codegen_cli>)
 
     # End-to-end proof: build the generated sample and inspect the attached metadata, children,
     # focusability and text through the real scene API (no GPU).

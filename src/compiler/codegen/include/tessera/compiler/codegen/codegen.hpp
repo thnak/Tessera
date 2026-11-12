@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -29,6 +30,13 @@ struct StylesheetEmbed {
     std::vector<std::uint8_t> bytes; // serialize_stylesheet() output
 };
 
+// The project's theme asset as the CLI serialized it (issue #81, ADR-048;
+// docs/specs/compiled-stylesheet-v1.md "Theme asset blob"). Codegen never parses the asset JSON:
+// the caller owns `serialize_theme_asset()`, so the library keeps its IR-only dependency.
+struct EmbeddedTheme {
+    std::vector<std::uint8_t> bytes; // serialize_theme_asset() output
+};
+
 // One `TESSERA_CODEGEN_*` error. Lowering/codegen stops at the first unsupported construct; no
 // partial file set is returned.
 using CodegenErrors = std::vector<std::string>;
@@ -42,8 +50,13 @@ using CodegenResult = std::expected<std::vector<GeneratedFile>, CodegenErrors>;
 // the blobs as `inline constexpr` byte arrays plus the `kEmbeddedStylesheets` table, in
 // `module.stylesheets` order. A sheet without a blob is skipped and keeps its warning. An embed
 // whose `path` is not a stylesheet of the module is a `TESSERA_CODEGEN_STYLESHEET_UNKNOWN` error.
+//
+// When `theme` is set, exactly one more file `<module.name>_theme.hpp` is appended: the blob as an
+// `inline constexpr` byte array and a `kEmbeddedTheme` record. No theme means no extra file and no
+// new warning.
 [[nodiscard]] CodegenResult generate(const ir::IrModule& module,
-                                     std::span<const StylesheetEmbed> embeds = {});
+                                     std::span<const StylesheetEmbed> embeds = {},
+                                     std::optional<EmbeddedTheme> theme = std::nullopt);
 
 // Non-fatal findings for `module`, one `TESSERA_CG_*: ...` string each, in a deterministic order.
 // Today: a stylesheet of the module that the caller supplied no blob for is

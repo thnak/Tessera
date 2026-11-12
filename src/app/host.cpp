@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+#include "host_impl.hpp"
 #include "tessera/app/host.hpp"
-#include "tessera/ui/layout/layout_scheduler.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
@@ -112,124 +112,119 @@ void report_blob_failure(std::string_view path, const ui::style::BlobError& erro
 
 } // namespace
 
-struct AppHost::Impl {
-    Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
-         HostConfig config)
-        : root(root),
-          base_sheet(std::move(sheet)),
-          sheet(base_sheet),
-          loop(loop),
-          config(config),
-          engine(config.text_measurer),
-          damage(std::make_unique<rendering::DamageAccumulator>(
-              rendering::DamageConfig{extent_for(config.width, config.height, config.dpi_scale),
-                                      config.damage_max_rects})) {
-        // The window root is the host's geometry: logical size plus the column flex container every
-        // app content area starts from. Inline style is the outermost origin, so an app stylesheet
-        // can style the root's background but never resize the window.
-        apply_root_size();
-        tree = std::make_unique<ui::style::SceneStyleTree>(root);
-        provider = std::make_unique<ui::paint::SceneStyleProvider>(this->sheet, *tree);
-        pipeline = std::make_unique<ui::frame::FramePipeline>(
-            animations, this->loop, tracker, *damage, dirty, this->config.pipeline);
-    }
+AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
+                    HostConfig config)
+    : root(root),
+      base_sheet(std::move(sheet)),
+      sheet(base_sheet),
+      loop(loop),
+      config(config),
+      engine(config.text_measurer),
+      damage(std::make_unique<rendering::DamageAccumulator>(rendering::DamageConfig{
+          extent_for(config.width, config.height, config.dpi_scale), config.damage_max_rects})) {
+    // The window root is the host's geometry: logical size plus the column flex container every
+    // app content area starts from. Inline style is the outermost origin, so an app stylesheet
+    // can style the root's background but never resize the window.
+    apply_root_size();
+    // A project without a theme asset still has the built-in `default` theme, so the reserved
+    // chrome pair and `var(--token)` behave the same with and without an asset.
+    theme_asset = ui::style::default_theme_asset();
+    active_theme_id = theme_asset.start;
+    rebuild_cascade();
+    tree = std::make_unique<ui::style::SceneStyleTree>(root);
+    provider = std::make_unique<ui::paint::SceneStyleProvider>(this->sheet, *tree);
+    pipeline = std::make_unique<ui::frame::FramePipeline>(animations, this->loop, tracker, *damage,
+                                                          dirty, this->config.pipeline);
+}
 
-    void apply_root_size() {
-        // Window geometry is host-owned, but the root's layout mode is not: a shell with a sidebar
-        // sets its own `display`/`flex-direction` before the host exists, and clobbering it would
-        // silently stack the shell. Only fill in the defaults the caller did not choose.
-        //
-        // The size strings live in host-owned buffers because the scene borrows them (see
-        // write_pixels); they are stable for the host's lifetime, so a resize re-formats in place
-        // and refreshes the declarations without invalidating anything already stored.
-        write_pixels(root_width_text_, config.width);
-        write_pixels(root_height_text_, config.height);
-        root.set_inline_style("width", std::string_view(root_width_text_.data()));
-        root.set_inline_style("height", std::string_view(root_height_text_.data()));
-        if (!has_inline_style(root, "display")) {
-            root.set_inline_style("display", "flex");
+void AppHost::Impl::apply_root_size() {
+    // Window geometry is host-owned, but the root's layout mode is not: a shell with a sidebar
+    // sets its own `display`/`flex-direction` before the host exists, and clobbering it would
+    // silently stack the shell. Only fill in the defaults the caller did not choose.
+    //
+    // The size strings live in host-owned buffers because the scene borrows them (see
+    // write_pixels); they are stable for the host's lifetime, so a resize re-formats in place
+    // and refreshes the declarations without invalidating anything already stored.
+    write_pixels(root_width_text_, config.width);
+    write_pixels(root_height_text_, config.height);
+    root.set_inline_style("width", std::string_view(root_width_text_.data()));
+    root.set_inline_style("height", std::string_view(root_height_text_.data()));
+    if (!has_inline_style(root, "display")) {
+        root.set_inline_style("display", "flex");
+    }
+    if (!has_inline_style(root, "flex-direction")) {
+        root.set_inline_style("flex-direction", "column");
+    }
+}
+
+void AppHost::Impl::rebuild_style_tree() {
+    // Attaching/removing children invalidates the captured tree (SceneStyleTree), and the
+    // provider borrows it, so both are recreated together.
+    tree = std::make_unique<ui::style::SceneStyleTree>(root);
+    provider = std::make_unique<ui::paint::SceneStyleProvider>(sheet, *tree);
+}
+
+// One cascade: the constructor sheet (lowest source order), the embedded sheets in table order,
+// and the active theme's generated `:root` rule last with `Origin::Theme` (stylesheet-v1.md
+// section 9.1). The theme rule cannot win an author declaration of the same token because the
+// theme origin ranks below author, and only the active theme is present.
+void AppHost::Impl::rebuild_cascade() {
+    ui::style::CompiledStyleSheet combined = base_sheet;
+    for (const ui::style::PreparedStyleSheet& prepared : embedded_sheets) {
+        combined.append_sheet(prepared);
+    }
+    combined.append_sheet(ui::style::prepare_theme_stylesheet(theme_asset, active_theme_id),
+                          ui::style::Origin::Theme);
+    sheet = std::move(combined);
+}
+
+// A theme or sheet generation change: every node can resolve different tokens through inheritance,
+// so the whole subtree is marked and the style tree and paint cache are rebuilt. The caller
+// chooses whether layout is marked: a stylesheet can change any property, while a theme switch
+// only changes tokens (a token used by a layout property still re-resolves because begin_frame()
+// runs the layout pass whenever style work is due).
+void AppHost::Impl::apply_style_generation(ui::Dirty dirty) {
+    rebuild_cascade();
+    rebuild_style_tree();
+    pipeline->invalidate_paint_cache();
+    mark_subtree(root, dirty);
+    loop.mark_render_dirty();
+}
+
+void AppHost::Impl::run_layout_pass() {
+    const ui::layout::LayoutInput input = build_layout_input(root, *provider);
+    const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
+    // The scheduler reuses the cached result when the layout input signature (tree shape,
+    // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
+    // cannot move boxes skips Yoga and only re-syncs the scene style.
+    last_layout = layout_scheduler.update(input, viewport, true);
+    last_applied = ui::layout::apply_layout(last_layout, root);
+}
+
+void AppHost::Impl::register_embedded_stylesheets(
+    std::span<const ui::style::EmbeddedStylesheet> sheets) {
+    // Registration is a startup-time operation: every blob is loaded here, once, and resolved
+    // into the cascade; no frame ever parses CSS. The constructor sheet is kept as the base of
+    // every rebuild, so a later call replaces the previous registration rather than stacking.
+    embedded_sheets.clear();
+    rejected_stylesheet_count = 0;
+    for (const ui::style::EmbeddedStylesheet& embedded : sheets) {
+        auto prepared = ui::style::load_stylesheet_blob(embedded.bytes);
+        if (!prepared) {
+            report_blob_failure(embedded.path, prepared.error());
+            ++rejected_stylesheet_count;
+            continue;
         }
-        if (!has_inline_style(root, "flex-direction")) {
-            root.set_inline_style("flex-direction", "column");
-        }
+        embedded_sheets.push_back(std::move(*prepared));
     }
-
-    void rebuild_style_tree() {
-        // Attaching/removing children invalidates the captured tree (SceneStyleTree), and the
-        // provider borrows it, so both are recreated together.
-        tree = std::make_unique<ui::style::SceneStyleTree>(root);
-        provider = std::make_unique<ui::paint::SceneStyleProvider>(sheet, *tree);
-    }
-
-    void run_layout_pass() {
-        const ui::layout::LayoutInput input = build_layout_input(root, *provider);
-        const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
-        // The scheduler reuses the cached result when the layout input signature (tree shape,
-        // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
-        // cannot move boxes skips Yoga and only re-syncs the scene style.
-        last_layout = layout_scheduler.update(input, viewport, true);
-        last_applied = ui::layout::apply_layout(last_layout, root);
-    }
-
-    void register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets) {
-        // Registration is a startup-time operation: every blob is loaded here, once, and resolved
-        // into the cascade; no frame ever parses CSS. The constructor sheet is kept as the base of
-        // every rebuild, so a later call replaces the previous registration rather than stacking.
-        ui::style::CompiledStyleSheet combined = base_sheet;
-        rejected_stylesheet_count = 0;
-        for (const ui::style::EmbeddedStylesheet& embedded : sheets) {
-            const auto prepared = ui::style::load_stylesheet_blob(embedded.bytes);
-            if (!prepared) {
-                report_blob_failure(embedded.path, prepared.error());
-                ++rejected_stylesheet_count;
-                continue;
-            }
-            combined.append_sheet(*prepared);
-        }
-        sheet = std::move(combined);
-        // The provider borrows the active sheet and the tree captures the scene, so both are
-        // rebuilt now (a direct paint before the next begin_frame() stays consistent). The style
-        // generation changed: mark every node so the next begin_frame() re-resolves and rebuilds
-        // the selector tree, and drop the per-node paint cache because a node can stay Clean while
-        // its computed style changes (inheritance, ancestor/sibling selectors, a new sheet).
-        rebuild_style_tree();
-        pipeline->invalidate_paint_cache();
-        mark_subtree(root,
-                     ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
-    }
-
-    ui::Node& root;
-    // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
-    // one.
-    ui::style::CompiledStyleSheet base_sheet;
-    ui::style::CompiledStyleSheet sheet;
-    runtime::RuntimeLoop& loop;
-    HostConfig config;
-
-    // Host-owned storage for the root's inline `width`/`height` text (the scene borrows it).
-    std::array<char, 32> root_width_text_{};
-    std::array<char, 32> root_height_text_{};
-
-    std::unique_ptr<ui::style::SceneStyleTree> tree;
-    std::unique_ptr<ui::paint::SceneStyleProvider> provider;
-    ui::layout::LayoutEngine engine;
-    ui::layout::LayoutScheduler layout_scheduler{engine};
-    ui::DirtyPass dirty;
-    ui::layout::DamageTracker tracker;
-    std::unique_ptr<rendering::DamageAccumulator> damage;
-    ui::animation::AnimationRuntime animations;
-    std::unique_ptr<ui::frame::FramePipeline> pipeline;
-    ui::UpdateScheduler* scheduler = nullptr;
-    bool reduced_motion = false;
-    std::size_t rejected_stylesheet_count = 0;
-
-    ui::layout::LayoutResult last_layout;
-    ui::layout::LayoutApplyResult last_applied;
-    ui::frame::FrameRender last_render;
-    // One-shot full-repaint request from request_full_repaint(). It is applied after the pipeline's
-    // tick (which clears the accumulator), so it survives the tick it was requested before.
-    bool full_repaint_pending = false;
-};
+    // The provider borrows the active sheet and the tree captures the scene, so both are rebuilt
+    // now (a direct paint before the next begin_frame() stays consistent). The style generation
+    // changed: mark every node so the next begin_frame() re-resolves and rebuilds the selector
+    // tree, and drop the per-node paint cache because a node can stay Clean while its computed
+    // style changes (inheritance, ancestor/sibling selectors, a new sheet).
+    apply_style_generation(ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint |
+                           ui::Dirty::Render);
+}
 
 AppHost::AppHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
                  HostConfig config)

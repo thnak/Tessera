@@ -106,7 +106,8 @@ std::vector<std::string> codegen_warnings(const ir::IrModule& module,
     return warnings;
 }
 
-CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds) {
+CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
+                       std::optional<EmbeddedTheme> theme) {
     if (!valid_namespace(module.name)) {
         return std::unexpected(single(
             "TESSERA_CODEGEN_UNSUPPORTED: module.name `" + module.name +
@@ -155,6 +156,10 @@ CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmb
     if (!resolved.empty()) {
         files.push_back(GeneratedFile{module.name + "_stylesheets.hpp",
                                       internal::emit_stylesheet_header(module.name, resolved)});
+    }
+    if (theme.has_value()) {
+        files.push_back(GeneratedFile{module.name + "_theme.hpp",
+                                      internal::emit_theme_header(module.name, theme->bytes)});
     }
     return files;
 }

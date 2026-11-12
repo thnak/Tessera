@@ -215,4 +215,10 @@ struct ResolvedStylesheet {
 [[nodiscard]] std::string emit_stylesheet_header(std::string_view module_name,
                                                  std::span<const ResolvedStylesheet> sheets);
 
+// Emits `<module.name>_theme.hpp` (docs/specs/compiled-stylesheet-v1.md "Theme asset blob"): one
+// `inline constexpr` byte array named `kThemeBlob` and the `kEmbeddedTheme` record of the engine's
+// `tessera::ui::style::EmbeddedTheme`. Deterministic: same bytes, same file.
+[[nodiscard]] std::string emit_theme_header(std::string_view module_name,
+                                            std::span<const std::uint8_t> bytes);
+
 } // namespace tessera::compiler::codegen::internal

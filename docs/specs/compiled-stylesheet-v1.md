@@ -121,9 +121,9 @@ padding, no pointers, no hash-map iteration, no timestamps or paths in the blob.
 
 ## 8. Not covered by v1
 
-The theme asset section is defined by ADR-048 decision 7 and lands in a later slice; it will extend
-this document (a new section kind needs a `format_version` bump). Ordered combination of several
-sheets and the `AppHost` registration API are section 10.
+Ordered combination of several sheets and the `AppHost` registration API are section 10. The theme
+asset is a separate artifact with its own magic and format version (section 11), so it does not
+change this layout and does not need a `format_version` bump here.
 
 ## 9. Embedding in generated C++
 
@@ -218,3 +218,114 @@ the per-file values are produced.
   `AppHost::rejected_stylesheet_count()` reports how many were skipped. The cascade is always built
   from the sheets that did load plus the constructor sheet, never a partly applied sheet and never
   a previous registration.
+
+## 11. Theme asset blob
+
+The embedded form of the **theme asset** ([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1).
+Implementation: `include/tessera/ui/style/theme_asset.hpp` (`ThemeAsset`, `parse_theme_asset`,
+`serialize_theme_asset`, `load_theme_asset_blob`), `src/ui/style/theme_asset.cpp` (build-time
+parse), `src/ui/style/theme_asset_blob.cpp` (blob), `src/ui/style/theme_stylesheet.cpp` (the
+generated `:root` rule).
+
+```text
+JSON asset --parse (build time)--> ThemeAsset --serialize--> blob bytes
+blob bytes --load (startup)--> ThemeAsset --prepare_theme_stylesheet--> PreparedStyleSheet
+```
+
+The runtime never parses the asset JSON: the CLI parses it once at build time, and startup only
+decodes the blob and appends the active theme's `:root` rule to the cascade.
+
+### 11.1 Byte layout
+
+All integers are little-endian and fixed width. Strings are `u32` length followed by UTF-8 bytes
+(no interned table). Every count and length is bounds-checked against the bytes remaining before it
+can drive a read or an allocation.
+
+```text
+header (20 bytes)
+  magic            4   "TTHB"
+  format_version   u32 1
+  payload_hash     u64 FNV-1a 64 of every payload byte
+  payload_size     u32 bytes after the header; must equal the remaining length exactly
+payload
+  schema_version   u32 the asset's `schemaVersion` (1)
+  default_authored u8  1 when the asset carries a `themes.default` entry
+  start            string
+  warnings         u32 count, then a string per TESSERA_THEME_TOKEN_MISSING finding
+  themes           u32 count, then per theme:
+                     id      string
+                     tokens  u32 count, then per token: name string, value string
+```
+
+`themes` is ordered: the built-in `default` first (its tokens replaced by an authored
+`themes.default`), then the `themes` keys in document order. `warnings` is the parse-time derived
+list, carried in the blob so the loaded asset equals the parsed one without re-deriving it at run
+time.
+
+### 11.2 Versioning and determinism
+
+- `format_version` changes when the byte layout changes; the loader rejects any other value
+  (`UnsupportedFormatVersion`) and never reads forward.
+- `payload_hash` is the hash the writer computed over the payload; a mismatch is `HashMismatch`.
+  It detects truncation or a corrupted/edited payload, not a deliberate forgery.
+- A valid hash with a payload that still fails the structural checks (unsupported `schema_version`,
+  a count/length beyond the payload, trailing bytes) is `Corrupt`; a short header or a payload size
+  that does not match the input is `Truncated`; wrong magic is `BadMagic`.
+- Identical assets serialize to identical bytes: fixed-width integers, document/asset order for
+  themes and tokens, no hash-map iteration, no paths or timestamps. `serialize(load(blob)) == blob`.
+- A format/engine mismatch is a build error for an embedded blob (ADR-048); a blob that arrives at
+  run time is rejected with the diagnostic.
+
+### 11.3 Codegen emission
+
+The CLI reads `assets.theme` from `tessera.json` (a project-relative POSIX path), parses it with
+the harness JSON decoder, and passes the serializer output to `codegen::generate` as an optional
+`EmbeddedTheme{bytes}`; the IR is unchanged and the codegen library still links only the IR. A parse
+failure fails the regeneration with `<path>: <typed code>: <message>` (the codes of
+[`stylesheet-v1.md`](stylesheet-v1.md) section 9.1) and writes no theme file. Without
+`assets.theme` there is no extra file and no new warning.
+
+When a theme is present, `generate` appends exactly one file, `<module.name>_theme.hpp`:
+
+```cpp
+#include "tessera/ui/style/theme_asset.hpp"
+
+namespace <module.name> {
+  inline constexpr std::array<std::uint8_t, N> kThemeBlob = { /* N bytes */ };
+  inline constexpr tessera::ui::style::EmbeddedTheme kEmbeddedTheme = {
+      std::span<const std::uint8_t>(kThemeBlob)};
+}
+```
+
+Elements are lowercase `0xnn`, 12 per line, trailing comma per line, so the file is byte-for-byte
+deterministic; `--check` covers it like any other generated file. With embedded stylesheets too,
+`<module>_stylesheets.hpp` comes first and `<module>_theme.hpp` last.
+
+### 11.4 `AppHost` registration and switching
+
+```cpp
+tessera::app::AppHost host(root, base_sheet, loop, config);
+host.register_embedded_theme(<module.name>::kEmbeddedTheme.bytes);
+host.set_theme("dark");                           // false for an unknown id
+```
+
+- `register_embedded_theme` loads the blob with `load_theme_asset_blob` (no JSON parsing), stores
+  the asset, and applies its `start` theme. Calling it again replaces the previous asset.
+- `set_theme(id)` activates an id of the installed asset. Only that theme's tokens are injected, as
+  one generated `:root` rule with `Origin::Theme` appended to the ordinary cascade; there is no
+  parallel token path. The host rebuilds the selector tree, marks the subtree
+  `Style | Paint | Render` dirty, drops the pipeline's paint cache, and wakes the runtime loop, so
+  the next `begin_frame()` re-resolves. A token the active theme omits resolves through `var()`
+  fallback; a reserved chrome token additionally falls back to its built-in value (section 9.2 of
+  [`stylesheet-v1.md`](stylesheet-v1.md)).
+- `theme_ids()` returns `default` plus the asset's theme keys in asset order; `active_theme()`
+  returns the active id; `theme_token(name)` returns the value the active theme injects (including
+  the built-in reserved fallback) or nullopt.
+- A blob that does not load is never applied and never throws: one
+  `TESSERA_THEME_BLOB_INVALID: <code>: <message>` line goes to stderr, the current theme stays
+  applied, and `rejected_theme_count()` reports the skip. A later loadable registration clears the
+  count.
+- The two reserved chrome tokens are also read outside the render tree
+  ([`window-chrome-v1.md`](window-chrome-v1.md) section 3.1). This blob only carries the tokens the
+  style engine injects; resolving the chrome pair before the first frame is the chrome slice's
+  reader of the same asset.

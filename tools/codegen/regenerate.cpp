@@ -18,6 +18,7 @@
 #include "tessera/harness/json_parse.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/stylesheet_blob.hpp"
+#include "tessera/ui/style/theme_asset.hpp"
 #include "tessera/ui/style/tokenizer.hpp"
 
 #include <algorithm>
@@ -153,6 +154,35 @@ bool safe_file_name(std::string_view name) {
            name.find('\\') == std::string_view::npos && name.find("..") == std::string_view::npos;
 }
 
+// The embedded theme asset (issue #81, ADR-048): a project without `assets.theme` has no asset and
+// therefore no generated theme file. A configured asset is parsed and serialized once here, so the
+// codegen library never sees the JSON or the style engine (docs/specs/stylesheet-v1.md 9.1).
+bool build_theme_embed(const ProjectIdentity& identity, Outcome& outcome,
+                       std::optional<EmbeddedTheme>& theme) {
+    if (identity.theme.empty()) {
+        return true;
+    }
+    const std::optional<std::string> text = read_file(identity.root / fs::path(identity.theme));
+    if (!text) {
+        report(outcome, true, identity.theme + ": TESSERA_THEME_READ: cannot read the theme asset");
+        outcome.exit_code = 1;
+        return false;
+    }
+    const auto parsed = style::parse_theme_asset(*text);
+    if (!parsed) {
+        report(outcome, true,
+               identity.theme + ": " + style::theme_error_code_name(parsed.error().code) + ": " +
+                   parsed.error().message);
+        outcome.exit_code = 1;
+        return false;
+    }
+    for (const std::string& warning : parsed->warnings) {
+        report(outcome, false, identity.theme + ": warning: " + warning);
+    }
+    theme = EmbeddedTheme{style::serialize_theme_asset(*parsed)};
+    return true;
+}
+
 // A module namespace when --namespace is absent: the file stem with non-identifier characters
 // replaced, leading digits prefixed, and lowercased (C++ namespace convention).
 std::string derive_module_name(const std::string& input) {
@@ -176,8 +206,9 @@ std::string derive_module_name(const std::string& input) {
 }
 
 bool generate_files(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
-                    std::vector<GeneratedFile>& files, Outcome& outcome, std::string_view input) {
-    const auto generated = generate(module, embeds);
+                    const std::optional<EmbeddedTheme>& theme, std::vector<GeneratedFile>& files,
+                    Outcome& outcome, std::string_view input) {
+    const auto generated = generate(module, embeds, theme);
     if (!generated) {
         const CodegenErrors& errors = generated.error();
         report(outcome, true,
@@ -216,6 +247,10 @@ Outcome run(const Options& options) {
 
     const std::optional<ProjectIdentity> identity = resolve_identity(options, outcome);
     if (!identity) {
+        return outcome;
+    }
+    std::optional<EmbeddedTheme> theme;
+    if (!build_theme_embed(*identity, outcome, theme)) {
         return outcome;
     }
 
@@ -480,7 +515,7 @@ Outcome run(const Options& options) {
     }
 
     std::vector<GeneratedFile> files;
-    if (!generate_files(module, *embeds, files, outcome, options.inputs.front())) {
+    if (!generate_files(module, *embeds, theme, files, outcome, options.inputs.front())) {
         return outcome;
     }
 

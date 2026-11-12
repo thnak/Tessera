@@ -28,6 +28,8 @@ struct ProjectIdentity {
     std::string salt;
     std::filesystem::path root;
     std::vector<PackageRootSpec> packages;
+    // `assets.theme` as a project-relative POSIX path, empty when the config names no theme asset.
+    std::string theme;
 };
 
 // Appends one message; an error also makes the exit code 1 unless it was already larger.
