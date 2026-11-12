@@ -79,6 +79,60 @@ jobs:
           path: offscreen.png
           retention-days: 14
 
+  # docs/design/icu-data.md section 8.6: the ICU engine stays opt-in (TESSERA_ICU_REDUCED_DATA), so
+  # exactly one job carries its cost — the pinned host tools, the full data blob, the ON configure
+  # and the filtered text suite. Every other lane keeps the builtin segmenter; text_breaks_parity
+  # keeps proving both engines produce the same line boxes on the shared corpus.
+  icu-text:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential curl
+          python3 -m pip install --user "clang-format==$(cat tools/format-version.txt)"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Provision pinned ICU host tools and full data
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/icu4c-76_1-src.tgz" \
+            "https://github.com/unicode-org/icu/releases/download/release-76-1/icu4c-76_1-src.tgz"
+          echo "dfacb46bfe4747410472ce3e1144bf28a102feeaa4e3875bac9b4c6cf30f4f3e  $RUNNER_TEMP/icu4c-76_1-src.tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/icu"
+          tar -xzf "$RUNNER_TEMP/icu4c-76_1-src.tgz" -C "$RUNNER_TEMP/icu" --strip-components=1
+          cd "$RUNNER_TEMP/icu/source"
+          ./runConfigureICU Linux --disable-samples > configure.log
+          make -j"$(nproc)" > make.log
+          test -x bin/icupkg
+          test -x bin/genccode
+          test -f data/in/icudt76l.dat
+
+      - uses: ./.github/actions/ccache
+        with:
+          name: icu-text
+
+      - name: Configure (ICU reduced static data ON)
+        run: |
+          cmake --preset ci -DTESSERA_WARNINGS_AS_ERRORS=ON -DTESSERA_ENABLE_THORVG=ON \
+            -DTESSERA_ICU_REDUCED_DATA=ON \
+            -DTESSERA_ICU_TOOLS_DIR="$RUNNER_TEMP/icu/source/bin" \
+            -DTESSERA_ICU_FULL_DATA="$RUNNER_TEMP/icu/source/data/in/icudt76l.dat" \
+            -DTESSERA_ICU_SOURCE_DIR="$RUNNER_TEMP/icu" \
+            -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_POC=OFF
+
+      - name: Build
+        run: cmake --build --preset ci
+
+      - name: ccache statistics
+        run: ccache --show-stats
+
+      - name: Filtered text suite on the ICU engine
+        run: ctest --preset ci -R "text_|paint_text|paint_text_wrap|layout_|icu" --output-on-failure
+
   release-gates:
     runs-on: ubuntu-latest
     timeout-minutes: 5
