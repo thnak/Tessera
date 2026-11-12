@@ -578,14 +578,13 @@ both ADR-048 blob artifacts (compiled stylesheets registered in import-graph ord
 `@layer tessera-ui`, and the embedded theme asset loaded without parsing); in-tree UIA and AT-SPI2
 bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
-**Farm order:** V1-M1 and V1-M2 first. Remaining unblocked M2 slices: dynamic
-`orientation`/`columns`/`overscan` on virtual collections, codegen vector payloads, and ADR-040
-generated-base migration; the last #70 leftover (object-literal prop defaults) is blocked on an IR
-record type. Remaining M1 slices: `scrollIntoView` for an unrealized virtual item, adaptive quality
-plus the `pauseWhenOccluded` / `animationInterpolation` keys (both need a runtime-config loader, which now
-exists: wiring those keys into the window/loop is what remains), and the B3 Wayland/XInput2/OS-event items. V1-M3 and V1-M5
-wait for their design PRs (#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may
-start now. V1-M4, V1-M6, V1-M7 and V1-M8 come later.
+**Farm order:** V1-M1 and V1-M2 first. Remaining unblocked M2 slices: codegen vector payloads and
+the ADR-040 generated-base migration; the last #70 leftover (object-literal prop defaults) is blocked
+on an IR record type. Remaining M1 slices: the rest of the power item (effect reduction and the
+present-cap divisor, plus GPU timestamps as the frame-time signal), the interpolation alpha wake
+threshold, the B3 Wayland window and the B3 OS-event item. V1-M3 and V1-M5 wait for their design PRs
+(#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may start now. V1-M4, V1-M6, V1-M7
+and V1-M8 come later.
 
 The detailed history of what landed and why is in
 [`docs/architecture/implementation-log.md`](docs/architecture/implementation-log.md). Keep the B1
