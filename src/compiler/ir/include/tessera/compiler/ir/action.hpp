@@ -25,8 +25,10 @@ struct Action {
     bool animate = true; // AnimSet only
     // AnimSet only, and only when `animate` is true: the literal timing options of
     // `v.set(x, { duration, easing })`. Absent means the runtime default (200 ms, ease-out).
-    std::optional<double> duration_ms;
-    std::string easing; // CSS easing text, empty when absent
+    // Default member initializers keep `{kind, target, value, animate}` aggregate initializers
+    // warning-free (-Wmissing-field-initializers).
+    std::optional<double> duration_ms{};
+    std::string easing{}; // CSS easing text, empty when absent
 };
 
 } // namespace tessera::compiler::ir

@@ -2,7 +2,6 @@
 
 // IR validation (docs/specs/ir-v1.md section 9): one valid module, then one broken copy per rule.
 
-#include <optional>
 #include "ir_samples.hpp"
 #include "ir_test_util.hpp"
 #include "ir_validate_util.hpp"
@@ -12,6 +11,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
