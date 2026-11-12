@@ -110,31 +110,34 @@ int main() {
         return 1;
     }
 
+    // Read the offset through an explicitly guarded optional: GCC's -Wmaybe-uninitialized cannot
+    // see through `expect(... && target->field)` and rejects the direct form on an error branch.
+    const auto offset_of = [&range](std::size_t index, ScrollAlignment alignment) {
+        const auto result = range.scroll_to_index(index, kViewport, alignment);
+        return result ? result->scroll_offset : -1.0f;
+    };
+
     // Start, center and nearest from a scroll of zero.
-    auto target = range.scroll_to_index(10, kViewport, ScrollAlignment::Start);
-    if (!expect(target.has_value() && target->index == 10, "Start resolves the index") ||
-        !expect(near(target->scroll_offset, 320.0f), "Start puts the item at the viewport start")) {
+    const auto start = range.scroll_to_index(10, kViewport, ScrollAlignment::Start);
+    if (!expect(start.has_value() && start->index == 10, "Start resolves the index") ||
+        !expect(near(offset_of(10, ScrollAlignment::Start), 320.0f),
+                "Start puts the item at the viewport start")) {
         return 2;
     }
-    target = range.scroll_to_index(10, kViewport, ScrollAlignment::Center);
-    if (!expect(near(target->scroll_offset, 286.0f),
+    if (!expect(near(offset_of(10, ScrollAlignment::Center), 286.0f),
                 "Center puts the item center at the viewport center")) {
         return 3;
     }
-    target = range.scroll_to_index(10, kViewport, ScrollAlignment::End);
-    if (!expect(near(target->scroll_offset, 252.0f),
+    if (!expect(near(offset_of(10, ScrollAlignment::End), 252.0f),
                 "End puts the item main end at the viewport end")) {
         return 3;
     }
     // Nearest: an already-visible item does not move, an item below bottom-aligns.
-    if (!expect(near(range.scroll_to_index(0, kViewport, ScrollAlignment::Nearest)->scroll_offset,
-                     0.0f),
+    if (!expect(near(offset_of(0, ScrollAlignment::Nearest), 0.0f),
                 "Nearest leaves a visible first item alone") ||
-        !expect(near(range.scroll_to_index(4, kViewport, ScrollAlignment::Nearest)->scroll_offset,
-                     60.0f),
+        !expect(near(offset_of(4, ScrollAlignment::Nearest), 60.0f),
                 "Nearest bottom-aligns an item below the viewport") ||
-        !expect(near(range.scroll_to_index(3, kViewport, ScrollAlignment::Nearest)->scroll_offset,
-                     28.0f),
+        !expect(near(offset_of(3, ScrollAlignment::Nearest), 28.0f),
                 "Nearest bottom-aligns a partially visible item below")) {
         return 4;
     }
