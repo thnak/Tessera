@@ -41,6 +41,9 @@ struct Action {
     std::string easing{}; // CSS easing text, empty when absent
     // AnimSet only, exclusive with `duration_ms`/`easing` and with `animate: false`.
     std::optional<SpringTiming> spring{};
+    // AnimSet only: the `handler::N` (an inline setter handler without parameters) that runs once
+    // the value reaches this set's target. Empty means no callback. A later set drops it.
+    std::string on_complete{};
 };
 
 } // namespace tessera::compiler::ir
