@@ -117,6 +117,13 @@ if (TESSERA_BUILD_POC)
     add_subdirectory(tools/poc/merger)
 endif()
 
+# ADR-050 service-resolve microbenchmark: Release-only measurement tool, never in ctest.
+option(TESSERA_BUILD_SERVICE_RESOLVE_BENCH
+    "Build the ADR-050 service-resolve microbenchmark (not registered with ctest)" OFF)
+if (TESSERA_BUILD_SERVICE_RESOLVE_BENCH)
+    add_subdirectory(tools/poc/service_resolve)
+endif()
+
 if (TESSERA_BUILD_POC AND TESSERA_ENABLE_THORVG)
     add_subdirectory(tools/poc/thorvg_spike)
 endif()
