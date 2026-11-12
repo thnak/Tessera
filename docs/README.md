@@ -26,6 +26,8 @@ This page is the map and reading order for the framework.
   — contradictions found between documents, the rule used to resolve each, and what is still undecided
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
   ownership, dependency direction.
+- [`architecture/implementation-log.md`](architecture/implementation-log.md) — historical status
+  narrative (formerly AGENTS.md "Current focus"); the worklist is the milestone-mapped Big Steps.
 
 ## 2. Decisions
 

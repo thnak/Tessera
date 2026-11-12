@@ -58,6 +58,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-046](ADR-046-web-target-for-demos.md) | Web (Wasm + WebGPU) as a secondary target for running apps in the browser (amends ADR-024 and ADR-002) | Accepted |
 | [ADR-047](ADR-047-component-library-layers-and-design-language.md) | Component library layers, theme versioning, "Instrument" design language, catalog and stages (amends ADR-032) | Accepted |
 | [ADR-048](ADR-048-precompiled-embedded-stylesheets.md) | Precompiled stylesheets embedded as versioned blobs (prepare/resolve split), import-graph cascade order, library CSS in `@layer` | Proposed |
+| [ADR-049](ADR-049-backend-extensibility.md) | Backend extensibility: RHI versioning, `shader_id` and shader sources for non-Vulkan backends, conformance suite, support tiers, community backends (amends ADR-011) | Proposed |
 | [ADR-050](ADR-050-opt-in-app-framework-layer.md) | Application-framework layer above the UI runtime: app lifecycle, services with compile-time ids resolved once at mount (no RTTI), TSX `useService<Interface>()`, task scopes, timers, observable app state, native render surfaces via typed refs | Proposed |
 
 ## Dependency overview

@@ -4,14 +4,13 @@
 
 // WGSL lookup for RHI pipelines.
 //
-// `rhi::PipelineDesc` carries SPIR-V only, and ADR-011 keeps WGSL as a separately authored twin
-// (no runtime shader translation). Until the RHI grows a shader-id field, the WebGPU backend
-// resolves a pipeline's shaders by the identity of its SPIR-V pointer: the host registers the same
-// pointer its `PipelineDesc` will carry together with the WGSL module. In a Wasm build there is no
-// glslc output, so any stable word-aligned static object serves as the key.
+// ADR-049: a pipeline names its program with `rhi::PipelineDesc::shader_id`, and each non-SPIR-V
+// backend resolves that id against a table it owns. This registry is the WebGPU table. WGSL is
+// authored (ADR-011) and embedded at configure time, so nothing is translated at run time. The
+// SPIR-V fields of the descriptor are ignored here; a Wasm build has no glslc output at all.
 
 #include <cstddef>
-#include <cstdint>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -26,12 +25,13 @@ struct WgslProgram {
 
 class ShaderRegistry {
 public:
-    // Registers `program` under `key`. A repeated key replaces the earlier program. Registration
-    // allocates; do it at startup, never per frame.
-    void add(const std::uint32_t* key, const WgslProgram& program);
+    // Registers `program` under `shader_id`, replacing an earlier program with the same id. An
+    // empty id is ignored and returns false (empty means "SPIR-V words" in `PipelineDesc`, which
+    // WebGPU cannot consume). Registration allocates; do it at startup, never per frame.
+    bool add(std::string_view shader_id, const WgslProgram& program);
 
-    // Null when the key was never registered; lookup is allocation-free.
-    [[nodiscard]] const WgslProgram* find(const std::uint32_t* key) const;
+    // Null for an empty or unknown id; lookup is allocation-free.
+    [[nodiscard]] const WgslProgram* find(std::string_view shader_id) const;
 
     [[nodiscard]] std::size_t size() const {
         return entries_.size();
@@ -39,7 +39,7 @@ public:
 
 private:
     struct Entry {
-        const std::uint32_t* key = nullptr;
+        std::string id;
         WgslProgram program;
     };
     std::vector<Entry> entries_;
@@ -47,5 +47,9 @@ private:
 
 // The built-in batched 2D program (shaders/batched2d.wgsl embedded at configure time).
 [[nodiscard]] WgslProgram batched2d_wgsl_program();
+
+// A registry holding every built-in program under its manifest id (`gpu::kBatched2dShaderId`).
+// Each WebGPU device starts from this table; hosts add custom programs with `register_shader`.
+[[nodiscard]] ShaderRegistry builtin_shader_registry();
 
 } // namespace tessera::rendering::webgpu
