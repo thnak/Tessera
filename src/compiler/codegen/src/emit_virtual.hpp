@@ -21,18 +21,16 @@ namespace tessera::compiler::codegen::internal {
 
 // Resolves and validates the geometry props of one virtual collection. `itemSize`/`estimateSize`/
 // `gap`/`rowHeight` accept a number literal or a numeric state/prop reference (the re-seed path
-// re-evaluates the latter); `orientation`, `columns`, `overscan` and `columnWidth` stay
-// literal-only because they decide the emitted axis, row mapping or window shape at compile time.
-// Unsupported forms are TESSERA_CODEGEN_UNSUPPORTED.
+// re-evaluates the latter). `orientation`, `columns`, `overscan` and `columnWidth` accept a literal
+// (emitted unchanged) or a component prop reference (`props.<name>`), which becomes a mutable
+// member the generated scroll entry point refreshes at sync time. Unsupported forms are
+// TESSERA_CODEGEN_UNSUPPORTED.
 [[nodiscard]] bool virtual_geometry_spec(const ir::Component& component, const ir::Node& collection,
                                          VirtualGeometrySpec& out, std::string& error);
 
 // The generated member-name prefix of one item table: `list_<n>_` for an eager keyed list,
 // `virtual_<n>_` for a virtual collection window (both share the Item_<n> shape).
 [[nodiscard]] std::string item_table_prefix(const ListTemplate& list);
-
-// The collection's `orientation` prop resolved to the generated main axis (x instead of y).
-[[nodiscard]] bool virtual_is_horizontal(const ir::Node& collection);
 
 // The integer value of a literal expression, or nullopt for a dynamic/absent value.
 [[nodiscard]] std::optional<std::int64_t> virtual_integer_literal(const ir::Expr* expr);
@@ -46,9 +44,18 @@ namespace tessera::compiler::codegen::internal {
                                           DynamicPlan& plan, std::string& error);
 
 // Emits the generated geometry members of one virtual collection into the component struct: the
-// effective estimate, the gap, the declared fixed extent and the compile-time overscan/axis/columns
-// (virtualization-v1.md section 10; the estimate default is 32 px).
+// effective estimate, the gap, the declared fixed extent and the overscan/axis/columns
+// (virtualization-v1.md section 10; the estimate default is 32 px). A literal structural option is
+// emitted exactly as before; a prop-driven one becomes a mutable member seeded with the default.
 void emit_virtual_geometry_fields(CppWriter& writer, const ListTemplate& collection);
+
+// Emits the sync-time refresh of every prop-driven structural option (`orientation`, `columns`,
+// `overscan`, `columnWidth`) into `scroll_virtual_<n>()`, before the row/window math. It reads the
+// generated props field once per call (no allocation) and clamps to the runtime contract: an
+// unknown orientation is vertical, a negative overscan becomes 0, a non-positive column count
+// becomes the column-width mode 0. Emits nothing for a literal-only collection, so those goldens
+// never move.
+void emit_virtual_option_refresh(CppWriter& writer, const ListTemplate& collection);
 
 // Emits `<Name>::update_virtual_geometry_<n>(scroll_offset, viewport_extent)`, the re-seed path: it
 // re-evaluates the geometry inputs, hash-compares them against the last seed (so a per-frame call

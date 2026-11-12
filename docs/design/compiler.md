@@ -425,7 +425,7 @@ metadata. Codegen emits:
   `itemSize`/`estimateSize`/`gap`/`rowHeight` accept a number literal **or** a numeric state/prop
   reference (a mutable member holding the last seeded value, re-evaluated by
   `update_virtual_geometry_<n>()`, below); `overscan` (default 200), `orientation`, `columns` and
-  `columnWidth` stay literal-only, since they decide the emitted axis, row mapping and window shape.
+  `columnWidth` accept a literal **or** a component prop reference refreshed at sync time.
   The effective estimate is `estimateSize`, else the grid `rowHeight` / list `itemSize`, else 32 px;
   `gap` defaults to 0;
 - a growable realized-window table (`std::vector`, sized to the applied range) with the keyed-list
@@ -479,7 +479,7 @@ The scene now has `EventType::Scroll` (applied delta plus `ScrollEventInfo`), bu
 virtual collection still drives scrolling through that host entry point: the host owns the offset
 and calls the method from its scroll handling; mapping a generated `onScroll` to the scene event is
 the next slice. Rejected loudly: a non-`ScrollEvent` payload, a multi-parameter handler, an
-`onEndReached` payload, a return value, and a grid event without a fixed `columns`. A source past
+`onEndReached` payload, a return value, and a grid event without a `columns` count. A source past
 the geometry cap returns false; `columnWidth` grids stay host-driven through `apply_virtual_<n>`.
 
 The goldens `tests/golden/codegen/VirtualDemo.*` come from `codegen_virtual_tests --write`; the

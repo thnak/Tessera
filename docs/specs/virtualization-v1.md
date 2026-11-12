@@ -361,8 +361,8 @@ Rules:
   rule, and applies the overscanned window. A source past the generated geometry cap (4096 items) is
   refused by the entry point. An `onEndReached` parameter, an `onScroll` payload other than
   `ScrollEvent`, a multi-parameter collection handler, a collection-event binding with a return
-  value, or a collection event on a `VirtualGrid` without the fixed `columns` count is a compile-time
-  error.
+  value, or a collection event on a `VirtualGrid` without a `columns` literal or prop is a
+  compile-time error.
 - Geometry inputs are dynamic: `estimateSize`, `gap`, `itemSize` (list) and `rowHeight` (grid)
   accept a number literal **or** a numeric state/prop reference. The generated
   `update_virtual_geometry_<n>(float& scroll, float viewport)` re-seed path re-evaluates them,
@@ -380,10 +380,23 @@ Rules:
     item;
   - `onEndReached`'s edge/throttle state neither resets nor fires; a moved content end may leave the
     end zone, which re-arms the edge through the ordinary rule.
-  `orientation`, `columns`, `overscan` and `columnWidth` stay literal-only: they decide the emitted
-  axis, row mapping and window shape at compile time, so a dynamic form is a codegen error. The
-  re-seed path is allocation-free and deterministic (no wall clock, no pointer order); the emitted
-  `virtual_<n>_*` members hold the last seeded values.
+  `orientation`, `columns`, `overscan` and `columnWidth` accept either a literal **or** a component
+  prop reference (`orientation={props.orientation}`, `columns={props.columns}`). A literal is still
+  emitted as a `static constexpr` (byte-identical output). A prop-driven value is a mutable
+  `virtual_<n>_*` member that `scroll_virtual_<n>()` refreshes from the generated props field at the
+  start of each sync, before the row/window math, so a prop change re-realizes the collection on the
+  next sync: the `ItemGeometry::Range`, the grid row count, the measured main axis and the
+  overscanned window all use the new value. The item table is reused by key, so unrelated nodes keep
+  their `NodeId` and layout, and the refresh path allocates nothing. Only a `prop::` reference is
+  accepted for these four options; a state/animated reference, a computed expression (a call or an
+  arithmetic expression) and a prop of the wrong type are `TESSERA_CODEGEN_UNSUPPORTED` errors that
+  name the option and the reason. Runtime contract for a prop value (no crash): an `orientation`
+  string other than `horizontal` is ignored (vertical, the default axis); an `overscan` below 0 is
+  clamped to 0; a `columns` value below 0 is clamped to 0, the column-width mode in which
+  `scroll_virtual_<n>()` refuses the generated row mapping (`return false`, the host drives
+  `apply_virtual_<n>` with its own grid rows) and leaves the row geometry untouched. The re-seed path
+  is allocation-free and deterministic (no wall clock, no pointer order); the emitted `virtual_<n>_*`
+  members hold the last seeded values.
 - IR v1 gains these node kinds; codegen emits a fixed container node, generated geometry constants
   (estimate/fixed size, overscan, gap; grid row height/columns), a bounded realized-window item
   table and `apply_virtual_<n>(first, last)` (ir-v1.md section 10). The host computes `[first, last)`
@@ -499,11 +512,25 @@ Tests:
   a changed declared fixed extent that seeds the estimate additionally calls `clear_measurements`.
   The offset re-anchors with the old/new prefix sums and the section 6 clamp, so the viewport-start
   key keeps its position (or the offset clamps to `[0, total - viewport]`), and `onEndReached`'s
-  edge/throttle state is untouched. Codegen rejects dynamic `orientation`/`columns`/`overscan`/
-  `columnWidth`, a non-numeric cell and a computed geometry expression. Goldens
+  edge/throttle state is untouched. Codegen rejects a non-numeric cell, a computed geometry
+  expression, and a state-driven structural option. Goldens
   `tests/golden/codegen/VirtualDemo.*`; tests `codegen_virtual_geometry` (emission and rejection
   matrix, determinism) and `codegen_virtual_geometry_runtime` (one seed per change, measurements kept
   vs dropped, the preserved anchor, the clamp, the untouched throttle).
+- Implemented (prop-driven structural options slice): `orientation`/`columns`/`overscan`/
+  `columnWidth` accept a component prop reference as well as a literal. A literal keeps the exact
+  `static constexpr` text (the `VirtualDemo.*` golden does not move); a prop-driven option is a
+  mutable generated member refreshed by `scroll_virtual_<n>()` at the start of the sync, so a prop
+  change re-realizes the window on the next sync (new grid row count and `ItemGeometry::Range`, new
+  measured axis) without rebuilding the component tree or changing an unrelated node's `NodeId`
+  (the realized-window table is reused by key). A negative prop `overscan` clamps to 0 (no overscan),
+  a non-positive prop `columns` clamps to the column-width mode 0 (the generated row mapping refuses
+  and the host drives `apply_virtual_<n>`), and an unknown prop `orientation` falls back to vertical;
+  none of them crash. Only a component prop reference is accepted: a state/animated reference, a
+  computed expression and a wrong prop type are typed `TESSERA_CODEGEN_UNSUPPORTED` errors. Goldens
+  `tests/golden/codegen/dynamic/DynamicVirtual.*`; test `codegen_dynamic_virtual_options` (emission
+  shape, literal snippet and unchanged literal golden, the rejection matrix, and the runtime
+  re-realization/validation cases).
 - Tests: `virtual_geometry` (forward/backward scroll, estimate-then-measure totals, mid-list
   refine suffix shift, insert/remove, capacity), `virtual_geometry_scan` (brute-force linear
   oracle for offsets and windows), `virtual_anchor` (re-anchor after measure, clamp),

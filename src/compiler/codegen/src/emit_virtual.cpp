@@ -52,15 +52,6 @@ LocalBindings virtual_locals(const ListTemplate& collection, std::string_view in
 
 } // namespace
 
-bool virtual_is_horizontal(const ir::Node& collection) {
-    const auto found = collection.props.find("orientation");
-    if (found == collection.props.end() || found->second == nullptr) {
-        return false;
-    }
-    const auto* text = std::get_if<std::string>(&found->second->literal);
-    return text != nullptr && *text == "horizontal";
-}
-
 std::optional<std::int64_t> virtual_integer_literal(const ir::Expr* expr) {
     return integer_literal(expr);
 }

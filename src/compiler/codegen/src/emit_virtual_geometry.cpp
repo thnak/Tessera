@@ -8,8 +8,12 @@
 // re-seed path: it re-evaluates the inputs, hash-compares them against the last seed (so a
 // per-frame call is one FNV-1a pass and never rebuilds), keeps the measurements the change cannot
 // invalidate, and re-anchors the caller's offset so the item at the viewport start keeps its
-// viewport position. `orientation`/`columns`/`overscan`/`columnWidth` stay literal-only: they
-// decide the emitted axis, row mapping and window shape at compile time, not an item's size.
+// viewport position.
+//
+// The structural inputs (`orientation`, `columns`, `overscan`, `columnWidth`) accept a literal or a
+// component prop reference. A literal is still baked into a `static constexpr` (byte-identical
+// output); a prop-driven one is a mutable member refreshed by `scroll_virtual_<n>()` at sync time,
+// so a prop change re-realizes the window on the next sync instead of requiring a codegen change.
 
 #include "emit_virtual.hpp"
 
@@ -101,6 +105,52 @@ bool numeric_type(std::string_view type) {
     return type == "int" || type == "float" || type == "length";
 }
 
+bool string_type(std::string_view type) {
+    return type == "string";
+}
+
+bool int_type(std::string_view type) {
+    return type == "int";
+}
+
+bool starts_with(std::string_view text, std::string_view prefix) {
+    return text.rfind(prefix, 0) == 0;
+}
+
+// Resolves a structural option that is not a literal. Only a `prop::` reference is runtime-driven
+// in this slice, and its declared type must satisfy the option's contract; `shape` names the
+// literal form so one typed message covers a computed expression and a wrong reference kind.
+bool resolve_prop_option(const ir::Component& component, const std::string& context,
+                         std::string_view shape, const ir::Expr& expr,
+                         bool (*type_ok)(std::string_view), std::string_view expected_type,
+                         VirtualOption& out, std::string& error) {
+    if (expr.kind != ir::ExprKind::Ref) {
+        return fail(error, context + " must be " + std::string(shape) +
+                               " or a `props.<name>` component prop; a computed expression is a "
+                               "later slice");
+    }
+    if (!starts_with(expr.id, "prop::")) {
+        return fail(error, context + " must be " + std::string(shape) +
+                               " or a `props.<name>` component prop; `" + expr.id +
+                               "` is neither (a state-driven structural option is a later slice)");
+    }
+    const std::optional<std::string> type = declared_type(component, expr.id);
+    if (!type) {
+        return fail(error, context + " references `" + expr.id + "`, which is not a declared prop");
+    }
+    if (!type_ok(*type)) {
+        return fail(error, context + " references `" + expr.id + "` of type `" + *type +
+                               "`; it needs a `" + std::string(expected_type) + "` prop");
+    }
+    const ExprEmission emitted = emit_expr(expr, component);
+    if (!emitted.error.empty()) {
+        return fail(error, context + ": " + emitted.error);
+    }
+    out.prop_driven = true;
+    out.cpp = emitted.text;
+    return true;
+}
+
 // Resolves one numeric geometry input: a number literal, or a numeric state/prop reference the
 // re-seed path re-evaluates. Anything else is a loud rejection (no implicit string-to-double).
 bool resolve_value(const ir::Component& component, const std::string& tag, std::string_view name,
@@ -151,40 +201,53 @@ bool virtual_geometry_spec(const ir::Component& component, const ir::Node& colle
     out.grid = collection.kind == ir::NodeKind::VirtualGrid;
     const std::string tag = out.grid ? "VirtualGrid" : "VirtualList";
 
-    // Structural props, literal-only and checked in name order for a deterministic first error.
+    // Structural options, checked in name order for a deterministic first error. A literal keeps
+    // the emitted compile-time constant; a `props.<name>` reference becomes a sync-time member.
     if (const ir::Expr* orientation = prop(collection, "orientation")) {
-        const std::optional<std::string> text = string_literal(orientation);
-        if (!text || (*text != "vertical" && *text != "horizontal")) {
-            return fail(error, "`<" + tag +
-                                   ">` prop `orientation` must be \"vertical\" or "
-                                   "\"horizontal\"");
+        const std::string context = "`<" + tag + ">` prop `orientation`";
+        if (const std::optional<std::string> text = string_literal(orientation)) {
+            if (*text != "vertical" && *text != "horizontal") {
+                return fail(error, context + " must be \"vertical\" or \"horizontal\"");
+            }
+            out.horizontal = *text == "horizontal";
+        } else if (!resolve_prop_option(component, context, "\"vertical\" or \"horizontal\"",
+                                        *orientation, string_type, "string", out.orientation_source,
+                                        error)) {
+            return false;
         }
-        out.horizontal = *text == "horizontal";
     }
     if (out.grid) {
         if (const ir::Expr* columns = prop(collection, "columns")) {
-            const std::optional<std::int64_t> count = virtual_integer_literal(columns);
-            if (!count || *count < 1) {
-                return fail(error, "`<" + tag +
-                                       ">` prop `columns` must be an integer literal of "
-                                       "at least 1");
+            const std::string context = "`<" + tag + ">` prop `columns`";
+            if (const std::optional<std::int64_t> count = virtual_integer_literal(columns)) {
+                if (*count < 1) {
+                    return fail(error, context + " must be an integer literal of at least 1");
+                }
+                out.columns = *count;
+            } else if (!resolve_prop_option(component, context, "an integer literal of at least 1",
+                                            *columns, int_type, "int", out.columns_source, error)) {
+                return false;
             }
-            out.columns = *count;
         }
         if (const ir::Expr* width = prop(collection, "columnWidth")) {
-            const std::optional<double> value = number_literal(width);
-            if (!value) {
-                return fail(error, "`<" + tag + ">` prop `columnWidth` must be a number literal");
+            const std::string context = "`<" + tag + ">` prop `columnWidth`";
+            if (const std::optional<double> value = number_literal(width)) {
+                out.column_width = *value;
+            } else if (!resolve_prop_option(component, context, "a number literal", *width,
+                                            numeric_type, "numeric", out.column_width_source,
+                                            error)) {
+                return false;
             }
-            out.column_width = *value;
         }
     }
     if (const ir::Expr* overscan = prop(collection, "overscan")) {
-        const std::optional<double> value = number_literal(overscan);
-        if (!value) {
-            return fail(error, "`<" + tag + ">` prop `overscan` must be a number literal");
+        const std::string context = "`<" + tag + ">` prop `overscan`";
+        if (const std::optional<double> value = number_literal(overscan)) {
+            out.overscan = *value;
+        } else if (!resolve_prop_option(component, context, "a number literal", *overscan,
+                                        numeric_type, "numeric", out.overscan_source, error)) {
+            return false;
         }
-        out.overscan = *value;
     }
 
     // Size inputs: a list declares `itemSize`, a grid `rowHeight`.
@@ -240,16 +303,69 @@ void emit_virtual_geometry_fields(CppWriter& writer, const ListTemplate& collect
         writer.line("static constexpr double " + base + fixed_name + " = 0.0;");
     }
     writer.line("double " + base + "estimate_size_ = " + spec.estimate.cpp + ";");
-    writer.line("static constexpr double " + base + "overscan_ = " + double_text(spec.overscan) +
-                ";");
-    writer.line("double " + base + "gap_ = " + spec.gap.cpp + ";");
-    writer.line("static constexpr bool " + base + "horizontal_ = " +
-                (spec.horizontal ? "true" : "false") + "; // main axis is x instead of y");
-    if (spec.grid) {
-        writer.line("static constexpr int " + base + "columns_ = " + std::to_string(spec.columns) +
-                    "; // 0 means column-width mode");
+    if (spec.overscan_source.prop_driven) {
+        writer.line("double " + base + "overscan_ = " + double_text(spec.overscan) +
+                    "; // prop-driven: scroll_virtual_<n>() refreshes it");
+    } else {
         writer.line("static constexpr double " + base +
-                    "column_width_ = " + double_text(spec.column_width) + ";");
+                    "overscan_ = " + double_text(spec.overscan) + ";");
+    }
+    writer.line("double " + base + "gap_ = " + spec.gap.cpp + ";");
+    if (spec.orientation_source.prop_driven) {
+        writer.line("bool " + base + "horizontal_ = " + (spec.horizontal ? "true" : "false") +
+                    "; // prop-driven: scroll_virtual_<n>() refreshes it");
+    } else {
+        writer.line("static constexpr bool " + base + "horizontal_ = " +
+                    (spec.horizontal ? "true" : "false") + "; // main axis is x instead of y");
+    }
+    if (spec.grid) {
+        if (spec.columns_source.prop_driven) {
+            writer.line("int " + base + "columns_ = " + std::to_string(spec.columns) +
+                        "; // prop-driven: 0 means column-width mode");
+        } else {
+            writer.line("static constexpr int " + base + "columns_ = " +
+                        std::to_string(spec.columns) + "; // 0 means column-width mode");
+        }
+        if (spec.column_width_source.prop_driven) {
+            writer.line("double " + base + "column_width_ = " + double_text(spec.column_width) +
+                        "; // prop-driven: scroll_virtual_<n>() refreshes it");
+        } else {
+            writer.line("static constexpr double " + base +
+                        "column_width_ = " + double_text(spec.column_width) + ";");
+        }
+    }
+}
+
+void emit_virtual_option_refresh(CppWriter& writer, const ListTemplate& collection) {
+    const VirtualGeometrySpec& spec = collection.geometry;
+    const std::string base = "virtual_" + std::to_string(collection.container_ordinal) + "_";
+    const bool any = spec.orientation_source.prop_driven || spec.columns_source.prop_driven ||
+                     spec.overscan_source.prop_driven || spec.column_width_source.prop_driven;
+    if (!any) {
+        return;
+    }
+    writer.line("// Structural options may come from component props: read them once per sync (no");
+    writer.line("// allocation) and clamp to the runtime contract before the row/window math.");
+    if (spec.orientation_source.prop_driven) {
+        writer.line(base + "horizontal_ = (" + spec.orientation_source.cpp +
+                    " == \"horizontal\");");
+        writer.line("// An unknown orientation string falls back to vertical (the default axis).");
+    }
+    if (spec.overscan_source.prop_driven) {
+        writer.line(base + "overscan_ = static_cast<double>(" + spec.overscan_source.cpp + ");");
+        writer.open("if (" + base + "overscan_ < 0.0)");
+        writer.line(base + "overscan_ = 0.0; // a negative overscan means no overscan");
+        writer.close("");
+    }
+    if (spec.columns_source.prop_driven) {
+        writer.line(base + "columns_ = static_cast<int>(" + spec.columns_source.cpp + ");");
+        writer.open("if (" + base + "columns_ < 0)");
+        writer.line(base + "columns_ = 0; // non-positive means column-width mode");
+        writer.close("");
+    }
+    if (spec.column_width_source.prop_driven) {
+        writer.line(base + "column_width_ = static_cast<double>(" + spec.column_width_source.cpp +
+                    ");");
     }
 }
 
