@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_animation STATIC
+    animated_scalar.cpp
     easing.cpp
     keyframes.cpp
     property_dirty.cpp

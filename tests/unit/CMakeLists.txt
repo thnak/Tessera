@@ -775,6 +775,13 @@ target_link_libraries(animation_reduced_motion_tests PRIVATE tessera_animation)
 
 add_test(NAME animation_reduced_motion COMMAND animation_reduced_motion_tests)
 
+add_executable(animated_scalar_tests
+    animated_scalar_tests.cpp)
+
+target_link_libraries(animated_scalar_tests PRIVATE tessera_animation)
+
+add_test(NAME animated_scalar COMMAND animated_scalar_tests)
+
 add_executable(easing_tests
     easing_tests.cpp)
 

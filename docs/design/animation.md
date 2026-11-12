@@ -103,6 +103,12 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
 - Generated C++ owns the `AnimationController`; the component reads the sampled value.
 - Setting the value starts/retargets the animation; `set(value, { animate: false })` snaps.
 - Animated values can drive style properties, transforms, or chart data.
+- Implemented core: `ui::animation::AnimatedScalar` (`include/tessera/ui/animation/animated_scalar.hpp`). It is a
+  clock-free scalar the owner ticks with the frame delta: `set(v, {duration, easing, animate})` retargets from the
+  current value (no jump), defaults to CSS `ease-out` over 200 ms, snaps for `animate:false`, a zero duration or
+  reduced motion, and `tick` returns whether another frame is needed. Not yet wired: the `AppHost` registry that
+  ticks scalars and wakes the loop, the generated-component handle, and codegen for `AnimSet` (it still emits a
+  plain assignment). Springs as a scalar driver also wait on `SpringRuntime` gaining an owner.
 - Completion callbacks are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.
 
