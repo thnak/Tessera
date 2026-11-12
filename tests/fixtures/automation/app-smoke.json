@@ -1,0 +1,11 @@
+{
+  "scriptVersion": 1,
+  "profile": { "width": 320, "height": 240, "scale": 1.0, "locale": "en-US" },
+  "app": { "config": "harness_app_fixture/tessera.json" },
+  "steps": [
+    { "action": "snapshot" },
+    { "action": "click", "uiId": "7000000000000000003" },
+    { "action": "type", "uiId": "7000000000000000004", "text": "Ada" },
+    { "action": "snapshot" }
+  ]
+}

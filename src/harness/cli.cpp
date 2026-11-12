@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/app/host.hpp"
+#include "tessera/automation/app_config.hpp"
 #include "tessera/automation/engine_host.hpp"
 #include "tessera/automation/fixture_scene.hpp"
+#include "tessera/automation/manifest_scene.hpp"
 #include "tessera/diagnostics/metrics.hpp"
 #include "tessera/diagnostics/trace.hpp"
 #include "tessera/harness/artifact_sink.hpp"
@@ -125,9 +127,19 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
 [[nodiscard]] int run_script(const Script& script, std::string_view command,
                              std::string_view output_directory, const std::string& report_path,
                              bool diagnostics_enabled, const std::optional<LatencyProfile>& latency,
-                             SessionClock& audit_clock, std::ostream& out, std::ostream& err) {
+                             SessionClock& audit_clock, const automation::AppManifest* app,
+                             std::ostream& out, std::ostream& err) {
     ui::Node root(1);
-    automation::FixtureScene fixture(root);
+    // The fixture is the default scene; an app manifest (script `app.config`) replaces it.
+    std::optional<automation::FixtureScene> fixture;
+    std::optional<automation::ManifestScene> manifest_scene;
+    if (app != nullptr) {
+        manifest_scene.emplace(root, *app);
+    } else {
+        fixture.emplace(root);
+    }
+    const std::string_view stylesheet = app != nullptr ? automation::ManifestScene::stylesheet()
+                                                       : automation::FixtureScene::stylesheet();
 
     runtime::ManualClock clock;
     runtime::RuntimeLoop loop(clock);
@@ -135,8 +147,7 @@ constexpr std::size_t kMaxScriptTicks = kMaxScriptSteps + 1;
     config.width = static_cast<float>(script.profile.width);
     config.height = static_cast<float>(script.profile.height);
     config.dpi_scale = static_cast<float>(script.profile.scale);
-    app::AppHost host(root, ui::style::compile_stylesheet(automation::FixtureScene::stylesheet()),
-                      loop, config);
+    app::AppHost host(root, ui::style::compile_stylesheet(stylesheet), loop, config);
     // One frame before the first step so layout bounds (and therefore hit testing) are valid.
     (void)host.begin_frame(0.0);
     host.end_frame();
@@ -448,10 +459,23 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
         }
         latency = std::move(*resolved);
     }
+    // `app.config` names the project's tessera.json; its generated manifest supplies the scene.
+    // Without it the built-in fixture runs. A bad config or manifest is exit 2 (spec section 3).
+    std::optional<automation::AppManifest> app;
+    if (!parsed->app_config.empty()) {
+        auto loaded = automation::load_app_manifest(artifact_path(parsed->app_config));
+        if (!loaded.has_value()) {
+            err << "tessera " << command << ": " << automation::to_string(loaded.error().code)
+                << ": " << loaded.error().message << "\n";
+            return 2;
+        }
+        app = std::move(*loaded);
+    }
     SteadySessionClock steady_clock;
     return run_script(*parsed, command, directory, report_path,
                       mode == CliMode::Audit || wants_diagnostics(*parsed), latency,
-                      audit_clock != nullptr ? *audit_clock : steady_clock, out, err);
+                      audit_clock != nullptr ? *audit_clock : steady_clock,
+                      app.has_value() ? &*app : nullptr, out, err);
 }
 
 } // namespace tessera::harness

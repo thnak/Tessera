@@ -199,3 +199,23 @@ add_executable(harness_frame_check_tests
 target_link_libraries(harness_frame_check_tests PRIVATE tessera_harness_image)
 
 add_test(NAME harness_frame_check COMMAND harness_frame_check_tests)
+
+add_executable(harness_app_config_tests
+    app_config_tests.cpp)
+
+target_link_libraries(harness_app_config_tests PRIVATE tessera_automation_host)
+
+target_compile_definitions(harness_app_config_tests PRIVATE
+    TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${TESSERA_HARNESS_FIXTURE_SCRIPTS}")
+
+add_test(NAME harness_app_config COMMAND harness_app_config_tests)
+
+add_executable(harness_cli_app_scene_tests
+    cli_app_scene_tests.cpp)
+
+target_link_libraries(harness_cli_app_scene_tests PRIVATE tessera_automation_host)
+
+target_compile_definitions(harness_cli_app_scene_tests PRIVATE
+    TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${TESSERA_HARNESS_FIXTURE_SCRIPTS}")
+
+add_test(NAME harness_cli_app_scene COMMAND harness_cli_app_scene_tests)

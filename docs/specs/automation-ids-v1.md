@@ -272,5 +272,6 @@ Resolved (normative here; mirrored in [`docs/reference/open-questions.md`](../re
 - **Encoding for very large snapshots** — canonical JSON with uint64 decimal strings; very large
   trees stream NDJSON per node; zstd is opt-in only after a >16 MiB measurement.
 
-Not yet implemented: manifest loading by the harness, `windowId` in the snapshot
+The script lane loads the manifest (see [`headless-automation-v1.md`](headless-automation-v1.md)
+section 2); the stdio serve lane does not yet. Not yet implemented: `windowId` in the snapshot
 header, `partId` fields, NDJSON streaming, and zstd.

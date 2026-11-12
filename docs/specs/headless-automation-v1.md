@@ -32,6 +32,29 @@ headless golden tests). `gpu-smoke` never updates baselines.
 - Deterministic executor; no detached tasks/network/system fonts.
 - Real UI/style/layout/paint/renderer code; only the platform/GPU edges are fake/software.
 - App config loaded from `tessera.json`; automation manifest loaded from `generated/`.
+  - **Discovery.** There is no `--app` flag. A script's `app.config` (section 4, a safe relative
+    path from the working directory, normally `tessera.json`) selects the project. The manifest is
+    `<dir of app.config>/<codegen.outDir, default generated>/automation.manifest.json`
+    ([`automation-ids-v1.md`](automation-ids-v1.md) section 2.1). A script without `app.config`
+    runs the built-in fixture (section 6.8, ids 9001-9010).
+  - **Validation.** `tessera.json` is at most 256 KiB, must be a JSON object with
+    `schemaVersion: 1` and an `app` object (the full schema is
+    [`project-config-v1.md`](project-config-v1.md), enforced by the generator; the harness reads
+    only these fields plus `codegen.outDir`). The manifest is at most 8 MiB and 20,000 nodes,
+    `manifestVersion` must be `1`, ids are non-zero decimal uint64 strings (no leading zeros),
+    `uiId`s and node `path`s are unique, strings are at most 512 bytes.
+  - **Scene.** `ManifestScene` (`include/tessera/automation/manifest_scene.hpp`) builds one scene
+    node per manifest node with the manifest `uiId` as its automation id and `kind` as its element
+    kind; the tree shape comes from the structural paths (a node's parent is its path minus the
+    last segment; component roots attach to the scene root). It is a structural description, not
+    the compiled app: Buttons are focusable, TextInput/TextArea accept `type`, Scroll/VirtualList
+    scroll, other kinds are inert, and the app's event handlers do not run. Default sizes come
+    from a built-in stylesheet. A missing or invalid config or manifest is exit `2` with a
+    deterministic `tessera <command>: <Code>: <message>` line (`ConfigUnreadable`, `ConfigTooLarge`,
+    `ConfigInvalid`, `ManifestMissing`, `ManifestTooLarge`, `ManifestInvalid`,
+    `ManifestUnsupportedVersion`, `ManifestTooManyNodes`, `ManifestDuplicateId`).
+  - Not yet: the stdio `headless` serve lane still hosts the fixture, and snapshots do not add
+    manifest names/paths to nodes.
 
 ## 3. CLI
 
@@ -44,7 +67,8 @@ tessera headless --mode audit --profile desktop --script tests/audit/home.json
 Exit codes: `0` pass, `1` assertion/audit failure, `2` invalid script/config.
 
 Status: `tessera test --script FILE` and `tessera headless --mode structural|audit --script FILE`
-run the script against the built-in windowless fixture (section 6.8), write `out/report.json`, and
+run the script against the built-in windowless fixture (section 6.8) or, when the script names
+`app.config`, the manifest scene (section 2), write `out/report.json`, and
 return the section 3 exit codes. `--mode golden` and `--mode gpu-smoke` parse but exit `2` until the
 offscreen rendering lane lands. `--help` and `--version` work. See section 6.5.
 
