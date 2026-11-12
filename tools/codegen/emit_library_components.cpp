@@ -29,7 +29,14 @@ namespace ir = tessera::compiler::ir;
 
 using internal::expr_source;
 using internal::is_project_relative;
-using internal::quoted;
+
+// `std::quoted` (declared by <iomanip>, which the Android NDK pulls in transitively) is a better
+// match for a std::string argument than a string_view overload, so an unqualified call would return
+// a stream proxy instead of std::string. This non-template overload wins overload resolution over
+// the std::quoted template and forwards to the internal escaper.
+[[nodiscard]] std::string quoted(const std::string& text) {
+    return internal::quoted(text);
+}
 
 // The stable identity band of the library components. The previous hand-built declarations used
 // these numbers and the committed codegen goldens pin them, so generation keeps the same scheme:

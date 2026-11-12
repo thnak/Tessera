@@ -62,7 +62,12 @@ public:
     };
 
     EngineAutomationHost(ui::Node& root, app::AppHost& host, runtime::RuntimeLoop& loop,
-                         Config config = {});
+                         Config config);
+    // Defaults to an empty diagnostics attachment and the default snapshot cap. A separate
+    // overload (instead of `Config = {}`) keeps the default argument from needing the nested
+    // aggregate's default member initializers while the enclosing class is still incomplete, which
+    // GCC and newer clang reject.
+    EngineAutomationHost(ui::Node& root, app::AppHost& host, runtime::RuntimeLoop& loop);
     ~EngineAutomationHost() override = default;
 
     EngineAutomationHost(const EngineAutomationHost&) = delete;

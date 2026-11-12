@@ -92,8 +92,8 @@ if (NOT CMAKE_CROSSCOMPILING)
         tessera_codegen
         tessera_harness
         tessera_ir_ids
-        tessera_lowering_bootstrap
         tessera_lowering_core
+        tessera_lowering_bootstrap
         tessera_merger)
 
     set(_tessera_library_generated_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)

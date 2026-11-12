@@ -90,6 +90,10 @@ EngineAutomationHost::EngineAutomationHost(ui::Node& root, app::AppHost& host,
     }
 }
 
+EngineAutomationHost::EngineAutomationHost(ui::Node& root, app::AppHost& host,
+                                           runtime::RuntimeLoop& loop)
+    : EngineAutomationHost(root, host, loop, Config{}) {}
+
 void EngineAutomationHost::set_diagnostics(AutomationDiagnostics diagnostics) {
     config_.diagnostics = diagnostics;
 }
