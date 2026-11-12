@@ -19,6 +19,7 @@ add_library(tessera_harness STATIC
     json_string.cpp
     json_value.cpp
     json_write.cpp
+    latency_audit.cpp
     line_framing.cpp
     protocol.cpp
     script.cpp

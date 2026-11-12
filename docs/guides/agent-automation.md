@@ -90,6 +90,8 @@ catches, memory, idle presents. The report has raw metrics + category/overall sc
 
 Use raw metrics for decisions; don't chase the score.
 
+Latency gate: `tessera headless --mode audit --profile desktop --script FILE` times each input step on a real monotonic clock, writes `out/latency-audit.json` (p50/p95/max plus violations), embeds it in `report.json`, and exits `1` on a threshold violation. Profiles are `desktop`, `mobile`, `ci`, or a custom `.json` file; see [headless-automation-v1.md, section 6.10](../specs/headless-automation-v1.md). Use `ci` on noisy shared runners.
+
 ## 8. Example session
 
 ```json

@@ -182,3 +182,13 @@ add_executable(harness_serve_tests
 target_link_libraries(harness_serve_tests PRIVATE tessera_harness)
 
 add_test(NAME harness_serve COMMAND harness_serve_tests)
+
+add_executable(harness_latency_audit_tests
+    latency_audit_tests.cpp)
+
+target_link_libraries(harness_latency_audit_tests PRIVATE tessera_automation_host)
+
+target_compile_definitions(harness_latency_audit_tests PRIVATE
+    TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${TESSERA_HARNESS_FIXTURE_SCRIPTS}")
+
+add_test(NAME harness_latency_audit COMMAND harness_latency_audit_tests)

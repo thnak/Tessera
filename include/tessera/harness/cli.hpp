@@ -10,6 +10,8 @@
 
 namespace tessera::harness {
 
+class SessionClock;
+
 // Version reported by `tessera --version`. The harness slice ships ahead of the project version
 // so a script can pin the protocol it was written against.
 inline constexpr std::string_view kHarnessCliVersion = "0.1.0";
@@ -28,5 +30,11 @@ inline constexpr std::string_view kHarnessCliVersion = "0.1.0";
 // above uses a StdioTransport over the real handles. `--script` runs ignore the transport.
 [[nodiscard]] int run_cli(std::span<const std::string_view> args, std::ostream& out,
                           std::ostream& err, LineTransport* serve_transport);
+
+// Same as run_cli, with the clock `--mode audit` measures latency on. nullptr selects the real
+// monotonic clock; tests inject a fake so threshold pass/fail never depends on the wall clock.
+[[nodiscard]] int run_cli_with_audit_clock(std::span<const std::string_view> args,
+                                           std::ostream& out, std::ostream& err,
+                                           SessionClock* audit_clock);
 
 } // namespace tessera::harness
