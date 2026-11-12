@@ -1771,6 +1771,22 @@ target_link_libraries(ir_ids_tests PRIVATE tessera_ir_ids)
 
 add_test(NAME ir_ids COMMAND ir_ids_tests)
 
+# Stable component identity (docs/specs/automation-ids-v1.md section 2.1): insertion/reorder of
+# components keeps or intentionally moves ids, and inserting a library component keeps the
+# generated C++ of the untouched components byte-identical.
+add_executable(ir_ids_stability_tests
+    ir_ids_stability_tests.cpp)
+
+target_link_libraries(ir_ids_stability_tests PRIVATE
+    tessera_ir_ids
+    tessera_lowering
+    tessera_codegen)
+
+target_compile_definitions(ir_ids_stability_tests PRIVATE
+    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/tessera/components")
+
+add_test(NAME ir_ids_stability COMMAND ir_ids_stability_tests)
+
 add_executable(animation_event_tests
     animation_event_tests.cpp)
 

@@ -135,11 +135,14 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
   (`label = ""`, `validators = []`, `required = false`); lowering stores them as `Prop::default_value`
   and codegen initializes the generated field with them. `?` in the props alias remains the separate
   "may be omitted" flag.
-- Determinism: the generated file has no timestamps or absolute paths, and identity comes from a
-  stable band (`900000000000000001 + N` per component, `900000000000000101 + 100 * N + node - 1`
-  per node) that the committed codegen goldens pin.
+- Determinism: the generated file has no timestamps or absolute paths, and identity is stamped by
+  `assign_library_identity` from the fixed `tessera.library` salt: a component id is a hash of its
+  source path and name, and a node id a hash of its source path and structural path
+  ([`automation-ids-v1.md` section 2.1](../specs/automation-ids-v1.md)). No index-derived band is
+  used, so adding a library component does not move the ids of the existing ones; the committed
+  codegen goldens pin the stamped numbers.
 - `tests/unit/library_tsx_parity_tests.cpp` re-lowers the committed TSX in-process and compares the
-  result with the embedded IR (identity band excluded), including spans, defaults and text-run
+  result with the embedded IR (stamped identity excluded), including spans, defaults and text-run
   shape. It is the staleness guard: editing a TSX source without rebuilding the embedded data fails
   the suite, as does regenerating it from a changed source.
 

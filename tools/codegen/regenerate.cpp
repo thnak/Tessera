@@ -390,7 +390,17 @@ Outcome run(const Options& options) {
     module.bindings = std::move(lowered_module.bindings);
     module.stylesheets = std::move(lowered_module.stylesheets);
 
-    if (!identity->salt.empty()) {
+    if (!options.emit_library_cpp_path.empty()) {
+        // The build-time library registry has no project: its ids come from the fixed library salt
+        // so inserting a library component cannot shift the ids of the others
+        // (docs/specs/automation-ids-v1.md section 2.1).
+        const auto assigned = tessera::compiler::ids::assign_library_identity(module);
+        if (!assigned) {
+            report(outcome, true, "tessera_codegen: " + assigned.error().message);
+            outcome.exit_code = 1;
+            return outcome;
+        }
+    } else if (!identity->salt.empty()) {
         const auto assigned = tessera::compiler::ids::assign_identity(module, identity->salt);
         if (!assigned) {
             report(outcome, true, "tessera_codegen: " + assigned.error().message);
@@ -403,7 +413,8 @@ Outcome run(const Options& options) {
     // missing. They are the only documented diagnostics the CLI filters (docs/guides/
     // developer-workflow.md), and every other IR diagnostic still fails the run.
     const std::vector<ir::IrDiagnostic> all_diagnostics = ir::validate(module);
-    const bool identity_assigned = !identity->salt.empty();
+    const bool identity_assigned =
+        !identity->salt.empty() || !options.emit_library_cpp_path.empty();
     const auto deferred_identity = [identity_assigned](const ir::IrDiagnostic& diagnostic) {
         if (identity_assigned || diagnostic.code != "TESSERA_IR_MISSING_ID") {
             return false;

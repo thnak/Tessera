@@ -27,11 +27,19 @@ using ComponentId = std::uint64_t;
 // Salted key composition, shared so the compiler, codegen and manifest cannot drift:
 //   ui key        = salt + "|u|" + source_path + "|" + node_path + "|" + key
 //   component key = salt + "|c|" + source_path + "|" + component_name
+//                   ["|#" + occurrence]
 // The trailing "|" keeps an empty key distinct from a key that ends at the node path.
+//
+// `occurrence` is the zero-based position among components with the same name in the same source
+// file. It is omitted for the first occurrence, so every ordinary component keeps exactly the key
+// (and therefore the id) it had before duplicate names were disambiguated. The suffix only appears
+// when a second component with the same name in the same file is assigned; the TSX front end
+// rejects such duplicates, so only hand-built or generated IR reaches it.
 [[nodiscard]] std::string make_ui_id_key(std::string_view salt, std::string_view source_path,
                                          std::string_view node_path, std::string_view key);
 [[nodiscard]] std::string make_component_id_key(std::string_view salt, std::string_view source_path,
-                                                std::string_view component_name);
+                                                std::string_view component_name,
+                                                std::size_t occurrence = 0);
 
 enum class IdErrorCode : std::uint8_t {
     EmptySalt = 0,         // no tessera.json namespace: IDs would not be stable across projects
@@ -75,7 +83,11 @@ struct ComponentIdInput {
     std::string name;
 };
 
-// Component ids use the same salted-hash rule; a collision is a hard error as well.
+// Component ids use the same salted-hash rule and are keyed by source path, name and the
+// occurrence among same-named components of that file, never by the component's position in the
+// module. Two same-named components therefore get distinct ids, and inserting or reordering a
+// differently named component leaves every existing id unchanged. A real 64-bit collision is
+// still a hard error.
 [[nodiscard]] std::expected<std::vector<ComponentId>, IdError>
 assign_component_ids(std::string_view salt, std::span<const ComponentIdInput> components);
 
