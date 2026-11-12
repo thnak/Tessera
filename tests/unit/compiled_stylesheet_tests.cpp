@@ -13,7 +13,10 @@ using tessera::ui::style::CompiledStyleSheet;
 using tessera::ui::style::compute_style;
 using tessera::ui::style::ComputedStyle;
 using tessera::ui::style::Origin;
+using tessera::ui::style::prepare_stylesheet;
+using tessera::ui::style::PreparedStyleSheet;
 using tessera::ui::style::StyleNode;
+using tessera::ui::style::StylesheetSource;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -250,6 +253,135 @@ button { padding: 1px; }
     const CompiledStyleSheet empty = compile_stylesheet("");
     if (!expect(empty.rules().empty() && empty.index().size() == 0, "empty stylesheet")) {
         return 23;
+    }
+
+    // --- 1. Two app sheets: the later sheet wins an otherwise equal key ------------------------
+    {
+        StyleNode probe;
+        probe.tag = "div";
+        probe.classes = {"x"};
+
+        const PreparedStyleSheet red = prepare_stylesheet(".x { color: red; }");
+        const PreparedStyleSheet blue = prepare_stylesheet(".x { color: blue; }");
+        const StylesheetSource forward[] = {{"a.css", &red}, {"b.css", &blue}};
+        const CompiledStyleSheet red_then_blue(forward);
+        if (!expect(value_is(red_then_blue.compute(probe, nullptr), "color", "blue"),
+                    "the later sheet wins an equal specificity tie") ||
+            !expect(red_then_blue.rules().size() == 2 &&
+                        red_then_blue.rules()[0].source_order == 0 &&
+                        red_then_blue.rules()[1].source_order == 1,
+                    "source order is one global increasing sequence across sheets") ||
+            !expect(red_then_blue.rules()[1].source_order ==
+                        red_then_blue.rules()[0].source_order +
+                            red_then_blue.rules()[0].declarations.size(),
+                    "the global source order continues across a sheet boundary")) {
+            return 24;
+        }
+        const StylesheetSource reversed[] = {{"b.css", &blue}, {"a.css", &red}};
+        const CompiledStyleSheet blue_then_red(reversed);
+        if (!expect(value_is(blue_then_red.compute(probe, nullptr), "color", "red"),
+                    "reversing the sheet order reverses the winner")) {
+            return 25;
+        }
+    }
+
+    // --- 2. Layers beat specificity: library CSS in @layer tessera-ui ---------------------------
+    {
+        StyleNode probe;
+        probe.tag = "div";
+        probe.classes = {"x", "y"};
+
+        const PreparedStyleSheet app = prepare_stylesheet(".x { color: green; }");
+        const PreparedStyleSheet library = prepare_stylesheet("div.x.y { color: red; }");
+        // The library source comes second in the array and still sorts below the app sheet.
+        const StylesheetSource sources[] = {{"app.css", &app},
+                                            {"lib.css", &library, Origin::Author, true}};
+        const CompiledStyleSheet combined(sources);
+        if (!expect(value_is(combined.compute(probe, nullptr), "color", "green"),
+                    "unlayered app CSS beats a higher-specificity library rule") ||
+            !expect(combined.layer_order().count("tessera-ui") == 1,
+                    "library CSS lands in @layer tessera-ui")) {
+            return 26;
+        }
+
+        // The library's own named layers nest under the library layer.
+        const PreparedStyleSheet nested =
+            prepare_stylesheet("@layer base { div.x.y { color: red; } }");
+        const StylesheetSource nested_sources[] = {{"app.css", &app},
+                                                   {"lib.css", &nested, Origin::Author, true}};
+        const CompiledStyleSheet nested_combined(nested_sources);
+        if (!expect(value_is(nested_combined.compute(probe, nullptr), "color", "green"),
+                    "a library rule inside its own layer loses to unlayered app CSS") ||
+            !expect(nested_combined.layer_order().count("tessera-ui.base") == 1,
+                    "a library layer nests under tessera-ui") ||
+            !expect(nested_combined.layer_order().at("tessera-ui") == 0,
+                    "tessera-ui is the lowest layer slot")) {
+            return 27;
+        }
+
+        // Existing named-layer semantics survive the combination: an app rule inside a layer loses
+        // to an unlayered app rule, and a layered app rule still beats the library layer.
+        const PreparedStyleSheet layered_app =
+            prepare_stylesheet("@layer app-base { div.x.y { color: purple; } }");
+        const StylesheetSource layered_sources[] = {{"app.css", &layered_app},
+                                                    {"lib.css", &library, Origin::Author, true}};
+        const CompiledStyleSheet layered_combined(layered_sources);
+        const PreparedStyleSheet plain_app = prepare_stylesheet(".x { color: green; }");
+        const StylesheetSource mixed_sources[] = {{"layered.css", &layered_app},
+                                                  {"plain.css", &plain_app}};
+        const CompiledStyleSheet mixed(mixed_sources);
+        if (!expect(value_is(layered_combined.compute(probe, nullptr), "color", "purple"),
+                    "a layered app rule beats the library layer") ||
+            !expect(value_is(mixed.compute(probe, nullptr), "color", "green"),
+                    "an unlayered app rule beats a layered app rule")) {
+            return 28;
+        }
+    }
+
+    // --- 3. Keyframes: the first definition of a name wins --------------------------------------
+    {
+        const PreparedStyleSheet first =
+            prepare_stylesheet("@keyframes pulse { from { opacity: 0; } to { opacity: 1; } }");
+        const PreparedStyleSheet second =
+            prepare_stylesheet("@keyframes pulse { from { opacity: 1; } to { opacity: 0; } } "
+                               "@keyframes fade { from { opacity: 0; } }");
+        const StylesheetSource sources[] = {{"a.css", &first}, {"b.css", &second}};
+        const CompiledStyleSheet combined(sources);
+        if (!expect(combined.keyframes().size() == 2,
+                    "a repeated name is merged, not duplicated") ||
+            !expect(combined.keyframes()[0].name == "pulse" &&
+                        combined.keyframes()[0].steps.size() == 2 &&
+                        combined.keyframes()[0].steps[0].declarations[0].value == "0",
+                    "the first definition of a keyframes name wins") ||
+            !expect(combined.keyframes()[1].name == "fade", "a new name is appended")) {
+            return 29;
+        }
+    }
+
+    // --- 4. Import-graph order: three sheets apply in exactly the given order -------------------
+    {
+        StyleNode probe;
+        probe.tag = "div";
+        probe.classes = {"x"};
+
+        const PreparedStyleSheet first = prepare_stylesheet(".x { width: 1px; color: red; }");
+        const PreparedStyleSheet second = prepare_stylesheet(".x { width: 2px; color: green; }");
+        const PreparedStyleSheet third =
+            prepare_stylesheet(".x { width: 3px; color: blue; not-a-property: 1; }");
+        const StylesheetSource sources[] = {
+            {"a.css", &first}, {"b.css", &second}, {"c.css", &third}};
+        const CompiledStyleSheet combined(sources);
+        if (!expect(value_is(combined.compute(probe, nullptr), "width", "3px"),
+                    "the third sheet wins width") ||
+            !expect(value_is(combined.compute(probe, nullptr), "color", "blue"),
+                    "the third sheet wins color") ||
+            !expect(combined.rules().size() == 3 &&
+                        combined.rules()[0].source_order < combined.rules()[1].source_order &&
+                        combined.rules()[1].source_order < combined.rules()[2].source_order,
+                    "three sheets keep the given order") ||
+            !expect(combined.diagnostics().size() == 1, "diagnostics concatenate across sheets")) {
+            return 30;
+        }
     }
 
     std::cout << "compiled_stylesheet: ok\n";

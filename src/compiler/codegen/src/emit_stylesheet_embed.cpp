@@ -67,8 +67,7 @@ std::string emit_stylesheet_header(std::string_view module_name,
     writer.line("#pragma once");
     writer.line("#include <array>");
     writer.line("#include <cstdint>");
-    writer.line("#include <span>");
-    writer.line("#include <string_view>");
+    writer.line("#include \"tessera/ui/style/stylesheet_blob.hpp\"");
     writer.open("namespace " + std::string(module_name));
 
     for (std::size_t i = 0; i < sheets.size(); ++i) {
@@ -101,12 +100,8 @@ std::string emit_stylesheet_header(std::string_view module_name,
     }
 
     writer.text += '\n';
-    writer.open("struct EmbeddedStylesheet");
-    writer.line("std::string_view path;");
-    writer.line("std::span<const std::uint8_t> bytes;");
-    writer.close(";");
-    writer.line("inline constexpr std::array<EmbeddedStylesheet, " + std::to_string(sheets.size()) +
-                "> kEmbeddedStylesheets = {{");
+    writer.line("inline constexpr std::array<tessera::ui::style::EmbeddedStylesheet, " +
+                std::to_string(sheets.size()) + "> kEmbeddedStylesheets = {{");
     ++writer.indent;
     for (const ResolvedStylesheet& sheet : sheets) {
         writer.line("{ \"" + escaped(sheet.path) + "\", kStylesheetBlob_" +

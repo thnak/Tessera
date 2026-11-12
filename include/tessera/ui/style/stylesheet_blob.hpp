@@ -9,9 +9,19 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace tessera::ui::style {
+
+// One embedded stylesheet as codegen emits it (docs/specs/compiled-stylesheet-v1.md section 9):
+// the project path, used by diagnostics, and the blob bytes. `<module>_stylesheets.hpp` includes
+// this header and builds its registration table from this type, so the engine and the generated
+// table cannot drift apart.
+struct EmbeddedStylesheet {
+    std::string_view path;
+    std::span<const std::uint8_t> bytes;
+};
 
 // Serialized prepared stylesheet (ADR-048, docs/specs/compiled-stylesheet-v1.md). The bytes are
 // deterministic: identical prepared data always serializes to identical bytes.

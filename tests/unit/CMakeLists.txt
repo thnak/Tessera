@@ -240,6 +240,16 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# Embedded stylesheet registration (issue #81, ADR-048): blobs load in table (import-graph) order,
+# a later sheet wins an equal cascade key, and a corrupt blob is reported and skipped. Painting goes
+# through a deterministic CPU sink; no GPU, font or wall clock.
+add_executable(app_host_stylesheet_tests
+    app_host_stylesheet_tests.cpp)
+
+target_link_libraries(app_host_stylesheet_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME app_host_stylesheet COMMAND app_host_stylesheet_tests)
+
 # The window driver stops after a bounded run of frame failures instead of spinning or hanging.
 add_executable(app_frame_guard_tests
     app_frame_guard_tests.cpp)

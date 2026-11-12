@@ -209,8 +209,9 @@ struct ResolvedStylesheet {
 [[nodiscard]] std::string stylesheet_identifier(std::string_view id);
 
 // Emits `<module.name>_stylesheets.hpp` (docs/specs/compiled-stylesheet-v1.md section 9): one
-// `inline constexpr` array per resolved sheet, then the `EmbeddedStylesheet` record and the
-// `kEmbeddedStylesheets` table, in `sheets` order. Deterministic: same sheets, same bytes.
+// `inline constexpr` array per resolved sheet, then the `kEmbeddedStylesheets` table of the
+// engine's `tessera::ui::style::EmbeddedStylesheet` records, in `sheets` order. Deterministic: same
+// sheets, same bytes.
 [[nodiscard]] std::string emit_stylesheet_header(std::string_view module_name,
                                                  std::span<const ResolvedStylesheet> sheets);
 

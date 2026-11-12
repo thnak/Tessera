@@ -246,8 +246,10 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       landed) — no `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` for embedded sheets —
       `src/compiler/codegen/src/emit_stylesheet_embed.cpp`,
       `tests/unit/codegen_stylesheet_embed_tests.cpp`.
-- [ ] #81/ADR-048: `AppHost` registers embedded sheets in import-graph order, library CSS in
-      `@layer tessera-ui` — cascade-order test.
+- [x] #81/ADR-048: `AppHost` registers embedded sheets in import-graph order, library CSS in
+      `@layer tessera-ui` — cascade-order test — `src/app/host.cpp`,
+      `src/ui/style/compiled_stylesheet.cpp`, `tests/unit/app_host_stylesheet_tests.cpp`,
+      `tests/unit/compiled_stylesheet_tests.cpp`.
 - [ ] #81/ADR-048: embed the theme asset through the same blob — loads without parsing.
 - [ ] #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
       component identity (inserting a component keeps other ids and goldens).

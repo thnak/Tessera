@@ -85,13 +85,39 @@ rhi::Extent2D extent_for(float width, float height, float dpi_scale) {
     return rhi::Extent2D{physical(width, dpi_scale), physical(height, dpi_scale)};
 }
 
+const char* blob_error_name(ui::style::BlobErrorCode code) {
+    switch (code) {
+    case ui::style::BlobErrorCode::Truncated:
+        return "Truncated";
+    case ui::style::BlobErrorCode::BadMagic:
+        return "BadMagic";
+    case ui::style::BlobErrorCode::UnsupportedFormatVersion:
+        return "UnsupportedFormatVersion";
+    case ui::style::BlobErrorCode::EngineSchemaMismatch:
+        return "EngineSchemaMismatch";
+    case ui::style::BlobErrorCode::HashMismatch:
+        return "HashMismatch";
+    case ui::style::BlobErrorCode::Corrupt:
+        return "Corrupt";
+    }
+    return "Corrupt";
+}
+
+// A skipped embedded sheet is reported, never silently swallowed (ADR-048: an embedded blob is
+// build output, so a load failure is a build/runtime version mismatch, not a CSS error).
+void report_blob_failure(std::string_view path, const ui::style::BlobError& error) {
+    std::fprintf(stderr, "TESSERA_CSS_BLOB_INVALID: %.*s: %s: %s\n", static_cast<int>(path.size()),
+                 path.data(), blob_error_name(error.code), error.message.c_str());
+}
+
 } // namespace
 
 struct AppHost::Impl {
     Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
          HostConfig config)
         : root(root),
-          sheet(std::move(sheet)),
+          base_sheet(std::move(sheet)),
+          sheet(base_sheet),
           loop(loop),
           config(config),
           engine(config.text_measurer),
@@ -145,7 +171,37 @@ struct AppHost::Impl {
         last_applied = ui::layout::apply_layout(last_layout, root);
     }
 
+    void register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets) {
+        // Registration is a startup-time operation: every blob is loaded here, once, and resolved
+        // into the cascade; no frame ever parses CSS. The constructor sheet is kept as the base of
+        // every rebuild, so a later call replaces the previous registration rather than stacking.
+        ui::style::CompiledStyleSheet combined = base_sheet;
+        rejected_stylesheet_count = 0;
+        for (const ui::style::EmbeddedStylesheet& embedded : sheets) {
+            const auto prepared = ui::style::load_stylesheet_blob(embedded.bytes);
+            if (!prepared) {
+                report_blob_failure(embedded.path, prepared.error());
+                ++rejected_stylesheet_count;
+                continue;
+            }
+            combined.append_sheet(*prepared);
+        }
+        sheet = std::move(combined);
+        // The provider borrows the active sheet and the tree captures the scene, so both are
+        // rebuilt now (a direct paint before the next begin_frame() stays consistent). The style
+        // generation changed: mark every node so the next begin_frame() re-resolves and rebuilds
+        // the selector tree, and drop the per-node paint cache because a node can stay Clean while
+        // its computed style changes (inheritance, ancestor/sibling selectors, a new sheet).
+        rebuild_style_tree();
+        pipeline->invalidate_paint_cache();
+        mark_subtree(root,
+                     ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
+    }
+
     ui::Node& root;
+    // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
+    // one.
+    ui::style::CompiledStyleSheet base_sheet;
     ui::style::CompiledStyleSheet sheet;
     runtime::RuntimeLoop& loop;
     HostConfig config;
@@ -165,6 +221,7 @@ struct AppHost::Impl {
     std::unique_ptr<ui::frame::FramePipeline> pipeline;
     ui::UpdateScheduler* scheduler = nullptr;
     bool reduced_motion = false;
+    std::size_t rejected_stylesheet_count = 0;
 
     ui::layout::LayoutResult last_layout;
     ui::layout::LayoutApplyResult last_applied;
@@ -276,6 +333,14 @@ void AppHost::request_full_repaint() {
     state.full_repaint_pending = true;
     // The frame may be on-demand and the scene clean: the repaint request is its own wake source.
     state.loop.mark_render_dirty();
+}
+
+void AppHost::register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets) {
+    impl_->register_embedded_stylesheets(sheets);
+}
+
+std::size_t AppHost::rejected_stylesheet_count() const {
+    return impl_->rejected_stylesheet_count;
 }
 
 void AppHost::set_update_scheduler(ui::UpdateScheduler* scheduler) {

@@ -15,9 +15,11 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/scene_style.hpp"
+#include "tessera/ui/style/stylesheet_blob.hpp"
 
 #include <cstddef>
 #include <memory>
+#include <span>
 
 namespace tessera::ui::text {
 class TextMeasurer;
@@ -115,6 +117,22 @@ public:
     // accumulated since, so the paint covers every pixel. The latch is one-shot and survives no
     // frame that paints; the runtime loop is woken so the frame is produced on demand.
     void request_full_repaint();
+
+    // Installs the app's embedded stylesheets (issue #81, ADR-048) once, before frames. Each blob
+    // is loaded with `load_stylesheet_blob` — never parsed — and combined with the host's
+    // constructor sheet, which keeps the lowest source order, in `sheets` (import-graph) order, so
+    // a later sheet wins an otherwise equal cascade key. The host keeps the constructor sheet, so
+    // calling this again replaces the previous registration instead of stacking on it, and marks
+    // style, layout, paint and render dirty so the next begin_frame() rebuilds the selector tree;
+    // begin_frame() never parses CSS. A blob that fails to load never throws and never applies: the
+    // sheet is skipped, one `TESSERA_CSS_BLOB_INVALID: <path>: <code>: <message>` line goes to
+    // stderr, the remaining sheets still register, and rejected_stylesheet_count() reports the
+    // skipped count. Library CSS reaches the cascade already layered in `@layer tessera-ui` (build
+    // the constructor sheet from `style::StylesheetSource` with `library = true`).
+    void register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets);
+
+    // Sheets skipped by the most recent register_embedded_stylesheets() call.
+    [[nodiscard]] std::size_t rejected_stylesheet_count() const;
 
     // Installs the per-window update scheduler. Its flush runs before animation, style and layout
     // of every begin_frame(), so generated components' schedule_update() tickets apply in the frame
