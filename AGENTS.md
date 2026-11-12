@@ -123,6 +123,30 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
 - **Ambiguity:** write the question into the PR description and keep going with the most
   conservative reading; stop only for destructive or irreversible actions.
 
+### Subagent lanes
+
+The Lead may fan a cycle out to subagents when the remaining slices are independent. Delegation is
+the default for speed, not the exception: the Lead splits, hands off minimal work, and integrates.
+
+- **Lead splits, subagents execute.** The Lead picks the minimal self-contained slice, writes down
+  the behavior, the exact files it may touch, a dedicated build directory, and the acceptance
+  test, then hands it to one subagent. One writer per file or directory; never two subagents in
+  the same files or in the shared index files (`tests/unit/CMakeLists.txt`, root
+  `CMakeLists.txt`, `docs/README.md`) unless the Lead pre-registers those lines.
+- **Subagents build and test locally** in their own `build/lane-<name>` (warnings as errors,
+  focused `ctest` subset, format check on changed files) and report the diff, the tests run, and
+  open questions. They do not push, merge, touch `main`, or commit; the shared git index and every
+  push stay with the Lead.
+- **The Lead owns the gate.** The Lead reviews the diff, re-runs the matching verification at the
+  exact HEAD, commits with explicit pathspecs, pushes the branch, opens the PR (naming the
+  subagent's contribution), and merges only when the PR is green.
+- **Re-slice instead of stretching scope.** A subagent that finds the item larger than agreed
+  returns the analysis and stops editing; the Lead splits it again. Subagent output is input to
+  the Lead's decision, never a merge on trust.
+- Use `subagent` for isolated parallel lanes; use `spawn_teammate` only for a long-lived role that
+  needs its own task board row (teammates are append-only and capped). Keep cross-cutting
+  refactors, AGENTS.md edits, and shared index files on the Lead.
+
 ### Commit batching
 
 One coherent change is one commit: a subsystem slice plus its tests, docs, and index/status
