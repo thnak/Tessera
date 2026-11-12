@@ -34,7 +34,20 @@ shapes-only scene (`dashboard_shapes.png`: rounded cards, two texture UV scales,
 translation, and clip+transform) compared bit-exactly. `--report` and `--diff` write
 structural/visual artifacts.
 
-### 1.1 Software (CPU canvas) corpus
+### 1.1 Harness frame-capture baseline
+
+`harness_frame_capture` (`tests/gpu/harness_frame_capture_tests.cpp`) renders a small fixture scene
+through the same offscreen `capture_scene_frame` path the CLI golden mode uses. In golden mode it
+compares the capture against the committed baseline
+`tests/golden/baseline/harness/fixture_golden.png`, which is generated on lavapipe with
+`harness_frame_capture_tests --update-goldens` on a software device only (ADR-009: a gpu-smoke run
+never produces or updates a baseline). The comparison allows a 1-level channel delta and a 0.1%
+pixel budget because the fixture paints text and glyph antialiasing rounds differently across
+lavapipe/LLVM revisions; the test skips on a host without a software device. gpu-smoke mode has no
+committed baseline (any hardware device would make it non-portable) and only proves the check path
+against a baseline made from the same run.
+
+### 1.2 Software (CPU canvas) corpus
 
 `batched2d_poc --backend cpu` renders through `CpuCanvas` (`src/rendering/software/`), the
 software reference: alpha-blended axis-aligned solid quads with hardware-style pixel-center edges,

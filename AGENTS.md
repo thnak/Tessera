@@ -210,7 +210,8 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tools/shaders/manifest.json`, `tools/shaders/manifest_check.cpp`,
       `src/rendering/backend/vulkan/CMakeLists.txt`,
       `tests/unit/manifest/manifest_build_step_tests.cpp`.
-- [ ] **B2:** Harness goldens: baselines in `tests/golden/baseline/harness/`, run on lavapipe CI.
+- [x] **B2:** Harness goldens: baselines in `tests/golden/baseline/harness/`, run on lavapipe CI —
+      `tests/gpu/harness_frame_capture_tests.cpp`, `tests/golden/baseline/harness/fixture_golden.png`.
 - [ ] **B2:** Wider CPU goldens (borders, clips, gradients) — bit-exact on every platform.
 - [ ] **B2:** Host-owned `CaretBlink` in `WindowHost` — toggles under `ManualClock`; idle when
       unfocused.
