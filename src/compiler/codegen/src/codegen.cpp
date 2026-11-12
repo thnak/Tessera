@@ -60,6 +60,16 @@ void CppWriter::close(std::string_view suffix) {
 
 } // namespace internal
 
+std::vector<std::string> codegen_warnings(const ir::IrModule& module) {
+    std::vector<std::string> warnings;
+    for (const ir::StylesheetRef& sheet : module.stylesheets) {
+        warnings.push_back("TESSERA_CG_STYLESHEET_NOT_EMBEDDED: stylesheet `" + sheet.path +
+                           "` is not embedded in the generated code; apply it at startup with "
+                           "compile_stylesheet() or the tessera.json `ui.styles` list");
+    }
+    return warnings;
+}
+
 CodegenResult generate(const ir::IrModule& module) {
     if (!valid_namespace(module.name)) {
         return std::unexpected(single(

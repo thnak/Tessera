@@ -26,4 +26,9 @@ using CodegenResult = std::expected<std::vector<GeneratedFile>, CodegenErrors>;
 // becomes the C++ namespace root of the generated structs.
 [[nodiscard]] CodegenResult generate(const ir::IrModule& module);
 
+// Non-fatal findings for `module`, one `TESSERA_CG_*: ...` string each, in a deterministic order.
+// Today: every stylesheet the IR lists is `TESSERA_CG_STYLESHEET_NOT_EMBEDDED`, because generated
+// code does not yet deliver CSS to the app (issue #80; embedding is issue #81).
+[[nodiscard]] std::vector<std::string> codegen_warnings(const ir::IrModule& module);
+
 } // namespace tessera::compiler::codegen

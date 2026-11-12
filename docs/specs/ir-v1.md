@@ -34,7 +34,7 @@ Codegen must not read the parser AST.
 | `module.imports` | string[] | no | Resolved module ids; no file paths |
 | `components` | Component[] | yes | Deterministic order (source path, then name) |
 | `bindings` | Binding[] | no | Sorted by id |
-| `stylesheets` | StylesheetRef[] | no | Compiled CSS references |
+| `stylesheets` | StylesheetRef[] | no | One per imported `.css` (`id`, `path`, `hash` = `fnv1a64:` of the file bytes), sorted by path |
 
 ## 2. Component
 

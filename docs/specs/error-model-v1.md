@@ -41,8 +41,8 @@ that has a documented fallback may instead be returned as an `Error` value.
 | `TESSERA_CFG_` | project/runtime config ([`project-config-v1.md`](project-config-v1.md), [`runtime-config-v1.md`](runtime-config-v1.md)) | unknown field, invalid value, path escape |
 | `TESSERA_JSX_` | JSX/TSX syntax | invalid token, unsupported construct |
 | `TESSERA_REACT_` | hooks/rules | hook order, missing deps, custom hook |
-| `TESSERA_IR_` | IR (intermediate representation) validation | duplicate id, unresolved ref, version |
-| `TESSERA_CG_` | codegen | unsupported node, identifier collision |
+| `TESSERA_IR_` | IR (intermediate representation) validation | duplicate id, unresolved ref, version, `TESSERA_IR_STYLESHEET_MISSING` |
+| `TESSERA_CG_` | codegen | unsupported node, identifier collision, `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` (warning) |
 | `TESSERA_MERGE_` | protected regions (developer-owned C++ blocks, [`developer-workflow.md`](../guides/developer-workflow.md)) | duplicate/missing marker, mismatch |
 | `TESSERA_CSS_` | stylesheet | parse, unknown property, var cycle |
 | `TESSERA_LAYOUT_` | layout | invalid constraint, measure failure |

@@ -1317,6 +1317,13 @@ target_link_libraries(lowering_module_reject_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_module_reject COMMAND lowering_module_reject_tests)
 
+add_executable(lowering_module_stylesheet_tests
+    lowering_module_stylesheet_tests.cpp)
+
+target_link_libraries(lowering_module_stylesheet_tests PRIVATE tessera_lowering tessera_codegen)
+
+add_test(NAME lowering_module_stylesheet COMMAND lowering_module_stylesheet_tests)
+
 add_executable(lowering_module_determinism_tests
     lowering_module_determinism_tests.cpp)
 

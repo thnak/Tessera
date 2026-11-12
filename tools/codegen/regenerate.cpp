@@ -127,6 +127,9 @@ bool generate_files(const ir::IrModule& module, std::vector<GeneratedFile>& file
         return false;
     }
     files = *generated;
+    for (const std::string& warning : codegen_warnings(module)) {
+        report(outcome, false, std::string(input) + ": warning: " + warning);
+    }
     return true;
 }
 
@@ -257,8 +260,44 @@ Outcome run(const Options& options) {
     for (const PackageRootSpec& spec : identity->packages) {
         packages.push_back(lowering::PackageRoot{spec.name, spec.root});
     }
-    lowering::ModuleLoweringResult lowered = lowering::lower_project(
-        std::span<const lowering::ModuleSource>(module_sources), module_name, packages);
+    // Stylesheets of side-effect CSS imports (issue #80): read here, hashed by lowering. A file
+    // that cannot be read is simply not offered, so lowering reports it at the import's span.
+    std::vector<std::string> stylesheet_paths;
+    std::vector<std::string> stylesheet_texts;
+    for (const auto& source : sources) {
+        for (const jsx::ModuleItem& item : source->parsed.root->items) {
+            if (item.kind != jsx::ItemKind::Import || !item.side_effect) {
+                continue;
+            }
+            const std::size_t slash = source->path.rfind('/');
+            std::string path = lowering::join_project_path(
+                slash == std::string::npos ? std::string_view()
+                                           : std::string_view(source->path).substr(0, slash),
+                item.source);
+            if (std::find(stylesheet_paths.begin(), stylesheet_paths.end(), path) !=
+                stylesheet_paths.end()) {
+                continue;
+            }
+            const fs::path on_disk =
+                project_paths ? identity->root / fs::path(path)
+                              : (fs::path(source->path).parent_path() / fs::path(item.source))
+                                    .lexically_normal();
+            std::optional<std::string> text = read_file(on_disk);
+            if (text) {
+                stylesheet_paths.push_back(std::move(path));
+                stylesheet_texts.push_back(std::move(*text));
+            }
+        }
+    }
+    std::vector<lowering::StylesheetFile> stylesheet_files;
+    stylesheet_files.reserve(stylesheet_paths.size());
+    for (std::size_t i = 0; i < stylesheet_paths.size(); ++i) {
+        stylesheet_files.push_back(
+            lowering::StylesheetFile{stylesheet_paths[i], stylesheet_texts[i]});
+    }
+    lowering::ModuleLoweringResult lowered =
+        lowering::lower_project(std::span<const lowering::ModuleSource>(module_sources),
+                                module_name, packages, stylesheet_files);
     if (!lowered) {
         const lowering::NodeLoweringErrors& errors = lowered.error();
         report(outcome, true,
@@ -273,6 +312,7 @@ Outcome run(const Options& options) {
     module.name = lowered_module.name;
     module.components = std::move(lowered_module.components);
     module.bindings = std::move(lowered_module.bindings);
+    module.stylesheets = std::move(lowered_module.stylesheets);
 
     if (!identity->salt.empty()) {
         const auto assigned = tessera::compiler::ids::assign_identity(module, identity->salt);

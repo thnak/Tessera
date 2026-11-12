@@ -152,7 +152,12 @@ Rules:
     and the package file is compiled by the same analyzer, rules and lowering pipeline (no
     special-casing downstream).
   - `import "./file.css";` (side-effect import) registers a stylesheet with the build
-    ([`stylesheet-v1.md`](stylesheet-v1.md)); the path must end in `.css`.
+    ([`stylesheet-v1.md`](stylesheet-v1.md)); the path must end in `.css`. Lowering resolves it
+    relative to the importing file and records it in `IrModule::stylesheets` (`id`, `path`,
+    `hash`; [`ir-v1.md`](ir-v1.md) section 1). A missing or unreadable file is
+    `TESSERA_IR_STYLESHEET_MISSING` at the import span. Generated code does not embed the CSS
+    yet, so codegen warns `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` naming the file (apply it with
+    `compile_stylesheet()` or `tessera.json` `ui.styles` until embedding lands).
 - **Exports**: named exports only. `export default` is rejected in V1.
 - **Components** are `function` declarations (section 6). Arrow-function components and anonymous
   components are rejected ([`component-model-v1.md`](component-model-v1.md) section 8).

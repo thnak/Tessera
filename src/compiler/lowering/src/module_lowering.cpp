@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -31,9 +32,25 @@ struct FileEntry {
 
 struct ProjectState {
     std::vector<FileEntry> files;
-    std::vector<std::size_t> order; // file indices sorted by path, the lowering order
+    std::vector<std::size_t> order;             // file indices sorted by path, the lowering order
+    std::vector<ir::StylesheetRef> stylesheets; // deduplicated, sorted at the end
     std::optional<jsx::Diagnostic> error;
 };
+
+// FNV-1a 64 over the file bytes: deterministic, dependency-free, and enough to detect a changed
+// stylesheet (it is a change marker, not a security digest).
+std::string stylesheet_hash(std::string_view text) {
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (const char c : text) {
+        hash = (hash ^ static_cast<unsigned char>(c)) * 1099511628211ULL;
+    }
+    constexpr std::string_view kHex = "0123456789abcdef";
+    std::string out = "fnv1a64:";
+    for (int shift = 60; shift >= 0; shift -= 4) {
+        out.push_back(kHex[(hash >> shift) & 0xF]);
+    }
+    return out;
+}
 
 jsx::Diagnostic make_diagnostic(const ModuleSource& source, std::string_view code,
                                 std::string_view message, jsx::Span span,
@@ -119,9 +136,32 @@ std::size_t find_project_file(const ProjectState& state, std::string_view key) {
     return kNoFile;
 }
 
+// Resolves a side-effect CSS import against the caller-provided files and records it once.
+bool resolve_stylesheet(ProjectState& state, const ModuleSource& source,
+                        const jsx::ModuleItem& item, std::span<const StylesheetFile> stylesheets) {
+    const std::string path = join_project_path(directory_of(source.file), item.source);
+    const auto found =
+        std::find_if(stylesheets.begin(), stylesheets.end(),
+                     [&](const StylesheetFile& sheet) { return sheet.path == path; });
+    if (found == stylesheets.end()) {
+        fail(state, source, "TESSERA_IR_STYLESHEET_MISSING",
+             "stylesheet `" + item.source + "` (`" + path + "`) is missing or unreadable",
+             item.span, "create the file or fix the import path");
+        return false;
+    }
+    const bool known =
+        std::any_of(state.stylesheets.begin(), state.stylesheets.end(),
+                    [&](const ir::StylesheetRef& sheet) { return sheet.path == path; });
+    if (!known) {
+        state.stylesheets.push_back(ir::StylesheetRef{"css::" + without_extension(path), path,
+                                                      stylesheet_hash(found->text)});
+    }
+    return true;
+}
+
 // Builds the component references and import graph of one file. False after reporting an error.
-bool resolve_imports(ProjectState& state, std::size_t index,
-                     std::span<const PackageRoot> packages) {
+bool resolve_imports(ProjectState& state, std::size_t index, std::span<const PackageRoot> packages,
+                     std::span<const StylesheetFile> stylesheets) {
     FileEntry& entry = state.files[index];
     const ModuleSource& source = *entry.source;
     for (const jsx::ModuleItem& item : source.module->items) {
@@ -137,8 +177,14 @@ bool resolve_imports(ProjectState& state, std::size_t index,
         }
     }
     for (const jsx::ModuleItem& item : source.module->items) {
-        if (item.kind != jsx::ItemKind::Import || item.side_effect) {
-            continue; // side-effect CSS imports are stylesheet work (subset section 4)
+        if (item.kind == jsx::ItemKind::Import && item.side_effect) {
+            if (!resolve_stylesheet(state, source, item, stylesheets)) {
+                return false;
+            }
+            continue;
+        }
+        if (item.kind != jsx::ItemKind::Import) {
+            continue;
         }
         const bool relative = item.source.rfind("./", 0) == 0 || item.source.rfind("../", 0) == 0;
         std::string target_key;
@@ -277,6 +323,11 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
             lower.components.push_back(make_library_component(*find_library_component(name)));
         }
     }
+    lower.stylesheets = state.stylesheets;
+    std::sort(lower.stylesheets.begin(), lower.stylesheets.end(),
+              [](const ir::StylesheetRef& left, const ir::StylesheetRef& right) {
+                  return left.path < right.path;
+              });
     // ir-v1 section 11: components sorted by source path, then name; bindings sorted by id.
     std::sort(lower.components.begin(), lower.components.end(),
               [](const ir::Component& left, const ir::Component& right) {
@@ -292,7 +343,8 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
 
 ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
                                  std::string_view module_name,
-                                 std::span<const PackageRoot> packages) {
+                                 std::span<const PackageRoot> packages,
+                                 std::span<const StylesheetFile> stylesheets) {
     ProjectState state;
     state.files.resize(sources.size());
     for (std::size_t i = 0; i < sources.size(); ++i) {
@@ -324,7 +376,7 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
         return sources[left].file < sources[right].file;
     });
     for (const std::size_t index : state.order) {
-        if (!resolve_imports(state, index, packages)) {
+        if (!resolve_imports(state, index, packages, stylesheets)) {
             return std::unexpected(NodeLoweringErrors{*state.error});
         }
     }
@@ -396,18 +448,25 @@ std::string join_project_path(std::string_view base, std::string_view relative) 
 }
 
 ModuleLoweringResult lower_module(const ModuleSource& source, std::string_view module_name) {
-    return lower_files(std::span<const ModuleSource>(&source, 1), module_name, {});
+    return lower_files(std::span<const ModuleSource>(&source, 1), module_name, {}, {});
 }
 
 ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
                                    std::string_view module_name) {
-    return lower_files(files, module_name, {});
+    return lower_files(files, module_name, {}, {});
 }
 
 ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
                                    std::string_view module_name,
                                    std::span<const PackageRoot> packages) {
-    return lower_files(files, module_name, packages);
+    return lower_files(files, module_name, packages, {});
+}
+
+ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
+                                   std::string_view module_name,
+                                   std::span<const PackageRoot> packages,
+                                   std::span<const StylesheetFile> stylesheets) {
+    return lower_files(files, module_name, packages, stylesheets);
 }
 
 } // namespace tessera::compiler::lowering

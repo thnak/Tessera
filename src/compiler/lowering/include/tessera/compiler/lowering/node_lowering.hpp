@@ -57,6 +57,7 @@ struct LoweredModule {
     std::string name;
     std::vector<ir::Component> components;
     std::vector<ir::Binding> bindings;
+    std::vector<ir::StylesheetRef> stylesheets; // sorted by path, one entry per file
 };
 
 using ModuleLoweringResult = std::expected<LoweredModule, NodeLoweringErrors>;
@@ -81,6 +82,15 @@ struct PackageRoot {
 // Shared with the driver so import discovery and lowering cannot disagree about a path.
 [[nodiscard]] std::string join_project_path(std::string_view base, std::string_view relative);
 
+// One stylesheet the caller has read for a side-effect `import "./x.css"` (issue #80). `path` is
+// the project-relative POSIX path in the `ModuleSource::file` form; `text` is the file content,
+// hashed into `ir::StylesheetRef::hash`. A CSS import that names no entry (missing or unreadable
+// file) is `TESSERA_IR_STYLESHEET_MISSING` at the import span.
+struct StylesheetFile {
+    std::string_view path;
+    std::string_view text;
+};
+
 // Lowers every file of a project. Relative imports (`./X`, `../X`) are resolved against `files`,
 // each imported name must be a component exported by the target file, and an import cycle is an
 // error. A component reference resolves to the local component of that name first, then to an
@@ -96,5 +106,11 @@ struct PackageRoot {
 [[nodiscard]] ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
                                                  std::string_view module_name,
                                                  std::span<const PackageRoot> packages);
+
+// As above, with the stylesheets the project's CSS imports resolve against.
+[[nodiscard]] ModuleLoweringResult lower_project(std::span<const ModuleSource> files,
+                                                 std::string_view module_name,
+                                                 std::span<const PackageRoot> packages,
+                                                 std::span<const StylesheetFile> stylesheets);
 
 } // namespace tessera::compiler::lowering
