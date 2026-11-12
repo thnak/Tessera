@@ -1289,6 +1289,15 @@ target_link_libraries(lowering_props_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_props COMMAND lowering_props_tests)
 
+# Issue #70 cross-file props aliases: the same alias imported from another file must lower to the
+# same records (and the same generated C++) as the inline alias.
+add_executable(lowering_props_alias_tests
+    lowering_props_alias_tests.cpp)
+
+target_link_libraries(lowering_props_alias_tests PRIVATE tessera_lowering tessera_codegen)
+
+add_test(NAME lowering_props_alias COMMAND lowering_props_alias_tests)
+
 add_executable(lowering_layering_tests
     lowering_layering_tests.cpp)
 

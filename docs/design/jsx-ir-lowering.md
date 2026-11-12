@@ -26,7 +26,7 @@ parse_module -> analysis (Tier 1, new) -> lowering (Tier 2, new) -> IR -> IR val
 | AST construct | IR | Notes |
 |---|---|---|
 | Component item | `Component` | `name`, `source` = whole function span, `id` = `comp::<Name>`; `return <Root/>` is `root` |
-| Props parameter and its type alias / inline object type | `props[]` (`name`, `type`, `optional`, `default`) | one record per member, declaration order; `?` is `optional`; `props.x` reads become `ref` (decision 8) |
+| Props parameter and its type alias / inline object type | `props[]` (`name`, `type`, `optional`, `default`) | one record per member, declaration order; `?` is `optional`; the alias may be declared in another file (imported, renamed or re-exported); `props.x` reads become `ref` (decision 8) |
 | `const [x, setX] = useState<T>(e)` | `state[]` entry `state::x` | setter name is a symbol, not an IR object; `initial` is a literal or Expr (decision 9) |
 | `useRef<E>(null)` + `ref={r}` | `refs[]` (`ref::r`, `target` = node id) | target filled when the element is lowered |
 | `useAnimatedValue(e)` | `animatedValues[]` | |
@@ -410,14 +410,12 @@ lower_project(std::span<const ModuleSource>, std::string_view module_name); // i
   inline handler), children are the caller's slot content with the caller's `node::N` ids, and
   `ref`/`automationId` work as on intrinsics; recursion and mutual recursion are supported because
   references are never inlined (tested).
-- Imports: relative `./X`/`../X` resolve against the file set (extension omitted); each name must be
-  a component, type alias or constant of the target. A bare specifier resolves through the project's
-  package roots (`packages` in `tessera.json`: `pkg/Sub` -> `<root>/Sub`); else unsupported.
-- Declared prop records come from the props type alias or inline object type (slice 4);
-  destructuring defaults lower into `Prop::default_value`; unknown props/children and a component
-  callback parameter, setter reference, `style` on a component, props spread or component value are
-  rejected (`fallback` accepts one). Library components are slice 11; `LoweringOptions` is not
-  introduced; `lower_module` rejects relative imports.
+- Imports: relative `./X`/`../X` resolve against the file set; a name must be a component, type alias
+  or constant of the target or its type re-exports; a bare specifier uses the project package roots.
+- Declared prop records come from the props type alias or inline object type (slice 4); an imported,
+  renamed or re-exported alias resolves to the same declaration and records, and destructuring
+  defaults lower into `Prop::default_value`. Unknown props/children, callback parameters, setter
+  references, `style`, props spreads and component values are rejected (`fallback` accepts one).
 
 Tests are `lowering_module`, `lowering_module_reject` and `lowering_module_determinism`.
 ## 4. Spans and diagnostics
@@ -529,8 +527,10 @@ Each slice is behavior, tests and docs, committed on its own.
 2. **IR validator.** Section 9 hard errors on hand-built IR; the layering test.
 3. **Analysis skeleton (done).** `tessera_react_rules`: symbol table per component, hook forms and order,
    arrow roles (handler/effect/cleanup), `return` placement, effect dependency matching.
-4. **Types (props records/defaults done).** The props alias or inline object type lowers every member
-   (name, IR v1 type, `?`, `children` slot) and the destructuring default (`Prop::default_value`).
+4. **Types (props records/defaults and cross-file aliases done).** An inline type, or an alias
+   imported (with `import type` or `import`), renamed with `as`, or re-exported, lowers every member
+   and the destructuring default in declaration order, so its file cannot change the records; missing
+   exports, non-type names, type-alias cycles and unresolvable modules are diagnostics with file/span.
    Deferred: inline value records, payload-record fields, callback parameters and expression typing.
 5. **Lowering of expressions (done).** `Expr` -> IR `Expr` with the operator mapping and folding of
    top-level constants; no components yet.

@@ -64,6 +64,8 @@ const char* kind_name(ItemKind kind) {
     switch (kind) {
     case ItemKind::Import:
         return "import";
+    case ItemKind::ReExport:
+        return "re-export";
     case ItemKind::TypeAlias:
         return "type";
     case ItemKind::Const:
@@ -74,6 +76,13 @@ const char* kind_name(ItemKind kind) {
         break;
     }
     return "unknown";
+}
+
+void dump_import_name(std::string& out, const ImportName& name) {
+    out += " " + name.name;
+    if (!name.local_name.empty()) {
+        out += " as " + name.local_name;
+    }
 }
 
 void dump_statement(std::string& out, const Statement& statement) {
@@ -104,12 +113,26 @@ void dump_item(std::string& out, const ModuleItem& item) {
     }
     switch (item.kind) {
     case ItemKind::Import:
-        out += item.side_effect ? "(import-side-effect \"" + item.source + "\")"
-                                : "(import \"" + item.source + "\"";
-        for (const auto& name : item.names) {
-            out += " " + name.name;
+        if (item.side_effect) {
+            out += "(import-side-effect \"" + item.source + "\")";
+            return;
         }
-        out += item.side_effect ? "" : ")";
+        out += item.type_only ? "(import-type \"" : "(import \"";
+        out += item.source + "\"";
+        for (const auto& name : item.names) {
+            dump_import_name(out, name);
+        }
+        out += ")";
+        return;
+    case ItemKind::ReExport:
+        out += "(export-type";
+        if (!item.source.empty()) {
+            out += " \"" + item.source + "\"";
+        }
+        for (const auto& name : item.names) {
+            dump_import_name(out, name);
+        }
+        out += ")";
         return;
     case ItemKind::TypeAlias:
         out += "(type " + item.name + " " + type_text(*item.type) + ")";

@@ -134,8 +134,11 @@ private:
     // parser_module.cpp
     bool parse_item(ModuleItem& item);
     bool parse_import(ModuleItem& item);
+    bool parse_reexport(ModuleItem& item);
     bool parse_type_alias(ModuleItem& item);
     bool parse_const_item(ModuleItem& item);
+    bool parse_import_names(ModuleItem& item);
+    void check_module_source(ModuleItem& item, Span span);
     void recover_to_next_item(std::uint32_t item_start);
     [[nodiscard]] bool at_item_start() const;
 

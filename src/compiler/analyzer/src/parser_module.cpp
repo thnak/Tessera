@@ -102,6 +102,17 @@ bool Parser::parse_item(ModuleItem& item) {
         return parse_import(item);
     }
     if (cur_.is_keyword("type")) {
+        if (item.exported) {
+            // `export type X = ...` is a type alias; `export type { A } [from "..."]` re-exports
+            // type names (spec section 4). One token of lookahead decides which.
+            const Checkpoint saved = checkpoint();
+            advance(LexMode::Code);
+            const bool re_export = at_punct("{");
+            restore(saved);
+            if (re_export) {
+                return parse_reexport(item);
+            }
+        }
         return parse_type_alias(item);
     }
     if (cur_.is_keyword("function")) {
@@ -118,33 +129,73 @@ bool Parser::parse_item(ModuleItem& item) {
     return false;
 }
 
+// The specifier rules shared by named imports and type re-exports (spec section 4): a relative
+// path or a package specifier; empty, absolute and drive/UNC paths are malformed.
+void Parser::check_module_source(ModuleItem& item, Span span) {
+    const std::string& source = item.source;
+    if (item.side_effect) {
+        if (!source.ends_with(".css")) {
+            report("TESSERA_JSX_SUBSET_IMPORT", "a side-effect import must name a `.css` file",
+                   span, "use `import \"./styles.css\";`");
+        }
+        return;
+    }
+    if (source.empty() || source.starts_with("/") || source.starts_with("\\") ||
+        (source.size() > 1 && source[1] == ':')) {
+        report("TESSERA_JSX_SUBSET_IMPORT",
+               "an import source must be a package name or a relative path", span,
+               "use `from \"tessera\"`, `from \"pkg/Name\"` or `from \"./Name\"`");
+    }
+}
+
+// `{ A, B as C, }`; an empty list is accepted (`import {} from "x"`).
+bool Parser::parse_import_names(ModuleItem& item) {
+    if (!expect_punct("{", LexMode::Code)) {
+        return false;
+    }
+    while (!fatal_ && !at_punct("}")) {
+        if (cur_.kind != TokenKind::Identifier) {
+            fail_unexpected("an imported name");
+            return false;
+        }
+        ImportName name;
+        name.name = std::string(cur_.text);
+        name.span = cur_.span;
+        advance(LexMode::Code);
+        if (cur_.is_keyword("as")) {
+            advance(LexMode::Code);
+            if (cur_.kind != TokenKind::Identifier) {
+                fail_unexpected("a local name after `as`");
+                return false;
+            }
+            name.local_name = std::string(cur_.text);
+            advance(LexMode::Code);
+        }
+        item.names.push_back(std::move(name));
+        if (!at_punct(",")) {
+            break;
+        }
+        advance(LexMode::Code);
+    }
+    return expect_punct("}", LexMode::Code);
+}
+
 bool Parser::parse_import(ModuleItem& item) {
     item.kind = ItemKind::Import;
     advance(LexMode::Code);
-    const auto check_source = [&] {
-        const std::string& source = item.source;
-        if (item.side_effect) {
-            if (!source.ends_with(".css")) {
-                report("TESSERA_JSX_SUBSET_IMPORT", "a side-effect import must name a `.css` file",
-                       cur_.span, "use `import \"./styles.css\";`");
-            }
-            return;
+    if (cur_.is_keyword("type")) {
+        // `import type { T } from "./types";`: a type-only binding has no runtime import edge.
+        item.type_only = true;
+        advance(LexMode::Code);
+        if (cur_.kind == TokenKind::String) {
+            fail_unexpected("`{` after `import type`");
+            return false;
         }
-        // A named import comes from the framework (`"tessera"`), from React-compatible names
-        // (`"react"`), from a relative project file, or from a package root configured in the
-        // project (ADR-014). Resolution and its diagnostics are the lowering step's job, so the
-        // parser only rejects a malformed specifier: empty, absolute, or a bare drive/UNC path.
-        if (source.empty() || source.starts_with("/") || source.starts_with("\\") ||
-            (source.size() > 1 && source[1] == ':')) {
-            report("TESSERA_JSX_SUBSET_IMPORT",
-                   "an import source must be a package name or a relative path", cur_.span,
-                   "use `from \"tessera\"`, `from \"pkg/Name\"` or `from \"./Name\"`");
-        }
-    };
+    }
     if (cur_.kind == TokenKind::String) {
         item.side_effect = true;
         item.source = cur_.value;
-        check_source();
+        check_module_source(item, cur_.span);
         advance(LexMode::Code);
         return expect_semicolon();
     }
@@ -157,25 +208,7 @@ bool Parser::parse_import(ModuleItem& item) {
         }
         return false;
     }
-    advance(LexMode::Code);
-    while (!fatal_ && !at_punct("}")) {
-        if (cur_.kind != TokenKind::Identifier) {
-            fail_unexpected("an imported name");
-            return false;
-        }
-        item.names.push_back(ImportName{std::string(cur_.text), cur_.span});
-        advance(LexMode::Code);
-        if (cur_.is_keyword("as")) {
-            fail("TESSERA_JSX_SUBSET_IMPORT", "renaming imports is not supported", cur_.span,
-                 "import the name as it is exported");
-            return false;
-        }
-        if (!at_punct(",")) {
-            break;
-        }
-        advance(LexMode::Code);
-    }
-    if (!expect_punct("}", LexMode::Code)) {
+    if (!parse_import_names(item)) {
         return false;
     }
     if (!cur_.is_keyword("from")) {
@@ -188,8 +221,28 @@ bool Parser::parse_import(ModuleItem& item) {
         return false;
     }
     item.source = cur_.value;
-    check_source();
+    check_module_source(item, cur_.span);
     advance(LexMode::Code);
+    return expect_semicolon();
+}
+
+bool Parser::parse_reexport(ModuleItem& item) {
+    item.kind = ItemKind::ReExport;
+    item.type_only = true;
+    advance(LexMode::Code); // `type`
+    if (!parse_import_names(item)) {
+        return false;
+    }
+    if (cur_.is_keyword("from")) {
+        advance(LexMode::Code);
+        if (cur_.kind != TokenKind::String) {
+            fail_unexpected("a module path string");
+            return false;
+        }
+        item.source = cur_.value;
+        check_module_source(item, cur_.span);
+        advance(LexMode::Code);
+    }
     return expect_semicolon();
 }
 

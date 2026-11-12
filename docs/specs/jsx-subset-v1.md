@@ -123,18 +123,23 @@ unambiguous. The project owner decided this.
 A file is a sequence of top-level items in any order:
 
 ```ebnf
-Module        = { Import | TypeAlias | ComponentDecl | ConstDecl } ;
-Import        = "import" ( NamedImports | "{" "}" ) "from" STRING ";"
+Module        = { Import | ReExport | TypeAlias | ComponentDecl | ConstDecl } ;
+Import        = "import" [ "type" ] NamedImports "from" STRING ";"
               | "import" STRING ";" ;
-NamedImports  = "{" IDENT { "," IDENT } [ "," ] "}" ;
+NamedImports  = "{" [ ImportName { "," ImportName } [ "," ] ] "}" ;
+ImportName    = IDENT [ "as" IDENT ] ;
+ReExport      = "export" "type" "{" [ ImportName { "," ImportName } [ "," ] ] "}"
+                [ "from" STRING ] ";" ;
 TypeAlias     = [ "export" ] "type" IDENT "=" TypeExpr ";" ;
 ComponentDecl = [ "export" ] "function" IDENT "(" [ Param ] ")" [ ":" TypeExpr ] Block ;
 ConstDecl     = [ "export" ] "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
 ```
 
 Rules:
-- **Imports**: named imports only. No default imports, no namespace imports (`* as x`), no
-  re-exports, no dynamic `import()`, no `require`.
+- **Imports**: named imports only, with an optional `as` rename
+  (`import { CardProps as Props } from "./types";`). No default imports, no namespace imports
+  (`* as x`), no dynamic `import()`, no `require`. `import type { T } from "./types";` binds type
+  names only and adds no runtime import edge (so type-only imports do not form an import cycle).
   - `from "tessera"` imports built-in components and hooks (for example `useState`, `View`,
     `CustomElement`). `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
     of `"tessera"` (other names and `import React` are errors; [`jsx-intrinsics-v1`](jsx-intrinsics-v1/react-compat.md) Q15).
@@ -159,6 +164,10 @@ Rules:
     yet, so codegen warns `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` naming the file (apply it with
     `compile_stylesheet()` or `tessera.json` `ui.styles` until embedding lands).
 - **Exports**: named exports only. `export default` is rejected in V1.
+- **Type re-exports**: `export type { A, B as C } [from "./X"];` re-exports type names, from another
+  file or from the file's own imports. Other re-exports (`export { A }`, `export *`) are rejected. A
+  re-exported name resolves like a directly declared type alias, so a props alias may be reached
+  through a chain of re-exports and is lowered by the same rules as an inline alias.
 - **Components** are `function` declarations (section 6). Arrow-function components and anonymous
   components are rejected ([`component-model-v1.md`](component-model-v1.md) section 8).
 - **Top-level constants** (`ConstDecl`) must have a pure expression made of literals and other
@@ -202,7 +211,9 @@ ParamType  = IDENT ":" TypeExpr ;
   loop, and lowers to the IR `Slot` node ([`ir-v1.md`](ir-v1.md) section 3.4). A `Children` value
   cannot be stored, compared, passed to another prop or used in text.
 - A union is accepted only as `T | null` or as a union of string literals (an enum).
-- Type aliases are non-recursive and may refer only to earlier or later aliases without cycles.
+- Type aliases are non-recursive and may refer only to earlier or later aliases without cycles,
+  including aliases imported from other files (a cycle is `TESSERA_IR_TYPE_CYCLE`). A component's
+  props type may be an alias declared in another project file (section 4).
 - Built-in generic names accepted: `Ref<T>` is not written by developers; refs use the element type
   directly (`useRef<Text>(null)`, section 7). Element types are the intrinsic names of section 11.
 - Not accepted: `any`, `unknown`, `never`, `object`, `Function`, intersections (`&`), conditional or

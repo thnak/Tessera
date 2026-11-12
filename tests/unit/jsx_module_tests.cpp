@@ -35,6 +35,15 @@ void test_imports() {
     // Package specifiers parse here and resolve in lowering (ADR-014 package roots, issue #70).
     check(parse_module("import { A } from \"tessera-ui\";").ok(), "a bare package specifier");
     check(parse_module("import { A } from \"tessera-ui/Button\";").ok(), "a package subpath");
+    // Type-only imports, `as` renames and type re-exports (issue #70 cross-file props aliases).
+    check_eq(dump_module("import type { CardProps } from \"./types\";"),
+             "(module\n  (import-type \"./types\" CardProps))", "type-only import");
+    check_eq(dump_module("import { CardProps as Props } from \"./types\";"),
+             "(module\n  (import \"./types\" CardProps as Props))", "renamed import");
+    check_eq(dump_module("export type { CardProps } from \"./types\";"),
+             "(module\n  (export-type \"./types\" CardProps))", "type re-export");
+    check_eq(dump_module("export type { Inner as CardProps };"),
+             "(module\n  (export-type Inner as CardProps))", "local type re-export with a rename");
 }
 
 void test_import_rejections() {
@@ -45,7 +54,7 @@ void test_import_rejections() {
     const Case cases[] = {
         {"import X from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import * as X from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
-        {"import { A as B } from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
+        {"import type X from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import { A } from \"/abs/A\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import \"./x.js\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"export default function A() {}", "TESSERA_JSX_SUBSET_IMPORT;"},

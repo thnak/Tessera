@@ -12,7 +12,7 @@
 // internal to the front end; the IR never includes it.
 namespace tessera::compiler::jsx {
 
-enum class ItemKind { Unknown, Import, TypeAlias, Const, Component };
+enum class ItemKind { Unknown, Import, ReExport, TypeAlias, Const, Component };
 
 enum class StatementKind {
     Const,      // `const x = e;`, `const [a, b] = e;`: names, optional type, init
@@ -41,8 +41,16 @@ struct PropBinding {
 };
 
 struct ImportName {
+    // `name` is the name in the exporting module (or the local name of a re-export without
+    // `from`); `local_name` is the `as` alias when one is written, empty otherwise.
     std::string name;
     Span span;
+    std::string local_name;
+
+    // The name this binding introduces: the alias when written, else `name`.
+    [[nodiscard]] std::string_view local() const {
+        return local_name.empty() ? std::string_view(name) : std::string_view(local_name);
+    }
 };
 
 struct ModuleItem {
@@ -52,10 +60,14 @@ struct ModuleItem {
     bool valid = true;
     bool exported = false;
 
-    // Import: source and names; side_effect for `import "./x.css";`.
+    // Import: source and names; side_effect for `import "./x.css";`. A re-export (`ItemKind::
+    // ReExport`) uses `names` the same way, with `source` empty for `export type { A };`.
     std::string source;
     std::vector<ImportName> names;
     bool side_effect = false;
+    // `import type { ... }` / `export type { ... }`: the binding introduces types only, so it adds
+    // no runtime import edge (docs/specs/jsx-subset-v1.md section 4).
+    bool type_only = false;
 
     // TypeAlias, Const, Component.
     std::string name;
