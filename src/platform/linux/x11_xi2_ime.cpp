@@ -29,21 +29,23 @@ void X11Xi2Pump::handle_preedit_draw(int caret, int change_first, int change_len
     std::size_t length = change_length > 0 ? static_cast<std::size_t>(change_length) : 0U;
     length = std::min(length, preedit_size_ - first);
 
+    // Each segment is copied as a bulk `min(room, available)` move rather than a `spliced[size++]`
+    // loop: GCC 13 at -O3 cannot prove the break guard bounds the post-increment store and rejects
+    // the loop form as stringop-overflow. The bulk form states the bound the compiler needs.
     std::array<char, x11::kMaxPreeditBytes> spliced{};
     std::size_t size = 0;
-    for (std::size_t index = 0; index < first && size < spliced.size(); ++index) {
-        spliced[size++] = preedit_[index];
-    }
-    for (const char byte : text) {
-        if (size >= spliced.size()) {
-            break;
+    const auto append = [&spliced, &size](const char* data, std::size_t count) {
+        const std::size_t copied = std::min(count, spliced.size() - size);
+        for (std::size_t index = 0; index < copied; ++index) {
+            spliced[size + index] = data[index];
         }
-        spliced[size++] = byte;
-    }
-    for (std::size_t index = first + length; index < preedit_size_ && size < spliced.size();
-         ++index) {
-        spliced[size++] = preedit_[index];
-    }
+        size += copied;
+    };
+
+    append(preedit_.data(), std::min(first, preedit_size_));
+    append(text.data(), text.size());
+    append(preedit_.data() + std::min(first + length, preedit_size_),
+           preedit_size_ - std::min(first + length, preedit_size_));
     preedit_ = spliced;
     preedit_size_ = size;
 
