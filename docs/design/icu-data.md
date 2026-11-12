@@ -359,10 +359,13 @@ and add one dedicated Linux `icu-text` job that carries the provisioning, the ON
 build, and the filtered `ctest` lines above. That is what `linux.yml` does (timeout 40 minutes):
 the job downloads the pinned `icu4c-76_1-src.tgz` (sha256-verified), builds its host tools with
 `runConfigureICU Linux --disable-samples` plus `make`, and passes `TESSERA_ICU_TOOLS_DIR`,
-`TESSERA_ICU_FULL_DATA` and `TESSERA_ICU_SOURCE_DIR` to the `ci` preset. The UAX #14 + ICU path is
-then proven on every push for one job's build cost instead of every job's, and the parity test keeps
-proving that the builtin engine the other lanes ship produces the same line boxes for the shared
-corpus.
+`TESSERA_ICU_FULL_DATA` and `TESSERA_ICU_SOURCE_DIR` to the `ci` preset. The tools are not
+installed, so they link the shared ICU libraries out of the build tree: the job puts
+`<icu>/source/lib` (and `lib64`) on `LD_LIBRARY_PATH` for every step and runs `bin/icupkg --help`
+during provisioning, so a missing loader path fails there instead of inside the reduced-data step.
+The UAX #14 + ICU path is then proven on every push for one job's build cost instead of every job's,
+and the parity test keeps proving that the builtin engine the other lanes ship produces the same
+line boxes for the shared corpus.
 
 Making ICU mandatory later is: move the four option/set lines from `third_party/CMakeLists.txt` to
 the root options block and default them ON.

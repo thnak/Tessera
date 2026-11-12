@@ -247,9 +247,9 @@ public:
             return {StdioIoStatus::Ok, 0};
         }
         // The process's stdout descriptor is normally blocking, so write(2) would wait for the peer
-        // as soon as the pipe buffer fills and "flush without waiting" would be a lie. O_NONBLOCK is
-        // raised for exactly this call and restored before returning, so a stalled peer shows up as
-        // WouldBlock while the descriptor keeps the blocking mode its owner chose (a caller that
+        // as soon as the pipe buffer fills and "flush without waiting" would be a lie. O_NONBLOCK
+        // is raised for exactly this call and restored before returning, so a stalled peer shows up
+        // as WouldBlock while the descriptor keeps the blocking mode its owner chose (a caller that
         // opened stdout non-blocking keeps that flag too).
         const int flags = ::fcntl(STDOUT_FILENO, F_GETFL);
         if (flags < 0) {
