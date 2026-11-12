@@ -1,7 +1,7 @@
 # ADR-049: Backend extensibility: RHI versioning, shader sources for non-Vulkan backends, community backends
 
 - Status: Proposed
-- Date: 2026-11-12
+- Date: 2026-11-12 (section 1.1 added the same day after measuring the tools)
 - Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan baseline),
   [ADR-002](ADR-002-webgpu-dawn-for-wasm.md) (WebGPU/Dawn for Wasm),
   [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin RHI),
@@ -72,19 +72,74 @@ Options evaluated:
 2. A backend resolves `shader_id` against a **shader table it owns**, populated at build time
    (WGSL embedded by CMake today; MSL, HLSL or DXIL for others). `ShaderRegistry` becomes the
    WebGPU implementation of that table, keyed by id; the pointer-identity lookup is removed once
-   `batched2d` passes `shader_id`. A shader id that the manifest does not list is a
-   configure-time error.
+   `batched2d` passes `shader_id`. Ids are constants in `include/tessera/rendering/gpu/shader_ids.hpp`
+   and equal the manifest `name`. A shader id that the manifest does not list is a configure-time
+   error **once `manifest.json` exists**; it does not yet (only the schema and its validator do), so
+   until then the id constant, the backend's built-in table and the parity test below stand in.
 3. Logical shaders and their interface (stages, entry points, bindings, vertex layout, push-constant
    block) stay defined by the shader manifest. Every backend's source for a given id must match the
    manifest. A contributed backend that wants to re-use SPIR-V instead may run SPIRV-Cross (or
    Naga/Tint) **in its own CMake, at build time**, and register the output under the same ids. That
    output is a build artifact, never committed, and its tool version is pinned like `glslc`.
+   Translators must consume the **portable SPIR-V** (section 1.1), never Vulkan's: the Vulkan
+   variant uses push constants and a combined image sampler, which WebGPU lacks and which naga and
+   Slang reject (measured, section 1.1).
 4. The shared-shader interface rules from ADR-011 item 4 (no push constants in shared shaders,
    binding layouts valid as descriptor sets and bind groups, explicit vertex layouts) apply to all
    backends. The Vulkan push-constant path remains a Vulkan-only optimization; backends without
    push constants emulate them with a uniform slice, as the WebGPU backend does.
-5. An unknown shader id, or a module that fails the manifest check, makes pipeline creation return
-   a value error, not a crash.
+5. An unknown shader id, or a module that fails the manifest check, makes pipeline creation fail
+   with a reportable error, not a crash or a silently empty pipeline. `Device::create_pipeline`
+   returns `std::unique_ptr` and has no error channel, so today that error is the boundary
+   exception every backend already uses for bad descriptors (`std::invalid_argument`); a
+   value-returning `try_create_pipeline` is a separate minor RHI change, not part of this ADR.
+
+#### 1.1 The shader chain, verified on 2026-11-12
+
+Checked on Windows with Vulkan SDK 1.4.350.0 (glslc shaderc v2026.2, SPIRV-Cross, spirv-val,
+spirv-opt, dxc 1.9.0.5347, slangc 2026.8 bundled; naga and Tint not bundled) and naga-cli 30.0.1
+built with cargo:
+
+| Path | Result |
+|---|---|
+| Vulkan `batched2d` SPIR-V -> naga -> WGSL | vertex: emits `var<immediate>` for the push-constant block (not WebGPU core WGSL); fragment: rejected (`OpCopyLogical`; after spirv-opt, the combined image sampler) |
+| Vulkan GLSL -> slangc (`-lang glsl`) -> WGSL | rejected: std140 block layout and the `sampler` type are unsupported for WGSL; Slang needs Slang-authored source |
+| SPIRV-Cross -> WGSL | no WGSL backend exists |
+| portable SPIR-V -> spirv-opt -O -> naga -> WGSL | both stages translate and pass naga validation; naga flips clip-space Y by default |
+| portable SPIR-V -> SPIRV-Cross -> HLSL (SM 6.0) / MSL 2.1 | both translate; HLSL compiles with dxc (`b0`, `t1`, `s2`); MSL unvalidated (no Metal toolchain on Windows/Linux) |
+| authored `batched2d.wgsl` -> naga | passes validation (Tint, which browsers use, is stricter and still unverified) |
+
+Decided chain:
+
+1. **Source of truth: GLSL, one file per stage**, with SPIR-V as the interchange format. A
+   `TESSERA_SHADER_PORTABLE` preprocessor branch declares the interface all non-Vulkan APIs share:
+   the push-constant block as a std140 uniform buffer at set 0 binding 0, a separate `texture2D` at
+   binding 1 and `sampler` at binding 2 (the WebGPU backend's `kBinding*`), and texture sampling
+   hoisted out of non-uniform control flow (WGSL requires it for implicit derivatives). Without the
+   define the Vulkan SPIR-V is unchanged (verified byte-identical). This is how ADR-011 item 4
+   ("no push constants in shared shaders; Vulkan may keep them as an optimization") is met: the
+   Vulkan variant is the optimization, the portable variant is the shared shader.
+2. **WebGPU (Tier 1) keeps its authored WGSL**, embedded and shipped, so Emscripten builds need no
+   translator. Drift is guarded by `shader_parity` (`tests/gpu/shaders/`), which runs in every build
+   without tools: it parses the portable GLSL and the embedded WGSL and compares vertex inputs,
+   varyings with their interpolation, uniform block members, the block size against
+   `Batched2DPushConstants`, and the group-0 bindings. Pixels are compared by the conformance suite
+   (section 3) once a WebGPU pixel lane exists. Replacing the authored WGSL with naga output is
+   allowed later only if that lane shows both render the same and Tint accepts the generated code.
+3. **Metal, D3D12 and other contributed backends** use the opt-in `tessera_cross_compile_shader`
+   (`cmake/TesseraShaderCross.cmake`, enabled by `TESSERA_SHADER_CROSS=ON`, default OFF and in no
+   preset): glslc with `-DTESSERA_SHADER_PORTABLE=1`, then SPIRV-Cross with `--flip-vert-y` to MSL
+   and HLSL, and spirv-opt plus naga to WGSL, all written under `<build>/shaders/cross/<id>/`. With
+   tests on, ctest runs spirv-val, naga and dxc over every artifact a present tool can check. Missing
+   optional tools skip their outputs; normal builds need nothing new.
+4. **Determinism and pins:** outputs are generated, never committed; for a fixed tool version they
+   are byte-stable. glslc, SPIRV-Cross, spirv-opt, spirv-val and dxc are pinned by the Vulkan SDK
+   version; naga by `TESSERA_NAGA_VERSION_PIN` (configure warns on a mismatch). A backend that
+   ships translator output pins the same versions in its README.
+5. **Licenses:** SPIRV-Cross and SPIRV-Tools Apache-2.0, naga MIT OR Apache-2.0, dxc
+   University of Illinois/NCSA, Tint BSD-3-Clause (inside Dawn), Slang Apache-2.0 with LLVM
+   exception. All are build-time only; none is linked. Whether translator-emitted helper code
+   carries any notice obligation is to be checked by the first backend that ships its output.
 
 Consequences for existing decisions:
 
@@ -268,8 +323,10 @@ Negative and risks:
 
 ## Follow-up
 
-1. Add `shader_id` to `rhi::PipelineDesc`; move `ShaderRegistry` to id keys; update
-   `shader-manifest-v1.md` with the id-to-source table and the unknown-id rule.
+1. Done (2026-11-12): `shader_id` on `rhi::PipelineDesc`, `ShaderRegistry` keyed by id, the portable
+   GLSL branch, `shader_parity`, and opt-in `TESSERA_SHADER_CROSS`. Open: update
+   `shader-manifest-v1.md` with the id-to-source table, the portable variant and the unknown-id rule,
+   and add `manifest.json`; run a `TESSERA_SHADER_CROSS=ON` CI lane.
 2. Add `include/tessera/rendering/rhi/version.hpp` and `Device::capabilities()`, and the docs-gate
    check for RHI header changes without a version or changelog entry.
 3. Make the GPU test harness backend-selectable; add `tests/golden/gpu/tolerance.json` and the JSON
@@ -278,8 +335,8 @@ Negative and risks:
    checklist) and add it to `docs/README.md`.
 5. Add the tiers table and the in-tree/out-of-tree rule to CONTRIBUTING.md and
    [`docs/design/gpu/backends.md`](../docs/design/gpu/backends.md).
-6. Extend `docs/specs/dependencies.md` with a "backend build tools" section (SPIRV-Cross, Naga, Tint,
-   DXC), marked not vendored until a backend needs one.
+6. Done (2026-11-12): `docs/specs/dependencies.md` and `THIRD_PARTY_NOTICES.md` list SPIRV-Cross,
+   naga and dxc as optional build-time tools; Tint stays Future.
 7. Update ADR-011's status line to point here if this ADR is accepted.
 8. Decided in review: the tolerance starting values stand as defaults to be re-tuned after the first
    WebGPU measurement; the 90-day floor binds only from the first compatibility-promising release;
