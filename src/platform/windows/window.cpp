@@ -446,6 +446,12 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
         focused_ = false;
         enqueue(WindowEventType::Blur);
         return 0;
+    case WM_SETTINGCHANGE:
+        // Only the animation toggle is surfaced; other settings broadcasts stay default-handled.
+        if (wparam == SPI_SETCLIENTAREAANIMATION) {
+            enqueue(WindowEventType::SystemSettingsChanged);
+        }
+        return DefWindowProcW(window, message, wparam, lparam);
     case WM_CLOSE:
         // Graceful shutdown is a normalized event; the owner destroys the window.
         request_close();

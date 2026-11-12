@@ -126,9 +126,12 @@ Normative details: [`animation-v1.md`](../specs/animation-v1.md).
   applied in the same frame, and the scheduler wakes the loop while any value still moves (an idle UI requests no frame).
 - Reduced motion: `HostConfig::reduced_motion` / `AppHost::set_reduced_motion` reach the `AnimationRuntime` and, through
   `UpdateScheduler::set_reduced_motion` and `UpdateTicket::motion`, every generated component (`apply_reduced_motion`),
-  including components attached later. The window driver reads the Windows setting once at startup
-  (`app::system_prefers_reduced_motion`, `SPI_GETCLIENTAREAANIMATION`); other platforms report false for now.
-- Not yet: reacting to a setting change while the app runs, the macOS/Linux/Android queries, `SpringRuntime` (springs on
+  including components attached later. The window driver reads the Windows setting at startup
+  (`app::system_prefers_reduced_motion`, `SPI_GETCLIENTAREAANIMATION`) and follows it live: the Win32 window turns
+  `WM_SETTINGCHANGE` with `SPI_SETCLIENTAREAANIMATION` into the OS-free `hal::WindowEventType::SystemSettingsChanged`,
+  the driver re-queries, and `app::MotionPreference` lets `AppHost::set_reduced_motion` run (plus a requested frame so
+  in-flight animations finish) only when the value changed. Other platforms report false for now.
+- Not yet: the macOS/Linux/Android queries and live change events, `SpringRuntime` (springs on
   style properties still has no owner in the host), and completion callbacks for CSS animations and transitions.
 - Completion callbacks of async work are delivered on the UI thread via the completion queue ([`async.md`](async.md)); no detached
   tasks.

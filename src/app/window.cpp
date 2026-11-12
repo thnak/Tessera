@@ -66,6 +66,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.dpi_scale = metrics.dpi_scale;
     config.text_measurer = options.text_measurer;
     config.reduced_motion = system_prefers_reduced_motion();
+    motion = MotionPreference(config.reduced_motion);
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     if (scheduler != nullptr) {
         host->set_update_scheduler(scheduler);
@@ -238,6 +239,13 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
             case hal::WindowEventType::Resize:
             case hal::WindowEventType::DpiChange:
                 apply_metrics(window->metrics());
+                break;
+            case hal::WindowEventType::SystemSettingsChanged:
+                if (motion.update(system_prefers_reduced_motion())) {
+                    host->set_reduced_motion(motion.reduced());
+                    // In-flight animations must finish (or snap) even if the scene was idle.
+                    loop->mark_render_dirty();
+                }
                 break;
             default:
                 break;

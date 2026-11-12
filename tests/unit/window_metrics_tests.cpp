@@ -89,9 +89,15 @@ int main() {
 
     // The normalized taxonomy is distinct and ordered as documented.
     constexpr WindowEventType kAllTypes[] = {
-        WindowEventType::Resize,   WindowEventType::DpiChange, WindowEventType::Focus,
-        WindowEventType::Blur,     WindowEventType::Occluded,  WindowEventType::Minimized,
-        WindowEventType::Restored, WindowEventType::Close,
+        WindowEventType::Resize,
+        WindowEventType::DpiChange,
+        WindowEventType::Focus,
+        WindowEventType::Blur,
+        WindowEventType::Occluded,
+        WindowEventType::Minimized,
+        WindowEventType::Restored,
+        WindowEventType::Close,
+        WindowEventType::SystemSettingsChanged,
     };
     for (std::size_t i = 0; i < std::size(kAllTypes); ++i) {
         for (std::size_t j = i + 1; j < std::size(kAllTypes); ++j) {

@@ -45,6 +45,10 @@ enum class WindowEventType {
     Minimized,
     Restored,
     Close,
+    // A system-wide user setting the app mirrors changed (Windows: animation effects toggled). The
+    // event carries no value: the owner re-queries the setting it cares about, so no OS message or
+    // parameter reaches UI code.
+    SystemSettingsChanged,
 };
 
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.

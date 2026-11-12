@@ -301,6 +301,13 @@ Text { font-size: 16px; color: #e2e8f0; }
             return 13;
         }
         motion_host.set_update_scheduler(nullptr);
+        tessera::app::MotionPreference preference(false);
+        if (!expect(!preference.update(false) && preference.update(true) && preference.reduced() &&
+                        !preference.update(true) && preference.update(false) &&
+                        !preference.reduced(),
+                    "the preference reports a change only when the value moves")) {
+            return 13;
+        }
         // The OS query must be callable on every platform; its value depends on the machine.
         (void)tessera::app::system_prefers_reduced_motion();
     }

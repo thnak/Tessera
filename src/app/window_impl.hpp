@@ -8,6 +8,7 @@
 
 #include "tessera/app/frame_guard.hpp"
 #include "tessera/app/recovery_policy.hpp"
+#include "tessera/app/system_motion.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/device.hpp"
@@ -102,6 +103,8 @@ struct WindowHost::Impl {
     // Present-rate cap and deadline source for the idle paths (0 = uncapped).
     runtime::FramePacer pacer;
     std::unique_ptr<AppHost> host;
+    // Last OS reduced-motion value pushed to `host`; a SystemSettingsChanged event re-queries it.
+    MotionPreference motion;
 
     ui::InputPump pump;
     WindowFrameStats stats;
