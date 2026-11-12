@@ -199,6 +199,9 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | sccache | Apache-2.0 | optional compiler cache (preferred) |
 | ccache | GPL-3.0-or-later | optional compiler cache; separate program, not linked |
 | Node.js | MIT | hosted-studio build scripts and the `tessera-mcp` stdio server; design-time tooling, never linked into the app |
+| SPIRV-Cross, SPIRV-Tools (spirv-val, spirv-opt) | Apache-2.0 | from the pinned Vulkan SDK; only with `TESSERA_SHADER_CROSS=ON` (ADR-049); output stays in the build directory |
+| DirectX Shader Compiler (dxc) | University of Illinois/NCSA | from the pinned Vulkan SDK; only validates generated HLSL under `TESSERA_SHADER_CROSS=ON` |
+| naga-cli 30.0.1 | MIT OR Apache-2.0 | `cargo install naga-cli --version 30.0.1`; only with `TESSERA_SHADER_CROSS=ON`; SPIR-V to WGSL and WGSL validation |
 
 ## Not linked
 

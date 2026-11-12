@@ -56,6 +56,9 @@ option(TESSERA_BUILD_TESTS "Build unit tests" ON)
 option(TESSERA_BUILD_VULKAN "Build the Vulkan backend and PoC" ON)
 option(TESSERA_BUILD_WEBGPU
     "Build the WebGPU device backend against a native webgpu.h (always built under Emscripten)" OFF)
+option(TESSERA_SHADER_CROSS
+    "Cross-compile shaders to MSL/HLSL/WGSL at build time and validate them (ADR-049; needs tools)"
+    OFF)
 option(TESSERA_ENABLE_THORVG
     "Build the ThorVG-backed vector path rasterizer (D1, ADR-004)" OFF)
 
@@ -153,6 +156,12 @@ if (TESSERA_BUILD_TESTS)
     endif()
     # Preview parity (issue #7): IR evaluator versus generated C++ for a native handler.
     add_subdirectory(tests/parity)
+endif()
+
+# ADR-049: translate the portable SPIR-V to MSL/HLSL/WGSL in the build directory and validate it.
+# After enable_testing() so its tool checks register with ctest.
+if (TESSERA_SHADER_CROSS)
+    add_subdirectory(tools/shaders)
 endif()
 
 # Ship the project license, third-party notices and the generated license bundle with an install.
