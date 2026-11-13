@@ -41,6 +41,10 @@ constexpr std::string_view kCorpus[] = {
     "@keyframes fade { 0% { opacity: 1 } 50% { opacity: .5 } 100% { opacity: 0 } }\n",
     ".n:not(.a, .b) { color: red } .p::part(label) { color: blue } .q { not-real: 1; color: red }\n"
     "@media (bogus {{ .never { color: red } }\n",
+    // The highest MediaFeature enumerator (WindowBackdrop, glass-v1 section 6). The reader used to
+    // bound the feature byte below it, so this sheet's blob failed to load at all (issue #274).
+    "@media (window-backdrop: mica) { .w { color: red } }\n"
+    "@media (window-backdrop: none) and (min-width: 100px) { .w2 { color: blue } }\n",
     "",
 };
 
@@ -195,6 +199,29 @@ void malformed_input_never_crashes() {
     }
 }
 
+// The writer copies a diagnostic kind verbatim, so a reader bound below the enum's last enumerator
+// refuses a blob the writer produced. Prepare-time diagnostics only use the first four kinds today;
+// this covers every kind so a prepare pass that starts reporting a `var()` cycle or an undeclared
+// part cannot silently make its blobs unloadable (issue #274).
+void every_diagnostic_kind_round_trips() {
+    constexpr std::uint8_t kLastKind =
+        static_cast<std::uint8_t>(StyleDiagnosticKind::UndeclaredPart);
+    for (std::uint8_t value = 0; value <= kLastKind; ++value) {
+        const auto kind = static_cast<StyleDiagnosticKind>(value);
+        PreparedStyleSheet prepared = prepare_stylesheet(".a { color: red }");
+        prepared.diagnostics.push_back(StyleDiagnostic{kind, 0, "color", "synthetic diagnostic"});
+        const std::vector<std::uint8_t> bytes = serialize_stylesheet(prepared);
+        const auto loaded = load_stylesheet_blob(bytes);
+        const std::string label = std::to_string(value);
+        expect(loaded.has_value(), "blob with diagnostic kind " + label + " loads");
+        if (!loaded) {
+            continue;
+        }
+        expect(loaded->diagnostics.size() == 1 && loaded->diagnostics.front().kind == kind,
+               "diagnostic kind " + label + " round-trips");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -203,6 +230,7 @@ int main() {
     media_is_resolved_at_load_not_baked();
     layers_in_false_media_take_no_slot();
     header_errors_are_reported();
+    every_diagnostic_kind_round_trips();
     malformed_input_never_crashes();
     return g_ok ? 0 : 1;
 }
