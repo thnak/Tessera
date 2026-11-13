@@ -204,54 +204,58 @@ if (TESSERA_BUILD_TESTS)
                     --target codegen_base_missing_member)
         set_tests_properties(codegen_base_missing_member_fails PROPERTIES
             PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void sync")
-        # Every emitter family (lists, virtual collections, vector icons) compiled in base mode: a
-        # build-time tool writes the base headers of the shared fixtures, and one translation unit
-        # per module instantiates them against hand-written developer classes.
-        add_executable(codegen_base_emit_fixtures
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_emit_fixtures.cpp)
-        target_link_libraries(codegen_base_emit_fixtures PRIVATE tessera_codegen tessera_lowering
-            tessera_jsx_frontend tessera_react_rules tessera_ir)
-        set(_tessera_codegen_base_fixture_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_base_fixtures)
-        set(_tessera_codegen_base_fixture_headers
-            ${_tessera_codegen_base_fixture_dir}/dynamic/Dynamic.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/dvirt/DynamicVirtual.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/vlist/VirtualDemo.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/vicon/VectorIcon.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/compose/Card.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/compose/CardPage.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/compose/Watcher.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/compose/WatchPage.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/demo/Field.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/demo/FieldPage.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/demo/Form.g.hpp
-            ${_tessera_codegen_base_fixture_dir}/demo/FormPage.g.hpp)
-        add_custom_command(
-            OUTPUT ${_tessera_codegen_base_fixture_headers}
-            COMMAND codegen_base_emit_fixtures ${_tessera_codegen_base_fixture_dir}
-            DEPENDS codegen_base_emit_fixtures
-            COMMENT "Generating ADR-040 base headers of the shared fixtures"
-            VERBATIM)
-        add_library(codegen_base_fixtures_compile OBJECT
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dynamic.cpp
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dvirt.cpp
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vlist.cpp
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vicon.cpp
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/compose.cpp
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/forms.cpp
-            ${_tessera_codegen_base_fixture_headers})
-        target_include_directories(codegen_base_fixtures_compile PRIVATE
-            # Generated parents include their children's developer headers (`#include "Card.hpp"`).
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures
-            ${_tessera_codegen_base_fixture_dir}/dynamic
-            ${_tessera_codegen_base_fixture_dir}/dvirt
-            ${_tessera_codegen_base_fixture_dir}/vlist
-            ${_tessera_codegen_base_fixture_dir}/vicon
-            ${_tessera_codegen_base_fixture_dir}/compose
-            ${_tessera_codegen_base_fixture_dir}/demo)
-        target_link_libraries(codegen_base_fixtures_compile PRIVATE
-            tessera_scene tessera_virtual tessera_layout tessera_text_edit tessera_animation
-            tessera_forms)
-        target_compile_features(codegen_base_fixtures_compile PRIVATE cxx_std_23)
+        # The generator tool runs on the HOST at build time, so a cross-compiling build (Android,
+        # iOS) skips the fixture compile, like the compiler demo above; the host lanes cover it.
+        if (NOT CMAKE_CROSSCOMPILING)
+            # Every emitter family (lists, virtual collections, vector icons) compiled in base mode: a
+            # build-time tool writes the base headers of the shared fixtures, and one translation unit
+            # per module instantiates them against hand-written developer classes.
+            add_executable(codegen_base_emit_fixtures
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_emit_fixtures.cpp)
+            target_link_libraries(codegen_base_emit_fixtures PRIVATE tessera_codegen tessera_lowering
+                tessera_jsx_frontend tessera_react_rules tessera_ir)
+            set(_tessera_codegen_base_fixture_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_base_fixtures)
+            set(_tessera_codegen_base_fixture_headers
+                ${_tessera_codegen_base_fixture_dir}/dynamic/Dynamic.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/dvirt/DynamicVirtual.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/vlist/VirtualDemo.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/vicon/VectorIcon.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/compose/Card.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/compose/CardPage.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/compose/Watcher.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/compose/WatchPage.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/demo/Field.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/demo/FieldPage.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/demo/Form.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/demo/FormPage.g.hpp)
+            add_custom_command(
+                OUTPUT ${_tessera_codegen_base_fixture_headers}
+                COMMAND codegen_base_emit_fixtures ${_tessera_codegen_base_fixture_dir}
+                DEPENDS codegen_base_emit_fixtures
+                COMMENT "Generating ADR-040 base headers of the shared fixtures"
+                VERBATIM)
+            add_library(codegen_base_fixtures_compile OBJECT
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dynamic.cpp
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dvirt.cpp
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vlist.cpp
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vicon.cpp
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/compose.cpp
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/forms.cpp
+                ${_tessera_codegen_base_fixture_headers})
+            target_include_directories(codegen_base_fixtures_compile PRIVATE
+                # Generated parents include their children's developer headers (`#include "Card.hpp"`).
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures
+                ${_tessera_codegen_base_fixture_dir}/dynamic
+                ${_tessera_codegen_base_fixture_dir}/dvirt
+                ${_tessera_codegen_base_fixture_dir}/vlist
+                ${_tessera_codegen_base_fixture_dir}/vicon
+                ${_tessera_codegen_base_fixture_dir}/compose
+                ${_tessera_codegen_base_fixture_dir}/demo)
+            target_link_libraries(codegen_base_fixtures_compile PRIVATE
+                tessera_scene tessera_virtual tessera_layout tessera_text_edit tessera_animation
+                tessera_forms)
+            target_compile_features(codegen_base_fixtures_compile PRIVATE cxx_std_23)
+        endif ()
         add_test(NAME codegen_base_private_field_fails
             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_private_field)
