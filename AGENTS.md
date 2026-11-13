@@ -122,6 +122,18 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
   push to `main` directly and never merge without green tests.
 - **Ambiguity:** write the question into the PR description and keep going with the most
   conservative reading; stop only for destructive or irreversible actions.
+- **Issue labels** (each roadmap item has a GitHub issue in its milestone):
+  `ready` = startable now, `in-progress` = claimed by an open PR or agent, `blocked` = the farm
+  could not proceed and the owner must decide or fix something. An issue with none of the three
+  waits on an earlier item named in its body; flip it to `ready` when the PR that unblocks it
+  merges. Pick `ready` issues in milestone order and swap the label to `in-progress` when you start.
+- **Marking a task blocked:** when an item cannot be finished (a missing decision, a spec gap, a
+  failing dependency, a platform you cannot test), do not guess and do not leave it half done.
+  Comment on the issue with the exact blocker, what you tried, and the smallest question or fix
+  that would unblock it; swap `in-progress` or `ready` for `blocked`; keep any green partial work
+  as a PR only if it stands alone; then take the next `ready` item. The owner clears `blocked`
+  after answering.
+
 
 ### Subagent lanes
 
