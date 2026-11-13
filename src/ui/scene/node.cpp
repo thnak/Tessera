@@ -176,10 +176,12 @@ void Node::set_tab_index(int tab_index) {
 }
 
 void Node::set_scrollable_x(bool scrollable) {
-    if (scrollable_x_ == scrollable) {
+    const bool current = (scroll_bits_ & kScrollableXBit) != 0;
+    if (current == scrollable) {
         return;
     }
-    scrollable_x_ = scrollable;
+    scroll_bits_ = scrollable ? static_cast<std::uint8_t>(scroll_bits_ | kScrollableXBit)
+                              : static_cast<std::uint8_t>(scroll_bits_ & ~kScrollableXBit);
     // Toggling the flag changes what the pass and hit testing do with this subtree (a paint clip is
     // emitted or dropped, and points outside the viewport start missing), so it is visible even
     // when the re-clamped offset stays at 0.
@@ -188,10 +190,12 @@ void Node::set_scrollable_x(bool scrollable) {
 }
 
 void Node::set_scrollable_y(bool scrollable) {
-    if (scrollable_y_ == scrollable) {
+    const bool current = (scroll_bits_ & kScrollableYBit) != 0;
+    if (current == scrollable) {
         return;
     }
-    scrollable_y_ = scrollable;
+    scroll_bits_ = scrollable ? static_cast<std::uint8_t>(scroll_bits_ | kScrollableYBit)
+                              : static_cast<std::uint8_t>(scroll_bits_ & ~kScrollableYBit);
     mark_dirty(Dirty::Paint | Dirty::Render);
     set_scroll_offset(scroll_x_, scroll_y_);
 }
@@ -237,8 +241,8 @@ void Node::set_scrollport_insets(float left, float top, float right, float botto
 bool Node::set_scroll_offset(float x, float y) {
     const float viewport_x = std::max(0.0f, bounds_.width - scrollport_left_ - scrollport_right_);
     const float viewport_y = std::max(0.0f, bounds_.height - scrollport_top_ - scrollport_bottom_);
-    const float max_x = scrollable_x_ ? std::max(0.0f, content_width_ - viewport_x) : 0.0f;
-    const float max_y = scrollable_y_ ? std::max(0.0f, content_height_ - viewport_y) : 0.0f;
+    const float max_x = scrollable_x() ? std::max(0.0f, content_width_ - viewport_x) : 0.0f;
+    const float max_y = scrollable_y() ? std::max(0.0f, content_height_ - viewport_y) : 0.0f;
     const float next_x = std::clamp(std::isfinite(x) ? x : 0.0f, 0.0f, max_x);
     const float next_y = std::clamp(std::isfinite(y) ? y : 0.0f, 0.0f, max_y);
     if (next_x == scroll_x_ && next_y == scroll_y_) {
@@ -249,6 +253,39 @@ bool Node::set_scroll_offset(float x, float y) {
     // Scrolling moves content, never layout: repaint and re-render only.
     mark_dirty(Dirty::Paint | Dirty::Render);
     return true;
+}
+
+void Node::set_scroll_behavior(ScrollBehavior behavior) {
+    // Policy input only: no paint/layout effect until a programmatic scroll animates an offset, and
+    // that move marks Paint|Render through set_scroll_offset.
+    scroll_bits_ = behavior == ScrollBehavior::Smooth
+                       ? static_cast<std::uint8_t>(scroll_bits_ | kScrollBehaviorSmoothBit)
+                       : static_cast<std::uint8_t>(scroll_bits_ & ~kScrollBehaviorSmoothBit);
+}
+
+void Node::set_overscroll_behavior(OverscrollBehavior behavior) {
+    scroll_bits_ = static_cast<std::uint8_t>(
+        (scroll_bits_ & ~kOverscrollBehaviorMask) |
+        ((static_cast<std::uint8_t>(behavior) << kOverscrollBehaviorShift) &
+         kOverscrollBehaviorMask));
+}
+
+void Node::set_overscroll_effect(OverscrollEffect effect) {
+    scroll_bits_ = static_cast<std::uint8_t>(
+        (scroll_bits_ & ~kOverscrollEffectMask) |
+        ((static_cast<std::uint8_t>(effect) << kOverscrollEffectShift) & kOverscrollEffectMask));
+}
+
+void Node::set_scroll_animation_target(float x, float y) {
+    scroll_animation_target_x_ = std::isfinite(x) ? x : 0.0f;
+    scroll_animation_target_y_ = std::isfinite(y) ? y : 0.0f;
+    scroll_animation_active_ = true;
+}
+
+void Node::clear_scroll_animation() {
+    scroll_animation_active_ = false;
+    scroll_animation_target_x_ = scroll_x_;
+    scroll_animation_target_y_ = scroll_y_;
 }
 
 void Node::set_pseudo_state(style::PseudoState state) {
@@ -379,7 +416,7 @@ Node* Node::hit_test_deep(float x, float y) {
     // scrollport_insets, so a caller that set them to the border widths gets the padding box):
     // points outside cannot hit anything in the subtree. The offset itself is applied by
     // world_transform(), so child inverse transforms already account for it.
-    if (scrollable_x_ || scrollable_y_) {
+    if (scrollable_x() || scrollable_y()) {
         rhi::Mat3 inverse;
         if (!world_transform().try_inverse(inverse)) {
             return nullptr;

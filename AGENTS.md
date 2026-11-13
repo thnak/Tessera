@@ -353,8 +353,11 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       (explicit width+height win), `docs/specs/stylesheet-v1.md` §11, tests `interaction_style`,
       `property_registry`, `layout` height-wins. Covers #215 and #216; #217 lands per its fallback
       clause (`user-select: all` stays `UnsupportedValue`, static-text selection is a follow-up).
-- [ ] #248: `scroll-behavior`, `overscroll-behavior`, `overscroll-effect` and `scrollbar-gutter` wired to
-      the scroll controller (#214).
+- [x] #248: `scroll-behavior`, `overscroll-behavior`, `overscroll-effect` and `scrollbar-gutter` wired to
+      the scroll controller (#214) — `src/ui/style/{property_registry,property_value_validation,supports}.cpp`,
+      `src/ui/scene/{scroll,scroll_animation}.cpp` (chain/smooth/gutter), `style::sync_scroll_style`,
+      `src/ui/layout/{layout_style,layout_signature}.cpp` (gutter inset + dirty rule),
+      `docs/specs/{stylesheet-v1,scroll-and-gestures-v1,animation-v1}.md`, test `scroll_properties`.
 - [ ] #249: CSS Grid subset with a C++ `GridEngine`; Yoga has no grid, taffy only through an ADR (#214).
 - [ ] #250: Test that the stylesheet registry matches the V1 matrix of `stylesheet-v1.md`; it uses a
       known-gaps allow-list that #247 to #249 empty.

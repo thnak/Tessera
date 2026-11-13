@@ -189,12 +189,58 @@ Node* scroll_target_for_id(Node& root, NodeId id) {
     return target == nullptr ? nullptr : scroll_target(*target);
 }
 
+bool allow_chain(const Node& node) {
+    // CSS `overscroll-behavior` (scroll-and-gestures-v1 section 2.1): `contain`/`none` stop the
+    // scroll chain at this container; there is no separate `scroll-chain` property.
+    return node.overscroll_behavior() == OverscrollBehavior::Auto;
+}
+
+bool animates_overscroll(const Node& node) {
+    if (node.overscroll_effect() == OverscrollEffect::None || !allow_chain(node)) {
+        return false;
+    }
+    // `Platform` is a request for the HAL profile; the profile resolves None/Glow/Stretch/Bounce at
+    // the consumer. A non-`none` request is eligible to animate here.
+    return true;
+}
+
+namespace {
+
+// Applies one wheel delta from the innermost container outward (scroll-and-gestures-v1 section 4):
+// each container consumes what it can and passes the remainder to its nearest scrollable ancestor
+// while `allow_chain` holds. `contain`/`none` drop the remainder at that edge. Bounded by tree
+// depth, allocation-free, one Scroll event per container that actually moved.
+bool chain_scroll_delta(Node& innermost, float dx, float dy) {
+    bool changed = false;
+    Node* container = &innermost;
+    while (container != nullptr) {
+        const float before_x = container->scroll_x();
+        const float before_y = container->scroll_y();
+        (void)scroll_by(*container, dx, dy);
+        const float consumed_x = container->scroll_x() - before_x;
+        const float consumed_y = container->scroll_y() - before_y;
+        changed = changed || consumed_x != 0.0f || consumed_y != 0.0f;
+        dx -= consumed_x;
+        dy -= consumed_y;
+        if (!allow_chain(*container) || (dx == 0.0f && dy == 0.0f)) {
+            break;
+        }
+        Node* const parent = container->parent();
+        container = parent == nullptr ? nullptr : scroll_target(*parent);
+    }
+    return changed;
+}
+
+} // namespace
+
 bool apply_wheel_scroll(Node& target, float wheel_x, float wheel_y) {
-    Node* const container = scroll_target(target);
+    Node* container = scroll_target(target);
     if (container == nullptr) {
         return false;
     }
-    return scroll_by(*container, wheel_x * kPixelsPerWheelUnit, wheel_y * kPixelsPerWheelUnit);
+    float dx = wheel_x * kPixelsPerWheelUnit;
+    float dy = wheel_y * kPixelsPerWheelUnit;
+    return chain_scroll_delta(*container, dx, dy);
 }
 
 bool scroll_into_view(Node& node) {

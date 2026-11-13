@@ -38,6 +38,34 @@ int main() {
         return 1;
     }
 
+    // Scroll runtime/style inputs (issue #248): the same grammar the declaration validator accepts,
+    // so `@supports (overscroll-behavior: contain)` gates a fallback correctly.
+    if (!expect(matches("(overscroll-behavior: contain)", registry),
+                "overscroll-behavior contain") ||
+        !expect(matches("(overscroll-behavior: auto)", registry) &&
+                    matches("(overscroll-behavior: none)", registry),
+                "overscroll-behavior auto/none") ||
+        !expect(!matches("(overscroll-behavior: chain)", registry),
+                "bad overscroll-behavior value") ||
+        !expect(matches("(scroll-behavior: smooth)", registry) &&
+                    matches("(scroll-behavior: auto)", registry),
+                "scroll-behavior values") ||
+        !expect(!matches("(scroll-behavior: instant)", registry), "bad scroll-behavior value") ||
+        !expect(matches("(overscroll-effect: stretch)", registry) &&
+                    matches("(overscroll-effect: glow)", registry) &&
+                    matches("(overscroll-effect: bounce)", registry) &&
+                    matches("(overscroll-effect: platform)", registry) &&
+                    matches("(overscroll-effect: none)", registry),
+                "overscroll-effect animation-v1 names") ||
+        !expect(!matches("(overscroll-effect: auto)", registry), "bad overscroll-effect value") ||
+        !expect(matches("(scrollbar-gutter: stable)", registry) &&
+                    matches("(scrollbar-gutter: auto)", registry),
+                "scrollbar-gutter values") ||
+        !expect(!matches("(scrollbar-gutter: both-edges)", registry),
+                "bad scrollbar-gutter value")) {
+        return 5;
+    }
+
     if (!expect(matches("not (display: grid)", registry), "not") ||
         !expect(!matches("not (display: flex)", registry), "not false") ||
         !expect(matches("(display: flex) and (color: red)", registry), "and") ||

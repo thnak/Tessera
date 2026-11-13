@@ -3,6 +3,7 @@
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/property_registry.hpp"
+#include "tessera/ui/style/property_value_validation.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -97,6 +98,14 @@ constexpr PropertyDef kProperties[] = {
     {"column-gap", "normal", false},
     {"overflow-x", "visible", false},
     {"overflow-y", "visible", false},
+    // Scroll runtime/style inputs (stylesheet-v1 section 11, scroll-and-gestures-v1 section 4).
+    // None is inherited: scroll policy belongs to the container that owns the scrollport.
+    // `overscroll-effect` uses the animation-v1 section 7 names and has no `auto` keyword; the
+    // initial request is `platform`, resolved by the HAL profile.
+    {"scroll-behavior", "auto", false},
+    {"overscroll-behavior", "auto", false},
+    {"overscroll-effect", "platform", false},
+    {"scrollbar-gutter", "auto", false},
     {"order", "0", false},
     {"field-sizing", "fixed", false},
     {"container-type", "normal", false},
@@ -175,24 +184,6 @@ StyleDiagnostic invalid_shorthand(const Declaration& declaration, std::string_vi
                            std::string(property), std::move(message)};
 }
 
-// True when `word` appears in `text` as a whole keyword (not inside `inset-x` or a longer name).
-bool has_keyword(std::string_view text, std::string_view word) {
-    std::size_t at = text.find(word);
-    while (at != std::string_view::npos) {
-        const bool left_ok = at == 0 || !(std::isalnum(static_cast<unsigned char>(text[at - 1])) ||
-                                          text[at - 1] == '-');
-        const std::size_t end = at + word.size();
-        const bool right_ok =
-            end >= text.size() ||
-            !(std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '-');
-        if (left_ok && right_ok) {
-            return true;
-        }
-        at = text.find(word, at + 1);
-    }
-    return false;
-}
-
 // True when `value` (already lowercased) is one keyword of the `window-backdrop` grammar
 // (glass-v1.md section 2). `auto` is a valid request even though it is never a resolved material.
 bool is_window_backdrop_value(std::string_view value) {
@@ -201,7 +192,9 @@ bool is_window_backdrop_value(std::string_view value) {
 }
 
 // Recognised properties may carry value forms V1 does not implement; each is reported once per
-// declaration (stylesheet-v1 section 11: unsupported declarations are never silent).
+// declaration (stylesheet-v1 section 11: unsupported declarations are never silent). The
+// box-shadow, transform and scroll grammars live in property_value_validation.cpp; the
+// interaction properties validate here through their own shared grammar.
 void report_unsupported_values(const Declaration& declaration, std::string_view property,
                                std::vector<StyleDiagnostic>& out) {
     std::string value(declaration.value);
@@ -209,19 +202,8 @@ void report_unsupported_values(const Declaration& declaration, std::string_view 
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     if (is_interaction_value_property(property)) {
         report_unsupported_interaction_value(property, value, declaration.offset, out);
-    } else if (property == "box-shadow" && has_keyword(value, "inset")) {
-        out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
-                                      std::string(property),
-                                      "inset shadows are not supported in V1 and are not painted"});
-    } else if (property == "transform" &&
-               (value.find("3d(") != std::string::npos || has_keyword(value, "perspective") ||
-                value.find("perspective(") != std::string::npos)) {
-        out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
-                                      std::string(property),
-                                      "3D transform functions are not supported in V1"});
     }
 }
-
 Declaration make_declaration(const Declaration& source, std::string property, std::string value) {
     return Declaration{std::move(property), std::move(value), source.important, source.offset};
 }
@@ -341,6 +323,9 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
     if (find(property) != nullptr) {
         Declaration normalized = make_declaration(declaration, property, declaration.value);
         report_unsupported_values(normalized, property, result.diagnostics);
+        if (!validate_property_value(normalized, property, result.diagnostics)) {
+            return result;
+        }
         result.declarations.push_back(std::move(normalized));
         return result;
     }

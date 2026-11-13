@@ -40,8 +40,9 @@ InputDispatchResult dispatch_wheel(Node& root, const InputEvent& input) {
     result.target_id = target->id();
     result.dispatched = dispatch_event_to(*target, event);
     if (!event.prevent_default) {
-        // Default action: the innermost scroll container consumes the wheel (no nested chaining in
-        // this slice). The deltas are converted from platform wheel units to logical pixels.
+        // Default action: the innermost scroll container consumes the wheel and the remainder
+        // chains outward while each container's `overscroll-behavior` allows it. The deltas are
+        // converted from platform wheel units to logical pixels.
         apply_wheel_scroll(*target, event.scroll_x, event.scroll_y);
     }
     return result;
