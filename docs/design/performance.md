@@ -363,6 +363,16 @@ the driver stays on the direct path instead of dropping frames.
 - Adaptive quality: downgrade then recover with hysteresis; visual correctness preserved.
 - Long-run: no unbounded cache growth, no leaked frames, no growing queues.
 
+### 9.1 CPU benchmark and the render-thread trigger
+
+A GPU-free benchmark (`tessera_benchmark`, issue tracked in the V1-M1 milestone) builds a tree of
+about 12 000 nodes and measures first layout, full paint, and layout plus paint after changing one
+text node, and counts draw calls. Reference hardware is a 2-core Linux runner and the Windows
+runner. The numbers are the evidence for the V1 decision of no render thread and no worker
+recording ([ADR-021](../../decisions/ADR-021-async-runtime.md)): revisit it when `paint_time_ms`
+exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. Do not claim parallelism without a
+measured gain on the benchmark.
+
 ## 10. Open questions
 
 - Per-platform or battery-state overrides of `backgroundMaxFps` (the default is `0` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).

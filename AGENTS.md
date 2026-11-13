@@ -326,6 +326,7 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends are post-V1
       (Android).
 - [ ] #227: Effective opacity multiplies down the subtree (children fade with their parent).
+- [ ] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget.
 - [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
 - [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
 
