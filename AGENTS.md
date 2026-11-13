@@ -397,6 +397,9 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI 
       [`docs/specs/dependencies.md`](docs/specs/dependencies.md) "Backend build tools".
 - [x] #163: Emscripten CI lane + WGSL validation — WebGPU promoted to Tier 1 —
       `.github/workflows/webgpu.yml`, `scripts/ci/validate_wgsl.py`, ADR-049.
+- [ ] #245: Cross-backend image parity: a fixed scene set on every available backend against the
+      lavapipe reference, SSIM and deltaE with edge-rounding vs structural classes, tolerances per
+      backend pair in `tolerance.json`.
 
 ### V1-M4 Design-time preview and playground ([milestone 4](https://github.com/thnak/Tessera/milestone/4)) — Big Step D
 Acceptance: a screen previews in a browser and matches native output within the golden tolerance.
