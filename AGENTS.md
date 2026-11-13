@@ -283,7 +283,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `tests/golden/codegen/demo/Demo.cpp`.
 - [x] Animated values (tween, spring, `onComplete`, reduced motion live on Windows), CSS end events,
       `SpringRuntime` in the frame pipeline — `src/ui/animation/`, commits `a76165f`, `a075170`.
-- [ ] #157: ADR-040: emit `gen::<Component>Base<Self>` + developer class — `compiler-demo` regenerates
+- [ ] #157, #209-#211: ADR-040: emit `gen::<Component>Base<Self>` + developer class — `compiler-demo` regenerates
       with its developer class untouched.
 - [x] #81/ADR-048: embed the compiled stylesheet blob as a `constexpr` array (serializer/loader
       landed) — no `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` for embedded sheets —
