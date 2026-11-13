@@ -30,9 +30,9 @@ Goals:
 - Keep the rule of ADR-035: **state commits first**. The new UI owns input, focus, semantics and
   automation immediately; animation is only paint.
 
-Non-goals (not in this spec): layout animation of siblings (FLIP reflow, open question 1), gesture-driven
-transitions (interactive back swipe), transitions limited to a subtree, `wait` mode, and a
-physics-based shared-element path. Each needs its own design.
+Non-goals (not in this spec): gesture-driven transitions (an interactive back swipe), transitions
+limited to a subtree, and a physics-based shared-element path. Layout animation of siblings and
+the `wait` mode are in scope (sections 3.7 and 3.1).
 
 ## 2. Rules that apply to both features
 
@@ -70,6 +70,17 @@ box (the "ignored wrapper" rule of [`accessibility-v1.md`](accessibility-v1.md))
 |---|---|---|---|
 | `initial` | bool | `false` | `false`: nodes already present when the presence first mounts do not run `:entering` |
 | `layout` | `keep`, `pop` | `keep` | What an exiting node does to layout (section 3.4) |
+| `mode` | `sync`, `wait` | `sync` | `wait` sequences the visuals: the new child appears after the old one has left (below) |
+
+`mode="wait"` sequences **visuals only**, so "state commits first" still holds. The new child is
+created at the commit and owns state, effects and bindings at once, but it is painted
+`visibility: hidden` (not hit-testable, not focusable, absent from the focus order) until every
+exiting node of the same presence has finished or hit the cap; then its `:entering` starts. `wait`
+forces `layout="pop"`, so the old node leaves the flow and the hidden new node already occupies the
+final box. It applies to a presence whose children are alternatives (at most one present at a
+time); a presence with several simultaneous children, or a keyed loop, falls back to `sync` with
+`TESSERA_PRESENCE_WAIT` (warning). With reduced motion there is no wait: the new child shows at
+once.
 
 A direct child that has neither a condition nor a loop is never removed by this component and gets
 the diagnostic `TESSERA_PRESENCE_CHILD` (warning). A loop child needs `key` (already a compile
@@ -108,7 +119,7 @@ primitives. The framework default styles define three opt-in keyframes the devel
 
 | Aspect | Rule |
 |---|---|
-| Layout | `layout="keep"`: it keeps its box until removal, then siblings reflow at once (a visible step; see open question 1). `layout="pop"`: it leaves the flow at the commit and is drawn at its last bounds (absolutely positioned), so siblings reflow at once and nothing overlaps unexpectedly |
+| Layout | `layout="keep"`: it keeps its box until removal, then siblings reflow (they slide when `layout-animation` is on, section 3.7). `layout="pop"`: it leaves the flow at the commit and is drawn at its last bounds (absolutely positioned), so siblings reflow at once and slide, and nothing overlaps unexpectedly |
 | Input | `pointer-events: none` for the node and descendants; it is not in the hit test |
 | Focus | If focus was inside, it moves at the commit to the logical next target, not at the end of the animation ([`animation-v1.md`](animation-v1.md) section 8) |
 | Semantics | Removed from the accessibility tree at the commit |
@@ -139,6 +150,40 @@ Two caps keep this bounded:
 - **Count:** `presenceMaxExiting` (default `32`) exiting nodes per presence. Past it the oldest
   exiting node is removed at once.
 
+### 3.7 Layout animation
+
+Removing, adding or reordering a node moves its siblings. Two bounded mechanisms animate that.
+
+**Position (FLIP), paint only.** The property `layout-animation: none | position | size | all`
+(not inherited, initial `none`) selects what a node animates when layout moves or resizes it.
+`AnimatePresence` sets `position` in the framework default styles on its presence-controlled
+children **and their siblings in the same parent**; a stylesheet can set `none` or another value.
+Layout runs once at the commit. For each node with `position` whose origin changed in its parent's
+coordinates by more than 0.5 px, the animation runtime starts a paint-only `translate` from the
+old offset to zero over the `normal` duration with ease-out; an interrupted move retargets from the
+current visual offset. Children move with the parent. This also animates reorders of a keyed list,
+which have no enter or exit. It never marks layout dirty after the commit.
+
+**Size, bounded relayout.** With `size` or `all`, a node's used width and height animate from the
+old to the new value, and the parent's subtree is laid out each tick with the animated size (so a
+collapse to zero height reflows its siblings smoothly). Rules:
+
+- CSS animations and transitions of the layout properties `width`, `height`, `min-*`, `max-*`,
+  `margin`, `padding`, `flex-basis` and `gap` are honored **only** on nodes with `layout-animation`
+  `size` or `all` and on presence-controlled nodes (so an exit can run `height: 0`). Elsewhere they
+  are ignored with `TESSERA_ANIM_LAYOUT_PROPERTY`; this replaces the blanket deferral in
+  [`animation-v1.md`](animation-v1.md) section 10.
+- Relayout is limited to the parent's subtree and to `layoutAnimationMaxNodes` laid-out nodes per
+  tick (default `64`, section 10); a node over the budget snaps to its final size and the rest still
+  animate (`TESSERA_ANIM_LAYOUT_BUDGET`).
+- Hit testing and input use the current laid-out geometry for `size`, and the final layout position
+  for `position` (the visual offset is only paint).
+- Text inside a resizing node reflows each tick through the text measure cache.
+
+Neither mechanism runs for a change inside a `startViewTransition` update, for a window resize, DPI
+or fold change, or when the window is hidden (those land at once). Reduced motion and battery saver
+apply the final layout at once; low power keeps `position` and drops `size`.
+
 ## 4. SharedElement
 
 ### 4.1 Authoring
@@ -152,7 +197,11 @@ Two caps keep this bounded:
   `view-transition-name` (inline style). The same property can be set from a stylesheet.
 - `SharedElement` is library sugar: a `View` that sets `view-transition-name` from `name` and adds
   the part `shared`.
-- The value is a string; a loop child builds it from its key. Only elements with a **non-`none`**
+- The value is a string; a loop child builds it from its key. A stylesheet may also write
+  `view-transition-name: <ident>` or `view-transition-name: var(--name)`, resolved at
+  computed-value time; for a per-item value the attribute is the supported route, and a custom
+  property set from inline style works only if the JSX subset allows it
+  ([`jsx-subset-v1.md`](jsx-subset-v1.md)). Only elements with a **non-`none`**
   name take part; `root` stays reserved for the window image.
 
 A name is unique per UI snapshot. Two nodes with the same name in one snapshot give
@@ -167,7 +216,9 @@ Names are paired when a transition runs; they never animate on their own. Three 
    new UI take part automatically, with the root effect running underneath.
 2. A `Navigator` push, pop or replace ([`navigation-v1.md`](navigation-v1.md) section 7): when the
    outgoing or incoming screen contains a named element, the Navigator runs the route change as
-   a view transition whose root effect is the route's transition (or `none`).
+   a view transition whose root effect is the route's transition (or `none`). This is the default.
+   The `Navigator` prop `sharedElements={false}` turns it off for the whole stack, and the route
+   table field `"sharedElements": false` turns it off for one route.
 3. A state change in plain code does **not** pair names; wrap it in `startViewTransition`.
 
 ### 4.3 Capture and pairing
@@ -179,7 +230,7 @@ Extending the lifecycle of [`view-transitions-v1.md`](view-transitions-v1.md) se
    Each named subtree is rendered into its own old snapshot, clipped to its border box, at
    display size times device pixel ratio. Its window-space rectangle (including ancestor
    transforms and scroll offsets) is recorded.
-2. **Updating and layout** as before.
+2. **Updating and layout** as before. The `layout-animation` of section 3.7 is off for this change.
 3. **Pairing.** The new UI's named nodes are collected the same way: new root image without them,
    a new snapshot and a rectangle each.
 4. **Composing.** For each name:
@@ -218,11 +269,22 @@ paint-time box; it never lays out other nodes). Per-group custom properties, set
 | `--vt-from-x`, `--vt-from-y`, `--vt-from-w`, `--vt-from-h` | Old rectangle in px (absent for only-new) |
 | `--vt-to-x`, `--vt-to-y`, `--vt-to-w`, `--vt-to-h` | New rectangle in px (absent for only-old) |
 
+Two properties shape a group, both set on the named node (not inherited):
+
+- `view-transition-fit: auto | fill | cover | contain` (initial `auto`) decides how each snapshot
+  fills the moving group box. `auto` is `cover` for an `Image` node (centered, cropped, so it is
+  not distorted) and `fill` for every other node. A snapshot is never re-rendered at the moving
+  size.
+- `view-transition-clip: none | common-ancestor` (initial `none`). `none` draws the group over the
+  whole window, ignoring ancestor clips (as on the web). `common-ancestor` clips the group to the
+  padding box of the nearest ancestor that exists in both snapshots (same `uiId`); with none, to the
+  window.
+
 The framework default styles animate the group with the built-in `shared-move` keyframes
 (translate and size from the old to the new rectangle, easing and duration inherited from the
 transition) and cross-fade `old` and `new`. A developer overrides them with the same selectors and
-`@keyframes`, as for `root`. The images are drawn stretched to the group box (`fill`); text is
-scaled, not re-rendered, during the move (open question 3).
+`@keyframes`, as for `root`. Text is scaled, not re-rendered, during the move, so it is slightly soft
+for the duration of the transition (320 ms or less by default).
 
 ### 4.5 Input and focus
 
@@ -242,9 +304,9 @@ accessibility tree describe the new UI immediately, so a focused shared element 
 
 | Condition | `AnimatePresence` | `SharedElement` |
 |---|---|---|
-| Reduced motion | `:entering` and `:exiting` animations are clamped by the animation runtime (instant or opacity only, at most 120 ms); nodes are removed as soon as they end | Groups do not move: each name cross-fades in place at the new rectangle for at most 120 ms |
-| Low power | Unchanged (animations are cheap) | Names are ignored; the root effect runs as `crossfade` |
-| Battery saver | Animations are skipped; nodes are removed at once | The whole transition is skipped (rule of view-transitions section 9) |
+| Reduced motion | `:entering` and `:exiting` animations are clamped by the animation runtime (instant or opacity only, at most 120 ms); nodes are removed as soon as they end; no `wait` delay; layout changes apply at once | Groups do not move: each name cross-fades in place at the new rectangle for at most 120 ms |
+| Low power | Enter and exit unchanged; `layout-animation: position` kept, `size` dropped | Names are ignored; the root effect runs as `crossfade` |
+| Battery saver | Animations are skipped; nodes are removed at once; layout changes apply at once | The whole transition is skipped (rule of view-transitions section 9) |
 
 While anything animates the pacer wakes at the animation cadence; when it settles nothing is
 scheduled (render-on-demand).
@@ -266,7 +328,9 @@ scheduled (render-on-demand).
 
 Records follow [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md): `TESSERA_PRESENCE_CHILD`
 (a direct child never leaves), `TESSERA_PRESENCE_TIMEOUT`, `TESSERA_VT_DUPLICATE_NAME`,
-`TESSERA_VT_NAME_BUDGET` (names beyond the budget), and for each transition the paired, only-old
+`TESSERA_VT_NAME_BUDGET` (names beyond the budget), `TESSERA_PRESENCE_WAIT` (`wait` fell back to
+`sync`), `TESSERA_ANIM_LAYOUT_PROPERTY` (a layout property animation ignored),
+`TESSERA_ANIM_LAYOUT_BUDGET` (a node snapped to its final size), and for each transition the paired, only-old
 and only-new counts and the snapshot bytes. Pixel contents are never logged.
 
 ## 9. Resources
@@ -288,6 +352,7 @@ and only-new counts and the snapshot bytes. Pixel contents are never logged.
 | `presenceExitTimeoutMs` | `1000` | `0..10000` | Longest exit before forced removal; `0` removes every exiting node at once |
 | `presenceMaxExiting` | `32` | `1..1024` | Exiting nodes kept per presence |
 | `viewTransitionMaxSharedElements` | `8` | `0..64` | Shared elements per transition; `0` disables sharing |
+| `layoutAnimationMaxNodes` | `64` | `0..4096` | Nodes laid out per tick by `layout-animation: size`; `0` turns size animation off |
 
 ## 11. Testing
 
@@ -307,21 +372,28 @@ All tests use a fixed step, fixed start time and the manual clock; no wall clock
   DPI 1 and 2; default and dark themes.
 - Resources: no leaked textures after skip, interruption or resize; zero presents after the last
   group ends.
+- Unit, layout animation: FLIP offsets and retarget on interruption; keyed reorder slides; size
+  animation reflows siblings per tick; budget snap; layout-property animation ignored outside the
+  allowed nodes; suppressed inside a view transition and on resize; reduced motion applies at once.
+- Unit, wait: new child hidden and non-focusable until the exit ends; fallback to `sync` with the
+  diagnostic; no delay under reduced motion.
+- Unit, shared fit and clip: `auto` fit for `Image` and other nodes; `cover` and `contain` crops;
+  `common-ancestor` clip with and without a common ancestor.
 - Compiler: `presence` lowering matches a stored golden; a non-conditional direct child warns.
 
-## 12. Open questions
+## 12. Decisions
 
-1. **Sibling reflow animation.** `layout="keep"` and `pop` both reflow siblings with a step. A real
-   fix is layout animation (FLIP or animating layout properties), deferred in
-   [`animation-v1.md`](animation-v1.md) section 10.
-2. **`wait` mode** (new child appears only after the old one has left): it conflicts with "state
-   commits first" and is left out; confirm it stays out.
-3. **Shared images.** Stretching a snapshot distorts content whose aspect ratio differs between
-   the two rectangles. Options: always `fill`, a per-name `cover` or `contain`, or re-render the
-   new subtree at the moving size.
-4. **Named elements and ancestor clips.** Groups ignore ancestor clips while moving. Confirm this
-   (it matches the web) or clip to the common ancestor.
-5. **Name expressions in styles.** `viewTransitionName` takes an expression only as an attribute;
-   a stylesheet value is a literal. Confirm.
-6. **Navigator default.** Whether a Navigator route change with named elements always starts a
-   view transition (this spec) or only when the route opts in.
+Decided by the owner on 2026-11-13 (the rule: nothing that makes the framework look unfinished is
+deferred past V1):
+
+1. **Sibling reflow:** position FLIP (automatic in `AnimatePresence`, also for keyed reorders) and
+   bounded size animation, section 3.7. This opens the layout-property animation that
+   `animation-v1` had deferred, limited to the nodes and budgets stated there.
+2. **`wait` mode:** a visual wait. The new child is created at the commit and hidden until the
+   old one leaves, section 3.1.
+3. **Shared images:** `view-transition-fit`, with `auto` meaning `cover` for `Image` and `fill`
+   otherwise, section 4.4.
+4. **Ancestor clips:** `view-transition-clip: none | common-ancestor`, default `none`, section 4.4.
+5. **Names:** an attribute expression and, in stylesheets, a literal or `var()`, section 4.1.
+6. **Navigator:** shared elements on by default, with `sharedElements={false}` and a per-route
+   `"sharedElements": false` to turn them off, section 4.2.

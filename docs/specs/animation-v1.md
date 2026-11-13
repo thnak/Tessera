@@ -245,6 +245,7 @@ Reduced motion/accessibility:
   `view-transitions-v1.md`.
 - Exact per-platform overscroll profiles/curve tuning.
 - Pull-to-refresh and custom overscroll effects (library).
-- Animation of layout properties and additive composition.
+- Additive composition. Animation of layout properties is specified for bounded cases in
+  [`element-transitions-v1.md`](element-transitions-v1.md) section 3.7.
 - Wide-gamut color interpolation.
 - Haptics/audio feedback coupled to overscroll (platform).

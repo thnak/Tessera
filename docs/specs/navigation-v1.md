@@ -95,7 +95,8 @@ RouteMatch match(std::string_view path);
 - Async route load can show a skeleton; no fake progress.
 - Transition completion is deterministic; tests use a fixed clock.
 - Screen enter/exit and shared elements between screens use the machinery of
-  [`element-transitions-v1.md`](element-transitions-v1.md).
+  [`element-transitions-v1.md`](element-transitions-v1.md); the `Navigator` prop `sharedElements`
+  and the route field `sharedElements` (both default `true`) turn shared elements off.
 
 ## 8. State and restoration
 
