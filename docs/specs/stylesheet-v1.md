@@ -374,29 +374,26 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 **V1 decisions for the Scrolling row (decided 2026-11-13 with issue #248; the code matches):**
 
 - `scroll-behavior: auto | smooth` is a non-inherited runtime input for the scroll controller.
-  Programmatic scroll (`scroll_to_programmatic`/`scroll_by_programmatic` in
-  [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md) section 2) jumps for `auto` and starts a
-  fixed-step exponential approach for `smooth` (time constant 0.1 s, 0.5 px settle epsilon; the frame
-  loop calls `advance_scroll_animation`). Reduced motion clamps every smooth request to a jump.
+  Programmatic scroll (`scroll_to_programmatic`/`scroll_by_programmatic`) jumps for `auto` and starts
+  a fixed-step exponential approach for `smooth` (time constant 0.1 s, 0.5 px settle; reduced motion
+  clamps every smooth request to a jump) — [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md)
+  section 2.
 - `overscroll-behavior: auto | contain | none` is non-inherited and derives the controller's
   `allow_chain`: at a clamped edge a container passes the leftover wheel delta to its nearest
   scrollable ancestor only for `auto`; `contain` and `none` drop it (there is no CSS `scroll-chain`
-  property). `contain`/`none` also do not animate past the edge (animation-v1 section 7).
-- `overscroll-effect: none | glow | stretch | bounce | platform` is non-inherited. The names are the
-  `OverscrollEffect` values of [`animation-v1.md`](animation-v1.md) section 7; the initial request is
-  `platform` (the HAL profile resolves it) and there is no `auto` keyword. `none`, or a non-`auto`
-  `overscroll-behavior`, suppresses the effect; the stretch/bounce visual state itself is the
-  animation slice of that spec.
+  property) and do not animate past the edge (animation-v1 section 7).
+- `overscroll-effect: none | glow | stretch | bounce | platform` is non-inherited, uses the
+  `OverscrollEffect` names of [`animation-v1.md`](animation-v1.md) section 7, and has no `auto`
+  keyword: the initial request is `platform`, which the HAL profile resolves. `none`, or a
+  non-`auto` `overscroll-behavior`, suppresses the effect; the stretch/bounce visual state itself is
+  that spec's animation slice.
 - `scrollbar-gutter: auto | stable` is non-inherited and the one scroll property that is layout
   input: `stable` reserves the 8 px overlay scrollbar width on the inline-end edge inside the
   container's content box, so its children narrow by that width even while no scrollbar is painted.
-  It is layout-domain dirty (section 13.1) and has no effect on a box that is not a scroll container.
 - An invalid value of any of the four is one `StyleDiagnosticKind::UnsupportedValue` diagnostic per
-  declaration and the declaration is dropped, so the computed value stays at its initial. The
-  two-value forms CSS allows are not implemented and are reported the same way; a `var()` reference
-  survives parsing and is judged after substitution.
-- `@supports` uses the same grammar as the declaration validator, so
-  `@supports (overscroll-behavior: contain)` evaluates true.
+  declaration and the declaration is dropped, so the computed value stays at its initial; a `var()`
+  reference survives parsing and is judged after substitution. `@supports` shares the same grammar,
+  so `@supports (overscroll-behavior: contain)` evaluates true.
 
 **V1 decisions for the Paint/Transforms rows (decided 2026-11-10; the code matches):**
 
