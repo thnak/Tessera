@@ -15,10 +15,12 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #ifndef TESSERA_TEST_FONT
@@ -41,7 +43,7 @@ constexpr std::uint32_t kFramesInFlight = 2;
 // run.
 constexpr std::uint32_t kTargetFrames = 8;
 // A bounded pump budget: a busy GPU costs skipped iterations, never an unbounded wait.
-constexpr std::uint32_t kMaxIterations = 300;
+constexpr std::uint32_t kMaxIterations = 600;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -105,6 +107,12 @@ int main() {
             }
             set_label(label, iteration + 1);
             (void)host.pump_once();
+            // The pacer releases one frame per display refresh interval (about 16.7 ms at 60 Hz),
+            // so a spin loop without a pause finishes its iterations in a few milliseconds and
+            // presents however many intervals fit in that time: a fast driver gets fewer frames.
+            // One millisecond per iteration makes the budget cover the target frames at any
+            // refresh rate of 30 Hz or more, while a stuck frame still ends the run.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             // The counter only reports values the GPU has reached, so it can trail the frames
             // submitted so far (that trailing gap is exactly the frames in flight), but it may
             // never move backwards and never claim more values than were submitted.
