@@ -365,7 +365,8 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 - [ ] #202: Fold posture, hinge and occlusion events on Android (ADR-023; needs the Android backend) —
       synthetic fold sequences pass.
 - [ ] #187: Reduced motion and dark mode queries on Linux and macOS.
-- [ ] #188-#190: macOS via MoltenVK + NSAccessibility; Android then iOS
+- [ ] #204-#208: macOS through a native Metal backend (ADR-053: device, MSL shaders, CAMetalLayer window,
+      conformance, NSAccessibility); #189-#190: Android then iOS
       ([mobile-integration.md](docs/design/mobile-integration.md)); platform cursor shape.
 
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
@@ -374,7 +375,7 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
 - [ ] #192: Crash capture, symbolication, uploader (metadata in `diagnostics/crash.hpp` landed).
 - [ ] #193: Updates and distribution (`docs/specs/updates-and-distribution-v1.md`).
 - [ ] #194: Versioning policy for RHI/IR/project config; public API listing gate (#76).
-- [ ] #195-#199: i18n/navigation/networking as app-framework modules (after M5); security review; release
+- [ ] #195-#199: i18n/navigation/networking (ADR-052, `docs/specs/networking-v1.md`) as app-framework modules (after M5); security review; release
       CI lanes; memory budgets in CI (#13).
 
 ## Build & test

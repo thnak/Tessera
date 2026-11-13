@@ -61,6 +61,8 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-049](ADR-049-backend-extensibility.md) | Backend extensibility: RHI versioning, `shader_id` and shader sources for non-Vulkan backends, conformance suite, support tiers, community backends (amends ADR-011) | Accepted |
 | [ADR-050](ADR-050-opt-in-app-framework-layer.md) | Application-framework layer above the UI runtime: app lifecycle, services with compile-time ids resolved once at mount (no RTTI), TSX `useService<Interface>()`, task scopes, timers, observable app state, native render surfaces via typed refs | Accepted |
 | [ADR-051](ADR-051-ir-record-types-and-record-values.md) | IR record types and record values: an optional module type table and a `record` expression, additive to IR v1; unblocks object-literal prop defaults (#158). Accepted (2026-11-13, owner) |
+| [ADR-052](ADR-052-networking-platform-stacks.md) | Networking: platform HTTP stacks (WinHTTP, NSURLSession, `fetch`, libcurl on Linux only) behind one `fetch`-shaped interface with a contract suite; WebSocket after V1. Accepted (2026-11-13, owner) |
+| [ADR-053](ADR-053-native-metal-backend.md) | Native Metal backend for macOS and iOS (MSL through the ADR-049 shader path, Tier 2 first); supersedes ADR-010 items 2, 3 and 5. Accepted (2026-11-13, owner) |
 
 ## Dependency overview
 
@@ -101,6 +103,8 @@ ADR-047 component library layers/design language ── ADR-032 component librar
 ADR-048 precompiled stylesheets (accepted) ── ADR-016 stylesheet, ADR-047 component library, ADR-046 web target
 ADR-050 app framework layer ── ADR-021 async, ADR-030 app platform, ADR-040 generated base, ADR-043 launch modes
 ADR-051 IR record types (accepted) ── ir-v1 spec, jsx-subset-v1 8.5, ADR-040 generated base
+ADR-052 networking (accepted) ── ADR-050 app framework, ADR-021 async, ADR-012 static linking
+ADR-053 native Metal backend (accepted) ── ADR-010 macOS deferred (superseded in part), ADR-049 backend extensibility, ADR-003 thin RHI
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

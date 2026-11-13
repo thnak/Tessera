@@ -1,6 +1,6 @@
 # ADR-010: macOS through MoltenVK, deferred from V1
 
-- Status: Accepted (deferred)
+- Status: Accepted (deferred); items 2, 3 and 5 superseded by [ADR-053](ADR-053-native-metal-backend.md) (native Metal, 2026-11-13)
 - Date: 2026-11-07
 - Related: [ADR-001](ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline), [ADR-002](ADR-002-webgpu-dawn-for-wasm.md) (WebGPU/Dawn for WebAssembly)
 

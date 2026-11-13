@@ -64,6 +64,8 @@ This page is the map and reading order for the framework.
 - [ADR-039](../decisions/ADR-039-lowercase-html-tags-accepted.md) — lowercase HTML tags accepted as intrinsic aliases
 - [ADR-050](../decisions/ADR-050-opt-in-app-framework-layer.md) — application-framework layer (lifecycle, services resolved at mount, `useService<Interface>()`, task scopes, app state, native render surfaces); proposed
 - [ADR-051](../decisions/ADR-051-ir-record-types-and-record-values.md) — IR record types and record values (accepted; object-literal prop defaults, #158)
+- [ADR-052](../decisions/ADR-052-networking-platform-stacks.md) — networking on platform HTTP stacks (accepted; #197)
+- [ADR-053](../decisions/ADR-053-native-metal-backend.md) — native Metal backend for macOS/iOS (accepted; supersedes ADR-010 in part)
 
 ## 3. Specs (normative)
 
@@ -139,6 +141,7 @@ This page is the map and reading order for the framework.
   pseudo-localization
 - [`specs/accessibility-v1.md`](specs/accessibility-v1.md) — semantics/roles/actions/focus/
   announcements/platform bridges/tests
+- [`specs/networking-v1.md`](specs/networking-v1.md) — the `net` module: `fetch`-shaped interface, normative behavior, back ends and contract suite (ADR-052)
 - [`specs/async-data-v1.md`](specs/async-data-v1.md) — resource cache, fetch policy, mutations,
   offline, pagination
 - [`specs/devtools-protocol-v1.md`](specs/devtools-protocol-v1.md) — local inspector, events,
