@@ -336,6 +336,11 @@ void AppHost::observe_frame_time_sample(double cpu_frame_time_ms,
         // Pixels change with the flag, and a settled on-demand scene has nothing else to repaint.
         request_full_repaint();
     }
+    if (decision.animations_paused != state.animations.suspend_non_essential()) {
+        state.animations.set_suspend_non_essential(decision.animations_paused);
+        // Resuming must wake a loop that went idle while the animations were frozen.
+        state.loop.mark_render_dirty();
+    }
 }
 
 const runtime::AdaptiveQualitySample& AppHost::adaptive_quality() const {
@@ -374,6 +379,8 @@ void AppHost::resize(float width, float height, float dpi_scale) {
                                                                 state.tracker, *state.damage,
                                                                 state.dirty, state.config.pipeline);
     state.pipeline->set_update_scheduler(state.scheduler);
+    // The new pipeline starts at full quality; carry the controller's decision over.
+    state.pipeline->set_reduce_effects(state.quality_controller.decision().effects_reduced);
     mark_subtree(state.root, ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
 }
 

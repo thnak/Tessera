@@ -53,6 +53,9 @@ struct AnimationEntry {
     std::string property;
     bool paused = false;
     AnimationKind kind = AnimationKind::Animation;
+    // Computed once at start(): every animated property is paint-only and non-essential
+    // (property_dirty.hpp). Only such entries freeze under suspend_non_essential().
+    bool non_essential = false;
 };
 
 struct AnimationSample {
@@ -114,6 +117,17 @@ public:
     [[nodiscard]] bool empty() const {
         return entries_.empty();
     }
+    // Adaptive quality's last ladder position (#147): non-essential entries stop advancing, keep
+    // their elapsed time (so they resume where they stopped) and no longer keep the loop awake. It
+    // is independent of `paused`, so a recovery never resumes an animation the app paused itself.
+    void set_suspend_non_essential(bool suspend) {
+        suspend_non_essential_ = suspend;
+    }
+    [[nodiscard]] bool suspend_non_essential() const {
+        return suspend_non_essential_;
+    }
+    // Entries currently frozen by the suspension (diagnostics and tests).
+    [[nodiscard]] std::size_t suspended() const;
     void set_reduced_motion(bool enabled) {
         reduced_motion_ = enabled;
     }
@@ -135,6 +149,10 @@ private:
     AnimationId next_id_ = 1;
     AnimationListenerId next_listener_id_ = 1;
     bool reduced_motion_ = false;
+    bool suspend_non_essential_ = false;
+    [[nodiscard]] bool frozen(const AnimationEntry& entry) const {
+        return entry.paused || (suspend_non_essential_ && entry.non_essential);
+    }
 };
 
 } // namespace tessera::ui::animation

@@ -37,6 +37,23 @@ bool is_layout_property(std::string_view property) {
            property == "bottom" || property == "left";
 }
 
+bool is_essential_animation_property(std::string_view property) {
+    return is_layout_property(property) || property == "transform" || property == "opacity";
+}
+
+bool is_non_essential_animation(const style::KeyframeBlock& block) {
+    bool any = false;
+    for (const style::KeyframeStep& step : block.steps) {
+        for (const style::Declaration& declaration : step.declarations) {
+            if (is_essential_animation_property(declaration.property)) {
+                return false;
+            }
+            any = true;
+        }
+    }
+    return any;
+}
+
 Dirty dirty_for_property(std::string_view property) {
     if (is_layout_property(property)) {
         return Dirty::Layout | Dirty::Paint | Dirty::Render;

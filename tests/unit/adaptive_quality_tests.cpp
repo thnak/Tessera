@@ -550,6 +550,45 @@ bool host_paints_cheaper_shadows_while_effects_are_reduced() {
     return ok;
 }
 
+// The last position reaches the animation runtime: the host suspends non-essential animations on
+// the pause position and resumes them on recovery, and wakes the loop for the resume.
+bool host_suspends_non_essential_animations_on_the_last_position() {
+    Node root(1);
+    root.add_child(std::make_unique<Node>(2));
+    ManualClock clock;
+    RuntimeLoop loop(clock);
+    HostConfig config;
+    config.width = 320.0f;
+    config.height = 200.0f;
+    config.adaptive_quality = AdaptiveQualityPolicy{};
+    config.adaptive_quality.frame_budget_ms = 16.0;
+    config.adaptive_quality.render_scale = 1.0f;
+    config.adaptive_quality.min_render_scale = 0.5f;
+    AppHost host(root, compile_stylesheet(".x { width: 1px; }"), loop, config);
+
+    bool ok = expect(!host.animations().suspend_non_essential(), "animations run at full quality");
+    for (std::uint32_t frame = 0; frame < 400; ++frame) {
+        host.observe_frame_time_ms(kMissMs);
+    }
+    ok = expect(host.adaptive_quality().animations_paused &&
+                    host.animations().suspend_non_essential(),
+                "the last position suspends non-essential animations") &&
+         ok;
+    ok = expect(host.frame_diagnostics().adaptive_animation_pause_changes() == 1,
+                "the pause flip is counted once") &&
+         ok;
+    for (std::uint32_t frame = 0;
+         frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityUpgradeHits; ++frame) {
+        host.observe_frame_time_ms(kMetMs);
+    }
+    ok =
+        expect(!host.animations().suspend_non_essential(), "the first recovery resumes them") && ok;
+    ok = expect(host.frame_diagnostics().adaptive_animation_pause_changes() == 2,
+                "the resume flip is counted too") &&
+         ok;
+    return ok;
+}
+
 // --- 8. The ladder ends (ADR-019 section 8, #147) -----------------------------------------------
 
 bool ladder_order_is_effects_scale_then_pause() {
@@ -626,6 +665,7 @@ int main() {
     ok = the_decision_carries_the_present_cap() && ok;
     ok = host_observes_frames_and_records_the_change() && ok;
     ok = host_paints_cheaper_shadows_while_effects_are_reduced() && ok;
+    ok = host_suspends_non_essential_animations_on_the_last_position() && ok;
     ok = ladder_order_is_effects_scale_then_pause() && ok;
     ok = recovery_restores_pause_then_effects_in_reverse() && ok;
     if (!ok) {

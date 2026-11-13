@@ -74,6 +74,7 @@ AnimationId AnimationRuntime::start(AnimationInput input) {
     entry.property = std::move(input.property);
     entry.paused = input.paused;
     entry.kind = input.kind;
+    entry.non_essential = is_non_essential_animation(entry.keyframes);
     fills_.erase(std::remove_if(fills_.begin(), fills_.end(),
                                 [&](const AnimationEntry& fill) {
                                     if (fill.target != entry.target) {
@@ -94,14 +95,15 @@ AnimationId AnimationRuntime::start(AnimationInput input) {
 AnimationTickResult AnimationRuntime::tick(double dt) {
     AnimationTickResult result;
     if (!std::isfinite(dt) || dt < 0.0) {
-        result.keep_awake = std::any_of(entries_.begin(), entries_.end(),
-                                        [](const AnimationEntry& entry) { return !entry.paused; });
+        result.keep_awake =
+            std::any_of(entries_.begin(), entries_.end(),
+                        [this](const AnimationEntry& entry) { return !frozen(entry); });
         return result;
     }
 
     std::vector<AnimationEntry> finished;
     for (AnimationEntry& entry : entries_) {
-        if (entry.paused) {
+        if (frozen(entry)) {
             continue;
         }
 
@@ -167,8 +169,18 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
     }
 
     result.keep_awake = std::any_of(entries_.begin(), entries_.end(),
-                                    [](const AnimationEntry& entry) { return !entry.paused; });
+                                    [this](const AnimationEntry& entry) { return !frozen(entry); });
     return result;
+}
+
+std::size_t AnimationRuntime::suspended() const {
+    if (!suspend_non_essential_) {
+        return 0;
+    }
+    return static_cast<std::size_t>(
+        std::count_if(entries_.begin(), entries_.end(), [](const AnimationEntry& entry) {
+            return entry.non_essential && !entry.paused;
+        }));
 }
 
 bool AnimationRuntime::pause(AnimationId id) {
