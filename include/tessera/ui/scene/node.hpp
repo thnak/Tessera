@@ -581,7 +581,11 @@ private:
 
 // Memory budget of one scene node (docs/design/performance.md, memory budgets): a 10k-node screen
 // costs 10k times this plus Yoga and style storage. Raise it only with a recorded decision.
-inline constexpr std::size_t kNodeSizeBudget = 320;
+// 320 -> 336 (2026-11-14, issue #235): the component-parts record (`part` names and the component
+// name of an instance host) adds one pointer; a 10k-node screen pays 160 KB more. Recorded in
+// performance.md. Known follow-up: packing the node's single-byte booleans into one flags byte
+// recovers this, so the budget should drop back to 320 when that refactor lands.
+inline constexpr std::size_t kNodeSizeBudget = 336;
 static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
 
 bool dispatch_event(Node& root, Event& event);
