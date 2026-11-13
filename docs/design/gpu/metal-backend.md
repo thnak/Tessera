@@ -45,8 +45,7 @@ buffers committed to one `MTLCommandQueue` start in commit order.
 - `is_complete()` is a lock-free load of the event's `signaledValue`. It does not block and does
   not take a mutex.
 - `wait(timeout_ms)` uses `waitUntilSignaledValue:timeoutMS:` and returns whether the value was
-  reached. **Verify** the minimum OS version for this call against the deployment target and set
-  the macOS floor from it (ADR-053 does not yet name one).
+  reached. **Verify** the minimum OS version for this call against the floor in section 9.
 - `waitUntilCompleted` has no timeout and is never used on the frame path. It is allowed only in
   `submit()` (offscreen, readback, goldens).
 - `addCompletedHandler:` runs on a thread Metal chooses. It may only touch atomics and the
@@ -153,11 +152,18 @@ No unbounded wait and no `waitUntilCompleted` on the UI thread.
   `nil`-drawable skip, and a drawable resize.
 - Conformance with `tolerance.json` (#161, #207) gates Tier 2.
 
-## 9. Open questions
+## 9. Decisions and open points
 
-- The macOS and iOS deployment floors, set by the oldest OS that has the calls in section 3.1.
-- Whether heaps and untracked resources are worth the explicit-fence cost for the resource cache.
-- Whether the retire queue should be shared code now or after the second backend needs it
-  (WebGPU already has its own path, see [`webgpu-backend.md`](webgpu-backend.md)).
+Decided in [ADR-053](../../../decisions/ADR-053-native-metal-backend.md) (2026-11-13):
+
+- Floor macOS 13 and iOS 16 (provisional; confirm the bounded-wait API on that floor when #204
+  starts). `CAMetalDisplayLink` where present, `CVDisplayLink` otherwise.
+- The retire logic is shared behind a completion-source interface; the extraction is the first
+  commit of #204 and must leave the Vulkan retire tests unchanged.
+- No heaps and no untracked resources until measurements justify them.
+
+Still open:
+
 - A second command queue for transfers (deferred with compute and transfer queues in `rhi.md`
   section 10).
+- The checks marked **verify** above, which need a Mac.

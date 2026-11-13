@@ -45,21 +45,19 @@ Owner confirmation (2026-11-13): native Metal only; MoltenVK is dropped for good
   (#160) and the shader cross-compile path (#159), all `ready` in M3.
 - Issue #188 is replaced by the slices below; Dawn/Metal is no longer an alternative.
 
-## Open questions
+## Decisions on the open questions (2026-11-13, owner: "đồng ý")
 
-Not decided; the owner answers them in this section. Details in
-[`docs/design/gpu/metal-backend.md`](../docs/design/gpu/metal-backend.md).
-
-1. **Minimum macOS and iOS versions.** Not named. The floor decides whether `MTLSharedEvent`
-   `waitUntilSignaledValue:timeoutMS:` is available for the bounded wait that ADR-021 requires on
-   the UI thread. Without it the backend needs its own bounded wait. Slice 1 (#204) needs this
-   answer first.
-2. **Shared or per-backend retire logic.** The retire queue lives inside the Vulkan backend today.
-   Preferred: factor it behind a small completion-source interface so Vulkan, WebGPU and Metal share
-   one implementation and one set of fake-completion tests. Alternative: Metal reimplements it.
-   Slice 1 needs this answer first.
-3. **Heaps and untracked resources.** V1 uses default hazard tracking and no `MTLHeap`. If the
-   resource cache later wants heaps, explicit `MTLFence` use needs its own design note.
+1. **Minimum OS: macOS 13 and iOS 16.** A provisional floor, to be confirmed against the Apple
+   documentation when #204 starts. It leaves a margin over the OS that introduced the bounded
+   `MTLSharedEvent` wait (believed to be macOS 12 and iOS 15) and has Metal 3. `CAMetalDisplayLink`
+   is used where present, with `CVDisplayLink` as the fallback; the floor is not raised for it.
+2. **Retire logic is shared** behind a small completion-source interface used by Vulkan, WebGPU and
+   Metal. The extraction is the first commit of #204, not done before: Vulkan retire tests must stay
+   unchanged and green. If sharing would change Vulkan behavior, stop and open an issue; Metal may
+   then reimplement it with the same fake-completion tests.
+3. **No `MTLHeap` and no untracked resources** until resource-cache measurements show allocation
+   cost. Default hazard tracking stays. Any later use needs its own design note for explicit
+   `MTLFence`.
 
 Checks that need a Mac (tracked as a checklist in #204, not decisions): a frame slot and a drawable
 cannot deadlock when their counts differ; an errored command buffer always runs its completed
