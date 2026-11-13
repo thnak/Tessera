@@ -4,17 +4,99 @@
 
 [![Windows](https://github.com/thnak/Tessera/actions/workflows/windows.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/windows.yml)
 [![Linux](https://github.com/thnak/Tessera/actions/workflows/linux.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/linux.yml)
-[![macOS](https://github.com/thnak/Tessera/actions/workflows/macos.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/macos.yml)
-[![iOS](https://github.com/thnak/Tessera/actions/workflows/ios.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/ios.yml)
-[![Android](https://github.com/thnak/Tessera/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/android.yml)
+[![WebGPU](https://github.com/thnak/Tessera/actions/workflows/webgpu.yml/badge.svg?branch=main)](https://github.com/thnak/Tessera/actions/workflows/webgpu.yml)
 
-A high-performance, cross-platform C++ UI framework:
-JSX/React syntax as the design DSL, compiled to native C++,
-**Vulkan** as the main rendering backend, **WebGPU (Wasm)** for
-zero-emulator design-time preview, and deterministic headless
-rendering for AI-agent visual regression.
+Windows, Linux and WebGPU are the gating CI lanes. macOS, Android and iOS run nightly and are
+advisory ([V1 platform scope](AGENTS.md#v1-platform-scope-and-ci-policy)).
 
-Status: **pre-alpha / Big Step B1 complete** (RHI = render hardware interface, Vulkan batched 2D, scene graph). Big Steps A-F are defined in [AGENTS.md, Big Steps](AGENTS.md#big-steps-group-work-dont-micro-step); B2 (runtime slice) is the current focus, with the stylesheet engine, Yoga layout, text-measurement stub, input normalization/dispatch, fixed-step loop, dirty rendering/damage, diagnostics, and the animation runtime landed. Terms are defined in the [glossary](docs/reference/glossary.md).
+A high-performance C++ UI framework. You write **JSX/React syntax**, a compiler turns it into
+**native C++**, and the app is drawn by Tessera's own renderer: **Vulkan 1.3** natively, **WebGPU
+(Wasm)** for an emulator-free preview in the browser. Rendering is deterministic and headless-capable,
+so an AI agent or a CI job can diff screenshots. Production apps carry no JavaScript or React runtime.
+
+## Status
+
+**Pre-alpha.** Not usable to build an app yet; the pieces below are landing in the order set by
+the [V1 milestones](AGENTS.md#big-steps-group-work-dont-micro-step).
+
+| Area | State on `main` |
+|---|---|
+| Renderer | Done: thin RHI (render hardware interface), null and Vulkan 1.3 backends, batched 2D (solid, SDF, textured quads, clip and transform stacks), lavapipe and CPU pixel goldens. WebGPU backend: first slice, unbuilt on the host |
+| Runtime | Done: fixed-step loop, frame pacing, power-aware idle (a static screen makes no presents), dirty rendering and damage rects, async executors and tasks, adaptive quality, structured diagnostics |
+| UI engine | Done: scene graph and W3C-style events, stylesheet engine (layers, media, `@supports`, `var()`), Yoga flexbox, text stack (FreeType, HarfBuzz, SheenBidi), transitions, keyframes and springs, virtualized lists |
+| Windowing | Win32 and X11 windows and swapchains, device-loss recovery. UIA and AT-SPI bridges exist but are not yet installed in a host. Wayland not yet |
+| Compiler | TSX front end, IR, C++ codegen with a generated `Base<Self>` plus a developer class (ADR-040), forms, lists, animated values. Migration of the remaining codegen test families is in progress |
+| Design time | Specified, not built. `designer/web` and `designer/native` are placeholders |
+| Samples | `click-demo`, `compiler-demo`, `parity-demo`; the `hello` and `dashboard` samples are empty |
+
+The per-item checklist with evidence paths is in [AGENTS.md](AGENTS.md); the history of what landed is in
+[`docs/architecture/implementation-log.md`](docs/architecture/implementation-log.md). Terms are defined in the
+[glossary](docs/reference/glossary.md).
+
+## What V1 will ship
+
+V1 targets **Windows and Linux** (owner decision, 2026-11-13). Scope and acceptance criteria live in the
+eight [GitHub milestones](https://github.com/thnak/Tessera/milestones); this is the promise in plain words.
+
+| # | Milestone | What you get |
+|---|---|---|
+| M1 | Core runtime | Stylesheet engine, layout, text, input, loop and pacing, async, diagnostics, goldens, window and swapchain, OS events. A static dashboard idles with zero presents; goldens are green on Windows and Linux |
+| M2 | Compiler and animation | JSX/TSX to native C++ with `useState`, `useEffect`, `useRef` and animated values that keep your hand-written C++ across regeneration; CSS animation and transition events |
+| M3 | Backends and shader chain | Versioned RHI, `shader_id` registry, one GLSL source for every backend, a backend conformance suite, support tiers, a guide to writing a backend, and `backdrop-filter` glass ([`glass-v1.md`](docs/specs/glass-v1.md)) |
+| M4 | Design-time preview | The same engine in the browser (see Design time below) |
+| M5 | Application framework | `Application` and window lifecycle, services (`useService<T>()`), task scopes and timers, `Observable<T>`, native render surfaces, storage, multiple windows, tray apps, and the first bundled components (library stages 0 and 1) |
+| M6 | Data-heavy UI | Zero-allocation chart series, retained/immediate hybrid nodes with damage rects, frame-budget metrics, a streaming dashboard under sustained load |
+| M7 | Platform breadth and accessibility | Windows and Linux complete: window, input, IME, lifecycle, full-screen, cursor, translucent windows (Mica, Acrylic, compositor blur); UIA and AT-SPI accessibility |
+| M8 | Release readiness | Packaging, updates, crash capture with symbolication, security review, versioning policy for RHI, IR and project config, `i18n`, navigation and networking modules, release CI lanes |
+
+V1 acceptance: a real app ships and passes validation layers and golden tests in CI.
+
+### Bundled component library (`tessera-ui`)
+
+Source plus generated C++ built only on public APIs ([ADR-032](decisions/ADR-032-bundled-component-library.md)).
+V1 ships **stage 0** (behavior primitives, the Instrument design tokens with light, dark and high-contrast
+themes, bundled fonts, `tessera icons add`) and **stage 1** (core controls, inputs, layout, feedback,
+`SafeArea`, `Image`, `List`, `Tooltip`; enough for a settings screen). Every component documents its role,
+keyboard and focus behavior, reduced motion and high contrast.
+
+### Not in V1
+
+Specified and kept for later: macOS (native Metal, [ADR-053](decisions/ADR-053-native-metal-backend.md)),
+Android, iOS, fold and posture support, and library stages 2 to 6 (element transitions, `LiveCapsule`,
+media, map, PDF viewer; see the [documentation map](docs/README.md)).
+
+## Toolkit
+
+What a developer will use, and where each piece stands.
+
+| Tool | Purpose | State |
+|---|---|---|
+| `tessera_codegen_cli` | TSX to C++ with the generated base class and a developer class | Exists (`src/compiler/codegen`) |
+| `tessera` CLI: `new`, `dev`, `build`, `run` | Project templates, a prebuilt toolchain, a five-minute first app ([#77](https://github.com/thnak/Tessera/issues/77)) | Planned for V1; described in [getting started](docs/guides/getting-started.md) |
+| `tessera icons add` | Import Iconify icons through a license gate ([#238](https://github.com/thnak/Tessera/issues/238)) | Planned for V1 |
+| Theme generator | Instrument token sets from one seed color with enforced WCAG contrast ([#79](https://github.com/thnak/Tessera/issues/79)) | Planned for V1 |
+| Headless harness | Deterministic offscreen frames, automation ids, golden diffs for agents ([guide](docs/guides/agent-automation.md)) | Exists |
+| `tessera-mcp` | stdio MCP adapter over the harness session ([#172](https://github.com/thnak/Tessera/issues/172)) | Planned for V1 |
+| Devtools and hot reload | `#line` mapping to TSX, state-keeping hot reload, in-app error overlay ([#78](https://github.com/thnak/Tessera/issues/78)) | Planned for V1 |
+| Public API listings | Committed header and component listings with a CI gate ([#76](https://github.com/thnak/Tessera/issues/76)) | Planned for V1 |
+| CPU benchmark | A GPU-free 12,000-node benchmark with a committed budget ([#241](https://github.com/thnak/Tessera/issues/241)) | Planned for V1 |
+| Wiki client | Static client for the GitHub Wiki guides (`tools/wiki`; Node is design-time only) | Exists |
+
+## Design time
+
+The designer runs the **real C++ engine** in a browser through Emscripten and WebGPU. It is not an emulator
+and not a second renderer ([design](docs/design/designer.md)). What V1 promises, in build order
+(issues #164 to #171):
+
+1. The compiler in Wasm, and a diagnostics-only page on GitHub Pages.
+2. An IR evaluator in the browser, so hooks and handlers run without a native build.
+3. A WebGPU canvas preview with browser input; component state survives edits.
+4. Shareable links, a sample gallery, and theme, DPR and viewport toggles.
+5. Size and latency budgets enforced in CI.
+6. Studio slices: a picker overlay, a style inspector that writes a `source.patch`, and device skins.
+
+Acceptance: the same screen previews in a browser and matches native output within the golden tolerance.
+Native hot reload, the in-app error overlay and `tessera-mcp` complete the loop for agents.
 
 Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build/test, code style, documentation rules, and the PR checklist.
 
@@ -105,11 +187,11 @@ Tessera/
 │   ├── services/         i18n, navigation, notification, storage, networking
 │   ├── diagnostics/      logging, profiling, crash
 │   ├── compiler/         analyzer, rules, ir, codegen, merger
-│   ├── platform/         windows, linux, macos, android
+│   ├── platform/         windows, linux (macos, android: post-V1)
 │   └── runtime/          C++ support runtime for generated code
 ├── designer/             web (Wasm viewer) + native (IPC host)
 ├── tests/                unit, integration, golden, fixtures, benchmarks
-├── samples/              hello, dashboard (directories exist; no content yet)
+├── samples/              click-demo, compiler-demo, parity-demo (hello, dashboard are empty)
 ├── tools/                shaders, font, build tooling
 ├── third_party/          vendored dependencies
 ├── cmake/                CMake helpers
@@ -165,7 +247,7 @@ Tools and demos:
 - Linux: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`
 - Windows: `cmake --preset vs2026 && cmake --build --preset vs2026-release`
 
-## Renderer status (Big Step B1)
+## Renderer detail
 
 ![Batched 2D reference](docs/images/batched2d.png)
 
@@ -187,12 +269,8 @@ Tools and demos:
 
 ## Next
 
-1. ADR-001 … ADR-037 in `decisions/` (ADR = Architecture Decision Record; index at [decisions/README.md](decisions/README.md)).
-2. Big Step B2 remaining: real text stack (shaping/glyph atlas), pixel goldens, frame pacing/VRR
-   present integration, I/O executor, tracing/profiling, adaptive quality (the full
-   B2 checklist is in [AGENTS.md](AGENTS.md#big-steps-group-work-dont-micro-step)).
-3. Big Step B3: window/swapchain, resize/DPI/lifecycle, OS events, mobile/foldables.
-4. Big Step C: JSX → IR → C++ vertical slice with protected regions.
+Open work is tracked as GitHub issues grouped by the eight V1 milestones, and in the checklist in
+[AGENTS.md](AGENTS.md). Decisions are in [`decisions/`](decisions/README.md) (ADR-001 to ADR-053).
 
 ## License
 
