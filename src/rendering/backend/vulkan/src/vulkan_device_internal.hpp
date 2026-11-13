@@ -24,6 +24,7 @@ public:
     [[nodiscard]] rhi::Backend backend() const override {
         return rhi::Backend::Vulkan;
     }
+    [[nodiscard]] rhi::RhiCapabilities capabilities() const override;
     [[nodiscard]] bool supports_sample_count(rhi::TextureFormat format,
                                              std::uint32_t sample_count) const override;
     // The RHI timestamp probe: the selected queue family's timestampValidBits, that family's

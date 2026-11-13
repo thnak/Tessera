@@ -5,6 +5,7 @@
 #include "tessera/rendering/rhi/swapchain.hpp"
 #include "tessera/rendering/rhi/timestamp.hpp"
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/rendering/rhi/version.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -170,11 +171,27 @@ struct DeviceMemoryStats {
     std::uint32_t allocation_count = 0;
 };
 
+// Static and runtime capabilities a backend reports (ADR-049). `rhi_version` is the RHI contract
+// version the backend implements; backends must declare it with a static_assert against
+// kRhiVersion and report the same value here for runtime and conformance logging.
+// Not named `DeviceCapabilities`: <wingdi.h> defines that as a macro (-> ...W/...A), and this
+// public header must stay includable from translation units that also include Windows headers.
+struct RhiCapabilities {
+    Backend backend = Backend::Null;
+    std::uint32_t rhi_version = kRhiVersion;
+    GpuTimestampCapability timestamps{};
+};
+
 class Device {
 public:
     virtual ~Device() = default;
 
     [[nodiscard]] virtual Backend backend() const = 0;
+
+    // Capabilities this backend reports (rhi::kRhiVersion implemented, timestamp probe, etc.).
+    [[nodiscard]] virtual RhiCapabilities capabilities() const {
+        return RhiCapabilities{backend(), kRhiVersion, timestamp_capability()};
+    }
     virtual std::unique_ptr<Buffer> create_buffer(const BufferDesc& desc) = 0;
     virtual std::unique_ptr<Texture> create_texture(const TextureDesc& desc) = 0;
     virtual std::unique_ptr<Pipeline> create_pipeline(const PipelineDesc& desc) = 0;

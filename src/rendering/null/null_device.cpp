@@ -12,6 +12,8 @@
 namespace tessera::rendering::null {
 namespace {
 
+static_assert(rhi::kRhiVersionMajor == 1, "Null backend implements RHI 1.x");
+
 class NullBuffer final : public rhi::Buffer {
 public:
     explicit NullBuffer(std::size_t size)
@@ -136,6 +138,10 @@ class NullDevice final : public rhi::Device {
 public:
     [[nodiscard]] rhi::Backend backend() const override {
         return rhi::Backend::Null;
+    }
+
+    [[nodiscard]] rhi::RhiCapabilities capabilities() const override {
+        return rhi::RhiCapabilities{rhi::Backend::Null, rhi::kRhiVersion, timestamp_capability()};
     }
 
     // Null parity: declares 4x support for every format it accepts so MSAA code paths are testable

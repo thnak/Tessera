@@ -10,6 +10,8 @@
 
 namespace tessera::rendering::webgpu {
 
+static_assert(rhi::kRhiVersionMajor == 1, "WebGPU backend implements RHI 1.x");
+
 WebGpuContext::~WebGpuContext() {
     if (queue != nullptr) {
         wgpuQueueRelease(queue);
@@ -88,6 +90,10 @@ public:
 
     [[nodiscard]] rhi::Backend backend() const override {
         return rhi::Backend::WebGpu;
+    }
+
+    [[nodiscard]] rhi::RhiCapabilities capabilities() const override {
+        return rhi::RhiCapabilities{rhi::Backend::WebGpu, rhi::kRhiVersion, timestamp_capability()};
     }
 
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {

@@ -31,10 +31,25 @@ Device::backend();
 Device::wait_idle();
 ```
 
+RHI versioning and capabilities (ADR-049):
+
+- `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
+  `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
+  (`1.0` / `0x00010000` for the first published version).
+- `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
+  is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
+  `timestamp_capability()`). Backends declare the implemented major version with a compile-time
+  `static_assert` against `kRhiVersionMajor` and report it via capabilities for runtime/conformance
+  logging. The type is not named `DeviceCapabilities` because `<wingdi.h>` defines that word as a
+  macro; the public RHI headers stay includable beside Windows headers.
+- A PR that changes `include/tessera/rendering/rhi/**` must update `version.hpp` and this contract
+  doc to state the version impact; the docs gate fails RHI header changes without those matching
+  updates.
+
 Target additions:
 
-- `DeviceCaps`: backend, format support, max texture size, frames-in-flight limit, timestamp
-  queries, compute, push-constant limit, validation state.
+- `DeviceCaps`: format support, max texture size, frames-in-flight limit, compute, push-constant
+  limit, validation state (backend/RHI version/timestamps are reported by `RhiCapabilities`).
 - `DeviceStatus`: ready, device-lost, out-of-memory, unsupported.
 - `Device::wait_idle(timeout)` is for teardown/debug only, never per frame.
 - One graphics queue in B1; queue selection is backend policy. Compute/transfer queues are

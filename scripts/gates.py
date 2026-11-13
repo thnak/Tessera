@@ -62,7 +62,7 @@ BASE_GATES: List[Gate] = [
     Gate("dependencies", "check_dependencies.py", (), "license allowlist, statuses and notices"),
     Gate("license-bundle", "gen_license_bundle.py", ("--check",), "license bundle is up to date"),
     Gate("sbom", "gen_sbom.py", ("--check",), "SPDX 2.3 SBOM is up to date"),
-    Gate("docs", "check_docs.py", (), "links, anchors, docs index, fences, sizes, ADRs"),
+    Gate("docs", "check_docs.py", (), "links, anchors, docs index, fences, sizes, ADRs, RHI header changes"),
     Gate("pins", "check_pins.py", ("--check",), "reproducible pins and dependency rows"),
 ]
 OPTIONAL_GATES: List[Gate] = [
