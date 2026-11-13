@@ -18,7 +18,8 @@ namespace tessera::ui::style {
 enum class StyleDiagnosticKind : std::uint8_t {
     UnsupportedProperty,
     // A recognised property whose value uses a form V1 does not implement (box-shadow `inset`,
-    // 3D transform functions). The declaration is kept; the engine ignores the unsupported part.
+    // 3D transform functions, SVG-only pointer-events keywords, user-select `all`/`contain`). The
+    // declaration is kept; the engine ignores the unsupported part.
     UnsupportedValue,
     InvalidShorthand,
     InvalidAtRule,

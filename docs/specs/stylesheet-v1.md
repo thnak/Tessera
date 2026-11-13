@@ -402,6 +402,36 @@ Unsupported declarations (recognized CSS that V1 does not implement; distinct fr
 "unknown property" report in section 5.3) are **not** silent: they produce one diagnostic per
 `(rule, property)` and are kept in the AST for forward compatibility.
 
+**V1 decisions for the Interaction and `aspect-ratio` rows (decided 2026-11-13; issue #247; the code
+matches):**
+
+- `pointer-events: auto | none` (initial `auto`, inherited): `none` removes the node itself from
+  pointer hit testing, so hover, active, pointer capture, click synthesis and wheel dispatch land on
+  whatever is behind it; the subtree is still searched, so a descendant with an explicit `auto` is
+  hit again, exactly as in CSS. Painting, keyboard focus, the focus order and the accessibility tree
+  are unchanged: `pointer-events` is not `display`/`visibility` and never hides a node from
+  assistive technology. The resolved value is copied onto the scene node by
+  `style::sync_interaction_style` (`tests/unit/interaction_style_tests.cpp`).
+- `user-select: auto | none | text` (initial `auto`, inherited): `none` blocks starting a text
+  selection at the node and in its subtree (drag-select included), `text` allows it, and `auto` keeps
+  the default (static text is selectable). An editable `TextInput`/`TextArea` always allows
+  selection, whatever an ancestor's `none` says, as in CSS. The scene exposes the resolved policy as
+  `Node::text_selection_allowed()`; the static-text selection controller it gates is a later slice
+  and the editable-field path is the implemented consumer
+  (`tests/unit/interaction_style_tests.cpp`).
+- `aspect-ratio: auto | <number> | <number> / <number>` (initial `auto`, not inherited): layout maps
+  a positive numeric ratio onto Yoga's aspect ratio, so a box with one `auto` dimension gets the
+  other from the ratio; an explicit `width` or `height` wins over the ratio, as in CSS. Both ratio
+  terms must be positive. `auto` (and an unsupported value) has no effect. The registry entry is
+  what makes `@supports (aspect-ratio: 1/1)` true and gives the property its initial value
+  (`tests/unit/layout_tests.cpp`, `tests/unit/interaction_style_tests.cpp`).
+- `pointer-events` accepts only `auto` and `none`; any other keyword (the SVG-only set:
+  `visiblePainted`, `fill`, `stroke`, `bounding-box`, ...) is recognized but unsupported.
+  `user-select` accepts only `auto`, `none` and `text`: `all` and `contain` are recognized but
+  unsupported. Unsupported forms produce one `StyleDiagnosticKind::UnsupportedValue` per rule and
+  property and stay in the AST (section 11's rule above), and the consumer falls back to the default
+  behaviour (`auto`, selectable) instead of silently blocking input.
+
 ## 12. Integration
 
 - **StyleNode**: `tag`, `id`, `classes`, attributes, parent/siblings, pseudo-state bits,

@@ -99,9 +99,12 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   container clips its subtree to the same scrollport box (insets, else the border box), so
   scrolled-out and inset-band points miss. Scroll container clipping applies to hit testing even
   when the node's paint style is not `overflow: hidden`; CSS `overflow` clipping for hit testing
-  remains style-free in the scene (deferred). A scroll container without explicit insets still
-  hit-clips at its border box while the paint pass clips its style padding box: that remaining
-  border-width difference is the documented reason to set the insets.
+  remains style-free in the scene (deferred). A `pointer-events: none` node is skipped as a target
+  while its subtree is still searched, so a gesture goes to whatever is behind it
+  ([`stylesheet-v1.md`](stylesheet-v1.md) section 11, `style::sync_interaction_style`). A scroll
+  container without explicit insets still hit-clips at its border box while the paint pass clips its
+  style padding box: that remaining border-width difference is the documented reason to set the
+  insets.
 - Wheel: the event dispatches through the normal capture/target/bubble path, then (unless a handler
   set `prevent_default`) the nearest scrollable ancestor, including the target, scrolls by the
   deltas. Wheel deltas are platform wheel units (Win32: one unit per 120-unit notch) converted with
@@ -385,7 +388,10 @@ PointerCancel/window blur: cancel all; no callbacks after teardown
 Precedence:
 
 1. System/OS gestures (back/home/edge) are declared by HAL policy; app cannot swallow them.
-2. A focused text selection drag can claim before scroll after its slop is exceeded.
+2. A focused text selection drag can claim before scroll after its slop is exceeded. `user-select`
+   gates whether that selection gesture may start: `none` on the target or inherited from an
+   ancestor blocks it, `text` allows it, and an editable `TextInput`/`TextArea` always allows it
+   ([`stylesheet-v1.md`](stylesheet-v1.md) section 11).
 3. A custom element may claim its declared gesture; otherwise the nearest scrollable claims pan.
 4. A long-press menu vs drag is decided by the arena, not by both handlers firing.
 

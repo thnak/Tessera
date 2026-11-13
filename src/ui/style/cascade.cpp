@@ -148,10 +148,10 @@ bool is_inherited_property(std::string_view property) {
         return true;
     }
     constexpr std::string_view kInherited[] = {
-        "color",        "font",         "font-family",    "font-size",   "font-style",
-        "font-weight",  "font-variant", "font-stretch",   "line-height", "letter-spacing",
-        "word-spacing", "text-align",   "text-transform", "white-space", "visibility",
-        "cursor",       "direction",    "writing-mode",
+        "color",        "font",         "font-family",    "font-size",      "font-style",
+        "font-weight",  "font-variant", "font-stretch",   "line-height",    "letter-spacing",
+        "word-spacing", "text-align",   "text-transform", "white-space",    "visibility",
+        "cursor",       "direction",    "writing-mode",   "pointer-events", "user-select",
     };
     for (const std::string_view inherited : kInherited) {
         if (property == inherited) {

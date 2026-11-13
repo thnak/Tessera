@@ -7,6 +7,8 @@ add_library(tessera_style STATIC
     color_names.cpp
     compiled_stylesheet.cpp
     container_query.cpp
+    interaction_style.cpp
+    interaction_values.cpp
     keyframes.cpp
     media_query.cpp
     parser.cpp
@@ -45,4 +47,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/glass_style_tests.cpp)
     target_link_libraries(glass_style_tests PRIVATE tessera_style)
     add_test(NAME glass_style COMMAND glass_style_tests)
+
+    # Interaction properties (issue #247): pointer-events in hit testing, user-select as the
+    # selection gate, @supports answers and the unsupported-value diagnostics.
+    add_executable(interaction_style_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/interaction_style_tests.cpp)
+    target_link_libraries(interaction_style_tests PRIVATE tessera_style)
+    add_test(NAME interaction_style COMMAND interaction_style_tests)
 endif()
