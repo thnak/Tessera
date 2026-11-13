@@ -474,7 +474,11 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 - [ ] #182: Zero-allocation ring buffers for chart series — allocation-counting test.
 - [ ] #183: Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
 - [ ] #184: Streaming dashboard sample under sustained load with deterministic goldens.
-- [ ] #233: `DataStore::set/update` push entry for app-fed data.
+- [x] #233: `DataStore::set/update` push entry for app-fed data —
+      `include/tessera/runtime/data_store.hpp`, `src/runtime/data_store_core.cpp` (per-key version +
+      fetch epoch, CompletionQueue tick notification, bounded LRU), `docs/specs/async-data-v1.md`
+      §8/§8.1 + G-21, test `data_store` (notification/coalescing, last-write-wins, push over an
+      in-flight fetch, eviction).
 
 
 ### V1-M7 Platform breadth and accessibility ([milestone 7](https://github.com/thnak/Tessera/milestone/7)) — Big Step F
