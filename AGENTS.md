@@ -259,7 +259,7 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tests/unit/harness/scroll_into_view_tests.cpp`.
 - [x] **B2:** Compile the POSIX `poll` path of `LineTransport::wait_readable` — real POSIX stdio
       test — `src/harness/stdio_transport.cpp`, `tests/unit/harness/stdio_transport_posix_tests.cpp`.
-- [ ] **B3:** Wayland window + Vulkan surface (Win32/X11 incl. swapchain retirement and device-loss
+- [ ] #155: **B3:** Wayland window + Vulkan surface (Win32/X11 incl. swapchain retirement and device-loss
       recovery done) — smoke test.
 - [x] **B3:** Linux input: XInput2 scroll/touch/pen, IME pre-edit (#55) — synthetic pump
       tests — `src/platform/linux/x11_xi2_translation.cpp` (valuator scroll, touch, pen),
@@ -268,7 +268,7 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       falls back to the unchanged core path. Touch/pen/XIM were exercised only at the
       translation layer and on Xvfb (no touch/pen hardware, no IM server), and nothing paints
       the pre-edit yet because there is no text editor.
-- [ ] **B3:** OS events (ADR-023, accepted): first slice is the normalized `OsEvent`/`WindowMetrics`/`FoldInfo`
+- [ ] #156: **B3:** OS events (ADR-023, accepted): first slice is the normalized `OsEvent`/`WindowMetrics`/`FoldInfo`
       types, a synthetic event injector, and display-capability events on Windows and X11 (DPI, scale,
       refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends wait for
       Android (V1-M7).
@@ -283,7 +283,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `tests/golden/codegen/demo/Demo.cpp`.
 - [x] Animated values (tween, spring, `onComplete`, reduced motion live on Windows), CSS end events,
       `SpringRuntime` in the frame pipeline — `src/ui/animation/`, commits `a76165f`, `a075170`.
-- [ ] ADR-040: emit `gen::<Component>Base<Self>` + developer class — `compiler-demo` regenerates
+- [ ] #157: ADR-040: emit `gen::<Component>Base<Self>` + developer class — `compiler-demo` regenerates
       with its developer class untouched.
 - [x] #81/ADR-048: embed the compiled stylesheet blob as a `constexpr` array (serializer/loader
       landed) — no `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` for embedded sheets —
@@ -296,7 +296,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
 - [x] #81/ADR-048: embed the theme asset through the same blob — loads without parsing —
       `src/ui/style/theme_asset_blob.cpp`, `src/compiler/codegen/src/emit_theme_embed.cpp`,
       `src/app/host_theme.cpp`, `tests/unit/{theme_asset_tests.cpp,app_host_theme_tests.cpp}`.
-- [ ] #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
+- [ ] #158: #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
       component identity (inserting a component keeps other ids and goldens) — stable identity
       landed (`src/compiler/ids/src/assign_identity.cpp`, `tests/unit/ir_ids_stability_tests.cpp`)
       and cross-file props aliases landed
@@ -318,63 +318,63 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU stays Tier 2 until
 
 - [x] WebGPU first slice (mapping tables, WGSL registry, unbuilt skeleton) —
       `src/rendering/backend/webgpu/`, `tests/unit/webgpu_mapping_tests.cpp`.
-- [ ] `shader_id`, portable shader branch, opt-in cross-compile — PR #84, after ADR-049.
-- [ ] RHI `version.hpp` + `Device::capabilities()` + docs-gate check on RHI header changes.
-- [ ] Backend-selectable GPU harness, `tolerance.json`, conformance summary — null/Vulkan pass.
-- [ ] `docs/guides/writing-a-backend.md`, tiers table, backend build tools in dependencies.md.
-- [ ] Emscripten CI lane + WGSL validation — WebGPU promoted to Tier 1.
+- [ ] #159: `shader_id`, portable shader branch, opt-in cross-compile — PR #84, after ADR-049.
+- [ ] #160: RHI `version.hpp` + `Device::capabilities()` + docs-gate check on RHI header changes.
+- [ ] #161: Backend-selectable GPU harness, `tolerance.json`, conformance summary — null/Vulkan pass.
+- [ ] #162: `docs/guides/writing-a-backend.md`, tiers table, backend build tools in dependencies.md.
+- [ ] #163: Emscripten CI lane + WGSL validation — WebGPU promoted to Tier 1.
 
 ### V1-M4 Design-time preview and playground ([milestone 4](https://github.com/thnak/Tessera/milestone/4)) — Big Step D
 Acceptance: a screen previews in a browser and matches native output within the golden tolerance.
 Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 
-- [ ] P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
+- [ ] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
       `samples/parity-demo/Counter.tsx`.
-- [ ] P1: diagnostics-only page on GitHub Pages — diagnostics match native.
-- [ ] P2: evaluator (ADR-037) + scene + layout on the null RHI — snapshot equals native harness.
-- [ ] P3: WebGPU canvas preview — within tolerance of the lavapipe golden (needs M3).
-- [ ] P4-P7: browser input, share links, CI budgets, picker/style patches, hosted studio, hot
+- [ ] #165: P1: diagnostics-only page on GitHub Pages — diagnostics match native.
+- [ ] #166: P2: evaluator (ADR-037) + scene + layout on the null RHI — snapshot equals native harness.
+- [ ] #167: P3: WebGPU canvas preview — within tolerance of the lavapipe golden (needs M3).
+- [ ] #168-#171: P4-P7: browser input, share links, CI budgets, picker/style patches, hosted studio, hot
       reload (#78), one stage per PR.
-- [ ] `tessera-mcp` stdio adapter over the harness session, compile-only first.
+- [ ] #172: `tessera-mcp` stdio adapter over the harness session, compile-only first.
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
 ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 
-- [ ] AF1: `ServiceContext` + `Service` state machine, ordered async start/stop, deadlines — new
+- [ ] #173: AF1: `ServiceContext` + `Service` state machine, ordered async start/stop, deadlines — new
       `tessera_appfw_core`, tests under `ManualClock`/`ManualExecutor`.
-- [ ] AF2: `TaskScope` + `RuntimeLoop` timer wake source — timers in order; idle parks.
-- [ ] AF3: `Application` lifecycle; `WindowHost` forwards focus/minimize/occlusion.
-- [ ] AF4: `Observable<T>` over `UpdateScheduler` — one flush per tick, no allocation on `set`.
-- [ ] AF5: `useService<T>()` codegen (after ADR-040) — undeclared service is a compile error.
-- [ ] AF6: `NativeSurface` refs + `SurfaceRenderer` — lavapipe golden of a composited surface.
-- [ ] AF7: `storage` module, atomic writes on `IoExecutor` — corruption fallback tested.
-- [ ] Multi-window, then tray apps, each its own slice.
+- [ ] #174: AF2: `TaskScope` + `RuntimeLoop` timer wake source — timers in order; idle parks.
+- [ ] #175: AF3: `Application` lifecycle; `WindowHost` forwards focus/minimize/occlusion.
+- [ ] #176: AF4: `Observable<T>` over `UpdateScheduler` — one flush per tick, no allocation on `set`.
+- [ ] #177: AF5: `useService<T>()` codegen (after ADR-040) — undeclared service is a compile error.
+- [ ] #178: AF6: `NativeSurface` refs + `SurfaceRenderer` — lavapipe golden of a composited surface.
+- [ ] #179: AF7: `storage` module, atomic writes on `IoExecutor` — corruption fallback tested.
+- [ ] #180, #181: Multi-window, then tray apps, each its own slice.
 
 ### V1-M6 Data-heavy UI ([milestone 6](https://github.com/thnak/Tessera/milestone/6)) — Big Step E
 Acceptance: a streaming dashboard at target frame rate with deterministic goldens.
 
 - [x] Fixed-timestep clock + time scale — `include/tessera/runtime/fixed_step.hpp`.
-- [ ] Zero-allocation ring buffers for chart series — allocation-counting test.
-- [ ] Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
-- [ ] Streaming dashboard sample under sustained load with deterministic goldens.
+- [ ] #182: Zero-allocation ring buffers for chart series — allocation-counting test.
+- [ ] #183: Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
+- [ ] #184: Streaming dashboard sample under sustained load with deterministic goldens.
 
 ### V1-M7 Platform breadth and accessibility ([milestone 7](https://github.com/thnak/Tessera/milestone/7)) — Big Step F
-- [ ] Install `make_window_root_provider` from `WindowHost` (UIA host provider exists) — Narrator/
+- [ ] #185: Install `make_window_root_provider` from `WindowHost` (UIA host provider exists) — Narrator/
       NVDA smoke checklist.
-- [ ] Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
-- [ ] Fold posture, hinge and occlusion events on Android (ADR-023; needs the Android backend) —
+- [ ] #186: Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
+- [ ] #202: Fold posture, hinge and occlusion events on Android (ADR-023; needs the Android backend) —
       synthetic fold sequences pass.
-- [ ] Reduced motion and dark mode queries on Linux and macOS.
-- [ ] macOS via MoltenVK + NSAccessibility; Android then iOS
+- [ ] #187: Reduced motion and dark mode queries on Linux and macOS.
+- [ ] #188-#190: macOS via MoltenVK + NSAccessibility; Android then iOS
       ([mobile-integration.md](docs/design/mobile-integration.md)); platform cursor shape.
 
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
 Acceptance: a real app ships and passes validation layers and golden tests in CI.
 
-- [ ] Crash capture, symbolication, uploader (metadata in `diagnostics/crash.hpp` landed).
-- [ ] Updates and distribution (`docs/specs/updates-and-distribution-v1.md`).
-- [ ] Versioning policy for RHI/IR/project config; public API listing gate (#76).
-- [ ] i18n/navigation/networking as app-framework modules (after M5); security review; release
+- [ ] #192: Crash capture, symbolication, uploader (metadata in `diagnostics/crash.hpp` landed).
+- [ ] #193: Updates and distribution (`docs/specs/updates-and-distribution-v1.md`).
+- [ ] #194: Versioning policy for RHI/IR/project config; public API listing gate (#76).
+- [ ] #195-#199: i18n/navigation/networking as app-framework modules (after M5); security review; release
       CI lanes; memory budgets in CI (#13).
 
 ## Build & test
