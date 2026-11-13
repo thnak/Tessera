@@ -28,14 +28,6 @@ using tessera::rendering::vulkan::to_rhi_format;
 
 int failures = 0;
 
-bool expect(bool condition, const char* message) {
-    if (!condition) {
-        std::cerr << "FAIL " << message << "\n";
-        ++failures;
-    }
-    return condition;
-}
-
 void expect_composite(const char* name, const CompositeAlphaSupport& support, bool per_pixel_alpha,
                       CompositeAlpha expected) {
     const CompositeAlpha actual = choose_composite_alpha(support, per_pixel_alpha);
