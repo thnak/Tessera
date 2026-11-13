@@ -90,10 +90,11 @@ Owner decision of 2026-11-13:
   backend, fold and posture backends on Android, mobile integration, native touch shells), are not
   V1. They stay open for the release after V1 and are not planned in this file.
 - **Gating lanes:** a change is done when it builds and `ctest` passes on Windows (local) and on
-  Linux (local or the Linux CI lane), and the Windows and Linux CI lanes are green. Issue farming
-  notes that say "all six CI lanes" mean these gating lanes.
-- **Advisory lanes:** every other CI lane (macOS, Android, iOS, the WebGPU/Wasm lane, and so on) is
-  nice to have. A red advisory lane is noted in the PR or issue but never blocks a merge or the next
+  Linux (local or the Linux CI lane), and the Windows, Linux and WebGPU/Wasm CI lanes are green
+  (WebGPU is Tier 1, ADR-049). Issue farming notes that say "all six CI lanes" mean these three
+  gating lanes.
+- **Advisory lanes:** the macOS, Android and iOS CI lanes (and any other lane added later) are nice
+  to have. A red advisory lane is noted in the PR or issue but never blocks a merge or the next
   slice, and is not fixed ahead of V1 work unless the fix is trivial. Do not add platform-specific
   code only to keep an advisory lane green.
 - **Library:** component library stages 0 and 1 ship in V1
@@ -108,18 +109,21 @@ same idea in parallel; velocity with a green `main` is the advantage.
    [Big Steps](#big-steps-group-work-dont-micro-step) per the [farming protocol](#farming-protocol).
    Write the acceptance in one sentence.
 2. **Split the part into independently testable slices.** A slice is one behavior, its tests, and
-   its docs. Do not bundle unrelated cleanup.
-3. **Implement -> test -> format -> commit.** Run `scripts/format.* --check`, build with
-   `TESSERA_WARNINGS_AS_ERRORS=ON`, and `ctest`. Commit immediately when green.
-4. **Multiple commits per part.** Land model -> algorithm -> integration -> tests/docs as separate
-   commits when that keeps each diff reviewable. Never end a cycle with uncommitted green work.
+   its docs. Slices organize the work and the local commits; they are not the unit that lands (see
+   [Landing size and CI load](#landing-size-and-ci-load)). Do not bundle unrelated cleanup.
+3. **Implement -> test -> format -> commit locally.** Run the format check on changed files, build
+   with `TESSERA_WARNINGS_AS_ERRORS=ON`, and `ctest`. Commit locally when green.
+4. **Commit locally as often as useful, push once per landing.** Land model -> algorithm ->
+   integration -> tests/docs as separate local commits if that helps review, but push only when the
+   whole landing is done and verified. Never end a cycle with uncommitted green work.
 5. **Continue automatically.** After a commit, take the next slice from the plan; do not stop to
    ask "what next". Report the batch at a natural boundary.
 6. **Stop only for:** a destructive/irreversible action, a genuinely ambiguous product decision,
    an external CI failure that needs credentials, or context exhaustion. On context exhaustion,
    commit the current green slice and write the exact next slice in Current focus.
 
-A commit is a checkpoint, not a finish line. Keep the tree buildable at every commit.
+A commit is a checkpoint, not a finish line, and a push is not a checkpoint: it starts CI. Keep
+the tree buildable at every commit.
 
 ### Farming protocol
 
@@ -130,9 +134,10 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
   not already claimed by an open PR (`gh pr list --search "<item words>"`).
 - **Blocked by ADR:** ADR-049 and ADR-050 are Accepted (2026-11-12), so their items are open. If an
   item depends on a Proposed ADR, wait until it is Accepted on `main`.
-- **One item per PR**, branched from `origin/main`; attach the milestone
-  (`gh pr create --milestone "V1-M1 Core runtime"`) and tick the item's checkbox in this file in
-  the same PR (`[x]` plus the evidence path).
+- **One landing per PR**, branched from `origin/main`: a whole issue, a whole family or step of a
+  multi-part issue, or several related issues together (`Closes #a, #b`). Attach the milestone
+  (`gh pr create --milestone "V1-M1 Core runtime"`) and tick each item's checkbox in this file in
+  the same PR (`[x]` plus the evidence path). Size rules are in the next subsection.
 - **Format:** check only changed files
   (`git diff --name-only origin/main -- '*.cpp' '*.hpp' | xargs clang-format --dry-run -Werror`);
   do not run the whole-repo format script.
@@ -152,6 +157,33 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
   as a PR only if it stands alone; then take the next `ready` item. The owner clears `blocked`
   after answering.
 
+
+### Landing size and CI load
+
+CI is the scarce resource: every push starts the gating lanes, and many small pushes queue behind
+each other and starve the farm. Agents therefore land big, complete, pre-verified batches.
+
+- **Land a complete body of work.** A PR is a whole issue (or a whole family or step of a
+  multi-part issue such as #218), not a slice of one. Do not open a PR that changes only a few
+  files or under roughly 300 changed lines unless it completes its issue; when it would, take the
+  next `ready` issue in the same milestone or subsystem on the same branch and land them together.
+- **Group by area.** When several `ready` issues touch the same files or subsystem (the same
+  `CMakeLists.txt`, the same IR or front-end files, one milestone), do them in one branch and one PR.
+  Unrelated areas stay in separate PRs so a failure in one does not hold the other.
+- **Never push work in progress**, and never push docs-only, format-only, comment-only or
+  rename-only changes by themselves: fold them into the next landing. The one exception is a fix for
+  a red `main`.
+- **Verify before the push, once.** Build with warnings as errors and run the full `ctest` of the
+  affected area on Windows (and on Linux when the change is platform-sensitive or cheap to check)
+  plus the format check on changed files, so CI runs a single time. Do not push to find out whether
+  CI passes, and do not re-push or re-run only to retrigger CI.
+- **One landing in flight.** While a PR's CI runs, keep working locally on the next landing in a
+  separate branch; push it only after the previous PR has merged (or been fixed after red).
+- **Fix red CI in one push.** Collect every failure of one CI run and fix them together; never
+  push a fix per failing test.
+- **Local commits stay cheap.** A landing may hold many local commits (model, algorithm,
+  integration, tests/docs); they cost nothing until pushed. Prefer a squash-merge so `main` keeps
+  one commit per landing.
 
 ### Subagent lanes
 
@@ -182,7 +214,8 @@ the default for speed, not the exception: the Lead splits, hands off minimal wor
 One coherent change is one commit: a subsystem slice plus its tests, docs, and index/status
 updates belongs together, not in a trail of tiny commits. Do not split a single logical change
 just to make diffs smaller, and do not pad a batch to reach a size target. Split only when each
-part is independently reviewable or independently revertible. Before every commit, run the
+part is independently reviewable or independently revertible. Commits are local; what reaches CI is
+a landing (see [Landing size and CI load](#landing-size-and-ci-load)). Before every commit, run the
 verification that matches the change (format, build with warnings as errors, `ctest`, and the
 relative-link/index checks for docs); a docs-only batch still needs the format and link checks.
 
@@ -586,8 +619,9 @@ live in one place and are linked, not copied.
 
 ## Definition of done (every change)
 
-- [ ] Builds with `TESSERA_WARNINGS_AS_ERRORS=ON` on Windows and Linux (the gating lanes of
-      "V1 platform scope and CI policy"; other lanes are advisory).
+- [ ] Builds with `TESSERA_WARNINGS_AS_ERRORS=ON` on Windows and Linux, and the WebGPU/Wasm lane
+      stays green (the gating lanes of "V1 platform scope and CI policy"; macOS, Android and iOS
+      are advisory).
 - [ ] Unit/integration tests pass (`ctest`).
 - [ ] Vulkan paths run clean under validation layers (debug builds).
 - [ ] No new dependency without entries in `docs/specs/dependencies.md` and

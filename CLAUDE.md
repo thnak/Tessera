@@ -15,8 +15,10 @@ and land verified increments.
 
 - **One Big Goal per cycle**, normally the next unblocked B2 slice.
 - **Split into testable slices**; each slice = behavior + tests + docs.
-- **Commit every green slice** and use multiple commits per part (model → algorithm → integration →
-  tests/docs). Never leave green work uncommitted.
+- **Commit every green slice locally** (model → algorithm → integration → tests/docs) and never leave
+  green work uncommitted, but **push once per complete landing**: a whole issue or family, verified
+  locally first. CI is scarce; no thin pushes, no work in progress, no docs-only pushes (see
+  [AGENTS.md, Landing size and CI load](AGENTS.md#landing-size-and-ci-load)).
 - **After a commit, take the next slice automatically**; only stop for destructive/ambiguous
   decisions, blocked external CI, or context exhaustion.
 - On context exhaustion: commit the current green slice and write the exact next slice in
