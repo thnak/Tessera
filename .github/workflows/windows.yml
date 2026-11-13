@@ -28,51 +28,64 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure (MSVC, null backend)
+      # Ninja, not the Visual Studio generator: VS generators ignore compiler launchers, so ccache
+      # can only work here with Ninja plus the MSVC environment.
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - uses: ./.github/actions/ccache
+        with:
+          name: windows
+
+      - name: Configure (MSVC, Ninja, null backend)
         run: >
-          cmake --preset vs2026
+          cmake --preset ci
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_BUILD_POC=OFF
           -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
-        run: cmake --build --preset vs2026-release
+        run: cmake --build --preset ci
+
+      - name: ccache statistics
+        run: ccache --show-stats
 
       - name: Package build (CPack ZIP)
         env:
           SOURCE_DATE_EPOCH: "315532800"
           TZ: UTC
         run: |
-          cmake --build --preset vs2026-release --target tessera-package-stage
-          cpack --config build/vs2026/CPackConfig.cmake -G ZIP -C Release -B build/vs2026/package
+          cmake --build --preset ci --target tessera-package-stage
+          cpack --config build/ci/CPackConfig.cmake -G ZIP -B build/ci/package
 
       - name: Package gate (check_package.py)
         shell: pwsh
         run: |
-          $archive = Get-ChildItem build/vs2026/package/tessera-*.zip | Select-Object -First 1
+          $archive = Get-ChildItem build/ci/package/tessera-*.zip | Select-Object -First 1
           if (-not $archive) { throw 'no package archive found' }
           python -B scripts/check_package.py --archive $archive.FullName
 
       - name: Install layout (cmake --install)
         shell: pwsh
         run: |
-          cmake --install build/vs2026 --config Release --prefix build/vs2026/install-check --component licenses
+          cmake --install build/ci --prefix build/ci/install-check --component licenses
           foreach ($name in @('LICENSE', 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_LICENSES.txt', 'sbom.spdx.json')) {
-            $path = Join-Path 'build/vs2026/install-check/share/tessera/licenses' $name
+            $path = Join-Path 'build/ci/install-check/share/tessera/licenses' $name
             if (-not (Test-Path $path)) { throw "missing installed file: $path" }
           }
 
       - name: Static-link allowlist (ADR-012, Windows)
         run: >
           python -B scripts/check_static_link.py --os windows
-          --binary build/vs2026/tests/unit/Release/merger_tests.exe
+          --binary build/ci/tests/unit/merger_tests.exe
 
       - name: Release static-runtime proof (ADR-012)
         run: python -B scripts/check_static_runtime.py --config Release --target merger_tests
 
       - name: Tests
-        run: ctest --preset vs2026-release --output-on-failure
+        run: ctest --preset ci --output-on-failure
 
   release-gates:
     runs-on: windows-latest
