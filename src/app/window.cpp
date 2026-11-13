@@ -12,13 +12,16 @@
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scale/render_target_extent.hpp"
+#include "window_backdrop_request.hpp"
 #include "window_impl.hpp"
 
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 
 namespace tessera::app {
@@ -42,11 +45,15 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     // The runtime config's lifecycle keys are mapped here, once: the pause policy owns occlusion
     // and minimization, and the pipeline config owns paint interpolation.
     pause_policy = window_pause_policy(options.runtime);
+    const hal::WindowBackdrop backdrop_request = window_backdrop_request(root, options.backdrop);
     hal::WindowDesc desc;
     desc.title = options.title;
     desc.width = options.width;
     desc.height = options.height;
     desc.visible = options.visible;
+    desc.backdrop = backdrop_request;
+    desc.transparent = options.transparent;
+    desc.win10_acrylic = options.win10_acrylic;
     window = hal::create_window(desc);
     if (window == nullptr) {
         return;
@@ -80,6 +87,17 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     loop->set_device_recovery(recovery.get());
 
     const hal::WindowMetrics metrics = window->metrics();
+    // The platform resolved the requested OS backdrop at creation (glass-v1.md section 6). The
+    // unsupported path is one warning and the opaque fallback; it never delays, retries or fails
+    // startup for a cosmetic material. The stylesheet's `@media (window-backdrop: none)` rule is
+    // what supplies an opaque background.
+    if (metrics.backdrop_fallback) {
+        const std::string_view requested = hal::window_backdrop_name(backdrop_request);
+        std::fprintf(stderr,
+                     "TESSERA_GLASS_WINDOW_UNSUPPORTED: window backdrop `%.*s` is unavailable on "
+                     "this platform; the window stays opaque\n",
+                     static_cast<int>(requested.size()), requested.data());
+    }
     HostConfig config;
     config.width = static_cast<float>(metrics.logical_width);
     config.height = static_cast<float>(metrics.logical_height);
@@ -174,8 +192,9 @@ bool WindowHost::Impl::ensure_scaled_target(std::size_t frame_slot, rhi::Extent2
         return true;
     }
     try {
-        scaled_targets[frame_slot] =
-            device->create_render_target(detail::target_desc(extent, format));
+        scaled_targets[frame_slot] = device->create_render_target(detail::target_desc(
+            extent, format,
+            translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(11, 18, 32)));
         scaled_target_extents[frame_slot] = extent;
         return scaled_targets[frame_slot] != nullptr;
     } catch (const std::exception&) {
@@ -250,11 +269,13 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     // dropping frames; the capability is fixed for this swapchain generation.
     const bool scaled =
         adaptive.scaled && scaled_present_supported && ensure_scaled_target(slot, adaptive.extent);
+    const rhi::Color clear_color =
+        translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(11, 18, 32);
     rhi::RenderTarget* paint_target = target;
-    rhi::RenderTargetDesc desc = detail::target_desc(presented, swapchain->format());
+    rhi::RenderTargetDesc desc = detail::target_desc(presented, swapchain->format(), clear_color);
     if (scaled) {
         paint_target = scaled_targets[slot].get();
-        desc = detail::target_desc(paint_target->extent(), swapchain->format());
+        desc = detail::target_desc(paint_target->extent(), swapchain->format(), clear_color);
     }
     auto commands = device->create_command_list();
     // Arm the GPU timestamp pair before the first command is recorded. A false return (the probe
@@ -351,6 +372,9 @@ void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
     }
     metrics_paused_ = pause_policy.pauses(metrics.occluded, metrics.minimized);
     update_pause_state();
+    // A metrics snapshot does not change the presentation generation, so `translucent_presentation`
+    // keeps following the current swapchain's composite mode; a later recreation (a resize
+    // OutOfDate, a device recovery) re-resolves it from the platform's fresh metrics.
     // An occluded/minimized window can report a zero client area (a minimized Win32 window does);
     // resizing the target or re-laying out at 0x0 is skipped whenever the metrics say invisible,
     // even when the pause policy keeps rendering (`pauseWhenOccluded=false`). The scene tree stays
@@ -373,6 +397,10 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
     }
     stats.available = true;
     stats.device_state = WindowDeviceState::Ready;
+    // The platform's resolved backdrop is creation-time state, not a per-frame query.
+    const hal::WindowMetrics window_metrics = window->metrics();
+    stats.backdrop = window_metrics.backdrop;
+    stats.transparent = window_metrics.transparent;
     const bool force_frames = max_frames > 0;
     // A previous run detached the queue so a platform event could not outlive its pump, so a second
     // run() reattaches it on entry instead of leaving the window deaf forever.

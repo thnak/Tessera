@@ -23,7 +23,9 @@ bool near(float value, float expected, float tolerance = 1.0e-6f) {
 } // namespace
 
 int main() {
+    using tessera::hal::BackdropMaterial;
     using tessera::hal::Window;
+    using tessera::hal::WindowBackdrop;
     using tessera::hal::WindowEvent;
     using tessera::hal::WindowEventType;
     using tessera::hal::WindowMetrics;
@@ -43,7 +45,11 @@ int main() {
                 "default insets are zero") ||
         !expect(defaults.focused, "default focused") ||
         !expect(!defaults.occluded, "default not occluded") ||
-        !expect(!defaults.minimized, "default not minimized")) {
+        !expect(!defaults.minimized, "default not minimized") ||
+        // The default window is opaque with no OS material (glass-v1.md section 6).
+        !expect(defaults.backdrop == BackdropMaterial::None, "default backdrop none") ||
+        !expect(!defaults.transparent, "default opaque") ||
+        !expect(!defaults.backdrop_fallback, "default no backdrop fallback")) {
         return 1;
     }
 
@@ -60,6 +66,9 @@ int main() {
     metrics.focused = false;
     metrics.occluded = true;
     metrics.minimized = false;
+    metrics.backdrop = BackdropMaterial::Mica;
+    metrics.transparent = true;
+    metrics.backdrop_fallback = false;
 
     if (!expect(metrics.logical_width == 1280 && metrics.logical_height == 720,
                 "logical size fields") ||
@@ -69,8 +78,19 @@ int main() {
         !expect(near(metrics.insets.left, 8.0f) && near(metrics.insets.top, 16.0f) &&
                     near(metrics.insets.right, 8.0f) && near(metrics.insets.bottom, 24.0f),
                 "inset fields") ||
-        !expect(!metrics.focused && metrics.occluded && !metrics.minimized, "lifecycle fields")) {
+        !expect(!metrics.focused && metrics.occluded && !metrics.minimized, "lifecycle fields") ||
+        !expect(metrics.backdrop == BackdropMaterial::Mica && metrics.transparent,
+                "backdrop fields")) {
         return 2;
+    }
+
+    // The descriptor's startup request is a value, so an explicit `none`/opaque window is the
+    // unchanged default (a project that never asks for glass pays nothing).
+    const tessera::hal::WindowDesc default_desc;
+    if (!expect(default_desc.backdrop == WindowBackdrop::None, "default desc backdrop") ||
+        !expect(!default_desc.transparent && !default_desc.win10_acrylic,
+                "default desc transparency")) {
+        return 6;
     }
 
     WindowEvent event;

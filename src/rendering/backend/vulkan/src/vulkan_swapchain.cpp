@@ -7,6 +7,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#include "vulkan_composite_alpha.hpp"
 #include "vulkan_surface_format.hpp"
 #include "vulkan_swapchain.hpp"
 
@@ -122,13 +123,27 @@ VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes,
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkCompositeAlphaFlagBitsKHR choose_composite_alpha(const VkSurfaceCapabilitiesKHR& capabilities) {
-    if ((capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) != 0) {
+CompositeAlphaSupport to_composite_alpha_support(VkCompositeAlphaFlagsKHR flags) {
+    CompositeAlphaSupport support;
+    support.opaque = (flags & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) != 0;
+    support.pre_multiplied = (flags & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) != 0;
+    support.post_multiplied = (flags & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR) != 0;
+    support.inherit = (flags & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) != 0;
+    return support;
+}
+
+VkCompositeAlphaFlagBitsKHR to_vk_composite_alpha(CompositeAlpha alpha) {
+    switch (alpha) {
+    case CompositeAlpha::Opaque:
         return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    case CompositeAlpha::PreMultiplied:
+        return VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+    case CompositeAlpha::PostMultiplied:
+        return VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+    case CompositeAlpha::Inherit:
+        return VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
     }
-    // The platform guarantees at least one supported composite mode.
-    return static_cast<VkCompositeAlphaFlagBitsKHR>(capabilities.supportedCompositeAlpha &
-                                                    ~(capabilities.supportedCompositeAlpha - 1));
+    return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 }
 
 VkImageViewCreateInfo image_view_info(VkImage image, VkFormat format) {
@@ -298,7 +313,18 @@ std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool 
         (transfer_dst ? static_cast<VkImageUsageFlags>(VK_IMAGE_USAGE_TRANSFER_DST_BIT) : 0U);
     create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     create_info.preTransform = capabilities.currentTransform;
-    create_info.compositeAlpha = choose_composite_alpha(capabilities);
+    // Per-pixel alpha is requested by a translucent window: premultiplied where the surface offers
+    // it, opaque otherwise (glass-v1.md section 6). The resolved mode is published through
+    // Swapchain::alpha_mode() so the driver can report the opaque fallback once.
+    const CompositeAlphaSupport alpha_support =
+        to_composite_alpha_support(capabilities.supportedCompositeAlpha);
+    const CompositeAlpha composite_alpha =
+        choose_composite_alpha(alpha_support, desc_.per_pixel_alpha);
+    create_info.compositeAlpha = to_vk_composite_alpha(composite_alpha);
+    per_pixel_alpha_supported_ = alpha_support.pre_multiplied;
+    alpha_mode_ = composite_alpha == CompositeAlpha::PreMultiplied
+                      ? rhi::SwapchainAlphaMode::PreMultiplied
+                      : rhi::SwapchainAlphaMode::Opaque;
     create_info.presentMode = present_mode;
     create_info.clipped = VK_TRUE;
     create_info.oldSwapchain = swapchain_;

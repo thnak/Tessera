@@ -72,6 +72,19 @@ struct WindowOptions {
     // Section 6.2 lists the keys still unwired. The defaults match RuntimeConfig{} exactly, so a
     // caller that does not set it keeps today's behaviour.
     tessera::RuntimeConfig runtime;
+    // The OS backdrop of a translucent window (docs/specs/glass-v1.md section 6). This is the
+    // resolved root `window-backdrop` request: `None` keeps the window opaque, `Auto` picks the
+    // best material the platform has, and a named material falls back to opaque with one
+    // TESSERA_GLASS_WINDOW_UNSUPPORTED diagnostic where the platform cannot draw it. A non-`None`
+    // value implies a translucent client area.
+    hal::WindowBackdrop backdrop = hal::WindowBackdrop::None;
+    // Makes the client area translucent without asking for a named material (the `Window` option of
+    // glass-v1.md section 6). Where the platform (or the swapchain) cannot present per-pixel alpha,
+    // the window degrades to opaque with the same diagnostic.
+    bool transparent = false;
+    // Opts into the undocumented Windows 10 acrylic accent policy. Off by default; ignored on
+    // Windows 11 and every other platform (glass-v1.md section 6).
+    bool win10_acrylic = false;
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
@@ -142,6 +155,11 @@ struct WindowFrameStats {
     runtime::FrameTimeSource frame_time_source = runtime::FrameTimeSource::Cpu;
     std::uint32_t gpu_frame_time_samples = 0;
     std::uint32_t gpu_frame_time_fallbacks = 0;
+    // The resolved OS backdrop of the window and whether it presents a translucent client area
+    // (docs/specs/glass-v1.md section 6). They are read from the platform's WindowMetrics when the
+    // run starts, and the opaque fallback reports the first two as `None`/false.
+    hal::BackdropMaterial backdrop = hal::BackdropMaterial::None;
+    bool transparent = false;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the

@@ -311,6 +311,26 @@ a guideline, not a compiler check.
   simulated system chrome is hidden (see the hosted studio design in
   [designer.md](../design/designer.md) section 2.2).
 
+### 11.1 Manual checklist: translucent window and OS backdrop
+
+The real DWM and compositor calls of [glass-v1.md](glass-v1.md) section 6 cannot be asserted in CI
+(no Mica in a VM, no compositor on Xvfb): the table below is the manual evidence for a change that
+touches the window path. Record the OS build, the compositor and version, the requested
+`window-backdrop`, and the resolved `WindowMetrics::backdrop` for each run.
+
+| # | Platform | Steps | Expected |
+|---|---|---|---|
+| 1 | Windows 11 22H2+ | `backdrop: mica`, `transparent: true` | `backdrop=mica`, the desktop material is visible through the client area, no warning |
+| 2 | Windows 11 22H2+ | `backdrop: acrylic` and `backdrop: blur` | `backdrop=acrylic` for both, no warning |
+| 3 | Windows 10 22H2 | `backdrop: auto` | `backdrop=none`, translucent without a material, no warning; the `@media (window-backdrop: none)` rule paints the opaque fallback |
+| 4 | Windows 10 22H2 | `backdrop: acrylic` with and without `win10Acrylic: true` | warning and opaque fallback without the opt-in; `backdrop=acrylic` with it |
+| 5 | Linux, X11 + KWin (compositing on) | `backdrop: blur`, `transparent: true` | `backdrop=blur`; moving the window blurs the desktop behind it; `_KDE_NET_WM_BLUR_BEHIND_REGION` is set to the client rect (`xprop`) |
+| 6 | Linux, X11 + another WM, or no compositing manager | `backdrop: auto` | `backdrop=none`, window opens opaque, no warning for `auto` |
+| 7 | Linux, Wayland + KWin | `backdrop: blur` | `backdrop=blur` through `ext-background-effect-v1` once the Wayland window backend (#155) lands; until then the X11/XWayland path reports the X11 row |
+| 8 | Any platform | `backdrop: mica` where Mica is unavailable | exactly one `TESSERA_GLASS_WINDOW_UNSUPPORTED` line, startup and rendering continue |
+| 9 | Any platform | A swapchain without a premultiplied mode | one `TESSERA_GLASS_WINDOW_UNSUPPORTED` line, the window presents opaque |
+| 10 | Any platform | Static translucent screen | the window settles and presents zero frames (no backdrop re-apply or poll on the frame path) |
+
 ## 12. Design-time preview
 
 The studio previews the chrome without owning it: the page paints the simulated title bar, menu bar

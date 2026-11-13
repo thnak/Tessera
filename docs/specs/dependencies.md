@@ -288,7 +288,7 @@ Statically linked:
 Still dynamic, by platform necessity:
 
 - the Vulkan loader (`vulkan-1.dll` / `libvulkan.so.1`) and GPU ICDs/drivers
-- OS frameworks: Win32/User32/GDI, X11/Wayland, Cocoa/AppKit, Android system libraries
+- OS frameworks: Win32/User32/GDI/DWM (`dwmapi`), X11/Wayland, Cocoa/AppKit, Android system libraries
 - glibc on Linux (fully static glibc is not required; use musl if a fully static Linux
   binary is ever required)
 

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/hal/window_backdrop.hpp"
+
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -20,6 +22,10 @@ struct MediaContext {
     double resolution_dpi = 96.0;
     ColorScheme color_scheme = ColorScheme::Light;
     bool prefers_reduced_motion = false;
+    // The material the platform resolved for the window (glass-v1.md section 6). `None` is the
+    // default because a headless/null window offers no material, so a stylesheet's opaque fallback
+    // inside `@media (window-backdrop: none)` applies where the engine cannot show one.
+    hal::BackdropMaterial window_backdrop = hal::BackdropMaterial::None;
 };
 
 enum class MediaFeature {
@@ -29,6 +35,9 @@ enum class MediaFeature {
     Orientation,
     PrefersColorScheme,
     PrefersReducedMotion,
+    // `@media (window-backdrop: none | mica | acrylic | blur)` on the platform's resolved material
+    // (glass-v1.md section 6). It is not a request: `auto` never matches.
+    WindowBackdrop,
 };
 
 enum class MediaComparison {

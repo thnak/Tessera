@@ -100,6 +100,10 @@ constexpr PropertyDef kProperties[] = {
     {"transform", "none", false},
     {"transform-origin", "50% 50%", false},
     {"box-shadow", "none", false},
+    // The OS backdrop of the root window (glass-v1.md section 6). It is an ordinary cascade
+    // property so a theme can set it; only the window's root reads it, and `auto` is resolved by
+    // the platform, never stored as a computed material.
+    {"window-backdrop", "none", false},
 };
 
 bool is_custom_property(std::string_view property) {
@@ -180,6 +184,13 @@ bool has_keyword(std::string_view text, std::string_view word) {
         at = text.find(word, at + 1);
     }
     return false;
+}
+
+// True when `value` (already lowercased) is one keyword of the `window-backdrop` grammar
+// (glass-v1.md section 2). `auto` is a valid request even though it is never a resolved material.
+bool is_window_backdrop_value(std::string_view value) {
+    return value == "none" || value == "auto" || value == "mica" || value == "acrylic" ||
+           value == "blur";
 }
 
 // Recognised properties may carry value forms V1 does not implement; each is reported once per
@@ -275,6 +286,21 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
                               "text-overflow takes one value (clip or ellipsis); the two-value "
                               "<overflow> <side> shorthand is not supported in V1"));
         return result;
+    }
+    // `window-backdrop` is a closed keyword set. An invalid value drops the declaration (the
+    // computed value keeps its initial `none`) and reports it once, rather than letting an
+    // unparseable string reach the window's startup request.
+    if (property == "window-backdrop") {
+        std::string value(declaration.value);
+        std::transform(value.begin(), value.end(), value.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        const auto components = split_components(value);
+        if (components.size() != 1 || !is_window_backdrop_value(components.front())) {
+            result.diagnostics.push_back(
+                StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset, property,
+                                "window-backdrop takes one of none, auto, mica, acrylic or blur"});
+            return result;
+        }
     }
     if (find(property) != nullptr) {
         Declaration normalized = declaration;

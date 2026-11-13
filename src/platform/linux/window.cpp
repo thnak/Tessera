@@ -3,6 +3,7 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
+#include "x11_backdrop.hpp"
 #include "x11_input.hpp"
 #include "x11_xi2.hpp"
 #if defined(TESSERA_X11_RANDR)
@@ -135,6 +136,10 @@ private:
     X11Xi2Pump xi2_;
     XIM input_method_ = nullptr;
     XIC input_context_ = nullptr;
+    // The OS backdrop this window resolved at creation (glass-v1.md section 6). The engine reads it
+    // only through WindowMetrics; `backdrop_setup_` owns the ARGB colormap of a translucent window.
+    detail::X11BackdropSetup backdrop_setup_;
+    BackdropResolution backdrop_{};
     bool initializing_ = true;
     bool mapped_ = false;
     bool focused_ = false;
@@ -159,6 +164,12 @@ bool X11Window::create(const WindowDesc& desc) {
     const std::uint32_t width = physical_from_logical(desc.width, dpi_);
     const std::uint32_t height = physical_from_logical(desc.height, dpi_);
 
+    // A translucent window needs a 32-bit ARGB visual so the swapchain's per-pixel alpha reaches
+    // the compositor; the opaque path keeps the parent visual byte-identical. The visual and depth
+    // are XCreateWindow inputs, so the capability query happens before creation.
+    const bool wants_translucent = desc.transparent || desc.backdrop != WindowBackdrop::None;
+    backdrop_setup_ = detail::prepare_x11_backdrop(display_, screen_, wants_translucent);
+
     XSetWindowAttributes attributes{};
     attributes.background_pixel = BlackPixel(display_, screen_);
     // StructureNotify carries ConfigureNotify/DestroyNotify; Exposure carries the redraw wake;
@@ -166,14 +177,22 @@ bool X11Window::create(const WindowDesc& desc) {
     attributes.event_mask = StructureNotifyMask | ExposureMask | FocusChangeMask | KeyPressMask |
                             KeyReleaseMask | ButtonPressMask | ButtonReleaseMask |
                             PointerMotionMask;
+    unsigned long attribute_mask = CWBackPixel | CWEventMask;
+    detail::configure_x11_window_attributes(backdrop_setup_, attributes, attribute_mask);
 
-    window_ = XCreateWindow(display_, root_, 0, 0, width, height, 0, CopyFromParent, InputOutput,
-                            CopyFromParent, CWBackPixel | CWEventMask, &attributes);
+    window_ =
+        XCreateWindow(display_, root_, 0, 0, width, height, 0, backdrop_setup_.depth, InputOutput,
+                      backdrop_setup_.visual != nullptr ? backdrop_setup_.visual : CopyFromParent,
+                      attribute_mask, &attributes);
     if (window_ == 0) {
+        detail::release_x11_backdrop(display_, backdrop_setup_);
         XCloseDisplay(display_);
         display_ = nullptr;
         return false;
     }
+
+    backdrop_ = detail::apply_x11_backdrop(display_, window_, desc.backdrop, desc.transparent,
+                                           backdrop_setup_.capabilities);
 
     wm_protocols_ = XInternAtom(display_, "WM_PROTOCOLS", False);
     wm_delete_window_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
@@ -220,6 +239,7 @@ X11Window::~X11Window() {
         XDestroyWindow(display_, window_);
         window_ = 0;
     }
+    detail::release_x11_backdrop(display_, backdrop_setup_);
     XFlush(display_);
     XCloseDisplay(display_);
     display_ = nullptr;
@@ -243,6 +263,9 @@ WindowMetrics X11Window::metrics() const {
     metrics.logical_height = logical_from_physical(metrics.physical_height, dpi_);
     metrics.dpi_scale = dpi_scale(dpi_);
     metrics.focused = focused_;
+    metrics.backdrop = backdrop_.material;
+    metrics.transparent = backdrop_.transparent;
+    metrics.backdrop_fallback = backdrop_.fallback;
     // X11 has no portable occlusion/minimize signal without a window manager (WM_STATE and
     // _NET_WM_STATE are WM-specific); this backend reports both as false.
     return metrics;

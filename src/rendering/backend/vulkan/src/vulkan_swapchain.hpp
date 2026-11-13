@@ -61,6 +61,14 @@ public:
     void resize(rhi::Extent2D extent) override;
     [[nodiscard]] rhi::RenderTarget* image_target(std::uint32_t index) override;
     [[nodiscard]] rhi::SwapchainFrameSync frame_sync() const override;
+    // The composite mode this generation was created with (glass-v1.md section 6): premultiplied
+    // when a per-pixel-alpha request met a surface that offers it, opaque otherwise.
+    [[nodiscard]] rhi::SwapchainAlphaMode alpha_mode() const override {
+        return alpha_mode_;
+    }
+    [[nodiscard]] bool supports_per_pixel_alpha() const override {
+        return per_pixel_alpha_supported_;
+    }
     // True when the surface/format this swapchain was created with supports a filtered blit into
     // its images (a transfer-destination usage plus BLIT_SRC/BLIT_DST on the format). Computed once
     // when the swapchain is created and kept across a recreation.
@@ -134,6 +142,10 @@ private:
     bool present_submitted_ = false;
     bool drain_pending_ = false;
     bool scaled_present_supported_ = false;
+    // Resolved at every swapchain creation: whether the surface offers per-pixel alpha at all, and
+    // the mode the current generation actually uses (glass-v1.md section 6).
+    bool per_pixel_alpha_supported_ = false;
+    rhi::SwapchainAlphaMode alpha_mode_ = rhi::SwapchainAlphaMode::Opaque;
     VulkanSwapchainStats stats_;
 };
 

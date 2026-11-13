@@ -246,6 +246,45 @@ int main() {
         return 20;
     }
 
+    // `window-backdrop` (glass-v1.md section 2/6): an ordinary non-inherited property with the
+    // initial `none`, whose five keywords are the whole grammar. An invalid value drops the
+    // declaration and is reported once, so an unparseable string never reaches the window request.
+    {
+        const auto* backdrop = registry.find("window-backdrop");
+        if (!expect(backdrop != nullptr && !backdrop->inherited && backdrop->initial == "none",
+                    "window-backdrop info") ||
+            !expect(registry.supported("window-backdrop"), "window-backdrop supported")) {
+            return 21;
+        }
+        for (const char* value : {"none", "auto", "mica", "acrylic", "blur"}) {
+            const PropertyExpansionResult expanded =
+                registry.expand(Declaration{"window-backdrop", value, false, 0});
+            if (!expect(expanded.diagnostics.empty() && decl_is(expanded, "window-backdrop", value),
+                        "window-backdrop keyword accepted")) {
+                return 22;
+            }
+        }
+        const PropertyExpansionResult invalid =
+            registry.expand(Declaration{"window-backdrop", "frosted", false, 4});
+        if (!expect(invalid.declarations.empty(), "invalid window-backdrop dropped") ||
+            !expect(invalid.diagnostics.size() == 1, "invalid window-backdrop diagnostic") ||
+            !expect(invalid.diagnostics[0].kind == StyleDiagnosticKind::UnsupportedValue,
+                    "invalid window-backdrop kind") ||
+            !expect(invalid.diagnostics[0].offset == 4, "invalid window-backdrop offset")) {
+            return 23;
+        }
+        const PropertyExpansionResult two_values =
+            registry.expand(Declaration{"window-backdrop", "mica acrylic", false, 0});
+        if (!expect(two_values.declarations.empty() && two_values.diagnostics.size() == 1,
+                    "two window-backdrop values rejected")) {
+            return 24;
+        }
+        if (!expect(value_is(registry.initial_style(), "window-backdrop", "none"),
+                    "initial window-backdrop")) {
+            return 25;
+        }
+    }
+
     std::cout << "property_registry: ok\n";
     return 0;
 }
