@@ -1,6 +1,6 @@
 # ADR-048: Precompiled stylesheets embedded as versioned blobs, with a defined cascade order
 
-- Status: Proposed
+- Status: Accepted (2026-11-13, owner)
 - Date: 2026-11-12
 - Resolves: the open question "build-time precompilation format: binary AST vs generated C++
   tables" in [`stylesheet-v1.md`](../docs/specs/stylesheet-v1.md) section 17.
