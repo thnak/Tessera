@@ -240,8 +240,9 @@ Reduced motion/accessibility:
 
 ## 10. Deferred/open questions
 
-- Scroll-driven animations and shared-element transitions (per-element `view-transition-name`;
-  window-root transitions are in `view-transitions-v1.md`).
+- Scroll-driven animations. Shared-element transitions and enter/exit (presence) are in
+  [`element-transitions-v1.md`](element-transitions-v1.md); window-root transitions are in
+  `view-transitions-v1.md`.
 - Exact per-platform overscroll profiles/curve tuning.
 - Pull-to-refresh and custom overscroll effects (library).
 - Animation of layout properties and additive composition.

@@ -67,6 +67,9 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     "layerCacheBudgetMb": 64,
     "drawListCacheBudgetMb": 32,
     "viewTransitionMaxMb": 64,
+    "viewTransitionMaxSharedElements": 8,
+    "presenceExitTimeoutMs": 1000,
+    "presenceMaxExiting": 32,
     "gpuFramesInFlight": 2,
     "animationInterpolation": true,
     "interpolationEpsilonPx": 0.0625,
@@ -115,6 +118,9 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `layerCacheBudgetMb` | integer | `64` | `0..4096` | Retained layer cache budget. `0` disables layers. |
 | `drawListCacheBudgetMb` | integer | `32` | `0..4096` | Draw-list cache budget. `0` disables caching. |
 | `viewTransitionMaxMb` | integer | `64` | `0..4096` | Memory limit in MiB for the two window-sized textures of a view transition ([`view-transitions-v1.md`](view-transitions-v1.md) section 9). A transition that would exceed it is skipped, not an error. `0` skips every transition. |
+| `viewTransitionMaxSharedElements` | integer | `8` | `0..64` | Shared elements (named groups) per view transition; `0` disables sharing ([`element-transitions-v1.md`](element-transitions-v1.md) section 9). |
+| `presenceExitTimeoutMs` | integer | `1000` | `0..10000` | Longest exit animation of an `AnimatePresence` node before forced removal; `0` removes exiting nodes at once. |
+| `presenceMaxExiting` | integer | `32` | `1..1024` | Exiting nodes kept per presence; the oldest is removed at once past the limit. |
 | `gpuFramesInFlight` | integer | `2` | `1..3` | CPU/GPU overlap; 1 = lowest memory, 3 = deepest pipeline. |
 | `animationInterpolation` | boolean | `true` | | Interpolate visual state at render rate. |
 | `interpolationEpsilonPx` | number | `0.0625` | `0.0..4.0` | Device pixels an interpolated transform must move before its painted box is damaged again ([`game-loop.md`](../design/game-loop.md) section 3.2). `0` disables the suppression. Never a wake source. |

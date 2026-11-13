@@ -57,7 +57,7 @@ In scope:
 - Reduced motion, low-power behavior, interruption, resource limits, determinism, tests.
 
 Out of scope in V1 and V1.1 (rejected with a diagnostic; no release is scheduled):
-- Per-element `view-transition-name` (shared-element transitions).
+- Per-element `view-transition-name` in this spec (it is specified in [`element-transitions-v1.md`](element-transitions-v1.md), which extends this one).
 - Transitions that cover only a subtree of the window.
 - Async update functions (a function that returns a promise).
 - Effects that need more than one shader pass or that read previous output.
@@ -376,7 +376,7 @@ no system animation settings are used in golden tests.
 
 ## 13. Open questions (no decision yet)
 
-- Shared-element transitions with `view-transition-name`.
+- Shared-element transitions with `view-transition-name`: specified in [`element-transitions-v1.md`](element-transitions-v1.md) (proposed).
 - Transitions limited to a subtree.
 - Async update functions and waiting for data before starting.
 - Multi-pass or feedback shader effects; `mix-blend-mode`, `filter`, general `clip-path`.

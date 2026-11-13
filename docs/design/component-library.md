@@ -43,6 +43,7 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
 - DataGrid builds on `VirtualGrid` (see [`virtualization-v1`](../specs/virtualization-v1.md)), selection, sorting, column resize/reorder, keyboard nav.
 - Forms use [`forms-and-validation-v1`](../specs/forms-and-validation-v1.md); overlays use
   [`overlays-and-layers-v1`](../specs/overlays-and-layers-v1.md).
+- AnimatePresence and SharedElement are specified in [`element-transitions-v1`](../specs/element-transitions-v1.md).
 - ViewTransition, SharedElement and Navigator transitions wrap
   [`view-transitions-v1`](../specs/view-transitions-v1.md) ([ADR-035](../../decisions/ADR-035-view-transitions.md)).
 - Charts are drawn with vector paths ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)); 3D and map components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.

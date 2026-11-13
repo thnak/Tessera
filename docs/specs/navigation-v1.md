@@ -94,6 +94,8 @@ RouteMatch match(std::string_view path);
 - Back during a transition cancels/reverses safely; no double commit.
 - Async route load can show a skeleton; no fake progress.
 - Transition completion is deterministic; tests use a fixed clock.
+- Screen enter/exit and shared elements between screens use the machinery of
+  [`element-transitions-v1.md`](element-transitions-v1.md).
 
 ## 8. State and restoration
 

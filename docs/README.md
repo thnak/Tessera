@@ -108,6 +108,8 @@ This page is the map and reading order for the framework.
   categories, scoring, reports, CI (continuous integration) thresholds
 - [`specs/custom-elements-v1.md`](specs/custom-elements-v1.md) — JSX-declared native elements,
   RHI (render hardware interface)/shader API, 3D composition, element input, reuse, headless tests
+- [`specs/element-transitions-v1.md`](specs/element-transitions-v1.md) — AnimatePresence and
+  SharedElement: presence state machine, named shared groups, budgets, tests (proposed, stage 2)
 - [`specs/safe-area-v1.md`](specs/safe-area-v1.md) — SafeArea: insets, cutouts, keyboard, hinge,
   edges/sources/minimum (proposed, stage 1)
 - [`specs/live-capsule-v1.md`](specs/live-capsule-v1.md) — LiveCapsule: placement around the
