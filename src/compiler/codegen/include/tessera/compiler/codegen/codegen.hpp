@@ -37,6 +37,13 @@ struct EmbeddedTheme {
     std::vector<std::uint8_t> bytes; // serialize_theme_asset() output
 };
 
+// How components are emitted. `Legacy` is the struct plus protected-region path (ADR-008, merged by
+// the merger); `GeneratedBase` is ADR-040: one header-only `<Component>.g.hpp` declaring
+// `<namespace>::gen::<Component>Base<Self>`, which a developer-owned `<Component> final : public
+// gen::<Component>Base<<Component>>` derives from. Every `bind::<id>` is a required member of the
+// developer class, checked by a static_assert in the base's `build()`.
+enum class EmitMode { Legacy, GeneratedBase };
+
 // One `TESSERA_CODEGEN_*` error. Lowering/codegen stops at the first unsupported construct; no
 // partial file set is returned.
 using CodegenErrors = std::vector<std::string>;
@@ -56,7 +63,8 @@ using CodegenResult = std::expected<std::vector<GeneratedFile>, CodegenErrors>;
 // new warning.
 [[nodiscard]] CodegenResult generate(const ir::IrModule& module,
                                      std::span<const StylesheetEmbed> embeds = {},
-                                     std::optional<EmbeddedTheme> theme = std::nullopt);
+                                     std::optional<EmbeddedTheme> theme = std::nullopt,
+                                     EmitMode mode = EmitMode::Legacy);
 
 // Non-fatal findings for `module`, one `TESSERA_CG_*: ...` string each, in a deterministic order.
 // Today: a stylesheet of the module that the caller supplied no blob for is

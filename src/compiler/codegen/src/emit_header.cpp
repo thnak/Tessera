@@ -3,6 +3,7 @@
 // Per-component header emission (struct fields and method declarations).
 
 #include "codegen_internal.hpp"
+#include "emit_base.hpp"
 #include "emit_controlled.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
@@ -42,7 +43,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
                            const std::vector<ControlledInput>& controlled_inputs,
                            const DynamicPlan& plan, const FormPlan& forms,
                            const std::vector<ComponentInstance>& instances, GeneratedFile& file,
-                           std::string& error) {
+                           std::string& error, bool base_mode) {
     const std::string ns = module.name;
     const std::vector<std::string> includes = component_includes(module, component);
     bool has_props = false;
@@ -284,7 +285,16 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         }
         writer.line("void " + method_name(handler.id) + "(" + *signature + ");");
     }
+    if (base_mode) {
+        // ADR-040: the bindings are dispatch thunks into the developer class, not declarations.
+        if (!emit_base_members(writer, component, bindings, error)) {
+            return false;
+        }
+    }
     for (const ir::Binding* binding : bindings) {
+        if (base_mode) {
+            break;
+        }
         if (binding->kind == ir::BindingKind::Event) {
             bool typed = false;
             std::string param_name;

@@ -4,6 +4,7 @@
 # IR only (AGENTS.md non-negotiable 4), so it links tessera_ir and nothing else from the project.
 add_library(tessera_codegen STATIC
     src/codegen.cpp
+    src/emit_base.cpp
     src/emit_component.cpp
     src/emit_composition.cpp
     src/emit_conditional.cpp
@@ -162,6 +163,101 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME codegen_generate COMMAND codegen_tests)
+
+    # ADR-040 generated base (issue #157): shape, golden and determinism of the CRTP header.
+    add_executable(codegen_base_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_tests.cpp)
+    target_link_libraries(codegen_base_tests PRIVATE tessera_codegen)
+    target_compile_definitions(codegen_base_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+    add_test(NAME codegen_base_generate COMMAND codegen_base_tests)
+
+
+    # The developer class derives from the generated base and the generated thunks reach it.
+    set(_tessera_codegen_base_golden_dir ${_tessera_codegen_golden_dir}/base)
+    set(_tessera_codegen_base_dev_dir ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base)
+    if (EXISTS ${_tessera_codegen_base_golden_dir}/Sample.g.hpp)
+        add_executable(codegen_base_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_runtime_tests.cpp
+            ${_tessera_codegen_base_dev_dir}/Sample.cpp)
+        target_include_directories(codegen_base_runtime_tests PRIVATE
+            ${_tessera_codegen_base_golden_dir} ${_tessera_codegen_base_dev_dir})
+        target_link_libraries(codegen_base_runtime_tests PRIVATE
+            tessera_scene tessera_text_edit tessera_animation)
+        target_compile_features(codegen_base_runtime_tests PRIVATE cxx_std_23)
+        add_test(NAME codegen_base_runtime COMMAND codegen_base_runtime_tests)
+
+        # Compile-fail checks: a developer class without a required member, or with the wrong
+        # signature, must fail to build with the contract message. The targets are excluded from
+        # `all`; each test builds one and expects the static_assert text in the output.
+        foreach (_variant IN ITEMS missing_member wrong_signature)
+            add_library(codegen_base_${_variant} OBJECT EXCLUDE_FROM_ALL
+                ${_tessera_codegen_base_dev_dir}/${_variant}/instantiate.cpp)
+            target_include_directories(codegen_base_${_variant} PRIVATE
+                ${_tessera_codegen_base_golden_dir}
+                ${_tessera_codegen_base_dev_dir}/${_variant})
+            target_link_libraries(codegen_base_${_variant} PRIVATE tessera_scene)
+            target_compile_features(codegen_base_${_variant} PRIVATE cxx_std_23)
+        endforeach ()
+        add_test(NAME codegen_base_missing_member_fails
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+                    --target codegen_base_missing_member)
+        set_tests_properties(codegen_base_missing_member_fails PROPERTIES
+            PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void sync")
+        # Every emitter family (lists, virtual collections, vector icons) compiled in base mode: a
+        # build-time tool writes the base headers of the shared fixtures, and one translation unit
+        # per module instantiates them against hand-written developer classes.
+        add_executable(codegen_base_emit_fixtures
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base_emit_fixtures.cpp)
+        target_link_libraries(codegen_base_emit_fixtures PRIVATE tessera_codegen tessera_lowering
+            tessera_jsx_frontend tessera_react_rules tessera_ir)
+        set(_tessera_codegen_base_fixture_dir ${CMAKE_CURRENT_BINARY_DIR}/codegen_base_fixtures)
+        set(_tessera_codegen_base_fixture_headers
+            ${_tessera_codegen_base_fixture_dir}/dynamic/Dynamic.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/dvirt/DynamicVirtual.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/vlist/VirtualDemo.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/vicon/VectorIcon.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/compose/Card.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/compose/CardPage.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/compose/Watcher.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/compose/WatchPage.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/demo/Field.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/demo/FieldPage.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/demo/Form.g.hpp
+            ${_tessera_codegen_base_fixture_dir}/demo/FormPage.g.hpp)
+        add_custom_command(
+            OUTPUT ${_tessera_codegen_base_fixture_headers}
+            COMMAND codegen_base_emit_fixtures ${_tessera_codegen_base_fixture_dir}
+            DEPENDS codegen_base_emit_fixtures
+            COMMENT "Generating ADR-040 base headers of the shared fixtures"
+            VERBATIM)
+        add_library(codegen_base_fixtures_compile OBJECT
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dynamic.cpp
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/dvirt.cpp
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vlist.cpp
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vicon.cpp
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/compose.cpp
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/forms.cpp
+            ${_tessera_codegen_base_fixture_headers})
+        target_include_directories(codegen_base_fixtures_compile PRIVATE
+            # Generated parents include their children's developer headers (`#include "Card.hpp"`).
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures
+            ${_tessera_codegen_base_fixture_dir}/dynamic
+            ${_tessera_codegen_base_fixture_dir}/dvirt
+            ${_tessera_codegen_base_fixture_dir}/vlist
+            ${_tessera_codegen_base_fixture_dir}/vicon
+            ${_tessera_codegen_base_fixture_dir}/compose
+            ${_tessera_codegen_base_fixture_dir}/demo)
+        target_link_libraries(codegen_base_fixtures_compile PRIVATE
+            tessera_scene tessera_virtual tessera_layout tessera_text_edit tessera_animation
+            tessera_forms)
+        target_compile_features(codegen_base_fixtures_compile PRIVATE cxx_std_23)
+        add_test(NAME codegen_base_wrong_signature_fails
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+                    --target codegen_base_wrong_signature)
+        set_tests_properties(codegen_base_wrong_signature_fails PROPERTIES
+            PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void on_click")
+    endif ()
 
     add_executable(codegen_layering_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)

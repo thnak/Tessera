@@ -13,6 +13,7 @@
 // two-space indent; LF only. Nothing depends on clang-format or the wall clock.
 
 #include "codegen_internal.hpp"
+#include "emit_base.hpp"
 #include "emit_controlled.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
@@ -84,7 +85,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
                  const std::vector<DynamicMetadata>& dynamic_metadata,
                  const std::vector<ControlledInput>& controlled_inputs, const DynamicPlan& plan,
                  const FormPlan& forms, const std::vector<ComponentInstance>& instances,
-                 GeneratedFile& file, std::string& error) {
+                 GeneratedFile& file, std::string& error, bool base_mode) {
     const bool has_interpolation = !dynamic_text.empty() || !dynamic_metadata.empty();
     bool has_props = false;
     bool has_callbacks = false;
@@ -248,6 +249,9 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         writer.line("");
     }
     for (const ir::Binding* binding : bindings) {
+        if (base_mode) {
+            break; // ADR-040: the developer class owns every binding body
+        }
         const bool event_parameter = binding->kind == ir::BindingKind::Event;
         std::string signature;
         std::string param_name;
@@ -288,7 +292,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
 } // namespace
 
 bool emit_component(const ir::Component& component, const ir::IrModule& module,
-                    std::vector<GeneratedFile>& files, std::string& error) {
+                    std::vector<GeneratedFile>& files, std::string& error, bool base_mode) {
     if (component.name.empty()) {
         return fail(error, "a component has no name");
     }
@@ -337,13 +341,22 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     }
     GeneratedFile header;
     if (!emit_component_header(component, module, owned, dynamic_text, dynamic_metadata,
-                               controlled_inputs, plan, forms, instances, header, error)) {
+                               controlled_inputs, plan, forms, instances, header, error,
+                               base_mode)) {
         return false;
     }
     GeneratedFile source;
     if (!emit_source(component, module, owned, dynamic_text, dynamic_metadata, controlled_inputs,
-                     plan, forms, instances, source, error)) {
+                     plan, forms, instances, source, error, base_mode)) {
         return false;
+    }
+    if (base_mode) {
+        GeneratedFile generated;
+        if (!emit_generated_base(component, owned, header.text, source.text, generated, error)) {
+            return false;
+        }
+        files.push_back(std::move(generated));
+        return true;
     }
     files.push_back(std::move(header));
     files.push_back(std::move(source));
