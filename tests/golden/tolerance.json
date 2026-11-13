@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "defaults": {
+    "tolerance": 0,
+    "max_mismatch": 0.0
+  },
+  "tests": {
+    "batched2d_cpu_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "batched2d_cpu_image_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "batched2d_cpu_text_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "batched2d_cpu_vector_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "batched2d_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "batched2d_overlay_golden": {
+      "tolerance": 1,
+      "max_mismatch": 0.001
+    },
+    "batched2d_shapes_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "batched2d_text_golden": {
+      "tolerance": 1,
+      "max_mismatch": 0.001
+    },
+    "codegen_vector_paint_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "cpu_wide_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
+    "harness_frame_capture": {
+      "tolerance": 1,
+      "max_mismatch": 0.001
+    }
+  }
+}

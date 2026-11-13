@@ -384,7 +384,10 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI 
       `include/tessera/rendering/rhi/version.hpp`, `RhiCapabilities` reported by null/Vulkan/WebGPU
       (`tests/gpu/rhi/rhi_null_tests.cpp`, `rhi_buffer_bounds_tests.cpp`), gate in
       `scripts/check_docs.py` (`scripts/tests/test_check_docs.py`).
-- [ ] #161: Backend-selectable GPU harness, `tolerance.json`, conformance summary — null/Vulkan pass.
+- [x] #161: Backend-selectable GPU harness, `tolerance.json`, conformance summary — null/Vulkan pass —
+      `tests/gpu/conformance/` (`gpu_conformance_null`, `gpu_conformance_vulkan`,
+      `gpu_conformance_summary`), `tests/golden/tolerance.json` resolved by
+      `scripts/golden_tolerances.py` in `tests/gpu/CMakeLists.txt`.
 - [x] #162: `docs/guides/writing-a-backend.md`, tiers table, backend build tools in dependencies.md —
       [`docs/guides/writing-a-backend.md`](docs/guides/writing-a-backend.md) (tiers, RHI members,
       version/`capabilities()`, shaders, build wiring, suite, checklist),
