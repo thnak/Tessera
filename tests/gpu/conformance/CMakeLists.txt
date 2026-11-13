@@ -40,6 +40,14 @@ add_test(NAME gpu_conformance_vulkan
 set_tests_properties(gpu_conformance_vulkan PROPERTIES
     SKIP_REGULAR_EXPRESSION "gpu_conformance: skipped")
 
+# WebGPU is selectable (issue #245) but this headless runner has no host-provided WGPUDevice, so
+# the entry skips with a named reason on every current lane; webgpu.yml is its build check.
+add_test(NAME gpu_conformance_webgpu
+    COMMAND gpu_conformance --backend webgpu
+        --summary "${CMAKE_CURRENT_BINARY_DIR}/conformance_webgpu.json")
+set_tests_properties(gpu_conformance_webgpu PROPERTIES
+    SKIP_REGULAR_EXPRESSION "gpu_conformance: skipped")
+
 # Summary determinism and shape: two null runs must serialize byte-identically.
 add_executable(conformance_summary_tests
     conformance_summary_tests.cpp)

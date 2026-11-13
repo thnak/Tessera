@@ -68,6 +68,24 @@ OpenedBackend open_vulkan() {
     return opened;
 }
 
+OpenedBackend open_webgpu() {
+    OpenedBackend opened;
+    opened.name = "webgpu";
+    // The WebGPU device wraps a host-provided WGPUDevice/WGPUQueue (browser canvas or a native
+    // Dawn/wgpu instance). This headless conformance runner owns no such host, so the arm is
+    // selectable but reports a fixed reason instead of pretending to have a device. When a host
+    // integration lands (webgpu.yml), it passes the handles through and this branch grows a real
+    // creation path.
+#if defined(TESSERA_TEST_HAS_WEBGPU)
+    opened.unavailable_reason =
+        "the WebGPU backend needs a host-provided WGPUDevice; this runner has no browser or native "
+        "host";
+#else
+    opened.unavailable_reason = "the WebGPU backend is not part of this build";
+#endif
+    return opened;
+}
+
 } // namespace
 
 std::string_view backend_name(BackendChoice choice) {
@@ -76,6 +94,8 @@ std::string_view backend_name(BackendChoice choice) {
         return "null";
     case BackendChoice::Vulkan:
         return "vulkan";
+    case BackendChoice::WebGpu:
+        return "webgpu";
     case BackendChoice::Unknown:
         break;
     }
@@ -88,6 +108,9 @@ BackendChoice parse_backend(std::string_view name) {
     }
     if (name == "vulkan") {
         return BackendChoice::Vulkan;
+    }
+    if (name == "webgpu") {
+        return BackendChoice::WebGpu;
     }
     return BackendChoice::Unknown;
 }
@@ -122,6 +145,8 @@ OpenedBackend open_backend(BackendChoice choice) {
         return open_null();
     case BackendChoice::Vulkan:
         return open_vulkan();
+    case BackendChoice::WebGpu:
+        return open_webgpu();
     case BackendChoice::Unknown:
         break;
     }

@@ -162,6 +162,9 @@ function(tessera_golden_tolerances name tolerance_var max_mismatch_var)
     set(${max_mismatch_var} "${max_mismatch}" PARENT_SCOPE)
 endfunction()
 
+# Cross-backend image parity harness (issue #245); the directory owns its targets and ctest entries.
+add_subdirectory(backends)
+
 if (TARGET batched2d_poc)
     tessera_golden_tolerances(batched2d_cpu_golden
         TESSERA_TOL_CPU_GOLDEN TESSERA_MAX_CPU_GOLDEN)

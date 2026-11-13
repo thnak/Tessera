@@ -15,7 +15,7 @@
 
 namespace tessera::tests::gpu::conformance {
 
-enum class BackendChoice { Null, Vulkan, Unknown };
+enum class BackendChoice { Null, Vulkan, WebGpu, Unknown };
 
 [[nodiscard]] std::string_view backend_name(BackendChoice choice);
 [[nodiscard]] BackendChoice parse_backend(std::string_view name);
