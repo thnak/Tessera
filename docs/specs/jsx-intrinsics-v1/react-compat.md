@@ -92,7 +92,7 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | `parseInt(e.target.value)`, `Number(...)`, `.trim()`, any method call on a string | Not supported as written; `parseIntOr(s, fallback)` and `parseFloatOr(s, fallback)` are decided additions (Q26) | The allowlist has no string functions today ([`ir-v1.md`](../ir-v1.md) section 4.2); the addition is pending in that spec, the evaluator and codegen |
 | `key` on list roots | Supported, string or int | `key={index}` is accepted |
 | `key` outside lists to force a remount | Not supported | Use `resetKey` of `ErrorBoundary`, or a state change |
-| `ref={useRef<HTMLInputElement>(null)}` | Supported (alias type names) | Members of a ref are not defined in V1 [Q6]; `ref.current.focus()` is not expressible |
+| `ref={useRef<HTMLInputElement>(null)}` | Supported (alias type names) | A ref has no `.current`: `r.focus()` and `r.blur()` are the only members, written as handler statements ([common-and-events.md](common-and-events.md) section 4); other members stay undefined [Q6] |
 | Callback refs, `forwardRef`, `useImperativeHandle` | Not supported | Function values (subset 9) |
 | `<>...</>` as a child | Supported (spliced) | |
 | `<>...</>` as the returned root, `<Fragment key>` in a list | Not supported [Q18] | A component lowers to one root node; wrap in `View` |

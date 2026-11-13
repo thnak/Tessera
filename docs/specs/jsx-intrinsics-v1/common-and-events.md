@@ -143,4 +143,10 @@ Semantics are required, because inference is allowed only for text and labels
 anywhere in its subtree) is `TESSERA_JSX_FOCUSABLE_NO_NAME`. Both are errors. The warning
 `TESSERA_JSX_A11Y_NO_ROLE` for a node that only has an event handler is unchanged.
 
+`r.focus()` and `r.blur()` (`r` from `useRef`, no arguments) are handler statements next to the
+setter calls. They lower to the IR `focus`/`blur` actions ([`ir-v1.md`](../ir-v1.md) section 2.1) and
+the generated component acts through the `FocusManager` its host passes to `set_focus_manager`
+(`WindowHost::focus_manager()`); `focus` reaches a `tabIndex={-1}` node, `blur` clears focus only if
+the ref holds it. The window host applies `autoFocus` once after the first frame.
+
 Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`).

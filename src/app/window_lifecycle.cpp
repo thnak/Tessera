@@ -98,6 +98,18 @@ void WindowHost::Impl::pump_input() {
     }
 }
 
+void WindowHost::Impl::apply_initial_auto_focus() {
+    if (auto_focus_applied) {
+        return;
+    }
+    auto_focus_applied = true;
+    ui::FocusManager& focus = pump.router().focus_manager();
+    focus.set_root(root);
+    if (focus.apply_auto_focus(root)) {
+        loop->mark_render_dirty();
+    }
+}
+
 void WindowHost::Impl::update_pause_state() {
     const bool next = lifecycle_paused_ || metrics_paused_;
     if (next == paused_) {
@@ -211,6 +223,7 @@ bool WindowHost::Impl::pump_once() {
     const double dt = now - last_tick_seconds_;
     last_tick_seconds_ = now;
     const HostFrame frame = host->begin_frame(dt, tick.alpha);
+    apply_initial_auto_focus();
     if (!frame.frame_due || frame.render.redraw_plan.scissors.empty()) {
         // A wake that changed nothing: clear the dirt this tick collected so it cannot stay latched
         // into a phantom render request, and present nothing.

@@ -113,7 +113,7 @@ it is an IR record of its own, referenced from `events`:
 - `id` is `handler::<N>`, numbered from 1 in source order within the component, and unique in it.
 - `actions` run in order. `set` writes a state variable through its setter; `animSet` is an
   animated-value `.set(...)`, with `animate` defaulting to `true`. Values are pure Expressions that may
-  read `params`.
+  read `params`. `focus`/`blur` (#226, `r.focus()`/`r.blur()`) take a `ref::` `target`, no `value`, and are no-ops until the ref is assigned: `blur` clears focus only if the node holds it.
 - An `animSet` may carry literal timing, omitted when absent (default 200 ms `ease-out`): `durationMs`
   (0..60000), `easing` (a CSS keyword or `cubic-bezier(x1, y1, x2, y2)` with x in [0, 1]) or, exclusive with both and with `animate: false`, `spring` `{stiffness, damping, mass}` in (0, 1e5], [0, 1e4], (0, 1000]; invalid timing is `TESSERA_IR_ANIMATION`.
   `onComplete` (additive) is the `handler::N` of a parameterless handler of the component, run once when the value reaches that set's target (a snap completes at once); unknown: `TESSERA_IR_UNRESOLVED`, with parameters or on a `set`: `TESSERA_IR_ANIMATION`.

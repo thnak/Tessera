@@ -291,6 +291,17 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
                       const LocalNames& locals, const std::vector<Action>& actions,
                       const SourceSpan& where) {
     for (const auto& action : actions) {
+        if (action.kind == ActionKind::Focus || action.kind == ActionKind::Blur) {
+            if (!starts_with(action.target, "ref::") || scope.ids.count(action.target) == 0) {
+                context.report("TESSERA_IR_UNRESOLVED",
+                               "action target `" + action.target + "` is not a ref", where);
+            }
+            if (action.value) {
+                context.report("TESSERA_IR_MALFORMED",
+                               "a `focus` or `blur` action carries no value", where);
+            }
+            continue;
+        }
         const char* prefix = action.kind == ActionKind::Set ? "state::" : "anim::";
         if (!starts_with(action.target, prefix) || scope.ids.count(action.target) == 0) {
             context.report(

@@ -172,6 +172,85 @@ void test_codegen_marks_the_node_and_binds_events() {
     }
 }
 
+// --- `ref.focus()` / `ref.blur()` -------------------------------------------------------------
+
+std::string ref_page(std::string_view body) {
+    return "import { useRef, useState } from \"tessera\";\n"
+           "function Toggle() {\n"
+           "  const target = useRef<View>(null);\n"
+           "  const [count, setCount] = useState<int>(0);\n"
+           "  const jump = () => { " +
+           std::string(body) +
+           " };\n"
+           "  return (\n"
+           "    <View>\n"
+           "      <View ref={target} role=\"button\" tabIndex={-1} aria-label=\"Target\" />\n"
+           "      <View role=\"button\" tabIndex={0} aria-label=\"Jump\" onClick={jump} />\n"
+           "    </View>\n"
+           "  );\n"
+           "}\n";
+}
+
+void test_ref_focus_and_blur_lower_to_actions() {
+    std::unique_ptr<FileFixture> keep;
+    const auto result = lower_page(ref_page("target.focus(); target.blur();"), keep);
+    check(result.has_value(), "ref.focus() and ref.blur() lower: " + first_message(result));
+    if (!result) {
+        return;
+    }
+    const ir::Component* component = find_component(*result, "Toggle");
+    check(component != nullptr && component->handlers.size() == 1, "one inline handler");
+    if (component == nullptr || component->handlers.size() != 1) {
+        return;
+    }
+    const auto& actions = component->handlers[0].actions;
+    check(actions.size() == 2, "two actions");
+    if (actions.size() != 2) {
+        return;
+    }
+    check(actions[0].kind == ir::ActionKind::Focus, "focus() is a Focus action");
+    check(actions[1].kind == ir::ActionKind::Blur, "blur() is a Blur action");
+    check_eq(actions[0].target, "ref::target", "the target is the ref id");
+    check(actions[0].value == nullptr, "a focus action carries no value");
+}
+
+// A name that is not a ref never reaches lowering: the analyzer's handler-body rule rejects it
+// (`count.focus()` is not a setter call). Lowering itself rejects arguments.
+void test_ref_focus_rejects_arguments() {
+    std::unique_ptr<FileFixture> keep;
+    check(!lower_page(ref_page("target.focus(1);"), keep).has_value(),
+          "focus() takes no arguments");
+}
+
+void test_ref_focus_codegen_uses_the_focus_manager() {
+    std::unique_ptr<FileFixture> keep;
+    auto lowered = lower_page(ref_page("target.focus(); target.blur();"), keep);
+    check(lowered.has_value(), "the component lowers");
+    if (!lowered) {
+        return;
+    }
+    ir::IrModule module;
+    module.name = lowered->name;
+    module.components = std::move(lowered->components);
+    module.bindings = std::move(lowered->bindings);
+    module.stylesheets = std::move(lowered->stylesheets);
+    const auto generated = codegen::generate(module);
+    check(generated.has_value(), "codegen accepts ref.focus()");
+    if (!generated) {
+        return;
+    }
+    std::string source;
+    for (const codegen::GeneratedFile& file : *generated) {
+        source += file.text;
+    }
+    for (const char* line :
+         {"void set_focus_manager(tessera::ui::FocusManager* manager)",
+          "focus_manager_->request_focus(ref_target_);", "focus_manager_->clear_focus();"}) {
+        check(source.find(line) != std::string::npos,
+              std::string("the generated code contains ") + line);
+    }
+}
+
 // --- Runtime, headless -----------------------------------------------------------------------
 
 using tessera::ui::Event;
@@ -274,9 +353,41 @@ void test_auto_focus_picks_the_first_eligible_view() {
     check(!manager.apply_auto_focus(root), "autoFocus does not steal focus once held");
 }
 
+// The statements the generated handler runs for `target.focus()` / `target.blur()`, verbatim from
+// emit_actions (checked textually above); `ref_target_` is the node build() assigned.
+void test_ref_focus_moves_and_clears_focus() {
+    Node root(1);
+    root.set_bounds({0, 0, 200, 200});
+    KeyLog target_log;
+    KeyLog other_log;
+    Node& other = add_focusable(root, 2, 0, other_log);
+    Node* ref_target_ = &add_focusable(root, 3, -1, target_log);
+    FocusManager manager;
+    manager.set_root(root);
+    FocusManager* focus_manager_ = &manager;
+
+    check(manager.request_focus(&other), "focus starts on another View");
+    if (focus_manager_ != nullptr && ref_target_ != nullptr) {
+        focus_manager_->request_focus(ref_target_);
+    }
+    check(manager.focused() == ref_target_, "ref.focus() moves focus to a tabIndex -1 View");
+    check(target_log.focuses == 1 && other_log.blurs == 1, "focus and blur events fire");
+    if (focus_manager_ != nullptr && ref_target_ != nullptr) {
+        if (focus_manager_->focused() == ref_target_) {
+            focus_manager_->clear_focus();
+        }
+    }
+    check(manager.focused() == nullptr, "ref.blur() clears focus held by the ref");
+    check(target_log.blurs == 1, "onBlur fires on the ref");
+}
+
 } // namespace
 
 int main() {
+    test_ref_focus_and_blur_lower_to_actions();
+    test_ref_focus_rejects_arguments();
+    test_ref_focus_codegen_uses_the_focus_manager();
+    test_ref_focus_moves_and_clears_focus();
     test_props_and_events_lower_to_ir();
     test_minus_one_and_text_lower();
     test_bad_values_are_rejected();

@@ -117,8 +117,9 @@ port, but writing one from `"tessera"` is also accepted.
 | `HTMLImageElement` | `Image` | `HTMLTextAreaElement` | `TextArea` |
 | `HTMLUListElement`, `HTMLOListElement`, `HTMLLIElement` | `View` | | |
 
-The members of a ref are not defined in V1 ([Q6]), so `ref.current.focus()` written in a handler is
-rejected by subset section 9 regardless of the name.
+A ref has no `.current` in V1: `r.focus()` and `r.blur()` are the only members and are handler
+statements (issue #226, [common-and-events.md](common-and-events.md) section 4). `r.current.focus()`
+and every other member are rejected by subset section 9 ([Q6]).
 
 ## 5. Tags with no mapping
 
