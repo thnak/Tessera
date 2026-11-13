@@ -9,6 +9,7 @@
 
 #include "tessera/ui/accessibility/uia_host.hpp"
 
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <expected>
@@ -70,7 +71,12 @@ public:
     void pump() override {
         std::unique_lock lock(mutex_);
         ++pumps_;
+        if (block_pump_) {
+            parked_ = true;
+            cv_.notify_all();
+        }
         cv_.wait(lock, [this] { return !block_pump_; });
+        parked_ = false;
     }
 
     [[nodiscard]] std::string_view name() const override {
@@ -84,6 +90,14 @@ public:
     void block_pump() {
         std::lock_guard lock(mutex_);
         block_pump_ = true;
+    }
+
+    // The worker only honors the gate inside pump(); while it waits for a job it would run a posted
+    // flush straight away. A test that needs "pending" to be deterministic must therefore wait
+    // until the worker is really parked, after a barrier that forces one trip around its loop.
+    [[nodiscard]] bool wait_parked() {
+        std::unique_lock lock(mutex_);
+        return cv_.wait_for(lock, std::chrono::seconds(5), [this] { return parked_; });
     }
 
     void open_pump() {
@@ -101,6 +115,7 @@ private:
     std::condition_variable cv_;
     std::size_t pumps_ = 0;
     bool block_pump_ = false;
+    bool parked_ = false;
 };
 
 class FakePlatform final : public tessera::ui::a11y::UiaPlatform {

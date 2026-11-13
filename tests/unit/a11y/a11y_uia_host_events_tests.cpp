@@ -62,13 +62,25 @@ void build_button_tree(A11ySnapshot& out, std::string_view button_name) {
     out.nodes.assign({root, button});
 }
 
+// Closes the gate, then forces one trip around the worker loop (the barrier job) so the worker is
+// provably inside its message pump before the test posts anything. Closing the gate alone is racy:
+// a worker already waiting for a job would run the next flush before it ever reached the pump.
+bool park_worker(HostHarness& harness) {
+    harness.apartment->block_pump();
+    return expect(harness.host->bridge().step().has_value(), "the barrier ran") &&
+           expect(harness.apartment->wait_parked(), "the worker parked in its pump");
+}
+
 // Starts the host with the worker parked in its message pump, so a posted flush job cannot run
 // until the test opens the gate. That is what makes "pending" assertions deterministic.
 bool start_parked(HostHarness& harness) {
     harness.apartment->block_pump();
-    return expect(harness.host->start().has_value(), "start succeeds") &&
-           expect(harness.host->bridge().step().has_value(), "the start hook ran") &&
-           expect(harness.host->ready(), "the root is published");
+    if (!expect(harness.host->start().has_value(), "start succeeds") ||
+        !expect(harness.host->bridge().step().has_value(), "the start hook ran") ||
+        !expect(harness.apartment->wait_parked(), "the worker parked in its pump")) {
+        return false;
+    }
+    return expect(harness.host->ready(), "the root is published");
 }
 
 bool tick_raising(HostHarness& harness, std::string_view name, UiaHostTickStats& stats) {
@@ -179,7 +191,9 @@ bool property_change_raises_a_property_event() {
     if (!expect(harness->host->bridge().step().has_value(), "first flush")) {
         return false;
     }
-    harness->apartment->block_pump();
+    if (!park_worker(*harness)) {
+        return false;
+    }
     UiaHostTickStats second;
     if (!tick_raising(*harness, "Store", second)) {
         harness->apartment->open_pump();
@@ -239,7 +253,9 @@ bool focus_move_raises_a_focus_event() {
         !expect(harness->host->bridge().step().has_value(), "first flush")) {
         return false;
     }
-    harness->apartment->block_pump();
+    if (!park_worker(*harness)) {
+        return false;
+    }
     harness->host->mark_dirty();
     const UiaHostTickStats second = harness->host->tick(build(2));
     harness->apartment->open_pump();
