@@ -216,7 +216,7 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tests/gpu/app_window_present_cap_tests.cpp`), and its divisor base is a real HAL query
       (`hal::Window::display_refresh_hz()`, `src/hal/window/refresh_rate.cpp`: Win32 monitor
       mode, X11 RandR, unknown elsewhere). Steps 1 and 4 are the ladder's two ends
-      ([#147](https://github.com/thnak/Tessera/issues/147), decisions in `performance.md` ง6.1):
+      ([#147](https://github.com/thnak/Tessera/issues/147), decisions in `performance.md` ยง6.1):
       position 1 caps blurred box-shadow layers (`PaintContext::reduce_effects`), the last
       position freezes paint-only animations (`AnimationRuntime::set_suspend_non_essential`). The frame-time
       signal comes from GPU timestamps when the device reports usable ones and from the CPU

@@ -220,7 +220,7 @@ never re-implement a threshold, a step or a cooldown.
 | Downgrade run | 4 consecutive missed budgets | one slow frame is noise; four at 60 Hz is ~66 ms of sustained overrun |
 | Upgrade run | 12 consecutive met budgets | recovery is deliberately slower than the downgrade, so a borderline machine does not ping-pong |
 | Cooldown | 8 observed frames after a change | no two changes within it: at most one step per ~133 ms at 60 Hz |
-| Ladder | 6 positions: 1 reduces optional effects, 2-5 walk `renderScale` to `minRenderScale` (4 evenly spaced steps) and the present divisor, 6 pauses non-essential animations | ADR-019 ง8 order; bounded, no fractional creep; `AdaptiveQualitySample::quality_step` is the position |
+| Ladder | 6 positions: 1 reduces optional effects, 2-5 walk `renderScale` to `minRenderScale` (4 evenly spaced steps) and the present divisor, 6 pauses non-essential animations | ADR-019 ยง8 order; bounded, no fractional creep; `AdaptiveQualitySample::quality_step` is the position |
 | Present-cap floor | 10 Hz | below it an interactive UI stops being interactive; step 4 is the right lever there |
 
 Each change moves exactly one ladder step, clamped to `[minRenderScale, renderScale]`;
