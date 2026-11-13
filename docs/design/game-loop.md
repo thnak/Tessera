@@ -195,10 +195,9 @@ or render_dirty
 or active_animations
 or pending_damage
 or explicit_frame_request
-or alpha changed enough to matter for interpolation
 ```
 
-The threshold for "alpha changed enough" is not specified.
+Interpolation alpha is **not** a wake source (§3.1.1): it never wakes an idle loop. Decision for [#148](https://github.com/thnak/Tessera/issues/148): the alpha threshold is a duplicate-present suppression only. A frame that is already woken by one of the sources above may skip presenting when `alpha` is within an epsilon of 0 or 1, because the interpolated image then equals a tick image. The epsilon is a sub-pixel distance of the interpolated geometry, not an alpha fraction (the same alpha is a different pixel distance at 30 Hz and 120 Hz ticks). The pacer's present cap owns the present deadline; the threshold only decides whether a due frame has changed. Not yet implemented.
 
 A wake source must be edge-triggered; the loop must not poll devices or the filesystem.
 

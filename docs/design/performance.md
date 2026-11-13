@@ -205,6 +205,8 @@ downgrade now changes pixels and the present rate: the window renders the scene 
 resamples it up on present, and lowers the pacer's cap to the next refresh divisor. Step 1 (effects)
 and step 4 (pause non-essential animations) are not implemented; step 5 (report) is.
 
+**Decisions for steps 1 and 4 ([#147](https://github.com/thnak/Tessera/issues/147)), not yet implemented.** An *optional effect* is a member of a fixed paint-kind allowlist (drop shadows, blurs, gradient oversampling); the allowlist is runtime-owned, adds no CSS surface and does not reuse `prefers-reduced-motion`, which keeps its accessibility meaning. A *non-essential animation* is one that animates only paint-only properties; `transform` and `opacity` keep running. Pausing freezes the animation at its current value, resumes from there when quality recovers, does not keep the loop awake while frozen, and is counted in a `FrameDiagnostics` counter. Each step fires only after the steps above it, and recovery restores it.
+
 `src/runtime/adaptive_quality.hpp` is a pure state machine fed one frame observation at a time
 (frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`,
 `frameBudgetMs`, `maxFps` and display-refresh fields). It is deterministic — no clock, no RNG, no
