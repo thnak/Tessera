@@ -29,6 +29,8 @@ using tessera::runtime::FramePacerConfig;
 using tessera::runtime::kAdaptivePresentCapFloorHz;
 using tessera::runtime::kAdaptiveQualityCooldownFrames;
 using tessera::runtime::kAdaptiveQualityDowngradeMisses;
+using tessera::runtime::kAdaptiveQualityEffectSteps;
+using tessera::runtime::kAdaptiveQualityLadderSteps;
 using tessera::runtime::kAdaptiveQualitySteps;
 using tessera::runtime::kAdaptiveQualityUpgradeHits;
 
@@ -334,15 +336,27 @@ bool downgrade_run_produces_the_documented_cap_sequence() {
     ok = expect(controller.decision().present_cap_hz == 0.0,
                 "step 0 keeps the configured cap (uncapped)") &&
          ok;
+    // Position 1 is the effects stage (ADR-019 section 8): it leaves the cap where it is.
+    const AdaptiveQualitySample effects = downgrade_once(controller);
+    ok = expect(effects.effects_reduced && effects.present_cap_hz == 0.0,
+                "the effects stage does not move the cap") &&
+         ok;
     const double expected[kAdaptiveQualitySteps] = {30.0, 20.0, 15.0, 12.0};
     for (std::uint32_t step = 1; step <= kAdaptiveQualitySteps; ++step) {
         const AdaptiveQualitySample sample = downgrade_once(controller);
         ok = expect(sample.changed && sample.downgrade, "each run downgrades one step") && ok;
-        ok = expect(sample.quality_step == step, "the ladder index advances by one") && ok;
+        ok = expect(sample.quality_step == step + kAdaptiveQualityEffectSteps,
+                    "the ladder index advances by one") &&
+             ok;
         ok = expect(sample.present_cap_hz == expected[step - 1],
                     "the cap is the next refresh divisor below the previous rate") &&
              ok;
     }
+    // The last position pauses animations and leaves the cap at its floor.
+    const AdaptiveQualitySample paused = downgrade_once(controller);
+    ok = expect(paused.animations_paused && paused.present_cap_hz == 12.0,
+                "the pause stage keeps the last divisor") &&
+         ok;
     // A sustained overload at the last step changes nothing more: the cap is at the floor of the
     // ladder, not below it.
     const AdaptiveQualitySample floor_sample = controller.observe(kMissMs);
@@ -356,6 +370,7 @@ bool upgrade_restores_the_previous_divisor() {
     // Walk to step 3 (15 Hz) and remember the caps on the way down.
     double caps[kAdaptiveQualitySteps + 1] = {};
     caps[0] = controller.decision().present_cap_hz;
+    (void)downgrade_once(controller); // the effects stage precedes the first scale step
     for (std::uint32_t step = 1; step <= 3; ++step) {
         caps[step] = downgrade_once(controller).present_cap_hz;
     }
@@ -372,13 +387,15 @@ bool upgrade_restores_the_previous_divisor() {
         sample = controller.observe(kMetMs);
     }
     ok = expect(sample.changed && !sample.downgrade, "the met run upgrades one step") && ok;
-    ok = expect(sample.quality_step == 2, "the upgrade moves one ladder step up") && ok;
+    ok = expect(sample.quality_step == 2 + kAdaptiveQualityEffectSteps,
+                "the upgrade moves one ladder step up") &&
+         ok;
     ok =
         expect(sample.present_cap_hz == caps[2], "the upgrade restores the previous divisor") && ok;
     ok = expect(sample.present_cap_hz == 20.0, "step 2's cap is refresh/3") && ok;
 
     // All the way back to step 0: the configured cap again.
-    for (std::uint32_t step = 2; step > 0; --step) {
+    for (std::uint32_t step = 2 + kAdaptiveQualityEffectSteps; step > 0; --step) {
         for (std::uint32_t frame = 0; frame < kAdaptiveQualityCooldownFrames; ++frame) {
             (void)controller.observe(kMetMs);
         }
@@ -400,6 +417,7 @@ bool the_configured_cap_is_a_hard_ceiling() {
     bool ok = true;
     ok = expect(controller.decision().present_cap_hz == 60.0, "step 0 is the configured maxFps") &&
          ok;
+    (void)downgrade_once(controller); // the effects stage leaves the cap at maxFps
     const AdaptiveQualitySample first = downgrade_once(controller);
     ok = expect(first.present_cap_hz == 48.0,
                 "the adaptive cap only lowers the rate below maxFps") &&

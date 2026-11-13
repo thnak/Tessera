@@ -41,6 +41,8 @@ using tessera::runtime::AdaptiveQualitySample;
 using tessera::runtime::FrameDiagnostics;
 using tessera::runtime::kAdaptiveQualityCooldownFrames;
 using tessera::runtime::kAdaptiveQualityDowngradeMisses;
+using tessera::runtime::kAdaptiveQualityEffectSteps;
+using tessera::runtime::kAdaptiveQualityLadderSteps;
 using tessera::runtime::kAdaptiveQualitySteps;
 using tessera::runtime::kAdaptiveQualityUpgradeHits;
 using tessera::runtime::ManualClock;
@@ -103,7 +105,11 @@ bool miss_run_downgrades_at_the_threshold() {
     ok = expect(change.changed, "the threshold frame downgrades") && ok;
     ok = expect(change.downgrade, "a downgrade is reported as one") && ok;
     ok = expect(change.quality_step == 1, "a downgrade moves exactly one ladder step") && ok;
-    ok = expect(change.render_scale == 0.875f, "step 1 is the documented ladder value") && ok;
+    // Position 1 is the effects stage: it reduces optional effects and leaves the scale alone.
+    ok = expect(change.effects_reduced && !change.animations_paused,
+                "the first ladder position reduces optional effects only") &&
+         ok;
+    ok = expect(change.render_scale == 1.0f, "the effects stage does not touch renderScale") && ok;
     ok = expect(controller.cooldown_remaining() == kAdaptiveQualityCooldownFrames,
                 "a change arms the cooldown") &&
          ok;
@@ -173,11 +179,14 @@ bool misses_stop_at_the_floor() {
                    sample.render_scale <= config.render_scale;
     }
     bool ok = expect(in_range, "every decision stays inside [minRenderScale, renderScale]");
-    ok = expect(changes == kAdaptiveQualitySteps,
+    ok = expect(changes == kAdaptiveQualityLadderSteps,
                 "a sustained overload spends the whole ladder and then stops changing") &&
          ok;
-    ok = expect(controller.decision().quality_step == kAdaptiveQualitySteps,
+    ok = expect(controller.decision().quality_step == kAdaptiveQualityLadderSteps,
                 "the ladder index stops at the last step") &&
+         ok;
+    ok = expect(controller.decision().effects_reduced && controller.decision().animations_paused,
+                "the last position keeps effects reduced and pauses animations") &&
          ok;
     ok = expect(controller.decision().render_scale == config.min_render_scale,
                 "the last step is exactly minRenderScale, not an interpolation of it") &&
@@ -359,8 +368,16 @@ bool the_decision_carries_the_present_cap() {
     }
     const AdaptiveQualitySample downgraded = controller.decision();
     ok = expect(downgraded.downgrade && downgraded.quality_step == 1 &&
-                    downgraded.present_cap_hz == 30.0,
-                "the cap moves to refresh/2 with the scale") &&
+                    downgraded.present_cap_hz == 0.0,
+                "the effects stage leaves the cap alone") &&
+         ok;
+    for (std::uint32_t frame = 0;
+         frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityDowngradeMisses; ++frame) {
+        (void)controller.observe(kMissMs);
+    }
+    ok = expect(controller.decision().quality_step == 2 &&
+                    controller.decision().present_cap_hz == 30.0,
+                "the cap moves to refresh/2 with the first scale step") &&
          ok;
     // The rule is a pure function of the step: a consumer can ask without driving the machine.
     ok = expect(controller.present_cap_for_step(0) == 0.0, "step 0 asks for the configured cap") &&
@@ -430,8 +447,13 @@ bool host_observes_frames_and_records_the_change() {
     run_frame(kMissMs);
     ok = expect(host.adaptive_quality().changed, "the threshold frame is the one the host reports");
     ok = expect(host.adaptive_quality().quality_step == 1 &&
-                    host.adaptive_quality().render_scale == 0.875f,
-                "the host's decision is the controller's ladder step") &&
+                    host.adaptive_quality().effects_reduced &&
+                    host.adaptive_quality().render_scale == 1.0f,
+                "the host's decision is the controller's ladder position") &&
+         ok;
+    ok = expect(host.frame_diagnostics().adaptive_effect_changes() == 1 &&
+                    host.frame_diagnostics().adaptive_animation_pause_changes() == 0,
+                "the effects flip is counted, the pause flag has not moved") &&
          ok;
     ok = expect(host.frame_diagnostics().adaptive_quality_changes() == 1,
                 "the change is what the frame diagnostics count") &&
@@ -464,7 +486,7 @@ bool host_observes_frames_and_records_the_change() {
     ok = expect(host.frame_diagnostics().adaptive_quality_changes() == 1,
                 "a cooldown observation does not increment the change count") &&
          ok;
-    ok = expect(host.frame_diagnostics().adaptive_quality().render_scale == 0.875f,
+    ok = expect(host.frame_diagnostics().adaptive_quality().effects_reduced,
                 "diagnostics keep the latest decision in force") &&
          ok;
 
@@ -472,6 +494,66 @@ bool host_observes_frames_and_records_the_change() {
     host.observe_frame_time_ms(0.0);
     ok = expect(host.frame_diagnostics().adaptive_quality_changes() == 1,
                 "a missing frame time is not an observation") &&
+         ok;
+    return ok;
+}
+
+// --- 8. The ladder ends (ADR-019 section 8, #147) -----------------------------------------------
+
+bool ladder_order_is_effects_scale_then_pause() {
+    AdaptiveQualityController controller(base_config());
+    bool ok = true;
+    AdaptiveQualitySample previous = controller.decision();
+    for (std::uint32_t position = 1; position <= kAdaptiveQualityLadderSteps; ++position) {
+        for (std::uint32_t frame = 0;
+             frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityDowngradeMisses; ++frame) {
+            (void)controller.observe(kMissMs);
+        }
+        const AdaptiveQualitySample now = controller.decision();
+        ok = expect(now.quality_step == position, "one ladder position per downgrade run") && ok;
+        ok = expect(now.effects_reduced, "effects stay reduced at every later position") && ok;
+        if (position == 1) {
+            ok = expect(now.render_scale == previous.render_scale && !now.animations_paused,
+                        "position 1 changes only the effects flag") &&
+                 ok;
+        } else if (position < kAdaptiveQualityLadderSteps) {
+            ok = expect(now.render_scale < previous.render_scale && !now.animations_paused,
+                        "the middle positions walk the scale and never pause animations") &&
+                 ok;
+        } else {
+            ok = expect(now.render_scale == previous.render_scale && now.animations_paused,
+                        "the last position changes only the pause flag") &&
+                 ok;
+        }
+        previous = now;
+    }
+    return ok;
+}
+
+bool recovery_restores_pause_then_effects_in_reverse() {
+    AdaptiveQualityController controller(base_config());
+    for (std::uint32_t frame = 0; frame < 400; ++frame) {
+        (void)controller.observe(kMissMs);
+    }
+    bool ok = expect(controller.decision().animations_paused, "setup reached the last position");
+    const auto upgrade_once = [&controller] {
+        for (std::uint32_t frame = 0;
+             frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityUpgradeHits; ++frame) {
+            (void)controller.observe(kMetMs);
+        }
+        return controller.decision();
+    };
+    AdaptiveQualitySample sample = upgrade_once();
+    ok = expect(!sample.animations_paused && sample.effects_reduced,
+                "the first recovery resumes animations before anything else") &&
+         ok;
+    for (std::uint32_t position = kAdaptiveQualityLadderSteps - 1; position > 1; --position) {
+        sample = upgrade_once();
+        ok = expect(sample.effects_reduced, "effects stay reduced while the scale recovers") && ok;
+    }
+    sample = upgrade_once();
+    ok = expect(sample.quality_step == 0 && !sample.effects_reduced && sample.render_scale == 1.0f,
+                "the last recovery restores the effects") &&
          ok;
     return ok;
 }
@@ -491,6 +573,8 @@ int main() {
     ok = identical_sequences_decide_identically() && ok;
     ok = the_decision_carries_the_present_cap() && ok;
     ok = host_observes_frames_and_records_the_change() && ok;
+    ok = ladder_order_is_effects_scale_then_pause() && ok;
+    ok = recovery_restores_pause_then_effects_in_reverse() && ok;
     if (!ok) {
         std::cerr << "adaptive_quality: FAILED\n";
         return 1;

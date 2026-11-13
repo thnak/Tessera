@@ -205,7 +205,7 @@ downgrade now changes pixels and the present rate: the window renders the scene 
 resamples it up on present, and lowers the pacer's cap to the next refresh divisor. Step 1 (effects)
 and step 4 (pause non-essential animations) are not implemented; step 5 (report) is.
 
-**Decisions for steps 1 and 4 ([#147](https://github.com/thnak/Tessera/issues/147)), not yet implemented.** An *optional effect* is a member of a fixed paint-kind allowlist (drop shadows, blurs, gradient oversampling); the allowlist is runtime-owned, adds no CSS surface and does not reuse `prefers-reduced-motion`, which keeps its accessibility meaning. A *non-essential animation* is one that animates only paint-only properties; `transform` and `opacity` keep running. Pausing freezes the animation at its current value, resumes from there when quality recovers, does not keep the loop awake while frozen, and is counted in a `FrameDiagnostics` counter. Each step fires only after the steps above it, and recovery restores it.
+**Decisions for steps 1 and 4 ([#147](https://github.com/thnak/Tessera/issues/147)), not yet implemented.** An *optional effect* is a member of a fixed paint-kind allowlist (drop shadows, blurs, gradient oversampling); the allowlist is runtime-owned, adds no CSS surface and does not reuse `prefers-reduced-motion`, which keeps its accessibility meaning. A *non-essential animation* is one that animates only paint-only properties; `transform` and `opacity` keep running. Pausing freezes the animation at its current value, resumes from there when quality recovers, does not keep the loop awake while frozen, and is counted in a `FrameDiagnostics` counter. Each step fires only after the steps above it, and recovery restores it. The controller side is implemented: `quality_step` is the ladder position, `AdaptiveQualitySample::effects_reduced` (position >= 1) and `animations_paused` (last position) are set at every later position and clear on recovery, and `FrameDiagnostics` counts both flips (`adaptive_effect_changes`, `adaptive_animation_pause_changes`). The consumers that act on the flags (the paint allowlist, the animation pause) are separate slices and not yet wired.
 
 `src/runtime/adaptive_quality.hpp` is a pure state machine fed one frame observation at a time
 (frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`,
@@ -220,7 +220,7 @@ never re-implement a threshold, a step or a cooldown.
 | Downgrade run | 4 consecutive missed budgets | one slow frame is noise; four at 60 Hz is ~66 ms of sustained overrun |
 | Upgrade run | 12 consecutive met budgets | recovery is deliberately slower than the downgrade, so a borderline machine does not ping-pong |
 | Cooldown | 8 observed frames after a change | no two changes within it: at most one step per ~133 ms at 60 Hz |
-| Ladder | 4 steps from `renderScale` (step 0) to `minRenderScale` (step 4) | bounded, evenly spaced steps; no fractional creep |
+| Ladder | 6 positions: 1 reduces optional effects, 2-5 walk `renderScale` to `minRenderScale` (4 evenly spaced steps) and the present divisor, 6 pauses non-essential animations | ADR-019 §8 order; bounded, no fractional creep; `AdaptiveQualitySample::quality_step` is the position |
 | Present-cap floor | 10 Hz | below it an interactive UI stops being interactive; step 4 is the right lever there |
 
 Each change moves exactly one ladder step, clamped to `[minRenderScale, renderScale]`;

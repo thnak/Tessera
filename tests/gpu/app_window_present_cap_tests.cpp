@@ -158,7 +158,10 @@ int main() {
         // 2. Force one ladder step down: four over-budget frames in a row are a downgrade
         // (performance.md section 6.1). The decided cap is refresh/2, so the next frame's present
         // interval doubles.
-        for (std::uint32_t miss = 0; miss < 4; ++miss) {
+        // The ladder's first position only reduces effects (ADR-019 section 8): spend it with the
+        // four misses, wait out the eight-frame cooldown (those frames are not evidence), then four
+        // more misses reach the first scale step, which is the one this test observes.
+        for (std::uint32_t miss = 0; miss < 16; ++miss) {
             host.host().observe_frame_time_ms(50.0);
         }
         const std::uint32_t presented_before_downgrade = stats.presented;

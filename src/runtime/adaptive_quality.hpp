@@ -36,6 +36,13 @@ inline constexpr std::uint32_t kAdaptiveQualityCooldownFrames = 8;
 // steps are evenly spaced. A bounded ladder is what makes "every change is one visible step" true;
 // there is no per-frame fractional creep.
 inline constexpr std::uint32_t kAdaptiveQualitySteps = 4;
+// The two ends of the ADR-019 section 8 ladder: one position before the scale steps reduces
+// optional effects, one position after them pauses non-essential animations. `quality_step` counts
+// all of them; the scale and the present divisor depend only on the scale step in between.
+inline constexpr std::uint32_t kAdaptiveQualityEffectSteps = 1;
+inline constexpr std::uint32_t kAdaptiveQualityPauseSteps = 1;
+inline constexpr std::uint32_t kAdaptiveQualityLadderSteps =
+    kAdaptiveQualityEffectSteps + kAdaptiveQualitySteps + kAdaptiveQualityPauseSteps;
 // The `renderScale` / `minRenderScale` range from the runtime-config field table.
 inline constexpr float kAdaptiveQualityMinScale = 0.25f;
 inline constexpr float kAdaptiveQualityMaxScale = 4.0f;
@@ -120,6 +127,12 @@ private:
     // Step 0 is exactly `render_scale`, the last step exactly `min_render_scale`; the steps between
     // are evenly spaced. Exact at both ends so the clamps land on the configured values.
     [[nodiscard]] float scale_for_step(std::uint32_t step) const noexcept;
+    // The scale/divisor step a ladder position maps to: 0 while only effects are reduced, then one
+    // per position, held at the last scale step while animations are paused.
+    [[nodiscard]] static std::uint32_t scale_step_for_position(std::uint32_t position) noexcept;
+    // The decision for a ladder position; `changed`/`downgrade` are left for the caller.
+    [[nodiscard]] AdaptiveQualitySample
+    decision_for_position(std::uint32_t position) const noexcept;
 
     AdaptiveQualityConfig config_{};
     AdaptiveQualitySample decision_{};

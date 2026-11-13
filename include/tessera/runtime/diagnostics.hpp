@@ -19,8 +19,12 @@ enum class FrameTimeSource { Cpu, Gpu };
 // the latest one and counts changes.
 //
 // `render_scale` is the scale the frame should be rendered at, inside
-// [`minRenderScale`, `renderScale`]; `quality_step` is its ladder index, 0 = full quality.
-// `present_cap_hz` is the present cap for that step (docs/design/performance.md section 6, step 3):
+// [`minRenderScale`, `renderScale`]; `quality_step` is the ladder position, 0 = full quality. The
+// ladder is ADR-019 section 8's four ordered actions: position 1 reduces optional effects
+// (`effects_reduced`), positions 2..5 walk `renderScale` and the present divisor, and the last
+// position pauses non-essential animations (`animations_paused`). Each flag stays set at every
+// later position and clears on recovery. `present_cap_hz` is the present cap for the scale/divisor
+// step (docs/design/performance.md section 6, step 3):
 // the configured `maxFps` at step 0, the next refresh divisor below the previous step's effective
 // rate after each downgrade, and never below kAdaptivePresentCapFloorHz. 0 means uncapped, which is
 // also what an unknown display refresh leaves in place (no divisor exists, so the pacer keeps its
@@ -32,6 +36,8 @@ struct AdaptiveQualitySample {
     bool changed = false;
     bool downgrade = false;
     double present_cap_hz = 0.0;
+    bool effects_reduced = false;
+    bool animations_paused = false;
 
     [[nodiscard]] bool operator==(const AdaptiveQualitySample&) const = default;
 };
@@ -80,6 +86,14 @@ public:
     [[nodiscard]] std::uint64_t adaptive_present_cap_changes() const noexcept {
         return adaptive_present_cap_changes_;
     }
+    // Changes that flipped `effects_reduced` / `animations_paused` (ladder ends, #147), counted in
+    // both directions so a recovery is as visible as a downgrade.
+    [[nodiscard]] std::uint64_t adaptive_effect_changes() const noexcept {
+        return adaptive_effect_changes_;
+    }
+    [[nodiscard]] std::uint64_t adaptive_animation_pause_changes() const noexcept {
+        return adaptive_animation_pause_changes_;
+    }
     [[nodiscard]] FrameTimeSource frame_time_source() const noexcept {
         return frame_time_source_;
     }
@@ -124,6 +138,8 @@ private:
     std::uint64_t adaptive_quality_changes_ = 0;
     std::uint64_t adaptive_quality_downgrades_ = 0;
     std::uint64_t adaptive_present_cap_changes_ = 0;
+    std::uint64_t adaptive_effect_changes_ = 0;
+    std::uint64_t adaptive_animation_pause_changes_ = 0;
     FrameTimeSource frame_time_source_ = FrameTimeSource::Cpu;
     std::uint64_t gpu_frame_time_samples_ = 0;
     std::uint64_t cpu_frame_time_samples_ = 0;

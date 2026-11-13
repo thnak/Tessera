@@ -49,8 +49,26 @@ AdaptiveQualityController::AdaptiveQualityController(const AdaptiveQualityConfig
     // equal values valid).
     active_ = config_.adaptive_quality && config_.power_policy != PowerPolicy::Benchmark &&
               config_.min_render_scale < config_.render_scale && budget_ms_ > 0.0;
-    decision_ =
-        AdaptiveQualitySample{config_.render_scale, 0, false, false, present_cap_for_step(0)};
+    decision_ = decision_for_position(0);
+}
+
+std::uint32_t AdaptiveQualityController::scale_step_for_position(std::uint32_t position) noexcept {
+    if (position <= kAdaptiveQualityEffectSteps) {
+        return 0;
+    }
+    return std::min(position - kAdaptiveQualityEffectSteps, kAdaptiveQualitySteps);
+}
+
+AdaptiveQualitySample
+AdaptiveQualityController::decision_for_position(std::uint32_t position) const noexcept {
+    const std::uint32_t scale_step = scale_step_for_position(position);
+    AdaptiveQualitySample sample;
+    sample.render_scale = scale_for_step(scale_step);
+    sample.quality_step = position;
+    sample.present_cap_hz = present_cap_for_step(scale_step);
+    sample.effects_reduced = position >= kAdaptiveQualityEffectSteps;
+    sample.animations_paused = position >= kAdaptiveQualityLadderSteps;
+    return sample;
 }
 
 AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) noexcept {
@@ -71,13 +89,11 @@ AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) n
         hits_ = 0;
         // Capped so the counter cannot wrap and so an overload at the floor is a no-op.
         misses_ = std::min(misses_ + 1, kAdaptiveQualityDowngradeMisses);
-        if (misses_ >= kAdaptiveQualityDowngradeMisses && step_ < kAdaptiveQualitySteps) {
+        if (misses_ >= kAdaptiveQualityDowngradeMisses && step_ < kAdaptiveQualityLadderSteps) {
             ++step_;
             misses_ = 0;
             cooldown_ = kAdaptiveQualityCooldownFrames;
-            decision_.render_scale = scale_for_step(step_);
-            decision_.quality_step = step_;
-            decision_.present_cap_hz = present_cap_for_step(step_);
+            decision_ = decision_for_position(step_);
             decision_.changed = true;
             decision_.downgrade = true;
         }
@@ -89,11 +105,9 @@ AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) n
         --step_;
         hits_ = 0;
         cooldown_ = kAdaptiveQualityCooldownFrames;
-        decision_.render_scale = scale_for_step(step_);
-        decision_.quality_step = step_;
-        // An upgrade restores the previous step's cap, which is the same pure function of the step:
-        // no separate "previous divisor" state can drift from the ladder.
-        decision_.present_cap_hz = present_cap_for_step(step_);
+        // An upgrade restores the previous position's scale, cap and flags, which are pure
+        // functions of the position: no separate "previous" state can drift from the ladder.
+        decision_ = decision_for_position(step_);
         decision_.changed = true;
     }
     return decision_;
@@ -104,8 +118,7 @@ void AdaptiveQualityController::reset() noexcept {
     misses_ = 0;
     hits_ = 0;
     cooldown_ = 0;
-    decision_ =
-        AdaptiveQualitySample{config_.render_scale, 0, false, false, present_cap_for_step(0)};
+    decision_ = decision_for_position(0);
 }
 
 float AdaptiveQualityController::scale_for_step(std::uint32_t step) const noexcept {

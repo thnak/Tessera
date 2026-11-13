@@ -24,6 +24,8 @@ void FrameDiagnostics::record_adaptive_quality(const AdaptiveQualitySample& samp
     // whose scale was already at the floor). Comparing against the previous sample keeps the
     // counter honest without the caller having to report the cap separately.
     const bool cap_changed = sample.present_cap_hz != adaptive_quality_.present_cap_hz;
+    const bool effects_changed = sample.effects_reduced != adaptive_quality_.effects_reduced;
+    const bool pause_changed = sample.animations_paused != adaptive_quality_.animations_paused;
     adaptive_quality_ = sample;
     if (!sample.changed) {
         return;
@@ -34,6 +36,12 @@ void FrameDiagnostics::record_adaptive_quality(const AdaptiveQualitySample& samp
     }
     if (cap_changed) {
         ++adaptive_present_cap_changes_;
+    }
+    if (effects_changed) {
+        ++adaptive_effect_changes_;
+    }
+    if (pause_changed) {
+        ++adaptive_animation_pause_changes_;
     }
 }
 
@@ -62,6 +70,8 @@ void FrameDiagnostics::reset() {
     adaptive_quality_changes_ = 0;
     adaptive_quality_downgrades_ = 0;
     adaptive_present_cap_changes_ = 0;
+    adaptive_effect_changes_ = 0;
+    adaptive_animation_pause_changes_ = 0;
 }
 
 } // namespace tessera::runtime
