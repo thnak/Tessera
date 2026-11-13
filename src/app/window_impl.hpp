@@ -86,6 +86,9 @@ struct WindowHost::Impl {
     // Recomputes `paused_` from the lifecycle flags and the latest metrics; a pause -> resume edge
     // latches a full repaint so nothing on screen can be stale.
     void update_pause_state();
+    // Honours JSX `autoFocus` (issue #226) once, after the first begin_frame() has laid the tree
+    // out; a later tree keeps whatever focus the user or the app set.
+    void apply_initial_auto_focus();
     // One bounded iteration shared by pump_once(): events -> input -> pause -> tick -> one frame.
     bool pump_once();
 
@@ -197,6 +200,7 @@ struct WindowHost::Impl {
     MotionPreference motion;
 
     ui::InputPump pump;
+    bool auto_focus_applied = false;
     WindowFrameStats stats;
     // Which lifecycle states pause, mapped once from WindowOptions::runtime (window_config.hpp).
     // Focus/blur is not in this policy, so it can never contribute.

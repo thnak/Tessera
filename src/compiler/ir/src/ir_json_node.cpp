@@ -118,9 +118,19 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
     JsonValue list = JsonValue::array();
     for (const auto& action : actions) {
         JsonValue json = JsonValue::object();
-        json.set("kind", JsonValue::string(action.kind == ActionKind::Set ? "set" : "animSet"));
+        const char* kind = "animSet";
+        if (action.kind == ActionKind::Set) {
+            kind = "set";
+        } else if (action.kind == ActionKind::Focus) {
+            kind = "focus";
+        } else if (action.kind == ActionKind::Blur) {
+            kind = "blur";
+        }
+        json.set("kind", JsonValue::string(kind));
         json.set("target", JsonValue::string(action.target));
-        json.set("value", expr_to_json(action.value.get()));
+        if (action.value) {
+            json.set("value", expr_to_json(action.value.get()));
+        }
         if (action.kind == ActionKind::AnimSet && !action.animate) {
             json.set("animate", JsonValue::boolean(false));
         }

@@ -160,6 +160,8 @@ export interface CommonProps {
 
 export interface ViewProps extends CommonProps {
   ref?: ElementRef<ViewElement>;
+  tabIndex?: 0 | -1;
+  autoFocus?: boolean;
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;
@@ -167,11 +169,17 @@ export interface ViewProps extends CommonProps {
   onPointerEnter?: (e: PointerEvent) => void;
   onPointerLeave?: (e: PointerEvent) => void;
   onPointerCancel?: (e: PointerEvent) => void;
+  onKeyDown?: (e: KeyEvent) => void;
+  onKeyUp?: (e: KeyEvent) => void;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
   onSizeChange?: (e: SizeChangeEvent) => void;
 }
 
 export interface TextProps extends CommonProps {
   ref?: ElementRef<TextElement>;
+  tabIndex?: 0 | -1;
+  autoFocus?: boolean;
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;
@@ -179,6 +187,10 @@ export interface TextProps extends CommonProps {
   onPointerEnter?: (e: PointerEvent) => void;
   onPointerLeave?: (e: PointerEvent) => void;
   onPointerCancel?: (e: PointerEvent) => void;
+  onKeyDown?: (e: KeyEvent) => void;
+  onKeyUp?: (e: KeyEvent) => void;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
   onSizeChange?: (e: SizeChangeEvent) => void;
 }
 

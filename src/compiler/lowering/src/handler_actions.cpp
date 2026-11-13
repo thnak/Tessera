@@ -220,6 +220,26 @@ std::optional<ir::Action> lower_animated_set(HookState& state, const jsx::Expr& 
     return action;
 }
 
+// `r.focus()` / `r.blur()` on a `useRef` name (issue #226). The ref has no `.current`: a ref is the
+// node it is attached to.
+std::optional<ir::Action> lower_ref_focus(HookState& state, const jsx::Expr& call,
+                                          const jsx::Expr& callee) {
+    const rules::Symbol* ref = state.context.analysis.find(callee.operands[0]->text);
+    if (ref == nullptr || ref->kind != rules::SymbolKind::Ref) {
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED", kBodyRule, call.span);
+        return std::nullopt;
+    }
+    if (call.operands.size() != 1) {
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED", "`" + callee.text + "()` takes no arguments",
+                  call.span, kBodyRule);
+        return std::nullopt;
+    }
+    ir::Action action;
+    action.kind = callee.text == "focus" ? ir::ActionKind::Focus : ir::ActionKind::Blur;
+    action.target = "ref::" + ref->name;
+    return action;
+}
+
 // The first `count` statements of `arrow` as actions.
 std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arrow,
                                          std::size_t count) {
@@ -243,9 +263,13 @@ std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arro
         }
         const jsx::Expr& callee = *statement->operands[0];
         std::optional<ir::Action> action;
-        if (callee.kind == jsx::ExprKind::Member && callee.text == "set" &&
-            callee.operands.size() == 1 && callee.operands[0] &&
-            callee.operands[0]->kind == jsx::ExprKind::Identifier) {
+        if (callee.kind == jsx::ExprKind::Member &&
+            (callee.text == "focus" || callee.text == "blur") && callee.operands.size() == 1 &&
+            callee.operands[0] && callee.operands[0]->kind == jsx::ExprKind::Identifier) {
+            action = lower_ref_focus(state, *statement, callee);
+        } else if (callee.kind == jsx::ExprKind::Member && callee.text == "set" &&
+                   callee.operands.size() == 1 && callee.operands[0] &&
+                   callee.operands[0]->kind == jsx::ExprKind::Identifier) {
             action = lower_animated_set(state, *statement, callee, names);
         } else if (callee.kind == jsx::ExprKind::Identifier) {
             action = lower_setter_call(state, *statement, callee, names);

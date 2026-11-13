@@ -29,19 +29,20 @@ it does not change it.
 
 ## 1. `View`
 
-IR kind `View`. Container; lays out its children with the style engine (Yoga). No own props.
+IR kind `View`. Container; lays out its children with the style engine (Yoga). Own props: `tabIndex`, `autoFocus` (focusable, [common-and-events.md](common-and-events.md) section 4).
 
 | Aspect | Rule |
 |---|---|
 | Children | nodes and text runs (section 0). Fragments splice; conditionals and `.map` allowed |
-| Props | none beyond the common attributes |
+| Props | `tabIndex` (`0` or `-1`), `autoFocus` |
 | Implied role | `generic` |
-| Events | `onClick`; `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onPointerCancel` (payloads `ClickEvent`, `PointerEvent`); `onSizeChange` (`SizeChangeEvent`, [common-and-events.md](common-and-events.md) section 2) |
+| Events | `onClick`; `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onPointerCancel` (payloads `ClickEvent`, `PointerEvent`); `onSizeChange` (`SizeChangeEvent`, [common-and-events.md](common-and-events.md) section 2); `onKeyDown`, `onKeyUp` (`KeyEvent`), `onFocus`, `onBlur` (`FocusEvent`), the last four on a focusable node |
 | Ref | `View` |
 
-A `View` with an event but no `role` and no accessible name gets the warning
-`TESSERA_JSX_A11Y_NO_ROLE` (interactive nodes must declare semantics,
-[`accessibility-v1.md`](../accessibility-v1.md) G-18) [Q13]. It does not infer a role.
+A `View` with `tabIndex` must declare `role` and have an accessible name, else
+`TESSERA_JSX_FOCUSABLE_NO_ROLE` / `TESSERA_JSX_FOCUSABLE_NO_NAME` (errors,
+[`accessibility-v1.md`](../accessibility-v1.md) G-18). A `View` with only an event and no `role`
+keeps the warning `TESSERA_JSX_A11Y_NO_ROLE`. No role is inferred. Evidence: `focusable_view`.
 
 ## 2. `Text`
 
@@ -51,7 +52,7 @@ IR kind `Text`.
 |---|---|
 | Children | one run (section 0) or nothing. An element child is `TESSERA_JSX_CHILDREN_NOT_ALLOWED` (inline rich text is outside V1, [`text-editing-v1.md`](../text-editing-v1.md) section 1) with the suggestion to place two `Text` in a flex `View` |
 | IR | `text` = the text Expression; `<Text />` is `text: ""` |
-| Props | none beyond the common attributes |
+| Props | `tabIndex` (`0` or `-1`), `autoFocus` |
 | Implied role | `text` |
 | Events | as `View` |
 | Ref | `Text` |

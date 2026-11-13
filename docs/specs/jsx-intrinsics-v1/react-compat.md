@@ -92,7 +92,7 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | `parseInt(e.target.value)`, `Number(...)`, `.trim()`, any method call on a string | Not supported as written; `parseIntOr(s, fallback)` and `parseFloatOr(s, fallback)` are decided additions (Q26) | The allowlist has no string functions today ([`ir-v1.md`](../ir-v1.md) section 4.2); the addition is pending in that spec, the evaluator and codegen |
 | `key` on list roots | Supported, string or int | `key={index}` is accepted |
 | `key` outside lists to force a remount | Not supported | Use `resetKey` of `ErrorBoundary`, or a state change |
-| `ref={useRef<HTMLInputElement>(null)}` | Supported (alias type names) | Members of a ref are not defined in V1 [Q6]; `ref.current.focus()` is not expressible |
+| `ref={useRef<HTMLInputElement>(null)}` | Supported (alias type names) | A ref has no `.current`: `r.focus()` and `r.blur()` are the only members, written as handler statements ([common-and-events.md](common-and-events.md) section 4); other members stay undefined [Q6] |
 | Callback refs, `forwardRef`, `useImperativeHandle` | Not supported | Function values (subset 9) |
 | `<>...</>` as a child | Supported (spliced) | |
 | `<>...</>` as the returned root, `<Fragment key>` in a list | Not supported [Q18] | A component lowers to one root node; wrap in `View` |
@@ -102,7 +102,7 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | `.map` with a single expression body and `key` | Supported | Block bodies, `.filter().map()`, `.slice()`, `.sort()` are not (subset 10.5) |
 | Large lists with `.map` | Works but use `VirtualList` | [`elements-other.md`](elements-other.md) section 3 |
 | `onDoubleClick`, `onContextMenu`, `onWheel`, `onDrag*`, `onTouch*`, `onInput`, `onKeyPress`, `onMouse*` | Not supported [Q21] | No event of that name is specified |
-| `tabIndex`, `autoFocus` | Planned for V1 (owner decision 2026-11-13, issue #226) | Not available until that issue lands ([Q13]) |
+| `tabIndex`, `autoFocus` | Supported on `View` and `Text` (issue #226) | `tabIndex` is `{0}` or `{-1}`; semantics required ([common-and-events.md](common-and-events.md) section 4); `autoFocus` on inputs stays `HTML_ATTR`. Evidence: `focusable_view` |
 | `title`, `data-*`, `hidden`, `dangerouslySetInnerHTML` | Not supported | No V1 meaning |
 | `import { useState, useEffect, useRef } from "react"` | Supported (Q15): alias of `"tessera"` | Any other name from `"react"`, `import React from "react"` and `import * as React` are errors; other bare modules stay errors (subset 4) |
 | Arrow-function components, `export default`, `memo(...)`, `lazy`, `Suspense`, context, portals, custom hooks, class components, `async` | Not supported | Subset 4, 6, 12 |
@@ -202,7 +202,7 @@ field is done, section 3.5), `text-editing-v1.md` (Q4 read-only behavior, Q5 tri
 | 10 | Decided: `axis` only | `Scroll` props | `axis` only; also snap/physics props; `overflow` on `View` creates a scroll container | `axis` only; no overflow-created scrolling |
 | 11 | Decided: reject | `htmlFor`, `a href` | Reject (as written); define a label/control relation and a link target | Reject for V1; define with navigation and forms specs. Cost: label click and in-app links are lost until then |
 | 12 | Decided: opt-in stylesheet | Default styles for aliases (heading size, bold) | None (as written); inline injected style; an opt-in shipped stylesheet | Opt-in `tessera-html-defaults.css` (never injected inline: inline would beat project class rules) |
-| 13 | Decided: keep deferred | Focusable `View`, `tabIndex`, key/focus events on `View`; role inference for clickable `View` | Keep deferred and warn (as written); allow `tabIndex={0}` | Keep deferred; revisit with the accessibility spec |
+| 13 | Closed by #226 (focusable `View`, `tabIndex`, key/focus events) | Focusable `View`, `tabIndex`, key/focus events on `View`; role inference for clickable `View` | Keep deferred and warn (as written); allow `tabIndex={0}` | Keep deferred; revisit with the accessibility spec |
 | 14 | Decided: O2 (section 4.3) | `children` prop of user components | Reject in V1 (as written); lower to child nodes as `component-model-v1.md` says, which needs the `Component` node to carry children | Static `Children` slot; specs updated, code in slice 9 |
 | 15 | Decided: accept the three hooks | `import ... from "react"` | Reject; accept `useState`, `useEffect`, `useRef` from `"react"` as `"tessera"` and ignore `import React` | Accept the three hooks from `"react"`; every React file starts with this import |
 | 16 | Decided: lower safe forms | `useMemo`/`useCallback` | Keep rejecting; lower the safe forms of section 4.2 | Lower the safe forms; reject the rest |

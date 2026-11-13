@@ -35,6 +35,12 @@ bool is_setter_call(const Context& ctx, const Expr& expr) {
         const Symbol* symbol = ctx.out.find(callee.operands[0]->text);
         return symbol != nullptr && symbol->kind == SymbolKind::AnimatedValue;
     }
+    // `r.focus()` / `r.blur()` on a `useRef` name (issue #226).
+    if (callee.kind == ExprKind::Member && (callee.text == "focus" || callee.text == "blur") &&
+        !callee.operands.empty() && callee.operands[0]->kind == ExprKind::Identifier) {
+        const Symbol* symbol = ctx.out.find(callee.operands[0]->text);
+        return symbol != nullptr && symbol->kind == SymbolKind::Ref;
+    }
     return false;
 }
 

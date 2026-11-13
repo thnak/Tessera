@@ -152,6 +152,15 @@ public:
         return tab_index_;
     }
 
+    // JSX `autoFocus` (issue #226): the node asks to hold focus when its tree is first shown. It is
+    // only a request; `FocusManager::apply_auto_focus` honours the first eligible node.
+    void set_auto_focus(bool auto_focus) {
+        auto_focus_ = auto_focus;
+    }
+    [[nodiscard]] bool auto_focus() const {
+        return auto_focus_;
+    }
+
     // Scroll state (additive; docs/specs/scroll-and-gestures-v1.md section 1). The scrollport used
     // for clamping is the node's border box; `content_width/height` are supplied explicitly by
     // layout or the caller. Children are positioned in content space, so painting, hit testing, and
@@ -386,6 +395,7 @@ private:
     rhi::Mat3 transform_;
     bool visible_ = true;
     bool focusable_ = false;
+    bool auto_focus_ = false;
     int tab_index_ = 0;
     int z_index_ = 0;
     PaintOutsets paint_outsets_;

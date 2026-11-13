@@ -433,8 +433,9 @@ The name of a state setter: `onChange={setEmail}`. The setter receives the event
 
 ### 9.2 Inline setter handler
 
-An arrow function whose body is a sequence of calls to setters and animated-value `.set(...)`, with
-pure argument expressions, separated by `;`:
+An arrow function whose body is a sequence of calls to setters, animated-value `.set(...)` and ref
+`r.focus()` / `r.blur()` (no arguments, `r` from `useRef`; issue #226), with pure argument
+expressions, separated by `;`:
 
 ```tsx
 <Button onClick={() => { setCount(count + 1); setLast("increment"); }}>Increment</Button>
@@ -442,7 +443,7 @@ pure argument expressions, separated by `;`:
 ```
 
 - Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.
-- No other statements: no `if`, no loops, no declarations, no calls other than setters and `.set`.
+- No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`, `r.focus()` and `r.blur()`.
 - The front end lowers this form to IR and generates C++ for it. No protected region is created, and
   the designer runs it exactly as the generated code would.
 - `startViewTransition(update, options)` accepts only a handler of this form as `update`

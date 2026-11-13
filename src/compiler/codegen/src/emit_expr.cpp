@@ -387,6 +387,20 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                                         std::span<const ir::Param> params, std::string& error) {
     std::string body;
     for (const ir::Action& action : actions) {
+        if (action.kind == ir::ActionKind::Focus || action.kind == ir::ActionKind::Blur) {
+            // The component reaches the scene's FocusManager through `set_focus_manager`; before
+            // the host provides one (or before build() assigns the ref) the call is a no-op.
+            const std::string node = member_name(action.target);
+            body += "if (focus_manager_ != nullptr && " + node + " != nullptr) {\n";
+            if (action.kind == ir::ActionKind::Focus) {
+                body += "focus_manager_->request_focus(" + node + ");\n";
+            } else {
+                body += "if (focus_manager_->focused() == " + node +
+                        ") {\nfocus_manager_->clear_focus();\n}\n";
+            }
+            body += "}\n";
+            continue;
+        }
         if (!action.value) {
             error = "an action has no value expression";
             return std::nullopt;

@@ -6,7 +6,9 @@
 
 #include "node_lowering_internal.hpp"
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -44,10 +46,36 @@ bool lower_ref(NodeState& state, const ElementInfo& element, const jsx::Expr& va
     return state.hooks.set_ref_target(value.text, node.id);
 }
 
+// `tabIndex` takes `{0}` or `{-1}` (issue #226): the focus order is a static property of the tree,
+// and a positive value would reorder the whole Tab sequence, so it has no V1 spelling.
+bool apply_tab_index(NodeState& state, const jsx::Expr& value, jsx::Span span, ir::Node& node) {
+    std::optional<std::int64_t> parsed;
+    if (value.kind == jsx::ExprKind::Number && value.number == 0.0) {
+        parsed = 0;
+    } else if (value.kind == jsx::ExprKind::Unary && value.text == "-" &&
+               value.operands.size() == 1 && value.operands[0] &&
+               value.operands[0]->kind == jsx::ExprKind::Number &&
+               value.operands[0]->number == 1.0) {
+        parsed = -1;
+    }
+    if (!parsed) {
+        fail_node(state, "TESSERA_IR_UNSUPPORTED", "`tabIndex` accepts the literal `0` or `-1`",
+                  span,
+                  "write `tabIndex={0}` to join the Tab order or `tabIndex={-1}` for programmatic "
+                  "focus only");
+        return false;
+    }
+    put_prop(node, "tabIndex", ir::make_literal(*parsed));
+    return true;
+}
+
 // A normal prop value: the schema value class decides whether a literal is required, and the rest
 // is a lowered expression (types are checked by slice 4).
 bool apply_prop_value(NodeState& state, const schema::PropRow& prop, const jsx::Expr& value,
                       jsx::Span span, ir::Node& node) {
+    if (prop.name == "tabIndex") {
+        return apply_tab_index(state, value, span, node);
+    }
     switch (prop.value) {
     case schema::ValueKind::Literal:
         if (!is_literal(value)) {
@@ -219,6 +247,16 @@ bool apply_literal_attribute(NodeState& state, const ElementInfo& element, std::
             info.prop->value == schema::ValueKind::Name) {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
                       "`" + std::string(info.prop->name) + "` has no literal form", span);
+            return false;
+        }
+        if (info.prop->name == "tabIndex") {
+            fail_node(state, "TESSERA_IR_UNSUPPORTED", "`tabIndex` accepts the literal `0` or `-1`",
+                      span, "write `tabIndex={0}` or `tabIndex={-1}`");
+            return false;
+        }
+        if (info.prop->name == "autoFocus" && !std::holds_alternative<bool>(value->literal)) {
+            fail_node(state, "TESSERA_IR_UNSUPPORTED", "`autoFocus` is a boolean flag", span,
+                      "write `autoFocus` or `autoFocus={true}`");
             return false;
         }
         put_prop(node, info.prop->name, std::move(value));

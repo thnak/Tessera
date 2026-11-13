@@ -599,6 +599,21 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME forms_lowering COMMAND forms_lowering_tests)
 
+    # Focusable `View`/`Text` (issue #226): tabIndex/autoFocus/key and focus events through lowering,
+    # codegen and the headless input router, plus the role and name diagnostics.
+    add_executable(focusable_view_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/focusable_view_tests.cpp)
+
+    target_link_libraries(focusable_view_tests PRIVATE
+        tessera_codegen
+        tessera_lowering
+        tessera_jsx_frontend
+        tessera_react_rules
+        tessera_ir
+        tessera_scene)
+
+    add_test(NAME focusable_view COMMAND focusable_view_tests)
+
     # `Field` codegen: the real built-in Field IR declaration plus a form with two instances, the prop
     # matrix (value and callback props), the static Children slot, the golden and determinism.
     add_executable(forms_codegen_tests

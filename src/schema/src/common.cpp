@@ -182,12 +182,7 @@ constexpr PropRow kCommonProps[] = {
 
 constexpr AliasAttr kCommonAliasAttrs[] = {
     {"class", AliasAttrKind::Reject, "", "write `className`", {}, ""},
-    {"tabIndex",
-     AliasAttrKind::Reject,
-     "",
-     "no V1 meaning; use `tabIndex` is not supported",
-     {},
-     ""},
+    {"tabIndex", AliasAttrKind::Keep, "", "", {}, ""},
     {"accessKey", AliasAttrKind::Reject, "", "no V1 meaning", {}, ""},
     {"title",
      AliasAttrKind::Reject,

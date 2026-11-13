@@ -488,6 +488,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         const double dt = now - last_tick_seconds_;
         last_tick_seconds_ = now;
         const HostFrame frame = host->begin_frame(dt, tick.alpha);
+        apply_initial_auto_focus();
         const bool has_damage = !frame.render.redraw_plan.scissors.empty();
         if (!should_present(frame.frame_due, has_damage, force_frames)) {
             // A wake that changed nothing: clear the dirt the tick collected so it cannot stay
@@ -568,6 +569,10 @@ bool WindowHost::available() const {
 
 WindowFrameStats WindowHost::run(std::uint32_t max_frames) {
     return impl_->run(max_frames);
+}
+
+ui::FocusManager& WindowHost::focus_manager() {
+    return impl_->pump.router().focus_manager();
 }
 
 bool WindowHost::pump_once() {

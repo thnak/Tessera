@@ -35,7 +35,19 @@ bool is_list_cpp_type(std::string_view cpp) {
     return cpp.rfind("std::vector<", 0) == 0;
 }
 
+bool uses_focus_actions(const ir::Component& component) {
+    for (const ir::Handler& handler : component.handlers) {
+        for (const ir::Action& action : handler.actions) {
+            if (action.kind == ir::ActionKind::Focus || action.kind == ir::ActionKind::Blur) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 } // namespace
+
 bool emit_component_header(const ir::Component& component, const ir::IrModule& module,
                            const std::vector<const ir::Binding*>& bindings,
                            const std::vector<DynamicText>& dynamic_text,
@@ -83,6 +95,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("#include \"" + include + ".hpp\"");
     }
     emit_form_includes(writer, forms);
+    if (uses_focus_actions(component)) {
+        writer.line("#include \"tessera/ui/scene/focus.hpp\"");
+    }
     const bool observes = observes_size(component, module);
     if (observes) {
         writer.line("#include \"tessera/ui/layout/layout_observer.hpp\"");
@@ -235,6 +250,14 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("");
     emit_dynamic_fields(writer, plan);
     emit_form_declarations(writer, forms);
+    if (uses_focus_actions(component)) {
+        writer.line(
+            "// `ref.focus()` / `ref.blur()` (issue #226) act through the host's FocusManager.");
+        writer.line("tessera::ui::FocusManager* focus_manager_ = nullptr;");
+        writer.line("void set_focus_manager(tessera::ui::FocusManager* manager) {");
+        writer.line("    focus_manager_ = manager;");
+        writer.line("}");
+    }
     writer.line("void build(tessera::ui::Node& parent);");
     if (component_takes_children(component)) {
         writer.line(

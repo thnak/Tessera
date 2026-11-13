@@ -24,8 +24,9 @@ class Clock;
 }
 
 namespace tessera::ui {
+class FocusManager;
 struct InputEvent;
-}
+} // namespace tessera::ui
 
 namespace tessera::ui::text {
 class TextMeasurer;
@@ -233,6 +234,11 @@ public:
     // and dispatches it through the same InputPump/InputRouter path as real OS input. Used by
     // automation and tests that drive a window without a mouse/keyboard.
     bool post_input(const ui::InputEvent& event);
+
+    // The focus manager the window's input router drives. Generated components that use
+    // `ref.focus()`/`ref.blur()` take it through `set_focus_manager` so programmatic and keyboard
+    // focus are one state (issue #226). The reference lives as long as the window.
+    [[nodiscard]] ui::FocusManager& focus_manager();
 
     // Applies a metrics snapshot as if the platform had reported a resize/DPI change: the swapchain
     // is resized, the AppHost re-lays out at the new logical size and the next frame is requested.

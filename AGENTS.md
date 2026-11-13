@@ -399,7 +399,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `tests/unit/codegen_vector_payload_tests.cpp`,
       `tests/gpu/codegen_vector_paint_golden_tests.cpp`,
       `tests/golden/baseline/codegen/vector_payload_cpu.png`.
-- [ ] #226: Focusable `View`: `tabIndex`, `autoFocus`, `onFocus`/`onBlur`/`onKeyDown`, `ref.focus()`.
+- [x] #226: Focusable `View`: `tabIndex`, `autoFocus`, `onFocus`/`onBlur`/`onKeyDown`, `ref.focus()`. Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`), `schema_golden`; spec [common-and-events.md](docs/specs/jsx-intrinsics-v1/common-and-events.md) section 4.
 - [ ] #229: Inline spans in `Text` (per-run class, `onClick`, `role="link"`).
 - [ ] #231: User component instances inside list templates and conditionals, and list-typed props.
 

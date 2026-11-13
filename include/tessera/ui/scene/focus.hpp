@@ -56,6 +56,11 @@ public:
     bool focus_next(Node& root);
     bool focus_previous(Node& root);
 
+    // Honours JSX `autoFocus` (issue #226): focuses the first visible, focusable node under `root`
+    // in tree order whose `auto_focus()` is set, unless a node already holds focus. Hosts call it
+    // once after the first layout of a tree. Returns true when focus moved.
+    bool apply_auto_focus(Node& root);
+
     // Restricts focus to `node` and its descendants. Setting a trap saves the current focus when
     // it is outside the new subtree and moves focus to the first sequential candidate inside it
     // (or clears focus when the subtree has no candidates). `nullptr` is equivalent to

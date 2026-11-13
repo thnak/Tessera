@@ -23,7 +23,7 @@ that of subset spec 10.2 and [`component-model-v1.md`](../component-model-v1.md)
 
 Any other `aria-*` name is `TESSERA_JSX_SUBSET_UNKNOWN_PROP` in V1 (the V1 set is closed so that every
 accepted name has a defined effect; `aria-labelledby`, `aria-describedby`, `aria-controls` need an id
-relation that no spec defines [Q7]). `data-*`, `title`, `hidden`, `tabIndex`, `accessKey`,
+relation that no spec defines [Q7]). `data-*`, `title`, `hidden`, `accessKey`,
 `contentEditable`, `draggable`, `dangerouslySetInnerHTML` are rejected (subset 10.2 and
 [`react-compat.md`](react-compat.md) section 4).
 
@@ -112,7 +112,7 @@ by layout observation, not through event dispatch, so it neither bubbles nor cap
 
 | Element | Events |
 |---|---|
-| `View`, `Text` | `onClick`, `P`, `S` |
+| `View`, `Text` | `onClick`, `P`, `K`, `F`, `S` (`K` and `F` need `tabIndex`, section 4) |
 | `Button` | `onClick`, `P`, `K`, `F`, `S` |
 | `TextInput`, `TextArea` | `onChange`, `onSubmit`, `K`, `F`, `onSelectionChange`, `onCompositionStart/Update/End`, `S` |
 | `Scroll` | `onScroll`, `P`, `S` |
@@ -126,4 +126,27 @@ Not defined in V1, so rejected as unknown: `onDoubleClick`, `onContextMenu`, `on
 elements, `onDrag*`, `onTouch*`, `onMouse*`, `onInput`, `onLongPress` and the gesture recognizers of
 [`scroll-and-gestures-v1.md`](../scroll-and-gestures-v1.md) section 5, which name no handler props
 [Q21]. `onEditCommand` (advanced) is deferred until `text-editing-v1.md` defines its record.
-`onKeyDown`/`onFocus` on `View` are planned for V1 (owner decision 2026-11-13, issue #226) and are not available until it lands [Q13].
+
+## 4. Focusable `View` and `Text` (issue #226, closes Q13)
+
+`tabIndex` makes a `View` or `Text` focusable. It is a literal: `{0}` joins the Tab order in tree
+order and `{-1}` is reached only by pointer or `ref.focus()` (the runtime contract is
+[`focus.hpp`](../../../include/tessera/ui/scene/focus.hpp); a positive value has no V1 spelling and
+is `TESSERA_IR_UNSUPPORTED`). `autoFocus` (a flag or `{true}`) asks to hold focus when the tree is
+first shown and needs `tabIndex` on the same node; the first such node in tree order wins and it
+never steals focus that is already held. `onKeyDown`/`onKeyUp` (`KeyEvent`) and `onFocus`/`onBlur`
+(`FocusEvent`) are delivered while the node, or a descendant for the key events, holds focus.
+
+Semantics are required, because inference is allowed only for text and labels
+([`accessibility-v1.md`](../accessibility-v1.md) G-18): a node with `tabIndex` and no `role` is
+`TESSERA_JSX_FOCUSABLE_NO_ROLE`, and one with no accessible name (no `aria-label` and no text
+anywhere in its subtree) is `TESSERA_JSX_FOCUSABLE_NO_NAME`. Both are errors. The warning
+`TESSERA_JSX_A11Y_NO_ROLE` for a node that only has an event handler is unchanged.
+
+`r.focus()` and `r.blur()` (`r` from `useRef`, no arguments) are handler statements next to the
+setter calls. They lower to the IR `focus`/`blur` actions ([`ir-v1.md`](../ir-v1.md) section 2.1) and
+the generated component acts through the `FocusManager` its host passes to `set_focus_manager`
+(`WindowHost::focus_manager()`); `focus` reaches a `tabIndex={-1}` node, `blur` clears focus only if
+the ref holds it. The window host applies `autoFocus` once after the first frame.
+
+Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`).

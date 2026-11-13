@@ -15,7 +15,9 @@ struct Param {
     std::string type;
 };
 
-enum class ActionKind { Set, AnimSet };
+// `Focus`/`Blur` (issue #226) target a `ref::` and carry no value: they move keyboard focus to, or
+// away from, the node the ref points at.
+enum class ActionKind { Set, AnimSet, Focus, Blur };
 
 // The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
 // are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).
