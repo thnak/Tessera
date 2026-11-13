@@ -342,7 +342,12 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       measured table and the paint trigger in `docs/design/performance.md` §9.1.
 - [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
 - [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
-- [ ] #247: `pointer-events`, `user-select` and `aspect-ratio` registered and implemented (#214).
+- [x] #247: `pointer-events`, `user-select` and `aspect-ratio` registered and implemented (#214) —
+      `src/ui/style/{property_registry,interaction_values,interaction_style,supports,cascade}.cpp`,
+      `src/ui/scene/node.cpp` (hit-test skip + selection gate), `src/ui/layout/layout_style.cpp`
+      (explicit width+height win), `docs/specs/stylesheet-v1.md` §11, tests `interaction_style`,
+      `property_registry`, `layout` height-wins. Covers #215 and #216; #217 lands per its fallback
+      clause (`user-select: all` stays `UnsupportedValue`, static-text selection is a follow-up).
 - [ ] #248: `scroll-behavior`, `overscroll-behavior`, `overscroll-effect` and `scrollbar-gutter` wired to
       the scroll controller (#214).
 - [ ] #249: CSS Grid subset with a C++ `GridEngine`; Yoga has no grid, taffy only through an ADR (#214).

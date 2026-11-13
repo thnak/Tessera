@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/style/backdrop_filter.hpp"
+#include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 
 #include <algorithm>
@@ -26,6 +27,8 @@ constexpr PropertyDef kProperties[] = {
     {"box-sizing", "content-box", false},
     {"width", "auto", false},
     {"height", "auto", false},
+    // Ratio of width to height (issue #247): per box, not inherited, read by the layout adapter.
+    {"aspect-ratio", "auto", false},
     {"min-width", "auto", false},
     {"min-height", "auto", false},
     {"max-width", "none", false},
@@ -70,13 +73,14 @@ constexpr PropertyDef kProperties[] = {
     {"word-spacing", "normal", true},
     {"text-align", "start", true},
     {"text-transform", "none", true},
-    // Not inherited, as in CSS: `text-overflow` applies to the box that paints the line, and a
-    // child never inherits its parent's truncation. Paint-side only (docs/design/text.md
-    // section 6.3).
+    // Not inherited (CSS): the box that paints the line owns truncation (docs/design/text.md 6.3).
     {"text-overflow", "clip", false},
     {"white-space", "normal", true},
     {"visibility", "visible", true},
     {"cursor", "auto", true},
+    // Interaction (issue #247): inherited; the scene reads both through sync_interaction_style.
+    {"pointer-events", "auto", true},
+    {"user-select", "auto", true},
     {"direction", "ltr", true},
     {"writing-mode", "horizontal-tb", true},
     {"flex-direction", "row", false},
@@ -101,12 +105,10 @@ constexpr PropertyDef kProperties[] = {
     {"transform", "none", false},
     {"transform-origin", "50% 50%", false},
     {"box-shadow", "none", false},
-    // The OS backdrop of the root window (glass-v1.md section 6). It is an ordinary cascade
-    // property so a theme can set it; only the window's root reads it, and `auto` is resolved by
-    // the platform, never stored as a computed material.
+    // The OS backdrop of the root window (glass-v1.md section 6): an ordinary cascade property so a
+    // theme can set it; only the window's root reads it, and the platform resolves `auto`.
     {"window-backdrop", "none", false},
-    // Glass (glass-v1 section 2). `-webkit-backdrop-filter` is the pasted-web-CSS alias; declare()
-    // rewrites it to the canonical name so the cascade has exactly one winner per node.
+    // Pasted-web-CSS alias of `backdrop-filter` (glass-v1 section 2); one winner per node.
     {"backdrop-filter", "none", false},
     {"-webkit-backdrop-filter", "none", false},
 };
@@ -205,7 +207,9 @@ void report_unsupported_values(const Declaration& declaration, std::string_view 
     std::string value(declaration.value);
     std::transform(value.begin(), value.end(), value.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    if (property == "box-shadow" && has_keyword(value, "inset")) {
+    if (is_interaction_value_property(property)) {
+        report_unsupported_interaction_value(property, value, declaration.offset, out);
+    } else if (property == "box-shadow" && has_keyword(value, "inset")) {
         out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
                                       std::string(property),
                                       "inset shadows are not supported in V1 and are not painted"});
@@ -334,8 +338,7 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
         }
     }
     if (find(property) != nullptr) {
-        Declaration normalized = declaration;
-        normalized.property = property;
+        Declaration normalized = make_declaration(declaration, property, declaration.value);
         report_unsupported_values(normalized, property, result.diagnostics);
         result.declarations.push_back(std::move(normalized));
         return result;

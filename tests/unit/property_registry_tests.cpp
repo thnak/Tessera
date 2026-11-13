@@ -285,6 +285,71 @@ int main() {
         }
     }
 
+    // The V1 interaction properties (issue #247, stylesheet-v1 section 11): `pointer-events` and
+    // `user-select` inherit; `aspect-ratio` is per box. This is the registry half of the spec
+    // matrix, so the three must be findable with exactly these initial values.
+    {
+        struct ExpectedProperty {
+            const char* name;
+            const char* initial;
+            bool inherited;
+        };
+        constexpr ExpectedProperty kInteraction[] = {
+            {"pointer-events", "auto", true},
+            {"user-select", "auto", true},
+            {"aspect-ratio", "auto", false},
+        };
+        for (const ExpectedProperty& expected : kInteraction) {
+            const auto* info = registry.find(expected.name);
+            if (!expect(info != nullptr, "interaction property is registered") ||
+                !expect(registry.supported(expected.name), "interaction property is supported") ||
+                !expect(info->initial == expected.initial, "interaction initial value") ||
+                !expect(info->inherited == expected.inherited, "interaction inheritance")) {
+                return 34;
+            }
+        }
+        // Unsupported value forms are reported once per rule + property and stay in the AST.
+        result = registry.expand(Declaration{"pointer-events", "visiblePainted", false, 9});
+        if (!expect(result.declarations.size() == 1, "unsupported pointer-events is kept") ||
+            !expect(result.diagnostics.size() == 1, "unsupported pointer-events diagnostic") ||
+            !expect(result.diagnostics[0].kind == StyleDiagnosticKind::UnsupportedValue,
+                    "unsupported pointer-events kind") ||
+            !expect(result.diagnostics[0].offset == 9, "unsupported pointer-events offset")) {
+            return 35;
+        }
+        result = registry.expand(Declaration{"user-select", "all", false, 0});
+        if (!expect(result.declarations.size() == 1 && result.diagnostics.size() == 1,
+                    "unsupported user-select is reported and kept")) {
+            return 36;
+        }
+        result = registry.expand(Declaration{"aspect-ratio", "wide", false, 0});
+        if (!expect(result.declarations.size() == 1 && result.diagnostics.size() == 1,
+                    "unsupported aspect-ratio is reported and kept")) {
+            return 37;
+        }
+        for (const char* value : {"auto", "none"}) {
+            result = registry.expand(Declaration{"pointer-events", value, false, 0});
+            if (!expect(result.diagnostics.empty() && decl_is(result, "pointer-events", value),
+                        "pointer-events keyword accepted")) {
+                return 38;
+            }
+        }
+        for (const char* value : {"auto", "none", "text"}) {
+            result = registry.expand(Declaration{"user-select", value, false, 0});
+            if (!expect(result.diagnostics.empty() && decl_is(result, "user-select", value),
+                        "user-select keyword accepted")) {
+                return 39;
+            }
+        }
+        for (const char* value : {"auto", "1", "2 / 1", "16 / 9"}) {
+            result = registry.expand(Declaration{"aspect-ratio", value, false, 0});
+            if (!expect(result.diagnostics.empty() && decl_is(result, "aspect-ratio", value),
+                        "aspect-ratio value accepted")) {
+                return 40;
+            }
+        }
+    }
+
     std::cout << "property_registry: ok\n";
     return 0;
 }

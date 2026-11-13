@@ -395,7 +395,17 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
     }
 
     const std::string* aspect_ratio = property(style, "aspect-ratio");
-    if (aspect_ratio != nullptr) {
+    // CSS applies the ratio only while one axis is `auto`; an explicit `width` and `height` both
+    // win. Yoga's flex cross-size pass lets a ratio override a definite cross size, so the ratio is
+    // not installed at all when both axes are already definite (issue #215).
+    const auto is_defined_length = [](const Length& length) {
+        return length.kind == Length::Kind::Points || length.kind == Length::Kind::Percent;
+    };
+    const bool both_axes_defined =
+        property(style, "width") != nullptr && property(style, "height") != nullptr &&
+        is_defined_length(parse_length(*property(style, "width"), viewport)) &&
+        is_defined_length(parse_length(*property(style, "height"), viewport));
+    if (aspect_ratio != nullptr && !both_axes_defined) {
         const std::string value = trim(*aspect_ratio);
         const std::size_t slash = value.find('/');
         float ratio = 0.0f;

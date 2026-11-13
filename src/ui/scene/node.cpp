@@ -152,6 +152,25 @@ void Node::set_focusable(bool focusable) {
     mark_dirty(Dirty::Style);
 }
 
+void Node::set_pointer_events(bool enabled) {
+    // Hit testing is not a dirty domain: the next input query reads the flag directly, so nothing
+    // is repainted and no damage is raised by a stylesheet-only change.
+    pointer_events_ = enabled;
+}
+
+void Node::set_user_select(UserSelect value) {
+    user_select_ = value;
+}
+
+bool Node::text_selection_allowed() const {
+    // A text field stays selectable even inside a `user-select: none` subtree, as in CSS: `none`
+    // suppresses the document's selection gesture, it does not disable an editable control.
+    if (element_kind_ == "TextInput" || element_kind_ == "TextArea") {
+        return true;
+    }
+    return user_select_ != UserSelect::None;
+}
+
 void Node::set_tab_index(int tab_index) {
     tab_index_ = tab_index;
 }
@@ -375,7 +394,7 @@ Node* Node::hit_test_deep(float x, float y) {
         if (local_x < min_x || local_y < min_y || local_x > max_x || local_y > max_y) {
             // Children are clipped at the scrollport, but the container itself is still hit within
             // its own box (its border/padding area paints there).
-            return hit_test(x, y) ? this : nullptr;
+            return pointer_events_ && hit_test(x, y) ? this : nullptr;
         }
     }
 
@@ -389,7 +408,9 @@ Node* Node::hit_test_deep(float x, float y) {
         return hit;
     }
 
-    return hit_test(x, y) ? this : nullptr;
+    // `pointer-events: none` skips only this node as a target; the child search above already ran,
+    // so a descendant with `auto` is hit normally.
+    return pointer_events_ && hit_test(x, y) ? this : nullptr;
 }
 
 void Node::on_event(Event&) {}

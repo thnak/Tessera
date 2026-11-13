@@ -266,8 +266,8 @@ and resolved under the last dispatched root, so a removed subtree drops its capt
 dangling. `PointerMove`/`Up`/`Cancel` route to that pointer's capture target, else the hit target;
 releases and cancels are per pointer, and a window `Focus`/`Blur` clears every capture. Wheel events
 are hit-tested at the cursor and not sent to the capture target; text goes to the focused node.
-`pointer-events: none`, clipping, and `prevent_default` for scrolling/selection are not implemented
-(`prevent_default` is honored for the Tab action only, section 6).
+`pointer-events: none` is honoured by hit testing (`style::sync_interaction_style`, issue #247).
+Style clipping and scrolling/selection `prevent_default` are not implemented (Tab only, section 6).
 
 ### 5.1 Custom element input
 

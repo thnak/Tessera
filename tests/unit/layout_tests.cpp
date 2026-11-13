@@ -156,6 +156,17 @@ int main() {
         return 6;
     }
 
+    // An explicit height wins over the ratio, as in CSS (issue #215): the ratio only fills in a
+    // dimension that is `auto`.
+    const LayoutInput ratio_height = node(
+        52, style({{"display", "flex"}, {"width", "300px"}, {"height", "200px"}}),
+        {node(53, style({{"width", "100px"}, {"height", "20px"}, {"aspect-ratio", "2 / 1"}}))});
+    const LayoutResult ratio_height_result =
+        engine.layout(ratio_height, LayoutViewport{300.0f, 200.0f});
+    if (!expect(box_is(ratio_height_result, 53, 0, 0, 100, 20), "height wins over aspect ratio")) {
+        return 41;
+    }
+
     const LayoutInput hidden =
         node(60, style({{"display", "flex"}, {"width", "200px"}, {"height", "100px"}}),
              {node(61, style({{"display", "none"}, {"width", "100px"}, {"height", "50px"}}))});

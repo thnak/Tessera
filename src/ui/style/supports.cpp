@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/style/backdrop_filter.hpp"
+#include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/supports.hpp"
 
 #include <algorithm>
@@ -103,6 +104,12 @@ bool value_supported(std::string_view property, std::string_view value) {
     }
     if (property == "writing-mode") {
         return keyword_in(normalized, {"horizontal-tb", "vertical-rl", "vertical-lr"});
+    }
+    // Interaction properties (issue #247, stylesheet-v1 section 11): `@supports` is exactly as
+    // strict as the declaration validator, so a stylesheet can gate its fallback on the same
+    // grammar.
+    if (is_interaction_value_property(property)) {
+        return is_supported_interaction_value(property, normalized);
     }
     return true;
 }

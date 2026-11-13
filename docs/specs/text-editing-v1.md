@@ -133,7 +133,10 @@ scroll_into_view(caret)
   clipboard access is async and permission-aware.
 - Paste normalizes line endings and rejects oversized content; no unbounded allocation.
 - Password/secure fields: copy/cut disabled by default; paste allowed but never logged.
-- Selection drag/copy is a pointer gesture; no implicit clipboard access without a command.
+- Selection drag/copy is a pointer gesture; no implicit clipboard access without a command. The
+  gesture is gated by `user-select`: `none` in the target's subtree blocks starting a selection
+  there, `text` allows it, and an editable `TextInput`/`TextArea` always allows selection regardless
+  of an ancestor's `none` ([`stylesheet-v1.md`](stylesheet-v1.md) section 11).
 
 ## 7. Nodes and JSX
 

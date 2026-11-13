@@ -23,6 +23,16 @@ namespace rhi = tessera::rendering::rhi;
 
 using NodeId = std::uint64_t;
 
+// Text-selection policy from `user-select` (stylesheet-v1 section 11, issue #247). `None` blocks
+// starting a selection at this node, `Text` allows it, and `Auto` keeps the default (static text is
+// selectable). The property is inherited, so each node stores its computed value and one explicit
+// `auto`/`text` anywhere in a `none` subtree re-enables selection there.
+enum class UserSelect : std::uint8_t {
+    Auto,
+    None,
+    Text,
+};
+
 class Node {
 public:
     explicit Node(NodeId id = 0);
@@ -111,6 +121,25 @@ public:
     [[nodiscard]] bool visible() const {
         return visible_;
     }
+
+    // CSS `pointer-events: auto|none` (stylesheet-v1 section 11, issue #247), copied from computed
+    // style by `style::sync_interaction_style`. False makes `hit_test_deep` pass this node over as
+    // a target: hover, active, capture, click synthesis, wheel and accessibility-free hit tests
+    // land on whatever is behind it. The subtree is still searched, so a descendant with `auto` is
+    // hit again. Painting, keyboard focus and the accessibility tree are unaffected.
+    void set_pointer_events(bool enabled);
+    [[nodiscard]] bool pointer_events() const {
+        return pointer_events_;
+    }
+
+    void set_user_select(UserSelect value);
+    [[nodiscard]] UserSelect user_select() const {
+        return user_select_;
+    }
+    // True when a selection gesture may start at this node: false only for an explicit/inherited
+    // `user-select: none`. Editable text (`TextInput`/`TextArea`) always allows selection, whatever
+    // an ancestor's `none` says, as in CSS.
+    [[nodiscard]] bool text_selection_allowed() const;
 
     void set_focusable(bool focusable);
     [[nodiscard]] bool focusable() const {
@@ -209,6 +238,8 @@ public:
     [[nodiscard]] rhi::Rect world_bounds() const;
 
     [[nodiscard]] bool hit_test(float x, float y) const;
+    // Deepest hit target under the point, in paint order. A `pointer-events: none` node is not a
+    // target but its children are still searched (stylesheet-v1 section 11).
     [[nodiscard]] Node* hit_test_deep(float x, float y);
 
     // Optional app/compiler-supplied paint payload (D9): currently a text run painted after this
@@ -399,6 +430,8 @@ private:
     float scrollport_right_ = 0.0f;
     float scrollport_bottom_ = 0.0f;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
+    bool pointer_events_ = true;                // CSS `pointer-events: auto`
+    UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;
 };

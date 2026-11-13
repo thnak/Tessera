@@ -6,6 +6,7 @@
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/clipped_paint_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/style/interaction_style.hpp"
 
 #include <algorithm>
 #include <array>
@@ -26,6 +27,13 @@ void index_nodes(Node& node, std::unordered_map<NodeId, Node*>& index) {
     for (const auto& child : node.children()) {
         index_nodes(*child, index);
     }
+}
+
+// Adapts the paint provider (compiled stylesheet, animation overlay or a test stub) to the
+// interaction sync so the scene gets `pointer-events`/`user-select` from the same computed style
+// paint and layout see.
+style::ComputedStyle interaction_style_thunk(void* context, const Node& node) {
+    return static_cast<paint::StyleProvider*>(context)->compute(node);
 }
 
 rendering::RedrawPlan normalized_plan(rendering::RedrawPlan plan, rendering::rhi::Extent2D target,
@@ -272,7 +280,12 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
     if (!force && !tick.needs_style && !tick.needs_layout) {
         return {};
     }
-    return paint::sync_scene_style(root, styles, config_.glass);
+    paint::SceneStyleSyncResult result = paint::sync_scene_style(root, styles, config_.glass);
+    // Interaction state the scene itself consumes: hit testing (`pointer-events`) and the text
+    // selection gate (`user-select`), stylesheet-v1 section 11 / issue #247. Same seam, same
+    // frame, so the two halves never disagree about a restyled node.
+    sync_interaction_style(root, &interaction_style_thunk, &styles);
+    return result;
 }
 
 FrameRender FramePipeline::finish_frame(Node& root) {
