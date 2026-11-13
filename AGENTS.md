@@ -325,7 +325,11 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       types, a synthetic event injector, and display-capability events on Windows and X11 (DPI, scale,
       refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends are post-V1
       (Android).
-- [ ] #227: Effective opacity multiplies down the subtree (children fade with their parent).
+- [x] #227: Effective opacity multiplies down the subtree (children fade with their parent) —
+      `src/ui/paint/paint_pass.cpp` (ancestor product folded into every primitive), paint-cache key
+      (`PaintCacheSignature::opacity_bits`), `Node::mark_subtree_dirty` on an animated opacity,
+      `docs/design/paint-pass.md` §14.1 (non-isolated rule + deferred isolation seam), test
+      `paint_opacity` (0.5 × 0.5 = 0.25, hit-testable `opacity: 0`, animation-driven subtree repaint).
 - [x] #242: Renderer seam: render-pass break, `copy_target_region`, pooled offscreen target (glass) —
       `include/tessera/rendering/rhi/device.hpp` (RHI 1.1 op + contract),
       `src/rendering/gpu/{batched2d_seam,offscreen_target_pool}.cpp`,
