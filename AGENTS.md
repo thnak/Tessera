@@ -462,7 +462,13 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       NVDA smoke checklist.
 - [ ] #186: Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
 - [ ] #187: Reduced motion and dark mode queries on Linux.
-- [ ] #243: Translucent window and OS backdrop (Mica, Acrylic, compositor blur) with fallback.
+- [x] #243: Translucent window and OS backdrop (Mica, Acrylic, compositor blur) with fallback —
+      `include/tessera/hal/window_backdrop.hpp` (resolver table), `src/platform/windows/window_backdrop.cpp`
+      (`DWMWA_SYSTEMBACKDROP_TYPE`, DWM frame extension), `src/platform/linux/x11_backdrop.cpp`
+      (ARGB visual + `_KDE_NET_WM_BLUR_BEHIND_REGION`), `include/tessera/rendering/rhi/swapchain.hpp`
+      (RHI 1.2 composite alpha), `tests/unit/harness/backdrop_tests.cpp`,
+      `docs/specs/window-chrome-v1.md` §11.1 manual checklist. Wayland `ext-background-effect-v1`
+      stays gated on #155.
 - [ ] #222: `CutoutInfo` in `WindowMetrics` with a fake for tests (the Android fill is post-V1).
 - [ ] #232: Window full-screen toggle on Windows and Linux.
 - [ ] Platform cursor shape on Windows and Linux.
