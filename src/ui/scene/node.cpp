@@ -260,6 +260,16 @@ void Node::mark_dirty(Dirty flags) {
     }
 }
 
+void Node::mark_subtree_dirty(Dirty flags) {
+    if (flags == Dirty::Clean) {
+        return;
+    }
+    mark_dirty(flags);
+    for (const auto& child : children_) {
+        child->mark_subtree_dirty(flags);
+    }
+}
+
 void Node::clear_dirty(Dirty flags) {
     const Dirty remaining = dirty_ & ~flags;
     if (remaining == dirty_) {

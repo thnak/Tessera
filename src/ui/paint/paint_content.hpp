@@ -30,12 +30,13 @@ namespace tessera::ui::paint::detail {
     return rhi::Rect{border_box.x + padding_left, border_box.y + padding_top, width, height};
 }
 
-// Payload tint (white when absent) with its alpha folded with payload opacity and computed opacity.
-// Nullopt when the effective alpha is zero (nothing would be painted).
+// Payload tint (white when absent) with its alpha folded with payload opacity and the node's
+// effective opacity (the product of its own `opacity` and every ancestor's; see paint-pass.md
+// section 14.1). Nullopt when the effective alpha is zero (nothing would be painted).
 [[nodiscard]] inline std::optional<rhi::Color>
 content_tint(const std::optional<rhi::Color>& payload_tint, float payload_opacity,
-             const style::ComputedStyle& style) {
-    const float opacity = opacity_value(style) * std::clamp(payload_opacity, 0.0f, 1.0f);
+             float effective_opacity) {
+    const float opacity = effective_opacity * std::clamp(payload_opacity, 0.0f, 1.0f);
     if (opacity <= 0.0f) {
         return std::nullopt;
     }

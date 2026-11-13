@@ -11,7 +11,8 @@
 namespace tessera::ui::paint::detail {
 
 void paint_image_content(const Node& node, const style::ComputedStyle& style,
-                         const rhi::Rect& border_box, PaintSink& sink, PaintStats& stats) {
+                         const rhi::Rect& border_box, float opacity, PaintSink& sink,
+                         PaintStats& stats) {
     const auto& data = node.paint_data();
     if (!data.has_value() || data->kind != PaintKind::Image) {
         return;
@@ -25,7 +26,7 @@ void paint_image_content(const Node& node, const style::ComputedStyle& style,
     if (!rect.has_value()) {
         return;
     }
-    const std::optional<rhi::Color> tint = content_tint(payload.tint, payload.opacity, style);
+    const std::optional<rhi::Color> tint = content_tint(payload.tint, payload.opacity, opacity);
     if (!tint.has_value()) {
         return;
     }

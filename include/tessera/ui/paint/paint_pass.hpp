@@ -117,10 +117,13 @@ struct PaintContext {
 // by the painted border widths - through `PaintSink::push_clip`; their children are offset by
 // -scroll by the world transform.
 //
-// Limits (deliberate, one slice): no gradients, shadows, or layers, no percentage/em lengths, and
-// no per-node compositing. Opacity multiplies the alpha of every color the node emits; it does not
-// isolate a group. Content runs come from PaintData: text (section 10 of the paint-pass note) or a
-// single embedded vector asset (section 11) or raster image (section 12), one active kind per node.
+// Limits (deliberate): no isolated group layers, no percentage/em lengths, and no per-node
+// compositing. Opacity is effective opacity: the product of the node's own `opacity` and every
+// ancestor's multiplies each primitive the node emits, so children fade with their parent
+// (paint-pass.md section 14.1) - without isolation, an overlapping group composites per primitive
+// instead of as one layer. Content runs come from PaintData: text (section 10 of the paint-pass
+// note) or a single embedded vector asset (section 11) or raster image (section 12), one active
+// kind per node.
 //
 // Paint order per node: background, then the top, right, bottom, and left border edges. A uniform
 // non-zero corner radius paints the background as one rounded rect; borders stay plain edge rects,

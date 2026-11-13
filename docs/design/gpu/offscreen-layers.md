@@ -157,6 +157,9 @@ An isolated layer is the same seam with a different destination: render the subt
 target (render pass on the target, not a region copy), then composite it once. Because the pool
 hands out plain `RenderTarget`s - not region-copy scratch buffers - no new resource type is needed;
 the layer path only needs a composite draw with the target as a texture, which is a later slice.
+#227 itself shipped the non-isolated rule instead - the effective opacity product folded into every
+primitive of the subtree, no offscreen target ([`../paint-pass.md`](../paint-pass.md) section 14.1) -
+so true group isolation, shared-element snapshots and stacking contexts still wait on this seam.
 
 ## 6. Testing and determinism
 

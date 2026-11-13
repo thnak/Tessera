@@ -44,12 +44,13 @@ inline std::uint32_t float_bits(float value) {
 
 // Every input of the key is read without resolving style, which is what lets a hit skip style
 // resolution entirely (paint_cache.hpp holds the full validity contract). `frame_inverse` is the
-// painting frame's inverse when the node opened one, else identity.
+// painting frame's inverse when the node opened one, else identity. `inherited_opacity` is the
+// effective opacity of the ancestors, the product a record's colours were folded with.
 inline PaintCacheSignature
 make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
                            const rhi::Mat3& frame_inverse, bool frame_active, const rhi::Rect& rect,
                            bool interpolated, bool supports_transform, const ClipScope& clip_scope,
-                           const PassState& pass) {
+                           const PassState& pass, float inherited_opacity) {
     PaintCacheSignature signature;
     signature.node = node.id();
     signature.bounds = node.bounds();
@@ -70,6 +71,7 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     signature.paint_rect = rect;
     signature.clip_hash = clip_scope.hash;
     signature.clip_depth = clip_scope.depth;
+    signature.opacity_bits = float_bits(inherited_opacity);
     signature.metrics_source_id = pass.metrics_source_id;
     signature.device_scale_bits = pass.device_scale_bits;
     signature.reduce_effects = pass.reduce_effects;

@@ -23,7 +23,11 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    # The gated suite (build + package + install layout + static-link/static-runtime proofs + the
+    # full ctest) now needs roughly 30 minutes on a hosted runner and the 30-minute cap started
+    # cancelling runs mid-Tests (#258, 2026-11-13: cancelled at 30m06s; #252 passed at 29m57s). 50
+    # minutes leaves headroom for a slow runner without hiding a hung job.
+    timeout-minutes: 50
 
     steps:
       - uses: actions/checkout@v4

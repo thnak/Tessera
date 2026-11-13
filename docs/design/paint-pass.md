@@ -58,18 +58,14 @@ paint_rect(node) = world_bounds(node)
 ### 3.1 Scroll containers
 
 Scroll state is additive scene state ([`scroll.hpp`](../../include/tessera/ui/scene/scroll.hpp)):
-`scroll_x/scroll_y` offsets, `content_width/height`, and `scrollable_x/y`. The paint pass needs no
-special offset code because `Node::world_transform()` places every child in its parent's content
-space, so a scroll container's children paint at `world_bounds() - scroll` while the container's own
-box is unchanged. A node with `scrollable_x() || scrollable_y()` is treated as a clipping parent:
-`paint_scene` pushes the same rounded padding-box clip used for `overflow` around its children and
-pops it after them (`PaintStats::clips`); a border-inset that consumes the box skips the clip rather
-than pushing a degenerate one. Layout bounds and transforms are never mutated by scrolling. Damage
-for a scroll is the container's border box (the children are clipped inside it, so one region covers
-both the old and the new visible content); the frame pipeline's dirty collection turns the
-container's Paint/Render dirty flags into that region. The scrollport used for clamping is still the
-border box, so a bordered container under-reveals its far edge by the border width until layout
-supplies padding-box scrollport insets; scrollbars and physics are later slices.
+`Node::world_transform()` places every child in its parent's content space, so a container's children
+paint at `world_bounds() - scroll` while the container's own box is unchanged. A node with
+`scrollable_x() || scrollable_y()` is treated as a clipping parent: `paint_scene` pushes the same
+rounded padding-box clip used for `overflow` around its children and pops it after them
+(`PaintStats::clips`); a border-inset that consumes the box skips the clip rather than pushing a
+degenerate one. Layout is never mutated by scrolling, and damage for a scroll is the container's
+border box (the children are clipped inside it). The scrollport for clamping is still the border box
+until layout supplies padding-box scrollport insets; scrollbars and physics are later slices.
 
 ## 4. Property mapping
 
@@ -81,7 +77,7 @@ supplies padding-box scrollport insets; scrollbars and physics are later slices.
 | `border-{top,right,bottom,left}-color` | edge color; `currentColor` uses `color` |
 | `border-*-radius` | when all four are equal and > 0, the background is one rounded rect |
 | `color` | inherited `currentColor` base; invalid/missing falls back to black |
-| `opacity` | multiplies the alpha of every color the node emits (clamped 0..1) |
+| `opacity` | effective opacity: own value x ancestor product, multiplies every emitted color (§14.1) |
 
 Parsing rules:
 
@@ -89,8 +85,8 @@ Parsing rules:
   property is ignored. Missing lengths use the property's initial value (0 for widths/radii).
 - Colors use [`style::parse_color`](../../src/ui/style/color.cpp), so named/hex/rgb/rgba/hsl work.
   `transparent` and any zero-alpha color are skipped, as are unparseable values.
-- `opacity` applies to the node's own background and borders; it does not isolate a group or
-  composite children.
+- `opacity` is not inherited, but its effect composites the node's whole subtree: see
+  [§14.1](#141-effective-opacity-issue-227).
 
 ## 5. Paint order and edges
 
@@ -124,7 +120,8 @@ property in this slice, not a border ring.
   inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
   The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
-- No layer isolation or group opacity; `opacity` is per emitted color.
+- No isolated-layer group opacity; effective opacity is multiplied per primitive (§14.1), so
+  overlapping siblings composite separately and a group cannot fade as one layer.
 - No percentage/`em`/`rem`/viewport units and no non-pixel radii.
 - Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
 - Transform composition beyond the `world_bounds()` AABB is out of scope.
@@ -137,8 +134,8 @@ property in this slice, not a border ring.
 and covers: absolute placement through parent offsets, parent-before-child order, invisible subtree
 skipping, transparent/zero-alpha/unparseable colors, the four border edges with distinct colors,
 `none`/`hidden` sides, uniform vs mixed radii, radius clamping, opacity and `currentColor`, an empty
-scene, the `SceneStyleProvider` path, and a null-backend integration that asserts two draws and that
-paint never submits the command list (the caller does).
+scene, the `SceneStyleProvider` path, and a null-backend integration that asserts two draws and never
+submits; effective opacity is covered by `paint_opacity` (§14.1).
 
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
@@ -224,20 +221,16 @@ Region semantics:
 - A `rhi::Scissor` is the half-open integer rect `[x, x + width) x [y, y + height)`; it is converted
   to a float rect before the intersection, so a command edge on a region edge is inside.
 - Paint order is preserved: commands keep their source order and, within one command, regions keep
-  the plan order. For disjoint regions the output is independent of the region order.
-- Regions from `rendering::make_redraw_plan` are pairwise disjoint: `DamageAccumulator::add`
-  AABB-merges touching rectangles, and `Batched2DRenderer::begin_damaged` requires disjoint regions.
-  A caller-supplied plan with overlapping regions emits the overlapped pixels once per covering
-  region, in region order; that is deterministic but not a valid plan for the renderer's replay.
-- A full-redraw plan is byte-identical to the full-frame overload: the decorator is bypassed
-  entirely, so commands outside the target or outside `plan.scissors` are still emitted.
+  the plan order; for disjoint regions the output is independent of the region order.
+- `make_redraw_plan` regions are pairwise disjoint (`DamageAccumulator::add` AABB-merges touching
+  rectangles, and `begin_damaged` requires disjoint regions). A caller-supplied plan with overlapping
+  regions emits the overlapped pixels once per covering region: deterministic, not a renderer plan.
+- A full-redraw plan is byte-identical to the full-frame overload: the decorator is bypassed, so
+  commands outside the target or outside `plan.scissors` are still emitted.
 - Clipping is geometric: every emitted command covers only pixels inside a region, so a caller may
-  feed this sink directly. Passing the same plan to `begin_damaged` is redundant (the renderer
-  scissor clips again; harmless for solid rects).
-- Rounded rects: a fully contained rounded rect keeps its radius; a partially covered one is
-  repainted as the plain intersection rectangle (the `PaintSink` API cannot express a clipped SDF
-  shape, so the conservative choice repaints every pixel inside the region); a fully outside one is
-  dropped.
+  feed this sink directly; passing the same plan to `begin_damaged` only re-clips (harmless).
+- Rounded rects: a contained one keeps its radius; a partially covered one becomes the plain
+  intersection rectangle (the API cannot express a clipped SDF shape); an outside one is dropped.
 
 ### 8.2 Old and new bounds
 
@@ -443,20 +436,16 @@ measured-advance callback). The source id is part of the `TextLayoutCache` key, 
 real-font line boxes can never mix; switching faces means `invalidate()` plus a new stable id.
 
 With real metrics, a line is never wider than the content box except when a single UTF-8 code point
-is wider than the box (the break keeps at least one code point per line). Under-fill is bounded by
-the last word that did not fit plus the measured inter-word advance. Alignment uses the measured
-line width; paint-time x/baseline integer snapping is unchanged. Paint emits the source's line boxes
-verbatim (byte ranges, widths/heights, baselines), with line tops rounded only for emission; the GPU
-test asserts paint lines equal `FontPaintTextMetrics::layout`, center alignment and wrapped pixels.
+is wider than the box; under-fill is bounded by the last word that did not fit plus one inter-word
+advance. Alignment uses the measured line width and paint-time integer snapping is unchanged. Paint
+emits the source's line boxes verbatim; the GPU test asserts paint lines equal
+`FontPaintTextMetrics::layout`, center alignment and wrapped pixels.
 
 Measurements (`paint_text_gpu_tests --bench`, Debug): stub ~200.8 us, real-metrics ~13.2 ms
-(per-word HarfBuzz shaping in Debug), real-source cache hit ~1.0 us; the cache removes the
-steady-state cost, faster real-metric measuring stays deferred.
-
-Deferrals: contextual/ligature line breaking, bidi/ICU/hyphenation, subpixel positioning,
-emoji/font-stack fallback and a shaping cache. Batching: one `draw_text` per line; `Batched2DSink`
-shapes each line and pushes atlas quads, consecutive lines that use the same atlas page stay in one
-renderer batch, and a page/clip change flushes as before (section 10). The sink does not re-wrap.
+(per-word HarfBuzz shaping), real-source cache hit ~1.0 us; faster real-metric measuring stays
+deferred. Deferrals: contextual/ligature line breaking, bidi/ICU/hyphenation, subpixel positioning,
+emoji/font-stack fallback and a shaping cache. Batching: one `draw_text` per line; consecutive lines
+on the same atlas page stay in one renderer batch and a page/clip change flushes as before (§10).
 
 Tests: `paint_text_wrap` (NoWrap vs Wrap, padding-box width, multi-line order/offsets/baselines,
 `max_lines` truncation, alignment + computed fallback, `white-space: nowrap` suppression, damage
@@ -520,33 +509,26 @@ bidi/RTL carets, `::selection` style, sub-pixel caret positioning.
 
 ### 10.2.1 IME preedit (task-72)
 
-`TextDecoration` also carries the active composition descriptor: `composition_active`, half-open
-`preedit_begin`/`preedit_end` buffer bytes (equal offsets = insertion at that point),
-`preedit_underline`, and the bounded uncommitted `preedit_text` string. While composing, the
-preedit is **not** part of `PaintData::text`: the text is the committed content and the descriptor
-describes what the IME is about to commit, so paint never reads the edit controller. The owner
-copies `EditController::preedit_range()` (the `CompositionStart`/`Update` state: `begin`/`end` are
-`composition_start`/`composition_end`, `text` is the preedit bytes) into the descriptor; commit
-(`EditText`) or cancel (`CompositionEnd` without commit) deactivates it.
+`TextDecoration` carries the active composition descriptor: `composition_active`, half-open
+`preedit_begin`/`preedit_end` buffer bytes (equal offsets = insertion there), `preedit_underline`
+and the bounded `preedit_text`. The preedit is **not** part of `PaintData::text` while composing, so
+paint never reads the edit controller; commit (`EditText`) or cancel (`CompositionEnd` without
+commit) deactivates it.
 
-- **Underline:** when `preedit_text` is empty (the composition is already in the painted text) the
-  replaced range is underlined with the same byte -> line mapping the selection fill uses; otherwise
-  the preedit run at the composition anchor is underlined. Thickness is 1 px at device scale 1 and
-  2 px at scale >= 2; the colour is the resolved text colour (node opacity already folded).
+- **Underline:** an empty `preedit_text` (composition already in the painted text) underlines the
+  replaced range through the selection byte -> line mapping; otherwise the preedit run is underlined.
+  Thickness is 1 px at device scale 1 and 2 px at scale >= 2; the colour is the resolved text colour.
 - **Preedit run:** when `preedit_text` is non-empty, paint emits one `draw_text` run at the anchor
   using the measured prefix advance, the line's baseline, and the committed text style/colour. An
-  empty committed text synthesizes one line box from the metrics source, so the preedit is visible
-  before the first commit; other empty-text nodes remain no-ops.
+  empty committed text synthesizes one line box, so the preedit is visible before the first commit.
 - **Z-order:** selection fill, glyph runs, preedit run, preedit underline, caret. Everything is an
   ordinary `PaintSink` call, so node/scroll clips and damage-region replay clip it and node opacity
   folds into the run/underline alpha. No new layout path and no sink hook.
 
-Tests: `paint_text_preedit` (descriptor lifecycle through the controller, underline range only,
-1/2 px thickness, empty-buffer preedit run, commit/cancel removal, z-order, damage replay, opacity,
-determinism). No new PNG golden was added: the RecordingSink op record is byte-exact, while the CPU
-text path needs a real-font fixture for pixels (the existing `paint_text_gpu` readback covers the
-decorated GPU path). Deferrals: candidate-window positioning, per-composition styling (squiggly or
-coloured underline), bidi preedit, selection inside the preedit range, GPU readback of the preedit.
+Tests: `paint_text_preedit` (descriptor lifecycle, underline range only, 1/2 px thickness,
+empty-buffer preedit run, commit/cancel removal, z-order, damage replay, opacity, determinism); no
+PNG golden - the RecordingSink record is byte-exact and the GPU readback covers pixels. Deferrals:
+candidate-window positioning, per-composition styling, bidi preedit, selection inside the preedit.
 
 ## 12. Raster image assets (D12)
 
@@ -558,7 +540,7 @@ active payload (text/vector/image are mutually exclusive); fields of the other k
 
 Emission and compositing mirror vectors: after the node's background/borders, inside its own
 overflow/scroll clip, before its children; `rect` is the padded content box; effective tint alpha is
-`tint.a * payload.opacity * computed opacity`; `PaintStats::images` counts draws. `PaintSink` gained
+`tint.a * payload.opacity * effective opacity`; `PaintStats::images` counts draws. `PaintSink` gained
 an additive default no-op `draw_image(const ImageDraw&)`, and `ClippedPaintSink` replays image draws
 per damage region under the region clip exactly like glyphs and vectors.
 
@@ -592,9 +574,26 @@ target into an offscreen target: `Batched2DRenderer::break_pass()`/`resume_pass(
 `resume_pass()` reopens the same target with `LoadOp::Load`, so geometry before and after the break
 composes exactly as on the single-pass path; a tree that never breaks a pass records byte-identical
 commands and keeps today's goldens. This is the seam `backdrop-filter` (#244) uses for its backdrop
-copy/blur and that isolated layers (#227) use to paint a subtree into its own texture.
+copy/blur, and the seam true isolated layers would use for group opacity (see
+[§14.1](#141-effective-opacity-issue-227)); #227 itself ships the non-isolated rule below.
 
 The #244 consumer is `PaintSink::draw_backdrop`, emitted once per glass node at the segment boundary
 with the clamped sigma, rounded clip, folded opacity and color factors; high contrast drops it. The
 composite draw sampling a pooled target is still deferred (`Batched2DSink` counts it unsupported);
 contract: [`gpu/offscreen-layers.md`](gpu/offscreen-layers.md), [`gpu/rhi.md`](gpu/rhi.md) section 5.
+
+### 14.1 Effective opacity (issue #227)
+
+`opacity` is not inherited, but its visual effect composites the node's whole subtree. `paint_scene`
+threads the product of the ancestor opacities down the recursion and folds it, with the node's own
+value, into every primitive it emits: backgrounds, borders, box shadows, gradients, glass backdrops,
+glyph quads and caret/selection fills, and vector/image tints. Overlapping siblings composite
+separately, so this is **non-isolated** group opacity: correct for non-overlapping children and for
+every fade, but not the isolated-layer result CSS specifies for overlapping content. `opacity: 0`
+still walks the subtree and never touches the scene, so a transparent card stays hit-testable.
+
+The ancestor product is part of the paint-cache key (a record never replays under another ancestor
+opacity), and the frame pipeline marks an animated opacity node's descendants Paint|Render dirty, so
+a parent fade repaints the subtree and its damage. True isolation (subtree into an offscreen target,
+composited once) is the seam shared with shared-element snapshots and stacking contexts; **not**
+implemented here: [`gpu/offscreen-layers.md`](gpu/offscreen-layers.md) section 5.2.

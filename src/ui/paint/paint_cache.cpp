@@ -41,7 +41,8 @@ bool same_signature(const PaintCacheSignature& lhs, const PaintCacheSignature& r
            same_matrix(lhs.frame_inverse, rhs.frame_inverse) &&
            lhs.sink_supports_transform == rhs.sink_supports_transform &&
            same_rect(lhs.paint_rect, rhs.paint_rect) && lhs.clip_hash == rhs.clip_hash &&
-           lhs.clip_depth == rhs.clip_depth && lhs.metrics_source_id == rhs.metrics_source_id &&
+           lhs.clip_depth == rhs.clip_depth && lhs.opacity_bits == rhs.opacity_bits &&
+           lhs.metrics_source_id == rhs.metrics_source_id &&
            lhs.device_scale_bits == rhs.device_scale_bits &&
            lhs.reduce_effects == rhs.reduce_effects && lhs.high_contrast == rhs.high_contrast &&
            lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
