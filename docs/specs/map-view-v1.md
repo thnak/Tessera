@@ -21,7 +21,7 @@ Goals:
 
 Non-goals (not in this spec): turn-by-turn routing, geocoding and search, the device's location
 (a platform service with its own permission flow), 3D terrain and buildings, vector tiles, offline
-regions. Vector tiles and offline are open questions 1 and 2.
+regions. Vector tiles and offline are deferred (decisions 1 and 2).
 
 ## 2. Component
 
@@ -100,11 +100,17 @@ surface from the `markers` prop, so a thousand markers do not become a thousand 
 - Golden: fake tiles plus markers and shapes at fixed cameras; default and dark themes.
 - No test uses the network or a real tile provider.
 
-## 10. Open questions
+## 10. Decisions
 
-1. **Vector tiles** (MVT) and style rendering, or raster only for the first release.
-2. **Offline tiles**: bundle format (MBTiles, PMTiles) and licensing of any bundled data.
-3. **Default tile provider**: none is proposed; the policy of each public provider forbids
-   uncontrolled production use, so the project will not pick one on the app's behalf.
-4. **Attribution wording** for composite sources.
-5. **Clustering** of dense markers: in the component or an app concern.
+Decided by the owner on 2026-11-13:
+
+1. **Raster tiles only** in the first release; vector tiles (MVT) and a style engine are a separate
+   later spec.
+2. **No offline tiles** in the first release. PMTiles (one file) is the first candidate later, subject
+   to the license of any bundled data.
+3. **No default tile provider.** The app always supplies `tileSource`. The policy of each public
+   provider forbids uncontrolled production use, so the project does not choose one on the app's
+   behalf.
+4. **Attribution:** the app passes the attribution string; the framework always draws it and the
+   app cannot hide it.
+5. **Marker clustering** is the app's concern in V1.

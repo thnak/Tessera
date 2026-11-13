@@ -37,7 +37,7 @@ public:
 };
 ```
 
-The choice of engine is an open decision (open question 1). A fake engine that returns
+The engine is PDFium (decision 1). A fake engine that returns
 deterministic bitmaps backs all tests.
 
 ## 3. Component and props
@@ -50,7 +50,7 @@ like a `VirtualList`, so only visible pages (plus one on each side) hold tiles.
 | `src` | asset id, file path, or bytes | required | URLs are the app's job: download first, then pass bytes or a file |
 | `page` / `defaultPage` | 1-based int | `1` | Controlled / uncontrolled pair |
 | `zoom` / `defaultZoom` | `fit-width`, `fit-page`, or number | `fit-width` | Number is a scale, clamped to `0.25..8` |
-| `layout` | `continuous`, `single` | `continuous` | `spread` (two pages) is open question 4 |
+| `layout` | `continuous`, `single` | `continuous` | `spread` (two pages) is deferred (decision 4) |
 | `password` | string | none | When absent and needed, `onPasswordRequired` fires |
 | `label` | string (i18n key) | required | Accessible name |
 
@@ -85,8 +85,7 @@ A PDF is attacker-controlled data. The viewer and every engine adapter must:
 - never execute document JavaScript, launch files, or follow links automatically;
 - enforce limits on file size, page count, page dimensions, decompressed stream size and per-page
   render time (defaults in runtime config); exceeding one is `limit_exceeded`, not a hang;
-- run the engine where a crash or timeout cannot take down the UI thread; whether that means a
-  separate process is part of open question 2;
+- run the engine where a crash or timeout cannot take down the UI thread; a worker with the limits above is the V1 answer (decision 2);
 - keep fonts embedded or pinned; no system font lookup for goldens.
 
 ## 7. Errors
@@ -125,14 +124,17 @@ Annotations and forms stay out of scope until a separate spec.
   golden against the real engine is added only when the engine and its fonts are pinned.
 - Fuzz-style tests feed truncated and corrupt files and assert an error, never a crash.
 
-## 11. Open questions
+## 11. Decisions
 
-1. **Engine.** Candidates are the platform renderers (Windows `PdfRenderer`, Apple PDFKit,
-   Android `PdfRenderer`) and PDFium (BSD-3-Clause and Apache-2.0 parts, needs an entry in
-   [`dependencies.md`](dependencies.md)). MuPDF is AGPL and excluded by the no-GPL rule. Linux has
-   no platform renderer, so a bundled engine is needed there.
-2. **Isolation:** in-process worker with limits, or a separate sandboxed process.
-3. **Text layer and search** quality across languages and RTL text.
-4. **Two-page spread** and reading direction.
-5. **Wasm target:** whether the web build uses the same engine compiled to Wasm or the browser's
-   own viewer.
+Decided by the owner on 2026-11-13:
+
+1. **Engine: PDFium on every platform.** BSD-3-Clause and Apache-2.0 parts; one engine gives the
+   same pixels everywhere, so goldens are shared. It is listed in
+   [`dependencies.md`](dependencies.md) as Deferred. The platform renderers are not used (they differ
+   per platform and Linux has none). MuPDF (AGPL) and poppler (GPL) are excluded by the no-GPL rule.
+2. **Isolation: an in-process worker with the limits of section 6.** A sandboxed process is a
+   later upgrade behind the same `PdfEngine` seam, with no API change.
+3. **Text layer and search** ship in phase B as best effort; the limits for right-to-left and
+   complex scripts are documented, not blocked on.
+4. **Two-page spread** is deferred; V1 has `continuous` and `single`.
+5. **Wasm: PDFium compiled to Wasm**, so the web build renders the same pixels as native.

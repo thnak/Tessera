@@ -97,10 +97,13 @@ parent's style.
 - Golden: one screen with each of those metrics; default and dark themes.
 - Animation: keyboard inset animation under the manual clock; reduced motion jumps.
 
-## 10. Open questions
+## 10. Decisions
 
-1. **Per-edge animation** when only some sides change at once (rotation with a keyboard open).
-2. **Desktop window chrome insets** (custom title bar): whether they are reported as insets or stay
-   in `window-chrome-v1`.
-3. **Rounded screen corners** as an inset shape: a rectangle is enough for V1, a corner radius is
-   exposed only if a component needs it.
+Decided by the owner on 2026-11-13:
+
+1. **Per-edge animation:** each edge animates independently, so a rotation with the keyboard open
+   does not jump.
+2. **Custom desktop title-bar insets** stay in [`window-chrome-v1.md`](window-chrome-v1.md);
+   `SafeArea` does not read them.
+3. **Rounded screen corners:** a rectangle only in V1; a corner radius is exposed when a
+   component needs it.

@@ -152,6 +152,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | Vulkan surface extensions | V1 | Apache-2.0 | `rendering/backend/vulkan` | `KHR_surface` + platform surfaces |
 | UIA (UI Automation) / AT-SPI (Assistive Technology Service Provider Interface) / NSAccessibility | Deferred | System (AT-SPI: LGPL) | `ui/accessibility` | Accessibility |
 | D-Bus / libdbus | Deferred | System | `ui/accessibility` | AT-SPI transport on Linux |
+| PDFium | Deferred (after V1; [`pdf-viewer-v1`](pdf-viewer-v1.md)) | BSD-3-Clause, Apache-2.0 parts | `components/pdf` | PDF page rendering and text layer on every platform, also compiled to Wasm |
 
 Mobile/foldable signals use AndroidX WindowManager via JNI; iOS/iPadOS/macOS use system scene
 APIs. No platform type leaks into `ui/`. See [`os-events-v1.md`](os-events-v1.md).

@@ -105,7 +105,7 @@ Parts ([ADR-047](../../decisions/ADR-047-component-library-layers-and-design-lan
   toggles fullscreen where the platform has it.
 - Reduced motion: control fades become cross-fades with no movement; auto-hiding controls stay
   visible while focus is inside them.
-- Captions: text tracks are not part of this spec (open question 3); until then the app draws
+- Captions: text tracks are deferred (decision 3); until then the app draws
   captions as ordinary `Text` over the surface.
 
 ## 9. Testing
@@ -118,12 +118,18 @@ Parts ([ADR-047](../../decisions/ADR-047-component-library-layers-and-design-lan
   dark and high-contrast themes, with and without controls.
 - Power: a paused player records zero presents over N idle ticks.
 
-## 10. Open questions
+## 10. Decisions
 
-1. **Codec set and patent/licensing stance** (H.264 and AAC are platform-decoded; which formats
-   are guaranteed on every platform, and what the Linux fallback is).
-2. **Adaptive streaming**: HLS first, DASH, or neither in the first release.
-3. **Text tracks** (WebVTT subset) and their accessibility mapping.
-4. **Fullscreen** semantics per platform and its interaction with window chrome.
-5. **Web target**: whether `Video` maps to the browser media element on Wasm instead of an
-   external texture ([ADR-046](../../decisions/ADR-046-web-target-for-demos.md) if it covers this).
+Decided by the owner on 2026-11-13:
+
+1. **Codecs.** Guaranteed on Windows, macOS, iOS and Android: MP4 with H.264 video, AAC audio and
+   MP3, decoded by the platform. WebM, VP9 and Opus work where the platform decodes them. Linux is
+   best effort through the optional GStreamer service; the app must handle `unsupported_format`.
+2. **Adaptive streaming** is not in the first release. HLS through the platform decoder is the
+   first candidate for a later one; DASH after that.
+3. **Text tracks** (a WebVTT subset, mapped to accessibility) come in a later release; until then
+   the app draws captions as `Text`.
+4. **Fullscreen** reuses the window fullscreen operation of
+   [`window-chrome-v1.md`](window-chrome-v1.md); `Video` has no fullscreen logic of its own.
+5. **Web target:** `Video` uses an `HTMLVideoElement` imported as a WebGPU external texture, with
+   the same props and events as native.

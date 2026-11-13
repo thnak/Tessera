@@ -122,12 +122,15 @@ meaning.
   high-contrast themes; mid-transition frames under the manual clock.
 - Power: an idle activity records zero presents over N ticks.
 
-## 10. Open questions
+## 10. Decisions
 
-1. **Cutout on non-Android platforms:** whether iOS can supply the Dynamic Island rectangle
-   without private API (it reports insets only), so iOS stays on the fallback until it can.
-2. **Several simultaneous compact activities** (two compacts split left and right of the cutout):
-   the first release shows one.
-3. **Mirroring to system live activities** (stage 6): which activity kinds map to which platform
-   feature.
-4. **Gesture conflicts** with a system swipe-down shade at the top edge.
+Decided by the owner on 2026-11-13:
+
+1. **iOS** uses the fallback placement (top center, below the top inset) until iOS offers a public
+   API that returns the island rectangle. No per-model hardcoded values.
+2. **One compact activity** at a time in the first release; splitting two across the cutout is
+   later work.
+3. **Mirroring to system live activities** is stage 6 and maps three kinds first: timer, progress
+   and media.
+4. **Gestures:** the capsule ignores swipes that start inside the system gesture inset and collapses
+   only on an outside tap, `Escape`, or an upward swipe while expanded.
