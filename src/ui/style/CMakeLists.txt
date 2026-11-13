@@ -17,7 +17,9 @@ add_library(tessera_style STATIC
     stylesheet_blob_read.cpp
     stylesheet_blob_write.cpp
     property_registry.cpp
+    property_value_validation.cpp
     scene_style.cpp
+    scroll_style_sync.cpp
     supports.cpp
     selector.cpp
     selector_match.cpp

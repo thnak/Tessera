@@ -177,6 +177,14 @@ Modes:
   (glow on Android 11 (API level 30) and earlier; stretch on Android 12 (API level 31) and later), Windows/Linux = `None` for wheel/mouse, `Stretch` for touch if
   the platform's HAL profile supports it. Apps may override per `Scroll`.
 
+The mode is selected by the `overscroll-effect` CSS property
+([`stylesheet-v1.md`](stylesheet-v1.md) section 11): `none | glow | stretch | bounce | platform`,
+not inherited, with the initial request `platform` (the values are exactly the `OverscrollEffect`
+enumerators above, and there is no `auto` keyword). The scene stores the request and the scroll
+controller derives whether the edge may animate (`contain`/`none` `overscroll-behavior` and
+`overscroll-effect: none` suppress it); painting the stretch/bounce/glow state is the remaining
+implementation slice of this section, and the controller today clamps the offset either way.
+
 Drag beyond an edge:
 
 ```text

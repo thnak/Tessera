@@ -33,6 +33,28 @@ enum class UserSelect : std::uint8_t {
     Text,
 };
 
+// Scroll runtime style inputs (docs/specs/stylesheet-v1.md section 11 and
+// docs/specs/scroll-and-gestures-v1.md section 4). The values mirror the CSS keywords the registry
+// accepts; the scene stores the resolved enum so the scroll controller and paint never parse CSS.
+// `overscroll-effect` uses the names of docs/specs/animation-v1.md section 7 and has no `auto`
+// keyword: `Platform` is the initial request the HAL profile resolves.
+enum class ScrollBehavior : std::uint8_t {
+    Auto,
+    Smooth,
+};
+enum class OverscrollBehavior : std::uint8_t {
+    Auto,
+    Contain,
+    None,
+};
+enum class OverscrollEffect : std::uint8_t {
+    None,
+    Glow,
+    Stretch,
+    Bounce,
+    Platform,
+};
+
 class Node {
 public:
     explicit Node(NodeId id = 0);
@@ -170,10 +192,10 @@ public:
     void set_scrollable_x(bool scrollable);
     void set_scrollable_y(bool scrollable);
     [[nodiscard]] bool scrollable_x() const {
-        return scrollable_x_;
+        return (scroll_bits_ & kScrollableXBit) != 0;
     }
     [[nodiscard]] bool scrollable_y() const {
-        return scrollable_y_;
+        return (scroll_bits_ & kScrollableYBit) != 0;
     }
     void set_content_size(float width, float height);
     [[nodiscard]] float content_width() const {
@@ -220,6 +242,41 @@ public:
     // Content-to-world transform: world_transform() * translation(-scroll). Children live in
     // content space, so this maps their coordinates to the scene.
     [[nodiscard]] rhi::Mat3 content_transform() const;
+
+    // Scroll runtime style inputs (stylesheet-v1 section 11). They are policy inputs for the
+    // controller, not paint-visible on their own: setting one marks no dirty domain, because the
+    // first move the policy causes (a chained wheel, a smooth-scroll tick) marks Paint|Render
+    // through set_scroll_offset. A style resolution pass fills them from computed style; layout is
+    // never involved (`scrollbar-gutter` is the one scroll style property that is layout input, and
+    // layout reads it from computed style directly).
+    void set_scroll_behavior(ScrollBehavior behavior);
+    [[nodiscard]] ScrollBehavior scroll_behavior() const {
+        return (scroll_bits_ & kScrollBehaviorSmoothBit) != 0 ? ScrollBehavior::Smooth
+                                                              : ScrollBehavior::Auto;
+    }
+    void set_overscroll_behavior(OverscrollBehavior behavior);
+    [[nodiscard]] OverscrollBehavior overscroll_behavior() const {
+        return static_cast<OverscrollBehavior>((scroll_bits_ & kOverscrollBehaviorMask) >>
+                                               kOverscrollBehaviorShift);
+    }
+    void set_overscroll_effect(OverscrollEffect effect);
+    [[nodiscard]] OverscrollEffect overscroll_effect() const {
+        return static_cast<OverscrollEffect>((scroll_bits_ & kOverscrollEffectMask) >>
+                                             kOverscrollEffectShift);
+    }
+    // Smooth programmatic scroll state (scroll-behavior: smooth). `scroll.cpp` owns the policy and
+    // the fixed-step advance; the target is a plain clamped offset so retargeting never jumps.
+    void set_scroll_animation_target(float x, float y);
+    void clear_scroll_animation();
+    [[nodiscard]] bool scroll_animation_active() const {
+        return scroll_animation_active_;
+    }
+    [[nodiscard]] float scroll_animation_target_x() const {
+        return scroll_animation_target_x_;
+    }
+    [[nodiscard]] float scroll_animation_target_y() const {
+        return scroll_animation_target_y_;
+    }
 
     // Interaction state seen by selector matching. Focus changes update the `Focus` bit and mark
     // the style domain dirty so the resolver re-evaluates `:focus`/`:not(:focus)`.
@@ -429,8 +486,23 @@ private:
     std::unique_ptr<AriaTable> aria_;
     std::unique_ptr<InlineStyleTable> inline_style_;
     std::unique_ptr<BindingTable> event_bindings_;
-    bool scrollable_x_ = false;
-    bool scrollable_y_ = false;
+    // Packed scroll bookkeeping: the two scrollable-axis flags and the three scroll runtime style
+    // enums share one byte so the smooth-scroll target (two floats) fits inside kNodeSizeBudget.
+    // Enum values are stored in declaration order; the masks are sized to the largest enumerator.
+    static constexpr std::uint8_t kScrollableXBit = 1u << 0;
+    static constexpr std::uint8_t kScrollableYBit = 1u << 1;
+    static constexpr std::uint8_t kScrollBehaviorSmoothBit = 1u << 2;
+    static constexpr std::uint8_t kOverscrollBehaviorShift = 3;
+    static constexpr std::uint8_t kOverscrollBehaviorMask = 0x3u << kOverscrollBehaviorShift;
+    static constexpr std::uint8_t kOverscrollEffectShift = 5;
+    static constexpr std::uint8_t kOverscrollEffectMask = 0x7u << kOverscrollEffectShift;
+    static_assert(static_cast<std::uint8_t>(OverscrollBehavior::None) == 2,
+                  "OverscrollBehavior is packed in declaration order");
+    static_assert(static_cast<std::uint8_t>(OverscrollEffect::Platform) == 4,
+                  "OverscrollEffect is packed in declaration order");
+    // Defaults: not scrollable, `scroll-behavior: auto`, `overscroll-behavior: auto` and the
+    // registry initial `overscroll-effect: platform` (ordinal 4).
+    std::uint8_t scroll_bits_ = 0x4u << kOverscrollEffectShift;
     float content_width_ = 0.0f;
     float content_height_ = 0.0f;
     float scroll_x_ = 0.0f;
@@ -439,6 +511,9 @@ private:
     float scrollport_top_ = 0.0f;
     float scrollport_right_ = 0.0f;
     float scrollport_bottom_ = 0.0f;
+    float scroll_animation_target_x_ = 0.0f;
+    float scroll_animation_target_y_ = 0.0f;
+    bool scroll_animation_active_ = false;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
     bool pointer_events_ = true;                // CSS `pointer-events: auto`
     UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value

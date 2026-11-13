@@ -110,8 +110,23 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   deltas. Wheel deltas are platform wheel units (Win32: one unit per 120-unit notch) converted with
   `kPixelsPerWheelUnit = 40` logical, CSS-like pixels per unit; the sign follows the web (positive
   `dy` scrolls content down). A wheel over a non-scrollable chain dispatches exactly as before and
-  changes nothing. Nested containers: the innermost scrollable ancestor consumes the wheel; there is
-  no chaining to outer containers when it reaches a clamped edge (deferred).
+  changes nothing. Nested containers: the innermost scrollable ancestor consumes the wheel first and
+  the remainder chains to the next scrollable ancestor while that container's `allow_chain` holds;
+  `overscroll-behavior: contain | none` drops the remainder at that edge (implemented, section 4).
+  Each container that moves emits its own `Scroll` event.
+- Scroll style inputs (issue #248, [stylesheet-v1.md](stylesheet-v1.md) section 11): the scene node
+  stores `scroll-behavior`, `overscroll-behavior` and `overscroll-effect` as resolved enums; the
+  style pass fills them with `style::sync_scroll_style` and `scrollbar-gutter` never reaches the
+  scene because layout reads it directly.
+- Smooth programmatic scroll: `scroll_to_programmatic`/`scroll_by_programmatic` jump when
+  `scroll-behavior` is `auto` and otherwise store a clamped target that `advance_scroll_animation`
+  moves by a fixed-step exponential approach (time constant 0.1 s, settle epsilon 0.5 px, one `Scroll`
+  event per applied step; already settled before the request moves nothing). Retargeting keeps
+  continuity (no jump), and reduced motion clamps every smooth request to a jump.
+- Overscroll policy: `allow_chain(node)` is derived from `overscroll-behavior` (`auto` only) and
+  `animates_overscroll(node)` additionally requires a non-`none` `overscroll-effect` and a resolved
+  platform profile that is not `none`; the stretch/bounce visual state itself remains the
+  animation-v1 section 7 slice. `contain`/`none` never animate past the edge.
 - Scene event: every applied move emits exactly one `EventType::Scroll` to the container (wheel
   default action, `scroll_to`/`scroll_by`, gesture pan, and `scroll_into_view` when it moves a
   container), dispatched through the normal capture/target/bubble path with the container as the
@@ -132,9 +147,10 @@ the state and operations on `Node`; `src/ui/scene/wheel_dispatch.cpp` owns the w
   both scroll the target into view (programmatic focus scrolls exactly like keyboard traversal);
   focusing an already-visible node changes no offset.
 
-Deferred: inertia/spring-back/overscroll physics, fling after a pan release, scrollbars,
-snap/sticky, nested chaining policy, virtualization, automatic style-to-scene scrollport insets
-(callers set them today), scroll-linked animation, and layout-produced content sizes.
+Deferred: inertia/spring-back/overscroll physics and the stretch/bounce paint state, fling after a
+pan release, scrollbars, snap/sticky, virtualization, automatic style-to-scene scrollport insets
+(callers set them today), scroll-linked animation, and layout-produced content sizes. Nested
+chaining and the scroll style properties are implemented (section 4 and the bullets above).
 
 ## 3. Physics
 
@@ -176,7 +192,9 @@ struct OverscrollState {
 - Stretch/bounce applies to content only; sticky headers, scrollbars, and overlays do not
   stretch. No relayout; damage is the old/new visual union.
 - Nested scroll: only the last eligible container applies the effect; chaining remains governed
-  by `overscroll-behavior`. `contain`/`none` do not animate past the edge.
+  by `overscroll-behavior`. `contain`/`none` do not animate past the edge. The requesting property is
+  `overscroll-effect` (implemented in the registry and on the scene node as the resolved effect;
+  `platform` asks the HAL profile to pick one, `none` disables it).
 - Content fitting the viewport, wrong axis, or reduced motion -> no overscroll.
 - Platform profile: `Platform` resolves via HAL (iOS/macOS stretch; Android stretch/legacy glow;
   Windows/Linux none for wheel, stretch for touch where supported). Apps may override.
@@ -185,13 +203,17 @@ struct OverscrollState {
 ## 4. Nested scroll
 
 - A pointer/wheel event targets the deepest scrollable under the point.
-- Scroll chaining: inner consumes until its limit, then outer scrolls if
-  `overscroll-behavior` allows (it sets the `allow_chain` field; there is no CSS `scroll-chain` property).
+- Scroll chaining: the inner container consumes until its limit, then the remainder moves to the
+  nearest outer scroll container if `overscroll-behavior` allows it (it sets the `allow_chain` field;
+  there is no CSS `scroll-chain` property). This is implemented for the wheel default action: the
+  loop is bounded by tree depth, one `Scroll` event per container that moved, and `contain`/`none`
+  drop the remainder at that edge. Pointer-pan chaining remains a later slice.
 - Capture/target/bubble still applies to input events; `prevent_default` stops default scroll.
 - A gesture arena decides between scroll, drag, selection, and custom element capture.
 - Nested scroll must not cause layout thrash or double-apply deltas.
 - `scroll-behavior: auto|smooth` and `overscroll-behavior: auto|contain|none` are style/runtime
-  inputs, not component logic (stylesheet side: [`stylesheet-v1.md`](stylesheet-v1.md) section 11).
+  inputs, not component logic (stylesheet side: [`stylesheet-v1.md`](stylesheet-v1.md) section 11);
+  `overscroll-effect` names the visual effect the container requests (animation-v1 section 7).
 
 ## 5. Gesture recognition
 
@@ -329,6 +351,11 @@ is the first slice where a gesture changes scene state.
 - Virtualized lists realize the focused item before focus/scroll; see
   [`virtualization-v1.md`](virtualization-v1.md) section 7.
 - Scrollbars are painted overlays; they do not affect layout unless `scrollbar-gutter` is set.
+  `scrollbar-gutter: stable` reserves the overlay width inside the scrollport in layout (implemented
+  as inline-end content insets, 8 px, mirrored in RTL), so content and children never slide under the
+  overlay; `auto` keeps the overlay out of layout. With `box-sizing: border-box` the authored inline
+  size is preserved and the content box narrows; under `content-box` the added gutter grows the box
+  by 8 px (a Yoga limitation of reserving space inside a content-box width).
 
 ## 7. Rendering and dirty behavior
 
@@ -355,7 +382,10 @@ is the first slice where a gesture changes scene state.
   (programmatic and Tab/Shift+Tab, already-visible, nested, insets) in `tests/unit/scroll_tests.cpp`
   (`scroll_core`), `tests/unit/scroll_pan_tests.cpp` (`scroll_pan`),
   `tests/unit/scroll_focus_tests.cpp` (`scroll_focus`), `tests/unit/scroll_insets_tests.cpp`
-  (`scroll_insets`), and `tests/unit/paint_clip_tests.cpp` (`paint_clip`).
+  (`scroll_insets`), and `tests/unit/paint_clip_tests.cpp` (`paint_clip`). The scroll style
+  properties (chaining with `contain`/`none`, smooth versus jump, `overscroll-effect` policy,
+  `scrollbar-gutter` reservation and the layout signature) are covered by
+  `tests/unit/scroll_properties_tests.cpp` (`scroll_properties`).
 - Test: wheel/trackpad, drag/fling, nested scroll chaining, snap/paging, rubber band,
   overscroll resistance/release/interrupt/reduced motion, keyboard, scroll-into-view,
   sticky/anchoring, focus/selection, virtualized lists, RTL axes, multi-touch pinch/rotate,

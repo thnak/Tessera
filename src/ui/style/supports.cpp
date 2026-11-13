@@ -69,6 +69,20 @@ bool value_supported(std::string_view property, std::string_view value) {
     if (property == "overflow" || property == "overflow-x" || property == "overflow-y") {
         return keyword_in(normalized, {"visible", "hidden", "scroll", "auto", "clip"});
     }
+    // Scroll runtime/style inputs (stylesheet-v1 section 11). `@supports` is exactly as strict as
+    // the declaration validator, so a stylesheet can gate its fallback on what the engine accepts.
+    if (property == "scroll-behavior") {
+        return keyword_in(normalized, {"auto", "smooth"});
+    }
+    if (property == "overscroll-behavior") {
+        return keyword_in(normalized, {"auto", "contain", "none"});
+    }
+    if (property == "overscroll-effect") {
+        return keyword_in(normalized, {"none", "glow", "stretch", "bounce", "platform"});
+    }
+    if (property == "scrollbar-gutter") {
+        return keyword_in(normalized, {"auto", "stable"});
+    }
     if (property == "box-sizing") {
         return keyword_in(normalized, {"content-box", "border-box"});
     }

@@ -4,6 +4,7 @@
 // text measurement and box collection).
 
 #include "layout_style.hpp"
+#include "tessera/ui/scene/scroll.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -221,6 +222,35 @@ float inline_border_width(const ComputedStyle& style, const char* logical_width,
     }
     const Length length = parse_length(*width_value, viewport);
     return length.kind == Length::Kind::Points ? length.value : 0.0f;
+}
+
+// `scrollbar-gutter: stable` reserves the overlay scrollbar width on the inline-end edge
+// (docs/specs/scroll-and-gestures-v1.md section 6): it is a layout input, so the content box - and
+// therefore every child - narrows by that width even when the overlay is not painted. The gutter is
+// added as point padding, which keeps the authored inline size under `box-sizing: border-box` and
+// grows it by the gutter under `content-box` (Yoga cannot reserve space out of a content-box
+// width); a percentage inline-end padding keeps its percentage only.
+void apply_scrollbar_gutter(YGNodeRef node, const ComputedStyle& style,
+                            const LayoutViewport& viewport) {
+    if (!is_keyword(property(style, "scrollbar-gutter"), "stable")) {
+        return;
+    }
+    const auto is_scroll = [&style](const char* name) {
+        return is_keyword(property(style, name), "scroll") ||
+               is_keyword(property(style, name), "auto");
+    };
+    if (!is_scroll("overflow-x") && !is_scroll("overflow-y")) {
+        return;
+    }
+    const bool rtl = is_keyword(property(style, "direction"), "rtl");
+    const YGEdge edge = rtl ? YGEdgeLeft : YGEdgeRight;
+    const std::string* inline_end = property(style, rtl ? "padding-left" : "padding-right");
+    const Length length = inline_end == nullptr ? Length{} : parse_length(*inline_end, viewport);
+    if (length.kind == Length::Kind::Percent) {
+        return;
+    }
+    const float base = length.kind == Length::Kind::Points ? length.value : 0.0f;
+    YGNodeStyleSetPadding(node, edge, base + kOverlayScrollbarWidth);
 }
 
 void apply_border(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& viewport) {
@@ -485,6 +515,7 @@ void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewpor
 
     apply_margin(node, style, viewport);
     apply_padding(node, style, viewport);
+    apply_scrollbar_gutter(node, style, viewport);
     apply_border(node, style, viewport);
     apply_position(node, style, viewport);
 
