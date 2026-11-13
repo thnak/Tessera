@@ -280,6 +280,16 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
             return fail(error, "role: a dynamic role has no printable type");
         }
     }
+    // `part` is the component library's styling API (ADR-047 item 3): a static list of names the
+    // host's `::part()` selectors can target. It is never dynamic, like `role`.
+    if (const ir::Expr* part_prop = prop("part")) {
+        const std::optional<std::string_view> text = literal_string(part_prop);
+        if (!text) {
+            return fail(error, "part: a part list is a static string literal");
+        }
+        writer.line(variable + "->set_part(" + literal_text(ir::LiteralValue{std::string(*text)}) +
+                    ");");
+    }
     for (const auto& [name, value] : node.props) {
         if (name.rfind("aria-", 0) != 0) {
             continue;

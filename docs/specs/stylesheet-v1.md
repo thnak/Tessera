@@ -152,7 +152,7 @@ Must handle:
     `:nth-last-child(An+B)`, `:first-of-type`, `:last-of-type`, `:empty`, `:root`
   - logical: `:not(...)`, `:is(...)`, `:where(...)`
   - `:has(...)` is parsed in V1; evaluation is listed as Later in section 11
-- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified)
+- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified); component parts `::part(<ident>+)` are implemented ([`component-parts-v1.md`](component-parts-v1.md))
 - `:not()`/`:is()`/`:where()` accept a selector list; `:where()` contributes zero specificity
 
 ### 6.2 Matching rules
@@ -162,8 +162,7 @@ Must handle:
 - `:root` matches the scene root.
 - `:hover`/`:active`/`:focus` are driven by the input pseudo-state dispatcher (section 12, Input).
 - Sibling combinators use the scene-graph child order (paint order).
-- No shadow DOM, no slots, no `:host` in V1.
-
+- No shadow DOM, no slots, no `:host` in V1. `::part(<ident>+)` is the only selector form that crosses a component boundary ([`component-parts-v1.md`](component-parts-v1.md), ADR-047 item 3).
 ## 7. Cascade
 
 ### 7.1 Origins
@@ -189,7 +188,7 @@ For each declaration:
 - `!important` wins over normal declarations; among important declarations the origin order
   is reversed per CSS Cascade: user-agent > user > author, and within the author origin an
   inline `style="..."` declaration beats author rules.
-- Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`.
+- Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`; `::part()` counts as a pseudo-element and its names add nothing.
 - `:where()` contributes zero specificity.
 - Equal keys are resolved by source order; the later declaration wins.
 - Build-time and runtime must use the same stable source ordering.
@@ -370,6 +369,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | `direction` (`ltr`/`rtl`, inherited, per node); physical properties (`left`, `right`, `margin-left`, ...) stay physical; the logical inline-axis properties `margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*` and `text-align: start/end` mirror with the computed direction (section 11.1) | scroll and overscroll mirroring (offsets, scrollbars, overscroll effects stay physical) |
+| Component parts | `part` attribute, `::part(<ident>+)` with the pre-`::part` compound matching the component instance, `@supports selector()` (section 6.3) | shadow DOM, `exportparts`, `::slotted()`, `:host`/`:host-context()` |
 
 **V1 decisions for the Scrolling row (decided 2026-11-13 with issue #248; the code matches):**
 
@@ -496,8 +496,7 @@ matches):**
 
 ## 12. Integration
 
-- **StyleNode**: `tag`, `id`, `classes`, attributes, parent/siblings, pseudo-state bits,
-  inline style, theme scope.
+- **StyleNode**: `tag`, `id`, `classes`, attributes, `part` names and the nearest component host, parent/siblings, pseudo-state bits, inline style, theme scope.
 - **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes ([ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md)). See
   [`layout.md`](../design/layout.md).
 - **Paint**: the batched 2D renderer reads paint longhands and produces quads/SDF/text. See
@@ -528,7 +527,7 @@ matches):**
 Style is the first dirty domain in the runtime pipeline. See
 [`dirty-rendering.md`](../design/dirty-rendering.md) for the full model.
 
-- A class/id/attribute/inline-style/theme change marks the node `StyleDirty`.
+- A class/id/attribute/inline-style/part/theme change marks the node `StyleDirty`.
 - The input pseudo-state dispatcher marks `StyleDirty` for `:hover`/`:active`/`:focus`/
   `:focus-visible` changes before style resolution.
 - The resolver computes the new `ComputedStyle`, then compares the layout and paint groups with
@@ -570,6 +569,7 @@ TESSERA_CSS_UNSUPPORTED_AT_RULE  at-rule parsed but skipped
 TESSERA_CSS_VAR_CYCLE           custom-property cycle
 TESSERA_CSS_UNRESOLVED_VAR      missing variable with no fallback
 TESSERA_CSS_MEDIA_UNSUPPORTED   media feature not implemented
+TESSERA_CSS_UNDECLARED_PART     `::part(name)` of a part a library component does not declare
 ```
 
 Diagnostics carry source file, line/column, rule selector, and property. Build-time diagnostics
@@ -579,6 +579,7 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 
 - Parser corpus: valid/invalid tokens, escapes, comments, strings, functions.
 - Selector corpus: specificity, combinators, structural pseudo-classes, `:not/:is/:where`.
+- Component parts: the corpus is listed in [`component-parts-v1.md`](component-parts-v1.md) section 8.
 - Cascade corpus: origins, `!important`, inline vs stylesheet, layer order, source order.
 - Custom properties: fallback, inheritance, cycles, theme overrides.
 - Property matrix: parse/validate/shorthand expansion/computed values.

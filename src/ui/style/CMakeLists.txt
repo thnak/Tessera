@@ -5,6 +5,7 @@ add_library(tessera_style STATIC
     cascade.cpp
     color.cpp
     color_names.cpp
+    component_parts.cpp
     compiled_stylesheet.cpp
     container_query.cpp
     interaction_style.cpp
@@ -22,7 +23,10 @@ add_library(tessera_style STATIC
     scroll_style_sync.cpp
     supports.cpp
     selector.cpp
+    selector_index.cpp
     selector_match.cpp
+    selector_parts.cpp
+    selector_support.cpp
     theme_asset.cpp
     theme_asset_blob.cpp
     theme_stylesheet.cpp
@@ -57,4 +61,22 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/interaction_style_tests.cpp)
     target_link_libraries(interaction_style_tests PRIVATE tessera_style)
     add_test(NAME interaction_style COMMAND interaction_style_tests)
+
+    # `::part()` (issue #235): selector parse, specificity, matching across the component boundary,
+    # the undeclared-part diagnostic and the compiled-stylesheet round trip. Registered here for the
+    # same reason as the glass lane above.
+    add_executable(part_pseudo_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/part_pseudo_tests.cpp)
+    target_link_libraries(part_pseudo_tests PRIVATE tessera_style)
+    add_test(NAME part_pseudo COMMAND part_pseudo_tests)
+
+    # The `part` attribute path (issue #235): JSX -> IR prop -> generated `set_part`, and the
+    # component name a host node carries. Registered here for the same reason.
+    add_executable(part_attribute_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/part_attribute_tests.cpp)
+    target_link_libraries(part_attribute_tests PRIVATE
+        tessera_codegen
+        tessera_lowering
+        tessera_ir)
+    add_test(NAME part_attribute COMMAND part_attribute_tests)
 endif()

@@ -34,6 +34,7 @@ namespace demo {
       // node::3 ("comp::Field" instance, slot children: 1)
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(403ull));
       node_3->set_element_kind("Component");
+      node_3->set_component_name("Field");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_3;
       // node::4
       auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(404ull));

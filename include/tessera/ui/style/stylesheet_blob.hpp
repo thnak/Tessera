@@ -27,8 +27,10 @@ struct EmbeddedStylesheet {
 // deterministic: identical prepared data always serializes to identical bytes.
 inline constexpr std::uint32_t kStylesheetBlobFormatVersion = 1;
 // Bumped whenever a change to the engine alters what prepared data means (selector forms, property
-// expansion, supported at-rules) without changing the layout of the blob.
-inline constexpr std::uint32_t kStylesheetEngineSchemaVersion = 1;
+// expansion, supported at-rules) without changing the layout of the blob. 2: `::part()` selectors
+// now match a part element across the component boundary (issue #235), so a blob that carries one
+// means something different to the engine that wrote it under 1.
+inline constexpr std::uint32_t kStylesheetEngineSchemaVersion = 2;
 
 enum class BlobErrorCode : std::uint8_t {
     Truncated,

@@ -13,6 +13,9 @@ namespace tessera::ui::style {
 
 enum class SupportsKind : std::uint8_t {
     Declaration,
+    // `selector(<selector list>)`: asks whether the engine can match with that selector
+    // (stylesheet-v1 section 6.4).
+    Selector,
     Not,
     And,
     Or,
@@ -22,6 +25,8 @@ struct SupportsCondition {
     SupportsKind kind = SupportsKind::Declaration;
     std::string property;
     std::string value;
+    // The selector text of a `Selector` condition, exactly as written.
+    std::string selector;
     std::vector<SupportsCondition> children;
 };
 

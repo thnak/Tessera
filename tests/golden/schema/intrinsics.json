@@ -1033,6 +1033,17 @@
       "note": "must equal the computed uiId (ir-v1 section 3.1)",
       "type": "string literal, decimal uint64",
       "value": "literal"
+    },
+    {
+      "lowersTo": "props.part",
+      "name": "part",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "space-separated part names that expose the element to its component host (`::part()`, stylesheet-v1 section 6.3)",
+      "type": "string",
+      "value": "literal"
     }
   ],
   "domTypes": [

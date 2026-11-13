@@ -159,6 +159,7 @@ export interface CommonProps {
   'aria-valuemin'?: number;
   'aria-valuemax'?: number;
   'automationId'?: string;
+  'part'?: string;
 }
 
 export interface ViewProps extends CommonProps {

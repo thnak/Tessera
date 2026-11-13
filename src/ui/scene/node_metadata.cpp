@@ -77,6 +77,56 @@ void Node::clear_class_name() {
     mark_dirty(Dirty::Style);
 }
 
+void Node::set_part(std::string_view part) {
+    const std::string_view next = bounded_view(part, kMaxMetadataBytes);
+    if (next.empty()) {
+        clear_part();
+        return;
+    }
+    if (component_metadata_ && component_metadata_->part == next) {
+        return;
+    }
+    if (!component_metadata_) {
+        component_metadata_ = std::make_unique<ComponentMetadata>();
+    }
+    component_metadata_->part = next;
+    // `part` is a selector input for the host's `::part()` rules.
+    mark_dirty(Dirty::Style);
+}
+
+void Node::clear_part() {
+    if (!component_metadata_ || component_metadata_->part.empty()) {
+        return;
+    }
+    component_metadata_->part = {};
+    mark_dirty(Dirty::Style);
+}
+
+void Node::set_component_name(std::string_view component) {
+    const std::string_view next = bounded_view(component, kMaxMetadataBytes);
+    if (next.empty()) {
+        clear_component_name();
+        return;
+    }
+    if (component_metadata_ && component_metadata_->component_name == next) {
+        return;
+    }
+    if (!component_metadata_) {
+        component_metadata_ = std::make_unique<ComponentMetadata>();
+    }
+    component_metadata_->component_name = next;
+    // Types the host for matching, so every `::part()` rule of the subtree re-resolves.
+    mark_subtree_dirty(Dirty::Style);
+}
+
+void Node::clear_component_name() {
+    if (!component_metadata_ || component_metadata_->component_name.empty()) {
+        return;
+    }
+    component_metadata_->component_name = {};
+    mark_subtree_dirty(Dirty::Style);
+}
+
 void Node::set_automation_id(std::uint64_t automation_id) {
     if (automation_id_ == automation_id) {
         return;

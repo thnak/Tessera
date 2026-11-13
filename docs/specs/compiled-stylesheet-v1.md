@@ -46,6 +46,12 @@ Layer order follows the first **applicable** appearance (a layer that only appea
 non-matching `@media` takes no slot), exactly as the engine behaved before the split. Source order
 is the running count of declarations of the applicable rules, so it is stable per media context.
 
+The prepared model is the whole selector AST the cascade needs, so a selector that means something
+to the engine is preserved exactly. A `::part()` rule is an ordinary rule here: its offset,
+declarations, container queries and part names survive a `serialize_stylesheet` /
+`load_stylesheet_blob` round trip and the reloaded sheet still styles the part
+(`tests/unit/part_pseudo_tests.cpp`, case `blob_round_trip`).
+
 ## 3. Byte layout
 
 All integers are little-endian and fixed width. Doubles are the IEEE 754 binary64 bit pattern.
@@ -56,7 +62,7 @@ payload (every element takes at least one byte), so a hostile count cannot drive
 header (24 bytes)
   magic            4   "TSSB"
   format_version   u32 1
-  engine_schema    u32 1
+  engine_schema    u32 2
   source_hash      u64 FNV-1a 64 of the input CSS text (0 when prepared from a parsed tree)
   payload_size     u32 bytes after the header; must equal the remaining length exactly
 payload
@@ -88,7 +94,10 @@ Shared structures:
   compounds, `u32 count` of combinators (`u8`, 0..3; the count must be compounds minus one).
 - *Compound*: tag, id, classes (`u32` + strings), attributes (name, `u8 op` 0..6, value,
   `u8 case_insensitive`), pseudos (name, argument, `u8 pseudo_element`, `u8 has_nested`, then a
-  nested selector list when set). Nesting depth is limited to 16.
+  nested selector list when set). Nesting depth is limited to 16. A `::part()` pseudo-element
+  ([`stylesheet-v1.md`](stylesheet-v1.md) section 6.3) needs no new field: it is a pseudo with name
+  `part`, `pseudo_element = 1`, and the whitespace-separated part names in `argument`, so the blob
+  layout did not change for it.
 - *Media query list*: `u32` queries; each `u8 negated`, type, `u32` conditions of
   (`u8 feature` 0..5, `u8 comparison` 0..2, value).
 - *Container query*: name, `u32` conditions of (`u8 axis` 0..1, `u8 op` 0..4, `f64 value`).
@@ -99,7 +108,9 @@ Shared structures:
   the one it was built with (`UnsupportedFormatVersion`); there is no forward reading.
 - `engine_schema` changes when an engine change alters what prepared data means without changing the
   layout (new selector forms, different shorthand expansion, new supported at-rules). A mismatch is
-  rejected (`EngineSchemaMismatch`). Every bump regenerates the committed blob goldens.
+  rejected (`EngineSchemaMismatch`). Every bump regenerates the committed blob goldens. It is **2**
+  since `::part()` matching landed (issue #235): a blob carrying a `::part()` compound now styles a
+  part element across the component boundary, which the engine that wrote it under 1 did not do.
 - Blobs are build output tied to the tool version that wrote them. ADR-048 makes a mismatch a build
   error for embedded blobs; blobs that arrive at run time (hot reload, designer) are rejected with
   the diagnostic instead.

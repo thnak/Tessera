@@ -242,6 +242,9 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
                 "\" instance, slot children: " + std::to_string(node.children.size()) + ")");
     writer.line("auto " + variable + " = std::make_unique<tessera::ui::Node>(" + id + ");");
     writer.line(variable + "->set_element_kind(\"Component\");");
+    // The component name types the host for selector matching: the host side of a `::part()`
+    // selector names the component (`Button::part(label)`, stylesheet-v1 section 6.3).
+    writer.line(variable + "->set_component_name(\"" + target->name + "\");");
     if (!node.automation_id.empty()) {
         unsigned long long automation = 0;
         const char* begin = node.automation_id.data();

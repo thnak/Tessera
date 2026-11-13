@@ -24,6 +24,7 @@ namespace demo {
       // node::2 ("comp::Card" instance, slot children: 3)
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(202ull));
       node_2->set_element_kind("Component");
+      node_2->set_component_name("Card");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_2;
       // node::3
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(203ull));

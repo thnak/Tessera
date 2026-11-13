@@ -346,7 +346,13 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `src/ui/paint/paint_{properties,text,pass}.cpp` (mirrored borders and `text-align`),
       `docs/specs/stylesheet-v1.md` §11.1, `docs/specs/i18n-v1.md` §4/§7/§8.1, tests
       `logical_properties`, `logical_layout` (same stylesheet mirrors in LTR/RTL).
-- [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
+- [x] #235: The `::part()` pseudo-element in the stylesheet engine —
+      `src/ui/style/{selector,selector_match,selector_parts,selector_support,selector_index}.cpp`,
+      `component_parts.cpp` (`TESSERA_CSS_UNDECLARED_PART` for library components),
+      `Node::set_part/set_component_name` (lazily allocated metadata, `sizeof(Node)` unchanged),
+      `docs/specs/stylesheet-v1.md` §6.1–6.4/7.2/11/12/15/16, `compiled-stylesheet-v1.md` §2–5,
+      tests `part_pseudo`, `part_attribute` (parse, specificity, cross-boundary matching, cascade,
+      `@supports selector()`, blob round trip).
 - [x] #247: `pointer-events`, `user-select` and `aspect-ratio` registered and implemented (#214) —
       `src/ui/style/{property_registry,interaction_values,interaction_style,supports,cascade}.cpp`,
       `src/ui/scene/node.cpp` (hit-test skip + selection gate), `src/ui/layout/layout_style.cpp`

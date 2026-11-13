@@ -2,6 +2,7 @@
 
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
+#include "tessera/ui/style/selector.hpp"
 #include "tessera/ui/style/supports.hpp"
 
 #include <algorithm>
@@ -128,6 +129,26 @@ bool value_supported(std::string_view property, std::string_view value) {
     return true;
 }
 
+// `selector(<selector list>)`: the argument of a `@supports` selector query, or an empty view when
+// `content` is not exactly that form.
+std::string_view selector_argument(std::string_view content) {
+    constexpr std::string_view kKeyword = "selector(";
+    std::size_t end = content.size();
+    while (end > 0 && std::isspace(static_cast<unsigned char>(content[end - 1])) != 0) {
+        --end;
+    }
+    const std::string_view text = content.substr(0, end);
+    if (text.size() <= kKeyword.size() || text.back() != ')') {
+        return {};
+    }
+    for (std::size_t i = 0; i < kKeyword.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(text[i])) != kKeyword[i]) {
+            return {};
+        }
+    }
+    return text.substr(kKeyword.size(), text.size() - kKeyword.size() - 1);
+}
+
 class SupportsParser {
 public:
     explicit SupportsParser(std::string_view text)
@@ -168,6 +189,21 @@ private:
         }
         position_ = end;
         return true;
+    }
+
+    // The index of the `(` of a `selector(` function at the current position, or npos.
+    std::size_t selector_function_open() const {
+        constexpr std::string_view kKeyword = "selector";
+        if (position_ + kKeyword.size() >= text_.size()) {
+            return std::string_view::npos;
+        }
+        for (std::size_t i = 0; i < kKeyword.size(); ++i) {
+            if (std::tolower(static_cast<unsigned char>(text_[position_ + i])) != kKeyword[i]) {
+                return std::string_view::npos;
+            }
+        }
+        const std::size_t open = position_ + kKeyword.size();
+        return text_[open] == '(' ? open : std::string_view::npos;
     }
 
     std::size_t matching_paren(std::size_t open) const {
@@ -262,6 +298,24 @@ private:
 
     SupportsCondition parse_primary() {
         skip_space();
+        // `selector(<selector list>)` is a bare function form: CSS writes `@supports selector(...)`
+        // without a wrapping parenthesis (stylesheet-v1 section 6.4).
+        const std::size_t selector_open = selector_function_open();
+        if (selector_open != std::string_view::npos) {
+            const std::size_t close = matching_paren(selector_open);
+            if (close == std::string_view::npos) {
+                ok_ = false;
+                return {};
+            }
+            SupportsCondition condition;
+            condition.kind = SupportsKind::Selector;
+            condition.selector = trim(text_.substr(selector_open + 1, close - selector_open - 1));
+            position_ = close + 1;
+            if (condition.selector.empty()) {
+                ok_ = false;
+            }
+            return condition;
+        }
         if (position_ >= text_.size() || text_[position_] != '(') {
             ok_ = false;
             return {};
@@ -274,6 +328,18 @@ private:
 
         const std::string_view content = text_.substr(position_ + 1, close - position_ - 1);
         position_ = close + 1;
+        // `selector(<selector list>)` has no top-level colon and is not a nested condition: it asks
+        // the selector engine whether it implements the selector (stylesheet-v1 section 6.4). This
+        // is how a stylesheet gates its `::part()` rules on support.
+        if (const std::string_view inner = selector_argument(content); !inner.empty()) {
+            SupportsCondition condition;
+            condition.kind = SupportsKind::Selector;
+            condition.selector = trim(inner);
+            if (condition.selector.empty()) {
+                ok_ = false;
+            }
+            return condition;
+        }
         const std::size_t colon = top_level_colon(content);
         if (colon != std::string_view::npos) {
             SupportsCondition condition;
@@ -313,6 +379,8 @@ bool evaluate_supports(const SupportsCondition& condition, const PropertyRegistr
         const std::string property = lower(trim(condition.property));
         return registry.supported(property) && value_supported(property, condition.value);
     }
+    case SupportsKind::Selector:
+        return selector_supported(condition.selector);
     case SupportsKind::Not:
         return condition.children.empty()
                    ? false

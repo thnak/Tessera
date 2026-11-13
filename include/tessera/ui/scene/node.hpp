@@ -381,6 +381,25 @@ public:
     [[nodiscard]] std::string_view class_name() const {
         return class_name_;
     }
+    // The `part` attribute (stylesheet-v1 section 6.3, ADR-047 item 3): whitespace-separated names
+    // that expose this element to its component host, so the host's stylesheet can target it with
+    // `::part(name)`. Static metadata of the component source, like `className`: setting or
+    // clearing it marks Dirty::Style and is a no-op when unchanged. Borrowed and bounded like every
+    // other element metadata string.
+    void set_part(std::string_view part);
+    void clear_part();
+    [[nodiscard]] std::string_view part() const {
+        return component_metadata_ ? component_metadata_->part : std::string_view{};
+    }
+    // The component a component instance host was built from, for example `Button`. Empty on every
+    // other node. It types the host for selector matching, so the host side of `::part()` can name
+    // the component. Setting or clearing it changes matching for the whole subtree and marks
+    // Dirty::Style on it.
+    void set_component_name(std::string_view component);
+    void clear_component_name();
+    [[nodiscard]] std::string_view component_name() const {
+        return component_metadata_ ? component_metadata_->component_name : std::string_view{};
+    }
     void set_automation_id(std::uint64_t automation_id);
     [[nodiscard]] std::uint64_t automation_id() const {
         return automation_id_;
@@ -504,6 +523,14 @@ private:
         std::array<EventBinding, kMaxEventBindings> items{};
         std::size_t count = 0;
     };
+    // The component-library metadata (`part` names and the component name of a component instance
+    // host). Both are static strings of a component source and most nodes carry neither, so they
+    // live behind one lazily allocated record: a plain View pays the pointer only, exactly like the
+    // other rare payloads above.
+    struct ComponentMetadata {
+        std::string_view part;
+        std::string_view component_name;
+    };
     std::unique_ptr<std::optional<PaintData>> paint_data_;
     // Borrowed views: the caller keeps the storage alive (codegen passes literals). No allocations.
     std::string_view element_kind_;
@@ -533,6 +560,7 @@ private:
     // Defaults: not scrollable, `scroll-behavior: auto`, `overscroll-behavior: auto` and the
     // registry initial `overscroll-effect: platform` (ordinal 4).
     std::uint8_t scroll_bits_ = 0x4u << kOverscrollEffectShift;
+    std::unique_ptr<ComponentMetadata> component_metadata_;
     float content_width_ = 0.0f;
     float content_height_ = 0.0f;
     float scroll_x_ = 0.0f;
@@ -553,7 +581,11 @@ private:
 
 // Memory budget of one scene node (docs/design/performance.md, memory budgets): a 10k-node screen
 // costs 10k times this plus Yoga and style storage. Raise it only with a recorded decision.
-inline constexpr std::size_t kNodeSizeBudget = 320;
+// 320 -> 336 (2026-11-14, issue #235): the component-parts record (`part` names and the component
+// name of an instance host) adds one pointer; a 10k-node screen pays 160 KB more. Recorded in
+// performance.md. Known follow-up: packing the node's single-byte booleans into one flags byte
+// recovers this, so the budget should drop back to 320 when that refactor lands.
+inline constexpr std::size_t kNodeSizeBudget = 336;
 static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
 
 bool dispatch_event(Node& root, Event& event);
