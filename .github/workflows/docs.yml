@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: MIT
+
+# Documentation-only changes skip the build lanes (windows, linux, webgpu use paths-ignore for the
+# same paths). This lane runs every repository gate (links, anchors, docs index, fences, sizes, ADRs,
+# dependency rows, license bundle, SBOM, pins). It needs no compiler, so it is cheap.
+
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'decisions/**'
+      - '**/*.md'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'decisions/**'
+      - '**/*.md'
+      - '.github/workflows/docs.yml'
+
+# A new push to a pull request cancels the run it supersedes; runs on main are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Install pinned clang-format
+        run: |
+          python3 -m venv "$RUNNER_TEMP/format-venv"
+          "$RUNNER_TEMP/format-venv/bin/pip" install "clang-format==$(cat tools/format-version.txt)"
+          echo "CLANG_FORMAT=$RUNNER_TEMP/format-venv/bin/clang-format" >> "$GITHUB_ENV"
+
+      - name: Repository gates (aggregator)
+        run: python3 -B scripts/gates.py

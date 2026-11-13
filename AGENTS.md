@@ -97,6 +97,8 @@ Owner decision of 2026-11-13:
   to have and run nightly and on demand, not on every push. A red advisory lane is noted in the PR
   or issue but never blocks a merge or the next slice, and is not fixed ahead of V1 work unless the
   fix is trivial. Do not add platform-specific code only to keep an advisory lane green.
+- **Docs-only changes** (`docs/**`, `decisions/**`, any `*.md`) skip the build lanes and run only the
+  light `Docs` workflow, which runs every repository gate (`scripts/gates.py`) without a compiler.
 - **Library:** component library stages 0 and 1 ship in V1
   ([ADR-032](decisions/ADR-032-bundled-component-library.md)); stages 2 to 6 follow V1.
 

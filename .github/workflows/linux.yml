@@ -5,7 +5,15 @@ name: Linux
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'decisions/**'
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'decisions/**'
+      - '**/*.md'
 
 # A new push to a pull request cancels the run it supersedes; runs on main are never cancelled.
 concurrency:
