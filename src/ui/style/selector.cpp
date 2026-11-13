@@ -37,6 +37,43 @@ bool is_delim(const Token& token, char value) {
     return token.type == TokenType::Delim && token.text.size() == 1 && token.text.front() == value;
 }
 
+bool is_ident_start(unsigned char c) {
+    return std::isalpha(c) != 0 || c == '_' || c == '-';
+}
+
+bool is_ident_char(unsigned char c) {
+    return std::isalnum(c) != 0 || c == '_' || c == '-';
+}
+
+// `::part(<ident>+)` (stylesheet-v1 section 6.3): one or more unquoted identifiers separated by
+// whitespace. The parser rejects anything else so a malformed part selector never matches silently.
+bool valid_part_argument(std::string_view argument) {
+    if (argument.empty()) {
+        return false;
+    }
+    bool at_token_start = true;
+    bool any = false;
+    for (const char c : argument) {
+        const auto byte = static_cast<unsigned char>(c);
+        if (std::isspace(byte) != 0) {
+            at_token_start = true;
+            continue;
+        }
+        if (at_token_start) {
+            if (!is_ident_start(byte)) {
+                return false;
+            }
+            at_token_start = false;
+            any = true;
+            continue;
+        }
+        if (!is_ident_char(byte)) {
+            return false;
+        }
+    }
+    return any && !at_token_start;
+}
+
 class SelectorParser {
 public:
     explicit SelectorParser(std::vector<Token> tokens)
@@ -155,6 +192,11 @@ private:
                    (is_delim(peek(), '.') || is_delim(peek(), '*'))))) {
                 return false;
             }
+            // `::part()` may only appear in the subject compound: `.a::part(x) .b` has no meaning
+            // once the part element sits inside the component's own subtree.
+            if (has_part_pseudo(complex.compounds.back())) {
+                return false;
+            }
 
             CompoundSelector next;
             if (!parse_compound(next)) {
@@ -168,6 +210,7 @@ private:
     bool parse_compound(CompoundSelector& compound) {
         skip_comments();
         bool any = false;
+        bool saw_pseudo_element = false;
 
         if (!at_end() && peek().type == TokenType::Ident) {
             compound.tag = std::string(take().value);
@@ -209,6 +252,15 @@ private:
                 PseudoClass pseudo;
                 if (!parse_pseudo(pseudo)) {
                     return false;
+                }
+                // One pseudo-element per compound. `::part()` is the component boundary, so nothing
+                // element-shaped may follow it (`::part(x)::part(y)` and `::part(x)::before` are
+                // rejected rather than matched as if they were plain pseudo-elements).
+                if (pseudo.pseudo_element) {
+                    if (saw_pseudo_element) {
+                        return false;
+                    }
+                    saw_pseudo_element = true;
                 }
                 compound.pseudos.push_back(std::move(pseudo));
                 any = true;
@@ -297,8 +349,13 @@ private:
             pseudo.name = lower(std::string(function.value));
             pseudo.argument = collect_argument();
             pseudo.pseudo_element = element;
-            if (!element && (pseudo.name == "not" || pseudo.name == "is" ||
-                             pseudo.name == "where" || pseudo.name == "has")) {
+            if (element && pseudo.name == "part") {
+                // `::part(<ident>+)`: whitespace-separated, unquoted, at least one name.
+                if (!valid_part_argument(pseudo.argument)) {
+                    return false;
+                }
+            } else if (!element && (pseudo.name == "not" || pseudo.name == "is" ||
+                                    pseudo.name == "where" || pseudo.name == "has")) {
                 SelectorParseResult nested = parse_selector_list(pseudo.argument);
                 if (nested.ok) {
                     pseudo.nested = std::make_shared<const SelectorList>(std::move(nested.list));
@@ -311,6 +368,9 @@ private:
         }
         pseudo.name = lower(std::string(take().value));
         pseudo.pseudo_element = element;
+        if (element && pseudo.name == "part") {
+            return false; // `::part` is functional; a bare `::part` matches nothing
+        }
         return true;
     }
 

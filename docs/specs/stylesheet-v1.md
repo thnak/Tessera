@@ -153,6 +153,7 @@ Must handle:
   - logical: `:not(...)`, `:is(...)`, `:where(...)`
   - `:has(...)` is parsed in V1; evaluation is listed as Later in section 11
 - pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified)
+- component parts: `::part(<ident>+)` (implemented; section 6.3)
 - `:not()`/`:is()`/`:where()` accept a selector list; `:where()` contributes zero specificity
 
 ### 6.2 Matching rules
@@ -162,7 +163,64 @@ Must handle:
 - `:root` matches the scene root.
 - `:hover`/`:active`/`:focus` are driven by the input pseudo-state dispatcher (section 12, Input).
 - Sibling combinators use the scene-graph child order (paint order).
-- No shadow DOM, no slots, no `:host` in V1.
+- No shadow DOM, no slots, no `:host` in V1; `::part()` is the only selector form that crosses a
+  component boundary, and a component is an ordinary scene subtree (6.3).
+
+### 6.3 Component parts: `::part(name)`
+
+Parts are the styling API of a component (ADR-047 item 3). A component's inner elements declare
+`part="<name>"` (whitespace-separated names, static like `className`; the common attribute of
+[`jsx-intrinsics-v1/common-and-events.md`](jsx-intrinsics-v1/common-and-events.md) section 1 lowers
+to `Node::part()`), and the host's stylesheet targets them with `::part()`:
+
+```css
+Button::part(label) { color: red; }            /* the `label` part of any `<Button>` */
+.card::part(label):hover { color: blue; }      /* host `.card`, the part's own `:hover` */
+Field::part(label value) { font-weight: 600; } /* every listed name must be present */
+```
+
+- **Two elements.** A `::part()` compound describes two nodes. The tag, id, classes, attributes and
+  pseudo-classes written *before* `::part()` match the **host**: the nearest ancestor component
+  instance (`Node::component_name()`; its type selector is the component name, `element_kind` stays
+  `Component`). The `::part()` itself, and any pseudo-classes *after* it, match the **part element**,
+  which must carry every listed name (order does not matter).
+- **One boundary.** The host is the nearest enclosing component instance, so a rule never reaches
+  into a nested component (`.card::part(label)` does not style a part of a `Card` nested in another
+  `Card`), and `::part()` never matches a node with no component ancestor. `exportparts` is not V1.
+- **Pseudo-classes.** State pseudo-classes after `::part()` (`:hover`, `:active`, `:focus`,
+  `:focus-visible`, `:disabled`, `:checked`, ...) read the part element's state. Structural ones are
+  accepted and evaluated against the part element; do not rely on them (CSS forbids them there).
+- **Restrictions.** Parse errors, so a malformed part selector never matches silently: two colons, a
+  non-empty `<ident>+` argument of unquoted idents, the only pseudo-element of its compound, in the
+  subject compound (`.a::part(x) .b` is rejected), one per compound, nothing element-shaped after it.
+- **Specificity.** `::part()` counts as a pseudo-element (one type component) and the part names add
+  nothing, as in CSS Shadow Parts: `Button::part(label)` is `(0,0,2)`, `.card::part(label):hover` is
+  `(0,2,1)`, `::part(label)` is `(0,0,1)`.
+- **Cascade.** The declarations land on the part element across the boundary, so a host-side
+  `::part()` rule and a rule inside the component are one cascade (origin, importance, layer,
+  specificity, source order). Unlayered app CSS still beats the library's `@layer tessera-ui` (7.2).
+- **Undeclared parts.** A part name a library component does not declare is a
+  `TESSERA_CSS_UNDECLARED_PART` diagnostic (section 15) from the codegen CLI; app components are
+  never diagnosed, because only a library component publishes its parts.
+- **Invalidation.** Setting or clearing `part` marks the node `StyleDirty`; changing a component name
+  marks its subtree, because every `::part()` rule below it re-resolves.
+
+### 6.4 Selector support and `@supports selector()`
+
+`@supports selector(<selector list>)` answers whether the engine can match with a selector: the list
+parses and every pseudo-class and pseudo-element it uses is implemented. `::part()` is implemented,
+so `@supports selector(.card::part(label))` is true; `:has()` and the parse-only pseudo-elements
+(`::before`, `::after`, `::placeholder`, `::selection`) answer false because they never match a scene
+node. A stylesheet can gate its part rules that way:
+
+```css
+@supports selector(::part(label)) {
+  .card::part(label) { color: red; }
+}
+```
+
+`SelectorIndex` buckets a `::part()` subject by its first part name, so matching stays
+allocation-free: the host pointer and the part names are captured when the style tree is built.
 
 ## 7. Cascade
 
@@ -189,7 +247,8 @@ For each declaration:
 - `!important` wins over normal declarations; among important declarations the origin order
   is reversed per CSS Cascade: user-agent > user > author, and within the author origin an
   inline `style="..."` declaration beats author rules.
-- Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`.
+- Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`; `::part()`
+  contributes a pseudo-element and its names add nothing (6.3).
 - `:where()` contributes zero specificity.
 - Equal keys are resolved by source order; the later declaration wins.
 - Build-time and runtime must use the same stable source ordering.
@@ -370,6 +429,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | `direction` (`ltr`/`rtl`, inherited, per node); physical properties (`left`, `right`, `margin-left`, ...) stay physical; the logical inline-axis properties `margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*` and `text-align: start/end` mirror with the computed direction (section 11.1) | scroll and overscroll mirroring (offsets, scrollbars, overscroll effects stay physical) |
+| Component parts | `part` attribute, `::part(<ident>+)` with the pre-`::part` compound matching the component instance, `@supports selector()` (sections 6.3 and 6.4) | shadow DOM, `exportparts`, `::slotted()`, `:host`/`:host-context()` |
 
 **V1 decisions for the Scrolling row (decided 2026-11-13 with issue #248; the code matches):**
 
@@ -496,8 +556,8 @@ matches):**
 
 ## 12. Integration
 
-- **StyleNode**: `tag`, `id`, `classes`, attributes, parent/siblings, pseudo-state bits,
-  inline style, theme scope.
+- **StyleNode**: `tag`, `id`, `classes`, attributes, `part` names and the nearest component host
+  (the `::part()` boundary), parent/siblings, pseudo-state bits, inline style, theme scope.
 - **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes ([ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md)). See
   [`layout.md`](../design/layout.md).
 - **Paint**: the batched 2D renderer reads paint longhands and produces quads/SDF/text. See
@@ -528,7 +588,7 @@ matches):**
 Style is the first dirty domain in the runtime pipeline. See
 [`dirty-rendering.md`](../design/dirty-rendering.md) for the full model.
 
-- A class/id/attribute/inline-style/theme change marks the node `StyleDirty`.
+- A class/id/attribute/inline-style/part/theme change marks the node `StyleDirty`.
 - The input pseudo-state dispatcher marks `StyleDirty` for `:hover`/`:active`/`:focus`/
   `:focus-visible` changes before style resolution.
 - The resolver computes the new `ComputedStyle`, then compares the layout and paint groups with
@@ -570,6 +630,7 @@ TESSERA_CSS_UNSUPPORTED_AT_RULE  at-rule parsed but skipped
 TESSERA_CSS_VAR_CYCLE           custom-property cycle
 TESSERA_CSS_UNRESOLVED_VAR      missing variable with no fallback
 TESSERA_CSS_MEDIA_UNSUPPORTED   media feature not implemented
+TESSERA_CSS_UNDECLARED_PART     `::part(name)` of a part a library component does not declare
 ```
 
 Diagnostics carry source file, line/column, rule selector, and property. Build-time diagnostics
@@ -579,6 +640,13 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 
 - Parser corpus: valid/invalid tokens, escapes, comments, strings, functions.
 - Selector corpus: specificity, combinators, structural pseudo-classes, `:not/:is/:where`.
+- Component parts (issue #235, `tests/unit/part_pseudo_tests.cpp`): `parsing` (the
+  `::part(<ident>+)` grammar and every rejected form), `specificity` (the pseudo-element component
+  only, `:where()` still zero), `matching` (the host side matches the component instance, one
+  boundary only, no component means no part, part-side `:hover`, the selector index), `cascade` (a
+  `::part()` rule styles a part on a real scene), `diagnostics` (the undeclared-part rule for a
+  registered component and silence for an app one), `supports_queries` (6.4) and `blob_round_trip`
+  (the compiled-stylesheet spec).
 - Cascade corpus: origins, `!important`, inline vs stylesheet, layer order, source order.
 - Custom properties: fallback, inheritance, cycles, theme overrides.
 - Property matrix: parse/validate/shorthand expansion/computed values.

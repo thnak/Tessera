@@ -21,6 +21,7 @@ that of subset spec 10.2 and [`component-model-v1.md`](../component-model-v1.md)
 | `aria-checked` | `"true"`, `"false"`, `"mixed"` | E | - | `props["aria-checked"]` | same | `checked/mixed` state |
 | `aria-valuenow`, `aria-valuemin`, `aria-valuemax` | int | E | - | `props["aria-..."]` | same | Slider value and bounds (issue #236); the accessibility tree reads `aria-valuenow` as the value ([`accessibility-v1.md`](../accessibility-v1.md) section 2) |
 | `automationId` | string literal, decimal uint64 | L | - | `automationId` | none | Must equal the computed `uiId` (ir-v1 section 3.1); a mismatch is a validator error |
+| `part` | string | L | - | `props.part` | `Spacer`, `ErrorBoundary` | Space-separated part names that expose the element to its component host; targeted by `::part()` ([`stylesheet-v1.md`](../stylesheet-v1.md) section 6.3, ADR-047 item 3). Static: a non-literal value is `TESSERA_IR_UNSUPPORTED` |
 
 Any other `aria-*` name is `TESSERA_JSX_SUBSET_UNKNOWN_PROP` in V1 (the V1 set is closed so that every
 accepted name has a defined effect; `aria-labelledby`, `aria-describedby`, `aria-controls` need an id

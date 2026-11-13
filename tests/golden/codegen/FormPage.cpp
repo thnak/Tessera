@@ -51,10 +51,12 @@ namespace demo {
       // node::2 ("comp::Form" instance, slot children: 2)
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(502ull));
       node_2->set_element_kind("Component");
+      node_2->set_component_name("Form");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_2;
       // node::3 ("comp::Field" instance, slot children: 1)
       auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(503ull));
       node_3->set_element_kind("Component");
+      node_3->set_component_name("Field");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_3;
       // node::4
       auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(504ull));
@@ -68,6 +70,7 @@ namespace demo {
       // node::5 ("comp::Field" instance, slot children: 1)
       auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(505ull));
       node_5->set_element_kind("Component");
+      node_5->set_component_name("Field");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_5;
       // node::6
       auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(506ull));

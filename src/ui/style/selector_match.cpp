@@ -23,6 +23,22 @@ bool has_class(const StyleNode& node, std::string_view name) {
     return std::find(node.classes.begin(), node.classes.end(), name) != node.classes.end();
 }
 
+// Every name of a `::part(<ident>+)` argument must be present on the element (stylesheet-v1 6.3).
+bool has_all_part_names(const PseudoClass& pseudo, const StyleNode& node) {
+    if (node.part.empty()) {
+        return false;
+    }
+    for (std::size_t index = 0;; ++index) {
+        const std::string_view name = part_name_at(pseudo.argument, index);
+        if (name.empty()) {
+            return index != 0;
+        }
+        if (!has_part_name(node.part, name)) {
+            return false;
+        }
+    }
+}
+
 const AttributeView* find_attribute(const StyleNode& node, std::string_view name) {
     for (const AttributeView& attribute : node.attributes) {
         if (attribute.name == name) {
@@ -308,7 +324,55 @@ bool match_pseudo(const PseudoClass& pseudo, const StyleNode& node) {
     return false;
 }
 
+// The host side of a `::part()` compound: the tag, id, classes, attributes and pseudo-classes
+// written before the part pseudo-element all describe the component instance, not the part element.
+// `part_index` is the position of `::part()` in `selector.pseudos`.
+bool matches_host_side(const CompoundSelector& selector, const StyleNode& host,
+                       std::size_t part_index) {
+    if (!selector.tag.empty() && selector.tag != host.tag) {
+        return false;
+    }
+    if (!selector.id.empty() && selector.id != host.id) {
+        return false;
+    }
+    for (const std::string& name : selector.classes) {
+        if (!has_class(host, name)) {
+            return false;
+        }
+    }
+    for (const AttributeSelector& attribute : selector.attributes) {
+        if (!match_attribute(attribute, host)) {
+            return false;
+        }
+    }
+    for (std::size_t i = 0; i < part_index; ++i) {
+        if (!match_pseudo(selector.pseudos[i], host)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool matches_compound(const CompoundSelector& selector, const StyleNode& node) {
+    const std::size_t part_index = part_pseudo_index(selector);
+    if (part_index != selector.pseudos.size()) {
+        // Crossing the component boundary once: the node must be a part with every requested name,
+        // it must sit inside a component, and the host side must match that nearest host. Only the
+        // pseudo-classes written after `::part()` describe the part element itself.
+        if (!has_all_part_names(selector.pseudos[part_index], node) || node.host == nullptr) {
+            return false;
+        }
+        if (!matches_host_side(selector, *node.host, part_index)) {
+            return false;
+        }
+        for (std::size_t i = part_index + 1; i < selector.pseudos.size(); ++i) {
+            if (!match_pseudo(selector.pseudos[i], node)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     if (!selector.tag.empty() && selector.tag != node.tag) {
         return false;
     }
@@ -396,100 +460,6 @@ bool matches(const SelectorList& selectors, const StyleNode& node) {
         }
     }
     return false;
-}
-
-void SelectorIndex::add(const ComplexSelector& selector, std::size_t value) {
-    add_entry(Entry{selector, value, specificity(selector)});
-}
-
-void SelectorIndex::add(const SelectorList& selectors, std::size_t value) {
-    for (const ComplexSelector& selector : selectors.selectors) {
-        add(selector, value);
-    }
-}
-
-void SelectorIndex::clear() {
-    entries_.clear();
-    id_index_.clear();
-    class_index_.clear();
-    tag_index_.clear();
-    universal_index_.clear();
-}
-
-void SelectorIndex::add_entry(Entry entry) {
-    if (entry.selector.compounds.empty()) {
-        return;
-    }
-    const std::size_t index = entries_.size();
-    const CompoundSelector& subject = entry.selector.compounds.back();
-    entries_.push_back(std::move(entry));
-
-    if (!subject.id.empty()) {
-        id_index_[subject.id].push_back(index);
-    } else if (!subject.classes.empty()) {
-        class_index_[subject.classes.front()].push_back(index);
-    } else if (!subject.tag.empty()) {
-        tag_index_[subject.tag].push_back(index);
-    } else {
-        universal_index_.push_back(index);
-    }
-}
-
-std::vector<SelectorMatch> SelectorIndex::match(const StyleNode& node) const {
-    std::vector<std::size_t> candidates;
-    std::vector<bool> seen(entries_.size(), false);
-
-    const auto append = [&](std::size_t index) {
-        if (!seen[index]) {
-            seen[index] = true;
-            candidates.push_back(index);
-        }
-    };
-
-    if (!node.id.empty()) {
-        const auto found = id_index_.find(std::string(node.id));
-        if (found != id_index_.end()) {
-            for (const std::size_t index : found->second) {
-                append(index);
-            }
-        }
-    }
-    for (const std::string_view name : node.classes) {
-        const auto found = class_index_.find(std::string(name));
-        if (found != class_index_.end()) {
-            for (const std::size_t index : found->second) {
-                append(index);
-            }
-        }
-    }
-    if (!node.tag.empty()) {
-        const auto found = tag_index_.find(std::string(node.tag));
-        if (found != tag_index_.end()) {
-            for (const std::size_t index : found->second) {
-                append(index);
-            }
-        }
-    }
-    for (const std::size_t index : universal_index_) {
-        append(index);
-    }
-
-    std::vector<SelectorMatch> matches_out;
-    for (const std::size_t index : candidates) {
-        const Entry& entry = entries_[index];
-        if (!matches(entry.selector, node)) {
-            continue;
-        }
-        auto found =
-            std::find_if(matches_out.begin(), matches_out.end(),
-                         [&](const SelectorMatch& result) { return result.value == entry.value; });
-        if (found == matches_out.end()) {
-            matches_out.push_back(SelectorMatch{entry.value, entry.specificity});
-        } else if (entry.specificity > found->specificity) {
-            found->specificity = entry.specificity;
-        }
-    }
-    return matches_out;
 }
 
 } // namespace tessera::ui::style

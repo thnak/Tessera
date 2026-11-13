@@ -29,6 +29,10 @@ enum class StyleDiagnosticKind : std::uint8_t {
     // A var() reference names no custom property and has no usable fallback
     // (TESSERA_CSS_UNRESOLVED_VAR, stylesheet-v1 section 15).
     UnresolvedVar,
+    // A `::part(name)` rule names a part that a library component does not declare
+    // (TESSERA_CSS_UNDECLARED_PART, stylesheet-v1 section 6.3). App components are not diagnosed:
+    // only a library component publishes its part names (ADR-047 item 3).
+    UndeclaredPart,
 };
 
 struct StyleDiagnostic {

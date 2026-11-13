@@ -45,7 +45,8 @@ bool node_carries_item_state(const Node& node) noexcept {
         return true;
     }
     if (!node.element_kind().empty() || !node.element_id().empty() || !node.class_name().empty() ||
-        !node.role().empty() || node.automation_id() != 0) {
+        !node.part().empty() || !node.component_name().empty() || !node.role().empty() ||
+        node.automation_id() != 0) {
         return true;
     }
     if (!node.aria_attributes().empty() || !node.inline_style().empty() ||
@@ -78,6 +79,8 @@ void clear_node_item_state(Node& node) noexcept {
     node.set_element_kind(std::string_view{});
     node.clear_element_id();
     node.clear_class_name();
+    node.clear_part();
+    node.clear_component_name();
     node.clear_role();
     node.set_automation_id(0);
     node.clear_aria();

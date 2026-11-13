@@ -13,10 +13,12 @@
 #include "tessera/compiler/ir/ir_json.hpp"
 #include "tessera/compiler/ir/validate.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
+#include "tessera/compiler/lowering/library_components.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/merger.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
 #include "tessera/harness/json_parse.hpp"
+#include "tessera/ui/style/component_parts.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/stylesheet_blob.hpp"
 #include "tessera/ui/style/theme_asset.hpp"
@@ -33,6 +35,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace tessera::compiler::codegen::cli {
@@ -130,6 +133,53 @@ std::optional<std::string> stylesheet_syntax_error(std::string_view path, std::s
     }
 }
 
+// The parts a component source declares: every literal `part` attribute of its static node tree
+// (stylesheet-v1 section 6.3). A pre-order walk, so the collected set is deterministic.
+void collect_declared_parts(const ir::Node& node, std::set<std::string>& out) {
+    const auto found = node.props.find("part");
+    if (found != node.props.end() && found->second) {
+        const ir::Expr& value = *found->second;
+        if (value.kind == ir::ExprKind::Literal &&
+            std::holds_alternative<std::string>(value.literal)) {
+            const std::string& text = std::get<std::string>(value.literal);
+            for (std::size_t index = 0;; ++index) {
+                const std::string_view name = style::part_name_at(text, index);
+                if (name.empty()) {
+                    break;
+                }
+                out.emplace(name);
+            }
+        }
+    }
+    for (const ir::Node& child : node.children) {
+        collect_declared_parts(child, out);
+    }
+    if (node.fallback) {
+        collect_declared_parts(*node.fallback, out);
+    }
+    if (node.item_template) {
+        collect_declared_parts(*node.item_template, out);
+    }
+}
+
+// The part declarations of the library components: their part names are the only published styling
+// contract, so they are the only ones `::part()` selectors are checked against (ADR-047 item 3).
+// App components are absent by construction, which is why they are never diagnosed.
+style::ComponentPartRegistry library_part_registry() {
+    style::ComponentPartRegistry registry;
+    for (const lowering::LibraryComponent& component : lowering::library_components()) {
+        std::set<std::string> names;
+        collect_declared_parts(lowering::make_library_component(component).root, names);
+        std::vector<std::string_view> parts;
+        parts.reserve(names.size());
+        for (const std::string& name : names) {
+            parts.push_back(name);
+        }
+        registry.declare(std::string(component.name), parts);
+    }
+    return registry;
+}
+
 // Compiled stylesheet blobs of the module (issue #81, ADR-048): the CLI compiles the CSS it read,
 // so `StylesheetEmbed::bytes` is exactly `serialize_stylesheet()` output and the codegen library
 // never sees a stylesheet engine header.
@@ -138,6 +188,7 @@ build_stylesheet_embeds(std::span<const std::string> paths, std::span<const std:
                         Outcome& outcome) {
     std::vector<StylesheetEmbed> embeds;
     embeds.reserve(paths.size());
+    const style::ComponentPartRegistry parts = library_part_registry();
     for (std::size_t i = 0; i < paths.size(); ++i) {
         if (const std::optional<std::string> error = stylesheet_syntax_error(paths[i], texts[i])) {
             report(outcome, true, *error);
@@ -145,6 +196,14 @@ build_stylesheet_embeds(std::span<const std::string> paths, std::span<const std:
             return std::nullopt;
         }
         const style::PreparedStyleSheet prepared = style::prepare_stylesheet(texts[i]);
+        // `::part(name)` on a library component that does not declare `name` is a warning, not an
+        // error: the rule simply never matches (stylesheet-v1 section 6.3).
+        for (const style::StyleDiagnostic& diagnostic :
+             style::check_part_selectors(prepared, parts)) {
+            report(outcome, false,
+                   css_diagnostic_text(paths[i], texts[i], diagnostic.offset,
+                                       "TESSERA_CSS_UNDECLARED_PART: " + diagnostic.message));
+        }
         embeds.push_back(StylesheetEmbed{paths[i], style::serialize_stylesheet(prepared)});
     }
     return embeds;

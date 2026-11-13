@@ -18,9 +18,18 @@ SceneStyleTree::SceneStyleTree(const Node& root) {
 void SceneStyleTree::build(const Node& node, StyleNode* parent) {
     Entry entry;
     entry.node = &node;
-    entry.view.tag = node.element_kind();
+    // A component instance host is typed by its component name, so the host side of `::part()`
+    // can name it (`Button::part(label)`, stylesheet-v1 section 6.3).
+    const std::string_view component = node.component_name();
+    entry.view.component_host = !component.empty();
+    entry.view.tag = entry.view.component_host ? component : node.element_kind();
     entry.view.id = node.element_id();
+    entry.view.part = node.part();
     entry.view.state = node.pseudo_state();
+    // The `::part()` boundary is the nearest ancestor component instance; precomputed so matching
+    // never walks ancestors for it.
+    entry.view.host =
+        parent == nullptr ? nullptr : (parent->component_host ? parent : parent->host);
     const auto& paint = node.paint_data();
     entry.view.has_text = paint.has_value() && paint->kind == tessera::ui::PaintKind::Text;
 

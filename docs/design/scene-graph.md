@@ -119,10 +119,20 @@ domain. Text is not a metadata field: generated text attaches the existing D9 `P
 `set_paint_data`, and layout never reads that payload.
 
 `style::SceneStyleTree` exposes that metadata to the selector matcher: `tag` comes from
-`element_kind()`, `id` from `element_id()`, `classes` from the whitespace-split `class_name()`, and
-`has_text` from a `PaintKind::Text` payload. A compiled stylesheet therefore styles generated
-components by type, class and id selector without an extra element layer; `aria-*` is not a
+`element_kind()` (a component instance host reports its component name instead), `id` from
+`element_id()`, `classes` from the whitespace-split `class_name()`, `part` from `part()`, the
+`::part()` boundary from the nearest ancestor with a component name, and `has_text` from a
+`PaintKind::Text` payload. A compiled stylesheet therefore styles generated components by type,
+class and id selector without an extra element layer, and reaches a component's inner elements
+through `::part()` ([`stylesheet-v1.md`](../specs/stylesheet-v1.md) section 6.3); `aria-*` is not a
 selector input (attributes stay empty). Rebuild the tree when children are added or removed.
+
+`set_part`/`clear_part` and `set_component_name`/`clear_component_name` add the component-library
+metadata ([ADR-047](../../decisions/ADR-047-component-library-layers-and-design-language.md) item 3).
+Both are borrowed views behind one lazily allocated record, so a plain `View` pays a pointer and
+`sizeof(Node)` stays inside `kNodeSizeBudget`. `part` (the attribute a component's inner element
+declares) marks `Dirty::Style`; the component name types a host for matching, so changing it marks
+the subtree.
 
 ## 6. Event payloads and generated bindings
 

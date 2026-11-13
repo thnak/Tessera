@@ -205,6 +205,16 @@ constexpr PropRow kCommonProps[] = {
      {},
      {},
      "must equal the computed uiId (ir-v1 section 3.1)"},
+    {"part",
+     "string",
+     ValueKind::Literal,
+     false,
+     "",
+     "props.part",
+     {},
+     tags(kHiddenExcept),
+     "space-separated part names that expose the element to its component host "
+     "(`::part()`, stylesheet-v1 section 6.3)"},
 };
 
 constexpr AliasAttr kCommonAliasAttrs[] = {
