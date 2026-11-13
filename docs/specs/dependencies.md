@@ -61,6 +61,23 @@ VMA and volk are vendored from Vulkan SDK 1.4.357.0 (`Include/vma`, `Include/Vol
 `third_party/vma` and `third_party/volk`, so Linux CI does not depend on optional SDK
 components. Their MIT headers are preserved.
 
+### Backend build tools
+
+What a backend needs on the build machine, by backend; the workflow itself is in
+[`../guides/writing-a-backend.md`](../guides/writing-a-backend.md). These are build-time tools, not
+shipped libraries, except where the table says the output ships.
+
+| Backend | Build-time tools | Ships |
+|---|---|---|
+| Vulkan 1.3 (Tier 1) | Vulkan SDK 1.4.x: headers, loader, `glslc`, validation layers; `volk` and VMA from `third_party/` | SPIR-V compiled into the app |
+| Null (Tier 1) | none | — |
+| WebGPU, Wasm (Tier 1) | Emscripten `6.0.13` (`tools/emsdk-version.txt`), emdawnwebgpu port, naga CLI `30.0.1` (`tools/naga-version.txt`) for WGSL validation | authored WGSL |
+| WebGPU, native (Tier 1 headless parity) | Dawn (optional) | — |
+| Contributed (Tier 2) | optional `TESSERA_SHADER_CROSS`: SPIRV-Cross, `dxc`, naga from the pinned Vulkan SDK | per backend README |
+
+Version pins live in `tools/`; nothing is fetched at runtime, and no translator output is shipped
+unless the backend needs it (only WebGPU ships its authored WGSL).
+
 ThorVG rasterizes vector paths behind `rendering::PathRasterizer` (owner decision D1,
 [ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)). Upstream v1.1.3 is
 meson-only, so it is fetched at configure time from the pinned archive
