@@ -2,6 +2,7 @@
 
 #include "x11_backdrop.hpp"
 
+#include <X11/Xatom.h>
 #include <X11/Xutil.h>
 #include <algorithm>
 #include <cctype>
