@@ -220,7 +220,8 @@ bool host_records_the_source_and_feeds_the_gpu_sample() {
     for (std::uint32_t frame = 0; frame < kAdaptiveQualityDowngradeMisses; ++frame) {
         host.observe_frame_time_sample(20.0, std::nullopt);
     }
-    ok = expect(host.adaptive_quality().quality_step == 1,
+    // The scene has no blurred shadow, so the effects position is stepped over: position 2.
+    ok = expect(host.adaptive_quality().quality_step == 2,
                 "with no GPU sample the CPU frame time drives the controller") &&
          ok;
     ok = expect(host.frame_diagnostics().frame_time_source() == FrameTimeSource::Cpu,

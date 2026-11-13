@@ -47,6 +47,23 @@ inline constexpr std::uint32_t kAdaptiveQualityLadderSteps =
 inline constexpr float kAdaptiveQualityMinScale = 0.25f;
 inline constexpr float kAdaptiveQualityMaxScale = 4.0f;
 
+// Whether the two ends of the ladder have anything to act on right now. The controller asks only at
+// the moment it is already about to change position, never per frame, so a stage can appear or
+// vanish without ever causing a change by itself (no flapping). A null function means "available",
+// which is the full ladder. The callbacks must be cheap, deterministic and allocation-free.
+struct AdaptiveQualityStageProbe {
+    bool (*effects_available)(const void* context) noexcept = nullptr;
+    bool (*animations_available)(const void* context) noexcept = nullptr;
+    const void* context = nullptr;
+
+    [[nodiscard]] bool effects() const noexcept {
+        return effects_available == nullptr || effects_available(context);
+    }
+    [[nodiscard]] bool animations() const noexcept {
+        return animations_available == nullptr || animations_available(context);
+    }
+};
+
 struct AdaptiveQualityConfig {
     // `adaptiveQuality`. False disables the controller completely.
     bool adaptive_quality = true;
@@ -86,7 +103,14 @@ public:
     // GPU number exists), in milliseconds. Returns the decision in force after the observation;
     // `changed`/`downgrade` are true only on the frame that produced a change. A non-finite or
     // non-positive time is not an observation: it neither counts toward a run nor changes anything.
-    [[nodiscard]] AdaptiveQualitySample observe(double frame_time_ms) noexcept;
+    //
+    // `probe` tells the controller which ladder ends have anything to reduce. A downgrade steps
+    // over an empty effects stage (and an upgrade steps over it on the way down), inside the same
+    // single change and cooldown, so a scene with no blurred shadow does not spend a miss run on
+    // nothing. The pause position is still entered when no animation exists: it costs nothing, and
+    // an animation that starts later is then frozen at once.
+    [[nodiscard]] AdaptiveQualitySample
+    observe(double frame_time_ms, const AdaptiveQualityStageProbe& probe = {}) noexcept;
 
     // Back to full quality with no run/cooldown state. Deterministic: it does not consult the
     // clock.

@@ -38,6 +38,7 @@ using tessera::rendering::rhi::Rect;
 using tessera::runtime::AdaptiveQualityConfig;
 using tessera::runtime::AdaptiveQualityController;
 using tessera::runtime::AdaptiveQualitySample;
+using tessera::runtime::AdaptiveQualityStageProbe;
 using tessera::runtime::FrameDiagnostics;
 using tessera::runtime::kAdaptiveQualityCooldownFrames;
 using tessera::runtime::kAdaptiveQualityDowngradeMisses;
@@ -446,9 +447,11 @@ bool host_observes_frames_and_records_the_change() {
 
     run_frame(kMissMs);
     ok = expect(host.adaptive_quality().changed, "the threshold frame is the one the host reports");
-    ok = expect(host.adaptive_quality().quality_step == 1 &&
+    // The card has no blurred shadow, so the effects position has nothing to reduce and the first
+    // change lands on the first scale step.
+    ok = expect(host.adaptive_quality().quality_step == 2 &&
                     host.adaptive_quality().effects_reduced &&
-                    host.adaptive_quality().render_scale == 1.0f,
+                    host.adaptive_quality().render_scale == 0.875f,
                 "the host's decision is the controller's ladder position") &&
          ok;
     ok = expect(host.frame_diagnostics().adaptive_effect_changes() == 1 &&
@@ -538,8 +541,10 @@ bool host_paints_cheaper_shadows_while_effects_are_reduced() {
     for (std::uint32_t frame = 0; frame < kAdaptiveQualityDowngradeMisses; ++frame) {
         run_frame(kMissMs);
     }
-    ok = expect(host.adaptive_quality().effects_reduced, "the first downgrade reduces effects") &&
-         ok;
+    ok =
+        expect(host.adaptive_quality().quality_step == 1 && host.adaptive_quality().effects_reduced,
+               "a scene with a blurred shadow spends the first downgrade on effects") &&
+        ok;
     ok = expect(shadow_layers() == 2, "the next paint emits the capped blur stack") && ok;
     for (std::uint32_t frame = 0;
          frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityUpgradeHits; ++frame) {
@@ -586,6 +591,123 @@ bool host_suspends_non_essential_animations_on_the_last_position() {
     ok = expect(host.frame_diagnostics().adaptive_animation_pause_changes() == 2,
                 "the resume flip is counted too") &&
          ok;
+    return ok;
+}
+
+// --- 9. Empty stages are stepped over ----------------------------------------------------------
+
+struct CountingProbe {
+    bool effects = true;
+    bool animations = true;
+    mutable std::uint32_t asked = 0;
+};
+
+AdaptiveQualityStageProbe probe_for(const CountingProbe& state) {
+    return AdaptiveQualityStageProbe{[](const void* context) noexcept {
+                                         const auto& probe =
+                                             *static_cast<const CountingProbe*>(context);
+                                         ++probe.asked;
+                                         return probe.effects;
+                                     },
+                                     [](const void* context) noexcept {
+                                         const auto& probe =
+                                             *static_cast<const CountingProbe*>(context);
+                                         ++probe.asked;
+                                         return probe.animations;
+                                     },
+                                     &state};
+}
+
+void spend_downgrade_run(AdaptiveQualityController& controller,
+                         const AdaptiveQualityStageProbe& probe) {
+    for (std::uint32_t frame = 0;
+         frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityDowngradeMisses; ++frame) {
+        (void)controller.observe(kMissMs, probe);
+    }
+}
+
+void spend_upgrade_run(AdaptiveQualityController& controller,
+                       const AdaptiveQualityStageProbe& probe) {
+    for (std::uint32_t frame = 0;
+         frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityUpgradeHits; ++frame) {
+        (void)controller.observe(kMetMs, probe);
+    }
+}
+
+bool empty_effects_stage_is_stepped_over() {
+    CountingProbe scene;
+    scene.effects = false;
+    const AdaptiveQualityStageProbe probe = probe_for(scene);
+    AdaptiveQualityController controller(base_config());
+    bool ok = true;
+    for (std::uint32_t frame = 0; frame < kAdaptiveQualityDowngradeMisses; ++frame) {
+        (void)controller.observe(kMissMs, probe);
+    }
+    ok = expect(controller.decision().quality_step == 2 && controller.decision().effects_reduced &&
+                    controller.decision().render_scale < 1.0f,
+                "one miss run goes straight to the first scale step") &&
+         ok;
+    ok = expect(controller.cooldown_remaining() == kAdaptiveQualityCooldownFrames,
+                "the jump is one change with one cooldown") &&
+         ok;
+    // Recovery is symmetric: one met run from position 2 lands on 0, not on the empty position 1.
+    spend_upgrade_run(controller, probe);
+    ok = expect(controller.decision().quality_step == 0 && !controller.decision().effects_reduced,
+                "recovery steps over the empty effects stage in one run") &&
+         ok;
+    return ok;
+}
+
+bool available_effects_stage_is_not_skipped() {
+    const CountingProbe scene;
+    const AdaptiveQualityStageProbe probe = probe_for(scene);
+    AdaptiveQualityController controller(base_config());
+    for (std::uint32_t frame = 0; frame < kAdaptiveQualityDowngradeMisses; ++frame) {
+        (void)controller.observe(kMissMs, probe);
+    }
+    return expect(controller.decision().quality_step == 1 &&
+                      controller.decision().render_scale == 1.0f,
+                  "a scene with effects still spends the first position on them");
+}
+
+bool probe_is_asked_only_when_a_position_changes() {
+    CountingProbe scene;
+    const AdaptiveQualityStageProbe probe = probe_for(scene);
+    AdaptiveQualityController controller(base_config());
+    std::uint32_t changes = 0;
+    for (int frame = 0; frame < 400; ++frame) {
+        changes += controller.observe(kMissMs, probe).changed ? 1 : 0;
+    }
+    // At most one question per change (the effects stage on the way down); never one per frame.
+    return expect(scene.asked <= changes && scene.asked > 0,
+                  "the stage probe is read only on observations that change the position");
+}
+
+bool empty_animation_stage_is_still_entered() {
+    CountingProbe scene;
+    scene.effects = false;
+    scene.animations = false;
+    const AdaptiveQualityStageProbe probe = probe_for(scene);
+    AdaptiveQualityController controller(base_config());
+    for (int run = 0; run < 8; ++run) {
+        spend_downgrade_run(controller, probe);
+    }
+    // Entering the pause position is free and freezes an animation that starts later at once.
+    return expect(controller.decision().quality_step == kAdaptiveQualityLadderSteps &&
+                      controller.decision().animations_paused,
+                  "the last position is reached even with no animation to pause");
+}
+
+bool null_probe_means_the_full_ladder() {
+    AdaptiveQualityController with_default(base_config());
+    AdaptiveQualityController with_empty_probe(base_config());
+    const AdaptiveQualityStageProbe none{};
+    bool ok = true;
+    for (int frame = 0; frame < 120; ++frame) {
+        const AdaptiveQualitySample a = with_default.observe(kMissMs);
+        const AdaptiveQualitySample b = with_empty_probe.observe(kMissMs, none);
+        ok = expect(same_sample(a, b), "an absent probe is the full ladder") && ok;
+    }
     return ok;
 }
 
@@ -667,6 +789,11 @@ int main() {
     ok = host_paints_cheaper_shadows_while_effects_are_reduced() && ok;
     ok = host_suspends_non_essential_animations_on_the_last_position() && ok;
     ok = ladder_order_is_effects_scale_then_pause() && ok;
+    ok = empty_effects_stage_is_stepped_over() && ok;
+    ok = available_effects_stage_is_not_skipped() && ok;
+    ok = probe_is_asked_only_when_a_position_changes() && ok;
+    ok = empty_animation_stage_is_still_entered() && ok;
+    ok = null_probe_means_the_full_ladder() && ok;
     ok = recovery_restores_pause_then_effects_in_reverse() && ok;
     if (!ok) {
         std::cerr << "adaptive_quality: FAILED\n";

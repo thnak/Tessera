@@ -126,6 +126,9 @@ public:
     [[nodiscard]] bool suspend_non_essential() const {
         return suspend_non_essential_;
     }
+    // Running-or-frozen entries the suspension applies to: non-essential and not paused by the app.
+    // Zero means the ladder's pause position has nothing to freeze.
+    [[nodiscard]] std::size_t non_essential_active() const;
     // Entries currently frozen by the suspension (diagnostics and tests).
     [[nodiscard]] std::size_t suspended() const;
     void set_reduced_motion(bool enabled) {

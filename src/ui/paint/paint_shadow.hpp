@@ -44,6 +44,7 @@ struct ShadowOutsets {
     float top = 0.0f;
     float right = 0.0f;
     float bottom = 0.0f;
+    bool blurred = false; // some outer shadow has a blur radius
 };
 ShadowOutsets shadow_outsets(const style::ComputedStyle& style);
 

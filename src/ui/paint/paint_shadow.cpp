@@ -174,6 +174,7 @@ ShadowOutsets shadow_outsets(const style::ComputedStyle& style) {
         if (shadow.inset) {
             continue;
         }
+        outsets.blurred = outsets.blurred || shadow.blur > 0.0f;
         const float reach = std::max(0.0f, shadow.spread + shadow.blur);
         outsets.left = std::max(outsets.left, reach - shadow.offset_x);
         outsets.right = std::max(outsets.right, reach + shadow.offset_x);

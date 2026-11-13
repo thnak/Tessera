@@ -173,6 +173,13 @@ AnimationTickResult AnimationRuntime::tick(double dt) {
     return result;
 }
 
+std::size_t AnimationRuntime::non_essential_active() const {
+    return static_cast<std::size_t>(
+        std::count_if(entries_.begin(), entries_.end(), [](const AnimationEntry& entry) {
+            return entry.non_essential && !entry.paused;
+        }));
+}
+
 std::size_t AnimationRuntime::suspended() const {
     if (!suspend_non_essential_) {
         return 0;

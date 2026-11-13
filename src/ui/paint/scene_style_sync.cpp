@@ -69,10 +69,12 @@ void sync_node(Node& node, StyleProvider& styles, SceneStyleSyncResult& result) 
     }
 
     const detail::ShadowOutsets reach = detail::shadow_outsets(style);
-    const Node::PaintOutsets outsets{reach.left, reach.top, reach.right, reach.bottom};
+    const Node::PaintOutsets outsets{reach.left, reach.top, reach.right, reach.bottom,
+                                     reach.blurred};
     const Node::PaintOutsets& current = node.paint_outsets();
     if (outsets.left != current.left || outsets.top != current.top ||
-        outsets.right != current.right || outsets.bottom != current.bottom) {
+        outsets.right != current.right || outsets.bottom != current.bottom ||
+        outsets.blurred != current.blurred) {
         node.set_paint_outsets(outsets);
         ++result.changed_outsets;
     }

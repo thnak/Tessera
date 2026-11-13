@@ -83,6 +83,9 @@ public:
         float top = 0.0f;
         float right = 0.0f;
         float bottom = 0.0f;
+        // True when an outer shadow has a blur radius: the one effect adaptive quality can reduce
+        // (performance.md section 6.1). Sharp shadows reach outward too but have nothing to reduce.
+        bool blurred = false;
     };
     void set_paint_outsets(const PaintOutsets& outsets);
     [[nodiscard]] const PaintOutsets& paint_outsets() const {

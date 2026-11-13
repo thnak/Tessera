@@ -209,6 +209,15 @@ bool reduced_effects_keep_the_reach_with_fewer_layers() {
     ok = expect(reduced_sink.ops.back().color.a > 0.0f,
                 "a reduced shadow still paints a visible innermost layer") &&
          ok;
+    // The sync flag the controller's stage probe reads: only a blurred outer shadow counts.
+    ok = expect(shadow_outsets(styled({{"box-shadow", "0 0 12px #000000"}})).blurred,
+                "a blurred shadow is flagged") &&
+         ok;
+    ok = expect(!shadow_outsets(styled({{"box-shadow", "4px 4px 0 #000000"}})).blurred &&
+                    !shadow_outsets(styled({{"box-shadow", "none"}})).blurred &&
+                    !shadow_outsets(styled({{"box-shadow", "inset 0 0 8px #000000"}})).blurred,
+                "sharp, absent and inset shadows are not flagged") &&
+         ok;
     // A sharp shadow is already one fill: reduction changes nothing.
     styles.set(1, styled({{"box-shadow", "4px 4px 0 #000000"}}));
     RecordingSink sharp_full;

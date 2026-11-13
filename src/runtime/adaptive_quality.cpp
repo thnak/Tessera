@@ -71,7 +71,9 @@ AdaptiveQualityController::decision_for_position(std::uint32_t position) const n
     return sample;
 }
 
-AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) noexcept {
+AdaptiveQualitySample
+AdaptiveQualityController::observe(double frame_time_ms,
+                                   const AdaptiveQualityStageProbe& probe) noexcept {
     // `changed`/`downgrade` describe this observation only; the scale and step persist.
     decision_.changed = false;
     decision_.downgrade = false;
@@ -91,6 +93,12 @@ AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) n
         misses_ = std::min(misses_ + 1, kAdaptiveQualityDowngradeMisses);
         if (misses_ >= kAdaptiveQualityDowngradeMisses && step_ < kAdaptiveQualityLadderSteps) {
             ++step_;
+            // Step over the effects stage when there is nothing to reduce. The probe is asked only
+            // here, on the observation that already changes position.
+            if (step_ == kAdaptiveQualityEffectSteps && step_ < kAdaptiveQualityLadderSteps &&
+                !probe.effects()) {
+                ++step_;
+            }
             misses_ = 0;
             cooldown_ = kAdaptiveQualityCooldownFrames;
             decision_ = decision_for_position(step_);
@@ -103,6 +111,9 @@ AdaptiveQualitySample AdaptiveQualityController::observe(double frame_time_ms) n
     hits_ = std::min(hits_ + 1, kAdaptiveQualityUpgradeHits);
     if (hits_ >= kAdaptiveQualityUpgradeHits && step_ > 0) {
         --step_;
+        if (step_ == kAdaptiveQualityEffectSteps && !probe.effects()) {
+            --step_;
+        }
         hits_ = 0;
         cooldown_ = kAdaptiveQualityCooldownFrames;
         // An upgrade restores the previous position's scale, cap and flags, which are pure

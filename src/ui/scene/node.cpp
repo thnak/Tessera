@@ -109,9 +109,10 @@ void Node::set_paint_outsets(const PaintOutsets& outsets) {
         return std::isfinite(value) && value > 0.0f ? value : 0.0f;
     };
     const PaintOutsets next{sanitize(outsets.left), sanitize(outsets.top), sanitize(outsets.right),
-                            sanitize(outsets.bottom)};
+                            sanitize(outsets.bottom), outsets.blurred};
     if (next.left == paint_outsets_.left && next.top == paint_outsets_.top &&
-        next.right == paint_outsets_.right && next.bottom == paint_outsets_.bottom) {
+        next.right == paint_outsets_.right && next.bottom == paint_outsets_.bottom &&
+        next.blurred == paint_outsets_.blurred) {
         return;
     }
     paint_outsets_ = next;

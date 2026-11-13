@@ -126,6 +126,24 @@ runtime::AdaptiveQualityConfig quality_controller_config(const AdaptiveQualityPo
     return config;
 }
 
+// True when some visible node paints a blurred outer shadow: the effect the first ladder position
+// reduces. Read from the outsets the style sync already stores on each node, so it needs no style
+// resolution. Allocation-free; it runs only on the observation that changes the ladder position.
+bool scene_has_blurred_shadow(const ui::Node& node) noexcept {
+    if (!node.visible()) {
+        return false;
+    }
+    if (node.paint_outsets().blurred) {
+        return true;
+    }
+    for (const auto& child : node.children()) {
+        if (scene_has_blurred_shadow(*child)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
@@ -328,8 +346,18 @@ void AppHost::observe_frame_time_sample(double cpu_frame_time_ms,
     const runtime::FrameTimeSample sample =
         runtime::select_frame_time(cpu_frame_time_ms, gpu_frame_time_ms);
     state.frame_diagnostics.record_frame_time_source(sample.source);
+    // The probe is read only when the controller is about to change position
+    // (adaptive_quality.hpp), so the scene walk below costs nothing on an ordinary frame.
+    const runtime::AdaptiveQualityStageProbe probe{
+        [](const void* context) noexcept {
+            return scene_has_blurred_shadow(static_cast<const Impl*>(context)->root);
+        },
+        [](const void* context) noexcept {
+            return static_cast<const Impl*>(context)->animations.non_essential_active() > 0;
+        },
+        &state};
     const runtime::AdaptiveQualitySample decision =
-        state.quality_controller.observe(sample.frame_time_ms);
+        state.quality_controller.observe(sample.frame_time_ms, probe);
     state.frame_diagnostics.record_adaptive_quality(decision);
     if (decision.effects_reduced != state.pipeline->reduce_effects()) {
         state.pipeline->set_reduce_effects(decision.effects_reduced);
