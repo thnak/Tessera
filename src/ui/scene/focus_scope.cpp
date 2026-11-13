@@ -17,7 +17,7 @@ namespace {
 
 bool visible_chain(const Node& node) {
     for (const Node* current = &node; current != nullptr; current = current->parent()) {
-        if (!current->visible()) {
+        if (!current->rendered()) {
             return false;
         }
     }
@@ -26,7 +26,7 @@ bool visible_chain(const Node& node) {
 
 // The last visible `focus_trap` node in pre-order, so a nested scope wins over its ancestor.
 Node* last_trap(Node& node) {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         return nullptr;
     }
     Node* found = node.focus_trap() ? &node : nullptr;
@@ -39,7 +39,7 @@ Node* last_trap(Node& node) {
 }
 
 void collect_items(Node& node, std::vector<Node*>& items) {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         return;
     }
     if (node.focusable()) {

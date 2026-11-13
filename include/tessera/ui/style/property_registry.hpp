@@ -32,6 +32,12 @@ public:
     [[nodiscard]] bool supported(std::string_view property) const;
     [[nodiscard]] const std::vector<std::string>* longhands(std::string_view shorthand) const;
 
+    // Every registered longhand name, sorted by byte value (the registry's map order). The
+    // per-property status table in docs/specs/stylesheet-property-status-v1.md is checked against
+    // this list, so a property added to the registry without a recorded consumer fails a test
+    // (issue #213).
+    [[nodiscard]] std::vector<std::string_view> longhand_names() const;
+
     [[nodiscard]] PropertyExpansionResult expand(const Declaration& declaration) const;
     [[nodiscard]] PropertyExpansionResult
     expand(const std::vector<Declaration>& declarations) const;

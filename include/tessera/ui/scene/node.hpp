@@ -144,6 +144,24 @@ public:
         return visible_;
     }
 
+    // CSS `visibility: hidden|collapse` (stylesheet-v1 section 11, issue #213), copied from
+    // computed style by `style::sync_interaction_style`. It is a separate flag from `visible()`
+    // because the two have different owners: `visible()` is the programmatic/structural gate (a
+    // conditional branch, a recycled virtual item), while this one is a stylesheet value that must
+    // be able to flip back without resurrecting a node the program hid. V1 treats it like `display:
+    // none` for painting, hit testing and the accessibility tree (the subtree is skipped, so a
+    // descendant cannot re-enable with `visibility: visible`), but the node keeps its layout box,
+    // which is the one part of the CSS behaviour that matters for a flex layout.
+    void set_style_hidden(bool hidden);
+    [[nodiscard]] bool style_hidden() const {
+        return style_hidden_;
+    }
+    // True when this node takes part in painting, hit testing and the accessibility tree: both the
+    // programmatic gate and the stylesheet value must allow it.
+    [[nodiscard]] bool rendered() const {
+        return visible_ && !style_hidden_;
+    }
+
     // CSS `pointer-events: auto|none` (stylesheet-v1 section 11, issue #247), copied from computed
     // style by `style::sync_interaction_style`. False makes `hit_test_deep` pass this node over as
     // a target: hover, active, capture, click synthesis, wheel and accessibility-free hit tests
@@ -575,6 +593,7 @@ private:
     style::PseudoState pseudo_state_ = style::PseudoState::None;
     bool pointer_events_ = true;                // CSS `pointer-events: auto`
     UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
+    bool style_hidden_ = false;                 // resolved `visibility: hidden|collapse`
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;
 };

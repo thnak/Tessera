@@ -49,7 +49,7 @@ std::unexpected<harness::ProtocolError> unexpected(harness::ProtocolError value)
 }
 
 ui::Node* find_visible(ui::Node& node, harness::UiId ui_id) {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         return nullptr;
     }
     if (node.automation_id() == ui_id) {

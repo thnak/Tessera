@@ -28,7 +28,7 @@ bool is_layout_property(std::string_view property) {
         property == "font-weight" || property == "font-style" || property == "line-height" ||
         property == "letter-spacing" || property == "word-spacing" || property == "white-space" ||
         property == "text-align" || property == "text-transform" || property == "writing-mode" ||
-        property == "scrollbar-gutter") {
+        property == "scrollbar-gutter" || property == "order") {
         return true;
     }
     return starts_with(property, "margin-") || starts_with(property, "padding-") ||

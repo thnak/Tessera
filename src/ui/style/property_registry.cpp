@@ -261,6 +261,16 @@ const std::vector<std::string>* PropertyRegistry::longhands(std::string_view sho
     return found == shorthands_.end() ? nullptr : &found->second.longhands;
 }
 
+std::vector<std::string_view> PropertyRegistry::longhand_names() const {
+    std::vector<std::string_view> names;
+    names.reserve(properties_.size());
+    for (const auto& [name, info] : properties_) {
+        (void)info;
+        names.push_back(name);
+    }
+    return names;
+}
+
 PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration) const {
     PropertyExpansionResult result;
     std::string property = normalize_property(declaration.property);

@@ -202,7 +202,7 @@ public:
 private:
     void visit(Node& node, const std::optional<Rect>& clip, std::size_t depth) {
         ++stats_.visited;
-        if (!node.visible()) {
+        if (!node.rendered()) {
             ++stats_.skipped_invisible;
             return;
         }

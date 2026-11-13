@@ -42,7 +42,7 @@ std::optional<std::uint64_t> parse_item_key(std::string_view text) {
 }
 
 ui::Node* find_visible_item(ui::Node& node, harness::UiId ui_id, std::uint64_t key) {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         return nullptr;
     }
     if (node.automation_id() == ui_id && node.item_key() == key) {

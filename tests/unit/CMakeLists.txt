@@ -795,6 +795,36 @@ target_link_libraries(property_registry_tests PRIVATE tessera_style)
 
 add_test(NAME property_registry COMMAND property_registry_tests)
 
+# Every registered property has a real effect (issue #213): `order` reorders flex items in a layout
+# result, `visibility` leaves paint/hit testing/a11y while keeping its box, `text-overflow` reaches
+# painted output, `container-type`/`container-name` select the `@container` ancestor, and
+# `font-style` reaches the text seam. Each test goes through the real path, never "the computed
+# value exists".
+add_executable(property_effects_tests
+    property_effects_tests.cpp)
+
+target_link_libraries(property_effects_tests PRIVATE
+    tessera_accessibility
+    tessera_layout
+    tessera_paint
+    tessera_style
+    tessera_text)
+
+add_test(NAME property_effects COMMAND property_effects_tests)
+
+# The per-property status table in docs/specs/stylesheet-property-status-v1.md covers exactly the
+# registry's longhands, and every `applied` row names a test (issue #213). The doc path is a compile
+# definition so the cross-check reads the real file.
+add_executable(property_status_tests
+    property_status_tests.cpp)
+
+target_link_libraries(property_status_tests PRIVATE tessera_style)
+
+target_compile_definitions(property_status_tests PRIVATE
+    TESSERA_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs")
+
+add_test(NAME property_status COMMAND property_status_tests)
+
 add_executable(logical_properties_tests
     logical_properties_tests.cpp)
 

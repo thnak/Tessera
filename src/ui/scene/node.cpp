@@ -144,6 +144,17 @@ void Node::set_visible(bool visible) {
     mark_dirty(Dirty::Layout | Dirty::Paint | Dirty::Render);
 }
 
+void Node::set_style_hidden(bool hidden) {
+    if (style_hidden_ == hidden) {
+        return;
+    }
+    style_hidden_ = hidden;
+    // Paint and render only: unlike `display: none`, `visibility: hidden` keeps the node's layout
+    // box, so the parent must not reflow. Hit testing is not a dirty domain (the next query reads
+    // the flag directly), and the accessibility tree is rebuilt on demand.
+    mark_dirty(Dirty::Paint | Dirty::Render);
+}
+
 void Node::set_focusable(bool focusable) {
     if (focusable_ == focusable) {
         return;
@@ -391,7 +402,7 @@ rhi::Rect Node::world_bounds() const {
 }
 
 bool Node::hit_test(float x, float y) const {
-    if (!visible_) {
+    if (!rendered()) {
         return false;
     }
 
@@ -408,7 +419,7 @@ bool Node::hit_test(float x, float y) const {
 }
 
 Node* Node::hit_test_deep(float x, float y) {
-    if (!visible_) {
+    if (!rendered()) {
         return nullptr;
     }
 

@@ -257,7 +257,7 @@ struct PaintScope {
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
                 const PaintContext& context, Frame frame, const PaintScope& scope,
                 const detail::ClipScope& clip_scope, const detail::PassState& pass) {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         ++stats.hidden_subtrees;
         return;
     }

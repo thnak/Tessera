@@ -312,7 +312,7 @@ FrameRender FramePipeline::finish_frame(Node& root) {
                 continue;
             }
             const Node& node = *found->second;
-            if (!node.visible()) {
+            if (!node.rendered()) {
                 continue;
             }
             const rhi::Mat3 world = painted_world(node, view);

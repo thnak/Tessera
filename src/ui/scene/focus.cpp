@@ -17,7 +17,7 @@ void dispatch_focus_event(Node& target, EventType type) {
 }
 
 void collect_focusable(Node& node, std::vector<Node*>& tree_order) {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         return;
     }
     if (node.focusable()) {
@@ -102,7 +102,7 @@ std::vector<Node*> tab_order(Node& root, const std::unordered_map<NodeId, NodeId
 
 bool visible_chain(const Node& node) {
     for (const Node* current = &node; current != nullptr; current = current->parent()) {
-        if (!current->visible()) {
+        if (!current->rendered()) {
             return false;
         }
     }

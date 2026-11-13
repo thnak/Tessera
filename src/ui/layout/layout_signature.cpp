@@ -19,13 +19,14 @@ namespace {
 constexpr std::uint64_t kFnvOffset = 14695981039346656037ULL;
 constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 
-// Exactly the computed properties read by `detail::apply_style` (src/ui/layout/layout_style.cpp)
-// and `text::text_style_from` (src/ui/text/text_measure.cpp), except the paint-only
-// `text-overflow`. Sorted by byte value so binary search and a compile-time order check apply.
+// Exactly the computed properties read by `detail::apply_style` (src/ui/layout/layout_style.cpp),
+// `child_layout_order` (src/ui/layout/layout_engine.cpp) and `text::text_style_from`
+// (src/ui/text/text_measure.cpp), except the paint-only `text-overflow`. Sorted by byte value so
+// binary search and a compile-time order check apply.
 // `scrollbar-gutter` is layout input (it reserves the overlay scrollbar width); the other scroll
 // style properties (`scroll-behavior`, `overscroll-behavior`, `overscroll-effect`) are runtime
 // inputs for the scroll controller and are deliberately absent so changing one never reflows.
-constexpr std::array<std::string_view, 63> kLayoutProperties = {{
+constexpr std::array<std::string_view, 64> kLayoutProperties = {{
     "align-content",
     "align-items",
     "align-self",
@@ -72,6 +73,7 @@ constexpr std::array<std::string_view, 63> kLayoutProperties = {{
     "max-width",
     "min-height",
     "min-width",
+    "order",
     "overflow-x",
     "overflow-y",
     "padding-bottom",

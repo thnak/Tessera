@@ -53,7 +53,7 @@ bool node_carries_item_state(const Node& node) noexcept {
         !node.event_bindings().empty()) {
         return true;
     }
-    if (!node.visible() || node.focusable() || node.tab_index() != 0 || node.z_index() != 0 ||
+    if (!node.rendered() || node.focusable() || node.tab_index() != 0 || node.z_index() != 0 ||
         node.pseudo_state() != PseudoState::None) {
         return true;
     }
@@ -88,6 +88,7 @@ void clear_node_item_state(Node& node) noexcept {
     node.clear_event_bindings();
     node.set_pseudo_state(PseudoState::None);
     node.set_visible(true);
+    node.set_style_hidden(false);
     node.set_focusable(false);
     node.set_tab_index(0);
     node.set_z_index(0);
