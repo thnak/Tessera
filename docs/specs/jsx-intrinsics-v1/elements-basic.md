@@ -16,7 +16,8 @@ it does not change it.
   `template` whose parts are strings and Expressions (adjacent strings merged; an `int` or `float`
   part prints as in ir-v1 section 4.1). A single `{count}` is a template with one part, so the
   result is always `string`.
-- `Text`: all children are one run; the run is `Text.text`.
+- `Text`: text-only children are one run and become `Text.text`. With any inline-span element child
+  every part becomes a span child instead (section 2.1); the parent then has no `text`.
 - `Button` whose children are **only** text (one run): the run is `props.label` (decision 11).
 - `Button` with any element child (including `{c && <X/>}` and `.map`): there is no `label`; each run
   becomes a synthetic `Text` child spanning the run, in source order (decision 11).
@@ -50,11 +51,11 @@ IR kind `Text`.
 
 | Aspect | Rule |
 |---|---|
-| Children | one run (section 0) or nothing. An element child is `TESSERA_JSX_CHILDREN_NOT_ALLOWED` (inline rich text is outside V1, [`text-editing-v1.md`](../text-editing-v1.md) section 1) with the suggestion to place two `Text` in a flex `View` |
-| IR | `text` = the text Expression; `<Text />` is `text: ""` |
-| Props | `tabIndex` (`0` or `-1`), `autoFocus` |
+| Children | text-only children are one run (section 0) or nothing. A `Text` element child is an inline span (section 2.1); any other element child, and every conditional or loop child, is `TESSERA_JSX_CHILDREN_NOT_ALLOWED`. A `Text` with spans has no `text` of its own |
+| IR | `text` = the text Expression; `<Text />` is `text: ""`. With spans, `children` holds the span nodes and `text` is empty (ir-v1 section 3.6) |
+| Props | `tabIndex` (`0` or `-1`), `autoFocus`. A span additionally accepts `className`, `style`, `role`, the `aria-*` attributes and `onClick` |
 | Implied role | `text` |
-| Events | as `View` |
+| Events | as `View`; a span supports `onClick` only |
 | Ref | `Text` |
 
 ```tsx
@@ -62,6 +63,48 @@ IR kind `Text`.
 ```
 
 lowers to `"text": { "kind": "template", "parts": ["Count: ", { "kind": "ref", "id": "state::count" }] }`.
+
+### 2.1 Inline spans
+
+A span is a `Text` element written as a child of a `Text`. It has no box: it is a run of the parent's
+paragraph with its own visual style, an optional `onClick` and an optional role. The lowercase aliases
+`span`, `b`, `strong`, `i`, `em`, `code` and `a` resolve to spans (default styles and the `a` role
+in [`html-aliases.md`](html-aliases.md) section 2).
+
+- **One paragraph.** The parent concatenates the span text in source order, measures and wraps it as a
+  single run with the parent's own style and metrics, and paints the result. A line break may fall
+  inside any span; each line's painted runs are split at span boundaries, so a span may continue on
+  the next line.
+- **Synthetic spans.** A text run between spans becomes a span with no `className`, `style` or events,
+  in source order, so paint order is source order.
+- **Static text in V1.** Inside a `Text` that has any span, every text part must be static JSX text
+  (`{expr}` anywhere is `TESSERA_JSX_SPAN_DYNAMIC`, error). Concatenation offsets must be known at
+  build time; a dynamic string can be built in the component and passed as one run, or the pieces can
+  be separate `Text` nodes.
+- **Non-metric styles only.** A span may set colour, `font-weight`, `font-style`, decoration and the
+  other non-metric properties through `className` and `style`, but it may not override a property that
+  changes glyph advances or line boxes: `font-size`, `font-family`, `letter-spacing`, `white-space`.
+  Writing one of those in a span's inline `style` is `TESSERA_JSX_SPAN_METRIC` (error); when a
+  `className` sets one, the runtime keeps the parent's value for measurement and painting. That rule
+  is what lets the parent's single measured run stay exact (V1 assumes one font size and face per
+  paragraph).
+- **Events and hittesting.** A span with `onClick` is a hit target: when a pointer press hits the
+  parent's text box, the run under the point resolves to the span, and `onClick` is dispatched to the
+  span (bubbling to the parent as usual). A span with no `onClick` never receives input. Spans have no
+  bounds until the text has been painted once, so only a painted `Text` is clickable per span.
+- **Accessibility.** Each span is a child entry of the parent `Text` entry: name = the span's text
+  slice, role = the span's `role` (the `a` alias injects `link`, which also exposes the `Press`
+  action). The parent `Text` entry keeps the concatenated text as its name.
+- **Limits.** At most 16 spans per `Text` and 256 bytes of span text in total, because the run table
+  lives in the node's paint payload; a span may not contain another span (`TESSERA_JSX_SPAN_NESTED`),
+  and a nested `Text` inside a span follows the same rule.
+- **Transforms.** Span hit testing assumes the `Text` and its ancestors are untransformed; under a
+  transformed ancestor only the parent `Text` is a hit target (V1 limitation, no separate span
+  clipping).
+
+Diagnostics of this section: `TESSERA_JSX_CHILDREN_NOT_ALLOWED` (a non-span child),
+`TESSERA_JSX_SPAN_DYNAMIC`, `TESSERA_JSX_SPAN_METRIC`, `TESSERA_JSX_SPAN_NESTED` and
+`TESSERA_JSX_SPAN_LIMIT`, all errors.
 
 ## 3. `Button`
 

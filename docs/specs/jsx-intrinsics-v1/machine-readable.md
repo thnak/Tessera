@@ -68,6 +68,7 @@ Names are illustrative. The C++ types are plain aggregates of `std::string_view`
   ],
   "aliases": [
     { "tag": "ul", "target": "View", "status": "mapped", "inject": { "role": "list" } },
+    { "tag": "b", "target": "Text", "status": "mapped", "injectStyle": { "font-weight": "700" } },
     { "tag": "input", "target": "TextInput", "status": "mapped",
       "attrs": [ { "name": "autoComplete", "rename": "autofill" } ],
       "typeMap": { "password": { "secure": true }, "number": { "inputMode": "numeric" } } },
@@ -77,9 +78,13 @@ Names are illustrative. The C++ types are plain aggregates of `std::string_view`
 }
 ```
 
-Field meanings follow the columns of README section 2. `children` is one of `none`, `text`, `nodes`,
-`text+nodes`, `template`, `one`. `value` is `literal`, `expr`, `handler`, `element`. `lowersTo` is one of
-`props.<n>`, `style.<n>`, `key`, `refs`, `events.<n>`, `automationId`, `children`, `node.<field>`.
+Field meanings follow the columns of README section 2. `children` is one of `none`, `text`,
+`inline-text`, `nodes`, `text+nodes`, `template`, `one`. `value` is `literal`, `expr`, `handler`,
+`element`. `lowersTo` is one of `props.<n>`, `style.<n>`, `key`, `refs`, `events.<n>`,
+`automationId`, `children`, `node.<field>`. `injectStyle` is the inline default style of an emphasis
+alias (`html-aliases.md` section 2), applied only when the tag is used as an inline span and
+overridden by an explicit `className`/`style` of the same property; it is a separate table from
+`inject` because it lowers to `style.<n>` rather than to a prop.
 
 Constraint kinds (a closed list, each maps to one generic diagnostic code): `requires` (prop needed),
 `exclusive` (at most one of a set), `oneOf` (exactly one of a set), `contentOneOf` (a prop or the
