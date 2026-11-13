@@ -314,7 +314,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `tests/golden/baseline/codegen/vector_payload_cpu.png`.
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))
-ADR-049 is Accepted and the shader chain is on `main`; WebGPU stays Tier 2 until its CI lane is green on GitHub.
+ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI lane (`wasm-build` + `wgsl-validation`) is green on GitHub (promoted 2026-11-13).
 
 - [x] WebGPU first slice (mapping tables, WGSL registry, unbuilt skeleton) —
       `src/rendering/backend/webgpu/`, `tests/unit/webgpu_mapping_tests.cpp`.
@@ -322,7 +322,8 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU stays Tier 2 until
 - [ ] #160: RHI `version.hpp` + `Device::capabilities()` + docs-gate check on RHI header changes.
 - [ ] #161: Backend-selectable GPU harness, `tolerance.json`, conformance summary — null/Vulkan pass.
 - [ ] #162: `docs/guides/writing-a-backend.md`, tiers table, backend build tools in dependencies.md.
-- [ ] #163: Emscripten CI lane + WGSL validation — WebGPU promoted to Tier 1.
+- [x] #163: Emscripten CI lane + WGSL validation — WebGPU promoted to Tier 1 —
+      `.github/workflows/webgpu.yml`, `scripts/ci/validate_wgsl.py`, ADR-049.
 
 ### V1-M4 Design-time preview and playground ([milestone 4](https://github.com/thnak/Tessera/milestone/4)) — Big Step D
 Acceptance: a screen previews in a browser and matches native output within the golden tolerance.
