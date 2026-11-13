@@ -63,6 +63,7 @@ This page is the map and reading order for the framework.
 - [ADR-037](../decisions/ADR-037-self-contained-wasm-designer.md) — self-contained Wasm (WebAssembly) designer engine
 - [ADR-039](../decisions/ADR-039-lowercase-html-tags-accepted.md) — lowercase HTML tags accepted as intrinsic aliases
 - [ADR-050](../decisions/ADR-050-opt-in-app-framework-layer.md) — application-framework layer (lifecycle, services resolved at mount, `useService<Interface>()`, task scopes, app state, native render surfaces); proposed
+- [ADR-051](../decisions/ADR-051-ir-record-types-and-record-values.md) — IR record types and record values (proposed; object-literal prop defaults, #158)
 
 ## 3. Specs (normative)
 

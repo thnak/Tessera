@@ -60,6 +60,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-048](ADR-048-precompiled-embedded-stylesheets.md) | Precompiled stylesheets embedded as versioned blobs (prepare/resolve split), import-graph cascade order, library CSS in `@layer` | Accepted |
 | [ADR-049](ADR-049-backend-extensibility.md) | Backend extensibility: RHI versioning, `shader_id` and shader sources for non-Vulkan backends, conformance suite, support tiers, community backends (amends ADR-011) | Accepted |
 | [ADR-050](ADR-050-opt-in-app-framework-layer.md) | Application-framework layer above the UI runtime: app lifecycle, services with compile-time ids resolved once at mount (no RTTI), TSX `useService<Interface>()`, task scopes, timers, observable app state, native render surfaces via typed refs | Accepted |
+| [ADR-051](ADR-051-ir-record-types-and-record-values.md) | IR record types and record values: an optional module type table and a `record` expression, additive to IR v1; unblocks object-literal prop defaults (#158). **Proposed**, awaiting the owner |
 
 ## Dependency overview
 
@@ -99,6 +100,7 @@ ADR-046 web target for demos ── ADR-002 WebGPU, ADR-024 boundaries, ADR-037 
 ADR-047 component library layers/design language ── ADR-032 component library, ADR-016 stylesheet
 ADR-048 precompiled stylesheets (accepted) ── ADR-016 stylesheet, ADR-047 component library, ADR-046 web target
 ADR-050 app framework layer ── ADR-021 async, ADR-030 app platform, ADR-040 generated base, ADR-043 launch modes
+ADR-051 IR record types (proposed) ── ir-v1 spec, jsx-subset-v1 8.5, ADR-040 generated base
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.
