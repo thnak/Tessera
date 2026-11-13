@@ -155,7 +155,7 @@ Slice 1 (issue #157, 2026-11-13) landed the base emitter as an opt-in mode,
   with explicit instantiation of every template member, on Windows (MSVC) and Linux (GCC).
 
 Known limits of slice 1, closed by the later slices: generated fields and thunks are public, not
-private with protected accessors (the event thunks cast their context to the base and need access);
+private with protected accessors (the event thunks cast their context to the base and need access; issue #212);
 the CLI does not expose the mode or write the developer files yet (#209); `compiler-demo` and the
 merger still use the legacy path (#210); documents still describe protected regions (#211). A child
 component in a parent is the child's developer class, so a parent's header includes
