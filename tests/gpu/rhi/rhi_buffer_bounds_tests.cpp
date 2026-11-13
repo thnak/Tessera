@@ -105,6 +105,13 @@ int main() {
         return 2;
     }
     {
+        const auto caps = vulkan_device->capabilities();
+        if (caps.backend != rhi::Backend::Vulkan || caps.rhi_version != rhi::kRhiVersion) {
+            std::cerr << "rhi_buffer_bounds[vulkan]: unexpected device capabilities\n";
+            return 2;
+        }
+    }
+    {
         constexpr std::size_t kMemoryProbe = 1U << 20;
         const auto before = vulkan_device->memory_statistics();
         auto probe = vulkan_device->create_buffer({kMemoryProbe, rhi::BufferUsage::Readback});

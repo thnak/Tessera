@@ -10,9 +10,20 @@
 int main() {
     using namespace tessera::rendering;
 
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersion != ((1u << 16) | 0u)) {
+        std::cerr << "unexpected RHI version constants\n";
+        return 1;
+    }
+
     auto device = null::create_null_device(rhi::DeviceDesc{});
     if (device->backend() != rhi::Backend::Null) {
         std::cerr << "unexpected backend\n";
+        return 1;
+    }
+    const auto caps = device->capabilities();
+    if (caps.backend != rhi::Backend::Null || caps.rhi_version != rhi::kRhiVersion ||
+        caps.timestamps.usable()) {
+        std::cerr << "unexpected null device capabilities\n";
         return 1;
     }
 

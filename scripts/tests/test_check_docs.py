@@ -170,6 +170,73 @@ class DocsGateTests(unittest.TestCase):
         result = self.run_check(cwd=Path(self._temp.name))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    # --- ADR-049: an RHI header change needs version.hpp and the RHI contract doc ---------------
+
+    def init_git(self) -> None:
+        """The RHI gate compares against a git base, so these cases run in a real repository."""
+        for args in (
+            ("init", "-q"),
+            ("config", "user.email", "gate@example.invalid"),
+            ("config", "user.name", "docs gate"),
+            ("config", "commit.gpgsign", "false"),
+            ("add", "-A"),
+            ("commit", "-q", "-m", "fixture"),
+        ):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           capture_output=True)
+
+    def commit_all(self, message: str = "change") -> None:
+        for args in (("add", "-A"), ("commit", "-q", "-m", message)):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           capture_output=True)
+
+    def write_rhi_header(self) -> None:
+        header = self.root / "include" / "tessera" / "rendering" / "rhi" / "types.hpp"
+        header.parent.mkdir(parents=True, exist_ok=True)
+        header.write_text("#pragma once\n\nstruct FixtureTypes {};\n", encoding="utf-8")
+
+    def test_committed_rhi_change_without_version_and_docs_is_an_error(self) -> None:
+        self.init_git()
+        self.write_rhi_header()
+        self.commit_all()
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "ERROR include/tessera/rendering/rhi/version.hpp:1 RHI headers changed", result.stdout
+        )
+        self.assertIn("ERROR docs/design/gpu/rhi.md:1 RHI headers changed", result.stdout)
+
+    def test_rhi_change_with_version_but_without_docs_is_an_error(self) -> None:
+        self.init_git()
+        self.write_rhi_header()
+        version = self.root / "include" / "tessera" / "rendering" / "rhi" / "version.hpp"
+        version.write_text("#pragma once\n", encoding="utf-8")
+        self.commit_all()
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertNotIn("rhi/version.hpp:1 RHI headers changed", result.stdout)
+        self.assertIn("ERROR docs/design/gpu/rhi.md:1 RHI headers changed", result.stdout)
+
+    def test_uncommitted_rhi_change_with_version_and_docs_passes(self) -> None:
+        self.init_git()
+        self.write_rhi_header()
+        version = self.root / "include" / "tessera" / "rendering" / "rhi" / "version.hpp"
+        version.write_text("#pragma once\n", encoding="utf-8")
+        gpu_docs = self.root / "docs" / "design" / "gpu"
+        gpu_docs.mkdir(parents=True, exist_ok=True)
+        (gpu_docs / "rhi.md").write_text(
+            "# RHI contract\n\nVersion 1.0.\n", encoding="utf-8"
+        )
+        self.append("docs/README.md", "\n- [`design/gpu/rhi.md`](design/gpu/rhi.md) — RHI.\n")
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_rhi_change_in_an_unrelated_file_is_ignored(self) -> None:
+        self.init_git()
+        self.append("docs/guide.md", "\nMore guide text.\n")
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

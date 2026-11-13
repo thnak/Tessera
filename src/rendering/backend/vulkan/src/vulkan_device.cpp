@@ -13,6 +13,12 @@
 
 namespace tessera::rendering::vulkan {
 
+static_assert(rhi::kRhiVersionMajor == 1, "Vulkan backend implements RHI 1.x");
+
+rhi::RhiCapabilities VulkanDevice::capabilities() const {
+    return rhi::RhiCapabilities{rhi::Backend::Vulkan, rhi::kRhiVersion, timestamp_capability()};
+}
+
 bool VulkanDevice::supports_sample_count(rhi::TextureFormat format,
                                          std::uint32_t sample_count) const {
     if (!rhi::is_supported_sample_count(sample_count)) {

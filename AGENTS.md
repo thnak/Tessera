@@ -319,7 +319,10 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI 
 - [x] WebGPU first slice (mapping tables, WGSL registry, unbuilt skeleton) —
       `src/rendering/backend/webgpu/`, `tests/unit/webgpu_mapping_tests.cpp`.
 - [ ] #159: `shader_id`, portable shader branch, opt-in cross-compile — PR #84, after ADR-049.
-- [ ] #160: RHI `version.hpp` + `Device::capabilities()` + docs-gate check on RHI header changes.
+- [x] #160: RHI `version.hpp` + `Device::capabilities()` + docs-gate check on RHI header changes —
+      `include/tessera/rendering/rhi/version.hpp`, `RhiCapabilities` reported by null/Vulkan/WebGPU
+      (`tests/gpu/rhi/rhi_null_tests.cpp`, `rhi_buffer_bounds_tests.cpp`), gate in
+      `scripts/check_docs.py` (`scripts/tests/test_check_docs.py`).
 - [ ] #161: Backend-selectable GPU harness, `tolerance.json`, conformance summary — null/Vulkan pass.
 - [ ] #162: `docs/guides/writing-a-backend.md`, tiers table, backend build tools in dependencies.md.
 - [x] #163: Emscripten CI lane + WGSL validation — WebGPU promoted to Tier 1 —

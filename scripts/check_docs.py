@@ -12,6 +12,8 @@ Checks the repository markdown tree without writing anything:
 * every ``docs/**/*.md`` is reachable from ``docs/README.md`` (directly or through a folder
   ``README.md`` index) and every ``decisions/ADR-*.md`` is listed in ``decisions/README.md``;
 * every ADR starts with an ``# `` heading and has a ``- Status:`` line;
+* RHI header changes (``include/tessera/rendering/rhi/**``) update ``version.hpp`` and
+  ``docs/design/gpu/rhi.md`` (ADR-049).
 * markdown files stay within the 400-line target / 600-line hard limit.
 
 Output is deterministic and sorted: ``ERROR file:line message`` / ``WARN file:line message``.
@@ -24,7 +26,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -507,11 +511,89 @@ class DocsChecker:
                     "ADR is missing a '- Status:' line near the top",
                 )
 
+    def _git_paths(self, *args: str) -> Optional[str]:
+        """`git <args>` output, or None when the checkout is not a git work tree."""
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.repo_root), *args],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                check=False)
+        except OSError:
+            return None
+        return result.stdout if result.returncode == 0 else None
+
+    def _base_revision(self) -> Optional[str]:
+        """The revision this change is compared against, or None when it is not resolvable."""
+        for candidate in (
+            os.environ.get("TESSERA_DOCS_BASE"),
+            "origin/{}".format(os.environ["GITHUB_BASE_REF"])
+            if os.environ.get("GITHUB_BASE_REF") else None,
+            "origin/main",
+            "main",
+            # A shallow CI checkout still has the parent of the checked-out merge/push commit.
+            "HEAD^",
+        ):
+            if not candidate:
+                continue
+            verified = self._git_paths("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
+            if verified and verified.strip():
+                return candidate
+        return None
+
+    def changed_paths(self) -> Tuple[Set[str], Optional[str]]:
+        """Paths changed in the working tree or since the comparison base.
+
+        The working tree matters for a local run before committing; the base diff matters in CI,
+        where the change is already committed and `git status` is empty. The second value says
+        whether a base was found, so a caller can stay quiet when nothing is comparable.
+        """
+        paths: Set[str] = set()
+        status = self._git_paths("status", "--porcelain", "--untracked-files=all")
+        for raw in (status or "").splitlines():
+            if len(raw) < 4:
+                continue
+            entry = raw[3:].strip().replace("\\", "/")
+            if " -> " in entry:
+                entry = entry.split(" -> ", 1)[1]
+            paths.add(entry)
+        base = self._base_revision()
+        if base is not None:
+            diff = self._git_paths("diff", "--name-only", base, "HEAD") or ""
+            for entry in diff.splitlines():
+                if entry.strip():
+                    paths.add(entry.strip().replace("\\", "/"))
+        return paths, base
+
+    def check_rhi_header_changes(self) -> None:
+        """ADR-049: a change to include/tessera/rendering/rhi/** must carry a matching RHI
+        version and docs update (version.hpp and the RHI contract doc)."""
+        changed, base = self.changed_paths()
+        if base is None and not changed:
+            return
+        rhi_headers = {p for p in changed if p.startswith("include/tessera/rendering/rhi/")}
+        if not rhi_headers:
+            return
+        if "include/tessera/rendering/rhi/version.hpp" not in changed:
+            self.add(
+                "include/tessera/rendering/rhi/version.hpp",
+                1,
+                "ERROR",
+                "RHI headers changed but include/tessera/rendering/rhi/version.hpp was not updated",
+            )
+        if "docs/design/gpu/rhi.md" not in changed:
+            self.add(
+                "docs/design/gpu/rhi.md",
+                1,
+                "ERROR",
+                "RHI headers changed but docs/design/gpu/rhi.md was not updated to match",
+            )
+
     def run(self) -> List[Issue]:
         self.parse_all()
         self.check_links()
         self.check_index()
         self.check_decisions()
+        self.check_rhi_header_changes()
         return sorted(self.issues, key=lambda issue: (issue.file, issue.line, issue.severity, issue.message))
 
     def file_count(self) -> int:

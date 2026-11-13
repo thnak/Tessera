@@ -146,7 +146,11 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      # depth 2 keeps the parent commit, which the RHI-header docs gate diffs against on a
+      # committed CI change (scripts/check_docs.py, ADR-049).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Install pinned clang-format
         run: |
