@@ -25,11 +25,6 @@ style::GridTrack implicit_track() {
     return style::GridTrack{auto_size, auto_size};
 }
 
-bool is_content_kind(style::GridTrackKind kind) {
-    return kind == style::GridTrackKind::Auto || kind == style::GridTrackKind::MinContent ||
-           kind == style::GridTrackKind::MaxContent;
-}
-
 // Grows the spanned tracks toward `target`, sharing the deficit equally among the tracks that are
 // still below `limits`. Finite limits are honoured, so a `minmax(<length>, <length>)` track cannot
 // exceed its maximum.
