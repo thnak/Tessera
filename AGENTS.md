@@ -296,7 +296,7 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
 - [x] #81/ADR-048: embed the theme asset through the same blob — loads without parsing —
       `src/ui/style/theme_asset_blob.cpp`, `src/compiler/codegen/src/emit_theme_embed.cpp`,
       `src/app/host_theme.cpp`, `tests/unit/{theme_asset_tests.cpp,app_host_theme_tests.cpp}`.
-- [ ] #158: #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
+- [ ] #158: ADR-051 accepted; #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
       component identity (inserting a component keeps other ids and goldens) — stable identity
       landed (`src/compiler/ids/src/assign_identity.cpp`, `tests/unit/ir_ids_stability_tests.cpp`)
       and cross-file props aliases landed

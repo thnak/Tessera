@@ -1,6 +1,6 @@
 # ADR-051: IR record types and record values (object-literal defaults)
 
-- Status: Proposed (2026-11-13), awaiting the owner
+- Status: Accepted (2026-11-13, owner)
 - Date: 2026-11-13
 - Related: [`ir-v1.md`](../docs/specs/ir-v1.md) (sections 2, 4, 9, 11, 12),
   [`jsx-subset-v1.md`](../docs/specs/jsx-subset-v1.md) (sections 5, 8.5),
@@ -22,7 +22,10 @@ Today the IR has no record type:
   defaults (issue #158, the last open #70 leftover).
 - Codegen cannot emit a record default: it does not know the members or their order.
 
-## Decision (proposed)
+## Decision
+
+Owner decisions of 2026-11-13: `irVersion` stays `1` (additive); the first slice accepts literal
+field values only; the first slice includes `useState` record initials as well as prop defaults.
 
 Add a module-level type table and one new expression kind. Both are additive and optional, so
 `irVersion` stays `1` (`ir-v1.md` section 12); a module without records is byte-identical to today.
@@ -61,9 +64,10 @@ Add a module-level type table and one new expression kind. Both are additive and
 
 - `fields` lists every non-optional member exactly once, in member order; an optional member may be
   omitted (its value is empty). Each value is an Expression of the member type.
-- Values are pure Expressions (section 4), so a field may be a literal, a `ref` to a prop, a nested
-  `record`, or an `array` of the allowed literals. Dynamic values are allowed in a `useState`
-  `initial` and a prop `default`, which are evaluated once at mount.
+- First slice: a field value is a literal, a nested `record` of literals, or an `array` of literals
+  of the member element type. A `ref` or any other dynamic Expression in a field is
+  `TESSERA_IR_UNSUPPORTED` until a later slice (the field is still an Expression in the schema, so
+  allowing dynamic values later is not a format change).
 - No spread, no computed keys, no shorthand with a function value (the rule of
   `jsx-subset-v1.md` section 8.5 is unchanged).
 
@@ -108,8 +112,8 @@ for a list). Records contain no heap allocation beyond their own `string`/`list`
 - Goldens: one new IR snapshot and one codegen golden for a record default; existing goldens do not
   change.
 - Risk: an `irVersion` 1 consumer that does not know `types` or `record` would reject a module that
-  uses them. In V1 the compiler and the evaluator ship together, so this is acceptable; if the owner
-  prefers, the alternative is `irVersion: 2` with the same shape.
+  uses them. In V1 the compiler and the evaluator ship together, so this is acceptable (owner
+  decision: stay on version 1).
 
 ## Slices after acceptance (issue #158)
 
@@ -119,10 +123,8 @@ for a list). Records contain no heap allocation beyond their own `string`/`list`
 4. Codegen: struct emission and designated initialization, golden, `compiler-demo` unchanged.
 5. Evaluator parity for the designer (Wasm) with a differential test.
 
-## Questions for the owner
+## Owner answers (2026-11-13)
 
-1. Accept the additive route (`irVersion` stays `1`) or prefer `irVersion: 2`?
-2. Are dynamic field values (a `ref` to a prop) allowed in a record default, or literals only for
-   the first slice? Literals only is smaller and enough for #158; dynamic values can follow.
-3. Should the first slice also lower `useState` record initials (same mechanism), or only prop
-   defaults as the issue says? The proposal includes both because they share every step.
+1. Additive route: `irVersion` stays `1`.
+2. Literal field values only in the first slice; dynamic values follow later.
+3. The first slice lowers both prop defaults and `useState` record initials.
