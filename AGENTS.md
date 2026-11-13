@@ -39,9 +39,10 @@ A cross-platform C++ UI framework:
 5. **Generated code and developer code have separate owners** ([ADR-040](decisions/ADR-040-generated-base-and-developer-class.md)).
    Codegen emits a `gen::<Component>Base<Self>` that is never edited or merged; developer C++
    lives in a developer-owned derived class scaffolded once, and a missing `bind::` member is a
-   compile error. Until the migration lands, the legacy protected-region merger must stay
-   idempotent (`merge(merge(g, e), e) == merge(g, e)`); keep it working but add no new features
-   to it.
+   compile error. The migration is under way: #209 and #210 are done, #218 moves the codegen
+   test families to the base one by one (sample and dynamic are done), and #219 deletes the legacy
+   output, the merger and `EmitMode`. Until #219 lands the legacy merger must stay idempotent
+   (`merge(merge(g, e), e) == merge(g, e)`); add no new features to it.
 6. **Deterministic headless tests use a software path.** Golden images come from
    Mesa **lavapipe** or the CPU rasterizer, never from a real GPU framebuffer.
 7. **No React runtime in production.** Production is pure C++. React semantics exist only
@@ -80,6 +81,23 @@ A cross-platform C++ UI framework:
     boundary; never throw across threads/FFI. No silent catch; fatal/OOM/cancellation/platform
     errors go to the root handler. See
     [`docs/specs/error-boundaries-v1.md`](docs/specs/error-boundaries-v1.md).
+
+## V1 platform scope and CI policy
+
+Owner decision of 2026-11-13:
+
+- **V1 targets Windows and Linux.** macOS, Android and iOS, and what only they need (the Metal
+  backend, fold and posture backends on Android, mobile integration, native touch shells), are not
+  V1. They stay open for the release after V1 and are not planned in this file.
+- **Gating lanes:** a change is done when it builds and `ctest` passes on Windows (local) and on
+  Linux (local or the Linux CI lane), and the Windows and Linux CI lanes are green. Issue farming
+  notes that say "all six CI lanes" mean these gating lanes.
+- **Advisory lanes:** every other CI lane (macOS, Android, iOS, the WebGPU/Wasm lane, and so on) is
+  nice to have. A red advisory lane is noted in the PR or issue but never blocks a merge or the next
+  slice, and is not fixed ahead of V1 work unless the fix is trivial. Do not add platform-specific
+  code only to keep an advisory lane green.
+- **Library:** component library stages 0 and 1 ship in V1
+  ([ADR-032](decisions/ADR-032-bundled-component-library.md)); stages 2 to 6 follow V1.
 
 ## Execution loop (default operating mode)
 
@@ -270,8 +288,12 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       the pre-edit yet because there is no text editor.
 - [ ] #156: **B3:** OS events (ADR-023, accepted): first slice is the normalized `OsEvent`/`WindowMetrics`/`FoldInfo`
       types, a synthetic event injector, and display-capability events on Windows and X11 (DPI, scale,
-      refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends wait for
-      Android (V1-M7).
+      refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends are post-V1
+      (Android).
+- [ ] #227: Effective opacity multiplies down the subtree (children fade with their parent).
+- [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
+- [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
+
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C
 Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing developer C++.
@@ -312,6 +334,10 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `tests/unit/codegen_vector_payload_tests.cpp`,
       `tests/gpu/codegen_vector_paint_golden_tests.cpp`,
       `tests/golden/baseline/codegen/vector_payload_cpu.png`.
+- [ ] #226: Focusable `View`: `tabIndex`, `autoFocus`, `onFocus`/`onBlur`/`onKeyDown`, `ref.focus()`.
+- [ ] #229: Inline spans in `Text` (per-run class, `onClick`, `role="link"`).
+- [ ] #231: User component instances inside list templates and conditionals, and list-typed props.
+
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))
 ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI lane (`wasm-build` + `wgsl-validation`) is green on GitHub (promoted 2026-11-13).
@@ -356,6 +382,15 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 - [ ] #178: AF6: `NativeSurface` refs + `SurfaceRenderer` — lavapipe golden of a composited surface.
 - [ ] #179: AF7: `storage` module, atomic writes on `IoExecutor` — corruption fallback tested.
 - [ ] #180, #181: Multi-window, then tray apps, each its own slice.
+- [ ] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6).
+- [ ] #234: Library stage 0: bare package imports of `tessera-ui`.
+- [ ] #236: Library stage 0: behavior primitives (blocked by #226 and #234).
+- [ ] #237: Library stage 0: Instrument tokens, themes, bundled fonts, theme versioning.
+- [ ] #238: Library stage 0: `tessera icons add` (Iconify import tool with the license gate).
+- [ ] #239: Library stage 0 exit: a styled Button end to end and the gallery skeleton (blocked).
+- [ ] #240, #223: Library stage 1 tracking, including `SafeArea` (blocked by #239). Stages 2 to 6
+      (including `LiveCapsule`, #224) follow V1.
+
 
 ### V1-M6 Data-heavy UI ([milestone 6](https://github.com/thnak/Tessera/milestone/6)) — Big Step E
 Acceptance: a streaming dashboard at target frame rate with deterministic goldens.
@@ -364,19 +399,17 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 - [ ] #182: Zero-allocation ring buffers for chart series — allocation-counting test.
 - [ ] #183: Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
 - [ ] #184: Streaming dashboard sample under sustained load with deterministic goldens.
+- [ ] #233: `DataStore::set/update` push entry for app-fed data.
+
 
 ### V1-M7 Platform breadth and accessibility ([milestone 7](https://github.com/thnak/Tessera/milestone/7)) — Big Step F
 - [ ] #185: Install `make_window_root_provider` from `WindowHost` (UIA host provider exists) — Narrator/
       NVDA smoke checklist.
 - [ ] #186: Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
-- [ ] #202: Fold posture, hinge and occlusion events on Android (ADR-023; needs the Android backend) —
-      synthetic fold sequences pass.
-- Owner decision of 2026-11-13: V1 targets Windows and Linux. #202, #204-#208 and #189-#190 below are
-  not V1; they stay open for the release after V1.
-- [ ] #187: Reduced motion and dark mode queries on Linux and macOS.
-- [ ] #204-#208: macOS through a native Metal backend (ADR-053: device, MSL shaders, CAMetalLayer window,
-      conformance, NSAccessibility); #189-#190: Android then iOS
-      ([mobile-integration.md](docs/design/mobile-integration.md)); platform cursor shape.
+- [ ] #187: Reduced motion and dark mode queries on Linux.
+- [ ] #222: `CutoutInfo` in `WindowMetrics` with a fake for tests (the Android fill is post-V1).
+- [ ] #232: Window full-screen toggle on Windows and Linux.
+- [ ] Platform cursor shape on Windows and Linux.
 
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
 Acceptance: a real app ships and passes validation layers and golden tests in CI.
@@ -439,7 +472,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Dependency map | [`docs/specs/dependencies.md`](docs/specs/dependencies.md) |
 | Public headers | `include/tessera/` |
 | Core primitives | `src/core/` |
-| Platform seam | `src/hal/` + `src/platform/{windows,linux,macos,android}` |
+| Platform seam | `src/hal/` + `src/platform/{windows,linux}` (`macos`, `android`: post-V1) |
 | UI model | `src/ui/` (view, layout, style, animation, text, accessibility) |
 | RHI (only GPU seam) | `include/tessera/rendering/rhi/` + `src/rendering/rhi/` |
 | Batched 2D renderer | `include/tessera/rendering/gpu/` + `src/rendering/gpu/` |
@@ -463,7 +496,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | UI model / layout / text / animation | `docs/design/ui-model.md`, `layout.md`, `text.md`, `animation.md`, `animation-runtime.md` |
 | Responsive / accessibility | `docs/design/responsive.md`, `docs/design/accessibility.md` |
 | HAL | [`docs/design/hal.md`](docs/design/hal.md) |
-| Mobile integration | [`docs/design/mobile-integration.md`](docs/design/mobile-integration.md) |
+| Mobile integration (post-V1) | [`docs/design/mobile-integration.md`](docs/design/mobile-integration.md) |
 | Compiler / IR / component model | [`docs/design/compiler.md`](docs/design/compiler.md), [`docs/specs/ir-v1.md`](docs/specs/ir-v1.md), [`docs/specs/component-model-v1.md`](docs/specs/component-model-v1.md) |
 | UI virtualization | [`docs/specs/virtualization-v1.md`](docs/specs/virtualization-v1.md) |
 | Designer / Wasm | [`docs/design/designer.md`](docs/design/designer.md) |
@@ -553,8 +586,8 @@ live in one place and are linked, not copied.
 
 ## Definition of done (every change)
 
-- [ ] Builds with `TESSERA_WARNINGS_AS_ERRORS=ON` on Windows and Linux (macOS in CI where
-      supported).
+- [ ] Builds with `TESSERA_WARNINGS_AS_ERRORS=ON` on Windows and Linux (the gating lanes of
+      "V1 platform scope and CI policy"; other lanes are advisory).
 - [ ] Unit/integration tests pass (`ctest`).
 - [ ] Vulkan paths run clean under validation layers (debug builds).
 - [ ] No new dependency without entries in `docs/specs/dependencies.md` and
@@ -633,6 +666,12 @@ items waiting on a definition — the remaining power steps
 ADR-023. V1-M3 and V1-M5 wait for their design PRs
 (#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may start now. V1-M4, V1-M6, V1-M7
 and V1-M8 come later.
+
+**V1 gaps added 2026-11-13 (ready now):** #226, #227, #229, #230, #231 and #235 (front end, style and
+paint gaps that make V1 look unfinished), #228 (multi-window refactor, before AF6), #232, #233,
+#222, and the library stage 0 items #234, #237 and #238. #226, #229 and #231 touch the IR and the
+front end, so land them one at a time. #236, #239, #240 and #223 are blocked until stage 0 closes.
+#218 and #219 run one family or step at a time (they share `src/compiler/codegen/CMakeLists.txt`).
 
 The detailed history of what landed and why is in
 [`docs/architecture/implementation-log.md`](docs/architecture/implementation-log.md). Keep the B1
