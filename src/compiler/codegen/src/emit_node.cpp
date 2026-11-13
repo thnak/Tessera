@@ -400,6 +400,30 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
             writer.line(variable + "->set_auto_focus(true);");
         }
     }
+    // `focusTrap`/`focusGroup` (issue #236): scene-node flags the focus manager reads.
+    if (const ir::Expr* trap = prop("focusTrap");
+        trap != nullptr && trap->kind == ir::ExprKind::Literal) {
+        if (const auto* value = std::get_if<bool>(&trap->literal); value != nullptr && *value) {
+            writer.line(variable + "->set_focus_trap(true);");
+        }
+    }
+    if (const ir::Expr* typeahead = prop("typeahead");
+        typeahead != nullptr && typeahead->kind == ir::ExprKind::Literal) {
+        if (const auto* value = std::get_if<bool>(&typeahead->literal);
+            value != nullptr && *value) {
+            writer.line(variable + "->set_typeahead(true);");
+        }
+    }
+    if (const ir::Expr* group = prop("focusGroup");
+        group != nullptr && group->kind == ir::ExprKind::Literal) {
+        if (const auto* axis = std::get_if<std::string>(&group->literal)) {
+            std::string name = *axis == "horizontal" ? "Horizontal"
+                               : *axis == "vertical" ? "Vertical"
+                                                     : "Both";
+            writer.line(variable + "->set_focus_group(tessera::ui::Node::FocusGroup::" + name +
+                        ");");
+        }
+    }
     if (node.kind == ir::NodeKind::Scroll) {
         std::string axis = "y";
         const auto found = node.props.find("axis");

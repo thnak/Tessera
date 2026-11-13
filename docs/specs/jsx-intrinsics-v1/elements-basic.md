@@ -29,12 +29,12 @@ it does not change it.
 
 ## 1. `View`
 
-IR kind `View`. Container; lays out its children with the style engine (Yoga). Own props: `tabIndex`, `autoFocus` (focusable, [common-and-events.md](common-and-events.md) section 4).
+IR kind `View`. Container; lays out its children with the style engine (Yoga). Own props: `tabIndex`, `autoFocus`, `focusTrap`, `focusGroup`, `typeahead` (focusable and focus scope, [common-and-events.md](common-and-events.md) section 4).
 
 | Aspect | Rule |
 |---|---|
 | Children | nodes and text runs (section 0). Fragments splice; conditionals and `.map` allowed |
-| Props | `tabIndex` (`0` or `-1`), `autoFocus` |
+| Props | `tabIndex` (`0` or `-1`), `autoFocus`, `focusTrap`, `focusGroup`, `typeahead` |
 | Implied role | `generic` |
 | Events | `onClick`; `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onPointerCancel` (payloads `ClickEvent`, `PointerEvent`); `onSizeChange` (`SizeChangeEvent`, [common-and-events.md](common-and-events.md) section 2); `onKeyDown`, `onKeyUp` (`KeyEvent`), `onFocus`, `onBlur` (`FocusEvent`), the last four on a focusable node |
 | Ref | `View` |

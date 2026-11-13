@@ -25,6 +25,29 @@ team rebuilding inputs, dialogs, menus, and data grids.
 Stage numbers refer to section 8. Behavior primitives (press, toggle, focus scope, roving focus,
 dismissable layer, list/grid navigation, typeahead) are stage 0 and are not listed per component.
 
+**Primitive form (issue #236, decided while building).** A primitive is a *component*, not a hook:
+the JSX subset rejects custom hooks (`TESSERA_REACT_CUSTOM_HOOK`, jsx-subset-v1 section 7). Each is
+one file in `packages/tessera-ui/primitives/`, draws nothing, and owns role/name/state plus its key
+behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evidence:
+`primitives` (`tests/unit/primitives_tests.cpp`).
+
+| Primitive | Contract | Status |
+|---|---|---|
+| `Press` | `button`, focusable, `pressed` class on pointer down or Enter/Space | done |
+| `Toggle` | `switch`, focusable, `aria-checked` flips on activation | done |
+| `DismissableLayer` | `dialog`, Escape closes (`display: none`); focus restore is the composer's | done |
+| `FocusScope` | `group` with `focusTrap`: Tab trapped, focus moves in, previous focus restored on hide | done |
+| `RovingFocus`, `RovingFocusVertical` | `group` with `focusGroup`: one Tab stop, arrows wrap, Home/End | done |
+| `ListNavigation` | `listbox` with a vertical `focusGroup` and `typeahead`; selection is the composer's; grid navigation is not done | done |
+| `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag is not done (a handler cannot read layout bounds) | done |
+| `TextFieldState` | `TextInput` with value, `focused` and `touched` state as classes, name and required | done |
+
+Gallery: there is no gallery skeleton in the repository yet; this table is the interim catalog of the
+primitives and their evidence (`primitives`, `focus_scope`, `guarded_handler`).
+
+Subset gaps found: a component cannot forward a callback prop to an inner event, so `Press` cannot
+pass `onClick` through; a plain `View` has no `disabled` prop; `onPointerCancel` has no scene event.
+
 | Group | Components (stage) |
 |---|---|
 | Foundations | Icon (0); Text, Heading, Label, Kbd, Code, Divider, Spacer, VisuallyHidden, SafeArea (1); AnimatedIcon (2) |

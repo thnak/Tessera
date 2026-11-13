@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/event.hpp"
 
 #include <cstdint>
@@ -177,6 +178,46 @@ inline KeyEventInfo key_event_info(const Event& event) {
                         modifier_held(event.modifiers, Modifier::Control),
                         modifier_held(event.modifiers, Modifier::Alt),
                         modifier_held(event.modifiers, Modifier::Meta)};
+}
+
+// True when `info.key` is the W3C `key` value `name` ("Escape", "ArrowDown", " ", "a"). Generated
+// code compares through this because the payload carries the logical key code (key_code.hpp), not
+// the string. A single printable letter matches either case; an unknown name matches nothing.
+inline bool key_is(const KeyEventInfo& info, std::string_view name) {
+    struct Named {
+        std::string_view name;
+        std::uint32_t code;
+    };
+    constexpr Named kNamed[] = {
+        {"Backspace", key::kBackspace},
+        {"Tab", key::kTab},
+        {"Enter", key::kEnter},
+        {"Escape", key::kEscape},
+        {" ", key::kSpace},
+        {"Insert", key::kInsert},
+        {"Delete", key::kDelete},
+        {"Home", key::kHome},
+        {"End", key::kEnd},
+        {"PageUp", key::kPageUp},
+        {"PageDown", key::kPageDown},
+        {"ArrowLeft", key::kArrowLeft},
+        {"ArrowUp", key::kArrowUp},
+        {"ArrowRight", key::kArrowRight},
+        {"ArrowDown", key::kArrowDown},
+    };
+    for (const Named& entry : kNamed) {
+        if (entry.name == name) {
+            return info.key == entry.code;
+        }
+    }
+    if (name.size() == 1) {
+        const char c = name[0];
+        const std::uint32_t upper = (c >= 'a' && c <= 'z')
+                                        ? static_cast<std::uint32_t>(c - 'a' + 'A')
+                                        : static_cast<std::uint32_t>(c);
+        return info.key == upper;
+    }
+    return false;
 }
 
 inline FocusEventInfo focus_event_info(const Event&) {

@@ -212,6 +212,14 @@ target_link_libraries(focus_tests PRIVATE tessera_scene)
 
 add_test(NAME focus COMMAND focus_tests)
 
+# Focus scope (trap and restore) and roving focus (issue #236), headless through the InputRouter.
+add_executable(focus_scope_tests
+    focus_scope_tests.cpp)
+
+target_link_libraries(focus_scope_tests PRIVATE tessera_scene)
+
+add_test(NAME focus_scope COMMAND focus_scope_tests)
+
 add_executable(focus_policy_tests
     focus_policy_tests.cpp)
 

@@ -254,13 +254,25 @@ std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arro
         names.add_local(param);
     }
     for (std::size_t i = 0; i < count; ++i) {
-        const jsx::ExprPtr& statement = arrow.operands[i];
-        if (!statement || statement->kind != jsx::ExprKind::Call || statement->operands.empty() ||
-            !statement->operands[0]) {
+        const jsx::Expr* statement_ptr = arrow.operands[i].get();
+        // `guard && call(...)`: the call runs only when the pure guard holds (issue #236).
+        ir::ExprPtr guard;
+        if (statement_ptr != nullptr && statement_ptr->kind == jsx::ExprKind::Binary &&
+            statement_ptr->text == "&&" && statement_ptr->operands.size() == 2 &&
+            statement_ptr->operands[0] && statement_ptr->operands[1]) {
+            guard = lower_component_expression(state, *statement_ptr->operands[0], names);
+            if (state.error || !guard) {
+                return actions;
+            }
+            statement_ptr = statement_ptr->operands[1].get();
+        }
+        if (statement_ptr == nullptr || statement_ptr->kind != jsx::ExprKind::Call ||
+            statement_ptr->operands.empty() || !statement_ptr->operands[0]) {
             fail_hook(state, "TESSERA_IR_UNSUPPORTED", kBodyRule,
-                      statement ? statement->span : arrow.span);
+                      statement_ptr ? statement_ptr->span : arrow.span);
             return actions;
         }
+        const jsx::Expr* const statement = statement_ptr;
         const jsx::Expr& callee = *statement->operands[0];
         std::optional<ir::Action> action;
         if (callee.kind == jsx::ExprKind::Member &&
@@ -281,6 +293,7 @@ std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arro
             fail_hook(state, "TESSERA_IR_UNSUPPORTED", kBodyRule, statement->span);
             return actions;
         }
+        action->guard = std::move(guard);
         actions.push_back(std::move(*action));
     }
     return actions;

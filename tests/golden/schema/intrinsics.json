@@ -995,6 +995,39 @@
       "value": "expr"
     },
     {
+      "lowersTo": "props.aria-valuenow",
+      "name": "aria-valuenow",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "slider current value",
+      "type": "int",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-valuemin",
+      "name": "aria-valuemin",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "slider lower bound",
+      "type": "int",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-valuemax",
+      "name": "aria-valuemax",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "slider upper bound",
+      "type": "int",
+      "value": "expr"
+    },
+    {
       "lowersTo": "automationId",
       "name": "automationId",
       "note": "must equal the computed uiId (ir-v1 section 3.1)",
@@ -1143,6 +1176,29 @@
           "note": "focuses this node when the tree is first shown; needs `tabIndex`",
           "type": "bool",
           "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.focusTrap",
+          "name": "focusTrap",
+          "note": "while visible, confines Tab to this subtree and restores the previous focus when it hides",
+          "type": "bool",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.focusGroup",
+          "name": "focusGroup",
+          "note": "roving focus: the focusable descendants are one Tab stop and the arrows of the axis, Home and End move among them",
+          "type": "\"horizontal\" | \"vertical\" | \"both\"",
+          "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.typeahead",
+          "name": "typeahead",
+          "note": "on a `focusGroup`: typing moves focus to the next item whose `aria-label` starts with the typed prefix",
+          "type": "bool",
+          "value": "literal"
         }
       ],
       "refType": "View",
@@ -1222,6 +1278,29 @@
           "lowersTo": "props.autoFocus",
           "name": "autoFocus",
           "note": "focuses this node when the tree is first shown; needs `tabIndex`",
+          "type": "bool",
+          "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.focusTrap",
+          "name": "focusTrap",
+          "note": "while visible, confines Tab to this subtree and restores the previous focus when it hides",
+          "type": "bool",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.focusGroup",
+          "name": "focusGroup",
+          "note": "roving focus: the focusable descendants are one Tab stop and the arrows of the axis, Home and End move among them",
+          "type": "\"horizontal\" | \"vertical\" | \"both\"",
+          "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.typeahead",
+          "name": "typeahead",
+          "note": "on a `focusGroup`: typing moves focus to the next item whose `aria-label` starts with the typed prefix",
           "type": "bool",
           "value": "literal"
         }

@@ -99,12 +99,15 @@ void WindowHost::Impl::pump_input() {
 }
 
 void WindowHost::Impl::apply_initial_auto_focus() {
+    ui::FocusManager& focus = pump.router().focus_manager();
+    focus.set_root(root);
+    // `focusTrap` scopes follow the tree every frame; opening or closing one moves focus in or
+    // restores it (issue #236).
+    focus.sync_focus_trap(root);
     if (auto_focus_applied) {
         return;
     }
     auto_focus_applied = true;
-    ui::FocusManager& focus = pump.router().focus_manager();
-    focus.set_root(root);
     if (focus.apply_auto_focus(root)) {
         loop->mark_render_dirty();
     }

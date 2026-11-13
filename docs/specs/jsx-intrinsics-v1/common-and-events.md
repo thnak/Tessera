@@ -19,6 +19,7 @@ that of subset spec 10.2 and [`component-model-v1.md`](../component-model-v1.md)
 | `aria-hidden` | bool | E | `false` | `props["aria-hidden"]` | `Spacer`, `ErrorBoundary` | Leaves the node and its subtree out of the accessibility tree |
 | `aria-disabled`, `aria-selected`, `aria-expanded`, `aria-busy`, `aria-invalid`, `aria-readonly`, `aria-required` | bool | E | `false` | `props["aria-..."]` | same | The state of the same name in [`accessibility-v1.md`](../accessibility-v1.md) section 2 |
 | `aria-checked` | `"true"`, `"false"`, `"mixed"` | E | - | `props["aria-checked"]` | same | `checked/mixed` state |
+| `aria-valuenow`, `aria-valuemin`, `aria-valuemax` | int | E | - | `props["aria-..."]` | same | Slider value and bounds (issue #236); the accessibility tree reads `aria-valuenow` as the value ([`accessibility-v1.md`](../accessibility-v1.md) section 2) |
 | `automationId` | string literal, decimal uint64 | L | - | `automationId` | none | Must equal the computed `uiId` (ir-v1 section 3.1); a mismatch is a validator error |
 
 Any other `aria-*` name is `TESSERA_JSX_SUBSET_UNKNOWN_PROP` in V1 (the V1 set is closed so that every
@@ -149,4 +150,15 @@ the generated component acts through the `FocusManager` its host passes to `set_
 (`WindowHost::focus_manager()`); `focus` reaches a `tabIndex={-1}` node, `blur` clears focus only if
 the ref holds it. The window host applies `autoFocus` once after the first frame.
 
-Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`).
+`focusTrap` (a flag) makes a `View` a focus scope: while it is visible Tab stays inside it, focus
+moves in when it opens, and the focus held before is restored when it hides. `focusGroup`
+(`"horizontal"`, `"vertical"` or `"both"`) makes a `View` a roving-focus group: its focusable
+descendants are one Tab stop (re-entered on the last active item), the arrows of the axis move among
+them and wrap, and Home/End jump to the ends. A handler that consumes the key keeps it. Both are
+literals, are `View` only, and need no role. A bad value is `TESSERA_IR_UNSUPPORTED`. `typeahead`
+(a flag, on a `focusGroup`) moves focus to the next item whose `aria-label` starts with the typed
+prefix, ignoring ASCII case: the prefix resets after one second, and a repeated character cycles
+through the items that start with it.
+
+Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`), `focus_scope`
+(`tests/unit/focus_scope_tests.cpp`).

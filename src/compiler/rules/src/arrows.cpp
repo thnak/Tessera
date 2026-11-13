@@ -22,6 +22,10 @@ void add_arrow(Context& ctx, const Expr& arrow, ArrowRole role, std::string bind
 }
 
 bool is_setter_call(const Context& ctx, const Expr& expr) {
+    // `guard && call(...)` (issue #236): the guard is a pure expression, the call is checked below.
+    if (expr.kind == ExprKind::Binary && expr.text == "&&" && expr.operands.size() == 2) {
+        return expr.operands[1]->kind == ExprKind::Call && is_setter_call(ctx, *expr.operands[1]);
+    }
     if (expr.kind != ExprKind::Call || expr.operands.empty()) {
         return false;
     }

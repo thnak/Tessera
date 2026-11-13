@@ -443,6 +443,11 @@ expressions, separated by `;`:
 ```
 
 - Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.
+- A statement may be guarded: `guard && setter(...)` runs the call only when the pure bool `guard`
+  holds (issue #236). A key handler uses it as `(e) => e.key === "Escape" && setOpen(false)`; the
+  `KeyEvent` `key` is compared with a W3C key-value string literal (`"Escape"`, `"ArrowDown"`, `" "`,
+  a letter). It lowers to the IR action `guard`, and the generated code tests it with
+  `tessera::ui::key_is`. A guard on a non-setter call is rejected.
 - No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`, `r.focus()` and `r.blur()`.
 - The front end lowers this form to IR and generates C++ for it. No protected region is created, and
   the designer runs it exactly as the generated code would.

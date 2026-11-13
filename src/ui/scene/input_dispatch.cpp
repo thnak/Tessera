@@ -150,6 +150,7 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
 
     // Key, text, and sequential focus all need the root to resolve the focused node.
     focus_manager_.set_root(root);
+    focus_manager_.sync_focus_trap(root); // `focusTrap` scopes (issue #236)
 
     EventType type = EventType::PointerMove;
     if (key_event_type(input.type, type)) {
@@ -196,6 +197,14 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
                 }
             }
         }
+        // Default action: an arrow key (or Home/End) inside a `focusGroup` moves focus among its
+        // items unless a handler consumed it (issue #236).
+        if (type == EventType::KeyDown && !consumed && !prevent_default) {
+            if (focus_manager_.move_in_focus_group(root, input.key)) {
+                result.focus_moved = true;
+                focus_manager_.set_focus_visible(true);
+            }
+        }
         return result;
     }
 
@@ -206,7 +215,15 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
             return result;
         }
         Event event = make_text_event(input);
-        return dispatch_to_target(*target, event);
+        result = dispatch_to_target(*target, event);
+        // Default action: a character typed in a `typeahead` group jumps to the matching item
+        // unless a handler consumed it (issue #236).
+        if (!event.handled && !event.prevent_default &&
+            focus_manager_.typeahead(root, input.text_codepoint, input.timestamp_s)) {
+            result.focus_moved = true;
+            focus_manager_.set_focus_visible(true);
+        }
+        return result;
     }
 
     if (input.type == InputEventType::CompositionStart ||

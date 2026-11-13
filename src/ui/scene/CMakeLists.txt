@@ -7,6 +7,7 @@ add_library(tessera_scene STATIC
     click_synthesis.cpp
     dirty_pass.cpp
     focus.cpp
+    focus_scope.cpp
     hover_dispatch.cpp
     input_dispatch.cpp
     input_dispatch_click.cpp

@@ -155,6 +155,9 @@ export interface CommonProps {
   'aria-readonly'?: boolean;
   'aria-required'?: boolean;
   'aria-checked'?: "true" | "false" | "mixed";
+  'aria-valuenow'?: number;
+  'aria-valuemin'?: number;
+  'aria-valuemax'?: number;
   'automationId'?: string;
 }
 
@@ -162,6 +165,9 @@ export interface ViewProps extends CommonProps {
   ref?: ElementRef<ViewElement>;
   tabIndex?: 0 | -1;
   autoFocus?: boolean;
+  focusTrap?: boolean;
+  focusGroup?: "horizontal" | "vertical" | "both";
+  typeahead?: boolean;
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;
@@ -180,6 +186,9 @@ export interface TextProps extends CommonProps {
   ref?: ElementRef<TextElement>;
   tabIndex?: 0 | -1;
   autoFocus?: boolean;
+  focusTrap?: boolean;
+  focusGroup?: "horizontal" | "vertical" | "both";
+  typeahead?: boolean;
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;

@@ -462,7 +462,7 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       (version check), `src/compiler/lowering/src/module_lowering.cpp` (bundled `tessera-ui` imports,
       `from "tessera"` rejection), `docs/specs/package-manifest-v1.md`; tests `forms_lowering`,
       `codegen_cli`, `library_tsx_parity`.
-- [ ] #236: Library stage 0: behavior primitives (blocked by #226 and #234).
+- [x] #236: Library stage 0: behavior primitives (evidence: `packages/tessera-ui/primitives/`, `tests/unit/primitives_tests.cpp`, `tests/unit/focus_scope_tests.cpp`, `tests/unit/guarded_handler_tests.cpp`).
 - [ ] #237: Library stage 0: Instrument tokens, themes, bundled fonts, theme versioning.
 - [ ] #238: Library stage 0: `tessera icons add` (Iconify import tool with the license gate).
 - [ ] #239: Library stage 0 exit: a styled Button end to end and the gallery skeleton (blocked).
