@@ -49,8 +49,9 @@ struct FrameWork {
 class BenchmarkDriver final {
 public:
     // `root` is borrowed and must outlive the driver. `viewport` is the logical content size.
+    // `cull_offscreen_paint` turns on the paint pass's off-screen culling (issue #257).
     BenchmarkDriver(ui::Node& root, ui::style::CompiledStyleSheet sheet,
-                    ui::layout::LayoutViewport viewport);
+                    ui::layout::LayoutViewport viewport, bool cull_offscreen_paint = false);
     ~BenchmarkDriver();
 
     BenchmarkDriver(const BenchmarkDriver&) = delete;

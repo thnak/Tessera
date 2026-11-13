@@ -49,6 +49,13 @@ struct FramePipelineConfig {
     // (the 3 sigma damage dependency) and the paint context (the emitted sigma / half-resolution
     // decision), so one pair of values bounds the effect everywhere.
     rendering::gpu::GlassLimits glass{};
+    // Off-screen paint culling prototype (issue #257). The redraw-plan `paint_frame` overload hands
+    // the paint pass the bounding box of the plan's scissors (device pixels / `dpi_scale`) as
+    // `PaintContext::cull`, so nodes that cannot reach the target skip style resolution and
+    // emission. Off by default: the output inside the scissors is unchanged except for content a
+    // node paints outside its own box (see PaintContext::cull), and it relies on the box-shadow and
+    // glass reach that `sync_style` stores on the scene.
+    bool cull_offscreen_paint = false;
 };
 
 struct FrameTick {

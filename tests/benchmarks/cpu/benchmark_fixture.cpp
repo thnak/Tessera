@@ -38,7 +38,7 @@ constexpr std::uint32_t kTargetHeight = static_cast<std::uint32_t>(kBenchmarkHei
 
 } // namespace
 
-Fixture::Fixture()
+Fixture::Fixture(bool cull_offscreen_paint)
     : root_(std::make_unique<ui::Node>(1)),
       device_(nullrhi::create_null_device({})),
       target_(device_->create_render_target({{kTargetWidth, kTargetHeight}})),
@@ -52,7 +52,8 @@ Fixture::Fixture()
       sink_(batched_) {
     targets_ = builder_.build(*root_);
     const ui::layout::LayoutViewport viewport{kBenchmarkWidth, kBenchmarkHeight, 1.0f};
-    driver_ = std::make_unique<BenchmarkDriver>(*root_, compile_benchmark_stylesheet(), viewport);
+    driver_ = std::make_unique<BenchmarkDriver>(*root_, compile_benchmark_stylesheet(), viewport,
+                                                cull_offscreen_paint);
 }
 
 Fixture::~Fixture() = default;
@@ -76,6 +77,7 @@ PaintOutcome Fixture::paint(bool force) {
     outcome.text_runs = counts.text_runs;
     outcome.images = counts.images;
     outcome.paint_nodes = painted.stats.nodes;
+    outcome.culled_nodes = painted.stats.culled_nodes;
     return outcome;
 }
 
@@ -110,6 +112,7 @@ Measurement Fixture::measure() {
     result.text_runs = full.text_runs;
     result.images = full.images;
     result.paint_nodes = full.paint_nodes;
+    result.culled_nodes = full.culled_nodes;
     driver_->end_frame();
 
     edit_text();

@@ -47,8 +47,18 @@ struct BenchmarkDriver::CachedStyles final : ui::paint::StyleProvider {
     std::unordered_map<ui::NodeId, style::ComputedStyle>* table = nullptr;
 };
 
+namespace {
+
+ui::frame::FramePipelineConfig pipeline_config(bool cull_offscreen_paint) {
+    ui::frame::FramePipelineConfig config;
+    config.cull_offscreen_paint = cull_offscreen_paint;
+    return config;
+}
+
+} // namespace
+
 BenchmarkDriver::BenchmarkDriver(ui::Node& root, style::CompiledStyleSheet sheet,
-                                 ui::layout::LayoutViewport viewport)
+                                 ui::layout::LayoutViewport viewport, bool cull_offscreen_paint)
     : root_(&root),
       sheet_(std::move(sheet)),
       style_tree_(root),
@@ -57,7 +67,8 @@ BenchmarkDriver::BenchmarkDriver(ui::Node& root, style::CompiledStyleSheet sheet
       damage_(rendering::DamageConfig{rhi::Extent2D{static_cast<std::uint32_t>(viewport.width),
                                                     static_cast<std::uint32_t>(viewport.height)},
                                       8}),
-      pipeline_(animations_, loop_, tracker_, damage_, dirty_, ui::frame::FramePipelineConfig{}),
+      pipeline_(animations_, loop_, tracker_, damage_, dirty_,
+                pipeline_config(cull_offscreen_paint)),
       engine_(),
       scheduler_(engine_),
       viewport_(viewport) {}

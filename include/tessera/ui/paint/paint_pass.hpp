@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace tessera::ui::paint {
 
@@ -50,6 +51,8 @@ struct PaintStats {
     std::size_t shadows = 0;         // box-shadow fills emitted (one per blur layer)
     std::size_t transforms = 0;      // nodes painted in their own transformed frame
     std::size_t backdrops = 0;       // glass backdrop draws emitted
+    std::size_t culled_nodes = 0;    // nodes whose own emission was skipped (outside the cull rect)
+    std::size_t culled_subtrees = 0; // clipping subtrees skipped whole (outside the cull rect)
 };
 
 // Read-only, paint-only override of a node's visual state, used by fixed-step interpolation
@@ -105,6 +108,15 @@ struct PaintContext {
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.
     const PaintView* view = nullptr;
+    // Off-screen culling prototype (issue #257). A world-space rect (the coordinates of
+    // Node::world_bounds()); nothing outside it can reach the target, typically the bounding box of
+    // the redraw plan's scissors. A node whose painted reach (border box plus box-shadow outsets
+    // and three glass sigmas, through its world matrix) misses the rect skips style resolution and
+    // emission; a scroll or overflow-clipping node that misses it skips its whole subtree, because
+    // its clip lies inside that reach. Unset paints everything, byte-identical to before.
+    // Known limit: content a node paints outside its own box (unclipped overflowing text) is culled
+    // with the box. Nodes with their own transform frame are never culled.
+    std::optional<rendering::rhi::Rect> cull;
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in

@@ -241,6 +241,29 @@ void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
     ++stats.gradients;
 }
 
+// Everything the node can put on the target, in world space: its border box grown by the
+// box-shadow outsets the style sync stored on the node and by the glass dependency (three sigmas),
+// mapped through the matrix it paints with. Reads no style, which is the point: a node that misses
+// the cull rect never resolves one.
+bool reaches_cull(const Node& node, const rhi::Mat3& painted_world, const rhi::Rect& cull) {
+    const Node::PaintOutsets& outsets = node.paint_outsets();
+    const float glass = 3.0f * node.glass_blur_sigma();
+    constexpr float kEdge = 1.0f; // antialiasing and pixel-snap slack
+    const float left = outsets.left + glass + kEdge;
+    const float top = outsets.top + glass + kEdge;
+    const float right = outsets.right + glass + kEdge;
+    const float bottom = outsets.bottom + glass + kEdge;
+    const rhi::Rect box{-left, -top, node.bounds().width + left + right,
+                        node.bounds().height + top + bottom};
+    const rhi::Rect reach = transformed_aabb(painted_world, box);
+    if (!std::isfinite(reach.x) || !std::isfinite(reach.y) || !std::isfinite(reach.width) ||
+        !std::isfinite(reach.height)) {
+        return true; // never cull what cannot be placed
+    }
+    return reach.x < cull.right() && reach.right() > cull.x && reach.y < cull.bottom() &&
+           reach.bottom() > cull.y;
+}
+
 // Painted state inherited from the parent: the painted world matrix of the parent's content space
 // (scroll offset applied) and whether any ancestor already paints with an interpolation override.
 // `interpolated == false` keeps the authoritative Node::world_transform() path untouched.
@@ -293,6 +316,34 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     if (interpolated) {
         child_scope.content_world =
             painted_world * rhi::Mat3::translation(-node.scroll_x(), -node.scroll_y());
+    }
+
+    // Off-screen culling (PaintContext::cull). A transformed frame is never culled: its children
+    // are expressed relative to the pushed matrix, so skipping the push would misplace them.
+    if (pass.cull != nullptr && !open_frame && !reaches_cull(node, painted_world, *pass.cull)) {
+        ++stats.culled_nodes;
+        const bool scroll_clips = node.scrollable_x() || node.scrollable_y();
+        if (node.children().empty() || scroll_clips) {
+            // A scroll clip lies inside the node's reach, so nothing below can show.
+            stats.culled_subtrees += node.children().empty() ? 0u : 1u;
+            return;
+        }
+        // The children of a non-clipping node may overflow into view, so they are walked; a
+        // clipping node is the only one that needs its style, and only for that one property.
+        style::ComputedStyle style = styles.compute(node);
+        if (context.view != nullptr) {
+            context.view->overlay_style(node.id(), style);
+        }
+        if (detail::clips_children(style)) {
+            ++stats.culled_subtrees;
+            return;
+        }
+        for_each_by_z(node.children(), false, [&](const Node& child) {
+            paint_node(child, styles, sink, stats, context, painted_frame, child_scope, clip_scope,
+                       pass);
+            return false;
+        });
+        return;
     }
 
     if (pass.cache != nullptr && context.view != nullptr) {
@@ -454,6 +505,7 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     pass.high_contrast = context.high_contrast;
     pass.glass_max_blur_radius = context.glass.max_blur_radius;
     pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
+    pass.cull = context.cull.has_value() ? &*context.cull : nullptr;
     paint_node(root, styles, sink, stats, context, Frame{}, PaintScope{}, detail::ClipScope{},
                pass);
     return stats;

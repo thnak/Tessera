@@ -29,6 +29,7 @@ struct PaintOutcome {
     std::size_t text_runs = 0;
     std::size_t images = 0;
     std::size_t paint_nodes = 0;
+    std::size_t culled_nodes = 0;
 };
 
 // One measured run. Times are per scenario; counters are from the full paint.
@@ -46,6 +47,7 @@ struct Measurement {
     std::size_t text_runs = 0;
     std::size_t images = 0;
     std::size_t paint_nodes = 0;
+    std::size_t culled_nodes = 0;
 };
 
 // Per-run maxima, accumulated by the caller across runs (the counters are deterministic, the times
@@ -63,7 +65,8 @@ struct Totals {
 
 class Fixture final {
 public:
-    Fixture();
+    // `cull_offscreen_paint` measures the culled paint arm (issue #257).
+    explicit Fixture(bool cull_offscreen_paint = false);
     ~Fixture();
 
     Fixture(const Fixture&) = delete;

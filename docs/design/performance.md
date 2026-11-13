@@ -405,6 +405,29 @@ registry initial value, which keeps 12 000 computed styles at a few megabytes an
 paint measure their own work instead of re-copying ~90 default longhands per node. Do not claim
 parallelism without a measured gain on this benchmark.
 
+**Culling prototype (issue #257, option (a) alone, no threading).** `PaintContext::cull` is a
+world-space rect; `FramePipelineConfig::cull_offscreen_paint` (off by default) sets it from the
+bounding box of the redraw plan's scissors. A node whose painted reach (border box, plus the
+box-shadow outsets and three glass sigmas that `sync_style` stores on the node, through its world
+matrix) misses the rect skips style resolution and emission. A scroll or overflow-clipping node
+that misses it skips its whole subtree, because its clip lies inside that reach; a non-clipping node
+that misses it still walks its children, which may overflow into view. A node with its own transform
+frame is never culled. The benchmark prints the culled arm after the table, on the same scene.
+Measured in one run on a later, faster-than-reference session (12 logical cores, MSVC, Release
+Ninja; compare the pair, not the absolute against the table above): full paint 34.75 ms uncached by
+viewport, 3.02 ms culled (a second run: 39.67 and 3.78, so about tenfold); 12 000 nodes resolved a style versus 100, 9596 draw-list primitives versus
+83. `tests/unit/paint_cull_tests.cpp` pins the contract: the draws visible inside the rect equal an
+unculled paint, including the overflow, clip, scroll and shadow-reach cases.
+
+What this does and does not show. It shows that nearly all of the 75 ms is off-screen work in this
+scene, which is dashboard-shaped (scroll areas, a virtual list), so the trigger is met by culling
+without reopening ADR-021. It does not help a screen with 12 000 visible nodes. The benchmark's
+resolved-style table makes a skipped style cheap, whereas production re-derives the cascade per
+call, so the production saving is larger. Known gap: text or other content a node paints outside
+its own box without clipping is culled with the box. Not decided: the pipeline default, a stored
+"clips children" flag so an off-screen container no longer resolves its style to learn that, and
+removing the remaining O(n) walk of off-screen non-clipping containers.
+
 ## 10. Open questions
 
 - Per-platform or battery-state overrides of `backgroundMaxFps` (the default is `0` on all platforms per [`runtime-config-v1.md`](../specs/runtime-config-v1.md); no per-platform override is decided).

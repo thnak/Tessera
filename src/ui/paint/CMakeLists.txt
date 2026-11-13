@@ -132,6 +132,13 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(paint_cache_tests PRIVATE tessera_paint)
     add_test(NAME paint_cache COMMAND paint_cache_tests)
 
+    # Off-screen paint culling (issue #257): the draws visible inside the cull rect equal an
+    # unculled paint, with the overflow, clip, scroll and shadow-reach hazards in one scene.
+    add_executable(paint_cull_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/paint_cull_tests.cpp)
+    target_link_libraries(paint_cull_tests PRIVATE tessera_paint)
+    add_test(NAME paint_cull COMMAND paint_cull_tests)
+
     # Vulkan-free CPU raster-image golden: embedded PNG -> decode cache -> textured blit, compared
     # against the committed baseline at tolerance 0. JPEG is decode-tested only (cross-compiler IDCT
     # last bits are not a tolerance-0 golden candidate; documented in the image-assets note).

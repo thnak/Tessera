@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -398,12 +399,28 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     if (!view.empty()) {
         context.view = &view;
     }
+    if (plan.scissors.empty() && !plan.full_redraw) {
+        return result;
+    }
+    if (config_.cull_offscreen_paint && !plan.scissors.empty() && config_.dpi_scale > 0.0f) {
+        std::int64_t left = std::numeric_limits<std::int64_t>::max();
+        std::int64_t top = left;
+        std::int64_t right = std::numeric_limits<std::int64_t>::min();
+        std::int64_t bottom = right;
+        for (const rendering::rhi::Scissor& scissor : plan.scissors) {
+            left = std::min<std::int64_t>(left, scissor.x);
+            top = std::min<std::int64_t>(top, scissor.y);
+            right = std::max<std::int64_t>(right, std::int64_t{scissor.x} + scissor.width);
+            bottom = std::max<std::int64_t>(bottom, std::int64_t{scissor.y} + scissor.height);
+        }
+        const float scale = 1.0f / config_.dpi_scale;
+        context.cull = rhi::Rect{static_cast<float>(left) * scale, static_cast<float>(top) * scale,
+                                 static_cast<float>(right - left) * scale,
+                                 static_cast<float>(bottom - top) * scale};
+    }
     if (plan.full_redraw) {
         result.stats = paint::paint_scene(root, styles, sink, context);
         result.painted = true;
-        return result;
-    }
-    if (plan.scissors.empty()) {
         return result;
     }
     paint::ClippedPaintSink clipped(sink, plan.scissors);

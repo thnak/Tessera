@@ -160,6 +160,24 @@ int main(int argc, char** argv) {
                 totals.text_runs, totals.images);
     std::printf("cpu_benchmark: nodes painted by the full pass %zu\n", totals.paint_nodes);
 
+    // Issue #257: the same scene and the same full paint with off-screen culling on. Informational:
+    // nothing here is budgeted until the decision on the issue is made.
+    std::vector<double> culled_paint;
+    benchmark::Measurement culled_sample;
+    for (std::uint64_t run = 0; run < budget.runs; ++run) {
+        benchmark::Fixture fixture(true);
+        culled_sample = fixture.measure();
+        culled_paint.push_back(culled_sample.full_paint_ms);
+    }
+    const benchmark::Percentiles culled = benchmark::summarize(std::move(culled_paint));
+    std::printf("cpu_benchmark: full paint, culled (ms)       %10.2f %8.2f (uncached by viewport "
+                "%.2f)\n",
+                culled.median, culled.p95, paint.median);
+    std::printf("cpu_benchmark: culled arm painted %zu nodes, skipped %zu, draw-list primitives "
+                "%zu (was %zu)\n",
+                culled_sample.paint_nodes, culled_sample.culled_nodes, culled_sample.primitives,
+                totals.primitives);
+
     const double trigger_ms = std::min(kPaintTriggerMs, kFrameBudgetMs * 0.30);
     std::printf("cpu_benchmark: paint trigger: median %.2f ms vs %.2f ms -> %s\n", paint.median,
                 trigger_ms,
