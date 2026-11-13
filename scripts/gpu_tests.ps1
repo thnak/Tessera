@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 # Builds Tessera in Release with Ninja and runs the GPU/window tests on the machine's real GPU.
 # These tests skip on hosted CI (no window backend, no presentation surface), so they only prove
-# anything where a display and a Vulkan device exist. The manual `Real GPU` workflow
-# (.github/workflows/gpu-real.yml) calls this script on a self-hosted runner; run it by hand the
-# same way: docs/guides/real-gpu-ci.md.
+# anything where a display and a Vulkan device exist. This lane
+# is deliberately not a GitHub workflow: the machine is not always online and a self-hosted runner
+# on a public repository would run outside code. Run it by hand: docs/guides/real-gpu-ci.md.
 #
 #   .\scripts\gpu_tests.ps1                       # build, then run every GPU/window test once
 #   .\scripts\gpu_tests.ps1 -Repeat 5             # run each test up to 5 times, stop on a failure

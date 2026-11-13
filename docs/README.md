@@ -259,7 +259,7 @@ This page is the map and reading order for the framework.
 - [`guides/project-generator.md`](guides/project-generator.md) — create/configure/build a project
 - [`guides/developer-workflow.md`](guides/developer-workflow.md) — generated-code ownership,
   protected regions, regeneration
-- [`guides/real-gpu-ci.md`](guides/real-gpu-ci.md) — the manual real-GPU lane: what it runs, the self-hosted runner setup, and the security rules for a public repo
+- [`guides/real-gpu-ci.md`](guides/real-gpu-ci.md) — the real-GPU lane: a local script (not a GitHub workflow) that runs the window and Vulkan tests hosted CI skips
 - [`guides/code-style.md`](guides/code-style.md) — style, file size, build-cache rules
 - [`guides/testing.md`](guides/testing.md) — run/add tests, sanitizers, CI, triage
 - [`guides/packaging.md`](guides/packaging.md) — release checklist: gates, per-OS install/package,

@@ -564,7 +564,7 @@ live in one place and are linked, not copied.
 - [ ] If it touches dirty state: dirty-only and full-redraw output are equivalent.
 - [ ] If it touches pacing: frame-cap/vsync/VRR fallback behavior is recorded.
 - [ ] If it touches power/idle: a static scene produces zero presents/submissions after settling.
-- [ ] If it touches window/resize: synthetic resize/DPI/lifecycle tests pass per platform.
+- [ ] If it touches window/resize: synthetic resize/DPI/lifecycle tests pass per platform. On a machine with a GPU, also run `scripts/gpu_tests.ps1 -Repeat 3` (hosted CI skips the window tests; see `docs/guides/real-gpu-ci.md`).
 - [ ] If it touches OS events/foldables: synthetic fold/posture/display scripts pass.
 - [ ] If it touches async: no blocking UI wait; cancellation/shutdown/queue-overflow tests pass.
 - [ ] If it touches diagnostics: disabled paths add no measurable cost; redaction tests pass.
