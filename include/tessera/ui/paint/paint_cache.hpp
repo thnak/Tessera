@@ -38,7 +38,10 @@ namespace tessera::ui::paint {
 //      clip's rect and radii plus the depth),
 //   5. the context (text metrics source id, device scale),
 //   6. the exact PaintData payload, compared by value rather than by address,
-//   7. the node's own dirty flags are Clean, i.e. nothing marked it since the paint that recorded
+//   7. the effective opacity inherited from the ancestors, because a record's colours already have
+//      the product folded in (an ancestor fade must re-record the whole subtree, see
+//      docs/design/paint-pass.md section 14.1),
+//   8. the node's own dirty flags are Clean, i.e. nothing marked it since the paint that recorded
 //      it. The dirty flags are the style-generation signal: a style, cascade or theme change marks
 //      the node and invalidates its record without the cache having to resolve the style first.
 //      A caller that swaps a style generation without marking affected nodes must call
@@ -135,6 +138,12 @@ struct PaintRecord {
     bool pushed_clip = false;
     RoundedClip clip; // valid when pushed_clip; also feeds the children's clip fingerprint
     PaintCounts counts;
+    // Effective opacity this node composited its own draws with and passes to its descendants
+    // (inherited product x the node's own `opacity`). A replay walks the children without
+    // resolving this node's style, so the value is stored instead of recomputed. The signature's
+    // `opacity_bits` pins the inherited half, and the node's own style change invalidates the
+    // record through its dirty flags.
+    float effective_opacity = 1.0f;
 };
 
 // Everything that can change what one node emits, excluding the computed style (represented by the
@@ -165,6 +174,11 @@ struct PaintCacheSignature {
     // Active clip stack entering the node.
     std::uint64_t clip_hash = 0;
     std::uint32_t clip_depth = 0;
+
+    // Effective opacity inherited from the ancestors (the product of their `opacity` values,
+    // excluding this node's own). Floats are compared by IEEE bit pattern: a record's colours are
+    // replayed verbatim, so an ancestor fade must never hit a record folded with another product.
+    std::uint32_t opacity_bits = 0;
 
     // Context inputs that change emitted values.
     std::uint32_t metrics_source_id = 0;

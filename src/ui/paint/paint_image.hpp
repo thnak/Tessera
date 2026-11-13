@@ -8,9 +8,11 @@ namespace tessera::ui::paint::detail {
 
 // Emits the node's PaintData raster-image payload (PaintKind::Image) after the node's
 // background/borders and inside its active clip. Geometry/opacity resolution lives in
-// paint_content.hpp; all decode/upload work is the sink's job (draw_image). This is the image
-// counterpart of paint_vector_content.
+// paint_content.hpp; `opacity` is the node's effective opacity (its own x every ancestor's). All
+// decode/upload work is the sink's job (draw_image). This is the image counterpart of
+// paint_vector_content.
 void paint_image_content(const Node& node, const style::ComputedStyle& style,
-                         const rhi::Rect& border_box, PaintSink& sink, PaintStats& stats);
+                         const rhi::Rect& border_box, float opacity, PaintSink& sink,
+                         PaintStats& stats);
 
 } // namespace tessera::ui::paint::detail

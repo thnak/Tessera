@@ -164,7 +164,7 @@ void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, flo
 // same region, `opacity * blurred + (1 - opacity) * original` is the correct translucent result.
 void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, float opacity,
                     const PaintContext& context, PaintSink& sink, PaintStats& stats) {
-    if (context.high_contrast || rect.width <= 0.0f || rect.height <= 0.0f) {
+    if (context.high_contrast || rect.width <= 0.0f || rect.height <= 0.0f || opacity <= 0.0f) {
         return;
     }
     const std::optional<style::BackdropFilter> filter = detail::backdrop_filter_value(style);
@@ -242,11 +242,15 @@ void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
 }
 
 // Painted state inherited from the parent: the painted world matrix of the parent's content space
-// (scroll offset applied) and whether any ancestor already paints with an interpolation override.
-// `interpolated == false` keeps the authoritative Node::world_transform() path untouched.
+// (scroll offset applied), whether any ancestor already paints with an interpolation override, and
+// the effective opacity of the ancestors. `opacity` is the product of every ancestor's `opacity`
+// (docs/design/paint-pass.md section 14.1): it multiplies each primitive this node emits, so a
+// group fades as a whole without an offscreen layer. `interpolated == false` keeps the
+// authoritative Node::world_transform() path untouched.
 struct PaintScope {
     rhi::Mat3 content_world;
     bool interpolated = false;
+    float opacity = 1.0f;
 };
 
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
@@ -290,6 +294,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
 
     PaintScope child_scope;
     child_scope.interpolated = interpolated;
+    child_scope.opacity = scope.opacity;
     if (interpolated) {
         child_scope.content_world =
             painted_world * rhi::Mat3::translation(-node.scroll_x(), -node.scroll_y());
@@ -307,15 +312,18 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // key cannot see, so it never hits: it re-records and replaces its entry.
     std::optional<PaintCacheSignature> signature;
     if (pass.cacheable) {
-        signature = detail::make_paint_cache_signature(node, painted_world, painted_frame.inverse,
-                                                       open_frame, rect, interpolated,
-                                                       sink.supports_transform(), clip_scope, pass);
+        signature = detail::make_paint_cache_signature(
+            node, painted_world, painted_frame.inverse, open_frame, rect, interpolated,
+            sink.supports_transform(), clip_scope, pass, scope.opacity);
         if (node.dirty() != Dirty::Clean) {
             pass.cache->note_miss();
         } else if (const PaintRecord* record = pass.cache->find(*signature, node.paint_data())) {
             const PaintCounts counts = record->counts;
             const bool pushed_clip = record->pushed_clip;
             const RoundedClip clip = record->clip;
+            // The record carries the effective opacity its ops were folded with, so the child walk
+            // composites at the same product without resolving this node's style again.
+            child_scope.opacity = record->effective_opacity;
             replay_paint_ops(record->ops, sink);
             const detail::ClipScope child_clip =
                 pushed_clip ? detail::pushed_clip_scope(clip_scope, clip) : clip_scope;
@@ -358,18 +366,24 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         ++stats.transforms;
     }
 
+    // Effective opacity: the ancestor product times this node's own `opacity` (both clamped 0..1).
+    // It multiplies every primitive this node emits and is exactly what its children inherit, so a
+    // group fades as a whole without an offscreen layer (paint-pass.md section 14.1). `opacity: 0`
+    // still walks the subtree: the scene and its hit testing are untouched, only the emits vanish.
+    const float effective_opacity = scope.opacity * detail::opacity_value(style);
+    child_scope.opacity = effective_opacity;
+
     if (rect.width > 0.0f && rect.height > 0.0f) {
-        const float opacity = detail::opacity_value(style);
         const rhi::Color current = detail::current_color(style);
         // The backdrop sits beneath everything the node paints, including its box shadow.
-        paint_backdrop(style, rect, opacity, context, *own, stats);
+        paint_backdrop(style, rect, effective_opacity, context, *own, stats);
         // The shadow sits beneath the node's own background, borders and content.
         const std::optional<float> shadow_radius = detail::uniform_radius(style);
-        detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), opacity, current, *own,
-                                  stats, context.reduce_effects);
-        paint_background(style, rect, opacity, current, *own, stats);
-        paint_linear_gradient(node, style, rect, opacity, *own, stats);
-        paint_borders(style, rect, opacity, current, *own, stats);
+        detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), effective_opacity,
+                                  current, *own, stats, context.reduce_effects);
+        paint_background(style, rect, effective_opacity, current, *own, stats);
+        paint_linear_gradient(node, style, rect, effective_opacity, *own, stats);
+        paint_borders(style, rect, effective_opacity, current, *own, stats);
     }
 
     // `overflow` clipping applies to the children (the element's own background/border are painted
@@ -398,9 +412,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // Text and vector runs are content: paint them after the element's own background/borders and
     // inside its own overflow/scroll clip, before the children (paint order). PaintKind selects one
     // active payload; the other is ignored.
-    detail::paint_text_lines(node, style, rect, *own, stats, context);
-    detail::paint_vector_content(node, style, rect, *own, stats);
-    detail::paint_image_content(node, style, rect, *own, stats);
+    detail::paint_text_lines(node, style, rect, effective_opacity, *own, stats, context);
+    detail::paint_vector_content(node, style, rect, effective_opacity, *own, stats);
+    detail::paint_image_content(node, style, rect, effective_opacity, *own, stats);
 
     // The record is complete here: pops are stored as flags, so the entry never holds child ops and
     // can be committed before the child walk (a child insert may evict this very entry).
@@ -409,6 +423,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         record.counts = detail::paint_counts_since(stats, before);
         record.pushed_clip = pushed_clip;
         record.clip = pushed_clip_value;
+        record.effective_opacity = effective_opacity;
         pass.cache->insert(std::move(*signature), node.paint_data(), std::move(record));
         signature.reset();
     }

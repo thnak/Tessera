@@ -22,5 +22,12 @@ bool is_essential_animation_property(std::string_view property);
 bool is_non_essential_animation(const style::KeyframeBlock& block);
 Dirty dirty_for_property(std::string_view property);
 Dirty dirty_for_declarations(const std::vector<style::Declaration>& declarations);
+// True when changing `property` repaints the whole painted subtree, not only the target node.
+// `opacity` is the one such property today: its value composites every descendant (the
+// non-isolated effective-opacity rule of docs/design/paint-pass.md section 14.1), so an animated
+// ancestor fade must mark the descendants Paint|Render as well. Everything else in the dirty map
+// only affects the target's own box.
+bool paint_dirties_subtree(std::string_view property);
+bool declarations_dirty_paint_subtree(const std::vector<style::Declaration>& declarations);
 
 } // namespace tessera::ui::animation

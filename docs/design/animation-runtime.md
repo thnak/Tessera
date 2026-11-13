@@ -270,7 +270,9 @@ when a listener left animations running.
 for the same property win. `collect_animation_declarations(result)` groups declarations by target.
 `dirty_for_declarations` maps properties to `Dirty` bits:
 
-- opacity/color-ish properties (including `border-*-color`) -> paint/render;
+- opacity/color-ish properties (including `border-*-color`) -> paint/render; `opacity` is the one
+  property whose effect composites the whole subtree, so the frame pipeline additionally marks the
+  target's descendants (`declarations_dirty_paint_subtree`, paint-pass.md section 14.1);
 - layout-affecting properties -> layout/paint/render;
 - transform-only effects -> paint/render.
 

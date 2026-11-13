@@ -193,6 +193,11 @@ public:
 
     void mark_dirty(Dirty flags);
     void clear_dirty(Dirty flags);
+    // Marks `flags` on this node and every descendant (pre-order, allocation-free). Needed when an
+    // ancestor's own state composites the whole subtree: a changed `opacity` fades every child, so
+    // repainting only the ancestor's box would leave the children stale (paint-pass.md section
+    // 14.1). The dirty pass then reports each node, which is what makes damage cover the subtree.
+    void mark_subtree_dirty(Dirty flags);
     [[nodiscard]] Dirty dirty() const {
         return dirty_;
     }

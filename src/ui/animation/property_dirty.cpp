@@ -69,4 +69,20 @@ Dirty dirty_for_declarations(const std::vector<style::Declaration>& declarations
     return dirty;
 }
 
+bool paint_dirties_subtree(std::string_view property) {
+    // A node's opacity multiplies each primitive its descendants emit (paint-pass.md section
+    // 14.1), so fading a parent changes the children's pixels even though `opacity` is not an
+    // inherited CSS property. A layout property re-dirties its subtree through layout instead.
+    return property == "opacity";
+}
+
+bool declarations_dirty_paint_subtree(const std::vector<style::Declaration>& declarations) {
+    for (const style::Declaration& declaration : declarations) {
+        if (paint_dirties_subtree(declaration.property)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace tessera::ui::animation

@@ -1552,6 +1552,18 @@ target_link_libraries(paint_pass_tests PRIVATE
 
 add_test(NAME paint_pass COMMAND paint_pass_tests)
 
+# Effective opacity (#227): the ancestor product multiplies each emitted primitive (box visuals and
+# text/vector/image content), an animated ancestor fade repaints the subtree, and the paint cache
+# never replays a record under a different inherited product.
+add_executable(paint_opacity_tests
+    paint_opacity_tests.cpp)
+
+target_link_libraries(paint_opacity_tests PRIVATE
+    tessera_frame
+    tessera_runtime)
+
+add_test(NAME paint_opacity COMMAND paint_opacity_tests)
+
 add_executable(z_order_tests
     z_order_tests.cpp)
 

@@ -262,7 +262,8 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
 } // namespace
 
 void paint_text_lines(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
-                      PaintSink& sink, PaintStats& stats, const PaintContext& context) {
+                      float opacity, PaintSink& sink, PaintStats& stats,
+                      const PaintContext& context) {
     const auto& data = node.paint_data();
     if (!data || data->kind != PaintKind::Text) {
         return;
@@ -274,7 +275,6 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     if (rect.width <= 0.0f || rect.height <= 0.0f) {
         return;
     }
-    const float opacity = detail::opacity_value(style);
     if (opacity <= 0.0f) {
         return;
     }

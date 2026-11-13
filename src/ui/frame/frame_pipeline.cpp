@@ -180,6 +180,12 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
             if (dirty != Dirty::Clean) {
                 found->second->mark_dirty(dirty);
             }
+            // `opacity` composites the whole subtree (paint-pass.md section 14.1): a faded parent
+            // changes its children's pixels, so they must repaint and their damage must be
+            // reported, not just the animated node's own box.
+            if (animation::declarations_dirty_paint_subtree(sample.declarations)) {
+                found->second->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
+            }
         }
     }
 
