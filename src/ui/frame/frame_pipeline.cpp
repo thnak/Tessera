@@ -8,6 +8,7 @@
 #include "tessera/ui/paint/paint_pass.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <optional>
@@ -60,6 +61,28 @@ rhi::Rect transformed_aabb(const rhi::Mat3& matrix, const rhi::Rect& rect) {
     return rhi::Rect{min_x, min_y, max_x - min_x, max_y - min_y};
 }
 
+// Device-pixel corners of `rect` under `matrix`, in a fixed order, for distance comparison.
+std::array<float, 8> device_corners(const rhi::Mat3& matrix, const rhi::Rect& rect, float scale) {
+    const float xs[4] = {rect.x, rect.right(), rect.right(), rect.x};
+    const float ys[4] = {rect.y, rect.y, rect.bottom(), rect.bottom()};
+    std::array<float, 8> corners{};
+    for (std::size_t index = 0; index < 4; ++index) {
+        matrix.transform_point(xs[index], ys[index], corners[index * 2], corners[index * 2 + 1]);
+        corners[index * 2] *= scale;
+        corners[index * 2 + 1] *= scale;
+    }
+    return corners;
+}
+
+bool moved_less_than(const std::array<float, 8>& a, const std::array<float, 8>& b, float limit) {
+    for (std::size_t index = 0; index < 8; ++index) {
+        if (std::abs(a[index] - b[index]) >= limit) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // The matrix `node` paints with under `view`, composed exactly like the paint pass composes it:
 // painted_world(n) = painted_world(parent) * translation(-parent_scroll) *
 //                    translation(bounds.xy) * local(n). Kept here so damage can cover the
@@ -96,6 +119,11 @@ FramePipeline::FramePipeline(animation::AnimationRuntime& animations, runtime::R
     }
     if (!std::isfinite(config_.damage_margin) || config_.damage_margin < 0.0f) {
         throw std::invalid_argument("frame pipeline damage margin must be finite and non-negative");
+    }
+    if (!std::isfinite(config_.interpolation_epsilon_px) ||
+        config_.interpolation_epsilon_px < 0.0f) {
+        throw std::invalid_argument(
+            "frame pipeline interpolation epsilon must be finite and non-negative");
     }
 }
 
@@ -251,7 +279,9 @@ FrameRender FramePipeline::finish_frame(Node& root) {
     // width per tick, a rotation whose intermediate AABB is wider than either endpoint). Add each
     // transform-sampled node's painted box so a partial redraw cannot leave stale pixels behind.
     const InterpolationPaintView view = interpolation_view();
-    if (!view.empty()) {
+    if (view.empty()) {
+        last_damaged_corners_.clear();
+    } else {
         std::unordered_map<NodeId, Node*> index;
         index_nodes(root, index);
         for (const auto& [node_id, sample] : view.samples()) {
@@ -267,6 +297,16 @@ FrameRender FramePipeline::finish_frame(Node& root) {
                 continue;
             }
             const rhi::Mat3 world = painted_world(node, view);
+            const rhi::Rect local_box{0.0f, 0.0f, node.bounds().width, node.bounds().height};
+            const std::array<float, 8> corners =
+                device_corners(world, local_box, config_.dpi_scale);
+            const auto last = last_damaged_corners_.find(node_id);
+            if (last != last_damaged_corners_.end() && config_.interpolation_epsilon_px > 0.0f &&
+                moved_less_than(corners, last->second, config_.interpolation_epsilon_px)) {
+                ++result.interpolation_suppressed;
+                continue;
+            }
+            last_damaged_corners_[node_id] = corners;
             rhi::Rect rect = transformed_aabb(
                 world, rhi::Rect{0.0f, 0.0f, node.bounds().width, node.bounds().height});
             // Box-shadow reach is box-local: scale it like node_damage_rect does.
@@ -281,6 +321,12 @@ FrameRender FramePipeline::finish_frame(Node& root) {
                 damage_->add(rect, config_.damage_margin);
             }
         }
+        // A node that stops being transform-sampled is painted from its tick transform from now on,
+        // so its old interpolated position is no longer what is on screen.
+        std::erase_if(last_damaged_corners_, [&view](const auto& entry) {
+            const auto sample = view.samples().find(entry.first);
+            return sample == view.samples().end() || !sample->second.transform;
+        });
         result.damage.rects = damage_->rects().size();
         result.damage.full_redraw = damage_->full_redraw();
     }

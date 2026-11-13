@@ -14,6 +14,8 @@
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 
+#include <array>
+#include <cstddef>
 #include <unordered_map>
 
 namespace tessera::runtime {
@@ -30,6 +32,12 @@ struct FramePipelineConfig {
     // default, like the runtime config; a render that coincides with a tick (alpha 0) paints the
     // previous sample, and renders between ticks blend toward the current one.
     bool interpolation = true;
+    // Duplicate-present suppression for interpolated frames (game-loop.md section 3.2, #148). An
+    // interpolated transform adds its painted box to damage only when a corner moved at least this
+    // many *device* pixels since the last frame that damaged it; below that the image is the one
+    // already on screen. It is a pixel distance, not an alpha fraction, because the same alpha is a
+    // different distance at different tick rates. 0 disables suppression. It never wakes the loop.
+    float interpolation_epsilon_px = 0.0625f;
     // Per-node paint cache (docs/design/dirty-rendering.md section 5.4). On by default: the
     // pipeline owns one `paint::PaintCache` and passes it to both paint_frame overloads, so a
     // clean node's recorded sink calls are replayed instead of re-emitted. When false the context
@@ -49,6 +57,9 @@ struct FrameRender {
     rendering::RedrawPlan redraw_plan;
     bool full_redraw = false;
     bool should_render = false;
+    // Interpolated transform boxes left out of damage because they moved less than
+    // `FramePipelineConfig::interpolation_epsilon_px` since they were last painted.
+    std::size_t interpolation_suppressed = 0;
 };
 
 struct FramePaint {
@@ -197,6 +208,9 @@ private:
     mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
     PaintSamples previous_samples_;
     PaintSamples current_samples_;
+    // Painted corners (x0,y0..x3,y3, device px) of each transform-sampled node at the last frame
+    // that added its box to damage; the reference the suppression distance is measured from.
+    std::unordered_map<NodeId, std::array<float, 8>> last_damaged_corners_;
     double alpha_ = 0.0;
     bool interpolate_ = false;
 };
