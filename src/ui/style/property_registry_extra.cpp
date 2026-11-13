@@ -68,16 +68,6 @@ void PropertyRegistry::register_extension_properties() {
     shorthands_["border"] = ShorthandInfo{std::move(border_longhands), ShorthandKind::BorderSide};
 }
 
-std::vector<std::string_view> PropertyRegistry::longhand_names() const {
-    std::vector<std::string_view> names;
-    names.reserve(properties_.size());
-    for (const auto& [name, info] : properties_) {
-        (void)info;
-        names.push_back(name);
-    }
-    return names;
-}
-
 std::vector<std::string_view> PropertyRegistry::shorthand_names() const {
     std::vector<std::string_view> names;
     names.reserve(shorthands_.size());
