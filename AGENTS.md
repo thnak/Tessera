@@ -326,6 +326,8 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends are post-V1
       (Android).
 - [ ] #227: Effective opacity multiplies down the subtree (children fade with their parent).
+- [ ] #242: Renderer seam: render-pass break, `copy_target_region`, pooled offscreen target (glass).
+- [ ] #244: `backdrop-filter` glass, two-pass Gaussian, damage rules (blocked by #242).
 - [ ] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget.
 - [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
 - [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
@@ -446,6 +448,7 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       NVDA smoke checklist.
 - [ ] #186: Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
 - [ ] #187: Reduced motion and dark mode queries on Linux.
+- [ ] #243: Translucent window and OS backdrop (Mica, Acrylic, compositor blur) with fallback.
 - [ ] #222: `CutoutInfo` in `WindowMetrics` with a fake for tests (the Android fill is post-V1).
 - [ ] #232: Window full-screen toggle on Windows and Linux.
 - [ ] Platform cursor shape on Windows and Linux.

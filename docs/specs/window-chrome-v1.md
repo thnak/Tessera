@@ -218,7 +218,8 @@ and the system chrome stays.
   `WM_NCRBUTTONDOWN` (system menu) and the non-client activation path are handled by the HAL, which
   reports only normalized results to the engine.
 - **DWM.** Frame and shadow use the platform's documented calls
-  (`DwmExtendFrameIntoClientArea`/`DWMWA_*`); rounded corners and backdrop follow the OS; an
+  (`DwmExtendFrameIntoClientArea`/`DWMWA_*`); rounded corners follow the OS; a translucent window and its backdrop material are specified in
+  [`glass-v1.md`](glass-v1.md) section 6; an
   attribute an older build does not support is ignored with one warning (section 9).
 - **Window state.** Maximise/restore state, including the button glyph and tooltip, comes from
   normalized window events ([os-events-v1.md](os-events-v1.md)); the HAL owns edge cases such as

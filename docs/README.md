@@ -110,6 +110,8 @@ This page is the map and reading order for the framework.
   RHI (render hardware interface)/shader API, 3D composition, element input, reuse, headless tests
 - [`specs/element-transitions-v1.md`](specs/element-transitions-v1.md) — AnimatePresence and
   SharedElement: presence state machine, named shared groups, budgets, tests (proposed, stage 2)
+- [`specs/glass-v1.md`](specs/glass-v1.md) — backdrop-filter glass and translucent windows: grammar,
+  two-pass Gaussian, OS backdrop table, damage rules, always-on decision (proposed, V1)
 - [`specs/safe-area-v1.md`](specs/safe-area-v1.md) — SafeArea: insets, cutouts, keyboard, hinge,
   edges/sources/minimum (proposed, stage 1)
 - [`specs/live-capsule-v1.md`](specs/live-capsule-v1.md) — LiveCapsule: placement around the

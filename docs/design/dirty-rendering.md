@@ -242,7 +242,7 @@ path replays a settled scene instead of re-emitting it.
 Safe when:
 
 - changed nodes do not overlap translucent layers whose composition would change;
-- no backdrop filter/blur affecting the region;
+- no backdrop filter/blur affecting the region (glass dependency rules: [`glass-v1.md`](../specs/glass-v1.md) section 7);
 - no shadow/glow crossing the damage boundary;
 - the swapchain/present path supports damage (or the target is offscreen).
 
