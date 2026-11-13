@@ -72,16 +72,6 @@ set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen
 # `--write` mode of their test and are generated from IR, never hand-edited.
 set(_tessera_codegen_golden_dir ${CMAKE_SOURCE_DIR}/tests/golden/codegen)
 
-# Conditional + keyed-list fixture (generated from the hand-built IR in codegen_dynamic_tests).
-# Same deliberate golden path: `codegen_dynamic_tests --write` owns Dynamic.cpp/hpp.
-if (EXISTS ${_tessera_codegen_golden_dir}/Dynamic.cpp)
-    add_library(tessera_codegen_dynamic_sample STATIC
-        ${_tessera_codegen_golden_dir}/Dynamic.cpp)
-    target_include_directories(tessera_codegen_dynamic_sample PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_dynamic_sample PRIVATE tessera_scene)
-    target_compile_features(tessera_codegen_dynamic_sample PUBLIC cxx_std_23)
-endif ()
-
 # Composition + static children-slot fixture (generated from the hand-built IR in
 # codegen_composition_tests). Same deliberate golden path: `codegen_composition_tests --write` owns
 # Card.* and CardPage.*.
@@ -343,24 +333,23 @@ if (TESSERA_BUILD_TESTS)
     add_executable(codegen_dynamic_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_tests.cpp)
 
-    target_link_libraries(codegen_dynamic_tests PRIVATE
-        tessera_codegen
-        tessera_merger)
+    target_link_libraries(codegen_dynamic_tests PRIVATE tessera_codegen)
 
     target_compile_definitions(codegen_dynamic_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME codegen_dynamic COMMAND codegen_dynamic_tests)
 
-    if (TARGET tessera_codegen_dynamic_sample)
+    # The developer class (tests/unit/codegen_base/fixtures/Dynamic.hpp) over the committed base.
+    if (EXISTS ${_tessera_codegen_golden_dir}/Dynamic.g.hpp)
         add_executable(codegen_dynamic_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_runtime_tests.cpp)
 
         target_include_directories(codegen_dynamic_runtime_tests PRIVATE
-            ${_tessera_codegen_golden_dir})
-        target_link_libraries(codegen_dynamic_runtime_tests PRIVATE
-            tessera_codegen_dynamic_sample
-            tessera_scene)
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+        target_link_libraries(codegen_dynamic_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_dynamic_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_dynamic_runtime COMMAND codegen_dynamic_runtime_tests)
     endif ()

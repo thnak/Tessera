@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Conditional and keyed-list codegen tests (docs/design/compiler.md section 11): generated shape,
-// byte-identical determinism, goldens, loud rejection of the deferred dynamic forms, and merger
-// idempotency over the generated output.
+// Conditional and keyed-list codegen tests on the ADR-040 generated base (docs/design/compiler.md
+// section 11): generated shape, byte-identical determinism, the `Dynamic.g.hpp` golden, and loud
+// rejection of the deferred dynamic forms.
 //
 // The `Dynamic` fixture is hand-built IR: the real `.tsx` front end cannot author a list yet (a
 // list-typed `useState` initial value is rejected by lowering, see
 // lowering_hooks_reject_tests.cpp), so the list contract is proved against IR directly.
 //
 // Deliberate golden update path: `codegen_dynamic_tests --write` rewrites
-// tests/golden/codegen/Dynamic.*; then review the diff and rebuild.
+// tests/golden/codegen/Dynamic.g.hpp; then review the diff and rebuild.
 
 #include "codegen_dynamic_module.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ir/validate.hpp"
-#include "tessera/compiler/merger.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -70,6 +69,10 @@ void write_file(const std::string& path, const std::string& text) {
     out << text;
 }
 
+codegen::CodegenResult generate_base(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 std::string first_error(const codegen::CodegenResult& result) {
     if (result) {
         return {};
@@ -95,20 +98,19 @@ void test_fixture_is_valid() {
 }
 
 void test_generated_shape() {
-    const auto result = codegen::generate(make_dynamic_module());
+    const auto result = generate_base(make_dynamic_module());
     check(result.has_value(), "the dynamic sample generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
         return;
     }
-    check(result->size() == 2, "one header and one source");
-    if (result->size() != 2) {
+    check(result->size() == 1, "one header-only file per component");
+    if (result->size() != 1) {
         return;
     }
-    check_eq((*result)[0].path, "Dynamic.hpp", "deterministic header path");
-    check_eq((*result)[1].path, "Dynamic.cpp", "deterministic source path");
+    check_eq((*result)[0].path, "Dynamic.g.hpp", "deterministic generated-base path");
     const std::string& header = (*result)[0].text;
-    const std::string& source = (*result)[1].text;
+    const std::string& source = header; // the base is header-only: one text holds both halves
     check(header.find("kMaxGeneratedListItems") == std::string::npos,
           "no fixed item cap is emitted for keyed lists");
     check(header.find("struct Item_5 {") != std::string::npos, "the per-list item node struct");
@@ -122,7 +124,7 @@ void test_generated_shape() {
           "a conditional branch hashes its condition");
     check(header.find("tessera::ui::Node* children_parent_1_ = nullptr;") != std::string::npos,
           "the dynamic child group keeps its parent node");
-    check(header.find("std::vector<Item_5> list_5_items_{};") != std::string::npos,
+    check(header.find("std::vector<Dynamic_detail::Item_5> list_5_items_{};") != std::string::npos,
           "the growable list item table");
     check(header.find("std::vector<std::string> list_5_keys_{};") != std::string::npos,
           "the key table");
@@ -130,12 +132,12 @@ void test_generated_shape() {
           "the child-set update is declared");
     check(header.find("std::unique_ptr<tessera::ui::Node> build_item_5(const std::string& item, "
                       "std::size_t tessera_index, std::size_t tessera_id_slot, "
-                      "Item_5& tessera_out);") != std::string::npos,
+                      "Dynamic_detail::Item_5& tessera_out);") != std::string::npos,
           "the per-item builder signature");
     check(header.find("void apply_list_5(tessera::ui::Node& parent, std::size_t insert_at);") !=
               std::string::npos,
           "the list update signature");
-    check(source.find("void Dynamic::apply_state()") != std::string::npos, "apply_state");
+    check(source.find("DynamicBase<Self>::apply_state()") != std::string::npos, "apply_state");
     check(source.find("apply_children_1();") != std::string::npos,
           "apply_state drives the dynamic child set");
     check(source.find("constexpr std::uint64_t kItemIdStride = 13ull;") != std::string::npos,
@@ -171,8 +173,7 @@ void test_generated_shape() {
           "a new key builds one item");
     check(source.find("parent.insert_child(insert_at + tessera_next,") != std::string::npos,
           "items are inserted at their deterministic position");
-    check(source.find("std::unique_ptr<tessera::ui::Node> Dynamic::build_item_5(") !=
-              std::string::npos,
+    check(source.find("DynamicBase<Self>::build_item_5(") != std::string::npos,
           "the item builder is emitted");
     check(source.find("+ tessera_id_slot * kItemIdStride)") != std::string::npos,
           "item node ids are offset by the item's id slot");
@@ -195,7 +196,7 @@ void test_array_initial_reaches_list_path() {
     items.push_back(ir::make_literal(std::string("alpha")));
     items.push_back(ir::make_literal(std::string("beta")));
     module.components[0].state[1].initial = ir::make_array(std::move(items));
-    const auto result = codegen::generate(module);
+    const auto result = generate_base(module);
     check(result.has_value(), "an array list initial generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
@@ -210,14 +211,14 @@ void test_array_initial_reaches_list_path() {
     // An array initial on a non-list field would emit text that cannot compile: reject it loudly.
     ir::IrModule scalar = make_dynamic_module();
     scalar.components[0].state[0].initial = ir::make_array(std::vector<ir::ExprPtr>{});
-    const auto scalar_result = codegen::generate(scalar);
+    const auto scalar_result = generate_base(scalar);
     check(!scalar_result.has_value() &&
               first_error(scalar_result).rfind("TESSERA_CODEGEN_", 0) == 0,
           "an array initial on a scalar state is rejected");
 }
 
 void test_goldens(bool update) {
-    const auto result = codegen::generate(make_dynamic_module());
+    const auto result = generate_base(make_dynamic_module());
     check(result.has_value(), "the dynamic golden sample generates");
     if (!result) {
         return;
@@ -242,8 +243,8 @@ void test_goldens(bool update) {
 }
 
 void test_determinism() {
-    const auto first = codegen::generate(make_dynamic_module());
-    const auto second = codegen::generate(make_dynamic_module());
+    const auto first = generate_base(make_dynamic_module());
+    const auto second = generate_base(make_dynamic_module());
     check(first.has_value() && second.has_value(), "the dynamic sample generates twice");
     if (first && second) {
         check_eq(concatenated(*first), concatenated(*second), "two runs are byte-identical");
@@ -252,7 +253,7 @@ void test_determinism() {
 
 void test_rejections() {
     const auto expect_error = [](const ir::IrModule& module, std::string_view what) {
-        const auto result = codegen::generate(module);
+        const auto result = generate_base(module);
         check(!result.has_value(), what);
         check(first_error(result).rfind("TESSERA_CODEGEN_", 0) == 0,
               std::string(what) + " reports a TESSERA_CODEGEN_ code");
@@ -275,7 +276,7 @@ void test_rejections() {
         nested.condition = ir::make_literal(true);
         nested.text = ir::make_literal(std::string("Nested"));
         module.components[0].root.children[4].children.push_back(std::move(nested));
-        const auto result = codegen::generate(module);
+        const auto result = generate_base(module);
         check(result.has_value(), "a conditional inside a conditional branch generates");
     }
     {
@@ -348,34 +349,6 @@ void test_rejections() {
     }
 }
 
-void test_merger_idempotency() {
-    const auto result = codegen::generate(make_dynamic_module());
-    check(result.has_value(), "the dynamic sample generates for the merger test");
-    if (!result) {
-        return;
-    }
-    std::string generated;
-    for (const codegen::GeneratedFile& file : *result) {
-        if (file.path == "Dynamic.cpp") {
-            generated = file.text;
-        }
-    }
-    check(!generated.empty(), "the generated dynamic source exists");
-    constexpr std::string_view kMarker = "// [DEVELOPER_LOGIC_START: bind::on_click]";
-    const std::size_t marker = generated.find(kMarker);
-    check(marker != std::string::npos, "the on_click region survives next to the dynamic code");
-    if (marker == std::string::npos) {
-        return;
-    }
-    std::string existing = generated;
-    existing.insert(marker + kMarker.size(), "\n    // developer body next to generated lists");
-    const tessera::compiler::MergeResult first = tessera::compiler::merge(generated, existing);
-    check(first.text.find("developer body next to generated lists") != std::string::npos,
-          "the developer body survives the merge");
-    const tessera::compiler::MergeResult second = tessera::compiler::merge(first.text, existing);
-    check_eq(second.text, first.text, "merge(merge(g, e), e) == merge(g, e) over dynamic output");
-}
-
 } // namespace
 
 int main(int argc, char** argv) {
@@ -390,7 +363,6 @@ int main(int argc, char** argv) {
     test_goldens(false);
     test_determinism();
     test_rejections();
-    test_merger_idempotency();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;
