@@ -108,6 +108,12 @@ This page is the map and reading order for the framework.
   categories, scoring, reports, CI (continuous integration) thresholds
 - [`specs/custom-elements-v1.md`](specs/custom-elements-v1.md) — JSX-declared native elements,
   RHI (render hardware interface)/shader API, 3D composition, element input, reuse, headless tests
+- [`specs/media-components-v1.md`](specs/media-components-v1.md) — Video and AudioPlayer: props,
+  events, lifecycle, power, errors, parts, tests (proposed, stage 5)
+- [`specs/map-view-v1.md`](specs/map-view-v1.md) — MapView: tile source, camera, markers, network
+  and memory bounds, accessibility (proposed, stage 6)
+- [`specs/pdf-viewer-v1.md`](specs/pdf-viewer-v1.md) — PdfViewer: engine seam, virtualized pages,
+  security limits, phases (proposed, stage 6)
 - [`specs/text-editing-v1.md`](specs/text-editing-v1.md) — selection/caret/IME/undo/clipboard,
   TextInput/TextArea, secure fields
 - [`specs/scroll-and-gestures-v1.md`](specs/scroll-and-gestures-v1.md) — scroll physics, nested

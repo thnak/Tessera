@@ -46,7 +46,7 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
 - ViewTransition, SharedElement and Navigator transitions wrap
   [`view-transitions-v1`](../specs/view-transitions-v1.md) ([ADR-035](../../decisions/ADR-035-view-transitions.md)).
 - Charts are drawn with vector paths ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md)); 3D and map components use custom elements ([`custom-elements-v1`](../specs/custom-elements-v1.md)), not core changes.
-- Image decodes at display size times device pixel ratio (issue [#14](https://github.com/thnak/Tessera/issues/14)); Video and AudioPlayer use the platform media services of [`media-and-export.md`](media-and-export.md).
+- Image decodes at display size times device pixel ratio (issue [#14](https://github.com/thnak/Tessera/issues/14)); Video and AudioPlayer use the platform media services of [`media-and-export.md`](media-and-export.md) and are specified in [`media-components-v1`](../specs/media-components-v1.md); Map is specified in [`map-view-v1`](../specs/map-view-v1.md) and PDFViewer in [`pdf-viewer-v1`](../specs/pdf-viewer-v1.md).
 - `AppBar` and `WindowChrome` are framework shell components, not library components: they ship in
   the runtime, are imported from `"tessera"`, and are specified in
   [`window-chrome-v1`](../specs/window-chrome-v1.md) section 8.
