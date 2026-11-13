@@ -94,9 +94,9 @@ Owner decision of 2026-11-13:
   (WebGPU is Tier 1, ADR-049). Issue farming notes that say "all six CI lanes" mean these three
   gating lanes.
 - **Advisory lanes:** the macOS, Android and iOS CI lanes (and any other lane added later) are nice
-  to have. A red advisory lane is noted in the PR or issue but never blocks a merge or the next
-  slice, and is not fixed ahead of V1 work unless the fix is trivial. Do not add platform-specific
-  code only to keep an advisory lane green.
+  to have and run nightly and on demand, not on every push. A red advisory lane is noted in the PR
+  or issue but never blocks a merge or the next slice, and is not fixed ahead of V1 work unless the
+  fix is trivial. Do not add platform-specific code only to keep an advisory lane green.
 - **Library:** component library stages 0 and 1 ship in V1
   ([ADR-032](decisions/ADR-032-bundled-component-library.md)); stages 2 to 6 follow V1.
 
