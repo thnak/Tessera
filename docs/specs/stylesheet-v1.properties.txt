@@ -74,6 +74,10 @@ longhand grid-template-columns grid
 longhand grid-template-rows grid
 longhand grid-column grid
 longhand grid-row grid
+longhand grid-auto-flow grid
+longhand justify-self grid
+longhand align-self grid
+shorthand place-self grid
 
 # Positioning: the five position values and the four physical insets.
 longhand position positioning
