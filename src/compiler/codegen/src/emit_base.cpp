@@ -237,6 +237,101 @@ void append(Lines& out, const Lines& lines, std::size_t extra_indent = 0) {
     }
 }
 
+std::string with_static(const std::string& line) {
+    const std::size_t at = indent_of(line);
+    return line.substr(0, at) + "static " + line.substr(at);
+}
+
+// True for a generated data member (`state_count_`, `effect_sync_state_`, `prop_cb_`): the declared
+// name ends in `_`, which is the writer's convention for every field and for no method.
+bool is_data_member(const Item& item) {
+    std::string text;
+    for (const std::string& line : item.code) {
+        text += std::string(trimmed(line)) + " ";
+    }
+    std::size_t at = 0;
+    while (text.compare(at, 2, "[[") == 0) {
+        const std::size_t close = text.find("]]", at);
+        if (close == std::string::npos) {
+            return false;
+        }
+        at = close + 2;
+        while (at < text.size() && text[at] == ' ') {
+            ++at;
+        }
+    }
+    int depth = 0;
+    std::size_t cut = text.size();
+    for (std::size_t i = at; i < text.size(); ++i) {
+        const char c = text[i];
+        depth += (c == '(' || c == '<') - (c == ')' || c == '>');
+        const bool assign = c == '=' && i + 1 < text.size() && text[i + 1] != '=' && i > 0 &&
+                            std::string_view("=<>!").find(text[i - 1]) == std::string_view::npos;
+        if (depth == 0 && (c == ';' || c == '{' || assign)) {
+            cut = i;
+            break;
+        }
+    }
+    std::string head = text.substr(at, cut - at);
+    while (!head.empty() && head.back() == ' ') {
+        head.pop_back();
+    }
+    if (head.empty() || head.back() == ')' || head.ends_with(" const")) {
+        return false;
+    }
+    return head.back() == '_';
+}
+
+// The declared name of a data member (`prop_title_` in `std::string prop_title_ = {};`).
+std::string data_member_name(const Item& item) {
+    const std::string& line = item.code.front();
+    std::size_t end = line.find(" =");
+    if (end == std::string::npos) {
+        end = line.find(';');
+    }
+    if (end == std::string::npos) {
+        end = line.size();
+    }
+    std::size_t begin = end;
+    while (begin > 0 && is_word(line[begin - 1])) {
+        --begin;
+    }
+    return line.substr(begin, end - begin);
+}
+
+// ADR-040 item 2: generated fields and the dispatch thunks are private. Methods stay public (the
+// host drives build/mount/update/..., the developer reads accessors), and so do the `prop_` fields:
+// a parent component writes the props of the child instance it owns.
+Lines apply_access(const Lines& struct_body, const std::string& friend_line) {
+    Lines out;
+    bool is_private = false;
+    const auto set_access = [&](bool want_private) {
+        if (want_private != is_private) {
+            out.push_back(want_private ? "    private:" : "    public:");
+            is_private = want_private;
+        }
+    };
+    set_access(true);
+    if (!friend_line.empty()) {
+        out.push_back(friend_line);
+    }
+    for (const Item& item : group_items(struct_body)) {
+        bool wants_private = false;
+        if (is_data_member(item)) {
+            wants_private = !starts_with(data_member_name(item), "prop_");
+        } else {
+            for (const std::string& line : item.code) {
+                wants_private =
+                    wants_private || line.find("static_cast<Self&>(*this).") != std::string::npos;
+            }
+        }
+        set_access(wants_private);
+        append(out, item.lead);
+        append(out, item.code);
+    }
+    return out;
+}
+
 // The accessor/reserved names a generated member already uses.
 bool reserved_member(std::string_view name) {
     static constexpr std::string_view kReserved[] = {
@@ -466,11 +561,14 @@ bool emit_generated_base(const ir::Component& component,
 
     // Detail helpers: component-typed ones become templates, the rest are `inline`.
     std::set<std::string> thunks;
+    std::vector<Item> thunk_items;
+    std::vector<Item> free_items;
     for (Item& item : detail_items) {
         const std::string_view first = trimmed(item.code.front());
         if (starts_with(first, "constexpr") || starts_with(first, "struct") ||
             starts_with(first, "using") || starts_with(first, "enum") ||
             starts_with(first, "inline constexpr")) {
+            free_items.push_back(std::move(item));
             continue;
         }
         bool mentions = false;
@@ -482,15 +580,20 @@ bool emit_generated_base(const ir::Component& component,
                 thunks.insert(thunk);
             }
             for (std::string& line : item.code) {
-                line = with_class_type(line, name, base);
+                line = "  " + with_class_type(line, name, base);
             }
-            item.code.insert(item.code.begin(), std::string(indent_of(item.code.front()), ' ') +
-                                                    "template <class Self>");
+            for (std::string& line : item.lead) {
+                line = "  " + line;
+            }
+            item.code.front() = with_static(item.code.front());
+            thunk_items.push_back(std::move(item));
         } else {
             item.code.front() = with_inline(item.code.front());
+            free_items.push_back(std::move(item));
         }
     }
-    const bool has_detail = !detail_items.empty() || has_aux;
+    detail_items = std::move(free_items);
+    const bool has_detail = !detail_items.empty() || !thunk_items.empty() || has_aux;
 
     // Contract: one static_assert per binding, first thing build() does.
     Lines contract;
@@ -522,7 +625,9 @@ bool emit_generated_base(const ir::Component& component,
         contract.push_back("      static_assert(" + own + " &&");
         contract.push_back("                        " + fits + ",");
         contract.push_back("                    \"" + escape_message(message) + "\");");
-        concept_lines.push_back("      requires " + own + ";");
+        // The thunk is private, so outside the base `&Self::member` of a class that does not define
+        // `member` names an inaccessible base member: the requirement is simply false. (The
+        // authoritative check is the static_assert in build(), which runs inside the friend.)
         concept_lines.push_back("      requires " + fits + ";");
     }
     if (!bindings.empty()) {
@@ -557,6 +662,12 @@ bool emit_generated_base(const ir::Component& component,
     out_lines.push_back(comment);
     out_lines.push_back("    template <class Self>");
     out_lines.push_back("    struct " + base + ";");
+    if (!thunk_items.empty()) {
+        out_lines.push_back("    namespace " + detail + " {");
+        out_lines.push_back("      template <class Self>");
+        out_lines.push_back("      struct Thunks;");
+        out_lines.push_back("    }");
+    }
     if (has_aux) {
         out_lines.push_back("    namespace " + detail + " {");
         append(out_lines, aux, 2);
@@ -564,16 +675,27 @@ bool emit_generated_base(const ir::Component& component,
     }
     out_lines.push_back("    template <class Self>");
     out_lines.push_back("    struct " + base + " {");
-    for (const std::string& line : struct_body) {
+    const std::string friend_line =
+        thunk_items.empty() ? std::string() : "      friend struct " + detail + "::Thunks<Self>;";
+    for (const std::string& line : apply_access(struct_body, friend_line)) {
         out_lines.push_back(qualify_aux(line));
     }
     out_lines.push_back("    };");
     append(out_lines, concept_lines);
-    if (!detail_items.empty()) {
+    if (!detail_items.empty() || !thunk_items.empty()) {
         out_lines.push_back("    namespace " + detail + " {");
         for (const Item& item : detail_items) {
             append(out_lines, item.lead);
             append(out_lines, item.code);
+        }
+        if (!thunk_items.empty()) {
+            out_lines.push_back("      template <class Self>");
+            out_lines.push_back("      struct Thunks {");
+            for (const Item& item : thunk_items) {
+                append(out_lines, item.lead);
+                append(out_lines, item.code);
+            }
+            out_lines.push_back("      };");
         }
         out_lines.push_back("    }");
     }
@@ -589,9 +711,17 @@ bool emit_generated_base(const ir::Component& component,
         for (std::string& line : item.code) {
             std::string text = qualify_aux(with_class_type(line, name, base));
             for (const std::string& thunk : thunks) {
-                text = replace_token(text, thunk, thunk + "<Self>",
-                                     [](const std::string& whole, std::size_t at) {
-                                         return at > 0 && whole[at - 1] == '&';
+                text = replace_token(text, thunk, "Thunks<Self>::" + thunk,
+                                     [&](const std::string& whole, std::size_t at) {
+                                         // `&thunk` (an adapter address) or `thunk(` (a helper
+                                         // call), never a member access of the same spelling.
+                                         if (at > 0 && whole[at - 1] == '&') {
+                                             return true;
+                                         }
+                                         const std::size_t next = at + thunk.size();
+                                         return next < whole.size() && whole[next] == '(' &&
+                                                (at == 0 ||
+                                                 (whole[at - 1] != '.' && whole[at - 1] != '>'));
                                      });
             }
             out_lines.push_back(text);

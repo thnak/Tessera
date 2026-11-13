@@ -26,10 +26,18 @@ namespace demo {
     // comp::Sample (Sample).
     template <class Self>
     struct SampleBase;
+    namespace Sample_detail {
+      template <class Self>
+      struct Thunks;
+    }
     template <class Self>
     struct SampleBase {
+    private:
+      friend struct Sample_detail::Thunks<Self>;
+    public:
       // prop `title`.
       std::string prop_title_ = {};
+    private:
       // useState `count`.
       int state_count_ = 0;
       // useState `name`.
@@ -81,31 +89,33 @@ namespace demo {
       tessera::ui::text::EditController input_5_editor_;
       tessera::ui::text::TextInputRuntime input_5_runtime_{input_5_editor_};
       tessera::ui::TextChangeBinding input_5_change_binding_;
-      
+    public:
       // The generated editor of the Nth controlled field (decoration/tests).
       [[nodiscard]] std::size_t text_input_count() const {
         return 1u;
       }
       [[nodiscard]] tessera::ui::text::EditController& text_input_editor(std::size_t index);
       [[nodiscard]] std::size_t text_input_change_events(std::size_t index) const;
+    private:
       // useEffect `effect::sync` state (deps hash, run counter, active flag).
       tessera::ui::EffectState effect_sync_state_;
-      
+    public:
       void build(tessera::ui::Node& parent);
       // Lifecycle: mount() runs effects once; update_effects() re-runs changed deps;
       // unmount() runs cleanups in reverse declaration order.
       void mount();
       void update_effects();
       void unmount();
-      
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
       // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
       void update();
+    private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
       // address must stay stable while attached.
       tessera::ui::UpdateTicket update_ticket_;
+    public:
       void attach_scheduler(tessera::ui::UpdateScheduler& scheduler);
       void detach_scheduler(tessera::ui::UpdateScheduler& scheduler);
       void schedule_update();
@@ -121,11 +131,13 @@ namespace demo {
       void handler_2(const tessera::ui::TextChangeEvent& e);
       void handler_3(const tessera::ui::ClickEvent& event);
       void handler_4(const tessera::ui::Event& event);
+    private:
       // ADR-040 dispatch thunks: each calls the same-named member the developer class
       // defines; build() static_asserts that it does (static dispatch, no vtable).
       void on_click(const tessera::ui::ClickEvent& event) { return static_cast<Self&>(*this).on_click(event); }
       void sync() { return static_cast<Self&>(*this).sync(); }
       void sync_cleanup() { return static_cast<Self&>(*this).sync_cleanup(); }
+    public:
       // Accessors for developer code: names come from the TSX, not the generated fields.
       [[nodiscard]] const std::string& title() const { return prop_title_; }
       [[nodiscard]] const int& count() const { return state_count_; }
@@ -135,11 +147,8 @@ namespace demo {
     };
     template <class Self>
     concept SampleContract = requires {
-      requires !std::is_same_v<decltype(&Self::on_click), decltype(&SampleBase<Self>::on_click)>;
       requires std::is_convertible_v<decltype(&Self::on_click), void (Self::*)(const tessera::ui::ClickEvent&)>;
-      requires !std::is_same_v<decltype(&Self::sync), decltype(&SampleBase<Self>::sync)>;
       requires std::is_convertible_v<decltype(&Self::sync), void (Self::*)()>;
-      requires !std::is_same_v<decltype(&Self::sync_cleanup), decltype(&SampleBase<Self>::sync_cleanup)>;
       requires std::is_convertible_v<decltype(&Self::sync_cleanup), void (Self::*)()>;
     };
     namespace Sample_detail {
@@ -167,26 +176,25 @@ namespace demo {
         return std::string(value);
       }
       template <class Self>
-      void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
-        auto* component = static_cast<SampleBase<Self>*>(context);
-        component->on_click(tessera::ui::click_event(event));
-      }
-      template <class Self>
-      void event_adapter_4_onClick(void* context, const tessera::ui::Event& event) {
-        auto* component = static_cast<SampleBase<Self>*>(context);
-        component->handler_1(tessera::ui::click_event(event));
-      }
-      template <class Self>
-      void text_change_adapter_5(void* context, const tessera::ui::TextChangeEvent& event) {
-        auto* component = static_cast<SampleBase<Self>*>(context);
-        component->handler_2(event);
-      }
-      template <class Self>
-      std::uint64_t dep_hash_0(const SampleBase<Self>& component) {
-        std::uint64_t hash = tessera::ui::kEffectHashSeed;
-        hash = tessera::ui::effect_hash(hash, component.state_count_);
-        return hash;
-      }
+      struct Thunks {
+        static void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
+          auto* component = static_cast<SampleBase<Self>*>(context);
+          component->on_click(tessera::ui::click_event(event));
+        }
+        static void event_adapter_4_onClick(void* context, const tessera::ui::Event& event) {
+          auto* component = static_cast<SampleBase<Self>*>(context);
+          component->handler_1(tessera::ui::click_event(event));
+        }
+        static void text_change_adapter_5(void* context, const tessera::ui::TextChangeEvent& event) {
+          auto* component = static_cast<SampleBase<Self>*>(context);
+          component->handler_2(event);
+        }
+        static std::uint64_t dep_hash_0(const SampleBase<Self>& component) {
+          std::uint64_t hash = tessera::ui::kEffectHashSeed;
+          hash = tessera::ui::effect_hash(hash, component.state_count_);
+          return hash;
+        }
+      };
     }
     template <class Self>
     inline void SampleBase<Self>::build(tessera::ui::Node& parent) {
@@ -213,7 +221,7 @@ namespace demo {
       // node::2 events={onClick:bind::on_click}
       auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
       node_2->set_element_kind("Button");
-      node_2->bind_event(tessera::ui::EventType::Click, &event_adapter_2_onClick<Self>, this);
+      node_2->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_2_onClick, this);
       this->ref_box_ = node_2.get();
       node_2->set_focusable(true);
       // node::3
@@ -225,7 +233,7 @@ namespace demo {
       // node::4 events={onClick:handler::1}
       auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull));
       node_4->set_element_kind("Button");
-      node_4->bind_event(tessera::ui::EventType::Click, &event_adapter_4_onClick<Self>, this);
+      node_4->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_4_onClick, this);
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
       // node::5 events={onChange:handler::2}
@@ -233,7 +241,7 @@ namespace demo {
       node_5->set_element_kind("TextInput");
       this->input_5_runtime_.attach(node_5.get());
       tessera::ui::text::bind_text_input_events(*node_5, this->input_5_runtime_);
-      this->input_5_change_binding_.handler = &text_change_adapter_5<Self>;
+      this->input_5_change_binding_.handler = &Thunks<Self>::text_change_adapter_5;
       this->input_5_change_binding_.context = this;
       tessera::ui::bind_text_change(*node_5, this->input_5_change_binding_);
       node_5->set_focusable(true);
@@ -367,11 +375,11 @@ namespace demo {
     inline void SampleBase<Self>::update_effects() {
       using namespace Sample_detail;
       // effect::sync (bind::sync, bind::sync_cleanup)
-      if (effect_sync_state_.active && effect_sync_state_.deps_hash != dep_hash_0(*this)) {
+      if (effect_sync_state_.active && effect_sync_state_.deps_hash != Thunks<Self>::dep_hash_0(*this)) {
         sync_cleanup();
         tessera::ui::effect_mark_cleaned(effect_sync_state_);
       }
-      if (tessera::ui::effect_needs_run(effect_sync_state_, dep_hash_0(*this))) {
+      if (tessera::ui::effect_needs_run(effect_sync_state_, Thunks<Self>::dep_hash_0(*this))) {
         sync();
       }
       apply_state();

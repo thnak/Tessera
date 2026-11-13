@@ -190,7 +190,7 @@ if (TESSERA_BUILD_TESTS)
         # Compile-fail checks: a developer class without a required member, or with the wrong
         # signature, must fail to build with the contract message. The targets are excluded from
         # `all`; each test builds one and expects the static_assert text in the output.
-        foreach (_variant IN ITEMS missing_member wrong_signature)
+        foreach (_variant IN ITEMS missing_member wrong_signature private_field)
             add_library(codegen_base_${_variant} OBJECT EXCLUDE_FROM_ALL
                 ${_tessera_codegen_base_dev_dir}/${_variant}/instantiate.cpp)
             target_include_directories(codegen_base_${_variant} PRIVATE
@@ -252,6 +252,11 @@ if (TESSERA_BUILD_TESTS)
             tessera_scene tessera_virtual tessera_layout tessera_text_edit tessera_animation
             tessera_forms)
         target_compile_features(codegen_base_fixtures_compile PRIVATE cxx_std_23)
+        add_test(NAME codegen_base_private_field_fails
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+                    --target codegen_base_private_field)
+        set_tests_properties(codegen_base_private_field_fails PROPERTIES
+            PASS_REGULAR_EXPRESSION "state_count_.*private|private.*state_count_")
         add_test(NAME codegen_base_wrong_signature_fails
             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_wrong_signature)

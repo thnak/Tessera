@@ -41,13 +41,14 @@ int main() {
     check(sample.syncs == 1, "mount() reaches the developer sync() through the generated thunk");
     check(sample.last_count_seen == 0, "the developer member reads state through its accessor");
 
-    // Event binding: the thunk forwards the payload record.
-    const tessera::ui::ClickEvent click{};
-    demo::gen::SampleBase<demo::Sample>& base = sample;
-    base.on_click(click); // the generated thunk, dispatching statically to demo::Sample
+    // Event binding: a real click on the generated Button runs the node adapter, which reaches the
+    // private thunk through the friend Thunks struct and then the developer's on_click().
+    tessera::ui::Node& button = *root.children()[0]->children()[0];
+    tessera::ui::Event click;
+    click.type = tessera::ui::EventType::Click;
+    check(button.run_event_bindings(click) == 1, "the Button has the generated click binding");
     check(sample.clicks == 1, "the on_click thunk reaches the developer member");
     check(sample.count() == 1, "set_count() wrote the cell and the accessor reads it back");
-    check(sample.state_count_ == 1, "the accessor and the generated field agree");
 
     // A dependency change re-runs the effect: cleanup first, then the effect again.
     sample.update();

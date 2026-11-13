@@ -154,12 +154,19 @@ Slice 1 (issue #157, 2026-11-13) landed the base emitter as an opt-in mode,
   emitter family (lists, virtual collections, vector icons, composition, size observation, forms)
   with explicit instantiation of every template member, on Windows (MSVC) and Linux (GCC).
 
-Known limits of slice 1, closed by the later slices: generated fields and thunks are public, not
-private with protected accessors (the event thunks cast their context to the base and need access; issue #212);
-the CLI does not expose the mode or write the developer files yet (#209); `compiler-demo` and the
-merger still use the legacy path (#210); documents still describe protected regions (#211). A child
-component in a parent is the child's developer class, so a parent's header includes
-`<Child>.hpp`.
+Access (issue #212, 2026-11-13): generated data members and the `bind::` dispatch thunks are
+`private`; methods (`build`, `mount`, `update`, `set_x`, ...) and the `prop_` fields (a parent writes
+the props of the child instance it owns) stay public. The event and scheduler thunks are static
+functions of `<Component>_detail::Thunks<Self>`, a `friend` of the base. A developer class that
+writes a generated field directly fails to compile (`codegen_base_private_field_fails`). The
+`gen::<Component>Contract<Self>` concept only checks that the binding members are accessible with
+the right signature; the static_assert in `build()` is the authoritative check (it runs inside the
+friend, so private developer handlers work).
+
+Known limits, closed by the later slices: the CLI does not expose the mode or write the developer
+files yet (#209); `compiler-demo` and the merger still use the legacy path (#210); documents still
+describe protected regions (#211). A child component in a parent is the child's developer class, so
+a parent's header includes `<Child>.hpp`.
 
 ## Follow-up
 
