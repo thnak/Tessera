@@ -82,6 +82,7 @@ constexpr RuntimeConfig kDocumentedDefaults{60.0,
                                             64,
                                             2,
                                             true,
+                                            0.0625f,
                                             false};
 
 bool expect_defaults(const RuntimeConfig& config) {
@@ -115,6 +116,7 @@ constexpr double (*kNumericReaders[])(const RuntimeConfig&) = {
     [](const RuntimeConfig& c) { return static_cast<double>(c.draw_list_cache_budget_mb); },
     [](const RuntimeConfig& c) { return static_cast<double>(c.view_transition_max_mb); },
     [](const RuntimeConfig& c) { return static_cast<double>(c.gpu_frames_in_flight); },
+    [](const RuntimeConfig& c) { return static_cast<double>(c.interpolation_epsilon_px); },
 };
 
 double numeric_field(const RuntimeConfig& config, std::size_t index) {
@@ -164,6 +166,7 @@ constexpr NumericBoundary kNumericBoundaries[] = {
     {"drawListCacheBudgetMb", "0", "4096", "-1", "4097", 0.0, 4096.0, false},
     {"viewTransitionMaxMb", "0", "4096", "-1", "4097", 0.0, 4096.0, false},
     {"gpuFramesInFlight", "1", "3", "0", "4", 1.0, 3.0, false},
+    {"interpolationEpsilonPx", "0", "4", "-0.5", "4.5", 0.0, 4.0, false},
 };
 
 std::expected<RuntimeConfig, RuntimeConfigError> parse_boundary(const NumericBoundary& boundary,

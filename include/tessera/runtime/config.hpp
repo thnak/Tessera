@@ -62,6 +62,7 @@ struct RuntimeConfig {
     std::uint32_t view_transition_max_mb = 64;
     std::uint32_t gpu_frames_in_flight = 2;
     bool animation_interpolation = true;
+    float interpolation_epsilon_px = 0.0625f;
     bool deterministic = false;
 
     [[nodiscard]] bool operator==(const RuntimeConfig&) const = default;

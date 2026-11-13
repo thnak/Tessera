@@ -9,6 +9,7 @@ namespace tessera::app {
 ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runtime) {
     ui::frame::FramePipelineConfig config;
     config.interpolation = runtime.animation_interpolation;
+    config.interpolation_epsilon_px = runtime.interpolation_epsilon_px;
     return config;
 }
 

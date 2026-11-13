@@ -228,8 +228,8 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [ ] **B2:** Interpolation alpha wake threshold + `animationInterpolation` config key —
       `animationInterpolation` is wired through `WindowOptions::runtime`
       (`src/app/window_config.cpp`); the threshold is decided (duplicate-present suppression, never a
-      wake source) and implemented for the interpolated box as `interpolation_epsilon_px`; still open: a
-      runtime-config key and suppressing the dirty-driven present itself
+      wake source) and implemented for the interpolated box as `interpolation_epsilon_px` (runtime key
+      `interpolationEpsilonPx`); still open: suppressing the dirty-driven present itself
       ([#148](https://github.com/thnak/Tessera/issues/148)).
 - [x] **B2:** Call the shader manifest validator before `glslc` — bad manifest fails the build —
       `tools/shaders/manifest.json`, `tools/shaders/manifest_check.cpp`,

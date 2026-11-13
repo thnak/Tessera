@@ -69,6 +69,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     "viewTransitionMaxMb": 64,
     "gpuFramesInFlight": 2,
     "animationInterpolation": true,
+    "interpolationEpsilonPx": 0.0625,
     "deterministic": false
   }
 }
@@ -116,6 +117,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `viewTransitionMaxMb` | integer | `64` | `0..4096` | Memory limit in MiB for the two window-sized textures of a view transition ([`view-transitions-v1.md`](view-transitions-v1.md) section 9). A transition that would exceed it is skipped, not an error. `0` skips every transition. |
 | `gpuFramesInFlight` | integer | `2` | `1..3` | CPU/GPU overlap; 1 = lowest memory, 3 = deepest pipeline. |
 | `animationInterpolation` | boolean | `true` | | Interpolate visual state at render rate. |
+| `interpolationEpsilonPx` | number | `0.0625` | `0.0..4.0` | Device pixels an interpolated transform must move before its painted box is damaged again ([`game-loop.md`](../design/game-loop.md) section 3.2). `0` disables the suppression. Never a wake source. |
 | `deterministic` | boolean | `false` | | Simulated clock, fixed steps, no vsync/sleep. Forced in goldens. |
 
 ## 4. Validation rules
@@ -313,6 +315,7 @@ struct RuntimeConfig {
     std::uint32_t view_transition_max_mb = 64;
     std::uint32_t gpu_frames_in_flight = 2;
     bool animation_interpolation = true;
+    float interpolation_epsilon_px = 0.0625f;
     bool deterministic = false;
 };
 
@@ -385,6 +388,7 @@ through the pure mapping layer `src/app/window_config.hpp`:
 | Key | Consumer | Effect |
 |---|---|---|
 | `animationInterpolation` | `FramePipelineConfig::interpolation` | `false`: the pipeline never creates an `InterpolationPaintView`, so paint uses the authoritative scene/style state instead of blending the previous and current tick samples. Default `true`. |
+| `interpolationEpsilonPx` | `FramePipelineConfig::interpolation_epsilon_px` | Duplicate-present suppression for interpolated transforms: a painted corner must move at least this many device pixels since the last frame that damaged it. `0` keeps every interpolated box in damage. |
 | `pauseWhenOccluded` | `WindowPausePolicy` (`pause_when_occluded`, `pause_when_minimized`) | `false`: an occluded or minimized window keeps rendering; `true` (default) pauses both. Focus/blur is never part of the policy. |
 | `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) -> the render target sized by [`src/ui/scale/render_target_extent.hpp`](../../include/tessera/ui/scale/render_target_extent.hpp) and the present cap of [`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1 plus its step-2 render-target consumer and its step-3 present cap. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
 

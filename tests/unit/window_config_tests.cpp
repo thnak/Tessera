@@ -133,6 +133,12 @@ bool interpolation_key_maps_to_the_pipeline_config() {
     ok = expect(window_pipeline_config(explicit_enabled_runtime).interpolation,
                 "an explicit true is on") &&
          ok;
+    RuntimeConfig epsilon_runtime;
+    epsilon_runtime.interpolation_epsilon_px = 0.5f;
+    ok = expect(enabled.interpolation_epsilon_px == RuntimeConfig{}.interpolation_epsilon_px &&
+                    window_pipeline_config(epsilon_runtime).interpolation_epsilon_px == 0.5f,
+                "interpolationEpsilonPx maps to the pipeline's suppression distance") &&
+         ok;
     // The key must not move any other mapped field.
     ok = expect(disabled.dpi_scale == enabled.dpi_scale &&
                     disabled.damage_margin == enabled.damage_margin &&

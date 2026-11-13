@@ -30,7 +30,7 @@ namespace json = runtime::internal;
 // stack for a config file.
 constexpr std::size_t kMaxDocumentDepth = 16;
 
-constexpr std::array<std::string_view, 39> kKnownKeys = {
+constexpr std::array<std::string_view, 40> kKnownKeys = {
     "fixedTimestepHz",
     "maxFps",
     "vsync",
@@ -69,6 +69,7 @@ constexpr std::array<std::string_view, 39> kKnownKeys = {
     "viewTransitionMaxMb",
     "gpuFramesInFlight",
     "animationInterpolation",
+    "interpolationEpsilonPx",
     "deterministic",
 };
 
@@ -387,6 +388,7 @@ validate_runtime_object(const json::JsonValue& runtime) {
     reader.integer("viewTransitionMaxMb", config.view_transition_max_mb, 0, 4096);
     reader.integer("gpuFramesInFlight", config.gpu_frames_in_flight, 1, 3);
     reader.boolean("animationInterpolation", config.animation_interpolation);
+    reader.number("interpolationEpsilonPx", config.interpolation_epsilon_px, 0.0, 4.0);
     reader.boolean("deterministic", config.deterministic);
 
     if (reader.failed()) {
