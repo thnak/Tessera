@@ -359,8 +359,7 @@ Platform notes:
   damage. VRR depends on the driver/compositor.
 - **Linux/Wayland**: use `wp_presentation` feedback and frame callbacks; the compositor owns
   refresh/VRR policy. Do not busy-wait for frame callbacks.
-- **macOS**: deferred ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via
-  MoltenVK); use `CVDisplayLink`/`CAMetalDisplayLink` when MoltenVK lands.
+- **macOS**: post-V1, native Metal ([ADR-053](../../decisions/ADR-053-native-metal-backend.md)); use `CVDisplayLink`/`CAMetalDisplayLink` when the Metal backend lands (ADR-053).
 - **Android**: deferred (see [`mobile-integration.md`](mobile-integration.md)); use `Choreographer` frame callbacks and display refresh rate APIs.
 
 The loop must degrade gracefully when a platform cannot report refresh/VRR: assume 60 Hz,

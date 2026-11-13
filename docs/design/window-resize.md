@@ -293,8 +293,8 @@ monitor-derived ladder step above, not on `renderScale`.
 
 ### macOS / Android
 
-- macOS (deferred; [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md), macOS via MoltenVK): `NSWindowDelegate` resize, `viewDidChangeBackingProperties` for scale,
-  `CVDisplayLink`/`CAMetalDisplayLink` for pacing; MoltenVK surface recreation.
+- macOS (post-V1; native Metal, [ADR-053](../../decisions/ADR-053-native-metal-backend.md)): `NSWindowDelegate` resize, `viewDidChangeBackingProperties` for scale,
+  `CVDisplayLink`/`CAMetalDisplayLink` for pacing; `CAMetalLayer` drawable-size update.
 - Android (deferred to Big Step F, see [`mobile-integration.md`](mobile-integration.md)): `onSurfaceChanged`, `onConfigurationChanged`, `Choreographer` frame
   callbacks, multi-window/split-screen lifecycle.
 

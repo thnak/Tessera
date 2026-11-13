@@ -52,7 +52,7 @@ the release gates enforce; they can be revisited by the owner without changing t
 |---|---|---|
 | D1 | **Vector paths: ThorVG first (approved).** Spike ThorVG (MIT) behind a `PathRasterizer` seam; Skia Graphite stays a fallback only if the spike fails the gate. Do not write a rasterizer. | Both permissive and static-linkable; ThorVG is far smaller, so the production static size and build time stay bounded. |
 | D2 | **Color: 8-bit sRGB-encoded formats in V1 (approved).** Prefer `*_SRGB` swapchain/target formats, document that blending happens in the encoded space (approximation), and keep linear-light/HDR out of V1. | No license impact; avoids a large color-management refactor before release. |
-| D3 | **Design-time wall.** Dawn/WebGPU and Emscripten are design-time only; the native production binary links Vulkan + MoltenVK (macOS, later) and never Dawn. | Dawn/Emscripten notices apply to design-time artifacts only; production link line stays lean. |
+| D3 | **Design-time wall.** Dawn/WebGPU and Emscripten are design-time only; the native production binary links Vulkan (Windows, Linux, Android) and native Metal (macOS, iOS, post-V1, ADR-053) and never Dawn. | Dawn/Emscripten notices apply to design-time artifacts only; production link line stays lean. |
 | D4 | **Present-path damage and VRR are post-production optimizations (refined by the task-50 API check).** Damage is *render-side* work reduction (redraw plan + scissor replay), not partial OS presentation. Win32 DXGI flip-model `IDXGISwapChain1::Present1` accepts dirty rects/scrolled areas but requires per-frame back-buffer coherence bookkeeping (first full Present, intersect dirty regions across N buffers); Vulkan `VK_KHR_incremental_present` regions are presentation-engine hints; X11 partial updates (`XPutImage`/`XShmPutImage`/`XCopyArea`) do not reduce compositor work and XDamage only reports. Keep full-frame present as the correctness baseline; defer VRR/partial present to a platform-capability slice that queries the real APIs. | No license impact; VRR/partial present depend on open platform APIs. |
 | D5 | **MSAA and depth/index/compute follow paths.** 4x MSAA is P1 for geometry quality; depth/index/compute (custom 3D) are P2 and widen the RHI only then. | Vulkan core features; no dependency change. |
 | D6 | **Text AA stays coverage-based** (glyph atlas, 8-bit coverage); an SDF atlas is optional P1 for scaling, not a production blocker. | No license impact. |
@@ -124,7 +124,6 @@ binary.
 | Vulkan loader + ICDs | Apache-2.0 / vendor | **system dynamic** | not statically linked |
 | X11 / Wayland / xkbcommon | MIT | **system dynamic** | allowlisted dynamic |
 | Win32 / Cocoa / Android NDK | System | system | n/a |
-| MoltenVK | Apache-2.0 | static (macOS, later) | notice |
 | Dawn | BSD-3-Clause | design-time only | not in production link line |
 | Emscripten + WebGPU bindings | MIT / UIUC | build-time | not in production link line |
 | glslc / shaderc / SPIRV-Reflect | Apache-2.0 | build-time (SPIR-V is an asset) | not linked |

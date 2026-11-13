@@ -162,7 +162,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | Wayland (`libwayland-client`, `wayland-protocols`) | V1 (Linux) | MIT | `platform/linux` | Window, input |
 | libxkbcommon | V1 (Linux) | MIT | `hal/input` | Keyboard mapping |
 | AndroidX WindowManager (`androidx.window:window`) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | `WindowMetrics`, fold posture/hinge via JNI (Java Native Interface) |
-| Cocoa / AppKit | Deferred (macOS, [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md) (macOS via MoltenVK, deferred)) | System | `platform/macos` | Window, input |
+| Cocoa / AppKit | Post-V1 (macOS, [ADR-053](../../decisions/ADR-053-native-metal-backend.md), native Metal) | System | `platform/macos` | Window, input |
 | GLFW | Candidate (buy) | zlib | `hal/window` | Window/input abstraction |
 | SDL3 | Candidate (buy) | zlib | `hal/window`, `hal/audio` | Window/input/audio abstraction |
 | inotify / ReadDirectoryChangesW / FSEvents | V1 | System | `hal/filesystem` | File watching |
