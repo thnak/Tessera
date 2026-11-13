@@ -3,8 +3,8 @@
 Status: design only. No Android/iOS backend is implemented; B1 (Big Step B phase 1: renderer core,
 see [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)) is desktop/offscreen.
 Android is the first mobile target; iOS/iPadOS comes after Android (both are in Big Step F, "Mobile
-integration", in the same AGENTS.md section). [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)
-(macOS via MoltenVK, deferred) covers macOS, not iOS.
+integration", in the same AGENTS.md section). [ADR-053](../../decisions/ADR-053-native-metal-backend.md)
+(native Metal for macOS and iOS; supersedes ADR-010 in part) covers both.
 Bridge policy: [`bridges.md`](bridges.md); memory rules: [`memory-model-v1.md`](../specs/memory-model-v1.md);
 startup/loading/auth: [`startup-and-loading.md`](startup-and-loading.md). Interaction companions:
 [`text-editing-v1.md`](../specs/text-editing-v1.md),
@@ -225,7 +225,7 @@ If iOS is added, the same four contracts from section 1 apply, with different AP
 - Set `drawableSize` on resize/scale; `contentsScale = UIScreen.scale`.
 - Use `CADisplayLink`/`CAFrameRateRange` or `MTKView.preferredFramesPerSecond`; respect ProMotion
   and low-power mode.
-- Metal native or MoltenVK ([ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md)); no Vulkan-on-iOS assumption.
+- Metal native ([ADR-053](../../decisions/ADR-053-native-metal-backend.md)); no MoltenVK and no Vulkan-on-iOS assumption.
 - `UISceneDelegate`/`UIViewController` lifecycle: pause/resume, background, memory warnings,
   trait/geometry changes.
 - Release drawables/resources on background; no rendering when inactive/background.
@@ -319,7 +319,7 @@ Open questions:
 - IME bridge: custom `InputConnection` vs off-screen `EditText` fallback.
 - Accessibility bridge scope for custom-drawn charts/text.
 - Android `configChanges` policy per app vs always restart/restore.
-- iOS target: Metal native vs MoltenVK; Vulkan feature parity.
+- iOS target: native Metal (ADR-053); feature parity with the RHI conformance suite.
 - iOS `UITextInput` scope and edit-menu/autofill support.
 - Background/foreground policy per platform (no background rendering).
 - Packaging: ABI splits, 16 KB pages, native libs, privacy manifests.

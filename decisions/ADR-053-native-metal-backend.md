@@ -34,6 +34,8 @@ costs mostly the device code, not a second shader language. The owner decided to
    Item 1 (macOS is not a V1 *blocker*) and item 4 (clean seams) still stand: macOS is not required
    for the V1 release unless the owner later says so.
 
+Owner confirmation (2026-11-13): native Metal only; MoltenVK is dropped for good, on macOS and iOS.
+
 ## Consequences
 
 - Better performance and feature coverage than a translation layer, and no MoltenVK limits
