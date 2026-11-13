@@ -200,6 +200,16 @@ inline void record_image_transition(VkCommandBuffer command_buffer, VkImage imag
                          &barrier);
 }
 
+// The stage/access pair a barrier waits on to make a render target's readable image available in
+// its current layout. RHI 1.1 left every offscreen target in TRANSFER_SRC_OPTIMAL; RHI 1.3 adds
+// SHADER_READ_ONLY_OPTIMAL (`bind_sampled_target`), so a consumer can no longer assume one state
+// and reads the target's tracked layout instead. The mapping lives in vulkan_sampled_target.cpp.
+struct LayoutSource {
+    VkPipelineStageFlags stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkAccessFlags access = 0;
+};
+
+[[nodiscard]] LayoutSource source_for_layout(VkImageLayout layout);
 class VulkanBuffer final : public rhi::Buffer {
 public:
     VulkanBuffer(VulkanDevice* owner, std::uint32_t epoch, VmaAllocator allocator, VkBuffer buffer,
@@ -345,7 +355,9 @@ public:
                        bool owns = true, bool presentable = false,
                        VkImage resolve_image = VK_NULL_HANDLE,
                        VkImageView resolve_view = VK_NULL_HANDLE,
-                       VmaAllocation resolve_allocation = nullptr, std::uint32_t sample_count = 1)
+                       VmaAllocation resolve_allocation = nullptr, std::uint32_t sample_count = 1,
+                       rhi::Filter filter = rhi::Filter::Linear,
+                       rhi::AddressMode address = rhi::AddressMode::ClampToEdge)
         : owner_(owner),
           epoch_(epoch),
           device_(device),
@@ -360,7 +372,9 @@ public:
           format_(format),
           owns_(owns),
           presentable_(presentable),
-          sample_count_(sample_count) {}
+          sample_count_(sample_count),
+          filter_(filter),
+          address_(address) {}
 
     ~VulkanRenderTarget() override;
 
@@ -379,6 +393,17 @@ public:
     [[nodiscard]] VkImageView view() const {
         return view_;
     }
+    // RHI 1.3 sampled view: the target is read through its 1-sample image, which is the resolve
+    // image for a 4x target - the same image readback and copy_target_region observe.
+    [[nodiscard]] VkImageView sampled_view() const {
+        return resolve_view_ != VK_NULL_HANDLE ? resolve_view_ : view_;
+    }
+    [[nodiscard]] rhi::Filter filter() const override {
+        return filter_;
+    }
+    [[nodiscard]] rhi::AddressMode address() const override {
+        return address_;
+    }
     // Resolved 1-sample image for 4x targets; identical to image() for 1-sample targets.
     [[nodiscard]] VkImage readback_image() const {
         return resolve_image_ != VK_NULL_HANDLE ? resolve_image_ : image_;
@@ -391,6 +416,33 @@ public:
     }
     [[nodiscard]] bool presentable() const override {
         return presentable_;
+    }
+
+    // Layout of the readable image (image() for a 1-sample target, resolve_image() for 4x). Command
+    // recording tracks it - like content_initialized_ - so the next operation transitions from the
+    // state the previous one left instead of assuming one (RHI 1.3: a target can be in
+    // TRANSFER_SRC after a render pass/copy/blit, or SHADER_READ_ONLY after a sampled bind).
+    void mark_image_layout(VkImageLayout layout) const {
+        image_layout_ = layout;
+    }
+    [[nodiscard]] VkImageLayout image_layout() const {
+        return image_layout_;
+    }
+
+    // The sampler state of a lazily created sampled view: `bind_sampled_target` has the device
+    // create the sampler and descriptor set once, at the target's first bind, and they live until
+    // the target dies. This is what keeps a steady-state sampled bind allocation-free.
+    [[nodiscard]] VkSampler sampled_sampler() const {
+        return sampler_;
+    }
+    [[nodiscard]] VkDescriptorSet sampled_descriptor_set() const {
+        return descriptor_set_;
+    }
+    void set_sampled_descriptor(VkSampler sampler, VkDescriptorSet descriptor_set,
+                                VkDescriptorPool pool) const {
+        sampler_ = sampler;
+        descriptor_set_ = descriptor_set;
+        descriptor_pool_ = pool;
     }
 
     // Swapchain images carry a binary semaphore (owned by the swapchain). A render submission
@@ -457,6 +509,12 @@ private:
     bool owns_ = true;
     bool presentable_ = false;
     std::uint32_t sample_count_ = 1;
+    rhi::Filter filter_ = rhi::Filter::Linear;
+    rhi::AddressMode address_ = rhi::AddressMode::ClampToEdge;
+    mutable VkImageLayout image_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+    mutable VkSampler sampler_ = VK_NULL_HANDLE;
+    mutable VkDescriptorSet descriptor_set_ = VK_NULL_HANDLE;
+    mutable VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
     VkSemaphore render_finished_ = VK_NULL_HANDLE;
     mutable bool render_pending_ = false;
     mutable bool content_initialized_ = false;
@@ -491,6 +549,7 @@ public:
     void bind_pipeline(const rhi::Pipeline& pipeline) override;
     void bind_vertex_buffer(const rhi::Buffer& buffer) override;
     void bind_texture(std::uint32_t slot, const rhi::Texture& texture) override;
+    void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;
     void push_constants(const void* data, std::size_t size) override;
@@ -531,6 +590,11 @@ private:
     VkPipelineLayout current_layout_ = VK_NULL_HANDLE;
     std::uint32_t current_pipeline_sample_count_ = 1;
     const VulkanRenderTarget* current_target_ = nullptr;
+    // The last target bound by bind_sampled_target(). Recording a render pass on it would sample an
+    // image that is simultaneously a color attachment, which is exactly what the call cannot
+    // express; begin_render_pass rejects it instead of leaving a descriptor pointing at a
+    // transitioned-away layout.
+    const VulkanRenderTarget* sampled_target_ = nullptr;
     // True when the submission's presentable target was written by blit_target() rather than a
     // render pass: the acquire semaphore wait must then be scoped to the transfer stage.
     bool present_written_by_transfer_ = false;

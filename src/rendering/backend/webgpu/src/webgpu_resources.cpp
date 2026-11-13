@@ -150,6 +150,15 @@ WebGpuRenderTarget::WebGpuRenderTarget(std::shared_ptr<WebGpuContext> context,
             create_texture_2d(*context_, desc.extent, desc.format, 1, render_target_usage(1));
         resolve_view_ = wgpuTextureCreateView(resolve_, nullptr);
     }
+    // RHI 1.3: the sampler a sampled bind reads the target with, built once from the target's
+    // filter/address (the same pair TextureDesc carries) so bind_sampled_target allocates nothing.
+    WGPUSamplerDescriptor sampler_desc = WGPU_SAMPLER_DESCRIPTOR_INIT;
+    sampler_desc.magFilter = to_wgpu(filter_mode(desc.filter));
+    sampler_desc.minFilter = sampler_desc.magFilter;
+    sampler_desc.addressModeU = to_wgpu(address_mode(desc.address));
+    sampler_desc.addressModeV = sampler_desc.addressModeU;
+    sampler_desc.addressModeW = sampler_desc.addressModeU;
+    sampler_ = wgpuDeviceCreateSampler(context_->device, &sampler_desc);
 }
 
 WebGpuRenderTarget::~WebGpuRenderTarget() {
@@ -163,6 +172,9 @@ WebGpuRenderTarget::~WebGpuRenderTarget() {
             wgpuTextureDestroy(texture);
             wgpuTextureRelease(texture);
         }
+    }
+    if (sampler_ != nullptr) {
+        wgpuSamplerRelease(sampler_);
     }
 }
 

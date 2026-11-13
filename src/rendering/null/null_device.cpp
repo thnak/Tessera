@@ -147,10 +147,38 @@ public:
     [[nodiscard]] std::uint32_t sample_count() const override {
         return desc_.sample_count;
     }
+    [[nodiscard]] rhi::Filter filter() const override {
+        return desc_.filter;
+    }
+    [[nodiscard]] rhi::AddressMode address() const override {
+        return desc_.address;
+    }
+
+    // Content tracking, as in the Vulkan backend: a target holds known pixels only once a render
+    // pass closed on it or a copy/blit wrote it, and only then may it be read or sampled.
+    void mark_content_initialized() const {
+        content_initialized_ = true;
+    }
+    [[nodiscard]] bool content_initialized() const {
+        return content_initialized_;
+    }
 
 private:
     rhi::RenderTargetDesc desc_;
+    mutable bool content_initialized_ = false;
 };
+
+// The null backend's own target type. A command list only ever records null targets, so a failed
+// cast means a caller mixed backends (a programming error the RHI docs call out).
+const NullRenderTarget* as_null_target(const rhi::RenderTarget& target) {
+    return dynamic_cast<const NullRenderTarget*>(&target);
+}
+
+void mark_target_content(const rhi::RenderTarget& target) {
+    if (const NullRenderTarget* concrete = as_null_target(target)) {
+        concrete->mark_content_initialized();
+    }
+}
 
 class NullDevice final : public rhi::Device {
 public:
@@ -220,14 +248,21 @@ void NullCommandList::begin_render_pass(const rhi::RenderTarget& target,
             "null begin_render_pass: descriptor sample count does not match the target");
     }
     ++stats_.begin_render_passes;
+    stats_.command_order.push_back(NullCommandKind::BeginRenderPass);
     stats_.last_render_pass_sample_count = target.sample_count();
     pass_sample_count_ = target.sample_count();
+    current_target_ = &target;
     in_pass_ = true;
     scissor_ = rhi::Scissor{0, 0, desc.extent.width, desc.extent.height};
 }
 
 void NullCommandList::end_render_pass() {
     ++stats_.end_render_passes;
+    stats_.command_order.push_back(NullCommandKind::EndRenderPass);
+    if (current_target_ != nullptr) {
+        mark_target_content(*current_target_);
+        current_target_ = nullptr;
+    }
     in_pass_ = false;
 }
 
@@ -237,6 +272,7 @@ void NullCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
             "null bind_pipeline: pipeline sample count does not match the render target");
     }
     ++stats_.pipeline_binds;
+    stats_.command_order.push_back(NullCommandKind::BindPipeline);
 }
 
 void NullCommandList::bind_vertex_buffer(const rhi::Buffer&) {
@@ -245,6 +281,27 @@ void NullCommandList::bind_vertex_buffer(const rhi::Buffer&) {
 
 void NullCommandList::bind_texture(std::uint32_t, const rhi::Texture&) {
     ++stats_.texture_binds;
+    stats_.command_order.push_back(NullCommandKind::BindTexture);
+}
+
+void NullCommandList::bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) {
+    // Validating-backend parity: the same misuse the Vulkan and WebGPU backends reject, so a
+    // structural test on the null backend stays meaningful.
+    if (in_pass_) {
+        throw std::logic_error("null bind_sampled_target: render pass is still active");
+    }
+    if (target.presentable()) {
+        throw std::invalid_argument("null bind_sampled_target: a swapchain image is not samplable");
+    }
+    const NullRenderTarget* concrete = as_null_target(target);
+    if (concrete == nullptr || !concrete->content_initialized()) {
+        throw std::invalid_argument("null bind_sampled_target: the target has no rendered content");
+    }
+    ++stats_.sampled_target_binds;
+    stats_.command_order.push_back(NullCommandKind::BindSampledTarget);
+    stats_.sampled_targets.push_back(NullSampledTargetBind{slot, target.extent(), target.format(),
+                                                           target.sample_count(), target.filter(),
+                                                           target.address()});
 }
 
 void NullCommandList::set_viewport(const rhi::Viewport&) {}
@@ -259,6 +316,7 @@ void NullCommandList::push_constants(const void*, std::size_t) {}
 void NullCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_vertex) {
     ++stats_.draws;
     stats_.vertices += vertex_count;
+    stats_.command_order.push_back(NullCommandKind::Draw);
     stats_.draw_records.push_back(NullDrawRecord{scissor_, vertex_count, first_vertex});
 }
 
@@ -301,8 +359,10 @@ void NullCommandList::copy_target_region(const rhi::RenderTarget& source,
             "null copy_target_region: destination offset plus region exceeds the target");
     }
     ++stats_.region_copies;
+    stats_.command_order.push_back(NullCommandKind::CopyTargetRegion);
     stats_.target_region_copies.push_back(NullTargetRegionCopy{
         source_region, destination_offset, source.extent(), destination.extent()});
+    mark_target_content(destination);
 }
 
 void NullCommandList::blit_target(const rhi::RenderTarget& source,
@@ -311,14 +371,18 @@ void NullCommandList::blit_target(const rhi::RenderTarget& source,
         throw std::invalid_argument("null blit_target: multisampled targets are not supported");
     }
     ++stats_.blits;
+    stats_.command_order.push_back(NullCommandKind::Blit);
+    mark_target_content(destination);
 }
 
 void NullCommandList::submit() {
+    stats_.command_order.push_back(NullCommandKind::Submit);
     submitted_ = true;
 }
 
 // The null backend has no GPU, so asynchronous submission completes immediately.
 void NullCommandList::submit_async() {
+    stats_.command_order.push_back(NullCommandKind::Submit);
     submitted_ = true;
 }
 

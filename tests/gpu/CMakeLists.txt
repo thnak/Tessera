@@ -40,6 +40,15 @@ add_executable(renderer_seam_tests
 target_link_libraries(renderer_seam_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME renderer_seam COMMAND renderer_seam_tests)
 
+# RHI 1.3 sampled render target (#254): the command order the glass composite records
+# (attachment -> copy -> sample -> composite), the sampler state that travels with a target and the
+# misuse every backend rejects. Null backend, deterministic, runs everywhere. The pixel proof is
+# glass_composite_gpu below.
+add_executable(sampled_target_tests
+    batched2d/sampled_target_tests.cpp)
+target_link_libraries(sampled_target_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME sampled_target COMMAND sampled_target_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
@@ -311,6 +320,15 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(renderer_seam_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME renderer_seam_gpu COMMAND renderer_seam_gpu_tests)
     set_tests_properties(renderer_seam_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # RHI 1.3 sampled render target (#254) pixel test: draw a backdrop, break, copy it into a pooled
+    # target, blur it horizontally into a second pooled target that samples the copy, then resume
+    # and composite the blurred result. Expected pixels come from the CPU glass kernel.
+    add_executable(glass_composite_gpu_tests
+        batched2d/glass_composite_gpu_tests.cpp)
+    target_link_libraries(glass_composite_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME glass_composite_gpu COMMAND glass_composite_gpu_tests)
+    set_tests_properties(glass_composite_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(msaa_tests
         batched2d/msaa_tests.cpp)

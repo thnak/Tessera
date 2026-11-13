@@ -142,8 +142,10 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
     VkFormatProperties format_properties{};
     vkGetPhysicalDeviceFormatProperties(physical_device_, format, &format_properties);
     if ((format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) == 0 ||
-        (format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_SRC_BIT) == 0) {
-        throw std::runtime_error("render target format does not support color attachment/copy");
+        (format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_SRC_BIT) == 0 ||
+        (format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) == 0) {
+        throw std::runtime_error(
+            "render target format does not support color attachment/copy/sample");
     }
     if (sample_count > 1 && !supports_sample_count(desc.format, sample_count)) {
         throw std::runtime_error("create_render_target: " + std::to_string(sample_count) +
@@ -218,16 +220,21 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
         if (sample_count > 1) {
             render_image =
                 create_image(to_vk_sample_count(sample_count), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+            // The resolve image is what readback, region copies and a sampled bind observe (RHI
+            // 1.3), so it needs SAMPLED alongside the color/transfer usage it already had.
             resolve_image =
-                create_image(VK_SAMPLE_COUNT_1_BIT,
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+                create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                                        VK_IMAGE_USAGE_SAMPLED_BIT);
         } else {
             // TRANSFER_SRC: readback/resample source. TRANSFER_DST: destination of
             // CommandList::copy_target_region, the isolated-layer seam (issue #242), which leaves
-            // the target readable in TRANSFER_SRC again.
+            // the target readable in TRANSFER_SRC again. SAMPLED: the RHI 1.3 sampled view
+            // (CommandList::bind_sampled_target) the glass composite reads a pooled target through.
             render_image = create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                                                                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                                                   VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+                                                                   VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                                                   VK_IMAGE_USAGE_SAMPLED_BIT);
         }
         view = create_view(render_image.image);
         if (resolve_image.image != VK_NULL_HANDLE) {
@@ -243,7 +250,7 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
             return std::make_unique<VulkanRenderTarget>(
                 this, epoch_, device_, allocator_, render_image.image, view,
                 render_image.allocation, desc.extent, desc.format, true, false, resolve_image.image,
-                resolve_view, resolve_image.allocation, sample_count);
+                resolve_view, resolve_image.allocation, sample_count, desc.filter, desc.address);
         } catch (...) {
             account_image(-target_bytes, epoch_);
             resource_destroyed();

@@ -128,6 +128,18 @@ VulkanPipeline::~VulkanPipeline() {
 }
 
 VulkanRenderTarget::~VulkanRenderTarget() {
+    // The sampled view bind_sampled_target() creates lazily (RHI 1.3): release it before the image
+    // handles it views, and free the set so target churn cannot exhaust the device's fixed pool.
+    // Presentable swapchain images never get one (they are not samplable), but the cleanup is here
+    // so the early `!owns_` return below cannot skip it.
+    if (owner_ == nullptr || owner_->destroyable_epoch(epoch_)) {
+        if (descriptor_set_ != VK_NULL_HANDLE && descriptor_pool_ != VK_NULL_HANDLE) {
+            vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set_);
+        }
+        if (sampler_ != VK_NULL_HANDLE) {
+            vkDestroySampler(device_, sampler_, nullptr);
+        }
+    }
     if (!owns_) {
         if (owner_ != nullptr) {
             owner_->resource_destroyed();

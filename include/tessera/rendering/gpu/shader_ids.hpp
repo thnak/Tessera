@@ -12,5 +12,8 @@
 namespace tessera::rendering::gpu {
 
 inline constexpr std::string_view kBatched2dShaderId = "batched2d";
+// Glass backdrop blur (docs/specs/glass-v1.md section 5). Both passes share the one id; the pass
+// (horizontal blur vs vertical blur + composite) is a push-constant mode, not a second program.
+inline constexpr std::string_view kGlassBlurShaderId = "glass_blur";
 
 } // namespace tessera::rendering::gpu

@@ -231,6 +231,14 @@ struct RenderTargetDesc {
     // resolved into an internal 1-sample image at the end of the render pass; readback and
     // sampling see the resolved image.
     std::uint32_t sample_count = 1;
+    // Sampler state the target is read with when `CommandList::bind_sampled_target` binds it as a
+    // texture (RHI 1.3). It is fixed at creation - like a texture's filter/address - so a bind
+    // allocates nothing on the frame path. The defaults are the state the glass blur needs: linear
+    // filtering (the separable Gaussian pairs adjacent texels into one bilinear tap) and
+    // clamp-to-edge addressing (so a glass node at a window border does not darken). The two fields
+    // describe sampling only; `begin_render_pass` ignores them.
+    Filter filter = Filter::Linear;
+    AddressMode address = AddressMode::ClampToEdge;
 };
 
 struct VertexAttribute {

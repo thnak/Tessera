@@ -8,6 +8,9 @@
 // the color write made available to a transfer read. That is exactly the state this operation
 // assumes for its source and produces for its destination, so a copy can be chained (copy -> copy
 // -> read back) and a later begin_render_pass(LoadOp::Load) transitions from TRANSFER_SRC as usual.
+// RHI 1.3 adds a second readable state, SHADER_READ_ONLY_OPTIMAL, for a target bound as a sampled
+// texture (vulkan_sampled_target.cpp): a copy that finds its source or destination there
+// transitions it back to the transfer state instead of assuming one.
 
 #include "vulkan_internal.hpp"
 
@@ -89,14 +92,33 @@ void VulkanCommandList::copy_target_region(const rhi::RenderTarget& source,
         record_timestamp_begin();
     }
 
-    // The source is in TRANSFER_SRC with its write already available to a transfer read (the
-    // end_render_pass() or previous-copy barrier), so only the destination is transitioned.
-    const VkImageLayout destination_previous = vulkan_destination->content_initialized()
-                                                   ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
-                                                   : VK_IMAGE_LAYOUT_UNDEFINED;
+    // The source is normally in TRANSFER_SRC with its write already available to a transfer read
+    // (the end_render_pass() or previous-copy barrier), so only the destination is transitioned.
+    // RHI 1.3: a target that was bound as a sampled texture is SHADER_READ_ONLY_OPTIMAL, so make it
+    // available to the transfer stage first instead of assuming the transfer state.
+    if (vulkan_source->image_layout() != VK_IMAGE_LAYOUT_UNDEFINED &&
+        vulkan_source->image_layout() != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        const LayoutSource from = source_for_layout(vulkan_source->image_layout());
+        record_image_transition(buffer_, vulkan_source->image(), vulkan_source->image_layout(),
+                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, from.access,
+                                VK_ACCESS_TRANSFER_READ_BIT, from.stage,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT);
+        vulkan_source->mark_image_layout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    }
+
+    const VkImageLayout destination_previous =
+        vulkan_destination->content_initialized()
+            ? (vulkan_destination->image_layout() == VK_IMAGE_LAYOUT_UNDEFINED
+                   ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                   : vulkan_destination->image_layout())
+            : VK_IMAGE_LAYOUT_UNDEFINED;
+    // A destination that was sampled is being overwritten (a write-after-read), so the barrier
+    // waits on the shader read it may still be serving; an untouched destination waits on nothing.
+    const LayoutSource destination_source = source_for_layout(destination_previous);
     record_image_transition(buffer_, vulkan_destination->image(), destination_previous,
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
-                            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, destination_source.access,
+                            VK_ACCESS_TRANSFER_WRITE_BIT, destination_source.stage,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT);
 
     VkImageCopy region{};
     region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -121,6 +143,7 @@ void VulkanCommandList::copy_target_region(const rhi::RenderTarget& source,
                             VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                             VK_PIPELINE_STAGE_TRANSFER_BIT);
     vulkan_destination->mark_content_initialized();
+    vulkan_destination->mark_image_layout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 }
 
 } // namespace tessera::rendering::vulkan
