@@ -365,8 +365,13 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `src/ui/layout/{layout_style,layout_signature}.cpp` (gutter inset + dirty rule),
       `docs/specs/{stylesheet-v1,scroll-and-gestures-v1,animation-v1}.md`, test `scroll_properties`.
 - [ ] #249: CSS Grid subset with a C++ `GridEngine`; Yoga has no grid, taffy only through an ADR (#214).
-- [ ] #250: Test that the stylesheet registry matches the V1 matrix of `stylesheet-v1.md`; it uses a
-      known-gaps allow-list that #247 to #249 empty.
+- [x] #250: Test that the stylesheet registry matches the V1 matrix of `stylesheet-v1.md`; it uses a
+      known-gaps allow-list that #247 to #249 empty — `docs/specs/stylesheet-v1.properties.txt`
+      (source of truth, one `<kind> <name> <§11 row>` per line),
+      `tests/unit/property_registry_matrix_tests.cpp` (walks both directions, names the property and
+      its row, allow-lists are `kKnownGaps` — the four Grid names while #249 is open — and
+      `kEngineInternal`), `src/ui/style/property_registry_extra.cpp` (the `border` shorthand and the
+      animation/transition names, which made `@supports (transition: none)`/`(animation: none)` true).
 - [x] #213: Every registered property has a real effect or a recorded status —
       `docs/specs/stylesheet-property-status-v1.md` (per-longhand table, linked from
       `stylesheet-v1.md` §11), new consumers for `order` (`src/ui/layout/layout_engine.cpp`) and
