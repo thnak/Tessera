@@ -364,7 +364,11 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `src/ui/scene/{scroll,scroll_animation}.cpp` (chain/smooth/gutter), `style::sync_scroll_style`,
       `src/ui/layout/{layout_style,layout_signature}.cpp` (gutter inset + dirty rule),
       `docs/specs/{stylesheet-v1,scroll-and-gestures-v1,animation-v1}.md`, test `scroll_properties`.
-- [ ] #249: CSS Grid subset with a C++ `GridEngine`; Yoga has no grid, taffy only through an ADR (#214).
+- [x] #249: CSS Grid subset with a C++ `GridEngine`; Yoga has no grid, taffy only through an ADR (#214) —
+      `src/ui/layout/{grid_engine.hpp,grid_layout.cpp,grid_placement.cpp,grid_tracks.cpp}` (engine internal
+      to the layout package), `src/ui/style/grid_values.{hpp,cpp}` (one grammar for the validator,
+      `@supports` and the engine), registry + `layout_signature` + scheduler dirty, `docs/specs/grid-v1.md`,
+      tests `grid_layout` (box corpus, determinism, 1,000 items in 15 ms), `grid_signature`, `grid_style`.
 - [x] #250: Test that the stylesheet registry matches the V1 matrix of `stylesheet-v1.md`; it uses a
       known-gaps allow-list that #247 to #249 empty — `docs/specs/stylesheet-v1.properties.txt`
       (source of truth, one `<kind> <name> <§11 row>` per line),

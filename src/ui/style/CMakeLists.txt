@@ -8,6 +8,7 @@ add_library(tessera_style STATIC
     component_parts.cpp
     compiled_stylesheet.cpp
     container_query.cpp
+    grid_values.cpp
     interaction_style.cpp
     interaction_values.cpp
     keyframes.cpp
@@ -62,6 +63,13 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/interaction_style_tests.cpp)
     target_link_libraries(interaction_style_tests PRIVATE tessera_style)
     add_test(NAME interaction_style COMMAND interaction_style_tests)
+
+    # CSS Grid subset (issue #249): the registry entries, the `gap`/`place-self` shorthands, the
+    # shared value grammar and the `@supports` answers.
+    add_executable(grid_style_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/grid_style_tests.cpp)
+    target_link_libraries(grid_style_tests PRIVATE tessera_style)
+    add_test(NAME grid_style COMMAND grid_style_tests)
 
     # `::part()` (issue #235): selector parse, specificity, matching across the component boundary,
     # the undeclared-part diagnostic and the compiled-stylesheet round trip. Registered here for the

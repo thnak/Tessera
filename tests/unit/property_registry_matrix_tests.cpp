@@ -25,6 +25,7 @@
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/supports.hpp"
 
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -62,14 +63,9 @@ struct AllowEntry {
 
 // V1 properties the engine does not implement yet. Delete an entry when its issue lands; the
 // stale-entry check below fails until it is gone.
-constexpr AllowEntry kKnownGaps[] = {
-    {"grid-template-columns",
-     "issue #249 (CSS Grid subset with a GridEngine) is still open; section 11 promises the Grid "
-     "row and the engine has no grid code yet"},
-    {"grid-template-rows", "issue #249 is still open; see grid-template-columns"},
-    {"grid-column", "issue #249 is still open; see grid-template-columns"},
-    {"grid-row", "issue #249 is still open; see grid-template-columns"},
-};
+// Empty: the Grid subset landed with issue #249, so no V1 property is excused any more. The list
+// (and the stale-entry check that reads it) stays so the next gap has a recorded place.
+constexpr std::array<AllowEntry, 0> kKnownGaps{};
 
 // Registered properties section 11 has no row for. These are engine behaviour, not spec promises.
 constexpr AllowEntry kEngineInternal[] = {
@@ -96,7 +92,7 @@ const char* allow_reason(const AllowEntry* entries, std::size_t count, std::stri
 }
 
 bool is_known_gap(std::string_view name) {
-    return allow_reason(kKnownGaps, std::size(kKnownGaps), name) != nullptr;
+    return allow_reason(kKnownGaps.data(), kKnownGaps.size(), name) != nullptr;
 }
 
 // Split on runs of spaces and tabs; the file is whitespace separated by design.

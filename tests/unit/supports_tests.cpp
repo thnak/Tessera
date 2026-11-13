@@ -29,7 +29,7 @@ int main() {
     const PropertyRegistry registry;
 
     if (!expect(matches("(display: flex)", registry), "supported property/value") ||
-        !expect(!matches("(display: grid)", registry), "unsupported display value") ||
+        !expect(!matches("(display: table)", registry), "unsupported display value") ||
         !expect(matches("(margin: 10px)", registry), "shorthand supported") ||
         !expect(!matches("(unknown-property: 1)", registry), "unknown property") ||
         !expect(matches("(--token: 1)", registry), "custom property") ||
@@ -66,19 +66,19 @@ int main() {
         return 5;
     }
 
-    if (!expect(matches("not (display: grid)", registry), "not") ||
+    if (!expect(matches("not (display: table)", registry), "not") ||
         !expect(!matches("not (display: flex)", registry), "not false") ||
         !expect(matches("(display: flex) and (color: red)", registry), "and") ||
-        !expect(!matches("(display: flex) and (display: grid)", registry), "and false") ||
+        !expect(!matches("(display: flex) and (display: table)", registry), "and false") ||
         !expect(matches("(display: grid) or (display: flex)", registry), "or") ||
-        !expect(!matches("(display: grid) or (display: table)", registry), "or false")) {
+        !expect(!matches("(display: table) or (display: flow-root)", registry), "or false")) {
         return 2;
     }
 
-    if (!expect(matches("(display: grid) or (display: flex) and (display: grid)", registry) ==
+    if (!expect(matches("(display: table) or (display: flex) and (display: table)", registry) ==
                     false,
                 "and binds tighter than or") ||
-        !expect(matches("((display: grid) or (display: flex)) and (display: grid)", registry) ==
+        !expect(matches("((display: table) or (display: flex)) and (display: table)", registry) ==
                     false,
                 "nested condition") ||
         !expect(matches("((display: grid) or (display: flex)) and (display: block)", registry),
