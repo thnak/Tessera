@@ -1,6 +1,6 @@
 # Component library and design system
 
-Status: design; a product layer; the library ships after V1 (decided 2026-11-08; V1 is defined in the [glossary](../reference/glossary.md), staging is in [ADR-032](../../decisions/ADR-032-bundled-component-library.md)). Decisions: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library), amended by [ADR-047](../../decisions/ADR-047-component-library-layers-and-design-language.md) (layers, theme versioning, Instrument design language, catalog and stages).
+Status: design; a product layer; stages 0 and 1 ship in V1 and stages 2 to 6 after V1 (decided 2026-11-13, replacing the 2026-11-08 decision that the whole library ships after V1; V1 is defined in the [glossary](../reference/glossary.md), staging is in [ADR-032](../../decisions/ADR-032-bundled-component-library.md)). Decisions: [ADR-032](../../decisions/ADR-032-bundled-component-library.md) (bundled component library), amended by [ADR-047](../../decisions/ADR-047-component-library-layers-and-design-language.md) (layers, theme versioning, Instrument design language, catalog and stages).
 
 The framework provides primitives; a bundled component library makes it usable without every
 team rebuilding inputs, dialogs, menus, and data grids.

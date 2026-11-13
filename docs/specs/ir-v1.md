@@ -578,8 +578,8 @@ table that resolves prop types is a later slice), and a re-parsed reader (sectio
 ## 12. Versioning
 
 - `irVersion: 1` is the only accepted version in V1.
-- Adding optional fields keeps v1; changing meaning/removing fields bumps the version and ships
-  a migration.
+- Adding optional fields or node kinds keeps v1 (precedent: `Component`, `Slot`); an unknown kind is
+  `TESSERA_IR_MALFORMED`. Changing meaning or removing fields bumps the version, with a migration.
 - Codegen rejects unsupported versions with `TESSERA_IR_VERSION`.
 - Versions of all schemas are tabulated in [`versioning-v1.md`](versioning-v1.md).
 - Snapshots and `bindings.json` record the IR version.

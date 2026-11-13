@@ -70,6 +70,10 @@ Rules:
   the generated C++ as a `build(parent, slot)` overload of the callee. Slot content is owned by the
   caller's component: it reads the caller's state/props, its event bindings stay in the caller's
   generated file, and the instance's own state belongs to the callee.
+- **Reserved: named slots.** The IR `Slot` node may later carry an optional `name`, and a prop of
+  type `element` would lower to a named slot filled from the caller (library components such as
+  Card, Dialog and `AppBar` actions need it). V1 reserves the field: a `Slot` with a `name` is
+  `TESSERA_IR_SLOT` until a spec enables it; adding it is additive and keeps `irVersion: 1`.
 - `key` is required for dynamic lists and stable across reorder.
 - Spread props are allowed only when statically analyzable.
 - Unknown props are compile errors for intrinsics; custom components validate their prop types.

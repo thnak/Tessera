@@ -365,6 +365,8 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 - [ ] #186: Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
 - [ ] #202: Fold posture, hinge and occlusion events on Android (ADR-023; needs the Android backend) —
       synthetic fold sequences pass.
+- Owner decision of 2026-11-13: V1 targets Windows and Linux. #202, #204-#208 and #189-#190 below are
+  not V1; they stay open for the release after V1.
 - [ ] #187: Reduced motion and dark mode queries on Linux and macOS.
 - [ ] #204-#208: macOS through a native Metal backend (ADR-053: device, MSL shaders, CAMetalLayer window,
       conformance, NSAccessibility); #189-#190: Android then iOS

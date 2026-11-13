@@ -102,7 +102,8 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | `.map` with a single expression body and `key` | Supported | Block bodies, `.filter().map()`, `.slice()`, `.sort()` are not (subset 10.5) |
 | Large lists with `.map` | Works but use `VirtualList` | [`elements-other.md`](elements-other.md) section 3 |
 | `onDoubleClick`, `onContextMenu`, `onWheel`, `onDrag*`, `onTouch*`, `onInput`, `onKeyPress`, `onMouse*` | Not supported [Q21] | No event of that name is specified |
-| `tabIndex`, `autoFocus`, `title`, `data-*`, `hidden`, `dangerouslySetInnerHTML` | Not supported | No V1 meaning ([Q13] for focus) |
+| `tabIndex`, `autoFocus` | Planned for V1 (owner decision 2026-11-13, issue #226) | Not available until that issue lands ([Q13]) |
+| `title`, `data-*`, `hidden`, `dangerouslySetInnerHTML` | Not supported | No V1 meaning |
 | `import { useState, useEffect, useRef } from "react"` | Supported (Q15): alias of `"tessera"` | Any other name from `"react"`, `import React from "react"` and `import * as React` are errors; other bare modules stay errors (subset 4) |
 | Arrow-function components, `export default`, `memo(...)`, `lazy`, `Suspense`, context, portals, custom hooks, class components, `async` | Not supported | Subset 4, 6, 12 |
 | `let`, `if`, `for`, `switch`, `try`, `??`, `?.` in component code | Not supported | Subset 6, 12 |

@@ -60,9 +60,15 @@ precedence over a pending deep-link/notification activation are defined in
       "id": "main",
       "bounds": { "x": 100, "y": 80, "w": 1280, "h": 800 },
       "display": 1,
-      "routeStack": [
-        { "route": "home", "params": {}, "state": {} },
-        { "route": "orders.detail", "params": { "id": "42" }, "state": { "tab": "items" } }
+      "activeStack": "main",
+      "stacks": [
+        {
+          "id": "main",
+          "entries": [
+            { "route": "home", "params": {}, "state": {} },
+            { "route": "orders.detail", "params": { "id": "42" }, "state": { "tab": "items" } }
+          ]
+        }
       ],
       "scroll": { "orders.list": 320 },
       "focus": { "route": "orders.detail", "uiId": "123" }
@@ -144,11 +150,17 @@ struct RestoreSnapshot {
     std::vector<WindowSnapshot> windows;
 };
 
+struct StackSnapshot {
+    std::string id;                 // V1 writes exactly one stack, id "main"
+    std::vector<RouteEntrySnapshot> entries;
+};
+
 struct WindowSnapshot {
     std::string window_id;          // stable logical id
     Rect bounds;                    // logical px
     std::string display_id;         // optional; re-resolve if gone
-    std::vector<RouteEntrySnapshot> route_stack;
+    std::string active_stack;       // id of the active entry of `stacks`
+    std::vector<StackSnapshot> stacks;
     std::map<std::string, double> scroll;   // stable key -> offset
     std::optional<FocusSnapshot> focus;
     std::map<std::string, DraftSnapshot> drafts;

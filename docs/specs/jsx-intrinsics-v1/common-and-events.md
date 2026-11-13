@@ -126,4 +126,4 @@ Not defined in V1, so rejected as unknown: `onDoubleClick`, `onContextMenu`, `on
 elements, `onDrag*`, `onTouch*`, `onMouse*`, `onInput`, `onLongPress` and the gesture recognizers of
 [`scroll-and-gestures-v1.md`](../scroll-and-gestures-v1.md) section 5, which name no handler props
 [Q21]. `onEditCommand` (advanced) is deferred until `text-editing-v1.md` defines its record.
-`onKeyDown`/`onFocus` on `View` are deferred until focusability of a `View` is specified [Q13].
+`onKeyDown`/`onFocus` on `View` are planned for V1 (owner decision 2026-11-13, issue #226) and are not available until it lands [Q13].

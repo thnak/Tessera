@@ -367,7 +367,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
-| Layout direction | LTR; RTL via `direction` for text | full bidi layout integration |
+| Layout direction | LTR and RTL via `direction`; logical properties (`margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*`, `text-align: start/end`), issue #230 | scroll and overscroll mirroring |
 
 **V1 decisions for the Paint/Transforms rows (decided 2026-11-10; the code matches):**
 

@@ -172,7 +172,8 @@ Failure/edge cases:
 - Logout during request -> cancel/ignore, clear scoped data.
 - Duplicate pagination pages -> dedupe by stable item key, not index alone.
 - Refresh failure -> keep old data and show retry/stale indicator.
-- Streaming/subscriptions are not V1; if added, define ordering/backpressure separately.
+- Streaming and subscription transports are not V1 (define ordering and backpressure separately);
+  the V1 push entry `DataStore::set/update` lets an app feed a query from its own source (issue #233).
 
 Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`app-completeness-cross-check-v1.md`](../architecture/app-completeness-cross-check-v1.md); resolutions in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
@@ -180,7 +181,7 @@ Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`
   optional and encrypted for sensitive data; cross-window invalidation uses store events.
   Offline queue is capped at 100 mutations/1 MiB. Default conflict policy is server-wins with a
   surfaced conflict error; merge is opt-in per mutation.
-- **G-21**: V1 supports cursor/page pagination; streaming/subscriptions/GraphQL are deferred (no release assigned).
+- **G-21**: V1 supports cursor/page pagination; streaming/subscriptions/GraphQL transports are deferred (no release assigned). The app-fed push entry `DataStore::set/update` is in V1 (#233).
   Pagination dedupes by stable item key and preserves anchor/scroll state.
 
 ## 9. Deferred/open questions

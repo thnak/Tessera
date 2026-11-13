@@ -50,3 +50,12 @@ is a product layer, not part of the renderer.
 The bundled component library, including the initial DataGrid, ships after V1. V1 is defined in
 the [glossary](../docs/reference/glossary.md). This note adds the release decision that the
 staging above did not make; it does not change the staging.
+
+## Amendment: stages 0 and 1 ship in V1 (2026-11-13)
+
+The owner moved the first two stages of the staging in [`component-library.md`](../docs/design/component-library.md)
+section 8 into V1: stage 0 (foundations: package imports, `::part()`, behavior primitives, tokens
+and the Instrument theme, Icon with the Iconify import tool, gallery skeleton) and stage 1 (a
+settings screen: core controls, inputs, layout, feedback, SafeArea, Image, List, Tooltip).
+Reason: without controls V1 would give developers no accessible way to build an ordinary screen.
+Stages 2 to 6, including the initial DataGrid, stay after V1. V1 targets Windows and Linux.

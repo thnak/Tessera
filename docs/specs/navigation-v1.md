@@ -225,7 +225,10 @@ Gap-closure decisions (`G-` and `Q-` IDs refer to
   stack stores only serializable UI state, never data payloads.
 - **Q-11**: one global stack by default; modal/sheet entries are stack entries with
   `presentation`; per-tab nested stacks are not in V1 (the `modalStack: nested` config value is
-  modal-local nesting, not per-tab stacks).
+  modal-local nesting, not per-tab stacks). To keep per-tab stacks additive later, `NavController`
+  is a per-instance handle (one per window, never a global) and the persisted form is
+  `activeStack` plus `stacks: [{id, entries}]`; V1 writes one stack with id `main`
+  ([`state-restoration-v1.md`](state-restoration-v1.md)).
 - **Q-12**: route loader -> async-data boundary is fixed as above; route cache is not a second
   data cache.
 

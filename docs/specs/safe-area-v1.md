@@ -1,7 +1,7 @@
 # SafeArea v1
 
 Status: proposed (component library stage 1, [`component-library.md`](../design/component-library.md)
-section 3.2; ships after V1). Builds on the insets and fold data of
+section 3.2; ships in V1 as part of stage 1, issue #223). Builds on the insets and fold data of
 [`os-events-v1.md`](os-events-v1.md), the shell rules of [`window-chrome-v1.md`](window-chrome-v1.md)
 and [`overlays-and-layers-v1.md`](overlays-and-layers-v1.md).
 

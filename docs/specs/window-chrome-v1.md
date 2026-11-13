@@ -333,8 +333,9 @@ Deferred (not V1; an addition needs an ADR or a spec revision):
 - App actions inside the title bar, a command palette, or tabs in the title bar; V1 has the window
   controls and the system menu only.
 - A theme token for the title bar height; V1 uses the framework constant.
-- Full-screen, immersive and hidden-status-bar modes; taskbar/dock integration; tray
-  ([platform-shell-v1.md](platform-shell-v1.md) owns the model).
+- Immersive and hidden-status-bar modes; taskbar/dock integration; tray
+  ([platform-shell-v1.md](platform-shell-v1.md) owns the model). Window full-screen on Windows and
+  Linux is not deferred: it ships in V1 (owner decision 2026-11-13, issue #232).
 - Per-window themes and multiple windows with different chrome.
 - Chrome title text from JSX; V1 title text is `window.title`.
 - macOS, Android and iOS backends themselves (ADR-010, Big Step F).
