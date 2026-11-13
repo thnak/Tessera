@@ -122,11 +122,12 @@ plus `onClick` make the run a clickable, accessible link.
 ### 3.6 Inline spans (`span`, `b`, `strong`, `i`, `em`, `code`, `a` inside `Text`)
 
 Inside `Text` these tags accept the `Text` attribute set: `className`, `style`, `role`, the `aria-*`
-attributes, `onClick` and `key`. `id` is accepted as common metadata. `ref`, `tabIndex` and
-`autoFocus` are rejected on a span (`TESSERA_JSX_SUBSET_HTML_ATTR`, suggestion: put them on the
-parent `Text`): a span is not a box and has no focus order. No other attribute is rewritten; the
-`a` rewrites of section 3.5 still apply. The span rules (static text, non-metric styles, hit testing,
-accessibility, limits) are [`elements-basic.md`](elements-basic.md) section 2.1.
+attributes, `onClick` and `key`. `id` is accepted as common metadata. `ref`, `tabIndex`,
+`autoFocus` and any event other than `onClick` are rejected on a span
+(`TESSERA_JSX_SPAN_ATTRIBUTE`, suggestion: put them on the parent `Text`): a span is not a box and
+has no focus order. No other attribute is rewritten; the `a` rewrites of section 3.5 still apply.
+The span rules (static text, non-metric styles, hit testing, accessibility, limits) are
+[`elements-basic.md`](elements-basic.md) section 2.1.
 
 The same tags written outside `Text` remain plain `Text` elements (the emphasis defaults still
 apply); only a `Text` child becomes an inline span.

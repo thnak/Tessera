@@ -83,15 +83,17 @@ in [`html-aliases.md`](html-aliases.md) section 2).
   be separate `Text` nodes.
 - **Non-metric styles only.** A span may set colour, `font-weight`, `font-style`, decoration and the
   other non-metric properties through `className` and `style`, but it may not override a property that
-  changes glyph advances or line boxes: `font-size`, `font-family`, `letter-spacing`, `white-space`.
-  Writing one of those in a span's inline `style` is `TESSERA_JSX_SPAN_METRIC` (error); when a
-  `className` sets one, the runtime keeps the parent's value for measurement and painting. That rule
-  is what lets the parent's single measured run stay exact (V1 assumes one font size and face per
-  paragraph).
-- **Events and hittesting.** A span with `onClick` is a hit target: when a pointer press hits the
-  parent's text box, the run under the point resolves to the span, and `onClick` is dispatched to the
-  span (bubbling to the parent as usual). A span with no `onClick` never receives input. Spans have no
-  bounds until the text has been painted once, so only a painted `Text` is clickable per span.
+  changes glyph advances or line boxes: `font-size`, `letter-spacing`, `white-space`. Writing one of
+  those in a span's inline `style` is `TESSERA_JSX_SPAN_METRIC` (error); when a `className` sets one,
+  the runtime keeps the parent's value for measurement and painting. `font-family` is accepted but
+  inert in V1: the text stack paints one app face, so it changes neither metrics nor glyphs (the
+  `code` default uses it and becomes effective when font selection lands). That rule is what lets the
+  parent's single measured run stay exact (V1 assumes one font size and face per paragraph).
+- **Events and hittesting.** A span with `onClick` or a role is a hit target: when a pointer press
+  hits the parent's text box, the run under the point resolves to the span, and `onClick` is
+  dispatched to the span (bubbling to the parent as usual). A span with neither never receives input
+  or its own accessibility entry: the run belongs to the parent `Text`. Spans have no bounds until
+  the text has been painted once, so only a painted `Text` is clickable per span.
 - **Accessibility.** Each span is a child entry of the parent `Text` entry: name = the span's text
   slice, role = the span's `role` (the `a` alias injects `link`, which also exposes the `Press`
   action). The parent `Text` entry keeps the concatenated text as its name.
@@ -103,8 +105,9 @@ in [`html-aliases.md`](html-aliases.md) section 2).
   clipping).
 
 Diagnostics of this section: `TESSERA_JSX_CHILDREN_NOT_ALLOWED` (a non-span child),
-`TESSERA_JSX_SPAN_DYNAMIC`, `TESSERA_JSX_SPAN_METRIC`, `TESSERA_JSX_SPAN_NESTED` and
-`TESSERA_JSX_SPAN_LIMIT`, all errors.
+`TESSERA_JSX_SPAN_DYNAMIC`, `TESSERA_JSX_SPAN_METRIC`, `TESSERA_JSX_SPAN_NESTED`,
+`TESSERA_JSX_SPAN_ATTRIBUTE` (a non-span prop, event or key) and `TESSERA_JSX_SPAN_LIMIT`, all
+errors.
 
 ## 3. `Button`
 

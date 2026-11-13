@@ -54,8 +54,8 @@ Diagnostics use these generic codes (new, not in subset spec section 12; they fo
 `TESSERA_JSX_IMAGE_ALT`): `TESSERA_JSX_PROP_REQUIRED`, `TESSERA_JSX_PROP_CONFLICT`,
 `TESSERA_JSX_PROP_ONE_OF`, `TESSERA_JSX_PROP_NOT_LITERAL`, `TESSERA_JSX_CHILDREN_NOT_ALLOWED`,
 `TESSERA_JSX_CHILDREN_COUNT`, `TESSERA_JSX_SPAN_DYNAMIC`, `TESSERA_JSX_SPAN_METRIC`,
-`TESSERA_JSX_SPAN_NESTED`, `TESSERA_JSX_SPAN_LIMIT`, plus the element-specific codes named in the
-tables. An unknown
+`TESSERA_JSX_SPAN_NESTED`, `TESSERA_JSX_SPAN_ATTRIBUTE`, `TESSERA_JSX_SPAN_LIMIT`, plus the
+element-specific codes named in the tables. An unknown
 attribute or event name is `TESSERA_JSX_SUBSET_UNKNOWN_PROP` (subset spec 10.2) in every case.
 Types of attribute values are checked by the type pass (`TESSERA_JSX_TYPE_MISMATCH`).
 
