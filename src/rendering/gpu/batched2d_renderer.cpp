@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
+#include "tessera/rendering/gpu/offscreen_target_pool.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -90,6 +92,19 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     }
     select_next_slot();
     commands_ = &commands;
+    frame_target_ = &target;
+    frame_desc_ = desc;
+    pass_broken_ = false;
+    // The offscreen pool advances with the frame slots, so a target acquired in frame k is only
+    // handed out again once the slot rotation proves frame k complete.
+    ++frame_index_;
+    if (config_.max_offscreen_targets > 0) {
+        if (offscreen_pool_ == nullptr) {
+            offscreen_pool_ = std::make_unique<OffscreenTargetPool>(
+                *device_, OffscreenTargetPoolConfig{config_.max_offscreen_targets});
+        }
+        offscreen_pool_->begin_frame(frame_index_, config_.frames_in_flight, desc.format);
+    }
     extent_ = desc.extent;
     base_scissor_ = rhi::Scissor{0, 0, static_cast<std::uint32_t>(desc.extent.width),
                                  static_cast<std::uint32_t>(desc.extent.height)};
@@ -128,9 +143,15 @@ void Batched2DRenderer::end() {
     if (!in_frame_) {
         return;
     }
+    if (pass_broken_) {
+        // A frame that ends with the pass broken still closes its pass exactly once (resume_pass()
+        // reopens it so end() has the same post-condition as the unbroken path).
+        resume_pass();
+    }
     flush();
     commands_->end_render_pass();
     commands_ = nullptr;
+    frame_target_ = nullptr;
     in_frame_ = false;
 }
 
@@ -432,43 +453,6 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
     emitted_vertices_ += 6;
 }
 
-bool Batched2DRenderer::same_clip_state(const ClipState& a, const ClipState& b) {
-    if (a.count != b.count) {
-        return false;
-    }
-    for (std::uint32_t i = 0; i < a.count; ++i) {
-        if (!(a.clips[i] == b.clips[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-std::uint32_t Batched2DRenderer::intern_clip_state(const ClipState& state) {
-    for (std::uint32_t i = 0; i < clip_states_.size(); ++i) {
-        if (same_clip_state(clip_states_[i], state)) {
-            return i;
-        }
-    }
-    clip_states_.push_back(state);
-    return static_cast<std::uint32_t>(clip_states_.size() - 1);
-}
-
-void Batched2DRenderer::rebuild_clip_state() {
-    ClipState folded;
-    for (const clip::RoundedRect& active : clip_stack_) {
-        if (folded.count < clip::kMaxShaderClips) {
-            folded.clips[folded.count++] = active;
-        } else {
-            // Deeper clips fold into the innermost shader slot conservatively; the CPU-side scissor
-            // still reflects every clip rect, so the result never paints outside any active clip.
-            folded.clips[clip::kMaxShaderClips - 1] =
-                clip::intersect_clips(folded.clips[clip::kMaxShaderClips - 1], active);
-        }
-    }
-    current_clip_state_ = intern_clip_state(folded);
-}
-
 void Batched2DRenderer::apply_clip_state(std::uint32_t state_index, const rhi::Scissor& scissor) {
     const bool state_changed = state_index != current_batch_.clip_state;
     const bool scissor_changed = !same_scissor(scissor, current_batch_.scissor);
@@ -481,28 +465,6 @@ void Batched2DRenderer::apply_clip_state(std::uint32_t state_index, const rhi::S
     current_clip_state_ = state_index;
     current_batch_.scissor = scissor;
     current_batch_.clip_state = state_index;
-}
-
-void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
-    Batched2DPushConstants push;
-    push.viewport_width = static_cast<float>(extent_.width);
-    push.viewport_height = static_cast<float>(extent_.height);
-    push.aa_radius = (config_.enable_aa && !config_.golden_mode) ? 1.0f : 0.0f;
-    const ClipState& state = clip_states_[state_index];
-    push.clip_count = state.count;
-    for (std::uint32_t i = 0; i < state.count; ++i) {
-        const clip::RoundedRect& source = state.clips[i];
-        Batched2DPushConstants::ClipUniform& target = push.clips[i];
-        target.x = source.rect.x;
-        target.y = source.rect.y;
-        target.width = source.rect.width;
-        target.height = source.rect.height;
-        target.top_left = source.top_left;
-        target.top_right = source.top_right;
-        target.bottom_right = source.bottom_right;
-        target.bottom_left = source.bottom_left;
-    }
-    commands_->push_constants(&push, sizeof(push));
 }
 
 } // namespace tessera::rendering::gpu

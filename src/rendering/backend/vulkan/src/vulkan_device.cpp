@@ -222,8 +222,12 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
                 create_image(VK_SAMPLE_COUNT_1_BIT,
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
         } else {
+            // TRANSFER_SRC: readback/resample source. TRANSFER_DST: destination of
+            // CommandList::copy_target_region, the isolated-layer seam (issue #242), which leaves
+            // the target readable in TRANSFER_SRC again.
             render_image = create_image(VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                                                   VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+                                                                   VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                                                   VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         }
         view = create_view(render_image.image);
         if (resolve_image.image != VK_NULL_HANDLE) {

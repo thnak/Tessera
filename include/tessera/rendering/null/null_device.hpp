@@ -17,6 +17,15 @@ struct NullDrawRecord {
     std::uint32_t first_vertex = 0;
 };
 
+// One copy_target_region() request, in recording order. The null backend moves no pixels; the
+// record is what structural tests assert (the region and where it was placed).
+struct NullTargetRegionCopy {
+    rhi::Scissor source_region;
+    rhi::Offset2D destination_offset;
+    rhi::Extent2D source_extent;
+    rhi::Extent2D destination_extent;
+};
+
 struct NullCommandStats {
     std::uint32_t begin_render_passes = 0;
     std::uint32_t end_render_passes = 0;
@@ -28,6 +37,9 @@ struct NullCommandStats {
     std::uint32_t vertices = 0;
     // blit_target() calls recorded (the null backend resamples nothing; it counts the request).
     std::uint32_t blits = 0;
+    // copy_target_region() calls recorded, with one entry each in target_region_copies.
+    std::uint32_t region_copies = 0;
+    std::vector<NullTargetRegionCopy> target_region_copies;
     // Sample count of the most recent begin_render_pass target (1 or 4).
     std::uint32_t last_render_pass_sample_count = 0;
     // One entry per draw, in recording order; `scissor` is the state active at draw time.
@@ -47,6 +59,9 @@ public:
     void push_constants(const void* data, std::size_t size) override;
     void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) override;
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override;
+    void copy_target_region(const rhi::RenderTarget& source, const rhi::Scissor& source_region,
+                            const rhi::RenderTarget& destination,
+                            rhi::Offset2D destination_offset = {}) override;
     void blit_target(const rhi::RenderTarget& source, const rhi::RenderTarget& destination,
                      rhi::Filter filter) override;
     void submit() override;

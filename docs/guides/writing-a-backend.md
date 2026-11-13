@@ -66,14 +66,19 @@ Do not claim a tier in a PR without the matrix row and the CI evidence it implie
 | `memory_statistics()` | Allocator totals; zeros are acceptable on backends without tracking. |
 
 `rhi::CommandList` records `begin/end_render_pass`, binds, viewport/scissor, push constants, draw,
-`copy_target_to_buffer`, `blit_target`, and one of `submit()` (blocking, offscreen/readback/goldens)
-or `submit_async()` + `is_complete()` + bounded `wait()` (frame path). Implement
-`begin_gpu_timestamps`/`gpu_frame_time_ms` only when `timestamp_capability()` says they work.
+`copy_target_to_buffer`, `copy_target_region`, `blit_target`, and one of `submit()` (blocking,
+offscreen/readback/goldens) or `submit_async()` + `is_complete()` + bounded `wait()` (frame path).
+Implement `begin_gpu_timestamps`/`gpu_frame_time_ms` only when `timestamp_capability()` says they
+work. `copy_target_region` is the isolated-layer seam (renderer region copy into an offscreen target,
+[`../design/gpu/offscreen-layers.md`](../design/gpu/offscreen-layers.md)); it follows the same
+outside-a-render-pass rule as the other copies and must leave its destination readable.
 
 Parity rules that review checks:
 
 - Invalid command order is rejected the same way on every backend, so null-based structural tests
-  stay meaningful.
+  stay meaningful. A list may record several sequential render passes (the render-pass break/resume
+  of [`../design/gpu/offscreen-layers.md`](../design/gpu/offscreen-layers.md)); only the first one
+  starts the backend command buffer, and reopening a pass while one is still active is an error.
 - Out-of-range `Buffer::write`/`read` throws `std::out_of_range`; a failed mapping throws
   `std::runtime_error`.
 - Handles are opaque; mixing objects from different backends is a programming error.

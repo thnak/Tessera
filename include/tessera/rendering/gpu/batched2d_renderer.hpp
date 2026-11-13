@@ -14,6 +14,8 @@
 
 namespace tessera::rendering::gpu {
 
+class OffscreenTargetPool;
+
 struct Batched2DConfig {
     std::uint32_t initial_vertex_capacity = 4096;
     bool enable_aa = true;
@@ -30,6 +32,12 @@ struct Batched2DConfig {
     // must not begin frame k + N until frame k's command list is complete, because that frame
     // reuses frame k's slot.
     std::uint32_t frames_in_flight = 1;
+
+    // Bounded offscreen targets for the isolated-layer seam (break_pass() and
+    // acquire_offscreen_target(), docs/design/gpu/offscreen-layers.md). This is
+    // `glassMaxBlurTargets` from docs/specs/glass-v1.md section 5: 4 by default, 0 disables the
+    // pool. The pool never grows past it and recycles a target only after frames_in_flight frames.
+    std::uint32_t max_offscreen_targets = 4;
 };
 
 class Batched2DRenderer {
@@ -50,6 +58,33 @@ public:
     void begin_damaged(rhi::CommandList& commands, const rhi::RenderTarget& target,
                        const rhi::RenderTargetDesc& desc, const RedrawPlan& plan);
     void end();
+
+    // --- Isolated-layer seam (docs/design/gpu/offscreen-layers.md, issue #242) -----------------
+    // Ends the current render pass without finishing the frame: pending geometry is flushed, the
+    // pass is closed, and the frame target/desc stay current. Between break_pass() and
+    // resume_pass() the caller may record CommandList operations that need the pass closed - in
+    // particular copy_target_region() into a pooled target (glass #244) or a full subtree layer
+    // (#227). Draws must not be recorded while the pass is broken. Idempotent: a second
+    // break_pass() before resume_pass() is a no-op.
+    void break_pass();
+    // Reopens the frame target's render pass after break_pass() with LoadOp::Load, so everything
+    // drawn before the break (and any copy placed back into the target) is preserved, then rebinds
+    // the pipeline, viewport, scissor and clip uniforms the pass had. Transform, clip, scissor and
+    // content-scale state recorded before the break is preserved; a tree that never breaks a pass
+    // records exactly the same commands as before this seam existed. No-op when the pass is not
+    // broken.
+    void resume_pass();
+    [[nodiscard]] bool pass_broken() const {
+        return pass_broken_;
+    }
+
+    // A pooled offscreen render target of at least `extent` and the frame target's format, for use
+    // between break_pass() and resume_pass(). The pool is bounded by
+    // Batched2DConfig::max_offscreen_targets (= glassMaxBlurTargets, default 4) and recycles a
+    // target only after its frame is complete (frames_in_flight). Null when the pool is disabled or
+    // every target is still in flight; the caller then paints that frame without the effect.
+    [[nodiscard]] rhi::RenderTarget* acquire_offscreen_target(rhi::Extent2D extent);
+    [[nodiscard]] std::uint32_t offscreen_target_count() const;
 
     void set_viewport(rhi::Extent2D extent);
     void set_scissor(const rhi::Scissor& scissor);
@@ -133,6 +168,16 @@ private:
     rhi::Pipeline* pipeline_ = nullptr;
     rhi::Texture* white_texture_ = nullptr;
     rhi::CommandList* commands_ = nullptr;
+
+    // Isolated-layer seam state: the frame target the pass was opened on (kept so resume_pass() can
+    // reopen it) and the bounded offscreen target pool. The pool object is created on the first
+    // frame (targets are only created when a break actually asks for one), so a renderer that never
+    // breaks a pass owns no offscreen texture.
+    const rhi::RenderTarget* frame_target_ = nullptr;
+    rhi::RenderTargetDesc frame_desc_;
+    std::unique_ptr<OffscreenTargetPool> offscreen_pool_;
+    std::uint64_t frame_index_ = 0;
+    bool pass_broken_ = false;
 
     Batched2DConfig config_;
     rhi::Extent2D extent_;

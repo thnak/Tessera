@@ -25,6 +25,7 @@ or asset decoding. Those have their own docs.
 | [`resources.md`](resources.md) | Buffers/textures/targets/samplers/memory |
 | [`pipelines.md`](pipelines.md) | Pipeline cache, descriptors, vertex layout, shaders |
 | [`backends.md`](backends.md) | Vulkan/WebGPU/null/software parity and capabilities |
+| [`offscreen-layers.md`](offscreen-layers.md) | Render-pass break, `copy_target_region`, bounded offscreen pool (#242) |
 | [`webgpu-backend.md`](webgpu-backend.md) | WebGPU backend first slice, status, remaining work |
 | [`metal-backend.md`](metal-backend.md) | Metal mapping: sync, resource lifetime, `CAMetalLayer`, errors |
 | [`testing.md`](testing.md) | Test pyramid, tree, goldens, CI |

@@ -107,6 +107,11 @@ public:
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override {
         inner_->copy_target_to_buffer(target, buffer);
     }
+    void copy_target_region(const rhi::RenderTarget& source, const rhi::Scissor& source_region,
+                            const rhi::RenderTarget& destination,
+                            rhi::Offset2D destination_offset = {}) override {
+        inner_->copy_target_region(source, source_region, destination, destination_offset);
+    }
     void blit_target(const rhi::RenderTarget& source, const rhi::RenderTarget& destination,
                      rhi::Filter filter) override {
         inner_->blit_target(source, destination, filter);

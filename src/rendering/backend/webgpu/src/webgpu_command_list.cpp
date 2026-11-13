@@ -23,6 +23,22 @@ struct Completion {
     bool done = false;
 };
 
+bool region_fits(const rhi::Scissor& region, rhi::Extent2D extent) {
+    if (region.x < 0 || region.y < 0 || region.width == 0 || region.height == 0) {
+        return false;
+    }
+    return static_cast<std::uint64_t>(region.x) + region.width <= extent.width &&
+           static_cast<std::uint64_t>(region.y) + region.height <= extent.height;
+}
+
+bool offset_region_fits(rhi::Offset2D offset, const rhi::Scissor& region, rhi::Extent2D extent) {
+    if (offset.x < 0 || offset.y < 0) {
+        return false;
+    }
+    return static_cast<std::uint64_t>(offset.x) + region.width <= extent.width &&
+           static_cast<std::uint64_t>(offset.y) + region.height <= extent.height;
+}
+
 void on_work_done(WGPUQueueWorkDoneStatus, WGPUStringView, void* userdata, void*) {
     auto* state = static_cast<std::shared_ptr<Completion>*>(userdata);
     (*state)->done = true;
@@ -154,6 +170,53 @@ public:
     void blit_target(const rhi::RenderTarget&, const rhi::RenderTarget&, rhi::Filter) override {
         throw std::logic_error(
             "WebGpuCommandList: blit_target is unavailable; check Device::supports_blit()");
+    }
+
+    // WebGPU's plain texture copy; the encoder has no filtered-blit equivalent. Both targets are
+    // 1-sample offscreen targets with the same format (RHI contract), so this is one
+    // wgpuCommandEncoderCopyTextureToTexture: WebGPU tracks texture transitions itself, there is no
+    // layout to restore like Vulkan's TRANSFER_SRC state.
+    void copy_target_region(const rhi::RenderTarget& source, const rhi::Scissor& source_region,
+                            const rhi::RenderTarget& destination,
+                            rhi::Offset2D destination_offset) override {
+        if (pass_ != nullptr) {
+            throw std::logic_error("WebGpuCommandList: render pass is still open");
+        }
+        const auto& wgpu_source = static_cast<const WebGpuRenderTarget&>(source);
+        const auto& wgpu_destination = static_cast<const WebGpuRenderTarget&>(destination);
+        if (&wgpu_source == &wgpu_destination) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: source and destination must be different targets");
+        }
+        if (source.sample_count() != 1 || destination.sample_count() != 1) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: multisampled targets are not supported");
+        }
+        if (source.format() != destination.format()) {
+            throw std::invalid_argument("WebGpuCommandList: source and destination formats differ");
+        }
+        if (source.presentable() || destination.presentable()) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: swapchain images are not copy sources or destinations");
+        }
+        if (!region_fits(source_region, source.extent())) {
+            throw std::invalid_argument("WebGpuCommandList: source region exceeds the target");
+        }
+        if (!offset_region_fits(destination_offset, source_region, destination.extent())) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: destination offset plus region exceeds the target");
+        }
+
+        WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+        src.texture = wgpu_source.resolved_texture();
+        src.origin = {static_cast<std::uint32_t>(source_region.x),
+                      static_cast<std::uint32_t>(source_region.y), 0};
+        WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+        dst.texture = wgpu_destination.resolved_texture();
+        dst.origin = {static_cast<std::uint32_t>(destination_offset.x),
+                      static_cast<std::uint32_t>(destination_offset.y), 0};
+        const WGPUExtent3D size{source_region.width, source_region.height, 1};
+        wgpuCommandEncoderCopyTextureToTexture(encoder_, &src, &dst, &size);
     }
 
     // A browser cannot block on the GPU; use submit_async() and poll is_complete().

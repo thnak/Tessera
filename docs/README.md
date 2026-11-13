@@ -194,6 +194,8 @@ This page is the map and reading order for the framework.
   layout, shaders
 - [`design/gpu/backends.md`](design/gpu/backends.md) — Vulkan/WebGPU/null/software parity and
   capabilities
+- [`design/gpu/offscreen-layers.md`](design/gpu/offscreen-layers.md) — render-pass break,
+  `copy_target_region` and the bounded offscreen target pool (glass/layer seam, #242)
 - [`design/gpu/webgpu-backend.md`](design/gpu/webgpu-backend.md) — WebGPU backend first slice: RHI
   requirements, mapping tables, WGSL registry, unbuilt device skeleton
 - [`design/gpu/metal-backend.md`](design/gpu/metal-backend.md) — Metal backend design: completion values,
