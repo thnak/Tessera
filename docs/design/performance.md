@@ -365,13 +365,45 @@ the driver stays on the direct path instead of dropping frames.
 
 ### 9.1 CPU benchmark and the render-thread trigger
 
-A GPU-free benchmark (`tessera_benchmark`, issue tracked in the V1-M1 milestone) builds a tree of
-about 12 000 nodes and measures first layout, full paint, and layout plus paint after changing one
-text node, and counts draw calls. Reference hardware is a 2-core Linux runner and the Windows
-runner. The numbers are the evidence for the V1 decision of no render thread and no worker
-recording ([ADR-021](../../decisions/ADR-021-async-runtime.md)): revisit it when `paint_time_ms`
-exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. Do not claim parallelism without a
-measured gain on the benchmark.
+`tessera_benchmark` (`tests/benchmarks/cpu/`, CTest name `cpu_benchmark`, issue #241) is the
+GPU-free CPU benchmark behind the V1 single-UI-thread decision of
+[ADR-021](../../decisions/ADR-021-async-runtime.md). It builds a deterministic 12 000-node scene
+from a fixed generator (containers, text, raster-image nodes, scrolling regions and one virtualized
+list that realizes 27 of 100 000 items) and drives the production headless frame path: style, Yoga
+layout, scene-style sync, damage/redraw planning, and paint into draw lists. Every paint command is
+recorded through the null RHI (`Batched2DRenderer`). There is no GPU, window, system font, network
+or clock input: text measurement is the engine's deterministic stub, so the only machine dependence
+is CPU speed.
+
+Reference measurement (Windows 11, AMD Ryzen 5 4600H, 12 logical cores, MSVC 19.51, Release Ninja,
+DPI scale 1, 7 measured runs after 2 warm-up runs; median and p95):
+
+| Metric at 12 000 nodes | Reference median (p95) | Committed budget |
+|---|---|---|
+| First style + layout | 739 ms (757 ms) | 4500 ms |
+| Full paint into draw lists | 75 ms (78 ms) | 500 ms |
+| Layout + paint after changing one text node | 296 ms (301 ms) | 1800 ms |
+| Layout + paint after changing one container's size | 296 ms (313 ms) | 1800 ms |
+| Redraw plan regions (max of the three frames) | 2 | 8 |
+| Draw calls / quads / draw-list primitives | 44 / 65 / 9596 | 64 / 128 / 12000 |
+
+The budget file is `tests/golden/perf/cpu_benchmark.txt`; each time budget is about six times the
+reference median, which keeps roughly a factor of two on top of a presumed 3x-slower two-core
+gating runner. It catches order-of-magnitude regressions and does not rank machines. Every run
+prints the full table (times, damage count, draw calls, primitive count) into the CTest log, so CI
+history shows the trend.
+
+**Trigger.** Revisit the V1 decision of no render thread and no worker recording when
+`paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the
+measured paint is 75 ms, about nineteen times the 4 ms trigger and 4.5x the 60 Hz frame budget
+(16.7 ms), so the trigger is currently exceeded; issue #241 records the measurement and the V1
+design is unchanged pending that discussion. The paint number is draw-list building only: glyph
+rasterization is excluded because the benchmark runs without a font, and the scene paints all
+12 000 nodes because the paint pass has no viewport culling. "First style + layout" includes the
+full CSS cascade; the benchmark's resolved-style table drops longhands that still equal their
+registry initial value, which keeps 12 000 computed styles at a few megabytes and lets layout and
+paint measure their own work instead of re-copying ~90 default longhands per node. Do not claim
+parallelism without a measured gain on this benchmark.
 
 ## 10. Open questions
 

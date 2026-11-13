@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+#
+# CPU benchmark budget (issue #241; measured numbers and machine in docs/design/performance.md
+# section 9.1). This is an order-of-magnitude regression detector for the CI runners, not a speed
+# ranking: every time budget is a generous multiple of the reference measurement, and the counters
+# carry headroom too. Times are compared on the median of `runs` measured runs after `warmup_runs`.
+#
+# Raise a budget only with a recorded decision (a comment on the issue or an ADR), the same rule as
+# tests/golden/memory/.
+
+nodes = 12000
+runs = 7
+warmup_runs = 2
+
+# Wall-clock budgets in integer milliseconds; see the table the test prints on every run. They are
+# about six times the reference machine's median, which leaves roughly a factor of two on top of a
+# presumed 3x-slower two-core gating runner: a real order-of-magnitude regression still fails, while
+# CI noise and a loaded shared machine cannot.
+max_first_style_layout_ms = 4500
+max_full_paint_ms = 500
+max_layout_paint_text_ms = 1800
+max_layout_paint_container_ms = 1800
+
+# Redraw and batching counters from the full paint. These are deterministic on every run, so they
+# are compared with a small headroom rather than a factor; a changed count means the draw-list or
+# batching story changed.
+max_damage_rects = 8
+max_draw_calls = 64
+max_quads = 128
+max_primitives = 12000

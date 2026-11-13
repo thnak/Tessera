@@ -333,7 +333,9 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `docs/design/gpu/offscreen-layers.md`, `docs/design/paint-pass.md` §14, tests `renderer_seam`,
       `renderer_seam_gpu`, `rhi_null` (300-frame bounded pool, byte-identical no-break commands).
 - [ ] #244: `backdrop-filter` glass, two-pass Gaussian, damage rules (seam from #242 landed).
-- [ ] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget.
+- [x] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget —
+      `tests/benchmarks/cpu/` (CTest `cpu_benchmark`), `tests/golden/perf/cpu_benchmark.txt`,
+      measured table and the paint trigger in `docs/design/performance.md` §9.1.
 - [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
 - [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
 - [ ] #247: `pointer-events`, `user-select` and `aspect-ratio` registered and implemented (#214).
