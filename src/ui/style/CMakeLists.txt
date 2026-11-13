@@ -18,6 +18,7 @@ add_library(tessera_style STATIC
     stylesheet_blob_read.cpp
     stylesheet_blob_write.cpp
     property_registry.cpp
+    property_registry_extra.cpp
     property_value_validation.cpp
     scene_style.cpp
     scroll_style_sync.cpp
@@ -79,4 +80,14 @@ if (TESSERA_BUILD_TESTS)
         tessera_lowering
         tessera_ir)
     add_test(NAME part_attribute COMMAND part_attribute_tests)
+
+    # The V1 compatibility matrix and the registry must agree (issue #250). The matrix's property
+    # list is a machine-readable file next to the spec, so the test reads it instead of parsing the
+    # markdown table. Registered here for the same reason as the lanes above.
+    add_executable(property_registry_matrix_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/property_registry_matrix_tests.cpp)
+    target_link_libraries(property_registry_matrix_tests PRIVATE tessera_style)
+    target_compile_definitions(property_registry_matrix_tests PRIVATE
+        TESSERA_STYLESHEET_SPEC_DIR="${PROJECT_SOURCE_DIR}/docs/specs")
+    add_test(NAME property_registry_matrix COMMAND property_registry_matrix_tests)
 endif()
