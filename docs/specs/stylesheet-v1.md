@@ -220,6 +220,8 @@ The property registry expands shorthands into longhands before the cascade:
 - `background`, `font`, `flex`, `gap`, `overflow`, `transition`, `animation`
 - `inset` (top/right/bottom/left)
 - `place-items`, `place-content`
+- logical: `margin-inline`, `padding-inline`, `inset-inline`, `border-inline-width/style/color`,
+  `border-inline-start`, `border-inline-end` (section 11.1)
 
 If a shorthand contains an unsupported component, keep the supported longhands and emit one
 diagnostic.
@@ -367,7 +369,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
-| Layout direction | LTR and RTL via `direction`; logical properties (`margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*`, `text-align: start/end`), issue #230 | scroll and overscroll mirroring |
+| Layout direction | `direction` (`ltr`/`rtl`, inherited, per node); physical properties (`left`, `right`, `margin-left`, ...) stay physical; the logical inline-axis properties `margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*` and `text-align: start/end` mirror with the computed direction (section 11.1) | scroll and overscroll mirroring (offsets, scrollbars, overscroll effects stay physical) |
 
 **V1 decisions for the Paint/Transforms rows (decided 2026-11-10; the code matches):**
 
@@ -397,6 +399,42 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
   other unsupported declarations (below).
 - `FramePipeline::sync_style` (between layout and `finish_frame`) copies these values onto the
   scene; nothing in a production loop calls it yet.
+
+### 11.1 Logical properties and the direction contract
+
+`direction` is inherited and stored on every computed style; layout passes it to Yoga per node
+(`YGDirectionLTR`/`YGDirectionRTL`, [`layout.md`](../design/layout.md) section 6). A node's logical
+longhands resolve against its own computed `direction`, so the same stylesheet mirrors between LTR
+and RTL layouts.
+
+| Group | Longhands | Shorthands |
+|---|---|---|
+| Margin | `margin-inline-start`, `margin-inline-end` | `margin-inline` (1-2 values) |
+| Padding | `padding-inline-start`, `padding-inline-end` | `padding-inline` (1-2 values) |
+| Insets | `inset-inline-start`, `inset-inline-end` | `inset-inline` (1-2 values) |
+| Border | `border-inline-start/end-width/style/color` | `border-inline-width/style/color` (1-2 values), `border-inline-start`, `border-inline-end` (`<width> \|\| <style> \|\| <color>`) |
+
+- The inline-start side is the physical `left` in LTR and the physical `right` in RTL; inline-end is
+  the other side. Layout maps the longhands to Yoga's `Start`/`End` edges, which Yoga resolves
+  against the node's own direction; paint applies the same mapping to the `border-inline-*` colors
+  and to `text-align`.
+- Physical properties are unchanged: `left`/`right`, `margin-left`/`-right` and the like always mean
+  the physical side, so mirroring is opt-in per property instead of implicit.
+- A declared logical longhand wins over the physical longhand that maps to the same side; an
+  undeclared one leaves the physical value (or its initial) in effect. Logical longhands therefore
+  store no initial value and are absent from `ComputedStyle` until declared; `initial`/`unset` on a
+  logical longhand removes the override rather than forcing the physical initial value.
+- `text-align: start | end` mirror with `direction`; `left`/`right` stay physical and `center` is
+  unchanged. `justify` is not implemented and falls back to the logical start (see
+  [`text.md`](../design/text.md) section 6).
+- `border-inline-start`/`border-inline-end` reset omitted components to their initial values (`0`,
+  `none`, `currentColor`), as shorthands do.
+- The logical mapping assumes the V1 horizontal writing mode. Vertical writing modes are parsed but
+  not laid out ([`layout.md`](../design/layout.md) section 6).
+- Scroll and overscroll mirroring (offset direction in pointer/wheel input, scrollbars, overscroll
+  effects) is **not** part of this contract and stays Later; V1 scroll offsets are physical in both
+  directions. Locale-driven mirroring uses the resolved base direction ([`i18n-v1.md`](i18n-v1.md)
+  sections 4 and 8.1).
 
 Unsupported declarations (recognized CSS that V1 does not implement; distinct from the parser's
 "unknown property" report in section 5.3) are **not** silent: they produce one diagnostic per

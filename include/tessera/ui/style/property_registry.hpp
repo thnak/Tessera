@@ -46,6 +46,9 @@ private:
         Box4,
         Pair,
         Flex,
+        // One logical border side (`border-inline-start`/`border-inline-end`): the CSS
+        // `<width> || <style> || <color>` grammar, expanded to that side's three longhands.
+        BorderSide,
     };
 
     struct ShorthandInfo {
@@ -60,6 +63,13 @@ private:
                                                       const ShorthandInfo& shorthand,
                                                       std::string_view property) const;
     [[nodiscard]] PropertyExpansionResult expand_flex(const Declaration& declaration) const;
+    [[nodiscard]] PropertyExpansionResult expand_border_side(const Declaration& declaration,
+                                                             const ShorthandInfo& shorthand,
+                                                             std::string_view property) const;
+
+    // Registers the inline-axis (direction-relative) longhands and shorthands (issue #230). Defined
+    // in `logical_properties.cpp` so this table and `expand` stay under the source line limit.
+    void register_logical_properties();
 
     std::map<std::string, PropertyInfo> properties_;
     std::map<std::string, ShorthandInfo> shorthands_;

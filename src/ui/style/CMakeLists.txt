@@ -10,6 +10,7 @@ add_library(tessera_style STATIC
     interaction_style.cpp
     interaction_values.cpp
     keyframes.cpp
+    logical_properties.cpp
     media_query.cpp
     parser.cpp
     prepared_stylesheet.cpp

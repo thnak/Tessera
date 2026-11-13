@@ -7,6 +7,7 @@
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
+#include <array>
 #include <optional>
 
 // Internal helpers between the paint pass and the style property spellings. Not installed.
@@ -33,6 +34,10 @@ rhi::Color current_color(const style::ComputedStyle& style);
 float border_width(const style::ComputedStyle& style, const char* width_property,
                    const char* style_property);
 
+// True when the computed `direction` is `rtl`. The logical inline-side longhands
+// (`*-inline-start`/`-end`) resolve to the opposite physical side from the LTR mapping.
+bool is_rtl(const style::ComputedStyle& style);
+
 // The four painted border widths for `rect`, clamped against each other so opposing edge strips
 // never overlap. A side is 0 unless its style paints it.
 struct BorderWidths {
@@ -42,6 +47,12 @@ struct BorderWidths {
     float left = 0.0f;
 };
 BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& rect);
+
+// The four painted border colors in top, right, bottom, left order. A declared logical inline-side
+// longhand overrides the physical side it maps to for the computed direction, so one stylesheet
+// mirrors its borders between LTR and RTL (stylesheet-v1 section 11).
+std::array<std::optional<rhi::Color>, 4> border_colors(const style::ComputedStyle& style,
+                                                       const rhi::Color& current_color);
 
 // The padding box (the CSS child clip region): the border box inset by border_widths(style, rect),
 // so children cannot paint over the border. Empty when the insets consume the box, so callers skip

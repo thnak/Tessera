@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -145,10 +146,16 @@ void apply_dimension(YGNodeRef node, const ComputedStyle& style, const char* nam
     }
 }
 
+// Physical edges first, then the logical inline-axis edges. Yoga resolves `Start`/`End` against the
+// node's own `direction` and prefers them over the physical edge they map to, so a declared
+// logical longhand overrides that physical side and an undeclared one leaves it in effect
+// (stylesheet-v1 section 11).
 void apply_margin(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& viewport) {
-    constexpr const char* names[] = {"margin-top", "margin-right", "margin-bottom", "margin-left"};
-    constexpr YGEdge edges[] = {YGEdgeTop, YGEdgeRight, YGEdgeBottom, YGEdgeLeft};
-    for (std::size_t i = 0; i < 4; ++i) {
+    constexpr const char* names[] = {"margin-top",  "margin-right",        "margin-bottom",
+                                     "margin-left", "margin-inline-start", "margin-inline-end"};
+    constexpr YGEdge edges[] = {YGEdgeTop,  YGEdgeRight, YGEdgeBottom,
+                                YGEdgeLeft, YGEdgeStart, YGEdgeEnd};
+    for (std::size_t i = 0; i < std::size(edges); ++i) {
         const std::string* value = property(style, names[i]);
         if (value == nullptr) {
             continue;
@@ -171,10 +178,11 @@ void apply_margin(YGNodeRef node, const ComputedStyle& style, const LayoutViewpo
 }
 
 void apply_padding(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& viewport) {
-    constexpr const char* names[] = {"padding-top", "padding-right", "padding-bottom",
-                                     "padding-left"};
-    constexpr YGEdge edges[] = {YGEdgeTop, YGEdgeRight, YGEdgeBottom, YGEdgeLeft};
-    for (std::size_t i = 0; i < 4; ++i) {
+    constexpr const char* names[] = {"padding-top",  "padding-right",        "padding-bottom",
+                                     "padding-left", "padding-inline-start", "padding-inline-end"};
+    constexpr YGEdge edges[] = {YGEdgeTop,  YGEdgeRight, YGEdgeBottom,
+                                YGEdgeLeft, YGEdgeStart, YGEdgeEnd};
+    for (std::size_t i = 0; i < std::size(edges); ++i) {
         const std::string* value = property(style, names[i]);
         if (value == nullptr) {
             continue;
@@ -188,13 +196,40 @@ void apply_padding(YGNodeRef node, const ComputedStyle& style, const LayoutViewp
     }
 }
 
+// Width of one inline-axis border side in px: the logical width/style longhands override the
+// physical side they map to, and an absent logical longhand falls back to that physical side (the
+// same precedence Yoga applies to Start/End). A side without a painting style contributes 0.
+float inline_border_width(const ComputedStyle& style, const char* logical_width,
+                          const char* logical_style, const char* physical_width,
+                          const char* physical_style, const LayoutViewport& viewport) {
+    const std::string* style_value = property(style, logical_style);
+    if (style_value == nullptr) {
+        style_value = property(style, physical_style);
+    }
+    if (!is_keyword(style_value, "solid") && !is_keyword(style_value, "dotted") &&
+        !is_keyword(style_value, "dashed") && !is_keyword(style_value, "double") &&
+        !is_keyword(style_value, "groove") && !is_keyword(style_value, "ridge") &&
+        !is_keyword(style_value, "inset") && !is_keyword(style_value, "outset")) {
+        return 0.0f;
+    }
+    const std::string* width_value = property(style, logical_width);
+    if (width_value == nullptr) {
+        width_value = property(style, physical_width);
+    }
+    if (width_value == nullptr) {
+        return 0.0f;
+    }
+    const Length length = parse_length(*width_value, viewport);
+    return length.kind == Length::Kind::Points ? length.value : 0.0f;
+}
+
 void apply_border(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& viewport) {
     constexpr const char* widths[] = {"border-top-width", "border-right-width",
                                       "border-bottom-width", "border-left-width"};
     constexpr const char* styles[] = {"border-top-style", "border-right-style",
                                       "border-bottom-style", "border-left-style"};
     constexpr YGEdge edges[] = {YGEdgeTop, YGEdgeRight, YGEdgeBottom, YGEdgeLeft};
-    for (std::size_t i = 0; i < 4; ++i) {
+    for (std::size_t i = 0; i < std::size(edges); ++i) {
         if (is_keyword(property(style, styles[i]), "none") ||
             is_keyword(property(style, styles[i]), "hidden")) {
             YGNodeStyleSetBorder(node, edges[i], 0.0f);
@@ -209,12 +244,36 @@ void apply_border(YGNodeRef node, const ComputedStyle& style, const LayoutViewpo
             YGNodeStyleSetBorder(node, edges[i], length.value);
         }
     }
+
+    // A logical side only touches the Start/End edge when one of its longhands is declared; an
+    // undeclared one leaves the physical Left/Right border applied above in charge.
+    const bool rtl = is_keyword(property(style, "direction"), "rtl");
+    const char* start_width = rtl ? "border-right-width" : "border-left-width";
+    const char* start_style = rtl ? "border-right-style" : "border-left-style";
+    const char* end_width = rtl ? "border-left-width" : "border-right-width";
+    const char* end_style = rtl ? "border-left-style" : "border-right-style";
+    if (property(style, "border-inline-start-width") != nullptr ||
+        property(style, "border-inline-start-style") != nullptr) {
+        YGNodeStyleSetBorder(node, YGEdgeStart,
+                             inline_border_width(style, "border-inline-start-width",
+                                                 "border-inline-start-style", start_width,
+                                                 start_style, viewport));
+    }
+    if (property(style, "border-inline-end-width") != nullptr ||
+        property(style, "border-inline-end-style") != nullptr) {
+        YGNodeStyleSetBorder(node, YGEdgeEnd,
+                             inline_border_width(style, "border-inline-end-width",
+                                                 "border-inline-end-style", end_width, end_style,
+                                                 viewport));
+    }
 }
 
 void apply_position(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& viewport) {
-    constexpr const char* names[] = {"top", "right", "bottom", "left"};
-    constexpr YGEdge edges[] = {YGEdgeTop, YGEdgeRight, YGEdgeBottom, YGEdgeLeft};
-    for (std::size_t i = 0; i < 4; ++i) {
+    constexpr const char* names[] = {
+        "top", "right", "bottom", "left", "inset-inline-start", "inset-inline-end"};
+    constexpr YGEdge edges[] = {YGEdgeTop,  YGEdgeRight, YGEdgeBottom,
+                                YGEdgeLeft, YGEdgeStart, YGEdgeEnd};
+    for (std::size_t i = 0; i < std::size(edges); ++i) {
         const std::string* value = property(style, names[i]);
         if (value == nullptr) {
             continue;
