@@ -116,6 +116,39 @@ void test_golden(bool update) {
           "Sample.g.hpp matches its golden; run `codegen_base_tests --write`");
 }
 
+// scaffold() and required_bindings() (ADR-040 decision item 6): one developer class per component,
+// one member per binding, sorted and deterministic.
+void test_scaffold() {
+    const auto module = make_sample_module();
+    const auto stubs = codegen::scaffold(module);
+    check(stubs.has_value(), "scaffold succeeds on the sample module");
+    if (!stubs) {
+        return;
+    }
+    check(stubs->size() == 2 && stubs->front().path == "Sample.hpp" &&
+              stubs->back().path == "Sample.cpp",
+          "scaffold returns Sample.hpp then Sample.cpp");
+    const std::string& header = stubs->front().text;
+    check(header.find("class Sample final : public gen::SampleBase<Sample>") != std::string::npos,
+          "the stub derives from the CRTP base");
+    check(header.find("friend struct gen::SampleBase<Sample>;") != std::string::npos,
+          "the stub befriends its base so the members can stay private");
+    check(header.find("#include \"Sample.g.hpp\"") != std::string::npos,
+          "the stub includes the generated base");
+    std::string error;
+    const auto required = codegen::required_bindings(module, error);
+    check(error.empty() && !required.empty(), "required_bindings lists the sample bindings");
+    for (const codegen::RequiredBinding& binding : required) {
+        check(header.find(binding.signature) != std::string::npos,
+              "every required binding is declared in the stub");
+        check(stubs->back().text.find("Sample::" + binding.member + "(") != std::string::npos,
+              "every required binding is defined in the stub source");
+    }
+    const auto again = codegen::scaffold(module);
+    check(again && again->front().text == header && again->back().text == stubs->back().text,
+          "scaffold is deterministic");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -125,6 +158,7 @@ int main(int argc, char** argv) {
     }
     test_shape();
     test_determinism_and_legacy();
+    test_scaffold();
     test_golden(false);
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";

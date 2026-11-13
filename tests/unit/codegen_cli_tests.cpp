@@ -331,6 +331,68 @@ int main(int argc, char** argv) {
     check(from_config(work / "cfg-f") == 1, "a malformed tessera.json exits 1");
     check(!fs::exists(work / "cfg-f" / "Demo.cpp"), "a bad config produces no output");
 
+    // ADR-040 `--mode base`: the generated base is regenerated wholesale, the developer files are
+    // scaffolded once and never edited, and drift in them is reported as warnings.
+    {
+        const fs::path base_out = work / "base-out";
+        fs::create_directories(base_out);
+        const std::string base_args = "--mode base " + codegen_arguments(base_out, sample_dir);
+        check(run_cli(cli, "--write " + base_args, log_dir) == 0,
+              "base: the first --write exits 0");
+        check(fs::exists(base_out / "Demo.g.hpp"), "base: writes Demo.g.hpp");
+        check(!fs::exists(base_out / "Demo.cpp.merged"), "base: no merge artifacts");
+        const std::string stub_header = read_file(base_out / "Demo.hpp");
+        check(stub_header.find("class Demo final : public gen::DemoBase<Demo>") !=
+                  std::string::npos,
+              "base: scaffolds the developer class deriving from the generated base");
+        check(stub_header.find("// bind::sync") != std::string::npos,
+              "base: the stub carries a marker per binding");
+        check(read_file(base_out / "Demo.cpp").find("Demo::sync()") != std::string::npos,
+              "base: scaffolds a definition per binding");
+
+        // A developer edit survives a rerun; the generated file stays unchanged.
+        write_file(base_out / "Demo.cpp", read_file(base_out / "Demo.cpp") + "\n// mine\n");
+        check(run_cli(cli, "--verbose --write " + base_args, log_dir) == 0, "base: rerun exits 0");
+        check(read_file(base_out / "Demo.cpp").find("// mine") != std::string::npos,
+              "base: an existing developer file is never overwritten");
+        check(read_file(log_dir / "cli.log").find("Demo.g.hpp: unchanged") != std::string::npos,
+              "base: the generated header is reported unchanged");
+
+        // A binding the developer file does not define is a warning, not a failure.
+        std::string trimmed = read_file(base_out / "Demo.hpp");
+        for (const char* needle : {"void sync_cleanup();", "// bind::sync_cleanup"}) {
+            const std::size_t at = trimmed.find(needle);
+            if (at != std::string::npos) {
+                trimmed.erase(at, std::string_view(needle).size());
+            }
+        }
+        write_file(base_out / "Demo.hpp", trimmed);
+        write_file(base_out / "Demo.cpp", read_file(base_out / "Demo.cpp"));
+        std::string no_cleanup = read_file(base_out / "Demo.cpp");
+        for (std::size_t at; (at = no_cleanup.find("sync_cleanup(")) != std::string::npos;) {
+            no_cleanup.replace(at, 13, "gone_cleanup(");
+        }
+        write_file(base_out / "Demo.cpp", no_cleanup);
+        check(run_cli(cli, "--write " + base_args, log_dir) == 0,
+              "base: a missing binding exits 0");
+        check(read_file(log_dir / "cli.log").find("TESSERA_CG_MISSING_BINDING") !=
+                  std::string::npos,
+              "base: a missing binding is reported with its code");
+
+        // --check: clean, then drift in the generated header only.
+        check(run_cli(cli, "--check " + base_args, log_dir) == 0,
+              "base: --check is 0 when current");
+        write_file(base_out / "Demo.g.hpp", read_file(base_out / "Demo.g.hpp") + "// drift\n");
+        check(run_cli(cli, "--check " + base_args, log_dir) == 1,
+              "base: --check reports drift of the generated header");
+        check(run_cli(cli, "--write " + base_args, log_dir) == 0,
+              "base: --write repairs the drift");
+        check(read_file(base_out / "Demo.g.hpp").find("// drift") == std::string::npos,
+              "base: the generated header is overwritten");
+        check(run_cli(cli, "--mode other " + codegen_arguments(base_out, sample_dir), log_dir) == 2,
+              "base: an unknown --mode exits 2");
+    }
+
     // Usage errors exit 2.
     check(run_cli(cli, "", log_dir) == 2, "no arguments exits 2");
     check(run_cli(cli, "--out " + quoted(work / "no-input-out"), log_dir) == 2,

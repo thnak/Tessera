@@ -7,6 +7,7 @@
 
 #include "codegen_dynamic_module.hpp"
 #include "codegen_dynamic_virtual_module.hpp"
+#include "codegen_sample_module.hpp"
 #include "codegen_vector_module.hpp"
 #include "codegen_virtual_module.hpp"
 #include "forms_codegen_fixture.hpp"
@@ -139,6 +140,24 @@ bool emit(const ir::IrModule& module, const std::filesystem::path& dir) {
     return true;
 }
 
+// The sample module with its developer stubs from scaffold(): the stubs must compile against the
+// generated base without any hand-written developer class (ADR-040 decision item 6).
+bool emit_with_scaffold(const ir::IrModule& module, const std::filesystem::path& dir) {
+    const auto base = codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    const auto stubs = codegen::scaffold(module);
+    if (!base || !stubs) {
+        std::cerr << module.name << ": base or scaffold failed\n";
+        return false;
+    }
+    std::filesystem::create_directories(dir);
+    for (const auto* files : {&*base, &*stubs}) {
+        for (const codegen::GeneratedFile& file : *files) {
+            std::ofstream(dir / file.path, std::ios::binary | std::ios::trunc) << file.text;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -153,6 +172,9 @@ int main(int argc, char** argv) {
     ok = emit(tessera::test::codegen_virtual::make_virtual_module(), dir) && ok;
     ok = emit(tessera::test::codegen_vector::make_vector_module(), dir) && ok;
     ok = emit(make_compose_module(), dir) && ok;
+    ok = emit_with_scaffold(tessera::test::codegen_sample::make_sample_module(),
+                            dir / "scaffold_sample") &&
+         ok;
     ok = emit(forms_codegen_fixture::make_forms_module(), dir) && ok;
     return ok ? 0 : 1;
 }

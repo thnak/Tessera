@@ -66,6 +66,28 @@ using CodegenResult = std::expected<std::vector<GeneratedFile>, CodegenErrors>;
                                      std::optional<EmbeddedTheme> theme = std::nullopt,
                                      EmitMode mode = EmitMode::Legacy);
 
+// One member the developer class of a component must define (ADR-040 decision item 3): the
+// `bind::<id>` of the TSX, the member name, the declaration a developer writes and the TSX
+// location, in component-name then IR order.
+struct RequiredBinding {
+    std::string component;
+    std::string id;        // `bind::sync`
+    std::string member;    // `sync`
+    std::string signature; // `void sync()`
+    std::string source;    // `ui/Counter.tsx:12:5`
+};
+
+// The members every developer class must define. Empty with `error` set when a binding names a
+// payload or return type that has no C++ form.
+[[nodiscard]] std::vector<RequiredBinding> required_bindings(const ir::IrModule& module,
+                                                             std::string& error);
+
+// The developer-owned stubs of every component (ADR-040 decision item 6): `<Component>.hpp`
+// declares `<Component> final : public gen::<Component>Base<<Component>>` with one private member
+// per binding and the friend declaration, `<Component>.cpp` defines them with a TODO body. The CLI
+// writes these only when they do not exist and never rewrites them.
+[[nodiscard]] CodegenResult scaffold(const ir::IrModule& module);
+
 // Non-fatal findings for `module`, one `TESSERA_CG_*: ...` string each, in a deterministic order.
 // Today: a stylesheet of the module that the caller supplied no blob for is
 // `TESSERA_CG_STYLESHEET_NOT_EMBEDDED`, because generated code has no other way to deliver its CSS

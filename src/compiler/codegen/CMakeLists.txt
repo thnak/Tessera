@@ -5,6 +5,7 @@
 add_library(tessera_codegen STATIC
     src/codegen.cpp
     src/emit_base.cpp
+    src/scaffold.cpp
     src/emit_component.cpp
     src/emit_composition.cpp
     src/emit_conditional.cpp
@@ -227,7 +228,10 @@ if (TESSERA_BUILD_TESTS)
                 ${_tessera_codegen_base_fixture_dir}/demo/Field.g.hpp
                 ${_tessera_codegen_base_fixture_dir}/demo/FieldPage.g.hpp
                 ${_tessera_codegen_base_fixture_dir}/demo/Form.g.hpp
-                ${_tessera_codegen_base_fixture_dir}/demo/FormPage.g.hpp)
+                ${_tessera_codegen_base_fixture_dir}/demo/FormPage.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/scaffold_sample/Sample.g.hpp
+                ${_tessera_codegen_base_fixture_dir}/scaffold_sample/Sample.hpp
+                ${_tessera_codegen_base_fixture_dir}/scaffold_sample/Sample.cpp)
             add_custom_command(
                 OUTPUT ${_tessera_codegen_base_fixture_headers}
                 COMMAND codegen_base_emit_fixtures ${_tessera_codegen_base_fixture_dir}
@@ -241,6 +245,8 @@ if (TESSERA_BUILD_TESTS)
                 ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/vicon.cpp
                 ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/compose.cpp
                 ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/forms.cpp
+                # The scaffold() stubs of the sample module: they must compile unedited.
+                ${_tessera_codegen_base_fixture_dir}/scaffold_sample/Sample.cpp
                 ${_tessera_codegen_base_fixture_headers})
             target_include_directories(codegen_base_fixtures_compile PRIVATE
                 # Generated parents include their children's developer headers (`#include "Card.hpp"`).
@@ -250,7 +256,8 @@ if (TESSERA_BUILD_TESTS)
                 ${_tessera_codegen_base_fixture_dir}/vlist
                 ${_tessera_codegen_base_fixture_dir}/vicon
                 ${_tessera_codegen_base_fixture_dir}/compose
-                ${_tessera_codegen_base_fixture_dir}/demo)
+                ${_tessera_codegen_base_fixture_dir}/demo
+                ${_tessera_codegen_base_fixture_dir}/scaffold_sample)
             target_link_libraries(codegen_base_fixtures_compile PRIVATE
                 tessera_scene tessera_virtual tessera_layout tessera_text_edit tessera_animation
                 tessera_forms)

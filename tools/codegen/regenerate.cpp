@@ -207,8 +207,9 @@ std::string derive_module_name(const std::string& input) {
 
 bool generate_files(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
                     const std::optional<EmbeddedTheme>& theme, std::vector<GeneratedFile>& files,
-                    Outcome& outcome, std::string_view input) {
-    const auto generated = generate(module, embeds, theme);
+                    Outcome& outcome, std::string_view input, bool generated_base) {
+    const auto generated = generate(module, embeds, theme,
+                                    generated_base ? EmitMode::GeneratedBase : EmitMode::Legacy);
     if (!generated) {
         const CodegenErrors& errors = generated.error();
         report(outcome, true,
@@ -222,6 +223,107 @@ bool generate_files(const ir::IrModule& module, std::span<const StylesheetEmbed>
         report(outcome, false, std::string(input) + ": warning: " + warning);
     }
     return true;
+}
+
+bool is_word_char(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+// True when `text` contains `member(` as a whole word, i.e. a declaration, definition or call.
+bool defines_member(std::string_view text, std::string_view member) {
+    const std::string needle = std::string(member) + "(";
+    for (std::size_t at = text.find(needle); at != std::string_view::npos;
+         at = text.find(needle, at + 1)) {
+        if (at == 0 || !is_word_char(text[at - 1])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ADR-040 decision item 6: the developer files are written once, never edited afterwards. An
+// existing developer file is only checked: a binding it does not define yet is reported with the
+// stub to add, and a stub marker (`// bind::<id>`) whose binding left the TSX is reported unused.
+void handle_developer_files(const ir::IrModule& module, const fs::path& output_dir, bool check_only,
+                            bool verbose, Outcome& outcome) {
+    const auto stubs = scaffold(module);
+    if (!stubs) {
+        report(outcome, true, "tessera_codegen: " + stubs.error().front());
+        outcome.exit_code = 1;
+        return;
+    }
+    std::string error;
+    const std::vector<RequiredBinding> required = required_bindings(module, error);
+    std::set<std::string> components;
+    for (const GeneratedFile& stub : *stubs) {
+        components.insert(fs::path(stub.path).stem().string());
+    }
+    for (const std::string& component : components) {
+        const fs::path header = output_dir / (component + ".hpp");
+        const fs::path source = output_dir / (component + ".cpp");
+        const bool exists = fs::exists(header) || fs::exists(source);
+        if (!exists) {
+            if (check_only) {
+                continue; // developer files are not generated content: nothing to drift from
+            }
+            for (const GeneratedFile& stub : *stubs) {
+                if (fs::path(stub.path).stem().string() != component) {
+                    continue;
+                }
+                std::ofstream out(output_dir / stub.path, std::ios::binary | std::ios::trunc);
+                out << stub.text;
+                if (!out) {
+                    report(outcome, true,
+                           "tessera_codegen: cannot write `" + (output_dir / stub.path).string() +
+                               "`");
+                    outcome.exit_code = 2;
+                    return;
+                }
+                if (verbose) {
+                    report(outcome, false, (output_dir / stub.path).string() + ": scaffolded");
+                }
+            }
+            continue;
+        }
+        const std::string text =
+            read_file(header).value_or("") + "\n" + read_file(source).value_or("");
+        std::set<std::string> ids;
+        for (const RequiredBinding& binding : required) {
+            if (binding.component != component) {
+                continue;
+            }
+            ids.insert(binding.id);
+            if (!defines_member(text, binding.member)) {
+                report(outcome, false,
+                       header.string() + ": warning: TESSERA_CG_MISSING_BINDING: component `" +
+                           component + "` needs `" + binding.signature + "` for " + binding.id +
+                           " (" + binding.source + "); add it to the developer class");
+            }
+        }
+        std::size_t line_start = 0;
+        while (line_start < text.size()) {
+            const std::size_t line_end = text.find('\n', line_start);
+            std::string_view line(text.data() + line_start,
+                                  (line_end == std::string::npos ? text.size() : line_end) -
+                                      line_start);
+            line_start = line_end == std::string::npos ? text.size() : line_end + 1;
+            while (!line.empty() && (line.front() == ' ' || line.front() == '\t')) {
+                line.remove_prefix(1);
+            }
+            constexpr std::string_view kMarker = "// bind::";
+            if (line.substr(0, kMarker.size()) != kMarker) {
+                continue;
+            }
+            std::string id(line.substr(3));
+            id = id.substr(0, id.find_first_of(" ("));
+            if (ids.count(id) == 0) {
+                report(outcome, false,
+                       header.string() + ": warning: TESSERA_CG_BINDING_UNUSED: `" + id +
+                           "` is no longer in the TSX of component `" + component +
+                           "`; its developer member is now unused");
+            }
+        }
+    }
 }
 
 } // namespace
@@ -515,7 +617,8 @@ Outcome run(const Options& options) {
     }
 
     std::vector<GeneratedFile> files;
-    if (!generate_files(module, *embeds, theme, files, outcome, options.inputs.front())) {
+    if (!generate_files(module, *embeds, theme, files, outcome, options.inputs.front(),
+                        options.generated_base)) {
         return outcome;
     }
 
@@ -549,7 +652,15 @@ Outcome run(const Options& options) {
         const std::optional<std::string> existing =
             fs::exists(target) ? read_file(target) : std::nullopt;
         std::string content = file.text;
-        if (existing) {
+        if (existing && options.generated_base) {
+            // The generated base is regenerated wholesale: no regions, nothing to merge.
+            if (*existing == content) {
+                if (options.verbose) {
+                    report(outcome, false, target.string() + ": unchanged");
+                }
+                continue;
+            }
+        } else if (existing) {
             tessera::compiler::MergeResult merged = tessera::compiler::merge(file.text, *existing);
             for (const std::string& warning : merged.warnings) {
                 report(outcome, false, target.string() + ": warning: " + warning);
@@ -577,6 +688,9 @@ Outcome run(const Options& options) {
         if (options.verbose) {
             report(outcome, false, target.string() + ": written");
         }
+    }
+    if (options.generated_base && outcome.exit_code == 0) {
+        handle_developer_files(module, output_dir, options.check_only, options.verbose, outcome);
     }
     if (drift) {
         outcome.exit_code = 1;

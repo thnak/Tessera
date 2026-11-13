@@ -24,6 +24,11 @@ constexpr std::string_view kUsage =
     "  --out DIR         output directory for the generated .hpp/.cpp files\n"
     "  --check           fail (exit 1) when DIR is out of date; writes nothing\n"
     "  --write           regenerate and merge with existing developer regions (default)\n"
+    "  --mode base|legacy\n"
+    "                    base: write <Component>.g.hpp (the ADR-040 generated base) and, once,\n"
+    "                    the developer <Component>.hpp/.cpp stubs; existing developer files are\n"
+    "                    never edited, only checked for missing bindings. legacy: protected\n"
+    "                    regions (default for now)\n"
     "  --emit-ir FILE    write the canonical IR JSON of the lowered module and no C++\n"
     "  --ir-out FILE     alias of --emit-ir\n"
     "  --emit-library-cpp FILE\n"
@@ -59,7 +64,8 @@ int main(int argc, char** argv) {
         } else if (arg == "--verbose") {
             options.verbose = true;
         } else if (arg == "--out" || arg == "--namespace" || arg == "--salt" || arg == "--root" ||
-                   arg == "--emit-ir" || arg == "--ir-out" || arg == "--emit-library-cpp") {
+                   arg == "--emit-ir" || arg == "--ir-out" || arg == "--emit-library-cpp" ||
+                   arg == "--mode") {
             if (i + 1 >= argc) {
                 return usage_error("`" + std::string(arg) + "` needs a value");
             }
@@ -75,6 +81,11 @@ int main(int argc, char** argv) {
                 options.emit_ir_path = value;
             } else if (arg == "--emit-library-cpp") {
                 options.emit_library_cpp_path = value;
+            } else if (arg == "--mode") {
+                if (value != "base" && value != "legacy") {
+                    return usage_error("`--mode` takes `base` or `legacy`");
+                }
+                options.generated_base = value == "base";
             } else {
                 options.module_name = value;
             }

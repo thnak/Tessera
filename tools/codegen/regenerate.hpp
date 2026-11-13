@@ -15,6 +15,10 @@ struct Options {
     std::string output_dir;
     std::string module_name; // --namespace; empty derives it from the first input
     bool check_only = false; // --check (mutually exclusive with the default --write)
+    // --mode base: emit the ADR-040 generated base (`<Component>.g.hpp`, regenerated wholesale, no
+    // merging) and write the developer stubs `<Component>.hpp/.cpp` only when they do not exist.
+    // Legacy (the default until the one-path migration lands) merges protected regions.
+    bool generated_base = false;
     bool verbose = false;
     // --salt: overrides the id salt. By default the salt is `app.namespace` of the tessera.json at
     // --root or found above the first input (docs/specs/project-config-v1.md); with neither, the

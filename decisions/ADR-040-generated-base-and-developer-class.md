@@ -163,8 +163,19 @@ writes a generated field directly fails to compile (`codegen_base_private_field_
 the right signature; the static_assert in `build()` is the authoritative check (it runs inside the
 friend, so private developer handlers work).
 
-Known limits, closed by the later slices: the CLI does not expose the mode or write the developer
-files yet (#209); `compiler-demo` and the merger still use the legacy path (#210); documents still
+Scaffold and CLI (issue #209, 2026-11-13): `codegen::scaffold(module)` returns the developer
+`<Component>.hpp/.cpp` stubs (a `final` class deriving from the base, a `friend` declaration, one
+private member per `bind::` id with its signature and a TODO body), and
+`codegen::required_bindings()` lists the members a developer class must define. The CLI takes
+`--mode base|legacy` (legacy stays the default until #210/#219 land): in base mode it regenerates
+`<Component>.g.hpp` wholesale (no merge), writes the stubs only when the developer files do not
+exist, never edits an existing developer file, warns `TESSERA_CG_MISSING_BINDING` for a binding the
+file does not define and `TESSERA_CG_BINDING_UNUSED` for a `// bind::<id>` marker whose binding left
+the TSX; `--check` compares only the generated header. Tested by `codegen_base_tests`
+(`test_scaffold`), `codegen_cli_tests` (base block) and a build-time compile of the unedited stubs
+of the sample module (`codegen_base_fixtures_compile`).
+
+Known limits, closed by the later slices: `compiler-demo` and the merger still use the legacy path (#210); documents still
 describe protected regions (#211). A child component in a parent is the child's developer class, so
 a parent's header includes `<Child>.hpp`.
 
