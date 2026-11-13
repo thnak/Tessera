@@ -222,6 +222,11 @@ bool WindowHost::Impl::pump_once() {
     const std::uint32_t presented = stats.presented;
     const FrameResult outcome = render_and_present(frame.render.full_redraw);
     if (outcome != FrameResult::Presented) {
+        // Same rule as run(): the skipped frame consumed the repaint request and the damage plan,
+        // so latch the whole target again or the retry would present nothing.
+        if (outcome == FrameResult::Skipped) {
+            host->request_full_repaint();
+        }
         return false;
     }
     pacer.present(hal::steady_now_seconds());

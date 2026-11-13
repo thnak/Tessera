@@ -17,9 +17,11 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <thread>
 #include <utility>
 
 #ifndef TESSERA_TEST_FONT
@@ -36,6 +38,21 @@ using tessera::runtime::ManualClock;
 using tessera::ui::Node;
 using tessera::ui::PaintData;
 using tessera::ui::style::compile_stylesheet;
+
+// One iteration that must present. On a real GPU with vsync the swapchain may have no free image
+// at the instant of the call (a slot is skipped until its submission completes; the loop never
+// waits on a fence), so the frame the clock asked for is not lost, only late: the dirty state stays
+// pending and a later iteration presents it. Retry for a bounded time instead of assuming the
+// device is idle; every other assertion (exactly one frame, nothing pending) is unchanged.
+bool pump_present(WindowHost& host) {
+    for (int attempt = 0; attempt < 400; ++attempt) {
+        if (host.pump_once()) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    return false;
+}
 
 // Half the default 500/500 ms caret period, plus a step that cannot land exactly on a phase
 // boundary (the visible window is half-open, so 0.5 would already be hidden).
@@ -106,7 +123,7 @@ int main() {
     // 1. Activating shows the caret immediately and the first iteration presents the startup frame.
     host.set_caret_active(true);
     if (!expect(host.caret_visible(), "activating shows the caret immediately") ||
-        !expect(host.pump_once(), "the activation iteration presents the startup frame")) {
+        !expect(pump_present(host), "the activation iteration presents the startup frame")) {
         return 1;
     }
     if (!expect(stats.caret_blinks == 0, "a policy change is not a blink flip")) {
@@ -119,7 +136,7 @@ int main() {
 
     // 1a. Just past the visible half-period: exactly one flip, one frame, caret hidden.
     clock.advance(kHalfPeriod);
-    if (!expect(host.pump_once(), "the visible -> hidden flip presents a frame")) {
+    if (!expect(pump_present(host), "the visible -> hidden flip presents a frame")) {
         return 1;
     }
     if (!expect(!host.caret_visible(), "the caret is hidden after the visible half-period") ||
@@ -132,7 +149,7 @@ int main() {
     // 1b. Just past the period boundary: visible again, one flip, one frame.
     presented = stats.presented;
     clock.advance(kHalfPeriod);
-    if (!expect(host.pump_once(), "the hidden -> visible flip presents a frame") ||
+    if (!expect(pump_present(host), "the hidden -> visible flip presents a frame") ||
         !expect(host.caret_visible(), "the caret is visible after the period boundary") ||
         !expect(stats.caret_blinks == 2, "the second flip was counted") ||
         !expect(stats.presented == presented + 1, "the second flip presented exactly one frame") ||
@@ -143,7 +160,7 @@ int main() {
     // 1c. One more half-period keeps the cadence: one flip per half-period, never two.
     presented = stats.presented;
     clock.advance(kHalfPeriod);
-    if (!expect(host.pump_once(), "the third half-period presents") ||
+    if (!expect(pump_present(host), "the third half-period presents") ||
         !expect(!host.caret_visible(), "the third half-period is hidden") ||
         !expect(stats.caret_blinks == 3, "the third flip was counted") ||
         !expect(stats.presented == presented + 1, "the third flip presented exactly one frame")) {
@@ -177,7 +194,7 @@ int main() {
     // instant.
     host.set_caret_active(true);
     if (!expect(host.caret_visible(), "reactivating shows the caret immediately") ||
-        !expect(host.pump_once(), "reactivating presents one frame") ||
+        !expect(pump_present(host), "reactivating presents one frame") ||
         !expect(stats.presented == inactive_presented + 1,
                 "reactivation presented exactly one frame") ||
         !expect(!host.pump_once(), "the reactivation left no frame pending")) {
@@ -185,7 +202,7 @@ int main() {
     }
     presented = stats.presented;
     clock.advance(kHalfPeriod);
-    if (!expect(host.pump_once(), "ticking resumed after reactivation") ||
+    if (!expect(pump_present(host), "ticking resumed after reactivation") ||
         !expect(!host.caret_visible(), "the resumed cycle hides after the half-period") ||
         !expect(stats.presented == presented + 1, "the resumed flip presented one frame")) {
         return 2;
@@ -220,7 +237,7 @@ int main() {
     //     exactly one flip for the elapsed time - a jump flips at most once.
     host.apply_metrics(snapshot(host, true, false));
     const bool pre_resume_visible = host.caret_visible();
-    if (!expect(host.pump_once(), "the resume iteration presents")) {
+    if (!expect(pump_present(host), "the resume iteration presents")) {
         return 3;
     }
     if (!expect(stats.caret_blinks == paused_blinks + 1,
@@ -234,7 +251,7 @@ int main() {
     // 3c. Ticking stays live after the resume: the next half-period flips and presents once.
     presented = stats.presented;
     clock.advance(kHalfPeriod);
-    if (!expect(host.pump_once(), "the caret keeps ticking after the resume") ||
+    if (!expect(pump_present(host), "the caret keeps ticking after the resume") ||
         !expect(stats.presented == presented + 1, "the post-resume flip presented one frame")) {
         return 3;
     }

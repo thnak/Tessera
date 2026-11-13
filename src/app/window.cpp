@@ -485,6 +485,12 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
                 }
                 break;
             }
+            // begin_frame() already consumed the latched full repaint and the damage plan, so the
+            // retry would find nothing to draw and the window would keep its stale image. A skipped
+            // frame (a busy slot, a failed acquire) asks for the whole target again.
+            if (outcome == FrameResult::Skipped) {
+                host->request_full_repaint();
+            }
             // A busy slot may free on any GPU completion; retry on the bounded backoff.
             idle(kFrameRetryWaitSeconds);
             continue;
