@@ -5,7 +5,8 @@ Status: Vulkan/null B1 implemented; WebGPU and software/lavapipe paths proposed.
 [ADR-002](../../../decisions/ADR-002-webgpu-dawn-for-wasm.md),
 [ADR-003](../../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md),
 [ADR-009](../../../decisions/ADR-009-deterministic-headless-golden-tests.md),
-[ADR-010](../../../decisions/ADR-010-macos-via-moltenvk-deferred.md),
+[ADR-010](../../../decisions/ADR-010-macos-via-moltenvk-deferred.md) (superseded in part),
+[ADR-053](../../../decisions/ADR-053-native-metal-backend.md),
 [ADR-011](../../../decisions/ADR-011-shader-authoring-and-cross-compilation.md).
 
 ## 1. Backend matrix
@@ -16,8 +17,7 @@ Status: Vulkan/null B1 implemented; WebGPU and software/lavapipe paths proposed.
 | Vulkan 1.3 | Windows/Linux/Android | B1 offscreen done | native renderer |
 | WebGPU/Dawn | Wasm/designer | proposed | browser preview, shared engine |
 | Software/lavapipe | CI | B2 | deterministic goldens/headless |
-| MoltenVK | macOS | deferred (ADR-010) | native macOS |
-| Metal native | macOS/iOS | not planned | would be a second native API |
+| Metal native | macOS/iOS | designed, post-V1 (ADR-053, [`metal-backend.md`](metal-backend.md)) | native macOS and iOS |
 
 No Vulkan inside Wasm. WebGPU is the only Wasm GPU API.
 
@@ -223,8 +223,7 @@ Loss is recoverable backend state, not an exception or a silent success:
 
 ## 10. Deferred/open
 
-- Native Metal/other backends.
-- MoltenVK production support.
+- Native Metal implementation (designed in [`metal-backend.md`](metal-backend.md)); other backends.
 - Android Vulkan device matrix.
 - WebGPU native vs browser parity.
 - Video decode/external textures.

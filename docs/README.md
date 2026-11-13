@@ -196,6 +196,8 @@ This page is the map and reading order for the framework.
   capabilities
 - [`design/gpu/webgpu-backend.md`](design/gpu/webgpu-backend.md) — WebGPU backend first slice: RHI
   requirements, mapping tables, WGSL registry, unbuilt device skeleton
+- [`design/gpu/metal-backend.md`](design/gpu/metal-backend.md) — Metal backend design: completion values,
+  resource lifetime, `CAMetalLayer` presentation, errors
 - [`design/gpu/testing.md`](design/gpu/testing.md) — GPU test pyramid/tree, goldens, CI
 - [`design/antialiasing.md`](design/antialiasing.md) — current SDF (signed distance field) AA, text/path/MSAA gaps
 - [`design/startup-and-loading.md`](design/startup-and-loading.md) — startup, loading screen,
