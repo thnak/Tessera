@@ -413,6 +413,14 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       ctest `stylesheet_startup_benchmark` behind `-DTESSERA_BENCHMARK_STYLESHEET=ON`; result in
       `docs/specs/compiled-stylesheet-v1.md` §1 (4488 fewer prepare allocations and 3.78 MB less
       churn for the identical cascade, at a 63 % larger payload).
+- [x] #271: transition declarations and the computed-style animation bridge run in the frame
+      pipeline — `src/ui/animation/style_bridge.{hpp,cpp}` (`StyleBridge::sync` diffs each rendered
+      node's computed style and calls `start_style_transitions`), `parse_style_transitions` in
+      `animation_style.cpp`, the `FramePipeline::sync_style` hook, `AppHost` installing the sheet's
+      `@keyframes` with `set_style_keyframes`, decision record in
+      `docs/design/animation-runtime.md` §9, tests `transition_wiring` and the app-host
+      `css_animation_starts_from_the_installed_keyframes` case. The five transition rows in
+      `stylesheet-property-status-v1.md` §8 are `applied`.
 - [ ] #158: ADR-051 accepted; #70 leftovers, one slice each: cross-file props aliases; object-literal prop defaults; stable
       component identity (inserting a component keeps other ids and goldens) — stable identity
       landed (`src/compiler/ids/src/assign_identity.cpp`, `tests/unit/ir_ids_stability_tests.cpp`)
