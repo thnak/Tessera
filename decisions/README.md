@@ -32,7 +32,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-020](ADR-020-window-resize-and-lifecycle.md) | Window resize, DPI (dots per inch, the display scale), and lifecycle separation | Proposed |
 | [ADR-021](ADR-021-async-runtime.md) | Async/await runtime; never block the UI thread | Proposed |
 | [ADR-022](ADR-022-diagnostics-and-profiling.md) | Structured diagnostics, tracing, and profiling | Proposed |
-| [ADR-023](ADR-023-os-event-normalization-and-foldables.md) | OS event normalization and foldable metrics | Proposed |
+| [ADR-023](ADR-023-os-event-normalization-and-foldables.md) | OS event normalization and foldable metrics | Accepted |
 | [ADR-024](ADR-024-native-first-boundaries.md) | Native-first boundaries; no production bridges | Accepted |
 | [ADR-025](ADR-025-error-boundaries.md) | Error boundaries and exception isolation | Accepted |
 | [ADR-026](ADR-026-deep-links-and-external-activation.md) | Deep links and external activation | Accepted |

@@ -1,6 +1,6 @@
 # OS events and display capabilities v1
 
-Status: proposed for Big Step B3 (window/swapchain path with resize/DPI/lifecycle, defined in
+Status: accepted for Big Step B3 (ADR-023, 2026-11-13; not yet implemented) (window/swapchain path with resize/DPI/lifecycle, defined in
 [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Researched against platform documentation
 (see §12). Decision:
 [ADR-023](../../decisions/ADR-023-os-event-normalization-and-foldables.md) (OS event

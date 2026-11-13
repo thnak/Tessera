@@ -1,6 +1,6 @@
 # ADR-023: OS event normalization and foldable metrics
 
-- Status: Proposed
+- Status: Accepted (2026-11-13, owner)
 - Date: 2026-11-07
 - Related: [ADR-017](ADR-017-input-and-fixed-step-runtime.md) (input and fixed-step runtime loop), [ADR-020](ADR-020-window-resize-and-lifecycle.md) (window resize, display scale, and lifecycle), [ADR-021](ADR-021-async-runtime.md) (async runtime), [ADR-022](ADR-022-diagnostics-and-profiling.md) (diagnostics and profiling)
 

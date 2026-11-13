@@ -268,7 +268,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       falls back to the unchanged core path. Touch/pen/XIM were exercised only at the
       translation layer and on Xvfb (no touch/pen hardware, no IM server), and nothing paints
       the pre-edit yet because there is no text editor.
-- [ ] **B3:** OS events: display capabilities, fold posture/hinge/occlusion (ADR-023, proposed).
+- [ ] **B3:** OS events (ADR-023, accepted): first slice is the normalized `OsEvent`/`WindowMetrics`/`FoldInfo`
+      types, a synthetic event injector, and display-capability events on Windows and X11 (DPI, scale,
+      refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends wait for
+      Android (V1-M7).
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C
 Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing developer C++.
@@ -359,6 +362,8 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 - [ ] Install `make_window_root_provider` from `WindowHost` (UIA host provider exists) — Narrator/
       NVDA smoke checklist.
 - [ ] Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
+- [ ] Fold posture, hinge and occlusion events on Android (ADR-023; needs the Android backend) —
+      synthetic fold sequences pass.
 - [ ] Reduced motion and dark mode queries on Linux and macOS.
 - [ ] macOS via MoltenVK + NSAccessibility; Android then iOS
       ([mobile-integration.md](docs/design/mobile-integration.md)); platform cursor shape.
