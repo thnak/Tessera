@@ -90,6 +90,7 @@ STATUS_FAMILY: Dict[str, str] = {
     "poc": "pending",
     "deferred": "pending",
     "future": "pending",
+    "post-v1": "pending",  # explicitly after V1 (dependencies.md, Cocoa/AppKit after ADR-053)
     "rejected": "pending",
     "not required": "pending",
 }
