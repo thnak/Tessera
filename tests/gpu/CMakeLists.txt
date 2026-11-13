@@ -113,6 +113,52 @@ if (TARGET tessera_rhi_vulkan)
         TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
 endif()
 
+# Backend-selectable RHI conformance suite plus its deterministic summary (ADR-049, issue #161).
+add_subdirectory(conformance)
+
+# Per-test golden tolerances: tests/golden/tolerance.json is the single source, resolved here at
+# configure time through scripts/golden_tolerances.py. A test without an explicit entry inherits the
+# file's "defaults" block, and an unknown/malformed file fails the configure step instead of
+# silently loosening what a golden accepts.
+if (NOT Python3_EXECUTABLE)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+endif()
+set(TESSERA_GOLDEN_TOLERANCE_SCRIPT "${PROJECT_SOURCE_DIR}/scripts/golden_tolerances.py")
+function(tessera_golden_tolerances name tolerance_var max_mismatch_var)
+    foreach(field tolerance max_mismatch)
+        execute_process(
+            COMMAND "${Python3_EXECUTABLE}" -B "${TESSERA_GOLDEN_TOLERANCE_SCRIPT}"
+                --name "${name}" --field "${field}"
+            OUTPUT_VARIABLE value
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE result)
+        if (NOT result EQUAL 0)
+            message(FATAL_ERROR
+                "tolerance.json: cannot resolve ${field} for '${name}' (${result}): ${value}")
+        endif()
+        if (field STREQUAL "tolerance")
+            set(tolerance "${value}")
+        else()
+            set(max_mismatch "${value}")
+        endif()
+    endforeach()
+    set(${tolerance_var} "${tolerance}" PARENT_SCOPE)
+    set(${max_mismatch_var} "${max_mismatch}" PARENT_SCOPE)
+endfunction()
+
+if (TARGET batched2d_poc)
+    tessera_golden_tolerances(batched2d_cpu_golden
+        TESSERA_TOL_CPU_GOLDEN TESSERA_MAX_CPU_GOLDEN)
+    tessera_golden_tolerances(batched2d_cpu_text_golden
+        TESSERA_TOL_CPU_TEXT TESSERA_MAX_CPU_TEXT)
+    tessera_golden_tolerances(batched2d_golden TESSERA_TOL_BATCHED2D TESSERA_MAX_BATCHED2D)
+    tessera_golden_tolerances(batched2d_overlay_golden
+        TESSERA_TOL_OVERLAY TESSERA_MAX_OVERLAY)
+    tessera_golden_tolerances(batched2d_text_golden TESSERA_TOL_TEXT TESSERA_MAX_TEXT)
+    tessera_golden_tolerances(batched2d_shapes_golden
+        TESSERA_TOL_SHAPES TESSERA_MAX_SHAPES)
+endif()
+
 if (TARGET batched2d_poc)
     add_test(
         NAME batched2d_vulkan_smoke
@@ -147,7 +193,8 @@ endif()
 if (TARGET batched2d_poc)
     add_test(
         NAME batched2d_cpu_golden
-        COMMAND batched2d_poc --backend cpu --tolerance 0 --max-mismatch 0
+        COMMAND batched2d_poc --backend cpu --tolerance ${TESSERA_TOL_CPU_GOLDEN}
+            --max-mismatch ${TESSERA_MAX_CPU_GOLDEN}
             --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_cpu_golden.png
             --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_cpu.png)
 
@@ -155,7 +202,7 @@ if (TARGET batched2d_poc)
         NAME batched2d_cpu_text_golden
         COMMAND batched2d_poc --backend cpu --cpu-text --font ${TESSERA_FONT_FIXTURE}
             --text "Tessera CPU text" --text-size 20 --width 320 --height 160
-            --tolerance 0 --max-mismatch 0
+            --tolerance ${TESSERA_TOL_CPU_TEXT} --max-mismatch ${TESSERA_MAX_CPU_TEXT}
             --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_cpu_text_golden.png
             --compare
             ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_text_cpu.png)
@@ -186,7 +233,8 @@ if (UNIX AND TARGET batched2d_poc)
     if (TESSERA_LAVAPIPE_ICD)
         add_test(
             NAME batched2d_golden
-            COMMAND batched2d_poc --backend vulkan --golden --tolerance 0 --max-mismatch 0
+            COMMAND batched2d_poc --backend vulkan --golden --tolerance ${TESSERA_TOL_BATCHED2D}
+                --max-mismatch ${TESSERA_MAX_BATCHED2D}
                 --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_golden.png
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard.png)
         set_tests_properties(batched2d_golden PROPERTIES
@@ -195,7 +243,8 @@ if (UNIX AND TARGET batched2d_poc)
         add_test(
             NAME batched2d_overlay_golden
             COMMAND batched2d_poc --backend vulkan --golden --overlay
-                --font ${TESSERA_FONT_FIXTURE} --tolerance 1 --max-mismatch 0.001
+                --font ${TESSERA_FONT_FIXTURE} --tolerance ${TESSERA_TOL_OVERLAY}
+                --max-mismatch ${TESSERA_MAX_OVERLAY}
                 --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_overlay_golden.png
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_overlay.png)
         set_tests_properties(batched2d_overlay_golden PROPERTIES
@@ -204,7 +253,8 @@ if (UNIX AND TARGET batched2d_poc)
         add_test(
             NAME batched2d_text_golden
             COMMAND batched2d_poc --backend vulkan --golden
-                --font ${TESSERA_FONT_FIXTURE} --tolerance 1 --max-mismatch 0.001
+                --font ${TESSERA_FONT_FIXTURE} --tolerance ${TESSERA_TOL_TEXT}
+                --max-mismatch ${TESSERA_MAX_TEXT}
                 --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_text_golden.png
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_text.png)
         set_tests_properties(batched2d_text_golden PROPERTIES
@@ -212,7 +262,8 @@ if (UNIX AND TARGET batched2d_poc)
 
         add_test(
             NAME batched2d_shapes_golden
-            COMMAND batched2d_poc --backend vulkan --golden --shapes --tolerance 0 --max-mismatch 0
+            COMMAND batched2d_poc --backend vulkan --golden --shapes --tolerance ${TESSERA_TOL_SHAPES}
+                --max-mismatch ${TESSERA_MAX_SHAPES}
                 --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_shapes_golden.png
                 --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/dashboard_shapes.png)
         set_tests_properties(batched2d_shapes_golden PROPERTIES

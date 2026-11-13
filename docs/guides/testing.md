@@ -425,6 +425,104 @@ Both suites are deterministic and fast: no GPU, lavapipe, font, clock, random id
   [`golden-tests-v1.md`](../specs/golden-tests-v1.md) and
   [`design/testing.md`](../design/testing.md).
 
+### 4.2 Backend-selectable harness, tolerances and the conformance summary
+
+The GPU harness selects an RHI backend at run time, keeps per-golden tolerances in
+[`tests/golden/tolerance.json`](../../tests/golden/tolerance.json), and reports a conformance
+summary per backend (issue #161). Goldens still come from lavapipe/CPU only: the conformance
+runner checks the RHI contract, it never compares pixels and never writes or updates a baseline.
+
+**Runner.** `tests/gpu/conformance/` builds `gpu_conformance`:
+
+```text
+gpu_conformance [--backend null|vulkan] [--summary <path>]
+```
+
+- `--backend` selects the device (default `null`). `null` is always available; `vulkan` needs a
+  build that includes the Vulkan backend and a device on the host.
+- `--summary` writes the deterministic JSON summary. Exit codes: `0` when every check passes or
+  skips, `1` when a check fails, `2` for a usage or I/O error.
+- A backend that cannot open a device prints `gpu_conformance: skipped (<reason>)`, still writes
+  an all-skip summary and exits `0`, so CI without a GPU stays green. The
+  `gpu_conformance_vulkan` ctest entry turns that line into a skipped test through
+  `SKIP_REGULAR_EXPRESSION`.
+
+Each check is `{name, capability, run(Device&)}` (`conformance_check.hpp`). The suite sorts checks
+by name and applies the capability gate: when a backend lacks a capability, the check is skipped
+with `missing capability: <capability>` instead of failing. Checks cover device creation and the
+reported backend, buffer round-trip, buffer out-of-range rejection, render-target/texture/pipeline
+creation, command-list record and submit, `DeviceStatus::Ready`, and the GPU-timestamp probe
+(`timestamp_capability_honest`, plus `timestamp_query_roundtrip`, which skips when
+`GpuTimestampCapability::usable()` is false). Resource sizes stay at or below 64x64.
+
+**Summary.** Byte-identical for two runs on the same backend: check names sorted, fixed key order,
+LF newlines, and no timestamps, pointers or absolute paths. Schema 1:
+
+```json
+{
+  "backend": "null",
+  "checks": [
+    {
+      "capability": "device",
+      "detail": "",
+      "name": "device_create",
+      "status": "pass"
+    }
+  ],
+  "schema": 1,
+  "totals": {
+    "fail": 0,
+    "pass": 9,
+    "skip": 1,
+    "total": 10
+  }
+}
+```
+
+`status` is `pass`, `skip` or `fail`; `detail` is empty for a pass, the skip reason for a skip
+(`missing capability: ...`) and the failure message for a fail. When a check throws, the driver
+text goes to stderr and the summary records a fixed message, so the artifact stays
+machine-independent. `tests/gpu/conformance/conformance_summary_tests.cpp` runs the null suite
+twice and asserts byte equality, a non-empty sorted check list, and pass-or-skip only.
+
+**Tolerances.** `tolerance.json` replaces the numbers hard-coded in golden registrations:
+
+```json
+{
+  "schema": 1,
+  "defaults": {"tolerance": 0, "max_mismatch": 0.0},
+  "tests": {
+    "batched2d_overlay_golden": {"tolerance": 1, "max_mismatch": 0.001},
+    "batched2d_text_golden": {"tolerance": 1, "max_mismatch": 0.001},
+    "harness_frame_capture": {"tolerance": 1, "max_mismatch": 0.001}
+  }
+}
+```
+
+`tolerance` is the per-channel 8-bit delta a pixel may still count as matching; `max_mismatch` is
+the fraction of pixels (0.0-1.0) allowed to exceed it. Names are ctest names; an unlisted golden
+falls back to `defaults`. [`scripts/golden_tolerances.py`](../../scripts/golden_tolerances.py)
+validates the file strictly and prints sorted `name<TAB>tolerance<TAB>max_mismatch` lines for
+CMake (`--json` for the canonical document, `--name <test> --field tolerance|max_mismatch` for a
+single value). Wiring one golden test:
+
+```cmake
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/golden_tolerances.py"
+            --name batched2d_overlay_golden --field tolerance
+    OUTPUT_VARIABLE BATCHED2D_OVERLAY_TOLERANCE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE result)
+if (NOT result EQUAL 0)
+    message(FATAL_ERROR "golden_tolerances.py failed for batched2d_overlay_golden")
+endif()
+```
+
+then pass `--tolerance ${BATCHED2D_OVERLAY_TOLERANCE}` (and the matching `--max-mismatch`) to the
+golden command. Two entries are still compiled into their executables (`cpu_wide_golden` stays
+bit-exact and `harness_frame_capture` keeps 1 LSB + 0.1%); their JSON entries mirror those values
+until the executables accept a CLI override.
+
 ## 5. Deterministic mode
 
 - Fixed timestep and simulated clock.
