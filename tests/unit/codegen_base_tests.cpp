@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// ADR-040 generated base (issue #157, slice 1): shape, golden, determinism and the legacy path
-// staying byte-identical. The compile side (a developer class deriving from the base, and the
-// compile-fail checks) lives in codegen_base_runtime_tests.cpp and the codegen_base_* targets.
+// ADR-040 generated base (issue #157, slice 1): shape, golden and determinism. The compile side (a
+// developer class deriving from the base, and the compile-fail checks) lives in
+// codegen_base_runtime_tests.cpp and the codegen_base_* targets.
 //
-// Deliberate golden update path: `codegen_base_tests --write` rewrites tests/golden/codegen/base/*.
+// Deliberate golden update path: `codegen_base_tests --write` rewrites
+// tests/golden/codegen/Sample.g.hpp.
 
 #include "codegen_sample_module.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
@@ -84,19 +85,11 @@ void test_shape() {
           "definitions are inline templates in the header");
 }
 
-void test_determinism_and_legacy() {
+void test_determinism() {
     const auto first = generate_base();
     const auto second = generate_base();
     check(first && second && first->front().text == second->front().text,
           "base output is byte-identical across runs");
-    const auto legacy = codegen::generate(make_sample_module());
-    check(legacy && legacy->size() == 2 && legacy->front().path == "Sample.hpp",
-          "the legacy path still emits <Component>.hpp and .cpp");
-    if (legacy) {
-        check(read_file(std::filesystem::path(TESSERA_CODEGEN_GOLDEN_DIR) / "Sample.hpp") ==
-                  (*legacy)[0].text,
-              "the legacy header golden is unchanged");
-    }
 }
 
 void test_golden(bool update) {
@@ -106,7 +99,7 @@ void test_golden(bool update) {
         return;
     }
     const std::filesystem::path path =
-        std::filesystem::path(TESSERA_CODEGEN_GOLDEN_DIR) / "base" / "Sample.g.hpp";
+        std::filesystem::path(TESSERA_CODEGEN_GOLDEN_DIR) / "Sample.g.hpp";
     if (update) {
         std::filesystem::create_directories(path.parent_path());
         std::ofstream(path, std::ios::binary | std::ios::trunc) << result->front().text;
@@ -157,7 +150,7 @@ int main(int argc, char** argv) {
         return failures == 0 ? 0 : 1;
     }
     test_shape();
-    test_determinism_and_legacy();
+    test_determinism();
     test_scaffold();
     test_golden(false);
     if (failures != 0) {

@@ -68,18 +68,9 @@ target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_style)
 set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen)
 
-# Generated sample compiled by the build: the golden below is written by `codegen_tests --write`
-# and is generated from IR, never hand-edited. The file exists in a checkout; the guard keeps the
-# first configure of a fresh worktree before the golden is written from failing.
+# Goldens of the generated base (`<Component>.g.hpp`) live here; they are written by the
+# `--write` mode of their test and are generated from IR, never hand-edited.
 set(_tessera_codegen_golden_dir ${CMAKE_SOURCE_DIR}/tests/golden/codegen)
-if (EXISTS ${_tessera_codegen_golden_dir}/Sample.cpp)
-    add_library(tessera_codegen_sample STATIC
-        ${_tessera_codegen_golden_dir}/Sample.cpp)
-    target_include_directories(tessera_codegen_sample PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_sample PRIVATE tessera_scene tessera_text_edit
-        tessera_animation)
-    target_compile_features(tessera_codegen_sample PUBLIC cxx_std_23)
-endif ()
 
 # Conditional + keyed-list fixture (generated from the hand-built IR in codegen_dynamic_tests).
 # Same deliberate golden path: `codegen_dynamic_tests --write` owns Dynamic.cpp/hpp.
@@ -156,11 +147,7 @@ if (TESSERA_BUILD_TESTS)
 
     target_link_libraries(codegen_tests PRIVATE
         tessera_codegen
-        tessera_merger
         Threads::Threads)
-
-    target_compile_definitions(codegen_tests PRIVATE
-        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME codegen_generate COMMAND codegen_tests)
 
@@ -174,7 +161,7 @@ if (TESSERA_BUILD_TESTS)
 
 
     # The developer class derives from the generated base and the generated thunks reach it.
-    set(_tessera_codegen_base_golden_dir ${_tessera_codegen_golden_dir}/base)
+    set(_tessera_codegen_base_golden_dir ${_tessera_codegen_golden_dir})
     set(_tessera_codegen_base_dev_dir ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base)
     if (EXISTS ${_tessera_codegen_base_golden_dir}/Sample.g.hpp)
         add_executable(codegen_base_runtime_tests
@@ -321,25 +308,33 @@ if (TESSERA_BUILD_TESTS)
     # End-to-end proof: build the generated sample and inspect the attached metadata, children,
     # focusability and text through the real scene API (no GPU).
     add_executable(codegen_runtime_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_runtime_tests.cpp)
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_runtime_tests.cpp
+        ${_tessera_codegen_base_dev_dir}/Sample.cpp)
 
-    target_include_directories(codegen_runtime_tests PRIVATE ${_tessera_codegen_golden_dir})
+    target_include_directories(codegen_runtime_tests PRIVATE
+        ${_tessera_codegen_golden_dir} ${_tessera_codegen_base_dev_dir})
     target_link_libraries(codegen_runtime_tests PRIVATE
-        tessera_codegen_sample
         tessera_scene
+        tessera_text_edit
+        tessera_animation
         tessera_style)
+    target_compile_features(codegen_runtime_tests PRIVATE cxx_std_23)
 
     add_test(NAME codegen_runtime COMMAND codegen_runtime_tests)
 
     # Scheduled updates (issue #5): setters schedule, the flush runs update() once.
     add_executable(codegen_schedule_runtime_tests
-        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_schedule_runtime_tests.cpp)
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_schedule_runtime_tests.cpp
+        ${_tessera_codegen_base_dev_dir}/Sample.cpp)
 
-    target_include_directories(codegen_schedule_runtime_tests PRIVATE ${_tessera_codegen_golden_dir})
+    target_include_directories(codegen_schedule_runtime_tests PRIVATE
+        ${_tessera_codegen_golden_dir} ${_tessera_codegen_base_dev_dir})
     target_link_libraries(codegen_schedule_runtime_tests PRIVATE
-        tessera_codegen_sample
         tessera_scene
+        tessera_text_edit
+        tessera_animation
         tessera_runtime)
+    target_compile_features(codegen_schedule_runtime_tests PRIVATE cxx_std_23)
 
     add_test(NAME codegen_schedule_runtime COMMAND codegen_schedule_runtime_tests)
 

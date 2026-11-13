@@ -73,7 +73,7 @@ void test_insert_child_contract() {
 
 int main() {
     test_insert_child_contract();
-    demo::gen::Sample sample;
+    demo::Sample sample;
     ui::Node root(1000);
     sample.build(root);
 
@@ -135,19 +135,18 @@ int main() {
           "clearing inline declarations restores the cascade");
     check(view.inline_style().empty(), "inline declarations are cleared");
 
-    check(sample.state_count_ == 0, "useState cell starts at its IR initial value");
-    check(sample.ref_box_ != nullptr, "useRef is assigned its target node");
-    if (sample.ref_box_ != nullptr) {
-        check_eq(sample.ref_box_->element_kind(), "Button", "ref target is the Button node");
-        check(sample.ref_box_->id() == 2, "ref target has the IR node id");
+    check(sample.count() == 0, "useState cell starts at its IR initial value");
+    check(sample.ref_box() != nullptr, "useRef is assigned its target node");
+    if (sample.ref_box() != nullptr) {
+        check_eq(sample.ref_box()->element_kind(), "Button", "ref target is the Button node");
+        check(sample.ref_box()->id() == 2, "ref target has the IR node id");
     }
 
     // Effects: mount runs once, an unchanged deps signature does not rerun.
     sample.mount();
-    check(sample.effect_sync_state_.runs == 1 && sample.effect_sync_state_.active,
-          "mount runs the effect once");
+    check(sample.syncs == 1 && sample.cleanups == 0, "mount runs the effect once");
     sample.update_effects();
-    check(sample.effect_sync_state_.runs == 1, "unchanged deps do not rerun the effect");
+    check(sample.syncs == 1, "unchanged deps do not rerun the effect");
 
     // Synthetic dispatch: the generated adapter runs at the Target phase and the setter updates the
     // state cell (the interactive end-to-end proof).
@@ -161,7 +160,7 @@ int main() {
     view.clear_dirty(ui::Dirty::All);
     label.clear_dirty(ui::Dirty::All);
     ui::dispatch_event_to(*view.children()[1], click);
-    check(sample.state_count_ == 1, "a dispatched Click runs the generated setter handler");
+    check(sample.count() == 1, "a dispatched Click runs the generated setter handler");
     check(label.dirty() == (ui::Dirty::Paint | ui::Dirty::Render),
           "the setter applies interpolation and marks Paint|Render only");
     check_eq(view.element_id(), "root-1", "the setter refreshed the dynamic id");
@@ -197,7 +196,7 @@ int main() {
         text.text_codepoint = static_cast<std::uint32_t>(character);
         ui::dispatch_event_to(input, text);
     }
-    check_eq(sample.state_name_, "Ada", "the generated setter copied the committed text");
+    check_eq(sample.name(), "Ada", "the generated setter copied the committed text");
     check_eq(sample.text_input_editor(0).buffer().text(), "Ada",
              "the generated runtime owns the edit buffer");
     if (input.paint_data()) {
@@ -212,20 +211,20 @@ int main() {
 
     // update() runs the changed effect; the text hash is unchanged, so it marks no new dirty bits.
     sample.update();
-    check(sample.effect_sync_state_.runs == 2,
-          "update() runs the effect for the changed dependency");
+    check(sample.syncs == 2 && sample.cleanups == 1,
+          "update() cleans up and reruns the effect for the changed dependency");
     label.clear_dirty(ui::Dirty::All);
     sample.update();
     check(label.dirty() == ui::Dirty::Clean, "an unchanged update marks no dirty domain");
-    check(sample.effect_sync_state_.runs == 2, "the new deps signature is stable");
+    check(sample.syncs == 2, "the new deps signature is stable");
 
-    // The developer region binding is dispatched too, but its stub leaves state alone.
+    // The developer binding is dispatched through the generated thunk to the developer class.
     ui::dispatch_event_to(*view.children()[0], click);
-    check(sample.state_count_ == 1, "the binding region runs without changing unrelated state");
+    check(sample.clicks == 1, "the developer binding ran through the generated thunk");
 
     sample.unmount();
-    check(!sample.effect_sync_state_.active, "unmount runs the cleanup and deactivates the effect");
-    check(sample.effect_sync_state_.runs == 2, "unmount does not rerun the effect");
+    check(sample.cleanups == 2, "unmount runs the cleanup");
+    check(sample.syncs == 2, "unmount does not rerun the effect");
 
     const ui::ClickEvent payload = ui::click_event(click);
     check(payload.x == 12.0f && payload.y == 8.0f, "payload record carries the pointer position");

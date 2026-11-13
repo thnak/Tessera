@@ -148,7 +148,7 @@ Slice 1 (issue #157, 2026-11-13) landed the base emitter as an opt-in mode,
   `gen::<Component>Contract<Self>` concept.
 - Accessors named after the TSX: `x()` per state, `ref_<name>()` per ref, `<name>()` per prop and
   animated value (item 2). A name that collides with a generated member is a codegen error.
-- Tested by `codegen_base_tests` (shape, golden `tests/golden/codegen/base/Sample.g.hpp`,
+- Tested by `codegen_base_tests` (shape, golden `tests/golden/codegen/Sample.g.hpp`,
   determinism), `codegen_base_runtime_tests` (a developer class reaching the thunks),
   compile-fail tests for a missing member and a wrong signature, and a build-time compile of every
   emitter family (lists, virtual collections, vector icons, composition, size observation, forms)

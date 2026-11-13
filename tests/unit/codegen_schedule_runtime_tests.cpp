@@ -43,7 +43,7 @@ void wake(void* context) {
 
 int main() {
     ui::Node root(1);
-    demo::gen::Sample sample;
+    demo::Sample sample;
     sample.build(root);
     ui::UpdateScheduler scheduler;
     Wakes wakes;
@@ -54,7 +54,7 @@ int main() {
 
     // A setter only schedules: the frame has not run, so the tree is still the old text.
     sample.set_count(3);
-    check(sample.state_count_ == 3, "the setter assigns the cell immediately");
+    check(sample.count() == 3, "the setter assigns the cell immediately");
     check(label_text(root) == "Count: 0", "scheduling does not repaint inline");
     check(wakes.count == 1, "the setter woke the loop");
 
@@ -94,23 +94,23 @@ int main() {
     {
         const int wakes_before = wakes.count;
         sample.handler_1(tessera::ui::ClickEvent{});
-        check(sample.anim_opacity_ == 1.0, "an animated set does not jump");
+        check(sample.opacity() == 1.0, "an animated set does not jump");
         check(scheduler.pending() && wakes.count > wakes_before,
               "an active tween schedules the component and wakes the loop");
         scheduler.flush();
         check(scheduler.tick(0.15), "the tween is still moving halfway");
-        check(sample.anim_opacity_ < 1.0 && sample.anim_opacity_ > 0.5,
+        check(sample.opacity() < 1.0 && sample.opacity() > 0.5,
               "the sampled value is between start and target");
         check(scheduler.pending(), "a moved value schedules an update for the same frame");
         scheduler.flush();
         check(!scheduler.tick(0.2), "the tween finishes");
-        check(sample.anim_opacity_ == 0.5, "the sampled value lands on the target");
+        check(sample.opacity() == 0.5, "the sampled value lands on the target");
         scheduler.flush();
         check(!scheduler.tick(0.016) && !scheduler.pending(), "an idle component costs no frame");
         // `animate: false` snaps and never schedules a tween.
         sample.handler_2(tessera::ui::TextChangeEvent{});
-        check(sample.anim_opacity_ == 1.0, "animate:false snaps to the value");
-        check(!sample.anim_opacity_scalar_.active(), "a snap leaves no active tween");
+        check(sample.opacity() == 1.0, "animate:false snaps to the value");
+        check(!sample.tick_animations(0.0), "a snap leaves no active tween");
         scheduler.flush();
         sample.set_count(9);
         scheduler.flush();
@@ -120,22 +120,22 @@ int main() {
     // target 0.25 from 1.0, settles exactly on it, and keeps ticking through the scheduler.
     {
         sample.handler_3(tessera::ui::ClickEvent{});
-        check(sample.anim_opacity_ == 1.0 && sample.anim_opacity_scalar_.active(),
+        check(sample.opacity() == 1.0 && sample.tick_animations(0.0),
               "a spring set starts without jumping");
         scheduler.flush();
-        double lowest = sample.anim_opacity_;
+        double lowest = sample.opacity();
         int frames = 0;
         while (scheduler.tick(1.0 / 60.0) && frames++ < 600) {
-            lowest = lowest < sample.anim_opacity_ ? lowest : sample.anim_opacity_;
+            lowest = lowest < sample.opacity() ? lowest : sample.opacity();
             scheduler.flush();
         }
         check(frames < 600, "the spring settles under the scheduler");
         check(lowest < 0.25, "an underdamped spring overshoots below its target");
-        check(sample.anim_opacity_ == 0.25, "the spring lands exactly on the target");
+        check(sample.opacity() == 0.25, "the spring lands exactly on the target");
         scheduler.flush();
         sample.handler_2(tessera::ui::TextChangeEvent{});
         scheduler.flush();
-        check(sample.anim_opacity_ == 1.0, "back to the snapped baseline");
+        check(sample.opacity() == 1.0, "back to the snapped baseline");
     }
 
     // `onComplete` (handler 4 sets the count to 7): it runs once, from the scheduler tick, when the
@@ -147,14 +147,14 @@ int main() {
         scheduler.flush();
         int frames = 0;
         while (scheduler.tick(1.0 / 60.0) && frames++ < 600) {
-            check(sample.state_count_ == 1, "the callback waits for the animation to finish");
+            check(sample.count() == 1, "the callback waits for the animation to finish");
             scheduler.flush();
         }
-        check(sample.state_count_ == 7, "the completion handler ran when the spring settled");
+        check(sample.count() == 7, "the completion handler ran when the spring settled");
         sample.set_count(1);
         scheduler.flush();
         scheduler.tick(1.0 / 60.0);
-        check(sample.state_count_ == 1, "the completion handler runs once");
+        check(sample.count() == 1, "the completion handler runs once");
 
         sample.handler_2(
             tessera::ui::TextChangeEvent{}); // baseline 1.0, so the spring really moves
@@ -168,7 +168,7 @@ int main() {
         for (int i = 0; i < 4; ++i) {
             scheduler.tick(1.0 / 60.0);
         }
-        check(sample.state_count_ == 1, "a superseding set without a callback drops it");
+        check(sample.count() == 1, "a superseding set without a callback drops it");
 
         sample.handler_2(tessera::ui::TextChangeEvent{});
         scheduler.tick(1.0 / 60.0);
@@ -178,8 +178,7 @@ int main() {
         scheduler.set_reduced_motion(true);
         scheduler.flush();
         scheduler.tick(1.0 / 60.0);
-        check(sample.state_count_ == 7,
-              "reduced motion finishes the set and delivers the callback");
+        check(sample.count() == 7, "reduced motion finishes the set and delivers the callback");
         scheduler.set_reduced_motion(false);
         sample.handler_2(tessera::ui::TextChangeEvent{});
         sample.set_count(9);
@@ -191,22 +190,22 @@ int main() {
     {
         sample.handler_1(tessera::ui::ClickEvent{});
         scheduler.flush();
-        check(scheduler.tick(0.05) && sample.anim_opacity_ > 0.5 && sample.anim_opacity_ < 1.0,
+        check(scheduler.tick(0.05) && sample.opacity() > 0.5 && sample.opacity() < 1.0,
               "a tween is in flight before reduced motion");
         scheduler.set_reduced_motion(true);
-        check(sample.anim_opacity_ == 0.5, "reduced motion finishes the tween at its target");
+        check(sample.opacity() == 0.5, "reduced motion finishes the tween at its target");
         check(scheduler.pending(), "the snapped value schedules an update");
         scheduler.flush();
         sample.handler_2(tessera::ui::TextChangeEvent{});
-        check(sample.anim_opacity_ == 1.0 && !scheduler.tick(0.016), "snap with reduced motion on");
+        check(sample.opacity() == 1.0 && !scheduler.tick(0.016), "snap with reduced motion on");
         sample.handler_1(tessera::ui::ClickEvent{});
-        check(sample.anim_opacity_ == 0.5 && !sample.anim_opacity_scalar_.active(),
+        check(sample.opacity() == 0.5 && !sample.tick_animations(0.0),
               "an animated set does not tween while reduced motion is on");
         scheduler.flush();
         scheduler.set_reduced_motion(false);
         sample.handler_2(tessera::ui::TextChangeEvent{});
         sample.handler_1(tessera::ui::ClickEvent{});
-        check(sample.anim_opacity_ == 1.0 && sample.anim_opacity_scalar_.active(),
+        check(sample.opacity() == 1.0 && sample.tick_animations(0.0),
               "tweens resume after reduced motion is turned off");
         scheduler.tick(1.0);
         scheduler.flush();
