@@ -2,7 +2,10 @@
 
 #pragma once
 
+#include "tessera/ui/input.hpp"
 #include "tessera/ui/scene/node.hpp"
+
+#include <unordered_map>
 
 namespace tessera::ui {
 
@@ -61,6 +64,17 @@ public:
     // once after the first layout of a tree. Returns true when focus moved.
     bool apply_auto_focus(Node& root);
 
+    // Keeps the modal trap in step with the tree's `focus_trap` nodes (issue #236): the last
+    // visible one in tree order becomes the modal root, and when none is left a trap this method
+    // set is released, which restores the focus held before it. A trap set through `set_modal_root`
+    // is never released here. Hosts call it every frame and the input router before each key event.
+    void sync_focus_trap(Node& root);
+
+    // Moves focus among the items of the nearest roving-focus group around the focused node when
+    // `key` is an arrow of the group's axis (or Home/End), wrapping at both ends. Returns true
+    // when focus moved.
+    bool move_in_focus_group(Node& root, KeyCode key);
+
     // Restricts focus to `node` and its descendants. Setting a trap saves the current focus when
     // it is outside the new subtree and moves focus to the first sequential candidate inside it
     // (or clears focus when the subtree has no candidates). `nullptr` is equivalent to
@@ -98,6 +112,9 @@ private:
     bool focus_first_in_modal();
     bool move_focus(Node& root, bool forward);
 
+    bool trap_owned_ = false;
+    // Roving-focus group id -> the item that holds its Tab stop (issue #236).
+    std::unordered_map<NodeId, NodeId> roving_active_;
     Node* focused_ = nullptr;
     NodeId focused_id_ = 0;
     Node* root_ = nullptr;

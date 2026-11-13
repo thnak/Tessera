@@ -161,6 +161,25 @@ public:
         return auto_focus_;
     }
 
+    // JSX `focusTrap` and `focusGroup` (issue #236). A visible node with `focus_trap` confines Tab
+    // traversal to its subtree and restores the previous focus when it goes away
+    // (`FocusManager::sync_focus_trap`). A node with a `focus_group` is a roving-focus group: its
+    // focusable descendants form one Tab stop and the arrow keys of its axis move among them
+    // (`FocusManager::move_in_focus_group`); the manager remembers which item holds the stop.
+    enum class FocusGroup : std::uint8_t { None, Horizontal, Vertical, Both };
+    void set_focus_trap(bool trap) {
+        focus_trap_ = trap;
+    }
+    [[nodiscard]] bool focus_trap() const {
+        return focus_trap_;
+    }
+    void set_focus_group(FocusGroup group) {
+        focus_group_ = group;
+    }
+    [[nodiscard]] FocusGroup focus_group() const {
+        return focus_group_;
+    }
+
     // Scroll state (additive; docs/specs/scroll-and-gestures-v1.md section 1). The scrollport used
     // for clamping is the node's border box; `content_width/height` are supplied explicitly by
     // layout or the caller. Children are positioned in content space, so painting, hit testing, and
@@ -396,6 +415,8 @@ private:
     bool visible_ = true;
     bool focusable_ = false;
     bool auto_focus_ = false;
+    bool focus_trap_ = false;
+    FocusGroup focus_group_ = FocusGroup::None;
     int tab_index_ = 0;
     int z_index_ = 0;
     PaintOutsets paint_outsets_;

@@ -1143,6 +1143,21 @@
           "note": "focuses this node when the tree is first shown; needs `tabIndex`",
           "type": "bool",
           "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.focusTrap",
+          "name": "focusTrap",
+          "note": "while visible, confines Tab to this subtree and restores the previous focus when it hides",
+          "type": "bool",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.focusGroup",
+          "name": "focusGroup",
+          "note": "roving focus: the focusable descendants are one Tab stop and the arrows of the axis, Home and End move among them",
+          "type": "\"horizontal\" | \"vertical\" | \"both\"",
+          "value": "literal"
         }
       ],
       "refType": "View",
@@ -1223,6 +1238,21 @@
           "name": "autoFocus",
           "note": "focuses this node when the tree is first shown; needs `tabIndex`",
           "type": "bool",
+          "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.focusTrap",
+          "name": "focusTrap",
+          "note": "while visible, confines Tab to this subtree and restores the previous focus when it hides",
+          "type": "bool",
+          "value": "literal"
+        },
+        {
+          "lowersTo": "props.focusGroup",
+          "name": "focusGroup",
+          "note": "roving focus: the focusable descendants are one Tab stop and the arrows of the axis, Home and End move among them",
+          "type": "\"horizontal\" | \"vertical\" | \"both\"",
           "value": "literal"
         }
       ],

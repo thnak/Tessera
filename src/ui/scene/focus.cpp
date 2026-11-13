@@ -28,11 +28,48 @@ void collect_focusable(Node& node, std::vector<Node*>& tree_order) {
     }
 }
 
+// The nearest ancestor that is a roving-focus group, or nullptr.
+const Node* roving_group_of(const Node& node) {
+    for (const Node* current = node.parent(); current != nullptr; current = current->parent()) {
+        if (current->focus_group() != Node::FocusGroup::None) {
+            return current;
+        }
+    }
+    return nullptr;
+}
+
+bool inside(const Node& ancestor, const Node& node) {
+    for (const Node* current = &node; current != nullptr; current = current->parent()) {
+        if (current == &ancestor) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The one item of `group` that stays in the Tab order: the remembered active item while it is
+// still a candidate, otherwise the first candidate in tree order.
+const Node* roving_stop(const Node& group, NodeId active, const std::vector<Node*>& tree_order) {
+    const Node* first = nullptr;
+    for (const Node* node : tree_order) {
+        if (!inside(group, *node) || node == &group) {
+            continue;
+        }
+        if (node->id() == active) {
+            return node;
+        }
+        if (first == nullptr) {
+            first = node;
+        }
+    }
+    return first;
+}
+
 // Positive tab_index values come first, ascending; equal values keep tree order because the
 // candidate list was collected in pre-order and the sort is stable. tab_index == 0 follows in
 // tree order. Negative values are intentionally absent: they skip sequential traversal but remain
 // valid request_focus targets.
-std::vector<Node*> tab_order(Node& root) {
+std::vector<Node*> tab_order(Node& root, const std::unordered_map<NodeId, NodeId>& roving) {
     std::vector<Node*> tree_order;
     collect_focusable(root, tree_order);
 
@@ -47,9 +84,18 @@ std::vector<Node*> tab_order(Node& root) {
         return lhs->tab_index() < rhs->tab_index();
     });
     for (Node* node : tree_order) {
-        if (node->tab_index() == 0) {
-            ordered.push_back(node);
+        if (node->tab_index() != 0) {
+            continue;
         }
+        // A roving-focus group is one Tab stop (issue #236); its other items take arrows.
+        if (const Node* group = roving_group_of(*node)) {
+            const auto active = roving.find(group->id());
+            if (roving_stop(*group, active != roving.end() ? active->second : 0, tree_order) !=
+                node) {
+                continue;
+            }
+        }
+        ordered.push_back(node);
     }
     return ordered;
 }
@@ -184,7 +230,7 @@ bool FocusManager::focus_first_in_modal() {
     if (modal_root_ == nullptr) {
         return false;
     }
-    const std::vector<Node*> order = tab_order(*modal_root_);
+    const std::vector<Node*> order = tab_order(*modal_root_, roving_active_);
     if (order.empty()) {
         clear_focus();
         return false;
@@ -196,6 +242,12 @@ bool FocusManager::request_focus(Node* node) {
     refresh_state();
     if (node == nullptr || !is_valid(*node)) {
         return false;
+    }
+    // The roving group around the node now rests on it.
+    for (Node* group = node->parent(); group != nullptr; group = group->parent()) {
+        if (group->focus_group() != Node::FocusGroup::None) {
+            roving_active_[group->id()] = node->id();
+        }
     }
     if (focused_ == node) {
         node->set_pseudo_state(style::PseudoState::Focus, true);
@@ -312,7 +364,7 @@ bool FocusManager::move_focus(Node& root, bool forward) {
 
     Node* trap = modal_root();
     Node& base = trap != nullptr ? *trap : root;
-    const std::vector<Node*> order = tab_order(base);
+    const std::vector<Node*> order = tab_order(base, roving_active_);
     if (order.empty()) {
         return false;
     }

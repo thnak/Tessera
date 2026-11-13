@@ -162,6 +162,8 @@ export interface ViewProps extends CommonProps {
   ref?: ElementRef<ViewElement>;
   tabIndex?: 0 | -1;
   autoFocus?: boolean;
+  focusTrap?: boolean;
+  focusGroup?: "horizontal" | "vertical" | "both";
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;
@@ -180,6 +182,8 @@ export interface TextProps extends CommonProps {
   ref?: ElementRef<TextElement>;
   tabIndex?: 0 | -1;
   autoFocus?: boolean;
+  focusTrap?: boolean;
+  focusGroup?: "horizontal" | "vertical" | "both";
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;

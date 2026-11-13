@@ -45,6 +45,25 @@ inline constexpr PropRow kViewProps[] = {
      {},
      {},
      "focuses this node when the tree is first shown; needs `tabIndex`"},
+    {"focusTrap",
+     "bool",
+     ValueKind::Literal,
+     false,
+     "false",
+     "props.focusTrap",
+     {},
+     {},
+     "while visible, confines Tab to this subtree and restores the previous focus when it hides"},
+    {"focusGroup",
+     "\"horizontal\" | \"vertical\" | \"both\"",
+     ValueKind::Literal,
+     false,
+     "",
+     "props.focusGroup",
+     {},
+     {},
+     "roving focus: the focusable descendants are one Tab stop and the arrows of the axis, Home "
+     "and End move among them"},
 };
 
 inline constexpr EventRow kButtonEvents[] = {

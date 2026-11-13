@@ -149,4 +149,12 @@ the generated component acts through the `FocusManager` its host passes to `set_
 (`WindowHost::focus_manager()`); `focus` reaches a `tabIndex={-1}` node, `blur` clears focus only if
 the ref holds it. The window host applies `autoFocus` once after the first frame.
 
-Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`).
+`focusTrap` (a flag) makes a `View` a focus scope: while it is visible Tab stays inside it, focus
+moves in when it opens, and the focus held before is restored when it hides. `focusGroup`
+(`"horizontal"`, `"vertical"` or `"both"`) makes a `View` a roving-focus group: its focusable
+descendants are one Tab stop (re-entered on the last active item), the arrows of the axis move among
+them and wrap, and Home/End jump to the ends. A handler that consumes the key keeps it. Both are
+literals, are `View` only, and need no role. A bad value is `TESSERA_IR_UNSUPPORTED`.
+
+Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`), `focus_scope`
+(`tests/unit/focus_scope_tests.cpp`).

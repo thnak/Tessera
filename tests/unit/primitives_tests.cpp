@@ -60,7 +60,7 @@ std::string prop_text(const ir::Node& node, const char* name) {
     return "<expr>";
 }
 
-void generates(Primitive& primitive, const std::string& name) {
+std::string generates(Primitive& primitive, const std::string& name) {
     ir::IrModule module;
     module.name = primitive.result->name;
     module.components = std::move(primitive.result->components);
@@ -70,6 +70,13 @@ void generates(Primitive& primitive, const std::string& name) {
     check(generated.has_value(),
           name + " generates C++: " +
               (generated || generated.error().empty() ? std::string() : generated.error().front()));
+    std::string source;
+    if (generated) {
+        for (const codegen::GeneratedFile& file : *generated) {
+            source += file.text;
+        }
+    }
+    return source;
 }
 
 // Runs `actions` on a scope with `state::pressed` and returns the state afterwards.
@@ -158,9 +165,41 @@ void test_dismissable_layer() {
     generates(layer, "DismissableLayer");
 }
 
+// The scope and roving primitives carry runtime flags; the behavior itself is the headless
+// `focus_scope` test (src/ui/scene/focus_scope.cpp), so here the contract is that the flag reaches
+// the generated node.
+void test_focus_scope() {
+    Primitive scope = load("FocusScope");
+    if (scope.component == nullptr) {
+        return;
+    }
+    check_eq(prop_text(scope.component->root, "role"), "group", "the scope is a group");
+    check(scope.component->root.props.count("focusTrap") == 1, "the scope traps focus");
+    const std::string source = generates(scope, "FocusScope");
+    check(source.find("->set_focus_trap(true);") != std::string::npos, "codegen sets the trap");
+}
+
+void test_roving_focus() {
+    for (const auto& [name, axis] :
+         {std::pair<const char*, const char*>{"RovingFocus", "Horizontal"},
+          std::pair<const char*, const char*>{"RovingFocusVertical", "Vertical"}}) {
+        Primitive group = load(name);
+        if (group.component == nullptr) {
+            continue;
+        }
+        check(group.component->root.props.count("focusGroup") == 1,
+              std::string(name) + " is a focus group");
+        const std::string source = generates(group, name);
+        check(source.find(std::string("Node::FocusGroup::") + axis) != std::string::npos,
+              std::string(name) + " sets the " + axis + " axis");
+    }
+}
+
 } // namespace
 
 int main() {
+    test_focus_scope();
+    test_roving_focus();
     test_press();
     test_toggle();
     test_dismissable_layer();

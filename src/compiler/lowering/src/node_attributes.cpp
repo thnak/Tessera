@@ -259,6 +259,20 @@ bool apply_literal_attribute(NodeState& state, const ElementInfo& element, std::
                       "write `autoFocus` or `autoFocus={true}`");
             return false;
         }
+        if (info.prop->name == "focusTrap" && !std::holds_alternative<bool>(value->literal)) {
+            fail_node(state, "TESSERA_IR_UNSUPPORTED", "`focusTrap` is a boolean flag", span,
+                      "write `focusTrap` or `focusTrap={true}`");
+            return false;
+        }
+        if (info.prop->name == "focusGroup") {
+            const auto* axis = std::get_if<std::string>(&value->literal);
+            if (axis == nullptr ||
+                (*axis != "horizontal" && *axis != "vertical" && *axis != "both")) {
+                fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                          "`focusGroup` is \"horizontal\", \"vertical\" or \"both\"", span);
+                return false;
+            }
+        }
         put_prop(node, info.prop->name, std::move(value));
         return true;
     case AttributeInfo::Kind::UnknownEvent:
