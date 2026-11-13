@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+#
+# The benchmark stylesheet is embedded at build time, so the benchmark reads the same bytes through
+# both startup paths and opens no stylesheet at run time (the only file it opens is the committed
+# baseline JSON). Format: <normalized name> = <path relative to this manifest>.
+stylesheets/benchmark.css = benchmark.css

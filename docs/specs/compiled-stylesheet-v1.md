@@ -28,6 +28,14 @@ blob bytes --load--> PreparedStyleSheet --resolve(MediaContext)--> CompiledStyle
 - `compile_stylesheet(source)` is prepare + resolve and must equal
   load(serialize(prepare(source))) resolved with the same `MediaContext`; the unit tests prove it on a
   corpus covering every item kind.
+- **Startup cost.** `tests/benchmarks/stylesheet/` (CTest `stylesheet_startup_benchmark`, label
+  `benchmark`, opt-in) runs one 21745-byte stylesheet through both paths with counters only: the
+  blob path reads 35458 bytes and makes 2172 prepare allocations, while the parse path reads the
+  same CSS, tokenizes 6047 tokens and makes 6660 prepare allocations for the same compiled sheet
+  (218 rules, 239 selectors, 767 declarations, identical fingerprints), so the blob path saves the
+  tokenizer, selector parser, shorthand expansion and `@supports` evaluation -- 4488 allocations and
+  3.8 MB of allocation churn per startup -- at the cost of a 63 % larger payload (baseline:
+  `tests/golden/perf/stylesheet_benchmark.json`).
 
 ## 2. Prepared model
 
