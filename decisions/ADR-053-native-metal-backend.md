@@ -45,6 +45,30 @@ Owner confirmation (2026-11-13): native Metal only; MoltenVK is dropped for good
   (#160) and the shader cross-compile path (#159), all `ready` in M3.
 - Issue #188 is replaced by the slices below; Dawn/Metal is no longer an alternative.
 
+## Open questions
+
+Not decided; the owner answers them in this section. Details in
+[`docs/design/gpu/metal-backend.md`](../docs/design/gpu/metal-backend.md).
+
+1. **Minimum macOS and iOS versions.** Not named. The floor decides whether `MTLSharedEvent`
+   `waitUntilSignaledValue:timeoutMS:` is available for the bounded wait that ADR-021 requires on
+   the UI thread. Without it the backend needs its own bounded wait. Slice 1 (#204) needs this
+   answer first.
+2. **Shared or per-backend retire logic.** The retire queue lives inside the Vulkan backend today.
+   Preferred: factor it behind a small completion-source interface so Vulkan, WebGPU and Metal share
+   one implementation and one set of fake-completion tests. Alternative: Metal reimplements it.
+   Slice 1 needs this answer first.
+3. **Heaps and untracked resources.** V1 uses default hazard tracking and no `MTLHeap`. If the
+   resource cache later wants heaps, explicit `MTLFence` use needs its own design note.
+
+Checks that need a Mac (tracked as a checklist in #204, not decisions): a frame slot and a drawable
+cannot deadlock when their counts differ; an errored command buffer always runs its completed
+handler; the generated MSL compiles and matches the other backends (ADR-049 notes MSL is
+unvalidated without a Metal toolchain).
+
+Infrastructure, not an ADR matter: the macOS CI lane builds only and runs nightly; Tier 2 needs a Mac
+or a hosted runner with a GPU, and a hosted runner's GPU may not match hardware.
+
 ## Slices (GitHub issues)
 
 1. Metal device, queue, buffers, textures, render targets on the RHI (null-RHI contract tests
