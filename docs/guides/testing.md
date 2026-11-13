@@ -547,6 +547,14 @@ until the executables accept a CLI override.
   memory.
 - A static scene must produce zero presents/submissions after settling.
 - Record baselines and compare with a tolerance (value not specified in any doc); do not gate on noisy wall-clock numbers.
+- `tests/benchmarks/cpu/` (CTest `cpu_benchmark`, issue #241) is the V1 timing evidence: it runs in
+  the default suite with order-of-magnitude budgets, so a regression fails a normal `ctest` run.
+- `tests/benchmarks/stylesheet/` (CTest `stylesheet_startup_benchmark`, label `benchmark`, issue
+  #201) is counter-only and opt-in: one stylesheet through the embedded-blob path and the run-time
+  parse+compile path, compared against `tests/golden/perf/stylesheet_benchmark.json` (structural
+  counters exact, allocation counters within `tolerance.allocation_percent`). The label is the
+  opt-in handle and `DISABLED` gates it, so the default suite reports `Not Run (Disabled)`. Run it
+  with `-DTESSERA_BENCHMARK_STYLESHEET=ON` and `ctest -L benchmark`.
 
 ## 8. Fuzzing
 

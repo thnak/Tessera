@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "note": "Stage counters for the two stylesheet startup paths (issue #201, ADR-048). Structural counters are exact: they are a pure function of the stylesheet and the engine. Allocation counters carry tolerance.allocation_percent because the standard library's container layout differs between toolchains. Regenerate with --update and a recorded decision; there is no wall-clock number here on purpose (docs/guides/testing.md 7).",
+  "stylesheet": {
+    "bytes": 21745,
+    "tokens": 6047
+  },
+  "blob": {
+    "bytes": 35458,
+    "load_allocations": 2172,
+    "load_allocated_bytes": 558266
+  },
+  "parse": {
+    "prepare_allocations": 6660,
+    "prepare_allocated_bytes": 4334179
+  },
+  "compiled": {
+    "rules": 218,
+    "selectors": 239,
+    "declarations": 767,
+    "diagnostics": 0,
+    "keyframes": 3,
+    "layers": 6,
+    "container_queries": 2
+  },
+  "tolerance": {
+    "allocation_percent": 15.0
+  }
+}
