@@ -29,8 +29,10 @@ inline constexpr std::uint32_t kStylesheetBlobFormatVersion = 1;
 // Bumped whenever a change to the engine alters what prepared data means (selector forms, property
 // expansion, supported at-rules) without changing the layout of the blob. 2: `::part()` selectors
 // now match a part element across the component boundary (issue #235), so a blob that carries one
-// means something different to the engine that wrote it under 1.
-inline constexpr std::uint32_t kStylesheetEngineSchemaVersion = 2;
+// means something different to the engine that wrote it under 1. 3: the CSS Grid longhands are
+// accepted and `display: grid` lays out as a grid rather than a flex container (issue #249), so the
+// same declarations mean something different to an engine that wrote them under 2.
+inline constexpr std::uint32_t kStylesheetEngineSchemaVersion = 3;
 
 enum class BlobErrorCode : std::uint8_t {
     Truncated,

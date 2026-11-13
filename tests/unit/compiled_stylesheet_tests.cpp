@@ -219,7 +219,7 @@ button { padding: 1px; }
     }
 
     const CompiledStyleSheet supports_false =
-        compile_stylesheet("@supports (display: grid) { .card { color: red; } }");
+        compile_stylesheet("@supports (display: table) { .card { color: red; } }");
     if (!expect(supports_false.rules().empty(), "supports false skips") ||
         !expect(value_is(supports_false.compute(button, nullptr), "color", "black"),
                 "supports false keeps initial style")) {
@@ -227,7 +227,7 @@ button { padding: 1px; }
     }
 
     const CompiledStyleSheet supports_not =
-        compile_stylesheet("@supports not (display: grid) { .card { color: green; } }");
+        compile_stylesheet("@supports not (display: table) { .card { color: green; } }");
     if (!expect(value_is(supports_not.compute(button, nullptr), "color", "green"),
                 "supports not")) {
         return 20;

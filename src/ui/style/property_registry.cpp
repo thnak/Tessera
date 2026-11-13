@@ -92,10 +92,18 @@ constexpr PropertyDef kProperties[] = {
     {"align-items", "stretch", false},
     {"align-self", "auto", false},
     {"align-content", "normal", false},
-    {"justify-content", "flex-start", false},
+    {"justify-content", "normal", false},
     {"justify-items", "legacy", false},
     {"row-gap", "normal", false},
     {"column-gap", "normal", false},
+    // CSS Grid (issue #249, docs/specs/grid-v1.md). `grid-column`/`grid-row` are registered as
+    // longhands holding the whole `<start> / <end>` value: V1 has no `-start`/`-end` longhands.
+    {"grid-template-columns", "none", false},
+    {"grid-template-rows", "none", false},
+    {"grid-column", "auto", false},
+    {"grid-row", "auto", false},
+    {"grid-auto-flow", "row", false},
+    {"justify-self", "auto", false},
     {"overflow-x", "visible", false},
     {"overflow-y", "visible", false},
     // Scroll runtime/style inputs (stylesheet-v1 section 11, scroll-and-gestures-v1 section 4).
@@ -237,6 +245,7 @@ PropertyRegistry::PropertyRegistry() {
     shorthands_["overflow"] = ShorthandInfo{{"overflow-x", "overflow-y"}, ShorthandKind::Pair};
     shorthands_["place-items"] =
         ShorthandInfo{{"align-items", "justify-items"}, ShorthandKind::Pair};
+    shorthands_["place-self"] = ShorthandInfo{{"align-self", "justify-self"}, ShorthandKind::Pair};
     shorthands_["place-content"] =
         ShorthandInfo{{"align-content", "justify-content"}, ShorthandKind::Pair};
     shorthands_["flex"] =

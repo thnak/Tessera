@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/style/backdrop_filter.hpp"
+#include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/selector.hpp"
 #include "tessera/ui/style/supports.hpp"
@@ -56,7 +57,7 @@ bool value_supported(std::string_view property, std::string_view value) {
 
     if (property == "display") {
         return keyword_in(normalized, {"block", "inline", "inline-block", "flex", "inline-flex",
-                                       "none", "contents"});
+                                       "grid", "inline-grid", "none", "contents"});
     }
     if (property == "position") {
         return keyword_in(normalized, {"static", "relative", "absolute", "fixed", "sticky"});
@@ -116,6 +117,21 @@ bool value_supported(std::string_view property, std::string_view value) {
     }
     if (property == "direction") {
         return keyword_in(normalized, {"ltr", "rtl"});
+    }
+    // CSS Grid (issue #249, docs/specs/grid-v1.md): `@supports` is exactly as strict as the
+    // declaration validator, so a stylesheet can gate its grid fallback on the same grammar the
+    // engine accepts.
+    if (property == "grid-template-columns" || property == "grid-template-rows") {
+        return parse_grid_template(normalized).valid;
+    }
+    if (property == "grid-column" || property == "grid-row") {
+        return parse_grid_line(normalized).valid;
+    }
+    if (property == "grid-auto-flow") {
+        return is_supported_grid_auto_flow(normalized);
+    }
+    if (property == "justify-items" || property == "justify-self") {
+        return is_supported_grid_alignment(normalized);
     }
     if (property == "writing-mode") {
         return keyword_in(normalized, {"horizontal-tb", "vertical-rl", "vertical-lr"});

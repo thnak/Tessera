@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/property_value_validation.hpp"
 
 #include <algorithm>
@@ -91,6 +92,41 @@ const char* scroll_style_message(std::string_view property) {
     return "scrollbar-gutter takes one of auto or stable";
 }
 
+bool is_grid_style_property(std::string_view property) {
+    return property == "grid-template-columns" || property == "grid-template-rows" ||
+           property == "grid-column" || property == "grid-row" || property == "grid-auto-flow" ||
+           property == "justify-self" || property == "justify-items";
+}
+
+bool grid_style_value_supported(std::string_view property, std::string_view value) {
+    if (property == "grid-template-columns" || property == "grid-template-rows") {
+        return parse_grid_template(value).valid;
+    }
+    if (property == "grid-column" || property == "grid-row") {
+        return parse_grid_line(value).valid;
+    }
+    if (property == "grid-auto-flow") {
+        return is_supported_grid_auto_flow(value);
+    }
+    return is_supported_grid_alignment(value);
+}
+
+const char* grid_style_message(std::string_view property) {
+    if (property == "grid-template-columns" || property == "grid-template-rows") {
+        return "expected none or a list of track sizes (lengths, percentages, fr, auto, "
+               "min-content, max-content, minmax(), repeat(<integer>, ...)); subgrid, named lines, "
+               "auto-fill/auto-fit and named areas are not supported";
+    }
+    if (property == "grid-column" || property == "grid-row") {
+        return "expected auto, <line>, span <n> or <line> / <line>; named lines are not supported";
+    }
+    if (property == "grid-auto-flow") {
+        return "grid-auto-flow takes one of row or column; dense packing is not supported";
+    }
+    return "expected one of start, end, center, stretch, normal, left, right, flex-start, "
+           "flex-end, auto or legacy";
+}
+
 } // namespace
 
 bool validate_property_value(const Declaration& declaration, std::string_view property,
@@ -108,7 +144,20 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
                                       "3D transform functions are not supported in V1"});
     }
     if (!is_scroll_style_property(property)) {
-        return true;
+        if (!is_grid_style_property(property)) {
+            return true;
+        }
+        // A custom-property reference is substituted after this check; keep the declaration so the
+        // computed-value pass can judge the resolved text.
+        if (trim(value).find("var(") != std::string_view::npos) {
+            return true;
+        }
+        if (grid_style_value_supported(property, value)) {
+            return true;
+        }
+        out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
+                                      std::string(property), grid_style_message(property)});
+        return false;
     }
     // A custom-property reference is substituted after this check; keep the declaration so the
     // computed-value pass can judge the resolved text.
