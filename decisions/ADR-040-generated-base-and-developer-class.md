@@ -131,6 +131,36 @@ developer file is written once and never touched by the generator, so there is n
 - **AST-level merging.** Rejected for the same reasons as in ADR-008.
 - **Macros as the extension point.** Rejected for the same reasons as in ADR-008.
 
+## Implementation status
+
+Slice 1 (issue #157, 2026-11-13) landed the base emitter as an opt-in mode,
+`codegen::generate(module, embeds, theme, EmitMode::GeneratedBase)`, writing one header-only
+`<Component>.g.hpp` per component (`src/compiler/codegen/src/emit_base.cpp`). The legacy
+`<Component>.hpp/.cpp` path and its goldens are unchanged. What exists:
+
+- `gen::<Component>Base<Self>` as a CRTP template; every definition is an `inline` template member
+  in the header; helpers live in `namespace <Component>_detail`; event and scheduler thunks are
+  function templates over `Self`.
+- One same-named dispatch thunk per `bind::<id>` (item 4), and a `static_assert` at the start of
+  `build()` per binding that checks the developer class defines the member with a compatible
+  signature (an inherited thunk does not count), with a `TESSERA_CG_MISSING_BINDING` message
+  naming the bind id, the signature and the TSX `file:line` (item 5); plus the
+  `gen::<Component>Contract<Self>` concept.
+- Accessors named after the TSX: `x()` per state, `ref_<name>()` per ref, `<name>()` per prop and
+  animated value (item 2). A name that collides with a generated member is a codegen error.
+- Tested by `codegen_base_tests` (shape, golden `tests/golden/codegen/base/Sample.g.hpp`,
+  determinism), `codegen_base_runtime_tests` (a developer class reaching the thunks),
+  compile-fail tests for a missing member and a wrong signature, and a build-time compile of every
+  emitter family (lists, virtual collections, vector icons, composition, size observation, forms)
+  with explicit instantiation of every template member, on Windows (MSVC) and Linux (GCC).
+
+Known limits of slice 1, closed by the later slices: generated fields and thunks are public, not
+private with protected accessors (the event thunks cast their context to the base and need access);
+the CLI does not expose the mode or write the developer files yet (#209); `compiler-demo` and the
+merger still use the legacy path (#210); documents still describe protected regions (#211). A child
+component in a parent is the child's developer class, so a parent's header includes
+`<Child>.hpp`.
+
 ## Follow-up
 
 - Codegen: emit `<Component>Base<Self>`, accessors/setters, dispatch thunks, contract concept and
