@@ -25,6 +25,11 @@ defines how the package states the version it has and how the compiler compares 
 Unknown fields are ignored so later versions can add metadata (for example a minimum compiler
 version) without breaking this check.
 
+The repository's own library package, `packages/tessera-ui/`, carries this manifest (version
+`0.1.0`). The bundled copy of that library that the compiler resolves when a project does not
+configure `tessera-ui` is not version-checked; a project that configures the package, and declares
+a `version`, gets the check against the manifest in its own root.
+
 ## Requirement
 
 `packages[].version` in `tessera.json` is optional:

@@ -2,9 +2,9 @@
 
 // `Field` as a library component on the ordinary component path
 // (docs/specs/forms-and-validation-v1.md section 5, docs/specs/component-model-v1.md section 3,
-// task-90). A framework import names the built-in `Field` component, lowering emits an ordinary
-// `Component` node, and the module carries the component's declared prop records: there is no
-// intrinsic element and no Field-specific branch.
+// task-90). An import from the bundled `tessera-ui` package names the `Field` component, lowering
+// emits an ordinary `Component` node, and the module carries the component's declared prop records:
+// there is no intrinsic element and no Field-specific branch.
 //
 // The lowering-level checks here cover resolution, the prop-record mapping, the static Children
 // slot, and determinism. Codegen diagnostics (unknown props, callback binding) and the generated
@@ -14,6 +14,7 @@
 #include "lowering_module_test_util.hpp"
 #include "tessera/schema/intrinsics.hpp"
 
+#include <array>
 #include <span>
 #include <string>
 #include <string_view>
@@ -25,7 +26,8 @@ namespace {
 using namespace lowering_module_test;
 
 constexpr std::string_view kFormPage =
-    "import { Field, TextInput, useState } from \"tessera\";\n"
+    "import { Field } from \"tessera-ui\";\n"
+    "import { TextInput, useState } from \"tessera\";\n"
     "function FormPage() {\n"
     "  const [email, setEmail] = useState<string>(\"\");\n"
     "  // Note: bind::on_validate\n"
@@ -45,7 +47,8 @@ constexpr std::string_view kFormPage =
 // same framework module. It carries the `initial`/`validate`/`onSubmit`/`children` records and its
 // own Slot; the Fields inside it stay ordinary component instances.
 constexpr std::string_view kFormPageWithForm =
-    "import { Field, Form, TextInput, useState } from \"tessera\";\n"
+    "import { Field, Form } from \"tessera-ui\";\n"
+    "import { TextInput, useState } from \"tessera\";\n"
     "function FormPage() {\n"
     "  const [email, setEmail] = useState<string>(\"\");\n"
     "  // Note: bind::on_validate\n"
@@ -345,7 +348,7 @@ void test_form_prop_records_are_mapped() {
 
 void test_a_project_component_wins_over_the_library_one() {
     const auto fixture =
-        parse_file("ui/App.tsx", "import { Field } from \"tessera\";\n"
+        parse_file("ui/App.tsx", "import { Field } from \"tessera-ui\";\n"
                                  "function Field() { return <View className=\"own\" />; }\n"
                                  "function App() { return <Field />; }\n");
     const auto result = lowering::lower_module(fixture->module_source(), "demo");
@@ -367,6 +370,80 @@ void test_a_project_component_wins_over_the_library_one() {
     }
 }
 
+// The library ships in the `tessera-ui` package (issue #234, ADR-047 item 1): `from "tessera"` no
+// longer provides Field or Form, and says where they went.
+void test_tessera_no_longer_provides_library_components() {
+    for (const char* name : {"Field", "Form"}) {
+        const auto fixture = parse_file("ui/App.tsx", "import { " + std::string(name) +
+                                                          " } from \"tessera\";\n"
+                                                          "function App() { return <View />; }\n");
+        const auto result = lowering::lower_module(fixture->module_source(), "demo");
+        check(!result.has_value(), std::string(name) + " is not imported from tessera");
+        check_eq(first_code(result), "TESSERA_IR_UNSUPPORTED", "the code");
+        check(first_message(result).find("tessera-ui") != std::string::npos,
+              "the diagnostic points at the tessera-ui package");
+    }
+}
+
+void test_the_bundled_package_resolves_bare_and_subpath_imports() {
+    struct Case {
+        std::string_view import_line;
+        std::string_view tag;
+    };
+    const std::array<Case, 3> cases{{
+        {"import { Field } from \"tessera-ui\";\n", "Field"},
+        {"import { Field } from \"tessera-ui/Field\";\n", "Field"},
+        {"import { Field as Row } from \"tessera-ui/Field\";\n", "Row"},
+    }};
+    for (const Case& entry : cases) {
+        const auto fixture =
+            parse_file("ui/App.tsx", std::string(entry.import_line) + "function App() { return <" +
+                                         std::string(entry.tag) + " />; }\n");
+        const auto result = lowering::lower_module(fixture->module_source(), "demo");
+        check(result.has_value(), std::string(entry.import_line) + "resolves");
+        if (result) {
+            check(component_of(*result, "Field") != nullptr, "the Field declaration is attached");
+        }
+    }
+}
+
+void test_the_bundled_package_rejects_unknown_names() {
+    const auto reject = [](std::string_view import_line, std::string_view why) {
+        const auto fixture = parse_file("ui/App.tsx", std::string(import_line) +
+                                                          "function App() { return <View />; }\n");
+        const auto result = lowering::lower_module(fixture->module_source(), "demo");
+        check(!result.has_value(), std::string(why));
+        check_eq(first_code(result), "TESSERA_IR_UNRESOLVED", std::string(why));
+    };
+    reject("import { Nope } from \"tessera-ui\";\n", "a name the package does not export");
+    reject("import { Field } from \"tessera-ui/Nope\";\n", "a subpath that is no component");
+    reject("import { Form } from \"tessera-ui/Field\";\n", "a name from the wrong subpath");
+}
+
+// A project that configures `tessera-ui` compiles the package sources as ordinary project files;
+// the bundled registry then stays out of the way, so the component is declared once.
+void test_a_configured_package_replaces_the_bundled_one() {
+    Project project;
+    project.add(parse_file("ui/App.tsx", "import { Field } from \"tessera-ui/Field\";\n"
+                                         "function App() { return <Field />; }\n"));
+    project.add(parse_file("packages/tessera-ui/Field.tsx",
+                           "export function Field() { return <View className=\"own\" />; }\n"));
+    const std::array<lowering::PackageRoot, 1> packages{
+        {{.name = "tessera-ui", .root = "packages/tessera-ui"}}};
+    const std::vector<lowering::ModuleSource> sources = project.sources();
+    const auto result = lowering::lower_project(sources, "demo", packages);
+    check(result.has_value(), "a configured tessera-ui resolves as project files");
+    if (!result) {
+        std::cerr << "  error: " << first_message(result) << "\n";
+        return;
+    }
+    std::size_t fields = 0;
+    for (const ir::Component& component : result->components) {
+        fields += component.name == "Field" ? 1 : 0;
+    }
+    check(fields == 1, "the bundled Field is not added next to the configured one");
+}
+
 } // namespace
 
 int main() {
@@ -377,6 +454,10 @@ int main() {
     test_form_prop_records_are_mapped();
     test_lowering_is_deterministic();
     test_a_project_component_wins_over_the_library_one();
+    test_tessera_no_longer_provides_library_components();
+    test_the_bundled_package_resolves_bare_and_subpath_imports();
+    test_the_bundled_package_rejects_unknown_names();
+    test_a_configured_package_replaces_the_bundled_one();
     if (jsx_test::failures != 0) {
         std::cerr << jsx_test::failures << " check(s) failed\n";
         return 1;

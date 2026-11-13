@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // Build-time bootstrap of the library component registry. The IR generator must lower
-// `tessera/components/*.tsx` before the generated registry exists, so its executable links this
+// `packages/tessera-ui/*.tsx` before the generated registry exists, so its executable links this
 // empty registry instead of `library_components.cpp` plus the generated translation unit.
 //
 // The library sources import only `Children` and `TextChangeEvent` from `"tessera"`, which the

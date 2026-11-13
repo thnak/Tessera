@@ -33,7 +33,7 @@ struct Options {
     // (docs/specs/ir-v1.md). --out is not required.
     std::string emit_ir_path;
     // --emit-library-cpp FILE: write a C++ translation unit that rebuilds the lowered components as
-    // IR data. This is the build-time path for tessera/components/*.tsx (issue #70); --out is not
+    // IR data. This is the build-time path for packages/tessera-ui/*.tsx (issue #70); --out is not
     // required. The TSX sources are the source of truth, so an unlowerable source fails the run.
     std::string emit_library_cpp_path;
 };

@@ -7,7 +7,7 @@
 #include <span>
 
 // Build-generated registry seam (issue #70). `library_components.cpp` is the public contract;
-// `library_components_generated.cpp` is written from `tessera/components/*.tsx` by
+// `library_components_generated.cpp` is written from `packages/tessera-ui/*.tsx` by
 // `tessera_codegen --emit-library-cpp` at build time. The generator links the lowering pipeline but
 // not this data, so the registry can be regenerated without a bootstrap cycle.
 namespace tessera::compiler::lowering::generated {

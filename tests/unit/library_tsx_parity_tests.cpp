@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// `Field` and `Form` are authored as real TSX sources (tessera/components/Field.tsx and
-// tessera/components/Form.tsx, issue #70). The build lowers them with `tessera_codegen
+// `Field` and `Form` are authored as real TSX sources (packages/tessera-ui/Field.tsx and
+// packages/tessera-ui/Form.tsx, issue #70). The build lowers them with `tessera_codegen
 // --emit-library-cpp` and compiles the generated `library_components_generated.cpp` into
 // `tessera_lowering`; the TSX sources are the single source of truth.
 //
@@ -40,8 +40,8 @@ namespace {
 using namespace lowering_module_test;
 namespace fs = std::filesystem;
 
-constexpr std::string_view kFieldFile = "tessera/components/Field.tsx";
-constexpr std::string_view kFormFile = "tessera/components/Form.tsx";
+constexpr std::string_view kFieldFile = "packages/tessera-ui/Field.tsx";
+constexpr std::string_view kFormFile = "packages/tessera-ui/Form.tsx";
 
 std::string source_path(std::string_view file) {
     return (fs::path(TESSERA_LIBRARY_TSX_DIR) / fs::path(file).filename()).string();

@@ -5,7 +5,7 @@
 # table and the IR, and nothing else from the project.
 #
 # Issue #70 splits the library component registry out of the core so the build can generate it from
-# `tessera/components/*.tsx` without a target cycle: the generator links the core, the generated
+# `packages/tessera-ui/{Field,Form}.tsx` without a target cycle: the generator links the core, the generated
 # translation unit links the generator, and the public `tessera_lowering` combines both.
 set(_tessera_lowering_core_sources
     src/binding_lowering.cpp
@@ -74,7 +74,7 @@ target_compile_features(tessera_lowering_bootstrap PUBLIC cxx_std_23)
 # whenever either file changes. Host builds compile the freshly generated unit and verify that the
 # committed copy (which cross-compiling builds consume, because they cannot execute the generator)
 # is current. Stale committed data fails the host build rather than silently shipping to mobile.
-set(_tessera_library_tsx_dir ${CMAKE_SOURCE_DIR}/tessera/components)
+set(_tessera_library_tsx_dir ${CMAKE_SOURCE_DIR}/packages/tessera-ui)
 set(_tessera_library_tsx ${_tessera_library_tsx_dir}/Field.tsx ${_tessera_library_tsx_dir}/Form.tsx)
 set(_tessera_library_committed_cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/generated/library_components_generated.cpp)
@@ -110,13 +110,13 @@ if (NOT CMAKE_CROSSCOMPILING)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_library_generated_dir}
         COMMAND $<TARGET_FILE:tessera_library_ir_gen>
                 --emit-library-cpp ${_tessera_library_generated_cpp}
-                tessera/components/Field.tsx tessera/components/Form.tsx
+                packages/tessera-ui/Field.tsx packages/tessera-ui/Form.tsx
         DEPENDS
             tessera_library_ir_gen
             ${_tessera_library_tsx}
             ${CMAKE_CURRENT_SOURCE_DIR}/src/library_components_generated.hpp
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Generating the library component IR from tessera/components/*.tsx"
+        COMMENT "Generating the library component IR from packages/tessera-ui/{Field,Form}.tsx"
         VERBATIM)
 else ()
     # A cross build cannot execute the host generator; it consumes the committed copy that the host
@@ -144,7 +144,7 @@ if (NOT CMAKE_CROSSCOMPILING)
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${_tessera_library_committed_cpp} ${_tessera_library_generated_cpp}
         DEPENDS ${_tessera_library_generated_cpp} ${_tessera_library_committed_cpp}
-        COMMENT "Checking committed library component IR against tessera/components/*.tsx"
+        COMMENT "Checking committed library component IR against packages/tessera-ui/{Field,Form}.tsx"
         VERBATIM)
     add_dependencies(tessera_library_components tessera_library_components_check)
 endif ()

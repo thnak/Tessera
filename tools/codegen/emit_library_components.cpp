@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // Build-time library component IR writer (issue #70). `tessera_codegen --emit-library-cpp` lowers
-// `tessera/components/*.tsx` through the ordinary front end and writes the C++ translation unit
+// `packages/tessera-ui/*.tsx` through the ordinary front end and writes the C++ translation unit
 // that rebuilds each component's IR. The TSX is the single source of truth; the generated data is
 // compiled into `tessera_library_components` and is byte-for-byte reproducible.
 

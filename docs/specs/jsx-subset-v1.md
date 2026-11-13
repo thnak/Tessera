@@ -140,8 +140,9 @@ Rules:
   (`import { CardProps as Props } from "./types";`). No default imports, no namespace imports
   (`* as x`), no dynamic `import()`, no `require`. `import type { T } from "./types";` binds type
   names only and adds no runtime import edge (so type-only imports do not form an import cycle).
-  - `from "tessera"` imports built-in components and hooks (for example `useState`, `View`,
-    `CustomElement`). `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
+  - `from "tessera"` imports built-in intrinsics and hooks (for example `useState`, `View`,
+    `CustomElement`). Library components such as `Field` and `Form` are not built in: importing one
+    from `"tessera"` is `TESSERA_IR_UNSUPPORTED` naming `tessera-ui`. `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
     of `"tessera"` (other names and `import React` are errors; [`jsx-intrinsics-v1`](jsx-intrinsics-v1/react-compat.md) Q15).
   - `from "./X"` or `from "../X"` imports a component, type or constant exported by another source
     file of the project (extension omitted). Absolute paths are errors.
@@ -154,8 +155,11 @@ Rules:
     package root of the same name. A package entry that declares a `version` is checked against the
     root's `tessera-package.json` before compilation (`TESSERA_PACKAGE_VERSION`,
     `TESSERA_PACKAGE_MANIFEST`; [`project-config-v1.md`](project-config-v1.md) `packages`). The
-    component library is imported this way: `from "tessera-ui"` and `from "tessera-ui/primitives"`
+    component library is imported this way: `from "tessera-ui"` and `from "tessera-ui/<Name>"`
     resolve inside the one `tessera-ui` root ([ADR-047](../../decisions/ADR-047-component-library-layers-and-design-language.md)).
+    When the project has no `tessera-ui` entry, those specifiers resolve to the library bundled
+    with the compiler (`Field`, `Form`); an unknown name or subpath is `TESSERA_IR_UNRESOLVED`. A
+    configured `tessera-ui` entry replaces the bundled library with its own files.
   - A resolved package import follows the ordinary cross-file rules: the imported name must be
     declared in the target file, component names stay unique project-wide, import cycles apply,
     and the package file is compiled by the same analyzer, rules and lowering pipeline (no

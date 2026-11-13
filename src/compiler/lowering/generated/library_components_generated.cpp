@@ -6,8 +6,8 @@
 // sources do not lower cleanly.
 //
 // Sources:
-//   tessera/components/Field.tsx
-//   tessera/components/Form.tsx
+//   packages/tessera-ui/Field.tsx
+//   packages/tessera-ui/Form.tsx
 
 #include "library_components_generated.hpp"
 
@@ -27,8 +27,8 @@ ir::Node component_0_node_2() {
     ir::Node node;
     node.kind = ir::NodeKind::Text;
     node.id = "node::2";
-    node.ui_id = "13267076054899992132";
-    node.source.file = "tessera/components/Field.tsx";
+    node.ui_id = "16603166749855439579";
+    node.source.file = "packages/tessera-ui/Field.tsx";
     node.source.offset = 2299;
     node.source.length = 20;
     node.source.line = 56;
@@ -43,8 +43,8 @@ ir::Node component_0_node_3() {
     ir::Node node;
     node.kind = ir::NodeKind::Text;
     node.id = "node::3";
-    node.ui_id = "8152738129134940916";
-    node.source.file = "tessera/components/Field.tsx";
+    node.ui_id = "7351904718123816501";
+    node.source.file = "packages/tessera-ui/Field.tsx";
     node.source.offset = 2326;
     node.source.length = 20;
     node.source.line = 57;
@@ -59,8 +59,8 @@ ir::Node component_0_node_4() {
     ir::Node node;
     node.kind = ir::NodeKind::Text;
     node.id = "node::4";
-    node.ui_id = "3694229539795756584";
-    node.source.file = "tessera/components/Field.tsx";
+    node.ui_id = "3781542426697379738";
+    node.source.file = "packages/tessera-ui/Field.tsx";
     node.source.offset = 2353;
     node.source.length = 20;
     node.source.line = 58;
@@ -75,8 +75,8 @@ ir::Node component_0_node_5() {
     ir::Node node;
     node.kind = ir::NodeKind::Slot;
     node.id = "node::5";
-    node.ui_id = "17496656312152977124";
-    node.source.file = "tessera/components/Field.tsx";
+    node.ui_id = "911974670629136882";
+    node.source.file = "packages/tessera-ui/Field.tsx";
     node.source.offset = 2380;
     node.source.length = 10;
     node.source.line = 59;
@@ -90,8 +90,8 @@ ir::Node component_0_node_1() {
     ir::Node node;
     node.kind = ir::NodeKind::View;
     node.id = "node::1";
-    node.ui_id = "14606735032667053897";
-    node.source.file = "tessera/components/Field.tsx";
+    node.ui_id = "10146996134403813801";
+    node.source.file = "packages/tessera-ui/Field.tsx";
     node.source.offset = 2268;
     node.source.length = 134;
     node.source.line = 55;
@@ -109,9 +109,9 @@ ir::Node component_0_node_1() {
 ir::Component make_component_0() {
     ir::Component component;
     component.id = "comp::Field";
-    component.component_id = "12447991771284244900";
+    component.component_id = "6844064291674359490";
     component.name = "Field";
-    component.source.file = "tessera/components/Field.tsx";
+    component.source.file = "packages/tessera-ui/Field.tsx";
     component.source.offset = 2056;
     component.source.length = 353;
     component.source.line = 42;
@@ -202,8 +202,8 @@ ir::Node component_1_node_2() {
     ir::Node node;
     node.kind = ir::NodeKind::Slot;
     node.id = "node::2";
-    node.ui_id = "6329452206982080452";
-    node.source.file = "tessera/components/Form.tsx";
+    node.ui_id = "1127654960336062052";
+    node.source.file = "packages/tessera-ui/Form.tsx";
     node.source.offset = 1913;
     node.source.length = 10;
     node.source.line = 37;
@@ -217,8 +217,8 @@ ir::Node component_1_node_1() {
     ir::Node node;
     node.kind = ir::NodeKind::View;
     node.id = "node::1";
-    node.ui_id = "10212168639766696313";
-    node.source.file = "tessera/components/Form.tsx";
+    node.ui_id = "14678135247258877049";
+    node.source.file = "packages/tessera-ui/Form.tsx";
     node.source.offset = 1883;
     node.source.length = 52;
     node.source.line = 36;
@@ -233,9 +233,9 @@ ir::Node component_1_node_1() {
 ir::Component make_component_1() {
     ir::Component component;
     component.id = "comp::Form";
-    component.component_id = "10752412967569661560";
+    component.component_id = "6375188264202811166";
     component.name = "Form";
-    component.source.file = "tessera/components/Form.tsx";
+    component.source.file = "packages/tessera-ui/Form.tsx";
     component.source.offset = 1786;
     component.source.length = 156;
     component.source.line = 34;

@@ -289,6 +289,8 @@ int main(int argc, char** argv) {
     check(run_packaged(work / "pkg-c") == 1, "an absolute package root is rejected");
 
     write_file(packaged / "tessera.json", R"({"schemaVersion":1,"app":{"namespace":"factory"}})");
+    write_file(packaged / "ui" / "App.tsx", "import { Card } from \"missing-ui/Card\";\n"
+                                            "function App() { return <Card />; }\n");
     check(run_packaged(work / "pkg-d") == 1, "an unconfigured package is rejected");
     check(read_file(log_dir / "cli.log").find("neither a project file") != std::string::npos,
           "the unknown-package diagnostic names the specifier's problem");
