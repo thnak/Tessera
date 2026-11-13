@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "defaults": {
     "tolerance": 0,
     "max_mismatch": 0.0
@@ -44,6 +44,30 @@
     "cpu_wide_golden": {
       "tolerance": 0,
       "max_mismatch": 0.0
+    },
+    "gpu_backend_parity": {
+      "tolerance": 0,
+      "max_mismatch": 0.0,
+      "pairs": {
+        "metal_vs_lavapipe": {
+          "tolerance": 8,
+          "max_mismatch": 0.02,
+          "ssim": 0.99,
+          "delta_e": 2.0
+        },
+        "vulkan_vs_lavapipe": {
+          "tolerance": 8,
+          "max_mismatch": 0.01,
+          "ssim": 0.99,
+          "delta_e": 2.0
+        },
+        "webgpu_vs_lavapipe": {
+          "tolerance": 8,
+          "max_mismatch": 0.02,
+          "ssim": 0.99,
+          "delta_e": 2.0
+        }
+      }
     },
     "harness_frame_capture": {
       "tolerance": 1,
