@@ -83,7 +83,7 @@ void press_release(tessera::app::WindowHost& host, const Rect& box) {
 
 int main() {
     Node root(900);
-    demo::gen::Demo demo;
+    demo::Demo demo;
     demo.build(root);
     demo.mount();
     tessera::ui::UpdateScheduler scheduler;
@@ -121,7 +121,7 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
     // Click through the window pump: generated handler -> state.
     press_release(host, button->world_bounds());
     (void)host.run(2);
-    if (!expect(demo.state_count_ == 1, "the window path click incremented the generated state")) {
+    if (!expect(demo.count() == 1, "the window path click incremented the generated state")) {
         return 2;
     }
 
@@ -131,7 +131,7 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
     (void)host.run(1);
     host.post_input(typed_text("Ada"));
     (void)host.run(2);
-    if (!expect(demo.state_name_ == "Ada", "typed text reached the generated onChange") ||
+    if (!expect(demo.name() == "Ada", "typed text reached the generated onChange") ||
         !expect(input->paint_data().has_value() && input->paint_data()->kind == PaintKind::Text &&
                     input->paint_data()->text == "Ada",
                 "the controlled TextInput paints the typed value") ||

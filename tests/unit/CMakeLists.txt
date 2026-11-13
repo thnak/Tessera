@@ -338,8 +338,6 @@ add_test(NAME app_recovery_policy COMMAND app_recovery_policy_tests)
 if (TARGET tessera_compiler_demo)
     add_executable(app_input_tests
         app_input_tests.cpp)
-    target_include_directories(app_input_tests PRIVATE
-        ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
     target_link_libraries(app_input_tests PRIVATE
         tessera_app
         tessera_compiler_demo

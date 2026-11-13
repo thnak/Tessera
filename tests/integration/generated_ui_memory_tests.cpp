@@ -177,7 +177,7 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(after_cycles.resident_bytes),
                 static_cast<unsigned long long>(peak_bytes));
 
-    bool ok = static_cast<std::uint64_t>(fixture->demo.state_count_) ==
+    bool ok = static_cast<std::uint64_t>(fixture->demo.count()) ==
               baseline.warmup_cycles + baseline.cycles;
     if (!ok) {
         std::fprintf(stderr, "generated_ui_memory: the scripted clicks did not all land\n");

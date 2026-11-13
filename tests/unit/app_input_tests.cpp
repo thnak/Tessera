@@ -134,7 +134,7 @@ std::optional<Color> paint_button(tessera::app::AppHost& host, Node& root, const
 
 int main() {
     Node root(900);
-    demo::gen::Demo demo;
+    demo::Demo demo;
     demo.build(root);
     demo.mount();
     tessera::ui::UpdateScheduler scheduler;
@@ -208,7 +208,7 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
     (void)pump.pump(root, loop);
     (void)host.begin_frame(1.0 / 60.0);
     host.end_frame();
-    if (!expect(demo.state_count_ == 1, "the generated Click handler incremented the state")) {
+    if (!expect(demo.count() == 1, "the generated Click handler incremented the state")) {
         return 5;
     }
 
@@ -230,7 +230,7 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
     (void)pump.pump(root, loop);
     (void)host.begin_frame(1.0 / 60.0);
     host.end_frame();
-    if (!expect(demo.state_name_ == "Ada", "typed text reached the generated onChange")) {
+    if (!expect(demo.name() == "Ada", "typed text reached the generated onChange")) {
         return 7;
     }
     if (!expect(input->paint_data().has_value() && input->paint_data()->kind == PaintKind::Text &&

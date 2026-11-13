@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
 // CPU paint golden for the codegen-synthesized `Path` vector payload. Builds the generated
-// `vicon::gen::VectorIcon` component (tests/golden/codegen/vector/), gives its nodes bounds, and
+// `vicon::VectorIcon` component (tests/golden/codegen/vector/), gives its nodes bounds, and
 // paints the scene through `CpuPaintSink`: the payload's asset name resolves through the generated
 // bundle, the SVG decodes, and the path rasterizes into the content box. Two renders must be
 // byte-identical and the result must match the committed baseline at tolerance 0.
@@ -54,7 +54,7 @@ constexpr std::uint32_t kHeight = 64;
 // Builds the generated component into `root` and gives the two `Path` nodes their boxes (layout is
 // the host's job; a golden fixes the boxes directly so the render is deterministic).
 void build_scene(Node& root) {
-    vicon::gen::VectorIcon component;
+    vicon::VectorIcon component;
     component.build(root);
     Node* view = root.children().empty() ? nullptr : root.children()[0].get();
     if (view == nullptr || view->children().size() != 2) {

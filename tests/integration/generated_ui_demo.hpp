@@ -211,7 +211,7 @@ private:
 };
 
 // Generated component + scene root + the Yoga layout result. The root is the only hand-authored
-// node (the Recorder used for the route log); every visual node comes from `demo::gen::Demo`.
+// node (the Recorder used for the route log); every visual node comes from `demo::Demo`.
 struct Fixture {
     Fixture() {
         root = std::make_unique<RouteRecorder>(kRootId);
@@ -266,7 +266,7 @@ struct Fixture {
     }
 
     std::unique_ptr<RouteRecorder> root;
-    demo::gen::Demo demo;
+    demo::Demo demo;
     DemoSettings styles;
     tessera::ui::layout::LayoutApplyResult layout_applied;
 };

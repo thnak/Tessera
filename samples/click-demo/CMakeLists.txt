@@ -7,9 +7,6 @@ add_executable(click_demo
     main.cpp
     scene.hpp)
 
-target_include_directories(click_demo PRIVATE
-    ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
-
 target_link_libraries(click_demo PRIVATE
     tessera_app_window
     tessera_compiler_demo

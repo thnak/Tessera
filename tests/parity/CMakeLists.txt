@@ -19,24 +19,23 @@ add_executable(parity_runner_tests parity_runner_tests.cpp)
 target_link_libraries(parity_runner_tests PRIVATE tessera_parity_runner)
 add_test(NAME parity_runner COMMAND parity_runner_tests)
 
-# The sample: seed the developer file (its protected region holds the C++ twin of the preview body)
-# into the build dir and regenerate over it, as the compiler demo does.
+# The sample: the generated base is written into the build dir from Counter.tsx (ADR-040); the
+# developer class (its `add` is the C++ twin of the preview body) is committed in the sample dir.
 set(_parity_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(_parity_sample_dir ${CMAKE_SOURCE_DIR}/samples/parity-demo)
-set(_parity_seed ${CMAKE_SOURCE_DIR}/tests/golden/codegen/parity/Counter.cpp)
 add_custom_command(
-    OUTPUT ${_parity_dir}/Counter.cpp ${_parity_dir}/Counter.hpp
+    OUTPUT ${_parity_dir}/Counter.g.hpp
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_parity_dir}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_parity_seed} ${_parity_dir}/Counter.cpp
-    COMMAND $<TARGET_FILE:tessera_codegen_cli> --write
+    COMMAND $<TARGET_FILE:tessera_codegen_cli> --mode base --write
             --out ${_parity_dir} --namespace parity_sample ${_parity_sample_dir}/Counter.tsx
     DEPENDS tessera_codegen_cli ${_parity_sample_dir}/Counter.tsx
-            ${_parity_sample_dir}/tessera.json ${_parity_seed}
-    COMMENT "Regenerating the preview-parity sample"
+            ${_parity_sample_dir}/tessera.json
+    COMMENT "Generating the preview-parity sample base"
     VERBATIM)
 
-add_library(tessera_parity_counter STATIC ${_parity_dir}/Counter.cpp)
-target_include_directories(tessera_parity_counter PUBLIC ${_parity_dir})
+add_library(tessera_parity_counter STATIC ${_parity_sample_dir}/Counter.cpp
+    ${_parity_dir}/Counter.g.hpp)
+target_include_directories(tessera_parity_counter PUBLIC ${_parity_sample_dir} ${_parity_dir})
 target_link_libraries(tessera_parity_counter PUBLIC tessera_scene tessera_text_edit)
 
 add_executable(preview_parity_tests preview_parity_tests.cpp)

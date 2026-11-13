@@ -2,7 +2,7 @@
 //
 // Preview parity for the sample in samples/parity-demo (issue #7, docs/design/designer.md section
 // 2). The sample's native handler `bind::add` has a TSX preview body and a developer C++ body (in
-// the seed tests/golden/codegen/parity/Counter.cpp). This test lowers the TSX to IR, plays a script
+// the seed samples/parity-demo/Counter.cpp). This test lowers the TSX to IR, plays a script
 // of calls on the IR evaluator and on the generated component, and requires the same state after
 // every step.
 
@@ -137,7 +137,7 @@ public:
 
 private:
     std::unique_ptr<ui::Node> root_;
-    parity_sample::gen::Counter counter_;
+    parity_sample::Counter counter_;
 };
 
 } // namespace

@@ -3,7 +3,7 @@
 // click-demo: the interactive Tessera UI acceptance for the app-host lane, built on the public
 // app-window library.
 //
-// Scene: the generated `demo::gen::Demo` component (samples/compiler-demo/Demo.tsx -> IR -> C++),
+// Scene: the generated `demo::Demo` component (samples/compiler-demo/Demo.tsx -> IR -> C++),
 // styled by a real compiled stylesheet, laid out by Yoga, painted through Batched2D.
 //
 // Modes:

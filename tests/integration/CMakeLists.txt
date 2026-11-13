@@ -33,9 +33,6 @@ target_link_libraries(generated_ui_tests PRIVATE
 
 # Generated demo headers live in the codegen build tree; the CPU paint sink is local to the demo
 # (generated_ui_demo.hpp) because the PoC sink is still owned/changing with the assets lane.
-target_include_directories(generated_ui_tests PRIVATE
-    ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
-
 target_compile_features(generated_ui_tests PRIVATE cxx_std_23)
 
 add_test(
@@ -62,9 +59,6 @@ target_link_libraries(generated_ui_memory_tests PRIVATE
     tessera_software
     tessera_golden
     tessera_stb)
-
-target_include_directories(generated_ui_memory_tests PRIVATE
-    ${CMAKE_BINARY_DIR}/src/compiler/codegen/samples/compiler-demo)
 
 target_compile_features(generated_ui_memory_tests PRIVATE cxx_std_23)
 

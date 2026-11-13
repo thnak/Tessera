@@ -25,7 +25,7 @@ struct DemoScene {
     }
 
     tessera::ui::Node root{kRootId};
-    demo::gen::Demo demo;
+    demo::Demo demo;
     tessera::ui::UpdateScheduler scheduler;
 };
 

@@ -123,8 +123,8 @@ int main(int argc, char** argv) {
     }
     // `{count > 0 && <Text>Positive</Text>}`: the branch is built once by build() and starts
     // detached, so the initial child set, the layout and the before frame are unchanged.
-    if (!expect(fixture.demo.branch_6_owned_ != nullptr && fixture.demo.branch_6_node_ == nullptr,
-                "the generated conditional branch is built once and starts detached")) {
+    if (!expect(card->children().size() == 4,
+                "the generated conditional branch starts detached (four children)")) {
         return 3;
     }
 
@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
     const auto down = click(InputEventType::PointerDown);
     const auto up = click(InputEventType::PointerUp);
     if (!expect(down.dispatched && up.dispatched, "pointer click dispatched") ||
-        !expect(fixture.demo.state_count_ == 1, "generated handler incremented the state cell") ||
+        !expect(fixture.demo.count() == 1, "generated handler incremented the state cell") ||
         !expect(route_is_w3c(*fixture.root, EventType::PointerDown), "PointerDown route is W3C") ||
         !expect(route_is_w3c(*fixture.root, EventType::PointerUp), "PointerUp route is W3C")) {
         return 6;
@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
         return 7;
     }
     fixture.demo.update();
-    if (!expect(fixture.demo.effect_sync_state_.runs >= 1, "update() ran the generated effect")) {
+    if (!expect(fixture.demo.sync_runs() >= 1, "update() ran the generated effect")) {
         return 7;
     }
 
@@ -207,14 +207,14 @@ int main(int argc, char** argv) {
 
     // The conditional attaches at its source position (last child) once `count > 0`; the demo
     // re-runs layout so the attached branch gets a box and appears in the after frame.
-    if (!expect(fixture.demo.branch_6_node_ != nullptr,
+    if (!expect(card->children().size() == 5,
                 "the generated conditional branch attached after the click") ||
         !expect(has_flag(card->dirty(), Dirty::Layout),
                 "attaching the branch marks the parent Layout")) {
         return 7;
     }
     fixture.layout_scene();
-    const auto branch_bounds = fixture.demo.branch_6_node_->world_bounds();
+    const auto branch_bounds = card->children().back()->world_bounds();
     if (!expect(card->children().size() == 5, "the attached branch is the fifth child") ||
         !expect(branch_bounds.width > 0.0f && branch_bounds.height > 0.0f,
                 "the attached branch is laid out after the reflow") ||
@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
                 "EditText route is W3C capture/target/bubble") ||
         !expect(route_is_w3c(*fixture.root, EventType::TextChange),
                 "the runtime TextChange dispatch is W3C capture/target/bubble") ||
-        !expect(fixture.demo.state_name_ == "Ada",
+        !expect(fixture.demo.name() == "Ada",
                 "generated onChange copied the committed text into state") ||
         !expect(generated_editor.buffer().text() == "Ada",
                 "the generated TextInputRuntime owns the edit buffer") ||
@@ -426,7 +426,7 @@ int main(int argc, char** argv) {
     const std::vector<std::uint8_t> replay_editing =
         render(*replay.root, replay.styles, replay_canvas, rasterizer, shaper, paint_context);
     if (!expect(replay_editing == editing, "a rebuilt generated UI reproduces the editing frame") ||
-        !expect(replay.demo.state_count_ == 1, "replayed click state")) {
+        !expect(replay.demo.count() == 1, "replayed click state")) {
         return 18;
     }
 

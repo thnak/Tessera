@@ -117,34 +117,33 @@ if (EXISTS ${_tessera_codegen_golden_dir}/Watcher.cpp AND EXISTS ${_tessera_code
     target_compile_features(tessera_codegen_size_watch_sample PUBLIC cxx_std_23)
 endif ()
 
-# Big Step C sample: seed the committed developer file (protected regions) into the build dir and
-# regenerate over it with the CLI; the merged output is what the build compiles.
+# Compiler demo (ADR-040): the generated base `Demo.g.hpp` is written into the build directory from
+# Demo.tsx by the CLI in base mode; the developer class `Demo.hpp/.cpp` is committed under
+# samples/compiler-demo and compiled from there.
 #
-# The regeneration runs the target-built `tessera_codegen_cli` ON THE HOST at build time, so it is
+# The generation runs the target-built `tessera_codegen_cli` ON THE HOST at build time, so it is
 # host-only: a cross-compiling build (Android/iOS) would try to execute a target binary. Generators
 # run on the host, never the target (same rule as the embedded-asset generator); mobile builds skip
 # the demo entirely and the host platforms cover it.
 if (NOT CMAKE_CROSSCOMPILING)
 set(_tessera_codegen_demo_dir ${CMAKE_CURRENT_BINARY_DIR}/samples/compiler-demo)
 set(_tessera_codegen_demo_src ${CMAKE_SOURCE_DIR}/samples/compiler-demo)
-set(_tessera_codegen_demo_seed ${CMAKE_SOURCE_DIR}/tests/golden/codegen/demo/Demo.cpp)
 add_custom_command(
-    OUTPUT ${_tessera_codegen_demo_dir}/Demo.cpp ${_tessera_codegen_demo_dir}/Demo.hpp
+    OUTPUT ${_tessera_codegen_demo_dir}/Demo.g.hpp
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_codegen_demo_dir}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${_tessera_codegen_demo_seed} ${_tessera_codegen_demo_dir}/Demo.cpp
-    COMMAND $<TARGET_FILE:tessera_codegen_cli> --write
+    COMMAND $<TARGET_FILE:tessera_codegen_cli> --mode base --write
             --out ${_tessera_codegen_demo_dir} --namespace demo
             ${_tessera_codegen_demo_src}/Demo.tsx
     DEPENDS tessera_codegen_cli
             ${_tessera_codegen_demo_src}/Demo.tsx
-            ${_tessera_codegen_demo_seed}
-    COMMENT "Regenerating the compiler demo screen"
+    COMMENT "Generating the compiler demo base"
     VERBATIM)
 
-add_library(tessera_compiler_demo STATIC ${_tessera_codegen_demo_dir}/Demo.cpp)
-target_include_directories(tessera_compiler_demo PRIVATE ${_tessera_codegen_demo_dir})
-target_link_libraries(tessera_compiler_demo PRIVATE tessera_scene tessera_text_edit
+add_library(tessera_compiler_demo STATIC ${_tessera_codegen_demo_src}/Demo.cpp
+    ${_tessera_codegen_demo_dir}/Demo.g.hpp)
+target_include_directories(tessera_compiler_demo PUBLIC
+    ${_tessera_codegen_demo_src} ${_tessera_codegen_demo_dir})
+target_link_libraries(tessera_compiler_demo PUBLIC tessera_scene tessera_text_edit
     tessera_animation)
 endif ()
 
@@ -578,16 +577,17 @@ if (TESSERA_BUILD_TESTS)
     # CPU paint golden for a synthesized payload: the generated component -> payload asset name ->
     # generated bundle -> SVG decode -> ThorVG raster -> textured blit, compared with a committed
     # baseline at tolerance 0. Skips cleanly without ThorVG.
-    if (EXISTS ${_tessera_codegen_golden_dir}/vector/VectorIcon.cpp AND
-        TESSERA_ENABLE_THORVG)
+    if (TARGET codegen_base_fixtures_compile AND TESSERA_ENABLE_THORVG)
         add_executable(codegen_vector_paint_golden_tests
             ${CMAKE_SOURCE_DIR}/tests/gpu/codegen_vector_paint_golden_tests.cpp)
         target_include_directories(codegen_vector_paint_golden_tests
             PRIVATE
                 ${PROJECT_SOURCE_DIR}/tools/poc/batched2d
-                ${_tessera_codegen_golden_dir}/vector)
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures
+                ${_tessera_codegen_base_fixture_dir}/vicon)
+        # The generated base and asset bundle are written by the fixture tool's custom command.
+        add_dependencies(codegen_vector_paint_golden_tests codegen_base_fixtures_compile)
         target_link_libraries(codegen_vector_paint_golden_tests PRIVATE
-            tessera_codegen_vector_sample
             tessera_paint
             tessera_scene
             tessera_software
