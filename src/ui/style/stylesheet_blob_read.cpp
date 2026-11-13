@@ -11,6 +11,27 @@ namespace {
 
 using blob::Reader;
 
+// Every enum byte is validated against the enum's last enumerator (Reader::enumeration takes the
+// inclusive maximum). Naming the bound instead of writing a literal keeps the two in step when an
+// enumerator is appended: a literal that is one too low makes a valid blob unloadable, which is
+// exactly what happened to `MediaFeature::WindowBackdrop` (issue #274).
+//
+// `StyleDiagnosticKind` needs the full range too: prepare-time diagnostics only use the first four
+// kinds today, but the kind is an enum the writer copies verbatim, so a prepare pass that starts
+// reporting a `var()` cycle or an undeclared part must not turn every affected blob into
+// "truncated or malformed" (issue #274).
+constexpr std::uint8_t kMaxAttributeOperator =
+    static_cast<std::uint8_t>(AttributeOperator::Substring);
+constexpr std::uint8_t kMaxCombinator = static_cast<std::uint8_t>(Combinator::GeneralSibling);
+constexpr std::uint8_t kMaxMediaFeature = static_cast<std::uint8_t>(MediaFeature::WindowBackdrop);
+constexpr std::uint8_t kMaxMediaComparison = static_cast<std::uint8_t>(MediaComparison::Max);
+constexpr std::uint8_t kMaxContainerAxis = static_cast<std::uint8_t>(ContainerAxis::Height);
+constexpr std::uint8_t kMaxContainerOp = static_cast<std::uint8_t>(ContainerOp::LessEqual);
+constexpr std::uint8_t kMaxPreparedItemKind =
+    static_cast<std::uint8_t>(PreparedItemKind::Keyframes);
+constexpr std::uint8_t kMaxStyleDiagnosticKind =
+    static_cast<std::uint8_t>(StyleDiagnosticKind::UndeclaredPart);
+
 std::vector<Declaration> read_declarations(Reader& in) {
     std::vector<Declaration> declarations;
     const std::size_t n = in.count();
@@ -39,7 +60,7 @@ CompoundSelector read_compound(Reader& in, int depth) {
     for (std::size_t i = 0; i < attributes && !in.failed(); ++i) {
         AttributeSelector attribute;
         attribute.name = in.str();
-        attribute.op = static_cast<AttributeOperator>(in.enumeration(6));
+        attribute.op = static_cast<AttributeOperator>(in.enumeration(kMaxAttributeOperator));
         attribute.value = in.str();
         attribute.case_insensitive = in.boolean();
         compound.attributes.push_back(std::move(attribute));
@@ -73,7 +94,7 @@ SelectorList read_selector_list(Reader& in, int depth) {
         }
         const std::size_t combinators = in.count();
         for (std::size_t c = 0; c < combinators && !in.failed(); ++c) {
-            complex.combinators.push_back(static_cast<Combinator>(in.enumeration(3)));
+            complex.combinators.push_back(static_cast<Combinator>(in.enumeration(kMaxCombinator)));
         }
         // Matching walks combinators alongside compounds, so the counts must line up.
         if (complex.compounds.empty() ||
@@ -95,8 +116,9 @@ MediaQueryList read_media(Reader& in) {
         const std::size_t conditions = in.count();
         for (std::size_t c = 0; c < conditions && !in.failed(); ++c) {
             MediaCondition condition;
-            condition.feature = static_cast<MediaFeature>(in.enumeration(5));
-            condition.comparison = static_cast<MediaComparison>(in.enumeration(2));
+            condition.feature = static_cast<MediaFeature>(in.enumeration(kMaxMediaFeature));
+            condition.comparison =
+                static_cast<MediaComparison>(in.enumeration(kMaxMediaComparison));
             condition.value = in.str();
             query.conditions.push_back(std::move(condition));
         }
@@ -111,8 +133,8 @@ ContainerQuery read_container(Reader& in) {
     const std::size_t conditions = in.count();
     for (std::size_t i = 0; i < conditions && !in.failed(); ++i) {
         ContainerCondition condition;
-        condition.axis = static_cast<ContainerAxis>(in.enumeration(1));
-        condition.op = static_cast<ContainerOp>(in.enumeration(4));
+        condition.axis = static_cast<ContainerAxis>(in.enumeration(kMaxContainerAxis));
+        condition.op = static_cast<ContainerOp>(in.enumeration(kMaxContainerOp));
         condition.value = in.f64();
         query.conditions.push_back(condition);
     }
@@ -121,7 +143,7 @@ ContainerQuery read_container(Reader& in) {
 
 PreparedItem read_item(Reader& in, std::size_t layer_count) {
     PreparedItem item;
-    item.kind = static_cast<PreparedItemKind>(in.enumeration(3));
+    item.kind = static_cast<PreparedItemKind>(in.enumeration(kMaxPreparedItemKind));
     const std::size_t media = in.count();
     for (std::size_t i = 0; i < media && !in.failed(); ++i) {
         item.media.push_back(read_media(in));
@@ -220,7 +242,7 @@ load_stylesheet_blob(std::span<const std::uint8_t> bytes,
     const std::size_t diagnostics = in.count();
     for (std::size_t i = 0; i < diagnostics && !in.failed(); ++i) {
         StyleDiagnostic diagnostic;
-        diagnostic.kind = static_cast<StyleDiagnosticKind>(in.enumeration(3));
+        diagnostic.kind = static_cast<StyleDiagnosticKind>(in.enumeration(kMaxStyleDiagnosticKind));
         diagnostic.offset = static_cast<std::size_t>(in.u64());
         diagnostic.property = in.str();
         diagnostic.message = in.str();
