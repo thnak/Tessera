@@ -46,6 +46,9 @@ RHI versioning and capabilities (ADR-049):
   doc to state the version impact; the docs gate fails RHI header changes without those matching
   updates.
 
+The floor-versus-capability model and the rule for where a new feature goes are in
+[`backends.md`](backends.md) section 2.1.
+
 Target additions:
 
 - `DeviceCaps`: format support, max texture size, frames-in-flight limit, compute, push-constant

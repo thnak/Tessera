@@ -47,6 +47,38 @@ Optional capabilities are queried, not assumed:
 
 A missing optional capability uses the documented fallback or fails at creation.
 
+### 2.1 Model: a mandatory floor plus queried capabilities
+
+The RHI is **not** a pure capability-negotiated API. It is a thin RHI with a fixed floor that the
+batched 2D renderer assumes, plus capabilities for what lies outside the floor.
+
+- **Floor:** the list above. A backend that cannot provide it does not ship (Tier 3 at best,
+  [ADR-049](../../../decisions/ADR-049-backend-extensibility.md)). Renderer code never checks the
+  floor.
+- **Capabilities:** `Device::capabilities()` returns `RhiCapabilities`
+  ([`rhi.md`](rhi.md) section 3). Today it reports the backend, the RHI version and timestamp
+  support. The richer `DeviceCaps` (formats, limits, compute) is a target, not code. Today
+  capabilities feed logs and the conformance suite, which skips a check for an absent capability
+  and names it; no renderer path branches on them yet.
+- **Where a new feature goes:**
+  1. It goes **into the floor** when the renderer needs it for core output on every target and a
+     fallback would change the picture. Every Tier 1 backend must implement it before the feature
+     lands; the null backend rejects misuse like a validating backend.
+  2. It becomes a **capability** when a documented fallback keeps the picture correct (timestamps,
+     MSAA, compute). The code that uses it branches on `capabilities()`, and the fallback has a test.
+  3. Otherwise it is **backend-internal** and the RHI does not expose it.
+- **Who decides:** a floor addition changes the RHI contract and needs a version bump plus a note
+  in [`rhi.md`](rhi.md); when it is hard to reverse or affects a Tier 1 backend it needs an ADR.
+  A capability addition is a minor version bump and a PR that states the fallback.
+- **Parity:** a floor feature or a capability with a fallback is compared across backends by the
+  image parity test (#245); a mismatch beyond the per-pair tolerance fails the PR.
+
+Open: `copy_target_region` and the render-pass break needed by glass
+([`../../specs/glass-v1.md`](../../specs/glass-v1.md), #242). Floor means WebGPU and Metal must
+implement it, and V1 glass stays always on (spec decision). The alternative is a capability with
+the documented fallback "no blur", which the glass spec rejected. Unless the owner says otherwise,
+treat it as floor; WebGPU has `copyTextureToTexture`, and Metal uses a blit encoder.
+
 ## 3. Vulkan 1.3
 
 - Dynamic rendering; no legacy render-pass/framebuffer objects.
