@@ -91,6 +91,9 @@ public:
     void bind_texture(std::uint32_t slot, const rhi::Texture& texture) override {
         inner_->bind_texture(slot, texture);
     }
+    void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override {
+        inner_->bind_sampled_target(slot, target);
+    }
     void set_viewport(const rhi::Viewport& viewport) override {
         inner_->set_viewport(viewport);
     }

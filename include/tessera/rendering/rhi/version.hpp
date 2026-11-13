@@ -15,8 +15,11 @@ namespace tessera::rendering::rhi {
 // 1.2 (2026-11-13): additive swapchain composite-alpha request (`SwapchainDesc::per_pixel_alpha`)
 // and the resolved-mode query (`Swapchain::alpha_mode`/`supports_per_pixel_alpha`), glass-v1.md
 // section 6 (issue #243).
+// 1.3 (2026-11-13): additive sampled view of an offscreen render target
+// (`CommandList::bind_sampled_target`, `RenderTargetDesc::filter`/`address`), the capability the
+// glass composite draws with (issue #254, docs/design/gpu/offscreen-layers.md section 5).
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 2;
+inline constexpr std::uint32_t kRhiVersionMinor = 3;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

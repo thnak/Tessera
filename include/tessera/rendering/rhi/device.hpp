@@ -69,6 +69,17 @@ public:
     [[nodiscard]] virtual bool presentable() const {
         return false;
     }
+
+    // Sampler state the target is read with when `CommandList::bind_sampled_target` binds it as a
+    // texture (RHI 1.3). A target is created with it (`RenderTargetDesc::filter`/`address`), so the
+    // bind itself allocates nothing; the defaults are linear filtering with clamp-to-edge
+    // addressing. Every backend reports the state its target was created with.
+    [[nodiscard]] virtual Filter filter() const {
+        return Filter::Linear;
+    }
+    [[nodiscard]] virtual AddressMode address() const {
+        return AddressMode::ClampToEdge;
+    }
 };
 
 class CommandList {
@@ -80,6 +91,38 @@ public:
     virtual void bind_pipeline(const Pipeline& pipeline) = 0;
     virtual void bind_vertex_buffer(const Buffer& buffer) = 0;
     virtual void bind_texture(std::uint32_t slot, const Texture& texture) = 0;
+
+    // Binds `target` as a texture at descriptor `slot`, so a shader can read pixels a render target
+    // already holds. This is the RHI 1.3 sampled view of an offscreen target: the missing half of
+    // the isolated-layer seam (RHI 1.1 `copy_target_region`) and the capability the glass composite
+    // draws with (docs/design/gpu/offscreen-layers.md section 5.3, issue #254).
+    //
+    // Contract:
+    //  - `target` must be a non-presentable target that holds rendered content (a preceding render
+    //    pass, `copy_target_region` or `blit_target`), exactly like `copy_target_to_buffer`'s
+    //    source. A 4x target is read through its resolved image, which is also what readback and a
+    //    region copy observe.
+    //  - The sampler state is the target's own (`RenderTarget::filter()`/`address()`), fixed at
+    //    creation, so the bind allocates nothing and a target is always read with the same state.
+    //  - Record it outside a render pass, the same rule `copy_target_region` and `blit_target`
+    //    follow: the backend records the layout transition the sampler needs at that point, where
+    //    no attachment of an open pass is involved. Sampling the target of the pass being recorded
+    //    is therefore not expressible - which is the point, and why the consumer breaks its pass,
+    //    copies, binds, and only then opens the pass that reads the copy.
+    //  - A pipeline must have been bound (as for `bind_texture`), and it may be bound before
+    //    `begin_render_pass`: the usual recording order is `bind_pipeline` -> `bind_sampled_target`
+    //    -> `begin_render_pass` -> `set_viewport`/`set_scissor` -> `push_constants` -> `draw`.
+    //    `resume_pass()` in the batched renderer rebinds its own pipeline, so a caller that samples
+    //    a target and then resumes rebinds the sampling pipeline after the resume.
+    //  - The target is left in a shader-read state until something writes it again: a later
+    //    `begin_render_pass`, region copy or blit into the same target transitions it back, and a
+    //    later read (`copy_target_to_buffer`, another region copy, a blit source, another bind)
+    //    works from either state. Backends track it; the RHI exposes no image layout.
+    //  - `slot` selects the descriptor set like `bind_texture`'s slot; the bound pipeline's layout
+    //    must declare a combined image sampler there.
+    //  - Violations throw `std::invalid_argument` (presentable target, target without content) or
+    //    `std::logic_error` (inside a render pass), never silently ignored.
+    virtual void bind_sampled_target(std::uint32_t slot, const RenderTarget& target) = 0;
     virtual void set_viewport(const Viewport& viewport) = 0;
     virtual void set_scissor(const Scissor& scissor) = 0;
     virtual void push_constants(const void* data, std::size_t size) = 0;

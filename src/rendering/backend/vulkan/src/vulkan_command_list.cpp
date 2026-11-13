@@ -42,6 +42,11 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
         throw std::runtime_error("begin_render_pass: the previous render pass is still active");
     }
     const auto* vulkan_target = &vulkan_cast<const VulkanRenderTarget>(target);
+    if (sampled_target_ == vulkan_target) {
+        throw std::invalid_argument(
+            "begin_render_pass: the target is bound as a sampled texture; a target cannot be "
+            "sampled while it is the pass's color attachment");
+    }
     const std::uint32_t sample_count = vulkan_target->sample_count();
     if (desc.sample_count != sample_count) {
         throw std::invalid_argument(
@@ -77,21 +82,43 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     // multisampled images. A fresh target image is UNDEFINED (including after a swapchain or
     // target recreation), so the old layout follows the target's history.
     const bool had_content = vulkan_target->content_initialized();
+    // RHI 1.3: an offscreen target is in TRANSFER_SRC_OPTIMAL after a render pass, a region copy or
+    // a blit, and in SHADER_READ_ONLY_OPTIMAL after a bind_sampled_target(). A preserving pass
+    // therefore follows the target's tracked layout instead of assuming the transfer state; a
+    // target that has never been rendered is UNDEFINED and is cleared instead.
+    const VkImageLayout readable_layout = vulkan_target->image_layout() == VK_IMAGE_LAYOUT_UNDEFINED
+                                              ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                                              : vulkan_target->image_layout();
     const VkImageLayout previous_layout =
         !preserve || !had_content
             ? VK_IMAGE_LAYOUT_UNDEFINED
             : (multisampled ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                            : (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                                       : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL));
+                            : (present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : readable_layout));
     const bool preserving_existing = preserve && had_content;
+    // The barrier that makes the previous content available: a transfer read after a copy/blit, a
+    // shader read after a sampled bind, nothing for a fresh image.
+    const LayoutSource readable_source = preserving_existing && !present && !multisampled
+                                             ? source_for_layout(previous_layout)
+                                             : LayoutSource{};
     const VkAccessFlags color_access =
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | (preserve ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT : 0);
-    const VkPipelineStageFlags source_stage =
-        multisampled ? (preserving_existing ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)
-                     : (preserving_existing ? (present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
-                                                       : VK_PIPELINE_STAGE_TRANSFER_BIT)
-                                            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+    // The stage/access the previous content has to become available from. Explicit assignments keep
+    // the enumerator and flags types apart, which -Wextra (warnings as errors) insists on.
+    VkPipelineStageFlags source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkAccessFlags source_access = 0;
+    if (multisampled) {
+        if (preserving_existing) {
+            source_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            source_access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        }
+    } else if (preserving_existing) {
+        if (present) {
+            source_stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        } else {
+            source_stage = readable_source.stage;
+            source_access = readable_source.access;
+        }
+    }
     // The submission that renders an acquired swapchain image waits on its acquire semaphore at
     // COLOR_ATTACHMENT_OUTPUT (vulkan_command_list.cpp submit_async), so anything that executes
     // earlier in that submission - including this layout transition - is not ordered after the
@@ -102,18 +129,19 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
     // flags mask is -Wextra on GCC and warnings are errors.
     const VkPipelineStageFlags acquire_stage =
         static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-    record_image_transition(
-        buffer_, vulkan_target->image(), previous_layout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        multisampled ? (preserving_existing ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0)
-                     : (preserving_existing && !present ? VK_ACCESS_TRANSFER_READ_BIT : 0),
-        color_access, waits_for_acquire ? acquire_stage : source_stage,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    record_image_transition(buffer_, vulkan_target->image(), previous_layout,
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, source_access, color_access,
+                            waits_for_acquire ? acquire_stage : source_stage,
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     if (multisampled) {
         record_image_transition(
             buffer_, vulkan_target->resolve_image(), VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     }
+    // 1x: the image being rendered is the readable one. 4x: the multisample image is discarded
+    // after the resolve, so the tracked layout is the resolve image's.
+    vulkan_target->mark_image_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     VkRenderingAttachmentInfo attachment{};
     attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -169,6 +197,7 @@ void VulkanCommandList::end_render_pass() {
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT);
+        current_target_->mark_image_layout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     } else {
         record_image_transition(
             buffer_, current_target_->image(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -176,6 +205,8 @@ void VulkanCommandList::end_render_pass() {
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, present ? 0 : VK_ACCESS_TRANSFER_READ_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             present ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT);
+        current_target_->mark_image_layout(present ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                                   : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     }
     render_pass_active_ = false;
     // The target now holds a known layout (PRESENT_SRC / TRANSFER_SRC / COLOR_ATTACHMENT_OPTIMAL),
@@ -217,6 +248,9 @@ void VulkanCommandList::bind_texture(std::uint32_t slot, const rhi::Texture& tex
         vulkan_cast<const VulkanTexture>(texture).descriptor_set();
     vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, current_layout_, slot, 1,
                             &descriptor_set, 0, nullptr);
+    // A texture occupies the slot the sampled target had: sampling that target is no longer
+    // recorded at it, so a pass on the target is legal again.
+    sampled_target_ = nullptr;
 }
 
 void VulkanCommandList::set_viewport(const rhi::Viewport& viewport) {
@@ -292,6 +326,20 @@ void VulkanCommandList::copy_target_to_buffer(const rhi::RenderTarget& target,
     copy.imageSubresource.layerCount = 1;
     copy.imageExtent = {vulkan_target->extent().width, vulkan_target->extent().height, 1};
 
+    // The readable image is in TRANSFER_SRC after a render pass, a region copy or a blit; after a
+    // bind_sampled_target it is SHADER_READ_ONLY. Read it back through a transition instead of
+    // assuming the transfer state, so sampling and readback can alternate on one target (RHI 1.3).
+    const VkImageLayout readable_layout = vulkan_target->image_layout();
+    if (readable_layout != VK_IMAGE_LAYOUT_UNDEFINED &&
+        readable_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        const LayoutSource from = source_for_layout(readable_layout);
+        record_image_transition(buffer_, vulkan_target->readback_image(), readable_layout,
+                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, from.access,
+                                VK_ACCESS_TRANSFER_READ_BIT, from.stage,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT);
+        vulkan_target->mark_image_layout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    }
+
     vkCmdCopyImageToBuffer(buffer_, vulkan_target->readback_image(),
                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, vulkan_buffer->handle(), 1, &copy);
 }
@@ -327,20 +375,36 @@ void VulkanCommandList::blit_target(const rhi::RenderTarget& source,
         throw std::runtime_error("blit_target: render pass is still active");
     }
 
-    // end_render_pass() left the offscreen source in TRANSFER_SRC_OPTIMAL with its color write made
-    // available to a transfer read, so only the destination needs a barrier. The destination was
-    // presented before (PRESENT_SRC) or is a fresh swapchain image (UNDEFINED).
+    // The source is in TRANSFER_SRC after a render pass, a copy or a blit, and in SHADER_READ_ONLY
+    // after a bind_sampled_target. Make it readable by the transfer stage from whichever state it
+    // is in (RHI 1.3) instead of assuming the transfer state.
+    if (vulkan_source->image_layout() != VK_IMAGE_LAYOUT_UNDEFINED &&
+        vulkan_source->image_layout() != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        const LayoutSource from = source_for_layout(vulkan_source->image_layout());
+        record_image_transition(buffer_, vulkan_source->readback_image(),
+                                vulkan_source->image_layout(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                from.access, VK_ACCESS_TRANSFER_READ_BIT, from.stage,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT);
+        vulkan_source->mark_image_layout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    }
+
+    // The offscreen source is now in TRANSFER_SRC_OPTIMAL with its content made available to a
+    // transfer read, so only the destination needs a barrier. The destination was presented before
+    // (PRESENT_SRC) or is a fresh swapchain image (UNDEFINED).
     const bool destination_presentable = vulkan_destination->presentable();
     const bool destination_has_content = vulkan_destination->content_initialized();
     const bool waits_for_acquire =
         destination_presentable && vulkan_destination->frame_sync_pending();
     // A previously written destination is in the layout the last write left it in: PRESENT_SRC for
-    // a swapchain image, TRANSFER_SRC for an offscreen target (end_render_pass's post-render
-    // layout).
-    const VkImageLayout destination_previous = !destination_has_content ? VK_IMAGE_LAYOUT_UNDEFINED
-                                               : destination_presentable
-                                                   ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                                                   : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    // a swapchain image, TRANSFER_SRC or SHADER_READ_ONLY for an offscreen target.
+    const VkImageLayout destination_previous =
+        !destination_has_content
+            ? VK_IMAGE_LAYOUT_UNDEFINED
+            : (destination_presentable
+                   ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                   : (vulkan_destination->image_layout() == VK_IMAGE_LAYOUT_UNDEFINED
+                          ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                          : vulkan_destination->image_layout()));
     // The submission waits on the acquire semaphore at TRANSFER (see submit_async), so the layout
     // transition that first writes the acquired image must be scoped to that stage as well.
     const VkPipelineStageFlags acquire_stage =
@@ -386,6 +450,9 @@ void VulkanCommandList::blit_target(const rhi::RenderTarget& source,
     current_target_ = vulkan_destination;
     present_written_by_transfer_ = destination_presentable;
     vulkan_destination->mark_content_initialized();
+    vulkan_destination->mark_image_layout(destination_presentable
+                                              ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                              : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 }
 
 void VulkanCommandList::submit_async() {

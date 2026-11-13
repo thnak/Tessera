@@ -112,6 +112,12 @@ public:
     [[nodiscard]] std::uint32_t sample_count() const override {
         return desc_.sample_count;
     }
+    [[nodiscard]] rhi::Filter filter() const override {
+        return desc_.filter;
+    }
+    [[nodiscard]] rhi::AddressMode address() const override {
+        return desc_.address;
+    }
 
     [[nodiscard]] WGPUTexture resolved_texture() const {
         return resolve_ != nullptr ? resolve_ : color_;
@@ -123,6 +129,14 @@ public:
     [[nodiscard]] WGPUTextureView resolve_view() const {
         return resolve_view_;
     }
+    // RHI 1.3 sampled view (CommandList::bind_sampled_target): the target is read through its
+    // 1-sample image - the resolve view for a 4x target - with the sampler it was created with.
+    [[nodiscard]] WGPUTextureView sampled_view() const {
+        return resolve_view_ != nullptr ? resolve_view_ : color_view_;
+    }
+    [[nodiscard]] WGPUSampler sampler() const {
+        return sampler_;
+    }
 
 private:
     std::shared_ptr<WebGpuContext> context_;
@@ -131,6 +145,8 @@ private:
     WGPUTextureView color_view_ = nullptr;
     WGPUTexture resolve_ = nullptr;
     WGPUTextureView resolve_view_ = nullptr;
+    // Created with the target (like a texture's sampler) so a sampled bind never allocates.
+    WGPUSampler sampler_ = nullptr;
 };
 
 class WebGpuPipeline final : public rhi::Pipeline {

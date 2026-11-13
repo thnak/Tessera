@@ -84,6 +84,12 @@ public:
         pass_desc.colorAttachmentCount = 1;
         pass_desc.colorAttachments = &color;
         pass_ = wgpuCommandEncoderBeginRenderPass(encoder_, &pass_desc);
+        // A pipeline bound before the pass (the sampled-target order: bind_pipeline ->
+        // bind_sampled_target -> begin_render_pass) is applied now; a pipeline bound inside the
+        // pass was applied by bind_pipeline().
+        if (pipeline_ != nullptr) {
+            wgpuRenderPassEncoderSetPipeline(pass_, pipeline_->handle());
+        }
     }
 
     void end_render_pass() override {
@@ -96,7 +102,11 @@ public:
 
     void bind_pipeline(const rhi::Pipeline& pipeline) override {
         pipeline_ = &static_cast<const WebGpuPipeline&>(pipeline);
-        wgpuRenderPassEncoderSetPipeline(require_pass(), pipeline_->handle());
+        // A pipeline may be bound before the pass it draws into (RHI 1.3 sampled-target order),
+        // so it is applied when the pass opens; inside a pass it is applied immediately.
+        if (pass_ != nullptr) {
+            wgpuRenderPassEncoderSetPipeline(pass_, pipeline_->handle());
+        }
         dirty_ = true;
     }
 
@@ -111,6 +121,23 @@ public:
             throw std::invalid_argument("WebGpuCommandList: only texture slot 0 exists");
         }
         texture_ = &static_cast<const WebGpuTexture&>(texture);
+        sampled_target_ = nullptr;
+        dirty_ = true;
+    }
+
+    // RHI 1.3: a render target bound as a texture. WebGPU has no image layouts - the target's
+    // texture already carries TEXTURE_BINDING usage from its creation (render_target_usage) - so
+    // the bind records no transition and the bind group is built at draw time, exactly like a
+    // texture.
+    void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override {
+        if (pass_ != nullptr) {
+            throw std::logic_error("WebGpuCommandList: render pass is still open");
+        }
+        if (slot != 0) {
+            throw std::invalid_argument("WebGpuCommandList: only texture slot 0 exists");
+        }
+        sampled_target_ = &static_cast<const WebGpuRenderTarget&>(target);
+        texture_ = nullptr;
         dirty_ = true;
     }
 
@@ -137,8 +164,9 @@ public:
 
     void draw(std::uint32_t vertex_count, std::uint32_t first_vertex) override {
         WGPURenderPassEncoder pass = require_pass();
-        if (pipeline_ == nullptr || texture_ == nullptr) {
-            throw std::logic_error("WebGpuCommandList: draw needs a pipeline and a texture");
+        if (pipeline_ == nullptr || (texture_ == nullptr && sampled_target_ == nullptr)) {
+            throw std::logic_error(
+                "WebGpuCommandList: draw needs a pipeline and a texture or sampled target");
         }
         if (dirty_) {
             flush_bind_group(pass);
@@ -265,6 +293,7 @@ private:
         }
         pipeline_ = nullptr;
         texture_ = nullptr;
+        sampled_target_ = nullptr;
         dirty_ = false;
     }
 
@@ -294,8 +323,10 @@ private:
     // and the texture; push-constant changes move the dynamic offset instead of making a new group.
     WGPUBindGroup bind_group() {
         const WGPUBindGroupLayout layout = pipeline_->bind_group_layout();
-        const WGPUTextureView view = texture_->view();
-        const WGPUSampler sampler = texture_->sampler();
+        const WGPUTextureView view =
+            sampled_target_ != nullptr ? sampled_target_->sampled_view() : texture_->view();
+        const WGPUSampler sampler =
+            sampled_target_ != nullptr ? sampled_target_->sampler() : texture_->sampler();
         for (const CachedGroup& cached : groups_) {
             if (cached.group != nullptr && cached.layout == layout && cached.view == view &&
                 cached.sampler == sampler && cached.size == pipeline_->uniform_size()) {
@@ -356,6 +387,8 @@ private:
     std::uint32_t next_slice_ = 0;
     const WebGpuPipeline* pipeline_ = nullptr;
     const WebGpuTexture* texture_ = nullptr;
+    // RHI 1.3: the render target bound as a texture instead of `texture_`; the two are exclusive.
+    const WebGpuRenderTarget* sampled_target_ = nullptr;
     std::array<std::uint8_t, kMaxPushConstantBytes> push_{};
     std::uint32_t push_size_ = 0;
     rhi::Extent2D target_extent_;

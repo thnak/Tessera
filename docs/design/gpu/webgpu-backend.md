@@ -19,8 +19,10 @@ RHI contract is unchanged; this backend implements it.
   target.
 - `CommandList`: render pass begin/end (`RenderTargetDesc` carries clear color, load/store ops),
   bind pipeline/vertex buffer/texture slot, viewport, scissor, `push_constants`, `draw`,
-  `copy_target_to_buffer`, `submit` (blocking, tests only), `submit_async` + `is_complete` +
-  `wait(timeout)`. The caller keeps resources alive until completion.
+  `copy_target_to_buffer`, `copy_target_region`, `bind_sampled_target` (RHI 1.3: a render target as
+  a texture - its texture already carries `TEXTURE_BINDING`, and the bind group pairs its view with
+  the sampler the target was created with), `submit` (blocking, tests only), `submit_async` +
+  `is_complete` + `wait(timeout)`. The caller keeps resources alive until completion.
 - `Swapchain`: acquire/present/resize as values (`SwapchainError`), `image_target`.
 - Rules: never block the UI thread, no hidden allocation or RTTI on the frame path, failures as
   values on hot paths, exceptions at boundaries.
@@ -31,7 +33,8 @@ RHI contract is unchanged; this backend implements it.
 |---|---|---|
 | Shaders | `PipelineDesc` holds SPIR-V; WebGPU takes WGSL; ADR-011 says WGSL is authored directly (no Tint/Naga at runtime) | `PipelineDesc::shader_id` (ADR-049) names the program; `ShaderRegistry` maps the id to an embedded WGSL module and each device starts with the built-ins (`batched2d`). An empty or unknown id fails pipeline creation with `std::invalid_argument`. The SPIR-V fields are ignored |
 | Push constants | none | Uniform buffer at group 0, binding 0 with a dynamic offset; per command list arena, one 256-byte slice per distinct block (queue writes land before the whole command buffer, so one shared slot would show only the last value). Bind groups are cached per command list by (layout, texture view, sampler) in a 16-entry round-robin table, so a push-constant change only moves the offset |
-| Binding model | bind groups | One group: 0 uniform, 1 texture, 2 sampler (`kBinding*` in the mapping header) |
+| Binding model | bind groups | One group: 0 uniform, 1 texture, 2 sampler (`kBinding*` in the mapping header). The texture entry is either a `Texture` or a sampled render target (RHI 1.3), which reports its own view and sampler, so the cache key is unchanged |
+| Pipeline binding order | `setPipeline` only inside a pass | A pipeline bound before `begin_render_pass` is stored and applied when the pass opens, so a command list can follow the sampled-target order `bind_pipeline` -> `bind_sampled_target` -> `begin_render_pass` (RHI 1.3; Vulkan requires it, and the doc's order has to be backend-neutral) |
 | Clip space | y up (Vulkan is y down) | The WGSL vertex stage flips y |
 | `LoadOp::DontCare` | no such op | Maps to `Clear` |
 | Readback | `copyTextureToBuffer` rows must be 256-byte aligned; no sync map | `padded_bytes_per_row`/`readback_buffer_size`; `Buffer::read` throws, async map is a later slice |

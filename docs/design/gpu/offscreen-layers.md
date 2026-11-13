@@ -1,11 +1,13 @@
 # Offscreen layers and the render-pass break
 
 Status: implemented in `src/rendering/gpu/` and RHI 1.1 for issue #242
-([`glass-v1.md`](../../specs/glass-v1.md) section 4). It is the seam `backdrop-filter` (#244),
-isolated layers (#227), shared-element snapshots and stacking contexts build on. #244 landed the
-paint-side consumer and the blur shaders on top of it; the composite draw that samples a pooled
-target is still missing (section 7). The RHI operation itself is normative in
-[`rhi.md`](rhi.md) section 5.
+([`glass-v1.md`](../../specs/glass-v1.md) section 4), and completed by the RHI 1.3 sampled view of a
+render target (issue #254, section 5.3). It is the seam `backdrop-filter` (#244), isolated layers
+(#227), shared-element snapshots and stacking contexts build on. #244 landed the paint-side consumer
+and the blur shaders on top of it; #254 landed the capability that makes the composite execute, so
+what remains for #244 is wiring the two blur passes and the composite draw into the paint segment
+(section 5.1) - not a new GPU capability. The RHI operation itself is normative in
+[`rhi.md`](rhi.md) sections 5 and 5.1.
 
 ## 1. The problem
 
@@ -145,21 +147,26 @@ gained `glass_ms` and `glass_backdrop_count` (plus totals); the count is reporte
 today and the GPU interval arrives with the composite. `glass_blur.frag`/`glass_blur.wgsl` implement
 the two passes, the color matrix and the rounded composite clip.
 
-Remaining: the composite draw has to sample a pooled target, and the RHI has no sampled view of a
-render target yet (`RenderTarget` exposes extent/format/sample count only, and this seam deliberately
-deferred that capability to its consumer, section 7). Until it lands, `Batched2DSink::draw_backdrop`
-counts the draw in `GlassPaintStats::unsupported` instead of pretending it painted glass; the frame
-composes exactly as it did before the declaration existed.
+Remaining: the paint pass has to record the two blur passes and the composite draw inside the
+segment. The capability those need landed separately as RHI 1.3 (section 5.3): a render target is
+samplable, the `glass_blur` pipeline descriptor exists
+(`include/tessera/rendering/vulkan/glass_blur_pipeline.hpp`, `gpu::GlassPushConstants`), and
+`tests/gpu/batched2d/glass_composite_gpu_tests.cpp` proves the whole sequence on a real target. Until
+the renderer wiring lands, `Batched2DSink::draw_backdrop` counts the draw in
+`GlassPaintStats::unsupported` instead of pretending it painted glass; the frame composes exactly as
+it did before the declaration existed.
 
 ### 5.2 Isolated layers (#227)
 
 An isolated layer is the same seam with a different destination: render the subtree into a pooled
 target (render pass on the target, not a region copy), then composite it once. Because the pool
 hands out plain `RenderTarget`s - not region-copy scratch buffers - no new resource type is needed;
-the layer path only needs a composite draw with the target as a texture, which is a later slice.
-#227 itself shipped the non-isolated rule instead - the effective opacity product folded into every
-primitive of the subtree, no offscreen target ([`../paint-pass.md`](../paint-pass.md) section 14.1) -
-so true group isolation, shared-element snapshots and stacking contexts still wait on this seam.
+the layer path only needs a composite draw with the target as a texture, which is the same
+`bind_sampled_target` the glass composite uses (section 5.3).
+#227 itself shipped the non-isolated rule instead - the effective opacity product folded into
+every primitive of the subtree, no offscreen target ([`../paint-pass.md`](../paint-pass.md)
+section 14.1) - so true group isolation, shared-element snapshots and stacking contexts still
+wait on this seam.
 
 ## 6. Testing and determinism
 
@@ -172,18 +179,35 @@ so true group isolation, shared-element snapshots and stacking contexts still wa
   draw, break, copy, resume, draw -> expected pixels; content before the break survives the Load
   resume; the copy holds the source pixels; a copied region can be placed back into the frame
   target.
-- Existing image goldens are unchanged: no golden scene breaks a pass, so the single-pass command
-  stream and its pixels are untouched.
+- `tests/gpu/batched2d/sampled_target_tests.cpp` (null, always runs): the sampled seam records
+  attachment -> copy -> sample -> composite in that order (`NullCommandStats::command_order`), the
+  target's sampler state reaches the backend from `RenderTargetDesc`, a bind inside a pass and a bind
+  of a target without content are rejected, the renderer path breaks, copies into a pooled target,
+  samples it into a second pooled target and composites, and a frame that samples nothing records no
+  sampled bind.
+- `tests/gpu/batched2d/glass_composite_gpu_tests.cpp` (lavapipe/real Vulkan, skips without a device):
+  the first real glass pixels. It draws a red/blue backdrop, breaks, copies it, runs the horizontal
+  `glass_blur` pass into a pooled target sampling the copy, resumes and composites through the
+  vertical pass. Expected pixels come from `glass_kernel_taps` plus a bilinear clamp-to-edge sample,
+  so the shader and the CPU kernel cannot drift; the same test reads both sampled targets back
+  afterwards, which exercises the shader-read -> transfer transition in the other direction.
+- Existing image goldens are unchanged: no golden scene breaks a pass or samples a target, so the
+  single-pass command stream and its pixels are untouched, and a no-glass frame records no sampled
+  bind.
 
 ## 7. Deferred / open
 
 - Same-target (in-image) region copies, and a swapchain image as a copy source/destination (needs
-  swapchain usage flags; see [`rhi.md`](rhi.md) section 10).
-- A sampled view of a render target (image view + sampler + descriptor set, plus the layout
-  transitions between transfer, attachment and shader-read) - the one capability standing between
-  the #244 paint pass and a working GPU blur, because the vertical pass and the composite both read
-  a pooled target. It also needs the `glass_blur` pipeline created by the composition root.
-- A render pass on a pooled target driven by the renderer itself (the #227 layer path) and the
-  composite draw that samples it; this seam only exposes the target.
+  swapchain usage flags; see [`rhi.md`](rhi.md) section 10). The same applies to sampling: a
+  swapchain image is not a sampled target in RHI 1.3 because it is created for color
+  attachment/transfer-dst, and making one samplable is a swapchain-usage decision.
+- Multiple sampler states per target (the descriptor carries one), mip generation for a sampled
+  target, and sampling a target while it is the pass's own attachment - all deliberately out of the
+  capability's scope.
+- The renderer wiring: the #244 paint segment that binds `glass_blur`, records the two passes and
+  the composite (with `glass_blur_pipeline_desc()` and `gpu::GlassPushConstants` already available),
+  and the #227 layer path that renders a subtree into a pooled target and composites it. Both are
+  consumers of the capability, not RHI work.
 - WebGPU is implemented but compiled only in the Wasm lane (no Emscripten on every dev machine);
-  the `copyTextureToTexture` path is validated by that lane, not locally on Windows.
+  `copyTextureToTexture` and the sampled bind group are validated by that lane, not locally on
+  Windows.

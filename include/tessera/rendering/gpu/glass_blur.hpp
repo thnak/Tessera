@@ -68,6 +68,48 @@ struct GlassBackdropPlan {
 [[nodiscard]] GlassBackdropPlan plan_glass_backdrop(rhi::Extent2D box_device, float sigma_css_px,
                                                     float device_scale, const GlassLimits& limits);
 
+// The push-constant block `glass_blur.frag` reads, one block per pass. It mirrors the shader's
+// std140 layout (tools/shaders/manifest.json declares the same 96 bytes and field offsets; the
+// shader-parity test compares the manifest against `Batched2DPushConstants` only, so the layout is
+// pinned here). `mode` picks the pass: 0 = horizontal blur into a blur target, 1 = vertical blur
+// into the frame target plus the color matrix and the rounded composite clip.
+//
+// A sampled render target is read through `bind_sampled_target` with the target's sampler state
+// (linear + clamp to edge), which is what the tap loop assumes.
+struct GlassPushConstants {
+    float texel_step_x = 0.0f; // 1 / blur-target extent
+    float texel_step_y = 0.0f;
+    float direction_x = 1.0f; // (1, 0) horizontal, (0, 1) vertical
+    float direction_y = 0.0f;
+    float sigma = 0.0f;           // Gaussian sigma in blur-target texels
+    float radius = 0.0f;          // ceil(3 * sigma), the CPU kernel's integer radius
+    float region_origin_x = 0.0f; // destination-space origin of the blurred region
+    float region_origin_y = 0.0f;
+    float region_size_x = 0.0f; // destination-space size of the blurred region
+    float region_size_y = 0.0f;
+    // std140 aligns `box` (a vec4) to 16 bytes, so two floats are padding after region_size.
+    float padding_0 = 0.0f;
+    float padding_1 = 0.0f;
+    float box_x = 0.0f; // xy = composite box origin, zw = box size (destination space)
+    float box_y = 0.0f;
+    float box_width = 0.0f;
+    float box_height = 0.0f;
+    float radius_tl = 0.0f; // top-left, top-right, bottom-right, bottom-left corner radii
+    float radius_tr = 0.0f;
+    float radius_br = 0.0f;
+    float radius_bl = 0.0f;
+    float saturate = 1.0f; // saturate, brightness, contrast (vertical pass only)
+    float brightness = 1.0f;
+    float contrast = 1.0f;
+    float mode = 0.0f; // 0 = horizontal into the blur target, 1 = vertical + composite
+};
+
+static_assert(sizeof(GlassPushConstants) == 96,
+              "glass_blur push constants must match the shader's 96-byte block");
+static_assert(offsetof(GlassPushConstants, box_x) == 48, "glass_blur vec4 box is 16-byte aligned");
+static_assert(offsetof(GlassPushConstants, saturate) == 80, "glass_blur factors follow the radii");
+static_assert(offsetof(GlassPushConstants, mode) == 92, "glass_blur mode is the last field");
+
 // The paint dependency region of a glass node: its box grown by `3 * sigma` on every side, in
 // device pixels (glass-v1 section 7). Damage intersecting this region must repaint the glass node.
 // Inline and header-only so the UI damage layer can use the one definition without linking the

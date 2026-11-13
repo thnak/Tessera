@@ -121,6 +121,12 @@ public:
     // Full-image upload used by Texture::write (dynamic atlases).
     void upload_texture(VulkanTexture& texture, const void* data, std::size_t size);
 
+    // RHI 1.3: the descriptor set that binds `target`'s sampled view with the target's sampler
+    // state. Created on the target's first bind_sampled_target and cached on the target (so a
+    // steady-state bind allocates nothing); the sampler and the set are released by the target's
+    // destructor.
+    [[nodiscard]] VkDescriptorSet sampled_descriptor(const VulkanRenderTarget& target);
+
     // Hands out recycled command resources (or creates new ones). release_command_resources takes
     // them back; `in_flight` resources are reused only once their fence has signaled.
     CommandResources acquire_command_resources();

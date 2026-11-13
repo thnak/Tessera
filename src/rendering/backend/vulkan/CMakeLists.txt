@@ -48,8 +48,8 @@ tessera_add_spv_c(batched2d.vert TESSERA_BATCHED2D_VERT_SPV)
 tessera_add_spv_c(batched2d.frag TESSERA_BATCHED2D_FRAG_SPV)
 # Glass two-pass Gaussian (issue #244, docs/specs/glass-v1.md section 5): the fragment pass pairs
 # with fullscreen.vert (gl_VertexIndex triangle, no vertex buffer). Compiled here so glslc and the
-# manifest check validate it in every Vulkan build; the renderer's glass pipeline lands with the
-# sampled-target composite (docs/design/gpu/offscreen-layers.md section 7).
+# manifest check validate it in every Vulkan build, and embedded by glass_blur_pipeline_desc() -
+# the pipeline the sampled-target composite test (issue #254) records.
 tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 
 add_custom_target(tessera_vulkan_shaders DEPENDS ${TESSERA_VERT_SPV} ${TESSERA_FRAG_SPV})
@@ -78,6 +78,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_resources.cpp
     src/vulkan_command_list.cpp
     src/vulkan_command_list_copy.cpp
+    src/vulkan_sampled_target.cpp
     src/vulkan_command_resources.cpp
     src/vulkan_upload.cpp
     src/vulkan_texture.cpp
@@ -85,8 +86,11 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_validation.cpp
     src/vma_impl.cpp
     src/batched2d_pipeline.cpp
+    src/glass_blur_pipeline.cpp
     ${TESSERA_BATCHED2D_VERT_SPV}
     ${TESSERA_BATCHED2D_FRAG_SPV}
+    ${TESSERA_VERT_SPV}
+    ${TESSERA_GLASS_BLUR_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)
 
 if (WIN32 OR TESSERA_X11_FOUND)

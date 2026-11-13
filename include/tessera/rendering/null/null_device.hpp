@@ -26,12 +26,40 @@ struct NullTargetRegionCopy {
     rhi::Extent2D destination_extent;
 };
 
+// One bind_sampled_target() request (RHI 1.3), with the target's identity at bind time. The null
+// backend samples nothing; the record is what a structural test asserts.
+struct NullSampledTargetBind {
+    std::uint32_t slot = 0;
+    rhi::Extent2D extent;
+    rhi::TextureFormat format = rhi::TextureFormat::R8G8B8A8Unorm;
+    std::uint32_t sample_count = 1;
+    rhi::Filter filter = rhi::Filter::Linear;
+    rhi::AddressMode address = rhi::AddressMode::ClampToEdge;
+};
+
+// Every recorded operation, in command-buffer order. The counters below answer "how many"; this log
+// answers "in what order", which is what the composite seam has to pin (attachment -> copy ->
+// sample -> composite) and what a counter cannot express.
+enum class NullCommandKind {
+    BeginRenderPass,
+    EndRenderPass,
+    BindPipeline,
+    BindTexture,
+    BindSampledTarget,
+    Draw,
+    CopyTargetRegion,
+    Blit,
+    Submit,
+};
+
 struct NullCommandStats {
     std::uint32_t begin_render_passes = 0;
     std::uint32_t end_render_passes = 0;
     std::uint32_t pipeline_binds = 0;
     std::uint32_t vertex_buffer_binds = 0;
     std::uint32_t texture_binds = 0;
+    // bind_sampled_target() calls recorded, with one entry each in sampled_targets.
+    std::uint32_t sampled_target_binds = 0;
     std::uint32_t scissor_changes = 0;
     std::uint32_t draws = 0;
     std::uint32_t vertices = 0;
@@ -40,6 +68,9 @@ struct NullCommandStats {
     // copy_target_region() calls recorded, with one entry each in target_region_copies.
     std::uint32_t region_copies = 0;
     std::vector<NullTargetRegionCopy> target_region_copies;
+    std::vector<NullSampledTargetBind> sampled_targets;
+    // Ordered log of everything the list recorded.
+    std::vector<NullCommandKind> command_order;
     // Sample count of the most recent begin_render_pass target (1 or 4).
     std::uint32_t last_render_pass_sample_count = 0;
     // One entry per draw, in recording order; `scissor` is the state active at draw time.
@@ -54,6 +85,7 @@ public:
     void bind_pipeline(const rhi::Pipeline& pipeline) override;
     void bind_vertex_buffer(const rhi::Buffer& buffer) override;
     void bind_texture(std::uint32_t slot, const rhi::Texture& texture) override;
+    void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;
     void push_constants(const void* data, std::size_t size) override;
@@ -79,6 +111,8 @@ public:
 private:
     NullCommandStats stats_;
     rhi::Scissor scissor_;
+    // Target of the open pass, marked as holding content when the pass closes.
+    const rhi::RenderTarget* current_target_ = nullptr;
     bool submitted_ = false;
     bool in_pass_ = false;
     std::uint32_t pass_sample_count_ = 1;

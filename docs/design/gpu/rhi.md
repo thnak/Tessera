@@ -35,11 +35,13 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.2**
-  (`0x00010002`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.3**
+  (`0x00010003`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
-  swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243).
-  Both later versions are additive compatible changes.
+  swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
+  1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
+  the target's sampler state, issue #254, section 5.1 below). All later versions are additive
+  compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
   `timestamp_capability()`). Backends declare the implemented major version with a compile-time
@@ -70,7 +72,7 @@ B1 fields:
 |---|---|
 | `BufferDesc` | `size`, `usage` (`Vertex/Index/Uniform/Staging/Readback`) |
 | `TextureDesc` | `extent`, `format`, `pixels`, `row_pitch`, `filter`, `address` |
-| `RenderTargetDesc` | `extent`, `format`, `clear_color`, `load_op`, `store_op` |
+| `RenderTargetDesc` | `extent`, `format`, `clear_color`, `load_op`, `store_op`, `sample_count`, `filter`, `address` |
 | `PipelineDesc` | vertex/fragment SPIR-V, vertex layout, color format, blend, push-constant size |
 | `SwapchainDesc` | `extent`, `format`, `image_count`, `vsync`, `native_window`, `native_display`, `per_pixel_alpha` |
 
@@ -102,6 +104,16 @@ create -> begin_render_pass -> bind_pipeline -> bind_vertex_buffer
   -> bind_texture(s) -> set_viewport/scissor -> push_constants -> draw
   -> end_render_pass -> copy target / copy region / blit -> submit
 ```
+
+A command list that reads a render target as a texture (section 5.1) breaks that order once:
+
+```text
+... -> end_render_pass -> copy_target_region(...) -> bind_pipeline -> bind_sampled_target(slot, target)
+  -> begin_render_pass ... -> push_constants -> draw -> end_render_pass ...
+```
+
+`bind_pipeline` is therefore legal outside a render pass, and `bind_sampled_target` must be recorded
+outside one, after the pipeline.
 
 Invariants:
 
@@ -137,6 +149,38 @@ Invariants:
 - The backend owns image-layout transitions, queue ownership, and API barriers; the RHI exposes
   no raw barrier calls in B1. A future explicit-barrier API needs a decision.
 
+### 5.1 Sampled render target (RHI 1.3)
+
+```cpp
+virtual void bind_sampled_target(std::uint32_t slot, const RenderTarget& target) = 0;
+```
+
+- Binds a rendered, non-presentable target as a texture at descriptor `slot`, read with the sampler
+  state it was created with (`RenderTargetDesc::filter`/`address`, default linear filtering and
+  clamp-to-edge addressing). A 4x target is read through its resolved image, which is also what
+  readback and a region copy observe.
+- The state belongs to the target, so a bind allocates nothing on the frame path and a target is
+  always read with the same state. Backends create the small objects (a Vulkan sampler and
+  descriptor set) on the target's first bind and free them with the target.
+- Record it outside a render pass, after `bind_pipeline`. Both halves of that order are backend
+  constraints, not style: a dynamic-rendering instance cannot scope a barrier to the transfer stage
+  the previous copy left the image in, and `vkCmdBindDescriptorSets` needs a pipeline layout.
+  `bind_pipeline` before `begin_render_pass` is legal on every backend for the same reason.
+- After the bind the target is in a backend-tracked shader-read state; a later render pass, copy,
+  blit or readback transitions it back. The RHI exposes no layout and no barrier (`copy_target_to_buffer`
+  and `copy_target_region` remain barrier-free by contract).
+- Sampling the pass's own attachment is rejected - a target cannot be a sampled texture and a color
+  attachment at once - as are a presentable target and a target without rendered content.
+- The capability is effect-neutral: the glass composite and an isolated layer bind a target exactly
+  like a texture, and no backend carries effect-specific code.
+
+Backend notes: Vulkan keeps the readable image's layout on the target
+(`TRANSFER_SRC_OPTIMAL` <-> `SHADER_READ_ONLY_OPTIMAL`; the 1-sample image, or a 4x target's resolve
+image, carries `VK_IMAGE_USAGE_SAMPLED_BIT`) and transitions back to `TRANSFER_SRC_OPTIMAL` for
+every later copy, blit, pass or readback. WebGPU's target texture already carries `TEXTURE_BINDING`
+usage and the bind group pairs its view with the target's sampler; WebGPU tracks the transition.
+Null records the bind (`NullSampledTargetBind`) and the ordered command log.
+
 ## 6. Lifetime and threading
 
 - The device owns GPU objects; users own handles and destroy them before the device.
@@ -171,11 +215,15 @@ Invariants:
 The null backend implements the same object/command API with no GPU. It records:
 
 - render-pass begin/end
-- pipeline/vertex/texture binds
+- pipeline/vertex/texture binds, including `bind_sampled_target` with the sampled target's slot,
+  extent, format, sample count and sampler state
 - viewports/scissors
 - push-constant size
 - draw calls/vertices
 - copies/submits, including the region and destination offset of `copy_target_region`
+- every recorded operation in command order (`NullCommandStats::command_order`), so a structural
+  test can assert a sequence - the composite seam's attachment -> copy -> sample -> composite - and
+  not only counts
 
 Null is the default unit/structural test path. It must reject invalid command order the same way
 a validating backend would, so tests catch contract errors without a GPU.

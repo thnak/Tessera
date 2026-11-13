@@ -14,6 +14,10 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
         throw std::runtime_error("create_pipeline: " + std::to_string(sample_count) +
                                  "x MSAA is not supported for this target format on this device");
     }
+    if (desc.vertex_layout.stride == 0 && desc.vertex_layout.attribute_count != 0) {
+        throw std::invalid_argument(
+            "create_pipeline: a vertex attribute layout needs a non-zero stride");
+    }
     VkShaderModule vertex_module = VK_NULL_HANDLE;
     VkShaderModule fragment_module = VK_NULL_HANDLE;
 
@@ -75,8 +79,12 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
 
     VkPipelineVertexInputStateCreateInfo vertex_input{};
     vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertex_input.vertexBindingDescriptionCount = 1;
-    vertex_input.pVertexBindingDescriptions = &binding;
+    // An empty layout (fullscreen.vert builds its triangle from gl_VertexIndex, so glass_blur has
+    // stride 0) declares no vertex binding at all: a binding with no attributes is legal but makes
+    // drivers expect a buffer, and the draw then has nothing to bind.
+    const bool has_vertex_layout = desc.vertex_layout.stride != 0;
+    vertex_input.vertexBindingDescriptionCount = has_vertex_layout ? 1 : 0;
+    vertex_input.pVertexBindingDescriptions = has_vertex_layout ? &binding : nullptr;
     vertex_input.vertexAttributeDescriptionCount = static_cast<std::uint32_t>(attributes.size());
     vertex_input.pVertexAttributeDescriptions = attributes.empty() ? nullptr : attributes.data();
 

@@ -8,11 +8,16 @@ translucent window with an OS backdrop. Builds on [`stylesheet-v1.md`](styleshee
 
 Implementation status (2026-11-13, #244): the style surface (section 2), the paint-pass
 segmentation, the damage rules of section 7, the config keys and the two-pass shader sources are
-implemented and tested; the GPU execution needs the sampled-target composite listed as deferred in
-[`gpu/offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 7, and section 6
+implemented and tested. The **GPU composite capability is ready**: RHI 1.3 (issue #254) adds the
+sampled view of an offscreen target (`CommandList::bind_sampled_target`) with the layout transitions
+and the sampler state the blur needs, and
+[`gpu/offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 5.3 records the pixel test
+that runs both blur passes and the composite on a real target. Wiring it into the batched renderer's
+paint segment (the draw between `break_pass()` and `resume_pass()`) is the remaining #244 slice; until
+it lands the frame composes exactly as it did before the declaration existed. Section 6
 (`window-backdrop`) is #243. `glass_ms` and `glass_backdrop_count` are recorded by
 `runtime::FrameDiagnostics`; the renderer reports the backdrop count through the paint pass, and the
-GPU interval lands with the composite.
+GPU interval lands with the renderer wiring.
 
 Terms: **Backdrop** is what was already painted behind a node in the same window. **Glass node** is a
 node with a non-`none` `backdrop-filter`. **Blur target** is the offscreen texture the backdrop is
@@ -92,8 +97,11 @@ seam ([`paint-pass.md`](../design/paint-pass.md), tracked in section 12):
   box expanded by `3 * sigma`, clamped to the target) into the blur target, runs the blur, and
   resumes the frame target with the blurred region composited through the rounded-box clip.
 - On Vulkan the copy is `vkCmdCopyImage` plus layout transitions between render passes; on WebGPU
-  it is `copyTextureToTexture`. The RHI gains one operation, `copy_target_region`, and a
-  render-pass break; neither backend gets glass-specific code ([ADR-003](../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md)).
+  it is `copyTextureToTexture`. The RHI gained two operations for this, `copy_target_region`
+  (RHI 1.1) and `bind_sampled_target` (RHI 1.3, the sampled view of the copy), plus the render-pass
+  break; neither backend gets glass-specific code
+  ([ADR-003](../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md)). The blur pipeline reads a
+  sampled target exactly like a texture, so a backend does not know glass exists.
 - Segmentation keeps every tree without a glass node on today's single-pass path, byte for byte.
 
 ## 5. Blur algorithm
@@ -229,6 +237,7 @@ budget on weak GPUs and on lavapipe. The benchmark records it instead of hiding 
 ## 12. Work items
 
 Tracked as issues in the V1 milestones: #242 (renderer seam: render-pass break, RHI
-`copy_target_region`, offscreen pool); #244 (`backdrop-filter`, blur shaders, damage rules,
-diagnostics, benchmark scenario; blocked by #242); #243 (translucent window and OS backdrop on
-Windows and Linux).
+`copy_target_region`, offscreen pool); #254 (RHI 1.3 sampled view of a render target: layout
+transitions, sampler state, WebGPU twin, the first glass pixel test); #244 (`backdrop-filter`, blur
+shaders, damage rules, diagnostics, benchmark scenario, and the renderer wiring on top of #242 and
+#254); #243 (translucent window and OS backdrop on Windows and Linux).
