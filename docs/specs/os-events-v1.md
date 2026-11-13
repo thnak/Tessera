@@ -84,7 +84,23 @@ struct FoldInfo {
     bool separating = false;
     Rect hinge_bounds;             // logical pixels, window coordinates
 };
+
+// Display cutouts (notch, punch-hole, camera island). Insets alone say how much to avoid; the
+// rectangles say where, which `LiveCapsule` needs to wrap the cutout
+// ([`live-capsule-v1.md`](live-capsule-v1.md)). Empty when the platform does not report them.
+constexpr std::size_t kMaxCutouts = 4;
+
+struct CutoutInfo {
+    std::array<Rect, kMaxCutouts> bounds{};   // logical pixels, window coordinates
+    std::uint8_t count = 0;                   // valid entries of `bounds`
+    Rect waterfall_insets;                    // curved-edge insets, zero when none
+};
 ```
+
+Proposed: `WindowMetrics` carries a `CutoutInfo` next to the insets; it changes on `SafeAreaChanged`.
+Android fills it from `DisplayCutout.getBoundingRects()`. iOS, desktop and web report none in V1
+(`count == 0`), so consumers use the top safe-area inset as the fallback
+([`safe-area-v1.md`](safe-area-v1.md) section 5).
 
 ## 3. Event ordering and delivery
 

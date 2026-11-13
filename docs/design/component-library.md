@@ -74,6 +74,8 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
 
 ### 3.2 Safe areas, notches and folds
 
+Specified in [`safe-area-v1`](../specs/safe-area-v1.md).
+
 - `SafeArea` applies the insets from `SafeAreaChanged` and `FoldInfo`
   ([`os-events-v1`](../specs/os-events-v1.md)): notches and display cutouts, rounded screen
   corners, status/navigation bars, home indicator and the on-screen keyboard. An `edges` prop
@@ -84,6 +86,8 @@ dismissable layer, list/grid navigation, typeahead) are stage 0 and are not list
   single screens.
 
 ### 3.3 LiveCapsule (floating status capsule)
+
+Specified in [`live-capsule-v1`](../specs/live-capsule-v1.md); this section is the summary.
 
 - A pill-shaped overlay anchored at the top center of the window that shows ongoing activity
   (timer, playback, upload or download progress, call, recording) without leaving the current
