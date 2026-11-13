@@ -168,59 +168,11 @@ Must handle:
 
 ### 6.3 Component parts: `::part(name)`
 
-Parts are the styling API of a component (ADR-047 item 3). A component's inner elements declare
-`part="<name>"` (whitespace-separated names, static like `className`; the common attribute of
-[`jsx-intrinsics-v1/common-and-events.md`](jsx-intrinsics-v1/common-and-events.md) section 1 lowers
-to `Node::part()`), and the host's stylesheet targets them with `::part()`:
-
-```css
-Button::part(label) { color: red; }            /* the `label` part of any `<Button>` */
-.card::part(label):hover { color: blue; }      /* host `.card`, the part's own `:hover` */
-Field::part(label value) { font-weight: 600; } /* every listed name must be present */
-```
-
-- **Two elements.** A `::part()` compound describes two nodes. The tag, id, classes, attributes and
-  pseudo-classes written *before* `::part()` match the **host**: the nearest ancestor component
-  instance (`Node::component_name()`; its type selector is the component name, `element_kind` stays
-  `Component`). The `::part()` itself, and any pseudo-classes *after* it, match the **part element**,
-  which must carry every listed name (order does not matter).
-- **One boundary.** The host is the nearest enclosing component instance, so a rule never reaches
-  into a nested component (`.card::part(label)` does not style a part of a `Card` nested in another
-  `Card`), and `::part()` never matches a node with no component ancestor. `exportparts` is not V1.
-- **Pseudo-classes.** State pseudo-classes after `::part()` (`:hover`, `:active`, `:focus`,
-  `:focus-visible`, `:disabled`, `:checked`, ...) read the part element's state. Structural ones are
-  accepted and evaluated against the part element; do not rely on them (CSS forbids them there).
-- **Restrictions.** Parse errors, so a malformed part selector never matches silently: two colons, a
-  non-empty `<ident>+` argument of unquoted idents, the only pseudo-element of its compound, in the
-  subject compound (`.a::part(x) .b` is rejected), one per compound, nothing element-shaped after it.
-- **Specificity.** `::part()` counts as a pseudo-element (one type component) and the part names add
-  nothing, as in CSS Shadow Parts: `Button::part(label)` is `(0,0,2)`, `.card::part(label):hover` is
-  `(0,2,1)`, `::part(label)` is `(0,0,1)`.
-- **Cascade.** The declarations land on the part element across the boundary, so a host-side
-  `::part()` rule and a rule inside the component are one cascade (origin, importance, layer,
-  specificity, source order). Unlayered app CSS still beats the library's `@layer tessera-ui` (7.2).
-- **Undeclared parts.** A part name a library component does not declare is a
-  `TESSERA_CSS_UNDECLARED_PART` diagnostic (section 15) from the codegen CLI; app components are
-  never diagnosed, because only a library component publishes its parts.
-- **Invalidation.** Setting or clearing `part` marks the node `StyleDirty`; changing a component name
-  marks its subtree, because every `::part()` rule below it re-resolves.
-
-### 6.4 Selector support and `@supports selector()`
-
-`@supports selector(<selector list>)` answers whether the engine can match with a selector: the list
-parses and every pseudo-class and pseudo-element it uses is implemented. `::part()` is implemented,
-so `@supports selector(.card::part(label))` is true; `:has()` and the parse-only pseudo-elements
-(`::before`, `::after`, `::placeholder`, `::selection`) answer false because they never match a scene
-node. A stylesheet can gate its part rules that way:
-
-```css
-@supports selector(::part(label)) {
-  .card::part(label) { color: red; }
-}
-```
-
-`SelectorIndex` buckets a `::part()` subject by its first part name, so matching stays
-allocation-free: the host pointer and the part names are captured when the style tree is built.
+Parts are the styling API of a component (ADR-047 item 3): a component's inner elements declare
+`part="<name>"` and the host stylesheet reaches them with `::part(<ident>+)`, the only selector
+form that crosses a component boundary. The normative rules — the two-element match, the
+one-host boundary, the grammar, specificity, the cascade, `@supports selector()` and the
+undeclared-part diagnostic — are in [`component-parts-v1.md`](component-parts-v1.md).
 
 ## 7. Cascade
 
@@ -429,7 +381,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | `direction` (`ltr`/`rtl`, inherited, per node); physical properties (`left`, `right`, `margin-left`, ...) stay physical; the logical inline-axis properties `margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*` and `text-align: start/end` mirror with the computed direction (section 11.1) | scroll and overscroll mirroring (offsets, scrollbars, overscroll effects stay physical) |
-| Component parts | `part` attribute, `::part(<ident>+)` with the pre-`::part` compound matching the component instance, `@supports selector()` (sections 6.3 and 6.4) | shadow DOM, `exportparts`, `::slotted()`, `:host`/`:host-context()` |
+| Component parts | `part` attribute, `::part(<ident>+)` with the pre-`::part` compound matching the component instance, `@supports selector()` (section 6.3) | shadow DOM, `exportparts`, `::slotted()`, `:host`/`:host-context()` |
 
 **V1 decisions for the Scrolling row (decided 2026-11-13 with issue #248; the code matches):**
 
