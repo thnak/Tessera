@@ -32,11 +32,13 @@ public:
     [[nodiscard]] bool supported(std::string_view property) const;
     [[nodiscard]] const std::vector<std::string>* longhands(std::string_view shorthand) const;
 
-    // Every registered longhand name, sorted by byte value (the registry's map order). The
-    // per-property status table in docs/specs/stylesheet-property-status-v1.md is checked against
-    // this list, so a property added to the registry without a recorded consumer fails a test
-    // (issue #213).
+    // Every registered longhand name, sorted by byte value (the registry's map order). Two
+    // tests walk this list: the per-property status table in
+    // docs/specs/stylesheet-property-status-v1.md (issue #213) and the V1 compatibility matrix in
+    // docs/specs/stylesheet-v1.properties.txt (issue #250), so a property cannot be registered
+    // without a recorded consumer or a matrix row. Views stay valid for the registry's lifetime.
     [[nodiscard]] std::vector<std::string_view> longhand_names() const;
+    [[nodiscard]] std::vector<std::string_view> shorthand_names() const;
 
     [[nodiscard]] PropertyExpansionResult expand(const Declaration& declaration) const;
     [[nodiscard]] PropertyExpansionResult
@@ -76,6 +78,12 @@ private:
     // Registers the inline-axis (direction-relative) longhands and shorthands (issue #230). Defined
     // in `logical_properties.cpp` so this table and `expand` stay under the source line limit.
     void register_logical_properties();
+
+    // Registers the `border` shorthand and the animation/transition names (issue #250). Defined in
+    // `property_registry_extra.cpp` for the same reason: the animation and transition grammars live
+    // in `src/ui/animation/`, and the registry only has to accept the names so the cascade stores
+    // them and `@supports` is correct for them.
+    void register_extension_properties();
 
     std::map<std::string, PropertyInfo> properties_;
     std::map<std::string, ShorthandInfo> shorthands_;

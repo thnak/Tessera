@@ -216,11 +216,11 @@ algorithm, layer remapping and the `AppHost` registration API are specified in
 The property registry expands shorthands into longhands before the cascade:
 
 - `margin`, `padding`, `border`, `border-radius`, `border-width/style/color`
-- `background`, `font`, `flex`, `gap`, `overflow`, `transition`, `animation`
-- `inset` (top/right/bottom/left)
-- `place-items`, `place-content`
+- `flex`, `gap`, `overflow`, `inset` (top/right/bottom/left), `place-items`, `place-content`
 - logical: `margin-inline`, `padding-inline`, `inset-inline`, `border-inline-width/style/color`,
   `border-inline-start`, `border-inline-end` (section 11.1)
+- `transition`/`animation` are registered for the cascade and `@supports` only; the animation
+  module parses them (section 11). `background` and `font` are not V1.
 
 If a shorthand contains an unsupported component, keep the supported longhands and emit one
 diagnostic.
@@ -349,7 +349,7 @@ meaning given in the section 11 legend; `parse` means parsed with no semantic ef
 ## 11. Compatibility matrix
 
 Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semantic effect;
-**Later** = planned after V1; the release is not specified. Per registered longhand, with its consumer and proving test, see [`stylesheet-property-status-v1.md`](stylesheet-property-status-v1.md).
+**Later** = planned after V1; the release is not specified. Per registered longhand, with its consumer and proving test, see [`stylesheet-property-status-v1.md`](stylesheet-property-status-v1.md). V1 names, one per line, in [`stylesheet-v1.properties.txt`](stylesheet-v1.properties.txt), kept in sync by a test.
 
 | Area | V1 semantics | Later |
 |---|---|---|

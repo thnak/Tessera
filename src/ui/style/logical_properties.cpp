@@ -119,6 +119,15 @@ bool is_color(std::string_view token) {
     return lower(token) == "currentcolor" || parse_color(token).ok;
 }
 
+// `var()` is substituted at computed-value time, after the shorthand has already been expanded, so
+// a component that is a custom-property reference cannot be classified into a width, a style or a
+// color here. Report it instead of guessing a slot: a wrong guess would silently set the wrong
+// longhand. `border: var(--all)` (the reference is the whole value) is still fine, because every
+// component is the same reference and each longhand receives it.
+bool is_var_reference(std::string_view token) {
+    return lower(token).find("var(") != std::string::npos;
+}
+
 } // namespace
 
 void PropertyRegistry::register_logical_properties() {
@@ -163,15 +172,32 @@ PropertyExpansionResult PropertyRegistry::expand_border_side(const Declaration& 
     std::array<std::string, 3> values = {std::string(kWidthDefault), std::string(kStyleDefault),
                                          std::string(kColorDefault)};
     std::array<bool, 3> seen = {false, false, false};
+    // A `var()` reference is substituted at computed-value time, after the shorthand has already
+    // been expanded, so it cannot be classified into a width, a style or a color here. It takes the
+    // one slot the definite components leave open (`border: 1px solid var(--c)` is unambiguous);
+    // when two slots are open it could be either, so it is reported instead of guessed. A value
+    // that is a single reference is the whole value and reaches every longhand, as
+    // `padding: var(--gap)` does.
+    const bool whole_value_is_var = components.size() == 1 && is_var_reference(components.front());
+    std::vector<std::string_view> var_components;
     for (const std::string_view component : components) {
         const std::string token = lower(component);
         std::size_t slot = 0;
+        if (whole_value_is_var) {
+            for (std::string& value : values) {
+                value = std::string(component);
+            }
+            break;
+        }
         if (is_border_style(token)) {
             slot = 1;
         } else if (is_border_width(token)) {
             slot = 0;
         } else if (is_color(component)) {
             slot = 2;
+        } else if (is_var_reference(component)) {
+            var_components.push_back(component);
+            continue;
         } else {
             result.diagnostics.push_back(invalid_side(declaration, property,
                                                       "unsupported `" + std::string(component) +
@@ -186,6 +212,24 @@ PropertyExpansionResult PropertyRegistry::expand_border_side(const Declaration& 
         }
         seen[slot] = true;
         values[slot] = std::string(component);
+    }
+    if (!var_components.empty()) {
+        std::size_t open = 0;
+        std::size_t open_slot = 0;
+        for (std::size_t i = 0; i < seen.size(); ++i) {
+            if (!seen[i]) {
+                ++open;
+                open_slot = i;
+            }
+        }
+        if (var_components.size() != 1 || open != 1) {
+            result.diagnostics.push_back(
+                invalid_side(declaration, property,
+                             "a `var()` component of a border side cannot be classified as a "
+                             "width, a style or a color; declare the longhands instead"));
+            return result;
+        }
+        values[open_slot] = std::string(var_components.front());
     }
 
     for (const std::string& longhand : shorthand.longhands) {

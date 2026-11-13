@@ -153,7 +153,29 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `container-name` | applied | `scene_style.cpp` matches a named `@container` prelude; `property_effects` |
 | `writing-mode` | parsed only | V1 is horizontal-only: Yoga has no writing-mode input, the text seam lays out left-to-right lines, and [`text.md`](../design/text.md) section 12 records vertical layout as out of scope. The property is inherited and `@supports`-visible so a stylesheet written for both modes parses. Becomes **applied** when vertical writing mode lands. |
 
-## 8. What the cross-check does not cover
+## 8. Animation and transition
+
+The registry accepts these names so the cascade stores them and `@supports` answers true (issue
+#250); their grammars and expansion live in `src/ui/animation/`, not in the registry.
+
+| Property | Status | Consumer / evidence |
+|---|---|---|
+| `animation-name` | applied | `animation_style.cpp` `parse_style_animations` reads it (with the seven longhands below) and `sync_style_animations` starts the runtime animations; `animation_sync`. The frame-pipeline call that drives the bridge per node is the remaining integration. |
+| `animation-duration` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
+| `animation-timing-function` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
+| `animation-delay` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
+| `animation-iteration-count` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
+| `animation-direction` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
+| `animation-fill-mode` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
+| `animation-play-state` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
+| `animation` | applied | `animation_style.cpp` `parse_style_animations` falls back to the shorthand when `animation-name` is absent; `animation_shorthand` |
+| `transition-property` | parsed only | The transition runtime is driven by `parse_transition_longhands`/`parse_transition_list`, which nothing in `src/` calls with computed style yet: `start_style_transitions` is exercised by `transition_pipeline` only. Becomes **applied** when the frame pipeline reads the transition declarations from computed style and calls it. |
+| `transition-duration` | parsed only | Same as `transition-property`: the longhand is stored and `@supports`-visible, but no production caller reads it from computed style yet. |
+| `transition-timing-function` | parsed only | Same as `transition-property`. |
+| `transition-delay` | parsed only | Same as `transition-property`. |
+| `transition` | parsed only | Same as `transition-property`: `parse_transition_list` parses the shorthand, but no production caller reads `transition` from computed style yet. |
+
+## 9. What the cross-check does not cover
 
 The test proves that the *set* of registered properties and this table agree, and that every
 `applied` row names a test. It cannot prove that the named test still observes the effect: that is

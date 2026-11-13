@@ -242,6 +242,7 @@ PropertyRegistry::PropertyRegistry() {
     shorthands_["flex"] =
         ShorthandInfo{{"flex-grow", "flex-shrink", "flex-basis"}, ShorthandKind::Flex};
     register_logical_properties();
+    register_extension_properties();
 }
 
 const PropertyInfo* PropertyRegistry::find(std::string_view property) const {

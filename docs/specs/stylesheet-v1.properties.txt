@@ -1,0 +1,185 @@
+# SPDX-License-Identifier: MIT
+#
+# Machine-readable form of the V1 compatibility matrix in stylesheet-v1.md section 11 (issue #250).
+#
+# The prose table in section 11 says what each area means; this file says exactly which property
+# names V1 promises. The `property_registry_matrix` ctest keeps the two in sync in both directions,
+# so a property cannot be promised here and silently dropped by the engine, and a property cannot be
+# registered without this file saying so. Change the registry and this file in the same commit.
+#
+# Format: one entry per line, `<kind> <name> <section 11 row>`, whitespace separated.
+#   longhand   PropertyRegistry::find() returns it: the cascade stores it and gives it an initial
+#              value (an empty initial means "absent until declared", as for the logical longhands).
+#   shorthand  PropertyRegistry::longhands() returns its expansion, and every longhand it names is
+#              itself registered.
+#   external   PropertyRegistry::find() returns it, but the grammar and expansion live in another
+#              module (named in the comment above the entry); the registry only has to accept the
+#              name so the cascade stores it and @supports answers true.
+# Blank lines and `#` comments are ignored. The row is the section 11 table row, lowercased with
+# spaces as hyphens; it is what a failure message names, so a reader lands on the right paragraph.
+
+# Box model: display, sizing, spacing, borders, overflow, aspect ratio.
+longhand display box-model
+longhand width box-model
+longhand height box-model
+longhand min-width box-model
+longhand min-height box-model
+longhand max-width box-model
+longhand max-height box-model
+longhand box-sizing box-model
+longhand aspect-ratio box-model
+longhand field-sizing box-model
+longhand margin-top box-model
+longhand margin-right box-model
+longhand margin-bottom box-model
+longhand margin-left box-model
+longhand padding-top box-model
+longhand padding-right box-model
+longhand padding-bottom box-model
+longhand padding-left box-model
+longhand overflow-x box-model
+longhand overflow-y box-model
+shorthand margin box-model
+shorthand padding box-model
+shorthand overflow box-model
+shorthand border box-model
+
+# Scrolling: the four runtime/style inputs of the scroll controller.
+longhand scroll-behavior scrolling
+longhand overscroll-behavior scrolling
+longhand overscroll-effect scrolling
+longhand scrollbar-gutter scrolling
+
+# Flex: direction, wrap, grow/shrink/basis, justify/align, gap, order.
+longhand flex-direction flex
+longhand flex-wrap flex
+longhand flex-grow flex
+longhand flex-shrink flex
+longhand flex-basis flex
+longhand justify-content flex
+longhand justify-items flex
+longhand align-items flex
+longhand align-self flex
+longhand align-content flex
+longhand row-gap flex
+longhand column-gap flex
+longhand order flex
+shorthand flex flex
+shorthand gap flex
+shorthand place-items flex
+shorthand place-content flex
+
+# Grid: the fixed/repeat track subset and the item spans (issue #249).
+longhand grid-template-columns grid
+longhand grid-template-rows grid
+longhand grid-column grid
+longhand grid-row grid
+
+# Positioning: the five position values and the four physical insets.
+longhand position positioning
+longhand top positioning
+longhand right positioning
+longhand bottom positioning
+longhand left positioning
+shorthand inset positioning
+
+# Paint: colors, borders, shadows, opacity, stacking and the glass backdrop. The Paint row names
+# `backdrop-filter`; `-webkit-backdrop-filter` is its alias (glass-v1 section 2, one computed value)
+# and `window-backdrop` is the root-window material of glass-v1 section 6, so both are V1 names.
+longhand color paint
+longhand background-color paint
+longhand opacity paint
+longhand box-shadow paint
+longhand backdrop-filter paint
+longhand -webkit-backdrop-filter paint
+longhand window-backdrop paint
+longhand z-index paint
+longhand border-top-width paint
+longhand border-right-width paint
+longhand border-bottom-width paint
+longhand border-left-width paint
+longhand border-top-style paint
+longhand border-right-style paint
+longhand border-bottom-style paint
+longhand border-left-style paint
+longhand border-top-color paint
+longhand border-right-color paint
+longhand border-bottom-color paint
+longhand border-left-color paint
+longhand border-top-left-radius paint
+longhand border-top-right-radius paint
+longhand border-bottom-right-radius paint
+longhand border-bottom-left-radius paint
+shorthand border-width paint
+shorthand border-style paint
+shorthand border-color paint
+shorthand border-radius paint
+
+# Typography: the font longhands and the text properties.
+longhand font-family typography
+longhand font-size typography
+longhand font-style typography
+longhand font-weight typography
+longhand line-height typography
+longhand letter-spacing typography
+longhand word-spacing typography
+longhand text-align typography
+longhand text-transform typography
+longhand white-space typography
+longhand text-overflow typography
+
+# Transforms: the 2D matrix and its origin.
+longhand transform transforms
+longhand transform-origin transforms
+
+# Transitions: the four longhands, plus the shorthand src/ui/animation/transition.cpp parses.
+longhand transition-property transitions
+longhand transition-duration transitions
+longhand transition-timing-function transitions
+longhand transition-delay transitions
+external transition transitions
+
+# Animations: the eight longhands, plus the shorthand src/ui/animation/animation_shorthand.cpp
+# parses. The longhands carry no initial value, so `animation-name` is absent until declared and
+# parse_style_animations falls back to the shorthand exactly as it does today.
+longhand animation-name animations
+longhand animation-duration animations
+longhand animation-timing-function animations
+longhand animation-delay animations
+longhand animation-iteration-count animations
+longhand animation-direction animations
+longhand animation-fill-mode animations
+longhand animation-play-state animations
+external animation animations
+
+# Interaction: the three inherited input properties.
+longhand cursor interaction
+longhand pointer-events interaction
+longhand user-select interaction
+
+# Responsive: the container query inputs.
+longhand container-type responsive
+longhand container-name responsive
+
+# Layout direction: the direction property and the inline-axis logical properties (section 11.1).
+longhand direction layout-direction
+longhand margin-inline-start layout-direction
+longhand margin-inline-end layout-direction
+longhand padding-inline-start layout-direction
+longhand padding-inline-end layout-direction
+longhand inset-inline-start layout-direction
+longhand inset-inline-end layout-direction
+longhand border-inline-start-width layout-direction
+longhand border-inline-start-style layout-direction
+longhand border-inline-start-color layout-direction
+longhand border-inline-end-width layout-direction
+longhand border-inline-end-style layout-direction
+longhand border-inline-end-color layout-direction
+shorthand margin-inline layout-direction
+shorthand padding-inline layout-direction
+shorthand inset-inline layout-direction
+shorthand border-inline-width layout-direction
+shorthand border-inline-style layout-direction
+shorthand border-inline-color layout-direction
+shorthand border-inline-start layout-direction
+shorthand border-inline-end layout-direction
