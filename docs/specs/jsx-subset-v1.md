@@ -151,7 +151,11 @@ Rules:
     no package root is `TESSERA_IR_UNSUPPORTED` naming the specifier ("neither a project file
     (`./X`) nor a configured package"); a configured root without the named file is
     `TESSERA_IR_UNRESOLVED`. `"tessera"` and `"react"` stay built in and are never captured by a
-    package root of the same name.
+    package root of the same name. A package entry that declares a `version` is checked against the
+    root's `tessera-package.json` before compilation (`TESSERA_PACKAGE_VERSION`,
+    `TESSERA_PACKAGE_MANIFEST`; [`project-config-v1.md`](project-config-v1.md) `packages`). The
+    component library is imported this way: `from "tessera-ui"` and `from "tessera-ui/primitives"`
+    resolve inside the one `tessera-ui` root ([ADR-047](../../decisions/ADR-047-component-library-layers-and-design-language.md)).
   - A resolved package import follows the ordinary cross-file rules: the imported name must be
     declared in the target file, component names stay unique project-wide, import cycles apply,
     and the package file is compiled by the same analyzer, rules and lowering pipeline (no

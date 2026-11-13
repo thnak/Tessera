@@ -20,6 +20,9 @@ namespace tessera::compiler::codegen::cli::internal {
 struct PackageRootSpec {
     std::string name;
     std::string root; // project-relative POSIX directory
+    // The version the application requires (`X.Y.Z` or `^X.Y.Z`, see package_manifest.hpp); empty
+    // means no check.
+    std::string version;
 };
 
 // The project identity of one run: the id salt (empty: ids stay unassigned) and the root that

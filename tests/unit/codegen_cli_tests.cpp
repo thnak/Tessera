@@ -290,6 +290,64 @@ int main(int argc, char** argv) {
 
     write_file(packaged / "tessera.json", R"({"schemaVersion":1,"app":{"namespace":"factory"}})");
     check(run_packaged(work / "pkg-d") == 1, "an unconfigured package is rejected");
+    check(read_file(log_dir / "cli.log").find("neither a project file") != std::string::npos,
+          "the unknown-package diagnostic names the specifier's problem");
+
+    // Package versions (issue #234, project-config-v1.md `packages`): a declared `version` is
+    // checked against the package root's tessera-package.json before anything is compiled.
+    write_file(packaged / "packages" / "tessera-ui" / "primitives.tsx",
+               "function Pressable() { return <View />; }\n");
+    write_file(packaged / "ui" / "App.tsx",
+               "import { Card } from \"tessera-ui/Card\";\n"
+               "import { Pressable } from \"tessera-ui/primitives\";\n"
+               "function App() { return <View><Card /><Pressable /></View>; }\n");
+    const fs::path manifest_file = packaged / "packages" / "tessera-ui" / "tessera-package.json";
+    int version_case = 0;
+    const auto run_versioned = [&](const std::string& required, const std::string& manifest_text) {
+        const std::string version =
+            required.empty() ? std::string() : ",\"version\":\"" + required + "\"";
+        write_file(packaged / "tessera.json",
+                   R"({"schemaVersion":1,"app":{"namespace":"factory"},)"
+                   R"("packages":[{"name":"tessera-ui","root":"packages/tessera-ui")" +
+                       version + "}]}");
+        std::error_code ignored;
+        fs::remove(manifest_file, ignored);
+        if (!manifest_text.empty()) {
+            write_file(manifest_file, manifest_text);
+        }
+        return run_cli(cli,
+                       "--write --out " + quoted(work / ("ver-" + std::to_string(++version_case))) +
+                           " --namespace demo " + quoted(packaged / "ui" / "App.tsx"),
+                       log_dir);
+    };
+    const auto cli_says = [&](std::string_view text) {
+        return read_file(log_dir / "cli.log").find(text) != std::string::npos;
+    };
+    const auto manifest_json = [](std::string_view version) {
+        return "{\"name\":\"tessera-ui\",\"version\":\"" + std::string(version) + "\"}";
+    };
+    check(run_versioned({}, {}) == 0, "a package without a version needs no manifest");
+    check(run_versioned("^1.2.0", manifest_json("1.4.0")) == 0,
+          "a caret range accepts a newer minor");
+    check(fs::exists(work / "ver-2" / "Pressable.cpp"),
+          "the `tessera-ui/primitives` subpath is compiled with the package");
+    check(run_versioned("1.2.0", manifest_json("1.2.0")) == 0, "an exact version accepts itself");
+    check(run_versioned("1.2.0", manifest_json("1.2.1")) == 1 &&
+              cli_says("TESSERA_PACKAGE_VERSION"),
+          "an exact version rejects a different patch");
+    check(run_versioned("^1.2.0", manifest_json("2.0.0")) == 1 &&
+              cli_says("TESSERA_PACKAGE_VERSION"),
+          "a caret range rejects a different major");
+    check(run_versioned("^1.2.3", manifest_json("1.2.2")) == 1 &&
+              cli_says("TESSERA_PACKAGE_VERSION"),
+          "a caret range rejects an older patch");
+    check(run_versioned("^1.2.0", {}) == 1 && cli_says("TESSERA_PACKAGE_MANIFEST"),
+          "a declared version without a manifest is rejected");
+    check(run_versioned("^1.2.0", "{\"name\":\"other\",\"version\":\"1.2.0\"}") == 1 &&
+              cli_says("TESSERA_PACKAGE_MANIFEST"),
+          "a manifest naming another package is rejected");
+    check(run_versioned("latest", manifest_json("1.2.0")) == 1 && cli_says("X.Y.Z"),
+          "a requirement that is not X.Y.Z or ^X.Y.Z is rejected");
 
     // The automation manifest is written next to the generated files, is identical for the same
     // ids, is a no-op on a second run, and is covered by --check.

@@ -70,6 +70,7 @@ This page is the map and reading order for the framework.
 ## 3. Specs (normative)
 
 - [`specs/project-config-v1.md`](specs/project-config-v1.md) — `tessera.json` project schema
+- [`specs/package-manifest-v1.md`](specs/package-manifest-v1.md) — `tessera-package.json` and package version checks
 - [`specs/runtime-config-v1.md`](specs/runtime-config-v1.md) — FPS cap, vsync/VRR, pacing,
   dirty rendering, resize, async, deterministic mode
 - [`specs/stylesheet-v1.md`](specs/stylesheet-v1.md) — full CSS syntax + semantic matrix

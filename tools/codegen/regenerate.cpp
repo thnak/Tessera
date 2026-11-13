@@ -4,6 +4,7 @@
 // with the existing files and rewrite only what changed (docs/guides/developer-workflow.md).
 
 #include "emit_library_components.hpp"
+#include "package_manifest.hpp"
 #include "project_identity.hpp"
 #include "regenerate.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
@@ -349,6 +350,9 @@ Outcome run(const Options& options) {
 
     const std::optional<ProjectIdentity> identity = resolve_identity(options, outcome);
     if (!identity) {
+        return outcome;
+    }
+    if (!check_package_versions(*identity, outcome)) {
         return outcome;
     }
     std::optional<EmbeddedTheme> theme;
