@@ -47,7 +47,7 @@ int main() {
         !expect(!defaults.occluded, "default not occluded") ||
         !expect(!defaults.minimized, "default not minimized") ||
         // The default window is opaque with no OS material (glass-v1.md section 6).
-        !expect(defaults.backdrop == BackdropMaterial::None, "default backdrop none") ||
+        !expect(defaults.backdrop == BackdropMaterial::NoMaterial, "default backdrop none") ||
         !expect(!defaults.transparent, "default opaque") ||
         !expect(!defaults.backdrop_fallback, "default no backdrop fallback")) {
         return 1;
@@ -87,7 +87,7 @@ int main() {
     // The descriptor's startup request is a value, so an explicit `none`/opaque window is the
     // unchanged default (a project that never asks for glass pays nothing).
     const tessera::hal::WindowDesc default_desc;
-    if (!expect(default_desc.backdrop == WindowBackdrop::None, "default desc backdrop") ||
+    if (!expect(default_desc.backdrop == WindowBackdrop::Disabled, "default desc backdrop") ||
         !expect(!default_desc.transparent && !default_desc.win10_acrylic,
                 "default desc transparency")) {
         return 6;

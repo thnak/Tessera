@@ -244,7 +244,7 @@ bool compare_number(double actual, double expected, MediaComparison comparison) 
 // link dependency on the window HAL; `auto` is a request and therefore never matches.
 bool backdrop_keyword_matches(std::string_view value, hal::BackdropMaterial material) {
     switch (material) {
-    case hal::BackdropMaterial::None:
+    case hal::BackdropMaterial::NoMaterial:
         return value == "none";
     case hal::BackdropMaterial::Mica:
         return value == "mica";

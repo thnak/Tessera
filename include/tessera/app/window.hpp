@@ -73,11 +73,11 @@ struct WindowOptions {
     // caller that does not set it keeps today's behaviour.
     tessera::RuntimeConfig runtime;
     // The OS backdrop of a translucent window (docs/specs/glass-v1.md section 6). This is the
-    // resolved root `window-backdrop` request: `None` keeps the window opaque, `Auto` picks the
+    // resolved root `window-backdrop` request: `Disabled` keeps the window opaque, `Auto` picks the
     // best material the platform has, and a named material falls back to opaque with one
-    // TESSERA_GLASS_WINDOW_UNSUPPORTED diagnostic where the platform cannot draw it. A non-`None`
-    // value implies a translucent client area.
-    hal::WindowBackdrop backdrop = hal::WindowBackdrop::None;
+    // TESSERA_GLASS_WINDOW_UNSUPPORTED diagnostic where the platform cannot draw it. A
+    // non-`Disabled` value implies a translucent client area.
+    hal::WindowBackdrop backdrop = hal::WindowBackdrop::Disabled;
     // Makes the client area translucent without asking for a named material (the `Window` option of
     // glass-v1.md section 6). Where the platform (or the swapchain) cannot present per-pixel alpha,
     // the window degrades to opaque with the same diagnostic.
@@ -157,8 +157,8 @@ struct WindowFrameStats {
     std::uint32_t gpu_frame_time_fallbacks = 0;
     // The resolved OS backdrop of the window and whether it presents a translucent client area
     // (docs/specs/glass-v1.md section 6). They are read from the platform's WindowMetrics when the
-    // run starts, and the opaque fallback reports the first two as `None`/false.
-    hal::BackdropMaterial backdrop = hal::BackdropMaterial::None;
+    // run starts, and the opaque fallback reports the first two as `NoMaterial`/false.
+    hal::BackdropMaterial backdrop = hal::BackdropMaterial::NoMaterial;
     bool transparent = false;
 };
 

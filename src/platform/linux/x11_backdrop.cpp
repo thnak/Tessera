@@ -112,7 +112,7 @@ BackdropResolution apply_x11_backdrop(Display* display, ::Window window, WindowB
                                       const BackdropCapabilities& capabilities) noexcept {
     if (display == nullptr || window == 0) {
         BackdropResolution resolution;
-        resolution.fallback = request != WindowBackdrop::None || transparent;
+        resolution.fallback = request != WindowBackdrop::Disabled || transparent;
         return resolution;
     }
     BackdropResolution resolution = resolve_window_backdrop(request, transparent, capabilities);
@@ -126,7 +126,7 @@ BackdropResolution apply_x11_backdrop(Display* display, ::Window window, WindowB
     }
     XWindowAttributes attributes{};
     if (XGetWindowAttributes(display, window, &attributes) == 0) {
-        resolution.material = BackdropMaterial::None;
+        resolution.material = BackdropMaterial::NoMaterial;
         resolution.fallback = true;
         return resolution;
     }

@@ -12,14 +12,14 @@ BackdropMaterial resolve_auto(const BackdropCapabilities& capabilities) noexcept
     case BackdropPlatform::Windows10:
         // Windows 10 has no documented material; the opt-in acrylic exists but `auto` never
         // selects an undocumented effect (glass-v1.md section 6, "auto resolves to none").
-        return BackdropMaterial::None;
+        return BackdropMaterial::NoMaterial;
     case BackdropPlatform::X11:
     case BackdropPlatform::Wayland:
-        return capabilities.compositor_blur ? BackdropMaterial::Blur : BackdropMaterial::None;
-    case BackdropPlatform::None:
-        return BackdropMaterial::None;
+        return capabilities.compositor_blur ? BackdropMaterial::Blur : BackdropMaterial::NoMaterial;
+    case BackdropPlatform::Unknown:
+        return BackdropMaterial::NoMaterial;
     }
-    return BackdropMaterial::None;
+    return BackdropMaterial::NoMaterial;
 }
 
 BackdropMaterial resolve_explicit(WindowBackdrop request,
@@ -27,7 +27,7 @@ BackdropMaterial resolve_explicit(WindowBackdrop request,
     switch (request) {
     case WindowBackdrop::Mica:
         return capabilities.platform == BackdropPlatform::Windows11 ? BackdropMaterial::Mica
-                                                                    : BackdropMaterial::None;
+                                                                    : BackdropMaterial::NoMaterial;
     case WindowBackdrop::Acrylic:
         if (capabilities.platform == BackdropPlatform::Windows11) {
             return BackdropMaterial::Acrylic;
@@ -35,7 +35,7 @@ BackdropMaterial resolve_explicit(WindowBackdrop request,
         if (capabilities.platform == BackdropPlatform::Windows10 && capabilities.win10_acrylic) {
             return BackdropMaterial::Acrylic;
         }
-        return BackdropMaterial::None;
+        return BackdropMaterial::NoMaterial;
     case WindowBackdrop::Blur:
         // The Windows rows map `blur` to acrylic (section 6): Windows has no separate blur
         // material.
@@ -43,19 +43,21 @@ BackdropMaterial resolve_explicit(WindowBackdrop request,
         case BackdropPlatform::Windows11:
             return BackdropMaterial::Acrylic;
         case BackdropPlatform::Windows10:
-            return capabilities.win10_acrylic ? BackdropMaterial::Acrylic : BackdropMaterial::None;
+            return capabilities.win10_acrylic ? BackdropMaterial::Acrylic
+                                              : BackdropMaterial::NoMaterial;
         case BackdropPlatform::X11:
         case BackdropPlatform::Wayland:
-            return capabilities.compositor_blur ? BackdropMaterial::Blur : BackdropMaterial::None;
-        case BackdropPlatform::None:
-            return BackdropMaterial::None;
+            return capabilities.compositor_blur ? BackdropMaterial::Blur
+                                                : BackdropMaterial::NoMaterial;
+        case BackdropPlatform::Unknown:
+            return BackdropMaterial::NoMaterial;
         }
-        return BackdropMaterial::None;
-    case WindowBackdrop::None:
+        return BackdropMaterial::NoMaterial;
+    case WindowBackdrop::Disabled:
     case WindowBackdrop::Auto:
-        return BackdropMaterial::None;
+        return BackdropMaterial::NoMaterial;
     }
-    return BackdropMaterial::None;
+    return BackdropMaterial::NoMaterial;
 }
 
 } // namespace
@@ -65,7 +67,7 @@ BackdropResolution resolve_window_backdrop(WindowBackdrop request, bool transpar
     BackdropResolution resolution;
     // The CSS property has no separate transparency flag: asking for a material asks for a
     // translucent client area (glass-v1.md section 2).
-    const bool wants_transparency = transparent || request != WindowBackdrop::None;
+    const bool wants_transparency = transparent || request != WindowBackdrop::Disabled;
     if (!wants_transparency) {
         return resolution;
     }
@@ -80,8 +82,8 @@ BackdropResolution resolve_window_backdrop(WindowBackdrop request, bool transpar
                                                           : resolve_explicit(request, capabilities);
     // `auto` resolving to no material is the documented "no material offered" answer and stays
     // quiet; a named material that the platform refused is the unsupported path.
-    if (request != WindowBackdrop::None && request != WindowBackdrop::Auto &&
-        resolution.material == BackdropMaterial::None) {
+    if (request != WindowBackdrop::Disabled && request != WindowBackdrop::Auto &&
+        resolution.material == BackdropMaterial::NoMaterial) {
         resolution.fallback = true;
     }
     return resolution;
@@ -89,7 +91,7 @@ BackdropResolution resolve_window_backdrop(WindowBackdrop request, bool transpar
 
 std::string_view backdrop_material_name(BackdropMaterial material) noexcept {
     switch (material) {
-    case BackdropMaterial::None:
+    case BackdropMaterial::NoMaterial:
         return "none";
     case BackdropMaterial::Mica:
         return "mica";
@@ -103,7 +105,7 @@ std::string_view backdrop_material_name(BackdropMaterial material) noexcept {
 
 std::string_view window_backdrop_name(WindowBackdrop request) noexcept {
     switch (request) {
-    case WindowBackdrop::None:
+    case WindowBackdrop::Disabled:
         return "none";
     case WindowBackdrop::Auto:
         return "auto";
@@ -119,7 +121,7 @@ std::string_view window_backdrop_name(WindowBackdrop request) noexcept {
 
 bool backdrop_material_from_name(std::string_view name, BackdropMaterial& material) noexcept {
     if (name == "none") {
-        material = BackdropMaterial::None;
+        material = BackdropMaterial::NoMaterial;
         return true;
     }
     if (name == "mica") {
@@ -142,13 +144,13 @@ bool window_backdrop_from_name(std::string_view name, WindowBackdrop& request) n
         request = WindowBackdrop::Auto;
         return true;
     }
-    BackdropMaterial material = BackdropMaterial::None;
+    BackdropMaterial material = BackdropMaterial::NoMaterial;
     if (!backdrop_material_from_name(name, material)) {
         return false;
     }
     switch (material) {
-    case BackdropMaterial::None:
-        request = WindowBackdrop::None;
+    case BackdropMaterial::NoMaterial:
+        request = WindowBackdrop::Disabled;
         return true;
     case BackdropMaterial::Mica:
         request = WindowBackdrop::Mica;

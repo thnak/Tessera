@@ -16,10 +16,12 @@
 
 namespace tessera::hal {
 
-// The material the operating system draws behind a translucent window. `None` means the platform
-// draws no material: the window is either opaque, or translucent over the desktop only.
+// The material the operating system draws behind a translucent window. `NoMaterial` means the
+// platform draws no material: the window is either opaque, or translucent over the desktop only.
+// The enumerators avoid X11's macro names (`None`, `Bool`, `Status`): the Linux window includes
+// this header next to `<X11/Xlib.h>`, and a macro named `None` would rewrite an enumerator.
 enum class BackdropMaterial : std::uint8_t {
-    None,
+    NoMaterial,
     Mica,
     Acrylic,
     Blur,
@@ -29,7 +31,7 @@ enum class BackdropMaterial : std::uint8_t {
 // the matching `WindowOptions`/`WindowDesc` field. `Auto` picks the best material the platform has
 // (glass-v1.md section 6); it is never reported as a resolved material.
 enum class WindowBackdrop : std::uint8_t {
-    None,
+    Disabled,
     Auto,
     Mica,
     Acrylic,
@@ -39,7 +41,7 @@ enum class WindowBackdrop : std::uint8_t {
 // The window-system family the capabilities describe. The distinction between Windows 11 and
 // Windows 10 matters because `auto` resolves to Mica on 11 and to no material on 10 (section 6).
 enum class BackdropPlatform : std::uint8_t {
-    None, // Headless/null HAL, or a window system with no backdrop support.
+    Unknown, // Headless/null HAL, or a window system with no backdrop support.
     Windows11,
     Windows10,
     X11,
@@ -49,7 +51,7 @@ enum class BackdropPlatform : std::uint8_t {
 // Raw window-system facts a platform backend detected. Nothing here is a decision: `resolve_*`
 // turns these into the resolved material, so a fake HAL can drive every row of the section 6 table.
 struct BackdropCapabilities {
-    BackdropPlatform platform = BackdropPlatform::None;
+    BackdropPlatform platform = BackdropPlatform::Unknown;
     // The compositor offers a blur-behind effect: Wayland `ext-background-effect-v1` when the
     // compositor advertises it, or KWin's `_KDE_NET_WM_BLUR_BEHIND_REGION` under X11. Unused on
     // Windows, where the platform family implies the available materials.
@@ -67,7 +69,7 @@ struct BackdropCapabilities {
 // One resolution of a request against a platform's capabilities.
 struct BackdropResolution {
     // What `WindowMetrics::backdrop` reports.
-    BackdropMaterial material = BackdropMaterial::None;
+    BackdropMaterial material = BackdropMaterial::NoMaterial;
     // Whether the window itself is translucent. False is the opaque fallback of section 6.
     bool transparent = false;
     // True when the app asked for translucency or for a material the platform cannot provide, so
@@ -76,16 +78,17 @@ struct BackdropResolution {
 };
 
 // The normative resolution of glass-v1.md section 6. `transparent` is the `Window` option;
-// a non-`None` `request` implies translucency even when the option is false, because the CSS
-// property has no separate transparency flag. `Auto` resolving to `None` is a successful answer
-// (no material is offered), not a fallback; an explicit material that cannot be honored and a
-// translucent window that cannot be presented are the two fallback cases.
+// a non-`Disabled` `request` implies translucency even when the option is false, because the CSS
+// property has no separate transparency flag. `Auto` resolving to `NoMaterial` is a successful
+// answer (no material is offered), not a fallback; an explicit material that cannot be honored and
+// a translucent window that cannot be presented are the two fallback cases.
 [[nodiscard]] BackdropResolution
 resolve_window_backdrop(WindowBackdrop request, bool transparent,
                         const BackdropCapabilities& capabilities) noexcept;
 
 // Stable lowercase spellings for diagnostics, logs and the `@media (window-backdrop: ...)` value
-// grammar. `None` is spelled "none" so the media query and the CSS value share one vocabulary.
+// grammar. `NoMaterial` is spelled "none" so the media query and the CSS value share one
+// vocabulary.
 [[nodiscard]] std::string_view backdrop_material_name(BackdropMaterial material) noexcept;
 [[nodiscard]] std::string_view window_backdrop_name(WindowBackdrop request) noexcept;
 

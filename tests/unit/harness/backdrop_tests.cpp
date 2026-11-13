@@ -116,30 +116,30 @@ int main() {
     // The table's `blur` column for Windows 11 is Acrylic.
     expect_resolution("win11 blur", WindowBackdrop::Blur, false, windows11(),
                       BackdropMaterial::Acrylic, true, false);
-    expect_resolution("win11 none", WindowBackdrop::None, false, windows11(),
-                      BackdropMaterial::None, false, false);
-    expect_resolution("win11 transparent only", WindowBackdrop::None, true, windows11(),
-                      BackdropMaterial::None, true, false);
+    expect_resolution("win11 none", WindowBackdrop::Disabled, false, windows11(),
+                      BackdropMaterial::NoMaterial, false, false);
+    expect_resolution("win11 transparent only", WindowBackdrop::Disabled, true, windows11(),
+                      BackdropMaterial::NoMaterial, true, false);
     // A non-None request implies translucency even without the separate option.
     expect_resolution("win11 mica translucent request", WindowBackdrop::Mica, true, windows11(),
                       BackdropMaterial::Mica, true, false);
 
     // --- Windows 10: no documented material; acrylic is opt-in ---------------------------------
     expect_resolution("win10 auto", WindowBackdrop::Auto, false, windows10(false),
-                      BackdropMaterial::None, true, false);
+                      BackdropMaterial::NoMaterial, true, false);
     expect_resolution("win10 mica", WindowBackdrop::Mica, false, windows10(false),
-                      BackdropMaterial::None, true, true);
+                      BackdropMaterial::NoMaterial, true, true);
     expect_resolution("win10 acrylic without opt-in", WindowBackdrop::Acrylic, false,
-                      windows10(false), BackdropMaterial::None, true, true);
+                      windows10(false), BackdropMaterial::NoMaterial, true, true);
     expect_resolution("win10 blur without opt-in", WindowBackdrop::Blur, false, windows10(false),
-                      BackdropMaterial::None, true, true);
+                      BackdropMaterial::NoMaterial, true, true);
     expect_resolution("win10 acrylic opt-in", WindowBackdrop::Acrylic, false, windows10(true),
                       BackdropMaterial::Acrylic, true, false);
     expect_resolution("win10 blur opt-in", WindowBackdrop::Blur, false, windows10(true),
                       BackdropMaterial::Acrylic, true, false);
     // `auto` never selects the undocumented effect, even when the project enabled it.
     expect_resolution("win10 auto with opt-in", WindowBackdrop::Auto, false, windows10(true),
-                      BackdropMaterial::None, true, false);
+                      BackdropMaterial::NoMaterial, true, false);
 
     // --- Linux X11: blur on KWin only ----------------------------------------------------------
     expect_resolution("x11 kwin auto", WindowBackdrop::Auto, false, x11(true),
@@ -147,13 +147,13 @@ int main() {
     expect_resolution("x11 kwin blur", WindowBackdrop::Blur, false, x11(true),
                       BackdropMaterial::Blur, true, false);
     expect_resolution("x11 kwin mica", WindowBackdrop::Mica, false, x11(true),
-                      BackdropMaterial::None, true, true);
+                      BackdropMaterial::NoMaterial, true, true);
     expect_resolution("x11 kwin acrylic", WindowBackdrop::Acrylic, false, x11(true),
-                      BackdropMaterial::None, true, true);
+                      BackdropMaterial::NoMaterial, true, true);
     expect_resolution("x11 other auto", WindowBackdrop::Auto, false, x11(false),
-                      BackdropMaterial::None, true, false);
+                      BackdropMaterial::NoMaterial, true, false);
     expect_resolution("x11 other blur", WindowBackdrop::Blur, false, x11(false),
-                      BackdropMaterial::None, true, true);
+                      BackdropMaterial::NoMaterial, true, true);
 
     // --- Linux Wayland: blur when the compositor offers the protocol ----------------------------
     expect_resolution("wayland offered auto", WindowBackdrop::Auto, false, wayland(true),
@@ -161,25 +161,25 @@ int main() {
     expect_resolution("wayland offered blur", WindowBackdrop::Blur, false, wayland(true),
                       BackdropMaterial::Blur, true, false);
     expect_resolution("wayland absent auto", WindowBackdrop::Auto, false, wayland(false),
-                      BackdropMaterial::None, true, false);
+                      BackdropMaterial::NoMaterial, true, false);
     expect_resolution("wayland absent blur", WindowBackdrop::Blur, false, wayland(false),
-                      BackdropMaterial::None, true, true);
+                      BackdropMaterial::NoMaterial, true, true);
 
     // --- No material offered, and no per-pixel alpha -------------------------------------------
     BackdropCapabilities nothing;
-    nothing.platform = BackdropPlatform::None;
+    nothing.platform = BackdropPlatform::Unknown;
     nothing.per_pixel_alpha = true;
     expect_resolution("no platform auto", WindowBackdrop::Auto, false, nothing,
-                      BackdropMaterial::None, true, false);
+                      BackdropMaterial::NoMaterial, true, false);
     BackdropCapabilities opaque = windows11();
     opaque.per_pixel_alpha = false;
     expect_resolution("no per-pixel alpha mica", WindowBackdrop::Mica, false, opaque,
-                      BackdropMaterial::None, false, true);
-    expect_resolution("no per-pixel alpha transparent", WindowBackdrop::None, true, opaque,
-                      BackdropMaterial::None, false, true);
+                      BackdropMaterial::NoMaterial, false, true);
+    expect_resolution("no per-pixel alpha transparent", WindowBackdrop::Disabled, true, opaque,
+                      BackdropMaterial::NoMaterial, false, true);
 
     // Spellings are shared with the media-feature grammar and the diagnostics.
-    BackdropMaterial parsed = BackdropMaterial::None;
+    BackdropMaterial parsed = BackdropMaterial::NoMaterial;
     expect(tessera::hal::window_backdrop_name(WindowBackdrop::Auto) == "auto", "auto spelling");
     expect(tessera::hal::backdrop_material_name(BackdropMaterial::Acrylic) == "acrylic",
            "acrylic spelling");
@@ -188,7 +188,7 @@ int main() {
            "blur parses");
     expect(!tessera::hal::backdrop_material_from_name("auto", parsed), "auto is not a material");
     // The request grammar (the CSS property and the root inline style) accepts `auto`.
-    WindowBackdrop request = WindowBackdrop::None;
+    WindowBackdrop request = WindowBackdrop::Disabled;
     expect(tessera::hal::window_backdrop_from_name("auto", request) &&
                request == WindowBackdrop::Auto,
            "auto parses as a request");
@@ -205,7 +205,7 @@ int main() {
         // The default fake window offers no material: the stylesheet's opaque fallback applies.
         MediaContext no_material;
         no_material.window_backdrop = window.metrics().backdrop;
-        expect(no_material.window_backdrop == BackdropMaterial::None,
+        expect(no_material.window_backdrop == BackdropMaterial::NoMaterial,
                "fake window defaults to none");
         expect(computed_background(no_material) == "#202020",
                "fallback applies without a material");
@@ -222,7 +222,7 @@ int main() {
 
         // The opaque fallback is reported, not hidden: the fake window can carry the flag the
         // platform sets when the request could not be honored.
-        metrics.backdrop = BackdropMaterial::None;
+        metrics.backdrop = BackdropMaterial::NoMaterial;
         metrics.transparent = false;
         metrics.backdrop_fallback = true;
         window.set_metrics(metrics);

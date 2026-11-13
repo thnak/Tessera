@@ -3,9 +3,12 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
-#include "x11_backdrop.hpp"
 #include "x11_input.hpp"
 #include "x11_xi2.hpp"
+// After the input headers: it is the first include that pulls <X11/Xlib.h>, whose `None`/`Bool`
+// macros would rewrite the enumerators in tessera/ui/input.hpp. The tessera headers must be parsed
+// before Xlib here, the same order x11_input.hpp uses.
+#include "x11_backdrop.hpp"
 #if defined(TESSERA_X11_RANDR)
 #include "x11_randr.hpp"
 #endif
@@ -167,7 +170,7 @@ bool X11Window::create(const WindowDesc& desc) {
     // A translucent window needs a 32-bit ARGB visual so the swapchain's per-pixel alpha reaches
     // the compositor; the opaque path keeps the parent visual byte-identical. The visual and depth
     // are XCreateWindow inputs, so the capability query happens before creation.
-    const bool wants_translucent = desc.transparent || desc.backdrop != WindowBackdrop::None;
+    const bool wants_translucent = desc.transparent || desc.backdrop != WindowBackdrop::Disabled;
     backdrop_setup_ = detail::prepare_x11_backdrop(display_, screen_, wants_translucent);
 
     XSetWindowAttributes attributes{};

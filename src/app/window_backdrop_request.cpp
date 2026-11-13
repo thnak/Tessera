@@ -34,7 +34,7 @@ std::string lowercased(std::string_view value) {
 
 hal::WindowBackdrop window_backdrop_request(const ui::Node& root,
                                             hal::WindowBackdrop explicit_request) {
-    if (explicit_request != hal::WindowBackdrop::None) {
+    if (explicit_request != hal::WindowBackdrop::Disabled) {
         return explicit_request;
     }
     for (const ui::Node::InlineStyleDeclaration& declaration : root.inline_style()) {
@@ -42,10 +42,11 @@ hal::WindowBackdrop window_backdrop_request(const ui::Node& root,
             continue;
         }
         const std::string value = lowercased(trim(declaration.value));
-        hal::WindowBackdrop parsed = hal::WindowBackdrop::None;
-        return hal::window_backdrop_from_name(value, parsed) ? parsed : hal::WindowBackdrop::None;
+        hal::WindowBackdrop parsed = hal::WindowBackdrop::Disabled;
+        return hal::window_backdrop_from_name(value, parsed) ? parsed
+                                                             : hal::WindowBackdrop::Disabled;
     }
-    return hal::WindowBackdrop::None;
+    return hal::WindowBackdrop::Disabled;
 }
 
 } // namespace tessera::app

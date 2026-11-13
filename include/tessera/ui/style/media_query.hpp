@@ -25,7 +25,7 @@ struct MediaContext {
     // The material the platform resolved for the window (glass-v1.md section 6). `None` is the
     // default because a headless/null window offers no material, so a stylesheet's opaque fallback
     // inside `@media (window-backdrop: none)` applies where the engine cannot show one.
-    hal::BackdropMaterial window_backdrop = hal::BackdropMaterial::None;
+    hal::BackdropMaterial window_backdrop = hal::BackdropMaterial::NoMaterial;
 };
 
 enum class MediaFeature {

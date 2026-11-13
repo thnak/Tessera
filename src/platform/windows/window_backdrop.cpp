@@ -93,7 +93,7 @@ bool apply_system_backdrop(HWND window, BackdropMaterial material) noexcept {
     case BackdropMaterial::Acrylic:
         type = kDwmBackdropAcrylic;
         break;
-    case BackdropMaterial::None:
+    case BackdropMaterial::NoMaterial:
     case BackdropMaterial::Blur:
         return false;
     }
@@ -139,7 +139,7 @@ BackdropResolution apply_window_backdrop(HWND window, WindowBackdrop request, bo
                                          bool win10_acrylic) noexcept {
     if (window == nullptr) {
         BackdropResolution resolution;
-        resolution.fallback = request != WindowBackdrop::None || transparent;
+        resolution.fallback = request != WindowBackdrop::Disabled || transparent;
         return resolution;
     }
     const BackdropCapabilities capabilities = query_backdrop_capabilities(win10_acrylic);
@@ -150,10 +150,10 @@ BackdropResolution apply_window_backdrop(HWND window, WindowBackdrop request, bo
     // Every translucent window needs the frame extension; a material is drawn by DWM behind it.
     if (!extend_frame_into_client_area(window)) {
         BackdropResolution fallback;
-        fallback.fallback = request != WindowBackdrop::None || transparent;
+        fallback.fallback = request != WindowBackdrop::Disabled || transparent;
         return fallback;
     }
-    if (resolution.material == BackdropMaterial::None) {
+    if (resolution.material == BackdropMaterial::NoMaterial) {
         return resolution;
     }
     const bool applied = capabilities.platform == BackdropPlatform::Windows11
@@ -162,7 +162,7 @@ BackdropResolution apply_window_backdrop(HWND window, WindowBackdrop request, bo
     if (!applied) {
         // The OS refused the material: the window keeps its translucency and reports the opaque
         // fallback, so the stylesheet's `@media (window-backdrop: none)` rule takes over.
-        resolution.material = BackdropMaterial::None;
+        resolution.material = BackdropMaterial::NoMaterial;
         resolution.fallback = true;
     }
     return resolution;
