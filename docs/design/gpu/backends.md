@@ -21,6 +21,11 @@ Status: Vulkan/null B1 implemented; WebGPU and software/lavapipe paths proposed.
 
 No Vulkan inside Wasm. WebGPU is the only Wasm GPU API.
 
+Support tiers — what a backend at each level promises, which CI lane proves it, and where the code
+may live — are decided in [ADR-049](../../../decisions/ADR-049-backend-extensibility.md) and turned
+into a per-backend checklist in
+[`../../guides/writing-a-backend.md`](../../guides/writing-a-backend.md).
+
 ## 2. Capability floor
 
 Every backend must provide:

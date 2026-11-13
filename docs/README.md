@@ -278,6 +278,9 @@ This page is the map and reading order for the framework.
   design docs stay here in the source repo), themed with a Tessera stylesheet
 - [`guides/custom-elements.md`](guides/custom-elements.md) — declare/implement/test a custom
   native element with shaders, 3D, input and reuse
+- [`guides/writing-a-backend.md`](guides/writing-a-backend.md) — add a GPU backend: tiers and what
+  each promises, the RHI members to implement, RHI version/`capabilities()`, shaders, build wiring,
+  running the suite, review checklist
 - [`guides/sample-apps.md`](guides/sample-apps.md) — templates and feature-coverage matrix
   (notes/dashboard/settings/3D/chat)
 
