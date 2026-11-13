@@ -367,6 +367,12 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [ ] #249: CSS Grid subset with a C++ `GridEngine`; Yoga has no grid, taffy only through an ADR (#214).
 - [ ] #250: Test that the stylesheet registry matches the V1 matrix of `stylesheet-v1.md`; it uses a
       known-gaps allow-list that #247 to #249 empty.
+- [x] #213: Every registered property has a real effect or a recorded status —
+      `docs/specs/stylesheet-property-status-v1.md` (per-longhand table, linked from
+      `stylesheet-v1.md` §11), new consumers for `order` (`src/ui/layout/layout_engine.cpp`) and
+      `visibility` (`Node::set_style_hidden`/`rendered()` gating paint, hit test, a11y, focus,
+      damage), `PropertyRegistry::longhand_names()`, tests `property_effects` and `property_status`
+      (the latter fails when the registry and the table disagree).
 
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C
