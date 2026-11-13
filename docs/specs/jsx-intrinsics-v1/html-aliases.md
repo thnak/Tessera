@@ -48,7 +48,7 @@ against it.
 
 Attributes not mentioned here follow the intrinsic's table unchanged. An HTML attribute that has no
 V1 meaning is `TESSERA_JSX_SUBSET_HTML_ATTR` with the alternative in the table; the same code applies
-to attributes that exist on no intrinsic (`class`, `tabIndex`, ...).
+to attributes that exist on no intrinsic (`class`, `accessKey`, ...).
 
 ### 3.1 All aliases and `button`
 
@@ -56,7 +56,7 @@ to attributes that exist on no intrinsic (`class`, `tabIndex`, ...).
 |---|---|
 | `className`, `style`, `id`, `key`, `ref`, `role`, `aria-*`, event props | unchanged (common table) |
 | `class` | `HTML_ATTR`: write `className` |
-| `tabIndex`, `accessKey`, `title`, `lang`, `dir`, `draggable`, `contentEditable`, `data-*` | `HTML_ATTR`: no V1 meaning; `title` is not a tooltip (use the overlay service or `aria-label`) |
+| `accessKey`, `title`, `lang`, `dir`, `draggable`, `contentEditable`, `data-*` | `HTML_ATTR`: no V1 meaning; `title` is not a tooltip (use the overlay service or `aria-label`) |
 | `hidden` | `HTML_ATTR`: use `{cond && <X />}` or `style={{ display: "none" }}` |
 | `button type="button"` | accepted, dropped |
 | `button type="submit"` or `"reset"` | `HTML_ATTR`: V1 has no `form` element; use `onClick` |
@@ -80,7 +80,7 @@ to attributes that exist on no intrinsic (`class`, `tabIndex`, ...).
 | `autoComplete` | renamed `autofill`; `"off"` is dropped; tokens `email`, `username`, `current-password`, `new-password`, `one-time-code`, `name`, `tel`, `street-address`, `postal-code` pass; any other token is `HTML_ATTR` [Q19] |
 | `onChange` | unchanged; payload per [`common-and-events.md`](common-and-events.md) section 2 |
 | `checked`, `defaultChecked`, `name`, `required`, `pattern`, `min`, `max`, `step`, `minLength`, `multiple`, `accept`, `list`, `form`, `size` | `HTML_ATTR` (form and validation belong to the library `Form`/`Field`, [`forms-and-validation-v1.md`](../forms-and-validation-v1.md)) |
-| `autoFocus`, `spellCheck`, `autoCapitalize`, `autoCorrect` | `HTML_ATTR`: not in V1 |
+| `autoFocus`, `spellCheck`, `autoCapitalize`, `autoCorrect` | `HTML_ATTR`: not in V1 on inputs; `autoFocus` is available on a focusable `View` |
 
 ### 3.3 `textarea` (to `TextArea`)
 

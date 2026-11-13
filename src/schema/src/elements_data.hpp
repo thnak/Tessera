@@ -16,16 +16,8 @@
 
 namespace tessera::schema::internal {
 inline constexpr ElementRow kElements[] = {
-    {"View",
-     "View",
-     ChildrenKind::TextAndNodes,
-     "View",
-     "generic",
-     true,
-     true,
-     {},
-     data::kViewEvents,
-     data::kViewConstraints,
+    {"View", "View", ChildrenKind::TextAndNodes, "View", "generic", true, true, data::kViewProps,
+     data::kViewEvents, data::kViewConstraints,
      "container; children are laid out by the style engine"},
     {"Text",
      "Text",
@@ -34,7 +26,7 @@ inline constexpr ElementRow kElements[] = {
      "text",
      true,
      true,
-     {},
+     data::kViewProps,
      data::kViewEvents,
      {},
      "one text run; an element child is rejected"},

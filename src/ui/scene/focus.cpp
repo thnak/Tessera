@@ -338,4 +338,18 @@ bool FocusManager::focus_previous(Node& root) {
     return move_focus(root, false);
 }
 
+bool FocusManager::apply_auto_focus(Node& root) {
+    if (focused_ != nullptr) {
+        return false;
+    }
+    std::vector<Node*> candidates;
+    collect_focusable(root, candidates);
+    for (Node* candidate : candidates) {
+        if (candidate->auto_focus() && request_focus(candidate)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace tessera::ui

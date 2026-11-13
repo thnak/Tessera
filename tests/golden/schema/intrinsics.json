@@ -319,7 +319,7 @@
         {
           "kind": "reject",
           "name": "autoFocus",
-          "suggestion": "not in V1"
+          "suggestion": "not in V1 on inputs; use it on a focusable `View`"
         },
         {
           "kind": "reject",
@@ -1102,6 +1102,24 @@
           "payload": "PointerEvent"
         },
         {
+          "name": "onKeyDown",
+          "note": "delivered while this node or a descendant holds focus",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onKeyUp",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onFocus",
+          "note": "a focusable node only: `tabIndex` is set",
+          "payload": "FocusEvent"
+        },
+        {
+          "name": "onBlur",
+          "payload": "FocusEvent"
+        },
+        {
           "name": "onSizeChange",
           "note": "layout observation; no bubbling, not a pointer event",
           "payload": "SizeChangeEvent"
@@ -1110,7 +1128,23 @@
       "impliedRole": "generic",
       "irKind": "View",
       "note": "container; children are laid out by the style engine",
-      "props": [],
+      "props": [
+        {
+          "lowersTo": "props.tabIndex",
+          "name": "tabIndex",
+          "note": "0 joins the Tab order; -1 is focusable by `ref.focus()` and pointer only; a role and an accessible name are required",
+          "type": "0 | -1",
+          "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.autoFocus",
+          "name": "autoFocus",
+          "note": "focuses this node when the tree is first shown; needs `tabIndex`",
+          "type": "bool",
+          "value": "literal"
+        }
+      ],
       "refType": "View",
       "tag": "View"
     },
@@ -1149,6 +1183,24 @@
           "payload": "PointerEvent"
         },
         {
+          "name": "onKeyDown",
+          "note": "delivered while this node or a descendant holds focus",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onKeyUp",
+          "payload": "KeyEvent"
+        },
+        {
+          "name": "onFocus",
+          "note": "a focusable node only: `tabIndex` is set",
+          "payload": "FocusEvent"
+        },
+        {
+          "name": "onBlur",
+          "payload": "FocusEvent"
+        },
+        {
           "name": "onSizeChange",
           "note": "layout observation; no bubbling, not a pointer event",
           "payload": "SizeChangeEvent"
@@ -1157,7 +1209,23 @@
       "impliedRole": "text",
       "irKind": "Text",
       "note": "one text run; an element child is rejected",
-      "props": [],
+      "props": [
+        {
+          "lowersTo": "props.tabIndex",
+          "name": "tabIndex",
+          "note": "0 joins the Tab order; -1 is focusable by `ref.focus()` and pointer only; a role and an accessible name are required",
+          "type": "0 | -1",
+          "value": "literal"
+        },
+        {
+          "default": "false",
+          "lowersTo": "props.autoFocus",
+          "name": "autoFocus",
+          "note": "focuses this node when the tree is first shown; needs `tabIndex`",
+          "type": "bool",
+          "value": "literal"
+        }
+      ],
       "refType": "Text",
       "tag": "Text"
     },

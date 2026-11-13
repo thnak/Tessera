@@ -383,6 +383,23 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         node.kind == ir::NodeKind::TextArea) {
         writer.line(variable + "->set_focusable(true);");
     }
+    // `tabIndex`/`autoFocus` on a `View` or `Text` (issue #226). Lowering validated the domain: the
+    // literal is 0 (joins the Tab order) or -1 (programmatic and pointer focus only), and the node
+    // has a role and a name.
+    if (const ir::Expr* tab_index = prop("tabIndex");
+        tab_index != nullptr && tab_index->kind == ir::ExprKind::Literal) {
+        if (const auto* value = std::get_if<std::int64_t>(&tab_index->literal)) {
+            writer.line(variable + "->set_focusable(true);");
+            writer.line(variable + "->set_tab_index(" + std::to_string(*value) + ");");
+        }
+    }
+    if (const ir::Expr* auto_focus = prop("autoFocus");
+        auto_focus != nullptr && auto_focus->kind == ir::ExprKind::Literal) {
+        if (const auto* value = std::get_if<bool>(&auto_focus->literal);
+            value != nullptr && *value) {
+            writer.line(variable + "->set_auto_focus(true);");
+        }
+    }
     if (node.kind == ir::NodeKind::Scroll) {
         std::string axis = "y";
         const auto found = node.props.find("axis");

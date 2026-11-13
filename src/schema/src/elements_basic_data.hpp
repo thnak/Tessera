@@ -16,7 +16,35 @@ inline constexpr EventRow kViewEvents[] = {
     {"onPointerEnter", "PointerEvent", ""},
     {"onPointerLeave", "PointerEvent", ""},
     {"onPointerCancel", "PointerEvent", ""},
+    {"onKeyDown", "KeyEvent", "delivered while this node or a descendant holds focus"},
+    {"onKeyUp", "KeyEvent", ""},
+    {"onFocus", "FocusEvent", "a focusable node only: `tabIndex` is set"},
+    {"onBlur", "FocusEvent", ""},
     {"onSizeChange", "SizeChangeEvent", "layout observation; no bubbling, not a pointer event"},
+};
+
+// `View` and `Text` become focusable with `tabIndex` (issue #226, docs/specs/jsx-intrinsics-v1/
+// common-and-events.md). Both are literals: the focus order is a static property of the tree.
+inline constexpr PropRow kViewProps[] = {
+    {"tabIndex",
+     "0 | -1",
+     ValueKind::Literal,
+     false,
+     "",
+     "props.tabIndex",
+     {},
+     {},
+     "0 joins the Tab order; -1 is focusable by `ref.focus()` and pointer only; a role and an "
+     "accessible name are required"},
+    {"autoFocus",
+     "bool",
+     ValueKind::Literal,
+     false,
+     "false",
+     "props.autoFocus",
+     {},
+     {},
+     "focuses this node when the tree is first shown; needs `tabIndex`"},
 };
 
 inline constexpr EventRow kButtonEvents[] = {
