@@ -85,6 +85,26 @@ struct GradientDraw {
     std::size_t stop_count = 0;
 };
 
+// One resolved `backdrop-filter` draw (glass, docs/specs/glass-v1.md sections 2 and 3). Emitted
+// once per glass node, before the node's own box shadows/background/borders/content and after
+// everything painted earlier in the frame: the sink must read what the frame already holds inside
+// the dependency region, blur it, and composite it back clipped to `clip`. A sink that cannot read
+// the frame target (the CPU reference sink) reports it as unsupported instead of faking it; a sink
+// that can (the batched 2D renderer through the render-pass seam) folds `opacity` into the
+// composite so a translucent glass node blends the blurred backdrop over the original.
+struct BackdropDraw {
+    rhi::Rect rect;     // node border box in absolute paint coordinates
+    RoundedClip clip;   // border box shaped by `border-radius` (also the composite clip)
+    float sigma = 0.0f; // blur standard deviation in CSS px, already clamped to glassMaxBlurRadius
+    float opacity = 1.0f; // node opacity, folded into the composite
+    float saturate = 1.0f;
+    float brightness = 1.0f;
+    float contrast = 1.0f;
+    // CSS px -> target px for the 3 sigma reach and the half-resolution decision. The paint pass
+    // carries it so a sink does not need a second source of truth.
+    float device_scale = 1.0f;
+};
+
 // Encoded-space (sRGB byte) interpolation over sorted stops; at a duplicate offset the later stop
 // wins. Sinks share this so the CPU/GPU ramps agree.
 [[nodiscard]] inline rhi::Color sample_linear_gradient(const GradientDraw& draw, float t) {
@@ -170,6 +190,15 @@ public:
     // Optional raster-image hook (default no-op), same placement/precedence rules as draw_vector
     // but for PaintKind::Image payloads. Missing/corrupt assets are silent no-ops in real sinks.
     virtual void draw_image(const ImageDraw& /*draw*/) {}
+
+    // Optional glass hook (default no-op), emitted before the node's own box visuals. A sink that
+    // returns false from supports_backdrop() paints the node without the effect, which is the
+    // documented CPU-reference behavior (glass-v1 section 9): the stylesheet's opaque fallback
+    // stays visible instead of a blurred approximation that no golden could pin.
+    [[nodiscard]] virtual bool supports_backdrop() const {
+        return false;
+    }
+    virtual void draw_backdrop(const BackdropDraw& /*draw*/) {}
 };
 
 } // namespace tessera::ui::paint

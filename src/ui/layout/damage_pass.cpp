@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/layout/pixel_snap.hpp"
 
@@ -35,6 +36,19 @@ rendering::rhi::Rect node_damage_rect(const Node& node) {
     bounds.width += (outsets.left + outsets.right) * scale;
     bounds.height += (outsets.top + outsets.bottom) * scale;
     return bounds;
+}
+
+rendering::rhi::Rect node_glass_dependency_rect(const Node& node, float dpi_scale) {
+    const float sigma = node.glass_blur_sigma();
+    if (sigma <= 0.0f) {
+        return {};
+    }
+    // Box grown by 3 sigma in presented (CSS) pixels, snapped to the device grid like every other
+    // damage rect. The world box already carries transforms; the region grows by the sigma the
+    // paint pass emits, so a dependency test here matches the blur the sink will run.
+    const rendering::rhi::Rect region =
+        rendering::gpu::glass_dependency_rect(node.world_bounds(), sigma, 1.0f);
+    return snap_rect(region, dpi_scale);
 }
 
 DamagePassResult add_scene_damage(const DirtyPass& dirty, rendering::DamageAccumulator& damage,

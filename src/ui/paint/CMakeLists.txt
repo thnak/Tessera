@@ -89,6 +89,33 @@ if (TESSERA_BUILD_TESTS)
         tessera_asset_image)
     add_test(NAME paint_shadow_cpu COMMAND paint_shadow_cpu_tests)
 
+    # Glass paint pass (issue #244): segmentation at glass nodes, sigma clamp, webkit alias,
+    # high-contrast fallback, paint-cache replay and the CPU reference sink's unsupported
+    # diagnostic. Vulkan-free, so it runs on every lane.
+    add_executable(paint_glass_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/glass_paint_tests.cpp)
+    target_include_directories(paint_glass_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
+    target_link_libraries(paint_glass_tests PRIVATE
+        tessera_paint
+        tessera_software
+        tessera_path
+        tessera_asset_svg
+        tessera_image
+        tessera_asset_image)
+    add_test(NAME paint_glass COMMAND paint_glass_tests)
+
+    # Glass damage, idle and diagnostics (glass-v1 sections 7 and 9): 3 sigma dependency region,
+    # static glass screen presenting zero frames, non-glass damage unchanged, glass counters.
+    add_executable(glass_damage_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/glass_damage_tests.cpp)
+    target_link_libraries(glass_damage_tests PRIVATE
+        tessera_frame
+        tessera_layout
+        tessera_paint
+        tessera_runtime)
+    add_test(NAME glass_damage COMMAND glass_damage_tests)
+
     add_executable(paint_image_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/paint_image_tests.cpp)
     target_link_libraries(paint_image_tests PRIVATE

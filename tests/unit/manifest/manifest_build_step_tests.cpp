@@ -2,8 +2,8 @@
 
 // The shader build step's manifest contract (docs/specs/shader-manifest-v1.md sections 4, 5 and 9):
 // the authored manifest loads through tessera_schema, a broken copy fails with the typed error, and
-// the batched2d entry matches Vertex2D and the GLSL interface glslc compiles. Sources are read from
-// the source tree at run time, the read-only pattern the layering tests use.
+// the batched2d and glass_blur entries match Vertex2D / the portable GLSL interface glslc compiles.
+// Sources are read from the source tree at run time, the read-only pattern the layering tests use.
 
 #include "manifest_test_util.hpp"
 #include "tessera/rendering/gpu/shader_ids.hpp"
@@ -167,20 +167,95 @@ std::string shader_source(const ShaderEntry& entry, std::string_view name) {
 }
 
 const ShaderEntry* find_batched2d(Checker& checker, const Manifest& manifest) {
-    checker.check(manifest.shaders.size() == 1, "manifest has one shader entry");
-    if (manifest.shaders.size() != 1) {
+    const ShaderEntry* entry = nullptr;
+    for (const ShaderEntry& candidate : manifest.shaders) {
+        if (candidate.name == kBatched2dShaderId) {
+            entry = &candidate;
+        }
+    }
+    checker.check(entry != nullptr, "manifest declares the batched2d entry");
+    if (entry == nullptr) {
         return nullptr;
     }
-    const ShaderEntry& entry = manifest.shaders.front();
-    checker.check(entry.name == kBatched2dShaderId, "manifest name matches the shader id");
-    checker.check(entry.kind == ShaderKind::Element, "batched2d is an element shader");
-    checker.check(entry.stages.size() == 2 && entry.stages[0] == ShaderStage::Vertex &&
-                      entry.stages[1] == ShaderStage::Fragment,
+    checker.check(entry->kind == ShaderKind::Element, "batched2d is an element shader");
+    checker.check(entry->stages.size() == 2 && entry->stages[0] == ShaderStage::Vertex &&
+                      entry->stages[1] == ShaderStage::Fragment,
                   "batched2d declares vertex and fragment stages");
-    checker.check(entry.entries.size() == 2 && entry.entries[0].entry == "main" &&
-                      entry.entries[1].entry == "main",
+    checker.check(entry->entries.size() == 2 && entry->entries[0].entry == "main" &&
+                      entry->entries[1].entry == "main",
                   "batched2d entry points are main in both stages");
-    return &entry;
+    return entry;
+}
+
+// The glass two-pass Gaussian entry (issue #244): a fullscreen element with no vertex buffers, the
+// same portable binding set as batched2d and a 96-byte push-constant block for direction/sigma
+// region/composite state. Its GLSL fragment is the portable source, so the interface can be
+// cross-checked exactly like batched2d's.
+const ShaderEntry* find_glass_blur(Checker& checker, const Manifest& manifest) {
+    const ShaderEntry* entry = nullptr;
+    for (const ShaderEntry& candidate : manifest.shaders) {
+        if (candidate.name == "glass_blur") {
+            entry = &candidate;
+        }
+    }
+    checker.check(entry != nullptr, "manifest declares the glass_blur entry");
+    if (entry == nullptr) {
+        return nullptr;
+    }
+    checker.check(entry->kind == ShaderKind::Element, "glass_blur is an element shader");
+    checker.check(entry->vertex_layout.empty(), "glass_blur draws a fullscreen triangle");
+    checker.check(entry->vulkan_sources.size() == 2 && entry->webgpu_sources.size() == 1,
+                  "glass_blur declares GLSL and WGSL sources");
+    return entry;
+}
+
+void test_glass_blur(Checker& checker, const ShaderEntry& entry) {
+    const std::string fragment = shader_source(entry, "glass_blur.frag");
+    checker.check(!fragment.empty(), "glass_blur.frag is in the repository source list");
+
+    auto bindings = glsl_bindings(portable_lines(fragment));
+    checker.check(bindings.size() == entry.bindings.size(),
+                  "glass_blur manifest bindings match the portable GLSL");
+    for (const auto& binding : entry.bindings) {
+        const auto glsl = bindings.find(binding.binding);
+        checker.check(glsl != bindings.end(), "glass_blur GLSL declares the manifest binding");
+        if (glsl == bindings.end()) {
+            continue;
+        }
+        checker.check(tessera::schema::to_string(binding.type) == glsl->second.type,
+                      "glass_blur binding type matches the GLSL declaration");
+        checker.check(binding.name == glsl->second.name,
+                      "glass_blur binding name matches the GLSL declaration");
+    }
+
+    checker.check(entry.push_constants.has_value(), "glass_blur declares push constants");
+    if (!entry.push_constants) {
+        return;
+    }
+    const auto& constants = *entry.push_constants;
+    checker.check(constants.size == 96, "glass_blur push-constant block is 96 bytes");
+    checker.check(constants.fields.size() == 10, "glass_blur push-constant fields cover the block");
+    if (constants.fields.size() != 10) {
+        return;
+    }
+    const struct {
+        const char* name;
+        const char* type;
+        std::uint32_t offset;
+    } expected[] = {
+        {"texel_step", "float2", 0}, {"direction", "float2", 8},      {"sigma", "float", 16},
+        {"radius", "float", 20},     {"region_origin", "float2", 24}, {"region_size", "float2", 32},
+        {"box", "float4", 48},       {"radii", "float4", 64},         {"factors", "float3", 80},
+        {"mode", "float", 92},
+    };
+    for (std::size_t index = 0; index < constants.fields.size(); ++index) {
+        checker.check(constants.fields[index].name == expected[index].name,
+                      "glass_blur push-constant name matches the shader block");
+        checker.check(constants.fields[index].type == expected[index].type,
+                      "glass_blur push-constant type matches the shader block");
+        checker.check(constants.fields[index].offset == expected[index].offset,
+                      "glass_blur push-constant offset matches the shader block");
+    }
 }
 
 void test_vertex_layout(Checker& checker, const ShaderEntry& entry) {
@@ -292,6 +367,10 @@ int main() {
             test_vertex_layout(checker, *entry);
             test_bindings(checker, *entry);
             test_push_constants(checker, *entry);
+        }
+        const ShaderEntry* glass = find_glass_blur(checker, *manifest);
+        if (glass != nullptr) {
+            test_glass_blur(checker, *glass);
         }
     }
     test_broken_copies(checker, text);

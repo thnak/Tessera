@@ -14,6 +14,8 @@ struct SceneStyleSyncResult {
     std::size_t changed_z_index = 0; // nodes whose z-index changed
     std::size_t changed_transform = 0;
     std::size_t changed_outsets = 0; // nodes whose box-shadow reach changed
+    std::size_t glass_nodes = 0;     // visible nodes with a non-`none` backdrop-filter
+    std::size_t changed_glass = 0;   // nodes whose resolved glass sigma changed
 };
 
 // Copies the computed style properties that the scene graph itself consumes onto the nodes:
@@ -21,6 +23,8 @@ struct SceneStyleSyncResult {
 //   transform        -> Node::set_transform (around `transform-origin`, resolved against the node's
 //                       current border box, so run this after layout has written the bounds)
 //   box-shadow       -> Node::set_paint_outsets (the reach damage must cover)
+//   backdrop-filter  -> Node::set_glass_blur_sigma (sigma clamped by `glass`, the 3 sigma damage
+//                       dependency of glass-v1 section 7) and Node::set_glass_subtree
 // Invisible subtrees are skipped, like painting. Each setter only dirties paint/render when the
 // value actually changed, so a steady scene stays clean. Call it between layout and painting
 // whenever style or layout changed.
@@ -32,6 +36,8 @@ struct SceneStyleSyncResult {
 // quarter-turn frames and are dropped under other rotations/skews. Sinks without matrix support
 // (the CPU sink) paint the node's axis-aligned bounding box instead: exact for translate, scale and
 // quarter turns of boxes, an approximation otherwise.
-SceneStyleSyncResult sync_scene_style(Node& root, StyleProvider& styles);
+SceneStyleSyncResult
+sync_scene_style(Node& root, StyleProvider& styles,
+                 const rendering::gpu::GlassLimits& glass = rendering::gpu::GlassLimits{});
 
 } // namespace tessera::ui::paint

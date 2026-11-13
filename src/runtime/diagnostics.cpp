@@ -14,6 +14,11 @@ void FrameDiagnostics::record(FrameDiagnosticsSample sample) {
     total_damage_rects_ += sample.damage_rects;
     total_scissors_ += sample.redraw_scissors;
     total_animation_samples_ += sample.animation_samples;
+    total_glass_ms_ += sample.glass_ms;
+    total_glass_backdrops_ += sample.glass_backdrop_count;
+    if (sample.glass_ms > 0.0 || sample.glass_backdrop_count > 0) {
+        ++glass_frames_;
+    }
     if (sample.full_redraw) {
         ++full_redraw_frames_;
     }
@@ -67,6 +72,9 @@ void FrameDiagnostics::reset() {
     total_scissors_ = 0;
     total_animation_samples_ = 0;
     full_redraw_frames_ = 0;
+    total_glass_ms_ = 0.0;
+    total_glass_backdrops_ = 0;
+    glass_frames_ = 0;
     adaptive_quality_changes_ = 0;
     adaptive_quality_downgrades_ = 0;
     adaptive_present_cap_changes_ = 0;

@@ -17,6 +17,35 @@ bool has_area(const rendering::rhi::Rect& bounds) {
     return bounds.width > 0.0f && bounds.height > 0.0f;
 }
 
+bool intersects(const rendering::rhi::Rect& lhs, const rendering::rhi::Rect& rhs) {
+    return lhs.x < rhs.right() && rhs.x < lhs.right() && lhs.y < rhs.bottom() &&
+           rhs.y < lhs.bottom();
+}
+
+// Appends the full box of every glass node whose 3 sigma dependency region intersects damage.
+// The subtree flag prunes whole branches, so a non-glass tree costs one boolean per root.
+void collect_glass_boxes(const Node& node, const std::vector<rendering::rhi::Rect>& damage_rects,
+                         float dpi_scale, std::vector<rendering::rhi::Rect>& out) {
+    if (!node.visible() || !node.glass_subtree()) {
+        return;
+    }
+    if (node.glass_blur_sigma() > 0.0f) {
+        const rendering::rhi::Rect dependency = node_glass_dependency_rect(node, dpi_scale);
+        for (const rendering::rhi::Rect& rect : damage_rects) {
+            if (intersects(dependency, rect)) {
+                const rendering::rhi::Rect box = snap_rect(node_damage_rect(node), dpi_scale);
+                if (has_area(box)) {
+                    out.push_back(box);
+                }
+                break;
+            }
+        }
+    }
+    for (const auto& child : node.children()) {
+        collect_glass_boxes(*child, damage_rects, dpi_scale, out);
+    }
+}
+
 void collect_ids(const Node& node, std::unordered_set<NodeId>& ids) {
     ids.insert(node.id());
     for (const auto& child : node.children()) {
@@ -80,6 +109,24 @@ DamagePassResult DamageTracker::add_scene_damage(const DirtyPass& dirty,
     result.rects = damage.rects().size();
     result.full_redraw = damage.full_redraw();
     return result;
+}
+
+std::size_t DamageTracker::add_glass_dependencies(const Node& root,
+                                                  rendering::DamageAccumulator& damage,
+                                                  float dpi_scale, float margin) {
+    if (!root.visible() || !root.glass_subtree() || damage.rects().empty()) {
+        return 0;
+    }
+    // Adding to the accumulator invalidates its rect list, so the frame's damage is snapshotted
+    // into reused scratch before the walk. Capacity persists across frames: a steady glass screen
+    // does not allocate here.
+    damage_scratch_.assign(damage.rects().begin(), damage.rects().end());
+    glass_scratch_.clear();
+    collect_glass_boxes(root, damage_scratch_, dpi_scale, glass_scratch_);
+    for (const rendering::rhi::Rect& box : glass_scratch_) {
+        damage.add(box, margin);
+    }
+    return glass_scratch_.size();
 }
 
 std::size_t DamageTracker::prune_removed(const Node& root) {

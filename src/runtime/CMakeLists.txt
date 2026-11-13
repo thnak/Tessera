@@ -27,3 +27,13 @@ find_package(Threads REQUIRED)
 target_link_libraries(tessera_runtime
     PUBLIC Threads::Threads tessera_hal_window
     PRIVATE tessera_hal_timer)
+
+# Glass runtime-config keys (issue #244): parsing, defaults and validation.
+if (TESSERA_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(glass_config_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/glass_config_tests.cpp)
+    target_link_libraries(glass_config_tests PRIVATE tessera_runtime)
+    add_test(NAME glass_config COMMAND glass_config_tests)
+endif()

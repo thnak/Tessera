@@ -594,7 +594,7 @@ composes exactly as on the single-pass path; a tree that never breaks a pass rec
 commands and keeps today's goldens. This is the seam `backdrop-filter` (#244) uses for its backdrop
 copy/blur and that isolated layers (#227) use to paint a subtree into its own texture.
 
-The paint pass itself is unchanged: node-list segmentation at glass nodes, the blurred-backdrop
-composite clip and the blur shader belong to #244. Contract, per-backend layout rules, pool
-retirement, limits and tests: [`gpu/offscreen-layers.md`](gpu/offscreen-layers.md) and
-[`gpu/rhi.md`](gpu/rhi.md) section 5.
+The #244 consumer is `PaintSink::draw_backdrop`, emitted once per glass node at the segment boundary
+with the clamped sigma, rounded clip, folded opacity and color factors; high contrast drops it. The
+composite draw sampling a pooled target is still deferred (`Batched2DSink` counts it unsupported);
+contract: [`gpu/offscreen-layers.md`](gpu/offscreen-layers.md), [`gpu/rhi.md`](gpu/rhi.md) section 5.

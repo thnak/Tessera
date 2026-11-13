@@ -226,4 +226,22 @@ int font_weight_value(const style::ComputedStyle& style) {
     return std::clamp(static_cast<int>(std::lround(weight)), 1, 1000);
 }
 
+std::optional<style::BackdropFilter> backdrop_filter_value(const style::ComputedStyle& style) {
+    static constexpr const char* kProperties[2] = {"backdrop-filter", "-webkit-backdrop-filter"};
+    for (const char* property : kProperties) {
+        const std::string* text = raw(style, property);
+        if (text == nullptr) {
+            continue;
+        }
+        const style::BackdropFilterParseResult parsed = style::parse_backdrop_filter(*text);
+        // The registry drops an unsupported declaration before the cascade, so an unparseable
+        // computed value can only come from a hand-built style; paint treats it as `none`.
+        if (!parsed.ok() || parsed.filter.none()) {
+            continue;
+        }
+        return parsed.filter;
+    }
+    return std::nullopt;
+}
+
 } // namespace tessera::ui::paint::detail

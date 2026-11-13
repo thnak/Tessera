@@ -30,7 +30,7 @@ namespace json = runtime::internal;
 // stack for a config file.
 constexpr std::size_t kMaxDocumentDepth = 16;
 
-constexpr std::array<std::string_view, 40> kKnownKeys = {
+constexpr std::array<std::string_view, 43> kKnownKeys = {
     "fixedTimestepHz",
     "maxFps",
     "vsync",
@@ -68,6 +68,9 @@ constexpr std::array<std::string_view, 40> kKnownKeys = {
     "drawListCacheBudgetMb",
     "viewTransitionMaxMb",
     "gpuFramesInFlight",
+    "glassMaxBlurRadius",
+    "glassMaxBlurTargets",
+    "glassMaxBackdropArea",
     "animationInterpolation",
     "interpolationEpsilonPx",
     "deterministic",
@@ -387,6 +390,12 @@ validate_runtime_object(const json::JsonValue& runtime) {
     reader.integer("drawListCacheBudgetMb", config.draw_list_cache_budget_mb, 0, 4096);
     reader.integer("viewTransitionMaxMb", config.view_transition_max_mb, 0, 4096);
     reader.integer("gpuFramesInFlight", config.gpu_frames_in_flight, 1, 3);
+    // Glass limits (glass-v1 sections 5 and 8): no fallback turns glass off, so each of these only
+    // bounds cost. A radius of 0 would make every declaration a pass-through, which is legal but
+    // pointless; the upper bound keeps one blur pass inside a sane tap count.
+    reader.number("glassMaxBlurRadius", config.glass_max_blur_radius, 0.0, 256.0);
+    reader.integer("glassMaxBlurTargets", config.glass_max_blur_targets, 0, 16);
+    reader.integer("glassMaxBackdropArea", config.glass_max_backdrop_area, 0, 268435456);
     reader.boolean("animationInterpolation", config.animation_interpolation);
     reader.number("interpolationEpsilonPx", config.interpolation_epsilon_px, 0.0, 4.0);
     reader.boolean("deterministic", config.deterministic);

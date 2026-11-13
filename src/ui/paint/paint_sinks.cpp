@@ -266,4 +266,14 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
     ++image_stats_.draws;
 }
 
+void Batched2DSink::draw_backdrop(const BackdropDraw& /*draw*/) {
+    // The paint pass segments the frame at this call (glass-v1 section 4): everything before the
+    // glass node is already recorded, so a renderer that owns the sampled-target composite can
+    // break the pass here. The composite itself is the next slice of the seam
+    // (docs/design/gpu/offscreen-layers.md section 7): the batched renderer cannot sample a pooled
+    // target yet, so the draw is counted and the frame keeps painting without the effect. The count
+    // is the diagnostic the acceptance asks for; nothing is silently dropped.
+    ++glass_stats_.unsupported;
+}
+
 } // namespace tessera::ui::paint

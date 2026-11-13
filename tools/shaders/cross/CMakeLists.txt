@@ -11,3 +11,9 @@ tessera_cross_compile_shader(batched2d
     VERTEX batched2d.vert
     FRAGMENT batched2d.frag
     AUTHORED_WGSL ${PROJECT_SOURCE_DIR}/src/rendering/backend/webgpu/shaders/batched2d.wgsl)
+
+tessera_cross_compile_shader(glass_blur
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders
+    VERTEX fullscreen.vert
+    FRAGMENT glass_blur.frag
+    AUTHORED_WGSL ${PROJECT_SOURCE_DIR}/src/rendering/backend/webgpu/shaders/glass_blur.wgsl)

@@ -391,7 +391,8 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
   the shadow is not cut out beneath a translucent background (that needs an inverse clip the
   `PaintSink` does not have). Revisit `inset` and the cut-out when the component library needs
   them or an inverse clip exists.
-- Value forms V1 ignores on a recognised property (`box-shadow: inset`, 3D `transform`) produce a
+- Value forms V1 ignores on a recognised property (`box-shadow: inset`, 3D `transform`, any
+  `backdrop-filter` function other than `blur`/`saturate`/`brightness`/`contrast`) produce a
   `StyleDiagnosticKind::UnsupportedValue` diagnostic per declaration and stay in the AST, like
   other unsupported declarations (below).
 - `FramePipeline::sync_style` (between layout and `finish_frame`) copies these values onto the

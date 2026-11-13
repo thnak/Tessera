@@ -266,7 +266,7 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
     if (!force && !tick.needs_style && !tick.needs_layout) {
         return {};
     }
-    return paint::sync_scene_style(root, styles);
+    return paint::sync_scene_style(root, styles, config_.glass);
 }
 
 FrameRender FramePipeline::finish_frame(Node& root) {
@@ -330,6 +330,15 @@ FrameRender FramePipeline::finish_frame(Node& root) {
         result.damage.rects = damage_->rects().size();
         result.damage.full_redraw = damage_->full_redraw();
     }
+    // Glass last: every damage source of the frame (dirty nodes, interpolated boxes) is in the
+    // accumulator by now, so a glass node whose 3 sigma dependency region intersects any of it gets
+    // its full box repainted (glass-v1 section 7). A tree without a glass node returns immediately.
+    result.glass_dependencies = damage_tracker_->add_glass_dependencies(
+        root, *damage_, config_.dpi_scale, config_.damage_margin);
+    if (result.glass_dependencies > 0) {
+        result.damage.rects = damage_->rects().size();
+        result.damage.full_redraw = damage_->full_redraw();
+    }
     result.redraw_plan = normalized_plan(rendering::make_redraw_plan(*damage_), damage_->target(),
                                          config_.redraw_policy);
     // The damage pass already latches a full redraw on a dirty-pass overflow; keep the decision
@@ -358,6 +367,8 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     const InterpolationPaintView view = interpolation_view();
     paint::PaintContext context;
     context.reduce_effects = reduce_effects_;
+    context.high_contrast = high_contrast_;
+    context.glass = config_.glass;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
     }
@@ -379,6 +390,8 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     const InterpolationPaintView view = interpolation_view();
     paint::PaintContext context;
     context.reduce_effects = reduce_effects_;
+    context.high_contrast = high_contrast_;
+    context.glass = config_.glass;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
     }

@@ -15,6 +15,8 @@ function(tessera_embed_wgsl shader)
 endfunction()
 
 tessera_embed_wgsl(batched2d.wgsl)
+# Glass two-pass Gaussian twin (issue #244); validated by naga and the Wasm lane.
+tessera_embed_wgsl(glass_blur.wgsl)
 
 add_library(tessera_webgpu_mapping STATIC
     src/webgpu_mapping.cpp

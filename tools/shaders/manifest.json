@@ -43,6 +43,40 @@
         { "name": "dashboard", "golden": "tests/golden/baseline/batched2d/dashboard.png" },
         { "name": "dashboard_shapes", "golden": "tests/golden/baseline/batched2d/dashboard_shapes.png" }
       ]
+    },
+    {
+      "name": "glass_blur",
+      "kind": "element",
+      "stages": ["vertex", "fragment"],
+      "entry": { "vertex": "main", "fragment": "main" },
+      "sources": {
+        "vulkan": ["fullscreen.vert", "glass_blur.frag"],
+        "webgpu": ["glass_blur.wgsl"]
+      },
+      "vertexLayout": [],
+      "bindings": [
+        { "group": 0, "binding": 0, "type": "uniform_buffer", "name": "pc" },
+        { "group": 0, "binding": 1, "type": "sampled_texture", "name": "u_texture" },
+        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" }
+      ],
+      "pushConstants": {
+        "size": 96,
+        "fields": [
+          { "name": "texel_step", "type": "float2", "offset": 0 },
+          { "name": "direction", "type": "float2", "offset": 8 },
+          { "name": "sigma", "type": "float", "offset": 16 },
+          { "name": "radius", "type": "float", "offset": 20 },
+          { "name": "region_origin", "type": "float2", "offset": 24 },
+          { "name": "region_size", "type": "float2", "offset": 32 },
+          { "name": "box", "type": "float4", "offset": 48 },
+          { "name": "radii", "type": "float4", "offset": 64 },
+          { "name": "factors", "type": "float3", "offset": 80 },
+          { "name": "mode", "type": "float", "offset": 92 }
+        ]
+      },
+      "tests": [
+        { "name": "glass_blur_smoke" }
+      ]
     }
   ]
 }

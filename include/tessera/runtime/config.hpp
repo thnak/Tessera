@@ -64,6 +64,14 @@ struct RuntimeConfig {
     bool animation_interpolation = true;
     float interpolation_epsilon_px = 0.0625f;
     bool deterministic = false;
+    // Glass (docs/specs/glass-v1.md sections 5 and 8). These bound the cost of `backdrop-filter`
+    // without ever turning the effect off: the blur radius clamp in CSS pixels, the bounded pool of
+    // blur targets per frame, and the backdrop area above which a region is blurred at half
+    // resolution (device pixels; 4 Mpx = 4,000,000). Last in the struct so positional aggregate
+    // initialization of the older fields keeps its meaning.
+    float glass_max_blur_radius = 64.0f;
+    std::uint32_t glass_max_blur_targets = 4;
+    std::uint32_t glass_max_backdrop_area = 4'000'000;
 
     [[nodiscard]] bool operator==(const RuntimeConfig&) const = default;
 };

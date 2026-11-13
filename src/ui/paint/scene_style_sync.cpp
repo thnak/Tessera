@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
+//
+// Computed style -> scene graph, for the properties the graph (not the paint pass) consumes:
+// z-index, transform, box-shadow reach and the glass backdrop sigma. A steady scene stays clean:
+// every setter is a no-op when the value it stores is unchanged.
 
+#include "paint_properties.hpp"
 #include "paint_shadow.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/style/transform.hpp"
@@ -43,9 +48,11 @@ int z_index_value(const style::ComputedStyle& style) {
     return static_cast<int>(std::clamp<long>(parsed, INT_MIN, INT_MAX));
 }
 
-void sync_node(Node& node, StyleProvider& styles, SceneStyleSyncResult& result) {
+// Returns whether this node's subtree contains a glass node (itself included).
+bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLimits& glass,
+               SceneStyleSyncResult& result) {
     if (!node.visible()) {
-        return;
+        return false;
     }
     const style::ComputedStyle style = styles.compute(node);
     ++result.nodes;
@@ -79,16 +86,33 @@ void sync_node(Node& node, StyleProvider& styles, SceneStyleSyncResult& result) 
         ++result.changed_outsets;
     }
 
-    for (const auto& child : node.children()) {
-        sync_node(*child, styles, result);
+    // Glass: the resolved sigma the damage dependency region is derived from. The clamp uses the
+    // configured limit, so the stored value is exactly what paint will emit.
+    const std::optional<style::BackdropFilter> filter = detail::backdrop_filter_value(style);
+    const float sigma =
+        filter.has_value() ? rendering::gpu::clamp_glass_sigma(filter->blur_sigma, glass) : 0.0f;
+    if (sigma != node.glass_blur_sigma()) {
+        node.set_glass_blur_sigma(sigma);
+        ++result.changed_glass;
     }
+    if (sigma > 0.0f) {
+        ++result.glass_nodes;
+    }
+
+    bool subtree_has_glass = sigma > 0.0f;
+    for (const auto& child : node.children()) {
+        subtree_has_glass = sync_node(*child, styles, glass, result) || subtree_has_glass;
+    }
+    node.set_glass_subtree(subtree_has_glass);
+    return subtree_has_glass;
 }
 
 } // namespace
 
-SceneStyleSyncResult sync_scene_style(Node& root, StyleProvider& styles) {
+SceneStyleSyncResult sync_scene_style(Node& root, StyleProvider& styles,
+                                      const rendering::gpu::GlassLimits& glass) {
     SceneStyleSyncResult result;
-    sync_node(root, styles, result);
+    sync_node(root, styles, glass, result);
     return result;
 }
 
