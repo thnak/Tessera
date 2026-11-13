@@ -259,6 +259,7 @@ PropertyRegistry::PropertyRegistry() {
         ShorthandInfo{{"align-content", "justify-content"}, ShorthandKind::Pair};
     shorthands_["flex"] =
         ShorthandInfo{{"flex-grow", "flex-shrink", "flex-basis"}, ShorthandKind::Flex};
+    register_logical_properties();
 }
 
 const PropertyInfo* PropertyRegistry::find(std::string_view property) const {
@@ -359,6 +360,8 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
         return expand_pair(declaration, found->second, property);
     case ShorthandKind::Flex:
         return expand_flex(declaration);
+    case ShorthandKind::BorderSide:
+        return expand_border_side(declaration, found->second, property);
     }
     return result;
 }

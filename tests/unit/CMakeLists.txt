@@ -780,6 +780,13 @@ target_link_libraries(property_registry_tests PRIVATE tessera_style)
 
 add_test(NAME property_registry COMMAND property_registry_tests)
 
+add_executable(logical_properties_tests
+    logical_properties_tests.cpp)
+
+target_link_libraries(logical_properties_tests PRIVATE tessera_paint tessera_style)
+
+add_test(NAME logical_properties COMMAND logical_properties_tests)
+
 add_executable(media_query_tests
     media_query_tests.cpp)
 
@@ -1052,6 +1059,13 @@ add_executable(layout_tests
 target_link_libraries(layout_tests PRIVATE tessera_layout)
 
 add_test(NAME layout COMMAND layout_tests)
+
+add_executable(logical_layout_tests
+    logical_layout_tests.cpp)
+
+target_link_libraries(logical_layout_tests PRIVATE tessera_layout tessera_style)
+
+add_test(NAME logical_layout COMMAND logical_layout_tests)
 
 add_executable(layout_cache_tests
     layout_cache_tests.cpp)

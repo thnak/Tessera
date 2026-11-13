@@ -22,13 +22,17 @@ constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 // Exactly the computed properties read by `detail::apply_style` (src/ui/layout/layout_style.cpp)
 // and `text::text_style_from` (src/ui/text/text_measure.cpp), except the paint-only
 // `text-overflow`. Sorted by byte value so binary search and a compile-time order check apply.
-constexpr std::array<std::string_view, 52> kLayoutProperties = {{
+constexpr std::array<std::string_view, 62> kLayoutProperties = {{
     "align-content",
     "align-items",
     "align-self",
     "aspect-ratio",
     "border-bottom-style",
     "border-bottom-width",
+    "border-inline-end-style",
+    "border-inline-end-width",
+    "border-inline-start-style",
+    "border-inline-start-width",
     "border-left-style",
     "border-left-width",
     "border-right-style",
@@ -49,11 +53,15 @@ constexpr std::array<std::string_view, 52> kLayoutProperties = {{
     "font-style",
     "font-weight",
     "height",
+    "inset-inline-end",
+    "inset-inline-start",
     "justify-content",
     "left",
     "letter-spacing",
     "line-height",
     "margin-bottom",
+    "margin-inline-end",
+    "margin-inline-start",
     "margin-left",
     "margin-right",
     "margin-top",
@@ -64,6 +72,8 @@ constexpr std::array<std::string_view, 52> kLayoutProperties = {{
     "overflow-x",
     "overflow-y",
     "padding-bottom",
+    "padding-inline-end",
+    "padding-inline-start",
     "padding-left",
     "padding-right",
     "padding-top",

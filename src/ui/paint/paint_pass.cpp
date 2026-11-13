@@ -12,6 +12,7 @@
 #include "tessera/ui/scene/z_order.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <optional>
@@ -145,15 +146,15 @@ void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, flo
     const float left = widths.left;
 
     const float middle_height = rect.height - top - bottom;
+    const std::array<std::optional<rhi::Color>, 4> colors = detail::border_colors(style, current);
 
-    emit_rect(sink, rhi::Rect{rect.x, rect.y, rect.width, top},
-              detail::color_value(style, "border-top-color", current), opacity, stats.borders);
+    emit_rect(sink, rhi::Rect{rect.x, rect.y, rect.width, top}, colors[0], opacity, stats.borders);
     emit_rect(sink, rhi::Rect{rect.x + rect.width - right, rect.y + top, right, middle_height},
-              detail::color_value(style, "border-right-color", current), opacity, stats.borders);
-    emit_rect(sink, rhi::Rect{rect.x, rect.y + rect.height - bottom, rect.width, bottom},
-              detail::color_value(style, "border-bottom-color", current), opacity, stats.borders);
-    emit_rect(sink, rhi::Rect{rect.x, rect.y + top, left, middle_height},
-              detail::color_value(style, "border-left-color", current), opacity, stats.borders);
+              colors[1], opacity, stats.borders);
+    emit_rect(sink, rhi::Rect{rect.x, rect.y + rect.height - bottom, rect.width, bottom}, colors[2],
+              opacity, stats.borders);
+    emit_rect(sink, rhi::Rect{rect.x, rect.y + top, left, middle_height}, colors[3], opacity,
+              stats.borders);
 }
 
 // Glass backdrop (docs/specs/glass-v1.md sections 2, 3 and 5): emitted before the node's own box

@@ -33,8 +33,8 @@ bool is_layout_property(std::string_view property) {
     return starts_with(property, "margin-") || starts_with(property, "padding-") ||
            starts_with(property, "border-") || starts_with(property, "flex-") ||
            starts_with(property, "grid-") || starts_with(property, "align-") ||
-           starts_with(property, "justify-") || property == "top" || property == "right" ||
-           property == "bottom" || property == "left";
+           starts_with(property, "justify-") || starts_with(property, "inset-inline-") ||
+           property == "top" || property == "right" || property == "bottom" || property == "left";
 }
 
 bool is_essential_animation_property(std::string_view property) {

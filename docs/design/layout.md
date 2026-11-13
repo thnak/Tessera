@@ -149,7 +149,10 @@ documented note.
 ## 6. Direction and writing mode
 
 - `direction: ltr/rtl` is passed to Yoga (`YGDirectionLTR/RTL`).
-- RTL flips start/end edges, not explicit left/right.
+- RTL flips start/end edges, not explicit left/right. The logical inline-axis longhands
+  (`margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*`) are set on Yoga's
+  Start/End edges and resolved by Yoga against each node's own direction
+  ([`stylesheet-v1.md`](../specs/stylesheet-v1.md) section 11.1).
 - Text bidi/shaping is the text stack's job; layout receives measured runs.
 - Vertical writing modes are parsed but layout is LTR/RTL-first in V1.
 

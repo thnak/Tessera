@@ -54,8 +54,9 @@ std::optional<rhi::Color> from_style_color(const style::ColorRgba& color) {
 
 } // namespace
 
-std::optional<float> length_value(const style::ComputedStyle& style, const char* property) {
-    const std::string* text = raw(style, property);
+namespace {
+
+std::optional<float> length_text(const std::string* text) {
     if (text == nullptr) {
         return std::nullopt;
     }
@@ -76,6 +77,41 @@ std::optional<float> length_value(const style::ComputedStyle& style, const char*
     return value;
 }
 
+bool paints_border(const std::string* style_text) {
+    if (style_text == nullptr) {
+        return false;
+    }
+    const std::string keyword = lower(trim(*style_text));
+    return !keyword.empty() && keyword != "none" && keyword != "hidden";
+}
+
+const std::string* pick(const style::ComputedStyle& style, const char* logical,
+                        const char* physical) {
+    const std::string* value = raw(style, logical);
+    return value != nullptr ? value : raw(style, physical);
+}
+
+std::optional<rhi::Color> color_text_value(const std::string* text,
+                                           const rhi::Color& current_color) {
+    if (text == nullptr) {
+        return std::nullopt;
+    }
+    if (lower(trim(*text)) == "currentcolor") {
+        return current_color;
+    }
+    const style::ColorParseResult parsed = style::parse_color(*text);
+    if (!parsed.ok) {
+        return std::nullopt;
+    }
+    return from_style_color(parsed.color);
+}
+
+} // namespace
+
+std::optional<float> length_value(const style::ComputedStyle& style, const char* property) {
+    return length_text(raw(style, property));
+}
+
 float opacity_value(const style::ComputedStyle& style) {
     const std::string* text = raw(style, "opacity");
     if (text == nullptr) {
@@ -90,18 +126,7 @@ float opacity_value(const style::ComputedStyle& style) {
 
 std::optional<rhi::Color> color_value(const style::ComputedStyle& style, const char* property,
                                       const rhi::Color& current_color) {
-    const std::string* text = raw(style, property);
-    if (text == nullptr) {
-        return std::nullopt;
-    }
-    if (lower(trim(*text)) == "currentcolor") {
-        return current_color;
-    }
-    const style::ColorParseResult parsed = style::parse_color(*text);
-    if (!parsed.ok) {
-        return std::nullopt;
-    }
-    return from_style_color(parsed.color);
+    return color_text_value(raw(style, property), current_color);
 }
 
 rhi::Color current_color(const style::ComputedStyle& style) {
@@ -118,30 +143,57 @@ rhi::Color current_color(const style::ComputedStyle& style) {
 
 float border_width(const style::ComputedStyle& style, const char* width_property,
                    const char* style_property) {
-    const std::string* style_text = raw(style, style_property);
-    if (style_text == nullptr) {
+    if (!paints_border(raw(style, style_property))) {
         return 0.0f;
     }
-    const std::string keyword = lower(trim(*style_text));
-    if (keyword.empty() || keyword == "none" || keyword == "hidden") {
-        return 0.0f;
-    }
-    const std::optional<float> width = length_value(style, width_property);
-    return width.value_or(0.0f);
+    return length_text(raw(style, width_property)).value_or(0.0f);
+}
+
+bool is_rtl(const style::ComputedStyle& style) {
+    const std::string* direction = raw(style, "direction");
+    return direction != nullptr && lower(trim(*direction)) == "rtl";
 }
 
 BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& rect) {
     BorderWidths widths;
     widths.top = border_width(style, "border-top-width", "border-top-style");
-    widths.right = border_width(style, "border-right-width", "border-right-style");
     widths.bottom = border_width(style, "border-bottom-width", "border-bottom-style");
-    widths.left = border_width(style, "border-left-width", "border-left-style");
+
+    // The inline-start side is the left edge in LTR and the right edge in RTL; a declared logical
+    // longhand wins over the physical one it maps to (stylesheet-v1 section 11).
+    const bool rtl = is_rtl(style);
+    const auto inline_width = [&style](const char* logical_width, const char* logical_style,
+                                       const char* physical_width, const char* physical_style) {
+        return paints_border(pick(style, logical_style, physical_style))
+                   ? length_text(pick(style, logical_width, physical_width)).value_or(0.0f)
+                   : 0.0f;
+    };
+    widths.left = inline_width(rtl ? "border-inline-end-width" : "border-inline-start-width",
+                               rtl ? "border-inline-end-style" : "border-inline-start-style",
+                               "border-left-width", "border-left-style");
+    widths.right = inline_width(rtl ? "border-inline-start-width" : "border-inline-end-width",
+                                rtl ? "border-inline-start-style" : "border-inline-end-style",
+                                "border-right-width", "border-right-style");
 
     widths.top = std::min(widths.top, rect.height);
     widths.bottom = std::min(widths.bottom, rect.height - widths.top);
     widths.left = std::min(widths.left, rect.width);
     widths.right = std::min(widths.right, rect.width - widths.left);
     return widths;
+}
+
+std::array<std::optional<rhi::Color>, 4> border_colors(const style::ComputedStyle& style,
+                                                       const rhi::Color& current_color) {
+    const bool rtl = is_rtl(style);
+    const auto inline_color = [&style, &current_color](const char* logical, const char* physical) {
+        return color_text_value(pick(style, logical, physical), current_color);
+    };
+    return {color_text_value(raw(style, "border-top-color"), current_color),
+            inline_color(rtl ? "border-inline-start-color" : "border-inline-end-color",
+                         "border-right-color"),
+            color_text_value(raw(style, "border-bottom-color"), current_color),
+            inline_color(rtl ? "border-inline-end-color" : "border-inline-start-color",
+                         "border-left-color")};
 }
 
 std::optional<rhi::Rect> padding_box(const style::ComputedStyle& style, const rhi::Rect& rect) {

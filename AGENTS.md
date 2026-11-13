@@ -340,7 +340,12 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [x] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget —
       `tests/benchmarks/cpu/` (CTest `cpu_benchmark`), `tests/golden/perf/cpu_benchmark.txt`,
       measured table and the paint trigger in `docs/design/performance.md` §9.1.
-- [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
+- [x] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract —
+      `src/ui/style/logical_properties.cpp` (registry + shorthands + diagnostics),
+      `src/ui/layout/layout_style.cpp` (Yoga Start/End edges), `layout_signature.cpp`,
+      `src/ui/paint/paint_{properties,text,pass}.cpp` (mirrored borders and `text-align`),
+      `docs/specs/stylesheet-v1.md` §11.1, `docs/specs/i18n-v1.md` §4/§7/§8.1, tests
+      `logical_properties`, `logical_layout` (same stylesheet mirrors in LTR/RTL).
 - [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
 - [x] #247: `pointer-events`, `user-select` and `aspect-ratio` registered and implemented (#214) —
       `src/ui/style/{property_registry,interaction_values,interaction_style,supports,cascade}.cpp`,

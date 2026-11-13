@@ -349,11 +349,11 @@ box); paint-text goldens are deferred until the CPU/software path rasterizes tex
 ### 10.1 Multi-line and wrapped text (task-39)
 
 `PaintData` options: `wrap` (`PaintWrap::NoWrap` default = the V1 single-line behavior |
-`PaintWrap::Wrap`), `max_lines` (0 = unlimited) and `text_align` (`nullopt` = use computed
-`text-align`, falling back to Start; an explicit Start/Center/End overrides it). Precedence:
-`wrap` is authoritative for paint text and computed `white-space: nowrap|pre` can only suppress
-wrapping (never opt in); `max_lines` is PaintData-only; the resolved `text-align` applies to each
-wrapped line inside the content box.
+`PaintWrap::Wrap`), `max_lines` (0 = unlimited) and `text_align` (`nullopt` = computed
+`text-align`: `start`/`end` resolve against `direction`, `left`/`right` stay physical, and an
+explicit Start/Center/End overrides it). Precedence: `wrap` is authoritative for paint text and
+computed `white-space: nowrap|pre` can only suppress wrapping (never opt in); `max_lines` is
+PaintData-only; the resolved `text-align` applies to each wrapped line inside the content box.
 
 Layout reuse: wrapped lines come from the existing shared `text::layout_text` line-box path (same
 greedy word wrapping used by measurement) - no new text engine, no ICU/bidi. Paint text uses the
