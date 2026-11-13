@@ -33,6 +33,13 @@ add_executable(frames_in_flight_tests
 target_link_libraries(frames_in_flight_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME frames_in_flight COMMAND frames_in_flight_tests)
 
+# Isolated-layer seam (#242): render-pass break/copy/resume recording and the bounded offscreen
+# target pool. Null backend, deterministic, runs everywhere.
+add_executable(renderer_seam_tests
+    batched2d/renderer_seam_tests.cpp)
+target_link_libraries(renderer_seam_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME renderer_seam COMMAND renderer_seam_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
@@ -297,6 +304,13 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(rounded_clip_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME rounded_clip COMMAND rounded_clip_tests)
     set_tests_properties(rounded_clip PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # Isolated-layer seam (#242) pixel test: draw, break the pass, copy a region, resume, draw.
+    add_executable(renderer_seam_gpu_tests
+        batched2d/renderer_seam_gpu_tests.cpp)
+    target_link_libraries(renderer_seam_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME renderer_seam_gpu COMMAND renderer_seam_gpu_tests)
+    set_tests_properties(renderer_seam_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(msaa_tests
         batched2d/msaa_tests.cpp)

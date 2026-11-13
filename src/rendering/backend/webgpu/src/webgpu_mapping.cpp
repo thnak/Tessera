@@ -67,7 +67,10 @@ std::uint32_t render_target_usage(std::uint32_t sample_count) {
     if (sample_count > 1) {
         return bits::kRenderAttachment;
     }
-    return bits::kRenderAttachment | bits::kTextureBinding | bits::kCopySrc;
+    // COPY_DST as well as COPY_SRC: the isolated-layer seam copies a region of one offscreen target
+    // into another (CommandList::copy_target_region, issue #242), so a 1-sample render target is a
+    // legal copy destination, and TEXTURE_BINDING lets a later pass sample the copy.
+    return bits::kRenderAttachment | bits::kTextureBinding | bits::kCopySrc | bits::kCopyDst;
 }
 
 WgpuFilterMode filter_mode(rhi::Filter filter) {

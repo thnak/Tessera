@@ -35,7 +35,9 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version).
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.1**
+  (`0x00010001`): 1.0 is the B1 surface, 1.1 adds `CommandList::copy_target_region` for the
+  isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)).
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
   `timestamp_capability()`). Backends declare the implemented major version with a compile-time
@@ -85,16 +87,31 @@ Order:
 ```text
 create -> begin_render_pass -> bind_pipeline -> bind_vertex_buffer
   -> bind_texture(s) -> set_viewport/scissor -> push_constants -> draw
-  -> end_render_pass -> copy target -> submit
+  -> end_render_pass -> copy target / copy region / blit -> submit
 ```
 
 Invariants:
 
-- `begin_render_pass`/`end_render_pass` are balanced; no nested passes in B1.
+- `begin_render_pass`/`end_render_pass` are balanced and never nested. A list may record more than
+  one sequential pass (end, memory commands, begin again): that is the render-pass break/resume of
+  the isolated-layer seam ([`offscreen-layers.md`](offscreen-layers.md)), and `begin_render_pass`
+  starts the command buffer only once per submission. Beginning a pass while another is open is
+  rejected by every backend (`std::runtime_error` on Vulkan, `std::logic_error` on null/WebGPU).
 - A pipeline must be bound before a draw; vertex layout must match the bound buffer.
 - `set_viewport`/`set_scissor` are explicit; there is no hidden default in the RHI.
 - `push_constants` size must match `PipelineDesc::push_constant_size`.
-- `copy_target_to_buffer` happens outside the render pass.
+- `copy_target_to_buffer` and `copy_target_region` happen outside the render pass.
+- `copy_target_region(source, source_region, destination, destination_offset)` copies an integer
+  pixel region 1:1 (no scale/filter) and is the RHI half of the isolated-layer seam
+  ([`offscreen-layers.md`](offscreen-layers.md)): the batched renderer ends its pass, copies what
+  it drew into an offscreen target, and continues. Both targets must be 1-sample, non-presentable,
+  and format-compatible; source and destination must be different targets; `source` must have
+  rendered content. `destination` ends readable in the state `end_render_pass()` leaves an offscreen
+  target (`TRANSFER_SRC_OPTIMAL` on Vulkan), so a later copy/readback/resample can consume it.
+  Invalid regions, formats, sample counts, presentable targets, a same-target copy, or an open pass
+  are rejected loudly (`std::invalid_argument` / `std::runtime_error` or `std::logic_error` on
+  WebGPU), never clipped or ignored. Swapchain images are not a copy source or destination in
+  1.1; reading one needs `TRANSFER_SRC` usage at swapchain creation, which is a window decision.
 - A list is submitted once, in one of two ways:
   - `submit_async()` queues the work and returns; this is the frame-path call.
     `is_complete()` polls without blocking and `wait(timeout_ms)` blocks for at most that long and
@@ -145,7 +162,7 @@ The null backend implements the same object/command API with no GPU. It records:
 - viewports/scissors
 - push-constant size
 - draw calls/vertices
-- copies/submits
+- copies/submits, including the region and destination offset of `copy_target_region`
 
 Null is the default unit/structural test path. It must reject invalid command order the same way
 a validating backend would, so tests catch contract errors without a GPU.
@@ -161,6 +178,8 @@ a validating backend would, so tests catch contract errors without a GPU.
 ## 10. Deferred/open
 
 - Explicit resource-state/barrier API vs backend-owned transitions.
+- Same-target (in-image) region copies, and a swapchain target as a copy source or destination for
+  the layer seam (needs `TRANSFER_SRC`/`TRANSFER_DST` usage at swapchain creation).
 - Bindless/descriptor indexing.
 - Compute and transfer queue families.
 - Timestamp queries and GPU timing.

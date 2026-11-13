@@ -14,6 +14,24 @@ namespace {
 
 static_assert(rhi::kRhiVersionMajor == 1, "Null backend implements RHI 1.x");
 
+// Half-open integer region inside `extent`. A zero or negative size is invalid, not a no-op: the
+// RHI reports caller bugs instead of clipping silently.
+bool region_fits(const rhi::Scissor& region, rhi::Extent2D extent) {
+    if (region.x < 0 || region.y < 0 || region.width == 0 || region.height == 0) {
+        return false;
+    }
+    return static_cast<std::uint64_t>(region.x) + region.width <= extent.width &&
+           static_cast<std::uint64_t>(region.y) + region.height <= extent.height;
+}
+
+bool offset_region_fits(rhi::Offset2D offset, const rhi::Scissor& region, rhi::Extent2D extent) {
+    if (offset.x < 0 || offset.y < 0) {
+        return false;
+    }
+    return static_cast<std::uint64_t>(offset.x) + region.width <= extent.width &&
+           static_cast<std::uint64_t>(offset.y) + region.height <= extent.height;
+}
+
 class NullBuffer final : public rhi::Buffer {
 public:
     explicit NullBuffer(std::size_t size)
@@ -194,6 +212,9 @@ public:
 
 void NullCommandList::begin_render_pass(const rhi::RenderTarget& target,
                                         const rhi::RenderTargetDesc& desc) {
+    if (in_pass_) {
+        throw std::logic_error("null begin_render_pass: the previous render pass is still active");
+    }
     if (desc.sample_count != target.sample_count()) {
         throw std::invalid_argument(
             "null begin_render_pass: descriptor sample count does not match the target");
@@ -242,6 +263,47 @@ void NullCommandList::draw(std::uint32_t vertex_count, std::uint32_t first_verte
 }
 
 void NullCommandList::copy_target_to_buffer(const rhi::RenderTarget&, rhi::Buffer&) {}
+
+void NullCommandList::copy_target_region(const rhi::RenderTarget& source,
+                                         const rhi::Scissor& source_region,
+                                         const rhi::RenderTarget& destination,
+                                         rhi::Offset2D destination_offset) {
+    // Validating-backend parity: the null backend rejects the same misuse the Vulkan and WebGPU
+    // backends do, so structural tests on it stay meaningful.
+    if (in_pass_) {
+        throw std::logic_error("null copy_target_region: render pass is still active");
+    }
+    if (&source == &destination) {
+        throw std::invalid_argument(
+            "null copy_target_region: source and destination must be different targets");
+    }
+    if (source.sample_count() != 1 || destination.sample_count() != 1) {
+        throw std::invalid_argument(
+            "null copy_target_region: multisampled targets are not supported");
+    }
+    if (source.presentable()) {
+        throw std::invalid_argument(
+            "null copy_target_region: a swapchain image is not a copy source");
+    }
+    if (destination.presentable()) {
+        throw std::invalid_argument(
+            "null copy_target_region: a swapchain image is not a copy destination");
+    }
+    if (source.format() != destination.format()) {
+        throw std::invalid_argument(
+            "null copy_target_region: source and destination formats differ");
+    }
+    if (!region_fits(source_region, source.extent())) {
+        throw std::invalid_argument("null copy_target_region: source region exceeds the target");
+    }
+    if (!offset_region_fits(destination_offset, source_region, destination.extent())) {
+        throw std::invalid_argument(
+            "null copy_target_region: destination offset plus region exceeds the target");
+    }
+    ++stats_.region_copies;
+    stats_.target_region_copies.push_back(NullTargetRegionCopy{
+        source_region, destination_offset, source.extent(), destination.extent()});
+}
 
 void NullCommandList::blit_target(const rhi::RenderTarget& source,
                                   const rhi::RenderTarget& destination, rhi::Filter) {

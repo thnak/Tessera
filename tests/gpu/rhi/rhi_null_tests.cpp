@@ -10,7 +10,7 @@
 int main() {
     using namespace tessera::rendering;
 
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersion != ((1u << 16) | 0u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersion != ((1u << 16) | 1u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }
@@ -74,6 +74,39 @@ int main() {
     if (!null_commands->submitted()) {
         std::cerr << "command list was not submitted\n";
         return 7;
+    }
+
+    // copy_target_region: a render-target region copied into another target at an offset. The null
+    // backend records the request and rejects the invalid forms a validating backend rejects
+    // (RHI 1.1, issue #242).
+    auto copy_target = device->create_render_target(rhi::RenderTargetDesc{{32, 32}});
+    auto copy_commands = device->create_command_list();
+    copy_commands->begin_render_pass(*target, rhi::RenderTargetDesc{{64, 64}});
+    copy_commands->end_render_pass();
+    copy_commands->copy_target_region(*target, rhi::Scissor{4, 8, 16, 16}, *copy_target,
+                                      rhi::Offset2D{2, 3});
+    copy_commands->submit();
+    auto* copy_null = dynamic_cast<null::NullCommandList*>(copy_commands.get());
+    if (copy_null == nullptr || copy_null->stats().region_copies != 1 ||
+        copy_null->stats().target_region_copies.size() != 1) {
+        std::cerr << "copy_target_region was not recorded\n";
+        return 22;
+    }
+    const null::NullTargetRegionCopy& copy_record = copy_null->stats().target_region_copies.front();
+    if (copy_record.source_region.x != 4 || copy_record.destination_offset.y != 3 ||
+        copy_record.destination_extent.width != 32) {
+        std::cerr << "copy_target_region record mismatch\n";
+        return 23;
+    }
+    bool copy_rejected = false;
+    try {
+        copy_commands->copy_target_region(*target, rhi::Scissor{60, 60, 8, 8}, *copy_target, {});
+    } catch (const std::invalid_argument&) {
+        copy_rejected = true;
+    }
+    if (!copy_rejected) {
+        std::cerr << "copy_target_region should reject an out-of-range source region\n";
+        return 24;
     }
 
     // D2 color policy: the null backend accepts both 8-bit sRGB formats (same 4-byte layout as

@@ -66,7 +66,10 @@ void test_usage_flags() {
                t::kRenderAttachment == 16,
            "texture usage bit values");
     expect(wg::sampled_texture_usage() == (t::kTextureBinding | t::kCopyDst), "sampled usage");
-    expect(wg::render_target_usage(1) == (t::kRenderAttachment | t::kTextureBinding | t::kCopySrc),
+    // 1x targets are readback sources AND copy_target_region destinations (the isolated-layer seam,
+    // issue #242), so they carry both copy usages plus texture binding for the composite draw.
+    expect(wg::render_target_usage(1) ==
+               (t::kRenderAttachment | t::kTextureBinding | t::kCopySrc | t::kCopyDst),
            "1x target usage");
     expect(wg::render_target_usage(4) == t::kRenderAttachment, "4x target usage");
     // WebGPU forbids mixing MAP_READ/MAP_WRITE with anything but the matching copy usage.

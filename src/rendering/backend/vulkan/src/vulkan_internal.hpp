@@ -496,6 +496,9 @@ public:
     void push_constants(const void* data, std::size_t size) override;
     void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) override;
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override;
+    void copy_target_region(const rhi::RenderTarget& source, const rhi::Scissor& source_region,
+                            const rhi::RenderTarget& destination,
+                            rhi::Offset2D destination_offset = {}) override;
     void blit_target(const rhi::RenderTarget& source, const rhi::RenderTarget& destination,
                      rhi::Filter filter) override;
     void submit() override;

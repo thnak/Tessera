@@ -326,8 +326,13 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends are post-V1
       (Android).
 - [ ] #227: Effective opacity multiplies down the subtree (children fade with their parent).
-- [ ] #242: Renderer seam: render-pass break, `copy_target_region`, pooled offscreen target (glass).
-- [ ] #244: `backdrop-filter` glass, two-pass Gaussian, damage rules (blocked by #242).
+- [x] #242: Renderer seam: render-pass break, `copy_target_region`, pooled offscreen target (glass) —
+      `include/tessera/rendering/rhi/device.hpp` (RHI 1.1 op + contract),
+      `src/rendering/gpu/{batched2d_seam,offscreen_target_pool}.cpp`,
+      `src/rendering/backend/vulkan/src/vulkan_command_list_copy.cpp`,
+      `docs/design/gpu/offscreen-layers.md`, `docs/design/paint-pass.md` §14, tests `renderer_seam`,
+      `renderer_seam_gpu`, `rhi_null` (300-frame bounded pool, byte-identical no-break commands).
+- [ ] #244: `backdrop-filter` glass, two-pass Gaussian, damage rules (seam from #242 landed).
 - [ ] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget.
 - [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
 - [ ] #235: The `::part()` pseudo-element in the stylesheet engine.

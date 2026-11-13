@@ -86,6 +86,26 @@ public:
     virtual void draw(std::uint32_t vertex_count, std::uint32_t first_vertex = 0) = 0;
     virtual void copy_target_to_buffer(const RenderTarget& target, Buffer& buffer) = 0;
 
+    // Copies the pixel region `source_region` of `source` into `destination` at
+    // `destination_offset`, 1:1 (no scaling, no filtering). This is the isolated-layer seam that
+    // docs/design/gpu/offscreen-layers.md defines: the batched 2D renderer ends its render pass,
+    // copies what it already drew into an offscreen target, and continues (#244 backdrop blur
+    // filters the copy; #227 layer isolation paints a whole subtree into one). Both targets must be
+    // 1-sample, non-presentable offscreen targets with the same format. `source` must have rendered
+    // content and must not have an open render pass; `source` and `destination` must be different
+    // targets. Presentable (swapchain) images are not a copy source or destination in RHI 1.1: they
+    // are created for color attachment/transfer-dst, so a window that needs the seam through the
+    // swapchain is a swapchain-usage decision, not an RHI one. `destination` is left readable in
+    // the same state `end_render_pass()` leaves an offscreen target (TRANSFER_SRC on Vulkan), so
+    // `copy_target_to_buffer`, another region copy, or a resample can read it afterwards.
+    // `source_region` must lie inside the source extent and `destination_offset + source_region`
+    // inside the destination extent; invalid input throws std::invalid_argument, never clips
+    // silently. Backends record vkCmdCopyImage / wgpuCommandEncoderCopyTextureToTexture with the
+    // layout transitions implied by the RHI contract; no caller-visible barrier exists.
+    virtual void copy_target_region(const RenderTarget& source, const Scissor& source_region,
+                                    const RenderTarget& destination,
+                                    Offset2D destination_offset = {}) = 0;
+
     // Resamples `source` into `destination`, stretching to cover the destination's whole extent
     // with `filter`. This is the seam that lets a frame render into a smaller target and present it
     // at the window's physical size (adaptive render scale, docs/design/performance.md section 6).

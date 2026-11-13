@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_gpu STATIC
-    batched2d_renderer.cpp)
+    batched2d_renderer.cpp
+    batched2d_clip_state.cpp
+    batched2d_seam.cpp
+    offscreen_target_pool.cpp)
 
 target_include_directories(tessera_gpu PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

@@ -143,14 +143,11 @@ paint never submits the command list (the caller does).
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
 
-Overflow clips (§9) are covered in `paint_pass`: clip push/pop order relative to the parent's own
-paint and its children, per-corner radius clamping, rectangular (zero-radius) clips, `overflow:
-visible` emitting no clip, nested clips, and the padding-box rect (border box inset by the painted
-border widths). Scroll containers are covered in
-[`tests/unit/scroll_tests.cpp`](../../tests/unit/scroll_tests.cpp) (`scroll_core`): child rects
-shifted by `-scroll`, the padding-box clip pushed around the children, balanced pop, and a
-deterministic repeat paint; `tests/unit/paint_clip_tests.cpp` asserts the bordered padding-box clip
-and the scrolled child position.
+Overflow clips (§9) are covered in `paint_pass`: push/pop order, per-corner radius clamping,
+rectangular clips, `overflow: visible`, nesting, and the bordered padding-box rect. Scroll containers
+are covered in [`tests/unit/scroll_tests.cpp`](../../tests/unit/scroll_tests.cpp) (`scroll_core`:
+child rects shifted by `-scroll`, padding-box clip, balanced pop, deterministic repeat) and
+`tests/unit/paint_clip_tests.cpp` (bordered padding-box clip, scrolled child position).
 
 ## 8. Frame integration
 
@@ -420,20 +417,17 @@ until the next insert/evict/invalidate/clear. `invalidate()` drops everything (f
 `clear()` empties without counting an invalidation, and `set_enabled(false)` bypasses the cache for
 tests while returning identical fresh line boxes.
 
-Benchmarks (Debug, local dev machine, clang 22, `paint_text_layout_cache_tests --bench`): the same
-200-word paragraph at a 300 px wrap width (45 lines) costs 96.8 us per uncached layout, 98.1 us
-for a miss+insert, and 0.75 us for a cache hit (200 iterations averaged; the previous task-39 baseline was ~104.7 us, so treat fresh/miss as the same cost within Debug variance). The previous per-paint
-measurement was ~104.7 us; the hit path removes the layout cost from steady-state painting.
+Benchmarks (`paint_text_layout_cache_tests --bench`, Debug, clang 22): the 200-word/300 px paragraph
+(45 lines) costs 96.8 us uncached, 98.1 us for a miss+insert and 0.75 us for a cache hit (200
+iterations averaged); the hit path removes the layout cost from steady-state painting.
 
 Tests: `paint_text_layout_cache` covers hit/miss counters, per-key-field miss isolation (including
 exact float-key bits), LRU eviction by both budgets, exact byte accounting, cached-vs-fresh line-box
-equality over a fixture set, invalidate/no-cache behavior, paint integration (cached vs uncached
-`draw_text` lines identical, second paint hits), determinism across instances, and the `--bench`
-measurement.
+equality, invalidate/no-cache behavior, paint integration (identical cached/uncached lines, second
+paint hits), determinism across instances, and the `--bench` measurement.
 
-Deferrals: glyph-run caching (shaped runs/atlas entries), a shaping cache, incremental layout of an
-edited paragraph, sharing the cache with the layout engine (which measures with its own
-`TextMeasurer`), and a shaping/advance memoization cache for the real-metrics path.
+Deferrals: glyph-run/shaping caches, incremental layout of an edited paragraph, and sharing the cache
+with the layout engine (which measures with its own `TextMeasurer`).
 
 ### 10.1.2 Metrics sources: stub vs real font (task-53)
 
@@ -451,25 +445,18 @@ real-font line boxes can never mix; switching faces means `invalidate()` plus a 
 With real metrics, a line is never wider than the content box except when a single UTF-8 code point
 is wider than the box (the break keeps at least one code point per line). Under-fill is bounded by
 the last word that did not fit plus the measured inter-word advance. Alignment uses the measured
-line width; paint-time x/baseline integer snapping is unchanged (layout values stay fractional).
-Paint emits the source's line boxes verbatim: same byte ranges, widths/heights and baselines, with
-line tops accumulated from the source heights and rounded only for emission. The GPU test asserts
-paint lines equal `FontPaintTextMetrics::layout` for the same text/width/style, checks center
-alignment inside the content box, and reads back wrapped real-font lines.
+line width; paint-time x/baseline integer snapping is unchanged. Paint emits the source's line boxes
+verbatim (byte ranges, widths/heights, baselines), with line tops rounded only for emission; the GPU
+test asserts paint lines equal `FontPaintTextMetrics::layout`, center alignment and wrapped pixels.
 
-Measurements (Debug, local dev machine, `paint_text_gpu_tests --bench`, 200-word paragraph at
-300 px wrap): stub layout ~200.8 us, real-metrics layout ~13.2 ms (real is slower because every
-candidate word is shaped by HarfBuzz in Debug; cache hit with the real source id ~1.0 us). The
-cache removes the steady-state cost; faster real-metric measuring (per-word shaping memoization,
-incremental reflow) is deferred.
+Measurements (`paint_text_gpu_tests --bench`, Debug): stub ~200.8 us, real-metrics ~13.2 ms
+(per-word HarfBuzz shaping in Debug), real-source cache hit ~1.0 us; the cache removes the
+steady-state cost, faster real-metric measuring stays deferred.
 
-Deferrals for this seam: rich shaping features (contextual/ligature-aware line breaking beyond the
-greedy word path), bidi/SheenBidi and ICU line breaking, hyphenation, subpixel glyph positioning,
-emoji/color-font fallback and font-stack selection, and a shaping cache/memoized advances.
-Batching: one `draw_text` per line; `Batched2DSink` shapes each line with the caller's `TextShaper`
-and pushes atlas quads through `Batched2DRenderer`. Consecutive lines that use the same atlas page
-stay in the same renderer batch; a page/clip change flushes as before (see section 10). The sink
-does not re-wrap: line breaks are fixed by the paint pass.
+Deferrals: contextual/ligature line breaking, bidi/ICU/hyphenation, subpixel positioning,
+emoji/font-stack fallback and a shaping cache. Batching: one `draw_text` per line; `Batched2DSink`
+shapes each line and pushes atlas quads, consecutive lines that use the same atlas page stay in one
+renderer batch, and a page/clip change flushes as before (section 10). The sink does not re-wrap.
 
 Tests: `paint_text_wrap` (NoWrap vs Wrap, padding-box width, multi-line order/offsets/baselines,
 `max_lines` truncation, alignment + computed fallback, `white-space: nowrap` suppression, damage
@@ -578,17 +565,15 @@ per damage region under the region clip exactly like glyphs and vectors.
 `Batched2DSink` implements the hook with constructor injection (`ImagePaintConfig`: asset bundle,
 `ImageDecodeCache`, `ImageTextureCache`, device scale, texture format matching the target color
 space). One decode per content hash and one texture per (content, raster extent, format); missing,
-corrupt, unsupported and unconfigured cases are documented silent no-ops counted in
-`ImagePaintStats` - paint never crashes because an image is absent. PNG/JPEG bytes are authored
-sRGB, so the upload format follows the target color space (UNORM for UNORM targets, sRGB for sRGB
-targets; the D2 rule), which differs from vector rasterizer output only in provenance, not in the
-rule. Full contract, caps, cache keys, CPU golden and measurements:
-[`thorvg-spike/12-image-assets.md`](thorvg-spike/12-image-assets.md).
+corrupt, unsupported and unconfigured cases are silent no-ops counted in `ImagePaintStats` (paint
+never crashes because an image is absent). PNG/JPEG bytes are authored sRGB, so the upload format
+follows the target color space (the D2 rule); the full contract, caps, cache keys and measurements
+are in [`thorvg-spike/12-image-assets.md`](thorvg-spike/12-image-assets.md).
 
 ### 10.3 Bidirectional visual-run emission
 
 Empty `visual_runs` keeps the pre-bidi emission; bidi lines emit one `TextDraw` per visual run and
-caret/selection use `bidi_offset_x` (details in `text.md`); RTL click-to-position is deferred.
+caret/selection use `bidi_offset_x` (`text.md`); RTL click-to-position is deferred.
 
 ### 13. Linear gradients (task-76)
 
@@ -596,5 +581,20 @@ caret/selection use `bidi_offset_x` (details in `text.md`); RTL click-to-positio
 90=right, 180=bottom) paints after `background-color`, before borders/content, inside border radius;
 opacity folds into stop alphas. Interpolation is encoded-space sRGB (V1); emission is 64 dominant-axis
 solid bands (exact on axes, banded otherwise; LUT/dithering follow-up), shared by CPU/GPU within
-2/255 per channel. CPU rounds corners by bounds; GPU uses the rounded clip; damage replay is
-band-identical (readback-verified). Deferrals: radial/conic, dithering, text/clip gradients, LUT.
+2/255 per channel. CPU rounds corners by bounds, GPU uses the rounded clip, damage replay is
+band-identical. Deferrals: radial/conic, dithering, text/clip gradients, LUT.
+
+## 14. Isolated-layer seam (issue #242)
+
+The renderer can break its render pass without finishing the frame and copy one region of the frame
+target into an offscreen target: `Batched2DRenderer::break_pass()`/`resume_pass()` plus the RHI
+`CommandList::copy_target_region`, with a pooled target bounded by `glassMaxBlurTargets` (default 4).
+`resume_pass()` reopens the same target with `LoadOp::Load`, so geometry before and after the break
+composes exactly as on the single-pass path; a tree that never breaks a pass records byte-identical
+commands and keeps today's goldens. This is the seam `backdrop-filter` (#244) uses for its backdrop
+copy/blur and that isolated layers (#227) use to paint a subtree into its own texture.
+
+The paint pass itself is unchanged: node-list segmentation at glass nodes, the blurred-backdrop
+composite clip and the blur shader belong to #244. Contract, per-backend layout rules, pool
+retirement, limits and tests: [`gpu/offscreen-layers.md`](gpu/offscreen-layers.md) and
+[`gpu/rhi.md`](gpu/rhi.md) section 5.

@@ -38,6 +38,9 @@ void VulkanCommandList::require_usable(const char* what) const {
 void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
                                           const rhi::RenderTargetDesc& desc) {
     require_usable("begin_render_pass");
+    if (render_pass_active_) {
+        throw std::runtime_error("begin_render_pass: the previous render pass is still active");
+    }
     const auto* vulkan_target = &vulkan_cast<const VulkanRenderTarget>(target);
     const std::uint32_t sample_count = vulkan_target->sample_count();
     if (desc.sample_count != sample_count) {
@@ -46,12 +49,17 @@ void VulkanCommandList::begin_render_pass(const rhi::RenderTarget& target,
             " does not match target sample count " + std::to_string(sample_count));
     }
 
-    VkCommandBufferBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    check_vk(vkBeginCommandBuffer(buffer_, &begin_info), "vkBeginCommandBuffer");
-    recording_ = true;
-    record_timestamp_begin();
+    // A command list records one command buffer; the first pass (or a copy that got there first)
+    // begins it, and a later pass reopens rendering in the same submission. That is the render-pass
+    // break/resume of the isolated-layer seam (docs/design/gpu/offscreen-layers.md, issue #242).
+    if (!recording_) {
+        VkCommandBufferBeginInfo begin_info{};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        check_vk(vkBeginCommandBuffer(buffer_, &begin_info), "vkBeginCommandBuffer");
+        recording_ = true;
+        record_timestamp_begin();
+    }
     current_target_ = vulkan_target;
 
     // end_render_pass leaves offscreen targets in TRANSFER_SRC for readback and swapchain
