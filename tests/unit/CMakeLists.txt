@@ -618,6 +618,13 @@ target_link_libraries(completion_queue_tests PRIVATE tessera_runtime)
 
 add_test(NAME completion_queue COMMAND completion_queue_tests)
 
+add_executable(data_store_tests
+    data_store_tests.cpp)
+
+target_link_libraries(data_store_tests PRIVATE tessera_runtime)
+
+add_test(NAME data_store COMMAND data_store_tests)
+
 add_executable(worker_executor_tests
     worker_executor_tests.cpp)
 

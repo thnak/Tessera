@@ -6,6 +6,8 @@ add_library(tessera_runtime STATIC
     clock.cpp
     config.cpp
     config_json.cpp
+    data_store.cpp
+    data_store_core.cpp
     device_recovery.cpp
     diagnostics.cpp
     fixed_step.cpp

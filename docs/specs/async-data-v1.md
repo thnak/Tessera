@@ -99,6 +99,11 @@ cache-first | network-first | stale-while-revalidate | network-only | cache-only
 - Pagination/prefetch/dedupe/scroll preservation.
 - UI states loading/refreshing/error/empty; accessibility announcements.
 - Headless fake clock/network; deterministic async scheduler.
+- Push entry: `set`/`update` notify observers once per key at the tick boundary (never inline, never
+  on the app/worker thread); coalesced pushes deliver the latest snapshot only.
+- Push ordering: last write wins per key with a monotonic version; a push supersedes an in-flight
+  fetch (epoch bump plus cancellation), and the fetch's late success/error is discarded.
+- Pushed entries share the bounded cache and its deterministic LRU eviction.
 
 ## 8.1 Detail design
 
@@ -175,13 +180,34 @@ Failure/edge cases:
 - Streaming and subscription transports are not V1 (define ordering and backpressure separately);
   the V1 push entry `DataStore::set/update` lets an app feed a query from its own source (issue #233).
 
+App-fed push entry (issue #233):
+
+- `DataStore::set(key, value)` and `DataStore::update(key, fn)` are the only V1 push entry; they add
+  no transport (WebSocket/SSE/GraphQL subscriptions stay after V1).
+- A push writes the cache entry, marks it `Success` (fresh, `updated_at` from the store clock) and
+  bumps the key's monotonic `version` (0 until the first write); last write wins per key,
+  independent of the calling thread.
+- A push also bumps the key's `epoch` and clears/cancels the in-flight fetch and its
+  `CancellationToken` (section 1); the fetch's late `resolve`/`fail` returns false and never
+  overwrites the pushed value. A fetch started after the push is a new epoch and follows normal
+  fetch ordering.
+- Observers are notified once per key per tick, coalesced across pushes in that tick, when the
+  frame tick drains the completion queue on the UI thread. A push never calls an observer inline
+  and never blocks the caller beyond the store mutex. Delivery uses the bounded completion queue:
+  if it is full the notification stays pending and the next write re-arms it (data is not lost, no
+  unbounded retry).
+- `update` reads the current typed value outside the lock and retries on a version conflict, so a
+  concurrent push is not lost; it refuses a key that holds another type.
+- Pushed entries share the entry bound and deterministic LRU eviction. Eviction does not notify:
+  an observer of an evicted key reads `Idle` until the key is pushed again.
+
 Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`app-completeness-cross-check-v1.md`](../architecture/app-completeness-cross-check-v1.md); resolutions in [`app-completeness-gap-resolutions-v1.md`](../architecture/app-completeness-gap-resolutions-v1.md)):
 
 - **G-20/Q-19/Q-20**: keys are canonical JSON + hash with mandatory scope; disk cache is
   optional and encrypted for sensitive data; cross-window invalidation uses store events.
   Offline queue is capped at 100 mutations/1 MiB. Default conflict policy is server-wins with a
   surfaced conflict error; merge is opt-in per mutation.
-- **G-21**: V1 supports cursor/page pagination; streaming/subscriptions/GraphQL transports are deferred (no release assigned). The app-fed push entry `DataStore::set/update` is in V1 (#233).
+- **G-21**: V1 supports cursor/page pagination; streaming/subscriptions/GraphQL transports are deferred (no release assigned). The app-fed push entry `DataStore::set/update` is in V1 (#233): last write wins per key with a monotonic version, a push supersedes and cancels an in-flight fetch (its late result is discarded), observers are notified once per key per tick on the UI thread, and pushed entries obey the cache bound.
   Pagination dedupes by stable item key and preserves anchor/scroll state.
 
 ## 9. Deferred/open questions
