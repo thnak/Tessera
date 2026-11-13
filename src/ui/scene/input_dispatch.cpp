@@ -215,7 +215,15 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
             return result;
         }
         Event event = make_text_event(input);
-        return dispatch_to_target(*target, event);
+        result = dispatch_to_target(*target, event);
+        // Default action: a character typed in a `typeahead` group jumps to the matching item
+        // unless a handler consumed it (issue #236).
+        if (!event.handled && !event.prevent_default &&
+            focus_manager_.typeahead(root, input.text_codepoint, input.timestamp_s)) {
+            result.focus_moved = true;
+            focus_manager_.set_focus_visible(true);
+        }
+        return result;
     }
 
     if (input.type == InputEventType::CompositionStart ||

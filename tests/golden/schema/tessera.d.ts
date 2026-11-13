@@ -164,6 +164,7 @@ export interface ViewProps extends CommonProps {
   autoFocus?: boolean;
   focusTrap?: boolean;
   focusGroup?: "horizontal" | "vertical" | "both";
+  typeahead?: boolean;
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;
@@ -184,6 +185,7 @@ export interface TextProps extends CommonProps {
   autoFocus?: boolean;
   focusTrap?: boolean;
   focusGroup?: "horizontal" | "vertical" | "both";
+  typeahead?: boolean;
   onClick?: (e: ClickEvent) => void;
   onPointerDown?: (e: PointerEvent) => void;
   onPointerUp?: (e: PointerEvent) => void;

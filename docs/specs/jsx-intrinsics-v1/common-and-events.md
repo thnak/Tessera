@@ -154,7 +154,10 @@ moves in when it opens, and the focus held before is restored when it hides. `fo
 (`"horizontal"`, `"vertical"` or `"both"`) makes a `View` a roving-focus group: its focusable
 descendants are one Tab stop (re-entered on the last active item), the arrows of the axis move among
 them and wrap, and Home/End jump to the ends. A handler that consumes the key keeps it. Both are
-literals, are `View` only, and need no role. A bad value is `TESSERA_IR_UNSUPPORTED`.
+literals, are `View` only, and need no role. A bad value is `TESSERA_IR_UNSUPPORTED`. `typeahead`
+(a flag, on a `focusGroup`) moves focus to the next item whose `aria-label` starts with the typed
+prefix, ignoring ASCII case: the prefix resets after one second, and a repeated character cycles
+through the items that start with it.
 
 Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`), `focus_scope`
 (`tests/unit/focus_scope_tests.cpp`).

@@ -38,7 +38,8 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `DismissableLayer` | `dialog`, Escape closes (`display: none`); focus restore is the composer's | done |
 | `FocusScope` | `group` with `focusTrap`: Tab trapped, focus moves in, previous focus restored on hide | done |
 | `RovingFocus`, `RovingFocusVertical` | `group` with `focusGroup`: one Tab stop, arrows wrap, Home/End | done |
-| list navigation, typeahead, slider value, text-field state | | next |
+| `ListNavigation` | `listbox` with a vertical `focusGroup` and `typeahead`; selection is the composer's; grid navigation is not done | done |
+| slider value, text-field state | | next |
 
 Subset gaps found: a component cannot forward a callback prop to an inner event, so `Press` cannot
 pass `onClick` through; a plain `View` has no `disabled` prop; `onPointerCancel` has no scene event.

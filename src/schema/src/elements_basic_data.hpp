@@ -64,6 +64,16 @@ inline constexpr PropRow kViewProps[] = {
      {},
      "roving focus: the focusable descendants are one Tab stop and the arrows of the axis, Home "
      "and End move among them"},
+    {"typeahead",
+     "bool",
+     ValueKind::Literal,
+     false,
+     "false",
+     "props.typeahead",
+     {},
+     {},
+     "on a `focusGroup`: typing moves focus to the next item whose `aria-label` starts with the "
+     "typed prefix"},
 };
 
 inline constexpr EventRow kButtonEvents[] = {

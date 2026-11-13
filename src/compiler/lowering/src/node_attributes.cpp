@@ -259,9 +259,11 @@ bool apply_literal_attribute(NodeState& state, const ElementInfo& element, std::
                       "write `autoFocus` or `autoFocus={true}`");
             return false;
         }
-        if (info.prop->name == "focusTrap" && !std::holds_alternative<bool>(value->literal)) {
-            fail_node(state, "TESSERA_IR_UNSUPPORTED", "`focusTrap` is a boolean flag", span,
-                      "write `focusTrap` or `focusTrap={true}`");
+        if ((info.prop->name == "focusTrap" || info.prop->name == "typeahead") &&
+            !std::holds_alternative<bool>(value->literal)) {
+            fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                      "`" + std::string(info.prop->name) + "` is a boolean flag", span,
+                      "write the bare attribute or `{true}`");
             return false;
         }
         if (info.prop->name == "focusGroup") {

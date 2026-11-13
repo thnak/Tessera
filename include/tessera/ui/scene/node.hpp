@@ -173,6 +173,14 @@ public:
     [[nodiscard]] bool focus_trap() const {
         return focus_trap_;
     }
+    // JSX `typeahead` on a focus group: typing characters moves focus to the next item whose
+    // `aria-label` starts with them (`FocusManager::typeahead`).
+    void set_typeahead(bool typeahead) {
+        typeahead_ = typeahead;
+    }
+    [[nodiscard]] bool typeahead() const {
+        return typeahead_;
+    }
     void set_focus_group(FocusGroup group) {
         focus_group_ = group;
     }
@@ -416,6 +424,7 @@ private:
     bool focusable_ = false;
     bool auto_focus_ = false;
     bool focus_trap_ = false;
+    bool typeahead_ = false;
     FocusGroup focus_group_ = FocusGroup::None;
     int tab_index_ = 0;
     int z_index_ = 0;

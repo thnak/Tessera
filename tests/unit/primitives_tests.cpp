@@ -195,9 +195,21 @@ void test_roving_focus() {
     }
 }
 
+void test_list_navigation() {
+    Primitive list = load("ListNavigation");
+    if (list.component == nullptr) {
+        return;
+    }
+    check_eq(prop_text(list.component->root, "role"), "listbox", "the list is a listbox");
+    const std::string source = generates(list, "ListNavigation");
+    check(source.find("Node::FocusGroup::Vertical") != std::string::npos, "vertical axis");
+    check(source.find("->set_typeahead(true);") != std::string::npos, "typeahead is on");
+}
+
 } // namespace
 
 int main() {
+    test_list_navigation();
     test_focus_scope();
     test_roving_focus();
     test_press();

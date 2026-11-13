@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <memory>
+#include <string_view>
 
 namespace {
 
@@ -163,9 +164,61 @@ void test_vertical_and_both_axes() {
     check(router.focus_manager().focused() == &first, "a both-axes group takes ArrowLeft");
 }
 
+// Items carry their label as `aria-label`, borrowed from static storage like generated code.
+Node& add_item(Node& parent, tessera::ui::NodeId id, std::string_view label) {
+    Node& node = add(parent, id);
+    node.set_aria("aria-label", label);
+    return node;
+}
+
+void type(InputRouter& router, Node& root, char c, double time_s) {
+    InputEvent event;
+    event.type = InputEventType::Text;
+    event.text_codepoint = static_cast<std::uint32_t>(c);
+    event.timestamp_s = time_s;
+    router.dispatch(root, event);
+}
+
+void test_typeahead() {
+    Node root(1);
+    root.set_bounds({0, 0, 200, 200});
+    Node& list = add(root, 2, false);
+    list.set_focus_group(Node::FocusGroup::Vertical);
+    list.set_typeahead(true);
+    Node& apple = add_item(list, 3, "Apple");
+    Node& banana = add_item(list, 4, "Banana");
+    Node& blueberry = add_item(list, 5, "Blueberry");
+    Node& cherry = add_item(list, 6, "Cherry");
+    InputRouter router;
+    FocusManager& focus = router.focus_manager();
+    focus.set_root(root);
+    focus.request_focus(&apple);
+
+    type(router, root, 'c', 10.0);
+    check(focus.focused() == &cherry, "a character jumps to the item that starts with it");
+    type(router, root, 'b', 20.0);
+    check(focus.focused() == &banana, "the first match after the focused item wins (wraps)");
+    type(router, root, 'b', 20.2);
+    check(focus.focused() == &blueberry, "a repeated character cycles through its items");
+    type(router, root, 'b', 20.4);
+    check(focus.focused() == &banana, "and wraps around");
+    type(router, root, 'l', 30.0);
+    check(focus.focused() == &banana, "no item starts with `l`: focus stays");
+    type(router, root, 'b', 40.0);
+    type(router, root, 'l', 40.3);
+    check(focus.focused() == &blueberry, "a growing prefix narrows the match");
+    type(router, root, 'A', 60.0);
+    check(focus.focused() == &apple, "matching ignores case, and the prefix reset after a second");
+
+    list.set_typeahead(false);
+    type(router, root, 'c', 70.0);
+    check(focus.focused() == &apple, "typeahead is off without the flag");
+}
+
 } // namespace
 
 int main() {
+    test_typeahead();
     test_trap_confines_tab_and_restores_focus();
     test_nested_scopes();
     test_roving_focus();

@@ -407,6 +407,13 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
             writer.line(variable + "->set_focus_trap(true);");
         }
     }
+    if (const ir::Expr* typeahead = prop("typeahead");
+        typeahead != nullptr && typeahead->kind == ir::ExprKind::Literal) {
+        if (const auto* value = std::get_if<bool>(&typeahead->literal);
+            value != nullptr && *value) {
+            writer.line(variable + "->set_typeahead(true);");
+        }
+    }
     if (const ir::Expr* group = prop("focusGroup");
         group != nullptr && group->kind == ir::ExprKind::Literal) {
         if (const auto* axis = std::get_if<std::string>(&group->literal)) {

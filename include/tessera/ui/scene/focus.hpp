@@ -5,6 +5,8 @@
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/scene/node.hpp"
 
+#include <cstdint>
+#include <string>
 #include <unordered_map>
 
 namespace tessera::ui {
@@ -75,6 +77,13 @@ public:
     // when focus moved.
     bool move_in_focus_group(Node& root, KeyCode key);
 
+    // Typeahead (issue #236): when the focused node sits in a focus group with `typeahead`, the
+    // typed character extends a prefix and focus moves to the next item (from the focused one, or
+    // after it when the same character repeats) whose `aria-label` starts with it, ignoring ASCII
+    // case. The prefix resets after one second without typing (`time_s` is the input timestamp).
+    // Returns true when focus moved.
+    bool typeahead(Node& root, std::uint32_t codepoint, double time_s);
+
     // Restricts focus to `node` and its descendants. Setting a trap saves the current focus when
     // it is outside the new subtree and moves focus to the first sequential candidate inside it
     // (or clears focus when the subtree has no candidates). `nullptr` is equivalent to
@@ -113,6 +122,8 @@ private:
     bool move_focus(Node& root, bool forward);
 
     bool trap_owned_ = false;
+    std::string typeahead_prefix_;
+    double typeahead_time_s_ = 0.0;
     // Roving-focus group id -> the item that holds its Tab stop (issue #236).
     std::unordered_map<NodeId, NodeId> roving_active_;
     Node* focused_ = nullptr;
