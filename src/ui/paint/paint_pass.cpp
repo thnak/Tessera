@@ -156,6 +156,38 @@ void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, flo
               detail::color_value(style, "border-left-color", current), opacity, stats.borders);
 }
 
+// Glass backdrop (docs/specs/glass-v1.md sections 2, 3 and 5): emitted before the node's own box
+// visuals, because what is behind the node at this point in paint order is exactly its backdrop.
+// High contrast ignores `backdrop-filter` entirely (section 3.5), so the stylesheet's opaque
+// fallback stays visible. The sigma is clamped here, where the configured `glassMaxBlurRadius` is
+// known, and the opacity is folded into the composite: with straight-alpha source-over over the
+// same region, `opacity * blurred + (1 - opacity) * original` is the correct translucent result.
+void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, float opacity,
+                    const PaintContext& context, PaintSink& sink, PaintStats& stats) {
+    if (context.high_contrast || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+    const std::optional<style::BackdropFilter> filter = detail::backdrop_filter_value(style);
+    if (!filter.has_value()) {
+        return;
+    }
+    const float sigma = rendering::gpu::clamp_glass_sigma(filter->blur_sigma, context.glass);
+
+    BackdropDraw draw;
+    draw.rect = rect;
+    draw.clip = detail::corner_clip(style, rect);
+    draw.sigma = sigma;
+    draw.opacity = std::clamp(opacity, 0.0f, 1.0f);
+    draw.saturate = filter->saturate;
+    draw.brightness = filter->brightness;
+    draw.contrast = filter->contrast;
+    draw.device_scale = context.device_scale > 0.0f && std::isfinite(context.device_scale)
+                            ? context.device_scale
+                            : 1.0f;
+    sink.draw_backdrop(draw);
+    ++stats.backdrops;
+}
+
 // A scroll container clips its children to its scrollport. When the scene owner set
 // `scrollport_insets` (typically to the painted border widths), the clip uses them so clamping,
 // painting, and hit testing agree; otherwise it falls back to the style-derived padding box, which
@@ -329,6 +361,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     if (rect.width > 0.0f && rect.height > 0.0f) {
         const float opacity = detail::opacity_value(style);
         const rhi::Color current = detail::current_color(style);
+        // The backdrop sits beneath everything the node paints, including its box shadow.
+        paint_backdrop(style, rect, opacity, context, *own, stats);
         // The shadow sits beneath the node's own background, borders and content.
         const std::optional<float> shadow_radius = detail::uniform_radius(style);
         detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), opacity, current, *own,
@@ -417,6 +451,9 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                                  : kStubTextMetricsId;
     pass.device_scale_bits = detail::float_bits(context.device_scale);
     pass.reduce_effects = context.reduce_effects;
+    pass.high_contrast = context.high_contrast;
+    pass.glass_max_blur_radius = context.glass.max_blur_radius;
+    pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
     paint_node(root, styles, sink, stats, context, Frame{}, PaintScope{}, detail::ClipScope{},
                pass);
     return stats;

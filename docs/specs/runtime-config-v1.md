@@ -72,6 +72,9 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     "presenceMaxExiting": 32,
     "layoutAnimationMaxNodes": 64,
     "gpuFramesInFlight": 2,
+    "glassMaxBlurRadius": 64,
+    "glassMaxBlurTargets": 4,
+    "glassMaxBackdropArea": 4000000,
     "animationInterpolation": true,
     "interpolationEpsilonPx": 0.0625,
     "deterministic": false
@@ -124,6 +127,9 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `presenceMaxExiting` | integer | `32` | `1..1024` | Exiting nodes kept per presence; the oldest is removed at once past the limit. |
 | `layoutAnimationMaxNodes` | integer | `64` | `0..4096` | Nodes laid out per tick by `layout-animation: size`; `0` turns size animation off ([`element-transitions-v1.md`](element-transitions-v1.md) section 3.7). |
 | `gpuFramesInFlight` | integer | `2` | `1..3` | CPU/GPU overlap; 1 = lowest memory, 3 = deepest pipeline. |
+| `glassMaxBlurRadius` | number | `64` | `0..256` | `backdrop-filter` blur radius clamp in CSS px ([`glass-v1.md`](glass-v1.md) sections 2 and 5). Out-of-range declarations clamp to it; the effect is never disabled. |
+| `glassMaxBlurTargets` | integer | `4` | `0..16` | Bounded pool of blur targets per frame (`Batched2DConfig::max_offscreen_targets`). `0` disables the pool, so a frame paints without the effect instead of growing without bound. |
+| `glassMaxBackdropArea` | integer | `4000000` | `0..268435456` | Backdrop dependency-region area in device pixels (`4000000` = 4 Mpx) above which the blur runs at half resolution and is upsampled bilinearly ([`glass-v1.md`](glass-v1.md) section 5). A quality choice, not a removal of the effect. |
 | `animationInterpolation` | boolean | `true` | | Interpolate visual state at render rate. |
 | `interpolationEpsilonPx` | number | `0.0625` | `0.0..4.0` | Device pixels an interpolated transform must move before its painted box is damaged again ([`game-loop.md`](../design/game-loop.md) section 3.2). `0` disables the suppression. Never a wake source. |
 | `deterministic` | boolean | `false` | | Simulated clock, fixed steps, no vsync/sleep. Forced in goldens. |
@@ -157,6 +163,10 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     unbounded growth.
 20. `asyncMainThreadBudgetMs` is `0..16`; completions beyond the budget defer to the next tick.
 21. `viewTransitionMaxMb` is `0..4096`. The size checked is 2 x width x height x 4 bytes of the window in pixels.
+22. The glass keys are `0`-valued or in range; `0` bounds the cost (no blur radius, no pooled
+    targets, no full-resolution backdrop) and is never an error. They never disable `backdrop-filter`
+    as a fallback: the limits only cap radius, resolution and target count ([`glass-v1.md`](glass-v1.md)
+    section 8).
 
 ## 5. Semantics
 
@@ -399,6 +409,8 @@ through the pure mapping layer `src/app/window_config.hpp`:
 | `interpolationEpsilonPx` | `FramePipelineConfig::interpolation_epsilon_px` | Duplicate-present suppression for interpolated transforms: a painted corner must move at least this many device pixels since the last frame that damaged it. `0` keeps every interpolated box in damage. |
 | `pauseWhenOccluded` | `WindowPausePolicy` (`pause_when_occluded`, `pause_when_minimized`) | `false`: an occluded or minimized window keeps rendering; `true` (default) pauses both. Focus/blur is never part of the policy. |
 | `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) -> the render target sized by [`src/ui/scale/render_target_extent.hpp`](../../include/tessera/ui/scale/render_target_extent.hpp) and the present cap of [`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1 plus its step-2 render-target consumer and its step-3 present cap. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
+| `glassMaxBlurRadius`, `glassMaxBackdropArea` | `FramePipelineConfig::glass` -> `paint::PaintContext::glass` | The paint pass clamps the emitted blur sigma and chooses half resolution from the same `rendering::gpu::GlassLimits`; the resolved sigma also lands on `Node::set_glass_blur_sigma` for the 3 sigma damage dependency ([`glass-v1.md`](glass-v1.md) section 7). Both default to the values above, so an unset config paints the documented defaults. |
+| `glassMaxBlurTargets` | `Batched2DConfig::max_offscreen_targets` | The bounded offscreen target pool of the render-pass seam; `0` disables it. It is read where the window creates the renderer ([`offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 4). |
 
 The adaptive-quality keys reach the **render target** and the **present cap**. The host feeds the
 controller one observed frame time per presented frame, reports its decision in

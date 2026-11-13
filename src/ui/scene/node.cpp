@@ -119,6 +119,23 @@ void Node::set_paint_outsets(const PaintOutsets& outsets) {
     mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
+void Node::set_glass_blur_sigma(float sigma) {
+    const float next = std::isfinite(sigma) && sigma > 0.0f ? sigma : 0.0f;
+    if (next == glass_blur_sigma_) {
+        return;
+    }
+    glass_blur_sigma_ = next;
+    // Paint-visible: the emitted sigma changes and damage must cover the new dependency region.
+    // Layout and hit testing are unaffected (glass is paint only, glass-v1 section 3.4).
+    mark_dirty(Dirty::Paint | Dirty::Render);
+}
+
+void Node::set_glass_subtree(bool has_glass) {
+    // Derived state, not paint-visible on its own: it can only change when a style change already
+    // marked the affected node, so it never raises damage by itself.
+    glass_subtree_ = has_glass;
+}
+
 void Node::set_visible(bool visible) {
     if (visible_ == visible) {
         return;

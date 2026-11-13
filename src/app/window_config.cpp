@@ -10,6 +10,10 @@ ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runti
     ui::frame::FramePipelineConfig config;
     config.interpolation = runtime.animation_interpolation;
     config.interpolation_epsilon_px = runtime.interpolation_epsilon_px;
+    // Glass cost limits (glass-v1 sections 5 and 8): the same pair bounds the emitted sigma, the
+    // half-resolution decision and the 3 sigma damage dependency, so one config drives all three.
+    config.glass.max_blur_radius = runtime.glass_max_blur_radius;
+    config.glass.max_backdrop_area = runtime.glass_max_backdrop_area;
     return config;
 }
 

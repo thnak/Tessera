@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/supports.hpp"
 
 #include <algorithm>
@@ -69,6 +70,12 @@ bool value_supported(std::string_view property, std::string_view value) {
     }
     if (property == "box-sizing") {
         return keyword_in(normalized, {"content-box", "border-box"});
+    }
+    // Glass (glass-v1 section 2): `@supports (backdrop-filter: blur(1px))` is true wherever glass
+    // is implemented, and `@supports` is exactly as strict as the declaration validator, so a
+    // stylesheet can gate its fallback on the same grammar the engine accepts.
+    if (property == "backdrop-filter" || property == "-webkit-backdrop-filter") {
+        return parse_backdrop_filter(normalized).ok();
     }
     if (property == "font-style") {
         return keyword_in(normalized, {"normal", "italic", "oblique"});

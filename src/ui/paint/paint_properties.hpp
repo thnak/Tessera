@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
 #include <optional>
@@ -62,5 +63,12 @@ RoundedClip corner_clip(const style::ComputedStyle& style, const rhi::Rect& rect
 // PaintData does not override them.
 float font_size_value(const style::ComputedStyle& style);
 int font_weight_value(const style::ComputedStyle& style);
+
+// The resolved glass filter of a node (glass-v1 section 2), or nullopt when it has none. Reads the
+// canonical `backdrop-filter` first and falls back to the `-webkit-` alias, so a style built by
+// hand (a test stub, an overlay) behaves like one produced by the cascade. An unparseable value
+// resolves to none: the property registry already rejected it, and paint never guesses at a
+// half-valid list.
+std::optional<style::BackdropFilter> backdrop_filter_value(const style::ComputedStyle& style);
 
 } // namespace tessera::ui::paint::detail

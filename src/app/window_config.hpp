@@ -28,9 +28,10 @@ struct WindowPausePolicy {
     [[nodiscard]] bool operator==(const WindowPausePolicy&) const = default;
 };
 
-// The frame pipeline's config for one window. Only `animationInterpolation` is wired in this
-// slice; every other field keeps FramePipelineConfig's default, so an unset RuntimeConfig behaves
-// exactly like the hard-coded behaviour before the key existed.
+// The frame pipeline's config for one window. `animationInterpolation`, `interpolationEpsilonPx`
+// and the two glass limits (`glassMaxBlurRadius`, `glassMaxBackdropArea`) are wired in this slice;
+// every other field keeps FramePipelineConfig's default, so an unset RuntimeConfig behaves exactly
+// like the hard-coded behaviour before the key existed.
 [[nodiscard]] ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runtime);
 
 // The occluded/minimized pause policy for one window. Only `pauseWhenOccluded` is wired in this

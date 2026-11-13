@@ -240,6 +240,15 @@ public:
                               (*decoded)->width, (*decoded)->height, draw.tint, &clip_);
     }
 
+    // Glass backdrop: explicitly unsupported on the CPU reference sink (docs/specs/glass-v1.md
+    // section 9). The deterministic canvas cannot read the frame back, and a sampled approximation
+    // would be a golden no real backend could reproduce, so the node paints without the effect (the
+    // stylesheet's opaque fallback) and the draw is counted as a diagnostic instead of silently
+    // ignored.
+    void draw_backdrop(const ui::paint::BackdropDraw& /*draw*/) override {
+        ++glass_unsupported_;
+    }
+
 private:
     static rendering::rhi::Rect intersect(const rendering::rhi::Rect& lhs,
                                           const rendering::rhi::Rect& rhs) {
@@ -263,6 +272,7 @@ private:
     std::chrono::steady_clock::duration raster_time_{};
     std::chrono::steady_clock::duration blit_time_{};
     std::uint32_t vector_draws_ = 0;
+    std::uint32_t glass_unsupported_ = 0;
 
 public:
     // Diagnostics for the CPU golden/measurement path only; pixels never depend on these.
@@ -274,6 +284,10 @@ public:
     }
     [[nodiscard]] std::uint32_t vector_draws() const {
         return vector_draws_;
+    }
+    // Glass backdrop draws this sink reported as unsupported (never painted).
+    [[nodiscard]] std::uint32_t glass_unsupported() const {
+        return glass_unsupported_;
     }
 };
 

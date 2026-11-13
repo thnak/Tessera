@@ -44,6 +44,11 @@ struct FramePipelineConfig {
     // gets a null cache and the paint pass is byte-identical to the pre-cache pipeline. Cache
     // limits stay at `PaintCacheConfig`'s defaults; this switch only enables or bypasses it.
     bool paint_cache = true;
+    // Glass cost limits (docs/specs/glass-v1.md sections 5 and 8), from the runtime config keys
+    // `glassMaxBlurRadius` and `glassMaxBackdropArea`. They are carried into both the style sync
+    // (the 3 sigma damage dependency) and the paint context (the emitted sigma / half-resolution
+    // decision), so one pair of values bounds the effect everywhere.
+    rendering::gpu::GlassLimits glass{};
 };
 
 struct FrameTick {
@@ -60,6 +65,9 @@ struct FrameRender {
     // Interpolated transform boxes left out of damage because they moved less than
     // `FramePipelineConfig::interpolation_epsilon_px` since they were last painted.
     std::size_t interpolation_suppressed = 0;
+    // Glass nodes whose full box was added to damage because accumulated damage intersected their
+    // 3 sigma dependency region (docs/specs/glass-v1.md section 7).
+    std::size_t glass_dependencies = 0;
 };
 
 struct FramePaint {
@@ -190,6 +198,17 @@ public:
     [[nodiscard]] bool reduce_effects() const {
         return reduce_effects_;
     }
+    // High-contrast themes ignore `backdrop-filter` entirely (glass-v1 section 3.5): the
+    // stylesheet's opaque fallback shows and the paint pass emits no glass draws. It is
+    // accessibility behaviour, not the adaptive-quality decision of section 8, so it is a separate
+    // flag from `reduce_effects`. The flag is part of the paint-cache key, so a flip re-records
+    // instead of replaying a recorded backdrop draw.
+    void set_high_contrast(bool high_contrast) {
+        high_contrast_ = high_contrast;
+    }
+    [[nodiscard]] bool high_contrast() const {
+        return high_contrast_;
+    }
     [[nodiscard]] bool interpolation() const {
         return config_.interpolation;
     }
@@ -223,6 +242,7 @@ private:
     double alpha_ = 0.0;
     bool interpolate_ = false;
     bool reduce_effects_ = false;
+    bool high_contrast_ = false;
 };
 
 } // namespace tessera::ui::frame

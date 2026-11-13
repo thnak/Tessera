@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
@@ -48,6 +49,7 @@ struct PaintStats {
     std::size_t gradients = 0;       // linear-gradient fills emitted
     std::size_t shadows = 0;         // box-shadow fills emitted (one per blur layer)
     std::size_t transforms = 0;      // nodes painted in their own transformed frame
+    std::size_t backdrops = 0;       // glass backdrop draws emitted
 };
 
 // Read-only, paint-only override of a node's visual state, used by fixed-step interpolation
@@ -94,6 +96,12 @@ struct PaintContext {
     // reach and colour but is emitted with fewer concentric layers. Painted reach never changes, so
     // damage stays valid. False paints at full quality.
     bool reduce_effects = false;
+    // Glass (docs/specs/glass-v1.md sections 2, 3, 5, 8). `high_contrast` is the accessibility rule
+    // of section 3: the engine ignores `backdrop-filter` entirely and the stylesheet's opaque
+    // fallback shows. `glass` carries the configured cost limits so the emitted sigma and the
+    // half-resolution decision match the runtime config instead of a hard-coded default.
+    bool high_contrast = false;
+    rendering::gpu::GlassLimits glass{};
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.
     const PaintView* view = nullptr;

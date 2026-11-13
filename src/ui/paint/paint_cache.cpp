@@ -43,7 +43,9 @@ bool same_signature(const PaintCacheSignature& lhs, const PaintCacheSignature& r
            same_rect(lhs.paint_rect, rhs.paint_rect) && lhs.clip_hash == rhs.clip_hash &&
            lhs.clip_depth == rhs.clip_depth && lhs.metrics_source_id == rhs.metrics_source_id &&
            lhs.device_scale_bits == rhs.device_scale_bits &&
-           lhs.reduce_effects == rhs.reduce_effects;
+           lhs.reduce_effects == rhs.reduce_effects && lhs.high_contrast == rhs.high_contrast &&
+           lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
+           lhs.glass_max_backdrop_area == rhs.glass_max_backdrop_area;
 }
 
 std::uint64_t mix(std::uint64_t seed, std::uint64_t value) {
@@ -141,6 +143,9 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
             sink.draw_image(draw);
             break;
         }
+        case PaintOp::Kind::DrawBackdrop:
+            sink.draw_backdrop(op.backdrop);
+            break;
         }
     }
 }
@@ -196,6 +201,10 @@ void PaintCache::Recorder::pop_clip() {
 
 bool PaintCache::Recorder::supports_transform() const {
     return target_.supports_transform();
+}
+
+bool PaintCache::Recorder::supports_backdrop() const {
+    return target_.supports_backdrop();
 }
 
 void PaintCache::Recorder::push_transform(const rhi::Mat3& transform) {
@@ -255,6 +264,14 @@ void PaintCache::Recorder::draw_image(const ImageDraw& draw) {
     op.decode_original = draw.decode_original;
     record(std::move(op));
     target_.draw_image(draw);
+}
+
+void PaintCache::Recorder::draw_backdrop(const BackdropDraw& draw) {
+    PaintOp op;
+    op.kind = PaintOp::Kind::DrawBackdrop;
+    op.backdrop = draw;
+    record(std::move(op));
+    target_.draw_backdrop(draw);
 }
 
 PaintRecord PaintCache::Recorder::finish() {

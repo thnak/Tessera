@@ -2,8 +2,10 @@
 
 Status: implemented in `src/rendering/gpu/` and RHI 1.1 for issue #242
 ([`glass-v1.md`](../../specs/glass-v1.md) section 4). It is the seam `backdrop-filter` (#244),
-isolated layers (#227), shared-element snapshots and stacking contexts build on; those consumers
-are not implemented yet. The RHI operation itself is normative in [`rhi.md`](rhi.md) section 5.
+isolated layers (#227), shared-element snapshots and stacking contexts build on. #244 landed the
+paint-side consumer and the blur shaders on top of it; the composite draw that samples a pooled
+target is still missing (section 7). The RHI operation itself is normative in
+[`rhi.md`](rhi.md) section 5.
 
 ## 1. The problem
 
@@ -123,6 +125,32 @@ a pooled target, resumes, and draws the blurred copy clipped to the node's round
 the node's own background/children. The blur itself (separable Gaussian, `glass_blur.frag`) is #244;
 this seam provides the copy, the break and the bounded target.
 
+What #244 landed: the paint pass emits one `PaintSink::draw_backdrop` per glass node at exactly the
+segment boundary (after everything painted earlier in paint order, before the node's own box
+visuals), carrying the clamped sigma, the rounded composite clip, the folded node opacity and the
+saturate/brightness/contrast factors. The style surface lives in
+[`src/ui/style/backdrop_filter.cpp`](../../../src/ui/style/backdrop_filter.cpp): the grammar, the
+`UnsupportedValue` diagnostic that drops the whole declaration, the `-webkit-` alias, the initial
+`none` and `@supports`. High-contrast mode (`PaintContext::high_contrast`, glass-v1 section 3.5)
+drops the draw at the paint pass and the opaque fallback paints; the flag and the two glass limits
+are part of the paint-cache key, so a flip re-records instead of replaying a recorded backdrop.
+
+`src/rendering/gpu/glass_blur.cpp` owns the shared decision - the 3 sigma dependency region,
+`ceil(3 * sigma)` reach with `radius + 1` linear-sampling taps, the `glassMaxBlurRadius` clamp and
+the half-resolution rule above `glassMaxBackdropArea` - so paint, damage and the shader cannot
+disagree about the kernel. Damage that intersects a glass node's region adds its full box
+(`DamageTracker::add_glass_dependencies`); a tree with no glass node returns before walking the
+scene, and a static glass screen settles to zero damage and zero presents. `runtime::FrameDiagnostics`
+gained `glass_ms` and `glass_backdrop_count` (plus totals); the count is reported by the paint pass
+today and the GPU interval arrives with the composite. `glass_blur.frag`/`glass_blur.wgsl` implement
+the two passes, the color matrix and the rounded composite clip.
+
+Remaining: the composite draw has to sample a pooled target, and the RHI has no sampled view of a
+render target yet (`RenderTarget` exposes extent/format/sample count only, and this seam deliberately
+deferred that capability to its consumer, section 7). Until it lands, `Batched2DSink::draw_backdrop`
+counts the draw in `GlassPaintStats::unsupported` instead of pretending it painted glass; the frame
+composes exactly as it did before the declaration existed.
+
 ### 5.2 Isolated layers (#227)
 
 An isolated layer is the same seam with a different destination: render the subtree into a pooled
@@ -148,9 +176,11 @@ the layer path only needs a composite draw with the target as a texture, which i
 
 - Same-target (in-image) region copies, and a swapchain image as a copy source/destination (needs
   swapchain usage flags; see [`rhi.md`](rhi.md) section 10).
+- A sampled view of a render target (image view + sampler + descriptor set, plus the layout
+  transitions between transfer, attachment and shader-read) - the one capability standing between
+  the #244 paint pass and a working GPU blur, because the vertical pass and the composite both read
+  a pooled target. It also needs the `glass_blur` pipeline created by the composition root.
 - A render pass on a pooled target driven by the renderer itself (the #227 layer path) and the
   composite draw that samples it; this seam only exposes the target.
-- Cache/limit decisions for glass (half-resolution above `glassMaxBackdropArea`, `glass_ms`
-  diagnostics) belong to #244, not here.
 - WebGPU is implemented but compiled only in the Wasm lane (no Emscripten on every dev machine);
   the `copyTextureToTexture` path is validated by that lane, not locally on Windows.

@@ -110,6 +110,17 @@ public:
         replay([this, &draw] { target_->draw_image(draw); }, device_bounds(draw.rect));
     }
 
+    // A glass backdrop is replayed once per intersecting damage region under that region's clip,
+    // like the other segment-like draws: the blurred result is recomputed for the painted regions
+    // only, and pixels outside every region are not repainted.
+    void draw_backdrop(const BackdropDraw& draw) override {
+        replay([this, &draw] { target_->draw_backdrop(draw); }, device_bounds(draw.rect));
+    }
+
+    [[nodiscard]] bool supports_backdrop() const override {
+        return target_->supports_backdrop();
+    }
+
     // Matrices pass through to the target; damage regions stay in device space. Commands issued
     // under a matrix are replayed per region under a device-space clip (like text), because their
     // rects are frame-local and cannot be trimmed arithmetically. Clips arriving from the paint

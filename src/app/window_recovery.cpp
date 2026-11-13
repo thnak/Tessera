@@ -85,6 +85,9 @@ bool WindowHost::Impl::create_presentation() {
     }
     rendering::gpu::Batched2DConfig renderer_config{4096, true, false};
     renderer_config.frames_in_flight = static_cast<std::uint32_t>(detail::kFramesInFlight);
+    // Glass bounds the blurred-backdrop pool (glass-v1 section 5); 0 disables the pool and a frame
+    // then paints without the effect instead of growing without bound.
+    renderer_config.max_offscreen_targets = options.runtime.glass_max_blur_targets;
     renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(*device, *pipeline, *white,
                                                                    renderer_config);
     // The text stack owns the glyph atlas textures, so it is recreated with the device generation

@@ -46,10 +46,16 @@ tessera_add_spv_c(fullscreen.vert TESSERA_VERT_SPV)
 tessera_add_spv_c(fullscreen.frag TESSERA_FRAG_SPV)
 tessera_add_spv_c(batched2d.vert TESSERA_BATCHED2D_VERT_SPV)
 tessera_add_spv_c(batched2d.frag TESSERA_BATCHED2D_FRAG_SPV)
+# Glass two-pass Gaussian (issue #244, docs/specs/glass-v1.md section 5): the fragment pass pairs
+# with fullscreen.vert (gl_VertexIndex triangle, no vertex buffer). Compiled here so glslc and the
+# manifest check validate it in every Vulkan build; the renderer's glass pipeline lands with the
+# sampled-target composite (docs/design/gpu/offscreen-layers.md section 7).
+tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 
 add_custom_target(tessera_vulkan_shaders DEPENDS ${TESSERA_VERT_SPV} ${TESSERA_FRAG_SPV})
 add_custom_target(tessera_batched2d_shaders
-    DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV})
+    DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV}
+            ${TESSERA_GLASS_BLUR_FRAG_SPV})
 
 add_library(tessera_vulkan STATIC
     src/offscreen_renderer.cpp

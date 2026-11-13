@@ -51,6 +51,11 @@ struct FrameDiagnosticsSample {
     std::size_t redraw_scissors = 0;
     std::size_t animation_samples = 0;
     bool full_redraw = false;
+    // Glass (docs/specs/glass-v1.md section 8): time this frame spent on glass and how many
+    // backdrop blur draws it recorded. A slow frame with glass active is attributable instead of
+    // looking like a generic render miss; neither value changes what is painted.
+    double glass_ms = 0.0;
+    std::size_t glass_backdrop_count = 0;
 };
 
 class FrameDiagnostics {
@@ -124,6 +129,17 @@ public:
     [[nodiscard]] std::uint64_t full_redraw_frames() const {
         return full_redraw_frames_;
     }
+    // Cumulative glass cost and usage: total time reported in `glass_ms`, total backdrop blur
+    // draws, and how many recorded frames had any glass work.
+    [[nodiscard]] double total_glass_ms() const {
+        return total_glass_ms_;
+    }
+    [[nodiscard]] std::uint64_t total_glass_backdrops() const {
+        return total_glass_backdrops_;
+    }
+    [[nodiscard]] std::uint64_t glass_frames() const {
+        return glass_frames_;
+    }
 
 private:
     FrameDiagnosticsSample last_;
@@ -135,6 +151,9 @@ private:
     std::uint64_t total_scissors_ = 0;
     std::uint64_t total_animation_samples_ = 0;
     std::uint64_t full_redraw_frames_ = 0;
+    double total_glass_ms_ = 0.0;
+    std::uint64_t total_glass_backdrops_ = 0;
+    std::uint64_t glass_frames_ = 0;
     std::uint64_t adaptive_quality_changes_ = 0;
     std::uint64_t adaptive_quality_downgrades_ = 0;
     std::uint64_t adaptive_present_cap_changes_ = 0;

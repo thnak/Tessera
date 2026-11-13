@@ -31,6 +31,9 @@ struct PassState {
     std::uint32_t metrics_source_id = kStubTextMetricsId;
     std::uint32_t device_scale_bits = 0;
     bool reduce_effects = false;
+    bool high_contrast = false;
+    float glass_max_blur_radius = 0.0f;
+    std::uint64_t glass_max_backdrop_area = 0;
 };
 
 inline std::uint32_t float_bits(float value) {
@@ -70,6 +73,9 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     signature.metrics_source_id = pass.metrics_source_id;
     signature.device_scale_bits = pass.device_scale_bits;
     signature.reduce_effects = pass.reduce_effects;
+    signature.high_contrast = pass.high_contrast;
+    signature.glass_max_blur_radius = pass.glass_max_blur_radius;
+    signature.glass_max_backdrop_area = pass.glass_max_backdrop_area;
     return signature;
 }
 
@@ -85,6 +91,7 @@ inline PaintCounts paint_counts_since(const PaintStats& current, const PaintStat
     counts.gradients = current.gradients - before.gradients;
     counts.shadows = current.shadows - before.shadows;
     counts.transforms = current.transforms - before.transforms;
+    counts.backdrops = current.backdrops - before.backdrops;
     return counts;
 }
 
@@ -100,6 +107,7 @@ inline void add_paint_counts(PaintStats& stats, const PaintCounts& counts) {
     stats.gradients += counts.gradients;
     stats.shadows += counts.shadows;
     stats.transforms += counts.transforms;
+    stats.backdrops += counts.backdrops;
 }
 
 inline ClipScope pushed_clip_scope(const ClipScope& parent, const RoundedClip& clip) {

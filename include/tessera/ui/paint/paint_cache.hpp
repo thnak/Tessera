@@ -90,6 +90,7 @@ struct PaintCounts {
     std::size_t gradients = 0;
     std::size_t shadows = 0;
     std::size_t transforms = 0;
+    std::size_t backdrops = 0;
 };
 
 // One recorded sink call. Fields are meaningful per kind (see Kind); the unused ones stay default.
@@ -103,6 +104,7 @@ struct PaintOp {
         DrawText,
         DrawVector,
         DrawImage,
+        DrawBackdrop,
     };
 
     Kind kind = Kind::FillRect;
@@ -112,6 +114,7 @@ struct PaintOp {
     RoundedClip clip;      // PushClip
     rhi::Mat3 transform;   // PushTransform
     GradientDraw gradient; // FillLinearGradient (its own rect/clip/stops are authoritative)
+    BackdropDraw backdrop; // DrawBackdrop (its own rect/clip/filter are authoritative)
     std::string text;      // DrawText text bytes, or the borrowed asset name of DrawVector/Image
     float font_size = 0.0f;
     int font_weight = 400;
@@ -167,6 +170,12 @@ struct PaintCacheSignature {
     std::uint32_t metrics_source_id = 0;
     std::uint32_t device_scale_bits = 0;
     bool reduce_effects = false;
+    // Glass (issue #244): high-contrast mode suppresses `backdrop-filter` entirely, and the two
+    // limits change the emitted sigma / half-resolution decision, so all three are part of the key
+    // - exactly like reduce_effects, because they change the commands a record holds.
+    bool high_contrast = false;
+    float glass_max_blur_radius = 0.0f;
+    std::uint64_t glass_max_backdrop_area = 0;
 };
 
 // Seed of the deterministic FNV-1a clip-stack fingerprint. A paint starts from this value; every
@@ -230,11 +239,13 @@ public:
         void push_clip(const RoundedClip& clip) override;
         void pop_clip() override;
         [[nodiscard]] bool supports_transform() const override;
+        [[nodiscard]] bool supports_backdrop() const override;
         void push_transform(const rhi::Mat3& transform) override;
         void pop_transform() override;
         void draw_text(const TextDraw& run) override;
         void draw_vector(const VectorDraw& draw) override;
         void draw_image(const ImageDraw& draw) override;
+        void draw_backdrop(const BackdropDraw& draw) override;
 
         // Returns the captured record. The recorder must not be reused afterwards.
         [[nodiscard]] PaintRecord finish();

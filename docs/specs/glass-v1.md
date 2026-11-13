@@ -6,6 +6,14 @@ translucent window with an OS backdrop. Builds on [`stylesheet-v1.md`](styleshee
 [`window-chrome-v1.md`](window-chrome-v1.md), [`dirty-rendering.md`](../design/dirty-rendering.md),
 [`paint-pass.md`](../design/paint-pass.md) and [`performance.md`](../design/performance.md).
 
+Implementation status (2026-11-13, #244): the style surface (section 2), the paint-pass
+segmentation, the damage rules of section 7, the config keys and the two-pass shader sources are
+implemented and tested; the GPU execution needs the sampled-target composite listed as deferred in
+[`gpu/offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 7, and section 6
+(`window-backdrop`) is #243. `glass_ms` and `glass_backdrop_count` are recorded by
+`runtime::FrameDiagnostics`; the renderer reports the backdrop count through the paint pass, and the
+GPU interval lands with the composite.
+
 Terms: **Backdrop** is what was already painted behind a node in the same window. **Glass node** is a
 node with a non-`none` `backdrop-filter`. **Blur target** is the offscreen texture the backdrop is
 copied into and blurred. **Isolated layer** is a subtree painted into its own texture (a seam the renderer does not have yet; issue #227 and the layer-seam issue name it in

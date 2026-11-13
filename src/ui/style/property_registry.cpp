@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 
 #include <algorithm>
@@ -104,6 +105,10 @@ constexpr PropertyDef kProperties[] = {
     // property so a theme can set it; only the window's root reads it, and `auto` is resolved by
     // the platform, never stored as a computed material.
     {"window-backdrop", "none", false},
+    // Glass (glass-v1 section 2). `-webkit-backdrop-filter` is the pasted-web-CSS alias; declare()
+    // rewrites it to the canonical name so the cascade has exactly one winner per node.
+    {"backdrop-filter", "none", false},
+    {"-webkit-backdrop-filter", "none", false},
 };
 
 bool is_custom_property(std::string_view property) {
@@ -271,11 +276,37 @@ const std::vector<std::string>* PropertyRegistry::longhands(std::string_view sho
 
 PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration) const {
     PropertyExpansionResult result;
-    const std::string property = normalize_property(declaration.property);
+    std::string property = normalize_property(declaration.property);
 
     if (is_custom_property(declaration.property)) {
         result.declarations.push_back(declaration);
         return result;
+    }
+    // `-webkit-backdrop-filter` is an alias of `backdrop-filter` (glass-v1 section 2): one computed
+    // value, so an author cannot have the two spellings fight in the cascade.
+    if (property == "-webkit-backdrop-filter") {
+        property = "backdrop-filter";
+    }
+    if (property == "backdrop-filter") {
+        // The whole declaration is ignored when any function is unsupported, never just the
+        // unsupported part (glass-v1 section 2). The computed value therefore stays at the initial
+        // `none` instead of holding a list the paint pass would have to re-validate.
+        const BackdropFilterParseResult parsed = parse_backdrop_filter(declaration.value);
+        if (!parsed.ok()) {
+            std::string message = "unsupported backdrop-filter value";
+            if (!parsed.token.empty()) {
+                message += " `";
+                message += parsed.token;
+                message += "`";
+            }
+            message += ": ";
+            message += parsed.error;
+            message += "; the whole declaration is ignored";
+            result.diagnostics.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue,
+                                                         declaration.offset, property,
+                                                         std::move(message)});
+            return result;
+        }
     }
     // CSS allows `text-overflow: <overflow> <side>`, which V1 does not implement. Reject the whole
     // declaration instead of applying half of it: no winner reaches the cascade, so the computed

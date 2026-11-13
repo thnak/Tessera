@@ -92,6 +92,21 @@ public:
         return paint_outsets_;
     }
 
+    // Glass (CSS `backdrop-filter`, docs/specs/glass-v1.md sections 2 and 7). The blur sigma in CSS
+    // px is what paint::sync_scene_style resolved from the computed value, already clamped to the
+    // configured `glassMaxBlurRadius`; 0 means the node has no non-`none` backdrop-filter. Damage
+    // uses it to grow the node's paint dependency region by 3 sigma. `glass_subtree` is the derived
+    // "this subtree contains a glass node" flag, so a frame whose tree has no glass node never
+    // walks the scene looking for one. Both are paint-only: hit testing and layout ignore them.
+    void set_glass_blur_sigma(float sigma);
+    [[nodiscard]] float glass_blur_sigma() const {
+        return glass_blur_sigma_;
+    }
+    void set_glass_subtree(bool has_glass);
+    [[nodiscard]] bool glass_subtree() const {
+        return glass_subtree_;
+    }
+
     void set_visible(bool visible);
     [[nodiscard]] bool visible() const {
         return visible_;
@@ -338,6 +353,8 @@ private:
     int tab_index_ = 0;
     int z_index_ = 0;
     PaintOutsets paint_outsets_;
+    float glass_blur_sigma_ = 0.0f;
+    bool glass_subtree_ = false;
     // Rarely used payloads live behind lazily allocated pointers so a plain View pays one pointer
     // each instead of the full inline tables (docs/design/performance.md, memory budgets). A table
     // is allocated by the first set/bind and kept until the node dies; clearing only resets the

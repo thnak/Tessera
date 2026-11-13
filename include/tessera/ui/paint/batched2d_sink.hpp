@@ -90,6 +90,15 @@ struct VectorPaintStats {
     std::uint64_t missing_resources = 0;
 };
 
+// Counting outcomes for glass backdrop draws. `unsupported` counts glass nodes this sink could not
+// apply (the renderer needs the sampled-target composite that the isolated-layer seam defers; see
+// docs/design/gpu/offscreen-layers.md section 7). Counting it keeps a frame that silently paints no
+// glass attributable instead of looking like a stylesheet bug.
+struct GlassPaintStats {
+    std::uint64_t draws = 0;
+    std::uint64_t unsupported = 0;
+};
+
 // Forwards paint commands to the batched 2D renderer. Deliberately not a backend adapter: the
 // renderer already owns the only GPU seam (rhi::CommandList), so this header stays free of
 // Vulkan/WebGPU includes.
@@ -122,6 +131,7 @@ public:
     void draw_text(const TextDraw& run) override;
     void draw_vector(const VectorDraw& draw) override;
     void draw_image(const ImageDraw& draw) override;
+    void draw_backdrop(const BackdropDraw& draw) override;
 
     // Forwards to TextRenderer::begin_frame. Call once per painted frame before any draw_text so
     // atlas pages are not evicted while still referenced by this frame.
@@ -133,6 +143,9 @@ public:
     [[nodiscard]] const ImagePaintStats& image_stats() const {
         return image_stats_;
     }
+    [[nodiscard]] const GlassPaintStats& glass_stats() const {
+        return glass_stats_;
+    }
 
 private:
     rendering::gpu::Batched2DRenderer* renderer_ = nullptr;
@@ -142,6 +155,7 @@ private:
     VectorPaintStats vector_stats_;
     ImagePaintConfig image_;
     ImagePaintStats image_stats_;
+    GlassPaintStats glass_stats_;
 };
 
 } // namespace tessera::ui::paint
