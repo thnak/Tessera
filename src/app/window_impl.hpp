@@ -104,7 +104,7 @@ struct WindowHost::Impl {
     // flight would be a cross-submission read/write hazard. Returns false when the backend refuses,
     // in which case the frame stays on the direct full-size path rather than dropping. Called at a
     // frame boundary and only when the decided extent changed, so a downgrade allocates one image.
-    bool ensure_scaled_target(std::size_t slot, rhi::Extent2D extent);
+    bool ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent);
 
     // --- GPU frame-time signal (docs/design/performance.md section 6.1) ----------------------
     // The device probe's answer, resolved once per presentation generation. False (null backend,

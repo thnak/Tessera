@@ -162,24 +162,25 @@ void WindowHost::Impl::recreate_swapchain() {
 // downgrade at the same extent reuses it). A backend refusal is a value, not a failure: the frame
 // presents at full quality instead (ADR-025 boundary, and a lost frame would be worse than a sharp
 // one).
-bool WindowHost::Impl::ensure_scaled_target(std::size_t slot, rhi::Extent2D extent) {
-    if (swapchain == nullptr || slot >= scaled_targets.size() || extent.width == 0 ||
+bool WindowHost::Impl::ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent) {
+    if (swapchain == nullptr || frame_slot >= scaled_targets.size() || extent.width == 0 ||
         extent.height == 0) {
         return false;
     }
     const rhi::TextureFormat format = swapchain->format();
-    rhi::RenderTarget* existing = scaled_targets[slot].get();
-    if (existing != nullptr && scaled_target_extents[slot].width == extent.width &&
-        scaled_target_extents[slot].height == extent.height && existing->format() == format) {
+    rhi::RenderTarget* existing = scaled_targets[frame_slot].get();
+    if (existing != nullptr && scaled_target_extents[frame_slot].width == extent.width &&
+        scaled_target_extents[frame_slot].height == extent.height && existing->format() == format) {
         return true;
     }
     try {
-        scaled_targets[slot] = device->create_render_target(detail::target_desc(extent, format));
-        scaled_target_extents[slot] = extent;
-        return scaled_targets[slot] != nullptr;
+        scaled_targets[frame_slot] =
+            device->create_render_target(detail::target_desc(extent, format));
+        scaled_target_extents[frame_slot] = extent;
+        return scaled_targets[frame_slot] != nullptr;
     } catch (const std::exception&) {
-        scaled_targets[slot].reset();
-        scaled_target_extents[slot] = {};
+        scaled_targets[frame_slot].reset();
+        scaled_target_extents[frame_slot] = {};
         ++stats.scale_fallbacks;
         return false;
     }

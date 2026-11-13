@@ -46,9 +46,9 @@ bool WindowHost::Impl::create_presentation() {
     // Fixed for this swapchain generation: whether a smaller render target (the adaptive render
     // scale) can be resampled into the presented images (docs/design/performance.md section 6.1).
     scaled_present_supported = swapchain->supports_scaled_present();
-    for (std::size_t slot = 0; slot < scaled_targets.size(); ++slot) {
-        scaled_targets[slot].reset();
-        scaled_target_extents[slot] = {};
+    for (std::size_t index = 0; index < scaled_targets.size(); ++index) {
+        scaled_targets[index].reset();
+        scaled_target_extents[index] = {};
     }
 
     pipeline = detail::create_pipeline(*device, swapchain->format());
@@ -79,9 +79,9 @@ void WindowHost::Impl::release_presentation() {
     renderer.reset();
     text.reset();
     white.reset();
-    for (std::size_t slot = 0; slot < scaled_targets.size(); ++slot) {
-        scaled_targets[slot].reset();
-        scaled_target_extents[slot] = {};
+    for (std::size_t index = 0; index < scaled_targets.size(); ++index) {
+        scaled_targets[index].reset();
+        scaled_target_extents[index] = {};
     }
     scaled_present_supported = false;
     gpu_timestamps_usable = false;
