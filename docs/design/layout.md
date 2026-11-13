@@ -28,8 +28,9 @@ and the documented rounding rule below. Terms (`ComputedStyle`, Yoga, golden, sc
 ## 1. Goals
 
 - CSS-like Flexbox through **Yoga**; no hand-written Flexbox.
-- A small CSS Grid subset on top of Yoga or a vendored engine (taffy, a Rust layout library listed as a candidate in
-  [`dependencies.md`](../specs/dependencies.md)) behind a C ABI.
+- A small CSS Grid subset implemented by a C++ `GridEngine` in `src/ui/layout/` behind the layout
+  seam (issue #249): no new dependency, and UI code never includes the engine. The normative value
+  list is [`grid-v1.md`](../specs/grid-v1.md).
 - Intrinsic text measurement via a callback into the text stack.
 - Fractional layout internally; deterministic integer-pixel paint alignment.
 - Incremental layout from dirty flags; no full-tree relayout for local changes.
@@ -79,15 +80,44 @@ both supported. Yoga sees consistent dimensions in either mode.
 
 ### Grid subset (V1)
 
-Supported:
+The supported values are the compatibility matrix in [`stylesheet-v1.md`](../specs/stylesheet-v1.md)
+section 11 and, normatively, [`grid-v1.md`](../specs/grid-v1.md). In short: fixed/percentage/`fr`/
+`auto`/`min-content`/`max-content` tracks, `minmax()`, `repeat(<integer>, ...)`, item lines and
+`span`, `gap`, `justify-items`/`justify-self`, `align-items`/`align-self`,
+`justify-content`/`align-content`, and `grid-auto-flow: row | column`.
 
-- fixed and `repeat()` columns/rows
-- `gap`
-- item `grid-column`/`grid-row` span
-- basic `justify-items`/`align-items`
+Why a hand-written engine rather than a vendored one: Yoga has no grid, and adding taffy would have
+added a dependency (contradicting [AGENTS.md Non-negotiables](../../AGENTS.md#non-negotiables)) for a
+subset that is a few hundred lines of track sizing and placement. `GridEngine`
+(`src/ui/layout/grid_engine.hpp`, split across `grid_layout.cpp`, `grid_placement.cpp` and
+`grid_tracks.cpp`) is internal to `src/ui/layout/`; `LayoutEngine` is its only caller.
 
-Not supported: subgrid, masonry, dense auto-placement, named lines/areas beyond a small
-subset. If taffy is used, its C ABI is hidden behind `GridEngine`; UI code never includes it.
+How it plugs into Yoga:
+
+1. A `display: grid` container becomes a **Yoga leaf** with a measure callback. The callback runs the
+   grid engine and reports the content size, so a grid inside a flex container is measured and sized
+   like any other flex item, and an auto-height grid gets its height from its rows.
+2. After Yoga resolves the container's content box, the grid engine runs once more with that exact
+   box and positions the items.
+3. Each item subtree is laid out as an **independent Yoga root** at its grid-area size, with the item
+   root's margins zeroed (the engine accounts for them). Flex-inside-grid, text measurement, the
+   text measure cache and grid-inside-grid therefore all work through the ordinary layout path.
+
+Consequences worth knowing:
+
+- The container's `order` does not apply to grid items; `order` only sorts them for auto-placement,
+  as in CSS.
+- A content-sized track does not shrink below its item's unwrapped size (there is no separate
+  min-content pass for containers, only for text leaves). Prefer `fr` tracks for wrappable text.
+- An inner grid's contribution to an outer content-sized track is measured from its own content
+  size, so give the inner grid an explicit size (or keep the outer tracks fixed/`fr`) when it must
+  not be measured.
+- Item boxes come from their own Yoga root, so they are rounded to the pixel grid independently of
+  the track offsets. Choose track sizes that divide evenly when an exact fractional box matters.
+
+Not supported: subgrid, masonry, dense auto-placement, named lines/areas, `grid-auto-columns`/
+`grid-auto-rows`, the `grid`/`grid-template`/`grid-area` shorthands, `fit-content()`, and `baseline`
+alignment (accepted and treated as `start`).
 
 ### Positioning
 
@@ -247,7 +277,8 @@ overlay/popup) instead of letting a later hit stand for the approximation.
 
 - Box corpus: width/height/min/max, padding/margin/border, percentages, aspect ratio.
 - Flex corpus: direction, wrap, grow/shrink/basis, justify/align, gap, absolute children.
-- Grid corpus: fixed/repeat, span, gap, alignment.
+- Grid corpus: fixed/repeat/`fr`/`auto` tracks, span, gap, alignment, RTL, auto-flow, nesting with
+  flex ([`grid-v1.md`](../specs/grid-v1.md); `grid_layout`).
 - Text measure: intrinsic size, wrapping, baseline, ellipsis.
 - RTL: start/end mapping, mirrored layout.
 - Rounding: edges at 1.0/1.25/1.5/2.0 scale; no gaps/overlaps.
@@ -256,7 +287,9 @@ overlay/popup) instead of letting a later hit stand for the approximation.
 
 ## 10. Open questions
 
-- Grid engine: build a subset on Yoga vs vendor taffy behind a C ABI.
+- ~~Grid engine: build a subset on Yoga vs vendor taffy behind a C ABI.~~ Resolved for V1: a
+  hand-written `GridEngine` behind the layout seam, no new dependency
+  ([`grid-v1.md`](../specs/grid-v1.md)). Revisit only if grid needs subgrid or masonry.
 - Browser-divergence policy for `box-sizing` (the default is `content-box`; any difference from browsers is not yet listed).
 - Sticky positioning and scroll-container semantics (see [`scroll-and-gestures-v1.md`](../specs/scroll-and-gestures-v1.md)).
 - Container queries and their interaction with layout invalidation (see [`responsive.md`](responsive.md)).

@@ -74,6 +74,7 @@ This page is the map and reading order for the framework.
 - [`specs/runtime-config-v1.md`](specs/runtime-config-v1.md) — FPS cap, vsync/VRR, pacing,
   dirty rendering, resize, async, deterministic mode
 - [`specs/stylesheet-v1.md`](specs/stylesheet-v1.md) — full CSS syntax + semantic matrix
+- [`specs/grid-v1.md`](specs/grid-v1.md) — CSS Grid subset: supported values, track sizing, placement, alignment, engine seam
 - [`specs/stylesheet-property-status-v1.md`](specs/stylesheet-property-status-v1.md) — per registered longhand: applied / parsed only, with the consumer and proving test
 - [`specs/component-parts-v1.md`](specs/component-parts-v1.md) — `::part(name)`: the `part` attribute, cross-boundary matching, specificity, `@supports selector()`
 - [`specs/compiled-stylesheet-v1.md`](specs/compiled-stylesheet-v1.md) — precompiled stylesheet blob format (prepare/resolve split, ADR-048)

@@ -353,10 +353,10 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 
 | Area | V1 semantics | Later |
 |---|---|---|
-| Box model | `display` (block/flex/none), `width/height/min/max`, `margin`, `padding`, `border`, `box-sizing` (default `content-box`, as in CSS), `aspect-ratio`, `overflow`, `field-sizing` (`fixed`, `content`; `content` makes a `TextArea` a measured leaf, see [layout-observation.md](../design/layout-observation.md) section 6.3) | table, multi-column |
+| Box model | `display` (block/flex/grid/none), `width/height/min/max`, `margin`, `padding`, `border`, `box-sizing` (default `content-box`, as in CSS), `aspect-ratio`, `overflow`, `field-sizing` (`fixed`, `content`; `content` makes a `TextArea` a measured leaf, see [layout-observation.md](../design/layout-observation.md) section 6.3) | table, multi-column |
 | Scrolling | `overflow`, `scroll-behavior`, `overscroll-behavior`, `overscroll-effect`, `scrollbar-gutter` | scroll-driven animations, CSS `scroll-snap-*` properties (the scroll controller already implements snap physics in V1, configured through `ScrollSnap` in [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md); `allow_chain` is derived from `overscroll-behavior`, there is no `scroll-chain` property) |
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
-| Grid | fixed/repeat columns/rows, gap, span, basic alignment | subgrid, masonry, dense auto-placement |
+| Grid | `display: grid`, `grid-template-columns/rows` (lengths, percentages, `fr`, `auto`, `min-content`/`max-content`, `minmax()`, `repeat(<integer>, ...)`), item `grid-column`/`grid-row` (line numbers and `span n`), `gap`, `justify-items`/`justify-self`, `align-items`/`align-self`, `justify-content`/`align-content`, `grid-auto-flow` (`row`, `column`); full value list in [`grid-v1.md`](grid-v1.md) | subgrid, masonry, dense auto-placement, named lines/areas, `grid-auto-columns`/`grid-auto-rows`, `fit-content()` |
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
 | Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color`, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | gradients, images, `filter`, general `clip-path`, lens/refraction |
 | View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |

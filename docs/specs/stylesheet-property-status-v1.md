@@ -74,10 +74,16 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `align-items` | applied | `layout_style.cpp`; `layout` |
 | `align-self` | applied | `layout_style.cpp`; `layout` |
 | `align-content` | applied | `layout_style.cpp`; `layout` |
-| `justify-content` | applied | `layout_style.cpp`; `layout` |
-| `justify-items` | parsed only | CSS ignores `justify-items` on a flex container and V1 has no grid layout, so there is nothing to apply it to. The registry entry exists so `place-items` expands and `@supports (justify-items: center)` is true. Becomes **applied** when grid layout lands. |
-| `row-gap` | applied | `layout_style.cpp`; `layout` |
-| `column-gap` | applied | `layout_style.cpp`; `layout` |
+| `justify-content` | applied | `layout_style.cpp` (flex) and `grid_tracks.cpp` (grid track alignment); `layout`, `grid_layout` |
+| `justify-items` | applied | `grid_layout.cpp` supplies the default item alignment for a grid container; CSS ignores it on a flex container; `grid_layout` |
+| `justify-self` | applied | `grid_layout.cpp` aligns one grid item in its area; `grid_layout` |
+| `grid-template-columns` | applied | `grid_values.cpp` `parse_grid_template`; `grid_tracks.cpp` `size_axis`; `grid_layout` |
+| `grid-template-rows` | applied | `grid_values.cpp` `parse_grid_template`; `grid_tracks.cpp` `size_axis`; `grid_layout` |
+| `grid-column` | applied | `grid_values.cpp` `parse_grid_line`; `grid_placement.cpp` `place_items`; `grid_layout` |
+| `grid-row` | applied | `grid_values.cpp` `parse_grid_line`; `grid_placement.cpp` `place_items`; `grid_layout` |
+| `grid-auto-flow` | applied | `grid_placement.cpp` `place_items` cursor direction; `grid_layout` |
+| `row-gap` | applied | `layout_style.cpp` (flex) and `grid_tracks.cpp` `resolve_gap` (grid); `layout`, `grid_layout` |
+| `column-gap` | applied | `layout_style.cpp` (flex) and `grid_tracks.cpp` `resolve_gap` (grid); `layout`, `grid_layout` |
 | `order` | applied | `layout_engine.cpp` `child_layout_order` inserts Yoga children in ascending `order` (stable, so ties keep source order) and the box walk uses the same permutation; `property_effects` |
 | `field-sizing` | applied | `layout_engine.cpp` makes a `content` field a measured leaf; `layout` |
 | `overflow-x` | applied | `layout_style.cpp` (Yoga overflow) and `paint_pass.cpp` (child clip); `paint_clip` |

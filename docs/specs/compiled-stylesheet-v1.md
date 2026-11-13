@@ -62,7 +62,7 @@ payload (every element takes at least one byte), so a hostile count cannot drive
 header (24 bytes)
   magic            4   "TSSB"
   format_version   u32 1
-  engine_schema    u32 2
+  engine_schema    u32 3
   source_hash      u64 FNV-1a 64 of the input CSS text (0 when prepared from a parsed tree)
   payload_size     u32 bytes after the header; must equal the remaining length exactly
 payload
@@ -108,9 +108,12 @@ Shared structures:
   the one it was built with (`UnsupportedFormatVersion`); there is no forward reading.
 - `engine_schema` changes when an engine change alters what prepared data means without changing the
   layout (new selector forms, different shorthand expansion, new supported at-rules). A mismatch is
-  rejected (`EngineSchemaMismatch`). Every bump regenerates the committed blob goldens. It is **2**
-  since `::part()` matching landed (issue #235): a blob carrying a `::part()` compound now styles a
-  part element across the component boundary, which the engine that wrote it under 1 did not do.
+  rejected (`EngineSchemaMismatch`). Every bump regenerates the committed blob goldens. It is **3**
+  since the CSS Grid longhands landed (issue #249): `display: grid` and the `grid-*` declarations are
+  kept and laid out as a grid, where an engine that wrote them under 2 either dropped them as
+  unsupported or laid the container out as a flex container. It was **2** from `::part()` matching
+  (issue #235): a blob carrying a `::part()` compound now styles a part element across the component
+  boundary, which the engine that wrote it under 1 did not do.
 - Blobs are build output tied to the tool version that wrote them. ADR-048 makes a mismatch a build
   error for embedded blobs; blobs that arrive at run time (hot reload, designer) are rejected with
   the diagnostic instead.
