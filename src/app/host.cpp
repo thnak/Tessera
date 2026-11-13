@@ -170,6 +170,9 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
     provider = std::make_unique<ui::paint::SceneStyleProvider>(this->sheet, *tree);
     pipeline = std::make_unique<ui::frame::FramePipeline>(animations, this->loop, tracker, *damage,
                                                           dirty, this->config.pipeline);
+    // `@keyframes` for the animation half of the style bridge. The pipeline borrows the vector, so
+    // the pointer is refreshed after every rebuild_cascade() that replaces `sheet` (issue #271).
+    pipeline->set_style_keyframes(&this->sheet.keyframes());
     // Publish the full-quality decision before the first frame, so diagnostics and
     // adaptive_quality() agree from the start instead of reporting a default 1.0 scale for a window
     // configured at another renderScale.
@@ -224,6 +227,7 @@ void AppHost::Impl::rebuild_cascade() {
 // runs the layout pass whenever style work is due).
 void AppHost::Impl::apply_style_generation(ui::Dirty dirty_mask) {
     rebuild_cascade();
+    pipeline->set_style_keyframes(&this->sheet.keyframes());
     rebuild_style_tree();
     pipeline->invalidate_paint_cache();
     mark_subtree(root, dirty_mask);

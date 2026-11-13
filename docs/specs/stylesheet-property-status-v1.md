@@ -167,11 +167,13 @@ The registry accepts these names so the cascade stores them and `@supports` answ
 `FramePipeline::sync_style` runs `StyleBridge` on every style stage, which is what makes these
 names real (issue #271): the transition diff starts `start_style_transitions` for the properties the
 computed style changed, and the animation half calls `sync_style_animations`. Both are evidenced by
-`transition_wiring` end to end. The animation half needs the compiled sheet's `@keyframes` table,
-which the host installs with `FramePipeline::set_style_keyframes`; a pipeline with no table installed
-runs the transition half only. `docs/design/animation-runtime.md` section 9 records the rules: which
-change starts a transition, what an interrupted transition does, and the baseline/retention
-trade-offs.
+`transition_wiring` end to end. The animation half needs the compiled sheet's `@keyframes` table:
+`AppHost` installs it with `FramePipeline::set_style_keyframes` (`src/app/host.cpp`, at construction
+and after every cascade rebuild, because the pipeline borrows the vector), so both halves run in the
+app; a pipeline built without that call runs the transition half only, which is what the
+`transition_wiring` animation case constructs on purpose. `docs/design/animation-runtime.md`
+section 9 records the rules: which change starts a transition, what an interrupted transition does,
+and the baseline/retention trade-offs.
 
 | Property | Status | Consumer / evidence |
 |---|---|---|
