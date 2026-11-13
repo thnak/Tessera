@@ -128,6 +128,9 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
         }
         json.set("kind", JsonValue::string(kind));
         json.set("target", JsonValue::string(action.target));
+        if (action.guard) {
+            json.set("guard", expr_to_json(action.guard.get()));
+        }
         if (action.value) {
             json.set("value", expr_to_json(action.value.get()));
         }

@@ -214,6 +214,20 @@ std::expected<Value, EvalError> Evaluator::eval_call(const ir::Expr& expr, const
 
 std::expected<void, EvalError> Evaluator::run(std::span<const ir::Action> actions, Scope& scope) {
     for (const ir::Action& action : actions) {
+        if (action.guard) {
+            auto held = eval(*action.guard, scope, 0);
+            if (!held) {
+                return std::unexpected(std::move(held.error()));
+            }
+            const bool* flag = held->as_bool();
+            if (flag == nullptr) {
+                return fail("TESSERA_IR_EVAL_TYPE",
+                            "an action guard must be a bool, got " + std::string(type_name(*held)));
+            }
+            if (!*flag) {
+                continue;
+            }
+        }
         if (action.kind == ir::ActionKind::Focus || action.kind == ir::ActionKind::Blur) {
             continue; // focus is host state, not a state/anim value: the evaluator has no scene
         }

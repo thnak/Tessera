@@ -614,6 +614,22 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME focusable_view COMMAND focusable_view_tests)
 
+    # Guarded handler statements (issue #236): `guard && setter(...)` through lowering, the evaluator
+    # and codegen.
+    add_executable(guarded_handler_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/guarded_handler_tests.cpp)
+
+    target_link_libraries(guarded_handler_tests PRIVATE
+        tessera_codegen
+        tessera_lowering
+        tessera_jsx_frontend
+        tessera_react_rules
+        tessera_ir
+        tessera_ir_eval
+        tessera_scene)
+
+    add_test(NAME guarded_handler COMMAND guarded_handler_tests)
+
     # `Field` codegen: the real built-in Field IR declaration plus a form with two instances, the prop
     # matrix (value and callback props), the static Children slot, the golden and determinism.
     add_executable(forms_codegen_tests

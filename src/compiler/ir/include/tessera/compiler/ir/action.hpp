@@ -46,6 +46,10 @@ struct Action {
     // AnimSet only: the `handler::N` (an inline setter handler without parameters) that runs once
     // the value reaches this set's target. Empty means no callback. A later set drops it.
     std::string on_complete{};
+    // Last so the positional `{kind, target, value, animate}` initializers keep working. A pure
+    // bool expression: the action runs only when it holds (`e.key === "Escape" &&
+    // setOpen(false)`, issue #236). Null means unconditional.
+    ExprPtr guard{};
 };
 
 } // namespace tessera::compiler::ir

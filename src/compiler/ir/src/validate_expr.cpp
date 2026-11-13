@@ -291,6 +291,9 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
                       const LocalNames& locals, const std::vector<Action>& actions,
                       const SourceSpan& where) {
     for (const auto& action : actions) {
+        if (action.guard) {
+            require_expr(context, scope, locals, action.guard.get(), where, "an action guard");
+        }
         if (action.kind == ActionKind::Focus || action.kind == ActionKind::Blur) {
             if (!starts_with(action.target, "ref::") || scope.ids.count(action.target) == 0) {
                 context.report("TESSERA_IR_UNRESOLVED",
