@@ -331,6 +331,12 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [ ] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget.
 - [ ] #230: Logical properties (`*-inline-*`, `text-align: start/end`) and the direction contract.
 - [ ] #235: The `::part()` pseudo-element in the stylesheet engine.
+- [ ] #247: `pointer-events`, `user-select` and `aspect-ratio` registered and implemented (#214).
+- [ ] #248: `scroll-behavior`, `overscroll-behavior`, `overscroll-effect` and `scrollbar-gutter` wired to
+      the scroll controller (#214).
+- [ ] #249: CSS Grid subset with a C++ `GridEngine`; Yoga has no grid, taffy only through an ADR (#214).
+- [ ] #250: Test that the stylesheet registry matches the V1 matrix of `stylesheet-v1.md`; it uses a
+      known-gaps allow-list that #247 to #249 empty.
 
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C
