@@ -49,9 +49,9 @@ using lowering_module_test::parse_file;
 
 constexpr std::string_view kScreen = "ui/Screen.tsx";
 constexpr std::string_view kCards = "ui/Cards.tsx";
-constexpr std::string_view kField = "tessera/components/Field.tsx";
-constexpr std::string_view kForm = "tessera/components/Form.tsx";
-constexpr std::string_view kAaa = "tessera/components/Aaa.tsx";
+constexpr std::string_view kField = "packages/tessera-ui/Field.tsx";
+constexpr std::string_view kForm = "packages/tessera-ui/Form.tsx";
+constexpr std::string_view kAaa = "packages/tessera-ui/Aaa.tsx";
 
 ir::Node make_node(std::string id, ir::NodeKind kind) {
     ir::Node node;

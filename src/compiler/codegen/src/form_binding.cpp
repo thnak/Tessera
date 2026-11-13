@@ -22,8 +22,20 @@
 namespace tessera::compiler::codegen::internal {
 namespace {
 
-constexpr std::string_view kFieldFile = "tessera/components/Field.tsx";
-constexpr std::string_view kFormFile = "tessera/components/Form.tsx";
+// The package sources of `Field` and `Form` (issue #234). The bundled registry names them
+// `packages/tessera-ui/<Name>.tsx`; a project that configures its own `tessera-ui` package root
+// compiles the same files under its own project-relative path, so the check is the trailing
+// `tessera-ui/<Name>.tsx`.
+constexpr std::string_view kFieldFile = "tessera-ui/Field.tsx";
+constexpr std::string_view kFormFile = "tessera-ui/Form.tsx";
+
+bool is_package_file(std::string_view file, std::string_view tail) {
+    if (file == tail) {
+        return true;
+    }
+    return file.size() > tail.size() && file.ends_with(tail) &&
+           file[file.size() - tail.size() - 1] == '/';
+}
 
 // The forms model caps rules per field (FormConfig::max_rules_per_field); the binding must not emit
 // a configuration the model would silently truncate.
@@ -315,10 +327,10 @@ bool is_library_component(const ir::Component& component, std::string_view name)
         return false;
     }
     if (name == "Field") {
-        return component.source.file == kFieldFile;
+        return is_package_file(component.source.file, kFieldFile);
     }
     if (name == "Form") {
-        return component.source.file == kFormFile;
+        return is_package_file(component.source.file, kFormFile);
     }
     return false;
 }

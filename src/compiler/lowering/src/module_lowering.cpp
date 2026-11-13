@@ -212,6 +212,53 @@ std::optional<std::size_t> resolve_project_file(ProjectState& state, const Modul
     return target;
 }
 
+// The `tessera-ui` package ships bundled with the compiler (its sources are packages/tessera-ui and
+// the registry is generated from them). A project that configures its own `tessera-ui` package
+// root compiles those sources as ordinary project files instead, so the bundled copy only answers
+// when no such entry exists.
+constexpr std::string_view kLibraryPackage = "tessera-ui";
+
+bool is_bundled_library_import(std::string_view specifier, std::span<const PackageRoot> packages) {
+    const bool names_library =
+        specifier == kLibraryPackage ||
+        (specifier.size() > kLibraryPackage.size() && specifier.starts_with(kLibraryPackage) &&
+         specifier[kLibraryPackage.size()] == '/');
+    if (!names_library) {
+        return false;
+    }
+    return std::none_of(packages.begin(), packages.end(),
+                        [](const PackageRoot& package) { return package.name == kLibraryPackage; });
+}
+
+// `from "tessera-ui"` and `from "tessera-ui/<Name>"` against the bundled registry: every imported
+// name must be a library component (and the component named by a subpath), and it becomes an
+// ordinary component reference whose IR declaration the module receives.
+bool resolve_bundled_library(ProjectState& state, FileEntry& entry, const jsx::ModuleItem& item) {
+    const ModuleSource& source = *entry.source;
+    const std::string_view subpath = std::string_view(item.source).substr(kLibraryPackage.size());
+    const std::string_view only = subpath.empty() ? std::string_view() : subpath.substr(1);
+    if (!only.empty() && find_library_component(only) == nullptr) {
+        fail(state, source, "TESSERA_IR_UNRESOLVED",
+             "import `" + item.source + "` does not name a component of the `tessera-ui` package",
+             item.span);
+        return false;
+    }
+    for (const jsx::ImportName& name : item.names) {
+        const LibraryComponent* library = find_library_component(name.name);
+        if (library == nullptr || (!only.empty() && name.name != only)) {
+            fail(state, source, "TESSERA_IR_UNRESOLVED",
+                 "`" + std::string(name.name) + "` is not exported by `" + item.source + "`",
+                 item.span);
+            return false;
+        }
+        if (!has_ref(entry, name.local())) {
+            entry.component_refs.push_back(
+                ComponentRef{std::string(name.local()), std::string(library->id)});
+        }
+    }
+    return true;
+}
+
 // Builds the component references and import graph of one file. False after reporting an error.
 bool resolve_imports(ProjectState& state, std::size_t index, std::span<const PackageRoot> packages,
                      std::span<const StylesheetFile> stylesheets) {
@@ -262,16 +309,23 @@ bool resolve_imports(ProjectState& state, std::size_t index, std::span<const Pac
             continue;
         }
         if (item.source == "tessera") {
-            // A framework import may name a library component
-            // (docs/design/component-library.md): it becomes an ordinary component reference, and
-            // the module gets the component's IR declaration. Hooks, intrinsics and types keep
-            // resolving through the schema.
+            // Hooks, intrinsics and types resolve through the schema. Library components do not:
+            // they ship in the `tessera-ui` package (issue #234, ADR-047 item 1).
             for (const jsx::ImportName& name : item.names) {
-                const LibraryComponent* library = find_library_component(name.name);
-                if (library != nullptr && !has_ref(entry, name.local())) {
-                    entry.component_refs.push_back(
-                        ComponentRef{std::string(name.local()), std::string(library->id)});
+                if (find_library_component(name.name) != nullptr) {
+                    fail(state, source, "TESSERA_IR_UNSUPPORTED",
+                         "`" + std::string(name.name) +
+                             "` is a library component and comes from `tessera-ui`, not `tessera`",
+                         item.span,
+                         "import { " + std::string(name.name) + " } from \"tessera-ui\"");
+                    return false;
                 }
+            }
+            continue;
+        }
+        if (is_bundled_library_import(item.source, packages)) {
+            if (!resolve_bundled_library(state, entry, item)) {
+                return false;
             }
             continue;
         }
@@ -343,16 +397,22 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
     // Library components are IR data, not project files: include each referenced one once. A
     // project component of the same name wins (the local declaration is the reference target), so
     // the built-in declaration is only added when the name is not declared anywhere.
+    // The reference's id names the library component; its local tag may be a rename
+    // (`import { Field as Row }`), so the lookup is by id, and the declaration keeps its own name.
     std::vector<std::string> referenced_library;
     for (const FileEntry& entry : state.files) {
         for (const ComponentRef& reference : entry.component_refs) {
-            const LibraryComponent* library = find_library_component(reference.name);
-            if (library == nullptr || reference.id != library->id) {
+            const std::span<const LibraryComponent> registry = library_components();
+            const auto found =
+                std::find_if(registry.begin(), registry.end(),
+                             [&](const LibraryComponent& item) { return item.id == reference.id; });
+            if (found == registry.end()) {
                 continue;
             }
-            if (std::find(referenced_library.begin(), referenced_library.end(), reference.name) ==
+            const std::string name(found->name);
+            if (std::find(referenced_library.begin(), referenced_library.end(), name) ==
                 referenced_library.end()) {
-                referenced_library.push_back(reference.name);
+                referenced_library.push_back(name);
             }
         }
     }

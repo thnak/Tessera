@@ -123,8 +123,11 @@ Specified in [`live-capsule-v1`](../specs/live-capsule-v1.md); this section is t
 
 ### 3.5 Field and Form IR generation (issue #70)
 
-- `tessera/components/Field.tsx` and `tessera/components/Form.tsx` are the single source of truth for
-  the first two library components: their names, `comp::` ids, declared prop records, destructuring
+- `packages/tessera-ui/Field.tsx` and `packages/tessera-ui/Form.tsx` (with
+  `packages/tessera-ui/tessera-package.json`, [`package-manifest-v1.md`](../specs/package-manifest-v1.md))
+  are the single source of truth for the first two library components. Applications import them as
+  `from "tessera-ui"` or `from "tessera-ui/Field"`; `from "tessera"` does not provide them (issue
+  #234). They are: their names, `comp::` ids, declared prop records, destructuring
   defaults and node trees. Nothing builds their IR by hand.
 - The build runs `tessera_codegen --emit-library-cpp` over both files (CMake lists the two sources as
   explicit dependencies) and compiles the generated `library_components_generated.cpp` into

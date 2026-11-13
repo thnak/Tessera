@@ -1531,7 +1531,7 @@ target_link_libraries(lowering_module_determinism_tests PRIVATE
 add_test(NAME lowering_module_determinism COMMAND lowering_module_determinism_tests)
 
 # Field/Form are authored as real TSX sources (issue #70): the build lowers the two files under
-# tessera/components/ into library_components_generated.cpp, and this test re-lowers the committed
+# packages/tessera-ui/ into library_components_generated.cpp, and this test re-lowers the committed
 # sources in-process to prove the embedded declaration is not stale and cannot drift.
 add_executable(library_tsx_parity_tests
     library_tsx_parity_tests.cpp)
@@ -1539,7 +1539,7 @@ add_executable(library_tsx_parity_tests
 target_link_libraries(library_tsx_parity_tests PRIVATE tessera_lowering)
 
 target_compile_definitions(library_tsx_parity_tests PRIVATE
-    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/tessera/components")
+    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/packages/tessera-ui")
 
 add_test(NAME library_tsx_parity COMMAND library_tsx_parity_tests)
 
@@ -1939,7 +1939,7 @@ target_link_libraries(ir_ids_stability_tests PRIVATE
     tessera_codegen)
 
 target_compile_definitions(ir_ids_stability_tests PRIVATE
-    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/tessera/components")
+    TESSERA_LIBRARY_TSX_DIR="${CMAKE_SOURCE_DIR}/packages/tessera-ui")
 
 add_test(NAME ir_ids_stability COMMAND ir_ids_stability_tests)
 

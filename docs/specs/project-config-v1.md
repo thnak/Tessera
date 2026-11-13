@@ -88,10 +88,18 @@ by default. `"tessera"` and `"react"` are never captured by a package root.
 |---|---|---|---|
 | `name` | string | yes | Bare specifier, no `/` or `.`; unique; not `tessera` or `react` |
 | `root` | string | yes | Project-relative POSIX directory; no leading `./`, no `..`, no absolute path |
+| `version` | string | no | The version the application requires: `X.Y.Z` (exactly that version) or `^X.Y.Z` (same major, at least `X.Y.Z`). No pre-release or build suffix, no leading zeros. Absent means no version check |
 
 ```json
-"packages": [{ "name": "acme-ui", "root": "packages/acme-ui/src" }]
+"packages": [{ "name": "tessera-ui", "root": "packages/tessera-ui", "version": "^1.2.0" }]
 ```
+
+Both `"tessera-ui"` and a subpath such as `"tessera-ui/primitives"` resolve inside the one root
+(`<root>/index` and `<root>/primitives`).
+
+A declared `version` is checked against the package root's `tessera-package.json` before any file
+is compiled; the manifest, the check and its diagnostics are in
+[`package-manifest-v1.md`](package-manifest-v1.md).
 
 ## `codegen`
 
@@ -428,7 +436,7 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
 6. `codegen.outDir` must not be inside `ui.sourceDirs`.
 7. `build.staticRuntime` must be `true`.
 8. `dependencies.linkLibraries` must be reviewed (ADR-013, MIT license and permissive dependencies); no GPL/LGPL in statically linked code.
-9. Unknown fields, absolute paths, duplicate binding ids and duplicate `packages` names are
+9. Unknown fields, absolute paths, duplicate binding ids and duplicate `packages` names and a `packages[].version` that is not `X.Y.Z` or `^X.Y.Z` are
    errors; a `packages[].root` is a project-relative directory inside the project.
 10. `tessera generate --check` fails if generated output differs from the working tree.
 11. `runtime` follows [runtime-config-v1.md](runtime-config-v1.md) validation; `deterministic`

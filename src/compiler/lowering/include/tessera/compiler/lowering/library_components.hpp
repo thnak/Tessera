@@ -14,7 +14,7 @@
 // path. There is no intrinsic node kind for any library component (docs/specs/forms-and-
 // validation-v1.md section 5, Q-09).
 //
-// The declarations are authored in `tessera/components/*.tsx` and lowered at build time by
+// The declarations are authored in `packages/tessera-ui/*.tsx` and lowered at build time by
 // `tessera_codegen --emit-library-cpp`; the generated data is compiled into `tessera_lowering`.
 // See docs/design/component-library.md section 3.5 for the generation contract.
 namespace tessera::compiler::lowering {
@@ -36,7 +36,7 @@ struct LibraryComponent {
 // The IR declaration of one library component: its declared prop records (docs/specs/forms-and-
 // validation-v1.md section 5.1) and the node tree it builds, including a static `children` slot
 // that a Field wrapper places around the caller's widget. Deterministic: the same component always
-// yields the same IR, with source spans that name the real TSX file under `tessera/components/`.
+// yields the same IR, with source spans that name the real TSX file under `packages/tessera-ui/`.
 [[nodiscard]] ir::Component make_library_component(const LibraryComponent& component);
 
 } // namespace tessera::compiler::lowering

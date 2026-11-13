@@ -3,6 +3,7 @@
 // Project identity and import resolution for the codegen CLI (docs/specs/project-config-v1.md,
 // docs/specs/automation-ids-v1.md section 2, issue #70).
 
+#include "package_manifest.hpp"
 #include "project_identity.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/harness/json_parse.hpp"
@@ -23,9 +24,10 @@ namespace {
 namespace fs = std::filesystem;
 namespace lowering = tessera::compiler::lowering;
 
-// Reads the optional `packages` array: every entry is `{ "name": string, "root": string }` with a
-// unique name and a project-relative directory (no absolute path, drive letter or `..` escape).
-// Returns false and sets `why` on a malformed entry; an absent/null `packages` is valid.
+// Reads the optional `packages` array: every entry is `{ "name": string, "root": string }` plus an
+// optional `"version"` (checked later by check_package_versions), with a unique name and a
+// project-relative directory (no absolute path, drive letter or `..` escape). Returns false and
+// sets `why` on a malformed entry; an absent/null `packages` is valid.
 bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
                    std::string& why) {
     const tessera::harness::JsonValue* packages = config.find("packages");
@@ -71,7 +73,19 @@ bool read_packages(const tessera::harness::JsonValue& config, ProjectIdentity& i
                 return false;
             }
         }
-        identity.packages.push_back(PackageRootSpec{std::string(*name), std::move(root)});
+        std::string version;
+        if (const tessera::harness::JsonValue* version_node = entry.find("version");
+            version_node != nullptr && !version_node->is_null()) {
+            const std::optional<std::string_view> text = version_node->as_string();
+            if (!text || !parse_requirement(*text)) {
+                why = "package `" + std::string(*name) +
+                      "` `version` must be a string `X.Y.Z` or `^X.Y.Z`";
+                return false;
+            }
+            version = std::string(*text);
+        }
+        identity.packages.push_back(
+            PackageRootSpec{std::string(*name), std::move(root), std::move(version)});
     }
     return true;
 }

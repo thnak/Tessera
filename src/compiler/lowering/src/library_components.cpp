@@ -5,8 +5,8 @@
 // from docs/specs/forms-and-validation-v1.md section 5: library components with typed prop records,
 // a static `children` slot, and no validation logic of their own.
 //
-// The declarations are no longer hand-built here (issue #70). `tessera/components/Field.tsx` and
-// `tessera/components/Form.tsx` are the source of truth: the build runs `tessera_codegen
+// The declarations are no longer hand-built here (issue #70). `packages/tessera-ui/Field.tsx` and
+// `packages/tessera-ui/Form.tsx` are the source of truth: the build runs `tessera_codegen
 // --emit-library-cpp` over them and compiles the generated translation unit into this library. This
 // file is the stable public contract only: the search over the generated registry and the IR
 // builder delegate. A generated declaration that does not lower cleanly fails the build; there is
