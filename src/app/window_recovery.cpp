@@ -14,6 +14,7 @@
 #include "tessera/app/recovery_policy.hpp"
 #include "window_impl.hpp"
 
+#include <cstdio>
 #include <stdexcept>
 #include <utility>
 
@@ -27,6 +28,9 @@ bool WindowHost::Impl::create_presentation() {
         return false;
     }
     const hal::WindowMetrics metrics = window->metrics();
+    // The platform resolved whether the window system can present a translucent client area; the
+    // frame clear follows the swapchain's actual composite mode (set below), not this flag alone.
+    translucent_presentation = false;
     // The RHI probe is the only authority on the GPU frame-time signal (docs/design/performance.md
     // section 6.1). It is resolved once per presentation generation; a device without timestamp
     // queries, a zero period or a non-graphics queue leaves the CPU fallback in place.
@@ -36,13 +40,33 @@ bool WindowHost::Impl::create_presentation() {
     swap_desc.extent = {metrics.physical_width, metrics.physical_height};
     swap_desc.image_count = 2;
     swap_desc.vsync = options.vsync;
+    // A translucent window needs per-pixel alpha from the presentation surface (glass-v1.md section
+    // 6). The platform already resolved whether the window system can present it; the swapchain is
+    // the final gate. The request is a value: a surface without a premultiplied mode presents
+    // opaque and the fallback below reports it once.
+    const bool wants_transparency = metrics.transparent;
+    swap_desc.per_pixel_alpha = wants_transparency;
     swap_desc.native_window = window->native_handle().window;
     swap_desc.native_display = window->native_handle().display;
     auto created = device->create_swapchain(swap_desc);
+    if (!created && swap_desc.per_pixel_alpha) {
+        // The surface refused a per-pixel-alpha swapchain (a driver or surface without the mode,
+        // even though the window system reported it can show one). Retrying opaque keeps the window
+        // usable instead of failing the host, and the fallback is reported once below.
+        swap_desc.per_pixel_alpha = false;
+        created = device->create_swapchain(swap_desc);
+    }
     if (!created) {
         return false;
     }
     swapchain = std::move(*created);
+    const bool alpha_presented = swapchain->alpha_mode() == rhi::SwapchainAlphaMode::PreMultiplied;
+    translucent_presentation = wants_transparency && alpha_presented;
+    if (wants_transparency && !alpha_presented && !alpha_fallback_reported) {
+        alpha_fallback_reported = true;
+        std::fprintf(stderr, "TESSERA_GLASS_WINDOW_UNSUPPORTED: the presentation surface offers no "
+                             "per-pixel alpha; the window stays opaque\n");
+    }
     // Fixed for this swapchain generation: whether a smaller render target (the adaptive render
     // scale) can be resampled into the presented images (docs/design/performance.md section 6.1).
     scaled_present_supported = swapchain->supports_scaled_present();

@@ -42,6 +42,8 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
     add_library(tessera_app_window STATIC
         frame_capture.cpp
         window.cpp
+        window_backdrop_request.cpp
+        window_backdrop_request.hpp
         window_impl.hpp
         window_internal.hpp
         window_lifecycle.cpp

@@ -10,7 +10,11 @@
 int main() {
     using namespace tessera::rendering;
 
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersion != ((1u << 16) | 1u)) {
+    // Pin the published contract version: 1.1 added `copy_target_region` (issue #242); 1.2 added
+    // the swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6,
+    // issue #243), both additive compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 2 ||
+        rhi::kRhiVersion != ((1u << 16) | 2u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

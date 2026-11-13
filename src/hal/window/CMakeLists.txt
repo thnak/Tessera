@@ -11,7 +11,10 @@ add_library(tessera_hal_window STATIC)
 # X11 mode math) live here on every platform, so the platform files only read the OS value and hand
 # it over. Tests compile this file directly, without a window or a display.
 target_sources(tessera_hal_window PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/refresh_rate.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/refresh_rate.cpp
+    # The OS backdrop resolution table (docs/specs/glass-v1.md section 6): pure, platform-neutral,
+    # so the platform files only detect capabilities and apply the returned material.
+    ${CMAKE_CURRENT_SOURCE_DIR}/backdrop.cpp)
 
 # Private shared implementation header (normalized event ring).
 target_include_directories(tessera_hal_window PRIVATE
@@ -21,6 +24,7 @@ if (WIN32)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_accessibility.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_backdrop.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_ime_translation.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input_ime.cpp
@@ -29,12 +33,14 @@ if (WIN32)
         ${PROJECT_SOURCE_DIR}/src/platform/windows)
     # Input is translated straight into the application's ui::InputQueue. imm32 provides the IME
     # composition-string queries; uiautomationcore answers WM_GETOBJECT with the accessibility
-    # bridge's root provider (UiaReturnRawElementProvider).
+    # bridge's root provider (UiaReturnRawElementProvider). dwmapi owns the Windows 11 system
+    # backdrop attribute and the frame extension of a translucent window (glass-v1.md section 6).
     target_link_libraries(tessera_hal_window PUBLIC user32 PRIVATE tessera_input imm32
-        uiautomationcore)
+        uiautomationcore dwmapi)
 elseif (TESSERA_X11_FOUND)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_translation.cpp

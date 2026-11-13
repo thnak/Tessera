@@ -172,6 +172,8 @@ bool parse_condition(std::string_view inner, MediaCondition& condition) {
         condition.feature = MediaFeature::PrefersColorScheme;
     } else if (name == "prefers-reduced-motion") {
         condition.feature = MediaFeature::PrefersReducedMotion;
+    } else if (name == "window-backdrop") {
+        condition.feature = MediaFeature::WindowBackdrop;
     } else {
         return false;
     }
@@ -237,6 +239,23 @@ bool compare_number(double actual, double expected, MediaComparison comparison) 
     return false;
 }
 
+// The `window-backdrop` grammar of glass-v1.md section 2: `none | mica | acrylic | blur` on the
+// resolved material. Kept local (a keyword comparison, not a HAL call) so the style library has no
+// link dependency on the window HAL; `auto` is a request and therefore never matches.
+bool backdrop_keyword_matches(std::string_view value, hal::BackdropMaterial material) {
+    switch (material) {
+    case hal::BackdropMaterial::NoMaterial:
+        return value == "none";
+    case hal::BackdropMaterial::Mica:
+        return value == "mica";
+    case hal::BackdropMaterial::Acrylic:
+        return value == "acrylic";
+    case hal::BackdropMaterial::Blur:
+        return value == "blur";
+    }
+    return false;
+}
+
 bool evaluate_condition(const MediaCondition& condition, const MediaContext& context) {
     const std::string value = lower(trim(condition.value));
     switch (condition.feature) {
@@ -279,6 +298,11 @@ bool evaluate_condition(const MediaCondition& condition, const MediaContext& con
             return !context.prefers_reduced_motion;
         }
         return false;
+    case MediaFeature::WindowBackdrop:
+        // Unknown keywords (including `auto`) do not match, exactly like an unknown `orientation`
+        // value. `none` matches only the resolved "no material" answer, so a stylesheet can carry
+        // its own opaque fallback.
+        return backdrop_keyword_matches(value, context.window_backdrop);
     }
     return false;
 }

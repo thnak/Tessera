@@ -26,6 +26,7 @@ constexpr std::size_t kFramesInFlight = 2;
 constexpr std::uint64_t kFrameWaitMs = 5000;
 
 using tessera::rendering::rhi::Swapchain;
+using tessera::rendering::rhi::SwapchainAlphaMode;
 using tessera::rendering::rhi::SwapchainDesc;
 using tessera::rendering::rhi::SwapchainError;
 using tessera::rendering::vulkan::VulkanSwapchain;
@@ -129,6 +130,10 @@ int main() {
     desc.extent = {initial.physical_width, initial.physical_height};
     desc.image_count = 3;
     desc.vsync = true;
+    // A translucent window requests per-pixel alpha (glass-v1.md section 6); this 24-bit test
+    // window normally only offers opaque, which is the documented fallback, and the reported mode
+    // must agree with the surface capability either way.
+    desc.per_pixel_alpha = true;
     desc.native_display = display;
     desc.native_window = reinterpret_cast<void*>(static_cast<std::uintptr_t>(native));
 
@@ -159,6 +164,13 @@ int main() {
         !expect(swapchain->image_count() >= 2, "swapchain has at least two images")) {
         XCloseDisplay(display);
         return 5;
+    }
+    const bool alpha_supported = swapchain->supports_per_pixel_alpha();
+    if (!expect(swapchain->alpha_mode() == (alpha_supported ? SwapchainAlphaMode::PreMultiplied
+                                                            : SwapchainAlphaMode::Opaque),
+                "composite alpha mode matches the surface capability")) {
+        XCloseDisplay(display);
+        return 12;
     }
 
     const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
@@ -276,6 +288,6 @@ int main() {
     XCloseDisplay(display);
 
     std::cout << "vulkan_swapchain_x11: ok (" << swapchains_created << " swapchains, " << presents
-              << " presents)\n";
+              << " presents, alpha=" << (alpha_supported ? "premultiplied" : "opaque") << ")\n";
     return 0;
 }

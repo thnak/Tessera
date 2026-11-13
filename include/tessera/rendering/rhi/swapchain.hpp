@@ -23,6 +23,18 @@ struct SwapchainDesc {
     // Window id and `native_display` is the Display*.
     void* native_window = nullptr;
     void* native_display = nullptr;
+    // Asks for a per-pixel-alpha composite mode so a translucent window's client area reaches the
+    // compositor (glass-v1.md section 6). It is a request: a surface that offers no such mode
+    // presents opaque, and the caller reads Swapchain::alpha_mode() to decide whether translucency
+    // was obtained.
+    bool per_pixel_alpha = false;
+};
+
+// The composite mode the surface actually got. `PreMultiplied` is the per-pixel-alpha mode the
+// engine requires for a translucent window; `Opaque` is the documented fallback.
+enum class SwapchainAlphaMode : std::uint8_t {
+    Opaque = 0,
+    PreMultiplied = 1,
 };
 
 // Frame-pacing counters of a swapchain that gates slot reuse on GPU completion (see
@@ -61,6 +73,21 @@ public:
     [[nodiscard]] virtual Extent2D extent() const = 0;
     [[nodiscard]] virtual TextureFormat format() const = 0;
     [[nodiscard]] virtual std::uint32_t image_count() const = 0;
+
+    // The composite mode in force for this swapchain generation (glass-v1.md section 6). A caller
+    // that requested `per_pixel_alpha` and reads `Opaque` must apply its documented opaque fallback
+    // (the engine reports TESSERA_GLASS_WINDOW_UNSUPPORTED once). Backends without a presentation
+    // surface answer Opaque.
+    [[nodiscard]] virtual SwapchainAlphaMode alpha_mode() const {
+        return SwapchainAlphaMode::Opaque;
+    }
+
+    // True when this surface offers a per-pixel-alpha composite mode, so a `per_pixel_alpha`
+    // request can be honored. It is a creation-time capability of the surface, and the value stays
+    // valid across a resize/recreation while the surface does.
+    [[nodiscard]] virtual bool supports_per_pixel_alpha() const {
+        return false;
+    }
 
     // Returns the index of an image ready to render. timeout_ms == 0 polls; real backends clamp
     // larger values to a bounded internal wait so the UI thread never blocks indefinitely, and

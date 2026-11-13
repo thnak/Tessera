@@ -82,6 +82,42 @@ int main() {
         return 7;
     }
 
+    // `@media (window-backdrop: ...)` matches the platform's resolved material, never a request
+    // (glass-v1.md section 6). The default context is the null/headless answer: no material, so a
+    // stylesheet's opaque fallback applies.
+    {
+        MediaContext backdrop_context;
+        using tessera::hal::BackdropMaterial;
+        if (!expect(matches("(window-backdrop: none)", backdrop_context),
+                    "backdrop none default") ||
+            !expect(!matches("(window-backdrop: mica)", backdrop_context),
+                    "backdrop mica false by default")) {
+            return 8;
+        }
+        backdrop_context.window_backdrop = BackdropMaterial::Mica;
+        if (!expect(matches("(window-backdrop: mica)", backdrop_context), "backdrop mica") ||
+            !expect(!matches("(window-backdrop: none)", backdrop_context),
+                    "backdrop none false on mica") ||
+            !expect(matches("NOT (window-backdrop: none)", backdrop_context), "backdrop negated")) {
+            return 9;
+        }
+        backdrop_context.window_backdrop = BackdropMaterial::Acrylic;
+        if (!expect(matches("(window-backdrop: acrylic)", backdrop_context), "backdrop acrylic") ||
+            !expect(!matches("(window-backdrop: blur)", backdrop_context), "acrylic is not blur")) {
+            return 10;
+        }
+        backdrop_context.window_backdrop = BackdropMaterial::Blur;
+        if (!expect(matches("(window-backdrop: BLUR)", backdrop_context),
+                    "backdrop keyword is case-insensitive") ||
+            // `auto` is a request, never a resolved material: it cannot match.
+            !expect(!matches("(window-backdrop: auto)", backdrop_context),
+                    "backdrop auto never matches") ||
+            !expect(!matches("(window-backdrop: fancy)", backdrop_context),
+                    "unknown backdrop value does not match")) {
+            return 11;
+        }
+    }
+
     std::cout << "media_query: ok\n";
     return 0;
 }

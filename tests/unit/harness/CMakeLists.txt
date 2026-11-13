@@ -129,6 +129,19 @@ target_link_libraries(harness_fake_hal_tests PRIVATE tessera_harness_testing)
 
 add_test(NAME harness_fake_hal COMMAND harness_fake_hal_tests)
 
+# glass-v1.md section 6 with a fake HAL: the `window-backdrop` resolution table for every platform
+# row and the `@media (window-backdrop: none)` fallback a stylesheet uses when no material is
+# offered. No window, compositor or GPU is created.
+add_executable(harness_window_backdrop_tests
+    backdrop_tests.cpp)
+
+target_link_libraries(harness_window_backdrop_tests PRIVATE
+    tessera_harness_testing
+    tessera_hal_window
+    tessera_style)
+
+add_test(NAME harness_window_backdrop COMMAND harness_window_backdrop_tests)
+
 add_executable(harness_script_tests
     script_tests.cpp)
 

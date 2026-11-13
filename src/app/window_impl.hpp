@@ -170,6 +170,12 @@ struct WindowHost::Impl {
     std::array<std::unique_ptr<rhi::RenderTarget>, detail::kFramesInFlight> scaled_targets;
     std::array<rhi::Extent2D, detail::kFramesInFlight> scaled_target_extents{};
     bool scaled_present_supported = false;
+    // True when the platform window presents a translucent client area (glass-v1.md section 6), so
+    // every frame clears to transparent black instead of the app window background.
+    bool translucent_presentation = false;
+    // True once the per-pixel-alpha fallback (glass-v1.md section 6) was reported, so a swapchain
+    // recreation during a run does not repeat TESSERA_GLASS_WINDOW_UNSUPPORTED.
+    bool alpha_fallback_reported = false;
     std::unique_ptr<rhi::Pipeline> pipeline;
     std::unique_ptr<rhi::Texture> white;
     std::unique_ptr<rendering::gpu::Batched2DRenderer> renderer;

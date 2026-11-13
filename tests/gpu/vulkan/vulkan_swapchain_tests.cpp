@@ -25,6 +25,7 @@
 namespace {
 
 using tessera::rendering::rhi::Swapchain;
+using tessera::rendering::rhi::SwapchainAlphaMode;
 using tessera::rendering::rhi::SwapchainDesc;
 using tessera::rendering::rhi::SwapchainError;
 using tessera::rendering::rhi::TextureFormat;
@@ -126,6 +127,9 @@ int main() {
     desc.extent = {initial.physical_width, initial.physical_height};
     desc.image_count = 3;
     desc.vsync = true;
+    // A translucent window requests per-pixel alpha (glass-v1.md section 6); the surface decides
+    // whether it can honor the request, and the resolved mode is reported back.
+    desc.per_pixel_alpha = true;
     desc.native_window = hwnd;
 
     auto created = device->create_swapchain(desc);
@@ -161,6 +165,16 @@ int main() {
         return 5;
     }
     const bool srgb_swapchain = tessera::rendering::rhi::is_srgb(chosen_format);
+
+    // The composite-alpha contract: a premultiplied mode exactly when the surface offers one, and
+    // the reported mode matches the capability. The test skips cleanly on a surface without alpha
+    // (a 24-bit visual, a headless WSI); the fallback is verified as Opaque, not as a failure.
+    const bool alpha_supported = swapchain->supports_per_pixel_alpha();
+    if (!expect(swapchain->alpha_mode() == (alpha_supported ? SwapchainAlphaMode::PreMultiplied
+                                                            : SwapchainAlphaMode::Opaque),
+                "composite alpha mode matches the surface capability")) {
+        return 19;
+    }
 
     const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
     tessera::rendering::rhi::TextureDesc white_desc;
@@ -292,6 +306,7 @@ int main() {
 
     std::cout << "vulkan_swapchain: ok (" << swapchains_created << " swapchains, " << presents
               << " presents, format=" << format_name(chosen_format)
-              << (srgb_swapchain ? " (sRGB)" : " (UNORM fallback)") << ")\n";
+              << (srgb_swapchain ? " (sRGB)" : " (UNORM fallback)")
+              << ", alpha=" << (alpha_supported ? "premultiplied" : "opaque") << ")\n";
     return 0;
 }

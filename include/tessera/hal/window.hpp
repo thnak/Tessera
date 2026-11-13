@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/hal/refresh_rate.hpp"
+#include "tessera/hal/window_backdrop.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -36,6 +37,17 @@ struct WindowMetrics {
     bool focused = true;
     bool occluded = false;
     bool minimized = false;
+    // The material the OS actually draws behind a translucent window (glass-v1.md section 6). The
+    // engine sees only this resolved value; no DWM, X11 or Wayland call crosses this boundary.
+    BackdropMaterial backdrop = BackdropMaterial::NoMaterial;
+    // True when the window is presented with a translucent client area. The swapchain's composite
+    // alpha is the final gate on a backend that cannot present per-pixel alpha; the platform sets
+    // this from its own window-system capability (DWM composition, an X11 compositing manager and
+    // 32-bit visual, intrinsic on Wayland), and a false value here is the opaque fallback.
+    bool transparent = false;
+    // True when the requested backdrop or translucency could not be honored: the platform resolved
+    // to the opaque fallback, and the driver reports TESSERA_GLASS_WINDOW_UNSUPPORTED once.
+    bool backdrop_fallback = false;
 };
 
 enum class WindowEventType {
@@ -96,6 +108,13 @@ struct WindowDesc {
     std::uint32_t width = 1280;
     std::uint32_t height = 720;
     bool visible = true;
+    // The requested OS backdrop (the resolved root `window-backdrop`, glass-v1.md section 6). A
+    // non-`Disabled` request implies a translucent client area; `transparent` also asks for one
+    // without a named material. `win10_acrylic` opts into the undocumented Windows 10 accent policy
+    // that only `win10Acrylic: true` may enable.
+    WindowBackdrop backdrop = WindowBackdrop::Disabled;
+    bool transparent = false;
+    bool win10_acrylic = false;
 };
 
 // Platform window seam. Implementations live under src/platform/<os>/ and own every OS handle;

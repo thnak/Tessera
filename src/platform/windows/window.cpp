@@ -17,6 +17,7 @@
 #include "tessera/hal/window.hpp"
 #include "win32_input.hpp"
 #include "window_accessibility_win.hpp"
+#include "window_backdrop.hpp"
 #include "window_event_queue.hpp"
 
 #include <algorithm>
@@ -137,6 +138,9 @@ private:
     AccessibilityRoot accessibility_root_{};
     bool focused_ = false;
     bool minimized_ = false;
+    // The OS backdrop this window resolved at creation (glass-v1.md section 6); the engine reads it
+    // only through WindowMetrics and never re-applies it during a run.
+    BackdropResolution backdrop_{};
     bool initializing_ = true;
     bool applying_dpi_rect_ = false;
     bool close_posted_ = false;
@@ -215,6 +219,11 @@ bool Win32Window::create(const WindowDesc& desc) {
         }
     }
 
+    // The backdrop is applied before the window is shown, so the first visible frame already has
+    // its material or its documented opaque fallback (window-chrome-v1.md C1/C7).
+    backdrop_ =
+        detail::apply_window_backdrop(hwnd_, desc.backdrop, desc.transparent, desc.win10_acrylic);
+
     if (desc.visible) {
         ShowWindow(hwnd_, SW_SHOW);
         UpdateWindow(hwnd_);
@@ -263,6 +272,9 @@ WindowMetrics Win32Window::metrics() const {
     metrics.dpi_scale = dpi_scale(dpi);
     metrics.focused = focused_;
     metrics.minimized = IsIconic(hwnd_) != FALSE;
+    metrics.backdrop = backdrop_.material;
+    metrics.transparent = backdrop_.transparent;
+    metrics.backdrop_fallback = backdrop_.fallback;
     return metrics;
 }
 

@@ -94,14 +94,17 @@ inline std::unique_ptr<rhi::Texture> create_white(rhi::Device& device) {
     return device.create_texture(desc);
 }
 
-// Clears to the app window background so a frame never presents uninitialized pixels.
-inline rhi::RenderTargetDesc target_desc(rhi::Extent2D extent, rhi::TextureFormat format) {
+// Clears to the app window background so a frame never presents uninitialized pixels. A translucent
+// window clears to transparent black instead: the OS material shows through where the stylesheet
+// paints nothing (glass-v1.md section 6).
+inline rhi::RenderTargetDesc target_desc(rhi::Extent2D extent, rhi::TextureFormat format,
+                                         rhi::Color clear_color = rhi::rgba8(11, 18, 32)) {
     rhi::RenderTargetDesc desc;
     desc.extent = extent;
     desc.format = format;
     desc.load_op = rhi::LoadOp::Clear;
     desc.store_op = rhi::StoreOp::Store;
-    desc.clear_color = rhi::rgba8(11, 18, 32);
+    desc.clear_color = clear_color;
     return desc;
 }
 

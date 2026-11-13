@@ -35,9 +35,11 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.1**
-  (`0x00010001`): 1.0 is the B1 surface, 1.1 adds `CommandList::copy_target_region` for the
-  isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)).
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.2**
+  (`0x00010002`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
+  swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243).
+  Both later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
   `timestamp_capability()`). Backends declare the implemented major version with a compile-time
@@ -70,6 +72,17 @@ B1 fields:
 | `TextureDesc` | `extent`, `format`, `pixels`, `row_pitch`, `filter`, `address` |
 | `RenderTargetDesc` | `extent`, `format`, `clear_color`, `load_op`, `store_op` |
 | `PipelineDesc` | vertex/fragment SPIR-V, vertex layout, color format, blend, push-constant size |
+| `SwapchainDesc` | `extent`, `format`, `image_count`, `vsync`, `native_window`, `native_display`, `per_pixel_alpha` |
+
+Presentation notes (RHI 1.2, additive):
+
+- `SwapchainDesc::per_pixel_alpha` asks for a composite mode that lets a translucent window's client
+  area reach the compositor (docs/specs/glass-v1.md section 6). It is a request, not a guarantee.
+- `Swapchain::alpha_mode()` reports the mode actually obtained (`Opaque` or `PreMultiplied`) and
+  `supports_per_pixel_alpha()` reports whether the surface offers one; a caller applies its opaque
+  fallback on the first without failing the frame.
+- The old opaque selection is unchanged when `per_pixel_alpha` is false, so every existing caller
+  keeps byte-identical behaviour.
 
 Rules:
 
