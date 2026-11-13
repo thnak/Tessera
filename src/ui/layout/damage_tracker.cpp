@@ -26,7 +26,7 @@ bool intersects(const rendering::rhi::Rect& lhs, const rendering::rhi::Rect& rhs
 // The subtree flag prunes whole branches, so a non-glass tree costs one boolean per root.
 void collect_glass_boxes(const Node& node, const std::vector<rendering::rhi::Rect>& damage_rects,
                          float dpi_scale, std::vector<rendering::rhi::Rect>& out) {
-    if (!node.visible() || !node.glass_subtree()) {
+    if (!node.rendered() || !node.glass_subtree()) {
         return;
     }
     if (node.glass_blur_sigma() > 0.0f) {
@@ -114,7 +114,7 @@ DamagePassResult DamageTracker::add_scene_damage(const DirtyPass& dirty,
 std::size_t DamageTracker::add_glass_dependencies(const Node& root,
                                                   rendering::DamageAccumulator& damage,
                                                   float dpi_scale, float margin) {
-    if (!root.visible() || !root.glass_subtree() || damage.rects().empty()) {
+    if (!root.rendered() || !root.glass_subtree() || damage.rects().empty()) {
         return 0;
     }
     // Adding to the accumulator invalidates its rect list, so the frame's damage is snapshotted

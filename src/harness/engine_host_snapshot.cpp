@@ -102,7 +102,7 @@ build_source_node(const ui::Node& node, std::string_view path, bool parent_visib
         source.bounds =
             ui::automation::SnapshotBounds{bounds.x, bounds.y, bounds.width, bounds.height};
     }
-    source.visible = parent_visible && node.visible();
+    source.visible = parent_visible && node.rendered();
     source.enabled = !ui::style::has_state(node.pseudo_state(), ui::style::PseudoState::Disabled);
     source.focused = ui::style::has_state(node.pseudo_state(), ui::style::PseudoState::Focus);
     source.selected = ui::style::has_state(node.pseudo_state(), ui::style::PseudoState::Checked);

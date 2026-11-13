@@ -51,7 +51,7 @@ int z_index_value(const style::ComputedStyle& style) {
 // Returns whether this node's subtree contains a glass node (itself included).
 bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLimits& glass,
                SceneStyleSyncResult& result) {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         return false;
     }
     const style::ComputedStyle style = styles.compute(node);

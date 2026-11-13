@@ -130,7 +130,7 @@ runtime::AdaptiveQualityConfig quality_controller_config(const AdaptiveQualityPo
 // reduces. Read from the outsets the style sync already stores on each node, so it needs no style
 // resolution. Allocation-free; it runs only on the observation that changes the ladder position.
 bool scene_has_blurred_shadow(const ui::Node& node) noexcept {
-    if (!node.visible()) {
+    if (!node.rendered()) {
         return false;
     }
     if (node.paint_outsets().blurred) {

@@ -349,7 +349,7 @@ meaning given in the section 11 legend; `parse` means parsed with no semantic ef
 ## 11. Compatibility matrix
 
 Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semantic effect;
-**Later** = planned after V1; the release is not specified.
+**Later** = planned after V1; the release is not specified. Per registered longhand, with its consumer and proving test, see [`stylesheet-property-status-v1.md`](stylesheet-property-status-v1.md).
 
 | Area | V1 semantics | Later |
 |---|---|---|

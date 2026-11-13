@@ -59,6 +59,16 @@ UserSelect user_select_value(const std::string* value) {
     return UserSelect::Auto;
 }
 
+// `visible` and any unsupported form resolve to false, so V1 falls back to the default painted
+// behaviour instead of hiding a node for a value it did not implement.
+bool style_hidden_value(const std::string* value) {
+    if (value == nullptr) {
+        return false;
+    }
+    const std::string_view normalized = trim(*value);
+    return equals_lower(normalized, "hidden") || equals_lower(normalized, "collapse");
+}
+
 void sync_node(Node& node, InteractionStyleFn compute, void* context,
                InteractionStyleSyncResult& result) {
     if (!node.visible()) {
@@ -78,6 +88,17 @@ void sync_node(Node& node, InteractionStyleFn compute, void* context,
     if (user_select != node.user_select()) {
         node.set_user_select(user_select);
         ++result.changed_user_select;
+    }
+    // `visibility` is inherited, so the computed value already carries the ancestor resolution.
+    // V1 hides the whole subtree (a descendant cannot re-enable with `visibility: visible`), which
+    // is why the walk stops here instead of descending into a hidden node.
+    const bool style_hidden = style_hidden_value(style.find("visibility"));
+    if (style_hidden != node.style_hidden()) {
+        node.set_style_hidden(style_hidden);
+        ++result.changed_visibility;
+    }
+    if (style_hidden) {
+        return;
     }
 
     for (const auto& child : node.children()) {
