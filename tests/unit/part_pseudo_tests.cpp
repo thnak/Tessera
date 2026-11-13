@@ -62,10 +62,6 @@ const PseudoClass* first_pseudo(const SelectorParseResult& parsed) {
     return &compound.front().pseudos.front();
 }
 
-bool supported(std::string_view text) {
-    return tessera::ui::style::selector_supported(text);
-}
-
 bool supports(std::string_view text) {
     const auto parsed = parse_supports_condition(text);
     return parsed.ok && evaluate_supports(parsed.condition, tessera::ui::style::PropertyRegistry{});

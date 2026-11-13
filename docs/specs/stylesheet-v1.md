@@ -152,8 +152,7 @@ Must handle:
     `:nth-last-child(An+B)`, `:first-of-type`, `:last-of-type`, `:empty`, `:root`
   - logical: `:not(...)`, `:is(...)`, `:where(...)`
   - `:has(...)` is parsed in V1; evaluation is listed as Later in section 11
-- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified)
-- component parts: `::part(<ident>+)` (implemented; section 6.3)
+- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified); component parts `::part(<ident>+)` are implemented ([`component-parts-v1.md`](component-parts-v1.md))
 - `:not()`/`:is()`/`:where()` accept a selector list; `:where()` contributes zero specificity
 
 ### 6.2 Matching rules
@@ -163,17 +162,7 @@ Must handle:
 - `:root` matches the scene root.
 - `:hover`/`:active`/`:focus` are driven by the input pseudo-state dispatcher (section 12, Input).
 - Sibling combinators use the scene-graph child order (paint order).
-- No shadow DOM, no slots, no `:host` in V1; `::part()` is the only selector form that crosses a
-  component boundary, and a component is an ordinary scene subtree (6.3).
-
-### 6.3 Component parts: `::part(name)`
-
-Parts are the styling API of a component (ADR-047 item 3): a component's inner elements declare
-`part="<name>"` and the host stylesheet reaches them with `::part(<ident>+)`, the only selector
-form that crosses a component boundary. The normative rules — the two-element match, the
-one-host boundary, the grammar, specificity, the cascade, `@supports selector()` and the
-undeclared-part diagnostic — are in [`component-parts-v1.md`](component-parts-v1.md).
-
+- No shadow DOM, no slots, no `:host` in V1. `::part(<ident>+)` is the only selector form that crosses a component boundary ([`component-parts-v1.md`](component-parts-v1.md), ADR-047 item 3).
 ## 7. Cascade
 
 ### 7.1 Origins
@@ -199,8 +188,7 @@ For each declaration:
 - `!important` wins over normal declarations; among important declarations the origin order
   is reversed per CSS Cascade: user-agent > user > author, and within the author origin an
   inline `style="..."` declaration beats author rules.
-- Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`; `::part()`
-  contributes a pseudo-element and its names add nothing (6.3).
+- Specificity is `(ids, classes/attributes/pseudo-classes, types/pseudo-elements)`; `::part()` counts as a pseudo-element and its names add nothing.
 - `:where()` contributes zero specificity.
 - Equal keys are resolved by source order; the later declaration wins.
 - Build-time and runtime must use the same stable source ordering.
@@ -508,8 +496,7 @@ matches):**
 
 ## 12. Integration
 
-- **StyleNode**: `tag`, `id`, `classes`, attributes, `part` names and the nearest component host
-  (the `::part()` boundary), parent/siblings, pseudo-state bits, inline style, theme scope.
+- **StyleNode**: `tag`, `id`, `classes`, attributes, `part` names and the nearest component host, parent/siblings, pseudo-state bits, inline style, theme scope.
 - **Layout**: `ui/layout` reads layout longhands and maps them to Yoga nodes ([ADR-005](../../decisions/ADR-005-yoga-layout-adapter.md)). See
   [`layout.md`](../design/layout.md).
 - **Paint**: the batched 2D renderer reads paint longhands and produces quads/SDF/text. See
@@ -592,13 +579,7 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 
 - Parser corpus: valid/invalid tokens, escapes, comments, strings, functions.
 - Selector corpus: specificity, combinators, structural pseudo-classes, `:not/:is/:where`.
-- Component parts (issue #235, `tests/unit/part_pseudo_tests.cpp`): `parsing` (the
-  `::part(<ident>+)` grammar and every rejected form), `specificity` (the pseudo-element component
-  only, `:where()` still zero), `matching` (the host side matches the component instance, one
-  boundary only, no component means no part, part-side `:hover`, the selector index), `cascade` (a
-  `::part()` rule styles a part on a real scene), `diagnostics` (the undeclared-part rule for a
-  registered component and silence for an app one), `supports_queries` (6.4) and `blob_round_trip`
-  (the compiled-stylesheet spec).
+- Component parts: the corpus is listed in [`component-parts-v1.md`](component-parts-v1.md) section 8.
 - Cascade corpus: origins, `!important`, inline vs stylesheet, layer order, source order.
 - Custom properties: fallback, inheritance, cycles, theme overrides.
 - Property matrix: parse/validate/shorthand expansion/computed values.
