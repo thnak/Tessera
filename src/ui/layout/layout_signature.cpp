@@ -26,7 +26,7 @@ constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 // `scrollbar-gutter` is layout input (it reserves the overlay scrollbar width); the other scroll
 // style properties (`scroll-behavior`, `overscroll-behavior`, `overscroll-effect`) are runtime
 // inputs for the scroll controller and are deliberately absent so changing one never reflows.
-constexpr std::array<std::string_view, 64> kLayoutProperties = {{
+constexpr std::array<std::string_view, 71> kLayoutProperties = {{
     "align-content",
     "align-items",
     "align-self",
@@ -56,10 +56,17 @@ constexpr std::array<std::string_view, 64> kLayoutProperties = {{
     "font-size",
     "font-style",
     "font-weight",
+    "grid-auto-flow",
+    "grid-column",
+    "grid-row",
+    "grid-template-columns",
+    "grid-template-rows",
     "height",
     "inset-inline-end",
     "inset-inline-start",
     "justify-content",
+    "justify-items",
+    "justify-self",
     "left",
     "letter-spacing",
     "line-height",
