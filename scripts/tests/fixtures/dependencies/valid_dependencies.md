@@ -30,3 +30,4 @@ without touching the real dependency map.
 | Rho | System | System | `platform/windows` | system window API |
 | Rho | System | System | `platform/windows` | duplicate row (same status, warning only) |
 | C++23 standard library | V1 hard | — | all | standard library, not a third-party component |
+| Psi | Post-V1 (macOS, native Metal) | System | `platform/macos` | fixture post-V1 platform API; no notice required |
