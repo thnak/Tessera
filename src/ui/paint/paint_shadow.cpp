@@ -185,7 +185,7 @@ ShadowOutsets shadow_outsets(const style::ComputedStyle& style) {
 
 void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect, float radius,
                        float opacity, const rhi::Color& current_color, PaintSink& sink,
-                       PaintStats& stats) {
+                       PaintStats& stats, bool reduce_effects) {
     if (opacity <= 0.0f) {
         return;
     }
@@ -225,8 +225,9 @@ void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect,
         // alpha of each layer is chosen so the cumulative "over" composite inside layer j equals
         // the Gaussian coverage at the middle of its band. The innermost band is the full color.
         const float sigma = shadow.blur * 0.5f;
-        const int layers = std::clamp(static_cast<int>(std::ceil(shadow.blur * 0.5f)),
-                                      kMinBlurLayers, kMaxBlurLayers);
+        const int full_layers = std::clamp(static_cast<int>(std::ceil(shadow.blur * 0.5f)),
+                                           kMinBlurLayers, kMaxBlurLayers);
+        const int layers = reduce_effects ? std::min(full_layers, kReducedBlurLayers) : full_layers;
         const float step = 2.0f * shadow.blur / static_cast<float>(layers);
         float previous = 0.0f;
         for (int j = 0; j < layers; ++j) {

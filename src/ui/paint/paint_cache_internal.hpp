@@ -30,6 +30,7 @@ struct PassState {
     bool cacheable = false; // cache != null, enabled, no PaintView installed
     std::uint32_t metrics_source_id = kStubTextMetricsId;
     std::uint32_t device_scale_bits = 0;
+    bool reduce_effects = false;
 };
 
 inline std::uint32_t float_bits(float value) {
@@ -68,6 +69,7 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     signature.clip_depth = clip_scope.depth;
     signature.metrics_source_id = pass.metrics_source_id;
     signature.device_scale_bits = pass.device_scale_bits;
+    signature.reduce_effects = pass.reduce_effects;
     return signature;
 }
 

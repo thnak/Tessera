@@ -89,6 +89,11 @@ struct PaintContext {
     // Device scale used for caret width (1 px at scale 1, 2 px at scale >= 2) and future
     // decoration metrics. Defaults to 1 so tests/goldens are unchanged.
     float device_scale = 1.0f;
+    // Adaptive quality's first ladder position (performance.md section 6.1, #147): paint optional
+    // effects in a cheaper form. Today that is the blurred box-shadow stack, which keeps its box,
+    // reach and colour but is emitted with fewer concentric layers. Painted reach never changes, so
+    // damage stays valid. False paints at full quality.
+    bool reduce_effects = false;
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.
     const PaintView* view = nullptr;

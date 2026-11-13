@@ -332,7 +332,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         // The shadow sits beneath the node's own background, borders and content.
         const std::optional<float> shadow_radius = detail::uniform_radius(style);
         detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), opacity, current, *own,
-                                  stats);
+                                  stats, context.reduce_effects);
         paint_background(style, rect, opacity, current, *own, stats);
         paint_linear_gradient(node, style, rect, opacity, *own, stats);
         paint_borders(style, rect, opacity, current, *own, stats);
@@ -416,6 +416,7 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                                  ? context.text_metrics_source->id()
                                  : kStubTextMetricsId;
     pass.device_scale_bits = detail::float_bits(context.device_scale);
+    pass.reduce_effects = context.reduce_effects;
     paint_node(root, styles, sink, stats, context, Frame{}, PaintScope{}, detail::ClipScope{},
                pass);
     return stats;

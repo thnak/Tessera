@@ -328,8 +328,14 @@ void AppHost::observe_frame_time_sample(double cpu_frame_time_ms,
     const runtime::FrameTimeSample sample =
         runtime::select_frame_time(cpu_frame_time_ms, gpu_frame_time_ms);
     state.frame_diagnostics.record_frame_time_source(sample.source);
-    state.frame_diagnostics.record_adaptive_quality(
-        state.quality_controller.observe(sample.frame_time_ms));
+    const runtime::AdaptiveQualitySample decision =
+        state.quality_controller.observe(sample.frame_time_ms);
+    state.frame_diagnostics.record_adaptive_quality(decision);
+    if (decision.effects_reduced != state.pipeline->reduce_effects()) {
+        state.pipeline->set_reduce_effects(decision.effects_reduced);
+        // Pixels change with the flag, and a settled on-demand scene has nothing else to repaint.
+        request_full_repaint();
+    }
 }
 
 const runtime::AdaptiveQualitySample& AppHost::adaptive_quality() const {

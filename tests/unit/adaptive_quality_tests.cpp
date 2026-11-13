@@ -498,6 +498,58 @@ bool host_observes_frames_and_records_the_change() {
     return ok;
 }
 
+// The effects position reaches the paint pass: the host's next paint emits the capped blur stack,
+// and recovery restores the full stack (the paint cache re-records because the flag is in its key).
+bool host_paints_cheaper_shadows_while_effects_are_reduced() {
+    Node root(1);
+    Node& card = root.add_child(std::make_unique<Node>(2));
+    card.set_class_name("card");
+    auto sheet = compile_stylesheet(R"(
+.card { width: 100px; height: 40px; background-color: #1e293b; box-shadow: 0 0 12px #000000; }
+)");
+    ManualClock clock;
+    RuntimeLoop loop(clock);
+    HostConfig config;
+    config.width = 320.0f;
+    config.height = 200.0f;
+    config.adaptive_quality = AdaptiveQualityPolicy{};
+    config.adaptive_quality.frame_budget_ms = 16.0;
+    config.adaptive_quality.render_scale = 1.0f;
+    config.adaptive_quality.min_render_scale = 0.5f;
+    AppHost host(root, std::move(sheet), loop, config);
+
+    const auto run_frame = [&](double frame_ms) {
+        clock.advance(1.0 / 60.0);
+        loop.mark_render_dirty();
+        const tessera::runtime::RuntimeTick tick = loop.tick();
+        (void)host.begin_frame(1.0 / 60.0, tick.alpha);
+        host.end_frame();
+        host.observe_frame_time_ms(frame_ms);
+    };
+    const auto shadow_layers = [&host] {
+        host.request_full_repaint();
+        RecordingSink sink;
+        return host.paint(sink, true).stats.shadows;
+    };
+
+    run_frame(kMetMs);
+    const std::size_t full = shadow_layers();
+    bool ok = expect(full > 2, "a 12px blur paints a multi-layer stack at full quality");
+    for (std::uint32_t frame = 0; frame < kAdaptiveQualityDowngradeMisses; ++frame) {
+        run_frame(kMissMs);
+    }
+    ok = expect(host.adaptive_quality().effects_reduced, "the first downgrade reduces effects") &&
+         ok;
+    ok = expect(shadow_layers() == 2, "the next paint emits the capped blur stack") && ok;
+    for (std::uint32_t frame = 0;
+         frame < kAdaptiveQualityCooldownFrames + kAdaptiveQualityUpgradeHits; ++frame) {
+        run_frame(kMetMs);
+    }
+    ok = expect(!host.adaptive_quality().effects_reduced, "recovery restores effects") && ok;
+    ok = expect(shadow_layers() == full, "the full blur stack is back after recovery") && ok;
+    return ok;
+}
+
 // --- 8. The ladder ends (ADR-019 section 8, #147) -----------------------------------------------
 
 bool ladder_order_is_effects_scale_then_pause() {
@@ -573,6 +625,7 @@ int main() {
     ok = identical_sequences_decide_identically() && ok;
     ok = the_decision_carries_the_present_cap() && ok;
     ok = host_observes_frames_and_records_the_change() && ok;
+    ok = host_paints_cheaper_shadows_while_effects_are_reduced() && ok;
     ok = ladder_order_is_effects_scale_then_pause() && ok;
     ok = recovery_restores_pause_then_effects_in_reverse() && ok;
     if (!ok) {

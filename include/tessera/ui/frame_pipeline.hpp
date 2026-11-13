@@ -181,6 +181,15 @@ public:
             current_samples_.clear();
         }
     }
+    // Adaptive quality's effects position (#147): paint optional effects in their cheaper form.
+    // The flag is part of the paint-cache key, so a flip re-records instead of replaying stale
+    // commands; the caller still requests a repaint because pixels change.
+    void set_reduce_effects(bool reduce) {
+        reduce_effects_ = reduce;
+    }
+    [[nodiscard]] bool reduce_effects() const {
+        return reduce_effects_;
+    }
     [[nodiscard]] bool interpolation() const {
         return config_.interpolation;
     }
@@ -213,6 +222,7 @@ private:
     std::unordered_map<NodeId, std::array<float, 8>> last_damaged_corners_;
     double alpha_ = 0.0;
     bool interpolate_ = false;
+    bool reduce_effects_ = false;
 };
 
 } // namespace tessera::ui::frame

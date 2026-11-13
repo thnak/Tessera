@@ -166,6 +166,7 @@ struct PaintCacheSignature {
     // Context inputs that change emitted values.
     std::uint32_t metrics_source_id = 0;
     std::uint32_t device_scale_bits = 0;
+    bool reduce_effects = false;
 };
 
 // Seed of the deterministic FNV-1a clip-stack fingerprint. A paint starts from this value; every

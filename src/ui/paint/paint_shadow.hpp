@@ -50,8 +50,13 @@ ShadowOutsets shadow_outsets(const style::ComputedStyle& style);
 // Paints the outer shadows of `rect` beneath the node's own background: one rounded fill for a
 // sharp shadow, and a deterministic stack of concentric fills whose cumulative alpha follows the
 // Gaussian edge profile for a blurred one. `radius` is the node's uniform corner radius.
+//
+// `reduce_effects` caps a blurred shadow at kReducedBlurLayers layers: same box, reach and colour,
+// a coarser edge, fewer fills. Sharp shadows are a single fill already and do not change.
 void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect, float radius,
                        float opacity, const rhi::Color& current_color, PaintSink& sink,
-                       PaintStats& stats);
+                       PaintStats& stats, bool reduce_effects = false);
+
+inline constexpr int kReducedBlurLayers = 2;
 
 } // namespace tessera::ui::paint::detail

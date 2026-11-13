@@ -42,7 +42,8 @@ bool same_signature(const PaintCacheSignature& lhs, const PaintCacheSignature& r
            lhs.sink_supports_transform == rhs.sink_supports_transform &&
            same_rect(lhs.paint_rect, rhs.paint_rect) && lhs.clip_hash == rhs.clip_hash &&
            lhs.clip_depth == rhs.clip_depth && lhs.metrics_source_id == rhs.metrics_source_id &&
-           lhs.device_scale_bits == rhs.device_scale_bits;
+           lhs.device_scale_bits == rhs.device_scale_bits &&
+           lhs.reduce_effects == rhs.reduce_effects;
 }
 
 std::uint64_t mix(std::uint64_t seed, std::uint64_t value) {

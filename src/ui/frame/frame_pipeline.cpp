@@ -357,6 +357,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     }
     const InterpolationPaintView view = interpolation_view();
     paint::PaintContext context;
+    context.reduce_effects = reduce_effects_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
     }
@@ -377,6 +378,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     }
     const InterpolationPaintView view = interpolation_view();
     paint::PaintContext context;
+    context.reduce_effects = reduce_effects_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
     }

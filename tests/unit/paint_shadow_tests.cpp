@@ -186,6 +186,40 @@ bool blur_follows_a_gaussian_edge() {
     return expect(rising, "coverage never decreases toward the interior") && ok;
 }
 
+bool reduced_effects_keep_the_reach_with_fewer_layers() {
+    Node node(1);
+    node.set_bounds({10, 10, 50, 40});
+    StubStyles styles;
+    styles.set(1, styled({{"box-shadow", "0 0 12px #000000"}}));
+    RecordingSink full_sink;
+    const PaintStats full = paint_scene(node, styles, full_sink);
+    RecordingSink reduced_sink;
+    tessera::ui::paint::PaintContext context;
+    context.reduce_effects = true;
+    const PaintStats reduced = paint_scene(node, styles, reduced_sink, context);
+    bool ok = expect(reduced.shadows == 2 && reduced.shadows < full.shadows,
+                     "reduced effects emit the capped number of blur layers");
+    // The outermost layer is the shadow's full reach, so damage and the visible silhouette hold.
+    ok = expect(!reduced_sink.ops.empty() && !full_sink.ops.empty() &&
+                    near(reduced_sink.ops.front().rect.width, full_sink.ops.front().rect.width) &&
+                    near(reduced_sink.ops.front().rect.height, full_sink.ops.front().rect.height),
+                "the outer extent of a reduced shadow equals the full one") &&
+         ok;
+    // The innermost layer is still painted with a visible alpha: the shadow keeps its colour.
+    ok = expect(reduced_sink.ops.back().color.a > 0.0f,
+                "a reduced shadow still paints a visible innermost layer") &&
+         ok;
+    // A sharp shadow is already one fill: reduction changes nothing.
+    styles.set(1, styled({{"box-shadow", "4px 4px 0 #000000"}}));
+    RecordingSink sharp_full;
+    RecordingSink sharp_reduced;
+    const PaintStats a = paint_scene(node, styles, sharp_full);
+    const PaintStats b = paint_scene(node, styles, sharp_reduced, context);
+    ok =
+        expect(a.shadows == 1 && b.shadows == 1, "a sharp shadow is unaffected by reduction") && ok;
+    return ok;
+}
+
 bool outsets_reach() {
     const auto outsets = shadow_outsets(styled({{"box-shadow", "10px 5px 4px 2px #000"}}));
     const auto none = shadow_outsets(styled({{"box-shadow", "none"}}));
@@ -215,6 +249,7 @@ int main() {
     ok = radius_opacity_and_lists() && ok;
     ok = invalid_none_and_inset() && ok;
     ok = blur_follows_a_gaussian_edge() && ok;
+    ok = reduced_effects_keep_the_reach_with_fewer_layers() && ok;
     ok = outsets_reach() && ok;
     ok = list_is_bounded() && ok;
     if (!ok) {
