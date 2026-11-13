@@ -1419,6 +1419,16 @@ target_link_libraries(frame_pipeline_style_sync_tests PRIVATE tessera_frame tess
 
 add_test(NAME frame_pipeline_style_sync COMMAND frame_pipeline_style_sync_tests)
 
+# Transition and animation declarations reach the frame pipeline (issue #271): a stylesheet
+# `transition: opacity 200ms linear` starts an AnimationId from `FramePipeline::sync_style` and the
+# sampled overlay moves the computed value, and the same call drives the `animation-*` bridge.
+add_executable(transition_wiring_tests
+    transition_wiring_tests.cpp)
+
+target_link_libraries(transition_wiring_tests PRIVATE tessera_frame tessera_runtime)
+
+add_test(NAME transition_wiring COMMAND transition_wiring_tests)
+
 add_executable(lowering_expression_tests
     lowering_expression_tests.cpp)
 

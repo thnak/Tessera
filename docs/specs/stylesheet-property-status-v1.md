@@ -164,22 +164,31 @@ property that is *documented* as applied and is not, which is what the cross-che
 The registry accepts these names so the cascade stores them and `@supports` answers true (issue
 #250); their grammars and expansion live in `src/ui/animation/`, not in the registry.
 
+`FramePipeline::sync_style` runs `StyleBridge` on every style stage, which is what makes these
+names real (issue #271): the transition diff starts `start_style_transitions` for the properties the
+computed style changed, and the animation half calls `sync_style_animations`. Both are evidenced by
+`transition_wiring` end to end. The animation half needs the compiled sheet's `@keyframes` table,
+which the host installs with `FramePipeline::set_style_keyframes`; a pipeline with no table installed
+runs the transition half only. `docs/design/animation-runtime.md` section 9 records the rules: which
+change starts a transition, what an interrupted transition does, and the baseline/retention
+trade-offs.
+
 | Property | Status | Consumer / evidence |
 |---|---|---|
-| `animation-name` | applied | `animation_style.cpp` `parse_style_animations` reads it (with the seven longhands below) and `sync_style_animations` starts the runtime animations; `animation_sync`. The frame-pipeline call that drives the bridge per node is the remaining integration. |
-| `animation-duration` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
-| `animation-timing-function` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
-| `animation-delay` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
-| `animation-iteration-count` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
-| `animation-direction` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
-| `animation-fill-mode` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
-| `animation-play-state` | applied | `animation_style.cpp` `parse_style_animations` → `parse_animation_longhands`; `animation_sync` |
-| `animation` | applied | `animation_style.cpp` `parse_style_animations` falls back to the shorthand when `animation-name` is absent; `animation_shorthand` |
-| `transition-property` | parsed only | The transition runtime is driven by `parse_transition_longhands`/`parse_transition_list`, which nothing in `src/` calls with computed style yet: `start_style_transitions` is exercised by `transition_pipeline` only. Becomes **applied** when the frame pipeline reads the transition declarations from computed style and calls it. |
-| `transition-duration` | parsed only | Same as `transition-property`: the longhand is stored and `@supports`-visible, but no production caller reads it from computed style yet. |
-| `transition-timing-function` | parsed only | Same as `transition-property`. |
-| `transition-delay` | parsed only | Same as `transition-property`. |
-| `transition` | parsed only | Same as `transition-property`: `parse_transition_list` parses the shorthand, but no production caller reads `transition` from computed style yet. |
+| `animation-name` | applied | `parse_style_animations` reads it and `sync_style_animations` starts the runtime animations; `FramePipeline::sync_style` drives that per node through `StyleBridge` (`style_bridge.cpp`) on every style stage; `animation_sync`, `transition_wiring` |
+| `animation-duration` | applied | `parse_style_animations` → `parse_animation_longhands`; `FramePipeline::sync_style` → `StyleBridge`; `animation_sync`, `transition_wiring` |
+| `animation-timing-function` | applied | `parse_style_animations` → `parse_animation_longhands`; `animation_sync`, `transition_wiring` |
+| `animation-delay` | applied | `parse_style_animations` → `parse_animation_longhands`; `animation_sync`, `transition_wiring` |
+| `animation-iteration-count` | applied | `parse_style_animations` → `parse_animation_longhands`; `animation_sync`, `transition_wiring` |
+| `animation-direction` | applied | `parse_style_animations` → `parse_animation_longhands`; `animation_sync`, `transition_wiring` |
+| `animation-fill-mode` | applied | `parse_style_animations` → `parse_animation_longhands`; `animation_sync`, `transition_wiring` |
+| `animation-play-state` | applied | `parse_style_animations` → `parse_animation_longhands`; `ensure_style_animations` pauses/resumes the matching entries (reached through `StyleBridge`); `animation_sync`, `transition_wiring` |
+| `animation` | applied | `parse_style_animations` falls back to the shorthand when `animation-name` is absent; `animation_shorthand`, `transition_wiring` |
+| `transition-property` | applied | `parse_style_transitions` reads it (falling back to the shorthand) and `FramePipeline::sync_style` calls `start_style_transitions` per node when the computed value changes; `transition_wiring` |
+| `transition-duration` | applied | `parse_style_transitions` → `parse_transition_longhands`; the diff starts an entry only for a non-zero duration; `transition_wiring` |
+| `transition-timing-function` | applied | `parse_style_transitions` → `parse_transition_longhands`; `transition_wiring` |
+| `transition-delay` | applied | `parse_style_transitions` → `parse_transition_longhands`; `transition_wiring` |
+| `transition` | applied | `parse_style_transitions` falls back to `parse_transition_list` when `transition-property` is absent; `transition_wiring` |
 
 ## 9. What the cross-check does not cover
 
