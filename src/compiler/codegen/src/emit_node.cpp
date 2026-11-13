@@ -452,7 +452,33 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
     if (paint_expr == nullptr && controlled_input != nullptr) {
         paint_expr = controlled_input->value;
     }
-    if (const std::optional<std::string> paint_text = static_text_value(paint_expr)) {
+    // Inline spans (issue #229): the parent's payload holds the concatenated text plus one
+    // (span node id, byte range) entry per child. The entries are emitted while the children are
+    // created (their ids are only readable then), so this payload is set after the child loop.
+    std::string span_paint;
+    std::vector<std::pair<std::size_t, std::size_t>> span_ranges;
+    const bool inline_spans =
+        node.kind == ir::NodeKind::Text && paint_expr == nullptr && !node.children.empty();
+    if (inline_spans) {
+        std::string combined;
+        for (const ir::Node& child : node.children) {
+            const std::optional<std::string> part =
+                child.text ? static_text_value(child.text.get()) : std::nullopt;
+            if (!part) {
+                return fail(error, "inline span `" + child.id +
+                                       "` needs a literal string text (elements-basic.md 2.1)");
+            }
+            span_ranges.emplace_back(combined.size(), combined.size() + part->size());
+            combined += *part;
+        }
+        span_paint = "paint_" + variable;
+        writer.line("tessera::ui::PaintData " + span_paint + ";");
+        writer.line(span_paint + ".text = " + literal_text(ir::LiteralValue{std::move(combined)}) +
+                    ";");
+    }
+    if (inline_spans) {
+        // The payload is set after the children exist; see the child loop.
+    } else if (const std::optional<std::string> paint_text = static_text_value(paint_expr)) {
         // D9 paint payload: text is visual only (layout/wrap stay paint-side).
         const std::string paint = "paint_" + variable;
         writer.line("tessera::ui::PaintData " + paint + ";");
@@ -486,7 +512,8 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
                         "_ = " + variable + ".get();");
         }
     }
-    for (const ir::Node& child : node.children) {
+    for (std::size_t child_index = 0; child_index < node.children.size(); ++child_index) {
+        const ir::Node& child = node.children[child_index];
         const unsigned child_ordinal = state.next_id;
         const DynamicChildKind kind = state.plan != nullptr
                                           ? state.plan->child_kind(node_ordinal, child_ordinal)
@@ -533,6 +560,16 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         } else {
             writer.line(variable + "->add_child(std::move(" + child_variable + "));");
         }
+        if (!span_paint.empty() && child.kind == ir::NodeKind::Text &&
+            child_index < span_ranges.size()) {
+            const auto& [begin, end] = span_ranges[child_index];
+            writer.line(span_paint + ".spans.push_back(tessera::ui::PaintSpan{" +
+                        "static_cast<std::uint64_t>(" + child_variable + "->id()), " +
+                        std::to_string(begin) + "u, " + std::to_string(end) + "u});");
+        }
+    }
+    if (!span_paint.empty()) {
+        writer.line(variable + "->set_paint_data(std::move(" + span_paint + "));");
     }
     if (virtual_collection != nullptr) {
         writer.line("// " + node.item_template->id + " is the virtual item template: build_item_" +

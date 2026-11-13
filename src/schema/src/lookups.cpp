@@ -25,6 +25,8 @@ std::string_view to_string(ChildrenKind kind) {
         return "none";
     case ChildrenKind::Text:
         return "text";
+    case ChildrenKind::InlineText:
+        return "inline-text";
     case ChildrenKind::Nodes:
         return "nodes";
     case ChildrenKind::TextAndNodes:
@@ -139,6 +141,18 @@ std::span<const ElementRow> elements() {
 
 std::span<const AliasRow> aliases() {
     return internal::alias_table();
+}
+
+std::span<const AliasStyle> alias_style_defaults(std::string_view tag) {
+    const std::span<const AliasStyle> table = internal::alias_style_table();
+    const auto first = std::find_if(table.begin(), table.end(),
+                                    [&](const AliasStyle& row) { return row.tag == tag; });
+    if (first == table.end()) {
+        return {};
+    }
+    const auto last =
+        std::find_if(first, table.end(), [&](const AliasStyle& row) { return row.tag != tag; });
+    return std::span<const AliasStyle>(first, last);
 }
 
 std::span<const DomType> dom_types() {

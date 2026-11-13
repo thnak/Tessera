@@ -173,6 +173,16 @@ constexpr AliasAttr kAnchorAttrs[] = {
 
 // --- tag table ------------------------------------------------------------------------------
 
+// Injected default run styles of the emphasis aliases (html-aliases.md section 2, elements-basic.md
+// section 2.1). Grouped by tag: `alias_style_defaults` returns the contiguous group. These are
+// defaults, not wrapper styles: an explicit className/style of the same property wins in the
+// cascade.
+constexpr AliasStyle kAliasStyles[] = {
+    {"b", "font-weight", "700"},      {"code", "font-family", "monospace"},
+    {"em", "font-style", "italic"},   {"i", "font-style", "italic"},
+    {"strong", "font-weight", "700"},
+};
+
 // Section 5 alternatives, one text per group.
 constexpr std::string_view kAltInline =
     "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets "
@@ -242,6 +252,51 @@ constexpr AliasRow kAliases[] = {
      "no list markers and no numbering"},
     {"li", "View", AliasStatus::Mapped, rows(kInjectRoleListItem), {}, {}, false, "", ""},
     {"span", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
+    {"b",
+     "Text",
+     AliasStatus::Mapped,
+     {},
+     {},
+     {},
+     false,
+     "",
+     "inline span; injects font-weight: 700"},
+    {"strong",
+     "Text",
+     AliasStatus::Mapped,
+     {},
+     {},
+     {},
+     false,
+     "",
+     "inline span; injects font-weight: 700"},
+    {"i",
+     "Text",
+     AliasStatus::Mapped,
+     {},
+     {},
+     {},
+     false,
+     "",
+     "inline span; injects font-style: italic"},
+    {"em",
+     "Text",
+     AliasStatus::Mapped,
+     {},
+     {},
+     {},
+     false,
+     "",
+     "inline span; injects font-style: italic"},
+    {"code",
+     "Text",
+     AliasStatus::Mapped,
+     {},
+     {},
+     {},
+     false,
+     "",
+     "inline span; injects font-family: monospace (no font selection yet, so no metric change)"},
     {"p", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
     {"label",
      "Text",
@@ -338,15 +393,10 @@ constexpr AliasRow kAliases[] = {
     {"img", "Image", AliasStatus::Mapped, {}, rows(kImgAttrs), {}, false, "", ""},
 
     // Section 5: no mapping.
-    {"strong", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"em", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"b", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"i", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
     {"u", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
     {"s", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
     {"small", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
     {"mark", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
-    {"code", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
     {"kbd", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
     {"sub", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
     {"sup", "", AliasStatus::Unsupported, {}, {}, {}, false, kAltInline, ""},
@@ -436,13 +486,30 @@ constexpr bool alias_rows_are_valid(std::span<const AliasRow> list) {
 }
 
 static_assert(alias_rows_are_valid(kAliases), "alias rows are unique and well-formed");
-// html-aliases.md section 2 (27 mapped or partial tags) and section 5 (74 unmapped tags).
-static_assert(std::size(kAliases) == 101, "27 mapped or partial tags plus 74 unmapped tags");
+// html-aliases.md section 2 (32 mapped or partial tags) and section 5 (69 unmapped tags).
+static_assert(std::size(kAliases) == 101, "32 mapped or partial tags plus 69 unmapped tags");
+
+constexpr bool alias_styles_are_grouped(std::span<const AliasStyle> list) {
+    for (std::size_t i = 1; i < list.size(); ++i) {
+        if (list[i].tag < list[i - 1].tag) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static_assert(alias_styles_are_grouped(std::span<const AliasStyle>(kAliasStyles)),
+              "alias style defaults are grouped by tag for the subspan lookup");
+static_assert(std::size(kAliasStyles) == 5, "b/strong/i/em/code default styles");
 
 } // namespace
 
 std::span<const AliasRow> alias_table() {
     return kAliases;
+}
+
+std::span<const AliasStyle> alias_style_table() {
+    return std::span<const AliasStyle>(kAliasStyles);
 }
 
 } // namespace tessera::schema::internal

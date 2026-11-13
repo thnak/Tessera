@@ -9,257 +9,227 @@
 #include "node_lowering_internal.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace tessera::compiler::lowering::internal {
 namespace {
 
-struct ChildItem {
-    enum class Kind { Text, Expression, Element, Conditional, Loop, Slot };
+// --- inline spans (issue #229, elements-basic.md section 2.1, ir-v1 section 3.6) --------------
 
-    Kind kind = Kind::Text;
-    const jsx::JsxNode* node = nullptr; // Text node, expression container or element
-    const jsx::Expr* expr = nullptr;    // Expression, Conditional and Loop kinds
-};
+// Bounds of the paint payload that carries the run table (PaintData::spans).
+constexpr std::size_t kMaxInlineSpans = 16;
+constexpr std::size_t kMaxSpanTextBytes = 256;
 
-bool is_run_item(const ChildItem& item) {
-    return item.kind == ChildItem::Kind::Text || item.kind == ChildItem::Kind::Expression;
+// A Text element child is a span when it resolves to the Text intrinsic, including the lowercase
+// aliases that map to it (span, b, strong, i, em, code, a).
+bool is_span_tag(std::string_view tag) {
+    if (tag == "Text") {
+        return true;
+    }
+    const schema::AliasRow* alias = schema::find_alias(tag);
+    return alias != nullptr && alias->status != schema::AliasStatus::Unsupported &&
+           alias->target == "Text";
 }
 
-// Section 3.4: `{children}` of a component that declares the slot is the Slot position, not an
-// ordinary expression child. The name resolver maps the destructured `children` prop to
-// `prop::children`; a local of the same name resolves to itself and is unaffected.
-bool is_children_slot(const NodeState& state, const jsx::Expr& expr) {
-    if (expr.kind != jsx::ExprKind::Identifier) {
+// A span may not change glyph advances or line boxes; the parent's measurement stays exact.
+// `font-family` is accepted (the injected `code` default) but inert while the text stack paints one
+// app face, so it cannot change metrics.
+bool is_metric_style(std::string_view name) {
+    return name == "font-size" || name == "letter-spacing" || name == "white-space";
+}
+
+bool is_span_prop(std::string_view name) {
+    return name == "id" || name == "className" || name == "role" || name.rfind("aria-", 0) == 0;
+}
+
+std::size_t literal_size(const ir::Expr& expr) {
+    if (expr.kind != ir::ExprKind::Literal) {
+        return 0;
+    }
+    const auto* text = std::get_if<std::string>(&expr.literal);
+    return text == nullptr ? 0 : text->size();
+}
+
+// Rejects an attribute/style/event a span does not have. The parent post-check keeps the span node
+// a plain run: className/style/role/aria-*/id and onClick are the whole surface. A style default
+// the alias injects (`code` -> font-family: monospace) is not an author override, so it is exempt
+// from the metric rule; the runtime ignores it for measurement anyway.
+bool check_span_node(NodeState& state, const ir::Node& span, std::string_view tag,
+                     jsx::Span source) {
+    if (span.key) {
+        fail_node(state, "TESSERA_JSX_SPAN_ATTRIBUTE", "a span has no `key`", source);
         return false;
     }
-    const std::optional<std::string> id = state.names.resolve(expr.text);
-    return id.has_value() && *id == "prop::children";
-}
-
-// `{props.children}` of a non-destructured props parameter: the spec accepts only the destructured
-// `{children}` form (jsx-subset-v1.md section 5), so this gets a diagnostic with the fix.
-bool is_props_children_member(const NodeState& state, const jsx::Expr& expr) {
-    if (expr.kind != jsx::ExprKind::Member || expr.text != "children" ||
-        expr.operands.size() != 1 || !expr.operands[0] ||
-        expr.operands[0]->kind != jsx::ExprKind::Identifier) {
-        return false;
-    }
-    const std::optional<std::string> id =
-        state.names.resolve(expr.operands[0]->text + "." + expr.text);
-    return id.has_value() && *id == "prop::children";
-}
-
-bool flatten_children(NodeState& state, const jsx::JsxNode& parent, std::vector<ChildItem>& items,
-                      bool reject_fragments) {
-    for (const jsx::JsxPtr& child : parent.children) {
-        if (!child) {
-            fail_node(state, "TESSERA_IR_MALFORMED", "an element has a missing child", parent.span);
+    for (const auto& [name, value] : span.props) {
+        (void)value;
+        if (!is_span_prop(name)) {
+            fail_node(state, "TESSERA_JSX_SPAN_ATTRIBUTE",
+                      "`" + name + "` is not a span attribute; put it on the parent `Text`",
+                      source);
             return false;
         }
-        switch (child->kind) {
-        case jsx::JsxKind::Text:
-            items.push_back(ChildItem{ChildItem::Kind::Text, child.get(), nullptr});
-            break;
-        case jsx::JsxKind::Fragment:
-            if (reject_fragments) {
-                fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                          "a fragment child is not allowed here (subset 10.4)", child->span);
-                return false;
-            }
-            if (!flatten_children(state, *child, items, reject_fragments)) {
-                return false;
-            }
-            break;
-        case jsx::JsxKind::ExprContainer: {
-            if (!child->expr) {
-                break; // `{}` and `{/* comment */}` render nothing
-            }
-            const jsx::Expr& expr = *child->expr;
-            if (expr.kind == jsx::ExprKind::Boolean || expr.kind == jsx::ExprKind::Null) {
-                break; // renders nothing and does not break a run (elements-basic.md section 0)
-            }
-            if (is_children_slot(state, expr)) {
-                items.push_back(ChildItem{ChildItem::Kind::Slot, child.get(), nullptr});
-                break;
-            }
-            if (is_props_children_member(state, expr)) {
-                fail_node(state, "TESSERA_IR_SLOT",
-                          "a non-destructured props parameter cannot place the children slot",
-                          expr.span, "destructure the prop: `{ children }: CardProps`");
-                return false;
-            }
-            const ControlKind control = classify_control(expr);
-            if (control == ControlKind::Conditional) {
-                items.push_back(ChildItem{ChildItem::Kind::Conditional, child.get(), &expr});
-                break;
-            }
-            if (control == ControlKind::Loop) {
-                items.push_back(ChildItem{ChildItem::Kind::Loop, child.get(), &expr});
-                break;
-            }
-            if (expr.kind == jsx::ExprKind::Jsx) {
-                if (!expr.jsx) {
-                    fail_node(state, "TESSERA_IR_MALFORMED", "a JSX expression has no element",
-                              expr.span);
-                    return false;
-                }
-                if (expr.jsx->kind == jsx::JsxKind::Fragment) {
-                    if (reject_fragments) {
-                        fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                                  "a fragment child is not allowed here (subset 10.4)",
-                                  expr.jsx->span);
-                        return false;
-                    }
-                    if (!flatten_children(state, *expr.jsx, items, reject_fragments)) {
-                        return false;
-                    }
-                } else {
-                    items.push_back(ChildItem{ChildItem::Kind::Element, expr.jsx.get(), nullptr});
-                }
-                break;
-            }
-            items.push_back(ChildItem{ChildItem::Kind::Expression, child.get(), &expr});
-            break;
+    }
+    for (const auto& [name, target] : span.events) {
+        (void)target;
+        if (name != "onClick") {
+            fail_node(state, "TESSERA_JSX_SPAN_ATTRIBUTE",
+                      "a span supports `onClick` only, not `" + name + "`", source);
+            return false;
         }
-        case jsx::JsxKind::Element:
-            items.push_back(ChildItem{ChildItem::Kind::Element, child.get(), nullptr});
-            break;
+    }
+    const std::span<const schema::AliasStyle> injected = schema::alias_style_defaults(tag);
+    for (const auto& [name, value] : span.style) {
+        if (!is_metric_style(name)) {
+            continue;
         }
+        bool is_injected = false;
+        for (const schema::AliasStyle& style : injected) {
+            if (style.property == name && value && value->kind == ir::ExprKind::Literal &&
+                std::get_if<std::string>(&value->literal) != nullptr &&
+                *std::get_if<std::string>(&value->literal) == style.value) {
+                is_injected = true;
+                break;
+            }
+        }
+        if (is_injected) {
+            continue;
+        }
+        fail_node(state, "TESSERA_JSX_SPAN_METRIC",
+                  "a span may not override `" + name +
+                      "`: the parent measures and wraps the whole paragraph with its own metrics",
+                  source, "use colour, font-weight, font-style or another non-metric style");
+        return false;
     }
     return true;
 }
 
-jsx::Span run_span(const std::vector<const ChildItem*>& run) {
-    if (run.empty()) {
-        return {};
-    }
-    const jsx::Span& first = run.front()->node->span;
-    const jsx::Span& last = run.back()->node->span;
-    return jsx::Span{first.offset, last.end() - first.offset};
-}
-
-// One run: JSX text and string/number expressions with no element in between. The result is a
-// literal string when there is no expression, otherwise a template (elements-basic.md section 0).
-ir::ExprPtr build_run(NodeState& state, const std::vector<const ChildItem*>& run, jsx::Span& span) {
-    span = run_span(run);
-    std::vector<ir::TemplatePart> parts;
+// Text runs and `{expr}` children of a span: static text only in V1 (concatenation offsets must be
+// known at build time). Nested elements are rejected as nested spans.
+bool lower_span_text(NodeState& state, const std::vector<ChildItem>& items, ir::Node& node) {
     std::string text;
-    bool has_expression = false;
-    for (const ChildItem* item : run) {
-        if (item->kind == ChildItem::Kind::Text) {
-            text += item->node->text;
-            continue;
-        }
-        ir::ExprPtr lowered = lower_node_expression(state, *item->expr);
-        if (!lowered) {
-            return nullptr;
-        }
-        if (!text.empty()) {
-            parts.push_back(ir::text_part(std::move(text)));
-            text.clear();
-        }
-        parts.push_back(ir::expr_part(std::move(lowered)));
-        has_expression = true;
-    }
-    if (!text.empty()) {
-        parts.push_back(ir::text_part(std::move(text)));
-    }
-    if (parts.empty()) {
-        return ir::make_literal(std::string());
-    }
-    if (!has_expression) {
-        std::string merged;
-        for (const ir::TemplatePart& part : parts) {
-            merged += part.text;
-        }
-        return ir::make_literal(std::move(merged));
-    }
-    return ir::make_template(std::move(parts));
-}
-
-bool flush_run(NodeState& state, const std::vector<const ChildItem*>& run, ir::Node& parent) {
-    if (run.empty()) {
-        return true;
-    }
-    jsx::Span span;
-    ir::ExprPtr text = build_run(state, run, span);
-    if (!text) {
-        return false;
-    }
-    ir::Node text_node;
-    text_node.kind = ir::NodeKind::Text;
-    text_node.id = next_node_id(state);
-    text_node.source = to_source_span(state.context.source_map, span, state.context.file);
-    text_node.text = std::move(text);
-    parent.children.push_back(std::move(text_node));
-    return true;
-}
-
-// Appends one element, conditional, loop or slot item to `parent`; false on error.
-bool append_node_item(NodeState& state, const ChildItem& item, ir::Node& parent) {
-    if (item.kind == ChildItem::Kind::Slot) {
-        // Section 3.4: the callee's `{children}` position becomes a bare Slot node.
-        if (state.loop_depth > 0) {
-            fail_node(state, "TESSERA_IR_SLOT", "a Slot is not inside a loop template",
-                      item.node->span);
-            return false;
-        }
-        if (++state.slot_count > 1) {
-            fail_node(state, "TESSERA_IR_SLOT", "a component has at most one Slot",
-                      item.node->span);
-            return false;
-        }
-        ir::Node slot;
-        slot.kind = ir::NodeKind::Slot;
-        slot.id = next_node_id(state);
-        slot.source = to_source_span(state.context.source_map, item.node->span, state.context.file);
-        parent.children.push_back(std::move(slot));
-        return true;
-    }
-    if (item.kind == ChildItem::Kind::Element) {
-        std::optional<ir::Node> child = make_node(state, *item.node);
-        if (!child) {
-            return false;
-        }
-        parent.children.push_back(std::move(*child));
-        return true;
-    }
-    std::vector<ir::Node> produced;
-    if (!lower_control_child(state, *item.expr, produced)) {
-        return false;
-    }
-    for (ir::Node& node : produced) {
-        parent.children.push_back(std::move(node));
-    }
-    return true;
-}
-
-// View and Button with element or control children: every run becomes one synthetic Text child in
-// source order (decision 11); element and control children are lowered in place.
-bool append_runs_and_elements(NodeState& state, const std::vector<ChildItem>& items,
-                              ir::Node& parent) {
-    std::vector<const ChildItem*> run;
     for (const ChildItem& item : items) {
-        if (is_run_item(item)) {
-            run.push_back(&item);
+        if (!is_run_item(item)) {
+            fail_node(state,
+                      item.kind == ChildItem::Kind::Element ? "TESSERA_JSX_SPAN_NESTED"
+                                                            : "TESSERA_JSX_CHILDREN_NOT_ALLOWED",
+                      "a span contains text only; a nested element or a conditional/loop child is "
+                      "not supported",
+                      item.node->span);
+            return false;
+        }
+        if (item.kind == ChildItem::Kind::Expression) {
+            fail_node(state, "TESSERA_JSX_SPAN_DYNAMIC",
+                      "inline spans require static text in V1; build the string in the component "
+                      "or use separate `Text` nodes",
+                      item.node->span);
+            return false;
+        }
+        text += item.node->text;
+    }
+    node.text = ir::make_literal(std::move(text));
+    return true;
+}
+
+// The span children of a `Text`: runs become synthetic spans, element children are lowered as
+// spans with their own attributes, and the parent carries no text of its own.
+bool lower_inline_span_children(NodeState& state, const std::vector<ChildItem>& items,
+                                ir::Node& node) {
+    std::string pending;
+    std::vector<const ChildItem*> pending_items;
+    std::size_t text_bytes = 0;
+    const auto flush = [&]() -> bool {
+        if (pending.empty()) {
+            pending_items.clear();
+            return true;
+        }
+        ir::Node span;
+        span.kind = ir::NodeKind::Text;
+        span.id = next_node_id(state);
+        span.source =
+            to_source_span(state.context.source_map, run_span(pending_items), state.context.file);
+        span.text = ir::make_literal(std::move(pending));
+        pending.clear();
+        pending_items.clear();
+        node.children.push_back(std::move(span));
+        return true;
+    };
+    for (const ChildItem& item : items) {
+        if (item.kind == ChildItem::Kind::Expression) {
+            fail_node(state, "TESSERA_JSX_SPAN_DYNAMIC",
+                      "inline spans require static text in V1; build the string in the component "
+                      "or use separate `Text` nodes",
+                      item.node->span);
+            return false;
+        }
+        if (!is_run_item(item)) {
+            if (item.kind != ChildItem::Kind::Element) {
+                fail_node(state, "TESSERA_JSX_CHILDREN_NOT_ALLOWED",
+                          "`<Text>` with inline spans accepts text and span elements only; a "
+                          "conditional or loop child is not supported",
+                          item.node->span);
+                return false;
+            }
+            if (!is_span_tag(item.node->tag)) {
+                fail_node(state, "TESSERA_JSX_CHILDREN_NOT_ALLOWED",
+                          "`<" + std::string(item.node->tag) +
+                              ">` is not an inline span; a `Text` accepts text and `Text` spans",
+                          item.node->span,
+                          "wrap the content in `<Text>` or use `span`/`b`/`strong`/`i`/`em`/`code`/"
+                          "`a`");
+                return false;
+            }
+            if (!flush()) {
+                return false;
+            }
+            ++state.span_depth;
+            std::optional<ir::Node> span = make_node(state, *item.node);
+            --state.span_depth;
+            if (!span) {
+                return false;
+            }
+            if (!check_span_node(state, *span, item.node->tag, item.node->span)) {
+                return false;
+            }
+            text_bytes += span->text ? literal_size(*span->text) : 0;
+            node.children.push_back(std::move(*span));
             continue;
         }
-        if (!flush_run(state, run, parent)) {
-            return false;
-        }
-        run.clear();
-        if (!append_node_item(state, item, parent)) {
-            return false;
-        }
+        pending += item.node->text;
+        text_bytes += item.node->text.size();
+        pending_items.push_back(&item);
     }
-    return flush_run(state, run, parent);
+    if (!flush()) {
+        return false;
+    }
+    if (node.children.size() > kMaxInlineSpans) {
+        fail_node(state, "TESSERA_JSX_SPAN_LIMIT", "a `Text` accepts at most 16 inline spans",
+                  items.front().node->span);
+        return false;
+    }
+    if (text_bytes > kMaxSpanTextBytes) {
+        fail_node(state, "TESSERA_JSX_SPAN_LIMIT", "inline span text accepts at most 256 bytes",
+                  items.front().node->span);
+        return false;
+    }
+    return true;
 }
 
 bool lower_text_children(NodeState& state, const std::vector<ChildItem>& items, ir::Node& node) {
+    if (state.span_depth > 0) {
+        return lower_span_text(state, items, node);
+    }
+    const bool spans = std::any_of(items.begin(), items.end(), [](const ChildItem& item) {
+        return item.kind == ChildItem::Kind::Element;
+    });
+    if (spans) {
+        return lower_inline_span_children(state, items, node);
+    }
     for (const ChildItem& item : items) {
         if (!is_run_item(item)) {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
@@ -405,6 +375,8 @@ bool lower_children(NodeState& state, const jsx::JsxNode& element, const Element
         }
         return true;
     case schema::ChildrenKind::Text:
+        return lower_text_children(state, items, node);
+    case schema::ChildrenKind::InlineText:
         return lower_text_children(state, items, node);
     case schema::ChildrenKind::TextAndNodes:
         if (element.tag == "Button") {

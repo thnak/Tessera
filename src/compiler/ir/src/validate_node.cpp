@@ -13,6 +13,9 @@ namespace tessera::compiler::ir {
 namespace {
 
 constexpr int kMaxLoopDepth = 2; // section 5
+// Section 3.6: a Text node carries at most this many inline spans and this many bytes of span text.
+constexpr std::size_t kMaxInlineSpans = 16;
+constexpr std::size_t kMaxSpanTextBytes = 256;
 
 bool starts_with(std::string_view text, std::string_view prefix) {
     return text.substr(0, prefix.size()) == prefix;
@@ -38,6 +41,30 @@ bool valid_local_name(std::string_view name) {
     return true;
 }
 
+// --- section 3.6 inline spans ----------------------------------------------------------------
+
+bool is_literal_string(const Expr& expr, std::string_view& out) {
+    if (expr.kind != ExprKind::Literal) {
+        return false;
+    }
+    const auto* text = std::get_if<std::string>(&expr.literal);
+    if (text == nullptr) {
+        return false;
+    }
+    out = *text;
+    return true;
+}
+
+// A span may not change glyph advances or line boxes (elements-basic.md section 2.1). `font-family`
+// is inert in V1 (one app face), so it is not a metric override.
+bool is_metric_style(std::string_view name) {
+    return name == "font-size" || name == "letter-spacing" || name == "white-space";
+}
+
+bool is_span_prop(std::string_view name) {
+    return name == "id" || name == "className" || name == "role" || starts_with(name, "aria-");
+}
+
 struct NodeWalker {
     ValidationContext& context;
     ComponentScope& scope;
@@ -47,6 +74,7 @@ struct NodeWalker {
               bool is_root);
     void check_identity(const Node& node);
     void check_shape(const Node& node);
+    void check_spans(const Node& node);
     void check_events(const Node& node);
     void check_condition(const Node& node);
     void check_loop(const Node& node, const LocalNames& outer, int loop_depth);
@@ -186,6 +214,77 @@ void NodeWalker::check_shape(const Node& node) {
     }
 }
 
+void NodeWalker::check_spans(const Node& node) {
+    if (node.kind != NodeKind::Text || node.children.empty()) {
+        return;
+    }
+    if (node.text) {
+        context.report("TESSERA_IR_SPAN",
+                       "a Text with inline spans carries no `text` of its own (section 3.6)",
+                       node.source);
+    }
+    if (node.children.size() > kMaxInlineSpans) {
+        context.report("TESSERA_IR_SPAN",
+                       "a Text has at most " + std::to_string(kMaxInlineSpans) + " inline spans",
+                       node.source);
+    }
+    std::size_t text_bytes = 0;
+    for (const Node& child : node.children) {
+        if (child.kind != NodeKind::Text) {
+            context.report("TESSERA_IR_SPAN",
+                           "the children of a Text with spans are all spans (section 3.6)",
+                           child.source);
+            continue;
+        }
+        std::string_view span_text;
+        if (!child.text || !is_literal_string(*child.text, span_text)) {
+            context.report("TESSERA_IR_SPAN",
+                           "a span has a literal string `text` (V1 has no dynamic span text)",
+                           child.source);
+        } else {
+            text_bytes += span_text.size();
+        }
+        if (!child.children.empty()) {
+            context.report("TESSERA_IR_SPAN", "a span may not contain another span", child.source);
+        }
+        if (child.condition || child.loop || child.key || child.fallback || child.item_template ||
+            !child.component.empty() || !child.element.empty()) {
+            context.report("TESSERA_IR_SPAN",
+                           "a span is a static run: it has no condition, loop, key, fallback, item "
+                           "template, component or element",
+                           child.source);
+        }
+        for (const auto& [name, value] : child.props) {
+            (void)value;
+            if (!is_span_prop(name)) {
+                context.report("TESSERA_IR_SPAN",
+                               "`" + name + "` is not a span attribute (section 3.6)",
+                               child.source);
+            }
+        }
+        for (const auto& [name, target] : child.events) {
+            (void)target;
+            if (name != "onClick") {
+                context.report("TESSERA_IR_SPAN",
+                               "a span supports `onClick` only, not `" + name + "`", child.source);
+            }
+        }
+        for (const auto& [name, value] : child.style) {
+            (void)value;
+            if (is_metric_style(name)) {
+                context.report("TESSERA_IR_SPAN",
+                               "a span may not override the metric property `" + name + "`",
+                               child.source);
+            }
+        }
+    }
+    if (text_bytes > kMaxSpanTextBytes) {
+        context.report("TESSERA_IR_SPAN",
+                       "inline span text exceeds " + std::to_string(kMaxSpanTextBytes) + " bytes",
+                       node.source);
+    }
+}
+
 void NodeWalker::check_events(const Node& node) {
     for (const auto& [name, target] : node.events) {
         if (starts_with(target, "bind::")) {
@@ -283,6 +382,7 @@ void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth,
                       bool in_slot_content, bool is_root) {
     check_identity(node);
     check_shape(node);
+    check_spans(node);
     check_events(node);
     if (node.kind == NodeKind::Slot) {
         check_slot(node, loop_depth, in_slot_content, is_root);

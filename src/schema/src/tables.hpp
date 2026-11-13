@@ -18,6 +18,7 @@ namespace tessera::schema::internal {
 [[nodiscard]] std::span<const std::string_view> role_token_table();
 [[nodiscard]] std::span<const ElementRow> element_table();
 [[nodiscard]] std::span<const AliasRow> alias_table();
+[[nodiscard]] std::span<const AliasStyle> alias_style_table();
 [[nodiscard]] std::span<const DomType> dom_type_table();
 [[nodiscard]] std::span<const StyleProperty> style_property_table();
 

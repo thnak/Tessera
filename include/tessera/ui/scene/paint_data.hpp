@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tessera::ui {
 
@@ -180,6 +181,22 @@ struct LinearGradient {
     }
 };
 
+// One inline span of a `Text` node (issue #229; elements-basic.md section 2.1, ir-v1 section 3.6).
+// `node_id` is the span's child scene node, which carries the span class/style/role/onClick;
+// `begin` and `end` are its half-open byte range in the parent's concatenated `text`. Spans are
+// ordered and non-overlapping, so a byte offset or a line's source range resolves to one span
+// slice.
+struct PaintSpan {
+    std::uint64_t node_id = 0;
+    std::size_t begin = 0;
+    std::size_t end = 0;
+
+    bool operator==(const PaintSpan&) const = default;
+};
+
+// The run table lives in the parent's paint payload; the cap keeps Text nodes allocation-bounded.
+inline constexpr std::size_t kMaxPaintSpans = 16;
+
 struct PaintData {
     static constexpr std::size_t kMaxTextBytes = 4096;
     // Embedded asset names are short by construction; longer names are ignored by the paint pass
@@ -209,6 +226,9 @@ struct PaintData {
     // rounded by border-radius) under content/text/vector/image draws. Absent keeps the solid
     // background-color behavior.
     std::optional<LinearGradient> gradient;
+    // Inline spans of this text (empty for ordinary text). Ordered by `begin`; the ranges cover the
+    // non-empty parts of `text`. Each entry names the child scene node that carries the run style.
+    std::vector<PaintSpan> spans;
 
     [[nodiscard]] bool empty() const {
         if (kind == PaintKind::Vector) {
@@ -217,7 +237,24 @@ struct PaintData {
         if (kind == PaintKind::Image) {
             return image.asset.empty() || image.asset.size() > kMaxAssetBytes;
         }
-        return text.empty();
+        return text.empty() && spans.empty();
+    }
+
+    // True when `node_id` is one of this payload's inline span child nodes; the paint pass skips
+    // those children and paints their runs as part of this node instead.
+    [[nodiscard]] bool has_span(std::uint64_t node_id) const {
+        return std::any_of(spans.begin(), spans.end(),
+                           [node_id](const PaintSpan& span) { return span.node_id == node_id; });
+    }
+
+    // The span containing `offset`, or nullptr when the byte belongs to no attributed run.
+    [[nodiscard]] const PaintSpan* span_at(std::size_t offset) const {
+        for (const PaintSpan& span : spans) {
+            if (offset >= span.begin && offset < span.end) {
+                return &span;
+            }
+        }
+        return nullptr;
     }
 
     bool operator==(const PaintData&) const = default;

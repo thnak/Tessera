@@ -326,6 +326,14 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     StubPaintTextMetrics stub_source;
     const PaintTextMetricsSource* metrics_source =
         context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
+    if (!data->spans.empty() && !data->decoration) {
+        // Inline spans: one measured paragraph, per-span painted runs (issue #229).
+        paint_spanned_text(node, text_style, {content_x, content_y, content_width, content_height},
+                           color, opacity, wrap,
+                           data->text_align.value_or(computed_text_align(style)), data->max_lines,
+                           context, sink, stats);
+        return;
+    }
     if (data->decoration) {
         paint_text_decoration(*data, {content_x, content_y, content_width, content_height},
                               text_style, color, opacity, wrap,

@@ -88,6 +88,36 @@
       "target": "Text"
     },
     {
+      "note": "inline span; injects font-weight: 700",
+      "status": "mapped",
+      "tag": "b",
+      "target": "Text"
+    },
+    {
+      "note": "inline span; injects font-weight: 700",
+      "status": "mapped",
+      "tag": "strong",
+      "target": "Text"
+    },
+    {
+      "note": "inline span; injects font-style: italic",
+      "status": "mapped",
+      "tag": "i",
+      "target": "Text"
+    },
+    {
+      "note": "inline span; injects font-style: italic",
+      "status": "mapped",
+      "tag": "em",
+      "target": "Text"
+    },
+    {
+      "note": "inline span; injects font-family: monospace (no font selection yet, so no metric change)",
+      "status": "mapped",
+      "tag": "code",
+      "target": "Text"
+    },
+    {
       "status": "mapped",
       "tag": "p",
       "target": "Text"
@@ -452,26 +482,6 @@
     {
       "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
       "status": "unsupported",
-      "tag": "strong"
-    },
-    {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "em"
-    },
-    {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "b"
-    },
-    {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "i"
-    },
-    {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
       "tag": "u"
     },
     {
@@ -488,11 +498,6 @@
       "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
       "status": "unsupported",
       "tag": "mark"
-    },
-    {
-      "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
-      "status": "unsupported",
-      "tag": "code"
     },
     {
       "alternative": "Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`)",
@@ -1218,7 +1223,7 @@
     {
       "acceptsClassName": true,
       "acceptsStyle": true,
-      "children": "text",
+      "children": "inline-text",
       "constraints": [],
       "events": [
         {
@@ -1275,7 +1280,7 @@
       ],
       "impliedRole": "text",
       "irKind": "Text",
-      "note": "one text run; an element child is rejected",
+      "note": "text runs, or inline spans (elements-basic.md section 2.1)",
       "props": [
         {
           "lowersTo": "props.tabIndex",

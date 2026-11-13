@@ -101,12 +101,19 @@ bool Parser::parse_tag_name(std::string& name, Span& span) {
     return true;
 }
 
+// Issue #229: the inline-span aliases are accepted spellings of `Text` children (html-aliases.md
+// section 2); lowering resolves them. Every other lowercase tag keeps the HTML-tag diagnostic.
+bool is_inline_span_alias(std::string_view name) {
+    return name == "span" || name == "b" || name == "strong" || name == "i" || name == "em" ||
+           name == "code" || name == "a";
+}
+
 void Parser::check_tag_name(const std::string& name, Span span) {
     if (name.find_first_of(".:") != std::string::npos) {
         report("TESSERA_JSX_SUBSET_DYNAMIC_TAG",
                "member and namespace tags (`<" + excerpt(name) + ">`) are not supported", span,
                "use a fixed tag");
-    } else if (name[0] >= 'a' && name[0] <= 'z') {
+    } else if (name[0] >= 'a' && name[0] <= 'z' && !is_inline_span_alias(name)) {
         report("TESSERA_JSX_SUBSET_HTML_TAG", "HTML tag `<" + excerpt(name) + ">` is not supported",
                span, suggest_intrinsic(excerpt(name)));
     }
