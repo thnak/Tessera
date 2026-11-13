@@ -71,7 +71,7 @@ void test_schema_version_and_counts() {
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     check(schema::style_properties().size() == 73, "73 style longhands");
     check(schema::role_tokens().size() == 22, "22 role tokens (common-and-events.md 1.1)");
-    check(schema::common_props().size() == 17, "17 common attributes");
+    check(schema::common_props().size() == 20, "20 common attributes");
 }
 
 void test_element_rows() {

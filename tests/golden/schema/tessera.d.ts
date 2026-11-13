@@ -155,6 +155,9 @@ export interface CommonProps {
   'aria-readonly'?: boolean;
   'aria-required'?: boolean;
   'aria-checked'?: "true" | "false" | "mixed";
+  'aria-valuenow'?: number;
+  'aria-valuemin'?: number;
+  'aria-valuemax'?: number;
   'automationId'?: string;
 }
 

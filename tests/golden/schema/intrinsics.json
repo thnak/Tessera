@@ -995,6 +995,39 @@
       "value": "expr"
     },
     {
+      "lowersTo": "props.aria-valuenow",
+      "name": "aria-valuenow",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "slider current value",
+      "type": "int",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-valuemin",
+      "name": "aria-valuemin",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "slider lower bound",
+      "type": "int",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-valuemax",
+      "name": "aria-valuemax",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "slider upper bound",
+      "type": "int",
+      "value": "expr"
+    },
+    {
       "lowersTo": "automationId",
       "name": "automationId",
       "note": "must equal the computed uiId (ir-v1 section 3.1)",

@@ -195,6 +195,79 @@ void test_roving_focus() {
     }
 }
 
+// Runs the slider key handler and returns `state::value`.
+std::int64_t slide(const ir::Component& slider, std::int64_t start, const char* key) {
+    eval::Scope scope;
+    scope["state::value"] = eval::Value::of_int(static_cast<std::int32_t>(start));
+    scope["e.key"] = eval::Value::of_string(key);
+    scope["prop::min"] = eval::Value::of_int(0);
+    scope["prop::max"] = eval::Value::of_int(100);
+    scope["prop::step"] = eval::Value::of_int(5);
+    eval::Evaluator evaluator;
+    for (const ir::Handler& handler : slider.handlers) {
+        check(evaluator.run(handler.actions, scope).has_value(), "the slider handler runs");
+    }
+    return *scope["state::value"].as_int();
+}
+
+void test_slider() {
+    Primitive slider = load("Slider");
+    if (slider.component == nullptr) {
+        return;
+    }
+    const ir::Node& root = slider.component->root;
+    check_eq(prop_text(root, "role"), "slider", "the slider role");
+    for (const char* name : {"aria-valuenow", "aria-valuemin", "aria-valuemax"}) {
+        check(root.props.count(name) == 1, std::string(name) + " is exposed");
+    }
+    check(slider.component->handlers.size() == 1, "one key handler");
+    if (slider.component->handlers.size() == 1) {
+        const ir::Component& component = *slider.component;
+        check(slide(component, 50, "ArrowRight") == 55, "ArrowRight adds a step");
+        check(slide(component, 50, "ArrowUp") == 55, "ArrowUp adds a step");
+        check(slide(component, 50, "ArrowLeft") == 45, "ArrowLeft subtracts a step");
+        check(slide(component, 50, "PageUp") == 100, "PageUp adds ten steps, clamped");
+        check(slide(component, 50, "PageDown") == 0, "PageDown subtracts ten steps, clamped");
+        check(slide(component, 98, "ArrowRight") == 100, "the value clamps at max");
+        check(slide(component, 2, "ArrowLeft") == 0, "the value clamps at min");
+        check(slide(component, 50, "Home") == 0, "Home jumps to min");
+        check(slide(component, 50, "End") == 100, "End jumps to max");
+        check(slide(component, 50, "a") == 50, "another key changes nothing");
+    }
+    generates(slider, "Slider");
+}
+
+void test_text_field_state() {
+    Primitive field = load("TextFieldState");
+    if (field.component == nullptr) {
+        return;
+    }
+    // Handlers are found by what they set: focus sets `focused`; blur clears it and sets `touched`.
+    const ir::Handler* focus = nullptr;
+    const ir::Handler* blur = nullptr;
+    for (const ir::Handler& handler : field.component->handlers) {
+        if (handler.actions.size() == 1 && handler.actions[0].target == "state::focused") {
+            focus = &handler;
+        } else if (handler.actions.size() == 2) {
+            blur = &handler;
+        }
+    }
+    check(focus != nullptr && blur != nullptr, "a focus and a blur handler");
+    if (focus != nullptr && blur != nullptr) {
+        eval::Scope scope;
+        scope["state::focused"] = eval::Value::of_bool(false);
+        scope["state::touched"] = eval::Value::of_bool(false);
+        eval::Evaluator evaluator;
+        check(evaluator.run(focus->actions, scope).has_value(), "focus runs");
+        check(*scope["state::focused"].as_bool(), "focus sets focused");
+        check(!*scope["state::touched"].as_bool(), "focus does not touch the field");
+        check(evaluator.run(blur->actions, scope).has_value(), "blur runs");
+        check(!*scope["state::focused"].as_bool(), "blur clears focused");
+        check(*scope["state::touched"].as_bool(), "blur sets touched");
+    }
+    generates(field, "TextFieldState");
+}
+
 void test_list_navigation() {
     Primitive list = load("ListNavigation");
     if (list.component == nullptr) {
@@ -209,6 +282,8 @@ void test_list_navigation() {
 } // namespace
 
 int main() {
+    test_slider();
+    test_text_field_state();
     test_list_navigation();
     test_focus_scope();
     test_roving_focus();

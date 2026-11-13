@@ -19,6 +19,7 @@ that of subset spec 10.2 and [`component-model-v1.md`](../component-model-v1.md)
 | `aria-hidden` | bool | E | `false` | `props["aria-hidden"]` | `Spacer`, `ErrorBoundary` | Leaves the node and its subtree out of the accessibility tree |
 | `aria-disabled`, `aria-selected`, `aria-expanded`, `aria-busy`, `aria-invalid`, `aria-readonly`, `aria-required` | bool | E | `false` | `props["aria-..."]` | same | The state of the same name in [`accessibility-v1.md`](../accessibility-v1.md) section 2 |
 | `aria-checked` | `"true"`, `"false"`, `"mixed"` | E | - | `props["aria-checked"]` | same | `checked/mixed` state |
+| `aria-valuenow`, `aria-valuemin`, `aria-valuemax` | int | E | - | `props["aria-..."]` | same | Slider value and bounds (issue #236); the accessibility tree reads `aria-valuenow` as the value ([`accessibility-v1.md`](../accessibility-v1.md) section 2) |
 | `automationId` | string literal, decimal uint64 | L | - | `automationId` | none | Must equal the computed `uiId` (ir-v1 section 3.1); a mismatch is a validator error |
 
 Any other `aria-*` name is `TESSERA_JSX_SUBSET_UNKNOWN_PROP` in V1 (the V1 set is closed so that every
