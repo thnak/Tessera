@@ -80,6 +80,15 @@ jobs:
           sleep 1
           DISPLAY=:99 ctest --preset ci --output-on-failure
 
+      - name: Upload gallery golden artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery-golden-artifacts
+          path: build/ci/samples/gallery/golden-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Vulkan offscreen PoC (lavapipe)
         run: |
           ./build/ci/tools/poc/vulkan_offscreen/vulkan_offscreen_poc \

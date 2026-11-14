@@ -111,6 +111,8 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_overlay_golden` | lavapipe overlay baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
+| `gallery_golden_*` | 15 lavapipe goldens of the library Button gallery under `tests/golden/gallery/` (3 themes x none/hover/active/focus, plus compact, 150% text and RTL), 1 LSB + 0.1% budget; skip unless lavapipe is selected; CI uploads frame/diff/report as `gallery-golden-artifacts` (`gallery --golden FILE --update-goldens` rewrites) |
+| `gallery_capture` | one gallery capture on any Vulkan device (smoke; skips without one) |
 | `harness_frame_capture` | software-device capability rule, offscreen harness capture vs the committed `tests/golden/baseline/harness/` baseline (1 LSB + 0.1% budget, lavapipe only; gpu-smoke self-comparison elsewhere; `--update-goldens` regenerates) |
 | `batched2d_windowed_smoke` | window + swapchain render/present + pacer wait for 3 frames |
 | `window_win32_input` | Win32 mouse, wheel, key and character translation into `InputEvent` (Windows only) |
