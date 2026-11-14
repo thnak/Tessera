@@ -548,7 +548,14 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 Acceptance: a streaming dashboard at target frame rate with deterministic goldens.
 
 - [x] Fixed-timestep clock + time scale — `include/tessera/runtime/fixed_step.hpp`.
-- [ ] #182: Zero-allocation ring buffers for chart series — allocation-counting test.
+- [x] #182: Zero-allocation ring buffers for chart series — allocation-counting test —
+      `include/tessera/ui/chart/chart_series.hpp` (`ChartSample{double,float}` + fixed-capacity
+      `ChartSeriesRing`: overwrite-oldest, logical oldest→newest, two-span renderer view, strictly
+      increasing timestamps, `noexcept` and allocation-free after construction),
+      `docs/specs/chart-series-v1.md` (capacity/overwrite/wrap/iteration/threading contract),
+      tests `chart_series_ring` (`chart_series_ring_tests.cpp` semantics +
+      `chart_series_ring_allocation.cpp` replaced-global-`operator new` zero-allocation proof across
+      five wrap-arounds).
 - [ ] #183: Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
 - [ ] #184: Streaming dashboard sample under sustained load with deterministic goldens.
 - [x] #233: `DataStore::set/update` push entry for app-fed data —
