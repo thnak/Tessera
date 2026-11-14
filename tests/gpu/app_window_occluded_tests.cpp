@@ -15,9 +15,11 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #ifndef TESSERA_TEST_FONT
@@ -79,6 +81,27 @@ InputEvent pointer_move(float x, float y) {
     return event;
 }
 
+// One presenting iteration, the way `run()` performs it.
+//
+// `render_and_present()` skips a frame whose target slot still has GPU work in flight
+// (src/app/window.cpp, the `in_flight[slot]->is_complete()` gate) rather than waiting on the GPU,
+// so a single `pump_once()` can legitimately return false for a busy slot. `run()` handles that by
+// latching a full repaint and retrying after a bounded idle wait; this helper does the same, so the
+// assertions below stay about pause/resume semantics instead of GPU slot recycling (issue #319).
+// The bounded attempt count fails the assertion on a machine that never frees a slot, rather than
+// hanging.
+bool pump_until_presented(WindowHost& host) {
+    constexpr int kMaxAttempts = 200;
+    constexpr auto kRetryPause = std::chrono::milliseconds(2);
+    for (int attempt = 0; attempt < kMaxAttempts; ++attempt) {
+        if (host.pump_once()) {
+            return true;
+        }
+        std::this_thread::sleep_for(kRetryPause);
+    }
+    return false;
+}
+
 } // namespace
 
 int main() {
@@ -102,7 +125,8 @@ int main() {
     }
 
     // 1. A fresh host paints: the first bounded iteration lays out, paints and presents one frame.
-    if (!expect(host.pump_once(), "a fresh host presents a frame on its first pump_once")) {
+    if (!expect(pump_until_presented(host),
+                "a fresh host presents a frame on its first pump_once")) {
         return 1;
     }
     const WindowFrameStats& stats = host.stats();
@@ -139,7 +163,7 @@ int main() {
     //    target), not an incremental one derived from pre-pause damage.
     const std::uint32_t full_before = stats.full_repaints;
     host.apply_metrics(snapshot(host, true, false, false));
-    if (!expect(host.pump_once(), "the visible resume iteration presents")) {
+    if (!expect(pump_until_presented(host), "the visible resume iteration presents")) {
         return 3;
     }
     if (!expect(stats.presented == presented_before + 1,
@@ -162,7 +186,7 @@ int main() {
         return 4;
     }
     host.apply_metrics(snapshot(host, true, false, false));
-    if (!expect(host.pump_once(), "clearing minimized resumes presentation") ||
+    if (!expect(pump_until_presented(host), "clearing minimized resumes presentation") ||
         !expect(stats.presented == presented_after_resume + 1, "the resume presented one frame") ||
         !expect(host.host().last_render().full_redraw,
                 "the minimized resume repainted the full target")) {
@@ -177,7 +201,7 @@ int main() {
     const std::uint32_t paused_before_blur = stats.paused_iterations;
     const std::uint32_t presented_before_blur = stats.presented;
     host.apply_metrics(snapshot(host, false, false, false));
-    if (!expect(host.pump_once(), "a visible but unfocused window still paints") ||
+    if (!expect(pump_until_presented(host), "a visible but unfocused window still paints") ||
         !expect(stats.presented == presented_before_blur + 1, "the blurred frame was presented") ||
         !expect(stats.paused_iterations == paused_before_blur, "blur alone never pauses")) {
         return 5;

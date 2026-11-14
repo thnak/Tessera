@@ -18,9 +18,11 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #ifndef TESSERA_TEST_FONT
@@ -71,6 +73,24 @@ void set_label(Node& label, const char* text) {
     label.set_paint_data(std::move(data));
 }
 
+// One presenting iteration, retried across a bounded wait.
+//
+// `render_and_present()` skips a frame whose target slot still has GPU work in flight instead of
+// waiting on the GPU, so a single `pump_once()` can return false for a busy slot; `run()` retries
+// the same way after latching a full repaint. Retrying here keeps the arms about the
+// pauseWhenOccluded policy rather than GPU slot recycling (issue #319).
+bool pump_until_presented(WindowHost& host) {
+    constexpr int kMaxAttempts = 200;
+    constexpr auto kRetryPause = std::chrono::milliseconds(2);
+    for (int attempt = 0; attempt < kMaxAttempts; ++attempt) {
+        if (host.pump_once()) {
+            return true;
+        }
+        std::this_thread::sleep_for(kRetryPause);
+    }
+    return false;
+}
+
 class Scene final {
 public:
     Node root{1};
@@ -110,7 +130,7 @@ ArmResult run_arm(bool pause_when_occluded, const char* arm_name) {
     }
     const WindowFrameStats& stats = host.stats();
 
-    if (!expect(host.pump_once(), "a fresh host presents on its first iteration")) {
+    if (!expect(pump_until_presented(host), "a fresh host presents on its first iteration")) {
         return ArmResult::Fail;
     }
 
@@ -132,14 +152,15 @@ ArmResult run_arm(bool pause_when_occluded, const char* arm_name) {
         }
         // The pause, not a lost frame cause, is what skipped the frame: the resume paints.
         host.apply_metrics(snapshot(host, true, false, false));
-        if (!expect(host.pump_once(), "clearing occlusion presents again")) {
+        if (!expect(pump_until_presented(host), "clearing occlusion presents again")) {
             return ArmResult::Fail;
         }
         if (!expect(stats.presented == presented_before + 1, "the resume presented one frame")) {
             return ArmResult::Fail;
         }
     } else {
-        if (!expect(host.pump_once(), "pauseWhenOccluded=false keeps painting while occluded") ||
+        if (!expect(pump_until_presented(host),
+                    "pauseWhenOccluded=false keeps painting while occluded") ||
             !expect(stats.presented == presented_before + 1,
                     "the occluded iteration presented one frame") ||
             !expect(stats.frames == frames_before + 1,
@@ -152,7 +173,8 @@ ArmResult run_arm(bool pause_when_occluded, const char* arm_name) {
         const std::uint32_t presented_after_occluded = stats.presented;
         host.apply_metrics(snapshot(host, true, false, true));
         scene.touch("Minimized dirty frame");
-        if (!expect(host.pump_once(), "pauseWhenOccluded=false keeps painting while minimized") ||
+        if (!expect(pump_until_presented(host),
+                    "pauseWhenOccluded=false keeps painting while minimized") ||
             !expect(stats.presented == presented_after_occluded + 1,
                     "the minimized iteration presented one frame") ||
             !expect(stats.paused_iterations == paused_before,
@@ -162,7 +184,7 @@ ArmResult run_arm(bool pause_when_occluded, const char* arm_name) {
         // Focus/blur is not part of the key: an unfocused but visible window paints either way.
         host.apply_metrics(snapshot(host, false, false, false));
         scene.touch("Unfocused dirty frame");
-        if (!expect(host.pump_once(), "a visible unfocused window still paints") ||
+        if (!expect(pump_until_presented(host), "a visible unfocused window still paints") ||
             !expect(stats.paused_iterations == paused_before, "blur never pauses")) {
             return ArmResult::Fail;
         }
