@@ -516,25 +516,82 @@ Known limits of this slice:
   non-ASCII value can end in a partial UTF-8 sequence; the UI thread validates before applying it.
 - `IsOffscreen` is always false: the snapshot carries world bounds, not a viewport intersection.
 
-### Manual screen-reader smoke checklist (Narrator/NVDA)
+## 12.3 Implemented subset: the host-owned accessibility controller
 
-Run on a real desktop session (not a headless CI agent), from the repository root:
+`src/app/accessibility_host.{hpp,cpp}` (controller) + `src/app/accessibility_host_atspi.cpp` (Linux
+half) + `src/app/window_accessibility.cpp` (scene adapters) make `WindowHost` the owner of exactly
+one accessibility controller per window (issues #185 and #186). These are app-library internals:
+`include/tessera/app/` does not expose the type.
+
+Normative rules:
+
+1. **One controller per window, owned by `WindowHost`.** It is declared after `window`/`host` in
+   `WindowHost::Impl` and stopped in `~Impl`, before the platform window is destroyed: the UIA root
+   must be uninstalled and the bridge thread joined while the native handle is still valid, and
+   before the `AppHost` whose style provider the snapshot source borrows.
+2. **Snapshot source.** The controller builds with `build_a11y_tree(scene_root,
+   host.styles())`, `AppHost::styles()` being the same computed-style provider paint uses (a
+   one-line forwarding adapter in `window_accessibility.cpp`; no second style seam). `focused_id` is
+   `FocusManager::focused()`.
+3. **Windows.** `UiaHost::set_host_handle(window.accessibility_host_handle())` →
+   `window.set_accessibility_root(make_window_root_provider(*uia))` → `start()`. A null handle token
+   (X11, offscreen) means "no native host element", never an error.
+4. **Linux.** `AtspiBridge` + `AtspiSession::start()`. The session's own worker thread runs the
+   handshake and every bus read/write; the UI thread only calls `publish`/`take_actions` (short
+   mutex, bounded) and polls the atomic phase. The tick path never calls `pump`/`pump_sync` and never
+   waits on the bus.
+5. **Failure is a value.** A failed or unsupported start (`UiaError::UnsupportedPlatform` on a build
+   with no UIA seam, `SessionError` on the AT-SPI handshake) and a terminal session phase turn
+   accessibility off, leave the window fully functional, and report exactly one stderr line
+   `TESSERA_A11Y_UNSUPPORTED: <backend>: <error name>; accessibility is off and the window keeps
+   running`. The diagnostic is latched for the controller's lifetime; nothing throws and nothing
+   blocks.
+6. **Dirty-driven, no per-frame work.** `tick()` builds and publishes only when dirty, and dirty is
+   marked by: the successful start (the first tree), a style or layout frame, an input event that
+   dirtied the scene, a `Resize`/`DpiChange`/`Focus`/`Blur` event, and a client-area change derived
+   from the metrics. Repeated ticks on a static window call the source zero times and publish
+   nothing. Actions are drained at this same tick boundary, bounded per tick, and executed on the UI
+   thread: `Press` goes through `InputRouter::invoke` (the same Click a pointer produces, with
+   `ClickSource::Accessibility`) and `Focus` through `FocusManager::request_focus`. `SetValue`/
+   `Scroll` requests are dropped in this slice.
+
+Tests (`tests/unit/a11y/`, name `app_accessibility_host`): install/uninstall of the root on a fake
+window, a deterministic unsupported start (one diagnostic, no throw, no build), a static window
+building nothing, one rebuild per dirty mark and per resize, the published tree reaching the bridge
+with its node count, the index → `NodeId` action mapping, and a synthetic AT-SPI session over the
+loopback transport (handshake on the worker, SASL rejection, peer close — each one diagnostic).
+
+### Manual screen-reader smoke checklist (manual; CI has no screen reader)
+
+Run on a real desktop session, from the repository root, on a build of the current tree. The
+window driver below is `samples/click-demo` (`--windowed`); on Linux use the equivalent X11 run.
 
 ```powershell
-.\build\vs2026\tools\poc\batched2d\Release\batched2d_poc.exe --backend vulkan --windowed --on-demand --run-seconds 60
+.\build\vs2026\samples\click-demo\Release\click_demo.exe --windowed
 ```
 
-- [ ] Narrator (Win+Ctrl+Enter): focus the POC window; Narrator announces "Tessera windowed POC" and
-      a pane. The announcement appears once, not once per frame.
-- [ ] Narrator scan mode (Caps+Space, then arrow keys): the accessibility tree contains exactly the
-      demo pane and its bounds match the window's client area.
-- [ ] NVDA: focus the window with NVDA running; the speech viewer shows the same pane name, and
-      NVDA's element list (`NVDA+F7`) lists one pane with no error dialog.
-- [ ] Resize the window while a screen reader is attached: the pane's bounding rectangle follows the
-      client area and the window never hangs (input and painting stay responsive).
-- [ ] Close the window with Narrator/NVDA attached: the process exits normally, with no orphaned
-      provider, no crash dialog, and no multi-second stall on close.
-- [ ] Static window: with no frames due and a screen reader attached, Task Manager shows ~0% CPU for
-      the process (the static tick does no UIA work).
-- [ ] Accessibility off (a non-Windows build or a failed UIA start): the app runs, the window keeps
-      its default provider, and no error is reported to the user.
+- [ ] Narrator (Win+Ctrl+Enter): focusing the window announces its title as the root pane. The
+      announcement appears once, not once per frame.
+- [ ] Narrator scan mode (Caps+Space, arrows): the tree shows the root pane, the `Button` and the
+      `TextInput`; the button's role/name agree with what is painted. NVDA (`NVDA+F7`) lists the same
+      nodes with no error dialog.
+- [ ] Tab through the focusable nodes: each announces its role, name and state, matching the painted
+      focus ring. Invoking the button through the screen reader changes the app state like a click.
+- [ ] Resize the window with a screen reader attached: reported bounds follow the client area, and
+      input/painting stay responsive (no hang). A static window shows ~0 % CPU (no UIA work).
+- [ ] Close the window with a screen reader attached: clean exit, no crash dialog, no multi-second
+      stall. Accessibility off (non-Windows, or a forced failed start) keeps the window usable.
+
+Linux AT-SPI equivalent (manual; no libatspi/glib link, so a generic client is enough):
+
+```bash
+./build/dev/samples/click-demo/click_demo --windowed &
+accerciser &   # or: busctl --user tree org.a11y.atspi.Registry
+```
+
+- [ ] With an accessibility bus and Orca running (Super+Alt+S), the window is announced on focus.
+- [ ] Accerciser's tree shows the root, `Button` and `TextInput` with names, roles and bounds that
+      match the window; `Action.DoAction` on the button changes the app state.
+- [ ] Tab traversal announces each focusable node; resizing updates `Component.GetExtents`.
+- [ ] With no accessibility bus the app still starts, prints one `TESSERA_A11Y_UNSUPPORTED: atspi:
+      ...` line and stays fully interactive. Closing the window leaves no stuck worker thread.

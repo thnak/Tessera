@@ -69,12 +69,26 @@ public:
     void set_caption_regions(std::span<const hal::CaptionRegion> regions) override;
     // Pointer shape (issue #191): the fake resolves the request synchronously and reports it
     // through the metrics, exactly like a platform that installed the native cursor. A scripted
-    // refusal
-    // (`set_cursor_supported(false)`) models a platform with no pointer-shape source, which is what
-    // the app's one-shot diagnostic decides from.
+    // refusal (`set_cursor_supported(false)`) models a platform with no pointer-shape source, which
+    // is what the app's one-shot diagnostic decides from.
     void set_cursor(hal::CursorShape shape) override;
     [[nodiscard]] bool supports_cursor() const noexcept override {
         return cursor_supported_;
+    }
+    // Accessibility root seam (issues #185/#186): the fake stores the installed answer and reports a
+    // non-null opaque host token, so an app-level accessibility test can drive the real wiring
+    // without an OS window. A scripted null token (`set_accessibility_host_handle({})`) models a
+    // backend with no native host element (X11).
+    void set_accessibility_root(hal::AccessibilityRoot root) override;
+    [[nodiscard]] hal::AccessibilityHostHandle accessibility_host_handle() const override;
+    void set_accessibility_host_handle(hal::AccessibilityHostHandle handle) noexcept;
+    // The installed root answer (null `answer` when nothing is installed); the app test asserts the
+    // install/uninstall order through it.
+    [[nodiscard]] const hal::AccessibilityRoot& accessibility_root() const noexcept {
+        return accessibility_root_;
+    }
+    [[nodiscard]] bool accessibility_root_installed() const noexcept {
+        return accessibility_root_.answer != nullptr;
     }
     [[nodiscard]] hal::NativeWindowHandle native_handle() const override {
         return {};
@@ -126,6 +140,10 @@ private:
     bool fullscreen_supported_ = true;
     bool cursor_supported_ = true;
     std::size_t cursor_requests_ = 0;
+    // Defaults to a non-null opaque token, like the Win32 window's HWND; a test that models a
+    // backend without a native host element clears it.
+    hal::AccessibilityHostHandle accessibility_handle_{reinterpret_cast<void*>(1)};
+    hal::AccessibilityRoot accessibility_root_{};
 };
 
 } // namespace tessera::harness::testing

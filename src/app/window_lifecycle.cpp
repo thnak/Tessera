@@ -36,6 +36,12 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
     case hal::WindowEventType::Resize:
     case hal::WindowEventType::DpiChange:
         apply_metrics(window->metrics());
+        // The client area moved, so every snapshot bound is stale. `apply_metrics` marks the
+        // controller too; the explicit mark keeps the accessibility tree honest even when the
+        // platform reports a resize that does not go through the metrics path (a DPI-only change).
+        if (accessibility != nullptr) {
+            accessibility->mark_dirty();
+        }
         break;
     case hal::WindowEventType::SafeAreaChanged:
     case hal::WindowEventType::ImeChanged:
@@ -70,7 +76,11 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
     case hal::WindowEventType::Focus:
     case hal::WindowEventType::Blur:
         // Focus never pauses: blur only reports that another window owns the keyboard, and a
-        // visible background window keeps painting (docs/design/performance.md section 5).
+        // visible background window keeps painting (docs/design/performance.md section 5). The
+        // accessibility tree exposes the focused node, so a focus change publishes a new snapshot.
+        if (accessibility != nullptr) {
+            accessibility->mark_dirty();
+        }
         break;
     case hal::WindowEventType::SystemSettingsChanged:
         if (motion.update(system_prefers_reduced_motion())) {
@@ -104,6 +114,11 @@ void WindowHost::Impl::pump_input() {
     stats.input_events += static_cast<std::uint32_t>(pumped.consumed);
     if (subtree_dirty(root)) {
         loop->mark_render_dirty();
+        // Input changes focus, hover, selection and text values: the semantics snapshot is stale
+        // whenever a dispatched event dirtied the scene.
+        if (accessibility != nullptr) {
+            accessibility->mark_dirty();
+        }
     }
     // Pointer shape right after dispatch (issue #191): hover was just updated, so the cursor
     // request and the `:hover` style can never disagree. A static hover makes no platform call
@@ -254,6 +269,7 @@ bool WindowHost::Impl::pump_once() {
     last_tick_seconds_ = now;
     const HostFrame frame = host->begin_frame(dt, tick.alpha);
     apply_initial_auto_focus();
+    tick_accessibility(&frame.tick);
     if (!frame.frame_due || frame.render.redraw_plan.scissors.empty()) {
         // A wake that changed nothing: clear the dirt this tick collected so it cannot stay latched
         // into a phantom render request, and present nothing.

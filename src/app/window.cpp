@@ -126,10 +126,16 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     metrics_paused_ = pause_policy.pauses(metrics.occluded, metrics.minimized);
     paused_ = metrics_paused_;
     last_tick_seconds_ = hal::steady_now_seconds();
+    // Accessibility last: it needs the AppHost's computed-style provider for its snapshot source.
+    // A failed start reports one diagnostic and leaves the window fully functional.
+    start_accessibility();
     available = true;
 }
 
 WindowHost::Impl::~Impl() {
+    // The accessibility controller goes first: it uninstalls the UIA root and joins the bridge or
+    // AT-SPI session while the platform window (and its native handle) is still alive.
+    accessibility.reset();
     if (window != nullptr) {
         window->set_input_queue(nullptr);
     }
@@ -394,6 +400,11 @@ void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
     }
     metrics_paused_ = pause_policy.pauses(metrics.occluded, metrics.minimized);
     update_pause_state();
+    // Accessibility bounds follow the client area, so a metrics snapshot is a semantics change even
+    // when the scene itself has no dirty flags.
+    if (accessibility != nullptr) {
+        accessibility->mark_dirty();
+    }
     // A metrics snapshot does not change the presentation generation, so `translucent_presentation`
     // keeps following the current swapchain's composite mode; a later recreation (a resize
     // OutOfDate, a device recovery) re-resolves it from the platform's fresh metrics.
@@ -528,7 +539,11 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         }
         if (!tick.should_render) {
             // Settled scene: do not begin a host frame at all, so no style, layout or paint work
-            // runs. Park until the next scheduled present or a wake source.
+            // runs. Park until the next scheduled present or a wake source. Accessibility still
+            // gets its turn: the controller only builds when dirty, so a settled window does no
+            // snapshot work here either, while an accessibility-only change (a focus/resize mark)
+            // cannot be stranded behind a frame that never happens.
+            tick_accessibility();
             ++stats.idle_waits;
             idle(idle_wait_seconds(pacer.ready(hal::steady_now_seconds())));
             continue;
@@ -548,6 +563,7 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         last_tick_seconds_ = now;
         const HostFrame frame = host->begin_frame(dt, tick.alpha);
         apply_initial_auto_focus();
+        tick_accessibility(&frame.tick);
         const bool has_damage = !frame.render.redraw_plan.scissors.empty();
         if (!should_present(frame.frame_due, has_damage, force_frames)) {
             // A wake that changed nothing: clear the dirt the tick collected so it cannot stay

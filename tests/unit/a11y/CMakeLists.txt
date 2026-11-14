@@ -90,7 +90,6 @@ add_test(NAME a11y_atspi_session_pump COMMAND a11y_atspi_session_pump_tests)
 
 add_executable(a11y_uia_mapping_tests
     a11y_uia_mapping_tests.cpp)
-
 target_link_libraries(a11y_uia_mapping_tests PRIVATE tessera_accessibility)
 
 add_test(NAME a11y_uia_mapping COMMAND a11y_uia_mapping_tests)
@@ -223,3 +222,21 @@ if (WIN32)
 
     add_test(NAME a11y_uia_window_host_element COMMAND a11y_uia_window_host_element_tests)
 endif()
+
+# Host-wiring integration (issues #185/#186, accessibility-v1.md section 12.3): the app's own
+# `AccessibilityHost` controller drives the real UIA host (fake apartment + fake platform seams) and
+# the real AT-SPI session (loopback transport + synthetic peer). Pure CPU: no window, no screen
+# reader, no bus daemon, no socket. Links the app library's private controller header via the
+# include directory below, plus the harness fake window.
+add_executable(app_accessibility_host_tests
+    app_accessibility_host_tests.cpp
+    app_accessibility_host_atspi_tests.cpp)
+
+target_link_libraries(app_accessibility_host_tests PRIVATE
+    tessera_app
+    tessera_harness_testing)
+
+target_include_directories(app_accessibility_host_tests
+    PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
+
+add_test(NAME app_accessibility_host COMMAND app_accessibility_host_tests)

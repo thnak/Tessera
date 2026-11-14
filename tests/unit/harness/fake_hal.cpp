@@ -109,6 +109,18 @@ void FakeWindow::set_caption_regions(std::span<const hal::CaptionRegion> regions
     metrics_.caption_regions = hal::make_caption_regions(regions, metrics_.caption_region_count);
 }
 
+void FakeWindow::set_accessibility_root(hal::AccessibilityRoot root) {
+    accessibility_root_ = root;
+}
+
+hal::AccessibilityHostHandle FakeWindow::accessibility_host_handle() const {
+    return accessibility_handle_;
+}
+
+void FakeWindow::set_accessibility_host_handle(hal::AccessibilityHostHandle handle) noexcept {
+    accessibility_handle_ = handle;
+}
+
 void FakeWindow::set_fullscreen_supported(bool supported) noexcept {
     fullscreen_supported_ = supported;
 }

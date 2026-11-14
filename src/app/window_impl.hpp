@@ -21,6 +21,7 @@
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/text/caret_blink.hpp"
+#include "accessibility_host.hpp"
 #include "window_config.hpp"
 #include "window_internal.hpp"
 
@@ -179,6 +180,18 @@ struct WindowHost::Impl {
     // same one-shot policy as `fullscreen_unsupported_reported`.
     bool cursor_unsupported_reported = false;
 
+    // --- accessibility host wiring (issue #185/#186, accessibility-v1.md section 12.3) -------
+    // Owns the one accessibility controller: the UIA root provider on Windows, the AT-SPI
+    // session on Linux, the dirty-driven snapshot publication and the tick-boundary action drain.
+    // The implementation lives in window_accessibility.cpp so this driver's translation unit only
+    // constructs, ticks and tears it down.
+    void start_accessibility();
+    // Called at the frame seam (`frame` is the host frame's tick) and on the settled-window path
+    // (`frame` null). Style/layout work is a semantics change, so it marks the controller dirty
+    // before the dirty-only tick.
+    void tick_accessibility(const ui::frame::FrameTick* frame = nullptr);
+    void apply_accessibility_action(const AccessibilityAction& action);
+
     ui::Node& root;
     WindowOptions options;
     ui::UpdateScheduler* scheduler = nullptr;
@@ -226,6 +239,13 @@ struct WindowHost::Impl {
     std::unique_ptr<AppHost> host;
     // Last OS reduced-motion value pushed to `host`; a SystemSettingsChanged event re-queries it.
     MotionPreference motion;
+    // The window's one accessibility controller (issue #185/#186). Declared AFTER `window` and
+    // `host` on purpose: members are destroyed in reverse declaration order, so this is destroyed
+    // first - it uninstalls the UIA root and joins the bridge/session while the platform window
+    // (and
+    // its native handle) is still valid, and before the AppHost whose style provider its snapshot
+    // source borrows. `~Impl` also stops it explicitly on the same ordering.
+    std::unique_ptr<AccessibilityHost> accessibility;
 
     ui::InputPump pump;
     bool auto_focus_applied = false;

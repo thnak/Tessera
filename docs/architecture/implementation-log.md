@@ -172,10 +172,20 @@ ChildrenInvalidated, per-parent child-list changes, name/value/help-text/enabled
 PropertyChanged, one focus event) coalesced in a bounded 64-entry queue with drop-oldest counting;
 the bridge adopts the pending snapshot immediately before each job. Tests `a11y_uia_events`,
 `a11y_uia_host_getobject`, `a11y_uia_host_tick`, `a11y_uia_host_events`, `a11y_uia_window_getobject`
-(Windows only). Next: pass the native handle through the platform seam so the root answers
-`get_HostRawElementProvider` with `UiaHostProviderFromHwnd`, install
-`make_window_root_provider(UiaHost&)` from the windowed POC/ApplicationHost, then event payload
-variants and a Narrator/NVDA manual smoke checklist. `tessera_schema` now loads and
+(Windows only). The host wiring landed: `get_HostRawElementProvider` answers with a
+`UiaHostProviderFromHwnd` provider built on the bridge thread from the window's opaque handle, and
+`WindowHost` owns one accessibility controller (`src/app/accessibility_host.{hpp,cpp}`,
+`window_accessibility.cpp`, `accessibility_host_atspi.cpp`): on Windows it forwards
+`hal::Window::accessibility_host_handle()` to the platform seam, installs
+`make_window_root_provider(UiaHost&)` and uninstalls it before the window dies; on Linux it starts
+`AtspiBridge` + `AtspiSession` and lets that session's own worker thread pump the bus while the UI
+thread only publishes dirty snapshots and drains bounded actions. A failed/unsupported start and a
+terminal AT-SPI phase both turn accessibility off with exactly one
+`TESSERA_A11Y_UNSUPPORTED: <backend>: <error>` line and leave the window fully functional; a static
+window rebuilds no snapshot. Tests `app_accessibility_host` (fake UIA apartment/platform seams and
+the loopback AT-SPI transport with a synthetic peer); the Narrator/NVDA and Orca checklists are in
+spec §12.3. Still open for this lane: event payload variants and installing the AT-SPI side on a real
+desktop session. `tessera_schema` now loads and
 validates shader manifests (`include/tessera/schema/manifest.hpp`): the strict §1–§3 shape with
 closed key sets, the §4 rules including the V1 compute rejection (`ComputeStageUnsupported`),
 `std::expected<Manifest, ValidationError>` with stable codes and JSON paths, and the §9 caps; tests
