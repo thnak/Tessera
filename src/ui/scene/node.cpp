@@ -140,22 +140,22 @@ void Node::set_glass_blur_sigma(float sigma) {
 void Node::set_glass_subtree(bool has_glass) {
     // Derived state, not paint-visible on its own: it can only change when a style change already
     // marked the affected node, so it never raises damage by itself.
-    glass_subtree_ = has_glass;
+    set_flag(kGlassSubtree, has_glass);
 }
 
 void Node::set_visible(bool visible) {
-    if (visible_ == visible) {
+    if (flag(kVisible) == visible) {
         return;
     }
-    visible_ = visible;
+    set_flag(kVisible, visible);
     mark_dirty(Dirty::Layout | Dirty::Paint | Dirty::Render);
 }
 
 void Node::set_style_hidden(bool hidden) {
-    if (style_hidden_ == hidden) {
+    if (flag(kStyleHidden) == hidden) {
         return;
     }
-    style_hidden_ = hidden;
+    set_flag(kStyleHidden, hidden);
     // Paint and render only: unlike `display: none`, `visibility: hidden` keeps the node's layout
     // box, so the parent must not reflow. Hit testing is not a dirty domain (the next query reads
     // the flag directly), and the accessibility tree is rebuilt on demand.
@@ -163,17 +163,17 @@ void Node::set_style_hidden(bool hidden) {
 }
 
 void Node::set_focusable(bool focusable) {
-    if (focusable_ == focusable) {
+    if (flag(kFocusable) == focusable) {
         return;
     }
-    focusable_ = focusable;
+    set_flag(kFocusable, focusable);
     mark_dirty(Dirty::Style);
 }
 
 void Node::set_pointer_events(bool enabled) {
     // Hit testing is not a dirty domain: the next input query reads the flag directly, so nothing
     // is repainted and no damage is raised by a stylesheet-only change.
-    pointer_events_ = enabled;
+    set_flag(kPointerEvents, enabled);
 }
 
 void Node::set_user_select(UserSelect value) {
@@ -297,11 +297,11 @@ void Node::set_overscroll_effect(OverscrollEffect effect) {
 void Node::set_scroll_animation_target(float x, float y) {
     scroll_animation_target_x_ = std::isfinite(x) ? x : 0.0f;
     scroll_animation_target_y_ = std::isfinite(y) ? y : 0.0f;
-    scroll_animation_active_ = true;
+    set_flag(kScrollAnimationActive, true);
 }
 
 void Node::clear_scroll_animation() {
-    scroll_animation_active_ = false;
+    set_flag(kScrollAnimationActive, false);
     scroll_animation_target_x_ = scroll_x_;
     scroll_animation_target_y_ = scroll_y_;
 }
@@ -449,7 +449,7 @@ Node* Node::hit_test_deep(float x, float y) {
         if (local_x < min_x || local_y < min_y || local_x > max_x || local_y > max_y) {
             // Children are clipped at the scrollport, but the container itself is still hit within
             // its own box (its border/padding area paints there).
-            return pointer_events_ && hit_test(x, y) ? this : nullptr;
+            return flag(kPointerEvents) && hit_test(x, y) ? this : nullptr;
         }
     }
 
@@ -465,7 +465,7 @@ Node* Node::hit_test_deep(float x, float y) {
 
     // `pointer-events: none` skips only this node as a target; the child search above already ran,
     // so a descendant with `auto` is hit normally.
-    return pointer_events_ && hit_test(x, y) ? this : nullptr;
+    return flag(kPointerEvents) && hit_test(x, y) ? this : nullptr;
 }
 
 void Node::on_event(Event&) {}

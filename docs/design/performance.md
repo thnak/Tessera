@@ -92,7 +92,7 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 
 | Item | Cost | Enforced by |
 |---|---|---|
-| `ui::Node` (plain View) | 336 bytes, budget `kNodeSizeBudget` = 336 (320 before the `::part()` metadata pointer, issue #235) | `static_assert` in `node.hpp`, `node_size` test |
+| `ui::Node` (plain View) | 312 bytes (Release; 320 in MSVC Debug), budget `kNodeSizeBudget` = 320 (336 for a while after the `::part()` metadata pointer, issue #235; the booleans were packed into one flags word in #285) | `static_assert` in `node.hpp`, `node_size` test |
 | ARIA table (first `aria-*`) | about 520 bytes, once per node | lazy; `node_size` test counts allocations |
 | Inline-style table (first declaration) | about 520 bytes, once per node | lazy; `node_size` test |
 | Event-binding table (first binding) | about 200 bytes, once per node | lazy; `node_size` test |
