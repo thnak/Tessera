@@ -36,6 +36,11 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
     case hal::WindowEventType::DpiChange:
         apply_metrics(window->metrics());
         break;
+    case hal::WindowEventType::SafeAreaChanged:
+        // Insets and cutouts do not move the client area: no swapchain resize, only a repaint so a
+        // SafeArea consumer re-reads the metrics.
+        loop->mark_render_dirty();
+        break;
     case hal::WindowEventType::Minimized:
         // The window is not visible: the configured pause policy decides whether a frame may be
         // acquired, painted or presented until the platform reports it back. Win32 emits Minimized;

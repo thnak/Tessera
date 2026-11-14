@@ -91,16 +91,27 @@ struct FoldInfo {
 constexpr std::size_t kMaxCutouts = 4;
 
 struct CutoutInfo {
-    std::array<Rect, kMaxCutouts> bounds{};   // logical pixels, window coordinates
-    std::uint8_t count = 0;                   // valid entries of `bounds`
-    Rect waterfall_insets;                    // curved-edge insets, zero when none
+    std::array<WindowRect, kMaxCutouts> bounds{};   // logical pixels, window coordinates
+    std::uint8_t count = 0;                         // valid entries of `bounds`
+    WindowInsets waterfall_insets;                  // curved-edge insets, zero when none
 };
 ```
 
-Proposed: `WindowMetrics` carries a `CutoutInfo` next to the insets; it changes on `SafeAreaChanged`.
-Android fills it from `DisplayCutout.getBoundingRects()`. iOS, desktop and web report none in V1
+`WindowMetrics::cutouts` carries a `CutoutInfo` next to the insets, and it changes together with them
+on `SafeAreaChanged` (`WindowEventType::SafeAreaChanged`; consecutive ones coalesce into the newest,
+metrics included). `make_cutout_info` (`tessera/hal/cutout.hpp`) is the one way platforms and fakes
+build it: it keeps the first `kMaxCutouts` rectangles, drops the extras, and skips a rectangle that
+is non-finite or has no area, so no input can overrun the array. `format_window_metrics` is the
+deterministic metrics dump and lists every rectangle. Android fills it from
+`DisplayCutout.getBoundingRects()` converted to logical pixels; the Android window backend does not
+exist yet (`src/platform/android` is empty), so that fill is a post-V1 item and the conversion
+target is `make_cutout_info`. iOS, desktop and web report none in V1
 (`count == 0`), so consumers use the top safe-area inset as the fallback
 ([`safe-area-v1.md`](safe-area-v1.md) section 5).
+
+Evidence: `tests/unit/harness/cutout_tests.cpp` (ctest `cutout`): the count-0 default, one, several
+and more than `kMaxCutouts` cutouts, skipped bad rectangles, `SafeAreaChanged` coalescing in the fake
+and in the platform event ring, and the metrics dump.
 
 ## 3. Event ordering and delivery
 

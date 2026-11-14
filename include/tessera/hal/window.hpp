@@ -5,6 +5,7 @@
 #include "tessera/hal/refresh_rate.hpp"
 #include "tessera/hal/window_backdrop.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -25,6 +26,26 @@ struct WindowInsets {
     float bottom = 0;
 };
 
+// Axis-aligned rectangle in logical pixels, window coordinates.
+struct WindowRect {
+    float x = 0;
+    float y = 0;
+    float width = 0;
+    float height = 0;
+};
+
+// Display cutouts (notch, punch-hole, camera island): insets say how much to avoid, the rectangles
+// say where (docs/specs/os-events-v1.md section 2). `count == 0` is the answer of every platform
+// that reports none; entries past `count` are zero. Build one with `make_cutout_info`.
+inline constexpr std::size_t kMaxCutouts = 4;
+
+struct CutoutInfo {
+    std::array<WindowRect, kMaxCutouts> bounds{};
+    std::uint8_t count = 0;
+    // Curved-edge (waterfall) insets, zero when the display has none.
+    WindowInsets waterfall_insets;
+};
+
 // Immutable-per-frame window/display snapshot. Styles, layout, and input see this type and never
 // an OS handle, OS message, or swapchain.
 struct WindowMetrics {
@@ -34,6 +55,8 @@ struct WindowMetrics {
     std::uint32_t physical_height = 0;
     float dpi_scale = 1.0f;
     WindowInsets insets;
+    // Display cutouts; changes together with `insets` on `SafeAreaChanged`.
+    CutoutInfo cutouts;
     bool focused = true;
     bool occluded = false;
     bool minimized = false;
@@ -63,6 +86,9 @@ enum class WindowEventType {
     // event carries no value: the owner re-queries the setting it cares about, so no OS message or
     // parameter reaches UI code.
     SystemSettingsChanged,
+    // The insets or the display cutouts changed (rotation, fold, bar visibility). The event's
+    // metrics carry the new values; consecutive ones coalesce into the newest.
+    SafeAreaChanged,
 };
 
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.
