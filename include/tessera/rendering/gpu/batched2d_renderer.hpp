@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/clip.hpp"
+#include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/rendering/rhi/device.hpp"
@@ -38,12 +39,21 @@ struct Batched2DConfig {
     // `glassMaxBlurTargets` from docs/specs/glass-v1.md section 5: 4 by default, 0 disables the
     // pool. The pool never grows past it and recycles a target only after frames_in_flight frames.
     std::uint32_t max_offscreen_targets = 4;
+
+    // Glass cost limits (glass-v1 sections 5 and 8), the same runtime keys the paint pass uses:
+    // `max_blur_radius` is `glassMaxBlurRadius` (CSS px, clamped again here so a caller cannot make
+    // the renderer blur further than the paint pass's damage region) and `max_backdrop_area` is
+    // `glassMaxBackdropArea` (the half-resolution threshold).
+    GlassLimits glass{};
 };
 
 class Batched2DRenderer {
 public:
+    // `glass` supplies the two pipelines a backdrop composite records (glass-v1 sections 3-5,
+    // issue #244). Leaving it empty keeps every non-glass frame byte-identical and makes
+    // draw_backdrop() a documented no-op that the caller counts as unsupported.
     Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipeline, rhi::Texture& white_texture,
-                      Batched2DConfig config = {});
+                      Batched2DConfig config = {}, GlassPipelines glass = {});
     ~Batched2DRenderer();
 
     Batched2DRenderer(const Batched2DRenderer&) = delete;
@@ -85,6 +95,33 @@ public:
     // every target is still in flight; the caller then paints that frame without the effect.
     [[nodiscard]] rhi::RenderTarget* acquire_offscreen_target(rhi::Extent2D extent);
     [[nodiscard]] std::uint32_t offscreen_target_count() const;
+
+    // --- Glass backdrop composite (docs/specs/glass-v1.md sections 3-5, issue #244) -------------
+    // Executes one glass node's backdrop entirely on this frame's command list, at the node's paint
+    // position: the pass is broken (pending geometry flushed first), the node's 3-sigma dependency
+    // region is copied out of the frame target into a pooled target, the horizontal Gaussian runs
+    // into a second pooled target sampling that copy, the frame pass is resumed with LoadOp::Load,
+    // and the vertical pass composites the result back through the node's rounded clip, with the
+    // saturate/brightness/contrast matrix and the folded node opacity. Above
+    // `Batched2DConfig::glass.max_backdrop_area` the blur target is half the region and the
+    // vertical pass upsamples bilinearly.
+    //
+    // Returns false without recording anything when the effect cannot run this frame: no glass
+    // pipelines or pool, a pass-through sigma, a frame target that cannot be read (a swapchain
+    // image is not a copy source), or the bounded pool having no free target. The caller then
+    // paints the node without the effect - the documented bounded-cost behavior, never a block and
+    // never an exception on the frame path.
+    [[nodiscard]] bool draw_backdrop(const GlassBackdropDraw& draw);
+
+    // True when draw_backdrop() can execute: both glass pipelines are configured, the offscreen
+    // pool is enabled and the sink is inside a frame. Callers use it to report an unsupported
+    // backdrop draw instead of pretending it painted glass.
+    [[nodiscard]] bool glass_supported() const;
+
+    // Blur + composite draws recorded so far (diagnostics and the benchmark).
+    [[nodiscard]] std::uint32_t glass_draws() const {
+        return glass_draws_;
+    }
 
     void set_viewport(rhi::Extent2D extent);
     void set_scissor(const rhi::Scissor& scissor);
@@ -152,6 +189,10 @@ private:
     void begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
                      const rhi::RenderTargetDesc& desc,
                      const std::vector<rhi::Scissor>* damage_regions);
+    // Re-binds the pipeline, viewport, scissor and folded clip uniforms the frame pass needs. A new
+    // pass starts with no state, and a glass composite records its own pipeline/push constants in
+    // the middle of one, so both resume_pass() and draw_backdrop() restore the frame state here.
+    void bind_frame_state();
     void select_next_slot();
     void ensure_buffer_space(std::size_t vertices);
     [[nodiscard]] rhi::Buffer& current_buffer();
@@ -178,6 +219,12 @@ private:
     std::unique_ptr<OffscreenTargetPool> offscreen_pool_;
     std::uint64_t frame_index_ = 0;
     bool pass_broken_ = false;
+
+    // Glass pipelines (borrowed, like pipeline_) and the count of composite draws this frame
+    // recorded. Empty for a renderer that never paints glass, which keeps the frame stream of a
+    // no-glass tree identical to the pre-glass renderer.
+    GlassPipelines glass_;
+    std::uint32_t glass_draws_ = 0;
 
     Batched2DConfig config_;
     rhi::Extent2D extent_;

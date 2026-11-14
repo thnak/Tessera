@@ -1,5 +1,5 @@
 // WGSL twin of ../../vulkan/shaders/glass_blur.frag (ADR-011: two sources, one manifest entry).
-// WebGPU has no push constants, so the 96-byte block is a uniform buffer at group 0, binding 0 and
+// WebGPU has no push constants, so the 112-byte block is a uniform buffer at group 0, binding 0 and
 // the combined image sampler splits into a texture at binding 1 and a sampler at binding 2, the
 // convention batched2d.wgsl uses. Authored directly, never translated at run time; validated by
 // naga (tests) and the Wasm CI lane, which is the only place the WebGPU C++ path is compiled.
@@ -19,6 +19,7 @@ struct Params {
     radii: vec4<f32>, // top-left, top-right, bottom-right, bottom-left
     factors: vec3<f32>, // saturate, brightness, contrast (vertical pass only)
     mode: f32,        // 0 = horizontal into the blur target, 1 = vertical + composite
+    opacity: f32,     // node opacity, folded into the composite alpha (vertical pass only)
 };
 
 @group(0) @binding(0) var<uniform> pc: Params;
@@ -106,5 +107,8 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let radius = corner_radius(local, pc.radii);
     let distance = sd_round_box(local, pc.box.zw * 0.5, radius);
     let coverage = clamp(0.5 - distance, 0.0, 1.0);
-    return vec4<f32>(rgb, blurred.a * coverage);
+    // The composite pass draws over the frame target with straight-alpha blending: this alpha is the
+    // blend weight (opacity * blurred + (1 - opacity) * original for an opaque backdrop) and
+    // `coverage` antialiases the rounded clip. The horizontal pass writes straight alpha unblended.
+    return vec4<f32>(rgb, blurred.a * coverage * pc.opacity);
 }

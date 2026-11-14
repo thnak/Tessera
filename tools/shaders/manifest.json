@@ -60,7 +60,7 @@
         { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" }
       ],
       "pushConstants": {
-        "size": 96,
+        "size": 112,
         "fields": [
           { "name": "texel_step", "type": "float2", "offset": 0 },
           { "name": "direction", "type": "float2", "offset": 8 },
@@ -71,7 +71,8 @@
           { "name": "box", "type": "float4", "offset": 48 },
           { "name": "radii", "type": "float4", "offset": 64 },
           { "name": "factors", "type": "float3", "offset": 80 },
-          { "name": "mode", "type": "float", "offset": 92 }
+          { "name": "mode", "type": "float", "offset": 92 },
+          { "name": "opacity", "type": "float", "offset": 96 }
         ]
       },
       "tests": [

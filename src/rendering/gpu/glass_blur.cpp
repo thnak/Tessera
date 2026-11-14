@@ -124,4 +124,53 @@ GlassBackdropPlan plan_glass_backdrop(rhi::Extent2D box_device, float sigma_css_
     return plan;
 }
 
+GlassBackdropRegion plan_glass_backdrop_region(const rhi::Rect& box, float sigma_css_px,
+                                               float device_scale, const GlassLimits& limits,
+                                               rhi::Extent2D target_extent) {
+    GlassBackdropRegion region;
+    const float sigma = clamp_glass_sigma(sigma_css_px, limits);
+    const float scale = std::isfinite(device_scale) && device_scale > 0.0f ? device_scale : 1.0f;
+    const float sigma_device = sigma * scale;
+    if (sigma_device <= 0.0f || box.width <= 0.0f || box.height <= 0.0f ||
+        target_extent.width == 0 || target_extent.height == 0) {
+        return region;
+    }
+
+    // Integer dependency region (the box grown by 3 sigma on every side), clamped to the target:
+    // the copy reads exactly these pixels, which is what makes the blur's reach safe for box pixels
+    // - every tap a visible pixel takes stays inside the copied data.
+    const auto reach = static_cast<std::int32_t>(std::ceil(3.0f * sigma_device));
+    const auto clamp_axis = [](std::int32_t value, std::uint32_t extent) {
+        return std::clamp(value, 0, static_cast<std::int32_t>(extent));
+    };
+    const std::int32_t x0 =
+        clamp_axis(static_cast<std::int32_t>(std::floor(box.x)) - reach, target_extent.width);
+    const std::int32_t y0 =
+        clamp_axis(static_cast<std::int32_t>(std::floor(box.y)) - reach, target_extent.height);
+    const std::int32_t x1 =
+        clamp_axis(static_cast<std::int32_t>(std::ceil(box.right())) + reach, target_extent.width);
+    const std::int32_t y1 = clamp_axis(static_cast<std::int32_t>(std::ceil(box.bottom())) + reach,
+                                       target_extent.height);
+    if (x1 <= x0 || y1 <= y0) {
+        return region;
+    }
+
+    region.active = true;
+    region.source = rhi::Scissor{x0, y0, static_cast<std::uint32_t>(x1 - x0),
+                                 static_cast<std::uint32_t>(y1 - y0)};
+    const std::uint64_t area =
+        static_cast<std::uint64_t>(region.source.width) * region.source.height;
+    region.half_resolution = area > limits.max_backdrop_area;
+    if (region.half_resolution) {
+        // Odd extents round up so the blur target never loses a pixel of the region; the vertical
+        // pass upsamples bilinearly.
+        region.blur = rhi::Extent2D{(region.source.width + 1) / 2, (region.source.height + 1) / 2};
+        region.kernel = make_glass_kernel(sigma_device * 0.5f);
+    } else {
+        region.blur = rhi::Extent2D{region.source.width, region.source.height};
+        region.kernel = make_glass_kernel(sigma_device);
+    }
+    return region;
+}
+
 } // namespace tessera::rendering::gpu

@@ -10,6 +10,7 @@
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
+#include "tessera/rendering/vulkan/glass_blur_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/text/font_face.hpp"
@@ -83,6 +84,24 @@ inline std::unique_ptr<rhi::Pipeline> create_pipeline(rhi::Device& device,
     auto desc = tessera::rendering::vulkan::batched2d_pipeline_desc();
     desc.color_format = format;
     return device.create_pipeline(desc);
+}
+
+// The two glass pipelines a backdrop composite records (issue #244): the horizontal blur draws into
+// a pooled offscreen target with no blending, the composite draws over the frame target with alpha
+// blending so the rounded clip antialiases and the node opacity folds in. Both are created for the
+// frame target's format, like the 2D pipeline.
+struct GlassPipelines {
+    std::unique_ptr<rhi::Pipeline> blur;
+    std::unique_ptr<rhi::Pipeline> composite;
+};
+
+inline GlassPipelines create_glass_pipelines(rhi::Device& device, rhi::TextureFormat format) {
+    GlassPipelines pipelines;
+    pipelines.blur = device.create_pipeline(
+        tessera::rendering::vulkan::glass_blur_pipeline_desc(format, rhi::BlendMode::None));
+    pipelines.composite = device.create_pipeline(
+        tessera::rendering::vulkan::glass_blur_pipeline_desc(format, rhi::BlendMode::Alpha));
+    return pipelines;
 }
 
 inline std::unique_ptr<rhi::Texture> create_white(rhi::Device& device) {

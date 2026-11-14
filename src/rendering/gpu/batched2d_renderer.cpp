@@ -30,11 +30,13 @@ bool same_scissor(const rhi::Scissor& a, const rhi::Scissor& b) {
 } // namespace
 
 Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipeline,
-                                     rhi::Texture& white_texture, Batched2DConfig config)
+                                     rhi::Texture& white_texture, Batched2DConfig config,
+                                     GlassPipelines glass)
     : device_(&device),
       pipeline_(&pipeline),
       white_texture_(&white_texture),
       config_(config),
+      glass_(glass),
       current_texture_(&white_texture) {
     static_assert(sizeof(Vertex2D) == kVertex2DStride, "vertex stride must match the layout");
 
@@ -129,6 +131,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     current_batch_ = Batch{scissor_, current_texture_, current_clip_state_, 0, 0};
     draw_calls_ = 0;
     emitted_vertices_ = 0;
+    glass_draws_ = 0;
     in_frame_ = true;
 
     commands_->begin_render_pass(target, desc);

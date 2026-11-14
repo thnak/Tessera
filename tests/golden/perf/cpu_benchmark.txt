@@ -20,10 +20,17 @@ max_first_style_layout_ms = 4500
 max_full_paint_ms = 500
 max_layout_paint_text_ms = 1800
 max_layout_paint_container_ms = 1800
+# Glass scenario (issue #244, glass-v1 section 9): one full paint of the reference scene with the
+# fixed top bar blurred, recording the region copy, both blur passes and the composite on the null
+# RHI. Same ~6x headroom as the other times: the composite adds a bounded number of commands, and
+# the GPU blur itself is not measured here (see docs/design/performance.md section 9.1).
+max_glass_paint_ms = 500
 
 # Redraw and batching counters from the full paint. These are deterministic on every run, so they
 # are compared with a small headroom rather than a factor; a changed count means the draw-list or
 # batching story changed.
+# Exactly one glass node in the glass scenario: a frame that stops compositing it is a regression.
+glass_backdrops = 1
 max_damage_rects = 8
 max_draw_calls = 64
 max_quads = 128

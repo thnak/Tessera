@@ -83,6 +83,7 @@ void accumulate(benchmark::Totals& totals, const benchmark::Measurement& sample)
     totals.text_runs = std::max(totals.text_runs, sample.text_runs);
     totals.images = std::max(totals.images, sample.images);
     totals.paint_nodes = std::max(totals.paint_nodes, sample.paint_nodes);
+    totals.glass_backdrops = std::max(totals.glass_backdrops, sample.glass_backdrops);
 }
 
 } // namespace
@@ -121,6 +122,7 @@ int main(int argc, char** argv) {
     std::vector<double> full_paint;
     std::vector<double> layout_paint_text;
     std::vector<double> layout_paint_container;
+    std::vector<double> glass_paint;
     benchmark::Totals totals;
     for (std::uint64_t run = 0; run < budget.runs; ++run) {
         benchmark::Fixture fixture;
@@ -134,6 +136,7 @@ int main(int argc, char** argv) {
         full_paint.push_back(sample.full_paint_ms);
         layout_paint_text.push_back(sample.layout_paint_text_ms);
         layout_paint_container.push_back(sample.layout_paint_container_ms);
+        glass_paint.push_back(sample.glass_paint_ms);
         accumulate(totals, sample);
     }
     const benchmark::Percentiles first = benchmark::summarize(std::move(first_style_layout));
@@ -141,6 +144,7 @@ int main(int argc, char** argv) {
     const benchmark::Percentiles text = benchmark::summarize(std::move(layout_paint_text));
     const benchmark::Percentiles container =
         benchmark::summarize(std::move(layout_paint_container));
+    const benchmark::Percentiles glass = benchmark::summarize(std::move(glass_paint));
 
     std::printf("cpu_benchmark: metric                              median      p95    budget\n");
     std::printf("cpu_benchmark: first style+layout (ms)       %10.2f %8.2f %8llu\n", first.median,
@@ -152,6 +156,10 @@ int main(int argc, char** argv) {
     std::printf("cpu_benchmark: layout+paint, one size (ms)   %10.2f %8.2f %8llu\n",
                 container.median, container.p95,
                 static_cast<unsigned long long>(budget.max_layout_paint_container_ms));
+    std::printf("cpu_benchmark: full paint, glass bar (ms)    %10.2f %8.2f %8llu\n", glass.median,
+                glass.p95, static_cast<unsigned long long>(budget.max_glass_paint_ms));
+    std::printf("cpu_benchmark: glass backdrops per glass frame %zu (budget %llu)\n",
+                totals.glass_backdrops, static_cast<unsigned long long>(budget.glass_backdrops));
     std::printf("cpu_benchmark: damage rects (max of the three frames) %zu (budget %llu)\n",
                 totals.damage_rects, static_cast<unsigned long long>(budget.max_damage_rects));
     std::printf("cpu_benchmark: draw calls %zu, quads %zu, draw-list primitives %zu\n",
@@ -172,6 +180,15 @@ int main(int argc, char** argv) {
     ok = within("layout+paint container ms", container.median,
                 budget.max_layout_paint_container_ms) &&
          ok;
+    ok = within("glass paint ms", glass.median, budget.max_glass_paint_ms) && ok;
+    // The counter is exact: the glass scenario has one glass node, and a frame that stops
+    // compositing it (a fallback silently taking over) is a regression, not noise.
+    if (totals.glass_backdrops != budget.glass_backdrops) {
+        std::fprintf(stderr, "cpu_benchmark: glass backdrops %zu, the budget expects %llu\n",
+                     totals.glass_backdrops,
+                     static_cast<unsigned long long>(budget.glass_backdrops));
+        ok = false;
+    }
     ok = within("damage rects", totals.damage_rects, budget.max_damage_rects) && ok;
     ok = within("draw calls", totals.draw_calls, budget.max_draw_calls) && ok;
     ok = within("quads", totals.quads, budget.max_quads) && ok;

@@ -24,6 +24,10 @@ struct Budget {
     std::uint64_t max_full_paint_ms = 0;
     std::uint64_t max_layout_paint_text_ms = 0;
     std::uint64_t max_layout_paint_container_ms = 0;
+    // Glass scenario (issue #244, glass-v1 section 9): one full paint of the reference scene with a
+    // glass bar, and the number of backdrop composites that paint records.
+    std::uint64_t max_glass_paint_ms = 0;
+    std::uint64_t glass_backdrops = 0;
     std::uint64_t max_damage_rects = 0;
     std::uint64_t max_draw_calls = 0;
     std::uint64_t max_quads = 0;

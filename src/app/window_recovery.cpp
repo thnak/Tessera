@@ -79,6 +79,10 @@ bool WindowHost::Impl::create_presentation() {
     if (pipeline == nullptr) {
         return false;
     }
+    detail::GlassPipelines glass = detail::create_glass_pipelines(*device, swapchain->format());
+    if (glass.blur == nullptr || glass.composite == nullptr) {
+        return false;
+    }
     white = detail::create_white(*device);
     if (white == nullptr) {
         return false;
@@ -88,8 +92,14 @@ bool WindowHost::Impl::create_presentation() {
     // Glass bounds the blurred-backdrop pool (glass-v1 section 5); 0 disables the pool and a frame
     // then paints without the effect instead of growing without bound.
     renderer_config.max_offscreen_targets = options.runtime.glass_max_blur_targets;
-    renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(*device, *pipeline, *white,
-                                                                   renderer_config);
+    // The same limits the paint pass applies: the sigma clamp and the half-resolution threshold.
+    renderer_config.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
+    renderer_config.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
+    glass_blur_pipeline = std::move(glass.blur);
+    glass_composite_pipeline = std::move(glass.composite);
+    renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(
+        *device, *pipeline, *white, renderer_config,
+        rendering::gpu::GlassPipelines{glass_blur_pipeline.get(), glass_composite_pipeline.get()});
     // The text stack owns the glyph atlas textures, so it is recreated with the device generation
     // instead of reusing an atlas whose images died with the old device.
     text = std::make_unique<detail::TextStack>(*device, options.font_path);
@@ -114,6 +124,8 @@ void WindowHost::Impl::release_presentation() {
     gpu_timestamps_usable = false;
     pending_gpu_frame_time_ms.reset();
     pipeline.reset();
+    glass_blur_pipeline.reset();
+    glass_composite_pipeline.reset();
     swapchain.reset();
     for (auto& commands : in_flight) {
         commands.reset();

@@ -180,6 +180,11 @@ struct WindowHost::Impl {
     // recreation during a run does not repeat TESSERA_GLASS_WINDOW_UNSUPPORTED.
     bool alpha_fallback_reported = false;
     std::unique_ptr<rhi::Pipeline> pipeline;
+    // Glass composite pipelines (issue #244): the horizontal blur pass (no blending) and the
+    // composite pass (alpha blending over the frame target). Recreated with the device generation
+    // and borrowed by the renderer, like `pipeline`.
+    std::unique_ptr<rhi::Pipeline> glass_blur_pipeline;
+    std::unique_ptr<rhi::Pipeline> glass_composite_pipeline;
     std::unique_ptr<rhi::Texture> white;
     std::unique_ptr<rendering::gpu::Batched2DRenderer> renderer;
     std::unique_ptr<detail::TextStack> text;

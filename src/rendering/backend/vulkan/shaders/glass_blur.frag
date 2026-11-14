@@ -25,14 +25,14 @@ layout(set = 0, binding = 0) uniform sampler2D u_texture;
 #define TESSERA_SAMPLE(uv) texture(u_texture, (uv))
 #endif
 
-// The block below is the whole interface (72 bytes of fields, 80 with std140 padding). The portable
+// The block below is the whole interface (76 bytes of fields, 112 with padding). The portable
 // interface turns it into a std140 uniform buffer at binding 0.
 #ifdef TESSERA_SHADER_PORTABLE
 layout(set = 0, binding = 0, std140) uniform PushConstants {
 #else
 layout(push_constant) uniform PushConstants {
 #endif
-    vec2 texel_step;    // 1 / blur-target extent
+    vec2 texel_step;    // 1 / blur-target extent (source-space step for the horizontal pass)
     vec2 direction;     // (1, 0) horizontal, (0, 1) vertical
     float sigma;        // Gaussian sigma in blur-target texels
     float radius;       // ceil(3 * sigma), the same integer radius the CPU kernel uses
@@ -42,6 +42,7 @@ layout(push_constant) uniform PushConstants {
     vec4 radii;         // top-left, top-right, bottom-right, bottom-left corner radii
     vec3 factors;       // saturate, brightness, contrast (vertical pass only)
     float mode;         // 0 = horizontal into the blur target, 1 = vertical + composite
+    float opacity;      // node opacity, folded into the composite alpha (vertical pass only)
 } pc;
 
 layout(location = 0) out vec4 out_color;
@@ -116,5 +117,9 @@ void main() {
     float distance = sd_round_box(local, pc.box.zw * 0.5, radius);
     // One-pixel analytic edge, matching the paint pass's rounded clip.
     float coverage = clamp(0.5 - distance, 0.0, 1.0);
-    out_color = vec4(rgb, blurred.a * coverage);
+    // The composite pass draws over the frame target with straight-alpha blending, so this alpha is
+    // the blend weight: `opacity * blurred + (1 - opacity) * original` for an opaque backdrop, with
+    // `coverage` antialiasing the rounded clip. The horizontal pass writes straight alpha with no
+    // blending (the blur target only feeds this pass).
+    out_color = vec4(rgb, blurred.a * coverage * pc.opacity);
 }

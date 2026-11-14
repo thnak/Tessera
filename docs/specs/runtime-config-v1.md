@@ -283,6 +283,25 @@ invalidation, or input responsiveness. All changes are visible in metrics.
 - `asyncTraceTasks` enables task spans/latency in diagnostics.
 - See [`async.md`](../design/async.md).
 
+### 5.11 Glass limits and `glass_ms`
+
+- `glassMaxBlurRadius`, `glassMaxBackdropArea` and `glassMaxBlurTargets` bound the cost and never
+  disable the effect ([`glass-v1.md`](glass-v1.md) section 8). The paint pass clamps the emitted
+  sigma and the renderer clamps again with the same limits (`Batched2DConfig::glass`), so a caller
+  cannot blur past the damage region the sigma produced.
+- `glassMaxBlurTargets=0` disables the offscreen pool: a frame with a glass node then paints the
+  node without the effect and counts it (`GlassPaintStats::unsupported`), instead of growing.
+- `glass_ms` (issue #244, pinned 2026-11-14) is the **CPU time the frame spent recording its glass
+  work** - region plan, region copy, the two blur pass records and the composite record, summed over
+  the frame's backdrop draws - and is 0 on a frame with none. It is deliberately not a GPU interval:
+  `gpu_frame_time_ms` is the frame-level GPU signal, the blur shares the frame's submission, and a
+  per-node interval would need a query pool per glass node. The CPU benchmark (#241) measures the
+  same quantity at scene level, so its `max_glass_paint_ms` and `glass_ms` are comparable.
+  `glass_backdrop_count` is the number of backdrop draws the frame emitted, from `GlassPaintStats`
+  (`draws` + `unsupported`). Both are fields of `runtime::FrameDiagnosticsSample`; the sample's
+  production on a driver frame is the remaining frame-diagnostics wiring
+  ([`glass-v1.md`](glass-v1.md) section 8.1).
+
 ## 6. C++ API mirror
 
 ```cpp
@@ -409,8 +428,8 @@ through the pure mapping layer `src/app/window_config.hpp`:
 | `interpolationEpsilonPx` | `FramePipelineConfig::interpolation_epsilon_px` | Duplicate-present suppression for interpolated transforms: a painted corner must move at least this many device pixels since the last frame that damaged it. `0` keeps every interpolated box in damage. |
 | `pauseWhenOccluded` | `WindowPausePolicy` (`pause_when_occluded`, `pause_when_minimized`) | `false`: an occluded or minimized window keeps rendering; `true` (default) pauses both. Focus/blur is never part of the policy. |
 | `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) -> the render target sized by [`src/ui/scale/render_target_extent.hpp`](../../include/tessera/ui/scale/render_target_extent.hpp) and the present cap of [`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1 plus its step-2 render-target consumer and its step-3 present cap. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
-| `glassMaxBlurRadius`, `glassMaxBackdropArea` | `FramePipelineConfig::glass` -> `paint::PaintContext::glass` | The paint pass clamps the emitted blur sigma and chooses half resolution from the same `rendering::gpu::GlassLimits`; the resolved sigma also lands on `Node::set_glass_blur_sigma` for the 3 sigma damage dependency ([`glass-v1.md`](glass-v1.md) section 7). Both default to the values above, so an unset config paints the documented defaults. |
-| `glassMaxBlurTargets` | `Batched2DConfig::max_offscreen_targets` | The bounded offscreen target pool of the render-pass seam; `0` disables it. It is read where the window creates the renderer ([`offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 4). |
+| `glassMaxBlurRadius`, `glassMaxBackdropArea` | `FramePipelineConfig::glass` -> `paint::PaintContext::glass` (paint pass) and `Batched2DConfig::glass` (renderer) | The paint pass clamps the emitted blur sigma and chooses half resolution from the same `rendering::gpu::GlassLimits`; the resolved sigma also lands on `Node::set_glass_blur_sigma` for the 3 sigma damage dependency ([`glass-v1.md`](glass-v1.md) section 7). The renderer re-clamps with the same limits before planning the region, so the copy cannot be smaller than the blur's reach. Both default to the values above, so an unset config paints the documented defaults. |
+| `glassMaxBlurTargets` | `Batched2DConfig::max_offscreen_targets` | The bounded offscreen target pool of the render-pass seam; `0` disables it. It is read where the window creates the renderer, next to the two glass pipelines ([`offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 5.1). |
 
 The adaptive-quality keys reach the **render target** and the **present cap**. The host feeds the
 controller one observed frame time per presented frame, reports its decision in
@@ -520,6 +539,8 @@ At minimum:
 - `async_tasks`, `async_queue_depth`, `async_main_thread_latency_ms`
 - `dirty_style_nodes`, `dirty_layout_nodes`, `dirty_paint_nodes`
 - `draw_calls`, `vertices`, `damage_area_ratio`, `full_redraw_reason`
+- `glass_ms`, `glass_backdrop_count` (CPU record time and backdrop draws of the frame,
+  [`glass-v1.md`](glass-v1.md) section 8.1)
 
 ## 11. Open questions
 

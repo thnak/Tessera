@@ -233,9 +233,9 @@ void test_glass_blur(Checker& checker, const ShaderEntry& entry) {
         return;
     }
     const auto& constants = *entry.push_constants;
-    checker.check(constants.size == 96, "glass_blur push-constant block is 96 bytes");
-    checker.check(constants.fields.size() == 10, "glass_blur push-constant fields cover the block");
-    if (constants.fields.size() != 10) {
+    checker.check(constants.size == 112, "glass_blur push-constant block is 112 bytes");
+    checker.check(constants.fields.size() == 11, "glass_blur push-constant fields cover the block");
+    if (constants.fields.size() != 11) {
         return;
     }
     const struct {
@@ -246,7 +246,7 @@ void test_glass_blur(Checker& checker, const ShaderEntry& entry) {
         {"texel_step", "float2", 0}, {"direction", "float2", 8},      {"sigma", "float", 16},
         {"radius", "float", 20},     {"region_origin", "float2", 24}, {"region_size", "float2", 32},
         {"box", "float4", 48},       {"radii", "float4", 64},         {"factors", "float3", 80},
-        {"mode", "float", 92},
+        {"mode", "float", 92},       {"opacity", "float", 96},
     };
     for (std::size_t index = 0; index < constants.fields.size(); ++index) {
         checker.check(constants.fields[index].name == expected[index].name,

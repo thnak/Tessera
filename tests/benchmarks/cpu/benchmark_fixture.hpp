@@ -29,6 +29,7 @@ struct PaintOutcome {
     std::size_t text_runs = 0;
     std::size_t images = 0;
     std::size_t paint_nodes = 0;
+    std::size_t backdrops = 0;
 };
 
 // One measured run. Times are per scenario; counters are from the full paint.
@@ -37,6 +38,9 @@ struct Measurement {
     double full_paint_ms = 0.0;
     double layout_paint_text_ms = 0.0;
     double layout_paint_container_ms = 0.0;
+    // Glass scenario (issue #244): a full paint of the reference scene with the glass bar active.
+    double glass_paint_ms = 0.0;
+    std::size_t glass_backdrops = 0;
     std::size_t damage_rects_full = 0;
     std::size_t damage_rects_text = 0;
     std::size_t damage_rects_container = 0;
@@ -59,6 +63,7 @@ struct Totals {
     std::size_t text_runs = 0;
     std::size_t images = 0;
     std::size_t paint_nodes = 0;
+    std::size_t glass_backdrops = 0;
 };
 
 class Fixture final {
@@ -78,6 +83,7 @@ private:
     [[nodiscard]] PaintOutcome paint(bool force);
     void edit_text();
     void edit_container();
+    void enable_glass_bar();
 
     std::unique_ptr<ui::Node> root_;
     SceneBuilder builder_;
@@ -86,6 +92,10 @@ private:
     std::unique_ptr<rendering::rhi::RenderTarget> target_;
     std::unique_ptr<rendering::rhi::Texture> white_;
     std::unique_ptr<rendering::rhi::Pipeline> pipeline_;
+    // Both glass pipelines (issue #244) so the glass scenario records the real composite, including
+    // the two blur passes and the sampled binds, exactly as the window's renderer does.
+    std::unique_ptr<rendering::rhi::Pipeline> glass_blur_pipeline_;
+    std::unique_ptr<rendering::rhi::Pipeline> glass_composite_pipeline_;
     std::unique_ptr<rendering::rhi::CommandList> commands_;
     std::unique_ptr<rendering::gpu::Batched2DRenderer> renderer_;
     ui::assets::AssetBundle bundle_;

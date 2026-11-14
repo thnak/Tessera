@@ -30,7 +30,7 @@ alignas(4) const std::uint32_t kFragSpv[] =
 
 namespace tessera::rendering::vulkan {
 
-rhi::PipelineDesc glass_blur_pipeline_desc(rhi::TextureFormat color_format) {
+rhi::PipelineDesc glass_blur_pipeline_desc(rhi::TextureFormat color_format, rhi::BlendMode blend) {
     rhi::PipelineDesc desc;
     desc.vertex_spirv = kVertSpv;
     desc.vertex_spirv_size = sizeof(kVertSpv);
@@ -39,9 +39,9 @@ rhi::PipelineDesc glass_blur_pipeline_desc(rhi::TextureFormat color_format) {
     // fullscreen.vert builds its triangle from gl_VertexIndex: no vertex buffer, no attributes.
     desc.vertex_layout = rhi::VertexBufferLayout{};
     desc.color_format = color_format;
-    // The blur writes the frame target: alpha blending would let the backdrop show through the
-    // blurred result, so the composite is a straight overwrite of the region it covers.
-    desc.blend = rhi::BlendMode::None;
+    // The horizontal pass writes straight-alpha blur data into a pooled target (no blending); the
+    // composite pass draws over the frame target, where the shader's alpha is the blend weight.
+    desc.blend = blend;
     desc.push_constant_size = sizeof(gpu::GlassPushConstants);
     desc.shader_id = gpu::kGlassBlurShaderId;
     return desc;
