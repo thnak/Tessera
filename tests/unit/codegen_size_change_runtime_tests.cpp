@@ -28,13 +28,15 @@ void check(bool condition, std::string_view message) {
     }
 }
 
-// root(1000) -> view(401) -> { watcher host(402) -> view(301) -> text(302), tail text(403) }.
-void publish(layout::LayoutReadModel& model, float watcher_width) {
-    layout::LayoutResult result{
-        {layout::LayoutBox{1000, {0, 0, 800, 600}}, layout::LayoutBox{401, {0, 0, 800, 600}},
-         layout::LayoutBox{402, {0, 0, 800, 100}},
-         layout::LayoutBox{301, {0, 0, watcher_width, 40}}, layout::LayoutBox{302, {0, 0, 50, 20}},
-         layout::LayoutBox{403, {0, 0, 120, 20}}}};
+// root(1000) -> view(401) -> { watcher host(402) -> view(301) -> text(302), tail text(403) }. The
+// instance's own nodes carry its `node_id_base_` (issue #295), so its ids are 301 and 302 plus it.
+void publish(layout::LayoutReadModel& model, float watcher_width, ui::NodeId instance_base) {
+    layout::LayoutResult result{{layout::LayoutBox{1000, {0, 0, 800, 600}},
+                                 layout::LayoutBox{401, {0, 0, 800, 600}},
+                                 layout::LayoutBox{402, {0, 0, 800, 100}},
+                                 layout::LayoutBox{301 + instance_base, {0, 0, watcher_width, 40}},
+                                 layout::LayoutBox{302 + instance_base, {0, 0, 50, 20}},
+                                 layout::LayoutBox{403, {0, 0, 120, 20}}}};
     model.publish(result, 1.0f);
 }
 
@@ -51,18 +53,18 @@ void test_delivery_and_detach() {
 
     layout::LayoutReadModel model;
     layout::LayoutSettleState settle;
-    publish(model, 700.0f);
+    publish(model, 700.0f, page.child_2_.node_id_base_);
     layout::observe_and_settle(observers, model, scheduler, layout::SettleHooks{}, settle);
     check(page.child_2_.state_wide_, "the inline handler saw width 700 and set wide");
     check(page.child_2_.state_resized_ == 1, "the parameterless handler ran");
 
-    publish(model, 500.0f);
+    publish(model, 500.0f, page.child_2_.node_id_base_);
     layout::observe_and_settle(observers, model, scheduler, layout::SettleHooks{}, settle);
     check(!page.child_2_.state_wide_, "a later, narrower size clears wide");
 
     page.detach_layout_observers(observers);
     check(observers.size() == 0, "detach removes every observation, instance included");
-    publish(model, 900.0f);
+    publish(model, 900.0f, page.child_2_.node_id_base_);
     layout::observe_and_settle(observers, model, scheduler, layout::SettleHooks{}, settle);
     check(!page.child_2_.state_wide_, "a detached component receives nothing");
     page.detach_scheduler(scheduler);

@@ -15,11 +15,12 @@ namespace forward {
     void ForwardOuter::build(tessera::ui::Node& parent) {
       apply_props();
       // node::1 ("comp::ForwardWrap" instance, slot children: 0)
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6343321150138189951ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6343321150138189951ull + node_id_base_));
       node_1->set_element_kind("Component");
       node_1->set_component_name("ForwardWrap");
       node_1->set_automation_id(6343321150138189951ull);
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_1;
+      this->child_1_.node_id_base_ = static_cast<tessera::ui::NodeId>(6343321150138189951ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_1_.build(*node_1);
       parent.add_child(std::move(node_1));
       apply_state();

@@ -5,8 +5,10 @@
 // from `button.css`: variants `primary`, `secondary`, `ghost` and `danger`, sizes `md` and `sm`,
 // and a disabled state. The look uses theme tokens only, so every theme and density restyles it.
 //
-// A disabled Button is not focusable by pointer press activation and never calls `onPress`; it
-// keeps its accessible name and reports `aria-disabled`.
+// A disabled Button never calls `onPress` and never shows as pressed; it keeps its accessible name
+// and reports `aria-disabled`. A pointer press styles the Button through `:active` (only Click
+// bubbles through generated bindings, so the label under the pointer would hide `onPointerDown`);
+// a key press sets the `tbtn-pressed` class.
 
 import { Children, KeyEvent, useState } from "tessera";
 

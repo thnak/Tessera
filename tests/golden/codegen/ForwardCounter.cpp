@@ -25,18 +25,18 @@ namespace forward {
     
     void ForwardCounter::build(tessera::ui::Node& parent) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3330383718076698049ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3330383718076698049ull + node_id_base_));
       node_1->set_element_kind("View");
       node_1->set_automation_id(3330383718076698049ull);
       // node::2 events={onClick:handler::1}
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(13032317110770200247ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(13032317110770200247ull + node_id_base_));
       node_2->set_element_kind("Button");
       node_2->set_automation_id(13032317110770200247ull);
       node_2->bind_event(tessera::ui::EventType::Click, &event_adapter_2_onClick, this);
       node_2->set_focusable(true);
       node_1->add_child(std::move(node_2));
       // node::3 events={onChange:handler::2}
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9933229183899325470ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9933229183899325470ull + node_id_base_));
       node_3->set_element_kind("TextInput");
       node_3->set_automation_id(9933229183899325470ull);
       this->input_3_runtime_.attach(node_3.get());

@@ -3,8 +3,8 @@
 /* The Button look (issue #239, ADR-047 item 5): flat surfaces, 4 px grid, radii 2 to 8 px, theme
    tokens only. No selector below names a color or a length that a theme does not define, so the
    light, dark and high-contrast themes and both densities restyle it. `tbtn-pressed` is the class
-   the Button sets while pressed; `tbtn-disabled` replaces it while disabled and `tbtn-idle`
-   (no rule) marks the resting state. */
+   the Button sets while a key presses it (a pointer press styles it through `:active`);
+   `tbtn-disabled` replaces it while disabled and `tbtn-idle` (no rule) marks the resting state. */
 
 .tbtn {
   display: flex;
@@ -62,7 +62,8 @@
   background-color: var(--surface-sunken);
 }
 
-.tbtn-pressed {
+.tbtn-pressed,
+.tbtn:active {
   opacity: 0.8;
 }
 

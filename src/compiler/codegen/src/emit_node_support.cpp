@@ -82,10 +82,10 @@ std::string node_id_text(const ir::Node& node, NodeEmitState& state, std::string
         suffix = "ull";
     }
     if (state.index_expr.empty()) {
-        return "static_cast<tessera::ui::NodeId>(" + number + suffix + ")";
+        return "static_cast<tessera::ui::NodeId>(" + number + suffix + " + node_id_base_)";
     }
-    return "static_cast<tessera::ui::NodeId>(" + number + suffix + " + " + state.index_expr +
-           " * kItemIdStride)";
+    return "static_cast<tessera::ui::NodeId>(" + number + suffix + " + node_id_base_ + " +
+           state.index_expr + " * kItemIdStride)";
 }
 
 } // namespace tessera::compiler::codegen::internal

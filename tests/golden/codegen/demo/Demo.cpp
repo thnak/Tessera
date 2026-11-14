@@ -90,30 +90,30 @@ namespace demo {
     
     void Demo::build(tessera::ui::Node& parent) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1u));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1u + node_id_base_));
       node_1->set_element_kind("View");
       meta_1_style_opacity_node_ = node_1.get();
       node_1->set_class_name("card");
       this->ref_box_ = node_1.get();
       this->children_parent_1_ = node_1.get();
       // node::2
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2u));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2u + node_id_base_));
       node_2->set_element_kind("Text");
       this->text_node_2_ = node_2.get();
       node_1->add_child(std::move(node_2));
       // node::3
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3u));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3u + node_id_base_));
       node_3->set_element_kind("Text");
       this->text_node_3_ = node_3.get();
       node_1->add_child(std::move(node_3));
       // node::4 events={onClick:handler::1}
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4u));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4u + node_id_base_));
       node_4->set_element_kind("Button");
       node_4->bind_event(tessera::ui::EventType::Click, &event_adapter_4_onClick, this);
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
       // node::5 events={onChange:handler::2}
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5u));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5u + node_id_base_));
       node_5->set_element_kind("TextInput");
       this->input_5_runtime_.attach(node_5.get());
       tessera::ui::text::bind_text_input_events(*node_5, this->input_5_runtime_);
@@ -124,7 +124,7 @@ namespace demo {
       this->text_node_5_ = node_5.get();
       node_1->add_child(std::move(node_5));
       // node::6
-      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6u));
+      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6u + node_id_base_));
       node_6->set_element_kind("Text");
       tessera::ui::PaintData paint_node_6;
       paint_node_6.text = "Positive";

@@ -88,6 +88,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("#include \"tessera/ui/text/text_input_runtime.hpp\"");
     }
     writer.line("#include \"tessera/ui/scene/node.hpp\"");
+    if (!instances.empty()) {
+        writer.line("#include \"tessera/ui/scene/node_ids.hpp\"");
+    }
     if (plan.has_virtual) {
         writer.line("#include \"tessera/ui/virtual/item_geometry.hpp\"");
     }
@@ -122,6 +125,10 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("// " + component.id + " (" + component.name + ").");
     emit_dynamic_item_structs(writer, plan, instances);
     writer.open("struct " + component.name);
+    writer.line(
+        "// Added to every NodeId this component builds. The owner sets it before build() so each");
+    writer.line("// instance owns distinct ids (issue #295); a root component keeps 0.");
+    writer.line("tessera::ui::NodeId node_id_base_ = 0;");
     // Props come first: a state/animated initializer may read one (IR allows it), and a
     // member initializer can only name a member declared before it.
     for (const ir::Prop& prop : component.props) {

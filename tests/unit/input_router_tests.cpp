@@ -187,6 +187,8 @@ bool interaction_state(Recorder& root, Recorder& child, InputRouter& router) {
     if (!expect(down.target == &child, "press hit target") ||
         !expect(router.active() == &child, "press becomes active") ||
         !expect(has_state(child.pseudo_state(), PseudoState::Active), "active bit set") ||
+        !expect(has_state(root.pseudo_state(), PseudoState::Active),
+                "an ancestor of the pressed node is :active too") ||
         !expect(style_dirty(child), "active marks style dirty")) {
         return false;
     }
@@ -195,6 +197,8 @@ bool interaction_state(Recorder& root, Recorder& child, InputRouter& router) {
     if (!expect(up.target == &child, "up hit target") ||
         !expect(router.active() == nullptr, "up clears active target") ||
         !expect(!has_state(child.pseudo_state(), PseudoState::Active), "up clears active bit") ||
+        !expect(!has_state(root.pseudo_state(), PseudoState::Active),
+                "up clears the ancestor's active bit") ||
         !expect(has_state(child.pseudo_state(), PseudoState::Hover), "up keeps hover bit") ||
         !expect(style_dirty(child), "clearing active marks style dirty")) {
         return false;

@@ -21,6 +21,9 @@ namespace demo {
   namespace gen {
     // comp::Watcher (Watcher).
     struct Watcher {
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // useState `wide`.
       bool state_wide_ = false;
       // useState `resized`.

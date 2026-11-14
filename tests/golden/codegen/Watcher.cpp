@@ -23,14 +23,14 @@ namespace demo {
     
     void Watcher::build(tessera::ui::Node& parent) {
       // node::1 events={onSizeChange:handler::1}
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(301ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(301ull + node_id_base_));
       node_1->set_element_kind("View");
       this->size_observation_1_.emplace(*node_1, &on_size_change_1, this);
       if (this->layout_observers_ != nullptr) {
         this->layout_observers_->attach(*this->size_observation_1_);
       }
       // node::2 events={onSizeChange:handler::2}
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(302ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(302ull + node_id_base_));
       node_2->set_element_kind("Text");
       this->size_observation_2_.emplace(*node_2, &on_size_change_2, this);
       if (this->layout_observers_ != nullptr) {

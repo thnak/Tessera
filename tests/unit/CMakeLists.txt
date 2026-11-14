@@ -2155,5 +2155,6 @@ add_executable(library_button_lowering_tests
 target_link_libraries(library_button_lowering_tests PRIVATE
     tessera_lowering tessera_codegen tessera_ir_ids)
 target_compile_definitions(library_button_lowering_tests PRIVATE
-    TESSERA_BUTTON_TSX="${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx")
+    TESSERA_BUTTON_TSX="${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx"
+    TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME library_button_lowering COMMAND library_button_lowering_tests)
