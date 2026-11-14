@@ -113,6 +113,24 @@ void FakeWindow::set_fullscreen_supported(bool supported) noexcept {
     fullscreen_supported_ = supported;
 }
 
+void FakeWindow::set_cursor(hal::CursorShape shape) {
+    ++cursor_requests_;
+    // A platform with no pointer-shape source ignores the request: the resolved shape stays as it
+    // was, which is exactly what the app's unsupported diagnostic is for.
+    if (!cursor_supported_) {
+        return;
+    }
+    metrics_.cursor = shape;
+}
+
+void FakeWindow::set_cursor_supported(bool supported) noexcept {
+    cursor_supported_ = supported;
+}
+
+std::size_t FakeWindow::cursor_requests() const noexcept {
+    return cursor_requests_;
+}
+
 void FakeWindow::set_metrics(hal::WindowMetrics metrics) noexcept {
     metrics_ = metrics;
 }

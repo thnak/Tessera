@@ -4,6 +4,11 @@
 #include "tessera/hal/window.hpp"
 
 #include <X11/Xlib.h>
+// X.h defines `CursorShape` as an object-like macro, which would rewrite the HAL enumerator names
+// used below into `0`; drop it, exactly as window_cursor_x11.hpp does.
+#ifdef CursorShape
+#undef CursorShape
+#endif
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -309,6 +314,50 @@ int main() {
                     "an empty list clears the published regions")) {
             XCloseDisplay(display);
             return 18;
+        }
+    }
+
+    // Pointer shape (#191, window-chrome-v1.md section 8.5): the X11 backend creates a font cursor
+    // and installs it with XDefineCursor, and reports the resolved shape. A real X server is
+    // needed, which is why this half is Linux-only.
+    {
+        if (!expect(window->supports_cursor(), "the X11 backend supports pointer shapes")) {
+            XCloseDisplay(display);
+            return 19;
+        }
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Default,
+                    "a fresh window reports the default arrow")) {
+            XCloseDisplay(display);
+            return 20;
+        }
+        window->set_cursor(tessera::hal::CursorShape::Pointer);
+        XSync(display, False);
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Pointer,
+                    "a pointer request is reported as the resolved shape")) {
+            XCloseDisplay(display);
+            return 21;
+        }
+        window->set_cursor(tessera::hal::CursorShape::Text);
+        XSync(display, False);
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Text,
+                    "a later shape overrides the pointer")) {
+            XCloseDisplay(display);
+            return 22;
+        }
+        // CSS `cursor: none` is the hidden shape: XDefineCursor(display, window, None).
+        window->set_cursor(tessera::hal::CursorShape::Hidden);
+        XSync(display, False);
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Hidden,
+                    "the hidden shape is reported")) {
+            XCloseDisplay(display);
+            return 23;
+        }
+        window->set_cursor(tessera::hal::CursorShape::Default);
+        XSync(display, False);
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Default,
+                    "returning to the default arrow is reported")) {
+            XCloseDisplay(display);
+            return 24;
         }
     }
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/hal/caption.hpp"
+#include "tessera/hal/cursor.hpp"
 #include "tessera/hal/geometry.hpp"
 #include "tessera/hal/refresh_rate.hpp"
 #include "tessera/hal/window_backdrop.hpp"
@@ -89,6 +90,12 @@ struct WindowMetrics {
     // (window-chrome-v1.md section 8.1, "Hit-test contract").
     std::array<CaptionRegion, kMaxCaptionRegions> caption_regions{};
     std::uint8_t caption_region_count = 0;
+    // The pointer shape the platform resolved (window-chrome-v1.md section 8.5, issue #191). It is
+    // the value the platform actually applied, not the last request: a backend that cannot render a
+    // shape substitutes its nearest equivalent (or keeps `Default`), so a fake window and a real
+    // one report the same resolved value. `Default` is the platform arrow and every window starts
+    // there.
+    CursorShape cursor = CursorShape::Default;
 };
 
 enum class WindowEventType {
@@ -254,6 +261,30 @@ public:
     // for platforms with no custom caption.
     virtual void set_caption_regions(std::span<const CaptionRegion> regions) {
         (void)regions;
+    }
+
+    // Requests the native pointer shape (window-chrome-v1.md section 8.5, issue #191). The app
+    // resolves the hovered scene node's CSS cursor into a `CursorShape` and calls this only when
+    // the wanted shape changed, so a static hover costs no platform call. It never blocks, throws
+    // or fails: the platform applies the shape on its next event-loop iteration and
+    // `metrics().cursor` reports what it resolved; an unsupported shape or platform leaves the
+    // pointer as it was and the caller reports one TESSERA_WINDOW_CURSOR_UNSUPPORTED diagnostic.
+    //
+    // The platforms differ in how immediately the call takes effect: X11 applies it with
+    // `XDefineCursor` (Xlib buffers the request, so this is not a blocking round trip in the
+    // ADR-021 sense), while Win32 records the shape and lets the next `WM_SETCURSOR` install it,
+    // because the OS re-asserts the class cursor on every non-client transition. Neither path
+    // waits. Must be called on the thread that created the window. The default does nothing, for
+    // platforms without a pointer-shape source.
+    virtual void set_cursor(CursorShape shape) {
+        (void)shape;
+    }
+
+    // False when the pointer shape cannot be requested at all on this platform, so a caller can
+    // report the unsupported path once instead of calling set_cursor() and re-reading the metrics.
+    // The default is false.
+    [[nodiscard]] virtual bool supports_cursor() const noexcept {
+        return false;
     }
 
     // Asks the runtime for a frame; coalesced, so repeated calls before a frame are harmless.

@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 //
-// Computed style -> scene graph, for the two interaction properties the scene itself consumes:
-// `pointer-events` (hit testing) and `user-select` (text selection). The property side
-// (z-index, transform, shadow reach, glass) stays in `paint::sync_scene_style`.
+// Computed style -> scene graph, for the interaction properties the scene itself consumes:
+// `pointer-events` (hit testing), `user-select` (text selection), `visibility` (rendered subtree)
+// and `cursor` (the shape the app requests from the platform). The property side (z-index,
+// transform, shadow reach, glass) stays in `paint::sync_scene_style`.
 
+#include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/interaction_style.hpp"
 
 #include <cctype>
+#include <string>
 #include <string_view>
 
 namespace tessera::ui::style {
@@ -88,6 +91,17 @@ void sync_node(Node& node, InteractionStyleFn compute, void* context,
     if (user_select != node.user_select()) {
         node.set_user_select(user_select);
         ++result.changed_user_select;
+    }
+    // `cursor` is inherited too, so the computed value already carries the ancestor resolution. An
+    // unsupported form (`url(...)`, an unknown keyword) resolves to `auto` here as well as in the
+    // parser fallback, so the platform only ever sees a shape V1 implements. `parse_cursor_kind`
+    // takes an empty view as the initial value, which is why a missing property needs no branch.
+    const std::string* cursor_value = style.find("cursor");
+    const CursorKind cursor =
+        parse_cursor_kind(cursor_value != nullptr ? *cursor_value : std::string_view{});
+    if (cursor != node.cursor()) {
+        node.set_cursor(cursor);
+        ++result.changed_cursor;
     }
     // `visibility` is inherited, so the computed value already carries the ancestor resolution.
     // V1 hides the whole subtree (a descendant cannot re-enable with `visibility: visible`), which

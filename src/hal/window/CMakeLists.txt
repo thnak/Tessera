@@ -22,6 +22,9 @@ target_sources(tessera_hal_window PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/caption.cpp
     # Full-screen state machine (issue #232): enter/exit/restore bookkeeping shared by Win32 and X11.
     ${CMAKE_CURRENT_SOURCE_DIR}/fullscreen.cpp
+    # The pointer-shape names (issue #191): pure, so the metrics dump and the diagnostics are
+    # testable without a window or a display.
+    ${CMAKE_CURRENT_SOURCE_DIR}/cursor.cpp
     # SafeArea inset arithmetic (safe-area-v1.md); pure and platform-neutral.
     ${CMAKE_CURRENT_SOURCE_DIR}/safe_area.cpp)
 
@@ -37,6 +40,8 @@ if (WIN32)
         # Custom title-bar hit test and full-screen (issue #232), outside window.cpp's size budget.
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_caption_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_fullscreen_win.cpp
+        # Pointer shapes (issue #191): the stock-cursor table and the WM_SETCURSOR answer.
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_cursor_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_ime_translation.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input_ime.cpp
@@ -55,6 +60,8 @@ elseif (TESSERA_X11_FOUND)
         # Full-screen (issue #232, window-chrome-v1.md section 13): EWMH _NET_WM_STATE, outside
         # window.cpp's size budget.
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window_fullscreen_x11.cpp
+        # Pointer shapes (issue #191): the font-cursor cache and XDefineCursor, same reason.
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/window_cursor_x11.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp

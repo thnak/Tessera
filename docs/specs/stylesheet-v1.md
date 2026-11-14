@@ -365,7 +365,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
-| Interaction | `cursor`, `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible` | `:has()`, `:focus-within` |
+| Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible` | `:has()`, `:focus-within` |
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |

@@ -67,6 +67,15 @@ public:
         return fullscreen_supported_;
     }
     void set_caption_regions(std::span<const hal::CaptionRegion> regions) override;
+    // Pointer shape (issue #191): the fake resolves the request synchronously and reports it
+    // through the metrics, exactly like a platform that installed the native cursor. A scripted
+    // refusal
+    // (`set_cursor_supported(false)`) models a platform with no pointer-shape source, which is what
+    // the app's one-shot diagnostic decides from.
+    void set_cursor(hal::CursorShape shape) override;
+    [[nodiscard]] bool supports_cursor() const noexcept override {
+        return cursor_supported_;
+    }
     [[nodiscard]] hal::NativeWindowHandle native_handle() const override {
         return {};
     }
@@ -91,6 +100,11 @@ public:
     // Scripted platform capability: false models a display with no window manager, where a
     // full-screen request is refused and the window stays as it was (issue #232).
     void set_fullscreen_supported(bool supported) noexcept;
+    // Scripted platform capability: false models a platform with no pointer-shape source, where a
+    // cursor request is ignored and the metrics keep the previous shape (issue #191).
+    void set_cursor_supported(bool supported) noexcept;
+    // Counts `set_cursor` calls, so a test can prove the app only asks on a change.
+    [[nodiscard]] std::size_t cursor_requests() const noexcept;
 
     [[nodiscard]] bool has_queued(hal::WindowEventType type) const noexcept;
     [[nodiscard]] std::size_t queued_events() const noexcept;
@@ -110,6 +124,8 @@ private:
     bool visible_ = true;
     bool closed_ = false;
     bool fullscreen_supported_ = true;
+    bool cursor_supported_ = true;
+    std::size_t cursor_requests_ = 0;
 };
 
 } // namespace tessera::harness::testing

@@ -141,7 +141,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `pointer-events` | applied | `interaction_style.cpp` → `Node::set_pointer_events`, read by `hit_test_deep`; `interaction_style` |
 | `user-select` | applied | `interaction_style.cpp` → `Node::set_user_select`, read by `text_selection_allowed`; `interaction_style` |
 | `visibility` | applied | `interaction_style.cpp` → `Node::set_style_hidden`; `Node::rendered()` then gates `paint_pass.cpp`, `hit_test`/`hit_test_deep`, `a11y_tree.cpp` and the focus walks. The layout box is kept, so unlike `display: none` the parent does not reflow. `property_effects` |
-| `cursor` | parsed only | There is no cursor seam: `hal::WindowDesc` has no cursor field and `src/platform/windows/window.cpp` sets `IDC_ARROW` unconditionally, so nothing can consume a computed cursor. Becomes **applied** when the HAL gains a cursor request and the platform maps the CSS keyword set. |
+| `cursor` | applied | `cursor_value.cpp` is the shared keyword grammar; `interaction_style.cpp` → `Node::set_cursor` (inherited); the app maps the hovered node's kind with `app/window_cursor.cpp` `to_hal_cursor` and requests `hal::Window::set_cursor`, resolved by `src/platform/windows/window_cursor_win.*` (`WM_SETCURSOR`, stock cursors) and `src/platform/linux/window_cursor_x11.*` (`XCreateFontCursor`/`XDefineCursor`), reported as `WindowMetrics::cursor`. `url()` lists are `UnsupportedValue` and fall back to `auto`. Contract in [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5; `window_cursor`, `window_cursor_fake`, `window_win32`, `window_x11` |
 
 ## 6. Scrolling
 

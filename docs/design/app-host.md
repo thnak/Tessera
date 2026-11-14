@@ -140,8 +140,9 @@ accessibility snapshot publication, which each have their own documents.
 - Known limits: `UpdateScheduler` is installed by the driver (`AppHost::set_update_scheduler`), not
   created by the host; the style tree rebuild is O(n) per geometry frame; resize reuses the previous
   `LayoutEngine` text cache; `:hover`/`:active` work through `InputPump` → `InputRouter` (the
-  router sets the pseudo-state and the next begin_frame re-resolves style), but the platform cursor
-  shape is not set because the HAL has no cursor API yet; generated controlled `TextInput`s now
+  router sets the pseudo-state and the next begin_frame re-resolves style), and the hovered node's
+  resolved `cursor` is mapped onto the HAL's `CursorShape` right after input each frame (only on a
+  change, `src/app/window_cursor.*`; window-chrome-v1.md section 8.5); generated controlled `TextInput`s now
   publish caret/selection/preedit decoration (`TextInputRuntime::publish_decoration`, re-published at
   the end of `apply_state` because it rebuilds `PaintData`), but caret blinking keeps the paint
   default phase and a caret appears only once the field handles an event (Focus/Blur are not bound:

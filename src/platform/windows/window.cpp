@@ -19,6 +19,7 @@
 #include "window_accessibility_win.hpp"
 #include "window_backdrop.hpp"
 #include "window_caption_win.hpp"
+#include "window_cursor_win.hpp"
 #include "window_event_queue.hpp"
 #include "window_fullscreen_win.hpp"
 
@@ -120,6 +121,13 @@ public:
         return true;
     }
     void set_caption_regions(std::span<const CaptionRegion> regions) override;
+    // Pointer shape (issue #191, window-chrome-v1.md section 8.5). The shape is stored and
+    // installed immediately; WM_SETCURSOR re-installs it whenever Windows re-asserts the cursor,
+    // which is what keeps it from snapping back to the class arrow after a non-client transition.
+    void set_cursor(CursorShape shape) override;
+    [[nodiscard]] bool supports_cursor() const noexcept override {
+        return true;
+    }
     void set_input_queue(ui::InputQueue* queue) override {
         input_.set_queue(queue);
     }
@@ -156,6 +164,9 @@ private:
     // #232, window-chrome-v1.md section 8.1). Reported through WindowMetrics too, so the engine and
     // the OS hit test see one list.
     detail::Win32CaptionState caption_{};
+    // The pointer shape the app requested (issue #191). Installed on the change and re-installed
+    // from WM_SETCURSOR; reported through WindowMetrics::cursor as the resolved value.
+    CursorShape cursor_ = CursorShape::Default;
     bool initializing_ = true;
     bool applying_dpi_rect_ = false;
     bool close_posted_ = false;
@@ -295,6 +306,7 @@ WindowMetrics Win32Window::metrics() const {
     metrics.fullscreen = detail::win32_is_fullscreen(hwnd_);
     metrics.caption_region_count = caption_.count;
     metrics.caption_regions = caption_.regions;
+    metrics.cursor = cursor_;
     return metrics;
 }
 
@@ -479,6 +491,15 @@ void Win32Window::set_caption_regions(std::span<const CaptionRegion> regions) {
     detail::win32_set_caption_regions(hwnd_, caption_, regions);
 }
 
+void Win32Window::set_cursor(CursorShape shape) {
+    // Store first: the metrics answer the resolved request even while the window is still being
+    // created, and WM_SETCURSOR reads the stored value. A repeated shape still re-applies it (the
+    // app only calls on a change, and a re-assert after another client moved the pointer is exactly
+    // when the OS may have reset it), but it never blocks.
+    cursor_ = shape;
+    detail::win32_apply_cursor(hwnd_, shape);
+}
+
 LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     LRESULT input_result = 0;
     if (!initializing_ && input_.handle(window, message, wparam, lparam, input_result)) {
@@ -543,6 +564,16 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
             enqueue(WindowEventType::SystemSettingsChanged);
         }
         return DefWindowProcW(window, message, wparam, lparam);
+    case WM_SETCURSOR: {
+        // Pointer shape (issue #191): Windows re-asserts the cursor here, so this is where the
+        // requested shape is installed. Only a client-area hit is ours; the frame keeps its own
+        // arrows through DefWindowProcW.
+        const auto answered = detail::win32_cursor_message(message, wparam, lparam, cursor_);
+        if (answered.has_value()) {
+            return *answered;
+        }
+        return DefWindowProcW(window, message, wparam, lparam);
+    }
     case WM_CLOSE:
         // Graceful shutdown is a normalized event; the owner destroys the window.
         request_close();

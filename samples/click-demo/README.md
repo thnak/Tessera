@@ -53,6 +53,7 @@ click_demo --windowed --hidden --frames 5
 - The window's damage-clipped path is not used for presentation yet: a frame that happens is
   painted in full (the damage plan decides *whether* to paint), matching the batched2d POC.
 - `:hover` and `:active` are styled and driven by `InputPump` → `InputRouter`; the cursor *shape*
-  is not set (the HAL has no cursor-shape API yet). `TextInput` focus/typing works through the pump
+  follows the hovered node's CSS `cursor` (the app maps it onto the HAL after input, on a change
+  only). `TextInput` focus/typing works through the pump
   and the generated `TextInputRuntime` publishes caret/selection/preedit decoration; caret blinking
   is still the paint-default phase (a host-owned `CaretBlink` is the follow-up).

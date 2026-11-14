@@ -22,6 +22,7 @@ permission-aware, and never blocks the UI thread.
 | Menu bar | yes | yes | app menu | no | no |
 | Tray/status item | yes | yes | later | no | no |
 | Window full-screen | yes | post-V1 | yes (X11) | post-V1 | post-V1 |
+| Cursor shape (CSS `cursor`) | yes | post-V1 | yes (X11) | post-V1 | post-V1 |
 | Global shortcuts | later | later | later | no | no |
 
 In the table, "later" means not in V1 (V1 = first-release scope, [AGENTS.md](../../AGENTS.md#non-negotiables) rule 8);
@@ -126,6 +127,23 @@ bounds ownership, per-platform mechanism, diagnostics, tests) is
   observed through the metrics rather than a dedicated event.
 - A platform that cannot do it warns once with `TESSERA_WINDOW_UNSUPPORTED` and the window keeps its
   windowed mode.
+
+### 6.2 Cursor shape
+
+The CSS `cursor` property reaches the native pointer on Windows and X11; the normative contract
+(grammar, layers, HAL seam, diagnostics, tests) is
+[`window-chrome-v1.md`](window-chrome-v1.md) section 8.5. In brief:
+
+- `hal::Window::set_cursor(hal::CursorShape)` requests a shape, `supports_cursor()` says whether the
+  platform can do it at all, and `WindowMetrics::cursor` reports the shape the platform **resolved**,
+  like `fullscreen` reports the resolved mode. X11 maps it onto `XCreateFontCursor`/`XDefineCursor`;
+  Win32 maps it onto the stock system cursors through `WM_SETCURSOR`.
+- The app maps the hovered scene node's resolved `style::CursorKind` onto the HAL enum and calls
+  `set_cursor` only when the shape changed, so a static hover makes no platform call. CSS
+  `cursor: none` is the one shape that hides the pointer; a platform that cannot hide it keeps the
+  default arrow.
+- A platform with no pointer-shape source warns once with `TESSERA_WINDOW_CURSOR_UNSUPPORTED` and the
+  pointer keeps its shape; the app keeps running.
 
 ## 7. Threading and errors
 

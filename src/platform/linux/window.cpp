@@ -16,6 +16,8 @@
 // is already at the file-size limit. Included after the Xlib-pulling headers for the same reason
 // the input headers are.
 #include "window_fullscreen_x11.hpp"
+// Pointer shapes (issue #191): XCreateFontCursor caching and XDefineCursor, for the same reason.
+#include "window_cursor_x11.hpp"
 
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
@@ -124,6 +126,15 @@ public:
         return fullscreen_supported_;
     }
     void set_caption_regions(std::span<const CaptionRegion> regions) override;
+    // Pointer shape (issue #191, window-chrome-v1.md section 8.5). X11 has no WM-mediated cursor:
+    // the client creates the font cursor and installs it with XDefineCursor, which the server
+    // applies on its next pass. The app calls this only when the wanted shape changes, and the
+    // event mask does not select EnterNotify, so nothing re-applies it on entry (there is nothing
+    // to reset it either).
+    void set_cursor(CursorShape shape) override;
+    [[nodiscard]] bool supports_cursor() const noexcept override {
+        return true;
+    }
 
 private:
     void handle_event(XEvent& event, bool auto_repeat = false, bool filtered = false);
@@ -165,6 +176,10 @@ private:
     // stays.
     std::array<CaptionRegion, kMaxCaptionRegions> caption_regions_{};
     std::uint8_t caption_region_count_ = 0;
+    // The pointer shape the app requested (issue #191) and the per-window font-cursor cache. The
+    // cache is freed in the destructor BEFORE XCloseDisplay: a cursor belongs to that connection.
+    CursorShape cursor_ = CursorShape::Default;
+    detail::X11CursorState cursor_state_{};
     bool initializing_ = true;
     bool mapped_ = false;
     bool focused_ = false;
@@ -264,6 +279,8 @@ X11Window::~X11Window() {
     }
     close_input_method();
     xi2_.shutdown();
+    // The font cursors are resources of this connection: free them before the connection closes.
+    detail::x11_cursor_release(display_, cursor_state_);
     if (window_ != 0) {
         XDestroyWindow(display_, window_);
         window_ = 0;
@@ -300,6 +317,7 @@ WindowMetrics X11Window::metrics() const {
     metrics.fullscreen = detail::x11_fullscreen_active(display_, window_, fullscreen_);
     metrics.caption_region_count = caption_region_count_;
     metrics.caption_regions = caption_regions_;
+    metrics.cursor = cursor_;
     // X11 has no portable occlusion/minimize signal without a window manager (WM_STATE and
     // _NET_WM_STATE are WM-specific); this backend reports both as false.
     return metrics;
@@ -665,6 +683,19 @@ void X11Window::set_caption_regions(std::span<const CaptionRegion> regions) {
     caption_regions_ = make_caption_regions(regions, caption_region_count_);
     // Stored and reported for the engine and the metrics dump; X11 client-side decoration is
     // deferred (window-chrome-v1.md section 13), so the platform's own chrome and hit test stay.
+}
+
+void X11Window::set_cursor(CursorShape shape) {
+    if (display_ == nullptr || std::this_thread::get_id() != owner_thread_) {
+        return;
+    }
+    // Store first so the metrics answer the resolved request even before the window is mapped, then
+    // install it. The app only calls this on a change, so a static hover costs no X calls, and
+    // EnterWindowMask is not selected, so nothing else re-applies it (nor resets it).
+    cursor_ = shape;
+    detail::x11_cursor_apply(display_, window_, cursor_state_, shape);
+    // Not flushed here: Xlib buffers the request and the next event pump or draw flushes it. A
+    // blocking flush would be a needless round trip on a cursor change.
 }
 
 } // namespace

@@ -6,6 +6,7 @@
 #include "tessera/ui/dirty.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 
 #include <array>
@@ -186,6 +187,18 @@ public:
     // `user-select: none`. Editable text (`TextInput`/`TextArea`) always allows selection, whatever
     // an ancestor's `none` says, as in CSS.
     [[nodiscard]] bool text_selection_allowed() const;
+
+    // CSS `cursor` (stylesheet-v1 section 11, issue #191), copied from computed style by
+    // `style::sync_interaction_style`. The scene stores the resolved enum, never the CSS text, so
+    // hit testing, input and the platform seam read it without parsing. The property is inherited,
+    // so the computed value already carries the ancestor resolution: a `pointer` parent with an
+    // explicit `auto` child yields `Auto` on the child. The setter is a no-op when the value is
+    // unchanged, so a steady scene stays clean; it marks no dirty domain (no pixels change) and the
+    // app reads the hovered node's value after input each frame.
+    void set_cursor(style::CursorKind value);
+    [[nodiscard]] style::CursorKind cursor() const {
+        return cursor_;
+    }
 
     void set_focusable(bool focusable);
     [[nodiscard]] bool focusable() const {
@@ -616,6 +629,10 @@ private:
     float scroll_animation_target_y_ = 0.0f;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
     UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
+    // Resolved `cursor` value (issue #191). The initial `auto` is the platform default arrow.
+    // `visibility` no longer lives here: it is one of the packed node flags (issue #285), so only
+    // the new cursor field is added by this landing.
+    style::CursorKind cursor_ = style::CursorKind::Auto;
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;
 };

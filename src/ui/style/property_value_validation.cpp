@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/property_value_validation.hpp"
 
@@ -132,6 +133,14 @@ const char* grid_style_message(std::string_view property) {
 bool validate_property_value(const Declaration& declaration, std::string_view property,
                              std::vector<StyleDiagnostic>& out) {
     const std::string value = lower(declaration.value);
+    // `cursor` (issue #191) is a closed keyword set plus the `url()` list V1 does not implement.
+    // The declaration is kept on an unsupported form: the computed value falls back to the initial
+    // `auto`, so the scene still has a cursor to read while the diagnostic names the form. Its
+    // grammar lives in cursor_value.cpp, shared with `@supports` and the scene sync.
+    if (property == "cursor") {
+        report_unsupported_cursor_value(value, declaration.offset, out);
+        return true;
+    }
     if (property == "box-shadow" && has_keyword(value, "inset")) {
         out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
                                       std::string(property),

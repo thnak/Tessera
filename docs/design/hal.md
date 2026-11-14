@@ -115,6 +115,22 @@ host reads it once at creation, and an explicit `WindowOptions::refresh_hz` wins
 changes are not tracked in this slice; the OS-event display-capabilities item in
 [`os-events-v1.md`](../specs/os-events-v1.md) owns that.
 
+### 1.5 Cursor shape (implemented, Windows and Linux/X11)
+
+`hal::Window::set_cursor(hal::CursorShape)` is the pointer-shape seam (window-chrome-v1.md section
+8.5, issue #191); `supports_cursor()` says whether the platform can do it at all, and
+`WindowMetrics::cursor` reports the shape the platform resolved, not the last request. `CursorShape`
+is the app-visible intent (`Default` is the platform arrow, `Hidden` is CSS `cursor: none`) and the
+platform decides its OS call: X11 creates a `cursorfont` glyph with `XCreateFontCursor`, caches it per
+window and installs it with `XDefineCursor`; Win32 loads the stock `IDC_*` cursors and installs the
+current shape from `WM_SETCURSOR` (the OS re-asserts the cursor after every non-client transition). The
+call never blocks, throws or fails: an unsupported shape or platform leaves the pointer as it was, and
+the app reports one `TESSERA_WINDOW_CURSOR_UNSUPPORTED`. The value names are pure
+([`cursor.hpp`](../../include/tessera/hal/cursor.hpp) plus `src/hal/window/cursor.cpp`), so the
+metrics dump and the app's mapping are testable without a display; the platform halves are
+`src/platform/windows/window_cursor_win.*` and `src/platform/linux/window_cursor_x11.*`. Tests:
+`window_cursor`, `window_cursor_fake`, `window_win32`, `window_x11`.
+
 ## 2. Core types
 
 ```cpp
@@ -312,6 +328,12 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   empty list as the system-chrome default. Tests: `window_fullscreen`, `window_fullscreen_fake`,
   `window_win32`; contract in
   [`window-chrome-v1.md`](../specs/window-chrome-v1.md) section 8.4 and section 8.1.
+- Pointer shapes (issue #191) are implemented on Win32 and X11; see section 1.5. `CursorShape` and
+  `WindowMetrics::cursor` are the HAL surface, the platform halves are
+  `src/platform/windows/window_cursor_win.*` (stock `IDC_*` cursors, `WM_SETCURSOR`) and
+  `src/platform/linux/window_cursor_x11.*` (`XCreateFontCursor` cached per window, `XDefineCursor`),
+  and the app's change-only request plus its one-shot diagnostic live in `src/app/window_cursor.*`.
+  Tests: `window_cursor`, `window_cursor_fake`, `window_win32`, `window_x11`.
 - Platform `VkSurfaceKHR`/swapchain paths live in `src/rendering/backend/vulkan/src/` and are
   created through `Device::create_swapchain` with the opaque `native_window` (HWND) or
   `native_display` + `native_window` (`Display*` + `Window`) handles supplied by the HAL. Win32

@@ -8,6 +8,7 @@ add_library(tessera_style STATIC
     component_parts.cpp
     compiled_stylesheet.cpp
     container_query.cpp
+    cursor_value.cpp
     grid_values.cpp
     interaction_style.cpp
     interaction_values.cpp
