@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
 // WindowHost's accessibility controller, Windows UIA half (issue #185,
-// docs/specs/accessibility-v1.md section 12.3). Every test runs against the fake apartment + fake UIA
-// platform seams from the shared a11y fixture: no screen reader, desktop session or COM client. The
-// Linux AT-SPI half is in app_accessibility_host_atspi_tests.cpp; both link into this executable.
+// docs/specs/accessibility-v1.md section 12.3). Every test runs against the fake apartment + fake
+// UIA platform seams from the shared a11y fixture: no screen reader, desktop session or COM client.
+// The Linux AT-SPI half is in app_accessibility_host_atspi_tests.cpp; both link into this
+// executable.
 
 #include "app_accessibility_host_fixture.hpp"
 
@@ -22,9 +23,9 @@ bool root_install_and_uninstall() {
     Log log;
     FakeWindow window;
     AccessibilityHost controller;
-    const bool started =
-        controller.start(window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
-                        uia_config(harness.get(), log));
+    const bool started = controller.start(
+        window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
+        uia_config(harness.get(), log));
     if (!expect(started, "the UIA controller starts") ||
         !expect(controller.enabled(), "the controller reports enabled") ||
         !expect(window.accessibility_root_installed(), "the root provider is installed") ||
@@ -69,8 +70,9 @@ bool unsupported_start_is_one_diagnostic() {
     bool threw = false;
     bool started = false;
     try {
-        started = controller.start(window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
-                                   unsupported_uia_config(log));
+        started = controller.start(
+            window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
+            unsupported_uia_config(log));
     } catch (...) {
         threw = true;
     }
@@ -112,12 +114,13 @@ bool static_window_builds_nothing() {
     FakeWindow window;
     std::size_t builds = 0;
     AccessibilityHost controller;
-    if (!expect(controller.start(window,
-                                 [&builds](A11ySnapshot& out) {
-                                     ++builds;
-                                     build_button_tree(out);
-                                 },
-                                 {}, uia_config(harness.get(), log)),
+    if (!expect(controller.start(
+                    window,
+                    [&builds](A11ySnapshot& out) {
+                        ++builds;
+                        build_button_tree(out);
+                    },
+                    {}, uia_config(harness.get(), log)),
                 "the controller starts")) {
         return false;
     }
@@ -145,12 +148,13 @@ bool dirty_and_resize_rebuild_once() {
     FakeWindow window;
     std::size_t builds = 0;
     AccessibilityHost controller;
-    if (!expect(controller.start(window,
-                                 [&builds](A11ySnapshot& out) {
-                                     ++builds;
-                                     build_button_tree(out);
-                                 },
-                                 {}, uia_config(harness.get(), log)),
+    if (!expect(controller.start(
+                    window,
+                    [&builds](A11ySnapshot& out) {
+                        ++builds;
+                        build_button_tree(out);
+                    },
+                    {}, uia_config(harness.get(), log)),
                 "the controller starts")) {
         return false;
     }
@@ -185,8 +189,9 @@ bool published_tree_reaches_the_bridge() {
     Log log;
     FakeWindow window;
     AccessibilityHost controller;
-    if (!expect(controller.start(window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
-                                 uia_config(harness.get(), log)),
+    if (!expect(controller.start(
+                    window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
+                    uia_config(harness.get(), log)),
                 "the controller starts")) {
         return false;
     }
@@ -237,13 +242,12 @@ bool drained_action_maps_to_node_id() {
         return false;
     }
     bool queued = false;
-    const bool ran =
-        controller.uia_host_for_testing()
-            ->bridge()
-            .run_on_bridge([&](tessera::ui::a11y::UiaProvider& provider) {
-                queued = provider.request_action(1, Action::Press).has_value();
-            })
-            .has_value();
+    const bool ran = controller.uia_host_for_testing()
+                         ->bridge()
+                         .run_on_bridge([&](tessera::ui::a11y::UiaProvider& provider) {
+                             queued = provider.request_action(1, Action::Press).has_value();
+                         })
+                         .has_value();
     if (!expect(ran && queued, "the client request was queued")) {
         return false;
     }

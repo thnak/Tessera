@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "accessibility_host.hpp"
 #include "tessera/app/frame_guard.hpp"
 #include "tessera/app/recovery_policy.hpp"
 #include "tessera/app/system_motion.hpp"
@@ -21,7 +22,6 @@
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/text/caret_blink.hpp"
-#include "accessibility_host.hpp"
 #include "window_config.hpp"
 #include "window_internal.hpp"
 

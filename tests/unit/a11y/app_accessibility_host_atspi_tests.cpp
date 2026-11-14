@@ -41,8 +41,9 @@ bool atspi_handshake_starts_on_the_worker() {
     Log log;
     FakeWindow window;
     AccessibilityHost controller;
-    if (!expect(controller.start(window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
-                                 atspi_config(harness, log)),
+    if (!expect(controller.start(
+                    window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
+                    atspi_config(harness, log)),
                 "the AT-SPI controller starts") ||
         !expect(controller.enabled(), "accessibility is enabled while handshaking") ||
         !expect(controller.atspi_session_for_testing() != nullptr,
@@ -64,8 +65,9 @@ bool atspi_auth_rejected_turns_accessibility_off() {
     Log log;
     FakeWindow window;
     AccessibilityHost controller;
-    if (!expect(controller.start(window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
-                                 atspi_config(harness, log)),
+    if (!expect(controller.start(
+                    window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
+                    atspi_config(harness, log)),
                 "the AT-SPI controller starts")) {
         return false;
     }
@@ -101,8 +103,9 @@ bool atspi_closed_peer_turns_accessibility_off() {
     Log log;
     FakeWindow window;
     AccessibilityHost controller;
-    if (!expect(controller.start(window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
-                                 atspi_config(harness, log)),
+    if (!expect(controller.start(
+                    window, [](A11ySnapshot& out) { build_button_tree(out); }, {},
+                    atspi_config(harness, log)),
                 "the AT-SPI controller starts")) {
         return false;
     }

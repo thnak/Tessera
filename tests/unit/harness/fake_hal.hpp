@@ -75,8 +75,8 @@ public:
     [[nodiscard]] bool supports_cursor() const noexcept override {
         return cursor_supported_;
     }
-    // Accessibility root seam (issues #185/#186): the fake stores the installed answer and reports a
-    // non-null opaque host token, so an app-level accessibility test can drive the real wiring
+    // Accessibility root seam (issues #185/#186): the fake stores the installed answer and reports
+    // a non-null opaque host token, so an app-level accessibility test can drive the real wiring
     // without an OS window. A scripted null token (`set_accessibility_host_handle({})`) models a
     // backend with no native host element (X11).
     void set_accessibility_root(hal::AccessibilityRoot root) override;

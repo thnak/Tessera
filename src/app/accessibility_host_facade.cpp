@@ -5,7 +5,6 @@
 // implementation and this facade each stay well under the file-size budget.
 
 #include "accessibility_host.hpp"
-
 #include "accessibility_host_impl.hpp"
 
 #include <utility>

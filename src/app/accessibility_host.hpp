@@ -109,8 +109,7 @@ public:
     // the failure has already been reported (at most one diagnostic) and nothing is left installed.
     // Never throws and never waits for a bridge thread or a bus.
     bool start(hal::Window& window, AccessibilitySnapshotSource source,
-               AccessibilityActionHandler handler = {},
-               AccessibilityHostConfig config = {});
+               AccessibilityActionHandler handler = {}, AccessibilityHostConfig config = {});
 
     // Uninstalls the installed seam and joins/stops the backend. Safe twice, from the destructor,
     // and after a failed start. The caller must invoke it while the platform window is still valid.

@@ -6,7 +6,6 @@
 // for the contract.
 
 #include "accessibility_host.hpp"
-
 #include "accessibility_host_impl.hpp"
 
 #include <cstdio>

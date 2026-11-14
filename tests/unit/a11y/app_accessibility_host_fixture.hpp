@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
-// Shared fixture for the `app_accessibility_host` test: the controller's include seam, the assertion
-// helpers, the two-node snapshot builder, the diagnostic log, and the two injectable configs (a real
-// `UiaHost` over the fake apartment/platform seams, and a failing one). Kept in a header so the test
-// translation unit stays under the file-size limit; every test in the file drives the same seams.
+// Shared fixture for the `app_accessibility_host` test: the controller's include seam, the
+// assertion helpers, the two-node snapshot builder, the diagnostic log, and the two injectable
+// configs (a real `UiaHost` over the fake apartment/platform seams, and a failing one). Kept in a
+// header so the test translation unit stays under the file-size limit; every test in the file
+// drives the same seams.
 
 #pragma once
 
@@ -35,9 +36,9 @@ using tessera::app::AccessibilityHost;
 using tessera::app::AccessibilityHostConfig;
 using tessera::app::AccessibilityHostStatus;
 using tessera::harness::testing::FakeWindow;
-using tessera::ui::a11y::Action;
 using tessera::ui::a11y::A11yNode;
 using tessera::ui::a11y::A11ySnapshot;
+using tessera::ui::a11y::Action;
 using tessera::ui::a11y::kMaxTextBytes;
 using tessera::ui::a11y::Role;
 using tessera::ui::a11y::UiaHost;
@@ -103,7 +104,8 @@ struct Log {
 
 // A real `UiaHost` over the fixture's fake apartment + fake platform, so the host's lifecycle
 // (bridge thread, root publication, tick, stop join) runs unmodified. The harness outlives the
-// controller in every test, and the fakes are owned by the host from the moment the factory returns.
+// controller in every test, and the fakes are owned by the host from the moment the factory
+// returns.
 inline AccessibilityHostConfig uia_config(HostHarness* harness, Log& log) {
     AccessibilityHostConfig config;
     config.backend = AccessibilityBackend::Uia;
@@ -111,8 +113,8 @@ inline AccessibilityHostConfig uia_config(HostHarness* harness, Log& log) {
     config.create_uia = [harness]() -> std::unique_ptr<UiaHost> {
         auto apartment = std::make_unique<LoggingApartment>(harness->log);
         harness->apartment = apartment.get();
-        auto platform = std::make_unique<FakePlatform>(harness->log,
-                                                       reinterpret_cast<void*>(0x1234));
+        auto platform =
+            std::make_unique<FakePlatform>(harness->log, reinterpret_cast<void*>(0x1234));
         harness->platform = platform.get();
         return std::make_unique<UiaHost>(test_config(), std::move(apartment), std::move(platform));
     };
