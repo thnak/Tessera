@@ -57,10 +57,6 @@ const ui::Node* row_root(const ui::Node& host) {
     return children.empty() ? nullptr : children[0].get();
 }
 
-std::string_view text_of(std::string_view value) {
-    return value;
-}
-
 // The page root: build() attaches the page's own root view under the scene root.
 void test_keyed_list_of_instances() {
     demo::gen::Page page;
