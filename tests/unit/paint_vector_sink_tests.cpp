@@ -135,6 +135,7 @@ bool sink_failure_values_are_noops() {
         return false;
     }
 
+    bool ok = true;
     {
         NullRenderer harness;
         path::PathTextureCache textures(*harness.device, *null_rasterizer, {});
@@ -143,21 +144,17 @@ bool sink_failure_values_are_noops() {
         sink.draw_vector(sample_draw("missing.svg", Rect{0.0f, 0.0f, 32.0f, 32.0f}));
         harness.finish();
         const auto* commands = dynamic_cast<NullCommandList*>(harness.commands.get());
-        bool ok = expect(sink.vector_stats().missing_assets == 1,
-                         "a missing asset counts as a documented no-op") &&
-                  expect(commands != nullptr && commands->stats().draws == 0,
-                         "a missing asset emits no draw");
+        ok = expect(sink.vector_stats().missing_assets == 1,
+                    "a missing asset counts as a documented no-op") &&
+             expect(commands != nullptr && commands->stats().draws == 0,
+                    "a missing asset emits no draw");
         if (!path::svg_backend_available()) {
             sink.draw_vector(sample_draw("good.svg", Rect{0.0f, 0.0f, 32.0f, 32.0f}));
             ok = expect(sink.vector_stats().unavailable_backend == 1,
                         "ThorVG OFF reports the backend no-op") &&
                  ok;
+            return ok;
         }
-        return ok;
-    }
-
-    if (!path::svg_backend_available()) {
-        return true;
     }
 
     NullRenderer harness;
@@ -165,8 +162,8 @@ bool sink_failure_values_are_noops() {
     Batched2DSink sink(*harness.renderer, nullptr, nullptr,
                        tessera::ui::paint::VectorPaintConfig{&bundle, &documents, &textures});
     sink.draw_vector(sample_draw("bad.svg", Rect{0.0f, 0.0f, 32.0f, 32.0f}));
-    bool ok =
-        expect(sink.vector_stats().failed_assets == 1, "a malformed asset is a counted no-op");
+    ok = expect(sink.vector_stats().failed_assets == 1, "a malformed asset is a counted no-op") &&
+         ok;
     sink.draw_vector(sample_draw("good.svg", Rect{0.0f, 0.0f, 32.0f, 32.0f}));
     ok = expect(sink.vector_stats().draws == 1 && textures.stats().uploads == 1,
                 "a valid asset draws one textured quad") &&
