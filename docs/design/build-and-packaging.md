@@ -12,6 +12,8 @@ Updates/signing/notarization: [`updates-and-distribution-v1.md`](../specs/update
   - `TESSERA_STATIC_RUNTIME=ON` (default)
   - `TESSERA_USE_COMPILER_CACHE=ON` (auto-detect sccache/ccache)
   - `TESSERA_BUILD_POC=ON`, `TESSERA_BUILD_TESTS=ON`, `TESSERA_BUILD_VULKAN=ON`
+  - `TESSERA_ENABLE_TRACING=OFF` (default): span tracing is a development and automation feature,
+    so the production profile compiles it out entirely (section 2.1).
 - `compile_commands.json` exported for clang-tidy/editors.
 
 Commands:
@@ -42,6 +44,36 @@ ctest --preset vs2026-release
 | demos/tests | exe | PoC/tests |
 
 Runtime libraries are static; OS/GPU system components remain dynamic ([ADR-012](../../decisions/ADR-012-static-linking.md)).
+
+### 2.1 Tracing is compiled out of production
+
+`TESSERA_ENABLE_TRACING` (default `OFF`) decides whether the span recorder exists at all. It is
+the build-time half of the rule that diagnostics must cost nothing when disabled
+([ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) decision 11,
+[`diagnostics-config-v1.md`](../specs/diagnostics-config-v1.md) section 5): a runtime switch alone
+would still ship the recorder's code and its JSON encoder.
+
+When the option is `OFF`:
+
+- `src/diagnostics/trace.cpp` is not compiled. `tessera_diagnostics` contains no event ring and no
+  Chrome trace encoder, so a linked binary cannot contain either.
+- `TraceRecorder`, `TraceSpan` and `to_chrome_trace_json` stay declared in
+  [`trace.hpp`](../../include/tessera/diagnostics/trace.hpp) as an empty inline no-op. Call sites
+  (the automation host's `record()`, the harness reporters) compile unchanged and emit nothing; the
+  recorder occupies no stack and the compiler drops the calls.
+- `collect_trace()` still answers with the documented empty Chrome document `[]`, so a `trace`
+  script step or command keeps succeeding rather than failing in a way scripts would have to know
+  about ([`headless-automation-v1.md`](../specs/headless-automation-v1.md) section 7.1). Only the
+  recorder's own test-only query surface (`events()`) is unavailable.
+- `tracing_strip_tests` scans the built `tessera_diagnostics` archive and fails if any of the
+  recorder's markers are present. With the option `ON` the same test asserts the markers *are*
+  visible, so a scanner that matched nothing could not pass.
+
+Anything that records spans debug builds and automation runs but ships in a release (the headless
+CLI, golden lanes, audits) is a consumer of this option: it stays `ON` for the `dev`, `ci`, `vs2026`
+and `vs2022` presets and `OFF` for release/packaging and the Wasm preset. Making it default `ON`
+would put a `std::deque` push on every automation command in a shipped binary for a feature the
+production profile disables anyway.
 
 ## 3. Static linking
 

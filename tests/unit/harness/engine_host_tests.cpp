@@ -210,10 +210,17 @@ int main() {
     // Trace and audit wrote their documented artifacts.
     const std::string* trace = first_run.sink.find("out/trace.json");
     expect(trace != nullptr && trace->front() == '[', "the trace is a Chrome trace array");
+    const harness::JsonValue* span_count = report.steps[6].result.find("spanCount");
+#if defined(TESSERA_ENABLE_TRACING)
     expect(trace != nullptr && trace->find("automation.click") != std::string::npos,
            "the trace carries the input span");
-    const harness::JsonValue* span_count = report.steps[6].result.find("spanCount");
     expect(span_count != nullptr && span_count->as_integer() > 0, "the trace reports its spans");
+#else
+    // With tracing compiled out the artifact is still written, with the documented empty document.
+    expect(trace != nullptr && *trace == "[]", "a tracing-off build writes the empty document");
+    expect(span_count != nullptr && span_count->as_integer() == 0,
+           "a tracing-off build reports no spans");
+#endif
 
     const std::string* audit = first_run.sink.find("out/audit.json");
     expect(audit != nullptr && audit->find("\"profile\":\"desktop\"") != std::string::npos,

@@ -146,13 +146,23 @@ int main() {
         click.kind = harness::ActionKind::Click;
         click.ui_id = automation::kFixtureButtonId;
         expect(scene.automation.dispatch_action(click).has_value(), "the click dispatches");
-        expect(recorder.size() == 1, "an enabled action records exactly one span");
         expect(scene.automation.stats().trace_events == 1, "the host counted the span");
 
+#if defined(TESSERA_ENABLE_TRACING)
+        // Span contents only exist where the recorder is compiled in; with the option off the
+        // recorder is a no-op and `collect_trace` answers the empty document instead
+        // (tracing_strip_tests covers that flavour).
+        expect(recorder.size() == 1, "an enabled action records exactly one span");
         const auto trace = scene.automation.collect_trace();
         expect(trace.has_value() && trace->span_count == 2, "the trace includes its own request");
         expect(trace.has_value() && trace->json.find("automation.click") != std::string::npos,
                "the trace carries the action span");
+#else
+        expect(recorder.size() == 0, "a tracing-off build records no span");
+        const auto trace = scene.automation.collect_trace();
+        expect(trace.has_value() && trace->json == "[]" && trace->span_count == 0,
+               "a tracing-off build answers the empty document");
+#endif
 
         const auto audit = scene.automation.run_audit("desktop");
         expect(audit.has_value() && audit->passed && audit->score == 100.0,

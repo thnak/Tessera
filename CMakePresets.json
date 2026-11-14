@@ -23,7 +23,8 @@
       "displayName": "Ninja Debug",
       "generator": "Ninja",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TESSERA_ENABLE_TRACING": "ON"
       }
     },
     {
@@ -40,7 +41,8 @@
       "inherits": "release",
       "displayName": "CI Release",
       "cacheVariables": {
-        "TESSERA_BUILD_TESTS": "ON"
+        "TESSERA_BUILD_TESTS": "ON",
+        "TESSERA_ENABLE_TRACING": "ON"
       }
     },
     {
@@ -48,14 +50,20 @@
       "inherits": "base",
       "displayName": "Visual Studio 2026",
       "generator": "Visual Studio 18 2026",
-      "architecture": "x64"
+      "architecture": "x64",
+      "cacheVariables": {
+        "TESSERA_ENABLE_TRACING": "ON"
+      }
     },
     {
       "name": "vs2022",
       "inherits": "base",
       "displayName": "Visual Studio 2022",
       "generator": "Visual Studio 17 2022",
-      "architecture": "x64"
+      "architecture": "x64",
+      "cacheVariables": {
+        "TESSERA_ENABLE_TRACING": "ON"
+      }
     },
     {
       "name": "wasm-webgpu",
@@ -71,6 +79,7 @@
         "TESSERA_BUILD_TESTS": "OFF",
         "TESSERA_BUILD_POC": "OFF",
         "TESSERA_BUILD_VULKAN": "OFF",
+        "TESSERA_ENABLE_TRACING": "OFF",
         "TESSERA_USE_COMPILER_CACHE": "OFF",
         "TESSERA_WARNINGS_AS_ERRORS": "ON"
       }
