@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "safe_area_state.hpp"
-
 #include "tessera/ui/style/cascade.hpp"
 
 #include <cmath>
@@ -70,7 +69,7 @@ bool animated_settled(const hal::WindowMetrics& a, const hal::WindowMetrics& b) 
 }
 
 // Calls `fn(token)` for every non-empty `separator`-separated token of `text`.
-template <typename Fn> void for_each_token(std::string_view text, char separator, Fn&& fn) {
+template<typename Fn> void for_each_token(std::string_view text, char separator, Fn&& fn) {
     std::size_t index = 0;
     while (index < text.size()) {
         while (index < text.size() && text[index] == separator) {
@@ -185,9 +184,8 @@ bool SafeAreaState::step(double dt, bool reduced_motion) {
 
 bool is_safe_area_node(const ui::Node& node) {
     bool found = false;
-    for_each_token(node.class_name(), ' ', [&](std::string_view token) {
-        found = found || token == "tsafe";
-    });
+    for_each_token(node.class_name(), ' ',
+                   [&](std::string_view token) { found = found || token == "tsafe"; });
     return found;
 }
 

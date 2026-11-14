@@ -2,8 +2,8 @@
 
 // The library SafeArea end to end (issue #223, docs/specs/safe-area-v1.md section 9): the generated
 // `SafeAreaDemo` and `SafeAreaOptions` pages (golden C++ from packages/tessera-ui/SafeArea.tsx) run
-// in the app host with `safe-area.css`, against the scripted devices of the spec: a notched phone, a
-// gesture-navigation phone, a tablet with a bottom keyboard and a book-mode foldable.
+// in the app host with `safe-area.css`, against the scripted devices of the spec: a notched phone,
+// a gesture-navigation phone, a tablet with a bottom keyboard and a book-mode foldable.
 
 #include "SafeAreaDemo.hpp"
 #include "SafeAreaOptions.hpp"
@@ -44,8 +44,8 @@ bool near(float a, float b) {
 
 // Checks `got` is within half a pixel of `want` and prints both when it is not.
 void check_near(float got, float want, const std::string& message) {
-    check(std::fabs(got - want) < 0.5f, message + " (got " + std::to_string(got) + ", want " +
-                                            std::to_string(want) + ")");
+    check(std::fabs(got - want) < 0.5f,
+          message + " (got " + std::to_string(got) + ", want " + std::to_string(want) + ")");
 }
 
 bool has_token(const ui::Node& node, const std::string& token) {
@@ -73,8 +73,9 @@ hal::WindowMetrics device(std::uint32_t width, std::uint32_t height) {
 }
 
 // One window around a generated page; `Page` is SafeAreaDemo or SafeAreaOptions.
-template <typename Page> struct Window {
-    Window(float width, float height) : loop(clock) {
+template<typename Page> struct Window {
+    Window(float width, float height)
+        : loop(clock) {
         page.build(root);
         std::ifstream css_file(TESSERA_SAFE_AREA_CSS, std::ios::binary);
         const std::string css((std::istreambuf_iterator<char>(css_file)),
@@ -88,7 +89,8 @@ template <typename Page> struct Window {
                 css + "\n.fill { flex-grow: 1; display: flex; flex-direction: column; }"),
             loop, config);
         safe = find_class(root, "tsafe");
-        content = safe != nullptr && !safe->children().empty() ? safe->children()[0].get() : nullptr;
+        content =
+            safe != nullptr && !safe->children().empty() ? safe->children()[0].get() : nullptr;
     }
 
     void frames(int count) {

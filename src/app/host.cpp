@@ -73,7 +73,8 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
     // A SafeArea node's padding or margin is host-owned: the resolved insets replace the sides.
     if (safe_area.has_metrics()) {
         const std::string* direction = input.style.find("direction");
-        if (const auto spec = read_safe_area_spec(node, direction != nullptr && *direction == "rtl")) {
+        if (const auto spec =
+                read_safe_area_spec(node, direction != nullptr && *direction == "rtl")) {
             apply_safe_area(input.style, *spec, safe_area.resolve(spec->config));
         }
     }

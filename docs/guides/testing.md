@@ -111,7 +111,10 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `batched2d_overlay_golden` | lavapipe overlay baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_text_golden` | lavapipe text-stack baseline, 1 LSB + 0.1% budget (Linux only) |
 | `batched2d_shapes_golden` | lavapipe rounded/texture/clip/transform baseline, bit-exact (Linux only) |
-| `gallery_golden_*` | 15 lavapipe goldens of the library Button gallery under `tests/golden/gallery/` (3 themes x none/hover/active/focus, plus compact, 150% text and RTL), 1 LSB + 0.1% budget; skip unless lavapipe is selected; CI uploads frame/diff/report as `gallery-golden-artifacts` (`gallery --golden FILE --update-goldens` rewrites) |
+| `safe_area` | SafeArea inset arithmetic (`include/tessera/hal/safe_area.hpp`): edges, sources, minimum, start/end under RTL, cutout and hinge insets, hostile values, event coalescing |
+| `app_safe_area` | SafeArea in the app host: padding or margin from the metrics before layout, per-edge keyboard easing under the manual clock, reduced motion, no layout for unchanged insets |
+| `library_safe_area_lowering`, `library_safe_area_runtime` | the library `SafeArea` lowers, validates and generates C++ (goldens `tests/golden/codegen/SafeArea*`); the generated page runs in the host on a notched phone, a gesture phone, a keyboard tablet and a book-mode foldable |
+| `gallery_golden_*` | 23 lavapipe goldens of the library gallery under `tests/golden/gallery/` (the Button page: 3 themes x none/hover/active/focus, plus compact, 150% text and RTL; the SafeArea page: 4 devices x light/dark), 1 LSB + 0.1% budget; skip unless lavapipe is selected; CI uploads frame/diff/report as `gallery-golden-artifacts` (`gallery --golden FILE --update-goldens` rewrites) |
 | `gallery_capture` | one gallery capture on any Vulkan device (smoke; skips without one) |
 | `harness_frame_capture` | software-device capability rule, offscreen harness capture vs the committed `tests/golden/baseline/harness/` baseline (1 LSB + 0.1% budget, lavapipe only; gpu-smoke self-comparison elsewhere; `--update-goldens` regenerates) |
 | `batched2d_windowed_smoke` | window + swapchain render/present + pacer wait for 3 frames |

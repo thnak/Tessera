@@ -5,18 +5,25 @@
 # compiler demo), so the gallery always shows the Button that ships.
 set(_gallery_gen ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(_gallery_button ${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx)
+set(_gallery_safe_area ${CMAKE_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx)
 set(_gallery_outputs
     ${_gallery_gen}/Button.hpp ${_gallery_gen}/Button.cpp
-    ${_gallery_gen}/Gallery.hpp ${_gallery_gen}/Gallery.cpp)
+    ${_gallery_gen}/Gallery.hpp ${_gallery_gen}/Gallery.cpp
+    ${_gallery_gen}/SafeArea.hpp ${_gallery_gen}/SafeArea.cpp
+    ${_gallery_gen}/SafeAreaPage.hpp ${_gallery_gen}/SafeAreaPage.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_button} ${_gallery_gen}/src/Button.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${_gallery_gen}/src/Gallery.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_safe_area} ${_gallery_gen}/src/SafeArea.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --mode legacy --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
             ${_gallery_gen}/src/Button.tsx ${_gallery_gen}/src/Gallery.tsx
-    DEPENDS tessera_codegen_cli ${_gallery_button} ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx
+            ${_gallery_gen}/src/SafeArea.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
+    DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
+            ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
     COMMENT "Generating the gallery page"
     VERBATIM)
 
@@ -32,6 +39,7 @@ target_link_libraries(gallery PRIVATE
     tessera_stb)
 target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf"
+    TESSERA_GALLERY_SAFE_AREA_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css"
     TESSERA_GALLERY_BUTTON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css"
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
     TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
@@ -60,6 +68,15 @@ if (TESSERA_BUILD_TESTS)
         string(REPLACE "_" "-" _theme_id "${_theme}")
         foreach (_state none hover active focus)
             list(APPEND _gallery_cases "${_theme}_${_state}|--theme instrument-${_theme_id} --state ${_state}")
+        endforeach ()
+    endforeach ()
+    # SafeArea (issue #223): one screen per scripted device, in the light and dark themes. The
+    # window size is the device's: a notched phone, a gesture-navigation phone, a tablet-width
+    # window with a keyboard, and a book-mode foldable.
+    foreach (_device notch gesture keyboard fold)
+        foreach (_theme light dark)
+            list(APPEND _gallery_cases
+                "safe_area_${_device}_${_theme}|--page safe-area --device ${_device} --theme instrument-${_theme}")
         endforeach ()
     endforeach ()
     foreach (_case IN LISTS _gallery_cases)

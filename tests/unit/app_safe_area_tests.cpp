@@ -43,7 +43,8 @@ tessera::hal::WindowMetrics phone() {
 // One window: root -> safe (the SafeArea node) -> content (fills what is left).
 struct Fixture {
     explicit Fixture(bool reduced_motion = false, bool margin = false)
-        : root(1), loop(clock) {
+        : root(1),
+          loop(clock) {
         safe = &root.add_child(std::make_unique<Node>(2));
         safe->set_element_kind("View");
         safe->set_class_name(margin ? "fill tsafe safe-mode-margin" : "fill tsafe");
@@ -158,7 +159,8 @@ int main() {
         metrics.insets = {30, 0, 6, 0};
         f.host->set_window_metrics(metrics);
         f.frame();
-        expect(near(f.content->world_bounds().x, 0.0f) && near(f.content->world_bounds().width, 394.0f),
+        expect(near(f.content->world_bounds().x, 0.0f) &&
+                   near(f.content->world_bounds().width, 394.0f),
                "start is the right edge in right-to-left");
     }
     {
