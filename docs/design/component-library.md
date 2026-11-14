@@ -51,11 +51,19 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`
 (variants `primary`, `secondary`, `ghost`, `danger`; sizes `md`, `sm`; a disabled state; tokens only).
 It forwards `onPress` behind a `!disabled` guard ([jsx-subset-v1 section 9.5](../specs/jsx-subset-v1.md)).
-Evidence so far: `library_button_lowering`, `library_button_style`; the gallery, goldens and the
-`<Button>` name (it collides with the intrinsic `Button` element) are still open.
+Evidence so far: `library_button_lowering`, `library_button_style`, `library_button_runtime`
+(keyboard and pointer through the real `InputRouter`), and the native gallery captures below. Goldens
+per theme and state are still open (they come from the lavapipe lane).
 
-Gallery: there is no gallery skeleton in the repository yet; this table is the interim catalog of the
-primitives and their evidence (`primitives`, `focus_scope`, `guarded_handler`).
+Gallery (native lane): `samples/gallery` generates its page from `Gallery.tsx` and the shipped
+`Button.tsx` at build time and renders every Button variant, size and the disabled state. The switches
+are host state, not page logic: `--theme` (the three Instrument themes), `--density compact`,
+`--text-scale 125|150`, `--rtl` and `--state hover|active|focus`. Density and text scale are token
+overrides on the window root in `gallery.css` (`.g-root.g-compact`, `.g-root.g-scale-*`), direction is the
+inherited `direction` property, and the library rules read tokens only, so no control-specific rule
+exists for any switch. `gallery --capture out.png` is windowless and skips when there is no Vulkan
+device; `gallery_capture_*` in ctest runs each switch. The web build of the gallery is #290.
+Interim catalog of the primitives and their evidence: `primitives`, `focus_scope`, `guarded_handler`.
 
 Subset gaps found: a component cannot forward a callback prop to an inner event, so `Press` cannot
 pass `onClick` through; a plain `View` has no `disabled` prop; `onPointerCancel` has no scene event.

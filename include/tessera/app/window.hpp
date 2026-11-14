@@ -281,6 +281,10 @@ struct CaptureOptions {
     std::shared_ptr<const ui::text::TextMeasurer> text_measurer;
     // Optional update scheduler (generated components flush their state changes at its flush).
     ui::UpdateScheduler* scheduler = nullptr;
+    // Runs once on the freshly built host, before the first frame: where a tool installs the
+    // embedded stylesheets and the theme asset, or activates a theme (`AppHost::set_theme`), the
+    // same calls an app makes before its frame loop.
+    std::function<void(AppHost&)> configure_host;
 };
 
 struct CapturedFrame {
