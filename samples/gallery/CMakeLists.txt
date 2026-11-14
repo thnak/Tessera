@@ -20,7 +20,7 @@ add_custom_command(
     COMMENT "Generating the gallery page"
     VERBATIM)
 
-add_executable(gallery main.cpp ${_gallery_outputs})
+add_executable(gallery main.cpp golden.cpp golden.hpp ${_gallery_outputs})
 target_include_directories(gallery PRIVATE ${_gallery_gen})
 target_link_libraries(gallery PRIVATE
     tessera_app_window
@@ -28,6 +28,7 @@ target_link_libraries(gallery PRIVATE
     tessera_text_edit
     tessera_animation
     tessera_style
+    tessera_harness_capture
     tessera_stb)
 target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf"
@@ -38,25 +39,38 @@ target_compile_features(gallery PRIVATE cxx_std_23)
 
 if (TESSERA_BUILD_TESTS)
     enable_testing()
-    # One capture per theme, plus the compact, scaled, RTL and forced-state switches. No Vulkan
-    # device: the tool prints its documented skip line and exits 0.
+    # Smoke: one capture on any Vulkan device. No device: the tool prints its documented skip line.
+    add_test(NAME gallery_capture
+        COMMAND gallery --capture ${CMAKE_CURRENT_BINARY_DIR}/gallery_smoke.png)
+    set_tests_properties(gallery_capture PROPERTIES SKIP_REGULAR_EXPRESSION "skipped")
+
+    # Goldens (issue #239, ADR-009): every theme in every state, plus density, text scale and RTL
+    # on the light theme. The committed baselines are lavapipe images under tests/golden/gallery/;
+    # the test skips unless the loader selects only lavapipe. frame.png, the diff and the compare
+    # report of every run land in the build tree (CI uploads them), so a missing or changed
+    # baseline can be reviewed and committed. `gallery --golden FILE --update-goldens ...` rewrites.
+    set(_gallery_golden_dir ${PROJECT_SOURCE_DIR}/tests/golden/gallery)
+    set(_gallery_artifact_dir ${CMAKE_CURRENT_BINARY_DIR}/golden-artifacts)
+    file(MAKE_DIRECTORY ${_gallery_artifact_dir})
     set(_gallery_cases
-        "light|--theme instrument-light"
-        "dark|--theme instrument-dark"
-        "high_contrast|--theme instrument-high-contrast"
         "compact|--density compact"
         "scale_150|--text-scale 150"
-        "rtl|--rtl"
-        "hover|--state hover"
-        "active|--state active"
-        "focus|--state focus")
+        "rtl|--rtl")
+    foreach (_theme light dark high_contrast)
+        string(REPLACE "_" "-" _theme_id "${_theme}")
+        foreach (_state none hover active focus)
+            list(APPEND _gallery_cases "${_theme}_${_state}|--theme instrument-${_theme_id} --state ${_state}")
+        endforeach ()
+    endforeach ()
     foreach (_case IN LISTS _gallery_cases)
         string(REPLACE "|" ";" _parts "${_case}")
         list(GET _parts 0 _name)
         list(GET _parts 1 _flags)
         separate_arguments(_flag_list NATIVE_COMMAND "${_flags}")
-        add_test(NAME gallery_capture_${_name}
-            COMMAND gallery --capture ${CMAKE_CURRENT_BINARY_DIR}/gallery_${_name}.png ${_flag_list})
-        set_tests_properties(gallery_capture_${_name} PROPERTIES SKIP_REGULAR_EXPRESSION "skipped")
+        add_test(NAME gallery_golden_${_name}
+            COMMAND gallery --golden ${_gallery_golden_dir}/${_name}.png
+                    --artifacts ${_name} ${_flag_list}
+            WORKING_DIRECTORY ${_gallery_artifact_dir})
+        set_tests_properties(gallery_golden_${_name} PROPERTIES SKIP_REGULAR_EXPRESSION "skipped")
     endforeach ()
 endif ()

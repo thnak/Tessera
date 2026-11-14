@@ -13,9 +13,12 @@
 //
 // Modes:
 //   gallery --capture out.png     windowless offscreen capture (any Vulkan device, lavapipe in CI)
+//   gallery --golden base.png     the same capture compared with a committed lavapipe baseline
+//                                 (--artifacts DIR keeps frame/diff/report, --update-goldens rewrites)
 //   gallery [--hidden] [--frames N]  window; the switches above set its initial state
 
 #include "Gallery.hpp"
+#include "golden.hpp"
 #include "stb_image_write.h"
 #include "tessera/app/window.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -47,6 +50,9 @@ using tessera::ui::Node;
 
 struct Args {
     std::string capture;
+    std::string golden;
+    std::string artifact_dir = "gallery-artifacts";
+    bool update_goldens = false;
     std::string font = TESSERA_GALLERY_FONT;
     std::string theme = "instrument-light";
     std::string density = "comfortable";
@@ -181,6 +187,11 @@ struct Scene {
 };
 
 int run_capture(const Args& args, const Resources& resources, Scene& scene) {
+    std::string unavailable;
+    if (!args.golden.empty() && !gallery_golden::available(unavailable)) {
+        std::cout << "gallery: skipped golden (" << unavailable << ")\n";
+        return 0;
+    }
     tessera::app::CaptureOptions options;
     options.width = static_cast<std::uint32_t>(args.width);
     options.height = static_cast<std::uint32_t>(args.height);
@@ -192,6 +203,9 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     if (!frame) {
         std::cout << "gallery: skipped (Vulkan device unavailable)\n";
         return 0;
+    }
+    if (!args.golden.empty()) {
+        return gallery_golden::check(*frame, args.golden, args.artifact_dir, args.update_goldens);
     }
     if (!write_png(args.capture, *frame)) {
         std::cerr << "gallery: failed to write " << args.capture << "\n";
@@ -240,6 +254,13 @@ Args parse_args(int argc, char** argv) {
         const bool has_value = index + 1 < argc;
         if (arg == "--capture" && has_value) {
             args.capture = argv[++index];
+        } else if (arg == "--golden" && has_value) {
+            args.golden = argv[++index];
+            args.capture = "golden";
+        } else if (arg == "--artifacts" && has_value) {
+            args.artifact_dir = argv[++index];
+        } else if (arg == "--update-goldens") {
+            args.update_goldens = true;
         } else if (arg == "--theme" && has_value) {
             args.theme = argv[++index];
         } else if (arg == "--density" && has_value) {
