@@ -11,7 +11,15 @@ add_library(tessera_app STATIC
     safe_area_state.hpp
     system_motion.cpp
     window_config.cpp
-    window_config.hpp)
+    window_config.hpp
+    # The one accessibility controller WindowHost owns (issues #185/#186). It is platform-neutral
+    # C++ over the HAL window seam and the accessibility bridges, so it lives in this always-built
+    # library (not the Vulkan-gated window driver) and the app-level tests drive it with fakes.
+    accessibility_host.cpp
+    accessibility_host_atspi.cpp
+    accessibility_host_facade.cpp
+    accessibility_host.hpp
+    accessibility_host_impl.hpp)
 
 target_include_directories(tessera_app PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -22,7 +30,9 @@ target_include_directories(tessera_app PRIVATE
     ${PROJECT_SOURCE_DIR}/src/runtime)
 
 target_link_libraries(tessera_app PUBLIC
+    tessera_accessibility
     tessera_frame
+    tessera_hal_window
     tessera_layout
     tessera_animation
     tessera_paint
@@ -44,6 +54,9 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
     add_library(tessera_app_window STATIC
         frame_capture.cpp
         window.cpp
+        # WindowHost's accessibility adapters (issues #185/#186): the paint->a11y style provider and
+        # the action execution on the scene, outside window.cpp's size budget.
+        window_accessibility.cpp
         window_backdrop_request.cpp
         window_backdrop_request.hpp
         window_cursor.cpp
@@ -59,6 +72,7 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
         ${CMAKE_CURRENT_SOURCE_DIR})
 
     target_link_libraries(tessera_app_window PUBLIC
+        tessera_accessibility
         tessera_app
         tessera_gpu
         tessera_hal_window

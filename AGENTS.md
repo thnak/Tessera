@@ -568,9 +568,17 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 
 
 ### V1-M7 Platform breadth and accessibility ([milestone 7](https://github.com/thnak/Tessera/milestone/7)) — Big Step F
-- [ ] #185: Install `make_window_root_provider` from `WindowHost` (UIA host provider exists) — Narrator/
-      NVDA smoke checklist.
-- [ ] #186: Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic.
+- [x] #185: Install `make_window_root_provider` from `WindowHost` (UIA host provider exists) — Narrator/
+      NVDA smoke checklist — `src/app/accessibility_host.{hpp,cpp}` + `src/app/window_accessibility.cpp`
+      (the controller `WindowHost` owns: forwards `hal::Window::accessibility_host_handle()` to the
+      platform seam, installs `make_window_root_provider(UiaHost&)`, uninstalls it on stop and before
+      the window dies), `docs/specs/accessibility-v1.md` §12.3 + the manual checklist in §12.3.1,
+      test `app_accessibility_host`.
+- [x] #186: Wire `AtspiSession` into the Linux host; failures turn accessibility off with a diagnostic —
+      `src/app/accessibility_host_atspi.cpp` (`AtspiBridge` + `AtspiSession`, the session's own worker
+      thread pumps, a terminal phase becomes one `TESSERA_A11Y_UNSUPPORTED:` line),
+      `docs/specs/accessibility-v1.md` §12.3/§12.3.2, tests `app_accessibility_host`
+      (synthetic loopback peer: handshake, auth rejection, peer close).
 - [ ] #187: Reduced motion and dark mode queries on Linux.
 - [x] #243: Translucent window and OS backdrop (Mica, Acrylic, compositor blur) with fallback —
       `include/tessera/hal/window_backdrop.hpp` (resolver table), `src/platform/windows/window_backdrop.cpp`

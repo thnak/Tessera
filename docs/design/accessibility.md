@@ -103,9 +103,14 @@ The host side is wired end to end:
   pending focus event, drop-oldest on overflow) and are raised on the bridge thread by a single
   posted flush job, never from the window thread.
 
-The remaining Windows gaps are `get_HostRawElementProvider` (no window handle reaches the bridge
-yet), event payload variants (clients re-query), and `ITextProvider`/list-wide `ISelectionProvider`;
-they are tracked in the spec's known-limits list.
+The remaining Windows gaps are the event payload variants (clients re-query) and
+`ITextProvider`/list-wide `ISelectionProvider`; they are tracked in the spec's known-limits list.
+`get_HostRawElementProvider` landed (the root answers with a `UiaHostProviderFromHwnd` provider
+built on the bridge thread from the window's opaque handle), and `WindowHost` now owns the host
+wiring: one `AccessibilityHost` controller installs the root provider on Windows and drives
+`AtspiSession` on Linux, turning any start/handshake failure into one `TESSERA_A11Y_UNSUPPORTED`
+diagnostic with accessibility off and the window untouched
+([`accessibility-v1.md`](../specs/accessibility-v1.md#123-implemented-subset-the-host-owned-accessibility-controller)).
 
 ## 4. Focus and keyboard
 
