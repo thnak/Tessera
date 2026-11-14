@@ -523,7 +523,10 @@ export function Button({ onPress, children }: ButtonProps) {
 - `onClick={onPress}` with `onPress` a destructured callback prop of the same component lowers to one
   handler with a single IR `callProp` action ([`ir-v1.md`](ir-v1.md) section 6). Nothing is captured:
   the generated code calls the prop's `std::function` member, bound once by the caller, and skips an
-  unset one. There is no allocation per event.
+  unset one. There is no allocation per event (`codegen_callback_forward_runtime` counts heap
+  allocations over 10000 forwarded clicks and requires zero). Forwarding through components adds one
+  `std::function` call per level, bounded by the nesting depth: a component reference cycle is
+  `TESSERA_IR_CYCLE` (`lowering_callback_forward` covers a 12-deep chain and a cycle).
 - A `() => void` prop forwards to any event, because the call ignores the payload. A payload prop
   forwards only to an event that delivers that same record; any other pairing is
   `TESSERA_IR_UNSUPPORTED` naming both records.
