@@ -366,7 +366,14 @@ AppHost::AppHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::R
     impl_->animations.set_reduced_motion(config.reduced_motion);
 }
 
-AppHost::~AppHost() = default;
+AppHost::~AppHost() {
+    // The root outlives the host (capture_frame reuses one scene across hosts) but its width and
+    // height declarations borrow this host's buffers: take them back before they die.
+    if (impl_) {
+        impl_->root.remove_inline_style("width");
+        impl_->root.remove_inline_style("height");
+    }
+}
 
 HostFrame AppHost::begin_frame(double dt, double alpha) {
     Impl& state = *impl_;
