@@ -24,6 +24,9 @@ This page is the map and reading order for the framework.
   specified vs implemented, contradictions, and a Qt/JUCE/Flutter/Compose comparison (ADR-050)
 - [`architecture/doc-contradiction-resolutions-v1.md`](architecture/doc-contradiction-resolutions-v1.md)
   — contradictions found between documents, the rule used to resolve each, and what is still undecided
+- [`architecture/god-type-audit-v1.md`](architecture/god-type-audit-v1.md) — measured god classes,
+  god enums and god functions (Node, VirtualRange, Event, Role, NodeKind, ...), with a
+  standard-pattern split and an ordered, independently landable slice plan
 - [`architecture/module-map.md`](architecture/module-map.md) — source tree, build targets,
   ownership, dependency direction.
 - [`architecture/implementation-log.md`](architecture/implementation-log.md) — historical status
