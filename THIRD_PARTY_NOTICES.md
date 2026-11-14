@@ -213,6 +213,22 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - **libdbus** (AFL-2.1 / GPL-2.0+): not linked.
 - **GPL/AGPL components**: not allowed in the shipped core.
 
+## Icon sets (imported at build time, not linked)
+
+Iconify sets are content, not a linked dependency: `tessera icons add` reads a **pinned on-disk copy**
+of a set, and only the icons an app references are converted and embedded. Assets are never fetched
+from the Iconify API at run time, and the tool never opens a network connection
+(ADR-047 item 8, [`docs/design/component-library.md`](docs/design/component-library.md)).
+
+- Accepted licenses: MIT, ISC, Apache-2.0, BSD-2-Clause/BSD-3-Clause/0BSD, CC0-1.0, OFL-1.1.
+- CC-BY sets are accepted and add an attribution block to the generated `ICON_LICENSES.txt`.
+- Share-alike sets (CC-BY-SA) are accepted only with an explicit `--allow-share-alike`.
+- GPL-family, non-commercial, weak-copyleft and unknown licenses are rejected, and the message names
+  the set, the license as recorded and the reason (`tools/icons/src/icon_license.cpp`).
+- The generated attribution for an import is `ICON_LICENSES.txt` next to the generated
+  `icons.manifest` and `icons.g.hpp`. The repository's own end-to-end example, generated from the
+  pinned fixture sets, is checked in at `tests/golden/icons/basic/ICON_LICENSES.txt`.
+
 ## Updating this file
 
 1. Add the dependency to `docs/specs/dependencies.md` first.

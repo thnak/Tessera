@@ -1,0 +1,16 @@
+{
+  "name": "BSD Icons",
+  "total": 1,
+  "author": {
+    "name": "BSD Icons authors",
+    "url": "https://example.invalid/bsd3"
+  },
+  "height": 24,
+  "category": "General",
+  "palette": false,
+  "license": {
+    "title": "BSD 3-Clause License",
+    "spdx": "BSD-3-Clause",
+    "url": "https://example.invalid/bsd3"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Share Alike Icons",
+  "total": 1,
+  "author": {
+    "name": "Share Alike authors",
+    "url": "https://example.invalid/sharealike"
+  },
+  "height": 24,
+  "category": "General",
+  "palette": false,
+  "license": {
+    "title": "Creative Commons Attribution Share Alike 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "url": "https://creativecommons.org/licenses/by-sa/4.0/"
+  }
+}

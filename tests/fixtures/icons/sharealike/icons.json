@@ -1,0 +1,10 @@
+{
+  "prefix": "sharealike",
+  "width": 24,
+  "height": 24,
+  "icons": {
+    "share": {
+      "body": "<path fill=\"currentColor\" d=\"M18 16a3 3 0 1 0 0 6a3 3 0 0 0 0 -6m-12 -7a3 3 0 1 0 0 6a3 3 0 0 0 0 -6m11.5 -2.5l-7 3.5m0 4l7 3.5\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" />"
+    }
+  }
+}

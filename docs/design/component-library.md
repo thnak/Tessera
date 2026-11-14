@@ -91,6 +91,19 @@ pass `onClick` through; a plain `View` has no `disabled` prop; `onPointerCancel`
   need an explicit opt-in; GPL-family, non-commercial and unknown licenses are rejected.
 - Static icons become vector paths (ADR-004) and are tree-shaken. `currentColor` maps to the text
   color token; multi-color icons keep their palette unless `monochrome` is set.
+- **Implemented (issue #238):** `tools/icons/` provides `tessera icons add <set>:<name>`. It reads
+  pinned sets from an on-disk directory (`<dir>/<set>/{info.json,icons.json}`, never the network),
+  runs the license gate per set, and emits only the referenced icons. The generated payload is the
+  engine's own vector asset: one standalone SVG per icon (`icons/<set>/<name>.svg`, the
+  `PaintKind::Vector` asset that `load_svg()` decodes into `PathShape` geometry and the paint pass
+  tints, so `currentColor` follows the text color token), plus `icons.manifest` for
+  `tessera_embed_assets`, `icons.g.hpp` accessors and `ICON_LICENSES.txt` attribution. Conversion
+  rejects anything outside the static-icon subset (`<text>`, gradients, `use`, CSS classes, external
+  references) with a diagnostic instead of rendering a different icon. Fixtures are under
+  `tests/fixtures/icons/`; the deterministic end-to-end output is the checked-in golden
+  `tests/golden/icons/`.
+- **Still to come:** the `Icon` component itself (it ships with the package-imports work) and the
+  AnimatedIcon SMIL/keyframe converter below.
 - **AnimatedIcon** converts the SVG SMIL animations that animated Iconify sets use, plus CSS
   `@keyframes` inside the SVG, into Tessera keyframes at build time. Supported subset: `opacity`,
   `stroke-dasharray`, `stroke-dashoffset`, fill and stroke colors, path `d` when both shapes have

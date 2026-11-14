@@ -1,0 +1,10 @@
+{
+  "prefix": "mpl",
+  "width": 24,
+  "height": 24,
+  "icons": {
+    "file": {
+      "body": "<path fill=\"currentColor\" d=\"M6 2h8l4 4v16h-12z\" />"
+    }
+  }
+}

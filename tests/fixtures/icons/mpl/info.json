@@ -1,0 +1,16 @@
+{
+  "name": "MPL Icons",
+  "total": 1,
+  "author": {
+    "name": "MPL Icons authors",
+    "url": "https://example.invalid/mpl"
+  },
+  "height": 24,
+  "category": "General",
+  "palette": false,
+  "license": {
+    "title": "Mozilla Public License 2.0",
+    "spdx": "MPL-2.0",
+    "url": "https://www.mozilla.org/en-US/MPL/2.0/"
+  }
+}
