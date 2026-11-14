@@ -37,8 +37,10 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         apply_metrics(window->metrics());
         break;
     case hal::WindowEventType::SafeAreaChanged:
-        // Insets and cutouts do not move the client area: no swapchain resize, only a repaint so a
-        // SafeArea consumer re-reads the metrics.
+    case hal::WindowEventType::ImeChanged:
+    case hal::WindowEventType::FoldChanged:
+        // Insets, the keyboard and the hinge do not move the client area: no swapchain resize, only
+        // a repaint so a SafeArea consumer re-reads the metrics.
         loop->mark_render_dirty();
         break;
     case hal::WindowEventType::Minimized:

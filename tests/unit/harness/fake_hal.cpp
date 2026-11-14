@@ -156,6 +156,25 @@ void FakeWindow::set_safe_area(const hal::WindowInsets& insets,
     push_metrics_event(hal::WindowEventType::SafeAreaChanged);
 }
 
+void FakeWindow::set_ime_insets(const hal::WindowInsets& ime, const hal::WindowInsets& gestures) {
+    metrics_.ime_insets = ime;
+    metrics_.gesture_insets = gestures;
+    if (!events_.empty() && events_.back().type == hal::WindowEventType::ImeChanged) {
+        events_.back().metrics = metrics_;
+        return;
+    }
+    push_metrics_event(hal::WindowEventType::ImeChanged);
+}
+
+void FakeWindow::set_fold(const hal::FoldInfo& fold) {
+    metrics_.fold = fold;
+    if (!events_.empty() && events_.back().type == hal::WindowEventType::FoldChanged) {
+        events_.back().metrics = metrics_;
+        return;
+    }
+    push_metrics_event(hal::WindowEventType::FoldChanged);
+}
+
 void FakeWindow::push_event(hal::WindowEventType type) {
     push_metrics_event(type);
 }

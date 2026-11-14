@@ -57,6 +57,16 @@ std::string format_window_metrics(const WindowMetrics& metrics) {
     append(out, "waterfall %g %g %g %g\n", cutouts.waterfall_insets.left,
            cutouts.waterfall_insets.top, cutouts.waterfall_insets.right,
            cutouts.waterfall_insets.bottom);
+    append(out, "ime %g %g %g %g\n", metrics.ime_insets.left, metrics.ime_insets.top,
+           metrics.ime_insets.right, metrics.ime_insets.bottom);
+    append(out, "gestures %g %g %g %g\n", metrics.gesture_insets.left, metrics.gesture_insets.top,
+           metrics.gesture_insets.right, metrics.gesture_insets.bottom);
+    const FoldInfo& fold = metrics.fold;
+    append(out, "fold %g %g %g %g\n", static_cast<double>(fold.state),
+           static_cast<double>(fold.orientation), static_cast<double>(fold.occlusion),
+           fold.separating ? 1.0 : 0.0);
+    append(out, "hinge %g %g %g %g\n", fold.hinge_bounds.x, fold.hinge_bounds.y,
+           fold.hinge_bounds.width, fold.hinge_bounds.height);
     return out;
 }
 

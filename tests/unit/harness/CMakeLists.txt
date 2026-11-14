@@ -271,3 +271,16 @@ target_include_directories(cutout_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/hal/window)
 
 add_test(NAME cutout COMMAND cutout_tests)
+
+# SafeArea inset arithmetic (#223, docs/specs/safe-area-v1.md): edges, sources, minimum, start/end
+# under RTL, cutout and hinge insets, and the notched, gesture-navigation, keyboard and book-mode
+# metrics, all with the fake window.
+add_executable(safe_area_tests
+    safe_area_tests.cpp)
+
+target_link_libraries(safe_area_tests PRIVATE tessera_harness_testing)
+
+target_include_directories(safe_area_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/hal/window)
+
+add_test(NAME safe_area COMMAND safe_area_tests)
