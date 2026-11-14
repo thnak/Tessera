@@ -290,6 +290,7 @@ pair (section 9.2).
 | `schemaVersion` | integer | yes | `1`. Any other value is `TESSERA_THEME_VERSION` |
 | `themes` | object | yes | Theme id to token map. An id matches `[a-z][a-z0-9-]*` (`TESSERA_THEME_ID`). A token name starts with `--`; a token value is a string holding a custom-property value (section 9). Nested values are not allowed |
 | `start` | string | no | Id of the theme active at start. Default `default`. An id not in `themes` and not `default` is `TESSERA_THEME_START_UNKNOWN` |
+| `themeVersions` | object | no | Theme id to the theme's own SemVer `MAJOR.MINOR.PATCH`; not a token, never injected. Rules, pins and errors: [`theme-versions-v1.md`](theme-versions-v1.md) |
 
 - The set of theme ids is `default` plus the keys of `themes`. A `themes.default` entry gives the built-in
   theme its tokens. These ids are what `useTheme()`, `setTheme(id)` and the designer's `viewport.set` accept

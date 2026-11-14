@@ -25,6 +25,11 @@ struct PackageRootSpec {
     std::string version;
 };
 
+struct ThemePinSpec {
+    std::string theme;
+    std::string pin; // MAJOR, MAJOR.MINOR or MAJOR.MINOR.PATCH
+};
+
 // The project identity of one run: the id salt (empty: ids stay unassigned) and the root that
 // source paths are relative to (docs/specs/automation-ids-v1.md section 2).
 struct ProjectIdentity {
@@ -33,6 +38,9 @@ struct ProjectIdentity {
     std::vector<PackageRootSpec> packages;
     // `assets.theme` as a project-relative POSIX path, empty when the config names no theme asset.
     std::string theme;
+    // `assets.themePins`: theme id -> version pin, in document order (ADR-047 item 4). Checked
+    // against the theme asset's `themeVersions` when the asset is embedded.
+    std::vector<ThemePinSpec> theme_pins;
 };
 
 // Appends one message; an error also makes the exit code 1 unless it was already larger.

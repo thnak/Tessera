@@ -7,6 +7,7 @@
 #include "project_identity.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/harness/json_parse.hpp"
+#include "tessera/ui/style/theme_asset.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -125,6 +126,33 @@ bool read_theme(const tessera::harness::JsonValue& config, ProjectIdentity& iden
     return true;
 }
 
+// Reads the optional `assets.themePins` object: theme id -> `MAJOR[.MINOR[.PATCH]]` string. The
+// pins are matched against the asset's versions later; here only the shape is validated.
+bool read_theme_pins(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
+                     std::string& why) {
+    const tessera::harness::JsonValue* assets = config.find("assets");
+    const tessera::harness::JsonValue* pins =
+        assets != nullptr && assets->is_object() ? assets->find("themePins") : nullptr;
+    if (pins == nullptr || pins->is_null()) {
+        return true;
+    }
+    const tessera::harness::JsonValue::Object* members = pins->as_object();
+    if (members == nullptr) {
+        why = "`assets.themePins` must be an object of theme id: version pin";
+        return false;
+    }
+    for (const tessera::harness::JsonValue::Member& member : *members) {
+        const std::optional<std::string_view> text = member.second.as_string();
+        if (!text || !tessera::ui::style::is_theme_version_pin(*text)) {
+            why = "`assets.themePins." + member.first +
+                  "` must be MAJOR, MAJOR.MINOR or MAJOR.MINOR.PATCH";
+            return false;
+        }
+        identity.theme_pins.push_back(ThemePinSpec{member.first, std::string(*text)});
+    }
+    return true;
+}
+
 std::optional<fs::path> find_config(const fs::path& start) {
     for (fs::path dir = start;; dir = dir.parent_path()) {
         std::error_code error;
@@ -193,6 +221,9 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
     }
     std::string theme_error;
     if (!read_theme(*parsed, identity, theme_error)) {
+        return fail(theme_error);
+    }
+    if (!read_theme_pins(*parsed, identity, theme_error)) {
         return fail(theme_error);
     }
     if (!identity.salt.empty()) {

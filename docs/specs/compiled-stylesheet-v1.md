@@ -266,7 +266,7 @@ can drive a read or an allocation.
 ```text
 header (20 bytes)
   magic            4   "TTHB"
-  format_version   u32 1
+  format_version   u32 2
   payload_hash     u64 FNV-1a 64 of every payload byte
   payload_size     u32 bytes after the header; must equal the remaining length exactly
 payload
@@ -276,6 +276,7 @@ payload
   warnings         u32 count, then a string per TESSERA_THEME_TOKEN_MISSING finding
   themes           u32 count, then per theme:
                      id      string
+                     version string (the theme's `themeVersions` entry, empty when unversioned)
                      tokens  u32 count, then per token: name string, value string
 ```
 
@@ -288,6 +289,9 @@ time.
 
 - `format_version` changes when the byte layout changes; the loader rejects any other value
   (`UnsupportedFormatVersion`) and never reads forward.
+- Format 2 added the per-theme `version` string; a format 1 blob is `UnsupportedFormatVersion`
+  (there is no forward or backward reading). A non-empty `version` that is not
+  `MAJOR.MINOR.PATCH` is `Corrupt`.
 - `payload_hash` is the hash the writer computed over the payload; a mismatch is `HashMismatch`.
   It detects truncation or a corrupted/edited payload, not a deliberate forgery.
 - A valid hash with a payload that still fails the structural checks (unsupported `schema_version`,

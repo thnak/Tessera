@@ -255,7 +255,7 @@ void test_blob_round_trip() {
     }
 
     std::vector<std::uint8_t> bad_version = copy_of(first);
-    put_u32(bad_version, 4, 2);
+    put_u32(bad_version, 4, 99);
     const auto version = style::load_theme_asset_blob(bad_version);
     check(!version.has_value(), "an unknown format version is rejected");
     if (!version) {

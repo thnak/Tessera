@@ -788,6 +788,27 @@ target_link_libraries(theme_asset_tests PRIVATE tessera_style)
 
 add_test(NAME theme_asset COMMAND theme_asset_tests)
 
+# Theme versions and pins (issue #237, ADR-047 item 4): themeVersions parse, the SemVer pin rule,
+# TESSERA_THEME_VERSION_PIN, and the version surviving the blob round trip.
+add_executable(theme_version_tests
+    theme_version_tests.cpp)
+
+target_link_libraries(theme_version_tests PRIVATE tessera_style)
+
+add_test(NAME theme_version COMMAND theme_version_tests)
+
+# The Instrument theme asset (issue #237, ADR-047 item 5): clean parse, identical token sets,
+# version 1.0.0, and WCAG 2.2 AA contrast for every text and indicator pair of every theme.
+add_executable(instrument_theme_tests
+    instrument_theme_tests.cpp)
+
+target_link_libraries(instrument_theme_tests PRIVATE tessera_style)
+
+target_compile_definitions(instrument_theme_tests PRIVATE
+    TESSERA_INSTRUMENT_THEME="${CMAKE_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+
+add_test(NAME instrument_theme COMMAND instrument_theme_tests)
+
 add_executable(property_registry_tests
     property_registry_tests.cpp)
 

@@ -104,7 +104,100 @@ void compute_warnings(ThemeAsset& asset) {
     }
 }
 
+// `MAJOR[.MINOR[.PATCH]]` with `parts` components: decimal, no leading zeros, each fits an int.
+bool is_version_of(std::string_view text, std::size_t min_parts, std::size_t max_parts) {
+    std::size_t parts = 0;
+    std::size_t pos = 0;
+    while (true) {
+        const std::size_t end = text.find('.', pos);
+        const std::string_view part =
+            text.substr(pos, end == std::string_view::npos ? std::string_view::npos : end - pos);
+        if (part.empty() || part.size() > 9 || (part.size() > 1 && part.front() == '0') ||
+            !std::all_of(part.begin(), part.end(), [](char c) { return c >= '0' && c <= '9'; })) {
+            return false;
+        }
+        ++parts;
+        if (end == std::string_view::npos) {
+            break;
+        }
+        pos = end + 1;
+    }
+    return parts >= min_parts && parts <= max_parts;
+}
+
+// The optional top-level `themeVersions` object: theme id -> SemVer string.
+std::optional<ThemeError> read_versions(const json::JsonValue& root, ThemeAsset& asset) {
+    const json::JsonValue* versions = root.find("themeVersions");
+    if (versions == nullptr) {
+        return std::nullopt;
+    }
+    const json::JsonValue::Object* members = versions->as_object();
+    if (members == nullptr) {
+        return ThemeError{ThemeErrorCode::Version,
+                          "`themeVersions` must be an object of theme id: version strings"};
+    }
+    for (const json::JsonValue::Member& member : *members) {
+        Theme* theme = nullptr;
+        for (Theme& candidate : asset.themes) {
+            if (candidate.id == member.first) {
+                theme = &candidate;
+            }
+        }
+        if (theme == nullptr) {
+            return ThemeError{ThemeErrorCode::Id, "`themeVersions` names theme `" + member.first +
+                                                      "`, which is not a key of `themes`"};
+        }
+        const std::optional<std::string_view> text = member.second.as_string();
+        if (!text || !is_theme_version(*text)) {
+            return ThemeError{ThemeErrorCode::Version,
+                              "version of theme `" + member.first +
+                                  "` must be a `MAJOR.MINOR.PATCH` string"};
+        }
+        theme->version = std::string(*text);
+    }
+    return std::nullopt;
+}
+
 } // namespace
+
+bool is_theme_version(std::string_view version) {
+    return is_version_of(version, 3, 3);
+}
+
+bool is_theme_version_pin(std::string_view pin) {
+    return is_version_of(pin, 1, 3);
+}
+
+bool theme_version_satisfies_pin(std::string_view version, std::string_view pin) {
+    if (!is_theme_version(version) || !is_theme_version_pin(pin)) {
+        return false;
+    }
+    return version == pin || (version.starts_with(pin) && version[pin.size()] == '.');
+}
+
+std::optional<ThemeError> check_theme_pins(const ThemeAsset& asset,
+                                           std::span<const ThemePin> pins) {
+    for (const ThemePin& entry : pins) {
+        const Theme* theme = asset.find(entry.theme);
+        if (theme == nullptr) {
+            return ThemeError{ThemeErrorCode::VersionPin, "pin names theme `" + entry.theme +
+                                                              "`, which the asset does not define"};
+        }
+        if (!is_theme_version_pin(entry.pin)) {
+            return ThemeError{ThemeErrorCode::VersionPin,
+                              "pin `" + entry.pin + "` for theme `" + entry.theme +
+                                  "` must be MAJOR, MAJOR.MINOR or MAJOR.MINOR.PATCH"};
+        }
+        if (!theme_version_satisfies_pin(theme->version, entry.pin)) {
+            return ThemeError{ThemeErrorCode::VersionPin,
+                              "theme `" + entry.theme + "` is " +
+                                  (theme->version.empty() ? std::string("unversioned")
+                                                          : "version " + theme->version) +
+                                  ", which does not satisfy the pin `" + entry.pin + "`"};
+        }
+    }
+    return std::nullopt;
+}
 
 const ThemeToken* Theme::find(std::string_view name) const {
     for (const ThemeToken& token : tokens) {
@@ -165,7 +258,11 @@ std::expected<ThemeAsset, ThemeError> parse_theme_asset(std::string_view text) {
             asset.themes.front().tokens = std::move(tokens);
             continue;
         }
-        asset.themes.push_back(Theme{member.first, std::move(tokens)});
+        asset.themes.push_back(Theme{member.first, {}, std::move(tokens)});
+    }
+
+    if (const std::optional<ThemeError> version_error = read_versions(root, asset)) {
+        return std::unexpected(*version_error);
     }
 
     const json::JsonValue* start = root.find("start");

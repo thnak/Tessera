@@ -498,7 +498,11 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `from "tessera"` rejection), `docs/specs/package-manifest-v1.md`; tests `forms_lowering`,
       `codegen_cli`, `library_tsx_parity`.
 - [x] #236: Library stage 0: behavior primitives (evidence: `packages/tessera-ui/primitives/`, `tests/unit/primitives_tests.cpp`, `tests/unit/focus_scope_tests.cpp`, `tests/unit/guarded_handler_tests.cpp`).
-- [ ] #237: Library stage 0: Instrument tokens, themes, bundled fonts, theme versioning.
+- [x] #237: Library stage 0: Instrument tokens, light/dark/high-contrast themes, theme versioning and
+      pinning, WCAG contrast tests (evidence: `packages/tessera-ui/themes/instrument.theme.json`,
+      `tests/unit/{instrument_theme_tests.cpp,theme_version_tests.cpp}`). The bundled font pack and
+      swatch goldens moved to #280.
+- [ ] #280: Library stage 0: IBM Plex bundled font pack, theme pin of the pack, token swatch goldens.
 - [ ] #238: Library stage 0: `tessera icons add` (Iconify import tool with the license gate).
 - [ ] #239: Library stage 0 exit: a styled Button end to end and the gallery skeleton (blocked).
 - [ ] #240, #223: Library stage 1 tracking, including `SafeArea` (blocked by #239). Stages 2 to 6

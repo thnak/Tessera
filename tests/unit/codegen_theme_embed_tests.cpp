@@ -399,6 +399,49 @@ void test_cli_without_theme(const fs::path& cli) {
     fs::remove_all(project.work, error);
 }
 
+// `assets.themePins` (ADR-047 item 4): a satisfied pin embeds, an unsatisfied or malformed pin is a
+// build error with a typed code, and no theme header is written for the failed run.
+void test_cli_theme_pins(const fs::path& cli) {
+    const std::string versioned = R"({"schemaVersion":1,"themeVersions":{"light":"1.2.0"},)"
+                                  R"("themes":{"light":{"--bg":"#ffffff"}}})";
+    const auto config = [](std::string_view pins) {
+        return std::string(R"({"schemaVersion":1,"app":{"namespace":"factory"},)") +
+               R"("assets":{"theme":"assets/theme.json","themePins":)" + std::string(pins) + "}}";
+    };
+    {
+        TempProject project(true);
+        project.write_theme(versioned);
+        write_file(project.project / "tessera.json", config(R"({"light":"1"})"));
+        check(run_cli(cli, project.arguments(false), project.log_dir) == 0,
+              "a satisfied theme pin regenerates");
+        check(fs::exists(project.out / "demo_theme.hpp"), "a satisfied pin still embeds the theme");
+        std::error_code error;
+        fs::remove_all(project.work, error);
+    }
+    {
+        TempProject project(false);
+        project.write_theme(versioned);
+        write_file(project.project / "tessera.json", config(R"({"light":"2"})"));
+        check(run_cli(cli, project.arguments(false), project.log_dir) == 1,
+              "an unsatisfied theme pin exits 1");
+        const std::string log = read_file(project.log_dir / "cli.log");
+        check(log.find("TESSERA_THEME_VERSION_PIN") != std::string::npos,
+              "the pin failure carries its typed code");
+        check(log.find("1.2.0") != std::string::npos, "the diagnostic names the theme version");
+        check(!fs::exists(project.out / "demo_theme.hpp"), "a failed pin produces no theme header");
+        std::error_code error;
+        fs::remove_all(project.work, error);
+    }
+    {
+        TempProject project(false);
+        write_file(project.project / "tessera.json", config(R"({"light":"^1"})"));
+        check(run_cli(cli, project.arguments(false), project.log_dir) == 1,
+              "a malformed theme pin exits 1");
+        std::error_code error;
+        fs::remove_all(project.work, error);
+    }
+}
+
 #endif // TESSERA_EMBED_TESTS_NO_SUBPROCESS
 
 } // namespace
@@ -420,6 +463,7 @@ int main(int argc, char** argv) {
     test_cli_embeds_and_loads(fs::path(argv[1]).make_preferred());
     test_cli_rejects_broken_theme(fs::path(argv[1]).make_preferred());
     test_cli_without_theme(fs::path(argv[1]).make_preferred());
+    test_cli_theme_pins(fs::path(argv[1]).make_preferred());
 #else
     std::cout << "codegen theme embed CLI tests skipped: subprocess execution is unavailable on "
                  "this platform\n";
