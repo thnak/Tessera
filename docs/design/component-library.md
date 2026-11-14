@@ -19,6 +19,12 @@ team rebuilding inputs, dialogs, menus, and data grids.
 - Themes: light/dark/high-contrast; token overrides per app/surface.
 - Token changes are style-only; a change that only edits a token value does not require recompiling components. Which other token changes (renames, new tokens) do require it is not specified.
 - Tokens are versioned; visual changes require golden updates.
+- The Instrument tokens ship as `packages/tessera-ui/themes/instrument.theme.json`: three themes
+  (`instrument-light`, `instrument-dark`, `instrument-high-contrast`) with an identical token set,
+  each carrying `themeVersions` `1.0.0`. Apps pin a theme with `assets.themePins`
+  ([`stylesheet-v1.md`](../specs/stylesheet-v1.md) section 9.1). Contrast is a test, not a review
+  step: every text pair meets 4.5:1 (7:1 in high-contrast) and every indicator pair 3:1
+  (`tests/unit/instrument_theme_tests.cpp`).
 
 ## 3. Catalog
 
@@ -297,6 +303,7 @@ Gap-closure decisions:
 - Map tile provider and tile licensing.
 - Video on Linux: GStreamer is LGPL, which conflicts with static linking ([ADR-012](../../decisions/ADR-012-static-linking.md)).
 - DataGrid editing/grouping/pivot.
-- Bundled font pack/versioning.
+- Bundled font pack: decided 2026-11-14 as an opt-in pack of IBM Plex Sans and IBM Plex Mono with its
+  own version pinned by the theme version; delivery is issue #280.
 - Token rename migration tooling.
 - 3D component wrappers.

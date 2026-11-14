@@ -73,6 +73,7 @@ std::vector<std::uint8_t> serialize_theme_asset(const ThemeAsset& asset) {
     payload.count(asset.themes.size());
     for (const Theme& theme : asset.themes) {
         payload.raw_string(theme.id);
+        payload.raw_string(theme.version);
         payload.count(theme.tokens.size());
         for (const ThemeToken& token : theme.tokens) {
             payload.raw_string(token.name);
@@ -135,6 +136,11 @@ load_theme_asset_blob(std::span<const std::uint8_t> bytes) {
     for (std::size_t i = 0; i < theme_count && !in.failed(); ++i) {
         Theme theme;
         theme.id = in.raw_string();
+        theme.version = in.raw_string();
+        if (!theme.version.empty() && !is_theme_version(theme.version)) {
+            return error(ThemeBlobErrorCode::Corrupt,
+                         "theme blob carries a malformed theme version");
+        }
         const std::size_t token_count = in.count();
         theme.tokens.reserve(token_count);
         for (std::size_t t = 0; t < token_count && !in.failed(); ++t) {

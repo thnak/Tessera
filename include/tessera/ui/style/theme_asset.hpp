@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -35,6 +36,9 @@ struct ThemeToken {
 
 struct Theme {
     std::string id;
+    // The theme's own SemVer `MAJOR.MINOR.PATCH` (ADR-047 item 4, stylesheet-v1.md section 9.1),
+    // empty when the asset does not version this theme. It is not a token and is never injected.
+    std::string version;
     std::vector<ThemeToken> tokens; // asset order
 
     [[nodiscard]] const ThemeToken* find(std::string_view name) const;
@@ -67,6 +71,7 @@ enum class ThemeErrorCode : std::uint8_t {
     Version,      // TESSERA_THEME_VERSION
     Id,           // TESSERA_THEME_ID
     StartUnknown, // TESSERA_THEME_START_UNKNOWN
+    VersionPin,   // TESSERA_THEME_VERSION_PIN
 };
 
 [[nodiscard]] constexpr const char* theme_error_code_name(ThemeErrorCode code) {
@@ -77,6 +82,8 @@ enum class ThemeErrorCode : std::uint8_t {
         return "TESSERA_THEME_ID";
     case ThemeErrorCode::StartUnknown:
         return "TESSERA_THEME_START_UNKNOWN";
+    case ThemeErrorCode::VersionPin:
+        return "TESSERA_THEME_VERSION_PIN";
     }
     return "TESSERA_THEME_VERSION";
 }
@@ -91,6 +98,30 @@ struct ThemeError {
 // its `TESSERA_THEME_TOKEN_MISSING` warning list.
 [[nodiscard]] std::expected<ThemeAsset, ThemeError> parse_theme_asset(std::string_view json);
 
+// True when `version` is `MAJOR.MINOR.PATCH` (decimal, no leading zeros, no pre-release or build
+// suffix), the only form a theme version takes.
+[[nodiscard]] bool is_theme_version(std::string_view version);
+
+// True when `pin` is `MAJOR`, `MAJOR.MINOR` or `MAJOR.MINOR.PATCH` in the same form.
+[[nodiscard]] bool is_theme_version_pin(std::string_view pin);
+
+// A theme satisfies a pin when the pin is a component-wise prefix of its version: pin `1` accepts
+// every `1.x.y`, `1.2` accepts every `1.2.y`, `1.2.3` accepts only `1.2.3`. An unversioned theme
+// (empty `version`) never satisfies a pin.
+[[nodiscard]] bool theme_version_satisfies_pin(std::string_view version, std::string_view pin);
+
+// One `assets.themePins` entry (project-config-v1.md): the theme id and the pin it must satisfy.
+struct ThemePin {
+    std::string theme;
+    std::string pin;
+};
+
+// Checks every pin against the asset. A pin naming an unknown theme, a theme without a `version` or
+// a version the pin does not accept is `TESSERA_THEME_VERSION_PIN`, naming the theme and both
+// versions. Returns the first violation in `pins` order.
+[[nodiscard]] std::optional<ThemeError> check_theme_pins(const ThemeAsset& asset,
+                                                         std::span<const ThemePin> pins);
+
 // The built-in asset: one `default` theme defining the reserved chrome pair.
 [[nodiscard]] ThemeAsset default_theme_asset();
 
@@ -103,7 +134,7 @@ struct ThemeError {
 // Serialized theme asset (docs/specs/compiled-stylesheet-v1.md "Theme asset blob"). The bytes are
 // deterministic: identical assets always serialize to identical bytes, and the FNV-1a 64 payload
 // hash in the header is verified on load.
-inline constexpr std::uint32_t kThemeBlobFormatVersion = 1;
+inline constexpr std::uint32_t kThemeBlobFormatVersion = 2;
 
 enum class ThemeBlobErrorCode : std::uint8_t {
     Truncated,

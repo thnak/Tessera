@@ -124,7 +124,7 @@ is compiled; the manifest, the check and its diagnostics are in
 | `imageMaxFileBytes` | integer | 16777216 | Maximum size of one image file ([`resources.md`](../design/resources.md) section 2.1) |
 | `imageMaxDimension` | integer | 8192 | Maximum image width or height in pixels |
 | `imageMaxDecodedBytes` | integer | 67108864 | Maximum decoded size, width x height x 4 |
-| `theme` | string | `null` | Path to the theme asset ([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1). `null` leaves only the built-in theme `default` |
+| `theme` | string | `null` | Path to the theme asset ([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1). `null` leaves only the built-in theme `default`; pin it with `assets.themePins` (theme id to a version pin, [`theme-versions-v1.md`](theme-versions-v1.md)) |
 
 ## `build`
 

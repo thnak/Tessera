@@ -46,6 +46,7 @@ using internal::ProjectIdentity;
 using internal::read_file;
 using internal::report;
 using internal::resolve_identity;
+using internal::ThemePinSpec;
 
 namespace {
 
@@ -233,6 +234,17 @@ bool build_theme_embed(const ProjectIdentity& identity, Outcome& outcome,
         report(outcome, true,
                identity.theme + ": " + style::theme_error_code_name(parsed.error().code) + ": " +
                    parsed.error().message);
+        outcome.exit_code = 1;
+        return false;
+    }
+    std::vector<style::ThemePin> pins;
+    for (const ThemePinSpec& spec : identity.theme_pins) {
+        pins.push_back(style::ThemePin{spec.theme, spec.pin});
+    }
+    if (const auto pin_error = style::check_theme_pins(*parsed, pins)) {
+        report(outcome, true,
+               identity.theme + ": " + style::theme_error_code_name(pin_error->code) + ": " +
+                   pin_error->message);
         outcome.exit_code = 1;
         return false;
     }
