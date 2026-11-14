@@ -1,0 +1,188 @@
+# SPDX-License-Identifier: MIT
+
+name: Cache cleanup (2h)
+
+# The farm lands commits fast, and the ccache action keys every save by commit
+# (`ccache-<name>-<date>-<sha>`), so one landing writes a fresh ~200 MB entry per platform. With a
+# 10 GB repo ceiling that is a cache pool that fills in a few hours, and GitHub's own eviction then
+# throws away the entries a run is about to restore from.
+#
+# This job keeps the pool small by deleting ccache entries older than `max-age-hours` (default 2).
+# It is deliberately narrower than cache-cleanup.yml:
+#
+#   * Only `ccache-*` keys. The emsdk/naga caches carry a version, not a date, and are meant to
+#     survive for months -- see .github/workflows/webgpu.yml. (cache-cleanup.yml does not filter by
+#     key and so does delete them; that is tracked separately.)
+#   * The newest entry of every ccache stream is always kept, so a quiet stretch longer than the
+#     TTL leaves a warm cache instead of forcing a cold build.
+#   * A size cap runs after the age pass: if the pool is still over `max-total-gb`, the oldest
+#     entries go first until it fits. Age alone cannot bound a pool that grows faster than it ages.
+#
+# Both passes are printed before they act, and the job reports the reclaimed bytes in its summary.
+
+on:
+  schedule:
+    # Every two hours at :23. The offset keeps this off the top of the hour, where GitHub's own
+    # scheduled jobs bunch up.
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      max-age-hours:
+        description: Delete ccache entries older than this many hours.
+        type: number
+        default: 2
+      max-total-gb:
+        description: Cap the ccache pool at this many GB (oldest first). 0 disables the cap.
+        type: number
+        default: 6
+      dry-run:
+        description: List what would be deleted without deleting anything.
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+  contents: read
+
+# Never overlap two prunes: both would read the same cache list and delete the same ids.
+concurrency:
+  group: cache-cleanup-2h
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      # Raw inputs only. The defaults are applied in bash with ${VAR:-default}, because the GitHub
+      # expression `inputs.x || 2` treats 0 as falsy and would silently turn "0 = disabled" into
+      # the default. A scheduled run has no inputs at all, so both paths must work.
+      INPUT_MAX_AGE_HOURS: ${{ inputs.max-age-hours }}
+      INPUT_MAX_TOTAL_GB: ${{ inputs.max-total-gb }}
+      INPUT_DRY_RUN: ${{ inputs.dry-run }}
+
+    steps:
+      - name: Prune ccache entries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Defaults here, not in the workflow env: `inputs.x || default` would turn a deliberate
+          # 0 (cap disabled) into the default.
+          MAX_AGE_HOURS="${INPUT_MAX_AGE_HOURS:-2}"
+          MAX_TOTAL_GB="${INPUT_MAX_TOTAL_GB:-6}"
+          DRY_RUN="${INPUT_DRY_RUN:-false}"
+          # A workflow_dispatch boolean input arrives as the string "false"; `-n` alone would treat
+          # it as true.
+          case "$DRY_RUN" in
+            true|True|TRUE|1) DRY_RUN=true ;;
+            *) DRY_RUN=false ;;
+          esac
+
+          usage_bytes() {
+            gh api "repos/$GH_REPO/actions/cache/usage" --jq '.active_caches_size_in_bytes'
+          }
+          usage_count() {
+            gh api "repos/$GH_REPO/actions/cache/usage" --jq '.active_caches_count'
+          }
+
+          before_bytes="$(usage_bytes)"
+          before_count="$(usage_count)"
+          echo "pool before: $(( before_bytes / 1048576 )) MB in ${before_count} caches"
+
+          # One row per ccache entry: id, created_at, size, key. Newest first, so the per-stream
+          # guard can keep the first row it sees for each stream.
+          snapshot="/tmp/ccache.tsv"
+          gh api --paginate "repos/$GH_REPO/actions/caches?per_page=100" \
+            --jq '.actions_caches[]
+                  | select(.key | startswith("ccache-"))
+                  | [.id, .created_at, .size_in_bytes, .key] | @tsv' \
+            | sort -t$'\t' -k2,2r > "$snapshot"
+          echo "ccache entries: $(wc -l < "$snapshot")"
+
+          # Stream = the key with its trailing -<date>-<sha> removed, i.e. one cache family per
+          # platform/toolchain. Keep the newest of each so a pause never costs a cold build.
+          # The regex is POSIX awk (no interval expressions: mawk on ubuntu-latest rejects
+          # `{4}` without --re-interval, and gawk prints a warning).
+          keep_file="/tmp/keep.txt"
+          : > "$keep_file"
+          awk -F'\t' '{ s = $4; sub(/-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9a-f]+$/, "", s); if (!(s in seen)) { seen[s] = 1; print $1 } }' \
+            "$snapshot" > "$keep_file"
+
+          cutoff="$(date -u -d "-${MAX_AGE_HOURS} hours" +%Y-%m-%dT%H:%M:%SZ)"
+          echo "cutoff: ${cutoff}"
+
+          # Pass 1: age. ISO-8601 UTC strings compare correctly as text.
+          awk -F'\t' -v cutoff="$cutoff" '$2 < cutoff { print $1 "\t" $2 "\t" $3 "\t" $4 }' \
+            "$snapshot" > /tmp/candidates.tsv
+          echo "older than ${MAX_AGE_HOURS}h: $(wc -l < /tmp/candidates.tsv)"
+
+          # Pass 2: size cap over what the age pass would leave behind.
+          if [ "$MAX_TOTAL_GB" -gt 0 ] 2>/dev/null; then
+            cap_bytes=$(( MAX_TOTAL_GB * 1024 * 1024 * 1024 ))
+            remaining="$(awk -F'\t' -v cutoff="$cutoff" '$2 >= cutoff { s += $3 } END { print s + 0 }' "$snapshot")"
+            if [ "$remaining" -gt "$cap_bytes" ]; then
+              need=$(( remaining - cap_bytes ))
+              echo "age pass leaves $(( remaining / 1048576 )) MB, cap is ${MAX_TOTAL_GB} GB: need $(( need / 1048576 )) MB more"
+              # Oldest first, appending until the shortfall is covered.
+              awk -F'\t' -v cutoff="$cutoff" '$2 < cutoff { next } { print }' "$snapshot" \
+                | sort -t$'\t' -k2,2 \
+                | awk -F'\t' -v need="$need" 'BEGIN { got = 0 } got < need { print; got += $3 }' \
+                >> /tmp/candidates.tsv
+            fi
+          fi
+
+          # Drop the per-stream keepers from the candidate list.
+          if [ -s "$keep_file" ]; then
+            awk -F'\t' 'NR == FNR { keep[$1] = 1; next } !($1 in keep)' "$keep_file" /tmp/candidates.tsv \
+              > /tmp/delete.tsv
+          else
+            cp /tmp/candidates.tsv /tmp/delete.tsv
+          fi
+
+          delete_count="$(wc -l < /tmp/delete.tsv)"
+          delete_bytes="$(awk -F'\t' '{ s += $3 } END { print s + 0 }' /tmp/delete.tsv)"
+          echo "to delete: ${delete_count} entries, $(( delete_bytes / 1048576 )) MB"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "dry run: nothing deleted"
+            awk -F'\t' '{ printf "  %s  %5d MB  %s\n", $2, $3 / 1048576, $4 }' /tmp/delete.tsv
+            exit 0
+          fi
+
+          deleted=0
+          failed=0
+          while IFS=$'\t' read -r id created size key; do
+            [ -n "$id" ] || continue
+            if gh cache delete "$id" >/dev/null 2>&1; then
+              deleted=$(( deleted + 1 ))
+            else
+              # A 404 is normal: another run (or GitHub's own eviction) already removed it. Any
+              # other failure is reported but does not abort the sweep.
+              failed=$(( failed + 1 ))
+              echo "warn: could not delete $id ($key)"
+            fi
+          done < /tmp/delete.tsv
+
+          after_bytes="$(usage_bytes)"
+          after_count="$(usage_count)"
+          # A concurrent job can add a cache between the two samples, which would make the delta a
+          # large negative number. Report a floor of 0 rather than a nonsense "reclaimed -400 MB".
+          reclaimed=$(( before_bytes > after_bytes ? before_bytes - after_bytes : 0 ))
+          echo "deleted ${deleted} (${failed} already gone or refused)"
+          echo "pool after: $(( after_bytes / 1048576 )) MB in ${after_count} caches"
+
+          {
+            echo "### ccache prune"
+            echo ""
+            echo "| | before | after | reclaimed |"
+            echo "|---|---|---|---|"
+            echo "| entries | ${before_count} | ${after_count} | $(( before_count > after_count ? before_count - after_count : 0 )) |"
+            echo "| size | $(( before_bytes / 1048576 )) MB | $(( after_bytes / 1048576 )) MB | $(( reclaimed / 1048576 )) MB |"
+            echo ""
+            echo "Policy: ccache entries older than ${MAX_AGE_HOURS}h, then a ${MAX_TOTAL_GB} GB cap (oldest first),"
+            echo "always keeping the newest entry of every stream. Deleted ${deleted}, skipped ${failed}."
+          } >> "$GITHUB_STEP_SUMMARY"
