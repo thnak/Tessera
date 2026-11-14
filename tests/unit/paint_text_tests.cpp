@@ -7,6 +7,8 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
+#include "tessera/ui/text/text_layout.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -43,9 +45,11 @@ using tessera::ui::paint::paint_scene;
 using tessera::ui::paint::PaintSink;
 using tessera::ui::paint::PaintStats;
 using tessera::ui::paint::RoundedClip;
+using tessera::ui::paint::StubPaintTextMetrics;
 using tessera::ui::paint::StyleProvider;
 using tessera::ui::paint::TextDraw;
 using tessera::ui::style::ComputedStyle;
+namespace text = tessera::ui::text;
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -290,6 +294,91 @@ bool test_damage_clipped_text() {
            expect(same_rect(sink.texts[0].rect, {0, 0, 100, 40}), "damage text keeps its origin");
 }
 
+// text-align on the single-line fast path (issue #313). `paint_text.cpp` computes the aligned
+// origin for the non-wrapping branch and then used to hand the sink the *content-box* origin, so
+// every centered/right-aligned single-line run painted left-aligned. `TextDraw::rect.x` is the pen
+// origin the sink draws from, so it must be the aligned origin and the width the space remaining
+// from it.
+bool test_single_line_alignment() {
+    // A box much wider than the text so the offsets are unambiguous, and the same text every time
+    // so the stub metrics give a deterministic line width.
+    constexpr float kBoxWidth = 200.0f;
+    constexpr float kBoxHeight = 40.0f;
+    const std::string label = "Hello";
+
+    // The text width the paint pass measured, taken from the left-aligned run: a left-aligned run
+    // starts at the content origin and spans the whole content width, so measure the text through
+    // the same metrics the paint pass uses to know the expected offsets.
+    StubPaintTextMetrics metrics;
+    text::TextStyle style;
+    style.font_size = 16.0f;
+    text::TextConstraints no_wrap;
+    no_wrap.wrap = false;
+    no_wrap.max_width = kBoxWidth;
+    const text::TextLayout layout = metrics.layout(label, style, no_wrap);
+    if (!expect(!layout.lines.empty(), "stub metrics produce one line")) {
+        return false;
+    }
+    const float text_width = layout.lines.front().width;
+    if (!expect(text_width > 0.0f && text_width < kBoxWidth,
+                "stub line is narrower than the box")) {
+        return false;
+    }
+
+    auto run_with_align = [&](const char* align, RecordingSink& sink) {
+        Node node(1);
+        node.set_bounds({0, 0, kBoxWidth, kBoxHeight});
+        node.set_paint_data(text_run(label));
+        StubStyles styles;
+        styles.set(1, styled({{"color", "white"}, {"font-size", "16px"}, {"text-align", align}}));
+        node.clear_dirty(Dirty::All);
+        paint_scene(node, styles, sink);
+        return !sink.texts.empty();
+    };
+
+    // Left: the run starts at the content origin (x = 0 here) and keeps the full content width.
+    RecordingSink left;
+    if (!expect(run_with_align("left", left) && left.texts.size() == 1, "left run emitted")) {
+        return false;
+    }
+    const bool left_ok =
+        expect(left.texts[0].rect.x == 0.0f, "left-aligned run starts at the content origin") &&
+        expect(left.texts[0].rect.width == kBoxWidth, "left-aligned run keeps the content width");
+
+    // Center: the pen origin moves by (box - text) / 2 and the width shrinks by that offset.
+    RecordingSink center;
+    if (!expect(run_with_align("center", center) && center.texts.size() == 1,
+                "center run emitted")) {
+        return false;
+    }
+    const float center_offset = (kBoxWidth - text_width) * 0.5f;
+    const bool center_ok =
+        expect(std::abs(center.texts[0].rect.x - center_offset) < 0.01f,
+               "centered run starts at the centering offset") &&
+        expect(center.texts[0].rect.x > left.texts[0].rect.x, "centered run moves right") &&
+        expect(std::abs(center.texts[0].rect.width - (kBoxWidth - center_offset)) < 0.01f,
+               "centered run keeps the width left from the offset");
+
+    // Right: the pen origin moves to the far edge minus the text width.
+    RecordingSink right;
+    if (!expect(run_with_align("right", right) && right.texts.size() == 1, "right run emitted")) {
+        return false;
+    }
+    const float right_offset = kBoxWidth - text_width;
+    const bool right_ok = expect(std::abs(right.texts[0].rect.x - right_offset) < 0.01f,
+                                 "right-aligned run starts at the trailing edge") &&
+                          expect(std::abs(right.texts[0].rect.width - text_width) < 0.01f,
+                                 "right-aligned run keeps exactly the text width");
+
+    // The regression guard: the three alignments must not all collapse onto the same origin, which
+    // is exactly the bug (the fast path ignored the alignment it had just computed).
+    const bool distinct = expect(left.texts[0].rect.x != center.texts[0].rect.x &&
+                                     center.texts[0].rect.x != right.texts[0].rect.x,
+                                 "each alignment yields a different pen origin");
+
+    return left_ok && center_ok && right_ok && distinct;
+}
+
 } // namespace
 
 int main() {
@@ -300,6 +389,7 @@ int main() {
     ok = test_child_text_under_parent_clip() && ok;
     ok = test_paint_data_node_contract() && ok;
     ok = test_damage_clipped_text() && ok;
+    ok = test_single_line_alignment() && ok;
 
     if (!ok) {
         std::cerr << "paint_text: failed\n";

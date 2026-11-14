@@ -386,7 +386,13 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
             return;
         }
         TextDraw run;
-        run.rect = {content_x, content_y, content_width, content_height};
+        // The run must start at the aligned origin, not the content-box origin: the sink draws from
+        // `rect.x` (`Batched2DSink::draw_text` passes `run.rect.x` to the text renderer as the pen
+        // start), so keeping `content_x` here silently discarded the alignment computed above for
+        // every single-line run that takes this path (issue #313). The width narrows to what is
+        // left from the aligned origin, matching `available_width` the run-sequence path already
+        // uses.
+        run.rect = {line_x, content_y, available_width, content_height};
         // The whole line paints as one run: emit the transformed bytes, exactly what the measured
         // wrap used, so the painted sequence matches the (transformed) line width.
         std::string transformed;
