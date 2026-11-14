@@ -2119,3 +2119,16 @@ add_executable(lowering_import_shadow_tests
     lowering_import_shadow_tests.cpp)
 target_link_libraries(lowering_import_shadow_tests PRIVATE tessera_lowering)
 add_test(NAME lowering_import_shadow COMMAND lowering_import_shadow_tests)
+
+# Chart series sample storage (issue #182, docs/specs/chart-series-v1.md): fixed capacity,
+# overwrite-oldest, logical oldest -> newest iteration. The test replaces the global operator
+# new/delete (the technique tests/benchmarks/stylesheet/benchmark_counters.cpp uses) and proves that
+# appends, reads, iteration and clear allocate zero blocks and zero bytes after construction.
+add_executable(chart_series_ring_tests
+    chart_series_ring_tests.cpp
+    chart_series_ring_allocation.cpp)
+
+target_include_directories(chart_series_ring_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/include)
+
+add_test(NAME chart_series_ring COMMAND chart_series_ring_tests)

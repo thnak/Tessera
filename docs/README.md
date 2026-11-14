@@ -89,6 +89,8 @@ This page is the map and reading order for the framework.
   reconciliation, generated C++
 - [`specs/virtualization-v1.md`](specs/virtualization-v1.md) — virtualized lists/grids,
   recycling, scroll anchoring, accessibility
+- [`specs/chart-series-v1.md`](specs/chart-series-v1.md) — chart series sample storage:
+  fixed-capacity overwrite-oldest ring, iteration/spans, renderer guarantees (#182)
 - [`specs/memory-model-v1.md`](specs/memory-model-v1.md) — ownership, allocators, frame/GPU
   lifetime, caches, bridge memory, budgets
 - [`specs/buffer-config-v1.md`](specs/buffer-config-v1.md) — buffer defaults, user tunables,
