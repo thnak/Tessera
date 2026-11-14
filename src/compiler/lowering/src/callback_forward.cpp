@@ -23,8 +23,8 @@ ForwardedCallback forward_callback_prop(NodeState& state, std::string_view name,
     }
     result.matched = true;
     const ir::Prop* prop = nullptr;
-    if (state.declared_props != nullptr) {
-        for (const ir::Prop& candidate : *state.declared_props) {
+    if (state.context.declared_props != nullptr) {
+        for (const ir::Prop& candidate : *state.context.declared_props) {
             if (candidate.name == name) {
                 prop = &candidate;
             }

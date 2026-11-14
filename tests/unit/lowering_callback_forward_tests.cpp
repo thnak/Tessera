@@ -54,23 +54,37 @@ lowering::ModuleLoweringResult lower_source(std::string_view text,
     return lowering::lower_module(keep->module_source(), "forward");
 }
 
-constexpr std::string_view kWrap = "import { useState } from \"tessera\";\n"
-                                   "type WrapProps = {\n"
-                                   "  onPress: () => void;\n"
-                                   "  onText: (e: TextChangeEvent) => void;\n"
-                                   "};\n"
-                                   "export function ForwardWrap({ onPress, onText }: WrapProps) {\n"
-                                   "  return (\n"
-                                   "    <View>\n"
-                                   "      <Button onClick={onPress}>Go</Button>\n"
-                                   "      <TextInput value=\"x\" onChange={onText} />\n"
-                                   "    </View>\n"
-                                   "  );\n"
-                                   "}\n"
-                                   "export function ForwardOuter() {\n"
-                                   "  const [count, setCount] = useState<int>(0);\n"
-                                   "  return <ForwardWrap onPress={() => setCount(count + 1)} />;\n"
-                                   "}\n";
+constexpr std::string_view kWrap =
+    "import { useState } from \"tessera\";\n"
+    "type WrapProps = {\n"
+    "  onPress: () => void;\n"
+    "  onText: (e: TextChangeEvent) => void;\n"
+    "};\n"
+    "export function ForwardWrap({ onPress, onText }: WrapProps) {\n"
+    "  return (\n"
+    "    <View>\n"
+    "      <Button onClick={onPress}>Go</Button>\n"
+    "      <TextInput value=\"x\" onChange={onText} />\n"
+    "    </View>\n"
+    "  );\n"
+    "}\n"
+    "type CounterProps = {\n"
+    "  onChanged: () => void;\n"
+    "  onText: (e: TextChangeEvent) => void;\n"
+    "};\n"
+    "export function ForwardCounter({ onChanged, onText }: CounterProps) {\n"
+    "  const [n, setN] = useState<int>(0);\n"
+    "  return (\n"
+    "    <View>\n"
+    "      <Button onClick={() => { setN(n + 1); onChanged(); }}>Add</Button>\n"
+    "      <TextInput value=\"x\" onChange={(e) => onText(e)} />\n"
+    "    </View>\n"
+    "  );\n"
+    "}\n"
+    "export function ForwardOuter() {\n"
+    "  const [count, setCount] = useState<int>(0);\n"
+    "  return <ForwardWrap onPress={() => setCount(count + 1)} />;\n"
+    "}\n";
 
 void test_forwarding_lowers() {
     std::unique_ptr<FileFixture> keep;
@@ -162,6 +176,73 @@ void test_rejections() {
     check(first_code(result) == "TESSERA_IR_UNRESOLVED", "the unresolved code");
 }
 
+void test_calls_from_a_handler_body() {
+    std::unique_ptr<FileFixture> keep;
+    auto result = lower_source(kWrap, keep);
+    check(result.has_value(), "calls lower: " + first_message(result));
+    if (!result) {
+        return;
+    }
+    const ir::Component* counter = find_component(*result, "ForwardCounter");
+    check(counter != nullptr && counter->handlers.size() == 2, "the counter has two handlers");
+    if (counter == nullptr || counter->handlers.size() != 2) {
+        return;
+    }
+    const auto& add = counter->handlers[0].actions;
+    check(add.size() == 2 && add[0].kind == ir::ActionKind::Set &&
+              add[1].kind == ir::ActionKind::CallProp && add[1].target == "prop::onChanged" &&
+              !add[1].value,
+          "the setter runs first, then the callback is called");
+    const auto& text = counter->handlers[1];
+    check(text.params.size() == 1 && text.actions.size() == 1 &&
+              text.actions[0].kind == ir::ActionKind::CallProp && text.actions[0].value != nullptr,
+          "a payload callback is called with the handler's own parameter");
+}
+
+void test_call_rejections() {
+    std::unique_ptr<FileFixture> keep;
+    const std::string with_argument = "type P = { onPress: () => void };\n"
+                                      "export function A({ onPress }: P) {\n"
+                                      "  return <Button onClick={(e) => onPress(e)}>x</Button>;\n"
+                                      "}\n";
+    auto result = lower_source(with_argument, keep);
+    check(!result.has_value(), "a payload-free callback takes no argument");
+    check(first_code(result) == "TESSERA_IR_UNSUPPORTED", "the argument code");
+
+    const std::string missing_argument =
+        "type P = { onText: (e: TextChangeEvent) => void };\n"
+        "export function A({ onText }: P) {\n"
+        "  return <TextInput value=\"x\" onChange={() => onText()} />;\n"
+        "}\n";
+    result = lower_source(missing_argument, keep);
+    check(!result.has_value(), "a payload callback needs its payload");
+    check(first_message(result).find("TextChangeEvent") != std::string::npos,
+          "the message names the record");
+
+    const std::string wrong_record =
+        "type P = { onText: (e: SizeChangeEvent) => void };\n"
+        "export function A({ onText }: P) {\n"
+        "  return <TextInput value=\"x\" onChange={(e) => onText(e)} />;\n"
+        "}\n";
+    result = lower_source(wrong_record, keep);
+    check(!result.has_value(), "the payload record must match the handler parameter");
+
+    const std::string expression_argument =
+        "type P = { onText: (e: TextChangeEvent) => void };\n"
+        "export function A({ onText }: P) {\n"
+        "  return <TextInput value=\"x\" onChange={(e) => onText(e.value)} />;\n"
+        "}\n";
+    result = lower_source(expression_argument, keep);
+    check(!result.has_value(), "only the whole payload parameter is passed on");
+
+    const std::string value_prop = "type P = { label: string };\n"
+                                   "export function A({ label }: P) {\n"
+                                   "  return <Button onClick={() => label()}>x</Button>;\n"
+                                   "}\n";
+    result = lower_source(value_prop, keep);
+    check(!result.has_value(), "a value prop cannot be called");
+}
+
 void test_forward_to_child_component() {
     const std::string source = "type InnerProps = { onPress: () => void };\n"
                                "export function Inner({ onPress }: InnerProps) {\n"
@@ -190,5 +271,7 @@ int main(int argc, char** argv) {
     test_forwarding_lowers();
     test_rejections();
     test_forward_to_child_component();
+    test_calls_from_a_handler_body();
+    test_call_rejections();
     return jsx_test::finish("lowering callback forward");
 }

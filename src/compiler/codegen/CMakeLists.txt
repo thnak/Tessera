@@ -88,11 +88,12 @@ if (EXISTS ${_tessera_codegen_golden_dir}/CardPage.cpp AND EXISTS ${_tessera_cod
 endif ()
 
 # Callback-forwarding fixture (issue #286), generated from TSX in lowering_callback_forward_tests.
-# Same deliberate golden path: `lowering_callback_forward_tests --write` owns ForwardWrap.* and
-# ForwardOuter.*.
+# Same deliberate golden path: `lowering_callback_forward_tests --write` owns ForwardWrap.*,
+# ForwardCounter.* and ForwardOuter.*.
 if (EXISTS ${_tessera_codegen_golden_dir}/ForwardWrap.cpp AND EXISTS ${_tessera_codegen_golden_dir}/ForwardOuter.cpp)
     add_library(tessera_codegen_forward_sample STATIC
         ${_tessera_codegen_golden_dir}/ForwardWrap.cpp
+        ${_tessera_codegen_golden_dir}/ForwardCounter.cpp
         ${_tessera_codegen_golden_dir}/ForwardOuter.cpp)
     target_include_directories(tessera_codegen_forward_sample
         PRIVATE ${_tessera_codegen_golden_dir})

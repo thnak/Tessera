@@ -449,7 +449,7 @@ expressions, separated by `;`:
   `KeyEvent` `key` is compared with a W3C key-value string literal (`"Escape"`, `"ArrowDown"`, `" "`,
   a letter). It lowers to the IR action `guard`, and the generated code tests it with
   `tessera::ui::key_is`. A guard on a non-setter call is rejected.
-- No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`, `r.focus()` and `r.blur()`.
+- No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`, `r.focus()`, `r.blur()` and calls of the component's own callback props (section 9.5).
 - The front end lowers this form to IR and generates C++ for it. No protected region is created, and
   the designer runs it exactly as the generated code would.
 - `startViewTransition(update, options)` accepts only a handler of this form as `update`
@@ -525,8 +525,12 @@ export function Button({ onPress, children }: ButtonProps) {
   not a prop, setter or handler stays `TESSERA_IR_UNRESOLVED`.
 - On a component reference (`<Inner onPress={onPress} />`) only a `() => void` prop is handed on: the
   child's payload record is not known to the lowering yet.
-- Calling a callback from a handler body (`() => { setX(1); onPress(); }`) is the follow-up of issue
-  #286 and is not accepted yet.
+- A callback prop may also be called as a statement of an inline handler (section 9.2), after or
+  between setter calls: `() => { setPressed(false); onPress(); }`, `(e) => { setValue(e.value); onChange(e); }`.
+  A `() => void` prop is called with no argument. A payload prop is called with the handler's own
+  parameter, the whole payload and nothing else (`onChange(e)`, not `onChange(e.value)`), and the
+  parameter's record must be the prop's. Anything else is `TESSERA_IR_UNSUPPORTED`. The call lowers to
+  the same `callProp` action, runs in order with the other statements and may carry a `guard`.
 
 ## Continued in part 2
 

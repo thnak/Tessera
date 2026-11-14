@@ -33,9 +33,6 @@ struct NodeState {
     unsigned loop_depth = 0;              // enclosing `.map` loops; at most 2 (ir-v1 section 5)
     unsigned slot_count = 0;              // `{children}` positions; at most one (ir-v1 section 3.4)
     unsigned span_depth = 0; // inside a Text inline span (elements-basic.md section 2.1)
-    // The component's declared props (lowered before its nodes); null when the props type has no
-    // resolvable object type. Callback forwarding reads the type of a prop from here (issue #286).
-    const std::vector<ir::Prop>* declared_props = nullptr;
 };
 
 // Reports a TESSERA_IR_* error at `span` unless one was already reported. The diagnostic keeps a

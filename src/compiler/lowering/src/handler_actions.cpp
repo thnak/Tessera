@@ -4,6 +4,7 @@
 // 2.1): the statements of a setter-call arrow become ordered IR actions.
 
 #include "hook_lowering_internal.hpp"
+#include "tessera/schema/intrinsics.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -240,6 +241,44 @@ std::optional<ir::Action> lower_ref_focus(HookState& state, const jsx::Expr& cal
     return action;
 }
 
+// `onPress()` / `onChange(e)`: a call of a callback prop of the component (issue #286). The payload
+// argument is the handler's own parameter; its record type is checked against the prop later, by
+// `check_callback_calls`, once the handler's parameter types are known.
+std::optional<ir::Action> lower_callback_call(HookState& state, const jsx::Expr& call,
+                                              const jsx::Expr& callee, const jsx::Expr& arrow) {
+    const rules::Symbol* prop = state.context.analysis.find(callee.text);
+    if (prop == nullptr || prop->kind != rules::SymbolKind::Prop) {
+        return std::nullopt;
+    }
+    if (call.operands.size() > 2) {
+        fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                  "callback prop `" + callee.text + "` takes at most one argument", call.span,
+                  kBodyRule);
+        return std::nullopt;
+    }
+    ir::Action action;
+    action.kind = ir::ActionKind::CallProp;
+    action.target = "prop::" + prop->name;
+    if (call.operands.size() == 2) {
+        const jsx::Expr* argument = call.operands[1].get();
+        bool is_param = false;
+        if (argument != nullptr && argument->kind == jsx::ExprKind::Identifier) {
+            for (const std::string& param : arrow.params) {
+                is_param = is_param || param == argument->text;
+            }
+        }
+        if (!is_param) {
+            fail_hook(state, "TESSERA_IR_UNSUPPORTED",
+                      "callback prop `" + callee.text +
+                          "` is called with the handler's own parameter (the event payload)",
+                      call.span, kBodyRule);
+            return std::nullopt;
+        }
+        action.value = ir::make_ref(argument->text);
+    }
+    return action;
+}
+
 // The first `count` statements of `arrow` as actions.
 std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arrow,
                                          std::size_t count) {
@@ -285,6 +324,9 @@ std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arro
             action = lower_animated_set(state, *statement, callee, names);
         } else if (callee.kind == jsx::ExprKind::Identifier) {
             action = lower_setter_call(state, *statement, callee, names);
+            if (!action && !state.error) {
+                action = lower_callback_call(state, *statement, callee, arrow);
+            }
         }
         if (state.error) {
             return actions;
@@ -375,6 +417,58 @@ std::vector<ir::Param> lower_handler_params(HookState& state, const jsx::Expr& a
 } // namespace tessera::compiler::lowering::internal
 
 namespace tessera::compiler::lowering {
+
+std::optional<jsx::Diagnostic> check_callback_calls(const HookLoweringContext& context,
+                                                    std::span<const ir::Param> params,
+                                                    std::span<const ir::Action> actions,
+                                                    jsx::Span span) {
+    internal::HookState state{context, std::nullopt};
+    const auto violation = [&](const std::string& message) {
+        internal::fail_hook(state, "TESSERA_IR_UNSUPPORTED", message, span);
+        return state.error;
+    };
+    for (const ir::Action& action : actions) {
+        if (action.kind != ir::ActionKind::CallProp) {
+            continue;
+        }
+        const std::string name = action.target.substr(6);
+        const ir::Prop* prop = nullptr;
+        if (context.declared_props != nullptr) {
+            for (const ir::Prop& candidate : *context.declared_props) {
+                if (candidate.name == name) {
+                    prop = &candidate;
+                }
+            }
+        }
+        if (prop == nullptr) {
+            return violation("the type of prop `" + name +
+                             "` is not known, so it cannot be called; declare it in the props "
+                             "type as `() => void` or `(e: Record) => void`");
+        }
+        if (prop->type == "callback") {
+            if (action.value) {
+                return violation("callback prop `" + name + "` takes no argument");
+            }
+            continue;
+        }
+        if (prop->type == "children" || prop->type.rfind("optional<", 0) == 0 ||
+            schema::find_type_record(prop->type) == nullptr) {
+            return violation("prop `" + name + "` is not a callback");
+        }
+        bool matches = action.value != nullptr && action.value->kind == ir::ExprKind::Ref;
+        if (matches) {
+            matches = false;
+            for (const ir::Param& param : params) {
+                matches = matches || (param.name == action.value->id && param.type == prop->type);
+            }
+        }
+        if (!matches) {
+            return violation("callback prop `" + name + "` takes a `" + prop->type +
+                             "` payload; call it with a handler parameter of that type");
+        }
+    }
+    return std::nullopt;
+}
 
 HandlerActionsResult lower_handler_actions(const jsx::Expr& arrow,
                                            const HookLoweringContext& context) {

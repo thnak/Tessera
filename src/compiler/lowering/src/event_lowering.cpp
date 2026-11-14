@@ -53,6 +53,11 @@ bool lower_event_arrow(NodeState& state, const schema::EventRow& event, const js
         }
         return false;
     }
+    if (const std::optional<jsx::Diagnostic> violation =
+            check_callback_calls(state.context, params, *actions, arrow.span)) {
+        state.error = violation;
+        return false;
+    }
     const std::string id = state.hooks.add_handler(
         std::move(params), std::move(*actions),
         to_source_span(state.context.source_map, arrow.span, state.context.file));
