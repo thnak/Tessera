@@ -155,6 +155,7 @@ void fill_x11_display_capabilities(Display* display, ::Window window, ::Window r
 
     // The RandR half is behind the extension guard: a build without libXrandr keeps the fallbacks
     // above, which is the documented "no display-refresh source" answer.
+#if defined(TESSERA_X11_RANDR)
     DisplayId display_id = kNoDisplayId;
     double refresh_hz = kUnknownRefreshHz;
     if (query_x11_active_display(display, window, root, display_id, refresh_hz)) {
@@ -164,18 +165,41 @@ void fill_x11_display_capabilities(Display* display, ::Window window, ::Window r
             metrics.assumed.refresh_hz = false;
         }
     }
+#else
+    // No libXrandr at build time: no display identity and no refresh source. The metrics keep
+    // `kNoDisplayId`/`kUnknownRefreshHz` and the assumption flags set above (ADR-023 rule 7).
+    (void)display;
+    (void)window;
+    (void)root;
+#endif
 }
 
 std::size_t query_x11_displays(Display* display, ::Window root,
                                std::span<DisplayInfo> out) noexcept {
+#if defined(TESSERA_X11_RANDR)
     return query_x11_randr_displays(display, root, out);
+#else
+    // No libXrandr: there is no per-monitor source at all, so the list is empty and the caller
+    // falls back to the window's own metrics (ADR-023 rule 7).
+    (void)display;
+    (void)root;
+    (void)out;
+    return 0;
+#endif
 }
 
 DisplayId x11_display_id(Display* display, ::Window window, ::Window root) noexcept {
+#if defined(TESSERA_X11_RANDR)
     DisplayId id = kNoDisplayId;
     double refresh_hz = kUnknownRefreshHz;
     (void)query_x11_active_display(display, window, root, id, refresh_hz);
     return id;
+#else
+    (void)display;
+    (void)window;
+    (void)root;
+    return kNoDisplayId;
+#endif
 }
 
 bool x11_event_is_display_change(const XEvent& event) noexcept {
