@@ -70,12 +70,6 @@ bool expect(bool condition, std::string_view message) {
     return condition;
 }
 
-bool expect_empty_document(std::string_view message) {
-    return expect(
-        tessera::diagnostics::to_chrome_trace_json(tessera::diagnostics::TraceRecorder{}) == "[]",
-        message);
-}
-
 } // namespace
 
 int main(int argc, char** argv) {
@@ -118,11 +112,14 @@ int main(int argc, char** argv) {
         }
     }
     // The disabled recorder is a no-op that still answers the documented empty document
-    // (docs/specs/headless-automation-v1.md section 7.1).
+    // (docs/specs/headless-automation-v1.md section 7.1). The check is inline rather than a local
+    // helper because the helper would be defined but unused in the tracing-on branch, which GCC
+    // rejects under -Werror=unused-function (the Windows build does not warn, CI does).
     tessera::diagnostics::TraceRecorder recorder(8);
     recorder.instant("span", tessera::diagnostics::TraceCategory::Frame);
     if (!expect(recorder.size() == 0, "the disabled recorder discards events") ||
-        !expect_empty_document("the disabled recorder still answers the empty document")) {
+        !expect(tessera::diagnostics::to_chrome_trace_json(recorder) == "[]",
+                "the disabled recorder still answers the empty document")) {
         return 1;
     }
     std::cout << "tracing_strip: ok (tracing compiled out)\n";
