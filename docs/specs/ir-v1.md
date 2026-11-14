@@ -40,32 +40,16 @@ Codegen must not read the parser AST.
 
 ```json
 {
-  "id": "comp::Counter",
-  "componentId": "1234567890123456789",
-  "name": "Counter",
+  "id": "comp::Counter", "componentId": "1234567890123456789", "name": "Counter",
   "source": { "file": "ui/Counter.tsx", "offset": 0, "length": 310, "line": 1, "column": 1, "endLine": 14, "endColumn": 2 },
-  "props": [
-    { "name": "initial", "type": "int", "default": 0 }
-  ],
-  "state": [
-    { "id": "state::count", "name": "count", "type": "int", "initial": 0 }
-  ],
-  "effects": [
-    { "id": "effect::sync", "deps": ["state::count"], "handler": "bind::on_count_changed", "cleanup": "bind::on_count_changed_cleanup" }
-  ],
-  "refs": [
-    { "id": "ref::label", "name": "label", "target": "node::2" }
-  ],
-  "animatedValues": [
-    { "id": "anim::opacity", "name": "opacity", "type": "float", "initial": 1.0 }
-  ],
-  "root": {
-    "kind": "View",
-    "id": "node::1",
-    "uiId": "111111111111111111",
+  "props": [{ "name": "initial", "type": "int", "default": 0 }],
+  "state": [{ "id": "state::count", "name": "count", "type": "int", "initial": 0 }],
+  "effects": [{ "id": "effect::sync", "deps": ["state::count"], "handler": "bind::on_count_changed", "cleanup": "bind::on_count_changed_cleanup" }],
+  "refs": [{ "id": "ref::label", "name": "label", "target": "node::2" }],
+  "animatedValues": [{ "id": "anim::opacity", "name": "opacity", "type": "float", "initial": 1.0 }],
+  "root": { "kind": "View", "id": "node::1", "uiId": "111111111111111111",
     "source": { "file": "ui/Counter.tsx", "offset": 52, "length": 250, "line": 3, "column": 3, "endLine": 13, "endColumn": 9 },
-    "children": []
-  }
+    "children": [] }
 }
 ```
 
@@ -84,14 +68,14 @@ Codegen must not read the parser AST.
 | `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1) |
 | `root` | Node | yes | Exactly one root node |
 
-`props[].default` and `state[].initial` are Expressions (section 4); a literal is the bare JSON value,
+`props[].default` and `state[].initial` are Expressions (section 4): a literal is the bare JSON value,
 any other expression its object (`{ "kind": "ref", "id": "prop::start" }`). A `Prop` is `{ "name",
-"type", "optional"?, "default"? }`: `optional` is the source `?` (the caller may omit the prop), not a
-nullable `optional<T>` value; `children` has type `children` and neither. Reference ids are `state::`,
-`prop::`, `ref::`, `anim::`, `env::<name>`; a field of a record-typed value is dotted (`item.id`); loop
-item/index names are as written. V1 types: `bool`, `int`, `float`, `string`, `color`, `length`,
-`node_ref`, `list<T>`, `children` (section 3.4; props only), `optional<T>`, and for props `callback` or a
-payload record name (`TextChangeEvent`). No arbitrary objects/functions in state.
+"type", "optional"?, "default"? }`; `optional` is the source `?` (the caller may omit the prop), and
+`children` has type `children` and neither. Reference ids are `state::`, `prop::`, `ref::`, `anim::`,
+`env::<name>`; a field of a record-typed value is dotted (`item.id`); loop item/index names are as
+written. V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`, `children`
+(section 3.4; props only), `optional<T>`, and for props `callback` or a payload record name
+(`TextChangeEvent`). No arbitrary objects/functions in state.
 
 ## 2.1 Handlers
 
@@ -99,15 +83,11 @@ An inline setter handler ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 9.2) ha
 it is an IR record of its own, referenced from `events`:
 
 ```json
-{
-  "id": "handler::1",
-  "params": [{ "name": "e", "type": "string" }],
+{ "id": "handler::1", "params": [{ "name": "e", "type": "string" }],
   "actions": [
     { "kind": "set", "target": "state::count", "value": { "kind": "binary", "op": "+", "left": { "kind": "ref", "id": "state::count" }, "right": { "kind": "literal", "value": 1 } } },
-    { "kind": "animSet", "target": "anim::opacity", "value": { "kind": "literal", "value": 0.5 }, "animate": false }
-  ],
-  "source": { "file": "ui/Counter.tsx", "offset": 200, "length": 40, "line": 9, "column": 5, "endLine": 9, "endColumn": 45 }
-}
+    { "kind": "animSet", "target": "anim::opacity", "value": { "kind": "literal", "value": 0.5 }, "animate": false } ],
+  "source": { "file": "ui/Counter.tsx", "offset": 200, "length": 40, "line": 9, "column": 5, "endLine": 9, "endColumn": 45 } }
 ```
 
 - `id` is `handler::<N>`, numbered from 1 in source order within the component, and unique in it.
@@ -152,8 +132,8 @@ it is an IR record of its own, referenced from `events`:
 | `props` | object | no | Typed intrinsic props |
 | `style` | object | no | Style tokens; inline style |
 | `events` | object | no | Event name -> binding id (`bind::...`) or inline handler id (`handler::...`, section 2.1) |
-| `text` | Expr/null | no | Text content; only a `Text` node has this field |
-| `children` | Node[] | no | Paint order |
+| `text` | Expr/null | no | Text content; only a `Text` node has this field. Empty when the node carries inline spans (section 3.6) |
+| `children` | Node[] | no | Paint order. A `Text` node's children are its inline spans (section 3.6) |
 | `condition` | Expr/null | no | Static conditional; V1 bool expression (never a template or a non-bool literal) |
 | `loop` | Loop/null | no | Static list loop; this node is the repeated template (section 5) |
 | `itemTemplate` | Node/null | for `VirtualList`/`VirtualGrid` | The static item template of a virtual collection (section 3.5) |
@@ -199,13 +179,34 @@ represent VM/container virtualization or a virtual DOM.
 - **Size default.** A collection with neither `itemSize` nor `estimateSize` records
   `"estimateSize": 32`, the unmeasured 32 px estimate of
   [`virtualization-v1.md`](virtualization-v1.md) section 4 (no per-item guess, no heuristic).
-- A `VirtualList`/`VirtualGrid` has an `itemTemplate`, no `children` and no `loop` of its own, and
-  its template is static (no `condition`, no dynamic component type) and counts toward the section
-  5 loop depth; any other kind with `itemTemplate` is `TESSERA_IR_MALFORMED`. A
-  missing/multiple/non-`.map` child is `TESSERA_IR_VIRTUAL`; a missing item key is
-  `TESSERA_IR_LIST_KEY`; a non-`ref` `.map` source is `TESSERA_IR_UNSUPPORTED` (section 5 loop).
-- The field is additive and optional, so `irVersion` stays `1` (section 12). The runtime contract
-  is [`virtualization-v1.md`](virtualization-v1.md).
+- A `VirtualList`/`VirtualGrid` has an `itemTemplate` but no `children` and no `loop` of its own; its
+  template is static (no `condition`, no dynamic component type) and counts toward the section 5 loop
+  depth. Any other kind with `itemTemplate` is `TESSERA_IR_MALFORMED`; a missing/multiple/non-`.map`
+  child is `TESSERA_IR_VIRTUAL`; a missing item key is `TESSERA_IR_LIST_KEY`; a non-`ref` `.map`
+  source is `TESSERA_IR_UNSUPPORTED` (section 5 loop). The field is additive, so `irVersion` stays `1`;
+  the runtime contract is [`virtualization-v1.md`](virtualization-v1.md).
+
+## 3.6 Inline text spans
+
+A `Text` node may carry inline spans instead of one `text` Expression
+([`elements-basic.md`](jsx-intrinsics-v1/elements-basic.md) section 2.1); it stays one layout box.
+
+```json
+{ "kind": "Text", "id": "node::7", "uiId": "123456789012345678", "style": { "font-size": "14px" },
+  "children": [
+    { "kind": "Text", "id": "node::8", "uiId": "223456789012345678", "text": { "kind": "literal", "value": "By continuing you agree to the " } },
+    { "kind": "Text", "id": "node::9", "uiId": "323456789012345678", "props": { "role": "link" }, "style": { "color": "#0b57d0", "font-weight": "700" },
+      "events": { "onClick": "bind::on_terms" }, "text": { "kind": "literal", "value": "Terms" } } ] }
+```
+
+- The parent has no `text`; its `children` are all and only its spans, in paint order. A span is a
+  `Text` node with a literal `text`, the span attributes of
+  [`html-aliases.md`](jsx-intrinsics-v1/html-aliases.md) section 3.6, and no `children`, condition,
+  loop, key, fallback, item template, component or element.
+- Byte ranges are derived from the concatenated span texts (at most 16 spans and 256 text bytes per
+  `Text`). A non-span child, a non-literal span text, a nested span, a disallowed field or a cap
+  violation is `TESSERA_IR_SPAN`. Additive (a node already had `children`), so `irVersion` stays `1`
+  (section 12); codegen emits each span as a child scene node plus the parent's paint payload.
 
 ## 3.1 Automation IDs
 
@@ -507,6 +508,8 @@ Hard errors:
 - a field outside its node kind (`text` on a non-`Text` node, `style` on a `Component` node), a
   template or non-bool literal `condition` (`TESSERA_IR_CONDITION`), or an `ErrorBoundary` fallback
   with `condition`/`loop`
+- an inline span violation: a non-span `Text` child, a non-literal span `text`, a nested span, a
+  disallowed span field, or a span count/byte cap (`TESSERA_IR_SPAN`, section 3.6)
 - a binding whose `kind` does not match its use (`TESSERA_IR_BINDING`)
 - binding annotation without a matching IR use, or vice versa (a binding no event or effect uses
   is this error, not a warning)
@@ -520,18 +523,15 @@ Hard errors:
 - a component reference cycle (a component whose tree reaches itself), `TESSERA_IR_CYCLE`
 - non-deterministic ordering/ids
 
-Warnings:
-
-- unused ref/state
-- binding present in existing code but not in generated IR (rename/removal)
-- deprecated fields
+Warnings: unused ref/state; a binding present in existing code but not in generated IR
+(rename/removal); deprecated fields.
 
 ### 9.1 Writer and validator coverage (slices 6 to 9)
 
 Every construct lowering emits is written; structural invariants are validated. Goldens
-`tests/golden/ir/{counter,rich}.json` are re-baselined deliberately with `ir_json_tests --write`;
-a full IR reader is still deferred (jsx-ir-lowering decision 15), so round-trip tests compare
-canonical text, not a re-parsed model.
+`tests/golden/ir/{counter,rich}.json` are re-baselined deliberately with `ir_json_tests --write`; a
+full IR reader is still deferred (jsx-ir-lowering decision 15), so round-trip tests compare canonical
+text, not a re-parsed model.
 
 | Construct | Writer | Validator |
 |---|---|---|
@@ -541,6 +541,7 @@ canonical text, not a re-parsed model.
 | `Slot` | `kind` only (a bare position marker) | at most one per component, only with the `children` prop, no payload, not the root, not in a loop template or slot content (`TESSERA_IR_SLOT`) |
 | `VirtualList`/`VirtualGrid` `itemTemplate` | the template node with its `loop` and `key` | one static template, its loop source is a list ref, its key is required, no `children`/own `loop`, no condition (`TESSERA_IR_VIRTUAL`, `TESSERA_IR_LIST_KEY`) |
 | text, style/className, events, `fallback` | `text`/`style`/`props`/`events`, fallback node | `text` only on `Text`; event ids resolve to event bindings; fallback static |
+| inline spans | `Text` children with literal `text`; parent has no `text` | children are all spans, literal text, no nested span or disallowed field, count/byte caps (`TESSERA_IR_SPAN`) |
 
 Deliberately not covered: intrinsic prop/event schemas (the IR is a leaf and does not link
 `tessera_schema`), the `Children` type of a prop other than the `children` declaration (the type
@@ -555,6 +556,7 @@ table that resolves prop types is a later slice), and a re-parsed reader (sectio
 | `Slot` | the callee's `build(parent, slot)` overload attaches the caller's slot nodes at the Slot position; the caller builds that content with its own state/props/handlers |
 | Node | `std::make_unique<Node>(id)` + setters/add_child |
 | Text | text node + style + text layout binding |
+| Inline spans | the parent `Text` node gets the concatenated paint text plus one span entry per child (span node id and byte range); each span is emitted as a child scene node with its class/style/role/events so the runtime resolves its run style through the normal cascade |
 | Event binding | `on_event` dispatch to protected region |
 | ErrorBoundary | boundary state + guarded child build/update/effect/event + fallback subtree |
 | Conditional | `if` around node creation/update |
@@ -566,35 +568,33 @@ table that resolves prop types is a later slice), and a re-parsed reader (sectio
 
 ## 11. Determinism
 
-- Components sorted by source path, then name.
-- Nodes in source order; bindings sorted by id.
+- Components sorted by source path, then name; nodes in source order; bindings sorted by id.
 - No timestamps, absolute paths, random ids, or hash-map iteration.
 - JSON snapshot output is stable (sorted keys in tests).
 - The writer omits empty optional fields (examples that show `[]` or `{}` are only explicit);
   `components`, `bindings` and `stylesheets` are always written.
-- V1 limit: the validator accepts any identifier as a record type until a type table exists.
-- Repeated compilation of the same input is byte-identical.
+- V1 limit: the validator accepts any identifier as a record type until a type table exists;
+  repeated compilation of the same input is byte-identical.
 
 ## 12. Versioning
 
 - `irVersion: 1` is the only accepted version in V1.
-- Adding optional fields or node kinds keeps v1 (precedent: `Component`, `Slot`); an unknown kind is
-  `TESSERA_IR_MALFORMED`. Changing meaning or removing fields bumps the version, with a migration.
-- Codegen rejects unsupported versions with `TESSERA_IR_VERSION`.
+- Adding optional fields or node kinds keeps v1 (precedent: `Component`, `Slot`, inline spans); an
+  unknown kind is `TESSERA_IR_MALFORMED`. Changing meaning or removing fields bumps the version, with
+  a migration. Codegen rejects unsupported versions with `TESSERA_IR_VERSION`.
 - Versions of all schemas are tabulated in [`versioning-v1.md`](versioning-v1.md).
 - Snapshots and `bindings.json` record the IR version.
 
 ## 13. Example: Counter
 
-The worked Counter example (a complete `ir.json`) lives in
-[`ir-v1-example.md`](ir-v1-example.md) to keep this normative spec under the size limit.
+The worked Counter example (a complete `ir.json`) lives in [`ir-v1-example.md`](ir-v1-example.md) to
+keep this normative spec under the size limit.
 
 ## 14. Open questions
 
-- Virtual collection data source/paging and nested virtualization; see
-  [`virtualization-v1.md`](virtualization-v1.md).
-- Source-map format and `#line` emission.
-- Whether styles are inlined as tokens or referenced by compiled rule ids.
+- Virtual collection data source/paging and nested virtualization
+  ([`virtualization-v1.md`](virtualization-v1.md)); source-map format and `#line` emission; whether
+  styles are inlined as tokens or referenced by compiled rule ids.
 - Expression extensions beyond the functions of section 4.2 (string methods such as
   `toUpperCase`, `trim`, `startsWith`); locale-aware formatting.
 - Incremental IR diffs for hot reload.

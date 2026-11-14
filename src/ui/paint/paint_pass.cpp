@@ -254,6 +254,13 @@ struct PaintScope {
     float opacity = 1.0f;
 };
 
+// Inline-span children of a Text node are painted as attributed runs by the parent, never as their
+// own nodes (issue #229; elements-basic.md section 2.1).
+bool is_inline_span_child(const Node& parent, const Node& child) {
+    const auto& data = parent.paint_data();
+    return data && data->kind == PaintKind::Text && data->has_span(child.id());
+}
+
 void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintStats& stats,
                 const PaintContext& context, Frame frame, const PaintScope& scope,
                 const detail::ClipScope& clip_scope, const detail::PassState& pass) {
@@ -329,6 +336,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
             const detail::ClipScope child_clip =
                 pushed_clip ? detail::pushed_clip_scope(clip_scope, clip) : clip_scope;
             for_each_by_z(node.children(), false, [&](const Node& child) {
+                if (is_inline_span_child(node, child)) {
+                    return false;
+                }
                 paint_node(child, styles, sink, stats, context, painted_frame, child_scope,
                            child_clip, pass);
                 return false;
@@ -432,6 +442,9 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     const detail::ClipScope child_clip =
         pushed_clip ? detail::pushed_clip_scope(clip_scope, pushed_clip_value) : clip_scope;
     for_each_by_z(node.children(), false, [&](const Node& child) {
+        if (is_inline_span_child(node, child)) {
+            return false;
+        }
         paint_node(child, styles, sink, stats, context, painted_frame, child_scope, child_clip,
                    pass);
         return false;
@@ -458,6 +471,10 @@ style::ComputedStyle SceneStyleProvider::compute(const Node& node) {
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                        const PaintContext& context) {
     PaintStats stats;
+    PaintContext effective_context = context;
+    if (effective_context.styles == nullptr) {
+        effective_context.styles = &styles;
+    }
     detail::PassState pass;
     pass.cache = context.paint_cache;
     pass.cacheable =
@@ -470,8 +487,8 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     pass.high_contrast = context.high_contrast;
     pass.glass_max_blur_radius = context.glass.max_blur_radius;
     pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
-    paint_node(root, styles, sink, stats, context, Frame{}, PaintScope{}, detail::ClipScope{},
-               pass);
+    paint_node(root, styles, sink, stats, effective_context, Frame{}, PaintScope{},
+               detail::ClipScope{}, pass);
     return stats;
 }
 

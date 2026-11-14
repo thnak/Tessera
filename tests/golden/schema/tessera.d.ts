@@ -398,6 +398,21 @@ export interface liProps extends ViewProps {
 export interface spanProps extends TextProps {
 }
 
+export interface bProps extends TextProps {
+}
+
+export interface strongProps extends TextProps {
+}
+
+export interface iProps extends TextProps {
+}
+
+export interface emProps extends TextProps {
+}
+
+export interface codeProps extends TextProps {
+}
+
 export interface pProps extends TextProps {
 }
 
@@ -490,6 +505,11 @@ declare global {
       ol: olProps;
       li: liProps;
       span: spanProps;
+      b: bProps;
+      strong: strongProps;
+      i: iProps;
+      em: emProps;
+      code: codeProps;
       p: pProps;
       label: labelProps;
       figcaption: figcaptionProps;

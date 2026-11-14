@@ -14,6 +14,11 @@ against it.
 2. **Alias is spelling only.** No default styles, sizes, margins, list markers or semantics beyond the
    `Injected` column are added. A browser renders `h1` large and bold, `ul` with markers and `div`
    as a block; the alias does not ([Q12]). Layout of a `View` is the style engine's, not the browser's.
+   The one exception is the inline-emphasis group of section 2 (`b`, `strong`, `i`, `em`, `code`):
+   those tags inject only the run style that names their emphasis, because a span with no visual
+   difference would make the tag meaningless. The injected style is a default: an explicit
+   `className`/`style` of the same property wins, and the non-metric rule of
+   [`elements-basic.md`](elements-basic.md) section 2.1 still applies.
 3. After resolution the element is the intrinsic: its prop table, children rule, constraints and event
    table in [`elements-basic.md`](elements-basic.md) / [`elements-other.md`](elements-other.md) apply,
    plus the HTML attribute rewrites of section 3. Attribute names use React spelling (`readOnly`,
@@ -36,13 +41,22 @@ against it.
 | `div`, `section`, `article`, `main`, `header`, `footer`, `nav`, `aside`, `figure` | `View` | - | mapped | Landmark roles are not in the accessibility role list, so none is injected |
 | `ul`, `ol` | `View` | `role="list"` | mapped | No list markers and no numbering |
 | `li` | `View` | `role="listitem"` | mapped | |
-| `span`, `p`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11] |
-| `h1`, `h2`, `h3`, `h4`, `h5`, `h6` | `Text` | `role="heading"` | mapped | The level is not exposed in V1 |
-| `a` | `Text` | `role="link"` | partial | `href`, `target`, `rel` are rejected; use `onClick`. See [Q11] |
+| `span`, `p`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11]. As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
+| `b`, `strong` | `Text` | `style.font-weight: 700` | mapped | Inline span inside `Text`; the injected weight is a default, not a wrapper style |
+| `i`, `em` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text`; default style as for `b` |
+| `code` | `Text` | `style.font-family: monospace` | mapped | Inline span inside `Text`; the V1 text stack paints one app face, so the family is recorded but changes no metrics (no font selection yet) |
+| `h1`, `h2`, `h3`, `h4`, `h5`, `h6` | `Text` | `role="heading"` | mapped | The level is not exposed in V1; not an inline span |
+| `a` | `Text` | `role="link"` | partial | `href`, `target`, `rel` are rejected; use `onClick`. See [Q11]. As a child of `Text` it is an inline clickable span |
 | `button` | `Button` | - | mapped | `type` rule in section 3.1 |
 | `input` | `TextInput` | by `type` | mapped | Section 3.2 |
 | `textarea` | `TextArea` | - | mapped | Section 3.3 |
 | `img` | `Image` | - | mapped | Section 3.4 |
+
+The emphasis rows inject a **default run style**, not a wrapper element style: a user `className` or
+`style` of the same property wins, and only the properties of [`elements-basic.md`](elements-basic.md)
+section 2.1 are accepted on a span. The `p`, `label`, `figcaption` and heading aliases are block-ish in
+a browser but are plain `Text` nodes here (no default style, no inline-span default): only a child of
+`Text` becomes an inline span.
 
 ## 3. Attribute rewrites
 
@@ -102,7 +116,21 @@ to attributes that exist on no intrinsic (`class`, `accessKey`, ...).
 ### 3.5 `a`
 
 `onClick` and the common attributes only. `href`, `target`, `rel`, `download` are `HTML_ATTR` with the
-suggestion `onClick` [Q11].
+suggestion `onClick` [Q11]. As a child of `Text`, `a` is an inline span: the injected `role="link"`
+plus `onClick` make the run a clickable, accessible link.
+
+### 3.6 Inline spans (`span`, `b`, `strong`, `i`, `em`, `code`, `a` inside `Text`)
+
+Inside `Text` these tags accept the `Text` attribute set: `className`, `style`, `role`, the `aria-*`
+attributes, `onClick` and `key`. `id` is accepted as common metadata. `ref`, `tabIndex`,
+`autoFocus` and any event other than `onClick` are rejected on a span
+(`TESSERA_JSX_SPAN_ATTRIBUTE`, suggestion: put them on the parent `Text`): a span is not a box and
+has no focus order. No other attribute is rewritten; the `a` rewrites of section 3.5 still apply.
+The span rules (static text, non-metric styles, hit testing, accessibility, limits) are
+[`elements-basic.md`](elements-basic.md) section 2.1.
+
+The same tags written outside `Text` remain plain `Text` elements (the emphasis defaults still
+apply); only a `Text` child becomes an inline span.
 
 ## 4. DOM element types in `useRef`
 
@@ -127,7 +155,7 @@ All of these are `TESSERA_JSX_SUBSET_HTML_TAG`; the suggestion is the Alternativ
 
 | Tags | Alternative |
 |---|---|
-| `strong`, `em`, `b`, `i`, `u`, `s`, `small`, `mark`, `code`, `kbd`, `sub`, `sup`, `abbr` | Inline rich text is outside V1: a `Text` with `className` (for example a class that sets `font-weight`) |
+| `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `abbr` | Inline rich text beyond the emphasis aliases is outside V1: a `Text` with `className` (for example a class that sets `font-weight`) |
 | `br` | End the `Text` and start a new one in a column `View`, or put `\n` in a string expression (line breaking follows `white-space`) |
 | `hr` | A `View` with a border style |
 | `pre`, `blockquote`, `q`, `cite` | `Text` with `className` (`white-space: pre` for `pre`) |

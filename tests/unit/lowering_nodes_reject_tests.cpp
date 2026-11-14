@@ -161,8 +161,8 @@ void test_children_rules() {
 
     const auto text_element = parse(component("", "<Text><View /></Text>"));
     const auto text_element_result = lower(*text_element);
-    check(!text_element_result.has_value(), "Text accepts no element child");
-    check_eq(first_code(text_element_result), "TESSERA_IR_UNSUPPORTED", "the code");
+    check(!text_element_result.has_value(), "Text accepts no non-span element child");
+    check_eq(first_code(text_element_result), "TESSERA_JSX_CHILDREN_NOT_ALLOWED", "the code");
 
     const auto scroll_text = parse(component("", "<Scroll>text</Scroll>"));
     const auto scroll_text_result = lower(*scroll_text);

@@ -438,7 +438,14 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `tests/gpu/codegen_vector_paint_golden_tests.cpp`,
       `tests/golden/baseline/codegen/vector_payload_cpu.png`.
 - [x] #226: Focusable `View`: `tabIndex`, `autoFocus`, `onFocus`/`onBlur`/`onKeyDown`, `ref.focus()`. Evidence: `focusable_view` (`tests/unit/focusable_view_tests.cpp`), `schema_golden`; spec [common-and-events.md](docs/specs/jsx-intrinsics-v1/common-and-events.md) section 4.
-- [ ] #229: Inline spans in `Text` (per-run class, `onClick`, `role="link"`).
+- [x] #229: Inline spans in `Text` (per-run class, `onClick`, `role="link"`) —
+      `src/compiler/lowering/node_children.cpp` (span children + synthetic runs, `TESSERA_JSX_SPAN_*`),
+      `src/compiler/ir/src/validate_node.cpp` (`TESSERA_IR_SPAN`), `src/compiler/codegen/src/emit_node.cpp`
+      (`PaintData` text + `PaintSpan` byte ranges), `src/ui/paint/paint_text_spans.cpp` (per-run weight/italic/
+      colour, wrapping across spans), span run rects for hit testing, a11y link children;
+      `alias_style_defaults` for b/strong/i/em/code and `a` → `role="link"`; specs
+      `elements-basic.md` §2.1, `html-aliases.md`, `ir-v1.md` §3.6/§9/§10; tests
+      `lowering_inline_span`, `ir_inline_span`, `codegen_span`, `paint_text_span`, `a11y_span`.
 - [ ] #231: User component instances inside list templates and conditionals, and list-typed props.
 
 

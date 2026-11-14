@@ -2056,3 +2056,30 @@ add_executable(render_target_extent_tests
 target_link_libraries(render_target_extent_tests PRIVATE tessera_scale)
 
 add_test(NAME render_target_extent COMMAND render_target_extent_tests)
+
+# --- Inline spans in Text (issue #229) ---------------------------------------------------------
+add_executable(lowering_inline_span_tests
+    lowering_inline_span_tests.cpp)
+target_link_libraries(lowering_inline_span_tests PRIVATE tessera_lowering)
+add_test(NAME lowering_inline_span COMMAND lowering_inline_span_tests)
+
+add_executable(ir_inline_span_tests
+    ir_inline_span_tests.cpp
+    ir_samples.cpp)
+target_link_libraries(ir_inline_span_tests PRIVATE tessera_ir)
+add_test(NAME ir_inline_span COMMAND ir_inline_span_tests)
+
+add_executable(paint_text_span_tests
+    paint_text_span_tests.cpp)
+target_link_libraries(paint_text_span_tests PRIVATE tessera_paint tessera_scene)
+add_test(NAME paint_text_span COMMAND paint_text_span_tests)
+
+add_executable(a11y_span_tests
+    a11y_span_tests.cpp)
+target_link_libraries(a11y_span_tests PRIVATE tessera_accessibility)
+add_test(NAME a11y_span COMMAND a11y_span_tests)
+
+add_executable(codegen_span_tests
+    codegen_span_tests.cpp)
+target_link_libraries(codegen_span_tests PRIVATE tessera_codegen)
+add_test(NAME codegen_span COMMAND codegen_span_tests)

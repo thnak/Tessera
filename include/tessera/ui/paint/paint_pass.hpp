@@ -88,6 +88,10 @@ struct PaintContext {
     TextLayoutCache* text_layout_cache = nullptr;
     PaintCache* paint_cache = nullptr;
     const PaintTextMetricsSource* text_metrics_source = nullptr;
+    // Style provider used to resolve the run style of inline-span child nodes (issue #229). Null
+    // falls back to the parent's style for every run; `paint_scene` fills it with its own provider,
+    // so direct callers only need to leave it alone.
+    StyleProvider* styles = nullptr;
     // Device scale used for caret width (1 px at scale 1, 2 px at scale >= 2) and future
     // decoration metrics. Defaults to 1 so tests/goldens are unchanged.
     float device_scale = 1.0f;
@@ -108,7 +112,9 @@ struct PaintContext {
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in
-// pre-order (parent before children, children in paint order). Does not mutate the scene.
+// pre-order (parent before children, children in paint order). The scene is never mutated except
+// for inline-span run rectangles (issue #229): a text span's bounds are derived paint data that the
+// hit test reads, so `set_span_bounds` stores them without marking a dirty domain.
 //
 // Coordinates: bounds() are parent-relative and Node::world_bounds() composes their origins,
 // transforms, and any ancestor scroll offset into absolute coordinates, so the pass paints that

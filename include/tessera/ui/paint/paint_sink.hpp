@@ -21,6 +21,10 @@ struct TextDraw {
     std::string_view text; // UTF-8; borrowed for the duration of the draw_text call
     float font_size = 16.0f;
     int font_weight = 400;
+    // Inline-span italic run style (issue #229). Sinks that cannot select an italic face ignore it;
+    // the stubbed/single-face V1 renderers paint the upright face and the flag is carried for the
+    // real text stack.
+    bool italic = false;
     rhi::Color color{0.0f, 0.0f, 0.0f, 1.0f};
     // Absolute baseline for a line box computed by the paint pass. nullopt keeps the single-line
     // behavior (the sink top-aligns the shaped run inside `rect` using its own ascent).

@@ -94,6 +94,12 @@ public:
     [[nodiscard]] const rhi::Rect& bounds() const {
         return bounds_;
     }
+    // Inline-span run rectangle, in the parent's border-box coordinates (issue #229). A span is not
+    // a layout box: the paint pass derives this rect from the parent's line boxes and stores it so
+    // the generic hit test can resolve a point to the span child. It never marks a dirty domain;
+    // the parent's layout/paint dirty flags already drive the frame (a span has no independent
+    // size).
+    void set_span_bounds(const rhi::Rect& bounds);
 
     void set_transform(const rhi::Mat3& transform);
     [[nodiscard]] const rhi::Mat3& transform() const {

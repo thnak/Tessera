@@ -24,10 +24,12 @@ namespace tessera::schema {
 // Version of the table layout (machine-readable.md section 5, "Versioning").
 inline constexpr int kSchemaVersion = 1;
 
-// README section 2, "children": the five rules of the element table plus `text+nodes`.
+// README section 2, "children": the five rules of the element table plus `text+nodes` and
+// `inline-text` (a `Text` accepts text runs and inline spans, elements-basic.md section 2.1).
 enum class ChildrenKind : std::uint8_t {
     None,
     Text,
+    InlineText,
     Nodes,
     TextAndNodes,
     Template, // exactly one list-loop template (VirtualList/VirtualGrid)
@@ -133,6 +135,14 @@ struct AliasInject {
     std::string_view value;
 };
 
+// The default inline style an emphasis alias injects when it is used as an inline span
+// (html-aliases.md section 2; elements-basic.md section 2.1). `property` is a schema style name.
+struct AliasStyle {
+    std::string_view tag;
+    std::string_view property;
+    std::string_view value;
+};
+
 // One value of a ValueMap attribute (`button type`, `textarea wrap`).
 struct AliasValue {
     std::string_view value;
@@ -186,6 +196,9 @@ struct DomType {
 [[nodiscard]] std::span<const TypeRecord> type_records();
 [[nodiscard]] std::span<const ElementRow> elements();
 [[nodiscard]] std::span<const AliasRow> aliases(); // mapped, partial and unsupported rows
+// The injected default run styles of the emphasis aliases (`b`, `strong`, `i`, `em`, `code`), in
+// table order; a tag without an entry gets none.
+[[nodiscard]] std::span<const AliasStyle> alias_style_defaults(std::string_view tag);
 [[nodiscard]] std::span<const DomType> dom_types();
 
 // Null when the tag is not an intrinsic or the name is not a payload record.

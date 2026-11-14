@@ -141,7 +141,10 @@ void test_element_details() {
         return;
     }
     check(view->children == schema::ChildrenKind::TextAndNodes, "View children");
-    check(text->children == schema::ChildrenKind::Text, "Text children");
+    check(text->children == schema::ChildrenKind::InlineText,
+          "Text children (text or inline spans)");
+    check_eq(schema::to_string(schema::ChildrenKind::InlineText), "inline-text",
+             "inline-text children name");
     check(button->children == schema::ChildrenKind::TextAndNodes, "Button children");
     check(input->children == schema::ChildrenKind::None, "TextInput children");
     check(image->children == schema::ChildrenKind::None, "Image children");
@@ -240,6 +243,24 @@ void test_aliases() {
     check(anchor != nullptr && anchor->status == schema::AliasStatus::Partial &&
               anchor->target == "Text",
           "a is a partial alias of Text");
+    // Inline emphasis aliases (issue #229): mapped to Text with injected default run styles.
+    const schema::AliasRow* bold = schema::find_alias("b");
+    check(bold != nullptr && bold->status == schema::AliasStatus::Mapped && bold->target == "Text",
+          "b is a mapped alias of Text");
+    const auto bold_style = schema::alias_style_defaults("b");
+    check(bold_style.size() == 1 && bold_style[0].property == "font-weight" &&
+              bold_style[0].value == "700",
+          "b injects font-weight: 700");
+    const auto italic_style = schema::alias_style_defaults("em");
+    check(italic_style.size() == 1 && italic_style[0].property == "font-style" &&
+              italic_style[0].value == "italic",
+          "em injects font-style: italic");
+    const auto code_style = schema::alias_style_defaults("code");
+    check(code_style.size() == 1 && code_style[0].property == "font-family" &&
+              code_style[0].value == "monospace",
+          "code injects font-family: monospace");
+    check(schema::alias_style_defaults("span").empty(), "span injects no style");
+    check(schema::alias_style_defaults("div").empty(), "a non-emphasis alias injects no style");
     const schema::AliasRow* input = schema::find_alias("input");
     check(input != nullptr && input->type_map.size() == 6 && input->type_map_closed,
           "input has a closed type map");

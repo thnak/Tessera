@@ -121,7 +121,7 @@ void test_subset_rejections() {
              "TESSERA_JSX_SUBSET_DOM;", "dangerouslySetInnerHTML");
     check_eq(codes(parse_jsx_element("<A b={x == y}/>")), "TESSERA_JSX_SUBSET_LOOSE_EQUALITY;",
              "expression rejections surface from attributes");
-    check_eq(codes(parse_jsx_element("<div><span/></div>")),
+    check_eq(codes(parse_jsx_element("<div><form/></div>")),
              "TESSERA_JSX_SUBSET_HTML_TAG;TESSERA_JSX_SUBSET_HTML_TAG;",
              "independent errors are all reported, in source order");
 }
@@ -205,14 +205,14 @@ void test_spans() {
 }
 
 void test_locations_with_crlf_and_non_ascii() {
-    const std::string source = "<A>\r\n  \xC3\xA9\xC3\xA9 <b/>\r\n</A>";
+    const std::string source = "<A>\r\n  \xC3\xA9\xC3\xA9 <u/>\r\n</A>";
     const auto result = parse_jsx_element(source);
     check_eq(codes(result), "TESSERA_JSX_SUBSET_HTML_TAG;", "lowercase child tag");
     const auto& where = first_diag(result).span;
     check(where.start.line == 2 && where.start.column == 7,
           "line 2, column 7 counts the two 2-byte code points and the space after the indent");
     check(where.end.line == 2 && where.end.column == 8, "end column");
-    check(where.span.length == 1, "byte length of `b`");
+    check(where.span.length == 1, "byte length of `u`");
 }
 
 void test_determinism() {

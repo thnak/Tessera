@@ -10,6 +10,7 @@ add_library(tessera_paint STATIC
     paint_text.cpp
     paint_text_metrics.cpp
     paint_text_runs.cpp
+    paint_text_spans.cpp
     scene_style_sync.cpp
     paint_vector.cpp
     text_layout_cache.cpp)

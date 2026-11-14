@@ -68,7 +68,7 @@ void test_node_shapes() {
     expect(
         "a View may have children",
         [](auto& m) {
-            label_node(m).children.push_back(leaf(ir::NodeKind::View, "node::90", "90"));
+            list(m).root.children.push_back(leaf(ir::NodeKind::View, "node::90", "90"));
         },
         "");
     expect(

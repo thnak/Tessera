@@ -53,17 +53,21 @@ void mark_subtree(ui::Node& node, ui::Dirty dirty) {
     }
 }
 
-// The layout engine consumes a plain tree of computed styles; the paint pass resolves the same
-// styles again through the provider, so the two always agree on one cascade.
+// One layout tree of computed styles (the paint pass resolves the same provider, so both agree).
 ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles) {
     ui::layout::LayoutInput input;
     input.id = node.id();
     input.style = styles.compute(node);
     const auto& paint = node.paint_data();
-    if (paint && paint->kind == ui::PaintKind::Text) {
+    const bool text_payload = paint && paint->kind == ui::PaintKind::Text;
+    if (text_payload) {
         input.text = paint->text;
     }
     for (const auto& child : node.children()) {
+        // Inline spans are runs of this text, not boxes (issue #229, elements-basic.md 2.1).
+        if (text_payload && paint->has_span(child->id())) {
+            continue;
+        }
         input.children.push_back(build_layout_input(*child, styles));
     }
     return input;

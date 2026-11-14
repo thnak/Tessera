@@ -54,6 +54,24 @@ bool check_focusable_semantics(NodeState& state, const jsx::JsxNode& element,
     return true;
 }
 
+// Alias defaults inside a Text span (issue #229): injected props (`a` -> role=link) and the
+// injected run style (`b` -> font-weight: 700). Explicit attributes and inline style declarations
+// win, so a default is only added when the slot is still empty.
+void apply_alias_defaults(const ElementInfo& info, ir::Node& node) {
+    for (const schema::AliasInject& inject : info.inject) {
+        const std::string name(inject.name);
+        if (node.props.find(name) == node.props.end()) {
+            node.props.emplace(name, ir::make_literal(std::string(inject.value)));
+        }
+    }
+    for (const schema::AliasStyle& style : info.style_defaults) {
+        const std::string name(style.property);
+        if (node.style.find(name) == node.style.end()) {
+            node.style.emplace(name, ir::make_literal(std::string(style.value)));
+        }
+    }
+}
+
 } // namespace
 
 std::optional<ir::Node> make_node(NodeState& state, const jsx::JsxNode& element) {
@@ -78,6 +96,7 @@ std::optional<ir::Node> make_node(NodeState& state, const jsx::JsxNode& element)
     if (!lower_attributes(state, element, *info, node)) {
         return std::nullopt;
     }
+    apply_alias_defaults(*info, node);
     if (!lower_children(state, element, *info, node)) {
         return std::nullopt;
     }

@@ -88,6 +88,13 @@ void Node::set_bounds(const rhi::Rect& bounds) {
     set_scroll_offset(scroll_x_, scroll_y_);
 }
 
+void Node::set_span_bounds(const rhi::Rect& bounds) {
+    // Derivable paint data, not a layout box: no dirty marks and no scrollport/offset side effects.
+    if (!same_rect(bounds_, bounds)) {
+        bounds_ = bounds;
+    }
+}
+
 void Node::set_transform(const rhi::Mat3& transform) {
     if (same_transform(transform_, transform)) {
         return;

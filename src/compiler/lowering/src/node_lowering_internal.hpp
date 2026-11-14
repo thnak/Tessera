@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -31,6 +32,7 @@ struct NodeState {
     unsigned next_node_id = 1;            // `node::N`, pre-order per component (decision 2)
     unsigned loop_depth = 0;              // enclosing `.map` loops; at most 2 (ir-v1 section 5)
     unsigned slot_count = 0;              // `{children}` positions; at most one (ir-v1 section 3.4)
+    unsigned span_depth = 0; // inside a Text inline span (elements-basic.md section 2.1)
 };
 
 // Reports a TESSERA_IR_* error at `span` unless one was already reported. The diagnostic keeps a
@@ -51,6 +53,11 @@ struct ElementInfo {
     ir::NodeKind kind = ir::NodeKind::View;
     bool is_component = false; // slice 9: kind is Component and `component_id` is set
     std::string component_id;  // `comp::<Name>`
+    // Lowercase alias resolution inside a Text span (issue #229): injected props (`a` -> role=link)
+    // and injected default run styles (`b` -> font-weight: 700). Both are defaults; an explicit
+    // attribute/style wins. Empty for intrinsic elements and outside a span.
+    std::span<const schema::AliasInject> inject = {};
+    std::span<const schema::AliasStyle> style_defaults = {};
 };
 [[nodiscard]] std::optional<ElementInfo> resolve_element(NodeState& state,
                                                          const jsx::JsxNode& element);
@@ -95,6 +102,31 @@ struct AttributeInfo {
 
 // Builds one element (and its subtree) with the next `node::N` id. Null after reporting an error.
 [[nodiscard]] std::optional<ir::Node> make_node(NodeState& state, const jsx::JsxNode& element);
+
+// One flattened JSX child of an element: a text node, an expression container, an element, a
+// conditional/loop child or the slot position (node_children_items.cpp).
+struct ChildItem {
+    enum class Kind { Text, Expression, Element, Conditional, Loop, Slot };
+
+    Kind kind = Kind::Text;
+    const jsx::JsxNode* node = nullptr; // Text node, expression container or element
+    const jsx::Expr* expr = nullptr;    // Expression, Conditional and Loop kinds
+};
+
+[[nodiscard]] bool is_run_item(const ChildItem& item);
+[[nodiscard]] bool flatten_children(NodeState& state, const jsx::JsxNode& parent,
+                                    std::vector<ChildItem>& items, bool reject_fragments);
+[[nodiscard]] jsx::Span run_span(const std::vector<const ChildItem*>& run);
+// One run as an IR expression: a literal string, or a template when an expression part exists.
+[[nodiscard]] ir::ExprPtr build_run(NodeState& state, const std::vector<const ChildItem*>& run,
+                                    jsx::Span& span);
+// Appends one run as a synthetic `Text` child.
+[[nodiscard]] bool flush_run(NodeState& state, const std::vector<const ChildItem*>& run,
+                             ir::Node& parent);
+// Appends one element, conditional, loop or slot item to `parent`; false on error.
+[[nodiscard]] bool append_node_item(NodeState& state, const ChildItem& item, ir::Node& parent);
+[[nodiscard]] bool append_runs_and_elements(NodeState& state, const std::vector<ChildItem>& items,
+                                            ir::Node& node);
 
 // Attributes and children of an element already created by make_node.
 [[nodiscard]] bool lower_attributes(NodeState& state, const jsx::JsxNode& element,

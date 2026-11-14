@@ -169,14 +169,37 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
                       "`<" + std::string(element.tag) + ">` has no V1 intrinsic mapping",
                       element.tag_span, alias->alternative);
-        } else {
+            return std::nullopt;
+        }
+        if (state.span_depth == 0) {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
                       "`<" + std::string(element.tag) + ">` is a lowercase alias of `<" +
                           std::string(alias->target) +
-                          ">`; alias resolution is slice 13, write the intrinsic tag",
+                          ">`; alias resolution outside an inline span is slice 13, write the "
+                          "intrinsic tag",
                       element.tag_span, "write `<" + std::string(alias->target) + ">`");
+            return std::nullopt;
         }
-        return std::nullopt;
+        // Inside a Text span a lowercase alias resolves to its intrinsic (issue #229,
+        // html-aliases.md sections 2 and 3.6).
+        const schema::ElementRow* row = schema::find_element(alias->target);
+        if (row == nullptr) {
+            fail_node(state, "TESSERA_IR_MALFORMED",
+                      "the alias row of `<" + std::string(element.tag) +
+                          ">` targets an unknown "
+                          "intrinsic",
+                      element.tag_span);
+            return std::nullopt;
+        }
+        const std::optional<ir::NodeKind> kind = ir_node_kind(row->ir_kind);
+        if (!kind) {
+            fail_node(state, "TESSERA_IR_MALFORMED",
+                      "the alias target `" + std::string(row->tag) + "` has no IR node kind",
+                      element.tag_span);
+            return std::nullopt;
+        }
+        return ElementInfo{row, *kind,         false,
+                           {},  alias->inject, schema::alias_style_defaults(alias->tag)};
     }
     for (const ComponentRef& reference : state.context.component_refs) {
         if (reference.name == element.tag) {

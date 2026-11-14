@@ -24,6 +24,7 @@ set(_tessera_lowering_core_sources
     src/module_lowering.cpp
     src/node_attributes.cpp
     src/node_children.cpp
+    src/node_children_items.cpp
     src/node_lowering.cpp
     src/project_path.cpp
     src/prop_records.cpp
