@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_schedule.hpp"
 
@@ -97,7 +98,8 @@ bool emit_schedule_declarations(CppWriter& writer, const ir::Component& componen
 
 bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component,
                                const std::vector<ComponentInstance>& instances,
-                               std::string& error) {
+                               const DynamicPlan& plan, std::string& error) {
+    const bool item_instances = plan_has_item_instances(plan);
     writer.open("void " + component.name +
                 "::attach_scheduler(tessera::ui::UpdateScheduler& scheduler)");
     writer.line("update_ticket_.context = this;");
@@ -121,7 +123,16 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
     }
     writer.line("scheduler.attach(update_ticket_);");
     for (const ComponentInstance& instance : instances) {
+        if (instance.in_template()) {
+            continue; // the item record owns it; the item path attaches it below
+        }
         writer.line(instance_member(instance.ordinal) + ".attach_scheduler(scheduler);");
+    }
+    if (item_instances) {
+        // Live item instances join here, and a late-created item joins through the stored pointer
+        // (docs/design/compiler-node-state.md section 3).
+        writer.line("scheduler_ = &scheduler;");
+        emit_item_instance_calls(writer, plan, "attach_scheduler", "scheduler");
     }
     writer.close("");
     writer.line("");
@@ -129,7 +140,14 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
     writer.open("void " + component.name +
                 "::detach_scheduler(tessera::ui::UpdateScheduler& scheduler)");
     for (std::size_t i = instances.size(); i-- > 0;) {
+        if (instances[i].in_template()) {
+            continue;
+        }
         writer.line(instance_member(instances[i].ordinal) + ".detach_scheduler(scheduler);");
+    }
+    if (item_instances) {
+        emit_item_instance_calls(writer, plan, "detach_scheduler", "scheduler", true);
+        writer.line("scheduler_ = nullptr;");
     }
     writer.line("scheduler.detach(update_ticket_);");
     writer.close("");

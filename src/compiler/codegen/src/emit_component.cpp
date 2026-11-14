@@ -199,14 +199,14 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         writer.close("");
         writer.line("");
     }
-    if (!emit_dynamic_sources(writer, component, plan, adapters, dynamic_text, dynamic_metadata,
-                              controlled_inputs, error)) {
+    if (!emit_dynamic_sources(writer, component, module, plan, adapters, dynamic_text,
+                              dynamic_metadata, controlled_inputs, instances, error)) {
         return false;
     }
-    if (!emit_lifecycle(component, bindings, instances, writer, error)) {
+    if (!emit_lifecycle(component, bindings, instances, plan, writer, error)) {
         return false;
     }
-    if (!emit_schedule_definitions(writer, component, instances, error)) {
+    if (!emit_schedule_definitions(writer, component, instances, plan, error)) {
         return false;
     }
     emit_snapshot_definition(writer, component);

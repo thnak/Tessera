@@ -5,6 +5,7 @@
 // declarations (docs/design/compiler.md section 11).
 
 #include "emit_dynamic.hpp"
+#include "emit_props.hpp"
 #include "emit_virtual.hpp"
 
 #include <string>
@@ -18,7 +19,8 @@ std::string ordinal_text(unsigned ordinal) {
 
 } // namespace
 
-void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan) {
+void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan,
+                               const std::vector<ComponentInstance>& instances) {
     if (plan.lists.empty()) {
         return;
     }
@@ -42,6 +44,43 @@ void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan) {
         writer.line("std::size_t id_slot = 0; // NodeId offset slot; stable while the item lives");
         writer.line("std::array<tessera::ui::Node*, " + std::to_string(list.text_sites.size()) +
                     "> texts{};");
+        for (const DynamicGroup& group : plan.groups) {
+            if (group.template_ordinal != list.ordinal) {
+                continue;
+            }
+            for (const DynamicChild& child : group.children) {
+                if (child.kind != DynamicChildKind::Conditional) {
+                    continue;
+                }
+                const std::string ordinal = ordinal_text(child.ordinal);
+                writer.line("// `node::" + ordinal +
+                            "` conditional branch of this item (attached at its source position).");
+                writer.line("std::unique_ptr<tessera::ui::Node> branch_" + ordinal + "_owned;");
+                writer.line("tessera::ui::Node* branch_" + ordinal + "_node = nullptr;");
+                writer.line("std::uint64_t branch_" + ordinal + "_hash = 0;");
+                writer.line("bool branch_" + ordinal + "_set = false;");
+                writer.line("bool branch_" + ordinal + "_present = false;");
+            }
+            writer.line("// Dynamic child set of `node::" + ordinal_text(group.parent_ordinal) +
+                        "` inside this item.");
+            writer.line("tessera::ui::Node* group_parent_" + ordinal_text(group.parent_ordinal) +
+                        " = nullptr;");
+        }
+        for (const ComponentInstance& instance : instances) {
+            if (instance.template_ordinal != list.ordinal) {
+                continue;
+            }
+            writer.line("// Per-item `" + instance.component_id + "` instance (pre-order index " +
+                        ordinal_text(instance.ordinal) + "); the item key owns its state.");
+            writer.line("std::unique_ptr<" + instance.type_name + "> child_" +
+                        ordinal_text(instance.ordinal) + ";");
+            for (const PropBinding& binding : instance.props) {
+                if (prop_guard(binding.type) == PropGuard::Value) {
+                    writer.line("std::uint64_t " +
+                                prop_guard_member(instance.ordinal, binding.name) + " = 0;");
+                }
+            }
+        }
         --writer.indent;
         writer.line("};");
         writer.line("");
@@ -50,6 +89,9 @@ void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan) {
 
 void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
     for (const DynamicGroup& group : plan.groups) {
+        if (group.in_template()) {
+            continue; // the item record owns a template's branch slots and group parents
+        }
         for (const DynamicChild& child : group.children) {
             if (child.kind != DynamicChildKind::Conditional) {
                 continue;
@@ -116,13 +158,42 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
         writer.line("std::uint64_t list_" + ordinal + "_order_hash_ = 0;");
         writer.line("bool list_" + ordinal + "_order_set_ = false;");
     }
+    // Per-item component instances follow their owner: an item built after the owner was mounted
+    // mounts immediately, and its update ticket joins the scheduler the owner was given.
+    bool item_instances = false;
+    for (const ListTemplate& list : plan.lists) {
+        item_instances = item_instances || !list.instance_ordinals.empty();
+    }
+    if (item_instances) {
+        writer.line("// The owner's lifecycle and scheduler, so an item created later joins them.");
+        writer.line("bool mounted_ = false;");
+        writer.line("tessera::ui::UpdateScheduler* scheduler_ = nullptr;");
+    }
 }
 
 void emit_dynamic_declarations(CppWriter& writer, const DynamicPlan& plan) {
     writer.line("// Generated dynamic child paths: deterministic child positions and bounded keyed "
                 "lists.");
     for (const DynamicGroup& group : plan.groups) {
-        writer.line("void apply_children_" + ordinal_text(group.parent_ordinal) + "();");
+        if (!group.in_template()) {
+            writer.line("void apply_children_" + ordinal_text(group.parent_ordinal) + "();");
+            continue;
+        }
+        const ListTemplate* owner = nullptr;
+        for (const ListTemplate& list : plan.lists) {
+            if (list.ordinal == group.template_ordinal) {
+                owner = &list;
+                break;
+            }
+        }
+        if (owner == nullptr) {
+            continue;
+        }
+        // A dynamic child set inside a list template runs per item, over the item record's own
+        // branch slots (docs/design/compiler-node-state.md section 4).
+        writer.line("void apply_item_children_" + ordinal_text(group.parent_ordinal) + "(Item_" +
+                    ordinal_text(owner->ordinal) + "& tessera_out, const " + owner->element_cpp +
+                    "& " + owner->item + ", std::size_t tessera_index);");
     }
     for (const ListTemplate& list : plan.lists) {
         const std::string ordinal = ordinal_text(list.ordinal);

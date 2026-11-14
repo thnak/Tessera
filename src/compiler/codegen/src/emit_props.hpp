@@ -54,4 +54,15 @@ enum class PropGuard { None, Value, Callback };
                                     const std::vector<ComponentInstance>& instances,
                                     std::string& error);
 
+// One per-item instance's props (docs/design/compiler-node-state.md section 3). `record` names the
+// item record (`tessera_out`) and `field` the instance field in it (`tessera_out.child_7`).
+// `initial` emits the values the instance is built with (no guard; a callback lambda is bound once
+// and captures `this`, the item's owner component); otherwise it emits the hash-guarded refresh the
+// per-item content pass runs. A prop value may read the loop locals (`locals`).
+[[nodiscard]] bool emit_item_instance_props(CppWriter& writer, const ir::Component& owner,
+                                            const ComponentInstance& instance,
+                                            std::string_view record, std::string_view field,
+                                            const LocalBindings& locals, bool initial,
+                                            std::string& error);
+
 } // namespace tessera::compiler::codegen::internal

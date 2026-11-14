@@ -46,6 +46,10 @@ struct NodeEmitState {
     const std::vector<ListTextSite>* text_sites = nullptr;
     std::string index_expr; // `tessera_id_slot` inside an item builder, empty in the static tree
     std::string text_out;   // `tessera_out.texts` inside an item builder, empty otherwise
+    // The item record (`tessera_out`) an item builder writes to: conditional branch slots, dynamic
+    // group parents and child component instances of the item live there instead of on the
+    // component struct (docs/design/compiler-node-state.md sections 3 and 4). Empty in build().
+    std::string item_out;
 
     // Generated form-state binding of this component, when it owns a library `Form` instance
     // (form_binding.hpp). Empty outside a form component.
@@ -56,6 +60,9 @@ struct NodeEmitState {
     // content (empty in a component that does not declare `children`).
     const ir::IrModule* module = nullptr;
     std::string slot_variable;
+    // The caller component's collected instances: a per-item instance's prop bindings are read from
+    // here while its item builder is emitted (docs/design/compiler-node-state.md section 3).
+    const std::vector<ComponentInstance>* instances = nullptr;
 
     unsigned next_id = 1;
     unsigned next_var = 1;

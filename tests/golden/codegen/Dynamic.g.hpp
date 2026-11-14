@@ -289,9 +289,7 @@ namespace dynamic {
     template <class Self>
     inline void DynamicBase<Self>::apply_children_1() {
       using namespace Dynamic_detail;
-      if (children_parent_1_ == nullptr) {
-        return;
-      }
+      if (children_parent_1_ == nullptr) { return; }
       tessera::ui::Node& parent = *children_parent_1_;
       std::size_t position = 0;
       ++position; // a static child is attached by build()
@@ -399,6 +397,7 @@ namespace dynamic {
       std::uint64_t tessera_order = tessera::ui::kEffectHashSeed;
       std::size_t tessera_position = 0;
       for (const std::string& item : state_items_) {
+        (void)item;
         tessera_order = tessera::ui::effect_hash(tessera_order, std::string_view(item));
         ++tessera_position;
       }
@@ -440,8 +439,8 @@ namespace dynamic {
             }
           }
           if (tessera_match != tessera_old_count) {
-            // Reuse: the node subtree, its interpolated text pointers and its content hash move to the new slot.
-            tessera_next_items[tessera_next] = tessera_old_items[tessera_match];
+            // Reuse: the node subtree, its interpolated text pointers, its per-item branch slots and its component instances move to the new slot, so the instance state follows the key across a reorder.
+            tessera_next_items[tessera_next] = std::move(tessera_old_items[tessera_match]);
             tessera_next_hashes[tessera_next] = tessera_old_hashes[tessera_match];
             tessera_next_set[tessera_next] = tessera_old_set[tessera_match];
             parent.insert_child(insert_at + tessera_next, std::move(tessera_old_nodes[tessera_match]));

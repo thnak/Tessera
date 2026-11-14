@@ -367,6 +367,9 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
     }
     writer.open("void " + owner.name + "::apply_props()");
     for (const ComponentInstance& instance : instances) {
+        if (instance.in_template()) {
+            continue; // a per-item instance's props are set by its item builder/content pass
+        }
         if (instance.props.empty()) {
             continue;
         }

@@ -165,9 +165,11 @@ void test_generated_shape() {
           "the order hash includes the item count");
     check(source.find("std::string tessera_key = format_value(item);") != std::string::npos,
           "keys are formatted only on a structural change");
-    check(source.find("tessera_next_items[tessera_next] = tessera_old_items[tessera_match];") !=
-              std::string::npos,
-          "a matching key reuses the existing item node");
+    // The record is moved (never copied) so a per-item component instance stays addressable and its
+    // state follows the key (docs/design/compiler-node-state.md section 3).
+    check(source.find("tessera_next_items[tessera_next] = std::move(tessera_old_items["
+                      "tessera_match]);") != std::string::npos,
+          "a matching key reuses (moves) the existing item record");
     check(source.find("build_item_5(item, tessera_next, tessera_id_slot, "
                       "tessera_next_items[tessera_next]);") != std::string::npos,
           "a new key builds one item");

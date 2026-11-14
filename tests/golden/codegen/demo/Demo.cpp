@@ -197,9 +197,7 @@ namespace demo {
     }
     
     void Demo::apply_children_1() {
-      if (children_parent_1_ == nullptr) {
-        return;
-      }
+      if (children_parent_1_ == nullptr) { return; }
       tessera::ui::Node& parent = *children_parent_1_;
       std::size_t position = 0;
       ++position; // a static child is attached by build()

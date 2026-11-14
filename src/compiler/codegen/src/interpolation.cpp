@@ -251,8 +251,12 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
     // The controller is seeded during build(); its values/errors are re-read after the props.
     emit_form_state_calls(writer, forms);
     // The child set first: a newly attached branch or list item owns nodes whose text the
-    // interpolation below may then refresh in the same pass.
+    // interpolation below may then refresh in the same pass. A dynamic set inside a list template
+    // is per item and runs in the item content pass instead (docs/design/compiler-node-state.md 4).
     for (const DynamicGroup& group : plan.groups) {
+        if (group.in_template()) {
+            continue;
+        }
         writer.line("apply_children_" + std::to_string(group.parent_ordinal) + "();");
     }
     for (const DynamicText& entry : text_entries) {

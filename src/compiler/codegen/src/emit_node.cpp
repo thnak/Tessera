@@ -11,6 +11,7 @@
 
 #include "emit_layout_observe.hpp"
 #include "emit_node.hpp"
+#include "emit_node_support.hpp"
 #include "emit_vector.hpp"
 #include "emit_virtual.hpp"
 #include "interpolation.hpp"
@@ -35,87 +36,7 @@ bool fail(std::string& error, std::string message) {
     return false;
 }
 
-// Metadata and event targets that still have no runtime API are recorded in a deterministic
-// comment (docs/design/compiler.md section 11).
-std::string node_comment(const ir::Node& node) {
-    std::string out = "// " + node.id;
-    if (!node.events.empty()) {
-        out += " events={";
-        bool first = true;
-        for (const auto& [name, target] : node.events) {
-            out += (first ? "" : ",") + name + ":" + target;
-            first = false;
-        }
-        out += "}";
-    }
-    return out;
-}
-
-std::optional<std::string_view> literal_string(const ir::Expr* expr) {
-    if (expr == nullptr || expr->kind != ir::ExprKind::Literal) {
-        return std::nullopt;
-    }
-    if (const auto* text = std::get_if<std::string>(&expr->literal)) {
-        return std::string_view(*text);
-    }
-    return std::nullopt;
-}
-
-std::optional<std::uint64_t> parse_automation_id(std::string_view text) {
-    if (text.empty()) {
-        return std::nullopt;
-    }
-    std::uint64_t value = 0;
-    const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
-    if (result.ec != std::errc{} || result.ptr != text.data() + text.size()) {
-        return std::nullopt;
-    }
-    return value;
-}
-
-// The item-builder text site for `ordinal`, or nullptr when the node is not an interpolated
-// template text node.
-const ListTextSite* find_text_site(const std::vector<ListTextSite>* sites, unsigned ordinal) {
-    if (sites == nullptr) {
-        return nullptr;
-    }
-    for (const ListTextSite& site : *sites) {
-        if (site.ordinal == ordinal) {
-            return &site;
-        }
-    }
-    return nullptr;
-}
-
 } // namespace
-
-// `static_cast<tessera::ui::NodeId>(N)` for the static tree; inside a list-item builder the
-// template's pre-order id is offset by the item index so every generated node instance has a unique
-// NodeId (damage tracking keys previous bounds on it).
-std::string node_id_text(const ir::Node& node, NodeEmitState& state, std::string& error) {
-    std::string number;
-    std::string suffix = "u";
-    if (node.ui_id.empty()) {
-        // Slice 10 computes uiId; until then the pre-order index is the deterministic placeholder.
-        number = std::to_string(state.next_id++);
-    } else {
-        for (const char c : node.ui_id) {
-            if (std::isdigit(static_cast<unsigned char>(c)) == 0) {
-                error = "TESSERA_CODEGEN_UNSUPPORTED: node `" + node.id +
-                        "` has a non-numeric uiId `" + node.ui_id + "`";
-                return {};
-            }
-        }
-        ++state.next_id;
-        number = node.ui_id;
-        suffix = "ull";
-    }
-    if (state.index_expr.empty()) {
-        return "static_cast<tessera::ui::NodeId>(" + number + suffix + ")";
-    }
-    return "static_cast<tessera::ui::NodeId>(" + number + suffix + " + " + state.index_expr +
-           " * kItemIdStride)";
-}
 
 bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, std::string& variable,
                std::string& error) {
@@ -134,12 +55,8 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         break;
     case ir::NodeKind::Component:
         // A component instance owns its own state and is never inlined; its host node and the
-        // caller's slot content are emitted by the composition path.
-        if (state.locals != nullptr) {
-            return fail(error, "a component instance (`" + node.id +
-                                   "`) inside a list template is deferred; wrap the list in an "
-                                   "element");
-        }
+        // caller's slot content are emitted by the composition path. Inside a list template the
+        // instance is one record of the item (docs/design/compiler-node-state.md section 3).
         return emit_component_node(writer, node, state, variable, error);
     case ir::NodeKind::Slot:
         return fail(error, "a Slot (`" + node.id +
@@ -508,8 +425,13 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
     if (state.plan != nullptr) {
         const DynamicGroup* group = state.plan->group(node_ordinal);
         if (group != nullptr) {
-            writer.line("this->children_parent_" + std::to_string(node_ordinal) +
-                        "_ = " + variable + ".get();");
+            if (state.item_out.empty()) {
+                writer.line("this->children_parent_" + std::to_string(node_ordinal) +
+                            "_ = " + variable + ".get();");
+            } else {
+                writer.line(state.item_out + ".group_parent_" + std::to_string(node_ordinal) +
+                            " = " + variable + ".get();");
+            }
         }
     }
     for (std::size_t child_index = 0; child_index < node.children.size(); ++child_index) {
@@ -555,8 +477,13 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
             return false;
         }
         if (kind == DynamicChildKind::Conditional) {
-            writer.line("this->" + branch_member(child_ordinal, "owned_") + " = std::move(" +
-                        child_variable + ");");
+            if (state.item_out.empty()) {
+                writer.line("this->" + branch_member(child_ordinal, "owned_") + " = std::move(" +
+                            child_variable + ");");
+            } else {
+                writer.line(state.item_out + ".branch_" + std::to_string(child_ordinal) +
+                            "_owned = std::move(" + child_variable + ");");
+            }
         } else {
             writer.line(variable + "->add_child(std::move(" + child_variable + "));");
         }

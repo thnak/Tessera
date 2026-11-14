@@ -120,6 +120,14 @@ struct ComponentInstance {
     std::string type_name;    // generated C++ struct name (the component name)
     bool takes_children = false;
     std::vector<PropBinding> props; // declared prop order, then callback props
+    // Non-zero when the instance is inside a list template: the ordinal of that template's loop
+    // node. Such an instance is owned by the keyed item record (`Item_<n>`), one per item, instead
+    // of by a caller struct member (docs/design/compiler-node-state.md section 3).
+    unsigned template_ordinal = 0;
+
+    [[nodiscard]] bool in_template() const {
+        return template_ordinal != 0;
+    }
 };
 
 struct NodeEmitState; // emit_node.hpp
@@ -193,11 +201,13 @@ struct DynamicMetadata {
                                          bool base_mode = false);
 
 // Emits the effect deps-hash helpers, mount/update_effects/unmount and the child-instance
-// lifecycle propagation (emit_lifecycle.cpp).
+// lifecycle propagation (emit_lifecycle.cpp). Per-item component instances follow the owner's
+// lifecycle: they mount when the owner mounts (or when their item is created afterwards), update
+// with it, and unmount before their item is dropped.
 [[nodiscard]] bool emit_lifecycle(const ir::Component& component,
                                   const std::vector<const ir::Binding*>& bindings,
                                   const std::vector<ComponentInstance>& instances,
-                                  CppWriter& writer, std::string& error);
+                                  const DynamicPlan& plan, CppWriter& writer, std::string& error);
 
 // Appends `<Component>.hpp` and `<Component>.cpp` to `files` (or, with `base_mode`, the one
 // header-only `<Component>.g.hpp` of the ADR-040 generated base), or sets `error` and returns

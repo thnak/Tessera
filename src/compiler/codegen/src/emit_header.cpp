@@ -120,7 +120,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.open("namespace " + ns);
     writer.open("namespace gen");
     writer.line("// " + component.id + " (" + component.name + ").");
-    emit_dynamic_item_structs(writer, plan);
+    emit_dynamic_item_structs(writer, plan, instances);
     writer.open("struct " + component.name);
     // Props come first: a state/animated initializer may read one (IR allows it), and a
     // member initializer can only name a member declared before it.
@@ -207,6 +207,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         }
     }
     for (const ComponentInstance& instance : instances) {
+        if (instance.in_template()) {
+            continue; // owned per item by the keyed item record, not by a caller member
+        }
         writer.line("// Component instance `" + instance.component_id +
                     "` for the node with pre-order index " + std::to_string(instance.ordinal) +
                     " (the instance owns its own state).");
