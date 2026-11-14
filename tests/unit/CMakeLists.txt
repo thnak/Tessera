@@ -2113,3 +2113,9 @@ target_link_libraries(lowering_callback_forward_tests PRIVATE tessera_lowering t
 target_compile_definitions(lowering_callback_forward_tests PRIVATE
     TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME lowering_callback_forward COMMAND lowering_callback_forward_tests)
+
+# Issue #291: an imported component shadows an intrinsic element of the same name.
+add_executable(lowering_import_shadow_tests
+    lowering_import_shadow_tests.cpp)
+target_link_libraries(lowering_import_shadow_tests PRIVATE tessera_lowering)
+add_test(NAME lowering_import_shadow COMMAND lowering_import_shadow_tests)

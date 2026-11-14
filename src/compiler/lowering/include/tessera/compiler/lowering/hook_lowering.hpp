@@ -30,6 +30,10 @@ namespace tessera::compiler::lowering {
 struct ComponentRef {
     std::string name; // tag as written
     std::string id;   // `comp::<Name>`
+    // True for a component bound by an `import` statement. An imported name shadows an intrinsic
+    // element of the same name in that file (issue #291, jsx-subset-v1.md section 4); a component
+    // declared in the same file does not.
+    bool imported = false;
 };
 
 // One component: its AST item, the analysis of that item, and where its spans live. The analysis

@@ -160,6 +160,12 @@ Rules:
     When the project has no `tessera-ui` entry, those specifiers resolve to the library bundled
     with the compiler (`Field`, `Form`); an unknown name or subpath is `TESSERA_IR_UNRESOLVED`. A
     configured `tessera-ui` entry replaces the bundled library with its own files.
+  - **An imported component shadows an intrinsic element of the same name in that file** (issue
+    #291). `import { Button } from "tessera-ui"` makes `<Button>` the library component; a file
+    without the import keeps the intrinsic `Button`, and a renamed import (`import { Button as
+    Action }`) shadows under its local name only. A component declared in the same file does not
+    shadow an intrinsic. The library component renders intrinsic elements (`View`) itself, so the
+    intrinsic stays reachable.
   - A resolved package import follows the ordinary cross-file rules: the imported name must be
     declared in the target file, component names stay unique project-wide, import cycles apply,
     and the package file is compiled by the same analyzer, rules and lowering pipeline (no

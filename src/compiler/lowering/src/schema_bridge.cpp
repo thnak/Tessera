@@ -149,6 +149,17 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                   element.span);
         return std::nullopt;
     }
+    // An imported component shadows an intrinsic of the same name in this file (issue #291), so the
+    // library `Button` is reachable as `<Button>`; a file without the import keeps the intrinsic.
+    for (const ComponentRef& reference : state.context.component_refs) {
+        if (reference.imported && reference.name == element.tag) {
+            ElementInfo info;
+            info.kind = ir::NodeKind::Component;
+            info.is_component = true;
+            info.component_id = reference.id;
+            return info;
+        }
+    }
     if (const schema::ElementRow* row = schema::find_element(element.tag); row != nullptr) {
         if (row->tag == "CustomElement") {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
