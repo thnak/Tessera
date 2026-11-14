@@ -144,7 +144,9 @@ bool hierarchy(AtspiBridge& bridge) {
         MessageReader reader(result.reply->body);
         (void)reader.begin_struct();
         const std::string bus = std::string(reader.read_string());
-        return expect(bus.empty(), "out of range child is the null reference");
+        if (!expect(bus.empty(), "out of range child is the null reference")) {
+            return false;
+        }
     }
     {
         const Exchange result = exchange(

@@ -338,7 +338,9 @@ bool cancel_mid_gesture() {
         return false;
     }
     arena.process(up(1, 20.0f, 0.0f, 0.03));
-    return expect(arena.events().empty(), "up after cancel emits nothing");
+    if (!expect(arena.events().empty(), "up after cancel emits nothing")) {
+        return false;
+    }
 
     TapRecognizer tap;
     GestureArena tap_arena;
