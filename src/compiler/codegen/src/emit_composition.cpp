@@ -7,6 +7,8 @@
 // instance keeps its own state, so a referenced component is never inlined.
 
 #include "codegen_internal.hpp"
+#include "emit_events.hpp"
+#include "emit_layout_observe.hpp"
 #include "emit_node.hpp"
 #include "emit_props.hpp"
 #include "form_binding.hpp"
@@ -45,35 +47,50 @@ bool declares_children(const ir::Component& component) {
     return false;
 }
 
+// The first-party form components own caller-side controller wiring (form_binding.hpp) that is
+// planned per owning component, so a per-item instance of one is deferred (loud diagnostic).
+bool form_free(const ir::Component& target) {
+    return target.name != "Form" && target.name != "Field";
+}
+
 // Walks a node tree and appends every `Component` node to `instances`; returns false after the
-// first deferred form.
+// first deferred form. `template_ordinal` is the enclosing list template's loop-node ordinal (0
+// outside a template): such an instance is owned by the keyed item record, one per item.
 bool collect_instances(const ir::IrModule& module, const ir::Component& owner, const ir::Node& node,
-                       bool in_template, unsigned& ordinal,
+                       unsigned template_ordinal, unsigned& ordinal,
                        std::vector<ComponentInstance>& instances, std::string& error) {
     const unsigned self = ++ordinal;
     if (node.loop) {
-        in_template = true;
+        template_ordinal = self;
     }
     const bool instance = node.kind == ir::NodeKind::Component;
     if (instance) {
-        if (in_template) {
-            return fail(error, "a component instance (`" + node.id +
-                                   "`) inside a list template is deferred; wrap the list in an "
-                                   "element");
-        }
-        if (node.condition || node.loop) {
-            return fail(error, "a conditional or looped component instance (`" + node.id +
-                                   "`) is deferred; wrap the element in a container");
-        }
         const ir::Component* target = find_component(module, node.component);
         if (target == nullptr) {
             return fail(error, "the component instance `" + node.id +
                                    "` names unknown component `" + node.component + "`");
         }
+        const bool in_template = template_ordinal != 0;
+        if (in_template && !node.children.empty()) {
+            return fail(error, "slot children of a component instance (`" + node.id +
+                                   "`) inside a list template are deferred; wrap the content in an "
+                                   "element");
+        }
+        if (in_template && observes_size(*target, module)) {
+            return fail(error, "the component instance `" + node.id +
+                                   "` observes its size (`onSizeChange`) and is inside a list "
+                                   "template; per-item layout observers are deferred");
+        }
+        if (in_template && !form_free(*target)) {
+            return fail(error, "the form component instance `" + node.id +
+                                   "` inside a list template is deferred; a per-item form binding "
+                                   "needs per-item controller storage");
+        }
         const bool takes = declares_children(*target);
         // Props are validated against the target's declared prop records; the errors carry the
         // prop name (docs/specs/component-model-v1.md section 3).
         ComponentInstance entry{self, node.component, target->name, takes, {}};
+        entry.template_ordinal = template_ordinal;
         if (!collect_instance_props(module, owner, node, *target, entry, error)) {
             return false;
         }
@@ -90,16 +107,16 @@ bool collect_instances(const ir::IrModule& module, const ir::Component& owner, c
         }
     }
     for (const ir::Node& child : node.children) {
-        if (!collect_instances(module, owner, child, in_template, ordinal, instances, error)) {
+        if (!collect_instances(module, owner, child, template_ordinal, ordinal, instances, error)) {
             return false;
         }
     }
-    if (node.fallback &&
-        !collect_instances(module, owner, *node.fallback, in_template, ordinal, instances, error)) {
+    if (node.fallback && !collect_instances(module, owner, *node.fallback, template_ordinal,
+                                            ordinal, instances, error)) {
         return false;
     }
-    if (node.item_template && !collect_instances(module, owner, *node.item_template, in_template,
-                                                 ordinal, instances, error)) {
+    if (node.item_template && !collect_instances(module, owner, *node.item_template,
+                                                 template_ordinal, ordinal, instances, error)) {
         return false;
     }
     return true;
@@ -188,7 +205,7 @@ std::string instance_member(unsigned ordinal) {
 bool collect_component_instances(const ir::IrModule& module, const ir::Component& component,
                                  std::vector<ComponentInstance>& instances, std::string& error) {
     unsigned ordinal = 0;
-    return collect_instances(module, component, component.root, false, ordinal, instances, error);
+    return collect_instances(module, component, component.root, 0, ordinal, instances, error);
 }
 
 std::vector<std::string> component_includes(const ir::IrModule& module,
@@ -220,8 +237,13 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
         return fail(error, "the component instance (`" + node.id + "`) names unknown component `" +
                                node.component + "`");
     }
-    if (node.condition || node.loop) {
-        return fail(error, "a conditional or looped component instance (`" + node.id +
+    // A conditional instance keeps its instance in a branch slot: the host node this function
+    // returns is stored by the owner's child walk instead of attached
+    // (docs/design/compiler-node-state.md section 2). The instance itself is built, mounted and
+    // updated exactly once. Inside an item builder, a `loop` on this node is the template marker
+    // and belongs to `build_item_<n>`, not to the instance.
+    if (node.loop && state.item_out.empty()) {
+        return fail(error, "a looped component instance (`" + node.id +
                                "`) is deferred; wrap the element in a container");
     }
     if (!node.style.empty()) {
@@ -257,8 +279,55 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
     }
     for (const ir::Ref& ref : state.component.refs) {
         if (ref.target == node.id) {
+            if (!state.item_out.empty()) {
+                return fail(error, "a `useRef` target (`" + ref.id +
+                                       "`) on a component instance inside a list template is "
+                                       "deferred; one ref cannot name every item's instance");
+            }
             writer.line("this->" + member_name(ref.id) + " = " + variable + ".get();");
         }
+    }
+    if (!state.item_out.empty()) {
+        // Per-item instance (docs/design/compiler-node-state.md section 3): the item record owns
+        // it, so its state lives as long as the item key does. Props are the callee's build inputs,
+        // so they are assigned before build(); a callback lambda captures `this`, the item's owner.
+        const std::string field = state.item_out + ".child_" + std::to_string(ordinal);
+        const ComponentInstance* collected = nullptr;
+        if (state.instances != nullptr) {
+            for (const ComponentInstance& candidate : *state.instances) {
+                if (candidate.ordinal == ordinal) {
+                    collected = &candidate;
+                    break;
+                }
+            }
+        }
+        if (collected == nullptr) {
+            return fail(error, "the component instance `" + node.id +
+                                   "` is missing from the collected instances; this is an internal "
+                                   "codegen error");
+        }
+        writer.line(field + " = std::make_unique<" + target->name + ">();");
+        if (state.locals == nullptr) {
+            return fail(error, "a per-item instance needs the item builder locals");
+        }
+        if (!emit_item_instance_props(writer, state.component, *collected, state.item_out, field,
+                                      *state.locals, true, error)) {
+            return false;
+        }
+        writer.line(field + "->build(*" + variable + ");");
+        // Lifecycle and the update scheduler follow the owner: an item created after the owner was
+        // mounted starts mounted, and its ticket joins the scheduler the owner was given.
+        writer.line("if (this->mounted_) {");
+        writer.indent += 1;
+        writer.line(field + "->mount();");
+        writer.indent -= 1;
+        writer.line("}");
+        writer.line("if (this->scheduler_ != nullptr) {");
+        writer.indent += 1;
+        writer.line(field + "->attach_scheduler(*this->scheduler_);");
+        writer.indent -= 1;
+        writer.line("}");
+        return true;
     }
     // The caller's slot content: nodes owned by the caller, attached by the callee at its Slot.
     const std::string slot = "slot_" + std::to_string(ordinal);

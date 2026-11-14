@@ -37,6 +37,14 @@ struct DynamicChild {
 struct DynamicGroup {
     unsigned parent_ordinal = 0;
     std::vector<DynamicChild> children;
+    // Non-zero when the group's parent is inside a list template: the walk then runs per item, over
+    // the item record's own branch slots and group parent, not over the component's members
+    // (docs/design/compiler-node-state.md section 4).
+    unsigned template_ordinal = 0;
+
+    [[nodiscard]] bool in_template() const {
+        return template_ordinal != 0;
+    }
 };
 
 // One interpolated text node inside a list template: the per-item content pass rebuilds it from the
@@ -115,6 +123,9 @@ struct ListTemplate {
     std::string element_type; // IR element type of the source list (`string`, `int`, ...)
     std::string element_cpp;  // C++ element type (`std::string`, `int`, ...)
     std::vector<ListTextSite> text_sites;
+    // Ordinals of the `Component` nodes in this template subtree: one owned instance per item
+    // (docs/design/compiler-node-state.md section 3).
+    std::vector<unsigned> instance_ordinals;
     VirtualEventWiring events;    // collection-level events (virtual collections only)
     VirtualGeometrySpec geometry; // resolved geometry inputs (virtual collections only)
 };
@@ -144,7 +155,8 @@ struct DynamicPlan {
 
 // Header emission: the bounded item cap/item structs (namespace scope, before the component
 // struct), the generated members, and the method declarations.
-void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan);
+void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan,
+                               const std::vector<ComponentInstance>& instances);
 void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan);
 void emit_dynamic_declarations(CppWriter& writer, const DynamicPlan& plan);
 
@@ -160,24 +172,43 @@ struct EventAdapter;
                                        const DynamicPlan& plan, const DynamicGroup& group,
                                        std::string& error);
 
+// Emits `<Name>::apply_item_children_<p>(Item_<n>&, const T&, std::size_t)`: the same walk for a
+// dynamic child set inside a list item, over the item record's own branch slots
+// (docs/design/compiler-node-state.md section 4).
+[[nodiscard]] bool emit_item_apply_children(CppWriter& writer, const ir::Component& component,
+                                            const DynamicPlan& plan, const DynamicGroup& group,
+                                            std::string& error);
+
 // Emits build_item_<n>(), apply_item_<n>() and apply_list_<n>() for every list template
 // (emit_list.cpp). A virtual item template emits apply_virtual_<n>() instead of apply_list_<n>().
 [[nodiscard]] bool emit_list_sources(CppWriter& writer, const ir::Component& component,
-                                     const DynamicPlan& plan,
+                                     const ir::IrModule& module, const DynamicPlan& plan,
                                      const std::vector<EventAdapter>& adapters,
                                      const std::vector<DynamicText>& dynamic_text,
                                      const std::vector<DynamicMetadata>& dynamic_metadata,
                                      const std::vector<ControlledInput>& controlled_inputs,
+                                     const std::vector<ComponentInstance>& instances,
                                      std::string& error);
 
 // Emits build_item_<n>(), apply_item_<n>(), apply_list_<n>() and apply_children_<p>() for the plan.
 [[nodiscard]] bool emit_dynamic_sources(CppWriter& writer, const ir::Component& component,
-                                        const DynamicPlan& plan,
+                                        const ir::IrModule& module, const DynamicPlan& plan,
                                         const std::vector<EventAdapter>& adapters,
                                         const std::vector<DynamicText>& dynamic_text,
                                         const std::vector<DynamicMetadata>& dynamic_metadata,
                                         const std::vector<ControlledInput>& controlled_inputs,
+                                        const std::vector<ComponentInstance>& instances,
                                         std::string& error);
+
+// Calls `method` on every live per-item component instance of the plan (for example `mount`,
+// `update`, `unmount`, `attach_scheduler`). `argument` is appended inside the call parentheses
+// (`""` for the parameterless lifecycle methods). `reverse` walks each item table backwards, which
+// the teardown paths need (a later item unmounts first).
+void emit_item_instance_calls(CppWriter& writer, const DynamicPlan& plan, std::string_view method,
+                              std::string_view argument = {}, bool reverse = false);
+
+// True when the plan owns at least one per-item component instance.
+[[nodiscard]] bool plan_has_item_instances(const DynamicPlan& plan);
 
 // The generated member name for one conditional branch slot (`branch_7_owned_`).
 [[nodiscard]] std::string branch_member(unsigned ordinal, std::string_view suffix);

@@ -266,8 +266,9 @@ void test_deferred_forms_are_rejected() {
     {
         ir::IrModule module = make_composition_module();
         module.components[1].root.children[0].condition = ir::make_literal(true);
-        check(!codegen::generate(module).has_value(),
-              "a conditional component instance is rejected");
+        check(codegen::generate(module).has_value(),
+              "a conditional component instance is supported (issue #231; its host node rides the "
+              "branch slot)");
     }
     {
         ir::IrModule module = make_composition_module();

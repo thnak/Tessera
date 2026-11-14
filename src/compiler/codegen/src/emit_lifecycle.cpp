@@ -4,6 +4,7 @@
 // plus mount/update_effects/unmount, and the ref-target assignment the generated build() performs.
 
 #include "codegen_internal.hpp"
+#include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 
 #include <optional>
@@ -100,23 +101,54 @@ bool emit_dep_hash(CppWriter& writer, const ir::Component& component, std::size_
 } // namespace
 
 bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::Binding*>& bindings,
-                    const std::vector<ComponentInstance>& instances, CppWriter& writer,
-                    std::string& error) {
+                    const std::vector<ComponentInstance>& instances, const DynamicPlan& plan,
+                    CppWriter& writer, std::string& error) {
+    const bool item_instances = plan_has_item_instances(plan);
+    const auto static_instances = [&]() {
+        std::vector<const ComponentInstance*> result;
+        for (const ComponentInstance& instance : instances) {
+            if (!instance.in_template()) {
+                result.push_back(&instance);
+            }
+        }
+        return result;
+    }();
     const auto instance_calls = [&](std::string_view method, bool reverse) {
         if (reverse) {
-            for (std::size_t i = instances.size(); i-- > 0;) {
-                writer.line(instance_member(instances[i].ordinal) + "." + std::string(method) +
-                            "();");
+            for (std::size_t i = static_instances.size(); i-- > 0;) {
+                writer.line(instance_member(static_instances[i]->ordinal) + "." +
+                            std::string(method) + "();");
             }
             return;
         }
-        for (const ComponentInstance& instance : instances) {
-            writer.line(instance_member(instance.ordinal) + "." + std::string(method) + "();");
+        for (const ComponentInstance* instance : static_instances) {
+            writer.line(instance_member(instance->ordinal) + "." + std::string(method) + "();");
         }
+    };
+    // Live per-item instances mount/unmount/update with their owner; `mounted_` is the owner's flag
+    // so an item created later mounts immediately (docs/design/compiler-node-state.md section 3).
+    const auto item_calls = [&](std::string_view method, bool reverse) {
+        if (item_instances) {
+            emit_item_instance_calls(writer, plan, method, {}, reverse);
+        }
+    };
+    const auto mount_items = [&]() {
+        if (!item_instances) {
+            return;
+        }
+        item_calls("mount", false);
+        writer.line("mounted_ = true;");
+    };
+    const auto unmount_items = [&]() {
+        if (!item_instances) {
+            return;
+        }
+        writer.line("mounted_ = false;");
+        item_calls("unmount", true);
     };
     if (component.effects.empty()) {
         writer.line("");
-        if (instances.empty()) {
+        if (static_instances.empty() && !item_instances) {
             writer.line("void " + component.name + "::mount() {}");
             writer.line("");
             writer.line("void " + component.name + "::update_effects() {}");
@@ -132,12 +164,14 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
         }
         writer.open("void " + component.name + "::mount()");
         instance_calls("mount", false);
+        mount_items();
         writer.close("");
         writer.line("");
         writer.open("void " + component.name + "::update_effects()");
         writer.close("");
         writer.line("");
         writer.open("void " + component.name + "::unmount()");
+        unmount_items();
         instance_calls("unmount", true);
         writer.close("");
         writer.line("");
@@ -145,6 +179,9 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
         writer.line("update_effects();");
         writer.line("apply_state();");
         instance_calls("update", false);
+        if (item_instances) {
+            emit_item_instance_calls(writer, plan, "update");
+        }
         writer.close("");
         writer.line("");
         return true;
@@ -165,6 +202,7 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
     writer.open("void " + component.name + "::mount()");
     writer.line("update_effects();");
     instance_calls("mount", false);
+    mount_items();
     writer.close("");
     writer.line("");
 
@@ -207,6 +245,9 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
     writer.line("update_effects();");
     writer.line("apply_state();");
     instance_calls("update", false);
+    if (item_instances) {
+        emit_item_instance_calls(writer, plan, "update");
+    }
     writer.close("");
     writer.line("");
 
@@ -230,6 +271,7 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
         --writer.indent;
         writer.line("}");
     }
+    unmount_items();
     instance_calls("unmount", true);
     writer.close("");
     writer.line("");

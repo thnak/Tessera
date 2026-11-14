@@ -5,6 +5,7 @@
 // numbering as emit_node, counting template subtrees so ids, dynamic-text order and item ids agree.
 
 #include "emit_dynamic.hpp"
+#include "emit_dynamic_plan_util.hpp"
 #include "emit_virtual.hpp"
 #include "interpolation.hpp"
 #include "value_ops.hpp"
@@ -20,82 +21,13 @@
 namespace tessera::compiler::codegen::internal {
 namespace {
 
-bool fail(std::string& error, std::string message) {
-    error = "TESSERA_CODEGEN_UNSUPPORTED: " + std::move(message);
-    return false;
-}
-
-bool starts_with(std::string_view text, std::string_view prefix) {
-    return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
-}
-
-// Generated item builders bind the loop item/index by name, so a name that collides with a
-// generated local, the generated id prefix or a helper the item body calls would not compile (or
-// would silently resolve to the wrong object). Rejecting them keeps the generated code readable.
-bool reserved_loop_local(std::string_view name) {
-    static constexpr std::array<std::string_view, 11> kReserved = {
-        "format_value",  "apply_state", "attach_child_at", "detach_child", "kEffectHashSeed",
-        "kItemIdStride", "build_item",  "apply_item",      "apply_list",   "apply_children"};
-    if (starts_with(name, "tessera_") || starts_with(name, "node_")) {
-        return true;
-    }
-    return std::find(kReserved.begin(), kReserved.end(), name) != kReserved.end();
-}
-
-// The declared IR type of a component field reference (`state::rows` -> `list<string>`).
-std::optional<std::string> declared_field_type(const ir::Component& component,
-                                               std::string_view ref_id) {
-    for (const ir::State& state : component.state) {
-        if (state.id == ref_id) {
-            return state.type;
-        }
-    }
-    if (starts_with(ref_id, "prop::")) {
-        const std::string_view name = ref_id.substr(6);
-        for (const ir::Prop& prop : component.props) {
-            if (prop.name == name) {
-                return prop.type;
-            }
-        }
-    }
-    return std::nullopt;
-}
-
-// `list<T>` -> `T`.
-std::optional<std::string> list_element_type(std::string_view type) {
-    if (!starts_with(type, "list<") || type.back() != '>') {
-        return std::nullopt;
-    }
-    return std::string(type.substr(5, type.size() - 6));
-}
-
-// True when `expr` reads the loop item or index (directly or as `item.field`). A key that reads
-// only component state would give every item the same key, so it is rejected instead of silently
-// degrading to a positional match.
-bool mentions_loop_local(const ir::Expr& expr, std::string_view item, std::string_view index) {
-    switch (expr.kind) {
-    case ir::ExprKind::Ref: {
-        const std::string_view base = std::string_view(expr.id).substr(0, expr.id.find('.'));
-        return base == item || (!index.empty() && base == index);
-    }
-    case ir::ExprKind::Literal:
-        return false;
-    case ir::ExprKind::Template:
-        for (const ir::TemplatePart& part : expr.parts) {
-            if (part.expr && mentions_loop_local(*part.expr, item, index)) {
-                return true;
-            }
-        }
-        return false;
-    default:
-        for (const ir::ExprPtr& operand : expr.operands) {
-            if (operand && mentions_loop_local(*operand, item, index)) {
-                return true;
-            }
-        }
-        return false;
-    }
-}
+// Small helpers live in emit_dynamic_plan_util.cpp so this file stays the plan walk itself.
+using plan_detail::declared_field_type;
+using plan_detail::fail;
+using plan_detail::list_element_type;
+using plan_detail::mentions_loop_local;
+using plan_detail::reserved_loop_local;
+using plan_detail::starts_with;
 
 struct PlanWalk {
     const ir::Component& component;
@@ -103,7 +35,8 @@ struct PlanWalk {
     std::string& error;
     unsigned ordinal = 0;
     bool in_template = false;
-    std::size_t current_list = 0; // index into plan.lists while walking a template subtree
+    unsigned template_ordinal = 0; // the enclosing template's loop-node ordinal while in a template
+    std::size_t current_list = 0;  // index into plan.lists while walking a template subtree
 
     bool walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
               bool is_virtual_template_root = false);
@@ -127,11 +60,9 @@ LocalBindings PlanWalk::template_locals() const {
 }
 
 bool PlanWalk::validate_template_node(const ir::Node& node, bool is_template_root) {
-    if (node.kind == ir::NodeKind::Component || node.kind == ir::NodeKind::Slot) {
-        return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
-                               "` inside a list template (" + node.id +
-                               ") is deferred: a per-item component instance needs per-item "
-                               "state");
+    if (node.kind == ir::NodeKind::Slot) {
+        return fail(error, "`Slot` inside a list template (" + node.id +
+                               ") is deferred; a per-item slot position has no caller content");
     }
     if (node.kind == ir::NodeKind::TextInput || node.kind == ir::NodeKind::TextArea) {
         return fail(error, "`" + std::string(ir::node_kind_name(node.kind)) +
@@ -139,15 +70,25 @@ bool PlanWalk::validate_template_node(const ir::Node& node, bool is_template_roo
                                ") is deferred: a per-item edit controller needs per-item runtime "
                                "storage");
     }
+    if (node.kind == ir::NodeKind::Component && current_list < plan.lists.size() &&
+        plan.lists[current_list].is_virtual) {
+        return fail(error,
+                    "a component instance (`" + node.id +
+                        "`) inside a virtual item template is deferred; use an eager list or "
+                        "wrap the list in an element");
+    }
+    if (node.condition && current_list < plan.lists.size() && plan.lists[current_list].is_virtual) {
+        // A virtual collection recycles item records by absolute index, so per-item presence inside
+        // its template needs the presence state machine (element-transitions-v1, post-V1).
+        return fail(error, "a conditional node (`" + node.id +
+                               "`) inside a virtual item template is deferred; use an eager list");
+    }
     if (node.loop && !is_template_root) {
         return fail(error, "a nested list template (`" + node.id +
                                "`) is deferred; v1 generates one list level per template");
     }
-    if (node.condition) {
-        return fail(error, "a conditional node (`" + node.id +
-                               "`) inside a list template is deferred: a per-item child set needs "
-                               "per-item presence state");
-    }
+    // A conditional inside a template is per-item presence: the item record owns the branch slot
+    // (docs/design/compiler-node-state.md section 4). Its expression is validated by walk().
     for (const ir::Ref& ref : component.refs) {
         if (ref.target == node.id) {
             return fail(error, "`useRef` `" + ref.name + "` targets `" + node.id +
@@ -331,11 +272,13 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
         }
         break;
     case ir::NodeKind::Component:
-        // Composition itself is emitted elsewhere; the instance forms it cannot express yet are
-        // rejected there, and a conditional or looped instance is rejected here.
-        if (node.condition || node.loop) {
-            return fail(error, "a conditional or looped component instance (`" + node.id +
-                                   "`) is deferred; wrap the element in a container");
+        // Composition itself is emitted elsewhere. A conditional instance rides the branch-slot
+        // path like any other conditional child (docs/design/compiler-node-state.md section 2); an
+        // instance inside a template is owned by the item record (section 3). A `Component` node
+        // that *carries* the loop is the template root, not a nested list.
+        if (node.loop && in_template) {
+            return fail(error, "a nested list template (`" + node.id +
+                                   "`) is deferred; v1 generates one list level per template");
         }
         break;
     case ir::NodeKind::Slot:
@@ -369,19 +312,32 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
         return false;
     }
     if (node.condition) {
-        const ExprEmission condition = emit_expr(*node.condition, component, {});
+        // A condition inside a template reads the loop item/index (docs/design/compiler-node-state
+        // .md section 4), so the check sees the enclosing template's locals.
+        LocalBindings locals;
+        if (in_template && current_list < plan.lists.size()) {
+            const ListTemplate& owner = plan.lists[current_list];
+            locals.push_back(LocalBinding{owner.item, owner.item, owner.element_type});
+            if (!owner.index.empty()) {
+                locals.push_back(
+                    LocalBinding{owner.index, "static_cast<int>(tessera_index)", "int"});
+            }
+        }
+        const ExprEmission condition = emit_expr(*node.condition, component, locals);
         if (!condition.error.empty()) {
             return fail(error, "the condition of `" + node.id + "`: " + condition.error);
         }
-        if (!printable_text_expression(*node.condition, component, {})) {
+        if (!printable_text_expression(*node.condition, component, locals)) {
             return fail(error, "the condition of `" + node.id + "` has no printable C++ type");
         }
         plan.has_conditionals = true;
     }
     // Record the dynamic children of this node in IR order before recursing (their ordinals are
-    // filled in as the walk reaches them).
+    // filled in as the walk reaches them). A node that carries the loop is the template root: its
+    // own child set is per item, so the group belongs to the template it starts.
     DynamicGroup group;
     group.parent_ordinal = self;
+    group.template_ordinal = node.loop ? self : (in_template ? template_ordinal : 0);
     bool dynamic_children = false;
     for (const ir::Node& child : node.children) {
         DynamicChild entry;
@@ -406,9 +362,15 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
     // Recurse in IR order. A template root switches its subtree into template mode; the loop index
     // binding and the item budget are restored afterwards.
     const bool template_before = in_template;
+    const unsigned template_ordinal_before = template_ordinal;
     const std::size_t list_before = current_list;
     if (node.loop) {
         in_template = true;
+        template_ordinal = self;
+    }
+    // An instance inside a template (or the template root instance itself) is owned per item.
+    if (node.kind == ir::NodeKind::Component && in_template && !plan.lists.empty()) {
+        plan.lists[current_list].instance_ordinals.push_back(self);
     }
     std::size_t group_child = 0;
     for (const ir::Node& child : node.children) {
@@ -427,16 +389,19 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
         // ir-v1 section 3.5: the item template is walked right after its collection node, so its
         // pre-order ordinals and its text sites line up with the generated item builder.
         in_template = true;
+        template_ordinal = plan.lists[current_list].ordinal;
         if (!walk(*node.item_template, self, false, true)) {
             return false;
         }
         plan.lists[current_list].subtree_end = ordinal + 1;
         in_template = template_before;
+        template_ordinal = template_ordinal_before;
         current_list = list_before;
     }
     if (node.loop) {
         plan.lists[current_list].subtree_end = ordinal + 1;
         in_template = template_before;
+        template_ordinal = template_ordinal_before;
         current_list = list_before;
     }
     return true;

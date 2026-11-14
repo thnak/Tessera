@@ -7,7 +7,7 @@ Status: Big Step C is under way. The JSX/TSX front end (`src/compiler/analyzer`,
 state/effects/refs, text and metadata interpolation, inline styles, conditionals, keyed lists,
 controlled text inputs and virtualized collections generate. Component composition and the static
 `children` slot generate too.
-Still open: list-typed props and passing props to a generated child instance (see Deferred below).
+Still open: see Deferred below; instance placement is [`compiler-node-state.md`](compiler-node-state.md).
 
 The compiler is build-time only. It never ships in a production app and never executes
 arbitrary JavaScript from components.
@@ -292,12 +292,14 @@ and protected regions stay in the caller's file; the callee receives it through 
 attaches it in source order at its `Slot` node. An empty child list is a valid instantiation and
 renders nothing at the Slot. `Slot` and `Component` nodes still take their pre-order ordinal (the
 Slot consumes one, nothing is created for it), so generated node ids, dynamic text and damage
-tracking stay aligned with the collectors. Deferred loudly with `TESSERA_CODEGEN_UNSUPPORTED`: a
-conditional or looped component instance (wrap it in an element), a component instance inside a list
-template, and a conditional list node as a *direct* child of a Component node (its insertion parent
-would be a callee tree position the caller does not know). Props and callback props are passed (see
-the next paragraph). The goldens `tests/golden/codegen/{Card,CardPage}.*` are generated from
-hand-built IR by `codegen_composition_tests --write`; the build compiles them as
+tracking stay aligned with the collectors. A conditional instance keeps its instance in a branch
+slot, a list template owns one instance per item, and a conditional inside a list item is per-item
+presence state: the model is [`compiler-node-state.md`](compiler-node-state.md). Deferred loudly with
+`TESSERA_CODEGEN_UNSUPPORTED`: slot children of an instance inside a template, and a conditional list
+node as a *direct* child of a Component node (its insertion parent would be a callee tree position
+the caller does not know). Props and callback props are passed (see the next paragraph). The goldens
+`tests/golden/codegen/{Card,CardPage}.*` are generated from hand-built IR by
+`codegen_composition_tests --write`; the build compiles them as
 `tessera_codegen_composition_sample` and `codegen_composition_runtime_tests` asserts the attached
 tree, the slot order and the lifecycle wiring.
 
@@ -395,7 +397,8 @@ are supported. Damage contract: a detached branch's own bounds are not individua
 `DamageTracker` never sees a detached node, but the shared parent is marked `Layout|Paint|Render`, so
 the tracker damages its previous *and* current bounds, which contain the vacated in-flow branch. The
 residual un-damaged case is a branch that overflows its parent's box (deferred; a full-target redraw
-covers it). A conditional inside a list template is deferred (it needs per-item presence state).
+covers it). A conditional inside a list template is supported: the item record owns the branch slots
+([`compiler-node-state.md`](compiler-node-state.md) section 4).
 
 A list template (a node carrying `loop` + `key`) generates a growable item table
 (`std::vector`, sized to the source; there is no item cap): `Item_<n>` per slot (item subtree root plus its interpolated text
@@ -411,10 +414,11 @@ past the component's last pre-order id, so every generated instance has a unique
 tracking and automation. The loop source must be a `state::`/`prop::` reference with a declared
 `list<T>`; supported element types are the printable primitives (`bool`, `int`, `float`, `length`,
 `string`, `color`); the key must read the loop item or index. Rejected loudly with
-`TESSERA_CODEGEN_UNSUPPORTED`: record element types, nested list templates, conditionals /
-`TextInput` / `TextArea` / dynamic metadata / dynamic inline style / `useRef` targets inside a
-template, and list sources without a `list<T>` type. A source longer than the cap materializes the
-deterministic prefix (documented truncation, no hidden growth).
+`TESSERA_CODEGEN_UNSUPPORTED`: record element types, nested list templates, `TextInput` /
+`TextArea` / dynamic metadata / dynamic inline style / `useRef` targets inside a template, and list
+sources without a `list<T>` type. A component instance inside a template is supported (one instance
+per item, [`compiler-node-state.md`](compiler-node-state.md) section 3). A source longer than the cap
+materializes the deterministic prefix (documented truncation, no hidden growth).
 
 **Virtualized collections (implemented).** A `VirtualList`/`VirtualGrid` node is a fixed container
 node (element kind `VirtualList`/`VirtualGrid`) plus one *static item template* (ir-v1.md section
@@ -560,20 +564,17 @@ Remaining demo-documented gaps: the sample emits no `automationId`, so nodes are
 element kind; paint emits no caret for an empty text run (empty text paints no decoration), so an empty
 focused field has no visible caret until the paint pass grows an empty-run caret.
 
-Deferred: dynamic list elements and list-typed *state* initials of a project component
-(`Component::props` is populated only for the `children` slot declaration today, so a list can be
-seeded only from a literal array initial or another list reference), a
-scene `Scroll` event binding for the collection events (the host calls `scroll_virtual_<n>` today;
-item-template events are wired), a value expression on a component prop beyond one payload-record
-callback parameter, a
-`style` prop or dynamic prop names on a component (component nodes carry props, not style), a
-conditional or looped component instance, reusing computed styles, multi-file watch mode,
-cross-module incremental generation, and single-node incremental regeneration. Form-binding
-deferrals are listed in [`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md)
-section 5.2 (typed generated values, dynamic/object-literal `initial`, dynamic rules, widget
-wrappers). Goldens live in `tests/golden/codegen/`; update them deliberately with the owning test's
-`--write` (`codegen_tests --write`, `forms_codegen_tests --write`, ...) and rebuild: the build
-compiles the generated samples, so they are never hand-maintained.
+Deferred: dynamic list elements and record element types (templates generate printable primitives
+only), a scene `Scroll` event binding for the collection events (the host calls `scroll_virtual_<n>`
+today; item-template events are wired), a value expression on a component prop beyond one
+payload-record callback parameter, a `style` prop or dynamic prop names on a component (component
+nodes carry props, not style), reusing computed styles, multi-file watch mode, cross-module
+incremental generation, and single-node incremental regeneration. Form-binding deferrals are listed
+in [`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md) section 5.2 (typed generated
+values, dynamic/object-literal `initial`, dynamic rules, widget wrappers). Goldens live in
+`tests/golden/codegen/`; update them deliberately with the owning test's `--write`
+(`codegen_tests --write`, `forms_codegen_tests --write`, ...) and rebuild: the build compiles the
+generated samples, so they are never hand-maintained.
 
 ## 11. Testing
 

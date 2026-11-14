@@ -12,6 +12,7 @@ add_library(tessera_codegen STATIC
     src/emit_controlled.cpp
     src/emit_dynamic_header.cpp
     src/emit_dynamic_plan.cpp
+    src/emit_dynamic_plan_util.cpp
     src/emit_events.cpp
     src/emit_call_prop.cpp
     src/emit_expr.cpp
@@ -24,9 +25,11 @@ add_library(tessera_codegen STATIC
     src/emit_vector.cpp
     src/form_binding.cpp
     src/emit_header.cpp
+    src/emit_item_props.cpp
     src/emit_lifecycle.cpp
     src/emit_list.cpp
     src/emit_node.cpp
+    src/emit_node_support.cpp
     src/emit_props.cpp
     src/emit_virtual.cpp
     src/emit_virtual_geometry.cpp
@@ -99,6 +102,19 @@ if (EXISTS ${_tessera_codegen_golden_dir}/ForwardWrap.cpp AND EXISTS ${_tessera_
         PRIVATE ${_tessera_codegen_golden_dir})
     target_link_libraries(tessera_codegen_forward_sample PRIVATE tessera_scene tessera_text_edit)
     target_compile_features(tessera_codegen_forward_sample PUBLIC cxx_std_23)
+endif ()
+
+# Per-branch and per-item component instances (issue #231, docs/design/compiler-node-state.md):
+# `codegen_instances_tests --write` owns tests/golden/codegen/instances/{Row,Page}.*.
+set(_tessera_codegen_instances_golden_dir ${_tessera_codegen_golden_dir}/instances)
+if (EXISTS ${_tessera_codegen_instances_golden_dir}/Page.cpp AND EXISTS ${_tessera_codegen_instances_golden_dir}/Row.cpp)
+    add_library(tessera_codegen_instances_sample STATIC
+        ${_tessera_codegen_instances_golden_dir}/Row.cpp
+        ${_tessera_codegen_instances_golden_dir}/Page.cpp)
+    target_include_directories(tessera_codegen_instances_sample
+        PRIVATE ${_tessera_codegen_instances_golden_dir})
+    target_link_libraries(tessera_codegen_instances_sample PRIVATE tessera_scene)
+    target_compile_features(tessera_codegen_instances_sample PUBLIC cxx_std_23)
 endif ()
 
 # onSizeChange fixture (ADR-041 slice 5), generated from the hand-built IR in
@@ -412,6 +428,34 @@ if (TESSERA_BUILD_TESTS)
 
         add_test(NAME codegen_callback_forward_runtime
             COMMAND codegen_callback_forward_runtime_tests)
+    endif ()
+
+    add_executable(codegen_instances_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_instances_tests.cpp)
+
+    target_link_libraries(codegen_instances_tests PRIVATE
+        tessera_codegen
+        tessera_ir)
+
+    target_include_directories(codegen_instances_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests/unit)
+
+    target_compile_definitions(codegen_instances_tests PRIVATE
+        TESSERA_CODEGEN_INSTANCES_GOLDEN_DIR="${_tessera_codegen_instances_golden_dir}")
+
+    add_test(NAME codegen_instances COMMAND codegen_instances_tests)
+
+    if (TARGET tessera_codegen_instances_sample)
+        add_executable(codegen_instances_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_instances_runtime_tests.cpp)
+
+        target_include_directories(codegen_instances_runtime_tests PRIVATE
+            ${_tessera_codegen_instances_golden_dir})
+        target_link_libraries(codegen_instances_runtime_tests PRIVATE
+            tessera_codegen_instances_sample
+            tessera_scene)
+
+        add_test(NAME codegen_instances_runtime COMMAND codegen_instances_runtime_tests)
     endif ()
 
     add_executable(codegen_size_change_tests
