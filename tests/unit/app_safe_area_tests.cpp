@@ -46,14 +46,10 @@ struct Fixture {
         : root(1), loop(clock) {
         safe = &root.add_child(std::make_unique<Node>(2));
         safe->set_element_kind("View");
-        safe->set_class_name("fill");
+        safe->set_class_name(margin ? "fill tsafe safe-mode-margin" : "fill tsafe");
         content = &safe->add_child(std::make_unique<Node>(3));
         content->set_element_kind("View");
         content->set_class_name("fill");
-        safe->set_inline_style("--safe-area", "on");
-        if (margin) {
-            safe->set_inline_style("--safe-mode", "margin");
-        }
         tessera::app::HostConfig config;
         config.width = 400.0f;
         config.height = 800.0f;
@@ -156,7 +152,7 @@ int main() {
     // Right-to-left start/end and a book-mode hinge resolve through the same arithmetic.
     {
         Fixture f;
-        f.safe->set_inline_style("--safe-edges", "start");
+        f.safe->set_class_name("fill tsafe safe-edges-start");
         f.safe->set_inline_style("direction", "rtl");
         auto metrics = phone();
         metrics.insets = {30, 0, 6, 0};

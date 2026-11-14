@@ -52,13 +52,13 @@ private:
     bool animating_ = false;
 };
 
-// The spec of a SafeArea node, read from its inline custom properties (a `Node` has no room for a
-// new member, and the compiler path needs no new attribute: the library component writes them
-// through `style`). A node is a SafeArea when it declares `--safe-area: on`; the others are:
-//   --safe-edges    `top right bottom left start end`, space separated (default: all four)
-//   --safe-sources  `system-bars cutout ime gestures hinge` (default: all but gestures)
-//   --safe-minimum  a length in px, the floor per applying side (default 0)
-//   --safe-mode     `padding` (default) or `margin`
+// The spec of a SafeArea node, read from its class tokens (a `Node` has no room for a new member,
+// and the JSX subset has no custom-property `style` keys). A node is a SafeArea when its class has
+// the token `tsafe`; the library component adds the others:
+//   safe-edges-<a>+<b>    `top right bottom left start end` (default: all four)
+//   safe-sources-<a>+<b>  `system-bars cutout ime gestures hinge` (default: all but gestures)
+//   safe-min-<n>          a floor of n px per applying side (default 0)
+//   safe-mode-margin      `margin` mode; absent means `padding`
 // `rtl` comes from the node's computed `direction`. Allocation-free.
 struct SafeAreaSpec {
     hal::SafeAreaConfig config;
