@@ -143,6 +143,11 @@ struct DiagnosticsConfig {
 
 ## 5. Profiles
 
+Tracing has a build-time half as well as the runtime `tracing` flag: `TESSERA_ENABLE_TRACING`
+(default `OFF`, [`build-and-packaging.md`](../design/build-and-packaging.md) section 2.1) decides
+whether the recorder is compiled at all. The profiles below assume a build with it `ON`; in a
+production build the flag has nothing to switch on, which is the point.
+
 ### Development
 
 ```json

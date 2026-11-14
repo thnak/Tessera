@@ -80,6 +80,10 @@ Implemented core (`diagnostics::TraceRecorder`, `diagnostics/trace.hpp`):
   Timestamps are a deterministic sequence, not wall clock, so traces are reproducible.
 - `TraceSpan` is RAII (records `End` once, movable) and needs no macros.
 - `to_chrome_trace_json` emits Chrome Trace Event JSON with escaped names and frame/tick args.
+- Compiled only with `TESSERA_ENABLE_TRACING=ON` (default `OFF`): a production build has no recorder,
+  no event ring and no encoder, while the header keeps an empty no-op with the same signatures so
+  call sites and the documented empty `trace` document survive
+  ([`build-and-packaging.md`](build-and-packaging.md) section 2.1).
 - Not implemented yet: wall-clock/GPU timestamps, trace sinks/rotation, sampling, Perfetto/ETW
   exporters, and automatic instrumentation.
 

@@ -68,6 +68,13 @@ option(TESSERA_SHADER_CROSS
     OFF)
 option(TESSERA_ENABLE_THORVG
     "Build the ThorVG-backed vector path rasterizer (D1, ADR-004)" OFF)
+# Span tracing is a development and automation feature, never a production one (ADR-022 decision
+# 11, docs/specs/diagnostics-config-v1.md section 5). OFF compiles no recorder at all: the
+# TraceRecorder in the header becomes an empty no-op and collect_trace() still answers with the
+# documented empty Chrome document, so no tracing bytecode or JSON text reaches a shipped binary.
+# Dev, CI and the automation lanes turn it ON; release/packaging leaves it OFF.
+option(TESSERA_ENABLE_TRACING
+    "Compile the trace recorder and Chrome trace exporter (dev, CI and automation builds)" OFF)
 
 # X11 backs the Linux window and the Vulkan Xlib present surface. Without it (and without
 # Win32) the HAL keeps the headless stub and the Vulkan device reports NotSupported for

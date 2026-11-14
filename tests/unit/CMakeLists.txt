@@ -624,6 +624,17 @@ target_link_libraries(diagnostics_trace_tests PRIVATE tessera_diagnostics)
 
 add_test(NAME diagnostics_trace COMMAND diagnostics_trace_tests)
 
+# Byte-level guarantee that the production profile ships no tracing code: the test reads the
+# tessera_diagnostics archive and fails if the recorder's own markers are in it while
+# TESSERA_ENABLE_TRACING=OFF (and proves it can see them when the option is ON). This is what turns
+# "the linker happened to drop trace.obj" into a contract (ADR-022 decision 11).
+add_executable(tracing_strip_tests
+    tracing_strip_tests.cpp)
+
+target_link_libraries(tracing_strip_tests PRIVATE tessera_diagnostics)
+
+add_test(NAME tracing_strip COMMAND tracing_strip_tests $<TARGET_FILE:tessera_diagnostics>)
+
 add_executable(diagnostics_overlay_tests
     diagnostics_overlay_tests.cpp)
 

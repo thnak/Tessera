@@ -194,9 +194,11 @@ void reveals_unrealized_item() {
                near(static_cast<float>(*height->as_number()), 16.0f),
            "the snapshot item has the realized height");
 
+#if defined(TESSERA_ENABLE_TRACING)
     const auto trace = fixture.automation.collect_trace();
     expect(trace.has_value() && trace->json.find("automation.scrollIntoView") != std::string::npos,
            "the reveal records an automation.scrollIntoView span");
+#endif
 
     // A follow-up tap proves the item is addressable, not merely present in the window.
     auto tap =

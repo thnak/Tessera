@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: MIT
+//
+// The recorder's own behaviour. Only meaningful where tracing is compiled in
+// (TESSERA_ENABLE_TRACING=ON, the dev/CI presets); the production build replaces the recorder with
+// a no-op and `tracing_strip_tests` covers that flavour.
 
 #include "tessera/diagnostics/trace.hpp"
 
 #include <iostream>
 #include <string>
+
+#if defined(TESSERA_ENABLE_TRACING)
 
 namespace {
 
@@ -107,3 +113,35 @@ int main() {
     std::cout << "diagnostics_trace: ok\n";
     return 0;
 }
+
+#else // TESSERA_ENABLE_TRACING
+
+// The production flavour: the recorder is a no-op that still answers the documented empty Chrome
+// document, so automation keeps working without a line of tracing code in the binary.
+int main() {
+    using tessera::diagnostics::to_chrome_trace_json;
+    using tessera::diagnostics::TraceCategory;
+    using tessera::diagnostics::TraceRecorder;
+    using tessera::diagnostics::TraceSpan;
+
+    TraceRecorder recorder(8);
+    recorder.begin("layout", TraceCategory::Layout, 5, 7);
+    recorder.instant("mark", TraceCategory::Paint, 5, 7);
+    {
+        TraceSpan span(recorder, "paint", TraceCategory::Paint, 6, 8);
+    }
+    recorder.end("layout", TraceCategory::Layout, 5, 7);
+
+    if (recorder.size() != 0 || recorder.dropped() != 0 || recorder.next_timestamp() != 0) {
+        std::cerr << "diagnostics_trace: a disabled recorder must stay empty\n";
+        return 1;
+    }
+    if (to_chrome_trace_json(recorder) != "[]") {
+        std::cerr << "diagnostics_trace: a disabled recorder must answer the empty document\n";
+        return 2;
+    }
+    std::cout << "diagnostics_trace: ok (tracing compiled out)\n";
+    return 0;
+}
+
+#endif // TESSERA_ENABLE_TRACING
