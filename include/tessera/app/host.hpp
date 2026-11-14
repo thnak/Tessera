@@ -11,6 +11,7 @@
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/overlay/overlay.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
@@ -135,6 +136,14 @@ public:
     // ones animate each inset edge independently over the next frames. A node with a safe-area spec
     // gets its padding or margin from the result before layout. Cheap when nothing changed.
     void set_window_metrics(const hal::WindowMetrics& metrics);
+
+    // The window's default OverlayHost (docs/specs/overlays-and-layers-v1.md, issue #302), created
+    // on first use so a scene that never opens an overlay gains no nodes. Requests recorded on it
+    // apply at the start of the next begin_frame(); prefer open_overlay()/close_overlay(), which
+    // also wake an idle loop for that frame.
+    [[nodiscard]] ui::OverlayHost& overlays();
+    ui::OverlayHandle open_overlay(ui::OverlaySpec spec);
+    bool close_overlay(ui::OverlayHandle handle);
 
     // Step 8: clears every dirty domain on the scene after a painted frame. Safe to call after a
     // skipped frame too (nothing is dirty then).

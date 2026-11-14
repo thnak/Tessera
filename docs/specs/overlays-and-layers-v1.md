@@ -197,3 +197,32 @@ Items are open (no decision yet) unless stated otherwise.
 - Overlay transition choreography with navigation (visual only).
 - Whether toasts/dialogs are framework primitives or library components.
 - Virtualized overlay lists and large menus.
+
+## 10. Implementation (slice 1, issue #302)
+
+Done: the layer core. Anchoring, Escape/back, click-outside and the library surface are slice 2.
+
+- `include/tessera/ui/overlay/overlay.hpp`, `src/ui/scene/overlay_host.cpp`: `OverlayHost`,
+  `OverlaySpec`, `OverlayHandle`. `AppHost::overlays()` creates the window's default host on first
+  use, so a scene that never opens an overlay gains no nodes; `AppHost::open_overlay` and
+  `close_overlay` also wake an idle loop.
+- Layers are four absolute, window-filling nodes under the scene root (overlay, modal, tooltip,
+  toast; base is the app content), stacked by explicit z-index 1000 to 4000. Each is
+  `pointer-events: none`, so an empty layer never shadows the base; the entry content opts back in.
+- `open`, `close` and `close_if` only record. `flush()` runs at the start of `begin_frame`, closes
+  first, then mounts, and repeats up to four rounds for opens made from a mount callback. Handles
+  are never reused, so a stale handle is a no-op. An entry closed before its first flush never
+  mounts.
+- Entries are ordered by `(priority, open order)` inside a layer. A mount callback runs before
+  anything is attached; a throw is caught, counted (`failed_count()`) and leaves the scene
+  untouched. The fallback content and error-boundary report of section 8.1 are not wired yet.
+- A modal entry adds a full-window scrim (it takes every pointer hit the content does not, so the
+  base and lower layers are inert for the pointer) and a content root with `focus_trap`, role
+  `dialog` and `aria-modal`. Focus moves in and is restored through the existing focus-scope code.
+  Tooltip (role `tooltip`) and toast (role `alert`) never take focus.
+- Semantics: a visible `aria-modal="true"` node makes every node that precedes it in tree order,
+  except its ancestors, inert in the accessibility tree (`BuildStats::skipped_inert`). Layers after
+  the modal, so toasts and tooltips, stay exposed.
+- Overlay nodes take ids from `OverlayHost::kFirstNodeId` (`1 << 62`).
+
+Tests: ctest `overlay_host` (`tests/unit/overlay_host_tests.cpp`).

@@ -37,6 +37,8 @@ struct AppHost::Impl {
 
     ui::Node& root;
     SafeAreaState safe_area;
+    // Created by AppHost::overlays(); destroyed before the scene root it borrows.
+    std::unique_ptr<ui::OverlayHost> overlay_host;
     // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
     // one.
     ui::style::CompiledStyleSheet base_sheet;

@@ -2168,6 +2168,14 @@ target_link_libraries(app_safe_area_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_safe_area COMMAND app_safe_area_tests)
 
+# Issue #302: overlay layers, handles, hit order, modal scrim/focus/semantics through a real AppHost.
+add_executable(overlay_host_tests
+    overlay_host_tests.cpp)
+
+target_link_libraries(overlay_host_tests PRIVATE tessera_app tessera_runtime tessera_accessibility)
+
+add_test(NAME overlay_host COMMAND overlay_host_tests)
+
 # Issue #223: the library SafeArea lowers, validates under a salt and generates C++.
 add_executable(library_safe_area_lowering_tests
     library_safe_area_lowering_tests.cpp)

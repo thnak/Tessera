@@ -164,6 +164,7 @@ struct BuildStats {
     std::size_t emitted = 0;              // snapshot entries produced
     std::size_t skipped_invisible = 0;    // Node::visible() == false (subtree)
     std::size_t skipped_aria_hidden = 0;  // aria-hidden="true" (subtree)
+    std::size_t skipped_inert = 0;        // before a visible aria-modal="true" node (subtree)
     std::size_t skipped_style_hidden = 0; // display:none or visibility:hidden|collapse (subtree)
     std::size_t skipped_clipped = 0;      // outside every ancestor scrollport (subtree or node)
     std::size_t skipped_zero_size = 0;    // zero-area node; children still visited
