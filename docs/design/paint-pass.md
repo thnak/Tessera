@@ -578,9 +578,9 @@ copy/blur, and the seam true isolated layers would use for group opacity (see
 [§14.1](#141-effective-opacity-issue-227)); #227 itself ships the non-isolated rule below.
 
 The #244 consumer is `PaintSink::draw_backdrop`, emitted once per glass node at the segment boundary
-with the clamped sigma, rounded clip, folded opacity and color factors; high contrast drops it. The
-composite draw sampling a pooled target is still deferred (`Batched2DSink` counts it unsupported);
-contract: [`gpu/offscreen-layers.md`](gpu/offscreen-layers.md), [`gpu/rhi.md`](gpu/rhi.md) section 5.
+with the clamped sigma, rounded clip, folded opacity and color factors; high contrast drops it.
+`Batched2DSink` executes it in the renderer (break, copy, two blur passes, composite) and counts a
+skipped composite in `GlassPaintStats::unsupported` ([`../specs/glass-v1.md`](../specs/glass-v1.md) §4, §9).
 
 ### 14.1 Effective opacity (issue #227)
 

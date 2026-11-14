@@ -115,6 +115,10 @@ void Batched2DSink::begin_text_frame() {
     }
 }
 
+bool Batched2DSink::supports_backdrop() const {
+    return renderer_->glass_supported();
+}
+
 void Batched2DSink::draw_text(const TextDraw& run) {
     if (run.text.empty()) {
         return;
@@ -266,13 +270,28 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
     ++image_stats_.draws;
 }
 
-void Batched2DSink::draw_backdrop(const BackdropDraw& /*draw*/) {
+void Batched2DSink::draw_backdrop(const BackdropDraw& draw) {
     // The paint pass segments the frame at this call (glass-v1 section 4): everything before the
-    // glass node is already recorded, so a renderer that owns the sampled-target composite can
-    // break the pass here. The composite itself is the next slice of the seam
-    // (docs/design/gpu/offscreen-layers.md section 7): the batched renderer cannot sample a pooled
-    // target yet, so the draw is counted and the frame keeps painting without the effect. The count
-    // is the diagnostic the acceptance asks for; nothing is silently dropped.
+    // glass node is already recorded, so the renderer can break the pass here and read what the
+    // frame holds. The renderer records copy -> horizontal blur -> vertical blur + composite on the
+    // frame's own command list (see Batched2DRenderer::draw_backdrop), so this call never blocks.
+    rendering::gpu::GlassBackdropDraw glass;
+    glass.clip =
+        rendering::gpu::clip::RoundedRect{draw.clip.rect, draw.clip.top_left, draw.clip.top_right,
+                                          draw.clip.bottom_right, draw.clip.bottom_left};
+    glass.sigma = draw.sigma;
+    glass.opacity = draw.opacity;
+    glass.saturate = draw.saturate;
+    glass.brightness = draw.brightness;
+    glass.contrast = draw.contrast;
+    glass.device_scale = draw.device_scale;
+    if (renderer_->draw_backdrop(glass)) {
+        ++glass_stats_.draws;
+        return;
+    }
+    // Bounded fallback (glass-v1 section 8): no glass pipelines, a frame target that cannot be
+    // read, or the pool having no free target this frame. The node paints without the effect and
+    // the draw is counted so a frame that silently paints no glass stays attributable.
     ++glass_stats_.unsupported;
 }
 

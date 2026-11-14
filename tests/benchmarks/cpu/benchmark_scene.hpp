@@ -38,9 +38,13 @@ inline constexpr std::size_t kBenchmarkNodes = 12000;
 
 // Nodes the driver edits for the two incremental scenarios. Both are ordinary dashboard content,
 // not special-case nodes: a card title (text change) and a card container (size change).
+// `glass_bar` is the fixed top bar, which the glass scenario gives a `backdrop-filter` (glass-v1
+// section 9); it is an existing node, so the reference tree stays at exactly `kBenchmarkNodes`
+// nodes.
 struct SceneTargets {
     ui::Node* text_node = nullptr;
     ui::Node* container_node = nullptr;
+    ui::Node* glass_bar = nullptr;
     std::size_t nodes = 0;
 };
 

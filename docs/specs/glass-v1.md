@@ -6,18 +6,17 @@ translucent window with an OS backdrop. Builds on [`stylesheet-v1.md`](styleshee
 [`window-chrome-v1.md`](window-chrome-v1.md), [`dirty-rendering.md`](../design/dirty-rendering.md),
 [`paint-pass.md`](../design/paint-pass.md) and [`performance.md`](../design/performance.md).
 
-Implementation status (2026-11-13, #244): the style surface (section 2), the paint-pass
-segmentation, the damage rules of section 7, the config keys and the two-pass shader sources are
-implemented and tested. The **GPU composite capability is ready**: RHI 1.3 (issue #254) adds the
-sampled view of an offscreen target (`CommandList::bind_sampled_target`) with the layout transitions
-and the sampler state the blur needs, and
-[`gpu/offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 5.3 records the pixel test
-that runs both blur passes and the composite on a real target. Wiring it into the batched renderer's
-paint segment (the draw between `break_pass()` and `resume_pass()`) is the remaining #244 slice; until
-it lands the frame composes exactly as it did before the declaration existed. Section 6
-(`window-backdrop`) is #243. `glass_ms` and `glass_backdrop_count` are recorded by
-`runtime::FrameDiagnostics`; the renderer reports the backdrop count through the paint pass, and the
-GPU interval lands with the renderer wiring.
+Implementation status (2026-11-14, #244 complete): the style surface (section 2), the paint-pass
+segmentation, the damage rules of section 7, the config keys, the two-pass shader sources and the
+**GPU composite** are implemented and tested. `Batched2DRenderer::draw_backdrop` executes a glass
+node inside the frame it belongs to - break the pass, copy the 3-sigma dependency region into a
+pooled target, run the horizontal pass into a second pooled target, resume with `LoadOp::Load` and
+composite the vertical pass through the rounded clip with the color matrix and the node opacity
+folded in ([`gpu/offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 5.1). The passes
+read the sampled view of an offscreen target that RHI 1.3 (issue #254) provides
+([`gpu/rhi.md`](../design/gpu/rhi.md) section 5.1), and `Batched2DSink::draw_backdrop` drives it from
+the real paint path. Section 6 (`window-backdrop`) landed as #243. Section 8
+records the `glass_ms` semantics, section 9 the tests, and section 12 the work items.
 
 Terms: **Backdrop** is what was already painted behind a node in the same window. **Glass node** is a
 node with a non-`none` `backdrop-filter`. **Blur target** is the offscreen texture the backdrop is
@@ -103,6 +102,20 @@ seam ([`paint-pass.md`](../design/paint-pass.md), tracked in section 12):
   ([ADR-003](../../decisions/ADR-003-thin-rhi-and-batched-2d-renderer.md)). The blur pipeline reads a
   sampled target exactly like a texture, so a backend does not know glass exists.
 - Segmentation keeps every tree without a glass node on today's single-pass path, byte for byte.
+- The recorded sequence for one glass node is
+  `break_pass -> copy_target_region -> [bind pipeline, bind_sampled_target] -> blur pass ->
+  bind_sampled_target -> resume_pass -> composite draw -> restore 2D state`. Two pipelines carry it:
+  the horizontal pass writes straight-alpha blur data into a pooled target and must not blend; the
+  composite draws over the frame target with alpha blending so `opacity` and the rounded clip
+  antialias into the frame. Both are created for the frame target's format
+  (`vulkan::glass_blur_pipeline_desc`).
+- A glass frame renders into an offscreen target even at full quality: the copy source is the frame
+  target, and a swapchain image is neither a copy source (RHI 1.1) nor samplable (RHI 1.3). The same
+  submission resamples the offscreen frame into the acquired image at content scale 1, so a tree
+  without a glass node keeps the direct path.
+- The bounded blur-target pool (`glassMaxBlurTargets`) hands out both targets. When it cannot, or the
+  renderer has no glass pipelines, the node paints without the effect and `GlassPaintStats::unsupported`
+  counts it; nothing blocks, grows without bound or throws on the frame path.
 
 ## 5. Blur algorithm
 
@@ -183,6 +196,26 @@ What stays, because it bounds the cost without removing the effect:
 - Frame diagnostics gain `glass_ms` and `glass_backdrop_count` next to the existing
   `render_time_ms`, so a slow frame is attributable. A frame that exceeds its budget with glass
   active increments `missed_deadlines` as always; nothing else changes.
+
+### 8.1 `glass_ms` semantics (pinned 2026-11-14, #244)
+
+`glass_ms` is the **CPU time the frame spent recording its glass work**, not a GPU interval: the wall
+time the paint step spends in `Batched2D`'s backdrop draws - region plan, `copy_target_region`, the
+two blur pass records and the composite record - summed over the frame's glass nodes. It is 0 on a
+frame with no backdrop draw. `glass_backdrop_count` is the number of backdrop draws the frame
+emitted, taken from `GlassPaintStats` (`draws` + `unsupported`, so a frame whose composite was
+skipped by the bounded pool is still counted). Both are per-frame fields of
+`runtime::FrameDiagnosticsSample`; the sample is produced by the app's frame-diagnostics wiring
+(`runtime::FrameDiagnostics::record`), which no driver populates yet - the fields are covered by the
+accumulator tests until then.
+
+Why CPU record time and not the GPU interval: `FrameTimeSource` timestamps already provide the
+frame-level GPU signal ([`performance.md`](../design/performance.md) section 6.1), the blur executes
+inside the same submission as the rest of the frame, and a per-node GPU interval would need a query
+pool per glass node for a number no V1 decision consumes. It is also the number the CPU benchmark
+(#241) measures, so the budget there (`max_glass_paint_ms`) and `glass_ms` describe the same
+quantity and can be compared. If a GPU interval ever becomes necessary (section 11), it lands as a
+separate `glass_gpu_ms` field beside the CPU one; `glass_ms` is not redefined.
 - `powerPolicy: power-save` does **not** disable glass either; the application chooses to drop it
   by changing a class, which is the supported way to build a "reduce effects" setting
   (high contrast of section 3 covers the OS setting).
@@ -195,18 +228,30 @@ budget on weak GPUs and on lavapipe. The benchmark records it instead of hiding 
 - Unit: parsing and unsupported-value diagnostics for the grammar of section 2; clamp and
   `@supports`; kernel normalization and tap count for a range of sigma; segmentation of the paint
   list at glass nodes (a tree without a glass node is byte-identical to today).
-- Golden (lavapipe): a frosted card over a stripe pattern at three radii; nested glass; a rounded
-  glass node at a window corner (edge clamp); `saturate`/`brightness` in the same declaration; the
-  same scene on the CPU sink is explicitly unsupported and reports a diagnostic.
+- Pixels through the real paint path (`glass_paint_gpu`, `tests/gpu/batched2d/`): a uniform backdrop
+  composites to the analytic colour, a red|blue split under a `blur(3px)` node is compared pixel by
+  pixel against the CPU `glass_kernel_taps` reference derived from the renderer's own region plan, the
+  half-resolution rule above `glassMaxBackdropArea`, the rounded clip (the backdrop shows outside the
+  corner radius), the opacity fold (`opacity * blurred + (1 - opacity) * original`) and `blur(0)`
+  pass-through are covered, and the run must be validation-clean. The expectations are computed, not
+  committed as PNGs: a per-driver golden image would differ between lavapipe and a real GPU, while
+  the CPU kernel is the same reference on both.
+- Structure through the real sink (`glass_paint_null`, null backend): one glass node records
+  break -> copy -> horizontal pass -> resume -> composite with two pooled targets and two sampled
+  binds; a renderer without glass pipelines, an exhausted `glassMaxBlurTargets` pool and `blur(0)`
+  paint the frame without the effect and count it (`GlassPaintStats::unsupported`); a tree without a
+  glass node records exactly one pass with no copy and no sampled bind.
 - Damage: a change inside the dependency region repaints the glass box; a change outside does not;
   a static glass screen presents zero frames (the idle test of
-  [`performance.md`](../design/performance.md) section 9).
+  [`performance.md`](../design/performance.md) section 9, test `glass_damage`).
 - Window: with a fake HAL, `window-backdrop: auto` resolves per the table of section 6 and the
   fallback media query applies when no material is offered; the real DWM and compositor calls are
   covered by a manual checklist in [`window-chrome-v1.md`](window-chrome-v1.md).
-- Benchmark: the CPU benchmark (#241) gains a glass scenario (a fixed bar over a scrolling list)
-  reporting `glass_ms`; the GPU timing is recorded on lavapipe and on the real-GPU lane without a
-  budget in V1.
+- Benchmark: the CPU benchmark (#241) has a glass scenario (the fixed bar of the reference dashboard
+  blurred, one backdrop composite recorded on the null RHI) reporting the paint time against the
+  committed `max_glass_paint_ms` budget and the exact `glass_backdrops` count
+  ([`tests/golden/perf/cpu_benchmark.txt`](../../tests/golden/perf/cpu_benchmark.txt)). The GPU
+  timing is recorded on lavapipe and on the real-GPU lane without a budget in V1.
 
 ## 10. Decisions (2026-11-13)
 
@@ -237,7 +282,14 @@ budget on weak GPUs and on lavapipe. The benchmark records it instead of hiding 
 ## 12. Work items
 
 Tracked as issues in the V1 milestones: #242 (renderer seam: render-pass break, RHI
-`copy_target_region`, offscreen pool); #254 (RHI 1.3 sampled view of a render target: layout
-transitions, sampler state, WebGPU twin, the first glass pixel test); #244 (`backdrop-filter`, blur
-shaders, damage rules, diagnostics, benchmark scenario, and the renderer wiring on top of #242 and
-#254); #243 (translucent window and OS backdrop on Windows and Linux).
+`copy_target_region`, offscreen pool - landed); #254 (RHI 1.3 sampled view of a render target:
+layout transitions, sampler state, WebGPU twin, the first glass pixel test - landed); #244
+(`backdrop-filter`, blur shaders, damage rules, diagnostics, benchmark scenario, and the renderer
+wiring on top of #242 and #254 - landed: `Batched2DRenderer::draw_backdrop` executes the composite
+from the real paint path, `glass_paint_gpu`/`glass_paint_null` are the pixel and structure proofs,
+and `glass_ms` is pinned in section 8.1); #243 (translucent window and OS backdrop on Windows and
+Linux - landed).
+
+Still open, not tracked as a V1 issue: the app frame-diagnostics wiring that produces
+`FrameDiagnosticsSample` (and therefore `glass_ms`/`glass_backdrop_count`) on a driver frame, per
+section 8.1.

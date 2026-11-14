@@ -44,8 +44,13 @@ Fixture::Fixture()
       target_(device_->create_render_target({{kTargetWidth, kTargetHeight}})),
       white_(device_->create_texture({{1, 1}})),
       pipeline_(device_->create_pipeline({})),
+      glass_blur_pipeline_(device_->create_pipeline({})),
+      glass_composite_pipeline_(device_->create_pipeline({})),
       commands_(device_->create_command_list()),
-      renderer_(std::make_unique<rendering::gpu::Batched2DRenderer>(*device_, *pipeline_, *white_)),
+      renderer_(std::make_unique<rendering::gpu::Batched2DRenderer>(
+          *device_, *pipeline_, *white_, rendering::gpu::Batched2DConfig{},
+          rendering::gpu::GlassPipelines{glass_blur_pipeline_.get(),
+                                         glass_composite_pipeline_.get()})),
       bundle_(fixtures::bundle()),
       textures_(*device_),
       batched_(*renderer_, nullptr, nullptr, {}, image_config(bundle_, decoded_, textures_)),
@@ -75,8 +80,20 @@ PaintOutcome Fixture::paint(bool force) {
     outcome.primitives = counts.primitives();
     outcome.text_runs = counts.text_runs;
     outcome.images = counts.images;
+    outcome.backdrops = counts.backdrops;
     outcome.paint_nodes = painted.stats.nodes;
     return outcome;
+}
+
+// The glass scenario (issue #244, glass-v1 section 9): the fixed top bar gets a `backdrop-filter`
+// through an inline style, which is the same path a stylesheet declaration takes into the paint
+// pass. No node is added, so the reference tree stays the 12 000-node scene the budget pins.
+void Fixture::enable_glass_bar() {
+    if (targets_.glass_bar == nullptr) {
+        throw std::runtime_error("benchmark: the scene has no glass bar");
+    }
+    (void)targets_.glass_bar->set_inline_style("backdrop-filter", "blur(16px)");
+    targets_.glass_bar->mark_dirty(ui::Dirty::Style | ui::Dirty::Paint);
 }
 
 void Fixture::edit_text() {
@@ -126,6 +143,24 @@ Measurement Fixture::measure() {
     (void)paint(false);
     result.layout_paint_container_ms = milliseconds(begin, Clock::now());
     result.damage_rects_container = container_frame.render.redraw_plan.scissors.size();
+    driver_->end_frame();
+
+    // Glass (issue #244): the same full paint with the fixed bar blurred. The first glass frame
+    // also creates the two pooled blur targets, which is a frame-boundary cost, not a per-frame
+    // one; the measured frame is the steady state a scrolling screen under the bar pays, and it
+    // records the copy, both blur passes and the composite through the null RHI so the CPU cost is
+    // real.
+    enable_glass_bar();
+    driver_->request_full_repaint();
+    (void)driver_->begin_frame();
+    (void)paint(false);
+    driver_->end_frame();
+    driver_->request_full_repaint();
+    begin = Clock::now();
+    (void)driver_->begin_frame();
+    const PaintOutcome glass = paint(false);
+    result.glass_paint_ms = milliseconds(begin, Clock::now());
+    result.glass_backdrops = glass.backdrops;
     driver_->end_frame();
     return result;
 }

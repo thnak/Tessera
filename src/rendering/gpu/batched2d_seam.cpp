@@ -26,6 +26,17 @@ void Batched2DRenderer::break_pass() {
     pass_broken_ = true;
 }
 
+void Batched2DRenderer::bind_frame_state() {
+    // A new pass starts with no bound pipeline, viewport, scissor or push constants, and a glass
+    // composite records its own pipeline/push constants in the middle of the frame's pass, so the
+    // frame state is re-established from the renderer's own stacks rather than replayed.
+    commands_->bind_pipeline(*pipeline_);
+    commands_->set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(extent_.width),
+                                          static_cast<float>(extent_.height)});
+    commands_->set_scissor(scissor_);
+    update_push_constants(current_clip_state_);
+}
+
 void Batched2DRenderer::resume_pass() {
     if (!in_frame_ || !pass_broken_ || commands_ == nullptr || frame_target_ == nullptr) {
         return;
@@ -34,14 +45,9 @@ void Batched2DRenderer::resume_pass() {
     // Load preserves what the target already holds: the frame continues, it does not restart.
     desc.load_op = rhi::LoadOp::Load;
     commands_->begin_render_pass(*frame_target_, desc);
-    // A new pass starts with no bound pipeline, viewport, scissor or push constants. The renderer's
-    // own state (transform, clips, scissor stack, content scale, vertex buffer) is untouched, so
-    // geometry after the break continues exactly where the pre-break stream stopped.
-    commands_->bind_pipeline(*pipeline_);
-    commands_->set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(extent_.width),
-                                          static_cast<float>(extent_.height)});
-    commands_->set_scissor(scissor_);
-    update_push_constants(current_clip_state_);
+    // The renderer's own state (transform, clips, scissor stack, content scale, vertex buffer) is
+    // untouched, so geometry after the break continues exactly where the pre-break stream stopped.
+    bind_frame_state();
     pass_broken_ = false;
 }
 

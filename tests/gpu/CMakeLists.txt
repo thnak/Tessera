@@ -49,6 +49,16 @@ add_executable(sampled_target_tests
 target_link_libraries(sampled_target_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME sampled_target COMMAND sampled_target_tests)
 
+# Glass composite (#244) through the real paint path on the null backend: paint_scene -> Batched2DSink
+# -> Batched2DRenderer::draw_backdrop records break -> copy -> two blur passes -> composite, and the
+# bounded fallbacks (no pipelines, exhausted pool, blur(0)) stay counted instead of throwing. A tree
+# without a glass node keeps its single-pass stream. Runs everywhere.
+add_executable(glass_paint_null_tests
+    batched2d/glass_paint_null_tests.cpp)
+target_link_libraries(glass_paint_null_tests PRIVATE
+    tessera_gpu tessera_paint tessera_rhi_null)
+add_test(NAME glass_paint_null COMMAND glass_paint_null_tests)
+
 add_executable(damage_redraw_tests
     batched2d/damage_redraw_tests.cpp)
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
@@ -332,6 +342,18 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(glass_composite_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME glass_composite_gpu COMMAND glass_composite_gpu_tests)
     set_tests_properties(glass_composite_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # Glass composite (#244) pixels through the REAL paint path: paint_scene -> Batched2DSink ->
+    # Batched2DRenderer -> Vulkan. A uniform backdrop composites to the analytic colour, a red|blue
+    # split is compared pixel by pixel against the CPU Gaussian kernel, the half-resolution rule,
+    # the rounded clip, opacity fold and blur(0) pass-through are covered, and the run must be
+    # validation-clean.
+    add_executable(glass_paint_gpu_tests
+        batched2d/glass_paint_gpu_tests.cpp)
+    target_link_libraries(glass_paint_gpu_tests PRIVATE
+        tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME glass_paint_gpu COMMAND glass_paint_gpu_tests)
+    set_tests_properties(glass_paint_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     add_executable(msaa_tests
         batched2d/msaa_tests.cpp)

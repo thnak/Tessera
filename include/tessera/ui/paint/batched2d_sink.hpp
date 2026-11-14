@@ -90,10 +90,12 @@ struct VectorPaintStats {
     std::uint64_t missing_resources = 0;
 };
 
-// Counting outcomes for glass backdrop draws. `unsupported` counts glass nodes this sink could not
-// apply (the renderer needs the sampled-target composite that the isolated-layer seam defers; see
-// docs/design/gpu/offscreen-layers.md section 7). Counting it keeps a frame that silently paints no
-// glass attributable instead of looking like a stylesheet bug.
+// Counting outcomes for glass backdrop draws. `draws` counts the composites the renderer executed
+// (copy -> blur -> composite recorded this frame); `unsupported` counts the ones it could not
+// apply - a renderer without glass pipelines, a frame target that cannot be read, or the bounded
+// blur-target pool with no free target this frame (docs/design/gpu/offscreen-layers.md section 5.3,
+// glass-v1 section 8). Counting the fallback keeps a frame that paints no glass attributable
+// instead of looking like a stylesheet bug.
 struct GlassPaintStats {
     std::uint64_t draws = 0;
     std::uint64_t unsupported = 0;
@@ -132,6 +134,10 @@ public:
     void draw_vector(const VectorDraw& draw) override;
     void draw_image(const ImageDraw& draw) override;
     void draw_backdrop(const BackdropDraw& draw) override;
+    // True when the renderer behind this sink can execute a backdrop composite (glass pipelines and
+    // an enabled blur-target pool). A sink without them paints the node without the effect, which
+    // is the documented CPU-reference behavior of glass-v1 section 9.
+    [[nodiscard]] bool supports_backdrop() const override;
 
     // Forwards to TextRenderer::begin_frame. Call once per painted frame before any draw_text so
     // atlas pages are not evicted while still referenced by this frame.

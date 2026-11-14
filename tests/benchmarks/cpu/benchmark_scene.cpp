@@ -211,6 +211,7 @@ SceneTargets SceneBuilder::build(Node& root) {
 
     Node& cards = node(content, "Container", "cards");
     SceneTargets targets;
+    targets.glass_bar = &topbar;
     for (std::uint64_t index = 0; index < 20; ++index) {
         Node& card = node(cards, "Container", "card");
         image(card, "card-image", kImageAsset);

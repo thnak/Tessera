@@ -336,7 +336,22 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `src/rendering/backend/vulkan/src/vulkan_command_list_copy.cpp`,
       `docs/design/gpu/offscreen-layers.md`, `docs/design/paint-pass.md` §14, tests `renderer_seam`,
       `renderer_seam_gpu`, `rhi_null` (300-frame bounded pool, byte-identical no-break commands).
-- [ ] #244: `backdrop-filter` glass, two-pass Gaussian, damage rules (seam from #242 landed).
+- [x] #244: `backdrop-filter` glass, two-pass Gaussian, damage rules, GPU composite (seam from #242,
+      sampled target from #254) — `src/rendering/gpu/batched2d_glass.cpp`
+      (`Batched2DRenderer::draw_backdrop`: break -> region copy -> horizontal blur -> resume ->
+      vertical blur + composite, bounded by `glassMaxBlurTargets`), `src/ui/paint/paint_sinks.cpp`
+      (the real frame path; `GlassPaintStats` counts composites vs the bounded fallback),
+      `src/app/window.cpp` + `window_recovery.cpp` + `frame_capture.cpp` (glass pipelines and limits;
+      a glass frame renders into an offscreen target because a swapchain image is not a copy source),
+      the `opacity` field in `tools/shaders/manifest.json` / `glass_blur.frag` / `glass_blur.wgsl`,
+      docs `docs/specs/glass-v1.md` §3/§5/§8/§9 (with the `glass_ms` semantics pinned in
+      `docs/specs/runtime-config-v1.md` §3), `docs/design/gpu/offscreen-layers.md` §5.1 and `docs/design/gpu/rhi.md` §5.1,
+      `docs/design/paint-pass.md` §14, and the benchmark scenario in `tests/golden/perf/cpu_benchmark.txt`
+      (`max_glass_paint_ms`, `glass_backdrops`); tests `glass_paint_null` (real sink, command order and
+      every bounded fallback), `glass_paint_gpu` (real paint path pixels: analytic composite, kernel
+      scan, half resolution, rounded clip, opacity, `blur(0)`, validation-clean), plus the existing
+      `paint_glass`, `glass_damage` (static glass = zero frames), `glass_blur`, `glass_style`,
+      `glass_config` and the unchanged image goldens.
 - [x] #241: `tessera_benchmark`, a GPU-free 12k-node CPU benchmark with a committed budget —
       `tests/benchmarks/cpu/` (CTest `cpu_benchmark`), `tests/golden/perf/cpu_benchmark.txt`,
       measured table and the paint trigger in `docs/design/performance.md` §9.1.

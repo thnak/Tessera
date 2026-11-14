@@ -28,6 +28,9 @@ struct DrawListCounts {
     std::size_t vectors = 0;
     std::size_t clips = 0;
     std::size_t transforms = 0;
+    // Glass backdrop composites (issue #244). Forwarded to the batched sink, so the benchmark pays
+    // the real recording cost (region copy + two blur passes + composite) on the null RHI.
+    std::size_t backdrops = 0;
 
     [[nodiscard]] std::size_t primitives() const noexcept {
         return fills + rounded_fills + gradients + text_runs + images + vectors;
@@ -82,6 +85,13 @@ public:
     void draw_image(const ui::paint::ImageDraw& draw) override {
         ++counts_.images;
         batched_->draw_image(draw);
+    }
+    [[nodiscard]] bool supports_backdrop() const override {
+        return batched_->supports_backdrop();
+    }
+    void draw_backdrop(const ui::paint::BackdropDraw& draw) override {
+        ++counts_.backdrops;
+        batched_->draw_backdrop(draw);
     }
 
     [[nodiscard]] const DrawListCounts& counts() const noexcept {

@@ -45,9 +45,13 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
 
     const rhi::TextureFormat format = rhi::TextureFormat::R8G8B8A8Unorm;
     auto pipeline = detail::create_pipeline(*device, format);
+    // The capture target is offscreen, so a glass scene composites here exactly as it does in the
+    // window driver; the pipelines are created for the same format as the 2D one.
+    detail::GlassPipelines glass = detail::create_glass_pipelines(*device, format);
     auto white = detail::create_white(*device);
-    rendering::gpu::Batched2DRenderer renderer(*device, *pipeline, *white,
-                                               rendering::gpu::Batched2DConfig{4096, true, false});
+    rendering::gpu::Batched2DRenderer renderer(
+        *device, *pipeline, *white, rendering::gpu::Batched2DConfig{4096, true, false},
+        rendering::gpu::GlassPipelines{glass.blur.get(), glass.composite.get()});
     detail::TextStack text(*device, options.font_path);
     ui::paint::Batched2DSink sink(renderer, text.renderer.get(), text.shaper.get());
 

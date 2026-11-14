@@ -269,11 +269,21 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     // dropping frames; the capability is fixed for this swapchain generation.
     const bool scaled =
         adaptive.scaled && scaled_present_supported && ensure_scaled_target(slot, adaptive.extent);
+    // A glass frame reads the target it paints into (the backdrop copy is a region of the frame
+    // target), and a swapchain image is neither a copy source nor samplable (RHI 1.1/1.3). So a
+    // scene with a glass node renders into the per-slot offscreen target at the presented extent
+    // and the same submission resamples it into the acquired image - the path the adaptive render
+    // scale already uses, at content scale 1 (a 1:1 blit is exact, so the pixels are unchanged).
+    // Without the resample capability the frame paints directly and the sink reports the glass
+    // draws as unsupported, which is the documented fallback rather than an unbounded target.
+    const bool glass_frame = !scaled && root.glass_subtree() && scaled_present_supported &&
+                             ensure_scaled_target(slot, presented);
+    const bool offscreen = scaled || glass_frame;
     const rhi::Color clear_color =
         translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(11, 18, 32);
     rhi::RenderTarget* paint_target = target;
     rhi::RenderTargetDesc desc = detail::target_desc(presented, swapchain->format(), clear_color);
-    if (scaled) {
+    if (offscreen) {
         paint_target = scaled_targets[slot].get();
         desc = detail::target_desc(paint_target->extent(), swapchain->format(), clear_color);
     }
@@ -290,10 +300,14 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     }
     sink->begin_text_frame();
     // Swapchain images are not preserved across presents, so a presented frame is a full redraw;
-    // the damage plan only decided whether this frame happens at all.
-    ui::paint::paint_scene(root, host->styles(), *sink);
+    // the damage plan only decided whether this frame happens at all. The glass cost limits are the
+    // ones the style sync clamped the blur sigma with, so paint, damage and the renderer agree.
+    ui::paint::PaintContext context;
+    context.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
+    context.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
+    ui::paint::paint_scene(root, host->styles(), *sink, context);
     renderer->end();
-    if (scaled) {
+    if (offscreen) {
         // The same submission records the resample into the acquired image, so it carries the
         // acquire wait and the present semaphore exactly like a render pass into that image would.
         commands->blit_target(*scaled_targets[slot], *target, rhi::Filter::Linear);

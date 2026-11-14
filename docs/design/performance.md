@@ -393,6 +393,27 @@ gating runner. It catches order-of-magnitude regressions and does not rank machi
 prints the full table (times, damage count, draw calls, primitive count) into the CTest log, so CI
 history shows the trend.
 
+**Glass scenario (issue #244, [`glass-v1.md`](../specs/glass-v1.md) section 9).** The same full
+paint with the reference dashboard's fixed top bar blurred (`backdrop-filter: blur(16px)` through an
+inline style; no node is added, so the tree is still 12 000 nodes). The paint records one backdrop
+composite - region plan, region copy, both `glass_blur` passes and the composite - through the null
+RHI, so this is the **CPU record cost of glass**, the same quantity `glass_ms` reports
+([`glass-v1.md`](../specs/glass-v1.md) section 8.1), not its GPU cost. Measured on the reference
+machine in one run (median, p95):
+
+| Metric at 12 000 nodes | Same run | Committed budget |
+|---|---|---|
+| Full paint into draw lists, no glass | 86.1 ms (88.0 ms) | 500 ms |
+| Full paint with one glass bar | 86.7 ms (89.8 ms) | 500 ms |
+| Backdrops recorded by the glass frame | 1 | 1 (exact) |
+
+The composite costs about 0.6% of the paint, inside the paint's own run-to-run spread: it adds a
+bounded number of commands (one copy, two fullscreen draws, two sampled binds) instead of per-node
+work. Compare the two numbers of a single run rather than against the table above, whose rows were
+recorded on an earlier, quieter machine state. `max_glass_paint_ms` therefore guards the same
+order of magnitude as `max_full_paint_ms`: it catches a regression that turns glass into per-pixel
+CPU work, not the GPU blur, which the exact-pixel tests and the (unbudgeted) GPU timings cover.
+
 **Trigger.** Revisit the V1 decision of no render thread and no worker recording when
 `paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the
 measured paint is 75 ms, about nineteen times the 4 ms trigger and 4.5x the 60 Hz frame budget
