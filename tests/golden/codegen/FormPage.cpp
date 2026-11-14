@@ -45,42 +45,45 @@ namespace demo {
       seed_form_2();
       apply_form_fields_2();
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(501ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(501ull + node_id_base_));
       node_1->set_element_kind("View");
       node_1->set_class_name("form-page");
       // node::2 ("comp::Form" instance, slot children: 2)
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(502ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(502ull + node_id_base_));
       node_2->set_element_kind("Component");
       node_2->set_component_name("Form");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_2;
       // node::3 ("comp::Field" instance, slot children: 1)
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(503ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(503ull + node_id_base_));
       node_3->set_element_kind("Component");
       node_3->set_component_name("Field");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_3;
       // node::4
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(504ull));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(504ull + node_id_base_));
       node_4->set_element_kind("TextInput");
       node_4->set_focusable(true);
       this->form_controller_2_widget_email_ = node_4.get();
       node_4->bind_event(tessera::ui::EventType::TextChange, &form_2_field_email_changed_adapter, this);
       slot_3.push_back(std::move(node_4));
+      this->child_3_.node_id_base_ = static_cast<tessera::ui::NodeId>(503ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_3_.build(*node_3, std::move(slot_3));
       slot_2.push_back(std::move(node_3));
       // node::5 ("comp::Field" instance, slot children: 1)
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(505ull));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(505ull + node_id_base_));
       node_5->set_element_kind("Component");
       node_5->set_component_name("Field");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_5;
       // node::6
-      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(506ull));
+      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(506ull + node_id_base_));
       node_6->set_element_kind("TextInput");
       node_6->set_focusable(true);
       this->form_controller_2_widget_age_ = node_6.get();
       node_6->bind_event(tessera::ui::EventType::TextChange, &form_2_field_age_changed_adapter, this);
       slot_5.push_back(std::move(node_6));
+      this->child_5_.node_id_base_ = static_cast<tessera::ui::NodeId>(505ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_5_.build(*node_5, std::move(slot_5));
       slot_2.push_back(std::move(node_5));
+      this->child_2_.node_id_base_ = static_cast<tessera::ui::NodeId>(502ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_2_.build(*node_2, std::move(slot_2));
       node_1->add_child(std::move(node_2));
       parent.add_child(std::move(node_1));

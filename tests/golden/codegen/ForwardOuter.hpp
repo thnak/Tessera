@@ -8,6 +8,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_ids.hpp"
 #include "ForwardWrap.hpp"
 
 #include <cstdint>
@@ -22,6 +23,9 @@ namespace forward {
   namespace gen {
     // comp::ForwardOuter (ForwardOuter).
     struct ForwardOuter {
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // useState `count`.
       int state_count_ = 0;
       // Component instance `comp::ForwardWrap` for the node with pre-order index 1 (the instance owns its own state).

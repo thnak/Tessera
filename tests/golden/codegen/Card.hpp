@@ -20,6 +20,9 @@ namespace demo {
   namespace gen {
     // comp::Card (Card).
     struct Card {
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       
       void build(tessera::ui::Node& parent);
       // Callee side of the static children slot: `slot` is the caller's content and

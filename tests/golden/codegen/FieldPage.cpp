@@ -22,25 +22,26 @@ namespace demo {
     void FieldPage::build(tessera::ui::Node& parent) {
       apply_props();
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(401ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(401ull + node_id_base_));
       node_1->set_element_kind("View");
       node_1->set_class_name("field-page");
       // node::2 events={onClick:handler::1}
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(402ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(402ull + node_id_base_));
       node_2->set_element_kind("Button");
       node_2->bind_event(tessera::ui::EventType::Click, &event_adapter_2_onClick, this);
       node_2->set_focusable(true);
       node_1->add_child(std::move(node_2));
       // node::3 ("comp::Field" instance, slot children: 1)
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(403ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(403ull + node_id_base_));
       node_3->set_element_kind("Component");
       node_3->set_component_name("Field");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_3;
       // node::4
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(404ull));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(404ull + node_id_base_));
       node_4->set_element_kind("TextInput");
       node_4->set_focusable(true);
       slot_3.push_back(std::move(node_4));
+      this->child_3_.node_id_base_ = static_cast<tessera::ui::NodeId>(403ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_3_.build(*node_3, std::move(slot_3));
       node_1->add_child(std::move(node_3));
       parent.add_child(std::move(node_1));

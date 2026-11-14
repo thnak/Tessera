@@ -21,6 +21,9 @@ namespace demo {
   namespace gen {
     // comp::Field (Field).
     struct Field {
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // prop `name`.
       std::string prop_name_ = {""};
       // prop `label`.

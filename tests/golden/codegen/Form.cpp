@@ -16,7 +16,7 @@ namespace demo {
     
     void Form::build(tessera::ui::Node& parent, std::vector<std::unique_ptr<tessera::ui::Node>> slot) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(14678135247258877049ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(14678135247258877049ull + node_id_base_));
       node_1->set_element_kind("View");
       node_1->set_class_name("form");
       // node::2 (the caller's slot content attaches here)

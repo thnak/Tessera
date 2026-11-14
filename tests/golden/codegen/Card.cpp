@@ -16,11 +16,11 @@ namespace demo {
     
     void Card::build(tessera::ui::Node& parent, std::vector<std::unique_ptr<tessera::ui::Node>> slot) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(101ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(101ull + node_id_base_));
       node_1->set_element_kind("View");
       node_1->set_class_name("card");
       // node::2
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(102ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(102ull + node_id_base_));
       node_2->set_element_kind("Text");
       tessera::ui::PaintData paint_node_2;
       paint_node_2.text = "card";

@@ -8,6 +8,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_ids.hpp"
 #include "Row.hpp"
 
 #include <cstdint>
@@ -50,6 +51,9 @@ namespace demo {
     };
     
     struct Page {
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // useState `show`.
       bool state_show_ = false;
       // useState `entries`.

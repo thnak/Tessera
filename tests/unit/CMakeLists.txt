@@ -2132,3 +2132,29 @@ target_include_directories(chart_series_ring_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include)
 
 add_test(NAME chart_series_ring COMMAND chart_series_ring_tests)
+
+# Issue #239: a `{children}` Slot in a salted project gets a uiId and no automation id.
+add_executable(ir_ids_slot_tests
+    ir_ids_slot_tests.cpp)
+target_link_libraries(ir_ids_slot_tests PRIVATE tessera_lowering tessera_ir_ids)
+add_test(NAME ir_ids_slot COMMAND ir_ids_slot_tests)
+
+# Issue #239: the Button stylesheet compiles cleanly and reads only tokens every Instrument theme
+# defines.
+add_executable(library_button_style_tests
+    library_button_style_tests.cpp)
+target_link_libraries(library_button_style_tests PRIVATE tessera_style)
+target_compile_definitions(library_button_style_tests PRIVATE
+    TESSERA_BUTTON_CSS="${CMAKE_SOURCE_DIR}/packages/tessera-ui/button.css"
+    TESSERA_INSTRUMENT_THEME="${CMAKE_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
+add_test(NAME library_button_style COMMAND library_button_style_tests)
+
+# Issue #239: the library Button lowers, validates under a salt and generates C++.
+add_executable(library_button_lowering_tests
+    library_button_lowering_tests.cpp)
+target_link_libraries(library_button_lowering_tests PRIVATE
+    tessera_lowering tessera_codegen tessera_ir_ids)
+target_compile_definitions(library_button_lowering_tests PRIVATE
+    TESSERA_BUTTON_TSX="${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx"
+    TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
+add_test(NAME library_button_lowering COMMAND library_button_lowering_tests)

@@ -318,7 +318,9 @@ Lines apply_access(const Lines& struct_body, const std::string& friend_line) {
     for (const Item& item : group_items(struct_body)) {
         bool wants_private = false;
         if (is_data_member(item)) {
-            wants_private = !starts_with(data_member_name(item), "prop_");
+            const std::string name = data_member_name(item);
+            // `node_id_base_` is written by the owning component before build (issue #295).
+            wants_private = !starts_with(name, "prop_") && name != "node_id_base_";
         } else {
             for (const std::string& line : item.code) {
                 wants_private =

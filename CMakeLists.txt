@@ -166,6 +166,7 @@ if (TESSERA_BUILD_VULKAN)
         # Vulkan surface path, so it is gated like the PoCs.
         if (NOT CMAKE_CROSSCOMPILING)
             add_subdirectory(samples/click-demo)
+            add_subdirectory(samples/gallery)
         endif()
     endif()
 endif()

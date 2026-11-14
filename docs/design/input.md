@@ -25,7 +25,7 @@ per-tick input pump
 implemented in `src/platform/windows/`; Linux/X11 translates core input plus XInput2 smooth scroll,
 touch, pen and XIM pre-edit (sections 2.2 and 8). Other platform translation, platform-specific
 `:focus-visible` refinements (see section 6), window-blur focus retention policy (blur already
-cancels captures, hover, and active), ancestor hover chains and hover recomputation on scene
+cancels captures, hover, and active), ancestor hover chains (`:active` already covers the ancestors, issue #239) and hover recomputation on scene
 changes, IME producers beyond Win32 and X11, gesture handlers, and recording remain design-only.
 Decision record:
 [ADR-017](../../decisions/ADR-017-input-and-fixed-step-runtime.md) (input handler and fixed-step runtime).

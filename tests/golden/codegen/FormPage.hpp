@@ -8,6 +8,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_ids.hpp"
 #include "Field.hpp"
 #include "Form.hpp"
 #include "tessera/ui/forms/form_model.hpp"
@@ -25,6 +26,9 @@ namespace demo {
   namespace gen {
     // comp::FormPage (FormPage).
     struct FormPage {
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // Component instance `comp::Form` for the node with pre-order index 2 (the instance owns its own state).
       Form child_2_;
       std::uint64_t child_2_prop_initial_hash_ = 0;

@@ -1,0 +1,78 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The Button look (issue #239, ADR-047 item 5): flat surfaces, 4 px grid, radii 2 to 8 px, theme
+   tokens only. No selector below names a color or a length that a theme does not define, so the
+   light, dark and high-contrast themes and both densities restyle it. `tbtn-pressed` is the class
+   the Button sets while a key presses it (a pointer press styles it through `:active`);
+   `tbtn-disabled` replaces it while disabled and `tbtn-idle` (no rule) marks the resting state. */
+
+.tbtn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  padding: 0px var(--control-padding-x);
+  border-width: var(--border-width);
+  border-style: solid;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  cursor: pointer;
+}
+
+.tbtn-sm {
+  min-height: var(--control-height-compact);
+  padding: 0px var(--control-padding-x-compact);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.tbtn-primary {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tbtn-secondary {
+  background-color: var(--surface-raised);
+  border-color: var(--border-strong);
+  color: var(--on-surface);
+}
+
+.tbtn-ghost {
+  background-color: var(--surface);
+  border-color: var(--surface);
+  color: var(--on-surface);
+}
+
+.tbtn-danger {
+  background-color: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-danger);
+}
+
+.tbtn:hover {
+  opacity: 0.92;
+}
+
+.tbtn-secondary:hover,
+.tbtn-ghost:hover {
+  background-color: var(--surface-sunken);
+}
+
+.tbtn-pressed,
+.tbtn:active {
+  opacity: 0.8;
+}
+
+.tbtn:focus-visible {
+  border-color: var(--focus-ring);
+  box-shadow: 0px 0px 0px 2px var(--focus-ring);
+}
+
+.tbtn-disabled {
+  opacity: 0.4;
+  cursor: default;
+}

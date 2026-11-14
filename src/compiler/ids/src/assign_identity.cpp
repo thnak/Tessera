@@ -109,7 +109,9 @@ assign_module_identity(ir::IrModule& module, std::string_view salt, bool mirror_
     }
     for (std::size_t i = 0; i < slots.size(); ++i) {
         slots[i].node->ui_id = std::to_string((*node_ids)[i].ui_id);
-        if (mirror_automation_id) {
+        // A Slot is a bare position marker with no scene node, so it carries no automation id
+        // (the validator rejects one); it still has its `uiId`.
+        if (mirror_automation_id && slots[i].node->kind != ir::NodeKind::Slot) {
             slots[i].node->automation_id = slots[i].node->ui_id;
         }
     }

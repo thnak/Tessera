@@ -18,26 +18,26 @@ namespace demo {
     
     void CardPage::build(tessera::ui::Node& parent) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(201ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(201ull + node_id_base_));
       node_1->set_element_kind("View");
       node_1->set_class_name("page");
       // node::2 ("comp::Card" instance, slot children: 3)
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(202ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(202ull + node_id_base_));
       node_2->set_element_kind("Component");
       node_2->set_component_name("Card");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_2;
       // node::3
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(203ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(203ull + node_id_base_));
       node_3->set_element_kind("Text");
       tessera::ui::PaintData paint_node_3;
       paint_node_3.text = "hello";
       node_3->set_paint_data(std::move(paint_node_3));
       slot_2.push_back(std::move(node_3));
       // node::4
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(204ull));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(204ull + node_id_base_));
       node_4->set_element_kind("View");
       // node::5
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(205ull));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(205ull + node_id_base_));
       node_5->set_element_kind("Text");
       tessera::ui::PaintData paint_node_5;
       paint_node_5.text = "nested";
@@ -45,11 +45,12 @@ namespace demo {
       node_4->add_child(std::move(node_5));
       slot_2.push_back(std::move(node_4));
       // node::6 events={onClick:bind::on_tap}
-      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(206ull));
+      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(206ull + node_id_base_));
       node_6->set_element_kind("Button");
       node_6->bind_event(tessera::ui::EventType::Click, &event_adapter_6_onClick, this);
       node_6->set_focusable(true);
       slot_2.push_back(std::move(node_6));
+      this->child_2_.node_id_base_ = static_cast<tessera::ui::NodeId>(202ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_2_.build(*node_2, std::move(slot_2));
       node_1->add_child(std::move(node_2));
       parent.add_child(std::move(node_1));

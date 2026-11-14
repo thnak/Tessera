@@ -58,41 +58,41 @@ namespace vlist {
     
     void VirtualDemo::build(tessera::ui::Node& parent) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull + node_id_base_));
       node_1->set_element_kind("View");
       // node::2
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull + node_id_base_));
       node_2->set_element_kind("Text");
       tessera::ui::PaintData paint_node_2;
       paint_node_2.text = "Header";
       node_2->set_paint_data(std::move(paint_node_2));
       node_1->add_child(std::move(node_2));
       // node::3 events={onEndReached:handler::on_end_reached,onScroll:bind::on_scroll}
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull + node_id_base_));
       node_3->set_element_kind("VirtualList");
       this->virtual_3_ = node_3.get();
       // node::4 is the virtual item template: build_item_4() builds one realized item (bounded window table)
       node_1->add_child(std::move(node_3));
       // node::6
-      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6ull));
+      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6ull + node_id_base_));
       node_6->set_element_kind("VirtualGrid");
       this->virtual_6_ = node_6.get();
       // node::7 is the virtual item template: build_item_7() builds one realized item (bounded window table)
       node_1->add_child(std::move(node_6));
       // node::9
-      auto node_9 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9ull));
+      auto node_9 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9ull + node_id_base_));
       node_9->set_element_kind("Text");
       tessera::ui::PaintData paint_node_9;
       paint_node_9.text = "Footer";
       node_9->set_paint_data(std::move(paint_node_9));
       node_1->add_child(std::move(node_9));
       // node::10 events={onClick:bind::on_click}
-      auto node_10 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(10ull));
+      auto node_10 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(10ull + node_id_base_));
       node_10->set_element_kind("Button");
       node_10->bind_event(tessera::ui::EventType::Click, &event_adapter_10_onClick, this);
       node_10->set_focusable(true);
       // node::11
-      auto node_11 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(11ull));
+      auto node_11 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(11ull + node_id_base_));
       node_11->set_element_kind("Text");
       tessera::ui::PaintData paint_node_11;
       paint_node_11.text = "Add";
@@ -111,10 +111,10 @@ namespace vlist {
       (void)tessera_out;
       tessera_out.id_slot = tessera_id_slot;
       // node::4
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull + tessera_id_slot * kItemIdStride));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_4->set_element_kind("View");
       // node::5
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + tessera_id_slot * kItemIdStride));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_5->set_element_kind("Text");
       tessera_out.texts[0] = node_5.get();
       node_4->add_child(std::move(node_5));
@@ -388,10 +388,10 @@ namespace vlist {
       (void)tessera_out;
       tessera_out.id_slot = tessera_id_slot;
       // node::7
-      auto node_7 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(7ull + tessera_id_slot * kItemIdStride));
+      auto node_7 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(7ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_7->set_element_kind("View");
       // node::8
-      auto node_8 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(8ull + tessera_id_slot * kItemIdStride));
+      auto node_8 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(8ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_8->set_element_kind("Text");
       tessera_out.texts[0] = node_8.get();
       node_7->add_child(std::move(node_8));

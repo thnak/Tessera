@@ -314,6 +314,9 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
                                       *state.locals, true, error)) {
             return false;
         }
+        // Distinct ids per item and per instance, as for a static instance (issue #295); the host
+        // id includes the item index.
+        writer.line(field + "->node_id_base_ = " + id + " * tessera::ui::kNodeIdBaseStride;");
         writer.line(field + "->build(*" + variable + ");");
         // Lifecycle and the update scheduler follow the owner: an item created after the owner was
         // mounted starts mounted, and its ticket joins the scheduler the owner was given.
@@ -357,6 +360,12 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
         writer.line(slot + ".push_back(std::move(" + child_variable + "));");
     }
     const std::string member = instance_member(ordinal);
+    // Every instance of one component would build the same baked NodeIds, and focus, capture and
+    // click synthesis resolve nodes by id. The host's id (which already includes this component's
+    // own base) is unique here, so it seeds the instance's base before any node is created
+    // (issue #295).
+    writer.line("this->" + member + ".node_id_base_ = " + id +
+                " * tessera::ui::kNodeIdBaseStride;");
     if (takes) {
         writer.line("this->" + member + ".build(*" + variable + ", std::move(" + slot + "));");
     } else {

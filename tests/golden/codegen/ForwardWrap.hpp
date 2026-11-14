@@ -22,6 +22,9 @@ namespace forward {
   namespace gen {
     // comp::ForwardWrap (ForwardWrap).
     struct ForwardWrap {
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // prop `onPress`.
       std::function<void()> prop_onPress_ = {};
       // prop `onText`.

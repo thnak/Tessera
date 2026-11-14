@@ -18,17 +18,18 @@ namespace demo {
     
     void WatchPage::build(tessera::ui::Node& parent) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(401ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(401ull + node_id_base_));
       node_1->set_element_kind("View");
       // node::2 ("comp::Watcher" instance, slot children: 0)
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(402ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(402ull + node_id_base_));
       node_2->set_element_kind("Component");
       node_2->set_component_name("Watcher");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_2;
+      this->child_2_.node_id_base_ = static_cast<tessera::ui::NodeId>(402ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_2_.build(*node_2);
       node_1->add_child(std::move(node_2));
       // node::3 events={onSizeChange:bind::on_tail_size}
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(403ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(403ull + node_id_base_));
       node_3->set_element_kind("Text");
       this->size_observation_3_.emplace(*node_3, &on_size_change_3, this);
       if (this->layout_observers_ != nullptr) {

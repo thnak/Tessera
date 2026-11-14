@@ -84,16 +84,17 @@ namespace demo {
     void Page::build(tessera::ui::Node& parent) {
       apply_props();
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2101ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2101ull + node_id_base_));
       node_1->set_element_kind("View");
       this->children_parent_1_ = node_1.get();
       // node::2 is a list template: its items are built by build_item_2() (bounded item table)
       // node::4 is a list template: its items are built by build_item_4() (bounded item table)
       // node::5 ("comp::Row" instance, slot children: 0)
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2105ull));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2105ull + node_id_base_));
       node_5->set_element_kind("Component");
       node_5->set_component_name("Row");
       std::vector<std::unique_ptr<tessera::ui::Node>> slot_5;
+      this->child_5_.node_id_base_ = static_cast<tessera::ui::NodeId>(2105ull + node_id_base_) * tessera::ui::kNodeIdBaseStride;
       this->child_5_.build(*node_5);
       this->branch_5_owned_ = std::move(node_5);
       parent.add_child(std::move(node_1));
@@ -183,11 +184,11 @@ namespace demo {
       (void)tessera_out;
       tessera_out.id_slot = tessera_id_slot;
       // node::2
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2102ull + tessera_id_slot * kItemIdStride));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2102ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_2->set_element_kind("View");
       tessera_out.group_parent_2 = node_2.get();
       // node::3
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2103ull + tessera_id_slot * kItemIdStride));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2103ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_3->set_element_kind("Text");
       tessera_out.texts[0] = node_3.get();
       tessera_out.branch_3_owned = std::move(node_3);
@@ -304,13 +305,14 @@ namespace demo {
       (void)tessera_out;
       tessera_out.id_slot = tessera_id_slot;
       // node::4 ("comp::Row" instance, slot children: 0)
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2104ull + tessera_id_slot * kItemIdStride));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2104ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_4->set_element_kind("Component");
       node_4->set_component_name("Row");
       node_4->set_automation_id(2104ull);
       tessera_out.child_4 = std::make_unique<Row>();
       tessera_out.child_4->prop_label_ = entry;
       tessera_out.child_4->prop_notes_ = {entry};
+      tessera_out.child_4->node_id_base_ = static_cast<tessera::ui::NodeId>(2104ull + node_id_base_ + tessera_id_slot * kItemIdStride) * tessera::ui::kNodeIdBaseStride;
       tessera_out.child_4->build(*node_4);
       if (this->mounted_) {
         tessera_out.child_4->mount();

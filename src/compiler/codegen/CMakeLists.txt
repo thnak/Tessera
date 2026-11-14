@@ -117,6 +117,19 @@ if (EXISTS ${_tessera_codegen_instances_golden_dir}/Page.cpp AND EXISTS ${_tesse
     target_compile_features(tessera_codegen_instances_sample PUBLIC cxx_std_23)
 endif ()
 
+# Library Button fixture (issue #239), generated from packages/tessera-ui/Button.tsx and a demo that
+# imports it, in library_button_lowering_tests. Same deliberate golden path:
+# `library_button_lowering_tests --write` owns Button.* and ButtonDemo.*.
+if (EXISTS ${_tessera_codegen_golden_dir}/Button.cpp AND EXISTS ${_tessera_codegen_golden_dir}/ButtonDemo.cpp)
+    add_library(tessera_codegen_button_sample STATIC
+        ${_tessera_codegen_golden_dir}/Button.cpp
+        ${_tessera_codegen_golden_dir}/ButtonDemo.cpp)
+    target_include_directories(tessera_codegen_button_sample
+        PRIVATE ${_tessera_codegen_golden_dir})
+    target_link_libraries(tessera_codegen_button_sample PRIVATE tessera_scene tessera_text_edit)
+    target_compile_features(tessera_codegen_button_sample PUBLIC cxx_std_23)
+endif ()
+
 # onSizeChange fixture (ADR-041 slice 5), generated from the hand-built IR in
 # codegen_size_change_tests. Same deliberate golden path: `codegen_size_change_tests --write` owns
 # Watcher.* and WatchPage.*. It links tessera_layout for LayoutObservation.
@@ -456,6 +469,22 @@ if (TESSERA_BUILD_TESTS)
             tessera_scene)
 
         add_test(NAME codegen_instances_runtime COMMAND codegen_instances_runtime_tests)
+endif ()
+
+    if (TARGET tessera_codegen_button_sample)
+        add_executable(library_button_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/library_button_runtime_tests.cpp)
+
+        target_include_directories(library_button_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir})
+        target_link_libraries(library_button_runtime_tests PRIVATE
+            tessera_codegen_button_sample
+            tessera_scene
+            tessera_text_edit
+            tessera_animation
+            tessera_style)
+
+        add_test(NAME library_button_runtime COMMAND library_button_runtime_tests)
     endif ()
 
     add_executable(codegen_size_change_tests

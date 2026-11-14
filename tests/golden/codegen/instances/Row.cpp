@@ -50,12 +50,12 @@ namespace demo {
     
     void Row::build(tessera::ui::Node& parent) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1101ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1101ull + node_id_base_));
       node_1->set_element_kind("View");
       node_1->set_class_name("row");
       this->children_parent_1_ = node_1.get();
       // node::2
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1102ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1102ull + node_id_base_));
       node_2->set_element_kind("Text");
       this->text_node_2_ = node_2.get();
       node_1->add_child(std::move(node_2));
@@ -99,10 +99,10 @@ namespace demo {
       (void)tessera_out;
       tessera_out.id_slot = tessera_id_slot;
       // node::3
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1103ull + tessera_id_slot * kItemIdStride));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1103ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_3->set_element_kind("View");
       // node::4
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1104ull + tessera_id_slot * kItemIdStride));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1104ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_4->set_element_kind("Text");
       tessera_out.texts[0] = node_4.get();
       node_3->add_child(std::move(node_4));

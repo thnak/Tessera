@@ -1,0 +1,67 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The gallery page and its switches (issue #239, ADR-047 item 10). Density and text scale are
+   token overrides on the window root (`g-compact`, `g-scale-125`, `g-scale-150`), which every
+   library rule reads through var(), so the controls restyle without a single control-specific
+   rule here. Direction is the inherited `direction` property set on the root by the host. */
+
+.g-page {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+}
+
+.g-title {
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
+  margin-bottom: var(--space-4);
+}
+
+.g-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.g-row > * {
+  margin-inline-end: var(--space-3);
+}
+
+.g-note {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+.g-root.g-compact {
+  --control-height: 28px;
+  --control-height-compact: 20px;
+  --control-padding-x: 8px;
+  --control-padding-x-compact: 6px;
+}
+
+.g-root.g-scale-125 {
+  --font-size-label: 14px;
+  --font-size-body: 17.5px;
+  --font-size-title: 22.5px;
+  --line-height-label: 20px;
+  --line-height-body: 25px;
+  --line-height-title: 30px;
+}
+
+.g-root.g-scale-150 {
+  --font-size-label: 16.5px;
+  --font-size-body: 21px;
+  --font-size-title: 27px;
+  --line-height-label: 24px;
+  --line-height-body: 30px;
+  --line-height-title: 36px;
+}
+
+.g-root.g-rtl {
+  direction: rtl;
+}

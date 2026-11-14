@@ -11,10 +11,10 @@ namespace vicon {
     
     void VectorIcon::build(tessera::ui::Node& parent) {
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull + node_id_base_));
       node_1->set_element_kind("View");
       // node::2
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull + node_id_base_));
       node_2->set_element_kind("Path");
       node_2->set_aria("aria-label", "Logo");
       tessera::ui::PaintData paint_node_2;
@@ -23,7 +23,7 @@ namespace vicon {
       node_2->set_paint_data(std::move(paint_node_2));
       node_1->add_child(std::move(node_2));
       // node::3
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull + node_id_base_));
       node_3->set_element_kind("Path");
       tessera::ui::PaintData paint_node_3;
       paint_node_3.kind = tessera::ui::PaintKind::Vector;

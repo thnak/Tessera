@@ -66,6 +66,9 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
     if (options.scheduler != nullptr) {
         host.set_update_scheduler(options.scheduler);
     }
+    if (options.configure_host) {
+        options.configure_host(host);
+    }
     // First frame lays the scene out so `prepare` can hit-test or change state; the second frame
     // applies that state (scheduler flush, style, layout) before the captured paint.
     (void)host.begin_frame(0.0);

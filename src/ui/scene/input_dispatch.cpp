@@ -482,14 +482,20 @@ void InputRouter::set_active(Node* target) {
     }
     active_ = target;
     active_id_ = target->id();
-    target->set_pseudo_state(style::PseudoState::Active, true);
+    // `:active` matches the pressed element and its ancestors (Selectors 4), so a Button whose
+    // label is under the pointer is `:active` as well.
+    for (Node* node = target; node != nullptr; node = node->parent()) {
+        node->set_pseudo_state(style::PseudoState::Active, true);
+    }
 }
 
 void InputRouter::clear_active() {
     if (active_ != nullptr) {
         Node* live = root_ != nullptr ? find_node_in(*root_, active_id_) : nullptr;
         if (live == active_) {
-            live->set_pseudo_state(style::PseudoState::Active, false);
+            for (Node* node = live; node != nullptr; node = node->parent()) {
+                node->set_pseudo_state(style::PseudoState::Active, false);
+            }
         }
     }
     active_ = nullptr;
