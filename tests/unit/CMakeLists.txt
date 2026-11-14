@@ -1500,7 +1500,7 @@ add_test(NAME lowering_props COMMAND lowering_props_tests)
 add_executable(lowering_props_alias_tests
     lowering_props_alias_tests.cpp)
 
-target_link_libraries(lowering_props_alias_tests PRIVATE tessera_lowering tessera_codegen)
+target_link_libraries(lowering_props_alias_tests PRIVATE tessera_lowering tessera_codegen tessera_ir_ids)
 
 add_test(NAME lowering_props_alias COMMAND lowering_props_alias_tests)
 
@@ -1607,7 +1607,7 @@ add_test(NAME lowering_module_reject COMMAND lowering_module_reject_tests)
 add_executable(lowering_module_stylesheet_tests
     lowering_module_stylesheet_tests.cpp)
 
-target_link_libraries(lowering_module_stylesheet_tests PRIVATE tessera_lowering tessera_codegen)
+target_link_libraries(lowering_module_stylesheet_tests PRIVATE tessera_lowering tessera_codegen tessera_ir_ids)
 
 add_test(NAME lowering_module_stylesheet COMMAND lowering_module_stylesheet_tests)
 
@@ -2104,3 +2104,12 @@ add_executable(codegen_span_tests
     codegen_span_tests.cpp)
 target_link_libraries(codegen_span_tests PRIVATE tessera_codegen)
 add_test(NAME codegen_span COMMAND codegen_span_tests)
+
+# Issue #286: a callback prop forwarded to an event (`onClick={onPress}`) lowers to a `callProp`
+# action, validates, and generates a guarded call of the prop's std::function.
+add_executable(lowering_callback_forward_tests
+    lowering_callback_forward_tests.cpp)
+target_link_libraries(lowering_callback_forward_tests PRIVATE tessera_lowering tessera_codegen tessera_ir_ids)
+target_compile_definitions(lowering_callback_forward_tests PRIVATE
+    TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
+add_test(NAME lowering_callback_forward COMMAND lowering_callback_forward_tests)

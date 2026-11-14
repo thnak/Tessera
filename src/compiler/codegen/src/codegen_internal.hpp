@@ -40,6 +40,11 @@ struct CppWriter {
 // The generated member name for a reference id (`state::count` -> `state_count_`).
 [[nodiscard]] std::string member_name(std::string_view ir_id);
 
+// A `callProp` action as C++ statements appended to `body` (issue #286); false with `error` set.
+[[nodiscard]] bool emit_call_prop(const ir::Action& action, const ir::Component& component,
+                                  std::span<const ir::Param> params, std::string& body,
+                                  std::string& error);
+
 // The `AnimatedScalar` controller behind an animated cell (`anim::x` -> `anim_x_scalar_`). The
 // plain `anim_x_` field keeps the sampled value every expression reads.
 [[nodiscard]] std::string animated_controller_name(std::string_view ir_id);

@@ -13,6 +13,7 @@ add_library(tessera_codegen STATIC
     src/emit_dynamic_header.cpp
     src/emit_dynamic_plan.cpp
     src/emit_events.cpp
+    src/emit_call_prop.cpp
     src/emit_expr.cpp
     src/emit_forms.cpp
     src/emit_layout_observe.cpp
@@ -84,6 +85,19 @@ if (EXISTS ${_tessera_codegen_golden_dir}/CardPage.cpp AND EXISTS ${_tessera_cod
         PRIVATE ${_tessera_codegen_golden_dir})
     target_link_libraries(tessera_codegen_composition_sample PRIVATE tessera_scene)
     target_compile_features(tessera_codegen_composition_sample PUBLIC cxx_std_23)
+endif ()
+
+# Callback-forwarding fixture (issue #286), generated from TSX in lowering_callback_forward_tests.
+# Same deliberate golden path: `lowering_callback_forward_tests --write` owns ForwardWrap.* and
+# ForwardOuter.*.
+if (EXISTS ${_tessera_codegen_golden_dir}/ForwardWrap.cpp AND EXISTS ${_tessera_codegen_golden_dir}/ForwardOuter.cpp)
+    add_library(tessera_codegen_forward_sample STATIC
+        ${_tessera_codegen_golden_dir}/ForwardWrap.cpp
+        ${_tessera_codegen_golden_dir}/ForwardOuter.cpp)
+    target_include_directories(tessera_codegen_forward_sample
+        PRIVATE ${_tessera_codegen_golden_dir})
+    target_link_libraries(tessera_codegen_forward_sample PRIVATE tessera_scene tessera_text_edit)
+    target_compile_features(tessera_codegen_forward_sample PUBLIC cxx_std_23)
 endif ()
 
 # onSizeChange fixture (ADR-041 slice 5), generated from the hand-built IR in
@@ -380,6 +394,23 @@ if (TESSERA_BUILD_TESTS)
             tessera_scene)
 
         add_test(NAME codegen_composition_runtime COMMAND codegen_composition_runtime_tests)
+    endif ()
+
+    if (TARGET tessera_codegen_forward_sample)
+        add_executable(codegen_callback_forward_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_callback_forward_runtime_tests.cpp)
+
+        target_include_directories(codegen_callback_forward_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir})
+        target_link_libraries(codegen_callback_forward_runtime_tests PRIVATE
+            tessera_codegen_forward_sample
+            tessera_scene
+            tessera_text_edit
+            tessera_animation
+            tessera_style)
+
+        add_test(NAME codegen_callback_forward_runtime
+            COMMAND codegen_callback_forward_runtime_tests)
     endif ()
 
     add_executable(codegen_size_change_tests

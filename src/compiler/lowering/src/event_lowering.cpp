@@ -103,8 +103,19 @@ bool lower_event_value(NodeState& state, const ElementInfo& info, const schema::
         if (const NamedSetter* setter = state.hooks.find_setter(value.text); setter != nullptr) {
             return lower_setter_reference(state, event, *setter, span, node);
         }
+        const ForwardedCallback forwarded =
+            forward_callback_prop(state, value.text, event_name(event), event.payload, span);
+        if (forwarded.matched) {
+            if (forwarded.handler_id.empty()) {
+                return false;
+            }
+            node.events[event_name(event)] = forwarded.handler_id;
+            return true;
+        }
         fail_node(state, "TESSERA_IR_UNRESOLVED",
-                  "`" + value.text + "` is not a handler or a state setter of this component",
+                  "`" + value.text +
+                      "` is not a handler, a state setter or a callback prop of "
+                      "this component",
                   span);
         return false;
     }

@@ -424,6 +424,9 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
         body += "}\n";
         return true;
     }
+    if (action.kind == ir::ActionKind::CallProp) {
+        return emit_call_prop(action, component, params, body, error);
+    }
     if (!action.value) {
         error = "an action has no value expression";
         return false;

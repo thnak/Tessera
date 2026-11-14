@@ -13,6 +13,7 @@ set(_tessera_lowering_core_sources
     src/component_lowering.cpp
     src/component_names.cpp
     src/control_lowering.cpp
+    src/callback_forward.cpp
     src/event_lowering.cpp
     src/expression_lowering.cpp
     src/handler_actions.cpp

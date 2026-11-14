@@ -125,6 +125,8 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
             kind = "focus";
         } else if (action.kind == ActionKind::Blur) {
             kind = "blur";
+        } else if (action.kind == ActionKind::CallProp) {
+            kind = "callProp";
         }
         json.set("kind", JsonValue::string(kind));
         json.set("target", JsonValue::string(action.target));

@@ -33,6 +33,9 @@ struct NodeState {
     unsigned loop_depth = 0;              // enclosing `.map` loops; at most 2 (ir-v1 section 5)
     unsigned slot_count = 0;              // `{children}` positions; at most one (ir-v1 section 3.4)
     unsigned span_depth = 0; // inside a Text inline span (elements-basic.md section 2.1)
+    // The component's declared props (lowered before its nodes); null when the props type has no
+    // resolvable object type. Callback forwarding reads the type of a prop from here (issue #286).
+    const std::vector<ir::Prop>* declared_props = nullptr;
 };
 
 // Reports a TESSERA_IR_* error at `span` unless one was already reported. The diagnostic keeps a
@@ -78,6 +81,18 @@ enum class DeclaredPropsKind : std::uint8_t {
 };
 [[nodiscard]] DeclaredPropsKind lower_declared_props(NodeState& state,
                                                      std::vector<ir::Prop>& props);
+
+// Forwarding a callback prop of the component as the handler of an event (issue #286). `matched`
+// is false when `name` is not a prop at all (the caller reports its own "not a handler" error);
+// true with an empty `handler_id` means a diagnostic was reported. `payload` is the record the
+// event delivers, empty for none.
+struct ForwardedCallback {
+    bool matched = false;
+    std::string handler_id;
+};
+[[nodiscard]] ForwardedCallback forward_callback_prop(NodeState& state, std::string_view name,
+                                                      std::string_view event_name,
+                                                      std::string_view payload, jsx::Span span);
 
 // What an attribute name means on one element, from the shared schema table.
 struct AttributeInfo {

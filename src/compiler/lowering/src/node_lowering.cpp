@@ -138,12 +138,21 @@ LoweredComponentResult lower_component(const HookLoweringContext& context) {
                             returned.span, "wrap the children in one element");
         return std::unexpected(single_error(*state.error));
     }
+    LoweredComponent lowered;
+    ir::Component& component = lowered.component;
+    // Props first (issue #286): forwarding a callback prop to an event needs its declared type.
+    const internal::DeclaredPropsKind declared =
+        internal::lower_declared_props(state, component.props);
+    if (declared == internal::DeclaredPropsKind::Error) {
+        return std::unexpected(single_error(*state.error));
+    }
+    if (declared == internal::DeclaredPropsKind::Lowered) {
+        state.declared_props = &component.props;
+    }
     std::optional<ir::Node> root = internal::make_node(state, returned);
     if (!root) {
         return std::unexpected(single_error(*state.error));
     }
-    LoweredComponent lowered;
-    ir::Component& component = lowered.component;
     component.id = "comp::" + context.component.name;
     component.name = context.component.name;
     component.source = to_source_span(context.source_map, context.component.span, context.file);
@@ -152,11 +161,6 @@ LoweredComponentResult lower_component(const HookLoweringContext& context) {
     // imports, renames and re-export chains. Without a resolvable object type only the static
     // `children` slot is recorded, which is the pre-slice-4 behavior for the component-level entry
     // points.
-    const internal::DeclaredPropsKind declared =
-        internal::lower_declared_props(state, component.props);
-    if (declared == internal::DeclaredPropsKind::Error) {
-        return std::unexpected(single_error(*state.error));
-    }
     if (declared == internal::DeclaredPropsKind::None) {
         for (const jsx::PropBinding& binding : context.component.props_bindings) {
             if (binding.name != "children") {
