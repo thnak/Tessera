@@ -49,6 +49,10 @@ struct HookLoweringContext {
     // Slice 4 (cross-file): every type name visible in the project files, resolved through imports
     // and re-exports by `lower_project` (issue #70). Null keeps the same-file-only alias walk.
     const TypeNameTable* types = nullptr;
+    // The component's declared prop records, lowered before its handlers and nodes so a callback
+    // prop can be forwarded or called with its declared type (issue #286). Null when the props type
+    // has no resolvable object type.
+    const std::vector<ir::Prop>* declared_props = nullptr;
 };
 
 // What an event attribute value resolves to (docs/specs/ir-v1.md sections 2.1 and 6).
@@ -132,5 +136,13 @@ using HandlerActionsResult = std::expected<std::vector<ir::Action>, HookLowering
 // TESSERA_IR_UNSUPPORTED.
 [[nodiscard]] HandlerActionsResult lower_handler_actions(const jsx::Expr& arrow,
                                                          const HookLoweringContext& context);
+
+// Checks every `callProp` action of one handler against the declared props: the prop exists and is
+// a callback, a `() => void` prop is called with no argument, and a payload prop is called with the
+// handler's own parameter of that record type. `params` are the handler's typed parameters.
+// Returns the first violation.
+[[nodiscard]] std::optional<jsx::Diagnostic>
+check_callback_calls(const HookLoweringContext& context, std::span<const ir::Param> params,
+                     std::span<const ir::Action> actions, jsx::Span span);
 
 } // namespace tessera::compiler::lowering

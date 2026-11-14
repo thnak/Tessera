@@ -45,6 +45,11 @@ bool lower_component_event(NodeState& state, std::string_view name, const jsx::E
             }
             return false;
         }
+        if (const std::optional<jsx::Diagnostic> violation =
+                check_callback_calls(state.context, {}, *actions, value.span)) {
+            state.error = violation;
+            return false;
+        }
         const std::string id = state.hooks.add_handler(
             {}, std::move(*actions),
             to_source_span(state.context.source_map, value.span, state.context.file));

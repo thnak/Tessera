@@ -153,6 +153,11 @@ void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks
     if (state.error) {
         return;
     }
+    if (const std::optional<jsx::Diagnostic> violation =
+            check_callback_calls(context, params, actions, arrow.span)) {
+        state.error = violation;
+        return;
+    }
     const std::string id =
         out.add_handler(std::move(params), std::move(actions),
                         to_source_span(context.source_map, arrow.span, context.file));

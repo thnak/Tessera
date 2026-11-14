@@ -510,7 +510,7 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `tests/unit/{instrument_theme_tests.cpp,theme_version_tests.cpp}`). The bundled font pack and
       swatch goldens moved to #280.
 - [ ] #280: Library stage 0: IBM Plex bundled font pack, theme pin of the pack, token swatch goldens.
-- [ ] #286: Callback props on user components. Step 1 (forwarding `onClick={onPress}`) done: `src/compiler/lowering/src/callback_forward.cpp`, IR `callProp`, codegen `emit_call_prop`, tests `lowering_callback_forward`, `codegen_callback_forward_runtime`, spec `jsx-subset-v1.md` section 9.5. Steps 2 (call from a handler body) and 3 (performance gate) remain; blocks #239.
+- [ ] #286: Callback props on user components. Step 1 (forwarding `onClick={onPress}`) done: `src/compiler/lowering/src/callback_forward.cpp`, IR `callProp`, codegen `emit_call_prop`, tests `lowering_callback_forward`, `codegen_callback_forward_runtime`, spec `jsx-subset-v1.md` section 9.5. Step 2 (calling a callback from a handler body, `callback_forward.cpp` + `handler_actions.cpp` `check_callback_calls`) done in the stacked PR. Step 3 (performance gate) remains; blocks #239.
 - [ ] #238: Library stage 0: `tessera icons add` (Iconify import tool with the license gate).
 - [ ] #239: Library stage 0 exit: a styled Button end to end and the gallery skeleton (blocked).
 - [ ] #240, #223: Library stage 1 tracking, including `SafeArea` (blocked by #239). Stages 2 to 6
