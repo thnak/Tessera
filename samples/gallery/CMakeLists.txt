@@ -27,7 +27,7 @@ add_custom_command(
     COMMENT "Generating the gallery page"
     VERBATIM)
 
-add_executable(gallery main.cpp golden.cpp golden.hpp ${_gallery_outputs})
+add_executable(gallery main.cpp golden.cpp golden.hpp inspect.cpp inspect.hpp ${_gallery_outputs})
 target_include_directories(gallery PRIVATE ${_gallery_gen})
 target_link_libraries(gallery PRIVATE
     tessera_app_window
