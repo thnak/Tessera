@@ -5,8 +5,8 @@
 // Two rules make this a HAL concern rather than a scene one:
 //
 //   * The window must stay resizable. A client-side caption removes the OS frame, so the resize
-//     border has to be synthesized here, and it wins over a caption region so a control parked in the
-//     corner never takes away the resize handle.
+//     border has to be synthesized here, and it wins over a caption region so a control parked in
+//     the corner never takes away the resize handle.
 //   * The answer is an HT* code, never a scene node. The framework says *where* its controls are
 //     (logical pixels, region kinds); this file says *what* Windows does with a hit.
 //
@@ -15,10 +15,9 @@
 
 #include "window_caption_win.hpp"
 
-#include <windowsx.h>
-
 #include <algorithm>
 #include <cmath>
+#include <windowsx.h>
 
 namespace tessera::hal::detail {
 namespace {
@@ -45,8 +44,8 @@ int resize_border_physical(int dpi) noexcept {
 }
 
 // The resize-border answer for a point in physical client pixels, or 0 when the point is not on the
-// border. A maximized window has no border: Windows disables resizing there, and keeping the edge for
-// a region is what lets a control sit flush against it.
+// border. A maximized window has no border: Windows disables resizing there, and keeping the edge
+// for a region is what lets a control sit flush against it.
 LRESULT border_hit(HWND window, POINT local, LONG width, LONG height, int dpi) noexcept {
     if (IsZoomed(window) != FALSE) {
         return 0;
@@ -56,7 +55,8 @@ LRESULT border_hit(HWND window, POINT local, LONG width, LONG height, int dpi) n
         return local.y < border ? HTTOPLEFT : (local.y >= height - border ? HTBOTTOMLEFT : HTLEFT);
     }
     if (local.x >= width - border) {
-        return local.y < border ? HTTOPRIGHT : (local.y >= height - border ? HTBOTTOMRIGHT : HTRIGHT);
+        return local.y < border ? HTTOPRIGHT
+                                : (local.y >= height - border ? HTBOTTOMRIGHT : HTRIGHT);
     }
     if (local.y < border) {
         return HTTOP;
@@ -77,14 +77,13 @@ void win32_set_caption_regions(HWND window, Win32CaptionState& state,
     // is free until the next hit; the frame change is what makes WM_NCCALCSIZE report no frame.
     if (window != nullptr && state.custom()) {
         SetWindowPos(window, nullptr, 0, 0, 0, 0,
-                     SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
-                         SWP_NOOWNERZORDER);
+                     SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
     }
 }
 
 bool win32_custom_caption_nc_calc_size(const Win32CaptionState& state, WPARAM wparam) noexcept {
-    // wparam == FALSE spells "no client-area rectangle to compute" (a frame-only change), which keeps
-    // the documented default handling.
+    // wparam == FALSE spells "no client-area rectangle to compute" (a frame-only change), which
+    // keeps the documented default handling.
     return state.custom() && wparam != FALSE;
 }
 
@@ -175,7 +174,8 @@ bool win32_custom_caption_button_down(HWND window, const Win32CaptionState& stat
     }
     const CaptionRegion* region = caption_region_at(state.view(), x, y);
     if (region == nullptr || !is_caption_button(region->kind)) {
-        // Drag and system-menu regions keep the OS behaviour (the modal move loop, the window menu).
+        // Drag and system-menu regions keep the OS behaviour (the modal move loop, the window
+        // menu).
         return false;
     }
     win32_perform_caption_button(window, region->kind);

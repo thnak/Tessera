@@ -2,11 +2,11 @@
 //
 // Win32 full-screen for the HAL window (issue #232).
 //
-// Entering uses the documented borderless path: remember the placement, drop the overlapped style to
-// a popup with no frame, and cover the monitor's full rectangle. Exiting reapplies the saved
-// placement, so the window returns to exactly the position, size and maximized/restored state it had,
-// never to a guess. `SWP_FRAMECHANGED` is what makes the style change take effect without a resize
-// message storm.
+// Entering uses the documented borderless path: remember the placement, drop the overlapped style
+// to a popup with no frame, and cover the monitor's full rectangle. Exiting reapplies the saved
+// placement, so the window returns to exactly the position, size and maximized/restored state it
+// had, never to a guess. `SWP_FRAMECHANGED` is what makes the style change take effect without a
+// resize message storm.
 //
 // The monitor is the one the window is on, not the primary one: on a multi-monitor desktop a
 // full-screen window must cover the display the user put it on (`MonitorFromWindow` with
@@ -107,8 +107,8 @@ void win32_fullscreen_exit(HWND window, Win32FullscreenState& fullscreen) noexce
     fullscreen.placement.length = sizeof(WINDOWPLACEMENT);
     fullscreen.placement_valid = false;
 
-    // Restore the overlapped style before the placement, so SetWindowPlacement's normal rectangle is
-    // interpreted with the frame the window had before entering.
+    // Restore the overlapped style before the placement, so SetWindowPlacement's normal rectangle
+    // is interpreted with the frame the window had before entering.
     SetWindowLongPtrW(window, GWL_STYLE, static_cast<LONG_PTR>(saved_style));
     WINDOWPLACEMENT placement = saved;
     placement.length = sizeof(WINDOWPLACEMENT);

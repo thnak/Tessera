@@ -22,8 +22,8 @@
 
 namespace tessera::hal::detail {
 
-// Everything one window needs to leave full-screen exactly as it entered. Owned by the window, not a
-// process table, so several windows can be full-screen independently (issue #228).
+// Everything one window needs to leave full-screen exactly as it entered. Owned by the window, not
+// a process table, so several windows can be full-screen independently (issue #228).
 struct Win32FullscreenState {
     FullscreenState state;
     // The placement captured before entering: the normal rectangle plus the maximized flag, which a
@@ -37,8 +37,9 @@ struct Win32FullscreenState {
 // `SetWindowPos`/`GetWindowRect` speak. The caller converts it to logical pixels for the metrics.
 [[nodiscard]] WindowRect win32_window_bounds(HWND window) noexcept;
 
-// True when `window`'s outer rectangle covers its monitor; the answer the metrics report, so a state
-// the user changed (F11 handled by a shell, a window manager shortcut) is observed, not assumed.
+// True when `window`'s outer rectangle covers its monitor; the answer the metrics report, so a
+// state the user changed (F11 handled by a shell, a window manager shortcut) is observed, not
+// assumed.
 [[nodiscard]] bool win32_is_fullscreen(HWND window) noexcept;
 
 // Remembers the placement only while the window is not already full-screen, so a repeated enter
@@ -52,7 +53,8 @@ void win32_fullscreen_exit(HWND window, Win32FullscreenState& state) noexcept;
 
 // The bounds `win32_fullscreen_exit` would restore, if it has a usable record. Read before exiting,
 // because the exit consumes it.
-[[nodiscard]] bool win32_fullscreen_has_restore(HWND window, const Win32FullscreenState& state) noexcept;
+[[nodiscard]] bool win32_fullscreen_has_restore(HWND window,
+                                                const Win32FullscreenState& state) noexcept;
 
 // Enter or leave, and report whether the resolved mode actually changed (so the caller enqueues one
 // Resize). A repeated request is a no-op that reports false, and a window on the wrong thread is
@@ -65,9 +67,9 @@ void win32_fullscreen_exit(HWND window, Win32FullscreenState& state) noexcept;
 namespace tessera::hal::detail {
 
 // The full-screen entry point window.cpp forwards to: owner-thread guarded, no-op on a null window,
-// and true when the resolved mode changed (so the caller enqueues one Resize; WM_SIZE fires too, but
-// both describe the same change and coalescing them keeps the engine on its one repaint path).
+// and true when the resolved mode changed (so the caller enqueues one Resize; WM_SIZE fires too,
+// but both describe the same change and coalescing them keeps the engine on its one repaint path).
 [[nodiscard]] bool win32_window_set_fullscreen(HWND window, Win32FullscreenState& state,
-                                              bool fullscreen, DWORD owner_thread) noexcept;
+                                               bool fullscreen, DWORD owner_thread) noexcept;
 
 } // namespace tessera::hal::detail

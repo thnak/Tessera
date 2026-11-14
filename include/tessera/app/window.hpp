@@ -246,21 +246,21 @@ public:
     void apply_metrics(const hal::WindowMetrics& metrics);
 
     // Enters or leaves full-screen on the platform window (docs/specs/window-chrome-v1.md
-    // section 13, issue #232). The platform owns the mechanism and the bounds to restore, so this is
-    // the whole app-facing surface: the boundary is asynchronous on X11, and `fullscreen()` is the
-    // state the window manager resolved, not the last request. Escape and the OS shortcuts are the
-    // app's, not the framework's (media-components-v1.md section 8); they come back as a metrics
-    // change, so a caller that mirrors the state should read fullscreen() rather than cache the last
-    // request. A platform that cannot do full-screen reports one TESSERA_WINDOW_UNSUPPORTED
-    // diagnostic on the first request and does nothing.
+    // section 13, issue #232). The platform owns the mechanism and the bounds to restore, so this
+    // is the whole app-facing surface: the boundary is asynchronous on X11, and `fullscreen()` is
+    // the state the window manager resolved, not the last request. Escape and the OS shortcuts are
+    // the app's, not the framework's (media-components-v1.md section 8); they come back as a
+    // metrics change, so a caller that mirrors the state should read fullscreen() rather than cache
+    // the last request. A platform that cannot do full-screen reports one
+    // TESSERA_WINDOW_UNSUPPORTED diagnostic on the first request and does nothing.
     void set_fullscreen(bool fullscreen);
 
     // The state the platform currently reports: true only while the window really is full-screen.
     [[nodiscard]] bool fullscreen() const;
 
     // False when this platform cannot do full-screen at all (no window backend, a display with no
-    // EWMH window manager). A UI that would offer a full-screen control hides or disables it, rather
-    // than calling set_fullscreen() and hoping.
+    // EWMH window manager). A UI that would offer a full-screen control hides or disables it,
+    // rather than calling set_fullscreen() and hoping.
     [[nodiscard]] bool fullscreen_supported() const;
 
     // The app's one focus/editability/selection input for the caret: pass `focused && !read_only &&

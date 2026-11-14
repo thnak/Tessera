@@ -83,9 +83,9 @@ struct WindowMetrics {
     // (no window manager, a refusing compositor) keeps reporting false. The bounds the window had
     // before entering are owned by the platform and restored on exit; the app reads this flag only.
     bool fullscreen = false;
-    // Interactive client regions of the custom title bar, in logical pixels. Empty by default, which
-    // is the system-chrome answer: every point is client area. The HAL resolves WM_NCHITTEST against
-    // this list before app routing, so a scene node never sees a non-client hit-test result
+    // Interactive client regions of the custom title bar, in logical pixels. Empty by default,
+    // which is the system-chrome answer: every point is client area. The HAL resolves WM_NCHITTEST
+    // against this list before app routing, so a scene node never sees a non-client hit-test result
     // (window-chrome-v1.md section 8.1, "Hit-test contract").
     std::array<CaptionRegion, kMaxCaptionRegions> caption_regions{};
     std::uint8_t caption_region_count = 0;
@@ -229,28 +229,29 @@ public:
     // section 8). Must be called on the thread that created the window.
     //
     // It never blocks, throws, or fails: a platform that cannot honor the request (no backend, a
-    // window manager that refuses the state change) leaves the window as it was, `metrics().fullscreen`
-    // keeps telling the truth, and the caller reports one TESSERA_WINDOW_UNSUPPORTED diagnostic.
-    // The default is a no-op, for platforms without full-screen support.
+    // window manager that refuses the state change) leaves the window as it was,
+    // `metrics().fullscreen` keeps telling the truth, and the caller reports one
+    // TESSERA_WINDOW_UNSUPPORTED diagnostic. The default is a no-op, for platforms without
+    // full-screen support.
     virtual void set_fullscreen(bool fullscreen) {
         (void)fullscreen;
     }
 
-    // False when full-screen cannot be requested at all on this platform, so a caller can report the
-    // unsupported path once instead of calling set_fullscreen() and re-reading the metrics. True does
-    // not promise that a request succeeds: a window manager may still refuse it, which the metrics
-    // report. The default is false.
+    // False when full-screen cannot be requested at all on this platform, so a caller can report
+    // the unsupported path once instead of calling set_fullscreen() and re-reading the metrics.
+    // True does not promise that a request succeeds: a window manager may still refuse it, which
+    // the metrics report. The default is false.
     [[nodiscard]] virtual bool supports_fullscreen() const noexcept {
         return false;
     }
 
     // Publishes the interactive regions of the framework's custom title bar (window-chrome-v1.md
-    // section 8.1); an empty span returns the window to the system-chrome answer where every point is
-    // client area. The regions are in logical pixels and are copied: the platform keeps them for its
-    // non-client hit test, and the caller may pass a stack buffer. They also appear in
-    // WindowMetrics::caption_regions, so a fake window and a real one report the same list. This is a
-    // framework-only seam (WindowChrome); app code never calls it. The default stores nothing, for
-    // platforms with no custom caption.
+    // section 8.1); an empty span returns the window to the system-chrome answer where every point
+    // is client area. The regions are in logical pixels and are copied: the platform keeps them for
+    // its non-client hit test, and the caller may pass a stack buffer. They also appear in
+    // WindowMetrics::caption_regions, so a fake window and a real one report the same list. This is
+    // a framework-only seam (WindowChrome); app code never calls it. The default stores nothing,
+    // for platforms with no custom caption.
     virtual void set_caption_regions(std::span<const CaptionRegion> regions) {
         (void)regions;
     }

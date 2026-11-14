@@ -21,10 +21,14 @@ permission-aware, and never blocks the UI thread.
 | File open/save dialog | yes | yes | portal/dialog | SAF | UIDocumentPicker |
 | Menu bar | yes | yes | app menu | no | no |
 | Tray/status item | yes | yes | later | no | no |
+| Window full-screen | yes | post-V1 | yes (X11) | post-V1 | post-V1 |
 | Global shortcuts | later | later | later | no | no |
 
 In the table, "later" means not in V1 (V1 = first-release scope, [AGENTS.md](../../AGENTS.md#non-negotiables) rule 8);
-no later release is assigned in this spec. SAF = Android Storage Access Framework;
+no later release is assigned in this spec. "post-V1" means the platform backend itself is out of V1 scope
+(macOS is deferred by [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android and iOS
+are Big Step F), so there is nothing to claim in V1. Wayland full-screen is deferred with the Wayland
+window backend (#155); X11 is the Linux V1 path. SAF = Android Storage Access Framework;
 `UIDocumentPicker` = the iOS document picker; "portal/dialog" = the XDG desktop portal or a
 toolkit dialog on Linux. Unsupported capabilities degrade explicitly; no silent no-op.
 
@@ -102,6 +106,26 @@ The menu *model* is owned here; window decoration and system-bar appearance are 
 - Shortcuts are disabled while IME (input method editor) composition is active unless
   a shortcut declares `allowDuringComposition` (boolean, default `false`) when it is registered; the registration API itself is not specified, see [`input.md`](../design/input.md).
 - No command execution from untrusted labels/paths.
+
+## 6.1 Window full-screen
+
+Full-screen is a V1 shell capability on Windows and Linux/X11; the normative contract (operation,
+bounds ownership, per-platform mechanism, diagnostics, tests) is
+[`window-chrome-v1.md`](window-chrome-v1.md) section 8.4. In brief:
+
+- The app requests it through `app::WindowHost::set_fullscreen(bool)` and reads the resolved state
+  from `WindowHost::fullscreen()` / `WindowMetrics::fullscreen`; `fullscreen_supported()` says whether
+  the platform can do it at all. The platform owns the mechanism and the pre-full-screen bounds, so
+  the app never caches a rectangle, and a repeated request is a no-op.
+- Windows covers the monitor the window is on with a borderless window; X11 uses EWMH
+  `_NET_WM_STATE_FULLSCREEN` and requires a window manager advertising `_NET_WM_STATE` in
+  `_NET_SUPPORTED`. Wayland is deferred with the Wayland window backend (#155), and macOS, Android
+  and iOS are post-V1.
+- Escape and the platform shortcuts stay with the app and the window manager (same rule as
+  [`media-components-v1.md`](media-components-v1.md) section 8); a mode change made outside the app is
+  observed through the metrics rather than a dedicated event.
+- A platform that cannot do it warns once with `TESSERA_WINDOW_UNSUPPORTED` and the window keeps its
+  windowed mode.
 
 ## 7. Threading and errors
 

@@ -26,8 +26,8 @@ bool inside(const WindowRect& rect, float x, float y) noexcept {
 
 } // namespace
 
-std::array<CaptionRegion, kMaxCaptionRegions> make_caption_regions(
-    std::span<const CaptionRegion> regions, std::uint8_t& count) noexcept {
+std::array<CaptionRegion, kMaxCaptionRegions>
+make_caption_regions(std::span<const CaptionRegion> regions, std::uint8_t& count) noexcept {
     std::array<CaptionRegion, kMaxCaptionRegions> kept{};
     count = 0;
     for (const CaptionRegion& region : regions) {

@@ -58,9 +58,10 @@ public:
     void hide() override;
     void request_redraw() override;
     void close() override;
-    // Full-screen (issue #232): the fake resolves the request synchronously and reports it through the
-    // metrics, exactly like a platform whose window manager honored it. A scripted refusal
-    // (`set_fullscreen_supported(false)`) models the "no window manager" path a real backend reports.
+    // Full-screen (issue #232): the fake resolves the request synchronously and reports it through
+    // the metrics, exactly like a platform whose window manager honored it. A scripted refusal
+    // (`set_fullscreen_supported(false)`) models the "no window manager" path a real backend
+    // reports.
     void set_fullscreen(bool fullscreen) override;
     [[nodiscard]] bool supports_fullscreen() const noexcept override {
         return fullscreen_supported_;

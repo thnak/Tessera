@@ -52,6 +52,9 @@ if (WIN32)
 elseif (TESSERA_X11_FOUND)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp
+        # Full-screen (issue #232, window-chrome-v1.md section 13): EWMH _NET_WM_STATE, outside
+        # window.cpp's size budget.
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/window_fullscreen_x11.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp

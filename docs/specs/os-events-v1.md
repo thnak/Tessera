@@ -72,6 +72,13 @@ not define a separate event).
 `WindowMetrics` carries logical/physical size, DPI/scale, refresh/VRR, safe/work areas,
 orientation, focus/occlusion/minimized/fullscreen, and multi-window/PiP state.
 
+`fullscreen` is the state the window manager resolved, not the last request: on X11 it is read back
+from `_NET_WM_STATE` on every metrics build and on Win32 it is computed by comparing the window's
+outer rectangle with the monitor rectangle (so a maximized window is not full-screen). A mode change
+made outside the app (an OS shortcut, a taskbar toggle, a compositor gesture) is therefore observed
+through it, and it changes together with `Resize`: V1 has no separate full-screen event type
+([`window-chrome-v1.md`](window-chrome-v1.md) section 8.4).
+
 ```cpp
 enum class FoldState { None, Flat, HalfOpened };
 enum class FoldOrientation { None, Horizontal, Vertical };

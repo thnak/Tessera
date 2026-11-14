@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
 // Full-screen and caption regions through the fake window (#232): the `hal::Window` seam as the app
-// driver and the headless harness see it. A real platform resolves full-screen asynchronously through
-// the window manager; the fake resolves it synchronously and reports the same normalized values, so
-// the request/refusal contract and the metrics a caller reads are covered without a display.
+// driver and the headless harness see it. A real platform resolves full-screen asynchronously
+// through the window manager; the fake resolves it synchronously and reports the same normalized
+// values, so the request/refusal contract and the metrics a caller reads are covered without a
+// display.
 
 #include "fake_hal.hpp"
 #include "tessera/hal/cutout.hpp"
@@ -65,8 +66,7 @@ int main() {
         const std::size_t queued_before = window.queued_events();
         window.set_fullscreen(true);
         expect(window.metrics().fullscreen, "a repeated enter keeps the mode");
-        expect(window.queued_events() == queued_before,
-               "a repeated enter queues no extra event");
+        expect(window.queued_events() == queued_before, "a repeated enter queues no extra event");
         window.set_fullscreen(false);
         (void)window.poll_events({});
         const std::size_t queued_after_exit = window.queued_events();
@@ -76,8 +76,8 @@ int main() {
                "a repeated exit queues no extra event");
     }
 
-    // A platform with no window manager refuses the request and leaves the mode alone, which is what
-    // the app's unsupported path decides from.
+    // A platform with no window manager refuses the request and leaves the mode alone, which is
+    // what the app's unsupported path decides from.
     {
         FakeWindow window;
         window.set_fullscreen_supported(false);
@@ -118,8 +118,8 @@ int main() {
                "an empty list returns the window to the system-chrome answer");
     }
 
-    // The unsupported refusals are also visible through the deterministic metrics dump, so a harness
-    // script can assert the mode without a display.
+    // The unsupported refusals are also visible through the deterministic metrics dump, so a
+    // harness script can assert the mode without a display.
     {
         FakeWindow window;
         expect(hal::format_window_metrics(window.metrics()).find("fullscreen 0\n") !=

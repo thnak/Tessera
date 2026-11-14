@@ -20,7 +20,7 @@ or `NSWindow*`.
 
 | Area | HAL interface | Platform sources |
 |---|---|---|
-| Window | create/show/hide/close, title, size constraints, fullscreen, focus | Win32, X11, Wayland, Cocoa, Android |
+| Window | create/show/hide/close, title, size constraints, full-screen (Win32/X11 implemented; Wayland #155), custom-caption regions, focus | Win32, X11, Wayland, Cocoa, Android |
 | Display | monitors, modes, refresh/VRR, scale/DPI, HDR/color, safe/work area | DXGI/DisplayConfig, RandR, wl_output, Android DisplayManager, NSScreen |
 | Input | pointer, keyboard, touch, pen, wheel, IME, focus/capture | WM_POINTER/WM_KEY, XInput2/XKB, wl_seat, Android MotionEvent, NSEvent |
 | Lifecycle | activate/deactivate, show/hide, minimize/restore, suspend/resume, lock/unlock, shutdown | WM_*, X11/Wayland, Android Activity/scene, Cocoa |
@@ -296,6 +296,22 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   `window_x11` on Linux (skipped when `DISPLAY` is unset). `include/tessera/hal/window_wait.hpp`
   supplies the deadline-bounded `wait_for_events_until` helper for the runtime/frame pacer.
   Wiring that helper into `RuntimeLoop` is still pending; the loop's tick behavior is unchanged.
+- Full-screen and the custom-caption seam (issue #232) are implemented on Win32 and X11.
+  `include/tessera/hal/fullscreen.hpp` is the platform-neutral `FullscreenState` bookkeeping (a
+  repeated request is a no-op, the pre-enter outer bounds are recorded once and consumed on exit, a
+  mode the user changed outside the app is folded in), and every backend returns the resolved mode
+  in `WindowMetrics::fullscreen` rather than the last request. The platform halves are
+  `src/platform/windows/window_fullscreen_win.*` (borderless window over the current monitor,
+  `WINDOWPLACEMENT` saved and reapplied) and `src/platform/linux/window_fullscreen_x11.*` (EWMH
+  `_NET_WM_STATE_FULLSCREEN` via ClientMessage, mode read back from `_NET_WM_STATE`, unsupported when
+  `_NET_SUPPORTED` does not advertise it). `include/tessera/hal/caption.hpp` carries the
+  `CaptionRegionKind`/`CaptionRegion` contract the framework publishes through
+  `Window::set_caption_regions` and the platform resolves to its OS hit-test answer
+  (`src/platform/windows/window_caption_win.*`; X11 stores and reports the list but has no
+  client-side decoration yet), with `WindowMetrics::caption_regions` reporting the same list and an
+  empty list as the system-chrome default. Tests: `window_fullscreen`, `window_fullscreen_fake`,
+  `window_win32`; contract in
+  [`window-chrome-v1.md`](../specs/window-chrome-v1.md) section 8.4 and section 8.1.
 - Platform `VkSurfaceKHR`/swapchain paths live in `src/rendering/backend/vulkan/src/` and are
   created through `Device::create_swapchain` with the opaque `native_window` (HWND) or
   `native_display` + `native_window` (`Display*` + `Window`) handles supplied by the HAL. Win32

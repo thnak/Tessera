@@ -579,7 +579,16 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       `docs/specs/window-chrome-v1.md` §11.1 manual checklist. Wayland `ext-background-effect-v1`
       stays gated on #155.
 - [x] #222: `CutoutInfo` in `WindowMetrics` with a fake for tests (the Android fill is post-V1). Evidence: `tests/unit/harness/cutout_tests.cpp`, `include/tessera/hal/cutout.hpp`.
-- [ ] #232: Window full-screen toggle on Windows and Linux.
+- [x] #232: Window full-screen toggle on Windows and Linux —
+      `include/tessera/hal/{window,fullscreen,caption}.hpp` (`set_fullscreen`/`supports_fullscreen`,
+      the platform-neutral `FullscreenState` bookkeeping, and the `CaptionRegion` contract),
+      `src/platform/windows/window_fullscreen_win.*` (borderless window over the current monitor,
+      `WINDOWPLACEMENT` saved/restored) and `src/platform/windows/window_caption_win.*`
+      (`WM_NCCALCSIZE`/`WM_NCHITTEST`/`WM_NCLBUTTONDOWN`), `src/platform/linux/window_fullscreen_x11.*`
+      (EWMH `_NET_WM_STATE_FULLSCREEN`, mode read back from `_NET_WM_STATE`), app entry point
+      `include/tessera/app/window.hpp` (`WindowHost::set_fullscreen`/`fullscreen`/
+      `fullscreen_supported`), `docs/specs/window-chrome-v1.md` §8.1/§8.4, tests `window_fullscreen`,
+      `window_fullscreen_fake`, `window_win32`. Wayland stays gated on #155.
 - [ ] Platform cursor shape on Windows and Linux.
 
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))

@@ -70,7 +70,8 @@ int main() {
         expect(!hal::fullscreen_exit(state), "a second exit is a no-op");
     }
 
-    // A resize while full-screen is not remembered: the restore still returns to the pre-enter size.
+    // A resize while full-screen is not remembered: the restore still returns to the pre-enter
+    // size.
     {
         hal::FullscreenState state;
         const hal::WindowRect before = rect(10, 10, 640, 480);
@@ -116,7 +117,8 @@ int main() {
     {
         // No regions is the system-chrome answer: every point is client area.
         const std::array<hal::CaptionRegion, 0> none{};
-        expect(hal::caption_region_at(none, 10.0f, 10.0f) == nullptr, "no regions means client area");
+        expect(hal::caption_region_at(none, 10.0f, 10.0f) == nullptr,
+               "no regions means client area");
 
         // A title bar: a drag strip, the system menu, and the three window controls on the right.
         const std::array<hal::CaptionRegion, 5> bar{
@@ -140,13 +142,11 @@ int main() {
                "close is resolved");
         expect(hal::caption_region_at(bar, 400.0f, 100.0f) == nullptr,
                "below the bar is client area");
-        // The bar's right half-open edge belongs to the next region, so adjacent controls never both
-        // claim a point.
-        expect(hal::caption_region_at(bar, 777.0f, 10.0f)->kind ==
-                   hal::CaptionRegionKind::Minimize,
+        // The bar's right half-open edge belongs to the next region, so adjacent controls never
+        // both claim a point.
+        expect(hal::caption_region_at(bar, 777.0f, 10.0f)->kind == hal::CaptionRegionKind::Minimize,
                "the boundary belongs to the region that starts there");
-        expect(hal::caption_region_at(bar, 778.0f, 10.0f)->kind ==
-                   hal::CaptionRegionKind::Maximize,
+        expect(hal::caption_region_at(bar, 778.0f, 10.0f)->kind == hal::CaptionRegionKind::Maximize,
                "the next region owns its left edge");
         // A non-finite point is client area: bad input never becomes a caption hit.
         expect(hal::caption_region_at(bar, std::numeric_limits<float>::quiet_NaN(), 10.0f) ==
@@ -162,8 +162,8 @@ int main() {
         expect(std::string_view(hal::caption_region_kind_name(hal::CaptionRegionKind::Drag)) ==
                    "drag",
                "the kind names are stable for the metrics dump");
-        expect(std::string_view(hal::caption_region_kind_name(hal::CaptionRegionKind::SystemMenu)) ==
-                   "system-menu",
+        expect(std::string_view(hal::caption_region_kind_name(
+                   hal::CaptionRegionKind::SystemMenu)) == "system-menu",
                "the system-menu name is stable");
     }
 

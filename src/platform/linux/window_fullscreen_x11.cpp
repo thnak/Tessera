@@ -9,7 +9,8 @@
 //   * Never assume the request succeeded. `metrics().fullscreen` is read back from `_NET_WM_STATE`,
 //     so an F11 the window manager handled itself, a tiling WM that refuses, and a user who toggled
 //     the state from a taskbar all report the truth.
-//   * Never wait for the answer. The round trip is not blocking here: the state is simply re-read on
+//   * Never wait for the answer. The round trip is not blocking here: the state is simply re-read
+//   on
 //     the next metrics call and the property change arrives through the normal event pump.
 //   * The client rectangle is remembered as a fallback. A WM with EWMH restores its own geometry;
 //     without one (bare Xvfb) the backend moves the window back itself.
@@ -17,10 +18,11 @@
 #include "window_fullscreen_x11.hpp"
 
 #include <X11/Xatom.h>
-
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 
 namespace tessera::hal::detail {
 namespace {
@@ -32,7 +34,7 @@ Atom intern(Display* display, const char* name) noexcept {
 // Reads one window property as a list of atoms. `out` must hold at most `capacity` (16 is far more
 // than the number of states a window carries). Returns the count, 0 when the property is absent or
 // of another type; never allocates more than Xlib returns and always frees it.
-std::size_t read_atoms(Display* display, Window window, Atom property, Atom type, Atom* out,
+std::size_t read_atoms(Display* display, ::Window window, Atom property, Atom type, Atom* out,
                        std::size_t capacity) noexcept {
     if (display == nullptr || property == None || capacity == 0) {
         return 0;
@@ -76,10 +78,9 @@ bool x11_fullscreen_init(Display* display, X11FullscreenState& state) noexcept {
     return state.net_wm_state != None && state.net_wm_state_fullscreen != None;
 }
 
-bool x11_fullscreen_supported(Display* display, Window root,
+bool x11_fullscreen_supported(Display* display, ::Window root,
                               const X11FullscreenState& state) noexcept {
-    if (display == nullptr || state.net_wm_state == None ||
-        state.net_wm_state_fullscreen == None) {
+    if (display == nullptr || state.net_wm_state == None || state.net_wm_state_fullscreen == None) {
         return false;
     }
     // _NET_SUPPORTED advertising the state atom is the documented "an EWMH window manager is
@@ -92,7 +93,8 @@ bool x11_fullscreen_supported(Display* display, Window root,
     return contains(supported, count, state.net_wm_state);
 }
 
-void x11_fullscreen_remember(Display* display, Window window, X11FullscreenState& state) noexcept {
+void x11_fullscreen_remember(Display* display, ::Window window,
+                             X11FullscreenState& state) noexcept {
     if (display == nullptr || window == 0) {
         return;
     }
@@ -126,7 +128,7 @@ void x11_fullscreen_remember(Display* display, Window window, X11FullscreenState
     state.restore_valid = true;
 }
 
-void x11_fullscreen_request(Display* display, Window window, X11FullscreenState& state,
+void x11_fullscreen_request(Display* display, ::Window window, X11FullscreenState& state,
                             bool fullscreen) noexcept {
     if (display == nullptr || window == 0 || state.net_wm_state == None ||
         state.net_wm_state_fullscreen == None) {
@@ -144,15 +146,14 @@ void x11_fullscreen_request(Display* display, Window window, X11FullscreenState&
     event.xclient.data.l[2] = 0;
     event.xclient.data.l[3] = 2; // source indication: a normal application
     XWindowAttributes attributes{};
-    const Window root = XGetWindowAttributes(display, window, &attributes) != 0
-                            ? attributes.root
-                            : DefaultRootWindow(display);
-    XSendEvent(display, root, False,
-               SubstructureRedirectMask | SubstructureNotifyMask, &event);
+    const ::Window root = XGetWindowAttributes(display, window, &attributes) != 0
+                              ? attributes.root
+                              : DefaultRootWindow(display);
+    XSendEvent(display, root, False, SubstructureRedirectMask | SubstructureNotifyMask, &event);
     XFlush(display);
 }
 
-void x11_fullscreen_restore(Display* display, Window window, X11FullscreenState& state) noexcept {
+void x11_fullscreen_restore(Display* display, ::Window window, X11FullscreenState& state) noexcept {
     if (display == nullptr || window == 0 || !state.restore_valid) {
         return;
     }
@@ -180,7 +181,7 @@ void x11_fullscreen_restore(Display* display, Window window, X11FullscreenState&
     state.restore_valid = false;
 }
 
-bool x11_fullscreen_active(Display* display, Window window,
+bool x11_fullscreen_active(Display* display, ::Window window,
                            const X11FullscreenState& state) noexcept {
     if (display == nullptr || window == 0 || state.net_wm_state == None ||
         state.net_wm_state_fullscreen == None) {
@@ -193,4 +194,3 @@ bool x11_fullscreen_active(Display* display, Window window,
 }
 
 } // namespace tessera::hal::detail
-

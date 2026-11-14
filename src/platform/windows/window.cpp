@@ -468,8 +468,8 @@ void Win32Window::close() {
 
 void Win32Window::set_fullscreen(bool fullscreen) {
     // The mode change is a resize and a state change: report it once, with the metrics the platform
-    // resolved. WM_SIZE also fires from the platform call, but coalescing both into Resize describes
-    // the same change and keeps the engine's one repaint path.
+    // resolved. WM_SIZE also fires from the platform call, but coalescing both into Resize
+    // describes the same change and keeps the engine's one repaint path.
     if (detail::win32_window_set_fullscreen(hwnd_, fullscreen_, fullscreen, owner_thread_)) {
         enqueue(WindowEventType::Resize);
     }

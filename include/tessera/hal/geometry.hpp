@@ -4,8 +4,8 @@
 
 // The two small value types every other HAL window type is built from (docs/design/hal.md
 // section 2). They live in their own header so `caption.hpp` and `window.hpp` can both use them
-// without an include cycle; `tessera/hal/window.hpp` re-includes this one, so code that includes the
-// window seam keeps seeing `WindowInsets` and `WindowRect` unchanged.
+// without an include cycle; `tessera/hal/window.hpp` re-includes this one, so code that includes
+// the window seam keeps seeing `WindowInsets` and `WindowRect` unchanged.
 
 #include <cstdint>
 

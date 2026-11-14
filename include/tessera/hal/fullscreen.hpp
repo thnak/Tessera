@@ -7,10 +7,10 @@
 //
 // The OS calls differ per platform (Win32 saves and reapplies a `WINDOWPLACEMENT`; X11 asks the
 // window manager for `_NET_WM_STATE_FULLSCREEN` and lets it restore), but the bookkeeping between
-// them is identical and is what the round-trip contract is about: remember the bounds the window had
-// before entering, report "restore these bounds" exactly once on exit, and treat a repeated request
-// as a no-op. Keeping that here means both backends share one tested state machine and the pure
-// rules can be verified without a display.
+// them is identical and is what the round-trip contract is about: remember the bounds the window
+// had before entering, report "restore these bounds" exactly once on exit, and treat a repeated
+// request as a no-op. Keeping that here means both backends share one tested state machine and the
+// pure rules can be verified without a display.
 
 #include "tessera/hal/geometry.hpp"
 
@@ -30,13 +30,14 @@ struct FullscreenState {
 // (already active), which keeps the recorded bounds from being overwritten by the full-screen ones.
 // A non-finite or empty rectangle is not recorded, so a backend that cannot answer leaves the
 // restore path explicitly "no bounds to restore" instead of remembering zeros.
-[[nodiscard]] bool fullscreen_enter(FullscreenState& state, const WindowRect& current_bounds) noexcept;
+[[nodiscard]] bool fullscreen_enter(FullscreenState& state,
+                                    const WindowRect& current_bounds) noexcept;
 
 // Decides what leaving full-screen means. Returns true when the caller must perform the platform
-// exit call; `state.restore_bounds` was zeroed by this call, so a backend that wants to restore saved
-// bounds takes a copy *before* calling. A request while not active is a no-op, so an app cannot push
-// a stale restore over a user's resize. On a true return the saved bounds are consumed: the next
-// enter records fresh ones.
+// exit call; `state.restore_bounds` was zeroed by this call, so a backend that wants to restore
+// saved bounds takes a copy *before* calling. A request while not active is a no-op, so an app
+// cannot push a stale restore over a user's resize. On a true return the saved bounds are consumed:
+// the next enter records fresh ones.
 [[nodiscard]] bool fullscreen_exit(FullscreenState& state) noexcept;
 
 // The bounds `fullscreen_exit` found saved, if any. Callers pass the state they are about to exit

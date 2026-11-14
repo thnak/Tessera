@@ -13,8 +13,8 @@
 #include "x11_randr.hpp"
 #endif
 // Full-screen state (issue #232): EWMH _NET_WM_STATE, kept out of this translation unit because it
-// is already at the file-size limit. Included after the Xlib-pulling headers for the same reason the
-// input headers are.
+// is already at the file-size limit. Included after the Xlib-pulling headers for the same reason
+// the input headers are.
 #include "window_fullscreen_x11.hpp"
 
 #include <X11/Xlib.h>
@@ -154,13 +154,15 @@ private:
     detail::X11BackdropSetup backdrop_setup_;
     BackdropResolution backdrop_{};
     // Full-screen bookkeeping (issue #232): EWMH atoms, the client rectangle to restore and the
-    // resolved mode. `fullscreen_supported_` is false on a display with no EWMH window manager, which
-    // turns the request into one TESSERA_WINDOW_UNSUPPORTED diagnostic instead of a dead button.
+    // resolved mode. `fullscreen_supported_` is false on a display with no EWMH window manager,
+    // which turns the request into one TESSERA_WINDOW_UNSUPPORTED diagnostic instead of a dead
+    // button.
     detail::X11FullscreenState fullscreen_{};
     bool fullscreen_supported_ = false;
     // The framework's custom-caption regions (window-chrome-v1.md section 8.1). X11 client-side
-    // decoration is deferred (section 13), so this list is stored and reported for the engine and the
-    // deterministic metrics, but no X protocol hit test consumes it: the platform's chrome stays.
+    // decoration is deferred (section 13), so this list is stored and reported for the engine and
+    // the deterministic metrics, but no X protocol hit test consumes it: the platform's chrome
+    // stays.
     std::array<CaptionRegion, kMaxCaptionRegions> caption_regions_{};
     std::uint8_t caption_region_count_ = 0;
     bool initializing_ = true;
@@ -642,8 +644,8 @@ void X11Window::close() {
 }
 
 void X11Window::set_fullscreen(bool fullscreen) {
-    if (display_ == nullptr || window_ == 0 ||
-        std::this_thread::get_id() != owner_thread_ || !fullscreen_supported_) {
+    if (display_ == nullptr || window_ == 0 || std::this_thread::get_id() != owner_thread_ ||
+        !fullscreen_supported_) {
         return;
     }
     if (fullscreen) {

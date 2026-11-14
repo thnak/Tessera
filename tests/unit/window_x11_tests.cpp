@@ -99,6 +99,7 @@ std::thread post_close_soon(::Window target) {
 int main() {
     using tessera::hal::WindowEvent;
     using tessera::hal::WindowEventType;
+    using tessera::hal::WindowMetrics;
 
     const char* display_name = std::getenv("DISPLAY");
     if (display_name == nullptr || display_name[0] == '\0') {
@@ -244,6 +245,73 @@ int main() {
         XCloseDisplay(display);
         return 13;
     }
+    // Full-screen (#232): the X11 backend asks the window manager through EWMH and reports the
+    // state the server resolved. Under Xvfb there is no window manager, so the documented answers
+    // are "unsupported" and a request that leaves the mode alone; where a WM exists the mode
+    // round-trips. Both branches are asserted so the test is meaningful on a bare Xvfb and on a
+    // desktop session.
+    {
+        const bool supported = window->supports_fullscreen();
+        const WindowMetrics before_fullscreen = window->metrics();
+        window->set_fullscreen(true);
+        (void)window->wait_for_events(0.1);
+        (void)window->poll_events(events);
+        const WindowMetrics after_enter = window->metrics();
+        if (supported) {
+            if (!expect(after_enter.fullscreen, "a supported enter reports full-screen")) {
+                XCloseDisplay(display);
+                return 15;
+            }
+        } else if (!expect(!after_enter.fullscreen,
+                           "an unsupported platform stays windowed after a request")) {
+            XCloseDisplay(display);
+            return 25;
+        }
+        window->set_fullscreen(false);
+        (void)window->wait_for_events(0.1);
+        (void)window->poll_events(events);
+        const WindowMetrics after_exit = window->metrics();
+        if (!expect(!after_exit.fullscreen, "leaving reports the windowed mode") ||
+            !expect(after_exit.physical_width == before_fullscreen.physical_width,
+                    "leaving restores the pre-full-screen client width") ||
+            !expect(after_exit.physical_height == before_fullscreen.physical_height,
+                    "leaving restores the pre-full-screen client height")) {
+            XCloseDisplay(display);
+            return 16;
+        }
+        // A repeated request is harmless whether or not the platform supports it.
+        window->set_fullscreen(true);
+        window->set_fullscreen(true);
+        window->set_fullscreen(false);
+        (void)window->wait_for_events(0.1);
+        (void)window->poll_events(events);
+    }
+
+    // Caption regions (#232): stored and reported through the metrics. X11 client-side decoration
+    // is deferred, so publishing them must not change the platform's own chrome or hit test.
+    {
+        const std::array<tessera::hal::CaptionRegion, 2> regions{
+            tessera::hal::CaptionRegion{tessera::hal::WindowRect{0, 0, 32, 32},
+                                        tessera::hal::CaptionRegionKind::SystemMenu},
+            tessera::hal::CaptionRegion{tessera::hal::WindowRect{260, 0, 46, 32},
+                                        tessera::hal::CaptionRegionKind::Close},
+        };
+        window->set_caption_regions(regions);
+        const WindowMetrics custom = window->metrics();
+        if (!expect(custom.caption_region_count == 2, "the caption regions are published") ||
+            !expect(custom.caption_regions[0].kind == tessera::hal::CaptionRegionKind::SystemMenu,
+                    "the first region keeps its order and kind")) {
+            XCloseDisplay(display);
+            return 17;
+        }
+        window->set_caption_regions({});
+        if (!expect(window->metrics().caption_region_count == 0,
+                    "an empty list clears the published regions")) {
+            XCloseDisplay(display);
+            return 18;
+        }
+    }
+
     window.reset();
 
     // Invalid descriptors are rejected without creating a native window.

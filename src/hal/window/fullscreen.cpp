@@ -4,8 +4,9 @@
 //
 // The OS mechanism is per platform, the contract is not: enter once, remember the bounds the window
 // had, restore exactly those on exit, never overwrite them with a repeated request, and follow a
-// state the user changed outside the app. That contract is what the headless test checks, so it lives
-// here rather than being duplicated in two platform files where only one is covered by the local lane.
+// state the user changed outside the app. That contract is what the headless test checks, so it
+// lives here rather than being duplicated in two platform files where only one is covered by the
+// local lane.
 
 #include "tessera/hal/fullscreen.hpp"
 
@@ -47,8 +48,8 @@ bool fullscreen_exit(FullscreenState& state) noexcept {
     }
     state.active = false;
     // The saved bounds are consumed: a second exit cannot replay them over a resize the user made
-    // after leaving, and the next enter records fresh ones. A backend restores `restore_bounds` when
-    // it is valid and otherwise falls back to its own idea of the window's normal placement.
+    // after leaving, and the next enter records fresh ones. A backend restores `restore_bounds`
+    // when it is valid and otherwise falls back to its own idea of the window's normal placement.
     state.restore_bounds = WindowRect{};
     state.restore_valid = false;
     return true;

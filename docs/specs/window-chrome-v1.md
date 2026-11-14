@@ -214,7 +214,12 @@ and the system chrome stays.
   area, then resolves `WM_NCHITTEST` before app routing: edges and corners to the `HT*` resize
   codes, the title area to `HTCAPTION` (drag, double-click maximize, drag-to-snap), the system-menu
   area to `HTSYSMENU`, the maximise button to `HTMAXBUTTON` on Windows 11 (Snap Layouts flyout), and
-  every other point to the framework controls or the client area. `WM_NCLBUTTONDOWN`,
+  every other point to the framework controls or the client area. The framework publishes the
+  interactive regions through `hal::Window::set_caption_regions` as logical-pixel
+  `hal::CaptionRegion` values (`bounds` plus a `CaptionRegionKind` of drag, system menu, minimise,
+  maximise or close), never as `HT*` codes, and the window reports the same list back in
+  `WindowMetrics::caption_regions`; an empty list is the system-chrome default where every point is
+  client area ([`caption.hpp`](../../include/tessera/hal/caption.hpp)). `WM_NCLBUTTONDOWN`,
   `WM_NCRBUTTONDOWN` (system menu) and the non-client activation path are handled by the HAL, which
   reports only normalized results to the engine.
 - **DWM.** Frame and shadow use the platform's documented calls
@@ -255,6 +260,48 @@ mode). A static header in that subtree is allowed, but it must match the P4 `App
 background and non-interactive content and must install no focus or hit-test targets. Continuity is
 a guideline, not a compiler check.
 
+### 8.4 Full-screen (Windows and Linux)
+
+Full-screen is a V1 shell capability on Windows and X11 (owner decision 2026-11-13, issue #232);
+the shell model itself is [platform-shell-v1.md](platform-shell-v1.md) section 6.1.
+
+- **Operation.** The app calls `app::WindowHost::set_fullscreen(bool)` (or `hal::Window::set_fullscreen`
+  in backend code) and reads the state back through `WindowHost::fullscreen()`, which mirrors
+  `WindowMetrics::fullscreen`. That flag is the resolved mode of the window manager, not the last
+  request: a platform that refuses or has not answered yet keeps reporting the old value.
+  `hal::Window::supports_fullscreen()` tells a caller whether the platform can do it at all; false
+  does not promise that a request succeeds.
+- **Bounds contract.** The platform remembers the pre-full-screen outer bounds (position, size and
+  maximized/restored state) and restores them on exit; the app never caches or reapplies a
+  rectangle, and no bounds are cached in the app layer. A repeated request (enter while
+  full-screen, exit while windowed) is a no-op, so a stale restore cannot overwrite a resize the
+  user made in between. The bookkeeping is the platform-neutral `hal::FullscreenState`
+  ([`fullscreen.hpp`](../../include/tessera/hal/fullscreen.hpp)), shared by both backends:
+  `fullscreen_enter` records the bounds once, `fullscreen_exit` consumes the record,
+  `fullscreen_resolved` folds a mode the user changed outside the app.
+- **Windows.** A borderless `WS_POPUP` window covering the monitor the window is on; the style and
+  `WINDOWPLACEMENT` are saved on entry and reapplied with `SetWindowPlacement` on exit, so position,
+  size and the maximized/restored state return exactly. The resolved flag compares the outer rect
+  with the monitor rect, so a maximized window is not full-screen.
+- **Linux / X11.** EWMH `_NET_WM_STATE` ClientMessage adding or removing
+  `_NET_WM_STATE_FULLSCREEN` (source indication 2). Support requires a window manager advertising
+  `_NET_WM_STATE` in `_NET_SUPPORTED`; a bare Xvfb has none and is unsupported. The mode is read
+  back from `_NET_WM_STATE` every time metrics are built, so a window-manager shortcut or a taskbar
+  toggle is observed. The client rectangle is remembered by the backend and restored only when no
+  window manager restored it.
+- **Deferred.** Wayland full-screen is deferred with the Wayland window backend (#155); macOS,
+  Android and iOS are post-V1. X11 has no client-side decoration, so `set_caption_regions` stores and
+  reports the list but no X protocol hit test consumes it.
+- **Escape and shortcuts.** Escape and the platform shortcuts are the app's and the window manager's,
+  not the framework's ([media-components-v1.md](media-components-v1.md) section 8); a mode change
+  made outside the app is observed through the metrics, never as a separate event.
+- **Diagnostics.** One `TESSERA_WINDOW_UNSUPPORTED` warning per window on the first request where the
+  platform cannot do full-screen (sections 9 and 10); the window keeps its windowed mode and startup
+  does not fail or retry.
+- **Tests.** `window_fullscreen` (state machine and caption resolver, display-free),
+  `window_fullscreen_fake` (fake-window round trip, refusal path, metrics dump) and `window_win32`
+  (real Win32 enter/exit restores the client size).
+
 ## 9. Failure and degradation
 
 | Situation | Behaviour |
@@ -267,6 +314,7 @@ a guideline, not a compiler check.
 | Custom decoration cannot be installed | Platform falls back to the system title bar with `TESSERA_CHROME_UNSUPPORTED`; no startup failure, no retry |
 | No app font at P2 in `custom` mode | Title text is blank until P4; the bar, mark and window controls are still drawn |
 | Insets not published at P2 | Zero; no wait and no retry |
+| Full-screen requested where the platform cannot do it (no backend, no EWMH window manager) | `TESSERA_WINDOW_UNSUPPORTED` (warning, once per window); the window keeps its windowed mode |
 | Headless/null HAL | Chrome application is a no-op with `chrome.result=skipped`; output stays deterministic |
 | Window creation fails | Startup fails before P2 as today (startup G7); chrome is not the cause and adds no retry |
 
@@ -276,6 +324,7 @@ a guideline, not a compiler check.
 |---|---|---|
 | `TESSERA_CHROME_THEME_VALUE` | error (build) | A reserved chrome token is not a plain opaque colour |
 | `TESSERA_CHROME_UNSUPPORTED` | warning (runtime) | The platform or OS version ignored a chrome attribute |
+| `TESSERA_WINDOW_UNSUPPORTED` | warning (runtime) | The platform cannot do full-screen; the first request per window reports it and the window stays windowed |
 | `chrome.apply` | span | One span per application/re-application with platform, scheme, kind and result |
 
 - Metric: `chromeApplyMs` (the P1 application only; re-applications are counted, not timed
@@ -310,6 +359,14 @@ a guideline, not a compiler check.
 - Studio preview: `custom` mode renders the bar through the engine (not through the skin), and the
   simulated system chrome is hidden (see the hosted studio design in
   [designer.md](../design/designer.md) section 2.2).
+- Full-screen and caption regions (Windows/Linux): `window_fullscreen` covers the display-free
+  state machine (enter records bounds once, repeated enter is a no-op, exit consumes the record, a
+  mode changed outside the app is folded in, stale bounds dropped) and the caption resolver (region
+  order, half-open right/bottom edge, non-finite point is client area, `is_caption_button`);
+  `window_fullscreen_fake` drives the fake window round trip, the refusal path and the
+  `format_window_metrics` dump (`fullscreen 0|1`, `caption_regions N`, one `caption <kind>` line per
+  region); `window_win32` asserts a real Win32 enter/exit restores the client size and that caption
+  regions publish and clear.
 
 ### 11.1 Manual checklist: translucent window and OS backdrop
 
@@ -355,8 +412,7 @@ Deferred (not V1; an addition needs an ADR or a spec revision):
   controls and the system menu only.
 - A theme token for the title bar height; V1 uses the framework constant.
 - Immersive and hidden-status-bar modes; taskbar/dock integration; tray
-  ([platform-shell-v1.md](platform-shell-v1.md) owns the model). Window full-screen on Windows and
-  Linux is not deferred: it ships in V1 (owner decision 2026-11-13, issue #232).
+  ([platform-shell-v1.md](platform-shell-v1.md) owns the model).
 - Per-window themes and multiple windows with different chrome.
 - Chrome title text from JSX; V1 title text is `window.title`.
 - macOS, Android and iOS backends themselves (ADR-010, Big Step F).
