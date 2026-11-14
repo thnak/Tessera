@@ -18,8 +18,11 @@ namespace tessera::rendering::rhi {
 // 1.3 (2026-11-13): additive sampled view of an offscreen render target
 // (`CommandList::bind_sampled_target`, `RenderTargetDesc::filter`/`address`), the capability the
 // glass composite draws with (issue #254, docs/design/gpu/offscreen-layers.md section 5).
+// 1.4 (2026-11-14): additive `DeviceDesc::surface` (`SurfacePlatform`) selecting the presentation
+// surface family, so a build that can present through both Xlib and Wayland picks the one the HAL
+// window belongs to (issue #155, platform(linux) Wayland window + Vulkan surface).
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 3;
+inline constexpr std::uint32_t kRhiVersionMinor = 4;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

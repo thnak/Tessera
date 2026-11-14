@@ -3,6 +3,7 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
+#include "window_x11.hpp"
 #include "x11_input.hpp"
 #include "x11_xi2.hpp"
 // After the input headers: it is the first include that pulls <X11/Xlib.h>, whose `None`/`Bool`
@@ -104,6 +105,9 @@ public:
     bool create(const WindowDesc& desc);
 
     [[nodiscard]] WindowMetrics metrics() const override;
+    [[nodiscard]] WindowSystem window_system() const noexcept override {
+        return WindowSystem::Xlib;
+    }
     [[nodiscard]] double display_refresh_hz() const noexcept override;
     [[nodiscard]] NativeWindowHandle native_handle() const override {
         return {display_, reinterpret_cast<void*>(window_)};
@@ -700,16 +704,7 @@ void X11Window::set_cursor(CursorShape shape) {
 
 } // namespace
 
-bool Window::wait_for_events(double timeout_seconds) {
-    // Default for platform windows without an OS event source: idle for the bounded timeout and
-    // report no event so a polling caller still throttles instead of spinning.
-    if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
-        wait_until_seconds(steady_now_seconds() + timeout_seconds);
-    }
-    return false;
-}
-
-std::unique_ptr<Window> create_window(const WindowDesc& desc) {
+std::unique_ptr<Window> detail::create_x11_window(const WindowDesc& desc) {
     auto window = std::make_unique<X11Window>();
     if (!window->create(desc)) {
         return nullptr;

@@ -157,6 +157,15 @@ private:
     void destroy_device_objects();
     void reset_lost_bookkeeping();
     void destroy();
+    // Resolves the presentation family this device presents through (issue #155): an explicit
+    // DeviceDesc::surface wins, `Auto` reads the session environment (Wayland first, then X11) and
+    // falls back to the only compiled-in family.
+    [[nodiscard]] PresentPlatform resolve_present_platform() const;
+    // Probes presentation support for the resolved family on `queue_family`: uses the family's
+    // vkGetPhysicalDevice*PresentationSupportKHR where the extension offers one, and starts a
+    // short-lived connection only for the Xlib probe (which needs a Display*).
+    void probe_present_support(std::uint32_t queue_family);
+    [[nodiscard]] bool has_present_support() const noexcept;
 
     // An upload submitted without waiting. The staging buffer and command resources stay alive
     // until the fence signals; `serial` orders it against deferred destruction.
@@ -188,11 +197,14 @@ private:
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
     bool surface_extensions_enabled_ = false;
     bool swapchain_extension_enabled_ = false;
-#endif
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    // The family this device presents through (issue #155). `Auto` resolved at creation to the
+    // session's family (`WAYLAND_DISPLAY` first, then `DISPLAY`) or to the only compiled-in one.
+    PresentPlatform present_platform_ = PresentPlatform::NoPlatform;
+    // True when the compiled-in WSI headers exist at all (the instance could enable the surface
+    // extensions and the driver advertises KHR_swapchain).
     bool win32_present_supported_ = false;
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
     bool xlib_present_supported_ = false;
+    bool wayland_present_supported_ = false;
 #endif
 
     rhi::DeviceStatus status_ = rhi::DeviceStatus::Ready;

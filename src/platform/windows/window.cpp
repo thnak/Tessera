@@ -103,6 +103,9 @@ public:
     bool create(const WindowDesc& desc);
 
     [[nodiscard]] WindowMetrics metrics() const override;
+    [[nodiscard]] WindowSystem window_system() const noexcept override {
+        return WindowSystem::Win32;
+    }
     [[nodiscard]] double display_refresh_hz() const noexcept override;
     [[nodiscard]] NativeWindowHandle native_handle() const override {
         return {nullptr, hwnd_};

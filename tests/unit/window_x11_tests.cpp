@@ -111,6 +111,9 @@ int main() {
         std::cout << "window_x11: skipped (DISPLAY is not set)\n";
         return 0;
     }
+    // Pin the X11 backend: on a Wayland desktop the Linux selector would create a Wayland window
+    // (issue #155), and this test proves the X11 backend specifically.
+    setenv("TESSERA_WINDOW_BACKEND", "x11", 1);
     Display* display = XOpenDisplay(nullptr);
     if (display == nullptr) {
         std::cout << "window_x11: skipped (cannot open DISPLAY)\n";

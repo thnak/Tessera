@@ -72,7 +72,13 @@ option(TESSERA_ENABLE_THORVG
 # X11 backs the Linux window and the Vulkan Xlib present surface. Without it (and without
 # Win32) the HAL keeps the headless stub and the Vulkan device reports NotSupported for
 # presentation, so headless Linux builds still work.
+#
+# Wayland (issue #155) is the second, optional Linux window/presentation backend. It is detected
+# with pkg-config (libwayland-client for the connection, wayland-protocols for the xdg-shell XML
+# that wayland-scanner turns into client code) and stays strictly optional: a Linux box without the
+# dev packages keeps the X11/stub build and prints a STATUS line.
 set(TESSERA_X11_FOUND OFF)
+set(TESSERA_WAYLAND_FOUND OFF)
 if (UNIX AND NOT APPLE AND NOT ANDROID AND NOT EMSCRIPTEN)
     find_package(X11 QUIET)
     if (X11_FOUND)
@@ -81,7 +87,38 @@ if (UNIX AND NOT APPLE AND NOT ANDROID AND NOT EMSCRIPTEN)
     else()
         message(STATUS "X11 not found: Linux window/presentation disabled (stub)")
     endif()
+
+    find_package(PkgConfig QUIET)
+    if (PkgConfig_FOUND)
+        pkg_check_modules(TESSERA_WAYLAND_CLIENT QUIET wayland-client)
+        pkg_check_modules(TESSERA_WAYLAND_PROTOCOLS QUIET wayland-protocols)
+    endif()
+    find_program(TESSERA_WAYLAND_SCANNER NAMES wayland-scanner)
+    if (TESSERA_WAYLAND_CLIENT_FOUND AND TESSERA_WAYLAND_PROTOCOLS_FOUND
+            AND TESSERA_WAYLAND_SCANNER)
+        # The xdg-shell protocol XML ships with wayland-protocols; its absolute path is the build
+        # input wayland-scanner consumes.
+        pkg_get_variable(TESSERA_WAYLAND_PROTOCOLS_DIR wayland-protocols pkgdatadir)
+        set(TESSERA_XDG_SHELL_XML
+            "${TESSERA_WAYLAND_PROTOCOLS_DIR}/stable/xdg-shell/xdg-shell.xml")
+        if (EXISTS "${TESSERA_XDG_SHELL_XML}")
+            set(TESSERA_WAYLAND_FOUND ON)
+            message(STATUS
+                "Wayland found: Linux Wayland window and Vulkan Wayland surface enabled "
+                "(${TESSERA_WAYLAND_SCANNER}, ${TESSERA_XDG_SHELL_XML})")
+        else()
+            message(STATUS
+                "Wayland xdg-shell XML not found: Linux Wayland support disabled "
+                "(looked for ${TESSERA_XDG_SHELL_XML})")
+        endif()
+    else()
+        message(STATUS "Wayland not found: Linux Wayland window/presentation disabled")
+    endif()
 endif()
+
+# Wayland protocol codegen (issue #155): wayland-scanner turns wayland-protocols' xdg-shell XML into
+# the client code src/platform/linux/window_wayland.cpp links against.
+include(cmake/TesseraWayland.cmake)
 
 add_subdirectory(third_party)
 add_subdirectory(src/rendering/rhi)

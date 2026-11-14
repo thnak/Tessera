@@ -155,7 +155,10 @@ bool WindowHost::Impl::replace_device() {
     recovery.reset();
     release_in_flight(detail::kRecoveryDrainBudgetSeconds);
     release_presentation();
-    device = detail::create_device(options.validation);
+    // The replacement device is created for the same presentation family: the platform window and
+    // its native surface handle outlive the lost device generation.
+    device = detail::create_device(options.validation,
+                                   detail::surface_platform_for(window->window_system()));
     if (device == nullptr) {
         return false;
     }

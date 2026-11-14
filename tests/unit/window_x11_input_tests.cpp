@@ -225,6 +225,8 @@ int main() {
         std::cout << "window_x11_input: skipped (DISPLAY is not set)\n";
         return 0;
     }
+    // Pin the X11 backend so a Wayland desktop still exercises the X11 input path (issue #155).
+    setenv("TESSERA_WINDOW_BACKEND", "x11", 1);
     Display* display = XOpenDisplay(nullptr);
     if (display == nullptr) {
         std::cout << "window_x11_input: skipped (cannot open DISPLAY)\n";

@@ -26,7 +26,7 @@ Handles are opaque. No public header may include Vulkan, volk, VMA, Dawn, or Web
 Current B1:
 
 ```cpp
-DeviceDesc { Backend backend; bool validation; int device_index; }
+DeviceDesc { Backend backend; bool validation; int device_index; SurfacePlatform surface; }
 Device::backend();
 Device::wait_idle();
 ```
@@ -35,12 +35,14 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.3**
-  (`0x00010003`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.4**
+  (`0x00010004`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
-  the target's sampler state, issue #254, section 5.1 below). All later versions are additive
+  the target's sampler state, issue #254, section 5.1 below); 1.4 adds
+  `DeviceDesc::surface`/`SurfacePlatform`, the presentation surface family a device is created for
+  (issue #155, Wayland window + `VK_KHR_wayland_surface`). All later versions are additive
   compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -75,6 +77,22 @@ B1 fields:
 | `RenderTargetDesc` | `extent`, `format`, `clear_color`, `load_op`, `store_op`, `sample_count`, `filter`, `address` |
 | `PipelineDesc` | vertex/fragment SPIR-V, vertex layout, color format, blend, push-constant size |
 | `SwapchainDesc` | `extent`, `format`, `image_count`, `vsync`, `native_window`, `native_display`, `per_pixel_alpha` |
+
+Presentation surface family (RHI 1.4, additive):
+
+- `DeviceDesc::surface` selects the window system the device will present to: `Auto` (default),
+  `NoPlatform`, `Win32`, `Xlib` or `Wayland`. `Auto` is resolved by the backend at creation from the
+  platform it was built for and the process environment, so existing callers are source- and
+  behaviour-compatible; a caller that holds a HAL window passes the matching value instead of
+  relying on the guess. The "no presentation" value is `NoPlatform`, not `None`, because
+  `<X11/Xlib.h>` defines `None` as a macro and the public RHI header stays includable beside Xlib.
+- The Vulkan backend enables `VK_KHR_surface` plus the surface extension of the resolved family. A
+  Linux build may have both Xlib and Wayland support compiled in: all *available* surface extensions
+  of the compiled-in families are enabled on the instance (an unused instance extension is harmless
+  and it removes any ordering dependency between window creation and device creation), while queue
+  presentation support and `create_swapchain` use only the resolved family.
+- `SwapchainDesc::native_window`/`native_display` keep the documented per-family meaning; they do
+  not identify the family (see `swapchain.hpp`).
 
 Presentation notes (RHI 1.2, additive):
 

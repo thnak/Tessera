@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 //
 // gallery: the Instrument library gallery skeleton (issue #239, ADR-047 item 10, native lane).
 //
@@ -20,15 +20,11 @@
 //   gallery --golden base.png     the same capture compared with a committed lavapipe baseline
 //                                 (--artifacts DIR keeps frame/diff/report, --update-goldens
 //                                 rewrites)
-//   gallery --inspect DIR         the whole case matrix as PNGs plus index.html, on ANY device
-//                                 (developer eye review; see inspect.hpp for why the goldens skip
-//                                 on a hardware GPU)
 //   gallery [--hidden] [--frames N]  window; the switches above set its initial state
 
 #include "Gallery.hpp"
 #include "SafeAreaPage.hpp"
 #include "golden.hpp"
-#include "inspect.hpp"
 #include "stb_image_write.h"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/cutout.hpp"
@@ -42,7 +38,6 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -50,7 +45,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <vector>
 
 #ifndef TESSERA_GALLERY_FONT
@@ -65,7 +59,6 @@ using tessera::ui::Node;
 struct Args {
     std::string capture;
     std::string golden;
-    std::string inspect;
     std::string artifact_dir = "gallery-artifacts";
     bool update_goldens = false;
     std::string font = TESSERA_GALLERY_FONT;
@@ -133,24 +126,20 @@ style::CompiledStyleSheet make_sheet(const Resources& resources) {
     return style::CompiledStyleSheet(sources);
 }
 
-std::string root_classes(std::string_view density, bool rtl, int text_scale) {
+std::string root_classes(const Args& args) {
     std::string classes = "g-root";
-    if (density == "compact") {
+    if (args.density == "compact") {
         classes += " g-compact";
     }
-    if (rtl) {
+    if (args.rtl) {
         classes += " g-rtl";
     }
-    if (text_scale == 125) {
+    if (args.text_scale == 125) {
         classes += " g-scale-125";
-    } else if (text_scale == 150) {
+    } else if (args.text_scale == 150) {
         classes += " g-scale-150";
     }
     return classes;
-}
-
-std::string root_classes(const Args& args) {
-    return root_classes(args.density, args.rtl, args.text_scale);
 }
 
 void collect_buttons(Node& node, std::vector<Node*>& out) {
@@ -321,8 +310,7 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
            "               [--page buttons|safe-area] [--device none|notch|gesture|keyboard|fold]\n"
-           "               [--hidden] [--frames N] [--width N] [--height N] [--font path]\n"
-           "               [--inspect DIR]\n";
+           "               [--hidden] [--frames N] [--width N] [--height N] [--font path]\n";
     std::exit(code);
 }
 
@@ -338,8 +326,6 @@ Args parse_args(int argc, char** argv) {
             args.capture = "golden";
         } else if (arg == "--artifacts" && has_value) {
             args.artifact_dir = argv[++index];
-        } else if (arg == "--inspect" && has_value) {
-            args.inspect = argv[++index];
         } else if (arg == "--update-goldens") {
             args.update_goldens = true;
         } else if (arg == "--theme" && has_value) {
@@ -395,62 +381,6 @@ Args parse_args(int argc, char** argv) {
     return args;
 }
 
-// Renders one inspection case: the same construction as `--capture`, with this case's switches.
-// Returns the captured frame, or nullopt when the machine has no Vulkan device.
-template<typename Page>
-std::optional<tessera::app::CapturedFrame>
-capture_case(const gallery_inspect::Case& item, const Args& base, const Resources& resources,
-             std::string_view classes) {
-    Node root{kRootId};
-    root.set_class_name(classes);
-    Page page;
-    page.build(root);
-    page.mount();
-    tessera::ui::UpdateScheduler scheduler;
-    page.attach_scheduler(scheduler);
-
-    Args args = base;
-    args.theme = item.theme;
-    args.density = item.density;
-    args.state = item.state;
-    args.text_scale = item.text_scale;
-    args.rtl = item.rtl;
-    args.page = item.page;
-    args.device = item.device;
-    // A scripted device brings its window size; a plain case uses the capture default.
-    if (item.device != "none") {
-        if (const std::optional<Device> device = device_for(item.device)) {
-            args.width = device->width;
-            args.height = device->height;
-        }
-    }
-
-    tessera::app::CaptureOptions options;
-    options.width = static_cast<std::uint32_t>(args.width);
-    options.height = static_cast<std::uint32_t>(args.height);
-    options.font_path = args.font;
-    options.scheduler = &scheduler;
-    options.configure_host = [&](tessera::app::AppHost& host) { configure(host, resources, args); };
-    return tessera::app::capture_frame(root, make_sheet(resources), options,
-                                       [&] { apply_state(root, args.state); });
-}
-
-// `--inspect DIR`: the whole case matrix plus a contact sheet. The runner lives in inspect.cpp;
-// this lambda supplies the one thing only main.cpp can: a scene built from generated pages with
-// the repository's style sheets and theme wired in.
-int run_inspect(const Args& args, const Resources& resources) {
-    const auto render =
-        [&](const gallery_inspect::Case& item) -> std::optional<tessera::app::CapturedFrame> {
-        // Root classes are per-case (density/RTL/scale), so they outlive the scene below.
-        const std::string classes = root_classes(item.density, item.rtl, item.text_scale);
-        if (item.page == "safe-area") {
-            return capture_case<gallery::gen::SafeAreaPage>(item, args, resources, classes);
-        }
-        return capture_case<gallery::gen::Gallery>(item, args, resources, classes);
-    };
-    return gallery_inspect::run(args.inspect, render);
-}
-
 } // namespace
 
 int main(int argc, char** argv) {
@@ -458,9 +388,6 @@ int main(int argc, char** argv) {
     const std::optional<Resources> resources = load_resources();
     if (!resources) {
         return 3;
-    }
-    if (!args.inspect.empty()) {
-        return run_inspect(args, *resources);
     }
     const std::string classes = root_classes(args);
     // `Node` keeps a view of its class name, so the text outlives the scene: `classes` is owned

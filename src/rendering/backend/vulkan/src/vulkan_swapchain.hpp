@@ -25,8 +25,10 @@ struct VulkanSwapchainStats {
     std::uint32_t slots_skipped = 0;
 };
 
-// Win32/X11 presentation swapchain. Acquire and present are bounded; recreate retires the previous
-// VkSwapchainKHR only after a bounded queue drain, never through vkDeviceWaitIdle.
+// Win32/X11/Wayland presentation swapchain. Acquire and present are bounded; recreate retires the
+// previous VkSwapchainKHR only after a bounded queue drain, never through vkDeviceWaitIdle.
+// `platform` is the family the owning device resolved at creation (issue #155): it selects the
+// VkSurfaceKHR construction and rejects a native handle pair from another family.
 //
 // Frame pacing uses one timeline semaphore per swapchain generation: an acquire hands the next
 // value to the frame, the render submission signals it, and a slot is reusable once
@@ -41,7 +43,7 @@ public:
 
     static std::expected<std::unique_ptr<VulkanSwapchain>, rhi::SwapchainError>
     create(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VkQueue queue,
-           const rhi::SwapchainDesc& desc, VulkanDevice* owner);
+           const rhi::SwapchainDesc& desc, VulkanDevice* owner, PresentPlatform platform);
 
     ~VulkanSwapchain() override;
 
@@ -82,7 +84,7 @@ public:
 
 private:
     VulkanSwapchain(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device,
-                    VkQueue queue);
+                    VkQueue queue, PresentPlatform platform);
 
     // Per-frame-slot pacing state. `acquire` is the binary semaphore image acquisition signals and
     // the submission waits on; `value` is the timeline value that submission signals.
@@ -117,6 +119,7 @@ private:
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue queue_ = VK_NULL_HANDLE;
+    PresentPlatform platform_ = PresentPlatform::NoPlatform;
     VulkanDevice* owner_ = nullptr;
     std::uint32_t epoch_ = 0;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;

@@ -93,9 +93,11 @@ set(TESSERA_VULKAN_RHI_SOURCES
     ${TESSERA_GLASS_BLUR_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)
 
-if (WIN32 OR TESSERA_X11_FOUND)
-    # Platform presentation surface + bounded acquire/present state machine.
+if (WIN32 OR TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
+    # Platform presentation surface + bounded acquire/present state machine, plus the presentation
+    # family resolution shared by the instance and swapchain paths (issue #155).
     list(APPEND TESSERA_VULKAN_RHI_SOURCES
+        src/vulkan_present_platform.cpp
         src/vulkan_swapchain.cpp
         src/vulkan_swapchain_present.cpp)
 endif()
@@ -117,10 +119,23 @@ if (WIN32)
     # vkCreateWin32SurfaceKHR / vkGetPhysicalDeviceWin32PresentationSupportKHR.
     target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_WIN32_KHR)
     target_link_libraries(tessera_rhi_vulkan PRIVATE user32)
-elseif (TESSERA_X11_FOUND)
-    # vkCreateXlibSurfaceKHR / vkGetPhysicalDeviceXlibPresentationSupportKHR.
-    target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_XLIB_KHR)
-    target_link_libraries(tessera_rhi_vulkan PRIVATE X11::X11)
+else()
+    # A Linux build may carry both WSI families: both macros are defined only when both dev packages
+    # are truly usable, so the instance can enable both surface extensions (an unused one is
+    # harmless) while the resolved family alone is used for presentation (issue #155).
+    if (TESSERA_X11_FOUND)
+        # vkCreateXlibSurfaceKHR / vkGetPhysicalDeviceXlibPresentationSupportKHR.
+        target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+        target_link_libraries(tessera_rhi_vulkan PRIVATE X11::X11)
+    endif()
+    if (TESSERA_WAYLAND_FOUND)
+        # vkCreateWaylandSurfaceKHR / vkGetPhysicalDeviceWaylandPresentationSupportKHR.
+        target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_WAYLAND_KHR)
+        target_include_directories(tessera_rhi_vulkan PRIVATE
+            ${TESSERA_WAYLAND_CLIENT_INCLUDE_DIRS})
+        target_link_libraries(tessera_rhi_vulkan PRIVATE ${TESSERA_WAYLAND_CLIENT_LIBRARIES})
+        target_link_directories(tessera_rhi_vulkan PRIVATE ${TESSERA_WAYLAND_CLIENT_LIBRARY_DIRS})
+    endif()
 endif()
 target_link_libraries(tessera_rhi_vulkan PUBLIC tessera_rhi Vulkan::Vulkan)
 target_compile_features(tessera_rhi_vulkan PUBLIC cxx_std_23)

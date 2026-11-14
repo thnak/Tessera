@@ -276,28 +276,25 @@ VulkanDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
         return std::unexpected(rhi::SwapchainError::DeviceLost);
     }
     // A Vulkan swapchain needs a VkSurfaceKHR, which needs the platform window handles from the
-    // HAL. Win32 uses native_window (HWND); X11 uses native_display (Display*) + native_window.
+    // HAL. Win32 uses native_window (HWND); X11 uses native_display (Display*) + native_window;
+    // Wayland uses native_display (wl_display*) + native_window (wl_surface*). Which family the
+    // pointers mean is fixed at device creation (desc.surface, see resolve_present_platform), not
+    // inferred from an environment variable here.
     if (desc.image_count < 2 || desc.extent.width == 0 || desc.extent.height == 0 ||
         desc.native_window == nullptr) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-    if (desc.native_display == nullptr) {
+    if ((present_platform_ == PresentPlatform::Xlib ||
+         present_platform_ == PresentPlatform::Wayland) &&
+        desc.native_display == nullptr) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
-#endif
-    bool present_supported = false;
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-    present_supported = win32_present_supported_;
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-    present_supported = xlib_present_supported_;
-#endif
-    if (!surface_extensions_enabled_ || !swapchain_extension_enabled_ || !present_supported) {
+    if (!surface_extensions_enabled_ || !swapchain_extension_enabled_ || !has_present_support()) {
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
 
-    auto created =
-        VulkanSwapchain::create(instance_, physical_device_, device_, queue_, desc, this);
+    auto created = VulkanSwapchain::create(instance_, physical_device_, device_, queue_, desc, this,
+                                           present_platform_);
     if (!created) {
         return std::unexpected(created.error());
     }

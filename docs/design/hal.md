@@ -20,7 +20,7 @@ or `NSWindow*`.
 
 | Area | HAL interface | Platform sources |
 |---|---|---|
-| Window | create/show/hide/close, title, size constraints, full-screen (Win32/X11 implemented; Wayland #155), custom-caption regions, focus | Win32, X11, Wayland, Cocoa, Android |
+| Window | create/show/hide/close, title, size constraints, full-screen (Win32/X11 implemented; Wayland window + surface #155), custom-caption regions, focus | Win32, X11, Wayland, Cocoa, Android |
 | Display | monitors, modes, refresh/VRR, scale/DPI, HDR/color, safe/work area | DXGI/DisplayConfig, RandR, wl_output, Android DisplayManager, NSScreen |
 | Input | pointer, keyboard, touch, pen, wheel, IME, focus/capture | WM_POINTER/WM_KEY, XInput2/XKB, wl_seat, Android MotionEvent, NSEvent |
 | Lifecycle | activate/deactivate, show/hide, minimize/restore, suspend/resume, lock/unlock, shutdown | WM_*, X11/Wayland, Android Activity/scene, Cocoa |
@@ -234,14 +234,22 @@ platform callback -> record raw event (no user code)
 
 | Capability | Windows | X11 | Wayland | Android | macOS |
 |---|---|---|---|---|---|
-| Window create/show | Win32 | Xlib/xcb | xdg-shell | Activity/native window | Cocoa |
-| Resize/DPI | `WM_SIZE`, `WM_DPICHANGED` | `ConfigureNotify`, RandR | `xdg_toplevel.configure` + `ack` | `onConfigurationChanged`, `WindowMetrics` | `NSWindowDelegate` |
+| Window create/show | Win32 | Xlib/xcb | xdg-shell (implemented, #155) | Activity/native window | Cocoa |
+| Resize/DPI | `WM_SIZE`, `WM_DPICHANGED` | `ConfigureNotify`, RandR | `xdg_toplevel.configure` + `ack` (implemented: compositor-owned size; scale stays 1.0 until wl_output/fractional-scale lands) | `onConfigurationChanged`, `WindowMetrics` | `NSWindowDelegate` |
 | Display topology | DisplayConfig, `WM_DISPLAYCHANGE` | RandR | `wl_output`/`zxdg_output_v1` | `DisplayManager` | `NSScreen` |
 | Refresh/VRR | DXGI/DisplayConfig | RandR/Present | `wl_output`, `wp_presentation` | `Display.Mode`, `Surface.setFrameRate` | `NSScreen.maximumFramesPerSecond`, CVDisplayLink |
 | Power/thermal | power GUIDs, `WM_POWERBROADCAST` | logind/UPower | logind | `PowerManager` | `NSProcessInfo` |
 | Fold/posture | no standard hinge API | no standard | compositor-specific | Jetpack WindowManager | no mainstream foldable |
 | IME | `WM_IME_*` | XIM/IC | `zwp_text_input_v3` | `InputConnection` | `NSTextInputClient` |
 | Clipboard (UTF-8 text) | Win32 `CF_UNICODETEXT` | unsupported stub (selection deferred) | unsupported stub | deferred | deferred |
+
+Wayland rows are the #155 slice: window create/show/hide/close, the configure/ack handshake,
+compositor-owned resize, activated/suspended lifecycle, and a `VK_KHR_wayland_surface` present
+surface are implemented; input (`wl_seat`), text-input-v3/IME, display topology/refresh
+(`wl_output`, `wp_presentation`), fractional scale, `xdg-decoration` and popups are follow-up
+items. The Wayland backend is optional at build time (`pkg-config` `wayland-client` +
+`wayland-protocols` + `wayland-scanner`) and selected per session: `WAYLAND_DISPLAY` picks Wayland,
+`DISPLAY` alone keeps X11 exactly as before.
 
 No capability may be assumed. Missing data uses a documented fallback (60 Hz, scale 1.0, no
 VRR, no HDR) and records the assumption in metrics.
@@ -305,13 +313,34 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   from `src/hal/window/CMakeLists.txt` until the root CMakeLists lists the directory directly.
 - `src/hal/window/` provides `tessera_hal_window` and `hal::create_window`. The Win32
   implementation lives in `src/platform/windows/window.cpp`; the X11 implementation lives in
-  `src/platform/linux/window.cpp` and is selected when CMake finds Xlib. Other platforms, and
-  Linux configurations without X11, build a stub that returns `nullptr`. Window creation,
-  normalized resize/DPI/focus/close events, owner-thread destruction, and the event-driven
-  `wait_for_events` idle wait are covered by `window_win32`/`window_wait` on Windows and
-  `window_x11` on Linux (skipped when `DISPLAY` is unset). `include/tessera/hal/window_wait.hpp`
-  supplies the deadline-bounded `wait_for_events_until` helper for the runtime/frame pacer.
-  Wiring that helper into `RuntimeLoop` is still pending; the loop's tick behavior is unchanged.
+  `src/platform/linux/window.cpp` and the Wayland implementation in
+  `src/platform/linux/window_wayland.cpp` + `window_wayland_shell.cpp` (generated xdg-shell client
+  code). On Linux the selector in `src/platform/linux/window_linux.cpp` chooses per session:
+  `WAYLAND_DISPLAY` set and the Wayland backend compiled in -> Wayland, otherwise X11 when
+  `DISPLAY` is set, otherwise the stub. `TESSERA_WINDOW_BACKEND=x11|wayland` pins the backend for
+  diagnostics and tests. Other platforms, and Linux configurations without X11 or Wayland, build a
+  stub that returns `nullptr`. Window creation, normalized resize/DPI/focus/close events,
+  owner-thread destruction, and the event-driven `wait_for_events` idle wait are covered by
+  `window_win32`/`window_wait` on Windows, `window_x11` on Linux (skipped when `DISPLAY` is unset)
+  and `window_wayland` (skipped with a diagnostic when `WAYLAND_DISPLAY` is unset or the
+  compositor is unreachable). `include/tessera/hal/window_wait.hpp` supplies the deadline-bounded
+  `wait_for_events_until` helper for the runtime/frame pacer. Wiring that helper into
+  `RuntimeLoop` is still pending; the loop's tick behavior is unchanged.
+- Wayland (issue #155): the backend owns the `wl_display` connection, binds `wl_compositor` and
+  `xdg_wm_base` only (no `wl_seat`/`wl_output`/`wl_shm` this slice), answers the mandatory
+  `xdg_wm_base.ping` and acks every `xdg_surface.configure` before a buffer commit, and reports the
+  compositor-owned size through `WindowMetrics` (`dpi_scale` stays 1.0, `display_refresh_hz()`
+  stays `kUnknownRefreshHz` - both documented "no source bound yet" answers). Normalized events:
+  `Resize` from the toplevel configure, `Focus`/`Blur` from the `activated` state,
+  `Occluded`/`Restored` from `suspended` (xdg-shell 6), and `Close` from `xdg_toplevel.close` or
+  `Window::close()`. The presentation half is `VK_KHR_wayland_surface`: the swapchain builds
+  `VkWaylandSurfaceCreateInfoKHR` from `native_handle()` (`wl_display*` + `wl_surface*`) and
+  presents through the same bounded acquire/present path as X11. Deliberately not in this slice:
+  input, text-input-v3/IME, fractional scale, decorations, popups and a Wayland full-screen
+  request (`supports_fullscreen()` stays false; a compositor-initiated fullscreen is still reported
+  through the metrics). Tests: `window_wayland` (window only, skips without a compositor) and
+  `vulkan_swapchain_wayland` (window + Vulkan present, skips without a compositor/device/surface
+  extension; verified headless under weston + lavapipe).
 - Full-screen and the custom-caption seam (issue #232) are implemented on Win32 and X11.
   `include/tessera/hal/fullscreen.hpp` is the platform-neutral `FullscreenState` bookkeeping (a
   repeated request is a no-op, the pre-enter outer bounds are recorded once and consumed on exit, a
@@ -335,13 +364,19 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   and the app's change-only request plus its one-shot diagnostic live in `src/app/window_cursor.*`.
   Tests: `window_cursor`, `window_cursor_fake`, `window_win32`, `window_x11`.
 - Platform `VkSurfaceKHR`/swapchain paths live in `src/rendering/backend/vulkan/src/` and are
-  created through `Device::create_swapchain` with the opaque `native_window` (HWND) or
-  `native_display` + `native_window` (`Display*` + `Window`) handles supplied by the HAL. Win32
-  and Xlib are implemented; other configurations report `NotSupported`. The Xlib smoke test runs
-  under Xvfb with lavapipe.
-- B1 is offscreen; the B3 window/swapchain path is Windows + Linux/X11. Remaining B3 slices are
-  Wayland, swapchain-image render targets, per-image frames-in-flight synchronization, live
-  resize/device-loss policy, and runtime/pacer integration (macOS via
+  created through `Device::create_swapchain` with the opaque `native_window` (HWND), or
+  `native_display` + `native_window` (`Display*` + `Window` on X11, `wl_display*` + `wl_surface*` on
+  Wayland) handles supplied by the HAL. `DeviceDesc::surface` (`rhi::SurfacePlatform`) is the
+  additive RHI 1.4 field that tells the device which family the window belongs to: `Auto` resolves
+  from the session environment exactly like `create_window()` (Wayland first, then X11), while an
+  explicit value pins it; the window driver passes the HAL window's own family, so a Linux build
+  with both backends never builds the wrong surface. Win32, Xlib and Wayland are implemented; other
+  configurations report `NotSupported`. The Xlib smoke test runs under Xvfb with lavapipe and the
+  Wayland one under headless weston with lavapipe.
+- B1 is offscreen; the B3 window/swapchain path is Windows + Linux/X11 + Linux/Wayland. Remaining
+  B3 slices are swapchain-image render targets, per-image frames-in-flight synchronization, live
+  resize/device-loss policy, runtime/pacer integration, and the Wayland follow-ups listed above
+  (input, IME, fractional scale/display data) (macOS via
   [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md); Android per
   [`mobile-integration.md`](mobile-integration.md)).
 - X11 limitations in this slice: input is the **core protocol plus an X input method** (pointer,
@@ -357,8 +392,7 @@ See [`window-resize.md`](window-resize.md) for the state machine and
   synthetic events with `XSendEvent`; `window_x11_real_input` drives the window through the XTEST
   extension (what `xdotool` uses) so the X server itself generates the pointer, wheel, key and
   focus events (verified under Xvfb on Linux; it skips without `DISPLAY` or libXtst). There is no
-  XInput2 (smooth scroll, touch, pen), no pre-edit display, no Wayland, no
-  occlusion/minimize signal, no RandR or display-hotplug handling,
-  and DPI is a global `Xft.dpi` heuristic (96 fallback). See [`window-resize.md`](window-resize.md)
-  §0.
+  XInput2 (smooth scroll, touch, pen), no pre-edit display, no occlusion/minimize signal, no RandR
+  or display-hotplug handling, and DPI is a global `Xft.dpi` heuristic (96 fallback). Wayland is a
+  separate backend (issue #155). See [`window-resize.md`](window-resize.md) §0.
 - Mobile/foldable support follows [`os-events-v1.md`](../specs/os-events-v1.md).
