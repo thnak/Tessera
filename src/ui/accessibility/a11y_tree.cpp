@@ -31,6 +31,34 @@ bool aria_hidden(const Node& node) {
     return detail::is_true(aria_value(node, "aria-hidden"));
 }
 
+bool aria_modal(const Node& node) {
+    return detail::is_true(aria_value(node, "aria-modal"));
+}
+
+// The last visible `aria-modal` node in tree order (a nested dialog wins over its ancestor), or
+// nullptr. A hidden ancestor hides the dialog with it, so the walk stops at invisible nodes.
+const Node* last_modal(const Node& node) {
+    if (!node.rendered() || aria_hidden(node)) {
+        return nullptr;
+    }
+    const Node* found = aria_modal(node) ? &node : nullptr;
+    for (const auto& child : node.children()) {
+        if (const Node* inner = last_modal(*child)) {
+            found = inner;
+        }
+    }
+    return found;
+}
+
+bool is_ancestor(const Node& ancestor, const Node& node) {
+    for (const Node* current = node.parent(); current != nullptr; current = current->parent()) {
+        if (current == &ancestor) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string_view paint_text(const Node& node) {
     const auto& data = node.paint_data();
     if (!data || data->kind != PaintKind::Text) {
@@ -193,6 +221,7 @@ public:
         if (out_.nodes.capacity() < limit_) {
             out_.nodes.reserve(limit_);
         }
+        modal_ = last_modal(root_);
         std::optional<Rect> clip;
         visit(root_, clip, 0);
         stats_.emitted = out_.nodes.size();
@@ -209,6 +238,14 @@ private:
         if (depth >= kMaxDepth) {
             ++stats_.dropped_nodes;
             stats_.truncated = true;
+            return;
+        }
+        // A modal dialog makes everything that precedes it in tree order inert (its ancestors stay,
+        // they lead to it). Content after it paints above it, so toasts and tooltips stay exposed.
+        if (&node == modal_) {
+            modal_reached_ = true;
+        } else if (modal_ != nullptr && !modal_reached_ && !is_ancestor(node, *modal_)) {
+            ++stats_.skipped_inert;
             return;
         }
         if (aria_hidden(node)) {
@@ -382,6 +419,8 @@ private:
     A11ySnapshot& out_;
     std::size_t limit_;
     NodeId focused_id_;
+    const Node* modal_ = nullptr;
+    bool modal_reached_ = false;
     BuildStats stats_;
 };
 

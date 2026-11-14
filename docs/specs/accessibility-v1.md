@@ -297,6 +297,7 @@ emitted and the BuildStats counter is incremented):
 |---|---|---|
 | invisible | `Node::visible()` false | subtree, `skipped_invisible` |
 | aria hidden | `aria-hidden="true"` | subtree, `skipped_aria_hidden` |
+| modal inert | a visible `aria-modal="true"` node (issue #302) | every earlier node that is not an ancestor, `skipped_inert`; later nodes stay |
 | style hidden | computed `display: none`, or `visibility: hidden`/`collapse` | subtree, `skipped_style_hidden` |
 | scroll-clipped | world rect does not intersect the intersection of every ancestor scroll container's scrollport (border box inset by `scrollport_insets`) | subtree, `skipped_clipped` |
 | zero size | world width or height `<= 0` | subtree, `skipped_zero_size` (no hoisting) |

@@ -543,6 +543,7 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 - [ ] #240: Library stage 1 tracking (ready; #223 `SafeArea` is its first item).
 - [x] #223: `SafeArea` (safe-area-v1): inset arithmetic, host-resolved padding or margin with per-edge easing, the library component and gallery page. AppBar/Sheet/Toast defaults, `TwoPane` and the focused-field scroll are follow-ups. Evidence: `packages/tessera-ui/SafeArea.tsx`, `include/tessera/hal/safe_area.hpp`, `src/app/safe_area_state.cpp`, ctest `safe_area`, `app_safe_area`, `library_safe_area_*`, `gallery_golden_safe_area_*`. Stages 2 to 6
       (including `LiveCapsule`, #224) follow V1.
+- [ ] #302: Overlay layers (overlays-and-layers-v1). Slice 1 (the layer core: `OverlayHost`, four layers, handles, frame-boundary open/close, modal scrim, focus trap, `aria-modal` inertness) done: `include/tessera/ui/overlay/overlay.hpp`, `src/ui/scene/overlay_host.cpp`, ctest `overlay_host`. Slice 2 (anchoring and placement, Escape/back, click-outside, live regions, library surface) open; it unblocks #224.
 
 
 ### V1-M6 Data-heavy UI ([milestone 6](https://github.com/thnak/Tessera/milestone/6)) — Big Step E

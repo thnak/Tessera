@@ -3,6 +3,7 @@
 add_library(tessera_scene STATIC
     node.cpp
     node_metadata.cpp
+    overlay_host.cpp
     event.cpp
     click_synthesis.cpp
     dirty_pass.cpp

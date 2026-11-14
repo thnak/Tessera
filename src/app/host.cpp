@@ -310,6 +310,10 @@ AppHost::~AppHost() = default;
 HostFrame AppHost::begin_frame(double dt, double alpha) {
     Impl& state = *impl_;
     HostFrame frame;
+    // Overlay opens and closes land on the frame boundary, before anything reads the tree.
+    if (state.overlay_host) {
+        state.overlay_host->flush();
+    }
     // Insets ease before the tick so the layout of this frame already sees the new values; an
     // animation in flight keeps the loop awake, a settled one costs nothing.
     if (state.safe_area.step(dt, state.reduced_motion)) {
@@ -455,6 +459,27 @@ void AppHost::set_window_metrics(const hal::WindowMetrics& metrics) {
     }
     mark_safe_area_nodes(state.root);
     state.loop.mark_render_dirty();
+}
+
+ui::OverlayHost& AppHost::overlays() {
+    if (!impl_->overlay_host) {
+        impl_->overlay_host = std::make_unique<ui::OverlayHost>(impl_->root);
+    }
+    return *impl_->overlay_host;
+}
+
+ui::OverlayHandle AppHost::open_overlay(ui::OverlaySpec spec) {
+    const ui::OverlayHandle handle = overlays().open(std::move(spec));
+    impl_->loop.mark_render_dirty();
+    return handle;
+}
+
+bool AppHost::close_overlay(ui::OverlayHandle handle) {
+    const bool closed = overlays().close(handle);
+    if (closed) {
+        impl_->loop.mark_render_dirty();
+    }
+    return closed;
 }
 
 void AppHost::request_full_repaint() {
