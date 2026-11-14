@@ -35,8 +35,10 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
     : device_(&device),
       pipeline_(&pipeline),
       white_texture_(&white_texture),
-      config_(config),
+      // Declaration order, not readability order: `glass_` is declared above `config_`, and
+      // -Wreorder is an error on the Linux lane.
       glass_(glass),
+      config_(config),
       current_texture_(&white_texture) {
     static_assert(sizeof(Vertex2D) == kVertex2DStride, "vertex stride must match the layout");
 
