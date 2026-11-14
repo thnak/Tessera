@@ -1,0 +1,10 @@
+# Icons this application references, one <set>:<name> per line (ADR-047 item 8).
+# `tessera icons add --references tests/fixtures/icons/references.txt ...` imports exactly these and
+# drops every other icon in the pinned sets (tree-shaking).
+tabler:home
+tabler:house
+tabler:search
+mdi:account
+ccby:chart
+
+# Unused by design: tabler:settings, tabler:user, tabler:trash, tabler:check, mdi:account-plus.

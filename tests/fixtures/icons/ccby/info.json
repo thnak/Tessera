@@ -1,0 +1,16 @@
+{
+  "name": "CC-BY Icons",
+  "total": 1,
+  "author": {
+    "name": "CC-BY Icons authors",
+    "url": "https://example.invalid/ccby"
+  },
+  "height": 24,
+  "category": "General",
+  "palette": false,
+  "license": {
+    "title": "Creative Commons Attribution 4.0",
+    "spdx": "CC-BY-4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+  }
+}

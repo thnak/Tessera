@@ -1,0 +1,16 @@
+{
+  "name": "GPL Icons",
+  "total": 1,
+  "author": {
+    "name": "GPL Icons authors",
+    "url": "https://example.invalid/gpl3"
+  },
+  "height": 24,
+  "category": "General",
+  "palette": false,
+  "license": {
+    "title": "GNU General Public License v3.0",
+    "spdx": "GPL-3.0",
+    "url": "https://www.gnu.org/licenses/gpl-3.0.html"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Tabler Icons",
+  "total": 6,
+  "author": {
+    "name": "Pawel Kuna",
+    "url": "https://github.com/tabler/tabler-icons"
+  },
+  "license": {
+    "title": "MIT",
+    "spdx": "MIT",
+    "url": "https://github.com/tabler/tabler-icons/blob/master/LICENSE"
+  },
+  "height": 24,
+  "category": "General",
+  "palette": false
+}

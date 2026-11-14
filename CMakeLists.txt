@@ -122,6 +122,8 @@ add_subdirectory(src/compiler/rules)
 add_subdirectory(src/compiler/lowering)
 add_subdirectory(src/compiler/codegen)
 add_subdirectory(tools/schema_dump)
+# `tessera icons add` (ADR-047 item 8): build-time Iconify import with the license gate.
+add_subdirectory(tools/icons)
 
 # docs/specs/shader-manifest-v1.md sections 1 and 5: the manifest is a repository build input and
 # `tessera_schema` validates it before glslc. The checker target must exist before the Vulkan

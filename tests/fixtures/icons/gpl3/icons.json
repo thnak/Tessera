@@ -1,0 +1,10 @@
+{
+  "prefix": "gpl3",
+  "width": 24,
+  "height": 24,
+  "icons": {
+    "copyleft": {
+      "body": "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" />"
+    }
+  }
+}

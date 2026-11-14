@@ -1,0 +1,16 @@
+{
+  "name": "Non Commercial Icons",
+  "total": 1,
+  "author": {
+    "name": "NC Icons authors",
+    "url": "https://example.invalid/nc"
+  },
+  "height": 24,
+  "category": "General",
+  "palette": false,
+  "license": {
+    "title": "Creative Commons Attribution Non Commercial 4.0",
+    "spdx": "CC-BY-NC-4.0",
+    "url": "https://creativecommons.org/licenses/by-nc/4.0/"
+  }
+}
