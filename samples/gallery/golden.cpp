@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "golden.hpp"
-
 #include "tessera/harness/artifact_sink.hpp"
 #include "tessera/harness/frame_capture.hpp"
 #include "tessera/harness/frame_check.hpp"
@@ -14,7 +13,8 @@
 namespace gallery_golden {
 
 bool available(std::string& reason) {
-    const auto capability = tessera::harness::capture_capability(tessera::harness::CompareMode::Golden);
+    const auto capability =
+        tessera::harness::capture_capability(tessera::harness::CompareMode::Golden);
     if (capability) {
         return true;
     }

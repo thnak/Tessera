@@ -14,7 +14,8 @@
 // Modes:
 //   gallery --capture out.png     windowless offscreen capture (any Vulkan device, lavapipe in CI)
 //   gallery --golden base.png     the same capture compared with a committed lavapipe baseline
-//                                 (--artifacts DIR keeps frame/diff/report, --update-goldens rewrites)
+//                                 (--artifacts DIR keeps frame/diff/report, --update-goldens
+//                                 rewrites)
 //   gallery [--hidden] [--frames N]  window; the switches above set its initial state
 
 #include "Gallery.hpp"

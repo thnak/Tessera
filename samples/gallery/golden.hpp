@@ -17,7 +17,8 @@ namespace gallery_golden {
 
 // Compares `frame` with `baseline_path`. `artifact_dir` receives frame.png, the diff image and the
 // compare report on every run, so CI can upload them for a missing or changed baseline. With
-// `update` the baseline is rewritten from the frame instead of failing. Returns a process exit code.
+// `update` the baseline is rewritten from the frame instead of failing. Returns a process exit
+// code.
 [[nodiscard]] int check(const tessera::app::CapturedFrame& frame, const std::string& baseline_path,
                         const std::string& artifact_dir, bool update);
 
