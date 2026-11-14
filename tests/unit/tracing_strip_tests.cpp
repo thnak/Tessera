@@ -26,12 +26,14 @@ namespace {
 
 namespace fs = std::filesystem;
 
-// Strings that only the real recorder emits, each a complete literal in `trace.cpp`: the Chrome
-// phase and pid fields, the frame/tick argument prefix, and the two exported symbol names. They are
-// matched as byte runs, so a marker split across two literals would never match and is not used.
-constexpr std::string_view kTracerMarkers[] = {"\"ph\":\"", "\"pid\":1",
-                                               "\"args\":{\"frame\":", "to_chrome_trace_json",
-                                               "trace_category_name"};
+// Markers that only the real recorder emits, chosen for stability across compilers and
+// optimization levels. These are mangled symbol names of the recorder's out-of-line definitions
+// plus the encoder's own string literals. Symbol names are the reliable part: GCC at -O3 merges and
+// splits string literals (CI proved `"ph":"` disappears there while `-O2` keeps it), whereas the
+// symbol names survive -O0/-O2/-O3 on both GCC and MSVC because the definitions are external.
+// Every entry is a complete literal or a complete symbol, never a fragment of one.
+constexpr std::string_view kTracerMarkers[] = {"to_chrome_trace_json", "trace_category_name",
+                                               "TraceRecorder", "\"pid\":1"};
 
 std::vector<std::uint8_t> read_file(const fs::path& path) {
     std::ifstream stream(path, std::ios::binary);
