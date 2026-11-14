@@ -474,6 +474,9 @@ public:
     // Appends/replaces one declaration; false when the declaration cap is reached or name empty.
     bool set_inline_style(std::string_view name, std::string_view value);
     void clear_inline_style();
+    // Drops one declaration; true when it existed. Declarations borrow their text, so an owner of
+    // that text removes them before the text dies.
+    bool remove_inline_style(std::string_view name);
     [[nodiscard]] std::span<const InlineStyleDeclaration> inline_style() const {
         return inline_style_ ? std::span<const InlineStyleDeclaration>(inline_style_->items.data(),
                                                                        inline_style_->count)

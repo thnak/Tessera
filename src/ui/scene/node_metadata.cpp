@@ -262,6 +262,25 @@ bool Node::set_inline_style(std::string_view name, std::string_view value) {
     return true;
 }
 
+bool Node::remove_inline_style(std::string_view name) {
+    if (!inline_style_) {
+        return false;
+    }
+    InlineStyleTable& table = *inline_style_;
+    for (std::size_t i = 0; i < table.count; ++i) {
+        if (table.items[i].name != name) {
+            continue;
+        }
+        for (std::size_t j = i + 1; j < table.count; ++j) {
+            table.items[j - 1] = table.items[j];
+        }
+        --table.count;
+        mark_dirty(Dirty::Style);
+        return true;
+    }
+    return false;
+}
+
 void Node::clear_inline_style() {
     if (!inline_style_ || inline_style_->count == 0) {
         return;

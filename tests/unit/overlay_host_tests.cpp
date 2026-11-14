@@ -241,6 +241,30 @@ void test_host_destruction_detaches() {
     expect(root.children().empty(), "destroying the host removes its layer nodes");
 }
 
+// Issue #253: a scene reused across hosts (capture_frame does) must not keep the first host's
+// width/height declarations, which borrow that host's buffers.
+void test_root_reused_after_host() {
+    Node root(1);
+    tessera::runtime::ManualClock clock;
+    tessera::runtime::RuntimeLoop loop(clock);
+    auto has = [&root](std::string_view name) {
+        return std::ranges::any_of(root.inline_style(),
+                                   [name](const auto& decl) { return decl.name == name; });
+    };
+    for (int round = 0; round < 2; ++round) {
+        tessera::app::HostConfig config;
+        config.width = 300.0f + 10.0f * static_cast<float>(round);
+        config.height = 200.0f;
+        {
+            tessera::app::AppHost host(root, tessera::ui::style::compile_stylesheet(""), loop,
+                                       config);
+            expect(has("width") && has("height"), "a live host sizes its root");
+        }
+        expect(!has("width") && !has("height"),
+               "a destroyed host leaves no declaration pointing into its buffers");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -255,6 +279,7 @@ int main() {
     test_modal_semantics();
     test_top_modal_and_idle();
     test_host_destruction_detaches();
+    test_root_reused_after_host();
     if (failures != 0) {
         std::cerr << "overlay_host: " << failures << " failure(s)\n";
         return 1;
