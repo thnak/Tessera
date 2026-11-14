@@ -8,6 +8,7 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/animation/runtime.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
+#include "tessera/ui/input.hpp"
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
@@ -144,6 +145,11 @@ public:
     [[nodiscard]] ui::OverlayHost& overlays();
     ui::OverlayHandle open_overlay(ui::OverlaySpec spec);
     bool close_overlay(ui::OverlayHandle handle);
+    // The overlay side of the input path: Escape dismisses the topmost dismissible overlay and is
+    // consumed (true: the caller must not dispatch it), a press outside closes the overlays that
+    // opted in and still reaches the scene, and window blur closes the transient ones. The window
+    // installs it as the input pump's filter; headless drivers call it before dispatching.
+    bool handle_overlay_input(const ui::InputEvent& event);
 
     // Step 8: clears every dirty domain on the scene after a painted frame. Safe to call after a
     // skipped frame too (nothing is dirty then).

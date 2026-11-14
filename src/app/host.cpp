@@ -2,7 +2,9 @@
 
 #include "host_impl.hpp"
 #include "tessera/app/host.hpp"
+#include "tessera/hal/safe_area.hpp"
 #include "tessera/runtime/frame_time_source.hpp"
+#include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
@@ -258,6 +260,65 @@ void AppHost::Impl::apply_style_generation(ui::Dirty dirty_mask) {
     loop.mark_render_dirty();
 }
 
+// The window minus every inset an overlay must keep clear of: bars, cutout, keyboard, gesture
+// zones and hinge (safe-area-v1.md). Before the first metrics arrive the whole window is usable.
+rendering::rhi::Rect AppHost::Impl::overlay_viewport() const {
+    rendering::rhi::Rect viewport{0.0f, 0.0f, config.width, config.height};
+    if (!safe_area.has_metrics()) {
+        return viewport;
+    }
+    hal::SafeAreaConfig keep_clear;
+    keep_clear.sources = hal::kSourcesDefault | hal::kSourceGestures;
+    const hal::WindowInsets insets = safe_area.resolve(keep_clear);
+    viewport.x = insets.left;
+    viewport.y = insets.top;
+    viewport.width = std::max(0.0f, config.width - insets.left - insets.right);
+    viewport.height = std::max(0.0f, config.height - insets.top - insets.bottom);
+    return viewport;
+}
+
+bool AppHost::Impl::root_is_rtl() const {
+    const std::string* direction = provider->compute(root).find("direction");
+    return direction != nullptr && *direction == "rtl";
+}
+
+bool AppHost::handle_overlay_input(const ui::InputEvent& event) {
+    Impl& state = *impl_;
+    if (!state.overlay_host) {
+        return false;
+    }
+    ui::OverlayHost& overlays = *state.overlay_host;
+    switch (event.type) {
+    case ui::InputEventType::KeyDown:
+        if (event.key == ui::key::kEscape && overlays.handle_escape()) {
+            state.escape_swallowed = true;
+            state.loop.mark_render_dirty();
+            return true;
+        }
+        return false;
+    case ui::InputEventType::KeyUp:
+        // The release that belongs to a consumed press must not reach a focused control alone.
+        if (event.key == ui::key::kEscape && state.escape_swallowed) {
+            state.escape_swallowed = false;
+            return true;
+        }
+        return false;
+    case ui::InputEventType::PointerDown:
+        // The press still reaches whatever is under it; only the overlays close.
+        if (overlays.handle_pointer_down(event.x, event.y) > 0) {
+            state.loop.mark_render_dirty();
+        }
+        return false;
+    case ui::InputEventType::Blur:
+        if (overlays.close_transient() > 0) {
+            state.loop.mark_render_dirty();
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
 void AppHost::Impl::run_layout_pass() {
     const ui::layout::LayoutInput input = build_layout_input(root, *provider, safe_area);
     const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
@@ -335,8 +396,7 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
     // Any style or layout work may have changed the tree's shape (a state change can attach a
     // conditional child), and the damage pass latches a full redraw on overflow. Rebuild the
     // selector tree and re-run layout for both; a paint-only frame skips all of it.
-    const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;
-    if (geometry_work) {
+    const auto restyle_and_layout = [&state, &frame] {
         state.rebuild_style_tree();
         // A rebuilt selector tree is a new style generation. The paint cache key holds a node's own
         // dirty flags, not its computed style, so a node that stayed Clean can still resolve a
@@ -348,6 +408,22 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
         state.run_layout_pass();
         frame.layout = state.last_applied;
         frame.sync = state.pipeline->sync_style(state.root, *state.provider, frame.tick, true);
+    };
+    const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;
+    if (geometry_work) {
+        restyle_and_layout();
+    }
+    // Placed overlays need the content size and the anchor bounds, so they position after layout;
+    // only a content box that actually moved costs a second pass.
+    if (state.overlay_host && state.overlay_host->has_placed()) {
+        const auto placed =
+            state.overlay_host->place(state.overlay_viewport(), state.root_is_rtl());
+        if (placed.closed) {
+            state.loop.mark_render_dirty(); // the closing entry unmounts on the next frame
+        }
+        if (placed.moved) {
+            restyle_and_layout();
+        }
     }
 
     frame.render = state.pipeline->finish_frame(state.root);

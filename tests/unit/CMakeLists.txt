@@ -2185,6 +2185,22 @@ target_link_libraries(overlay_host_tests PRIVATE tessera_app tessera_runtime tes
 
 add_test(NAME overlay_host COMMAND overlay_host_tests)
 
+# Issue #302 slice 2: placement math, anchored placement, dismissal and the input hook.
+add_executable(overlay_placement_tests
+    overlay_placement_tests.cpp)
+
+target_link_libraries(overlay_placement_tests PRIVATE tessera_scene)
+
+add_test(NAME overlay_placement COMMAND overlay_placement_tests)
+
+add_executable(overlay_dismiss_tests
+    overlay_dismiss_tests.cpp)
+
+target_link_libraries(overlay_dismiss_tests PRIVATE tessera_app tessera_runtime tessera_accessibility
+    tessera_input_pump)
+
+add_test(NAME overlay_dismiss COMMAND overlay_dismiss_tests)
+
 # Issue #223: the library SafeArea lowers, validates under a salt and generates C++.
 add_executable(library_safe_area_lowering_tests
     library_safe_area_lowering_tests.cpp)

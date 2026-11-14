@@ -22,6 +22,11 @@ InputPumpStats InputPump::pump(Node& root, runtime::RuntimeLoop& loop) {
     sampler_.sample(queue_, config_.max_events_per_tick);
     for (const InputEvent& event : sampler_.events()) {
         ++stats.consumed;
+        if (input_filter_ != nullptr && input_filter_(input_filter_user_, root, event)) {
+            // Swallowed before dispatch: it counts as handled, and the arena never sees it.
+            ++stats.dispatched;
+            continue;
+        }
         const InputDispatchResult result = router_.dispatch(root, event);
         if (result.dispatched) {
             ++stats.dispatched;

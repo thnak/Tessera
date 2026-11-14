@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/overlay/overlay.hpp"
+#include "overlay_entry.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -47,17 +47,6 @@ void fill_window(Node& node) {
 }
 
 } // namespace
-
-struct OverlayHost::Entry {
-    enum class State : std::uint8_t { Pending, Open };
-
-    std::uint64_t sequence = 0;
-    OverlaySpec spec;
-    State state = State::Pending;
-    bool closing = false;
-    Node* wrapper = nullptr; // owned by the layer node while Open
-    Node* content = nullptr; // owned by the wrapper
-};
 
 OverlayHost::OverlayHost(Node& root)
     : root_(root) {}
@@ -215,6 +204,16 @@ void OverlayHost::mount_entry(Entry& entry) {
     if (modal) {
         content->set_aria("aria-modal", "true");
         content->set_focus_trap(true);
+    }
+    if (layer == OverlayLayer::Toast) {
+        // A toast announces itself politely and never takes focus.
+        content->set_aria("aria-live", "polite");
+    }
+    if (entry.spec.placement) {
+        // Positioned by place() once layout knows the content size.
+        content->set_inline_style("position", "absolute");
+        content->set_inline_style("left", entry.left.text());
+        content->set_inline_style("top", entry.top.text());
     }
     Node* const content_ptr = content.get();
     Node* const wrapper_ptr = wrapper.get();

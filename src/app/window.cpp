@@ -110,6 +110,12 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     // The first insets apply at once, so a SafeArea never animates in from zero on startup.
     host->set_window_metrics(metrics);
+    // Overlays see input first: Escape and back dismiss, a press outside closes popovers.
+    pump.set_input_filter(
+        [](void* user, ui::Node&, const ui::InputEvent& event) {
+            return static_cast<AppHost*>(user)->handle_overlay_input(event);
+        },
+        host.get());
     if (scheduler != nullptr) {
         host->set_update_scheduler(scheduler);
     }
