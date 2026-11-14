@@ -245,6 +245,8 @@ This page is the map and reading order for the framework.
 - [`design/error-boundaries.md`](design/error-boundaries.md) — routing classes, RTTI-free catch
   order, retry state machine, cleanup seam, not-caught list, test map
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
+- [`design/compiler-node-state.md`](design/compiler-node-state.md) — per-branch and per-item
+  component instance state, keyed list item records, presence seam
 - [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
   modes, diagnostics, spec gaps decided
 - [`design/jsx-ir-lowering.md`](design/jsx-ir-lowering.md) — AST to IR lowering design: construct
