@@ -314,6 +314,9 @@ bool emit_component_node(CppWriter& writer, const ir::Node& node, NodeEmitState&
                                       *state.locals, true, error)) {
             return false;
         }
+        // Distinct ids per item and per instance, as for a static instance (issue #295); the host
+        // id includes the item index.
+        writer.line(field + "->node_id_base_ = " + id + " * tessera::ui::kNodeIdBaseStride;");
         writer.line(field + "->build(*" + variable + ");");
         // Lifecycle and the update scheduler follow the owner: an item created after the owner was
         // mounted starts mounted, and its ticket joins the scheduler the owner was given.

@@ -35,6 +35,9 @@ namespace demo {
     private:
       friend struct Sample_detail::Thunks<Self>;
     public:
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // prop `title`.
       std::string prop_title_ = {};
     private:
@@ -209,7 +212,7 @@ namespace demo {
                         std::is_convertible_v<decltype(&Self::sync_cleanup), void (Self::*)()>,
                     "TESSERA_CG_MISSING_BINDING: component `Sample` needs `void sync_cleanup()` for bind::sync_cleanup (ui/Counter.tsx:4:3); define it in the developer class (ADR-040)");
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull + node_id_base_));
       node_1->set_element_kind("View");
       meta_1_id_node_ = node_1.get();
       meta_1_class_node_ = node_1.get();
@@ -219,25 +222,25 @@ namespace demo {
       node_1->set_automation_id(1ull);
       node_1->set_inline_style("width", "10px");
       // node::2 events={onClick:bind::on_click}
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull + node_id_base_));
       node_2->set_element_kind("Button");
       node_2->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_2_onClick, this);
       this->ref_box_ = node_2.get();
       node_2->set_focusable(true);
       // node::3
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull + node_id_base_));
       node_3->set_element_kind("Text");
       this->text_node_3_ = node_3.get();
       node_2->add_child(std::move(node_3));
       node_1->add_child(std::move(node_2));
       // node::4 events={onClick:handler::1}
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull + node_id_base_));
       node_4->set_element_kind("Button");
       node_4->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_4_onClick, this);
       node_4->set_focusable(true);
       node_1->add_child(std::move(node_4));
       // node::5 events={onChange:handler::2}
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + node_id_base_));
       node_5->set_element_kind("TextInput");
       this->input_5_runtime_.attach(node_5.get());
       tessera::ui::text::bind_text_input_events(*node_5, this->input_5_runtime_);

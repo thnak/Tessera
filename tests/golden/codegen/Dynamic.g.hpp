@@ -45,6 +45,9 @@ namespace dynamic {
     private:
       friend struct Dynamic_detail::Thunks<Self>;
     public:
+      // Added to every NodeId this component builds. The owner sets it before build() so each
+      // instance owns distinct ids (issue #295); a root component keeps 0.
+      tessera::ui::NodeId node_id_base_ = 0;
       // prop `seed`.
       std::vector<std::string> prop_seed_ = {};
     private:
@@ -199,34 +202,34 @@ namespace dynamic {
                         std::is_convertible_v<decltype(&Self::on_click), void (Self::*)(const tessera::ui::ClickEvent&)>,
                     "TESSERA_CG_MISSING_BINDING: component `Dynamic` needs `void on_click(const tessera::ui::ClickEvent& event)` for bind::on_click (ui/Dynamic.tsx:4:3); define it in the developer class (ADR-040)");
       // node::1
-      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull));
+      auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(1ull + node_id_base_));
       node_1->set_element_kind("View");
       this->children_parent_1_ = node_1.get();
       // node::2
-      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull));
+      auto node_2 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2ull + node_id_base_));
       node_2->set_element_kind("Text");
       tessera::ui::PaintData paint_node_2;
       paint_node_2.text = "Header";
       node_2->set_paint_data(std::move(paint_node_2));
       node_1->add_child(std::move(node_2));
       // node::3
-      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull));
+      auto node_3 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(3ull + node_id_base_));
       node_3->set_element_kind("Text");
       tessera::ui::PaintData paint_node_3;
       paint_node_3.text = "Positive";
       node_3->set_paint_data(std::move(paint_node_3));
       this->branch_3_owned_ = std::move(node_3);
       // node::4
-      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull));
+      auto node_4 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(4ull + node_id_base_));
       node_4->set_element_kind("Text");
       this->text_node_4_ = node_4.get();
       node_1->add_child(std::move(node_4));
       // node::5 is a list template: its items are built by build_item_5() (bounded item table)
       // node::6
-      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6ull));
+      auto node_6 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(6ull + node_id_base_));
       node_6->set_element_kind("View");
       // node::7
-      auto node_7 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(7ull));
+      auto node_7 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(7ull + node_id_base_));
       node_7->set_element_kind("Text");
       tessera::ui::PaintData paint_node_7;
       paint_node_7.text = "Empty";
@@ -234,10 +237,10 @@ namespace dynamic {
       node_6->add_child(std::move(node_7));
       this->branch_6_owned_ = std::move(node_6);
       // node::8
-      auto node_8 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(8ull));
+      auto node_8 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(8ull + node_id_base_));
       node_8->set_element_kind("View");
       // node::9
-      auto node_9 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9ull));
+      auto node_9 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(9ull + node_id_base_));
       node_9->set_element_kind("Text");
       tessera::ui::PaintData paint_node_9;
       paint_node_9.text = "Filled";
@@ -245,12 +248,12 @@ namespace dynamic {
       node_8->add_child(std::move(node_9));
       this->branch_8_owned_ = std::move(node_8);
       // node::10 events={onClick:bind::on_click}
-      auto node_10 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(10ull));
+      auto node_10 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(10ull + node_id_base_));
       node_10->set_element_kind("Button");
       node_10->bind_event(tessera::ui::EventType::Click, &Thunks<Self>::event_adapter_10_onClick, this);
       node_10->set_focusable(true);
       // node::11
-      auto node_11 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(11ull));
+      auto node_11 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(11ull + node_id_base_));
       node_11->set_element_kind("Text");
       tessera::ui::PaintData paint_node_11;
       paint_node_11.text = "Add";
@@ -258,7 +261,7 @@ namespace dynamic {
       node_10->add_child(std::move(node_11));
       node_1->add_child(std::move(node_10));
       // node::12
-      auto node_12 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(12ull));
+      auto node_12 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(12ull + node_id_base_));
       node_12->set_element_kind("Text");
       tessera::ui::PaintData paint_node_12;
       paint_node_12.text = "Footer";
@@ -364,7 +367,7 @@ namespace dynamic {
       (void)tessera_out;
       tessera_out.id_slot = tessera_id_slot;
       // node::5
-      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + tessera_id_slot * kItemIdStride));
+      auto node_5 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(5ull + node_id_base_ + tessera_id_slot * kItemIdStride));
       node_5->set_element_kind("Text");
       tessera_out.texts[0] = node_5.get();
       return node_5;
