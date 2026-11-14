@@ -261,7 +261,8 @@ void test_modal_blocks_pointer_and_traps_focus() {
 
     const auto dialog = f.host->open_overlay(spec("confirm", OverlayLayer::Modal, 50, 0, true));
     f.frame();
-    expect(f.host->overlays().content(dialog) != nullptr && f.host->overlays().top_modal() == dialog,
+    expect(f.host->overlays().content(dialog) != nullptr &&
+               f.host->overlays().top_modal() == dialog,
            "the dialog is up");
     Node* centre = f.hit(200, 400);
     expect(centre != nullptr && centre->id() == 50, "the dialog content takes its own hits");

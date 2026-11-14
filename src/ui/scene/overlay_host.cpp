@@ -21,7 +21,7 @@ constexpr std::size_t index_of(OverlayLayer layer) noexcept {
 // Explicit stacking per layer; the CSS z-index of arbitrary siblings never decides it. Inline style
 // values are borrowed by the scene, so every value here is a literal.
 constexpr std::array<const char*, kOverlayLayerCount> kLayerZText = {"1000", "2000", "3000",
-                                                                      "4000"};
+                                                                     "4000"};
 constexpr std::array<int, kOverlayLayerCount> kLayerZ = {1000, 2000, 3000, 4000};
 
 const char* role_of(OverlayLayer layer) noexcept {
@@ -128,8 +128,8 @@ bool OverlayHost::is_open(OverlayHandle handle) const {
 }
 
 std::size_t OverlayHost::size() const {
-    return static_cast<std::size_t>(std::ranges::count_if(
-        entries_, [](const auto& entry) { return !entry->closing; }));
+    return static_cast<std::size_t>(
+        std::ranges::count_if(entries_, [](const auto& entry) { return !entry->closing; }));
 }
 
 std::size_t OverlayHost::size(OverlayLayer layer) const {
@@ -283,8 +283,9 @@ bool OverlayHost::flush() {
                 progress = true;
             }
         }
-        const auto dead = std::ranges::remove_if(
-            entries_, [](const auto& entry) { return entry->closing && entry->wrapper == nullptr; });
+        const auto dead = std::ranges::remove_if(entries_, [](const auto& entry) {
+            return entry->closing && entry->wrapper == nullptr;
+        });
         changed = changed || progress || dead.begin() != entries_.end();
         entries_.erase(dead.begin(), dead.end());
         if (!progress) {
