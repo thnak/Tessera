@@ -18,9 +18,12 @@
 #include "win32_input.hpp"
 #include "window_accessibility_win.hpp"
 #include "window_backdrop.hpp"
+#include "window_caption_win.hpp"
 #include "window_event_queue.hpp"
+#include "window_fullscreen_win.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -112,6 +115,11 @@ public:
     void hide() override;
     void request_redraw() override;
     void close() override;
+    void set_fullscreen(bool fullscreen) override;
+    [[nodiscard]] bool supports_fullscreen() const noexcept override {
+        return true;
+    }
+    void set_caption_regions(std::span<const CaptionRegion> regions) override;
     void set_input_queue(ui::InputQueue* queue) override {
         input_.set_queue(queue);
     }
@@ -141,6 +149,13 @@ private:
     // The OS backdrop this window resolved at creation (glass-v1.md section 6); the engine reads it
     // only through WindowMetrics and never re-applies it during a run.
     BackdropResolution backdrop_{};
+    // Full-screen bookkeeping (issue #232): the mode the platform resolved plus the placement to go
+    // back to. Per-window state, so several windows can be full-screen independently (issue #228).
+    detail::Win32FullscreenState fullscreen_{};
+    // The framework's custom-caption regions, copied so the caller may pass a stack buffer (issue
+    // #232, window-chrome-v1.md section 8.1). Reported through WindowMetrics too, so the engine and
+    // the OS hit test see one list.
+    detail::Win32CaptionState caption_{};
     bool initializing_ = true;
     bool applying_dpi_rect_ = false;
     bool close_posted_ = false;
@@ -275,6 +290,11 @@ WindowMetrics Win32Window::metrics() const {
     metrics.backdrop = backdrop_.material;
     metrics.transparent = backdrop_.transparent;
     metrics.backdrop_fallback = backdrop_.fallback;
+    // The state Windows resolved, not the last request: an F11 handled elsewhere, a window menu
+    // toggle or a snapped-away window all answer truthfully here.
+    metrics.fullscreen = detail::win32_is_fullscreen(hwnd_);
+    metrics.caption_region_count = caption_.count;
+    metrics.caption_regions = caption_.regions;
     return metrics;
 }
 
@@ -446,12 +466,39 @@ void Win32Window::close() {
     PostMessageW(hwnd_, WM_CLOSE, 0, 0);
 }
 
+void Win32Window::set_fullscreen(bool fullscreen) {
+    // The mode change is a resize and a state change: report it once, with the metrics the platform
+    // resolved. WM_SIZE also fires from the platform call, but coalescing both into Resize
+    // describes the same change and keeps the engine's one repaint path.
+    if (detail::win32_window_set_fullscreen(hwnd_, fullscreen_, fullscreen, owner_thread_)) {
+        enqueue(WindowEventType::Resize);
+    }
+}
+
+void Win32Window::set_caption_regions(std::span<const CaptionRegion> regions) {
+    detail::win32_set_caption_regions(hwnd_, caption_, regions);
+}
+
 LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     LRESULT input_result = 0;
     if (!initializing_ && input_.handle(window, message, wparam, lparam, input_result)) {
         return input_result;
     }
     switch (message) {
+    // The custom title bar's whole non-client contract is one forwarding call (issue #232,
+    // window-chrome-v1.md section 8.1): the HAL answers WM_NCCALCSIZE, WM_NCHITTEST and a caption
+    // button's WM_NCLBUTTONDOWN, and returns false for everything DefWindowProcW still owns (the
+    // system frame, caption drag, double-click maximize, snap, the window menu).
+    case WM_NCCALCSIZE:
+    case WM_NCHITTEST:
+    case WM_NCLBUTTONDOWN: {
+        LRESULT answer = 0;
+        if (detail::win32_custom_caption_message(window, caption_, message, wparam, lparam,
+                                                 static_cast<int>(window_dpi(window)), answer)) {
+            return answer;
+        }
+        return DefWindowProcW(window, message, wparam, lparam);
+    }
     case WM_SIZE: {
         if (wparam == SIZE_MINIMIZED) {
             if (!minimized_) {

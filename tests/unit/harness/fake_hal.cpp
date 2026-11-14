@@ -92,6 +92,27 @@ void FakeWindow::close() {
     push_event(hal::WindowEventType::Close);
 }
 
+void FakeWindow::set_fullscreen(bool fullscreen) {
+    // A platform without a window manager refuses the request: the mode and the geometry stay as
+    // they were, which is exactly what the real backend reports through _NET_WM_STATE.
+    if (!fullscreen_supported_ || metrics_.fullscreen == fullscreen) {
+        return;
+    }
+    // The fake models the resolved state: the OS applies the mode synchronously and reports it with
+    // the new metrics. It does not invent a size, because a real platform's full-screen rectangle
+    // depends on the display; a test that cares about geometry sets it explicitly.
+    metrics_.fullscreen = fullscreen;
+    push_metrics_event(hal::WindowEventType::Resize);
+}
+
+void FakeWindow::set_caption_regions(std::span<const hal::CaptionRegion> regions) {
+    metrics_.caption_regions = hal::make_caption_regions(regions, metrics_.caption_region_count);
+}
+
+void FakeWindow::set_fullscreen_supported(bool supported) noexcept {
+    fullscreen_supported_ = supported;
+}
+
 void FakeWindow::set_metrics(hal::WindowMetrics metrics) noexcept {
     metrics_ = metrics;
 }

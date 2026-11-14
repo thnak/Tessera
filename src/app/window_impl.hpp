@@ -156,6 +156,16 @@ struct WindowHost::Impl {
                              FrameFailureGuard& failures);
     bool service_recovery(RecoveryPolicy& policy, FrameFailureGuard& failures);
 
+    // --- full-screen (window-chrome-v1.md section 13, issue #232) ----------------------------
+    // Requests the mode from the platform and reports the unsupported path once. The platform
+    // restores its own pre-full-screen bounds, so nothing here caches a rectangle.
+    void set_fullscreen(bool fullscreen);
+    [[nodiscard]] bool fullscreen() const;
+    [[nodiscard]] bool fullscreen_supported() const;
+    // Reports the unsupported platform once, on the first request, so a button that stays clicked
+    // cannot spam the log. Cleared by nothing: the capability does not change for a window's life.
+    bool fullscreen_unsupported_reported = false;
+
     ui::Node& root;
     WindowOptions options;
     ui::UpdateScheduler* scheduler = nullptr;

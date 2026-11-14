@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/hal/caption.hpp"
 #include "tessera/hal/cutout.hpp"
 
 #include <cmath>
@@ -67,6 +68,18 @@ std::string format_window_metrics(const WindowMetrics& metrics) {
            fold.separating ? 1.0 : 0.0);
     append(out, "hinge %g %g %g %g\n", fold.hinge_bounds.x, fold.hinge_bounds.y,
            fold.hinge_bounds.width, fold.hinge_bounds.height);
+    // Window mode and the custom caption's regions (issue #232): the harness needs both without a
+    // display, and one line per region keeps the dump diffable.
+    out += "fullscreen ";
+    out += metrics.fullscreen ? "1\n" : "0\n";
+    out += "caption_regions " + std::to_string(metrics.caption_region_count) + "\n";
+    for (std::size_t i = 0; i < metrics.caption_region_count && i < kMaxCaptionRegions; ++i) {
+        const CaptionRegion& region = metrics.caption_regions[i];
+        out += "caption ";
+        out += caption_region_kind_name(region.kind);
+        append(out, " %g %g %g %g\n", region.bounds.x, region.bounds.y, region.bounds.width,
+               region.bounds.height);
+    }
     return out;
 }
 

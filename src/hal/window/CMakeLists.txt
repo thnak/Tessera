@@ -17,6 +17,11 @@ target_sources(tessera_hal_window PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/backdrop.cpp
     # Cutout list building (cap, bad-rect drop) and the deterministic metrics dump; platform-neutral.
     ${CMAKE_CURRENT_SOURCE_DIR}/cutout.cpp
+    # Custom title-bar hit regions (window-chrome-v1.md section 8.1): the one resolver every backend
+    # uses, so the non-client contract is tested without an OS window.
+    ${CMAKE_CURRENT_SOURCE_DIR}/caption.cpp
+    # Full-screen state machine (issue #232): enter/exit/restore bookkeeping shared by Win32 and X11.
+    ${CMAKE_CURRENT_SOURCE_DIR}/fullscreen.cpp
     # SafeArea inset arithmetic (safe-area-v1.md); pure and platform-neutral.
     ${CMAKE_CURRENT_SOURCE_DIR}/safe_area.cpp)
 
@@ -29,6 +34,9 @@ if (WIN32)
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_accessibility.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_backdrop.cpp
+        # Custom title-bar hit test and full-screen (issue #232), outside window.cpp's size budget.
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_caption_win.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_fullscreen_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_ime_translation.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input_ime.cpp
@@ -44,6 +52,9 @@ if (WIN32)
 elseif (TESSERA_X11_FOUND)
     target_sources(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp
+        # Full-screen (issue #232, window-chrome-v1.md section 13): EWMH _NET_WM_STATE, outside
+        # window.cpp's size budget.
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/window_fullscreen_x11.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
