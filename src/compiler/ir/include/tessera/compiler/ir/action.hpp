@@ -17,7 +17,10 @@ struct Param {
 
 // `Focus`/`Blur` (issue #226) target a `ref::` and carry no value: they move keyboard focus to, or
 // away from, the node the ref points at.
-enum class ActionKind { Set, AnimSet, Focus, Blur };
+// `CallProp` (issue #286) calls a callback prop of the component itself: `target` is `prop::<name>`
+// and `value` is the payload argument (absent for a payload-free `() => void` callback). A call
+// through an unset callback is a no-op.
+enum class ActionKind { Set, AnimSet, Focus, Blur, CallProp };
 
 // The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
 // are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).

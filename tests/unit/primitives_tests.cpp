@@ -102,10 +102,14 @@ void test_press() {
     check(root.props.count("tabIndex") == 1, "Press is focusable");
     check(root.children.size() == 1 && root.children[0].kind == ir::NodeKind::Slot,
           "the content is the Children slot");
-    // Handler order is source order: down, up, leave, key down, key up.
+    // Handler order is source order: down, up, leave, key down, key up, then the forwarded click.
     const auto& handlers = press.component->handlers;
-    check(handlers.size() == 5, "five press handlers");
-    if (handlers.size() == 5) {
+    check(handlers.size() == 6, "six press handlers");
+    if (handlers.size() == 6) {
+        check(handlers[5].actions.size() == 1 &&
+                  handlers[5].actions[0].kind == ir::ActionKind::CallProp &&
+                  handlers[5].actions[0].target == "prop::onPress",
+              "the click is forwarded to the onPress callback prop");
         check(run_pressed(handlers[0].actions, false), "pointer down presses");
         check(!run_pressed(handlers[1].actions, true), "pointer up releases");
         check(!run_pressed(handlers[2].actions, true), "pointer leave releases");

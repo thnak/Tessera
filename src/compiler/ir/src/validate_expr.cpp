@@ -305,6 +305,19 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
             }
             continue;
         }
+        if (action.kind == ActionKind::CallProp) {
+            const bool is_prop = starts_with(action.target, "prop::") &&
+                                 scope.props.count(action.target.substr(6)) != 0;
+            if (!is_prop) {
+                context.report("TESSERA_IR_UNRESOLVED",
+                               "action target `" + action.target + "` is not a callback prop",
+                               where);
+            } else if (action.value) {
+                require_expr(context, scope, locals, action.value.get(), where,
+                             "a callback argument");
+            }
+            continue;
+        }
         const char* prefix = action.kind == ActionKind::Set ? "state::" : "anim::";
         if (!starts_with(action.target, prefix) || scope.ids.count(action.target) == 0) {
             context.report(

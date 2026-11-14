@@ -56,6 +56,17 @@ bool lower_component_event(NodeState& state, std::string_view name, const jsx::E
             node.events[std::string(name)] = handler->id;
             return true;
         }
+        // A payload-free callback prop of this component handed on to the child's callback prop.
+        // The child's payload record is not known here (slice 4), so only `() => void` forwards.
+        const ForwardedCallback forwarded =
+            forward_callback_prop(state, value.text, name, {}, span);
+        if (forwarded.matched) {
+            if (forwarded.handler_id.empty()) {
+                return false;
+            }
+            node.events[std::string(name)] = forwarded.handler_id;
+            return true;
+        }
         if (state.hooks.find_setter(value.text) != nullptr) {
             fail_node(state, "TESSERA_IR_UNSUPPORTED",
                       "a setter reference needs the callback payload type (slice 4)", span);

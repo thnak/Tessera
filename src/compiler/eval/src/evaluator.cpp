@@ -231,6 +231,9 @@ std::expected<void, EvalError> Evaluator::run(std::span<const ir::Action> action
         if (action.kind == ir::ActionKind::Focus || action.kind == ir::ActionKind::Blur) {
             continue; // focus is host state, not a state/anim value: the evaluator has no scene
         }
+        if (action.kind == ir::ActionKind::CallProp) {
+            continue; // the callback belongs to the caller, which the evaluator does not model
+        }
         if (!action.value) {
             return fail("TESSERA_IR_EVAL_MALFORMED", "an action has no value expression");
         }

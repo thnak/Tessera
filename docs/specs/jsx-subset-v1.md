@@ -423,7 +423,8 @@ string literals (no computed keys, no shorthand with a function value, no spread
 ## 9. Handlers
 
 A handler is a function value given to an event prop, to `useEffect`, or to a callback prop such as
-`onError`. Exactly three forms are accepted.
+`onError`. Exactly three forms are accepted; a callback prop of the component itself may also be
+forwarded as an event handler (section 9.5).
 
 ### 9.1 Setter reference
 
@@ -499,6 +500,33 @@ section 4 and in the element specs ([`text-editing-v1.md`](text-editing-v1.md),
 framework typings generated for `"tessera"` (section 16.2). The payload records and which member is
 primary are defined in [`jsx-intrinsics-v1`](jsx-intrinsics-v1/common-and-events.md) section 2. An
 event prop given a function with a different parameter type is `TESSERA_JSX_TYPE_MISMATCH`.
+
+### 9.5 Callback prop forwarding
+
+A component may declare a function-typed prop and hand it on (issue #286). The prop type is
+`() => void` or `(e: Record) => void`, where `Record` is a payload record
+([`jsx-intrinsics-v1`](jsx-intrinsics-v1/common-and-events.md) section 2):
+
+```tsx
+export type ButtonProps = { onPress: () => void; children: Children };
+export function Button({ onPress, children }: ButtonProps) {
+  return <View role="button" tabIndex={0} onClick={onPress}>{children}</View>;
+}
+```
+
+- `onClick={onPress}` with `onPress` a destructured callback prop of the same component lowers to one
+  handler with a single IR `callProp` action ([`ir-v1.md`](ir-v1.md) section 6). Nothing is captured:
+  the generated code calls the prop's `std::function` member, bound once by the caller, and skips an
+  unset one. There is no allocation per event.
+- A `() => void` prop forwards to any event, because the call ignores the payload. A payload prop
+  forwards only to an event that delivers that same record; any other pairing is
+  `TESSERA_IR_UNSUPPORTED` naming both records.
+- A prop that is not a callback (or whose type is unknown) is `TESSERA_IR_UNSUPPORTED`; a name that is
+  not a prop, setter or handler stays `TESSERA_IR_UNRESOLVED`.
+- On a component reference (`<Inner onPress={onPress} />`) only a `() => void` prop is handed on: the
+  child's payload record is not known to the lowering yet.
+- Calling a callback from a handler body (`() => { setX(1); onPress(); }`) is the follow-up of issue
+  #286 and is not accepted yet.
 
 ## Continued in part 2
 
