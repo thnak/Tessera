@@ -71,9 +71,10 @@ struct PlacementInput {
 };
 
 struct PlacementResult {
-    rendering::rhi::Rect rect; // where the box goes, window logical pixels
-    OverlaySide side = OverlaySide::Bottom; // the side actually used (Start/End already resolved
-                                            // to Top/Bottom/Start/End as asked, flipped if so)
+    // Where the box goes, in window logical pixels.
+    rendering::rhi::Rect rect;
+    // The side actually used, after any flip (logical: start and end are not swapped back).
+    OverlaySide side = OverlaySide::Bottom;
     bool flipped = false;
     bool shifted = false;
 };
