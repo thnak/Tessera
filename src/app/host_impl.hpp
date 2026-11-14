@@ -32,6 +32,9 @@ struct AppHost::Impl {
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
     void apply_style_generation(ui::Dirty dirty_mask);
     void run_layout_pass();
+    // The window minus the safe-area insets, and the root's text direction, for overlay placement.
+    [[nodiscard]] rendering::rhi::Rect overlay_viewport() const;
+    [[nodiscard]] bool root_is_rtl() const;
     void register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets);
     void register_embedded_theme(std::span<const std::uint8_t> bytes);
 
@@ -39,6 +42,8 @@ struct AppHost::Impl {
     SafeAreaState safe_area;
     // Created by AppHost::overlays(); destroyed before the scene root it borrows.
     std::unique_ptr<ui::OverlayHost> overlay_host;
+    // An Escape press the overlays consumed; its release is swallowed too.
+    bool escape_swallowed = false;
     // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
     // one.
     ui::style::CompiledStyleSheet base_sheet;

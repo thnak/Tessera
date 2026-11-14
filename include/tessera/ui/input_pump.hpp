@@ -103,6 +103,15 @@ public:
     // Installs the callback that receives every gesture event produced by a pump()/tick() call.
     // `nullptr` clears it. The callback runs synchronously on the pumping thread.
     void set_gesture_callback(GestureCallback callback, void* user = nullptr);
+
+    // A hook that sees every event before the router does (overlay dismissal, issue #302). It
+    // returns true to consume the event: the router and the gesture arena never see it. `nullptr`
+    // clears it. It runs synchronously on the pumping thread and must not block.
+    using InputFilter = bool (*)(void* user, Node& root, const InputEvent& event);
+    void set_input_filter(InputFilter filter, void* user = nullptr) {
+        input_filter_ = filter;
+        input_filter_user_ = user;
+    }
     [[nodiscard]] GestureArena& gesture_arena() {
         return gesture_arena_;
     }
@@ -144,6 +153,8 @@ private:
     InputPumpStats total_;
 
     bool gestures_enabled_ = false;
+    InputFilter input_filter_ = nullptr;
+    void* input_filter_user_ = nullptr;
     GestureCallback gesture_callback_ = nullptr;
     void* gesture_user_ = nullptr;
     GestureArena gesture_arena_;

@@ -6,6 +6,7 @@
 // tree, in four ordered layers. The host owns the layer nodes and the entries inside them; nothing
 // is reparented, and nothing opens or closes mid-frame.
 
+#include "tessera/ui/overlay/placement.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <array>
@@ -13,6 +14,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +42,14 @@ struct OverlayHandle {
     bool operator==(const OverlayHandle&) const = default;
 };
 
+// Why the host closed an overlay on its own.
+enum class OverlayDismissReason : std::uint8_t {
+    Escape,  // the Escape key
+    Back,    // the platform back gesture or button
+    Outside, // a press outside the content
+    Blur,    // the window lost focus (transient layers only)
+};
+
 struct OverlaySpec {
     // Becomes the content root's element id and its `aria-label`; may be empty.
     std::string id;
@@ -49,6 +59,20 @@ struct OverlaySpec {
     // Builds the content into the content root at the frame boundary the overlay opens on. A
     // throw drops the entry and counts as a failure; it never reaches the frame loop.
     std::function<void(Node& content)> mount;
+    // Positions the content against an anchor at the frame boundary, tracking layout, scroll,
+    // resize and the safe area. Unset: the content keeps the layer's default layout (a modal is
+    // centred, everything else sits at the top-left).
+    std::optional<OverlayPlacement> placement;
+    // Unset takes the layer default: Escape and back dismiss everything but a toast; a press
+    // outside dismisses an overlay-layer entry, never a dialog (destructive actions need an
+    // explicit choice), tooltip or toast.
+    std::optional<bool> dismiss_on_escape;
+    std::optional<bool> dismiss_on_outside;
+    // Overlay and tooltip entries close when the window loses focus unless this is set.
+    bool persistent = false;
+    // Called when the host dismisses the entry, just before it closes, so app state can follow.
+    // Not called for close() and close_if().
+    std::function<void(OverlayHandle, OverlayDismissReason)> on_dismiss;
 };
 
 // What close_if() shows its predicate.
@@ -84,6 +108,29 @@ public:
     // Applies pending opens and closes. True when the tree changed.
     bool flush();
 
+    // Dismissal. Escape and back dismiss the topmost entry that opted in, top layer first; a
+    // modal that has not opted in stops the search (it owns the keyboard, so nothing below it may
+    // react). True when an entry was dismissed.
+    bool handle_escape();
+    bool handle_back();
+    // A press at (x, y), window logical pixels. Entries that opted into outside dismissal and do
+    // not contain the press close, top first, down to the first dialog. A press on a tooltip or
+    // toast, inside an entry's content, or on the anchor node of an entry never dismisses it, so a
+    // trigger can toggle its own popover. The press itself is not consumed. Returns the count.
+    std::size_t handle_pointer_down(float x, float y);
+    // Window blur: dismisses the overlay and tooltip entries that are not persistent.
+    std::size_t close_transient();
+
+    struct PlaceResult {
+        bool moved = false;  // some content moved; the caller relayouts once
+        bool closed = false; // an anchor node is gone; the entry closes on the next flush
+    };
+    // Positions every placed entry inside `viewport` (the window minus the safe-area insets).
+    // Runs after layout, because it needs the content size and the anchor bounds; the app host
+    // calls it once per frame. Free for a scene without placed entries.
+    PlaceResult place(const rendering::rhi::Rect& viewport, bool rtl);
+    [[nodiscard]] bool has_placed() const;
+
     // True from the flush that mounted the entry until close() is called for it.
     [[nodiscard]] bool is_open(OverlayHandle handle) const;
     // Opened or pending entries that are not closing.
@@ -101,10 +148,17 @@ public:
     // The topmost mounted modal entry, or an empty handle.
     [[nodiscard]] OverlayHandle top_modal() const;
 
-private:
+    // One entry's private state (src/ui/scene/overlay_entry.hpp); named here so the dismissal and
+    // placement translation units can share it. Opaque to callers.
     struct Entry;
 
+private:
     [[nodiscard]] Entry* find(OverlayHandle handle) const;
+    // The next entry below `above` in stacking order (layer, priority, open order), or the topmost
+    // when `above` is null. Mounted, not closing.
+    [[nodiscard]] Entry* below(const Entry* above) const;
+    bool dismiss_top(OverlayDismissReason reason);
+    void dismiss(Entry& entry, OverlayDismissReason reason);
     Node& ensure_layer(OverlayLayer layer);
     void mount_entry(Entry& entry);
     void unmount_entry(Entry& entry);

@@ -197,10 +197,18 @@ Items are open (no decision yet) unless stated otherwise.
 - Overlay transition choreography with navigation (visual only).
 - Whether toasts/dialogs are framework primitives or library components.
 - Virtualized overlay lists and large menus.
+- The `tessera-ui` surface (`Dialog`, `Popover` and friends): the compiler cannot yet open an
+  overlay from TSX.
+- Initial focus and focus restore for non-modal overlays (the host has no `FocusManager` access).
+- Fallback content and the error-boundary report for a failed mount.
 
-## 10. Implementation (slice 1, issue #302)
+## 10. Implementation (issue #302)
 
-Done: the layer core. Anchoring, Escape/back, click-outside and the library surface are slice 2.
+Slice 1 is the layer core (section 10.1); slice 2 is placement, dismissal and the input hook
+(section 10.2). The `tessera-ui` library surface and non-modal initial focus are deferred (see
+section 9).
+
+### 10.1 Layer core
 
 - `include/tessera/ui/overlay/overlay.hpp`, `src/ui/scene/overlay_host.cpp`: `OverlayHost`,
   `OverlaySpec`, `OverlayHandle`. `AppHost::overlays()` creates the window's default host on first
@@ -226,3 +234,44 @@ Done: the layer core. Anchoring, Escape/back, click-outside and the library surf
 - Overlay nodes take ids from `OverlayHost::kFirstNodeId` (`1 << 62`).
 
 Tests: ctest `overlay_host` (`tests/unit/overlay_host_tests.cpp`).
+
+### 10.2 Placement, dismissal and input
+
+- **Placement** (`include/tessera/ui/overlay/placement.hpp`, `src/ui/scene/overlay_placement.cpp`):
+  `compute_placement` is a pure function. The anchor is a window, a rectangle or a node id. For a
+  rectangle or node the overlay sits outside the chosen side (`Top`, `Bottom`, `Start`, `End`,
+  `Center`; start and end swap under RTL), `gap` away, aligned at the anchor's start, centre or end.
+  It flips to the opposite side when the chosen one overflows and the other fits or has more room,
+  then shifts along both axes to stay inside the viewport; a box larger than the viewport sits at
+  its start edge. For a window anchor the side is the window edge the overlay sits against, inside
+  the safe viewport (a top-centre toast is `Top` with a window anchor). Non-finite input counts as
+  zero.
+- **Host** (`src/ui/scene/overlay_place.cpp`): `OverlayHost::place` runs once per frame, after
+  layout, because it needs the content size and the anchor bounds. It resolves the anchor each
+  frame (a node is looked up by id, so scroll and layout changes are followed), computes the
+  placement, and writes `left` and `top` on the absolutely positioned content only when the content
+  moved, so a settled overlay causes no layout. `AppHost` passes the viewport: the window minus
+  system bars, cutout, keyboard, gesture zones and hinge (`SafeAreaState`), and relayouts once when
+  something moved. An anchor node that is gone closes the entry; re-anchoring by stable id is not
+  built.
+- **Dismissal** (`src/ui/scene/overlay_dismiss.cpp`): per entry `dismiss_on_escape`,
+  `dismiss_on_outside`, `persistent` and `on_dismiss(handle, reason)`. Unset flags take the layer
+  default: Escape and back dismiss everything but a toast; a press outside dismisses overlay-layer
+  entries only (dialogs need an explicit choice, tooltips and toasts are transient on their own).
+  `handle_escape` and `handle_back` dismiss the topmost entry that opted in, top layer first; a modal
+  that did not opt in stops the search. This is the first handler of the back order of section
+  8.1; the modal route, route stack and OS exit follow it once navigation exists.
+  `handle_pointer_down` closes the entries that opted in and do not contain the press, top first,
+  down to the first dialog (a dialog is inert beneath it, whatever the press hit); a press on a
+  tooltip or toast, inside an entry's content, or on the entry's anchor node dismisses nothing, so
+  a trigger can toggle its own popover. `close_transient` (window blur) closes the non-persistent
+  overlay and tooltip entries. `on_dismiss` is not called for `close`, `close_if` or an anchor that
+  disappeared.
+- **Input hook**: `InputPump::set_input_filter` sees every event before the router and the gesture
+  arena; returning true consumes it. `AppHost::handle_overlay_input` is the filter the window
+  installs: an Escape press the overlays take is consumed together with its release; a press outside
+  and a window blur never are, so the press still reaches the scene.
+- **Live regions**: toast content carries `aria-live="polite"` next to role `alert`. The semantics
+  tree builder does not interpret `aria-live` yet, so announcements wait on that work.
+
+Tests: ctest `overlay_placement`, `overlay_dismiss`.
