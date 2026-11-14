@@ -12,16 +12,19 @@
 namespace tessera::hal::detail {
 
 // Small fixed-capacity ring shared by the platform windows. OS callbacks only record, so an
-// overflow drops the oldest event instead of allocating; repeated resizes coalesce into the
-// newest metrics. This header is private to src/platform implementations.
+// overflow drops the oldest event instead of allocating; repeated resizes (and repeated safe-area
+// changes) coalesce into the newest metrics. This header is private to src/platform
+// implementations.
 class EventQueue {
 public:
     static constexpr std::size_t kCapacity = 64;
 
     void push(const WindowEvent& event) {
-        if (event.type == WindowEventType::Resize && count_ > 0) {
+        if ((event.type == WindowEventType::Resize ||
+             event.type == WindowEventType::SafeAreaChanged) &&
+            count_ > 0) {
             WindowEvent& newest = at(count_ - 1);
-            if (newest.type == WindowEventType::Resize) {
+            if (newest.type == event.type) {
                 newest = event;
                 return;
             }

@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "tessera/hal/cutout.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/harness/session.hpp"
 
@@ -70,6 +71,10 @@ public:
     void set_occluded(bool occluded);
     void set_minimized(bool minimized);
     void push_event(hal::WindowEventType type);
+    // Injects insets and cutouts the way Android reports them (`make_cutout_info` caps the list at
+    // `kMaxCutouts`) and queues one SafeAreaChanged carrying the new metrics.
+    void set_safe_area(const hal::WindowInsets& insets, std::span<const hal::WindowRect> cutouts,
+                       const hal::WindowInsets& waterfall = {});
 
     [[nodiscard]] bool has_queued(hal::WindowEventType type) const noexcept;
     [[nodiscard]] std::size_t queued_events() const noexcept;

@@ -143,6 +143,19 @@ void FakeWindow::set_minimized(bool minimized) {
                                  : hal::WindowEventType::Restored);
 }
 
+void FakeWindow::set_safe_area(const hal::WindowInsets& insets,
+                               std::span<const hal::WindowRect> cutouts,
+                               const hal::WindowInsets& waterfall) {
+    metrics_.insets = insets;
+    metrics_.cutouts = hal::make_cutout_info(cutouts, waterfall);
+    // Consecutive safe-area changes coalesce into the newest, like a platform queue.
+    if (!events_.empty() && events_.back().type == hal::WindowEventType::SafeAreaChanged) {
+        events_.back().metrics = metrics_;
+        return;
+    }
+    push_metrics_event(hal::WindowEventType::SafeAreaChanged);
+}
+
 void FakeWindow::push_event(hal::WindowEventType type) {
     push_metrics_event(type);
 }

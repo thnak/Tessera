@@ -14,7 +14,9 @@ target_sources(tessera_hal_window PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/refresh_rate.cpp
     # The OS backdrop resolution table (docs/specs/glass-v1.md section 6): pure, platform-neutral,
     # so the platform files only detect capabilities and apply the returned material.
-    ${CMAKE_CURRENT_SOURCE_DIR}/backdrop.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/backdrop.cpp
+    # Cutout list building (cap, bad-rect drop) and the deterministic metrics dump; platform-neutral.
+    ${CMAKE_CURRENT_SOURCE_DIR}/cutout.cpp)
 
 # Private shared implementation header (normalized event ring).
 target_include_directories(tessera_hal_window PRIVATE

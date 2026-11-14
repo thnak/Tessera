@@ -118,7 +118,7 @@ target_link_libraries(tessera_harness_testing PUBLIC tessera_harness)
 
 # `hal::Window` keeps one out-of-line default (`wait_for_events`) in the platform HAL target; the
 # fake overrides it, but the base class's key function still has to resolve for a derived double.
-target_link_libraries(tessera_harness_testing PRIVATE tessera_hal_window)
+target_link_libraries(tessera_harness_testing PUBLIC tessera_hal_window)
 
 target_compile_features(tessera_harness_testing PUBLIC cxx_std_23)
 
@@ -259,3 +259,15 @@ target_compile_definitions(harness_cli_app_scene_tests PRIVATE
     TESSERA_HARNESS_FIXTURE_SCRIPT_DIR="${TESSERA_HARNESS_FIXTURE_SCRIPTS}")
 
 add_test(NAME harness_cli_app_scene COMMAND harness_cli_app_scene_tests)
+
+# CutoutInfo (#222): defaults, fake injection, the kMaxCutouts cap, SafeAreaChanged coalescing and
+# the metrics dump. It includes the private event ring header to test the platform coalescing.
+add_executable(cutout_tests
+    cutout_tests.cpp)
+
+target_link_libraries(cutout_tests PRIVATE tessera_harness_testing)
+
+target_include_directories(cutout_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/hal/window)
+
+add_test(NAME cutout COMMAND cutout_tests)
