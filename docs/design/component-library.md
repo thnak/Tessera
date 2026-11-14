@@ -48,6 +48,12 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 | `Slider` | `slider` with `aria-valuenow/min/max`; arrows, PageUp/Down, Home/End, clamped; pointer drag is not done (a handler cannot read layout bounds) | done |
 | `TextFieldState` | `TextInput` with value, `focused` and `touched` state as classes, name and required | done |
 
+Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`
+(variants `primary`, `secondary`, `ghost`, `danger`; sizes `md`, `sm`; a disabled state; tokens only).
+It forwards `onPress` behind a `!disabled` guard ([jsx-subset-v1 section 9.5](../specs/jsx-subset-v1.md)).
+Evidence so far: `library_button_lowering`, `library_button_style`; the gallery, goldens and the
+`<Button>` name (it collides with the intrinsic `Button` element) are still open.
+
 Gallery: there is no gallery skeleton in the repository yet; this table is the interim catalog of the
 primitives and their evidence (`primitives`, `focus_scope`, `guarded_handler`).
 
