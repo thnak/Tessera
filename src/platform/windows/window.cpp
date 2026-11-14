@@ -13,6 +13,7 @@
 #define WINVER 0x0A00
 #endif
 
+#include "tessera/hal/os_event.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "win32_input.hpp"
@@ -20,6 +21,7 @@
 #include "window_backdrop.hpp"
 #include "window_caption_win.hpp"
 #include "window_cursor_win.hpp"
+#include "window_display_win.hpp"
 #include "window_event_queue.hpp"
 #include "window_fullscreen_win.hpp"
 
@@ -41,54 +43,12 @@ namespace {
 using detail::EventQueue;
 
 constexpr wchar_t kWindowClassName[] = L"Tessera.Hal.Window";
-constexpr UINT kDefaultDpi = 96;
 // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION is missing from older SDK headers.
 constexpr DWORD kHighResolutionTimer = 0x00000002;
 constexpr DWORD kTimerBoundPaddingMs = 20;
 
 std::wstring widen(std::string_view text) {
-    if (text.empty()) {
-        return {};
-    }
-    int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(),
-                                     static_cast<int>(text.size()), nullptr, 0);
-    UINT code_page = CP_UTF8;
-    DWORD flags = MB_ERR_INVALID_CHARS;
-    if (length <= 0) {
-        // Titles are display-only; fall back to the process code page instead of dropping them.
-        code_page = CP_ACP;
-        flags = 0;
-        length = MultiByteToWideChar(code_page, flags, text.data(), static_cast<int>(text.size()),
-                                     nullptr, 0);
-    }
-    if (length <= 0) {
-        return {};
-    }
-    std::wstring wide(static_cast<std::size_t>(length), L'\0');
-    MultiByteToWideChar(code_page, flags, text.data(), static_cast<int>(text.size()), wide.data(),
-                        length);
-    return wide;
-}
-
-UINT window_dpi(HWND window) {
-    const UINT dpi = GetDpiForWindow(window);
-    return dpi == 0 ? kDefaultDpi : dpi;
-}
-
-float dpi_scale(UINT dpi) {
-    return static_cast<float>(dpi) / static_cast<float>(kDefaultDpi);
-}
-
-std::uint32_t logical_from_physical(std::uint32_t physical, UINT dpi) {
-    const double scaled =
-        static_cast<double>(physical) * static_cast<double>(kDefaultDpi) / static_cast<double>(dpi);
-    return static_cast<std::uint32_t>(std::lround(scaled));
-}
-
-std::uint32_t physical_from_logical(std::uint32_t logical, UINT dpi) {
-    const double scaled =
-        static_cast<double>(logical) * static_cast<double>(dpi) / static_cast<double>(kDefaultDpi);
-    return static_cast<std::uint32_t>(std::lround(scaled));
+    return detail::win32_widen(text);
 }
 
 class Win32Window final : public Window {
@@ -107,6 +67,9 @@ public:
         return WindowSystem::Win32;
     }
     [[nodiscard]] double display_refresh_hz() const noexcept override;
+    std::size_t displays(std::span<DisplayInfo> displays) const override {
+        return detail::query_win32_displays(displays);
+    }
     [[nodiscard]] NativeWindowHandle native_handle() const override {
         return {nullptr, hwnd_};
     }
@@ -141,7 +104,7 @@ public:
 private:
     static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     LRESULT handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
-    void enqueue(WindowEventType type);
+    void enqueue(WindowEventType type, EventReason reason = EventReason::Unspecified);
     void request_close();
     void pump_messages();
     [[nodiscard]] bool has_pending_events() const;
@@ -172,6 +135,12 @@ private:
     CursorShape cursor_ = CursorShape::Default;
     bool initializing_ = true;
     bool applying_dpi_rect_ = false;
+    // Per-window event sequence (section 3): monotonically increasing, stamped on every recorded
+    // event so the consumer can discard a stale one.
+    OsEventSequence sequence_{};
+    // The monitor-device notification cookie from `RegisterDeviceNotificationW`; null when the
+    // registration failed, in which case `WM_DISPLAYCHANGE` is the only display signal.
+    HDEVNOTIFY display_notifications_ = nullptr;
     bool close_posted_ = false;
     bool close_requested_ = false;
     bool close_delivered_ = false;
@@ -216,14 +185,11 @@ bool Win32Window::create(const WindowDesc& desc) {
     }
 
     const UINT dpi = GetDpiForSystem();
-    const std::uint32_t client_width = physical_from_logical(desc.width, dpi);
-    const std::uint32_t client_height = physical_from_logical(desc.height, dpi);
     const DWORD style = WS_OVERLAPPEDWINDOW;
     const DWORD ex_style = 0;
-    RECT rect{0, 0, static_cast<LONG>(client_width), static_cast<LONG>(client_height)};
-    if (!AdjustWindowRectExForDpi(&rect, style, FALSE, ex_style, dpi)) {
-        rect = RECT{0, 0, static_cast<LONG>(client_width), static_cast<LONG>(client_height)};
-    }
+    // The create-time outer rectangle comes from the display TU (with the other DPI arithmetic) so
+    // WindowDesc stays logical pixels on whichever monitor the window lands on.
+    const RECT rect = detail::win32_outer_rect_for_logical(desc.width, desc.height, dpi, style);
 
     const std::wstring title = widen(desc.title);
     hwnd_ = CreateWindowExW(ex_style, kWindowClassName, title.empty() ? L"Tessera" : title.c_str(),
@@ -237,16 +203,10 @@ bool Win32Window::create(const WindowDesc& desc) {
 
     // The initial monitor may not match the system DPI used above; normalize the client area so
     // WindowDesc stays logical pixels on the monitor the window actually landed on.
-    const UINT actual_dpi = window_dpi(hwnd_);
-    if (actual_dpi != dpi) {
-        RECT target{0, 0, static_cast<LONG>(physical_from_logical(desc.width, actual_dpi)),
-                    static_cast<LONG>(physical_from_logical(desc.height, actual_dpi))};
-        if (AdjustWindowRectExForDpi(&target, style, FALSE, ex_style, actual_dpi) != FALSE) {
-            SetWindowPos(hwnd_, nullptr, 0, 0, static_cast<int>(target.right - target.left),
-                         static_cast<int>(target.bottom - target.top),
-                         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-        }
-    }
+    detail::win32_normalize_client_size(hwnd_, desc.width, desc.height, dpi, style);
+    // Monitor device notifications (WM_DEVICECHANGE) are what make a hotplug distinguishable from a
+    // plain mode change; a failed registration leaves the WM_DISPLAYCHANGE path working.
+    display_notifications_ = detail::register_win32_display_notifications(hwnd_);
 
     // The backdrop is applied before the window is shown, so the first visible frame already has
     // its material or its documented opaque fallback (window-chrome-v1.md C1/C7).
@@ -264,6 +224,9 @@ bool Win32Window::create(const WindowDesc& desc) {
 }
 
 Win32Window::~Win32Window() {
+    // The display notification belongs to the window: unregister before it is destroyed.
+    detail::unregister_win32_display_notifications(display_notifications_);
+    display_notifications_ = nullptr;
     if (wait_timer_ != nullptr) {
         CloseHandle(wait_timer_);
         wait_timer_ = nullptr;
@@ -291,14 +254,14 @@ WindowMetrics Win32Window::metrics() const {
     if (GetClientRect(hwnd_, &client) == FALSE) {
         return metrics;
     }
-    const UINT dpi = window_dpi(hwnd_);
+    const UINT dpi = detail::win32_window_dpi(hwnd_);
     metrics.physical_width =
         static_cast<std::uint32_t>(std::max<LONG>(client.right - client.left, 0));
     metrics.physical_height =
         static_cast<std::uint32_t>(std::max<LONG>(client.bottom - client.top, 0));
-    metrics.logical_width = logical_from_physical(metrics.physical_width, dpi);
-    metrics.logical_height = logical_from_physical(metrics.physical_height, dpi);
-    metrics.dpi_scale = dpi_scale(dpi);
+    metrics.logical_width = detail::win32_logical_from_physical(metrics.physical_width, dpi);
+    metrics.logical_height = detail::win32_logical_from_physical(metrics.physical_height, dpi);
+    metrics.dpi_scale = detail::win32_dpi_scale(dpi);
     metrics.focused = focused_;
     metrics.minimized = IsIconic(hwnd_) != FALSE;
     metrics.backdrop = backdrop_.material;
@@ -310,47 +273,32 @@ WindowMetrics Win32Window::metrics() const {
     metrics.caption_region_count = caption_.count;
     metrics.caption_regions = caption_.regions;
     metrics.cursor = cursor_;
+    // Display capabilities (docs/specs/os-events-v1.md section 4): the monitor's id, refresh, work
+    // area and orientation, each with its assumption flag set when the OS could not answer. This is
+    // the per-event snapshot, not a topology query: a DisplayAdded/Removed event tells the loop the
+    // list is stale and it re-reads `displays()` then. The read is a handful of cached OS calls, so
+    // it costs no round trip on the event path.
+    detail::fill_win32_display_capabilities(hwnd_, metrics);
     return metrics;
 }
 
 double Win32Window::display_refresh_hz() const noexcept {
-    if (hwnd_ == nullptr) {
-        return kUnknownRefreshHz;
-    }
-    // The monitor the window is on, not the primary one: a multi-monitor desktop can mix rates and
-    // the present cap must follow the display the user actually sees. The display-mode API is
-    // chosen over DwmGetCompositionTimingInfo because the latter describes the compositor's timing
-    // for the whole desktop (and needs an active composition), while EnumDisplaySettingsExW reports
-    // this monitor's current mode.
-    const HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
-    if (monitor == nullptr) {
-        return kUnknownRefreshHz;
-    }
-    MONITORINFOEXW info{};
-    info.cbSize = sizeof(info);
-    if (GetMonitorInfoW(monitor, &info) == FALSE) {
-        return kUnknownRefreshHz;
-    }
-    DEVMODEW mode{};
-    mode.dmSize = static_cast<WORD>(sizeof(mode));
-    if (EnumDisplaySettingsExW(info.szDevice, ENUM_CURRENT_SETTINGS, &mode, 0) == FALSE) {
-        return kUnknownRefreshHz;
-    }
-    // DEVMODE documents 0 ("hardware default") and 1 ("default") as frequency sentinels, never as
-    // a real rate; the pure sanitizer would accept 1 Hz, so reject both here.
-    if (mode.dmDisplayFrequency <= 1) {
-        return kUnknownRefreshHz;
-    }
-    return sanitize_display_refresh_hz(static_cast<double>(mode.dmDisplayFrequency));
+    // The query moved to window_display_win.cpp with the other display reads, so this file stays
+    // inside its size budget.
+    return detail::query_win32_display_refresh_hz(hwnd_);
 }
 
-void Win32Window::enqueue(WindowEventType type) {
+// Records one normalized event with its cause, stamped with the per-window sequence so a coalesced
+// replay can be detected as stale (section 3).
+void Win32Window::enqueue(WindowEventType type, EventReason reason) {
     if (initializing_) {
         return;
     }
     WindowEvent event;
     event.type = type;
     event.metrics = metrics();
+    event.reason = reason;
+    event.sequence = sequence_.next();
     events_.push(event);
 }
 
@@ -486,7 +434,8 @@ void Win32Window::set_fullscreen(bool fullscreen) {
     // resolved. WM_SIZE also fires from the platform call, but coalescing both into Resize
     // describes the same change and keeps the engine's one repaint path.
     if (detail::win32_window_set_fullscreen(hwnd_, fullscreen_, fullscreen, owner_thread_)) {
-        enqueue(WindowEventType::Resize);
+        enqueue(WindowEventType::Resize,
+                fullscreen ? EventReason::Fullscreen : EventReason::Restore);
     }
 }
 
@@ -518,7 +467,8 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
     case WM_NCLBUTTONDOWN: {
         LRESULT answer = 0;
         if (detail::win32_custom_caption_message(window, caption_, message, wparam, lparam,
-                                                 static_cast<int>(window_dpi(window)), answer)) {
+                                                 static_cast<int>(detail::win32_window_dpi(window)),
+                                                 answer)) {
             return answer;
         }
         return DefWindowProcW(window, message, wparam, lparam);
@@ -527,16 +477,19 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
         if (wparam == SIZE_MINIMIZED) {
             if (!minimized_) {
                 minimized_ = true;
-                enqueue(WindowEventType::Minimized);
+                enqueue(WindowEventType::Minimized, EventReason::Minimize);
             }
             return 0;
         }
         if (minimized_) {
             minimized_ = false;
-            enqueue(WindowEventType::Restored);
+            enqueue(WindowEventType::Restored, EventReason::Restore);
         }
         if (!applying_dpi_rect_) {
-            enqueue(WindowEventType::Resize);
+            // SIZE_MAXIMIZED/SIZE_RESTORED identify the window-manager state change; a plain size
+            // change is the user or the system moving the frame.
+            enqueue(WindowEventType::Resize,
+                    wparam == SIZE_MAXIMIZED ? EventReason::Maximize : EventReason::User);
         }
         return 0;
     }
@@ -550,7 +503,7 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
                          SWP_NOZORDER | SWP_NOACTIVATE);
             applying_dpi_rect_ = false;
         }
-        enqueue(WindowEventType::DpiChange);
+        enqueue(WindowEventType::DpiChange, EventReason::Dpi);
         return 0;
     }
     case WM_SETFOCUS:
@@ -562,11 +515,21 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
         enqueue(WindowEventType::Blur);
         return 0;
     case WM_SETTINGCHANGE:
-        // Only the animation toggle is surfaced; other settings broadcasts stay default-handled.
-        if (wparam == SPI_SETCLIENTAREAANIMATION) {
-            enqueue(WindowEventType::SystemSettingsChanged);
+    // Display capabilities (docs/specs/os-events-v1.md section 4): resolution/mode changes, DPI
+    // changes, work-area moves and monitor hotplug all invalidate the window's display snapshot.
+    // The message is recorded, never acted on: the loop re-queries the metrics at a tick boundary.
+    case WM_DISPLAYCHANGE:
+    case WM_DEVICECHANGE: {
+        const detail::DisplayMessage classified =
+            detail::classify_win32_display_message(message, wparam);
+        if (!classified.handled) {
+            return DefWindowProcW(window, message, wparam, lparam);
         }
-        return DefWindowProcW(window, message, wparam, lparam);
+        enqueue(classified.event, classified.reason);
+        // A settings broadcast still belongs to DefWindowProc (other parameters of it are not
+        // ours); a display change is fully recorded here.
+        return classified.forward ? DefWindowProcW(window, message, wparam, lparam) : 0;
+    }
     case WM_SETCURSOR: {
         // Pointer shape (issue #191): Windows re-asserts the cursor here, so this is where the
         // requested shape is installed. Only a client-area hit is ours; the frame keeps its own

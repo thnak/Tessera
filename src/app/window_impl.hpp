@@ -101,6 +101,22 @@ struct WindowHost::Impl {
     // so the running deadline is not resynced for nothing.
     void apply_present_cap(double now_seconds);
 
+    // --- display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rule 4) ----------
+    // Applies a `RefreshRateChanged` (or a topology change carrying a new rate): the pacer's
+    // divisor base follows the display's current refresh through its normal rate-change path, so a
+    // mode switch or a move onto another monitor lands at the next frame boundary with no stall and
+    // no swapchain recreation. An assumption-only 60 Hz never overrides an explicit option.
+    void apply_refresh_rate();
+    // The display topology re-read at a topology event's tick boundary, and whether one is pending.
+    // A `DisplayAdded`/`DisplayRemoved`/`DisplayChanged` says the list is stale; the loop re-reads
+    // `Window::displays()` once per tick rather than per event, so a hotplug storm costs one query.
+    bool display_topology_changed = false;
+    std::array<hal::DisplayInfo, hal::kMaxDisplays> displays_{};
+    std::array<hal::DisplayInfo, hal::kMaxDisplays> last_displays_{};
+    std::uint8_t display_count_ = 0;
+    // Re-reads the display list when `display_topology_changed` is set. Returns true when it moved.
+    bool sync_display_topology();
+
     // --- adaptive render scale (docs/design/performance.md section 6.1) ----------------------
     // Ensures the offscreen target `slot` renders into when the controller's renderScale is below
     // full quality is the requested extent. One target per frame slot, because a target may still

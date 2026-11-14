@@ -26,7 +26,17 @@ target_sources(tessera_hal_window PRIVATE
     # testable without a window or a display.
     ${CMAKE_CURRENT_SOURCE_DIR}/cursor.cpp
     # SafeArea inset arithmetic (safe-area-v1.md); pure and platform-neutral.
-    ${CMAKE_CURRENT_SOURCE_DIR}/safe_area.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/safe_area.cpp
+    # Display identity, per-monitor capabilities and the documented fallbacks (ADR-023 rule 7).
+    ${CMAKE_CURRENT_SOURCE_DIR}/display.cpp
+    # Event reasons and their coalescing rule (docs/specs/os-events-v1.md section 2).
+    ${CMAKE_CURRENT_SOURCE_DIR}/event_reason.cpp
+    # The normalized OsEvent taxonomy: category (delivery order), coalescing, wake sources.
+    ${CMAKE_CURRENT_SOURCE_DIR}/os_event.cpp
+    # The window-path projection onto that taxonomy: category, coalescing, spec names.
+    ${CMAKE_CURRENT_SOURCE_DIR}/window_events.cpp
+    # The deterministic synthetic event injector and the display-capability scripts (ADR-023 rule 8).
+    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_events.cpp)
 
 # Private shared implementation header (normalized event ring).
 target_include_directories(tessera_hal_window PRIVATE
@@ -42,6 +52,11 @@ if (WIN32)
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_fullscreen_win.cpp
         # Pointer shapes (issue #191): the stock-cursor table and the WM_SETCURSOR answer.
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_cursor_win.cpp
+        # Display capabilities (ADR-023): the per-monitor reads, the DPI/create-size arithmetic and
+        # the display/settings message classification, in separate TUs so none exceeds its budget.
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_display_win.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_display_messages_win.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_dpi_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_ime_translation.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input_ime.cpp
@@ -52,8 +67,9 @@ if (WIN32)
     # composition-string queries; uiautomationcore answers WM_GETOBJECT with the accessibility
     # bridge's root provider (UiaReturnRawElementProvider). dwmapi owns the Windows 11 system
     # backdrop attribute and the frame extension of a translucent window (glass-v1.md section 6).
+    # shcore supplies GetDpiForMonitor, the per-monitor scale query of the display-capability slice.
     target_link_libraries(tessera_hal_window PUBLIC user32 PRIVATE tessera_input imm32
-        uiautomationcore dwmapi)
+        uiautomationcore dwmapi shcore)
 elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
     # Linux: the backend selector (window_linux.cpp) owns create_window() and Window::wait_for_events
     # and picks X11 or Wayland per session; each backend is compiled in only when its dev packages
@@ -71,6 +87,9 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
             ${PROJECT_SOURCE_DIR}/src/platform/linux/window_fullscreen_x11.cpp
             # Pointer shapes (issue #191): the font-cursor cache and XDefineCursor, same reason.
             ${PROJECT_SOURCE_DIR}/src/platform/linux/window_cursor_x11.cpp
+            # Display capabilities (ADR-023, docs/specs/os-events-v1.md section 5): `_NET_WORKAREA`,
+            # DPI and the RandR event normalization, outside window.cpp's size budget.
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_display.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
@@ -99,7 +118,10 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
         find_library(TESSERA_XRANDR_LIBRARY NAMES Xrandr)
         if (TESSERA_XRANDR_INCLUDE_DIR AND TESSERA_XRANDR_LIBRARY)
             target_sources(tessera_hal_window PRIVATE
-                ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_randr.cpp)
+                ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_randr.cpp
+                # RandR monitor/mode queries for the display-capability slice (ADR-023), a separate TU
+                # so x11_display.cpp stays inside its file-size budget.
+                ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_randr_monitors.cpp)
             target_compile_definitions(tessera_hal_window PRIVATE TESSERA_X11_RANDR=1)
             target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_XRANDR_LIBRARY})
             message(STATUS "Xrandr found: Linux display-refresh query enabled")

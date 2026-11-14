@@ -85,6 +85,22 @@ std::string format_window_metrics(const WindowMetrics& metrics) {
     out += "cursor ";
     out += cursor_shape_name(metrics.cursor);
     out += "\n";
+    // Display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rules 4 and 7): the id of
+    // the display the window is on, its refresh, work area and orientation, and - crucially - the
+    // assumption flags, so a reader can tell a measured value from the documented fallback.
+    out += "display " + std::to_string(metrics.display) + "\n";
+    append(out, "refresh %g\n", metrics.refresh_hz);
+    out += "refresh_assumed ";
+    out += metrics.assumed.refresh_hz ? "1\n" : "0\n";
+    out += "vrr ";
+    out += metrics.flags.vrr ? "1\n" : "0\n";
+    append(out, "work_area %g %g %g %g\n", metrics.work_area.x, metrics.work_area.y,
+           metrics.work_area.width, metrics.work_area.height);
+    out += "work_area_assumed ";
+    out += metrics.assumed.work_area ? "1\n" : "0\n";
+    out += "orientation ";
+    out += orientation_name(metrics.orientation);
+    out += "\n";
     return out;
 }
 

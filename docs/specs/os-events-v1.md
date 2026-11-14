@@ -1,7 +1,11 @@
 # OS events and display capabilities v1
 
-Status: accepted for Big Step B3 (ADR-023, 2026-11-13; not yet implemented) (window/swapchain path with resize/DPI/lifecycle, defined in
-[AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Researched against platform documentation
+Status: accepted for Big Step B3 (ADR-023, 2026-11-13); **first slice implemented** (normalized
+`OsEvent`/`DisplayInfo` types, the synthetic event injector, and Windows/X11 display capabilities —
+DPI/scale, refresh, work area, orientation, topology). Fold/posture/hinge backends, Android, iOS and
+macOS are post-V1 and remain design here (window/swapchain path with resize/DPI/lifecycle, defined in
+[AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Researched
+against platform documentation
 (see §12). Decision:
 [ADR-023](../../decisions/ADR-023-os-event-normalization-and-foldables.md) (OS event
 normalization and foldables). Normative companion to
@@ -124,6 +128,52 @@ target is `make_cutout_info`. iOS, desktop and web report none in V1
 Evidence: `tests/unit/harness/cutout_tests.cpp` (ctest `cutout`): the count-0 default, one, several
 and more than `kMaxCutouts` cutouts, skipped bad rectangles, `SafeAreaChanged` coalescing in the fake
 and in the platform event ring, and the metrics dump.
+
+### 2.1 Implemented surface (first slice, 2026-11-14)
+
+The platform-neutral model is `tessera/hal/os_event.hpp` (`OsEventType`, `OsEvent`,
+`OsEventSequence`) plus `tessera/hal/display.hpp` (`WindowId`/`DisplayId`, `DisplayInfo`,
+`Orientation`, `ColorGamut`) and `tessera/hal/event_reason.hpp` (`EventReason`). The rules of §3 are
+pure functions there, so they are tested without an OS: `os_event_category`/`os_event_order_rank`
+(the fixed delivery order), `os_event_coalesces`, `os_event_requests_frame` (a wake source),
+`os_event_sequence_is_stale`, and `coalesce_window_events`.
+
+`WindowMetrics` grew the display half of §2 rather than gaining a separate capability type:
+`display`, `refresh_hz`, `vrr`, `work_area`, `orientation`, `multi_window` and `picture_in_picture`,
+with one packed `DisplayAssumptions` byte carrying the four "this is the fallback, not a
+measurement" bits (ADR-023 rule 7). They are packed because the metrics are copied into every event;
+`kWindowMetricsSizeBudget` asserts the whole struct stays at 384 bytes. The per-monitor list is the
+separate `DisplayInfo` sequence `hal::Window::displays()` fills, capped at `kMaxDisplays`; it is
+**not** a field of the per-event metrics (a window copies its own capabilities into every event, not
+the whole topology).
+
+`WindowEventType` gained `RefreshRateChanged`, `WorkAreaChanged`, `DisplayAdded`,
+`DisplayRemoved`, `DisplayChanged` and `ScaleChanged`; every `WindowEvent` now carries
+`EventReason` and a monotonic `sequence`. The mapping from this window path onto the full `OsEvent`
+taxonomy is total and table-driven (`os_event_type_for`), and §3's ordering is derived from the
+mapped `OsEventType`, so the two taxonomies cannot drift.
+
+Platform halves: Windows reads the monitor through `GetMonitorInfoW`/`EnumDisplaySettingsExW`/
+`GetDpiForMonitor` and registers the monitor device interface, so `WM_DISPLAYCHANGE`,
+`WM_DPICHANGED`, `WM_SETTINGCHANGE` (`SPI_SETWORKAREA`) and `WM_DEVICECHANGE` become normalized
+events (`src/platform/windows/window_display_win.*`, `window_display_messages_win.*`,
+`window_dpi_win.*`). X11 reads `_NET_WORKAREA` and RandR (`RRScreenChangeNotify`, `RRNotify`,
+`XRRGetMonitors`) and selects those masks at creation (`src/platform/linux/x11_display.*`,
+`x11_randr_monitors.*`). Both only **record**: the app's driver (`src/app/window_lifecycle.cpp`)
+takes one metrics snapshot at the tick boundary, follows a refresh change through the pacer's
+rate-change path, and re-reads the topology once per tick when an event says it is stale.
+
+The synthetic injector is `tessera/hal/synthetic_events.hpp`
+(`SyntheticEventInjector` plus the named `make_*_script()` fixtures: resize/DPI storm, display
+hotplug, scale change, refresh change). It records normalized events with a simulated clock and a
+counter sequence, coalesces by the same rule, and never calls a platform API.
+
+Evidence: `tests/unit/os_event_tests.cpp` (ctest `os_event`: fallbacks and assumption flags, reason
+merging, the taxonomy counts/order/coalescing/wake rules, staleness, the total window-path mapping
+and coalescing) and `tests/unit/harness/os_event_display_tests.cpp` (ctest `os_event_display`: the
+four scripts, the recorded fallbacks, "unknown event is ignored", a deterministic replay, and the
+fake-window `poll_events` seam). Both are OS-free, so they run identically on the Windows and Linux
+gating lanes.
 
 ## 3. Event ordering and delivery
 

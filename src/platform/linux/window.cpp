@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/hal/os_event.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "window_event_queue.hpp"
@@ -13,6 +14,14 @@
 #if defined(TESSERA_X11_RANDR)
 #include "x11_randr.hpp"
 #endif
+// Display capabilities (docs/specs/os-events-v1.md section 5): RandR topology, `_NET_WORKAREA` and
+// the per-output refresh, kept out of this translation unit because it is already at the
+// file-size limit. Included after the Xlib-pulling headers for the same reason as the rest.
+#include "x11_display.hpp"
+
+#if defined(TESSERA_X11_RANDR)
+#include <X11/extensions/Xrandr.h>
+#endif
 // Full-screen state (issue #232): EWMH _NET_WM_STATE, kept out of this translation unit because it
 // is already at the file-size limit. Included after the Xlib-pulling headers for the same reason
 // the input headers are.
@@ -21,7 +30,6 @@
 #include "window_cursor_x11.hpp"
 
 #include <X11/Xlib.h>
-#include <X11/Xresource.h>
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -43,55 +51,9 @@ namespace {
 
 using detail::EventQueue;
 
-constexpr int kDefaultDpi = 96;
-// Xft.dpi is a user-controlled Xresource. Clamp obviously broken values so a typo cannot turn
-// every logical size into zero or a multi-thousand-pixel window.
-constexpr int kMinDpi = 48;
-constexpr int kMaxDpi = 768;
-
-float dpi_scale(int dpi) {
-    return static_cast<float>(dpi) / static_cast<float>(kDefaultDpi);
-}
-
-std::uint32_t logical_from_physical(std::uint32_t physical, int dpi) {
-    const double scaled =
-        static_cast<double>(physical) * static_cast<double>(kDefaultDpi) / static_cast<double>(dpi);
-    return static_cast<std::uint32_t>(std::lround(scaled));
-}
-
-std::uint32_t physical_from_logical(std::uint32_t logical, int dpi) {
-    const double scaled =
-        static_cast<double>(logical) * static_cast<double>(dpi) / static_cast<double>(kDefaultDpi);
-    return static_cast<std::uint32_t>(std::lround(scaled));
-}
-
-// X11 has no per-window DPI query; the desktop publishes a global Xft.dpi Xresource. Fall back
-// to 96 when the resource server is absent (bare Xvfb, minimal window managers).
-int query_xft_dpi(Display* display) {
-    const char* resources = XResourceManagerString(display);
-    if (resources == nullptr || resources[0] == '\0') {
-        return kDefaultDpi;
-    }
-    XrmDatabase database = XrmGetStringDatabase(resources);
-    if (database == nullptr) {
-        return kDefaultDpi;
-    }
-
-    int dpi = kDefaultDpi;
-    char* type = nullptr;
-    XrmValue value{};
-    if (XrmGetResource(database, "Xft.dpi", "Xft.Dpi", &type, &value) != 0 &&
-        value.addr != nullptr) {
-        const char* text = static_cast<const char*>(value.addr);
-        char* end = nullptr;
-        const double parsed = std::strtod(text, &end);
-        if (end != text && std::isfinite(parsed) && parsed > 0.0) {
-            dpi = std::clamp(static_cast<int>(std::lround(parsed)), kMinDpi, kMaxDpi);
-        }
-    }
-    XrmDestroyDatabase(database);
-    return dpi;
-}
+// The DPI conversions and the `Xft.dpi` read live in x11_display.cpp with the other display code,
+// so this file stays inside its size budget; the alias keeps the creation-time call short.
+using detail::query_x11_xft_dpi;
 
 class X11Window final : public Window {
 public:
@@ -109,6 +71,9 @@ public:
         return WindowSystem::Xlib;
     }
     [[nodiscard]] double display_refresh_hz() const noexcept override;
+    std::size_t displays(std::span<DisplayInfo> displays) const override {
+        return detail::query_x11_displays(display_, root_, displays);
+    }
     [[nodiscard]] NativeWindowHandle native_handle() const override {
         return {display_, reinterpret_cast<void*>(window_)};
     }
@@ -142,18 +107,23 @@ public:
 
 private:
     void handle_event(XEvent& event, bool auto_repeat = false, bool filtered = false);
-    void enqueue(WindowEventType type);
+    void enqueue(WindowEventType type, EventReason reason = EventReason::Unspecified);
     void request_close();
     void pump(bool discard);
     void open_input_method();
     void close_input_method();
+    // RandR topology/mode notifications (docs/specs/os-events-v1.md section 5):
+    // `XRRUpdateConfiguration` must run before RandR state is read, and the change is recorded as
+    // one normalized event. Both live outside this translation unit (x11_display.cpp) because this
+    // file is at its size budget.
+    void handle_display_change(const XEvent& event);
     [[nodiscard]] bool has_pending_events() const;
 
     Display* display_ = nullptr;
     ::Window window_ = 0;
     ::Window root_ = 0;
     int screen_ = 0;
-    int dpi_ = kDefaultDpi;
+    int dpi_ = detail::kDefaultX11Dpi;
     int last_width_ = 0;
     int last_height_ = 0;
     Atom wm_protocols_ = 0;
@@ -184,6 +154,9 @@ private:
     // cache is freed in the destructor BEFORE XCloseDisplay: a cursor belongs to that connection.
     CursorShape cursor_ = CursorShape::Default;
     detail::X11CursorState cursor_state_{};
+    // Per-window event sequence (section 3): monotonically increasing, stamped on every recorded
+    // event so the consumer can discard a stale one.
+    OsEventSequence sequence_{};
     bool initializing_ = true;
     bool mapped_ = false;
     bool focused_ = false;
@@ -203,10 +176,10 @@ bool X11Window::create(const WindowDesc& desc) {
     }
     screen_ = DefaultScreen(display_);
     root_ = RootWindow(display_, screen_);
-    dpi_ = query_xft_dpi(display_);
+    dpi_ = query_x11_xft_dpi(display_);
 
-    const std::uint32_t width = physical_from_logical(desc.width, dpi_);
-    const std::uint32_t height = physical_from_logical(desc.height, dpi_);
+    const std::uint32_t width = detail::x11_physical_from_logical(desc.width, dpi_);
+    const std::uint32_t height = detail::x11_physical_from_logical(desc.height, dpi_);
 
     // A translucent window needs a 32-bit ARGB visual so the swapchain's per-pixel alpha reaches
     // the compositor; the opaque path keeps the parent visual byte-identical. The visual and depth
@@ -248,6 +221,8 @@ bool X11Window::create(const WindowDesc& desc) {
     (void)detail::x11_fullscreen_init(display_, fullscreen_);
     fullscreen_supported_ = detail::x11_fullscreen_supported(display_, root_, fullscreen_);
     XStoreName(display_, window_, desc.title.c_str());
+    // RandR selects the display-change masks so a hotplug/mode change reaches handle_event().
+    detail::subscribe_x11_display_events(display_, root_);
     // XI2 is initialized before the input method opens: an active XI2 pump is what lets the window
     // ask for client-side pre-edit, and a missing XInput2 leaves the core path unchanged.
     (void)xi2_.initialize(display_, window_);
@@ -309,9 +284,9 @@ WindowMetrics X11Window::metrics() const {
     }
     metrics.physical_width = static_cast<std::uint32_t>(std::max(attributes.width, 0));
     metrics.physical_height = static_cast<std::uint32_t>(std::max(attributes.height, 0));
-    metrics.logical_width = logical_from_physical(metrics.physical_width, dpi_);
-    metrics.logical_height = logical_from_physical(metrics.physical_height, dpi_);
-    metrics.dpi_scale = dpi_scale(dpi_);
+    metrics.logical_width = detail::x11_logical_from_physical(metrics.physical_width, dpi_);
+    metrics.logical_height = detail::x11_logical_from_physical(metrics.physical_height, dpi_);
+    metrics.dpi_scale = detail::x11_dpi_scale(dpi_);
     metrics.focused = focused_;
     metrics.backdrop = backdrop_.material;
     metrics.transparent = backdrop_.transparent;
@@ -322,6 +297,11 @@ WindowMetrics X11Window::metrics() const {
     metrics.caption_region_count = caption_region_count_;
     metrics.caption_regions = caption_regions_;
     metrics.cursor = cursor_;
+    // Display capabilities (docs/specs/os-events-v1.md section 5): the RandR monitor the window is
+    // on, its refresh, `_NET_WORKAREA` and the orientation, each with its assumption flag set when
+    // the server could not answer. A server without RandR reports ids/refresh as "not known" rather
+    // than a fabricated display.
+    detail::fill_x11_display_capabilities(display_, window_, root_, screen_, metrics);
     // X11 has no portable occlusion/minimize signal without a window manager (WM_STATE and
     // _NET_WM_STATE are WM-specific); this backend reports both as false.
     return metrics;
@@ -332,6 +312,8 @@ double X11Window::display_refresh_hz() const noexcept {
     if (display_ == nullptr || window_ == 0 || std::this_thread::get_id() != owner_thread_) {
         return kUnknownRefreshHz;
     }
+    // The mode query lives in x11_randr.cpp with the other RandR reads; the window only owns the
+    // creation-time call (a monitor change re-queries through the display-capability path).
     return detail::query_x11_display_refresh_hz(display_, window_, root_);
 #else
     // Built without libXrandr: this window has no display-refresh source, so no divisor exists and
@@ -340,13 +322,15 @@ double X11Window::display_refresh_hz() const noexcept {
 #endif
 }
 
-void X11Window::enqueue(WindowEventType type) {
+void X11Window::enqueue(WindowEventType type, EventReason reason) {
     if (initializing_) {
         return;
     }
     WindowEvent event;
     event.type = type;
     event.metrics = metrics();
+    event.reason = reason;
+    event.sequence = sequence_.next();
     events_.push(event);
 }
 
@@ -359,15 +343,30 @@ void X11Window::request_close() {
     enqueue(WindowEventType::Close);
 }
 
+void X11Window::handle_display_change(const XEvent& event) {
+    // RandR requires this before any RandR state is read; a no-op for a non-RandR event, and
+    // TESSERA_X11_RANDR guards the Xlib extension header.
+#if defined(TESSERA_X11_RANDR)
+    XRRUpdateConfiguration(const_cast<XEvent*>(&event));
+#endif
+    enqueue(detail::x11_display_event_for(event), EventReason::Display);
+}
+
 void X11Window::handle_event(XEvent& event, bool auto_repeat, bool filtered) {
     // XI2 device events (smooth scroll, touch, pen) are consumed here. Selecting them as XI2
     // events is what stops the server from also delivering the core event for the same device.
-    if (xi2_.handle(event, dpi_scale(dpi_))) {
+    if (xi2_.handle(event, detail::x11_dpi_scale(dpi_))) {
         return;
     }
     // Input events (and the input half of focus changes) go to the queue; focus still falls
     // through to the window's own Focus/Blur state below.
-    if (input_.handle(event, dpi_scale(dpi_), auto_repeat, filtered)) {
+    if (input_.handle(event, detail::x11_dpi_scale(dpi_), auto_repeat, filtered)) {
+        return;
+    }
+    // Display topology/mode notifications (RandR) come before the core switch: their event codes
+    // are dynamic, so they cannot be a `case` in it.
+    if (detail::x11_event_is_display_change(event)) {
+        handle_display_change(event);
         return;
     }
     switch (event.type) {
@@ -376,7 +375,7 @@ void X11Window::handle_event(XEvent& event, bool auto_repeat, bool filtered) {
         if (configure.width != last_width_ || configure.height != last_height_) {
             last_width_ = configure.width;
             last_height_ = configure.height;
-            enqueue(WindowEventType::Resize);
+            enqueue(WindowEventType::Resize, EventReason::User);
         }
         return;
     }

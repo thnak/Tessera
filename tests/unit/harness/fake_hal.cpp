@@ -3,6 +3,7 @@
 #include "fake_hal.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -224,6 +225,73 @@ void FakeWindow::set_fold(const hal::FoldInfo& fold) {
         return;
     }
     push_metrics_event(hal::WindowEventType::FoldChanged);
+}
+
+void FakeWindow::set_displays(std::span<const hal::DisplayInfo> displays) {
+    display_count_ = std::min(displays.size(), displays_.size());
+    for (std::size_t index = 0; index < display_count_; ++index) {
+        displays_[index] = displays[index];
+    }
+    for (std::size_t index = display_count_; index < displays_.size(); ++index) {
+        displays_[index] = hal::DisplayInfo{};
+    }
+}
+
+std::size_t FakeWindow::displays(std::span<hal::DisplayInfo> displays) const {
+    const std::size_t copied = std::min(displays.size(), display_count_);
+    for (std::size_t index = 0; index < copied; ++index) {
+        displays[index] = displays_[index];
+    }
+    return copied;
+}
+
+void FakeWindow::set_display(hal::DisplayId id, float refresh_hz, bool vrr) {
+    metrics_.display = id;
+    if (std::isfinite(refresh_hz) && refresh_hz > 0.0f) {
+        metrics_.refresh_hz = refresh_hz;
+        metrics_.assumed.refresh_hz = false;
+    } else {
+        // The documented fallback (ADR-023 rule 7): an unusable report keeps 60 Hz and records the
+        // assumption so a consumer can tell a guess from a measurement.
+        metrics_.refresh_hz = hal::kAssumedDisplayRefreshHz;
+        metrics_.assumed.refresh_hz = true;
+    }
+    metrics_.flags.vrr = vrr;
+    metrics_.assumed.vrr = false;
+}
+
+void FakeWindow::set_refresh_rate(float refresh_hz, bool assumed) {
+    if (assumed || !std::isfinite(refresh_hz) || refresh_hz <= 0.0f) {
+        metrics_.refresh_hz = hal::kAssumedDisplayRefreshHz;
+        metrics_.assumed.refresh_hz = true;
+    } else {
+        metrics_.refresh_hz = refresh_hz;
+        metrics_.assumed.refresh_hz = false;
+    }
+    // Consecutive refresh changes coalesce into the newest, like a platform queue.
+    if (!events_.empty() && events_.back().type == hal::WindowEventType::RefreshRateChanged) {
+        events_.back().metrics = metrics_;
+        return;
+    }
+    push_metrics_event(hal::WindowEventType::RefreshRateChanged);
+}
+
+void FakeWindow::set_work_area(const hal::WindowRect& work_area) {
+    metrics_.work_area =
+        hal::resolve_work_area(work_area, metrics_.logical_width, metrics_.logical_height);
+    metrics_.assumed.work_area = false;
+    if (!events_.empty() && events_.back().type == hal::WindowEventType::WorkAreaChanged) {
+        events_.back().metrics = metrics_;
+        return;
+    }
+    push_metrics_event(hal::WindowEventType::WorkAreaChanged);
+}
+
+void FakeWindow::push_display_event(hal::WindowEventType type, hal::DisplayId display) {
+    if (display != hal::kNoDisplayId) {
+        metrics_.display = display;
+    }
+    push_metrics_event(type);
 }
 
 void FakeWindow::push_event(hal::WindowEventType type) {
