@@ -9,10 +9,35 @@
 #include "ForwardWrap.hpp"
 #include "tessera/ui/scene/node.hpp"
 
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
+#include <new>
 #include <string>
 #include <string_view>
+
+// Counts every heap allocation of the process, so the performance gate below can assert that an
+// event through a forwarded callback allocates nothing.
+namespace {
+std::size_t allocation_count = 0;
+}
+
+void* operator new(std::size_t size) {
+    ++allocation_count;
+    if (void* memory = std::malloc(size)) {
+        return memory;
+    }
+    throw std::bad_alloc();
+}
+
+void operator delete(void* memory) noexcept {
+    std::free(memory);
+}
+
+void operator delete(void* memory, std::size_t) noexcept {
+    std::free(memory);
+}
 
 namespace {
 
@@ -149,6 +174,42 @@ void test_unset_callbacks_in_a_handler_body() {
     check(counter.state_n_ == 1, "the setter still ran without a callback");
 }
 
+// Performance gate (issue #286 step 3). A forwarded callback is one `std::function` call per
+// component hop with a `[this]` capture, so dispatching an event through it must not allocate:
+// the pointer-sized capture lives in the function's small buffer and no closure object is created
+// per event. The chain depth equals the component nesting depth (the IR rejects reference cycles,
+// TESSERA_IR_CYCLE), so the work per event is bounded by the tree, never by data.
+void test_forwarded_event_does_not_allocate() {
+    forward::gen::ForwardOuter outer;
+    ui::Node root(6000);
+    outer.build(root);
+    outer.apply_props();
+    ui::Node* button = find_kind(root, "Button");
+    check(button != nullptr, "the wrapped Button exists for the gate");
+    if (button == nullptr) {
+        return;
+    }
+    ui::Event click = click_event();
+    ui::dispatch_event_to(*button, click);
+    constexpr int kEvents = 10000;
+    const std::size_t before = allocation_count;
+    const auto start = std::chrono::steady_clock::now();
+    for (int i = 0; i < kEvents; ++i) {
+        click = click_event();
+        ui::dispatch_event_to(*button, click);
+    }
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    const std::size_t allocations = allocation_count - before;
+    // Measurement, not an assertion: wall time is machine-dependent, so only the allocation count
+    // gates.
+    std::cout << "forwarded click: " << allocations << " allocations in " << kEvents << " events, "
+              << std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count() / kEvents
+              << " ns/event\n";
+    check(outer.state_count_ == kEvents + 1, "every gate event ran the caller's handler");
+    check(allocations == 0, "forwarding allocates nothing per event: " +
+                                std::to_string(allocations) + " allocations");
+}
+
 } // namespace
 
 int main() {
@@ -157,6 +218,7 @@ int main() {
     test_payload_is_passed_on();
     test_calls_from_a_handler_body();
     test_unset_callbacks_in_a_handler_body();
+    test_forwarded_event_does_not_allocate();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

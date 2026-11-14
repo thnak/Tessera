@@ -87,7 +87,7 @@ scrollport/content metrics. A clamped-to-zero, non-scrollable, or no-op request 
 Dispatch is W3C-style (the DOM event model of the World Wide Web Consortium):
 
 1. hit-test to find the target;
-2. build the path from root to target;
+2. build the path from root to target (an inline buffer of 64 nodes, so a typical event allocates nothing);
 3. **capture** phase: root → target's parent;
 4. **target** phase: target;
 5. **bubble** phase: target's parent → root.

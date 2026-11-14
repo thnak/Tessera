@@ -2,17 +2,39 @@
 
 #include "tessera/ui/scene/node.hpp"
 
-#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <span>
 #include <vector>
 
 namespace tessera::ui {
 
+namespace {
+
+// Typical scene depth fits the inline buffer, so an event never allocates; only a tree deeper than
+// this takes one allocation for the whole dispatch (hot-path rule, issue #286 performance gate).
+constexpr std::size_t kInlinePathDepth = 64;
+
+} // namespace
+
 bool dispatch_event_to(Node& target, Event& event) {
-    std::vector<Node*> path;
-    for (Node* node = &target; node != nullptr; node = node->parent()) {
-        path.push_back(node);
+    std::size_t depth = 0;
+    for (const Node* node = &target; node != nullptr; node = node->parent()) {
+        ++depth;
     }
-    std::reverse(path.begin(), path.end());
+    std::array<Node*, kInlinePathDepth> inline_path;
+    std::vector<Node*> heap_path;
+    Node** storage = inline_path.data();
+    if (depth > kInlinePathDepth) {
+        heap_path.resize(depth);
+        storage = heap_path.data();
+    }
+    // Root first: the capture phase walks it forward, the bubble phase backward.
+    std::size_t slot = depth;
+    for (Node* node = &target; node != nullptr; node = node->parent()) {
+        storage[--slot] = node;
+    }
+    const std::span<Node*> path(storage, depth);
 
     event.phase = EventPhase::Capture;
     for (std::size_t i = 0; i + 1 < path.size(); ++i) {

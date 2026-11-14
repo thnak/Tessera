@@ -264,6 +264,52 @@ void test_forward_to_child_component() {
           "the child's callback is bound to a callProp handler");
 }
 
+// The safety gate (issue #286 step 3): handing a callback on through components costs one
+// `std::function` hop per level and is bounded by the nesting depth, because a component reference
+// cycle (the only way to forward forever) is `TESSERA_IR_CYCLE`.
+std::string chain_source(int depth) {
+    std::string source = "type P = { onPress: () => void };\n"
+                         "export function C0({ onPress }: P) {\n"
+                         "  return <Button onClick={onPress}>go</Button>;\n"
+                         "}\n";
+    for (int level = 1; level < depth; ++level) {
+        source += "export function C" + std::to_string(level) + "({ onPress }: P) {\n  return <C" +
+                  std::to_string(level - 1) + " onPress={onPress} />;\n}\n";
+    }
+    return source;
+}
+
+std::string validate_code(lowering::ModuleLoweringResult& result) {
+    ir::IrModule module;
+    module.name = result->name;
+    module.components = std::move(result->components);
+    module.bindings = std::move(result->bindings);
+    if (!ids::assign_identity(module, "chain").has_value()) {
+        return "identity";
+    }
+    const auto diagnostics = ir::validate(module);
+    return diagnostics.empty() ? std::string() : diagnostics[0].code;
+}
+
+void test_chain_depth_and_cycle() {
+    std::unique_ptr<FileFixture> keep;
+    auto chain = lower_source(chain_source(12), keep);
+    check(chain.has_value(), "a 12-deep forwarding chain lowers: " + first_message(chain));
+    if (chain) {
+        check(validate_code(chain).empty(), "the deep chain validates");
+    }
+    const std::string cycle = "type P = { onPress: () => void };\n"
+                              "export function A({ onPress }: P) {\n"
+                              "  return <B onPress={onPress} />;\n"
+                              "}\n"
+                              "export function B({ onPress }: P) {\n"
+                              "  return <A onPress={onPress} />;\n"
+                              "}\n";
+    auto looped = lower_source(cycle, keep);
+    check(!looped.has_value() || validate_code(looped) == "TESSERA_IR_CYCLE",
+          "a forwarding cycle is an error, not an infinite chain");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -273,5 +319,6 @@ int main(int argc, char** argv) {
     test_forward_to_child_component();
     test_calls_from_a_handler_body();
     test_call_rejections();
+    test_chain_depth_and_cycle();
     return jsx_test::finish("lowering callback forward");
 }
