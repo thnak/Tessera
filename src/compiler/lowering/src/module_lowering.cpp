@@ -253,7 +253,7 @@ bool resolve_bundled_library(ProjectState& state, FileEntry& entry, const jsx::M
         }
         if (!has_ref(entry, name.local())) {
             entry.component_refs.push_back(
-                ComponentRef{std::string(name.local()), std::string(library->id)});
+                ComponentRef{std::string(name.local()), std::string(library->id), true});
         }
     }
     return true;
@@ -351,7 +351,7 @@ bool resolve_imports(ProjectState& state, std::size_t index, std::span<const Pac
             if (declaration != nullptr && declaration->kind == jsx::ItemKind::Component) {
                 // A renamed import binds the local tag to the target's component id.
                 entry.component_refs.push_back(
-                    ComponentRef{std::string(name.local()), "comp::" + name.name});
+                    ComponentRef{std::string(name.local()), "comp::" + name.name, true});
             }
             // A missing name may still be exported by a re-export of the target file: the name
             // resolution of `build_type_names` reports it if it is not, so a re-export chain works.
