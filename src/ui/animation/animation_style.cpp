@@ -30,6 +30,21 @@ AnimationParseResult parse_style_animations(const style::ComputedStyle& style) {
     return {};
 }
 
+TransitionParseResult parse_style_transitions(const style::ComputedStyle& style) {
+    // The longhands win when `transition-property` is present, matching CSS and
+    // `parse_style_animations`: a stylesheet that sets both forms keeps the longhands
+    // authoritative.
+    if (const std::string* properties = style.find("transition-property"); properties != nullptr) {
+        return parse_transition_longhands(*properties, value(style, "transition-duration"),
+                                          value(style, "transition-delay"),
+                                          value(style, "transition-timing-function"));
+    }
+    if (const std::string* shorthand = style.find("transition"); shorthand != nullptr) {
+        return parse_transition_list(*shorthand);
+    }
+    return {};
+}
+
 std::vector<AnimationId> start_style_animations(AnimationRuntime& runtime, std::uint64_t target,
                                                 const style::ComputedStyle& style,
                                                 const std::vector<style::KeyframeBlock>& keyframes,

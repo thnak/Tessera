@@ -172,6 +172,53 @@ active names and returns the number changed. `ensure_style_animations` is idempo
 Parse errors return `ok == false` and mutate nothing. Entries with empty keyframe names belong to
 property-only transitions and are not removed by name sync. Other targets are untouched.
 
+### The frame-pipeline bridge (issue #271)
+
+Neither half of the reconciliation had a production caller: `start_style_transitions` and
+`sync_style_animations` were driven by tests only, so a stylesheet could declare
+`transition: opacity 200ms linear` or `animation: fade 1s` and nothing ran. `StyleBridge`
+(`animation/style_bridge.hpp`) is that caller, and `FramePipeline::sync_style` runs it as part of the
+style stage.
+
+`parse_style_transitions(computed_style)` is the transition counterpart of
+`parse_style_animations`: it reads `transition-property`/`-duration`/`-delay`/`-timing-function`
+when `transition-property` is present and otherwise falls back to the `transition` shorthand, reusing
+`parse_transition_longhands`/`parse_transition_list` so there is one grammar. An undeclared
+transition parses to an empty, valid list (both property sets have an empty registry initial value),
+not to `all 0s`.
+
+**Which change class starts a transition.** Any computed-style change between two style stages. The
+bridge runs inside `sync_style`, which the host enters for every style-affecting change — class, id,
+attribute, inline style, pseudo-state, an inherited value, a media/container query, or a theme — so
+all of them transition without a per-case list. A paint-only frame runs no style stage and therefore
+starts nothing; a transition never begins from a change that layout and paint cannot see anyway.
+
+**What an interrupted transition does.** It continues from the value currently displayed, not from
+the value the previous transition started at. The bridge samples the running entry for that property
+and uses the sample as the new "from", so retargeting a property mid-flight does not jump backwards
+to the old origin. The running entry is then superseded, which `start_transition_values` already
+does through `stop_target_property`.
+
+**Baseline and retention.** A node's first observed style is its baseline, not a change: the initial
+style never transitions, which is what CSS specifies. The bridge keeps one `ComputedStyle` snapshot
+per node, but only for nodes that actually declare a transition with a non-zero duration, so a large
+static tree does not pay a full computed style per node for the animation system. Two consequences
+follow and are accepted:
+
+- A transition declaration that appears in the *same* style change as the property change has no
+  baseline, so it starts on the next change instead of that one.
+- A snapshot is dropped when its node leaves the rendered tree (removed, `display: none`,
+  `visibility: hidden`) or stops declaring a transition. Coming back re-establishes the baseline
+  rather than animating the gap, matching how paint and hit testing treat the same node.
+
+A zero duration starts no entry. The new computed value is already the final value, so an entry
+would only leave a settled fill behind; CSS gives a zero-duration transition no run either.
+
+**Cost.** The style stage is change-driven, so this walk never runs on a paint-only frame. It
+resolves one computed style per rendered node, which the stage already does twice (scene sync and
+interaction sync); the snapshots are the only retained memory, bounded by the transition-declaring
+node count, and the map's nodes are reused across syncs.
+
 ## 10. RuntimeLoop bridge
 
 `tick_animations(runtime, loop, dt)` ticks the runtime and requests a frame when either:

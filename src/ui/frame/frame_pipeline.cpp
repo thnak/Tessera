@@ -36,6 +36,11 @@ style::ComputedStyle interaction_style_thunk(void* context, const Node& node) {
     return static_cast<paint::StyleProvider*>(context)->compute(node);
 }
 
+// An empty `@keyframes` table for a sheet without animations or a pipeline with no keyframes
+// installed. A namespace-scope object rather than a function-local static, so the style stage does
+// not pay a thread-safe-init guard per frame.
+const std::vector<style::KeyframeBlock> kNoKeyframes;
+
 rendering::RedrawPlan normalized_plan(rendering::RedrawPlan plan, rendering::rhi::Extent2D target,
                                       const rendering::RedrawPolicy& policy) {
     if (!rendering::should_full_redraw(plan, target, policy)) {
@@ -278,6 +283,7 @@ const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
 paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StyleProvider& styles,
                                                       const FrameTick& tick, bool force) const {
     if (!force && !tick.needs_style && !tick.needs_layout) {
+        style_bridge_snapshot_ = {};
         return {};
     }
     paint::SceneStyleSyncResult result = paint::sync_scene_style(root, styles, config_.glass);
@@ -285,6 +291,18 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
     // selection gate (`user-select`), stylesheet-v1 section 11 / issue #247. Same seam, same
     // frame, so the two halves never disagree about a restyled node.
     sync_interaction_style(root, &interaction_style_thunk, &styles);
+    // Transition and animation declarations become real here (issue #271): the diff against the
+    // previous style starts the transitions the new style declares, and the animation sync
+    // reconciles the running set against `animation-*`. Both feed the runtime the next tick
+    // samples.
+    style_bridge_snapshot_ =
+        style_bridge_state_.sync(*animations_, root, &interaction_style_thunk, &styles,
+                                 style_keyframes_ != nullptr ? *style_keyframes_ : kNoKeyframes);
+    if (!style_bridge_snapshot_.ids.empty()) {
+        // The transition or animation starts now, after this tick already decided whether the loop
+        // may idle: ask for the next frame so the first sample is rendered.
+        loop_->request_frame();
+    }
     return result;
 }
 

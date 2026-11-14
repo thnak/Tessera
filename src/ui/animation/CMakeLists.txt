@@ -13,6 +13,7 @@ add_library(tessera_animation STATIC
     animation_shorthand.cpp
     animation_start.cpp
     animation_style.cpp
+    style_bridge.cpp
     transition_runtime.cpp)
 
 target_include_directories(tessera_animation PUBLIC

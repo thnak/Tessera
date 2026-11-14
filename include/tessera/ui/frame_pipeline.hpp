@@ -6,6 +6,7 @@
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/ui/animation/runtime.hpp"
 #include "tessera/ui/animation/spring_runtime.hpp"
+#include "tessera/ui/animation/style_bridge.hpp"
 #include "tessera/ui/frame_interpolation.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
@@ -17,6 +18,7 @@
 #include <array>
 #include <cstddef>
 #include <unordered_map>
+#include <vector>
 
 namespace tessera::runtime {
 class RuntimeLoop;
@@ -98,8 +100,33 @@ public:
     // finish_frame(), so the paint/render dirtiness it raises reaches damage. It only runs when
     // `tick` reported style or layout work (or `force` is set); a steady frame costs nothing and
     // returns an all-zero result.
+    //
+    // This is also where transition and animation declarations become real (issue #271): the same
+    // walk that copies style onto the scene starts the CSS transitions whose properties changed and
+    // reconciles the running CSS animations against the style's `animation-*` list. Both are handed
+    // to the animation runtime, which the next tick samples, so the values reach layout and paint
+    // through the ordinary overlay path. The web of `docs/specs/stylesheet-property-status-v1.md`
+    // section 8 lists the longhands as applied through these two calls.
+    //
+    // The transition diff keeps one `ComputedStyle` snapshot per node that declares a transition
+    // (docs/design/animation-runtime.md section 9), so a stylesheet with no transitions pays a
+    // parse per node and nothing else. `keyframes` is the compiled sheet's table; pass the empty
+    // vector for a sheet without animations and the animation half becomes a no-op.
     paint::SceneStyleSyncResult sync_style(Node& root, paint::StyleProvider& styles,
                                            const FrameTick& tick, bool force = false) const;
+
+    // The compiled sheet's `@keyframes`, for the animation half of `sync_style`. A pointer, not a
+    // copy: the sheet outlives the pipeline (the host rebuilds the pipeline when it swaps sheets).
+    // Null disables the animation half, which is what a test that only exercises transitions wants.
+    void set_style_keyframes(const std::vector<style::KeyframeBlock>* keyframes) {
+        style_keyframes_ = keyframes;
+    }
+
+    // Counters from the most recent `sync_style` (transitions and animations started or stopped);
+    // refreshed by every call, so read it after `sync_style`.
+    [[nodiscard]] const animation::StyleBridgeResult& style_bridge() const {
+        return style_bridge_snapshot_;
+    }
 
     FrameRender finish_frame(Node& root);
 
@@ -236,6 +263,12 @@ private:
     mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
     PaintSamples previous_samples_;
     PaintSamples current_samples_;
+    // Computed-style -> transitions/animations (issue #271). Mutable because `sync_style` is const
+    // by contract (it resolves style, it does not change the frame decision) but the bridge has to
+    // retain a per-node style snapshot between style stages.
+    mutable animation::StyleBridge style_bridge_state_;
+    mutable animation::StyleBridgeResult style_bridge_snapshot_;
+    const std::vector<style::KeyframeBlock>* style_keyframes_ = nullptr;
     // Painted corners (x0,y0..x3,y3, device px) of each transform-sampled node at the last frame
     // that added its box to damage; the reference the suppression distance is measured from.
     std::unordered_map<NodeId, std::array<float, 8>> last_damaged_corners_;

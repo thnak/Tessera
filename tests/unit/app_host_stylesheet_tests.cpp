@@ -247,12 +247,36 @@ void library_constructor_sheet_loses_to_app_sheet() {
           "unlayered app CSS beats a higher-specificity library default");
 }
 
+// The host installs the compiled sheet's `@keyframes` into the pipeline, so an `animation:`
+// declaration actually starts a runtime animation (issue #271). Before the hookup the pipeline ran
+// the transition half only, because the animation half needs the keyframe table to resolve a name;
+// this case therefore fails if `AppHost` stops calling `set_style_keyframes`.
+void css_animation_starts_from_the_installed_keyframes() {
+    Fixture fixture;
+    constexpr std::string_view css =
+        ".probe { width: 100px; height: 50px; animation: fade 400ms linear infinite; }\n"
+        "@keyframes fade { from { opacity: 1 } to { opacity: 0.25 } }";
+    tessera::app::AppHost host(fixture.root, compile_stylesheet(css), fixture.loop, fixture.config);
+    // The bridge walks the laid-out tree, so the first frame only produces boxes; the second style
+    // stage is the one that starts the animation. A second class still matches `.probe`.
+    (void)host.begin_frame(0.0);
+    fixture.probe->set_class_name("probe armed");
+    (void)host.begin_frame(0.1);
+    check(host.animations().active() > 0, "a CSS animation starts from the installed @keyframes");
+    bool named = false;
+    for (const tessera::ui::animation::AnimationEntry& entry : host.animations().entries()) {
+        named = named || entry.keyframes.name == "fade";
+    }
+    check(named, "the running animation carries the sheet's keyframe name");
+}
+
 } // namespace
 
 int main() {
     registration_follows_table_order();
     corrupt_blob_is_reported_and_skipped();
     library_constructor_sheet_loses_to_app_sheet();
+    css_animation_starts_from_the_installed_keyframes();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;
