@@ -2,6 +2,8 @@
 
 #include "tessera/hal/cutout.hpp"
 
+#include "tessera/hal/caption.hpp"
+
 #include <cmath>
 #include <cstdio>
 
@@ -57,8 +59,7 @@ std::string format_window_metrics(const WindowMetrics& metrics) {
     append(out, "waterfall %g %g %g %g\n", cutouts.waterfall_insets.left,
            cutouts.waterfall_insets.top, cutouts.waterfall_insets.right,
            cutouts.waterfall_insets.bottom);
-    append(out, "ime %g %g %g %g\n", metrics.ime_insets.left, metrics.ime_insets.top,
-           metrics.ime_insets.right, metrics.ime_insets.bottom);
+    append(out, "ime %g %g %g %g\n", metrics.ime_insets.left, metrics.ime_insets.top,           metrics.ime_insets.right, metrics.ime_insets.bottom);
     append(out, "gestures %g %g %g %g\n", metrics.gesture_insets.left, metrics.gesture_insets.top,
            metrics.gesture_insets.right, metrics.gesture_insets.bottom);
     const FoldInfo& fold = metrics.fold;
@@ -67,6 +68,18 @@ std::string format_window_metrics(const WindowMetrics& metrics) {
            fold.separating ? 1.0 : 0.0);
     append(out, "hinge %g %g %g %g\n", fold.hinge_bounds.x, fold.hinge_bounds.y,
            fold.hinge_bounds.width, fold.hinge_bounds.height);
+    // Window mode and the custom caption's regions (issue #232): the harness needs both without a
+    // display, and one line per region keeps the dump diffable.
+    out += "fullscreen ";
+    out += metrics.fullscreen ? "1\n" : "0\n";
+    out += "caption_regions " + std::to_string(metrics.caption_region_count) + "\n";
+    for (std::size_t i = 0; i < metrics.caption_region_count && i < kMaxCaptionRegions; ++i) {
+        const CaptionRegion& region = metrics.caption_regions[i];
+        out += "caption ";
+        out += caption_region_kind_name(region.kind);
+        append(out, " %g %g %g %g\n", region.bounds.x, region.bounds.y, region.bounds.width,
+               region.bounds.height);
+    }
     return out;
 }
 

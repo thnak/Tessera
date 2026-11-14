@@ -12,10 +12,15 @@
 #if defined(TESSERA_X11_RANDR)
 #include "x11_randr.hpp"
 #endif
+// Full-screen state (issue #232): EWMH _NET_WM_STATE, kept out of this translation unit because it
+// is already at the file-size limit. Included after the Xlib-pulling headers for the same reason the
+// input headers are.
+#include "window_fullscreen_x11.hpp"
 
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <climits>
 #include <clocale>
@@ -114,6 +119,11 @@ public:
     void hide() override;
     void request_redraw() override;
     void close() override;
+    void set_fullscreen(bool fullscreen) override;
+    [[nodiscard]] bool supports_fullscreen() const noexcept override {
+        return fullscreen_supported_;
+    }
+    void set_caption_regions(std::span<const CaptionRegion> regions) override;
 
 private:
     void handle_event(XEvent& event, bool auto_repeat = false, bool filtered = false);
@@ -143,6 +153,16 @@ private:
     // only through WindowMetrics; `backdrop_setup_` owns the ARGB colormap of a translucent window.
     detail::X11BackdropSetup backdrop_setup_;
     BackdropResolution backdrop_{};
+    // Full-screen bookkeeping (issue #232): EWMH atoms, the client rectangle to restore and the
+    // resolved mode. `fullscreen_supported_` is false on a display with no EWMH window manager, which
+    // turns the request into one TESSERA_WINDOW_UNSUPPORTED diagnostic instead of a dead button.
+    detail::X11FullscreenState fullscreen_{};
+    bool fullscreen_supported_ = false;
+    // The framework's custom-caption regions (window-chrome-v1.md section 8.1). X11 client-side
+    // decoration is deferred (section 13), so this list is stored and reported for the engine and the
+    // deterministic metrics, but no X protocol hit test consumes it: the platform's chrome stays.
+    std::array<CaptionRegion, kMaxCaptionRegions> caption_regions_{};
+    std::uint8_t caption_region_count_ = 0;
     bool initializing_ = true;
     bool mapped_ = false;
     bool focused_ = false;
@@ -202,6 +222,10 @@ bool X11Window::create(const WindowDesc& desc) {
     if (wm_protocols_ != None && wm_delete_window_ != None) {
         XSetWMProtocols(display_, window_, &wm_delete_window_, 1);
     }
+    // Full-screen needs EWMH state atoms and a window manager that advertises the state; a bare
+    // Xvfb has neither, and reporting "unsupported" there is the honest answer (issue #232).
+    (void)detail::x11_fullscreen_init(display_, fullscreen_);
+    fullscreen_supported_ = detail::x11_fullscreen_supported(display_, root_, fullscreen_);
     XStoreName(display_, window_, desc.title.c_str());
     // XI2 is initialized before the input method opens: an active XI2 pump is what lets the window
     // ask for client-side pre-edit, and a missing XInput2 leaves the core path unchanged.
@@ -269,6 +293,11 @@ WindowMetrics X11Window::metrics() const {
     metrics.backdrop = backdrop_.material;
     metrics.transparent = backdrop_.transparent;
     metrics.backdrop_fallback = backdrop_.fallback;
+    // The state the window manager resolved, read back from _NET_WM_STATE: a WM shortcut, a taskbar
+    // toggle or another client is observed here instead of assumed from the last request.
+    metrics.fullscreen = detail::x11_fullscreen_active(display_, window_, fullscreen_);
+    metrics.caption_region_count = caption_region_count_;
+    metrics.caption_regions = caption_regions_;
     // X11 has no portable occlusion/minimize signal without a window manager (WM_STATE and
     // _NET_WM_STATE are WM-specific); this backend reports both as false.
     return metrics;
@@ -610,6 +639,30 @@ void X11Window::close() {
         request_close();
     }
     XFlush(display_);
+}
+
+void X11Window::set_fullscreen(bool fullscreen) {
+    if (display_ == nullptr || window_ == 0 ||
+        std::this_thread::get_id() != owner_thread_ || !fullscreen_supported_) {
+        return;
+    }
+    if (fullscreen) {
+        // Remember the client rectangle before the window manager changes it; a bare Xvfb has
+        // nobody to restore it, so this backend puts the window back itself.
+        detail::x11_fullscreen_remember(display_, window_, fullscreen_);
+    }
+    detail::x11_fullscreen_request(display_, window_, fullscreen_, fullscreen);
+    if (!fullscreen) {
+        detail::x11_fullscreen_restore(display_, window_, fullscreen_);
+    }
+    // The state change is asynchronous and also arrives as ConfigureNotify; the metrics report the
+    // resolved state, so no synthetic Resize is invented here beyond the one the server sends.
+}
+
+void X11Window::set_caption_regions(std::span<const CaptionRegion> regions) {
+    caption_regions_ = make_caption_regions(regions, caption_region_count_);
+    // Stored and reported for the engine and the metrics dump; X11 client-side decoration is
+    // deferred (window-chrome-v1.md section 13), so the platform's own chrome and hit test stay.
 }
 
 } // namespace

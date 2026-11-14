@@ -154,6 +154,74 @@ int main() {
         return 8;
     }
 
+    // Full-screen round trip (#232): entering covers the monitor and reports the mode, leaving
+    // restores the client size the window had. A real window manager/compositor is not needed: the
+    // backend itself applies and reverts its own placement.
+    {
+        if (!expect(window->supports_fullscreen(), "the Win32 backend supports full-screen")) {
+            return 13;
+        }
+        const WindowMetrics before = window->metrics();
+        window->set_fullscreen(true);
+        pump_messages();
+        (void)window->poll_events(events);
+        const WindowMetrics full = window->metrics();
+        if (!expect(full.fullscreen, "entering reports the full-screen mode") ||
+            !expect(full.physical_width >= before.physical_width,
+                    "the full-screen client area is at least the windowed one") ||
+            !expect(full.logical_width >= before.logical_width,
+                    "the full-screen logical width is at least the windowed one")) {
+            return 14;
+        }
+        window->set_fullscreen(false);
+        pump_messages();
+        (void)window->poll_events(events);
+        const WindowMetrics restored = window->metrics();
+        if (!expect(!restored.fullscreen, "leaving reports the windowed mode again") ||
+            !expect(restored.physical_width == before.physical_width,
+                    "leaving restores the pre-full-screen client width") ||
+            !expect(restored.physical_height == before.physical_height,
+                    "leaving restores the pre-full-screen client height")) {
+            return 15;
+        }
+        // A repeated request is harmless and leaves the mode as it was.
+        window->set_fullscreen(true);
+        window->set_fullscreen(true);
+        pump_messages();
+        (void)window->poll_events(events);
+        if (!expect(window->metrics().fullscreen, "a repeated enter stays full-screen")) {
+            return 16;
+        }
+        window->set_fullscreen(false);
+        pump_messages();
+        (void)window->poll_events(events);
+    }
+
+    // Caption regions (#232, window-chrome-v1.md section 8.1): publishing them is reported through
+    // the metrics, and an empty list returns the window to the system-frame answer.
+    {
+        const std::array<tessera::hal::CaptionRegion, 2> regions{
+            tessera::hal::CaptionRegion{tessera::hal::WindowRect{0, 0, 32, 32},
+                                        tessera::hal::CaptionRegionKind::SystemMenu},
+            tessera::hal::CaptionRegion{tessera::hal::WindowRect{260, 0, 46, 32},
+                                        tessera::hal::CaptionRegionKind::Close},
+        };
+        window->set_caption_regions(regions);
+        pump_messages();
+        const WindowMetrics custom = window->metrics();
+        if (!expect(custom.caption_region_count == 2, "the caption regions are published") ||
+            !expect(custom.caption_regions[1].kind == tessera::hal::CaptionRegionKind::Close,
+                    "the published kinds are kept")) {
+            return 17;
+        }
+        window->set_caption_regions({});
+        pump_messages();
+        if (!expect(window->metrics().caption_region_count == 0,
+                    "an empty list returns the window to the system frame")) {
+            return 18;
+        }
+    }
+
     window->hide();
     window->show();
     pump_messages();

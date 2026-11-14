@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/hal/caption.hpp"
+#include "tessera/hal/geometry.hpp"
 #include "tessera/hal/refresh_rate.hpp"
 #include "tessera/hal/window_backdrop.hpp"
 
@@ -17,22 +19,6 @@ class InputQueue;
 }
 
 namespace tessera::hal {
-
-// Logical-pixel insets owned by the platform (safe area, system bars, notch, IME).
-struct WindowInsets {
-    float left = 0;
-    float top = 0;
-    float right = 0;
-    float bottom = 0;
-};
-
-// Axis-aligned rectangle in logical pixels, window coordinates.
-struct WindowRect {
-    float x = 0;
-    float y = 0;
-    float width = 0;
-    float height = 0;
-};
 
 // Display cutouts (notch, punch-hole, camera island): insets say how much to avoid, the rectangles
 // say where (docs/specs/os-events-v1.md section 2). `count == 0` is the answer of every platform
@@ -92,6 +78,17 @@ struct WindowMetrics {
     // True when the requested backdrop or translucency could not be honored: the platform resolved
     // to the opaque fallback, and the driver reports TESSERA_GLASS_WINDOW_UNSUPPORTED once.
     bool backdrop_fallback = false;
+    // True while the window is full-screen (window-chrome-v1.md section 13, issue #232). It is the
+    // state the window manager resolved, not the last request: a platform that refuses the request
+    // (no window manager, a refusing compositor) keeps reporting false. The bounds the window had
+    // before entering are owned by the platform and restored on exit; the app reads this flag only.
+    bool fullscreen = false;
+    // Interactive client regions of the custom title bar, in logical pixels. Empty by default, which
+    // is the system-chrome answer: every point is client area. The HAL resolves WM_NCHITTEST against
+    // this list before app routing, so a scene node never sees a non-client hit-test result
+    // (window-chrome-v1.md section 8.1, "Hit-test contract").
+    std::array<CaptionRegion, kMaxCaptionRegions> caption_regions{};
+    std::uint8_t caption_region_count = 0;
 };
 
 enum class WindowEventType {
@@ -223,6 +220,40 @@ public:
 
     virtual void show() = 0;
     virtual void hide() = 0;
+
+    // Enters or leaves full-screen. The platform owns the mechanism and the bounds to restore: the
+    // window's position and size before the call are remembered and reapplied on exit, so the app
+    // never captures or restores a rectangle itself. The OS window shortcuts (F11, the window menu,
+    // a compositor gesture) are not intercepted: they reach the platform and come back as a change
+    // of `WindowMetrics::fullscreen`, and Escape is left to the app (media-components-v1.md
+    // section 8). Must be called on the thread that created the window.
+    //
+    // It never blocks, throws, or fails: a platform that cannot honor the request (no backend, a
+    // window manager that refuses the state change) leaves the window as it was, `metrics().fullscreen`
+    // keeps telling the truth, and the caller reports one TESSERA_WINDOW_UNSUPPORTED diagnostic.
+    // The default is a no-op, for platforms without full-screen support.
+    virtual void set_fullscreen(bool fullscreen) {
+        (void)fullscreen;
+    }
+
+    // False when full-screen cannot be requested at all on this platform, so a caller can report the
+    // unsupported path once instead of calling set_fullscreen() and re-reading the metrics. True does
+    // not promise that a request succeeds: a window manager may still refuse it, which the metrics
+    // report. The default is false.
+    [[nodiscard]] virtual bool supports_fullscreen() const noexcept {
+        return false;
+    }
+
+    // Publishes the interactive regions of the framework's custom title bar (window-chrome-v1.md
+    // section 8.1); an empty span returns the window to the system-chrome answer where every point is
+    // client area. The regions are in logical pixels and are copied: the platform keeps them for its
+    // non-client hit test, and the caller may pass a stack buffer. They also appear in
+    // WindowMetrics::caption_regions, so a fake window and a real one report the same list. This is a
+    // framework-only seam (WindowChrome); app code never calls it. The default stores nothing, for
+    // platforms with no custom caption.
+    virtual void set_caption_regions(std::span<const CaptionRegion> regions) {
+        (void)regions;
+    }
 
     // Asks the runtime for a frame; coalesced, so repeated calls before a frame are harmless.
     virtual void request_redraw() = 0;

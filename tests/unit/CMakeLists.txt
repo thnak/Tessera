@@ -432,6 +432,15 @@ target_include_directories(window_metrics_tests PRIVATE
 
 add_test(NAME window_metrics COMMAND window_metrics_tests)
 
+# Full-screen state machine and caption hit regions (#232), the platform-neutral half. Pure CPU and
+# display-free: the Win32/X11 backends are covered by window_win32/window_x11 and lavapipe smoke.
+add_executable(window_fullscreen_tests
+    window_fullscreen_tests.cpp)
+
+target_link_libraries(window_fullscreen_tests PRIVATE tessera_hal_window)
+
+add_test(NAME window_fullscreen COMMAND window_fullscreen_tests)
+
 if (WIN32)
     add_executable(window_win32_tests
         window_win32_tests.cpp)

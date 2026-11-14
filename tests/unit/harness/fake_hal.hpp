@@ -58,6 +58,14 @@ public:
     void hide() override;
     void request_redraw() override;
     void close() override;
+    // Full-screen (issue #232): the fake resolves the request synchronously and reports it through the
+    // metrics, exactly like a platform whose window manager honored it. A scripted refusal
+    // (`set_fullscreen_supported(false)`) models the "no window manager" path a real backend reports.
+    void set_fullscreen(bool fullscreen) override;
+    [[nodiscard]] bool supports_fullscreen() const noexcept override {
+        return fullscreen_supported_;
+    }
+    void set_caption_regions(std::span<const hal::CaptionRegion> regions) override;
     [[nodiscard]] hal::NativeWindowHandle native_handle() const override {
         return {};
     }
@@ -79,6 +87,9 @@ public:
     void set_ime_insets(const hal::WindowInsets& ime, const hal::WindowInsets& gestures = {});
     // Injects the fold and queues one FoldChanged (coalescing).
     void set_fold(const hal::FoldInfo& fold);
+    // Scripted platform capability: false models a display with no window manager, where a
+    // full-screen request is refused and the window stays as it was (issue #232).
+    void set_fullscreen_supported(bool supported) noexcept;
 
     [[nodiscard]] bool has_queued(hal::WindowEventType type) const noexcept;
     [[nodiscard]] std::size_t queued_events() const noexcept;
@@ -97,6 +108,7 @@ private:
     std::size_t redraw_requests_ = 0;
     bool visible_ = true;
     bool closed_ = false;
+    bool fullscreen_supported_ = true;
 };
 
 } // namespace tessera::harness::testing

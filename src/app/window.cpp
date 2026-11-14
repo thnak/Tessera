@@ -407,6 +407,41 @@ void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
     loop->mark_render_dirty();
 }
 
+// Full-screen (docs/specs/window-chrome-v1.md section 13, issue #232). The platform owns the
+// mechanism, the pre-full-screen bounds and the window manager's answer; the driver's part is the one
+// diagnostic a platform without the feature owes its caller. Nothing is cached here: a request that a
+// window manager refuses simply leaves fullscreen() false, and the next frame's metrics tell the
+// caller so.
+void WindowHost::Impl::set_fullscreen(bool fullscreen) {
+    if (!available || window == nullptr) {
+        return;
+    }
+    if (!window->supports_fullscreen()) {
+        if (!fullscreen_unsupported_reported) {
+            fullscreen_unsupported_reported = true;
+            std::fprintf(stderr,
+                         "TESSERA_WINDOW_UNSUPPORTED: full-screen is unavailable on this platform "
+                         "(no window manager with EWMH state support); the window keeps its windowed "
+                         "mode\n");
+        }
+        return;
+    }
+    window->set_fullscreen(fullscreen);
+    // The mode change resizes the client area (the platform also reports a Resize), so request the
+    // frame that lays out and paints at the new size. Asking for the repaint here is what makes a
+    // programmatic toggle present promptly instead of waiting for the next dirty source.
+    loop->mark_render_dirty();
+    host->request_full_repaint();
+}
+
+bool WindowHost::Impl::fullscreen() const {
+    return available && window != nullptr && window->metrics().fullscreen;
+}
+
+bool WindowHost::Impl::fullscreen_supported() const {
+    return available && window != nullptr && window->supports_fullscreen();
+}
+
 WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
     stats = {};
     if (!available) {
@@ -605,6 +640,21 @@ bool WindowHost::post_input(const ui::InputEvent& event) {
 
 void WindowHost::apply_metrics(const hal::WindowMetrics& metrics) {
     impl_->apply_metrics(metrics);
+}
+
+// Full-screen (docs/specs/window-chrome-v1.md section 13, issue #232). The platform owns the
+// mechanism, the bounds to restore and the resolved state; the driver's part is the one diagnostic a
+// platform without the feature owes the caller, and requesting the frame that shows the new size.
+void WindowHost::set_fullscreen(bool fullscreen) {
+    impl_->set_fullscreen(fullscreen);
+}
+
+bool WindowHost::fullscreen() const {
+    return impl_->fullscreen();
+}
+
+bool WindowHost::fullscreen_supported() const {
+    return impl_->fullscreen_supported();
 }
 
 void WindowHost::set_caret_active(bool active) {

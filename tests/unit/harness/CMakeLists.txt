@@ -284,3 +284,12 @@ target_include_directories(safe_area_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/hal/window)
 
 add_test(NAME safe_area COMMAND safe_area_tests)
+
+# Full-screen and caption regions on the fake window (#232): the request/refusal paths, the metrics
+# the engine reads, and the region list a framework title bar publishes. Pure CPU: no OS window.
+add_executable(window_fullscreen_fake_tests
+    window_fullscreen_fake_tests.cpp)
+
+target_link_libraries(window_fullscreen_fake_tests PRIVATE tessera_harness_testing)
+
+add_test(NAME window_fullscreen_fake COMMAND window_fullscreen_fake_tests)
