@@ -180,6 +180,16 @@ void Node::set_user_select(UserSelect value) {
     user_select_ = value;
 }
 
+void Node::set_cursor(style::CursorKind value) {
+    // No dirty domain: a cursor change paints nothing and moves no box. The app reads the hovered
+    // node's value after input, so marking the frame dirty here would only cause phantom paints. A
+    // no-op when unchanged keeps a steady scene clean.
+    if (cursor_ == value) {
+        return;
+    }
+    cursor_ = value;
+}
+
 bool Node::text_selection_allowed() const {
     // A text field stays selectable even inside a `user-select: none` subtree, as in CSS: `none`
     // suppresses the document's selection gesture, it does not disable an editable control.

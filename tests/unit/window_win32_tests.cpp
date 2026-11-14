@@ -222,6 +222,41 @@ int main() {
         }
     }
 
+    // Pointer shape (#191, window-chrome-v1.md section 8.5): a real window reports the shape it
+    // resolved, and returning to the default arrow is reported again. This drives the HAL path
+    // (set_cursor -> SetCursor plus WM_SETCURSOR) without inspecting the OS cursor handle, which is
+    // per-thread state a test cannot read back reliably.
+    {
+        if (!expect(window->supports_cursor(), "the Win32 backend supports pointer shapes")) {
+            return 19;
+        }
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Default,
+                    "a fresh window reports the default arrow")) {
+            return 20;
+        }
+        window->set_cursor(tessera::hal::CursorShape::Pointer);
+        pump_messages();
+        (void)window->poll_events(events);
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Pointer,
+                    "a pointer request is reported as the resolved shape")) {
+            return 21;
+        }
+        window->set_cursor(tessera::hal::CursorShape::Text);
+        pump_messages();
+        (void)window->poll_events(events);
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Text,
+                    "a later shape overrides the pointer")) {
+            return 22;
+        }
+        window->set_cursor(tessera::hal::CursorShape::Default);
+        pump_messages();
+        (void)window->poll_events(events);
+        if (!expect(window->metrics().cursor == tessera::hal::CursorShape::Default,
+                    "returning to the default arrow is reported")) {
+            return 23;
+        }
+    }
+
     window->hide();
     window->show();
     pump_messages();

@@ -166,6 +166,19 @@ struct WindowHost::Impl {
     // cannot spam the log. Cleared by nothing: the capability does not change for a window's life.
     bool fullscreen_unsupported_reported = false;
 
+    // --- pointer shape (window-chrome-v1.md section 8.5, issue #191) -------------------------
+    // Maps the deepest hovered scene node's resolved CSS cursor onto the HAL's `CursorShape` and
+    // requests it from the platform window, only when it differs from `last_cursor`. It runs right
+    // after input is pumped (both driver paths call pump_input), so hover and cursor can never
+    // disagree, and a static hover makes no platform call at all. Never blocks, never throws.
+    void sync_cursor();
+    // The shape last requested from the window; `Default` at creation, which is the platform arrow.
+    // Comparing against it is what keeps the per-frame path free of platform calls.
+    hal::CursorShape last_cursor = hal::CursorShape::Default;
+    // Reports the unsupported platform once, on the first request whose shape actually changed, the
+    // same one-shot policy as `fullscreen_unsupported_reported`.
+    bool cursor_unsupported_reported = false;
+
     ui::Node& root;
     WindowOptions options;
     ui::UpdateScheduler* scheduler = nullptr;

@@ -293,3 +293,21 @@ add_executable(window_fullscreen_fake_tests
 target_link_libraries(window_fullscreen_fake_tests PRIVATE tessera_harness_testing)
 
 add_test(NAME window_fullscreen_fake COMMAND window_fullscreen_fake_tests)
+
+# Pointer shapes on the fake window (issue #191, window-chrome-v1.md section 8.5): the set_cursor /
+# supports_cursor round trip, the refused path, the app's change-only request and its one-shot
+# diagnostic, and the metrics dump line. Pure CPU: no OS window.
+add_executable(window_cursor_fake_tests
+    window_cursor_fake_tests.cpp
+    # The app's cursor mapping and diagnostic are one small TU with no window or GPU dependency; it
+    # is compiled in here instead of linking the whole Vulkan-backed `tessera_app_window`.
+    ${PROJECT_SOURCE_DIR}/src/app/window_cursor.cpp)
+
+target_include_directories(window_cursor_fake_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app)
+
+target_link_libraries(window_cursor_fake_tests PRIVATE
+    tessera_harness_testing
+    tessera_style)
+
+add_test(NAME window_cursor_fake COMMAND window_cursor_fake_tests)

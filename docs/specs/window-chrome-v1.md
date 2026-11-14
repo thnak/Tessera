@@ -302,6 +302,51 @@ the shell model itself is [platform-shell-v1.md](platform-shell-v1.md) section 6
   `window_fullscreen_fake` (fake-window round trip, refusal path, metrics dump) and `window_win32`
   (real Win32 enter/exit restores the client size).
 
+### 8.5 Cursor shape (Windows and Linux)
+
+The CSS `cursor` property reaches the native pointer on Windows and X11 (owner decision 2026-11-14,
+issue #191). This subsection is the normative home of the V1 cursor grammar and the HAL contract;
+`stylesheet-v1.md` section 7.3 lists `cursor` with the other inherited properties.
+
+- **Value grammar.** One keyword from the CSS cursor set: `auto`, `default`, `none`,
+  `context-menu`, `help`, `pointer`, `progress`, `wait`, `cell`, `crosshair`, `text`,
+  `vertical-text`, `alias`, `copy`, `move`, `no-drop`, `not-allowed`, `grab`, `grabbing`,
+  `all-scroll`, `zoom-in`, `zoom-out`, `n-resize`, `e-resize`, `s-resize`, `w-resize`,
+  `ne-resize`, `nw-resize`, `se-resize`, `sw-resize`, `ns-resize`, `ew-resize`, `nesw-resize`,
+  `nwse-resize`, `col-resize`, `row-resize`. Matching is case-insensitive and trimmed.
+  `auto` is the initial value and resolves to the platform default arrow (never "whatever the OS
+  thinks", so a result is deterministic); `default` is the same arrow. `none` hides the pointer.
+  An unknown keyword falls back to `auto`. A `url(...)` cursor list (and the comma list around it)
+  is **not** implemented in V1: it produces one `StyleDiagnosticKind::UnsupportedValue` per
+  declaration, the declaration stays in the AST, and the computed value is the initial `auto`.
+  CSS-wide keywords and `var()` are the cascade's business, not a value-form diagnostic.
+- **Layers.** `ui/style` parses the keyword into `style::CursorKind` (`cursor_value.hpp`; one
+  grammar for the declaration validator, `@supports` and the sync), the scene stores the resolved
+  kind on the node (`Node::cursor`, inherited, so the computed value already carries the ancestor
+  resolution), the app maps it onto `hal::CursorShape`, and the platform maps that onto the native
+  cursor. `ui/` never includes a `hal::` header (ADR-020).
+- **HAL contract.** `hal::Window::set_cursor(hal::CursorShape)` requests a shape and
+  `supports_cursor()` says whether the platform can do it at all; `WindowMetrics::cursor` reports
+  the shape the platform **resolved**, like `fullscreen` reports the resolved mode. `CursorShape`
+  is the app-visible intent and the platform decides its OS call. The call never blocks, throws or
+  fails: X11 applies it with `XDefineCursor` (an Xlib-buffered request, not a round trip) while
+  Win32 records it and installs it from the next `WM_SETCURSOR` (the OS re-asserts the cursor after
+  every non-client transition, so the class cursor would otherwise snap back).
+- **Change-only requests.** The app reads the deepest hovered node's shape after input each frame
+  and calls `set_cursor` only when it differs from the last requested shape. A static hover makes
+  no platform call, so the path costs no per-frame syscall. Nothing re-applies the cursor on pointer
+  entry: the platform keeps the installed shape, and the app re-requests on every change.
+- **Hiding.** The pointer is never hidden unless `cursor: none` is in effect: `Hidden` is a
+  distinct `CursorShape` that a platform maps to a null cursor, and a platform that cannot hide the
+  pointer keeps `Default`.
+- **Diagnostics.** One `TESSERA_WINDOW_CURSOR_UNSUPPORTED` warning per window on the first request
+  whose shape actually changed on a platform where `supports_cursor()` is false (sections 9 and
+  10); the pointer keeps its shape and startup does not fail or retry.
+- **Tests.** `window_cursor` (the grammar, case/whitespace, the `auto` fallback, the `url()`
+  diagnostic, `@supports`), `window_cursor_fake` (fake-window round trip, refusal path, the
+  change-only request and the one-shot diagnostic, the metrics dump) and `window_win32` /
+  `window_x11` (a real window reports the shape it resolved).
+
 ## 9. Failure and degradation
 
 | Situation | Behaviour |
@@ -315,6 +360,7 @@ the shell model itself is [platform-shell-v1.md](platform-shell-v1.md) section 6
 | No app font at P2 in `custom` mode | Title text is blank until P4; the bar, mark and window controls are still drawn |
 | Insets not published at P2 | Zero; no wait and no retry |
 | Full-screen requested where the platform cannot do it (no backend, no EWMH window manager) | `TESSERA_WINDOW_UNSUPPORTED` (warning, once per window); the window keeps its windowed mode |
+| Cursor shape requested where the platform cannot do it (`supports_cursor()` is false) | `TESSERA_WINDOW_CURSOR_UNSUPPORTED` (warning, once per window); the pointer keeps its shape and the app keeps running |
 | Headless/null HAL | Chrome application is a no-op with `chrome.result=skipped`; output stays deterministic |
 | Window creation fails | Startup fails before P2 as today (startup G7); chrome is not the cause and adds no retry |
 
@@ -325,6 +371,7 @@ the shell model itself is [platform-shell-v1.md](platform-shell-v1.md) section 6
 | `TESSERA_CHROME_THEME_VALUE` | error (build) | A reserved chrome token is not a plain opaque colour |
 | `TESSERA_CHROME_UNSUPPORTED` | warning (runtime) | The platform or OS version ignored a chrome attribute |
 | `TESSERA_WINDOW_UNSUPPORTED` | warning (runtime) | The platform cannot do full-screen; the first request per window reports it and the window stays windowed |
+| `TESSERA_WINDOW_CURSOR_UNSUPPORTED` | warning (runtime) | The platform has no pointer-shape source; the first changed request per window reports it and the pointer keeps its shape |
 | `chrome.apply` | span | One span per application/re-application with platform, scheme, kind and result |
 
 - Metric: `chromeApplyMs` (the P1 application only; re-applications are counted, not timed
@@ -367,6 +414,15 @@ the shell model itself is [platform-shell-v1.md](platform-shell-v1.md) section 6
   `format_window_metrics` dump (`fullscreen 0|1`, `caption_regions N`, one `caption <kind>` line per
   region); `window_win32` asserts a real Win32 enter/exit restores the client size and that caption
   regions publish and clear.
+- Cursor shape (Windows/Linux): `window_cursor` covers the display-free grammar (every supported
+  keyword parses to its kind, case/whitespace insensitivity, an unknown keyword falls back to
+  `auto`, a `url()` cursor list and the comma list around it report exactly one `UnsupportedValue`
+  and keep the declaration, `@supports` agrees with the validator) and `interaction_style`
+  covers the node propagation (`cursor: pointer` reaches `Node::cursor()`, it is inherited, a later
+  value overrides, `changed_cursor` counts, a steady second sync reports no change);
+  `window_cursor_fake` drives the fake-window round trip, the refusal path, the app's change-only
+  request and its one-shot diagnostic, and the `format_window_metrics` `cursor <shape>` line;
+  `window_win32`/`window_x11` assert a real window reports the shape it resolved.
 
 ### 11.1 Manual checklist: translucent window and OS backdrop
 

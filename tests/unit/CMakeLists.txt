@@ -441,6 +441,16 @@ target_link_libraries(window_fullscreen_tests PRIVATE tessera_hal_window)
 
 add_test(NAME window_fullscreen COMMAND window_fullscreen_tests)
 
+# The CSS cursor grammar and its diagnostics (issue #191, window-chrome-v1.md section 8.5). Pure CPU
+# and display-free: the real native cursor is covered by window_win32/window_x11 and the fake round
+# trip by window_cursor_fake.
+add_executable(window_cursor_tests
+    window_cursor_tests.cpp)
+
+target_link_libraries(window_cursor_tests PRIVATE tessera_style)
+
+add_test(NAME window_cursor COMMAND window_cursor_tests)
+
 if (WIN32)
     add_executable(window_win32_tests
         window_win32_tests.cpp)

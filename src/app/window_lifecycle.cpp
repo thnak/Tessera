@@ -10,6 +10,7 @@
 // a paused iteration parks on the same bounded platform wait as an idle one.
 
 #include "tessera/app/idle_policy.hpp"
+#include "window_cursor.hpp"
 #include "window_impl.hpp"
 
 #include <array>
@@ -104,6 +105,24 @@ void WindowHost::Impl::pump_input() {
     if (subtree_dirty(root)) {
         loop->mark_render_dirty();
     }
+    // Pointer shape right after dispatch (issue #191): hover was just updated, so the cursor
+    // request and the `:hover` style can never disagree. A static hover makes no platform call
+    // (apply_cursor compares against `last_cursor`), so this costs a pointer compare per iteration.
+    sync_cursor();
+}
+
+// The app half of the CSS cursor seam (docs/specs/window-chrome-v1.md section 8.5, issue #191): the
+// deepest hovered node's resolved cursor kind is mapped onto the HAL's shape and requested from the
+// platform. `cursor` is inherited, so the node value already carries the ancestor resolution.
+//
+// A platform without a pointer-shape source is reported once (the same one-shot policy as
+// full-screen) and the app keeps running: a missing cursor never fails a frame or a run.
+void WindowHost::Impl::sync_cursor() {
+    if (!available || window == nullptr) {
+        return;
+    }
+    const hal::CursorShape wanted = detail::hovered_cursor(pump.router().hovered());
+    (void)detail::apply_cursor(*window, wanted, last_cursor, cursor_unsupported_reported);
 }
 
 void WindowHost::Impl::apply_initial_auto_focus() {

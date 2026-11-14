@@ -46,6 +46,8 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
         window.cpp
         window_backdrop_request.cpp
         window_backdrop_request.hpp
+        window_cursor.cpp
+        window_cursor.hpp
         window_impl.hpp
         window_internal.hpp
         window_lifecycle.cpp

@@ -236,8 +236,15 @@ through the same path; the sample is a thin CLI over both (windowless `--capture
 press -> `:active`, release -> generated Click, focus + typed text -> generated onChange through the
 `InputPump`) and `click_demo_capture`; images in `docs/images/click-demo-{before,after}.png`. Next
 for this lane: caret blinking (paint keeps its default phase until a host-owned `CaretBlink` is
-wired; Focus/Blur would need a free binding slot or a focus notification seam), platform cursor
-shape once the HAL grows a cursor API. Generated controlled `TextInput`s publish
+wired; Focus/Blur would need a free binding slot or a focus notification seam). The platform cursor
+shape landed with issue #191: the CSS `cursor` keyword is resolved to `style::CursorKind` by
+`cursor_value.cpp` (one grammar for the validator, `@supports` and the sync), stored on the scene node
+(`Node::cursor`, inherited), mapped onto `hal::CursorShape` by `app/window_cursor.cpp` and requested
+from the platform only on a change; Win32 installs stock `IDC_*` cursors from `WM_SETCURSOR`
+(`src/platform/windows/window_cursor_win.*`), X11 caches `XCreateFontCursor` glyphs and installs them
+with `XDefineCursor` (`src/platform/linux/window_cursor_x11.*`), and `WindowMetrics::cursor` reports
+the resolved shape (window-chrome-v1.md section 8.5; tests `window_cursor`, `window_cursor_fake`,
+`window_win32`, `window_x11`). Generated controlled `TextInput`s publish
 caret/selection/preedit decoration from `TextInputRuntime::publish_decoration` (after each handled
 event and at the end of `apply_state`), shown by `click_demo --click --type Ada`
 (`docs/images/click-demo-typed.png`). The window input path is covered: `WindowHost::post_input` feeds normalized

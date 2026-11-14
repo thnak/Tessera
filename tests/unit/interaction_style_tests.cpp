@@ -29,6 +29,7 @@ using tessera::ui::Node;
 using tessera::ui::NodeId;
 using tessera::ui::UserSelect;
 using tessera::ui::style::ComputedStyle;
+using tessera::ui::style::CursorKind;
 using tessera::ui::style::evaluate_supports;
 using tessera::ui::style::parse_supports_condition;
 using tessera::ui::style::PropertyRegistry;
@@ -42,16 +43,18 @@ bool expect(bool condition, const char* message) {
     return condition;
 }
 
-// Stub computed styles: only the two interaction properties relevant to a node, nothing else.
+// Stub computed styles: only the interaction properties relevant to a node, nothing else.
 struct StubStyles {
     struct Values {
         const char* pointer_events = nullptr;
         const char* user_select = nullptr;
+        const char* cursor = nullptr;
     };
     std::map<const Node*, Values> nodes;
 
-    void set(const Node& node, const char* pointer_events, const char* user_select) {
-        nodes[&node] = Values{pointer_events, user_select};
+    void set(const Node& node, const char* pointer_events, const char* user_select,
+             const char* cursor = nullptr) {
+        nodes[&node] = Values{pointer_events, user_select, cursor};
     }
 };
 
@@ -67,6 +70,9 @@ ComputedStyle stub_compute(void* context, const Node& node) {
     }
     if (found->second.user_select != nullptr) {
         style.set("user-select", found->second.user_select);
+    }
+    if (found->second.cursor != nullptr) {
+        style.set("cursor", found->second.cursor);
     }
     return style;
 }
@@ -269,7 +275,9 @@ int test_supports() {
         !expect(!matches("(pointer-events: visiblePainted)", registry),
                 "@supports SVG-only pointer-events") ||
         !expect(matches("(user-select: text)", registry), "@supports user-select text") ||
-        !expect(!matches("(user-select: all)", registry), "@supports user-select all")) {
+        !expect(!matches("(user-select: all)", registry), "@supports user-select all") ||
+        !expect(matches("(cursor: pointer)", registry), "@supports cursor pointer") ||
+        !expect(!matches("(cursor: url(a.png))", registry), "@supports cursor url()")) {
         return 13;
     }
 
@@ -300,11 +308,96 @@ int test_unsupported_values() {
     return 0;
 }
 
+// `cursor` reaches the scene node (issue #191, window-chrome-v1.md section 8.5): the resolved kind
+// is copied onto the node, it is inherited, a later value overrides, the counter follows, and a
+// steady scene reports no change on a second sync.
+int test_cursor() {
+    Node root(30);
+    root.set_bounds({0, 0, 100, 100});
+    Probe& button = add_probe(root, 31, {0, 0, 100, 20});
+    Probe& label = add_probe(button, 32, {0, 0, 50, 20});
+
+    // A fresh scene carries the initial `auto`, which is the platform arrow.
+    if (!expect(root.cursor() == CursorKind::Auto, "a fresh node starts at auto") ||
+        !expect(label.cursor() == CursorKind::Auto, "a fresh child starts at auto")) {
+        return 20;
+    }
+
+    StubStyles styles;
+    styles.set(button, nullptr, nullptr, "pointer");
+    // The label's inherited value is resolved by the cascade upstream, so the stub carries it too -
+    // exactly what the real computed style hands over for an inherited property.
+    styles.set(label, nullptr, nullptr, "pointer");
+    const auto first = sync_interaction_style(root, &stub_compute, &styles);
+    if (!expect(first.changed_cursor == 2, "both cursor changes are counted") ||
+        !expect(button.cursor() == CursorKind::Pointer, "pointer reaches the node") ||
+        !expect(label.cursor() == CursorKind::Pointer, "the child inherits the parent's pointer")) {
+        return 21;
+    }
+
+    // A second sync of the same scene reports no change: the setters are no-ops when unchanged.
+    if (!expect(sync_interaction_style(root, &stub_compute, &styles).changed_cursor == 0,
+                "a steady scene reports no cursor change") ||
+        !expect(sync_interaction_style(root, &stub_compute, &styles).nodes == 3,
+                "the steady sync still walks the visible nodes")) {
+        return 22;
+    }
+
+    // A later value overrides the inherited one, and the counter sees exactly that node. `none` is
+    // CSS `cursor: none`, a shape of its own (the HAL's hidden pointer).
+    styles.set(button, nullptr, nullptr, "none");
+    styles.set(label, nullptr, nullptr, "text");
+    const auto override_result = sync_interaction_style(root, &stub_compute, &styles);
+    if (!expect(override_result.changed_cursor == 2, "both overrides are counted") ||
+        !expect(button.cursor() == CursorKind::None, "none overrides the inherited pointer") ||
+        !expect(label.cursor() == CursorKind::Text, "text overrides the inherited pointer")) {
+        return 23;
+    }
+
+    // An unsupported form falls back to `auto` instead of reaching a consumer as something it
+    // cannot map (the parser already reported it once).
+    styles.set(button, nullptr, nullptr, "url(a.png)");
+    sync_interaction_style(root, &stub_compute, &styles);
+    if (!expect(button.cursor() == CursorKind::Auto,
+                "an unsupported cursor value falls back to auto")) {
+        return 24;
+    }
+
+    // Inherited resolution through the real registry/cascade: a `pointer` parent with no explicit
+    // value on the child computes `pointer` there, and an explicit `auto` child is `auto`.
+    const auto sheet = tessera::ui::style::compile_stylesheet(".pointer { cursor: pointer; }"
+                                                              ".auto { cursor: auto; }");
+    StyleNode parent_view;
+    parent_view.tag = "div";
+    parent_view.classes = {"pointer"};
+    const ComputedStyle parent_style = sheet.compute(parent_view, nullptr);
+
+    StyleNode child_view;
+    child_view.tag = "div";
+    child_view.parent = &parent_view;
+    const ComputedStyle child_style = sheet.compute(child_view, &parent_style);
+
+    StyleNode reset_view;
+    reset_view.tag = "div";
+    reset_view.classes = {"auto"};
+    reset_view.parent = &parent_view;
+    const ComputedStyle reset_style = sheet.compute(reset_view, &parent_style);
+
+    if (!expect(value_is(parent_style, "cursor", "pointer"), "the parent resolves pointer") ||
+        !expect(value_is(child_style, "cursor", "pointer"),
+                "cursor inherits through the cascade") ||
+        !expect(value_is(reset_style, "cursor", "auto"),
+                "an explicit auto child re-enables the default arrow")) {
+        return 25;
+    }
+    return 0;
+}
+
 } // namespace
 
 int main() {
     for (int (*test)() : {&test_pointer_events, &test_descendant_re_enable, &test_user_select,
-                          &test_supports, &test_unsupported_values}) {
+                          &test_supports, &test_unsupported_values, &test_cursor}) {
         const int code = test();
         if (code != 0) {
             return code;

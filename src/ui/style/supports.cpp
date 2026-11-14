@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/style/backdrop_filter.hpp"
+#include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/selector.hpp"
@@ -141,6 +142,11 @@ bool value_supported(std::string_view property, std::string_view value) {
     // grammar.
     if (is_interaction_value_property(property)) {
         return is_supported_interaction_value(property, normalized);
+    }
+    // `cursor` (issue #191): the same keyword table the validator and the scene sync use, so
+    // `@supports (cursor: pointer)` is true and `@supports (cursor: url(x))` is false.
+    if (property == "cursor") {
+        return is_supported_cursor_value(normalized);
     }
     return true;
 }

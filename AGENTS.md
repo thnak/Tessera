@@ -590,7 +590,17 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       `include/tessera/app/window.hpp` (`WindowHost::set_fullscreen`/`fullscreen`/
       `fullscreen_supported`), `docs/specs/window-chrome-v1.md` §8.1/§8.4, tests `window_fullscreen`,
       `window_fullscreen_fake`, `window_win32`. Wayland stays gated on #155.
-- [ ] Platform cursor shape on Windows and Linux.
+- [x] #191: Platform cursor shape on Windows and Linux — the CSS `cursor` keyword set is a shared
+      grammar (`include/tessera/ui/style/cursor_value.hpp`, `src/ui/style/cursor_value.cpp`) used by
+      the declaration validator, `@supports` and the computed-style sync; `Node::cursor` carries the
+      resolved kind, `src/app/window_cursor.*` maps it onto `hal::CursorShape` and requests it only on
+      a change, and `include/tessera/hal/cursor.hpp` + `WindowMetrics::cursor` are the HAL surface.
+      The platform halves are `src/platform/windows/window_cursor_win.*` (stock `IDC_*` cursors,
+      `WM_SETCURSOR`) and `src/platform/linux/window_cursor_x11.*` (`XCreateFontCursor` cached per
+      window, `XDefineCursor`); `url()` lists are `UnsupportedValue` and fall back to `auto`, and an
+      unsupported platform reports one `TESSERA_WINDOW_CURSOR_UNSUPPORTED`. Contract in
+      `docs/specs/window-chrome-v1.md` §8.5; tests `window_cursor`, `window_cursor_fake`,
+      `window_win32`, `window_x11`, `interaction_style`.
 
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
 Acceptance: a real app ships and passes validation layers and golden tests in CI.

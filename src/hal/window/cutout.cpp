@@ -80,6 +80,11 @@ std::string format_window_metrics(const WindowMetrics& metrics) {
         append(out, " %g %g %g %g\n", region.bounds.x, region.bounds.y, region.bounds.width,
                region.bounds.height);
     }
+    // The pointer shape the platform resolved (issue #191): one line, so a harness script can
+    // assert the cursor without a display.
+    out += "cursor ";
+    out += cursor_shape_name(metrics.cursor);
+    out += "\n";
     return out;
 }
 
