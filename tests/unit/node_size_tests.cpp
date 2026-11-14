@@ -62,11 +62,91 @@ template<class Fn> Cost measure(Fn&& fn) {
 
 void handler(void*, const ui::Event&) {}
 
+// The ten booleans share one flags word (issue #285): each must read back what was written and
+// leave its neighbours alone, from the defaults and from the all-set state.
+bool flags_are_independent() {
+    struct Bit {
+        const char* name;
+        void (*set)(ui::Node&, bool);
+        bool (*get)(const ui::Node&);
+        bool initial;
+    };
+    const Bit bits[] = {
+        {"visible", [](ui::Node& n, bool on) { n.set_visible(on); },
+         [](const ui::Node& n) { return n.visible(); }, true},
+        {"focusable", [](ui::Node& n, bool on) { n.set_focusable(on); },
+         [](const ui::Node& n) { return n.focusable(); }, false},
+        {"auto_focus", [](ui::Node& n, bool on) { n.set_auto_focus(on); },
+         [](const ui::Node& n) { return n.auto_focus(); }, false},
+        {"focus_trap", [](ui::Node& n, bool on) { n.set_focus_trap(on); },
+         [](const ui::Node& n) { return n.focus_trap(); }, false},
+        {"typeahead", [](ui::Node& n, bool on) { n.set_typeahead(on); },
+         [](const ui::Node& n) { return n.typeahead(); }, false},
+        {"glass_subtree", [](ui::Node& n, bool on) { n.set_glass_subtree(on); },
+         [](const ui::Node& n) { return n.glass_subtree(); }, false},
+        {"item_key",
+         [](ui::Node& n, bool on) {
+             if (on) {
+                 n.set_item_key(7);
+             } else {
+                 n.clear_item_key();
+             }
+         },
+         [](const ui::Node& n) { return n.item_key().has_value(); }, false},
+        {"scroll_animation",
+         [](ui::Node& n, bool on) {
+             if (on) {
+                 n.set_scroll_animation_target(1.0f, 2.0f);
+             } else {
+                 n.clear_scroll_animation();
+             }
+         },
+         [](const ui::Node& n) { return n.scroll_animation_active(); }, false},
+        {"pointer_events", [](ui::Node& n, bool on) { n.set_pointer_events(on); },
+         [](const ui::Node& n) { return n.pointer_events(); }, true},
+        {"style_hidden", [](ui::Node& n, bool on) { n.set_style_hidden(on); },
+         [](const ui::Node& n) { return n.style_hidden(); }, false},
+    };
+    constexpr std::size_t kCount = sizeof(bits) / sizeof(bits[0]);
+
+    ui::Node node;
+    for (const Bit& bit : bits) {
+        if (!expect(bit.get(node) == bit.initial, bit.name)) {
+            return false;
+        }
+    }
+    if (!expect(node.rendered(), "a new node is rendered")) {
+        return false;
+    }
+    for (std::size_t i = 0; i < kCount; ++i) {
+        bits[i].set(node, !bits[i].initial);
+        for (std::size_t j = 0; j < kCount; ++j) {
+            const bool want = j == i ? !bits[j].initial : bits[j].initial;
+            if (!expect(bits[j].get(node) == want, bits[j].name)) {
+                return false;
+            }
+        }
+        bits[i].set(node, bits[i].initial);
+    }
+    for (const Bit& bit : bits) {
+        bit.set(node, !bit.initial);
+    }
+    for (const Bit& bit : bits) {
+        if (!expect(bit.get(node) == !bit.initial, bit.name)) {
+            return false;
+        }
+    }
+    return expect(!node.rendered(), "visible, but style-hidden, is not rendered");
+}
+
 } // namespace
 
 int main() {
     if (!expect(sizeof(ui::Node) <= ui::kNodeSizeBudget, "sizeof(Node) is within the budget")) {
         return 1;
+    }
+    if (!flags_are_independent()) {
+        return 5;
     }
 
     std::unique_ptr<ui::Node> plain;

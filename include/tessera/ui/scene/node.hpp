@@ -142,12 +142,12 @@ public:
     }
     void set_glass_subtree(bool has_glass);
     [[nodiscard]] bool glass_subtree() const {
-        return glass_subtree_;
+        return flag(kGlassSubtree);
     }
 
     void set_visible(bool visible);
     [[nodiscard]] bool visible() const {
-        return visible_;
+        return flag(kVisible);
     }
 
     // CSS `visibility: hidden|collapse` (stylesheet-v1 section 11, issue #213), copied from
@@ -160,12 +160,12 @@ public:
     // which is the one part of the CSS behaviour that matters for a flex layout.
     void set_style_hidden(bool hidden);
     [[nodiscard]] bool style_hidden() const {
-        return style_hidden_;
+        return flag(kStyleHidden);
     }
     // True when this node takes part in painting, hit testing and the accessibility tree: both the
     // programmatic gate and the stylesheet value must allow it.
     [[nodiscard]] bool rendered() const {
-        return visible_ && !style_hidden_;
+        return flag(kVisible) && !flag(kStyleHidden);
     }
 
     // CSS `pointer-events: auto|none` (stylesheet-v1 section 11, issue #247), copied from computed
@@ -175,7 +175,7 @@ public:
     // hit again. Painting, keyboard focus and the accessibility tree are unaffected.
     void set_pointer_events(bool enabled);
     [[nodiscard]] bool pointer_events() const {
-        return pointer_events_;
+        return flag(kPointerEvents);
     }
 
     void set_user_select(UserSelect value);
@@ -189,7 +189,7 @@ public:
 
     void set_focusable(bool focusable);
     [[nodiscard]] bool focusable() const {
-        return focusable_;
+        return flag(kFocusable);
     }
 
     // Sequential focus order key. The ordering contract lives on FocusManager::focus_next.
@@ -201,10 +201,10 @@ public:
     // JSX `autoFocus` (issue #226): the node asks to hold focus when its tree is first shown. It is
     // only a request; `FocusManager::apply_auto_focus` honours the first eligible node.
     void set_auto_focus(bool auto_focus) {
-        auto_focus_ = auto_focus;
+        set_flag(kAutoFocus, auto_focus);
     }
     [[nodiscard]] bool auto_focus() const {
-        return auto_focus_;
+        return flag(kAutoFocus);
     }
 
     // JSX `focusTrap` and `focusGroup` (issue #236). A visible node with `focus_trap` confines Tab
@@ -214,18 +214,18 @@ public:
     // (`FocusManager::move_in_focus_group`); the manager remembers which item holds the stop.
     enum class FocusGroup : std::uint8_t { None, Horizontal, Vertical, Both };
     void set_focus_trap(bool trap) {
-        focus_trap_ = trap;
+        set_flag(kFocusTrap, trap);
     }
     [[nodiscard]] bool focus_trap() const {
-        return focus_trap_;
+        return flag(kFocusTrap);
     }
     // JSX `typeahead` on a focus group: typing characters moves focus to the next item whose
     // `aria-label` starts with them (`FocusManager::typeahead`).
     void set_typeahead(bool typeahead) {
-        typeahead_ = typeahead;
+        set_flag(kTypeahead, typeahead);
     }
     [[nodiscard]] bool typeahead() const {
-        return typeahead_;
+        return flag(kTypeahead);
     }
     void set_focus_group(FocusGroup group) {
         focus_group_ = group;
@@ -320,7 +320,7 @@ public:
     void set_scroll_animation_target(float x, float y);
     void clear_scroll_animation();
     [[nodiscard]] bool scroll_animation_active() const {
-        return scroll_animation_active_;
+        return flag(kScrollAnimationActive);
     }
     [[nodiscard]] float scroll_animation_target_x() const {
         return scroll_animation_target_x_;
@@ -432,14 +432,14 @@ public:
     // template `automation_id` and carries the data-lifetime key here. Absent for plain nodes.
     void set_item_key(std::uint64_t item_key) noexcept {
         item_key_ = item_key;
-        has_item_key_ = true;
+        set_flag(kHasItemKey, true);
     }
     void clear_item_key() noexcept {
         item_key_ = 0;
-        has_item_key_ = false;
+        set_flag(kHasItemKey, false);
     }
     [[nodiscard]] std::optional<std::uint64_t> item_key() const noexcept {
-        return has_item_key_ ? std::optional<std::uint64_t>(item_key_) : std::nullopt;
+        return flag(kHasItemKey) ? std::optional<std::uint64_t>(item_key_) : std::nullopt;
     }
     void set_role(std::string_view role);
     void clear_role();
@@ -515,22 +515,39 @@ private:
     void refresh_subtree_dirty();
     void clamp_scrollport_insets();
 
+    // The node's boolean state, one bit each. Ten separate bools cost more in padding than the
+    // budget can spare (and MSVC's debug vector adds a pointer on top), so they share one word.
+    // Defaults: visible, `pointer-events: auto`, everything else off.
+    enum Flag : std::uint16_t {
+        kVisible = 1u << 0,
+        kFocusable = 1u << 1,
+        kAutoFocus = 1u << 2,
+        kFocusTrap = 1u << 3,
+        kTypeahead = 1u << 4,
+        kGlassSubtree = 1u << 5,
+        kHasItemKey = 1u << 6,
+        kScrollAnimationActive = 1u << 7,
+        kPointerEvents = 1u << 8, // CSS `pointer-events: auto`
+        kStyleHidden = 1u << 9,   // resolved `visibility: hidden|collapse`
+    };
+    [[nodiscard]] bool flag(Flag bit) const noexcept {
+        return (flags_ & bit) != 0;
+    }
+    void set_flag(Flag bit, bool on) noexcept {
+        flags_ = static_cast<std::uint16_t>(on ? (flags_ | bit) : (flags_ & ~bit));
+    }
+
     NodeId id_ = 0;
     Node* parent_ = nullptr;
     std::vector<std::unique_ptr<Node>> children_;
     rhi::Rect bounds_;
     rhi::Mat3 transform_;
-    bool visible_ = true;
-    bool focusable_ = false;
-    bool auto_focus_ = false;
-    bool focus_trap_ = false;
-    bool typeahead_ = false;
+    std::uint16_t flags_ = kVisible | kPointerEvents;
     FocusGroup focus_group_ = FocusGroup::None;
     int tab_index_ = 0;
     int z_index_ = 0;
     PaintOutsets paint_outsets_;
     float glass_blur_sigma_ = 0.0f;
-    bool glass_subtree_ = false;
     // Rarely used payloads live behind lazily allocated pointers so a plain View pays one pointer
     // each instead of the full inline tables (docs/design/performance.md, memory budgets). A table
     // is allocated by the first set/bind and kept until the node dies; clearing only resets the
@@ -563,7 +580,6 @@ private:
     std::string_view role_;
     std::uint64_t automation_id_ = 0;
     std::uint64_t item_key_ = 0;
-    bool has_item_key_ = false;
     std::unique_ptr<AriaTable> aria_;
     std::unique_ptr<InlineStyleTable> inline_style_;
     std::unique_ptr<BindingTable> event_bindings_;
@@ -595,11 +611,8 @@ private:
     float scrollport_bottom_ = 0.0f;
     float scroll_animation_target_x_ = 0.0f;
     float scroll_animation_target_y_ = 0.0f;
-    bool scroll_animation_active_ = false;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
-    bool pointer_events_ = true;                // CSS `pointer-events: auto`
     UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
-    bool style_hidden_ = false;                 // resolved `visibility: hidden|collapse`
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;
 };
@@ -607,10 +620,10 @@ private:
 // Memory budget of one scene node (docs/design/performance.md, memory budgets): a 10k-node screen
 // costs 10k times this plus Yoga and style storage. Raise it only with a recorded decision.
 // 320 -> 336 (2026-11-14, issue #235): the component-parts record (`part` names and the component
-// name of an instance host) adds one pointer; a 10k-node screen pays 160 KB more. Recorded in
-// performance.md. Known follow-up: packing the node's single-byte booleans into one flags byte
-// recovers this, so the budget should drop back to 320 when that refactor lands.
-inline constexpr std::size_t kNodeSizeBudget = 336;
+// name of an instance host) added one pointer. 336 -> 320 (issue #285): the node's ten booleans now
+// share one flags word, which took 24 bytes out (Release 312, MSVC Debug 320: its checked
+// vector adds a pointer, so the Debug build is exactly at the budget). Recorded in performance.md.
+inline constexpr std::size_t kNodeSizeBudget = 320;
 static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
 
 bool dispatch_event(Node& root, Event& event);
