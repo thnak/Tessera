@@ -140,9 +140,12 @@ A component with a conditional child or a keyed list also gets generated child-s
 source position, so a child-set change marks the shared parent `Layout|Paint|Render` (never `Style`)
 and an unchanged condition marks nothing. A keyed list has no item cap: its table
 grows to the source, reuses nodes by key, and allocates nothing when the key list is unchanged. A list-typed state cell is authored like any other
-state: `useState<string[]>(["a", "b"])` (literal elements) or a list reference; dynamic elements,
-record element types and list-typed props are not available yet (see
-[`compiler.md` §11](../design/compiler.md#11-c-codegen-first-slice-implemented)).
+state: `useState<string[]>(["a", "b"])` (literal elements) or a list reference, and a list-typed
+prop is declared `list<T>` and mapped inside the callee. A component instance is allowed as a
+conditional child and inside a list template (one instance per item; its state follows the item key
+across a reorder); dynamic elements and record element types are not available yet (see
+[`compiler.md` §11](../design/compiler.md#11-c-codegen-first-slice-implemented) and
+[`compiler-node-state.md`](../design/compiler-node-state.md)).
 
 ### 4.1 Generated-UI headless demo
 

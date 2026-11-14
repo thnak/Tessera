@@ -121,10 +121,13 @@ node directly in a `Component`'s tree position, and record element types.
 
 ## 7. Tests
 
-- `codegen_composition_tests`: conditional instance emission and the `--write` goldens.
-- `codegen_dynamic_tests`: keyed list of instances and conditional-inside-item emission; the item
-  record fields, per-item props and the item-mode branch slots.
-- `codegen_composition_runtime_tests` / `codegen_dynamic_runtime_tests`: a keyed list of component
-  instances (state survives reorder, removed items unmount, ids follow the item slot), a conditional
-  instance (toggle keeps state and node ids), a conditional inside a list item (per-item presence),
-  and a list-typed prop passed through a component boundary.
+- `codegen_instances_tests` (IR fixture in `tests/unit/codegen_instances_fixture.hpp`): emission of
+  the item-record instance fields, the per-item props and presence slots, the lifecycle/scheduler
+  propagation, and the `--write` goldens under `tests/golden/codegen/instances/`.
+- `codegen_instances_runtime_tests`: the stored goldens compiled into
+  `tessera_codegen_instances_sample` — a keyed list of component instances (one instance per item,
+  state survives a reorder, a removed key unmounts its instance), a conditional instance (same host
+  node across toggles, state kept), a conditional inside a list item (per-item presence, numeric item
+  key), a list-typed prop mapped inside the callee, and the owner lifecycle.
+- `codegen_composition_tests` keeps the fixed-child composition goldens and now accepts a conditional
+  instance instead of rejecting it.
