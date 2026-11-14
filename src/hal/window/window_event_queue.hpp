@@ -21,7 +21,9 @@ public:
 
     void push(const WindowEvent& event) {
         if ((event.type == WindowEventType::Resize ||
-             event.type == WindowEventType::SafeAreaChanged) &&
+             event.type == WindowEventType::SafeAreaChanged ||
+             event.type == WindowEventType::ImeChanged ||
+             event.type == WindowEventType::FoldChanged) &&
             count_ > 0) {
             WindowEvent& newest = at(count_ - 1);
             if (newest.type == event.type) {

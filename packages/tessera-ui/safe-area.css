@@ -1,0 +1,10 @@
+/* SPDX-License-Identifier: MIT */
+/* SafeArea (issue #223): a column that fills its parent. Its padding or margin is written by the
+   host from the window insets, never by this sheet. The instance's host node is styled by the
+   component name, so the wrapper reaches the window edge through it. */
+SafeArea,
+.tsafe {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}

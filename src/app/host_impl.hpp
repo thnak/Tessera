@@ -7,6 +7,7 @@
 // includes it.
 
 #include "adaptive_quality.hpp"
+#include "safe_area_state.hpp"
 #include "tessera/app/host.hpp"
 #include "tessera/rendering/damage.hpp"
 #include "tessera/ui/layout/layout_scheduler.hpp"
@@ -35,6 +36,7 @@ struct AppHost::Impl {
     void register_embedded_theme(std::span<const std::uint8_t> bytes);
 
     ui::Node& root;
+    SafeAreaState safe_area;
     // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
     // one.
     ui::style::CompiledStyleSheet base_sheet;

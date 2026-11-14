@@ -46,6 +46,21 @@ struct CutoutInfo {
     WindowInsets waterfall_insets;
 };
 
+// Fold and hinge of a foldable display (docs/specs/os-events-v1.md section 2). The default is "no
+// fold": every platform without a foldable reports it.
+enum class FoldState : std::uint8_t { None, Flat, HalfOpened };
+enum class FoldOrientation : std::uint8_t { None, Horizontal, Vertical };
+enum class FoldOcclusion : std::uint8_t { None, Full };
+
+struct FoldInfo {
+    FoldState state = FoldState::None;
+    FoldOrientation orientation = FoldOrientation::None;
+    FoldOcclusion occlusion = FoldOcclusion::None;
+    bool separating = false;
+    // Hinge rectangle, logical pixels, window coordinates; zero when there is no fold.
+    WindowRect hinge_bounds;
+};
+
 // Immutable-per-frame window/display snapshot. Styles, layout, and input see this type and never
 // an OS handle, OS message, or swapchain.
 struct WindowMetrics {
@@ -57,6 +72,12 @@ struct WindowMetrics {
     WindowInsets insets;
     // Display cutouts; changes together with `insets` on `SafeAreaChanged`.
     CutoutInfo cutouts;
+    // The on-screen keyboard (IME) and the system-gesture zones, as insets from each window edge;
+    // zero when absent. `insets` stays the system bars. Changes on `ImeChanged`/`SafeAreaChanged`.
+    WindowInsets ime_insets;
+    WindowInsets gesture_insets;
+    // The hinge, if any; changes on `FoldChanged`.
+    FoldInfo fold;
     bool focused = true;
     bool occluded = false;
     bool minimized = false;
@@ -89,6 +110,12 @@ enum class WindowEventType {
     // The insets or the display cutouts changed (rotation, fold, bar visibility). The event's
     // metrics carry the new values; consecutive ones coalesce into the newest.
     SafeAreaChanged,
+    // The on-screen keyboard moved or its inset changed; the metrics carry `ime_insets`.
+    // Consecutive ones coalesce into the newest.
+    ImeChanged,
+    // The fold state or hinge rectangle changed; the metrics carry `fold`. Consecutive ones
+    // coalesce into the newest.
+    FoldChanged,
 };
 
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.

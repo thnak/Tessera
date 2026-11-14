@@ -108,6 +108,8 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.adaptive_quality = window_adaptive_quality_policy(options.runtime, options.refresh_hz);
     motion = MotionPreference(config.reduced_motion);
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
+    // The first insets apply at once, so a SafeArea never animates in from zero on startup.
+    host->set_window_metrics(metrics);
     if (scheduler != nullptr) {
         host->set_update_scheduler(scheduler);
     }
@@ -401,6 +403,7 @@ void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
         host->resize(static_cast<float>(metrics.logical_width),
                      static_cast<float>(metrics.logical_height), metrics.dpi_scale);
     }
+    host->set_window_metrics(metrics);
     loop->mark_render_dirty();
 }
 

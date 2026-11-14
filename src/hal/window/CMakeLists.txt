@@ -16,7 +16,9 @@ target_sources(tessera_hal_window PRIVATE
     # so the platform files only detect capabilities and apply the returned material.
     ${CMAKE_CURRENT_SOURCE_DIR}/backdrop.cpp
     # Cutout list building (cap, bad-rect drop) and the deterministic metrics dump; platform-neutral.
-    ${CMAKE_CURRENT_SOURCE_DIR}/cutout.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/cutout.cpp
+    # SafeArea inset arithmetic (safe-area-v1.md); pure and platform-neutral.
+    ${CMAKE_CURRENT_SOURCE_DIR}/safe_area.cpp)
 
 # Private shared implementation header (normalized event ring).
 target_include_directories(tessera_hal_window PRIVATE

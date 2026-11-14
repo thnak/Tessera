@@ -65,3 +65,22 @@
 .g-root.g-rtl {
   direction: rtl;
 }
+
+/* SafeArea page (issue #223): the window is tinted so the unsafe area shows; the library SafeArea
+   pads the panel away from it. */
+.g-sa-window {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  background-color: var(--danger);
+}
+
+.g-sa-panel {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  padding: var(--space-4);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+}

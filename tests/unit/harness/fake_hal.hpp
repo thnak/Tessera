@@ -75,6 +75,10 @@ public:
     // `kMaxCutouts`) and queues one SafeAreaChanged carrying the new metrics.
     void set_safe_area(const hal::WindowInsets& insets, std::span<const hal::WindowRect> cutouts,
                        const hal::WindowInsets& waterfall = {});
+    // Injects the keyboard and gesture insets and queues one ImeChanged (coalescing).
+    void set_ime_insets(const hal::WindowInsets& ime, const hal::WindowInsets& gestures = {});
+    // Injects the fold and queues one FoldChanged (coalescing).
+    void set_fold(const hal::FoldInfo& fold);
 
     [[nodiscard]] bool has_queued(hal::WindowEventType type) const noexcept;
     [[nodiscard]] std::size_t queued_events() const noexcept;

@@ -7,6 +7,8 @@ add_library(tessera_app STATIC
     host.cpp
     host_impl.hpp
     host_theme.cpp
+    safe_area_state.cpp
+    safe_area_state.hpp
     system_motion.cpp
     window_config.cpp
     window_config.hpp)

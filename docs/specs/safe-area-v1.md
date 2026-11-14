@@ -1,7 +1,8 @@
 # SafeArea v1
 
-Status: proposed (component library stage 1, [`component-library.md`](../design/component-library.md)
-section 3.2; ships in V1 as part of stage 1, issue #223). Builds on the insets and fold data of
+Status: implemented in part (component library stage 1,
+[`component-library.md`](../design/component-library.md) section 3.2; issue #223; see section 11 for what
+ships and what is deferred). Builds on the insets and fold data of
 [`os-events-v1.md`](os-events-v1.md), the shell rules of [`window-chrome-v1.md`](window-chrome-v1.md)
 and [`overlays-and-layers-v1.md`](overlays-and-layers-v1.md).
 
@@ -107,3 +108,39 @@ Decided by the owner on 2026-11-13:
    `SafeArea` does not read them.
 3. **Rounded screen corners:** a rectangle only in V1; a corner radius is exposed when a
    component needs it.
+
+## 11. Implementation (issue #223)
+
+How the spec above is realized, and what is not built yet.
+
+- **Data.** `WindowMetrics` gained `ime_insets`, `gesture_insets` and `fold` (`FoldInfo`), and the
+  event types `ImeChanged` and `FoldChanged` (consecutive ones coalesce, like `SafeAreaChanged`).
+  `insets` stays the system bars. The cutout inset is derived from the cutout rectangles: a rectangle
+  that abuts a window edge (within 1 px) is an inset on that edge, plus the waterfall insets.
+- **Arithmetic.** `hal::resolve_safe_area` (`tessera/hal/safe_area.hpp`) takes, per side, the
+  largest inset of the enabled sources (they overlap: the IME inset already includes the bars under
+  it), raises it to `minimum`, and zeroes sides `edges` does not select. `start`/`end` swap under
+  right-to-left. A full-occlusion hinge makes a single pane keep the larger side of the hinge; on a
+  tie it keeps the first (left or top).
+- **No layout environment.** Instead of publishing `safeAreaInsets` for descendants, the host writes
+  the result as the SafeArea node's `padding-*` (or `margin-*`) before layout, so a nested component
+  needs no second `SafeArea` and no hidden context. The host reads the node's class tokens
+  (`tsafe`, `safe-edges-top+bottom`, `safe-sources-ime`, `safe-min-8`, `safe-mode-margin`) because
+  the JSX subset has no custom-property `style` keys and `Node` has no room for a member. The
+  tokens are the component's private contract; apps use the props.
+- **Props as strings.** `edges` and `sources` are `+`-joined strings (`"top+bottom"`) and `minimum`
+  is whole pixels, until the subset has a set or length prop type. The instance host node is styled
+  by the component name (`SafeArea` in `safe-area.css`) so the wrapper fills its parent.
+- **Animation.** `AppHost::set_window_metrics` applies the first metrics at once. Later changes
+  ease the system bars, the keyboard and the gesture zones per edge (60 ms time constant, in the
+  host, so it is deterministic under the manual clock); reduced motion jumps. Cutout and hinge
+  rectangles are geometry and apply at once. Unchanged insets cause no layout; a settled animation
+  stops requesting frames.
+- **Not built yet.** `AppBar`, `BottomNavigation`, `Drawer`, `Sheet` and `Toast` defaults (those
+  components do not exist), `TwoPane`, scrolling a focused text field into view, the platform's own
+  insets animation curve (Android `WindowInsetsAnimation`, the iOS keyboard curve; needs the
+  platform backends) and an Android/iOS fill of the new fields.
+
+Evidence: ctest `safe_area`, `app_safe_area`, `library_safe_area_lowering`,
+`library_safe_area_runtime` (notched phone, gesture phone, tablet keyboard, book-mode foldable) and
+`gallery_golden_safe_area_*` (four devices in the light and dark themes).

@@ -63,6 +63,8 @@ overrides on the window root in `gallery.css` (`.g-root.g-compact`, `.g-root.g-s
 inherited `direction` property, and the library rules read tokens only, so no control-specific rule
 exists for any switch. `gallery --capture out.png` is windowless and skips when there is no Vulkan
 device; `gallery_capture_*` in ctest runs each switch. The web build of the gallery is #290.
+`--page safe-area --device notch|gesture|keyboard|fold` shows the SafeArea page on a scripted device
+(its size and window metrics are host state too); its 8 goldens are `safe_area_<device>_<light|dark>`.
 Interim catalog of the primitives and their evidence: `primitives`, `focus_scope`, `guarded_handler`.
 
 Subset gaps found: a component cannot forward a callback prop to an inner event, so `Press` cannot

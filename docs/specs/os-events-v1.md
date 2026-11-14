@@ -97,6 +97,11 @@ struct CutoutInfo {
 };
 ```
 
+`WindowMetrics` also carries `ime_insets`, `gesture_insets` and `fold` (`FoldInfo`, in
+`tessera/hal/window.hpp`); they change on `ImeChanged`/`SafeAreaChanged` and `FoldChanged`, which
+coalesce into the newest like `SafeAreaChanged`. No platform fills them yet (desktop reports none);
+`safe_area_tests` and the fake window (`set_ime_insets`, `set_fold`) are the evidence.
+
 `WindowMetrics::cutouts` carries a `CutoutInfo` next to the insets, and it changes together with them
 on `SafeAreaChanged` (`WindowEventType::SafeAreaChanged`; consecutive ones coalesce into the newest,
 metrics included). `make_cutout_info` (`tessera/hal/cutout.hpp`) is the one way platforms and fakes

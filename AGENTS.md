@@ -539,8 +539,9 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `tests/fixtures/icons/`, byte-exact golden `tests/golden/icons/{basic,monochrome}` with
       determinism + tree-shaking (`icons_import`), `THIRD_PARTY_NOTICES.md` icon-set policy,
       `docs/design/component-library.md` §3.1 status.
-- [ ] #239: Library stage 0 exit: a styled Button end to end and the gallery skeleton (blocked).
-- [ ] #240, #223: Library stage 1 tracking, including `SafeArea` (blocked by #239). Stages 2 to 6
+- [x] #239: Library stage 0 exit: a styled Button end to end and the gallery skeleton (native lane; the web lane is #290). Evidence: `packages/tessera-ui/Button.tsx`, `samples/gallery`, `tests/golden/gallery`, ctest `library_button_runtime` and `gallery_golden_*`.
+- [ ] #240: Library stage 1 tracking (ready; #223 `SafeArea` is its first item).
+- [x] #223: `SafeArea` (safe-area-v1): inset arithmetic, host-resolved padding or margin with per-edge easing, the library component and gallery page. AppBar/Sheet/Toast defaults, `TwoPane` and the focused-field scroll are follow-ups. Evidence: `packages/tessera-ui/SafeArea.tsx`, `include/tessera/hal/safe_area.hpp`, `src/app/safe_area_state.cpp`, ctest `safe_area`, `app_safe_area`, `library_safe_area_*`, `gallery_golden_safe_area_*`. Stages 2 to 6
       (including `LiveCapsule`, #224) follow V1.
 
 
@@ -841,7 +842,7 @@ and V1-M8 come later.
 **V1 gaps added 2026-11-13 (ready now):** #226, #227, #229, #230, #231 and #235 (front end, style and
 paint gaps that make V1 look unfinished), #228 (multi-window refactor, before AF6), #232, #233,
 #222, and the library stage 0 items #234, #237 and #238. #226, #229 and #231 touch the IR and the
-front end, so land them one at a time. #236, #239, #240 and #223 are blocked until stage 0 closes.
+front end, so land them one at a time. Stage 0 is closed (#239), so #236, #240 and #223 are unblocked.
 #218 and #219 run one family or step at a time (they share `src/compiler/codegen/CMakeLists.txt`).
 
 The detailed history of what landed and why is in
