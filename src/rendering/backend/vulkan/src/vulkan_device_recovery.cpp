@@ -127,11 +127,11 @@ std::expected<void, rhi::DeviceRecoveryError> VulkanDevice::recover() {
 
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
     swapchain_extension_enabled_ = false;
-#endif
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    // The resolved family survives the device generation: it was resolved from DeviceDesc/Env, not
+    // from the lost device, so recovery probes the same family's queues again.
     win32_present_supported_ = false;
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
     xlib_present_supported_ = false;
+    wayland_present_supported_ = false;
 #endif
 
     try {

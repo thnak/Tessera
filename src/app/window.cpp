@@ -72,7 +72,11 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     const double reported_refresh_hz =
         options.refresh_hz == 0.0 ? window->display_refresh_hz() : hal::kUnknownRefreshHz;
     options.refresh_hz = hal::resolve_display_refresh_hz(options.refresh_hz, reported_refresh_hz);
-    device = detail::create_device(options.validation);
+    // The window tells the device which window system it will present through (issue #155): a
+    // Linux build can carry both X11 and Wayland, and only the window's own family can turn its
+    // native handle into a VkSurfaceKHR.
+    device = detail::create_device(options.validation,
+                                   detail::surface_platform_for(window->window_system()));
     if (device == nullptr) {
         window.reset();
         return;

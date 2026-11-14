@@ -312,8 +312,27 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `tests/unit/harness/scroll_into_view_tests.cpp`.
 - [x] **B2:** Compile the POSIX `poll` path of `LineTransport::wait_readable` — real POSIX stdio
       test — `src/harness/stdio_transport.cpp`, `tests/unit/harness/stdio_transport_posix_tests.cpp`.
-- [ ] #155: **B3:** Wayland window + Vulkan surface (Win32/X11 incl. swapchain retirement and device-loss
-      recovery done) — smoke test.
+- [x] #155: **B3:** Wayland window + Vulkan surface (Win32/X11 incl. swapchain retirement and device-loss
+      recovery done) — smoke test. A Linux backend selector (`src/platform/linux/window_linux.cpp`,
+      pinned by `TESSERA_WINDOW_BACKEND`) picks X11 or Wayland per session, so a box with only one
+      dev package still builds; either backend is compiled only when found. Wayland lives in
+      `src/platform/linux/window_wayland{,_dispatch,_shell}.{cpp,hpp}` and
+      `window_wayland_internal.hpp` (xdg-shell handshake with ping/pong, never draw before
+      `ack_configure`, `wl_display` pump at the tick boundary); the code comes from
+      `cmake/TesseraWayland.cmake`, which runs `wayland-scanner client-header`/`private-code` at
+      configure time as a build artifact (never committed). The Vulkan half is
+      `src/rendering/backend/vulkan/src/vulkan_present_platform.cpp` (`PresentPlatform` selection)
+      plus the `VK_KHR_wayland_surface` path in `vulkan_swapchain.cpp`, and the RHI carries it as
+      `rhi::SurfacePlatform` (`include/tessera/rendering/rhi/{types,swapchain,version}.hpp`, RHI 1.4).
+      Evidence: `window_wayland` and `vulkan_swapchain_wayland` (`tests/unit/window_wayland_tests.cpp`,
+      `tests/gpu/vulkan/vulkan_swapchain_wayland_tests.cpp`) pass against a real weston 14 headless
+      compositor (`window_wayland: ok (320x200 on wayland-tessera)`,
+      `vulkan_swapchain_wayland: ok (320x200, presents=1, alpha=premultiplied)`); the X11 suite is
+      unchanged on the same build (`window_x11`, `window_x11_input`, `window_x11_real_input`,
+      `window_metrics`, `rhi_null`), and X11-only and no-display configures both build. Windows and
+      Linux both build warnings-as-errors. Not exercised: a real (non-headless) compositor, fractional
+      scaling, and a Wayland session under XWayland (the X11 tests now pin the backend so they cannot
+      silently pick Wayland).
 - [x] **B3:** Linux input: XInput2 scroll/touch/pen, IME pre-edit (#55) — synthetic pump
       tests — `src/platform/linux/x11_xi2_translation.cpp` (valuator scroll, touch, pen),
       `src/platform/linux/x11_ime_composition.cpp` (pre-edit state machine),

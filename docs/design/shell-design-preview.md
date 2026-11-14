@@ -63,26 +63,6 @@ The `design_mock` CTest entry runs the same tool into the build tree (and skips 
 device is available). The tool writes `startup-p0.png`, `startup-p2.png`, `startup-p4.png`,
 `chrome-system.png` and `chrome-custom.png`.
 
-### Reviewing the real app: `gallery --inspect`
-
-The images above are a *mock* of the shell. The shipping app is the library gallery
-(`samples/gallery`, `Gallery.tsx` → codegen → native), and it has 23 committed lavapipe goldens
-under `tests/golden/gallery/`. Those goldens are deliberately gated to lavapipe
-(`harness::capture_capability`), because only one rasterizer can back a byte-comparable baseline —
-so on a machine with a hardware GPU every `gallery_golden_*` test **skips**, and a developer never
-sees what the app looks like while changing it.
-
-```sh
-gallery --inspect render-out/gallery
-```
-
-renders the same 23 cases through the ungated capture path on whatever Vulkan device is installed,
-writes one PNG per case and an `index.html` contact sheet. The cases mirror the CTest matrix in
-`samples/gallery/CMakeLists.txt`, so a reviewed image maps to a named golden. These are inspection
-images, not the goldens: they are not byte-comparable with `tests/golden/gallery/`, and CI remains
-the authority. Keep the two lists in sync when a case is added (`samples/gallery/inspect.cpp` and
-the `_gallery_cases` block).
-
 ## 4. What the mock proves, and what it does not
 
 - Proves: the shell compositions are expressible with the current scene/style/layout/paint

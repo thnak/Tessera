@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "tessera/hal/window.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/rhi/types.hpp"
@@ -28,6 +29,23 @@
 namespace tessera::app::detail {
 
 namespace rhi = tessera::rendering::rhi;
+
+// Maps a HAL window family onto the RHI presentation family a device must be created for (issue
+// #155). A Linux build can present through both Xlib and Wayland; the HAL window knows which one
+// this session uses, so the device never has to guess from the environment.
+inline rhi::SurfacePlatform surface_platform_for(hal::WindowSystem window_system) {
+    switch (window_system) {
+    case hal::WindowSystem::Win32:
+        return rhi::SurfacePlatform::Win32;
+    case hal::WindowSystem::Xlib:
+        return rhi::SurfacePlatform::Xlib;
+    case hal::WindowSystem::Wayland:
+        return rhi::SurfacePlatform::Wayland;
+    case hal::WindowSystem::NoWindow:
+        break;
+    }
+    return rhi::SurfacePlatform::Auto;
+}
 
 // One loaded font face plus the rasterizer/shaper/TextRenderer trio. Member order matters: the
 // renderer borrows the rasterizer, so the face is constructed first and never moved afterwards.
@@ -67,11 +85,15 @@ private:
 // Vulkan device, or null when the machine has no usable device (tests/tools then skip).
 // `validation` turns the Khronos validation layer (plus synchronization validation) on for this
 // device; a GPU test reads the backend's validation_message_count() to assert a run was clean.
-inline std::unique_ptr<rhi::Device> create_device(bool validation = false) {
+// `surface` is the presentation family the device will be asked to build surfaces for; `Auto` keeps
+// the environment-based resolution for callers that have no window.
+inline std::unique_ptr<rhi::Device>
+create_device(bool validation = false, rhi::SurfacePlatform surface = rhi::SurfacePlatform::Auto) {
     rhi::DeviceDesc desc;
     desc.backend = rhi::Backend::Vulkan;
     desc.validation = validation;
     desc.device_index = -1;
+    desc.surface = surface;
     try {
         return tessera::rendering::vulkan::create_vulkan_device(desc);
     } catch (const std::exception&) {

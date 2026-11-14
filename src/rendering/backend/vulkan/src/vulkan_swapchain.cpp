@@ -18,10 +18,16 @@
 #include <limits>
 #include <vector>
 
+// Independent blocks, not #elif: a Linux build can carry both the Xlib and the Wayland WSI, and
+// both headers are needed then (see create_surface()).
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
 #include <windows.h>
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+#endif
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
 #include <X11/Xlib.h>
+#endif
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+#include <wayland-client.h>
 #endif
 
 namespace tessera::rendering::vulkan {
@@ -165,11 +171,12 @@ VkImageViewCreateInfo image_view_info(VkImage image, VkFormat format) {
 } // namespace
 
 VulkanSwapchain::VulkanSwapchain(VkInstance instance, VkPhysicalDevice physical_device,
-                                 VkDevice device, VkQueue queue)
+                                 VkDevice device, VkQueue queue, PresentPlatform platform)
     : instance_(instance),
       physical_device_(physical_device),
       device_(device),
-      queue_(queue) {}
+      queue_(queue),
+      platform_(platform) {}
 
 VulkanSwapchain::~VulkanSwapchain() {
     destroy();
@@ -181,9 +188,10 @@ bool VulkanSwapchain::usable() const {
 
 std::expected<std::unique_ptr<VulkanSwapchain>, rhi::SwapchainError>
 VulkanSwapchain::create(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device,
-                        VkQueue queue, const rhi::SwapchainDesc& desc, VulkanDevice* owner) {
+                        VkQueue queue, const rhi::SwapchainDesc& desc, VulkanDevice* owner,
+                        PresentPlatform platform) {
     auto swapchain = std::unique_ptr<VulkanSwapchain>(
-        new VulkanSwapchain(instance, physical_device, device, queue));
+        new VulkanSwapchain(instance, physical_device, device, queue, platform));
     swapchain->desc_ = desc;
     swapchain->owner_ = owner;
     swapchain->epoch_ = owner != nullptr ? owner->epoch() : 0;
@@ -199,24 +207,57 @@ VulkanSwapchain::create(VkInstance instance, VkPhysicalDevice physical_device, V
 
 std::expected<void, rhi::SwapchainError>
 VulkanSwapchain::create_surface(const rhi::SwapchainDesc& desc) {
+    // The family is fixed at device creation (issue #155). A build can carry Xlib and Wayland at
+    // once, so the dispatch is on the resolved family, not on the preprocessor: a chain of
+    // `#if/#elif` would make the first compiled-in arm unreachable for the other family.
+    VkResult result = VK_ERROR_INITIALIZATION_FAILED;
+    switch (platform_) {
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-    VkWin32SurfaceCreateInfoKHR create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-    create_info.hinstance = GetModuleHandleW(nullptr);
-    create_info.hwnd = static_cast<HWND>(desc.native_window);
-    const VkResult result = vkCreateWin32SurfaceKHR(instance_, &create_info, nullptr, &surface_);
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-    if (desc.native_display == nullptr || desc.native_window == nullptr ||
-        vkCreateXlibSurfaceKHR == nullptr) {
+    case PresentPlatform::Win32: {
+        VkWin32SurfaceCreateInfoKHR create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        create_info.hinstance = GetModuleHandleW(nullptr);
+        create_info.hwnd = static_cast<HWND>(desc.native_window);
+        result = vkCreateWin32SurfaceKHR(instance_, &create_info, nullptr, &surface_);
+        break;
+    }
+#endif
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+    case PresentPlatform::Xlib: {
+        if (desc.native_display == nullptr || desc.native_window == nullptr ||
+            vkCreateXlibSurfaceKHR == nullptr) {
+            return std::unexpected(rhi::SwapchainError::NotSupported);
+        }
+        VkXlibSurfaceCreateInfoKHR create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+        create_info.dpy = static_cast<Display*>(desc.native_display);
+        create_info.window =
+            static_cast<::Window>(reinterpret_cast<std::uintptr_t>(desc.native_window));
+        result = vkCreateXlibSurfaceKHR(instance_, &create_info, nullptr, &surface_);
+        break;
+    }
+#endif
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    case PresentPlatform::Wayland: {
+        if (desc.native_display == nullptr || desc.native_window == nullptr ||
+            vkCreateWaylandSurfaceKHR == nullptr) {
+            return std::unexpected(rhi::SwapchainError::NotSupported);
+        }
+        // For Wayland the two opaque HAL handles are the compositor connection and the surface the
+        // window owns: exactly what VkWaylandSurfaceCreateInfoKHR wants.
+        VkWaylandSurfaceCreateInfoKHR create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+        create_info.display = static_cast<wl_display*>(desc.native_display);
+        create_info.surface = static_cast<wl_surface*>(desc.native_window);
+        result = vkCreateWaylandSurfaceKHR(instance_, &create_info, nullptr, &surface_);
+        break;
+    }
+#endif
+    case PresentPlatform::NoPlatform:
+        return std::unexpected(rhi::SwapchainError::NotSupported);
+    default:
         return std::unexpected(rhi::SwapchainError::NotSupported);
     }
-    VkXlibSurfaceCreateInfoKHR create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
-    create_info.dpy = static_cast<Display*>(desc.native_display);
-    create_info.window =
-        static_cast<::Window>(reinterpret_cast<std::uintptr_t>(desc.native_window));
-    const VkResult result = vkCreateXlibSurfaceKHR(instance_, &create_info, nullptr, &surface_);
-#endif
     if (result != VK_SUCCESS) {
         surface_ = VK_NULL_HANDLE;
         return std::unexpected(rhi::SwapchainError::SurfaceLost);

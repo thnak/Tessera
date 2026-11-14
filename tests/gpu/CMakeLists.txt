@@ -549,6 +549,34 @@ if (TESSERA_X11_FOUND AND TARGET tessera_rhi_vulkan AND TARGET tessera_hal_windo
     set_tests_properties(vulkan_swapchain_x11 PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 endif()
 
+# Wayland presentation smoke (issue #155): creates the window, a Vulkan device bound to the Wayland
+# surface family, a swapchain on the wl_surface, presents one frame and tears down. Skips with a
+# diagnostic where there is no compositor (WAYLAND_DISPLAY unset/unreachable), no Vulkan device or
+# no VK_KHR_wayland_surface in the driver; verified headless under weston + lavapipe.
+if (TESSERA_WAYLAND_FOUND AND TARGET tessera_rhi_vulkan AND TARGET tessera_hal_window)
+    add_executable(vulkan_swapchain_wayland_tests
+        vulkan/vulkan_swapchain_wayland_tests.cpp)
+
+    target_compile_definitions(vulkan_swapchain_wayland_tests PRIVATE VK_USE_PLATFORM_WAYLAND_KHR)
+    target_include_directories(vulkan_swapchain_wayland_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/src
+        ${PROJECT_SOURCE_DIR}/third_party/volk
+        ${PROJECT_SOURCE_DIR}/third_party/vma
+        ${TESSERA_WAYLAND_CLIENT_INCLUDE_DIRS})
+    target_link_libraries(vulkan_swapchain_wayland_tests PRIVATE
+        tessera_gpu
+        tessera_rhi_vulkan
+        tessera_hal_window
+        ${TESSERA_WAYLAND_CLIENT_LIBRARIES})
+    target_link_directories(vulkan_swapchain_wayland_tests PRIVATE
+        ${TESSERA_WAYLAND_CLIENT_LIBRARY_DIRS})
+
+    add_test(NAME vulkan_swapchain_wayland COMMAND vulkan_swapchain_wayland_tests)
+    set_tests_properties(vulkan_swapchain_wayland PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+endif()
+
 # App-window driver: windowless capture parity and the hidden-window present smoke. The library is
 # host-only (Vulkan + platform window); the tests skip where those are unavailable.
 if (TARGET tessera_app_window)

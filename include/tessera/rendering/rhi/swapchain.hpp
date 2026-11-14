@@ -19,8 +19,10 @@ struct SwapchainDesc {
     bool vsync = true;
     // Opaque native presentation target supplied by the HAL/platform layer, never by UI code.
     // The handle is borrowed and must stay valid for the swapchain's lifetime. On Win32
-    // `native_window` is the HWND; `native_display` is unused. On X11 `native_window` is the
-    // Window id and `native_display` is the Display*.
+    // `native_window` is the HWND and `native_display` is unused. On X11 `native_window` is the
+    // Window id and `native_display` is the Display*. On Wayland `native_window` is the wl_surface*
+    // and `native_display` is the wl_display*; the family the device presents to comes from
+    // DeviceDesc::surface (see types.hpp), never from these pointers.
     void* native_window = nullptr;
     void* native_display = nullptr;
     // Asks for a per-pixel-alpha composite mode so a translucent window's client area reaches the

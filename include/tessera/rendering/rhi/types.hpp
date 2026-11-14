@@ -197,10 +197,30 @@ enum class StoreOp { Store, DontCare };
 
 enum class VertexFormat { Float, Float2, Float3, Float4, UByte4Norm };
 
+// The window-system family a presentation surface belongs to (RHI 1.4, issue #155). `Auto` lets the
+// backend resolve it at instance/device creation from the platform build and the process
+// environment (`WAYLAND_DISPLAY`, `DISPLAY`), which is what keeps every existing caller working
+// unchanged. A caller that knows which HAL window it will present to passes the matching value.
+// The "no presentation" enumerator is `NoPlatform`, not `None`: X11's X.h defines `None` as a macro
+// and this public header must stay includable from translation units that also include Xlib.
+enum class SurfacePlatform : std::uint8_t {
+    Auto = 0,
+    NoPlatform,
+    Win32,
+    Xlib,
+    Wayland,
+};
+
 struct DeviceDesc {
     Backend backend = Backend::Vulkan;
     bool validation = false;
     int device_index = -1;
+    // The presentation surface family this device will be asked to create swapchains for. The
+    // backend may enable more than one surface extension (a Linux box can build both Xlib and
+    // Wayland support, and enabling an unused instance extension is harmless), but only the
+    // resolved family is probed for queue presentation support and accepted by
+    // `create_swapchain`; see docs/design/gpu/rhi.md section 4.
+    SurfacePlatform surface = SurfacePlatform::Auto;
 };
 
 struct BufferDesc {

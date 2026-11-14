@@ -97,6 +97,23 @@ struct Options {
     std::vector<tessera::rendering::rhi::Rect> damage;
 };
 
+// The RHI presentation family a HAL window belongs to (issue #155). The windowed paths create a
+// real window and then a device, so the device is told the family instead of letting the backend
+// guess from the environment.
+tessera::rendering::rhi::SurfacePlatform surface_platform_for(const tessera::hal::Window& window) {
+    switch (window.window_system()) {
+    case tessera::hal::WindowSystem::Win32:
+        return tessera::rendering::rhi::SurfacePlatform::Win32;
+    case tessera::hal::WindowSystem::Xlib:
+        return tessera::rendering::rhi::SurfacePlatform::Xlib;
+    case tessera::hal::WindowSystem::Wayland:
+        return tessera::rendering::rhi::SurfacePlatform::Wayland;
+    case tessera::hal::WindowSystem::NoWindow:
+        break;
+    }
+    return tessera::rendering::rhi::SurfacePlatform::Auto;
+}
+
 void print_usage() {
     std::cout << "usage: batched2d_poc [--backend vulkan|null] [--out path] [--raw path]\n"
                  "                     [--width N] [--height N] [--validation] [--golden]\n"
@@ -619,14 +636,16 @@ int run_windowed(const Options& options) {
     // root's host element. On a platform without UIA the class is inert.
     poc::batched2d::WindowAccessibility accessibility(*window);
 
-    auto device =
-        vulkan::create_vulkan_device(rhi::DeviceDesc{rhi::Backend::Vulkan, options.validation, -1});
-
     const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
     rhi::TextureDesc white_desc;
     white_desc.extent = {1, 1};
     white_desc.pixels = white_pixel.data();
     white_desc.row_pitch = 4;
+    // The window tells the device which window system it will present through (issue #155): a
+    // Linux build may carry both X11 and Wayland, and only the window's own family can turn its
+    // native handle into a VkSurfaceKHR.
+    auto device = vulkan::create_vulkan_device(rhi::DeviceDesc{
+        rhi::Backend::Vulkan, options.validation, -1, surface_platform_for(*window)});
     auto white = device->create_texture(white_desc);
 
     auto checker_pixels = make_checker_pixels();
@@ -1312,8 +1331,9 @@ int run_windowed_hardened(const Options& options) {
     // Same real UIA root wiring as the default windowed path; inert without a UIA platform.
     poc::batched2d::WindowAccessibility accessibility(*window);
 
-    auto device =
-        vulkan::create_vulkan_device(rhi::DeviceDesc{rhi::Backend::Vulkan, options.validation, -1});
+    // The device is created for the window's own presentation family (issue #155).
+    auto device = vulkan::create_vulkan_device(rhi::DeviceDesc{
+        rhi::Backend::Vulkan, options.validation, -1, surface_platform_for(*window)});
 
     auto loaded = ui::text::FontFace::load_from_file(options.font);
     if (!loaded) {

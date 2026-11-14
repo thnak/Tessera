@@ -159,7 +159,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 |---|---|---|---|---|
 | Win32 API | V1 (Windows) | System | `platform/windows` | Window, input, lifecycle |
 | X11 (`libX11`) | V1 (Linux, B3 window/present; linked dynamically) | MIT/X11 | `platform/linux`, `rendering/backend/vulkan` | Window, Xlib `VkSurfaceKHR` |
-| Wayland (`libwayland-client`, `wayland-protocols`) | V1 (Linux) | MIT | `platform/linux` | Window, input |
+| Wayland (`libwayland-client`, `wayland-protocols`) | V1 (Linux, B3 window/present; linked dynamically, optional at build time) | MIT | `platform/linux`, `rendering/backend/vulkan` | Window (xdg-shell), `VK_KHR_wayland_surface` |
 | libxkbcommon | V1 (Linux) | MIT | `hal/input` | Keyboard mapping |
 | AndroidX WindowManager (`androidx.window:window`) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | `WindowMetrics`, fold posture/hinge via JNI (Java Native Interface) |
 | Cocoa / AppKit | Post-V1 (macOS, [ADR-053](../../decisions/ADR-053-native-metal-backend.md), native Metal) | System | `platform/macos` | Window, input |

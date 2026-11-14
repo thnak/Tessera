@@ -90,6 +90,11 @@ int main() {
         std::cout << "vulkan_swapchain_x11: skipped (cannot open DISPLAY)\n";
         return 0;
     }
+    // Pin the X11 backend. Any session where WAYLAND_DISPLAY is also set (a Wayland desktop running
+    // this suite under XWayland) would otherwise have the Linux selector create a Wayland window,
+    // and this test would then assert about an Xlib window that was never created (issue #155).
+    // Pinning keeps the test measuring the X11 backend specifically.
+    setenv("TESSERA_WINDOW_BACKEND", "x11", 1);
 
     const std::string title =
         "Tessera Vulkan X11 swapchain test " + std::to_string(static_cast<unsigned long>(getpid()));
@@ -114,6 +119,10 @@ int main() {
     tessera::rendering::rhi::DeviceDesc device_desc;
     device_desc.backend = tessera::rendering::rhi::Backend::Vulkan;
     device_desc.validation = true;
+    // This test presents to the X11 window it just created, so the device resolves the Xlib surface
+    // family explicitly (issue #155): on a Wayland session `Auto` would resolve to Wayland and the
+    // X11 surface would be refused, which is correct behaviour but not what this test proves.
+    device_desc.surface = tessera::rendering::rhi::SurfacePlatform::Xlib;
 
     std::unique_ptr<tessera::rendering::rhi::Device> device;
     try {

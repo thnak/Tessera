@@ -122,7 +122,21 @@ enum class WindowEventType {
     FoldChanged,
 };
 
+// The window-system family a platform window belongs to. It is the one fact the renderer needs to
+// build the matching presentation surface, and it keeps the opaque NativeWindowHandle handles
+// unambiguous: display/window mean different OS objects per family (issue #155). The "no native
+// presentation surface" enumerator is `NoWindow`, not `None`: <X11/Xlib.h> defines `None` as a
+// macro, and this header is included next to Xlib by the Linux backends.
+enum class WindowSystem : std::uint8_t {
+    NoWindow,
+    Win32,
+    Xlib,
+    Wayland,
+};
+
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.
+// Win32: `window` is the HWND, `display` is unused. X11: `display` is the Display* and `window` the
+// Window id. Wayland: `display` is the wl_display* and `window` the wl_surface*.
 struct NativeWindowHandle {
     void* display = nullptr;
     void* window = nullptr;
@@ -181,6 +195,15 @@ public:
     virtual ~Window() = default;
 
     [[nodiscard]] virtual WindowMetrics metrics() const = 0;
+
+    // The window-system family this window was created by. It tells the renderer which presentation
+    // surface to build from native_handle() without guessing from the environment, which matters on
+    // a Linux box where both X11 and Wayland are available (issue #155). The default `NoWindow` is
+    // the answer for backends with no native presentation surface (offscreen/null or a platform
+    // stub).
+    [[nodiscard]] virtual WindowSystem window_system() const noexcept {
+        return WindowSystem::NoWindow;
+    }
 
     // The refresh rate of the display the window is on, in Hz, as the platform currently reports
     // it. `kUnknownRefreshHz` (0) is the documented "unknown" answer: no display, a platform or
@@ -294,7 +317,9 @@ public:
     // harmless.
     virtual void close() = 0;
 
-    // Renderer/swapchain glue only. Win32 sets window (HWND); X11 sets display and window.
+    // Renderer/swapchain glue only. Win32 sets window (HWND); X11 sets display (Display*) and
+    // window (Window id); Wayland sets display (wl_display*) and window (wl_surface*). See
+    // WindowSystem.
     [[nodiscard]] virtual NativeWindowHandle native_handle() const {
         return {};
     }
@@ -310,6 +335,12 @@ public:
 // Creates a platform window from `desc`. Platforms without a window backend return nullptr;
 // invalid descriptors (zero size) also return nullptr. The returned window must be destroyed on
 // the thread that created it.
+//
+// Linux backend selection (issue #155): when the build has the Wayland backend and the process runs
+// under a Wayland session (`WAYLAND_DISPLAY` is set), the Wayland backend is created first; a
+// failed Wayland connection falls back to X11 when `DISPLAY` is set, so an X11 session and a CI
+// Xvfb run behave exactly as before. `TESSERA_WINDOW_BACKEND=x11|wayland` pins the backend for a
+// diagnostic or a test (no fallback). Nothing changes on Windows or macOS.
 std::unique_ptr<Window> create_window(const WindowDesc& desc);
 
 } // namespace tessera::hal

@@ -524,6 +524,21 @@ if (TESSERA_X11_FOUND)
     endif()
 endif()
 
+# Wayland window smoke (issue #155): open -> first configure -> redraw/close. Skips with a
+# diagnostic on a box without a compositor (WAYLAND_DISPLAY unset or unreachable), so the same ctest
+# entry is meaningful on a Wayland desktop, under a headless weston, and in CI where it skips.
+if (TESSERA_WAYLAND_FOUND)
+    add_executable(window_wayland_tests
+        window_wayland_tests.cpp)
+
+    target_link_libraries(window_wayland_tests PRIVATE
+        tessera_hal_window)
+
+    add_test(NAME window_wayland COMMAND window_wayland_tests)
+    set_tests_properties(window_wayland PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+endif()
+
 # The pure X11 keysym/button/modifier mapping has no Xlib dependency, so it runs on every platform.
 add_executable(x11_input_translation_tests
     x11_input_translation_tests.cpp

@@ -7,10 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-#include <X11/Xlib.h>
-#endif
-
 namespace tessera::rendering::vulkan {
 namespace {
 
@@ -104,6 +100,13 @@ void VulkanDevice::create_instance() {
     if (portability_available) {
         extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     }
+    // Presentation surface extensions (issue #155). Which family the process will actually present
+    // through is decided by `resolve_present_platform()` at device creation, but the instance is
+    // created first. A Linux build can carry Xlib and Wayland at once, and enabling an unused
+    // surface extension is harmless (it only advertises capability), so every compiled-in family
+    // that the loader actually offers is enabled here. That removes the chicken-and-egg between
+    // window creation and instance creation, and `create_swapchain` still accepts only the resolved
+    // family (see has_present_support()). Single-family platforms behave exactly as before.
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
     if (has_instance_extension(VK_KHR_SURFACE_EXTENSION_NAME) &&
         has_instance_extension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME)) {
@@ -111,11 +114,20 @@ void VulkanDevice::create_instance() {
         extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
         surface_extensions_enabled_ = true;
     }
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+#endif
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
     if (has_instance_extension(VK_KHR_SURFACE_EXTENSION_NAME) &&
         has_instance_extension(VK_KHR_XLIB_SURFACE_EXTENSION_NAME)) {
         extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
         extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+        surface_extensions_enabled_ = true;
+    }
+#endif
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    if (has_instance_extension(VK_KHR_SURFACE_EXTENSION_NAME) &&
+        has_instance_extension(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME)) {
+        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
         surface_extensions_enabled_ = true;
     }
 #endif
@@ -241,17 +253,7 @@ void VulkanDevice::pick_device() {
     std::vector<VkQueueFamilyProperties> queues(queue_count);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_count, queues.data());
 
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-    // Xlib presentation support is queried per queue family with a Display* and VisualID. The
-    // device keeps no connection, so probe with a short-lived one; a missing display leaves
-    // presentation unsupported while the offscreen device stays usable.
-    Display* probe_display = XOpenDisplay(nullptr);
-    VisualID probe_visual = 0;
-    if (probe_display != nullptr) {
-        probe_visual =
-            XVisualIDFromVisual(DefaultVisual(probe_display, DefaultScreen(probe_display)));
-    }
-#endif
+    present_platform_ = resolve_present_platform();
 
     bool found_graphics = false;
     for (std::uint32_t i = 0; i < queue_count; ++i) {
@@ -262,30 +264,16 @@ void VulkanDevice::pick_device() {
             queue_family_ = i;
             found_graphics = true;
         }
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-        // Prefer a graphics family that can also present to a Win32 surface. Presentation support
-        // is queryable before a surface exists, unlike vkGetPhysicalDeviceSurfaceSupportKHR.
-        if (vkGetPhysicalDeviceWin32PresentationSupportKHR != nullptr &&
-            vkGetPhysicalDeviceWin32PresentationSupportKHR(physical_device_, i) == VK_TRUE) {
+        // Prefer a graphics family that can also present to this device's surface family.
+        // Presentation support is queryable before a surface exists, unlike
+        // vkGetPhysicalDeviceSurfaceSupportKHR, so the run never ends up on a queue that cannot
+        // present.
+        probe_present_support(i);
+        if (has_present_support()) {
             queue_family_ = i;
-            win32_present_supported_ = true;
             break;
         }
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-        if (probe_display != nullptr && vkGetPhysicalDeviceXlibPresentationSupportKHR != nullptr &&
-            vkGetPhysicalDeviceXlibPresentationSupportKHR(physical_device_, i, probe_display,
-                                                          probe_visual) == VK_TRUE) {
-            queue_family_ = i;
-            xlib_present_supported_ = true;
-            break;
-        }
-#endif
     }
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-    if (probe_display != nullptr) {
-        XCloseDisplay(probe_display);
-    }
-#endif
     if (!found_graphics) {
         throw std::runtime_error("no graphics queue family found");
     }

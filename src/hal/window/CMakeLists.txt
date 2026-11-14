@@ -54,50 +54,77 @@ if (WIN32)
     # backdrop attribute and the frame extension of a translucent window (glass-v1.md section 6).
     target_link_libraries(tessera_hal_window PUBLIC user32 PRIVATE tessera_input imm32
         uiautomationcore dwmapi)
-elseif (TESSERA_X11_FOUND)
+elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
+    # Linux: the backend selector (window_linux.cpp) owns create_window() and Window::wait_for_events
+    # and picks X11 or Wayland per session; each backend is compiled in only when its dev packages
+    # were found, so an X11-only or Wayland-only box still builds (issue #155).
     target_sources(tessera_hal_window PRIVATE
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp
-        # Full-screen (issue #232, window-chrome-v1.md section 13): EWMH _NET_WM_STATE, outside
-        # window.cpp's size budget.
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/window_fullscreen_x11.cpp
-        # Pointer shapes (issue #191): the font-cursor cache and XDefineCursor, same reason.
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/window_cursor_x11.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_translation.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_ime_composition.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_events.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_ime.cpp)
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/window_linux.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux)
-    target_link_libraries(tessera_hal_window PUBLIC X11::X11 PRIVATE tessera_input)
-    # XInput2 (XI 2.1 smooth-scroll valuators, XI 2.2 touch, tablet pressure) needs the XInput2
-    # headers and libXi. Without them the browser-independent pure rules still compile and the
-    # window keeps the core-protocol pointer path unchanged (TESSERA_X11_XI2 undefined).
-    find_path(TESSERA_XINPUT2_INCLUDE_DIR X11/extensions/XInput2.h)
-    find_library(TESSERA_XINPUT2_LIBRARY NAMES Xi)
-    if (TESSERA_XINPUT2_INCLUDE_DIR AND TESSERA_XINPUT2_LIBRARY)
-        target_compile_definitions(tessera_hal_window PRIVATE TESSERA_X11_XI2=1)
-        target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_XINPUT2_LIBRARY})
-        message(STATUS "XInput2 found: Linux smooth scroll, touch and pen input enabled")
-    else()
-        message(STATUS "XInput2 not found: Linux input keeps the core-protocol path")
-    endif()
-    # The display-refresh query reads the active CRTC mode through RandR. Without the headers or
-    # the library the window compiles the documented "unknown" path instead (no divisor exists),
-    # which is also what a server without the extension reports at runtime.
-    find_path(TESSERA_XRANDR_INCLUDE_DIR X11/extensions/Xrandr.h)
-    find_library(TESSERA_XRANDR_LIBRARY NAMES Xrandr)
-    if (TESSERA_XRANDR_INCLUDE_DIR AND TESSERA_XRANDR_LIBRARY)
+    if (TESSERA_X11_FOUND)
+        target_compile_definitions(tessera_hal_window PRIVATE TESSERA_HAS_X11=1)
         target_sources(tessera_hal_window PRIVATE
-            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_randr.cpp)
-        target_compile_definitions(tessera_hal_window PRIVATE TESSERA_X11_RANDR=1)
-        target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_XRANDR_LIBRARY})
-        message(STATUS "Xrandr found: Linux display-refresh query enabled")
-    else()
-        message(STATUS "Xrandr not found: Linux reports the unknown display refresh")
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/window.cpp
+            # Full-screen (issue #232, window-chrome-v1.md section 13): EWMH _NET_WM_STATE, outside
+            # window.cpp's size budget.
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/window_fullscreen_x11.cpp
+            # Pointer shapes (issue #191): the font-cursor cache and XDefineCursor, same reason.
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/window_cursor_x11.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_translation.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_ime_composition.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_events.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_xi2_ime.cpp)
+        target_link_libraries(tessera_hal_window PUBLIC X11::X11 PRIVATE tessera_input)
+        # XInput2 (XI 2.1 smooth-scroll valuators, XI 2.2 touch, tablet pressure) needs the XInput2
+        # headers and libXi. Without them the browser-independent pure rules still compile and the
+        # window keeps the core-protocol pointer path unchanged (TESSERA_X11_XI2 undefined).
+        find_path(TESSERA_XINPUT2_INCLUDE_DIR X11/extensions/XInput2.h)
+        find_library(TESSERA_XINPUT2_LIBRARY NAMES Xi)
+        if (TESSERA_XINPUT2_INCLUDE_DIR AND TESSERA_XINPUT2_LIBRARY)
+            target_compile_definitions(tessera_hal_window PRIVATE TESSERA_X11_XI2=1)
+            target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_XINPUT2_LIBRARY})
+            message(STATUS "XInput2 found: Linux smooth scroll, touch and pen input enabled")
+        else()
+            message(STATUS "XInput2 not found: Linux input keeps the core-protocol path")
+        endif()
+        # The display-refresh query reads the active CRTC mode through RandR. Without the headers or
+        # the library the window compiles the documented "unknown" path instead (no divisor exists),
+        # which is also what a server without the extension reports at runtime.
+        find_path(TESSERA_XRANDR_INCLUDE_DIR X11/extensions/Xrandr.h)
+        find_library(TESSERA_XRANDR_LIBRARY NAMES Xrandr)
+        if (TESSERA_XRANDR_INCLUDE_DIR AND TESSERA_XRANDR_LIBRARY)
+            target_sources(tessera_hal_window PRIVATE
+                ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_randr.cpp)
+            target_compile_definitions(tessera_hal_window PRIVATE TESSERA_X11_RANDR=1)
+            target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_XRANDR_LIBRARY})
+            message(STATUS "Xrandr found: Linux display-refresh query enabled")
+        else()
+            message(STATUS "Xrandr not found: Linux reports the unknown display refresh")
+        endif()
+    endif()
+    if (TESSERA_WAYLAND_FOUND)
+        # xdg-shell client code, generated from wayland-protocols' XML by wayland-scanner (a build
+        # artifact: never committed, and exempt from the SPDX/format rules like other tool output).
+        tessera_add_wayland_client_protocol(
+            "${TESSERA_XDG_SHELL_XML}" xdg-shell
+            TESSERA_XDG_SHELL_HEADER TESSERA_XDG_SHELL_SOURCE)
+        target_sources(tessera_hal_window PRIVATE
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/window_wayland.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/window_wayland_dispatch.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/window_wayland_shell.cpp
+            ${TESSERA_XDG_SHELL_SOURCE})
+        target_include_directories(tessera_hal_window PRIVATE
+            ${TESSERA_WAYLAND_GENERATED_DIR}
+            ${TESSERA_WAYLAND_CLIENT_INCLUDE_DIRS})
+        target_compile_definitions(tessera_hal_window PRIVATE TESSERA_HAS_WAYLAND=1)
+        target_link_libraries(tessera_hal_window PRIVATE ${TESSERA_WAYLAND_CLIENT_LIBRARIES})
+        target_link_directories(tessera_hal_window PRIVATE ${TESSERA_WAYLAND_CLIENT_LIBRARY_DIRS})
+        message(STATUS "Wayland window backend enabled: Linux Wayland windows and xdg-shell")
     endif()
 else()
     target_sources(tessera_hal_window PRIVATE
