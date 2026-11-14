@@ -106,7 +106,7 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.width = static_cast<float>(metrics.logical_width);
     config.height = static_cast<float>(metrics.logical_height);
     config.dpi_scale = metrics.dpi_scale;
-    config.text_measurer = options.text_measurer;
+    config.text_measurer = detail::layout_measurer(options.text_measurer, *text);
     config.reduced_motion = system_prefers_reduced_motion();
     config.pipeline = window_pipeline_config(options.runtime);
     config.adaptive_quality = window_adaptive_quality_policy(options.runtime, options.refresh_hz);
@@ -317,12 +317,12 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         renderer->set_content_scale(adaptive.content_scale_x, adaptive.content_scale_y);
     }
     sink->begin_text_frame();
-    // Swapchain images are not preserved across presents, so a presented frame is a full redraw;
-    // the damage plan only decided whether this frame happens at all. The glass cost limits are the
-    // ones the style sync clamped the blur sigma with, so paint, damage and the renderer agree.
+    // A presented frame is a full redraw (swapchain images are not preserved); glass limits are the
+    // style sync's.
     ui::paint::PaintContext context;
     context.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
     context.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
+    context.text_metrics_source = text->paint_metrics.get();
     ui::paint::paint_scene(root, host->styles(), *sink, context);
     renderer->end();
     if (offscreen) {

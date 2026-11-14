@@ -61,7 +61,7 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
     config.width = static_cast<float>(options.width);
     config.height = static_cast<float>(options.height);
     config.dpi_scale = options.dpi_scale;
-    config.text_measurer = options.text_measurer;
+    config.text_measurer = detail::layout_measurer(options.text_measurer, text);
     AppHost host(root, std::move(sheet), loop, config);
     if (options.scheduler != nullptr) {
         host.set_update_scheduler(options.scheduler);
@@ -82,7 +82,11 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
     auto commands = device->create_command_list();
     renderer.begin(*commands, *target, desc);
     sink.begin_text_frame();
-    ui::paint::paint_scene(root, host.styles(), sink);
+    // The captured frame paints through the same face layout measured with (issue #314); capturing
+    // against the stub line boxes is what made the gallery goldens show a 1-3px shortfall.
+    ui::paint::PaintContext paint_context;
+    paint_context.text_metrics_source = text.paint_metrics.get();
+    ui::paint::paint_scene(root, host.styles(), sink, paint_context);
     renderer.end();
     commands->submit();
 

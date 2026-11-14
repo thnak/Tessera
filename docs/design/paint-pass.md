@@ -439,7 +439,9 @@ With real metrics, a line is never wider than the content box except when a sing
 is wider than the box; under-fill is bounded by the last word that did not fit plus one inter-word
 advance. Alignment uses the measured line width and paint-time integer snapping is unchanged. Paint
 emits the source's line boxes verbatim; the GPU test asserts paint lines equal
-`FontPaintTextMetrics::layout`, center alignment and wrapped pixels.
+`FontPaintTextMetrics::layout`, center alignment and wrapped pixels. The app window and the windowless
+capture install `FontPaintTextMetrics` (id 1) on the same face that backs layout's `FontTextMeasurer`
+(issue #314), so measured advance, line boxes and emitted glyphs come from one face.
 
 Measurements (`paint_text_gpu_tests --bench`, Debug): stub ~200.8 us, real-metrics ~13.2 ms
 (per-word HarfBuzz shaping), real-source cache hit ~1.0 us; faster real-metric measuring stays
@@ -453,10 +455,9 @@ replay of multiple lines, env-free `--bench` measurement) and the extended `pain
 (wrapped fixture paragraph: several line bands inside the padded content box, background outside,
 byte-identical repeat, sRGB target). No new image golden: the CPU canvas cannot rasterize text, so
 wrapped-text pixels remain covered by the deterministic GPU readback test (GPU-only, documented).
-
-Deferrals: bidi/SheenBidi, ICU line breaking, hyphenation, rich text/inline images, ellipsis and
-overflow markers, text selection/editing, vertical content-box clipping (use an `overflow`
-clip), and percentage padding.
+Further deferrals: bidi/SheenBidi, ICU line breaking, hyphenation, rich text/inline images, ellipsis
+and overflow markers, text selection/editing, vertical content-box clipping (use an `overflow` clip),
+and percentage padding.
 
 ## 11. Embedded vector assets (D10)
 

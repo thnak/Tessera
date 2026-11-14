@@ -1224,6 +1224,15 @@ target_link_libraries(freetype_metrics_tests PRIVATE tessera_text)
 
 add_test(NAME freetype_metrics COMMAND freetype_metrics_tests "${TESSERA_FONT_FIXTURE}")
 
+# Issue #314: a content-sized text box must agree with the glyph ink it contains. Installs the
+# real-face measurer the app window and frame capture use, so layout and paint share one face.
+add_executable(text_measure_paint_tests
+    text_measure_paint_tests.cpp)
+
+target_link_libraries(text_measure_paint_tests PRIVATE tessera_layout tessera_text)
+
+add_test(NAME text_measure_paint COMMAND text_measure_paint_tests "${TESSERA_FONT_FIXTURE}")
+
 add_executable(glyph_raster_tests
     glyph_raster_tests.cpp)
 
